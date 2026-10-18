@@ -6076,7 +6076,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "skin_error_tag",
         values: &[
-            "arc_weight_not_a_point",
+            "arc_sweep_undecided",
             "bad_degree",
             "degenerate_section",
             "domain_not_unit",

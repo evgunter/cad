@@ -1252,9 +1252,9 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// **Nothing here composes prose about why a placement or a hide
 /// went.** Each entry carries the [`AdmissionFault`] the prune
 /// discarded on, and this renders it through its own `Display` — the rule the
-/// rest of the crate follows. So the commonest arm names the mates and
-/// the remedy (`MateConstrained`: *delete the mate(s) if free relative
-/// motion is intended*), a fuse names the product and the instances
+/// rest of the crate follows. So the commonest arm names where the copy
+/// lives and why the probe cannot move it (`InTheWorld`: *its placement
+/// pins it there … free-move moves a loose space*), a fuse names the product and the instances
 /// fused into it, and a deleted instance says the document does not
 /// hold the node — which is the delete arm's whole point, since the id
 /// alone names something the tree no longer draws without saying that
@@ -1481,6 +1481,15 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
         .chain(placed.iter().filter_map(place_notice))
 }
 
+/// **What a landing's prune withdrew, as notices** — the same notices
+/// [`outcome_notices`] words an operation's [`OpOutcome::withdrawn`]
+/// into ([`crate::session::DocSession::take_landed_withdrawals`]).
+pub fn withdrawal_notices(
+    report: &crate::display::PruneReport,
+) -> impl Iterator<Item = Message> + '_ {
+    Withdrawal::all(report).map(|withdrawal| withdrawal.notice())
+}
+
 /// **How a place gesture placed its copy, as a notice**, or `None` for
 /// the gesture's ordinary answer: a plane mate on the copy's planar
 /// face, whose values move it. A copy with no planar face is pinned,
@@ -1564,7 +1573,10 @@ impl core::fmt::Display for Withdrawal<'_> {
             AdmissionFault::FusedGeometry { .. } => true,
             AdmissionFault::NoSuchNode { .. }
             | AdmissionFault::NotAnInstance { .. }
-            | AdmissionFault::MateConstrained { .. } => false,
+            | AdmissionFault::InTheWorld { .. }
+            | AdmissionFault::NotEvaluated { .. }
+            | AdmissionFault::NoSpace { .. }
+            | AdmissionFault::MovedSpace { .. } => false,
         };
         // The two kinds that are over a SET word themselves by
         // counting it. The third is over the one gesture that can be
@@ -3635,32 +3647,17 @@ mod tests {
         Withdrawal::dropped_hide(withdrawn).map(|withdrawal| withdrawal.to_string())
     }
 
-    /// A constraint numbered `n`, held by placement `n + 100`, as a
-    /// [`AdmissionFault::MateConstrained`] lists it.
-    fn constraint_of(n: u64) -> (pncad::document::SpokenNode, pncad::document::ConstraintId) {
-        (
-            crate::test_support::spoken(
-                RecipeNodeId::new(0, test_utils::refusal::tagged(n + 100)),
-                Some("Place"),
-            ),
-            pncad::document::ConstraintId(pncad::document::MintId::new(
-                0,
-                test_utils::refusal::tagged(n),
-            )),
-        )
-    }
-
-    /// A withdrawal on `instance`, mate-constrained by `mates` — the
-    /// commonest arm, and the one whose `Display` carries a remedy.
-    fn constrained(instance: u64, mates: &[u64]) -> Withdrawn {
+    /// A withdrawal on `instance`, whose copy a placement now pins to the
+    /// world — the commonest arm under DI5, and the one whose `Display`
+    /// says why the probe cannot move it.
+    fn pinned(instance: u64) -> Withdrawn {
         Withdrawn {
             instance: RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
-            cause: AdmissionFault::MateConstrained {
+            cause: AdmissionFault::InTheWorld {
                 instance: crate::test_support::spoken(
                     RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
                     Some("InstantiatePart"),
                 ),
-                mates: mates.iter().map(|&mate| constraint_of(mate)).collect(),
             },
         }
     }
@@ -3672,7 +3669,7 @@ mod tests {
         // which supersedes is one the document ACCEPTED, so the frame's
         // own batch verdict is `Clear` — a supersession written to the
         // line instead of to the notices is erased by its own cause.
-        let notice = superseded_text(&[constrained(7, &[9])]).expect("a supersession is news");
+        let notice = superseded_text(&[pinned(7)]).expect("a supersession is news");
         assert!(
             notice.contains("InstantiatePart 000000000007"),
             "the notice names which of the user's placements went, as the \
@@ -3688,7 +3685,7 @@ mod tests {
              that, the composition below would be asserting about a case \
              where nothing had to survive anything"
         );
-        let message = Withdrawal::superseded(&[constrained(7, &[9])])
+        let message = Withdrawal::superseded(&[pinned(7)])
             .expect("a supersession is news")
             .notice();
         assert_eq!(
@@ -3709,23 +3706,23 @@ mod tests {
     #[test]
     fn a_supersession_says_the_cause_in_the_faults_own_words() {
         // The whole point of carrying the fault rather than the id: the
-        // sentence names the mates AND the remedy, and neither string
-        // is written here — both come from `AdmissionFault`'s `Display`.
-        let cause = AdmissionFault::MateConstrained {
+        // sentence names where the copy lives AND what the probe moves,
+        // and neither string is written here — both come from
+        // `AdmissionFault`'s `Display`.
+        let cause = AdmissionFault::InTheWorld {
             instance: crate::test_support::spoken(
                 RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
                 Some("InstantiatePart"),
             ),
-            mates: vec![constraint_of(5)],
         };
-        let notice = superseded_text(&[constrained(3, &[5])]).expect("news");
+        let notice = superseded_text(&[pinned(3)]).expect("news");
         assert!(
             notice.ends_with(&cause.to_string()),
             "the fault renders itself, verbatim: {notice}"
         );
         assert!(
-            notice.contains("delete the mate(s)"),
-            "so the remedy the typed value already knew reaches the line: {notice}"
+            notice.contains("Free-move moves a loose space"),
+            "so what the typed value already knew reaches the line: {notice}"
         );
 
         // The delete arm, which is the other thing the bare id could
@@ -3788,9 +3785,7 @@ mod tests {
         // Both facts can arrive on one frame, and they are ranked
         // together as two notices rather than merged into one claim.
         let notices = [
-            Withdrawal::superseded(&[constrained(7, &[9])])
-                .expect("news")
-                .notice(),
+            Withdrawal::superseded(&[pinned(7)]).expect("news").notice(),
             Message::new(Subject::Document, notice.clone(), Retold::Again),
         ];
         let RankedVerdict::Show(shown) = frame_status(&notices, &[SessionOp::Undo], None) else {
@@ -3870,19 +3865,16 @@ mod tests {
         // several probes (a mate lands on two probed instances, a
         // delete takes a subtree), and each is an instance the user
         // placed by hand and no longer has.
-        let one = superseded_text(&[constrained(3, &[5])]).expect("one supersession is news");
-        let (placement, _) = constraint_of(5);
+        let one = superseded_text(&[pinned(3)]).expect("one supersession is news");
         assert_eq!(
             one,
-            format!(
-                "free move: a committed placement was discarded — \
-                 InstantiatePart 000000000003 is mate-constrained (a constraint of \
-                 {placement}): its pose is mate-derived, so the free-move probe refuses — \
-                 delete the mate(s) if free relative motion is intended"
-            )
+            "free move: a committed placement was discarded — \
+             InstantiatePart 000000000003 lives in the world's space: its placement pins it \
+             there (a world pin, or a mate onto a copy in the world), so the free-move probe \
+             refuses. Free-move moves a loose space, a copy nothing pins to the world"
         );
 
-        let two = [constrained(3, &[5]), constrained(11, &[5])];
+        let two = [pinned(3), pinned(11)];
         let both = superseded_text(&two).expect("two supersessions are still news");
         assert_eq!(
             both,
@@ -3903,7 +3895,7 @@ mod tests {
 
     #[test]
     fn a_killed_gesture_is_its_own_sentence_and_has_no_plural() {
-        let killed = constrained(3, &[5]);
+        let killed = pinned(3);
         let notice = Withdrawal::killed_gesture(Some(&killed))
             .expect("a drag the document ended is news")
             .to_string();
@@ -3962,9 +3954,9 @@ mod tests {
     #[test]
     fn every_withdrawal_kind_has_a_producer() {
         let report = PruneReport {
-            superseded: vec![constrained(7, &[9])],
-            dropped_hides: vec![constrained(11, &[9])],
-            killed_gesture: Some(constrained(3, &[5])),
+            superseded: vec![pinned(7)],
+            dropped_hides: vec![pinned(11)],
+            killed_gesture: Some(pinned(3)),
         };
         let produced: Vec<WithdrawalKind> = Withdrawal::all(&report)
             .map(|withdrawal| withdrawal.kind)
