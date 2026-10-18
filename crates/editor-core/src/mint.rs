@@ -874,7 +874,7 @@ mod tests {
     }
 
     /// **The mint's bytes are frozen**: one fixture edit — a unit
-    /// square on plane 0, inserted into the empty document — mints this
+    /// square on its own plane, inserted into the empty document — mints this
     /// node id and these first and last of its five step ids, and leaves
     /// this chain. A change to the preimage's shape, its serde form,
     /// the tags or the id's form re-mints every id every saved log
@@ -909,10 +909,10 @@ mod tests {
         );
     }
 
-    const PIN_NODE: &str = "1:3891bf6f915959d8";
-    const PIN_FIRST: &str = "2:b44f6e15ece0cab7";
-    const PIN_LAST: &str = "6:8c2dcbfc1bd2df19";
-    const PIN_CHAIN: &str = "8c2dcbfc1bd2df19e446f386e23b0310cb4485596bbc3701844ffcd33b3d94c8";
+    const PIN_NODE: &str = "1:5477de21201adbb2";
+    const PIN_FIRST: &str = "2:3e43cddf2fab65c3";
+    const PIN_LAST: &str = "6:3bf5529b4bc59ddb";
+    const PIN_CHAIN: &str = "3bf5529b4bc59ddb606975d29e455c523039e6fb80bd22d4f640ee472e351c5f";
 
     const LEN: VarKind = VarKind::Length;
 

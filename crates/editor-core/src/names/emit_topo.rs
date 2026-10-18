@@ -5902,8 +5902,6 @@ mod nurbs_crossings_rank_by_parameter {
     pub(super) fn wavy(a: f64) -> (RecipeNodeId, crate::eval::NodeValue<f64>, NameTable) {
         let mut doc = ProfileDoc::empty(DocumentId::derive("nurbs-crossings"), Tol::witness());
         let mut profiles = Vec::new();
-        // D-LOFT: the sections stood at z = 0, 1, 2, 3 on their frames;
-        // where a 2-D section stands in a loft waits on the ruling.
         for dx in [-a, a, -a, a] {
             let square = [
                 (dx - 1.0, -1.0),
@@ -5921,10 +5919,24 @@ mod nurbs_crossings_rank_by_parameter {
             doc = d;
             profiles.push(profile);
         }
+        // Each later section stands `k` up the first's own z.
+        let mut sections = profiles.into_iter();
+        let first = sections.next().expect("four sections");
+        let then = (1u32..)
+            .zip(sections)
+            .map(|(k, profile)| crate::node::LoftSection {
+                profile: profile.into(),
+                station: vec![crate::node::StationMove::Slide {
+                    along: crate::node::Axis3::Z,
+                    by: crate::test_support::len(f64::from(k)),
+                }],
+            })
+            .collect();
         let (doc, loft) = ins(
             doc,
             Node::Loft {
-                profiles: profiles.into_iter().map(Into::into).collect(),
+                first: first.into(),
+                then,
                 v_degree: Formula::count(2),
             },
         );
