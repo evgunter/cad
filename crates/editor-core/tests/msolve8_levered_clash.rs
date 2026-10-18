@@ -599,11 +599,12 @@ fn c2_parallel_boundary_direct() {
                     ) {
                         Ok(Subgroup::Planar { .. }) => "parallel",
                         Ok(Subgroup::Prismatic { direction }) => {
-                            let line = n1.get().cross(n2.get()) * arm;
+                            let line = n1.get().cross(n2.get());
                             assert_eq!(
                                 bits3(direction.get()),
                                 bits3(line.normalize()),
-                                "the line is the levered cross product's own normalize"
+                                "the line is the cross product's own normalize, the arm in \
+                                 the decision alone"
                             );
                             "line"
                         }

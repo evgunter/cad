@@ -1,320 +1,133 @@
-//! **INTENT stage 4 PR H — a mate-placed face is structural**
-//! (`docs/INTENT-STAGE4-SPEC.md` §9; D10 `[placement.placement]`: "a
-//! placed copy's frame … is the construction its bundle states, which
-//! the coincidence door replays like any other").
+//! **INTENT stage 4 PR H — a placed copy is the construction its bundle
+//! states** (`docs/INTENT-STAGE4-SPEC.md` §9; D10
+//! `[placement.placement]`), so the coincidence door reads a copy's
+//! carriers off the fold as the replay at `Sym` runs it. The fold's
+//! arithmetic must keep a form the symbolic tier can read: no value
+//! computed apart from the poses in a map, and no guard the tier
+//! cannot see through in a pose's frame.
 
-#![allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    clippy::result_large_err
-)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{self, ang, len};
-use editor_core::pose::{PoseDef, PoseRole, RoleRead};
-use editor_core::{
-    BodyRead, ContactClass, Coord, DocEdit, EvalOptions, ExtrudeSide, Formula, Mate, MateRef, Node,
-    Operand, ProfileDoc, RecipeNodeId, RefusingReach, SlideAxis, StableName, Target, Value,
+use editor_core::PoseValue;
+use editor_core::mate::coset::{Arm, Subgroup, intersect_subgroups};
+use editor_core::mate::mate_coset;
+use geom_core::linalg::{Mat3, Point3, UnitVec3, Vec3};
+use geom_core::{Band, Decide, ParamSymbol, Real, Sym, SymBudget, Tol};
+
+type S = Sym<f64>;
+
+fn band() -> Band {
+    Band::linear(Tol::witness()).expect("a band")
+}
+
+/// The door's own budget.
+const BUDGET: SymBudget = SymBudget {
+    max_terms: 256,
+    max_degree: 128,
 };
-use geom_core::Tol;
 
-/// A box `size` on a side at `origin`, extruded from a plane parallel
-/// to the world xy plane.
-fn a_box(doc: ProfileDoc, origin: [f64; 3], size: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, profile) = fixture::on_frame(
-        doc,
-        origin,
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(0.0, 0.0), (size, 0.0), (size, size), (0.0, size)]],
-    );
-    fixture::insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(size),
-            side: ExtrudeSide::Along,
-        },
-    )
+fn sym(key: u64, value: f64) -> S {
+    Sym::param(ParamSymbol::new(key), value)
 }
 
-/// The face of `node`'s value whose outward normal is `n`.
-fn face_toward(doc: &ProfileDoc, node: RecipeNodeId, n: [f64; 3]) -> StableName {
-    let ev = fixture::run(doc, &EvalOptions::default());
-    editor_core::all_faces(&ev, node)
-        .into_iter()
-        .find(|name| {
-            let at = editor_core::face_frame(&ev, node, name).expect("a face's frame");
-            let s = if at.sense { 1.0 } else { -1.0 };
-            let normal = at.axis * s;
-            (normal - geom_core::linalg::Vec3::new(n[0], n[1], n[2])).norm() < 1e-9
-        })
-        .unwrap_or_else(|| panic!("no face faces {n:?}"))
+/// A unit direction over three symbols of its own, `key..key + 3`, at
+/// `at`.
+fn direction(key: u64, at: [f64; 3]) -> UnitVec3<S> {
+    let v = Vec3::new(sym(key, at[0]), sym(key + 1, at[1]), sym(key + 2, at[2]));
+    UnitVec3::new(v, "s4h_direction", band()).expect("a direction")
 }
 
-fn pose(def: PoseDef<Operand, Formula>) -> Operand {
-    Operand::Pose(Box::new(def))
+/// Whether `x` decides Zero as a theorem.
+fn identically_zero(x: S) -> bool {
+    let decided = x.sign_within(band()).expect("decides");
+    decided.sign == geom_core::Sign::Zero && decided.margin.proven()
 }
 
-fn plane_of(face: Operand) -> Operand {
-    pose(PoseDef::Plane { face })
+/// Each defect of `m`'s orthonormality, by name, that the tier does not
+/// prove zero.
+fn unproven_orthonormality(m: Mat3<S>) -> Vec<&'static str> {
+    let one = S::one();
+    [
+        ("c0·c0 − 1", m.c0.dot(m.c0) - one),
+        ("c1·c1 − 1", m.c1.dot(m.c1) - one),
+        ("c2·c2 − 1", m.c2.dot(m.c2) - one),
+        ("c0·c1", m.c0.dot(m.c1)),
+        ("c1·c2", m.c1.dot(m.c2)),
+        ("c0·c2", m.c0.dot(m.c2)),
+    ]
+    .into_iter()
+    .filter(|&(_, x)| !identically_zero(x))
+    .map(|(what, _)| what)
+    .collect()
 }
 
-fn flipped(p: Operand) -> Operand {
-    pose(PoseDef::Flip {
-        pose: RoleRead::plain(p),
-    })
-}
-
-fn placed(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
-    fixture::insert(
-        doc,
-        Node::place(vec![BodyRead::plain(Operand::output(body, 0))]),
-    )
-}
-
-fn add_value(doc: ProfileDoc, at: MateRef, coord: Coord, by: Formula) -> ProfileDoc {
-    doc.apply(
-        &DocEdit::AddValue {
-            placement: at.placement,
-            value: Box::new(Value {
-                mate: at.id,
-                coord,
-                by,
-            }),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-        &RefusingReach,
-    )
-    .expect("the plane mate leaves the freedom")
-    .doc
-}
-
-/// **A stack**: a block standing where its body stands, and a smaller
-/// box resting on its top by a plane mate, slid and spun by values.
-fn stack(slide: [f64; 2], spin: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, MateRef) {
-    let doc = ProfileDoc::empty_derived("s4h_stack", Tol::witness());
-    let (doc, block) = a_box(doc, [0.0, 0.0, 0.0], 1.0);
-    let (doc, top) = a_box(doc, [5.0, 0.0, 0.0], 0.5);
-    let (doc, under) = placed(doc, block);
-    let doc = fixture::pinned(doc, under, &EvalOptions::default());
-    let (doc, over) = placed(doc, top);
-    let block_top = face_toward(&doc, under, [0.0, 0.0, 1.0]);
-    let bottom = face_toward(&doc, top, [0.0, 0.0, -1.0]);
-    let (doc, mate) = fixture::constrain_at(
-        doc,
-        over,
-        Mate {
-            on: plane_of(Operand::select(Operand::output(top, 0), vec![bottom])),
-            to: Target::Pose(flipped(plane_of(Operand::select(
-                Operand::output(under, 0),
-                vec![block_top],
-            )))),
-            class: ContactClass::Rest,
-        },
-    );
-    let doc = add_value(doc, mate, Coord::Slide(SlideAxis::X), len(slide[0]));
-    let doc = add_value(doc, mate, Coord::Slide(SlideAxis::Y), len(slide[1]));
-    let doc = add_value(doc, mate, Coord::Spin, ang(spin));
-    (doc, under, over, mate)
-}
-
+/// **A pose's frame is orthonormal as a polynomial identity.** A plane
+/// over a symbolic normal on either side of the equator (aimed from `z`
+/// above it, from `−z` below), mated onto from the plane through the
+/// origin normal to `z`: the coset's representative is the plane's own
+/// frame, and the tier proves its columns orthonormal at the door's own
+/// budget, so a seat read through it keeps a form the door can read.
+/// Mated onto that plane instead, the representative is the frame's
+/// inverse, which is orthonormal by the same identities.
+///
+/// Red if the frame's in-plane basis is chosen by a guard the tier
+/// keeps as an atom (a `select` on `|z|` against `|x|`, a `max` of
+/// norms).
 #[test]
-fn measure_a_pinned_stack_at_sym() {
-    let doc = ProfileDoc::empty_derived("s4h_pinned", Tol::witness());
-    let (doc, block) = a_box(doc, [0.0, 0.0, 0.0], 1.0);
-    let (doc, top) = a_box(doc, [0.2, 0.2, 1.0], 0.5);
-    let (doc, under) = placed(doc, block);
-    let doc = fixture::pinned(doc, under, &EvalOptions::default());
-    let (doc, over) = placed(doc, top);
-    let doc = fixture::pinned(doc, over, &EvalOptions::default());
-    let ev = fixture::run(&doc, &EvalOptions::default());
-    let report = editor_core::run_checks(
-        &doc,
-        &ev,
-        &editor_core::ChecksConfig::default(),
-        Tol::witness(),
-    )
-    .expect("the checks run");
-    eprintln!("pinned: {report}");
-    probe(&doc, under, over);
-}
-
-#[test]
-fn measure_a_stack_at_sym() {
-    let _ = PoseRole::Xy;
-    for (slide, spin) in [([0.0, 0.0], 0.0), ([0.1, 0.2], 0.0), ([0.1, 0.2], 0.3)] {
-        let (doc, _under, _over, mate) = stack(slide, spin);
-        let ev = fixture::run(&doc, &EvalOptions::default());
-        let report = editor_core::run_checks(
-            &doc,
-            &ev,
-            &editor_core::ChecksConfig::default(),
-            Tol::witness(),
-        )
-        .expect("the checks run");
-        eprintln!("slide {slide:?} spin {spin}: mate {mate:?}\n{report}");
-        probe(&doc, _under, _over);
+fn a_poses_frame_is_orthonormal_as_a_polynomial_identity() {
+    for (key, at) in [(10, [0.2, 0.1, 0.9]), (20, [0.1, -0.3, -0.8])] {
+        let (unproven, _) = geom_core::sym::with_session(BUDGET, || {
+            let plane = PoseValue::Plane {
+                origin: Point3::new(sym(key + 5, 0.0), sym(key + 6, 0.0), sym(key + 7, 0.0)),
+                normal: direction(key, at),
+            };
+            let z = PoseValue::Plane {
+                origin: Point3::origin(),
+                normal: UnitVec3::exact_z(),
+            };
+            [
+                unproven_orthonormality(mate_coset(&z, &plane).representative.linear),
+                unproven_orthonormality(mate_coset(&plane, &z).representative.linear),
+            ]
+        });
+        assert_eq!(
+            unproven,
+            [Vec::<&str>::new(), Vec::new()],
+            "the frame over {at:?}, and its inverse: defects not proven"
+        );
     }
 }
 
-fn probe(doc: &ProfileDoc, under: RecipeNodeId, over: RecipeNodeId) {
-    use editor_core::{EntityKey, EntityRef, Entry};
-    use geom_core::sym::deferred;
-    let top_name = face_toward(doc, under, [0.0, 0.0, 1.0]);
-    let bottom_name = face_toward(doc, over, [0.0, 0.0, -1.0]);
-    let under_v = doc.output(under, 0).unwrap();
-    let over_v = doc.output(over, 0).unwrap();
-    let symbols = EvalOptions {
-        symbols: true,
-        ..EvalOptions::default()
-    };
-    let terms: usize = std::env::var("S4H_TERMS")
-        .ok()
-        .and_then(|t| t.parse().ok())
-        .unwrap_or(256);
-    let (out, counts) = geom_core::sym::deferred::with_deferred_session(
-        geom_core::SymBudget {
-            max_terms: terms,
-            max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
-        },
-        geom_core::SymRules::shipped(),
-        editor_core::drive::DEFAULT_SYM_RETRY,
-        || {
-            let o = &symbols;
-            let ev: editor_core::Evaluation<geom_core::Sym<f64>> = editor_core::evaluate(
-                doc,
-                None,
-                &editor_core::CancelToken::new(),
-                o,
-                Tol::witness(),
-            );
-            let face = |v, name: &StableName| {
-                let Some(Entry::Unique(EntityRef {
-                    body,
-                    key: EntityKey::Face(f),
-                })) = ev.table(v).and_then(|t| t.lookup(name))
-                else {
-                    panic!(
-                        "no face {name:?} at {v:?}: {:?}",
-                        ev.result(doc.operation_of(v).unwrap())
-                    );
-                };
-                (ev.read_body(v, *body).unwrap().unwrap().clone(), *f)
-            };
-            let (a, fa) = face(under_v, &top_name);
-            let (b, fb) = face(over_v, &bottom_name);
-            let band = geom_core::Band::linear(Tol::witness()).unwrap();
-            match topo::boolean::carrier_pair_decided(&a, fa, &b, fb, band) {
-                Ok(Ok((rel, Some(m)))) => format!(
-                    "{rel:?}: {:?} {:?}\n{}",
-                    deferred::discharge_or_why(m),
-                    deferred::dag_size(m),
-                    deferred::render(m).join("\n---\n")
-                ),
-                other => format!("{other:?}"),
-            }
-        },
+/// **The line two planes meet in carries no lever arm.** Two planar
+/// residuals over symbolic normals meet in a prismatic one; its
+/// direction is the normalised cross product of the two normals and
+/// nothing else, so a fold's map built along it is a function of its
+/// poses alone, and the arm stays inside the decision it levers.
+///
+/// Red if the line is minted from the cross product levered by the arm
+/// (opaque at `Sym`): the difference then keeps the arm's atom.
+#[test]
+fn the_line_two_planes_meet_in_carries_no_lever_arm() {
+    let (residual, _) = geom_core::sym::with_session(BUDGET, || {
+        let (n1, n2) = (
+            direction(30, [0.0, 0.1, 1.0]),
+            direction(40, [1.0, 0.2, 0.1]),
+        );
+        let arm = Arm::of(1.0, 2.0).expect("an arm in range");
+        let Ok(Subgroup::Prismatic { direction }) = intersect_subgroups(
+            Subgroup::Planar { normal: n1 },
+            Subgroup::Planar { normal: n2 },
+            band(),
+            arm,
+        ) else {
+            panic!("two planes at a definite angle meet in a line");
+        };
+        let line = n1.get().cross(n2.get()).normalize();
+        let d = direction.get() - line;
+        [d.x, d.y, d.z].map(identically_zero)
+    });
+    assert_eq!(
+        residual, [true; 3],
+        "the line is the normals' cross product normalised"
     );
-    eprintln!("probe: {out} ({counts:?})");
-}
-
-/// Debug: the carrier verdict on an at-rest row's two cells at `Sym`.
-pub(crate) fn render_row(
-    doc: &ProfileDoc,
-    resolver: Option<std::sync::Arc<dyn editor_core::PartResolver>>,
-    row: &editor_core::NamedCoincidence,
-) {
-    use editor_core::{EntityKey, EntityRef, Entry, NamedCell};
-    use geom_core::sym::deferred;
-    let symbols = EvalOptions {
-        symbols: true,
-        resolver,
-        ..EvalOptions::default()
-    };
-    let terms: usize = std::env::var("S4H_TERMS")
-        .ok()
-        .and_then(|t| t.parse().ok())
-        .unwrap_or(256);
-    let (out, counts) = geom_core::sym::deferred::with_deferred_session(
-        geom_core::SymBudget {
-            max_terms: terms,
-            max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
-        },
-        geom_core::SymRules::shipped(),
-        editor_core::drive::DEFAULT_SYM_RETRY,
-        || {
-            let ev: editor_core::Evaluation<geom_core::Sym<f64>> = editor_core::evaluate(
-                doc,
-                None,
-                &editor_core::CancelToken::new(),
-                &symbols,
-                Tol::witness(),
-            );
-            let face = |cell: &NamedCell| {
-                let NamedCell::Entity { input, name } = cell else {
-                    panic!("{cell:?}")
-                };
-                let Some(Entry::Unique(EntityRef {
-                    body,
-                    key: EntityKey::Face(f),
-                })) = ev.table(*input).and_then(|t| t.lookup(name))
-                else {
-                    panic!("no face {name:?}");
-                };
-                (ev.read_body(*input, *body).unwrap().unwrap().clone(), *f)
-            };
-            let (a, fa) = face(&row.cells[0]);
-            let (b, fb) = face(&row.cells[1]);
-            let band = geom_core::Band::linear(Tol::witness()).unwrap();
-            use geom_core::Decide;
-            if let (
-                Some(topo::boolean::CarrierDesc::Plane { origin: oa, normal: na }),
-                Some(topo::boolean::CarrierDesc::Plane { origin: ob, normal: nb }),
-            ) = (topo::boolean::face_carrier(&a, fa), topo::boolean::face_carrier(&b, fb))
-            {
-                let check = |what: &str, x: geom_core::Sym<f64>| {
-                    let d = x.sign_within(band).expect("decides");
-                    eprintln!(
-                        "  {what}: {:?} {:?} {:?} {:?}",
-                        x.value,
-                        d.sign,
-                        deferred::discharge_or_why(d.margin),
-                        deferred::dag_size(d.margin)
-                    );
-                    if std::env::var("S4H_RENDER").is_ok() {
-                        eprintln!("    {}", deferred::render(d.margin).join(" | "));
-                    }
-                };
-                for (k, (body, label)) in [(&a, "copy"), (&b, "target")].into_iter().enumerate() {
-                    for f in body.faces().map(|(f, _)| f) {
-                        if let Some(topo::boolean::CarrierDesc::Plane { normal, .. }) =
-                            topo::boolean::face_carrier(body, f)
-                        {
-                            check(
-                                &format!("{k} {label} face {f:?} n.n-1"),
-                                normal.dot(normal) - <geom_core::Sym<f64> as geom_core::Real>::one(),
-                            );
-                        }
-                    }
-                }
-                check("nx", na.x + nb.x);
-                check("ny", na.y + nb.y);
-                check("nz", na.z + nb.z);
-                check("na.na-1", na.dot(na) - <geom_core::Sym<f64> as geom_core::Real>::one());
-                check("nb.nb-1", nb.dot(nb) - <geom_core::Sym<f64> as geom_core::Real>::one());
-                check("offset", (ob - oa).dot(na));
-            }
-            match topo::boolean::carrier_pair_decided(&a, fa, &b, fb, band) {
-                Ok(Ok((rel, Some(m)))) => format!(
-                    "{rel:?}: {:?} {:?}",
-                    deferred::discharge_or_why(m),
-                    deferred::dag_size(m),
-                ),
-                other => format!("{other:?}"),
-            }
-        },
-    );
-    eprintln!("render: {out} ({counts:?})");
 }

@@ -829,21 +829,29 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
 
 // ---- What a record cites ----
 
-/// **A mate's record cites the at-rest census's decision, and the lint
-/// reports it** (D10: a mate places and never checks; D1 (ii): a record
-/// cites its decision). The stand's one patch cites row 0 of the
-/// product's rows, the census's `SameOpposite` decision of the two
-/// seated caps, kept beside the mate whose pair it decided; and
-/// `unproven-coincidence` reports that row against the mate, since no
-/// rung proves two placed copies' faces one construction yet. Red if
-/// the mint makes a record citing nothing the product holds, or the
-/// lint stays silent about the census's row.
+/// **A mated record cites the census's row, and the lint replays it.**
+/// Two cubes of one part, the second rested on the first by a plane
+/// mate and its three values: the product holds one face–face record,
+/// citing its row 0, the at-rest census's decision that the two seated
+/// caps rest on one carrier, kept beside the mate whose pair it
+/// decided. The row names each cap in its copy, as that instance's
+/// output names it. `unproven-coincidence` reports the row against the
+/// mate: the door replays both copies at `Sym`, the fold placing the
+/// second, and reads the carrier verdict on the two caps, which the
+/// tier does not prove within the door's budget while each cap's frame
+/// holds six component symbols
+/// (`work/intent/a-mate-placed-seat-is-unproven-at-the-doors-budget.md`),
+/// so the row is a coincidence of values as far as the door can tell.
+///
+/// Red if the mint makes a record citing nothing the product holds,
+/// names a cap anywhere but in its copy, or the door leaves the row
+/// unreplayed (no part across the seam, or no census row read off the
+/// replay's copies).
 #[test]
-fn a_mated_record_cites_the_census_row_the_lint_reports() {
+fn a_mated_record_cites_the_census_row_the_lint_replays() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-cites-cube"), Tol::witness());
-    let (stand, _, mate) = stand("mate6-cites-stand", part, body, 0.0, &store);
-    let store_dbg = store.clone();
+    let (stand, ids, mate) = stand("mate6-cites-stand", part, body, 0.0, &store);
     let ev = run(&stand, &with_resolver(store));
     let product = product_recorded(&stand, &ev, Tol::witness()).expect("the stand gathers");
     assert_eq!(
@@ -866,7 +874,22 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
     );
     assert_eq!(row.row.site, topo::DecisionSite::CensusAtRest);
     assert_eq!(row.row.relation, topo::Relation::SameOpposite);
-    crate::intent_s4_h_placed::render_row(&stand, with_resolver(store_dbg.clone()).resolver, &row.row);
+    let mut inputs: Vec<editor_core::VarId> = row
+        .row
+        .cells
+        .iter()
+        .map(|cell| match cell {
+            editor_core::NamedCell::Entity { input, .. } => *input,
+            other => panic!("a census cell is an entity: {other:?}"),
+        })
+        .collect();
+    inputs.sort();
+    let mut copies: Vec<editor_core::VarId> = ids
+        .iter()
+        .map(|&id| stand.output(id, 0).expect("an instance defines its copies"))
+        .collect();
+    copies.sort();
+    assert_eq!(inputs, copies, "each cap is named in its own copy");
     assert!(
         product.refused_at_rest.is_empty(),
         "{:?}",
@@ -883,14 +906,13 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
         report.findings.iter().any(|f| matches!(
             &f.evidence,
             editor_core::CheckEvidence::UnprovenCoincidence {
-                recourse: editor_core::coincide::Recourse::Assert,
+                residual,
+                recourse: editor_core::coincide::Recourse::OneConstruction,
                 ..
-            }
+            } if residual.replay == editor_core::Unreplayed::Numeric
         ) && f.subject
             == editor_core::FindingSubject::Node(mate.placement)),
-        "the census's row is reported against its mate, and the door, which does not \
-         replay the product, has no form of it to read, so its recourse is an assertion: \
-         {report}"
+        "the census's row is reported against its mate, replayed and not proven: {report}"
     );
 }
 

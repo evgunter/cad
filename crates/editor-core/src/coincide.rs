@@ -38,8 +38,8 @@
 //! **A row at rest** is read off the replay's copies. A placed copy is
 //! the construction its bundle states (D10, `[placement.placement]`),
 //! so the replay folds each bundle at `Sym` like any other operation,
-//! and the carrier verdict on the two copies' faces is what proves a
-//! mate-placed face, or a face built on one, structural. The census
+//! and the carrier verdict on the two copies' faces reads a mate-placed
+//! face, or a face built on one, as the construction it is. The census
 //! itself is not re-run, so a row at rest between anything but two
 //! faces has no form the door reads.
 
