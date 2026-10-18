@@ -28,7 +28,8 @@ seam (Ev, in chat, chose three tracks by layer over two) and closed on
   in stages (PRs 5121, 5154, 5162) and finished by
   `curve-pair-meetings-are-runs` in PR 5227 under Ev's stretch rule (PR
   5214). Pass 5′ reads every curved edge pair through it. The one
-  regression it left on main, `boss_union` escalating at Interval, is
+  regression it left on main, five corpus documents (`boss_union` and
+  four die documents) escalating at Interval where f64 decides, is
   fixed by PR 5268 (`pass-five-prime-reds-the-census-golden-and-the-interval-door`).
 
 Fifty-eight rows closed in all; the log at the SHA below is the
