@@ -3,9 +3,7 @@
 //!
 //! # Why this is not in `session`
 //!
-//! The add-profile door used to offer two template shapes, and their
-//! spec was four fields beside the datum spec. The PATHS algebra's
-//! whole verb set is not four fields — it is a vocabulary, with a
+//! The PATHS algebra's whole verb set is not a handful of fields — it is a vocabulary, with a
 //! lowering, a replay and a flattener behind it — and `session.rs` is
 //! already the crate's accretion case (issue #1386). So the
 //! vocabulary lives here, and `session` re-exports the one type its
@@ -50,7 +48,7 @@
 
 use pncad::document::{
     Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, Formula, LoopProgram, Node,
-    PoseValue, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId,
+    ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId,
     SpokenNode, StepId, ValuePayload, WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Tol};
@@ -536,53 +534,11 @@ impl core::error::Error for HeldRefusal {}
 // The preview: what the loops being authored would actually draw
 // ------------------------------------------------------------------
 
-/// **The placement a frame node landed on**, or `None` when the id
-/// names no node, names one that is not a frame, or names one whose
-/// evaluation did not land.
-///
-/// This replaces the form's world-XY constant. The form used to author
-/// on a fixed plane because there was nothing in a document to point
-/// at; there is now, so the plane the form draws on is READ from the
-/// frame the person picked — which is also the frame they can see in
-/// the viewport, which is the whole point of the datum being a node.
-///
-/// It reads the LANDED value rather than resolving the frame's
-/// expressions again: this is a picture, the evaluation already
-/// produced the placement, and a second derivation is a second answer
-/// waiting to disagree with the first. The kernel reads by that same
-/// rule and asks a different question: `wire::profile_plane_f64` takes
-/// the `f64` placement the frame's own evaluation minted and carried
-/// (`NodeValue::placement`), which is for structure selection and not
-/// for drawing. The two differ in WHICH answer they take off the
-/// frame's value, not in whether they take one.
-pub fn frame_placement(
-    doc: &Doc<ProfileProgram>,
-    evaluation: &Evaluation<f64>,
-    frame: RecipeNodeId,
-) -> Option<SketchPlane<f64>> {
-    if !admits(doc, frame, NodeKindWanted::Frame) {
-        return None;
-    }
-    let ValuePayload::Datum(PoseValue::Frame(f)) = &evaluation.value(frame)?.payload else {
-        return None;
-    };
-    Some(SketchPlane::from_frame(*f))
-}
-
-/// **Every frame datum in the document, in document order** — what the
-/// creation forms' frame picker offers, which is exactly the set a
-/// frame seat [`admits`], so the picker cannot offer a node the commit
-/// door refuses.
-///
-/// Document order rather than sorted by id or by name: the feature
-/// tree lists nodes that way, so the picker and the tree name the
-/// document's frames in one order.
-pub fn frames(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
-    doc.ids()
-        .iter()
-        .copied()
-        .filter(|id| admits(doc, *id, NodeKindWanted::Frame))
-        .collect()
+/// **The plane a profile is drawn on, as the viewport shows it**: the
+/// profile's own `xy`, which a profile reads no frame to place — drawn
+/// at the world's `xy`, the kernel's own mint ([`SketchPlane::xy`]).
+pub fn profile_plane() -> SketchPlane<f64> {
+    SketchPlane::xy()
 }
 
 /// **One drawn loop of a preview**: its polyline, and how the chain
@@ -1095,9 +1051,8 @@ pub fn preview(
         let program = loop_program(shape, Notation::CANONICAL).map_err(PreviewError::Lowering)?;
         programs.push(program);
     }
-    // The LOOPS resolve, not a program: a preview has no plane node and
-    // does not need one — the plane it draws on arrives as a placement,
-    // from the frame the form is pointed at. Nor a document: each
+    // The LOOPS resolve, not a program: the plane a preview draws on
+    // arrives as a placement ([`profile_plane`]). Nor a document: each
     // number the form wrote is the variable the insert door would mint
     // for it, in a scratch document of the resolver's own.
     let resolved = resolve_written_loops(&programs, tol).map_err(|fault| match fault {
@@ -1431,10 +1386,9 @@ pub struct CommittedProfile {
 /// **What the landed evaluation's profiles came to as drawings**: the
 /// ones that flattened, and the ones that did not.
 ///
-/// A value rather than a bare list for `crate::datums::DatumDraws`'
-/// reason: a profile left out of the picture looks exactly like a
-/// document without it, so a caller holding the drawings is handed
-/// the refusals too.
+/// A value rather than a bare list because a profile left out of the
+/// picture looks exactly like a document without it, so a caller
+/// holding the drawings is handed the refusals too.
 #[derive(Clone, Debug, Default)]
 pub struct CommittedProfiles {
     /// One per profile node drawn, in document order.
@@ -1452,8 +1406,8 @@ pub struct CommittedProfiles {
 /// value the features built on it consume.
 ///
 /// Walks the document's live nodes in order. The NODE says it is a
-/// profile and the EVALUATION says what it came to, as in
-/// `crate::datums::draws`: a profile node whose evaluation refused, or
+/// profile and the EVALUATION says what it came to: a profile node
+/// whose evaluation refused, or
 /// one this evaluation never reached, has no value and draws nothing —
 /// the tree's badge is what says why, and drawing the program's replay
 /// in its place would put a shape on screen the document does not
@@ -1830,7 +1784,7 @@ fn arc_points(radius: f64, theta: f64, chord: f64) -> Option<usize> {
 /// cross-tick through a vertex; the heading arrow's tip sits this far
 /// ahead of it, and a refused chain's cross spans it.
 ///
-/// Screen-sized, like every datum glyph (`datums`), because a tip mark
+/// Screen-sized, because a tip mark
 /// is an annotation on the chain and not a part of it: it has to read
 /// at whatever zoom the chain is being looked at. A mark sized against
 /// the model's extent is a fixed length in metres, so zooming in on a

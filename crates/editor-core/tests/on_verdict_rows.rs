@@ -5,7 +5,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{Recorder, ang, len, scl};
+use crate::fixture::{Recorder, len, scl};
 use topo::BooleanOp;
 
 use editor_core::{
@@ -28,24 +28,32 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-/// The box `[x0, x1] × [y0, y1] × [z0, z0 + h]`.
-fn block(
-    r: &mut Recorder,
-    (x0, x1): (f64, f64),
-    (y0, y1): (f64, f64),
-    z0: f64,
-    h: f64,
-) -> RecipeNodeId {
-    let p = r.profile(
-        [0.0, 0.0, z0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
-    );
+/// The box `[x0, x1] × [y0, y1] × [0, h]` on its own xy.
+fn block(r: &mut Recorder, (x0, x1): (f64, f64), (y0, y1): (f64, f64), h: f64) -> RecipeNodeId {
+    let p = r.insert(Node::Profile(crate::fixture::desc(vec![vec![
+        (x0, y0),
+        (x1, y0),
+        (x1, y1),
+        (x0, y1),
+    ]])));
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(h),
     })
+}
+
+/// [`block`] placed against `target`, its base at `z0` in `target`'s
+/// coordinates: the placement, whose output is the copy.
+fn block_on(
+    r: &mut Recorder,
+    target: RecipeNodeId,
+    xs: (f64, f64),
+    ys: (f64, f64),
+    z0: f64,
+    h: f64,
+) -> RecipeNodeId {
+    let b = block(r, xs, ys, h);
+    r.against(target, b, &editor_core::Frame::translation([0.0, 0.0, z0]))
 }
 
 /// The document's node for the kernel verb `op` over `a` and `b`: a
@@ -121,7 +129,7 @@ fn assert_answers(ev: &Evaluation<f64>, rows: &[Row]) {
 /// A 1 × 1 × 0.75 box patterned twice, and two `Part(Instance(1))`
 /// of it: one body at both seats.
 fn two_parts_of_one_copy(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
-    let cube = block(r, (0.0, 1.0), (0.0, 1.0), 0.0, 0.75);
+    let cube = block(r, (0.0, 1.0), (0.0, 1.0), 0.75);
     let pat = r.insert(Node::Pattern {
         input: cube.into(),
         count: Formula::count(2),
@@ -230,7 +238,7 @@ fn the_kept_copy_is_named_from_both_seats() {
 #[test]
 fn a_master_and_its_instance_zero_answer() {
     let mut r = Recorder::new();
-    let cube = block(&mut r, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let cube = block(&mut r, (0.0, 1.0), (0.0, 1.0), 1.0);
     let pat = r.insert(Node::Pattern {
         input: cube.into(),
         count: Formula::count(3),
@@ -265,8 +273,8 @@ fn a_master_and_its_instance_zero_answer() {
 #[test]
 fn a_union_with_a_disjoint_member_against_that_member() {
     let mut r = Recorder::new();
-    let x = block(&mut r, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let z = block(&mut r, (3.0, 4.0), (0.0, 1.0), 0.0, 2.0);
+    let x = block(&mut r, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let z = block_on(&mut r, x, (3.0, 4.0), (0.0, 1.0), 0.0, 2.0);
     let xz = boolean(&mut r, BooleanOp::Union, x, z);
     let rows = vec![
         (
@@ -308,8 +316,8 @@ fn a_union_with_a_disjoint_member_against_that_member() {
 #[test]
 fn a_union_with_an_inner_member_against_the_outer() {
     let mut r = Recorder::new();
-    let x = block(&mut r, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
-    let y = block(&mut r, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
+    let x = block(&mut r, (0.0, 2.0), (0.0, 1.0), 1.0);
+    let y = block_on(&mut r, x, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
     let xy = boolean(&mut r, BooleanOp::Union, x, y);
     let rows = vec![
         (
@@ -342,19 +350,10 @@ fn a_union_with_an_inner_member_against_the_outer() {
 #[test]
 fn a_twin_answers() {
     let mut r = Recorder::new();
-    let x = block(&mut r, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let place = |r: &mut Recorder| {
-        r.insert(Node::transform(
-            x,
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ))
-    };
+    let x = block(&mut r, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let place = |r: &mut Recorder| r.against(x, x, &editor_core::Frame::IDENTITY);
     let (s, t) = (place(&mut r), place(&mut r));
-    let twin = block(&mut r, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let twin = block_on(&mut r, x, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let cases: Vec<(String, RecipeNodeId)> = OPS
         .iter()
         .flat_map(|&op| {
@@ -389,8 +388,8 @@ fn a_twin_answers() {
 #[test]
 fn a_surface_covered_one_way_refuses_coincident_shell() {
     let mut r = Recorder::new();
-    let x = block(&mut r, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let pocket = block(&mut r, (0.05, 0.25), (0.75, 0.95), 0.5, 1.5);
+    let x = block(&mut r, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let pocket = block_on(&mut r, x, (0.05, 0.25), (0.75, 0.95), 0.5, 1.5);
     let pocketed = boolean(&mut r, BooleanOp::Subtract, x, pocket);
     let joined = boolean(&mut r, BooleanOp::Union, x, pocketed);
     let ev = eval(&r.doc);

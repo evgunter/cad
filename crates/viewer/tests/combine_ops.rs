@@ -317,7 +317,7 @@ fn a_combine_takes_the_placement_of_the_operand_the_world_places() {
 fn a_feature_re_points_each_placement_of_its_target() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("combine-two-copies", tol);
-    let (doc, profile) = common::framed_square(&doc, A[0], tol);
+    let (doc, profile) = common::square_profile(&doc, A[0], tol);
     let (doc, body) = common::inserted(
         &doc,
         Node::Extrude {

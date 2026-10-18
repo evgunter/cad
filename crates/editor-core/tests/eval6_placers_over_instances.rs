@@ -1,17 +1,14 @@
-//! **The placers are shape-preserving over the value**: `Transform`
-//! and `Pattern` take an `Instances` value whole and yield
-//! `Instances` — a transform of N bodies is N transforms under one
-//! map, and a pattern of N bodies is their `N·M` placements laid out
-//! placement-major (`wire_pattern`'s layout: output body `j·M + i` is
-//! placement `j` of inner body `i`, named `Instance(j)` over the
-//! inner name).
+//! **A pattern is shape-preserving over the value**: `Pattern` takes an
+//! `Instances` value whole and yields `Instances` — a pattern of N
+//! bodies is their `N·M` placements laid out placement-major
+//! (`wire_pattern`'s layout: output body `j·M + i` is placement `j` of
+//! inner body `i`, named `Instance(j)` over the inner name).
 //!
 //! Every identity here is BIT identity through the public doors: the
-//! oracle for "the transform of instance `i`" is a `Transform` over
-//! `Part(Instance(i))` with the same slots, and the oracle for "the
-//! outer map applied to inner instance `i`" is the same `Pattern` over
-//! `Part(Instance(i))` — the same kernel op on the same body under the
-//! same map, so nothing is approximate and no rule is restated. The
+//! oracle for "the outer map applied to inner instance `i`" is the same
+//! `Pattern` over `Part(Instance(i))` — the same kernel op on the same
+//! body under the same map, so nothing is approximate and no rule is
+//! restated. The
 //! lane rows of the same claims are `eval6_placers_over_instances_interval`.
 //! The digest here is the geometry, the topology and the arena keys —
 //! the bits a consumer reads.
@@ -68,12 +65,6 @@ pub(crate) fn part(of: RecipeNodeId, i: i64) -> AuthoredNode {
         of: of.into(),
         select: PartSelect::Instance(editor_core::Formula::count(i)),
     }
-}
-
-/// A transform that both rotates and translates, so a transform-of-
-/// pattern and a pattern-of-transform are different placements.
-pub(crate) fn skew(input: RecipeNodeId) -> AuthoredNode {
-    fixture::xform(input, [1.0, 2.0, 3.0], [1.0, 1.0, 1.0], 0.7)
 }
 
 /// The inner count and the outer count of the nested documents.
@@ -138,82 +129,6 @@ pub(crate) fn body_of<T: geom_core::Decide>(
 
 fn opts() -> EvalOptions {
     EvalOptions::default()
-}
-
-// ---- claim 1: a transform over Instances is N transforms ----
-
-/// **Claim 1.** `Transform(pattern)` is `Instances` of the pattern's
-/// count, and its body `i` is bit-identical to `Transform(Part(i))`
-/// under the same slots — the same map on the same body through the
-/// same door.
-#[test]
-fn a_transform_of_a_pattern_is_the_transform_of_each_instance() {
-    let (doc, cube) = cube_doc("eval6-c1");
-    let (doc, pattern) = insert(doc, linear(cube, [1.0, 0.0, 0.0], 2.0, M));
-    let (doc, whole) = insert(doc, skew(pattern));
-    let mut doc = doc;
-    let mut each = Vec::new();
-    for i in 0..M {
-        let (next, selected) = insert(doc, part(pattern, i));
-        let (next, moved) = insert(next, skew(selected));
-        doc = next;
-        each.push(moved);
-    }
-    let ev = run(&doc, &opts());
-    let placed = instances_of(&ev, whole);
-    assert_eq!(placed.len() as i64, M, "N bodies in, N bodies out");
-    for (i, moved) in each.iter().enumerate() {
-        assert_eq!(
-            bits(&placed[i]),
-            bits(&body_of(&ev, *moved)),
-            "body {i} of the transform of the pattern is the transform of instance {i}"
-        );
-    }
-}
-
-// ---- claim 2: names pass through ----
-
-/// **Claim 2.** The transform contributes no segment: its table IS the
-/// pattern's — the same rows, the same keys, the same body indices —
-/// and is the same allocation, not a copy that happens to agree.
-#[test]
-fn a_transform_of_a_pattern_passes_the_patterns_table_through() {
-    let (doc, cube) = cube_doc("eval6-c2");
-    let (doc, pattern) = insert(doc, linear(cube, [1.0, 0.0, 0.0], 2.0, M));
-    let (doc, whole) = insert(doc, skew(pattern));
-    let ev = run(&doc, &opts());
-    let (of_pattern, of_transform) = (
-        ev.table_at(pattern).expect("the pattern"),
-        ev.table_at(whole).expect("the transform"),
-    );
-    assert!(
-        std::ptr::eq(of_pattern, of_transform),
-        "the transform's table is the pattern's own"
-    );
-    assert_eq!(of_pattern, of_transform);
-    // And every row resolves in the placed value: instance `i`'s rows
-    // name body `i`, which is the body the transform placed there.
-    let placed = instances_of(&ev, whole);
-    for (name, entry) in of_transform.iter() {
-        let RoleSeg::Instance { i, .. } = &name.path[0] else {
-            panic!("a pattern row wears Instance(i): {name:?}");
-        };
-        let rows = match entry {
-            Entry::Unique(e) => vec![*e],
-            Entry::Tied(es) => es.clone(),
-        };
-        for e in rows {
-            assert_eq!(e.body, *i, "row body is the instance index");
-            let body = &placed[e.body as usize];
-            let live = match e.key {
-                EntityKey::Body => true,
-                EntityKey::Face(f) => body.get_face(f).is_some(),
-                EntityKey::Edge(k) => body.get_edge(k).is_some(),
-                EntityKey::Vertex(v) => body.get_vertex(v).is_some(),
-            };
-            assert!(live, "{name:?} names a live entity of the placed body");
-        }
-    }
 }
 
 // ---- claim 3: the nested layout ----
@@ -365,56 +280,33 @@ fn a_part_over_a_nested_pattern_indexes_the_flat_list() {
 
 // ---- the door ----
 
-/// **The operand door.** A placer reads a body or instances and the
+/// **The operand door.** A pattern reads a body or instances and the
 /// door refuses everything else typed, before any evaluation: a split
-/// named alone is two bodies, so the read names a port, and a datum is
-/// not placeable. A boolean reads ONE body and refuses instances — the
-/// asymmetry `ValuePayload::Instances` states — as a kind at the same
-/// door.
+/// named alone is two bodies, so the read names a port. A boolean reads
+/// ONE body and refuses instances — the asymmetry
+/// `ValuePayload::Instances` states — as a kind at the same door.
 #[test]
 fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
     use editor_core::{EditError, OperandSlot, SlotKind, VarKind};
     let (doc, cube) = cube_doc("eval6-door");
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let tool = fixture::plane_on(&doc, cube, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: cube.into(),
-            tool: plane.into(),
+            tool,
         },
     );
     let (doc, pattern) = insert(doc, linear(cube, [1.0, 0.0, 0.0], 2.0, M));
-    for node in [skew(split), linear(split, [0.0, 1.0, 0.0], 2.0, N)] {
-        let refusal = fixture::insert_refused(&doc, node);
-        assert!(
-            matches!(
-                &refusal,
-                EditError::AmbiguousOutput { input, slot: editor_core::SlotId::Operand(OperandSlot::Input), .. } if input.id() == split
-            ),
-            "a split named alone: {refusal:?}"
-        );
-    }
-    let refusal = fixture::insert_refused(&doc, skew(plane));
+    let refusal = fixture::insert_refused(&doc, linear(split, [0.0, 1.0, 0.0], 2.0, N));
     assert!(
         matches!(
             &refusal,
-            EditError::SlotVarKind {
-                slot: editor_core::SlotId::Operand(OperandSlot::Input),
-                found: VarKind::Plane,
-                expected: SlotKind::Placeable,
-                ..
-            }
+            EditError::AmbiguousOutput { input, slot: editor_core::SlotId::Operand(OperandSlot::Input), .. } if input.id() == split
         ),
-        "a datum: {refusal:?}"
+        "a split named alone: {refusal:?}"
     );
     let (doc, pat_pattern) = insert(doc, linear(pattern, [0.0, 1.0, 0.0], 2.0, N));
-    let (doc, xf_pattern) = insert(doc, skew(pattern));
     let refusal = fixture::insert_refused(
         &doc,
         Node::Union {
@@ -435,7 +327,6 @@ fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
     );
     let ev = run(&doc, &opts());
     assert_eq!(instances_of(&ev, pat_pattern).len() as i64, N * M);
-    assert_eq!(instances_of(&ev, xf_pattern).len() as i64, M);
 }
 
 // ---- the lanes the hosted matrix does not draw: Dual64 ----
@@ -448,28 +339,6 @@ fn run_dual(doc: &ProfileDoc) -> editor_core::Evaluation<geom_core::Dual64> {
         &opts(),
         Tol::witness(),
     )
-}
-
-/// Claim 1 at `Dual64`.
-#[test]
-fn a_transform_of_a_pattern_is_the_transform_of_each_instance_at_dual64() {
-    let (doc, cube) = cube_doc("eval6-c1-dual");
-    let (doc, pattern) = insert(doc, linear(cube, [1.0, 0.0, 0.0], 2.0, M));
-    let (doc, whole) = insert(doc, skew(pattern));
-    let mut doc = doc;
-    let mut each = Vec::new();
-    for i in 0..M {
-        let (next, selected) = insert(doc, part(pattern, i));
-        let (next, moved) = insert(next, skew(selected));
-        doc = next;
-        each.push(moved);
-    }
-    let ev = run_dual(&doc);
-    let placed = instances_of(&ev, whole);
-    assert_eq!(placed.len() as i64, M);
-    for (i, moved) in each.iter().enumerate() {
-        assert_eq!(bits(&placed[i]), bits(&body_of(&ev, *moved)), "body {i}");
-    }
 }
 
 /// Claim 3's per-body identity at `Dual64`.
@@ -496,43 +365,5 @@ fn a_nested_pattern_lays_out_placement_major_at_dual64() {
                 "body {j}·{M} + {i}"
             );
         }
-    }
-}
-
-// ---- the order, and the stamps ----
-
-/// Under a ROTATION, `Transform(Pattern)` and `Pattern(Transform)` are
-/// different placements body for body past body 0, and the map is
-/// applied to EVERY body of the value — none is passed through unmoved.
-#[test]
-fn a_transform_of_a_pattern_is_not_a_pattern_of_a_transform_under_rotation() {
-    let (doc, cube) = cube_doc("eval6-order");
-    let (doc, pattern) = insert(doc, linear(cube, [1.0, 0.0, 0.0], 2.0, M));
-    let (doc, t_of_p) = insert(doc, skew(pattern));
-    let (doc, moved) = insert(doc, skew(cube));
-    let (doc, p_of_t) = insert(doc, linear(moved, [1.0, 0.0, 0.0], 2.0, M));
-    let ev = run(&doc, &opts());
-    let a = instances_of(&ev, t_of_p);
-    let b = instances_of(&ev, p_of_t);
-    let p = instances_of(&ev, pattern);
-    assert_eq!(a.len(), b.len());
-    assert_eq!(
-        bits(&a[0]),
-        bits(&b[0]),
-        "body 0 is the skewed cube either way"
-    );
-    for i in 1..a.len() {
-        assert_ne!(
-            bits(&a[i]),
-            bits(&b[i]),
-            "body {i}: the rotation separates the orders"
-        );
-    }
-    for i in 0..a.len() {
-        assert_ne!(
-            bits(&a[i]),
-            bits(&p[i]),
-            "body {i} of the transform is MOVED"
-        );
     }
 }

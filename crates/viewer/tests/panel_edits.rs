@@ -51,7 +51,7 @@ fn a_literal_slot_edit_routes_through_setparam_and_lands_in_the_document() {
     let (doc, profile) = {
         let doc: pncad::document::Doc<pncad::document::ProfileProgram> =
             pncad::document::Doc::empty_derived("gui3-literal", tol);
-        common::framed_square(&doc, 0.04, tol)
+        common::square_profile(&doc, 0.04, tol)
     };
     let (doc, extrude) = common::inserted(
         &doc,
@@ -120,7 +120,7 @@ fn literal_and_pattern_doc(
 ) {
     let doc: pncad::document::Doc<pncad::document::ProfileProgram> =
         pncad::document::Doc::empty_derived("gui3-literal-range", tol);
-    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.04, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         pncad::document::Node::Extrude {
@@ -463,7 +463,7 @@ fn a_gesture_previews_against_scratch_state_and_commits_exactly_once() {
     let (doc, profile) = {
         let doc: pncad::document::Doc<pncad::document::ProfileProgram> =
             pncad::document::Doc::empty_derived("gui3-gesture", tol);
-        common::framed_square(&doc, 0.04, tol)
+        common::square_profile(&doc, 0.04, tol)
     };
     let (doc, extrude) = common::inserted(
         &doc,
@@ -863,7 +863,7 @@ fn an_abandoned_gesture_leaves_no_trace() {
     let (doc, profile) = {
         let doc: pncad::document::Doc<pncad::document::ProfileProgram> =
             pncad::document::Doc::empty_derived("gui3-abandon", tol);
-        common::framed_square(&doc, 0.04, tol)
+        common::square_profile(&doc, 0.04, tol)
     };
     let (doc, extrude) = common::inserted(
         &doc,

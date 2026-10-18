@@ -10,7 +10,7 @@
 //! has nothing left to say about it.
 //!
 //! The rows pin each reader of a selection a name can be authored at —
-//! a shell's open faces, a blend's edges, a derived frame's face — and
+//! a shell's open faces and a blend's edges — and
 //! under each fixed reader vary what was named across both wrong kinds,
 //! so a door that answered a constant kind goes red. Two rows pin the
 //! position: the first name of another kind is the one reported,
@@ -30,10 +30,10 @@ use crate::fixture;
 
 use editor_core::measure::MeasurePrimitive;
 use editor_core::{
-    CapEnd, Datum, EditError, EntityKind, Node, OperandSlot, PersistError, ProfileDoc,
+    CapEnd, EditError, EntityKind, Node, OperandSlot, PersistError, ProfileDoc,
     RecipeNodeId, SelectionFault, SitedRef, SnapshotError, StableName, load, save,
 };
-use fixture::{ang, fname, insert, insert_refused, len, on_frame, square, wall};
+use fixture::{fname, insert, insert_refused, len, on_frame, square, wall};
 use geom_core::Tol;
 /// A vertex name at `node` — the extrude's own END cap vertex on the
 /// document's one outer loop, so the name RESOLVES and the refusal is
@@ -236,33 +236,6 @@ fn a_set_holding_one_name_of_another_kind_refuses_at_its_place() {
             "the face at {at}"
         );
         assert_eq!(err.to_string(), sentence(&err, &format!("edge {at}")));
-    }
-}
-
-/// **A derived frame's face name names a FACE** — the same wanted kind
-/// as the shell's rows at another seat, and the same two wrong kinds.
-#[test]
-fn a_derived_frame_named_on_another_kind_refuses_at_the_insert() {
-    for designate in [EntityKind::Edge, EntityKind::Vertex] {
-        let (doc, body, _, edge, vertex) = solid();
-        let name = if designate == EntityKind::Edge {
-            edge
-        } else {
-            vertex
-        };
-        let err = insert_refused(
-            &doc,
-            Node::Datum(Datum::FaceFrame {
-                face: editor_core::Operand::select(body, vec![name]),
-                spin: ang(0.0),
-            }),
-        );
-        assert_eq!(
-            name_kind(&err),
-            (OperandSlot::Face, 0, designate, EntityKind::Face),
-            "{designate:?}"
-        );
-        assert_eq!(err.to_string(), sentence(&err, "face"), "{designate:?}");
     }
 }
 

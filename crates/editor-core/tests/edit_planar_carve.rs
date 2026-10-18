@@ -12,7 +12,7 @@
 use crate::corpus;
 use crate::fixture;
 use editor_core::{
-    EntityKind, EvalOptions, ExtrudeSide, LoopProgram, NameRef, Node, ProfileDoc, ProfileProgram,
+    EntityKind, EvalOptions, LoopProgram, NameRef, Node, ProfileDoc, ProfileProgram,
     ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
 };
 use fixture::{len, minted, table, tol};

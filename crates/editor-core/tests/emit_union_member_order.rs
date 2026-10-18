@@ -29,15 +29,16 @@
 //!   is the seam of the slab's top and its wall, not a piece of the rim.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, run};
+use crate::blocks::{block, block_on, run};
 use crate::corpus::body_of;
+use crate::emit_shared_rim_several::{construction, own_name};
 use crate::emit_boolean_vertex_keys::{
     edge_touch_outside, ell_and_tip, face_touch, named_geometry, nested, seamed_touch,
 };
 use crate::fixture::{ends, fname, insert, len, member_face, on_frame, out, point, table};
 
 use editor_core::{
-    CapEnd, EntityKey, Entry, NameRef, Node, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg,
+    CapEnd, EntityKey, EntityKind, Entry, NameRef, Node, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg,
     StableName,
 };
 use geom_core::Tol;
@@ -78,13 +79,15 @@ impl Op {
 /// A slab and an inverted-U rib standing in it: the rib's arms (x in
 /// [0.5, 1] and [2, 2.5], y in [0.5, 1.5]) cross the slab's top at
 /// z = 1, so each rib cap meets it in a two-edge collinear seam chain.
+/// The rib is drawn on its own xy and placed against the slab on the
+/// plane y = 1.5, extruded toward −y: the placement.
 fn slab_rib(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, slab) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, slab) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
     let (doc, p) = on_frame(
         doc,
-        [0.0, 1.5, 0.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
+        [0.0, 1.0, 0.0],
         vec![vec![
             (0.5, 0.5),
             (1.0, 0.5),
@@ -103,7 +106,13 @@ fn slab_rib(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             distance: len(1.0),
         },
     );
+    let (doc, rib) = crate::fixture::against(doc, slab, rib, &rib_frame());
     (doc, slab, rib)
+}
+
+/// The rib's own frame in the slab's coordinates.
+fn rib_frame() -> editor_core::Frame {
+    crate::fixture::frame_at([0.0, 1.5, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0])
 }
 
 /// The union of `fixture`'s two bodies with its members in the order
@@ -113,6 +122,7 @@ fn union_of(
     fixture: Fixture,
     swap: bool,
 ) -> (
+    ProfileDoc,
     editor_core::Evaluation<f64>,
     RecipeNodeId,
     [(RecipeNodeId, editor_core::VarId); 2],
@@ -122,7 +132,8 @@ fn union_of(
     let members = if swap { vec![y, x] } else { vec![x, y] };
     let (doc, u) = crate::fixture::union_over(doc, &members);
     let (xr, yr) = (out(&doc, x), out(&doc, y));
-    (run(&doc), u, [(x, xr), (y, yr)])
+    let ev = run(&doc);
+    (doc, ev, u, [(x, xr), (y, yr)])
 }
 
 /// **Reordering a union's two members rebinds no name.**
@@ -140,8 +151,8 @@ fn reordering_a_unions_two_members_rebinds_no_name() {
         ("edge_touch_outside", edge_touch_outside),
     ];
     for (what, fixture) in fixtures {
-        let (ev_xy, u_xy, _) = union_of(fixture, false);
-        let (ev_yx, u_yx, _) = union_of(fixture, true);
+        let (_, ev_xy, u_xy, _) = union_of(fixture, false);
+        let (_, ev_yx, u_yx, _) = union_of(fixture, true);
         let xy = named_geometry(&ev_xy, u_xy).expect("a union is never empty");
         let yx = named_geometry(&ev_yx, u_yx).expect("a union is never empty");
         let diff: Vec<_> = xy.symmetric_difference(&yx).collect();
@@ -164,11 +175,15 @@ fn a_unions_seam_chain_is_named_by_its_ends() {
     let mut named: std::collections::BTreeMap<(String, i64), StableName> =
         std::collections::BTreeMap::new();
     for swap in [false, true] {
-        let (ev, u, [(slab, slab_read), (rib, rib_read)]) = union_of(slab_rib, swap);
+        let (doc, ev, u, [(slab, slab_read), (rib, rib_read)]) = union_of(slab_rib, swap);
         let top = member_face(u, slab_read, fname(slab, RoleSeg::Cap(CapEnd::End)));
         let body = body_of(&ev, u);
         for cap in [CapEnd::End, CapEnd::Start] {
-            let rib_cap = member_face(u, rib_read, fname(rib, RoleSeg::Cap(cap)));
+            let rib_cap = member_face(
+                u,
+                rib_read,
+                own_name(&doc, rib, EntityKind::Face, vec![RoleSeg::Cap(cap)]),
+            );
             let (a, b) = if top <= rib_cap {
                 (top.clone(), rib_cap)
             } else {
@@ -216,7 +231,7 @@ fn a_unions_seam_chain_is_named_by_its_ends() {
 /// minted whole and cut by a later step (a descent chain of its pieces).
 fn slab_rib_cutall(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, slab, rib) = slab_rib(doc);
-    let (doc, cutter) = block(doc, (0.7, 2.3), (0.3, 1.7), 0.95, 0.1);
+    let (doc, cutter) = block_on(doc, slab, (0.7, 2.3), (0.3, 1.7), 0.95, 0.1);
     (doc, vec![slab, rib, cutter])
 }
 
@@ -225,7 +240,7 @@ fn slab_rib_cutall(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 /// so the pieces' names descend through more than one wrapper.
 fn slab_rib_cutall_far(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, mut m) = slab_rib_cutall(doc);
-    let (doc, far) = block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, far) = block_on(doc, m[0], (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
     m.push(far);
     (doc, m)
 }
@@ -234,7 +249,7 @@ fn slab_rib_cutall_far(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 /// arm's back seam: two later steps cut seam lines, in either order.
 fn slab_rib_cutall_two(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, mut m) = slab_rib_cutall(doc);
-    let (doc, second) = block(doc, (0.4, 0.6), (0.8, 1.0), 0.95, 0.1);
+    let (doc, second) = block_on(doc, m[0], (0.4, 0.6), (0.8, 1.0), 0.95, 0.1);
     m.push(second);
     (doc, m)
 }
@@ -352,28 +367,21 @@ fn one_table(
 /// the seam's faces.
 #[test]
 fn a_seam_passed_through_a_split_and_cut_later_is_named() {
-    use crate::fixture::scl;
-    use editor_core::{Datum, Operand, SplitHalf};
+    use editor_core::{Operand, SplitHalf};
     let doc = ProfileDoc::empty_derived("emit_union_member_order_split", Tol::witness());
     let (doc, slab, rib) = slab_rib(doc);
     let pair = |doc, op: Op, a: Operand, b: RecipeNodeId| insert(doc, op.node(a, b));
     let (doc, joined) = pair(doc, Op::Union, slab.into(), rib);
-    let (doc, tool) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(1.5), len(0.0), len(0.0)],
-            normal: [scl(1.0), scl(0.0), scl(0.0)],
-        }),
-    );
+    let tool = crate::fixture::plane_on(&doc, slab, [1.5, 0.0, 0.0], [1.0, 0.0, 0.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: joined.into(),
-            tool: tool.into(),
+            tool,
         },
     );
     let below = Operand::output(split, SplitHalf::Below.port());
-    let (doc, cut) = block(doc, (0.7, 0.8), (0.3, 0.7), 0.95, 0.1);
+    let (doc, cut) = block_on(doc, slab, (0.7, 0.8), (0.3, 0.7), 0.95, 0.1);
     let (doc, minus) = pair(doc, Op::Subtract, below.clone(), cut);
     let (doc, plus) = pair(doc, Op::Union, below, cut);
     let ev = run(&doc);
@@ -395,27 +403,19 @@ fn a_seam_passed_through_a_split_and_cut_later_is_named() {
 
 /// **A seam between two placements of one prototype names.**
 ///
-/// A transform adds no segment (N1), so the U-rib and a rotated copy of
-/// it carry identical tables and their seams are `Seam { a: x, b: x }`.
-/// Such a pair names no side; its seam chains' pieces are named by their
-/// ends, which reads no side. Every pair boolean of the two, both union orders
+/// The U-rib and a copy of it turned a quarter about x, both placements
+/// of the one rib construction: their seam chains' pieces are named by
+/// their ends. Every pair boolean of the two, both union orders
 /// included, names its result, as does a union node over them.
 #[test]
 fn a_seam_between_two_placements_of_one_prototype_is_named() {
-    use crate::fixture::{ang, scl};
     let doc = ProfileDoc::empty_derived("emit_union_member_order_same", Tol::witness());
-    let (doc, _slab, rib) = slab_rib(doc);
-    let (doc, turned) = insert(
-        doc,
-        Node::transform(
-            rib,
-            editor_core::Step::Rigid {
-                translation: [len(0.1), len(1.5), len(0.3)],
-                axis: [scl(1.0), scl(0.0), scl(0.0)],
-                angle: ang(std::f64::consts::FRAC_PI_2),
-            },
-        ),
-    );
+    let (doc, slab, rib) = slab_rib(doc);
+    let prototype = crate::emit_shared_rim_several::construction(&doc, rib);
+    // The rib's own frame turned a quarter about x, then slid by
+    // (0.1, 1.5, 0.3).
+    let turned_frame = crate::fixture::frame_at([0.1, 1.5, 1.8], [1.0, 0.0, 0.0], [0.0, -1.0, 0.0]);
+    let (doc, turned) = crate::fixture::against(doc, slab, prototype, &turned_frame);
     let mut doc = doc;
     let mut ids = Vec::new();
     for (what, op, a, b) in [
@@ -469,9 +469,9 @@ fn a_fragments_borders_walls_are_one_spelling_in_every_member_order() {
         .into_iter()
         .map(|p| {
             let doc = ProfileDoc::empty_derived("emit_union_member_order_abys", Tol::witness());
-            let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-            let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-            let (doc, y) = block(doc, (-1.0, 2.0), (0.3, 0.4), 0.5, 3.5);
+            let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+            let (doc, b) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+            let (doc, y) = block_on(doc, a, (-1.0, 2.0), (0.3, 0.4), 0.5, 3.5);
             let m = [a, b, y];
             let members: Vec<RecipeNodeId> = p.iter().map(|&i| m[i]).collect();
             let (doc, u) = crate::fixture::union_over(doc, &members);
@@ -511,8 +511,8 @@ fn glued_rim_names(lift: f64) -> GluedRim {
     let [a, b, c] = [m[0], m[1], m[2]];
     let faces = [
         member_face_of(&doc, a, RoleSeg::Cap(CapEnd::End)),
-        member_face_of(&doc, b, crate::fixture::wall(&doc, b, 0)),
-        member_face_of(&doc, c, crate::fixture::wall(&doc, c, 3)),
+        member_face_of(&doc, b, crate::fixture::wall(&doc, construction(&doc, b), 0)),
+        member_face_of(&doc, c, crate::fixture::wall(&doc, construction(&doc, c), 3)),
     ];
     let b_read = out(&doc, b);
     let (doc, u) = crate::fixture::union_over(doc, &m);
@@ -577,7 +577,7 @@ fn member_face_of(
     node: RecipeNodeId,
     seg: RoleSeg,
 ) -> (editor_core::VarId, StableName) {
-    (out(doc, node), fname(node, seg))
+    (out(doc, node), own_name(doc, node, EntityKind::Face, vec![seg]))
 }
 
 /// `spelled` with every mint id's digest erased, so ids compare by

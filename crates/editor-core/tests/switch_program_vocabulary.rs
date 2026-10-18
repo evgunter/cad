@@ -759,12 +759,6 @@ fn wire_difference_report(before: &ProfileProgram, after: &ProfileProgram) -> St
 
 fn wire_differences(before: &ProfileProgram, after: &ProfileProgram) -> Vec<String> {
     let mut out = Vec::new();
-    if before.frame != after.frame {
-        out.push(format!(
-            "the plane went over as {:?} and came back as {:?}",
-            before.frame, after.frame
-        ));
-    }
     if before.loops.len() != after.loops.len() {
         out.push(format!(
             "the program went over with {} loops and came back with {}",

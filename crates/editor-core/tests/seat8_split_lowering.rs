@@ -41,11 +41,11 @@ use crate::fixture;
 
 use corpus::{Recorder, eval, failures};
 use editor_core::{
-    Datum, Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SplitHalf, SplitSide,
+    Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SplitHalf, SplitSide,
     ValuePayload, persist,
 };
 use fixture::digest::digest;
-use fixture::{len, scl, square, tol};
+use fixture::{len, square, tol};
 
 /// The registered split documents, by name: a tilted plane through a
 /// cylinder (curved section edges), a plane through a box with both
@@ -337,8 +337,8 @@ fn the_split_documents_evaluate_to_their_committed_digests() {
     );
 }
 
-/// A unit cube on the xy frame, a plane datum at height `z` with `+z`
-/// normal, and the split of the one by the other — returns the
+/// A unit cube on its own xy, the plane at height `z` with `+z` normal
+/// read off its geometry, and the split of the one by the other — returns the
 /// recorder and the split node.
 fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
     let mut r = Recorder::new();
@@ -352,13 +352,10 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
         profile: profile.into(),
         distance: len(1.0),
     });
-    let tool = r.insert(Node::Datum(Datum::Plane {
-        origin: [len(0.0), len(0.0), len(z)],
-        normal: [scl(0.0), scl(0.0), scl(1.0)],
-    }));
+    let tool = crate::fixture::plane_on(&r.doc, cube, [0.0, 0.0, z], [0.0, 0.0, 1.0]);
     let split = r.insert(Node::Split {
         target: cube.into(),
-        tool: tool.into(),
+        tool,
     });
     (r, split)
 }
@@ -449,15 +446,11 @@ fn error_of(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> &NodeErrorKi
 #[test]
 fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     let (mut r, split) = cube_split_at(5.0);
+    // A copy of each half, loose: a reader of the half's value.
     let still = |half: SplitHalf| {
-        Node::transform(
+        Node::place(vec![editor_core::BodyRead::plain(
             editor_core::Operand::output(split, half.port()),
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: fixture::ang(0.0),
-            },
-        )
+        )])
     };
     let above = r.insert(still(SplitHalf::Above));
     let below = r.insert(still(SplitHalf::Below));
@@ -477,8 +470,11 @@ fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     else {
         panic!("the split's below side is a body");
     };
-    let Some(ValuePayload::Body(read)) = ev.value(below).map(|v| &v.payload) else {
+    let Some(ValuePayload::Copies(copies)) = ev.value(below).map(|v| &v.payload) else {
         panic!("the present half is read: {:?}", ev.nodes.get(&below));
+    };
+    let [read] = &copies.bodies[..] else {
+        panic!("one copy of the half: {}", copies.bodies.len());
     };
     assert_eq!(
         (

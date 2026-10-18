@@ -30,7 +30,7 @@ use editor_core::{
     RecipeNodeId, VarName, evaluate,
 };
 use fixture::resolver::{PartStore, with_resolver};
-use fixture::{insert, len, on_frame, run, square, step, xy_frame};
+use fixture::{insert, len, on_frame, run, square, step};
 use geom_core::Band;
 use geom_core::Tol;
 use geom_core::k_stats::{Bracket, Verdict};
@@ -88,34 +88,17 @@ fn per_node(ev: &Evaluation<f64>) -> BTreeMap<RecipeNodeId, usize> {
 
 /// The decisions the part's profile pre-pass makes on the one-solid
 /// part: the program's four junctions and the f64 validation of the
-/// assembled profile. The plane's two axes are NOT among them — the
-/// frame node decides its own placement, at both scalars, and the
-/// precompute READS it (`NodeValue::placement`).
+/// assembled profile, drawn on its own xy.
 const PRE_PASS: usize = 69;
-/// The one-solid part's log sizes by node: frame, profile, extrude.
+/// The one-solid part's log sizes by node: profile, extrude, placement.
 /// Under the pinned lift (the default) the Profile node's op reuses
 /// the pre-pass's validated form and decides nothing, so its log is
 /// the pre-pass's.
-///
-/// The FRAME's four are its axes decided twice, at the two scalars its
-/// two readers need: the lane read its value carries, and the `f64`
-/// placement every profile drawn on it reads. Twice per FRAME, not
-/// once per profile — a second profile on this frame would add none,
-/// and a frame with NO profile on it still decides all four, because
-/// the placement is a component of the frame's own value and not a
-/// service to whoever happens to consume it. The lone-frame half of
-/// that is guarded by [`a_lone_frame_decides_its_placement_with_no_one_to_read_it`],
-/// because this document has a profile and so cannot separate it from
-/// a mint that looked ahead for one.
-const FRAME_LOG: usize = 4;
 const PROFILE_LOG: usize = PRE_PASS;
 const EXTRUDE_LOG: usize = 655;
-/// A placement pinned where its body stands by the named interim's world
-/// pin ([`fixture::pin`] at the identity): it reads nothing, so its fold
-/// decides nothing. (An instance pinned off the identity carries its own
-/// pin fold on top of its op's log: three decisions — the two datum
-/// normals, and the at-rest predicate decided once by the fold's snap.)
-const WORLD_PIN_LOG: usize = 0;
+/// A placement standing where its body stands ([`fixture::place`]):
+/// its fold decides nothing.
+const PLACEMENT_LOG: usize = 0;
 
 /// Two instances, both pinned to the world, so both ops do the same
 /// work. `o` reaches the part they copy.
@@ -276,35 +259,11 @@ fn every_decision_the_part_makes_lands_on_one_of_its_nodes_brackets() {
     assert_eq!(
         counts,
         BTreeMap::from([
-            (order[0], FRAME_LOG),
-            (order[1], PROFILE_LOG),
-            (order[2], EXTRUDE_LOG),
-            // The world placement's pin reads nothing and decides
-            // nothing.
-            (order[3], WORLD_PIN_LOG),
+            (order[0], PROFILE_LOG),
+            (order[1], EXTRUDE_LOG),
+            (order[2], PLACEMENT_LOG),
         ]),
         "one log per node, the Profile node's carrying its precompute: {counts:?}"
-    );
-}
-
-/// **A frame with no profile on it still decides its placement.**
-///
-/// The count `FRAME_LOG` carries is `2 + 2` — the lane read its value
-/// lands and the `f64` placement it carries — and it is four whether
-/// or not anything ever reads the second. That is a claim about a
-/// design choice and not about arithmetic: a mint that looked ahead
-/// for a consumer would give this document 2 and the one-profile part
-/// 4, agreeing with `FRAME_LOG` there and disagreeing here. So the
-/// separating document is a frame ALONE.
-#[test]
-fn a_lone_frame_decides_its_placement_with_no_one_to_read_it() {
-    let doc = ProfileDoc::empty(DocumentId::derive("kstats-lone-frame"), Tol::witness());
-    let (doc, lone) = insert(doc, xy_frame());
-    let ev = run(&doc, &EvalOptions::default());
-    assert_eq!(
-        per_node(&ev),
-        BTreeMap::from([(lone, FRAME_LOG)]),
-        "the frame is the whole document and it decides its axes at both scalars"
     );
 }
 
@@ -327,8 +286,7 @@ fn the_assembly_decides_nothing_outside_its_instances_brackets() {
 /// The one-solid part's Profile log at `T` under the pinned lift,
 /// checked for the precompute's shape and returned for the rows below
 /// to compare across scalars. One frame, in the order made: the
-/// program's replay first — the plane is READ off the frame node's
-/// value and decides nothing here — then the f64 validation, and
+/// program's replay first, then the f64 validation, and
 /// nothing after it, because the op lifts the precompute's validated
 /// form instead of validating again. The
 /// histogram moves legitimately only when `profile::validate`'s probes

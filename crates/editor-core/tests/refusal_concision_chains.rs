@@ -217,7 +217,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "FaceFrameReadback/NoCarrier",
     "SelectResolve/Ambiguous",
     "SelectResolve/Vanished",
-    "FrameDirection/Degenerate",
     "InstanceOutOfRange",
     "MeasureClearanceRefused",
     "MeasureNonFinite",
@@ -3711,10 +3710,9 @@ fn doc_ref() -> editor_core::DocRef {
 fn document_arms() -> Vec<(String, NodeErrorKind)> {
     use editor_core::clearance::ClearanceRefusal;
     use editor_core::{
-        BifurcationKind, BranchMarginEvidence, DirectionRefusal, EntityKind, FaceName, Implicated,
+        BifurcationKind, BranchMarginEvidence, EntityKind, FaceName, Implicated,
         InterrogateError, PartFault, WitnessAge, WitnessBifurcation,
     };
-    use geom_core::UnitVec3Error;
     use payloads::*;
     use topo::{EntityId, FaceKey, ReadbackError};
     let face = || stable(EntityKind::Face, 3);
@@ -3809,24 +3807,6 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         rows.push(row(
             &format!("FaceFrameReadback/{n}"),
             NodeErrorKind::FaceFrameReadback { error },
-        ));
-    }
-    for (n, error) in [
-        ("Degenerate", UnitVec3Error::Degenerate),
-        ("NonFiniteLength", UnitVec3Error::NonFiniteLength),
-        ("UnderflowedLength", UnitVec3Error::UnderflowedLength),
-        ("Escalated", UnitVec3Error::Escalated(diag())),
-    ] {
-        rows.push(row(
-            &format!("FrameDirection/{n}"),
-            NodeErrorKind::FrameDirection {
-                profile: RecipeNodeId::new(0, tagged(4)),
-                frame: RecipeNodeId::new(0, tagged(2)),
-                refusal: DirectionRefusal {
-                    role: "frame normal",
-                    error,
-                },
-            },
         ));
     }
     let interrogate = [

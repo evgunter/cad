@@ -281,9 +281,9 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
 use pncad::prelude::AuthoredNode;
 
 use pncad::document::{
-    Bodies, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
-    LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, RefusingReach, TubeWindow, ValuePayload, apply, evaluate,
+    Axis3, Bodies, CancelToken, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula, Frame,
+    LoftSection, LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, RefusingReach, StationMove, TubeWindow, ValuePayload, apply, evaluate,
 };
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_core::{Point3, Tol, Vec3};
@@ -516,11 +516,6 @@ fn len(v: f64) -> Formula {
     Formula::literal(v, Dimension::Length).expect("a finite length")
 }
 
-/// A dimensionless component — the spelling a direction takes.
-fn scl(v: f64) -> Formula {
-    Formula::literal(v, Dimension::Scalar).expect("a finite scalar")
-}
-
 /// An angle in radians, the unit this scene's turns are written in.
 fn ang(v: f64) -> Formula {
     Formula::literal(v, Dimension::Angle).expect("a finite angle")
@@ -655,46 +650,68 @@ const LID_RIMS: [(u32, f64, f64, &str); 3] = [
     (4, R_KNOB, Y_TOP, "the knob's top (cylinder x plane)"),
 ];
 
-/// **The spout's spine, as a list of section PLANES** — built in the
-/// spout's own frame, where the canal leaves the origin along `+y` and
-/// bends toward `+x` through [`SPOUT_BEND`]. The placement below
-/// carries `+y` onto [`SPOUT_DIR`], so the root arrives on the 3-4-5
-/// direction and the tip a half right angle further up.
+/// **The spout's spine, as a list of section PLANES** — built where the
+/// canal leaves its root along the spout's `+y` and bends toward `+x`
+/// through [`SPOUT_BEND`]. The placement below carries `+y` onto
+/// [`SPOUT_DIR`], so the root arrives on the 3-4-5 direction and the tip
+/// a half right angle further up.
 ///
 /// The spine is a circular ARC of radius `SPOUT_LEN / SPOUT_BEND`, so
 /// the stations are equally spaced along it by construction rather
 /// than by a resampling step.
 ///
-/// **Each frame's normal is the spine's tangent, exactly.** A
-/// `Datum::Frame`'s normal is `u × v`; with `u = +z` and
-/// `v = (cos a, −sin a, 0)` that cross product is `(sin a, cos a, 0)`,
-/// which IS the tangent at station `a`. So a section is perpendicular
-/// to the spine because of what the frame says, not because a fitting
-/// step made it nearly so.
+/// **Each plane's normal is the spine's tangent, exactly.** Station
+/// `a`'s plane stands at `(r(1 − cos a), r sin a, 0)` with axes
+/// `u = +z` and `v = (cos a, −sin a, 0)`, whose normal `u × v` is
+/// `(sin a, cos a, 0)` — the tangent at station `a`. The first section
+/// is drawn on the spout's own `xy` ([`SPOUT_ROOT_FRAME`] is where the
+/// first plane stands); a later one's station is that plane in the
+/// first's own axes — a spin of `−a` about its `x`, then slides of
+/// `r(1 − cos a)` along its `y` and `r sin a` along its `z` — so a
+/// section is perpendicular to the spine because of what the station
+/// says, not because a fitting step made it nearly so.
 ///
 /// Returned with each station's OUTER radius, because the two lofts
-/// below share these frames: the canal and its solid twin are the same
-/// spine and the same sections, differing in one loop.
-fn spout_frames(doc: &mut Doc<ProfileProgram>, tol: Tol) -> Vec<(RecipeNodeId, f64)> {
+/// below share these stations: the canal and its solid twin are the
+/// same spine and the same sections, differing in one loop.
+fn spout_stations() -> Vec<(Vec<StationMove<Formula>>, f64)> {
     let r_spine = SPOUT_LEN / SPOUT_BEND;
     (0..SPOUT_STATIONS)
         .map(|i| {
             #[allow(clippy::cast_precision_loss)]
             let t = i as f64 / (SPOUT_STATIONS - 1) as f64;
-            let (sa, ca) = (t * SPOUT_BEND).sin_cos();
-            let plane = insert(
-                doc,
-                Node::Datum(Datum::Frame {
-                    origin: [len(r_spine * (1.0 - ca)), len(r_spine * sa), len(0.0)],
-                    u: [scl(0.0), scl(0.0), scl(1.0)],
-                    v: [scl(ca), scl(-sa), scl(0.0)],
-                }),
-                tol,
-            );
-            (plane, SPOUT_R1.mul_add(t, SPOUT_R0 * (1.0 - t)))
+            let a = t * SPOUT_BEND;
+            let (sa, ca) = a.sin_cos();
+            let station = if i == 0 {
+                Vec::new()
+            } else {
+                vec![
+                    StationMove::Spin {
+                        about: Axis3::X,
+                        by: ang(-a),
+                    },
+                    StationMove::Slide {
+                        along: Axis3::Y,
+                        by: len(r_spine * (1.0 - ca)),
+                    },
+                    StationMove::Slide {
+                        along: Axis3::Z,
+                        by: len(r_spine * sa),
+                    },
+                ]
+            };
+            (station, SPOUT_R1.mul_add(t, SPOUT_R0 * (1.0 - t)))
         })
         .collect()
 }
+
+/// **Where the spout's first section stands in the bent frame the
+/// spine is described in**: `u = +z`, `v = +x`, normal `+y` — the
+/// tangent at station 0.
+const SPOUT_ROOT_FRAME: Frame = Frame {
+    columns: [[0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+    translation: [0.0; 3],
+};
 
 /// **The spout, as one `Node::Loft` through those sections.**
 ///
@@ -705,7 +722,7 @@ fn spout_frames(doc: &mut Doc<ProfileProgram>, tol: Tol) -> Vec<(RecipeNodeId, f
 /// what makes a bend volume-neutral.
 fn spout_loft(
     doc: &mut Doc<ProfileProgram>,
-    frames: &[(RecipeNodeId, f64)],
+    stations: &[(Vec<StationMove<Formula>>, f64)],
     tol: Tol,
 ) -> RecipeNodeId {
     // **Circles, split into [`SPOUT_ARCS`] arcs**, which is the shape a
@@ -714,35 +731,61 @@ fn spout_loft(
     // wall with a C⁰ crease); the rationality that comes with it is
     // what tier 3 currently cannot certify at ε = 1e-12, and that is a
     // kernel finding this scene exhibits rather than dodges.
-    let profiles = frames
-        .iter()
-        .map(|&(plane, outer)| {
-            let arcs = |radius: f64| LoopProgram::CircleSplit {
-                centre: lpt(0.0, 0.0),
-                radius: len(radius),
-                n: SPOUT_ARCS,
-                phase: ang(0.0),
-            };
-            let loops = vec![arcs(outer), arcs(outer * SPOUT_BORE)];
-            insert(
-                doc,
-                Node::Profile(ProfileProgram {
-                    loops,
-                    ids: Vec::new(),
-                }),
-                tol,
-            )
-            .into()
+    let mut sections = stations.iter().map(|(station, outer)| {
+        let arcs = |radius: f64| LoopProgram::CircleSplit {
+            centre: lpt(0.0, 0.0),
+            radius: len(radius),
+            n: SPOUT_ARCS,
+            phase: ang(0.0),
+        };
+        let loops = vec![arcs(*outer), arcs(outer * SPOUT_BORE)];
+        let profile = insert(
+            doc,
+            Node::Profile(ProfileProgram {
+                loops,
+                ids: Vec::new(),
+            }),
+            tol,
+        );
+        (profile, station.clone())
+    });
+    let (first, _) = sections.next().expect("a loft has a first section");
+    let then = sections
+        .map(|(profile, station)| LoftSection {
+            profile: profile.into(),
+            station,
         })
         .collect();
     insert(
         doc,
         Node::Loft {
-            profiles,
+            first: first.into(),
+            then,
             v_degree: Formula::count(3),
         },
         tol,
     )
+}
+
+/// **The spout's own frame in the pot's coordinates**: the bent frame
+/// turned by [`spout_turn`] about `+z` and slid to [`SPOUT_ROOT`], with
+/// the first section standing at [`SPOUT_ROOT_FRAME`] in it.
+fn spout_pose(tol: Tol) -> Frame {
+    let band = pncad::geom_core::Band::linear(tol).expect("the witnessed band");
+    Frame::rotate_then_translate(
+        [0.0, 0.0, 1.0],
+        spout_turn(),
+        [SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_ROOT.z],
+        band,
+    )
+    .expect("+z has a direction")
+    .compose(&SPOUT_ROOT_FRAME)
+}
+
+/// **The handle's own frame in the pot's coordinates**: its spine
+/// centre on the belly wall, its axes the pot's.
+fn handle_pose() -> Frame {
+    Frame::translation([HANDLE_C.x, HANDLE_C.y, HANDLE_C.z])
 }
 
 /// **The turn that takes the spout's own `+y` axis onto
@@ -777,9 +820,11 @@ struct Recipe {
     /// The spout about its OWN axis — the node whose bands name the
     /// root annulus the placement is measured on.
     spout_body: RecipeNodeId,
-    /// The spout, placed.
+    /// The spout, placed against the pot.
     spout: RecipeNodeId,
-    /// The handle.
+    /// The handle in its own coordinates.
+    handle_body: RecipeNodeId,
+    /// The handle, placed against the pot.
     handle: RecipeNodeId,
     /// The two joins the operand gate has no arm for.
     handle_union: RecipeNodeId,
@@ -801,13 +846,14 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
     applied.record.minted.expect("insert mints an id")
 }
 
-/// One full revolve of `loop_` about the sketch frame's own `+v`
-/// through its origin, which this document places on world `+y`: the
-/// axis is written in the frame's 2-D coordinates, so it cannot leave
-/// the plane the meridian is drawn on.
+/// One full revolve of `loop_` about the meridian's own `+y` through
+/// its origin: the axis is written in the meridian's 2-D coordinates,
+/// so it cannot leave the plane the meridian is drawn on. A meridian
+/// point `(x, y)` is the revolve's own point `(x, y, 0)`, so the pot
+/// stands on its own `+y` — the placement every camera, cell and
+/// budget row of this scene was taken from.
 fn revolved(
     doc: &mut Doc<ProfileProgram>,
-    plane: RecipeNodeId,
     loop_: LoopProgram<Formula>,
     tol: Tol,
 ) -> RecipeNodeId {
@@ -869,30 +915,11 @@ fn rim_arcs(node: RecipeNodeId, vertex: ProfileVertexRef) -> [StableName; 2] {
     [band_rim(node, vertex), band_rim_pi(node, vertex)]
 }
 
-/// **The sketch frame every meridian here is drawn on.**
-///
-/// u = +X (the radius), v = +Y (the axis), so a meridian point
-/// `(x, y)` is the world point `(x, y, 0)` and the pot stands on +Y —
-/// the world placement every camera, cell and budget row of this scene
-/// was taken from.
-fn sketch_frame(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    insert(
-        doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-        tol,
-    )
-}
-
 fn build_doc(tol: Tol) -> Recipe {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot", tol);
-    let plane = sketch_frame(&mut doc, tol);
 
     // ---- the vessel ----
-    let bellied = revolved(&mut doc, plane, vessel_meridian(), tol);
+    let bellied = revolved(&mut doc, vessel_meridian(), tol);
     // The mouth is the meridian's mouth-disc segment, NAMED. A full
     // revolve sweeps a planar wall whole — no seam meridian cuts it —
     // so the mouth disc is ONE face, its `Band`.
@@ -918,7 +945,7 @@ fn build_doc(tol: Tol) -> Recipe {
     );
 
     // ---- the lid ----
-    let plain_lid = revolved(&mut doc, plane, lid_meridian(), tol);
+    let plain_lid = revolved(&mut doc, lid_meridian(), tol);
     // THREE rims, THREE DIFFERENT coaxial arms, in ONE request. The
     // radius is per REQUEST, not per edge, and each later rim's
     // seam-piece identities are re-read against the partially-carved
@@ -945,37 +972,25 @@ fn build_doc(tol: Tol) -> Recipe {
     );
 
     // ---- the spout: a CANAL lofted about its own bent spine, then
-    // placed. The placement is unchanged from when this was a revolved
-    // frustum, and that is deliberate: the shape moved and the
-    // isometry receipt below did not have to.
-    let frames = spout_frames(&mut doc, tol);
-    let spout_body = spout_loft(&mut doc, &frames, tol);
-    let spout = insert(
-        &mut doc,
-        Node::transform(
-            spout_body,
-            pncad::document::Step::Rigid {
-                translation: [len(SPOUT_ROOT.x), len(SPOUT_ROOT.y), len(SPOUT_ROOT.z)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(spout_turn()),
-            },
-        ),
+    // placed against the pot. The pot offers no planar face on its own
+    // `xy`, so the spout's root is mated to a frame read off the pot.
+    let stations = spout_stations();
+    let spout_body = spout_loft(&mut doc, &stations, tol);
+    let placed = crate::world::against_frame(
+        &doc,
+        pncad::document::Operand::output(bellied, 0),
+        spout_body,
+        &spout_pose(tol),
         tol,
     );
+    doc = placed.doc;
+    let spout = placed.placement;
 
     // ---- the handle ----
-    // The frame the handle is bent in: its centre the bend's, its
-    // normal the bend's axis, its x the radial its window starts from.
-    let spine = insert(
-        &mut doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(HANDLE_C.x), len(HANDLE_C.y), len(HANDLE_C.z)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-        tol,
-    );
-    let handle = insert(
+    // Bent about its own `z` through its own origin, its window starting
+    // from its own `x`; placed against the pot with its centre on the
+    // belly wall.
+    let handle_body = insert(
         &mut doc,
         Node::Tube {
             major_radius: len(HANDLE_R),
@@ -987,6 +1002,15 @@ fn build_doc(tol: Tol) -> Recipe {
         },
         tol,
     );
+    let placed = crate::world::against(
+        &doc,
+        pncad::document::Operand::output(bellied, 0),
+        handle_body,
+        &handle_pose(),
+        tol,
+    );
+    doc = placed.doc;
+    let handle = placed.placement;
 
     // ---- the two joins, as document requests ----
     let union_node = |doc: &mut Doc<ProfileProgram>, b| {
@@ -1010,6 +1034,7 @@ fn build_doc(tol: Tol) -> Recipe {
         lid,
         spout_body,
         spout,
+        handle_body,
         handle,
         handle_union,
         spout_union,
@@ -1028,8 +1053,7 @@ fn build_doc(tol: Tol) -> Recipe {
 /// models is not part of that recipe.
 fn wall_one_pot(tol: Tol) -> Body<f64> {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-wall-1", tol);
-    let plane = sketch_frame(&mut doc, tol);
-    let belly = revolved(&mut doc, plane, torus_belly_meridian(), tol);
+    let belly = revolved(&mut doc, torus_belly_meridian(), tol);
     let hollow = insert(
         &mut doc,
         Node::shell(
@@ -1074,11 +1098,16 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
                 .expect("nothing reads it, so it deletes")
                 .doc
         });
-    [r.handle, r.lid, r.cup, r.spout]
-        .into_iter()
-        .fold(tidied, |doc, body| {
-            crate::world::place_in_world(&doc, body, tol).doc
-        })
+    [
+        (r.handle_body, handle_pose()),
+        (r.lid, Frame::IDENTITY),
+        (r.cup, Frame::IDENTITY),
+        (r.spout_body, spout_pose(tol)),
+    ]
+    .into_iter()
+    .fold(tidied, |doc, (body, at)| {
+        crate::world::in_world(&doc, body, &at, tol).doc
+    })
 }
 
 /// The body a node evaluated to.
@@ -1343,8 +1372,7 @@ type Census = (usize, usize, usize);
 /// in it would be three bodies the scene does not model.
 fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-lid-rims", tol);
-    let plane = sketch_frame(&mut doc, tol);
-    let lid = revolved(&mut doc, plane, lid_meridian(), tol);
+    let lid = revolved(&mut doc, lid_meridian(), tol);
     let rims: Vec<[StableName; 2]> = LID_RIMS
         .iter()
         .map(|&(v, ..)| rim_arcs(lid, vertex_at(&doc, lid, v, tol)))
@@ -1919,14 +1947,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     // ---- the spout: built about its own axis, then placed ----
     //
-    // The document's placement vocabulary is AXIS-ANGLE and the 3-4-5
-    // turn is not a binary-exact angle, so what the residual costs is
-    // MEASURED — off the placed BODY, never re-derived from the same
-    // trigonometry the placement used. The subject is the root
-    // annulus: the band of the spout meridian's own segment 0, named
-    // at the revolve that minted it and read at the TRANSFORM, since a
-    // transform contributes no role segment and reading a carried name
-    // there is reading the placed face.
+    // The placement is a mate to a frame read off the pot plus values
+    // taken by `atan2` and projection, and the 3-4-5 turn is not a
+    // binary-exact angle, so what the residual costs is MEASURED — off
+    // the placed BODY, never re-derived from the same trigonometry the
+    // placement used. The subjects are the loft's caps, named at the
+    // loft and read at the placement under its `Placed` segment.
     //
     // TWO subjects, the root annulus and the tip one, and the guard
     // below is why there are two and why neither is the spout's own
@@ -1957,8 +1983,18 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         face_frame(&ev, r.spout_body, &tip_name).expect("the tip annulus, before the placement");
     let unplaced =
         face_frame(&ev, r.spout_body, &root_name).expect("the root annulus, before the placement");
-    let tip_placed = face_frame(&ev, r.spout, &tip_name).expect("the tip annulus, after it");
-    let placed = face_frame(&ev, r.spout, &root_name).expect("the root annulus, after it");
+    // A copy's face is named under its placement.
+    let copied = |name: &StableName| StableName {
+        kind: name.kind,
+        node: r.spout,
+        path: vec![pncad::prelude::RoleSeg::Placed {
+            of: pncad::prelude::NameRef::new(name.clone()),
+        }],
+    };
+    let tip_placed =
+        face_frame(&ev, r.spout, &copied(&tip_name)).expect("the tip annulus, after it");
+    let placed =
+        face_frame(&ev, r.spout, &copied(&root_name)).expect("the root annulus, after it");
     // WHICH cap is the root is read rather than assumed: the spout is
     // built with station 0 AT its own origin, so the root cap is the
     // one standing there and the tip cap is a whole spine-length away.
@@ -1972,21 +2008,18 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // whose columns are the direction's own components, which is what
     // this scene used to hand `transform_rigid` and is independent of
     // the angle the document stores.
+    // The spout's own point `p` in the bent frame its spine is
+    // described in ([`SPOUT_ROOT_FRAME`]), turned.
     let turn = |p: Vec3<f64>| {
         Vec3::new(SPOUT_DIR.y, -SPOUT_DIR.x, 0.0) * p.x + SPOUT_DIR * p.y + Vec3::unit_z() * p.z
     };
-    let root_exact = turn(Vec3::new(
-        unplaced.origin.x,
-        unplaced.origin.y,
-        unplaced.origin.z,
-    )) + Vec3::new(SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_ROOT.z);
+    let bent = |p: Point3<f64>| Vec3::new(p.y, p.z, p.x);
+    let root_exact =
+        turn(bent(unplaced.origin)) + Vec3::new(SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_ROOT.z);
     let root_residual =
         (Vec3::new(placed.origin.x, placed.origin.y, placed.origin.z) - root_exact).norm();
-    let tip_exact = turn(Vec3::new(
-        tip_unplaced.origin.x,
-        tip_unplaced.origin.y,
-        tip_unplaced.origin.z,
-    )) + Vec3::new(SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_ROOT.z);
+    let tip_exact =
+        turn(bent(tip_unplaced.origin)) + Vec3::new(SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_ROOT.z);
     let tip_residual = (Vec3::new(
         tip_placed.origin.x,
         tip_placed.origin.y,
@@ -2016,7 +2049,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     //   * ORIENTATION evidence comes from BOTH caps' normals, and a
     //     translation cannot rotate a normal — so the root cap still
     //     carries turn evidence, of a kind its position could not.
-    let off_axis = tip_unplaced.origin.x.hypot(tip_unplaced.origin.y);
+    let off_axis = bent(tip_unplaced.origin).x.hypot(bent(tip_unplaced.origin).y);
     assert!(
         off_axis > 1e-3,
         "the tip annulus stands at {:?}, on the rotation's own fixed axis — a residual \

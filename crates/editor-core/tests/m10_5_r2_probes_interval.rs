@@ -93,28 +93,19 @@ fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     });
 }
 
-fn translated(input: RecipeNodeId, dx: Formula, dy: Formula, dz: Formula) -> AuthoredNode {
-    Node::transform(
-        input,
-        editor_core::Step::Rigid {
-            translation: [dx, dy, dz],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    )
-}
-
-/// The xy sketch frame, as the `Datum::Frame` node a profile now names.
-///
-/// `ProfileProgram::plane` became a node reference under this branch
-/// (main's move), so every fixture mints the frame first and hands the
-/// profile its id.
-fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
-    r.insert(fixture::xy_frame())
+/// A copy of `input` slid by `(dx, dy, dz)` along its own axes
+/// ([`crate::m10_5_clearance_interval::slid_by`]).
+fn translated(
+    r: &mut Recorder,
+    input: RecipeNodeId,
+    dx: Formula,
+    dy: Formula,
+    dz: Formula,
+) -> RecipeNodeId {
+    crate::m10_5_clearance_interval::slid_by(r, input, input, [dx, dy, dz])
 }
 
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
-    let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
@@ -171,12 +162,12 @@ fn comb() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         ],
         1.0,
     );
-    let placed = r.insert(translated(
+    let placed = translated(&mut r, 
         solid,
         Formula::named(name("place"), Dimension::Length),
         len(0.0),
         len(0.0),
-    ));
+    );
     (r.doc, solid, placed)
 }
 
@@ -220,12 +211,12 @@ fn ell_with_a_block_in_the_notch() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &[(0.85, 0.85), (0.95, 0.85), (0.95, 0.95), (0.85, 0.95)],
         0.1,
     );
-    let placed = r.insert(translated(
+    let placed = translated(&mut r, 
         probe,
         Formula::named(name("place"), Dimension::Length),
         len(0.0),
         len(-0.05),
-    ));
+    );
     (r.doc, solid, placed)
 }
 
@@ -240,13 +231,13 @@ fn blocks_apart(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         1.0,
     );
-    let b = r.insert(translated(a, len(1.0 + gap), len(0.0), len(0.0)));
-    let _ = r.insert(translated(
+    let b = translated(&mut r, a, len(1.0 + gap), len(0.0), len(0.0));
+    let _ = translated(&mut r, 
         a,
         Formula::named(name("place"), Dimension::Length),
         len(0.0),
         len(0.0),
-    ));
+    );
     (r.doc, a, b)
 }
 

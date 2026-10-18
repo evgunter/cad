@@ -23,7 +23,7 @@ use editor_core::persist::SnapshotError;
 use editor_core::stackup::{SensitivityOutcome, sensitivities};
 use editor_core::{
     CancelToken, CarryForwardDoor, Dimension, Distribution, DocEdit, DocumentId, EditError,
-    EvalError, EvalOptions, Evaluation, ExtrudeSide, Formula, FreeValue, FreeVar, InlineError,
+    EvalError, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, InlineError,
     Maintenance, Node, NodeErrorKind, NodeResult, ParamBox, ParamValue, PersistError, ProfileDoc,
     ProfileProgram, RecipeNodeId, SeedError, UnitSym, VarDecl, VarId, VarName, apply, evaluate,
     inline, load, save, var_env_over,
@@ -338,10 +338,6 @@ fn a_respelled_definition_reruns_its_flow_bearing_reader() {
 #[test]
 fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
     let disc = |doc: ProfileDoc, radius: Formula| {
-        let (doc, plane) = insert(
-            doc,
-            crate::fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-        );
         let (doc, profile) = insert(
             doc,
             Node::Profile(ProfileProgram {

@@ -26,7 +26,7 @@ use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram,
     Node, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, UnitSym, VarName, evaluate,
 };
-use fixture::{Recorder, len, scl, xy_frame};
+use fixture::{Recorder, len, scl};
 use geom_core::Tol;
 use geom_core::k_stats::{SampleOutcome, start_recording, take_samples};
 

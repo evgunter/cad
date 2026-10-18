@@ -9,7 +9,7 @@
 //!   the census reads them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::{body_of, failures};
 use crate::fixture::insert;
 use editor_core::{
@@ -19,12 +19,12 @@ use geom_core::Tol;
 use topo::{DecisionSite, Relation};
 
 /// A block of `[0, 2]² × [0, 1]` and a plate of `[0.5, 1.5]² × [1 + gap,
-/// 1.5 + gap]` above it, each size typed separately, unioned:
-/// `(doc, block, plate, union)`.
+/// 1.5 + gap]` placed above it, each size typed separately, unioned:
+/// `(doc, block, plate, union)`, `plate` the placement.
 fn plate_on_a_block(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("glue-on-zero", Tol::witness());
-    let (doc, base) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, plate) = block(doc, (0.5, 1.5), (0.5, 1.5), 1.0 + gap, 0.5);
+    let (doc, base) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
+    let (doc, plate) = block_on(doc, base, (0.5, 1.5), (0.5, 1.5), 1.0 + gap, 0.5);
     let (doc, union) = insert(
         doc,
         Node::Union {

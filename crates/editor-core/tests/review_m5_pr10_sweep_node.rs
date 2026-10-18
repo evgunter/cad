@@ -51,13 +51,6 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
             vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
         );
         doc = d;
-        // The path is sketched on the xz plane, not the section's xy:
-        // a second frame, because it is a second plane.
-        let (d, path_plane) = insert(
-            doc,
-            fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
-        );
-        doc = d;
         let (d, path) = insert(
             doc,
             Node::Profile(editor_core::ProfileProgram {
@@ -116,7 +109,7 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
 }
 
 /// The RECIPE doors still run BEFORE the frontier: a Sweep whose path
-/// is a datum is a recipe error and reads as one — refused by kind at
+/// is a point is a recipe error and reads as one — refused by kind at
 /// the edit door — never as a frontier story about geometry it never
 /// reached.
 #[test]
@@ -130,17 +123,26 @@ fn review_recipe_doors_precede_the_sweep_frontier() {
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     doc = d;
-    let (doc, datum) = insert(
+    let (doc, block) = insert(
         doc,
-        Node::Datum(editor_core::Datum::Point {
-            position: [len(0.0), len(0.0), len(0.0)],
-        }),
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+        },
     );
+    // A point read off the block's start cap: a pose, not a path.
+    let point = fixture::point_of(editor_core::Operand::select(
+        block,
+        vec![fixture::fname(
+            block,
+            editor_core::RoleSeg::Cap(editor_core::CapEnd::Start),
+        )],
+    ));
     let refusal = crate::fixture::insert_refused(
         &doc,
         Node::Sweep {
             profile: profile.into(),
-            path: datum.into(),
+            path: point,
             stations: Formula::count(4),
             v_degree: Formula::count(2),
         },
@@ -154,6 +156,6 @@ fn review_recipe_doors_precede_the_sweep_frontier() {
                 ..
             }
         ),
-        "a datum path is refused by kind: {refusal:?}"
+        "a point path is refused by kind: {refusal:?}"
     );
 }

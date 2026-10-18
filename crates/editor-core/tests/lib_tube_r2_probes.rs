@@ -7,10 +7,7 @@
 //! `the_storage_contract_holds_at_non_dyadic_values` were written
 //! independently and are BOTH kept — different spellings (full ring
 //! against arc; a sharpness guard against `0.2`'s bits, against a
-//! second value pair plus the solid door). Probe 3 is deliberately
-//! DISJUNCTIVE ("the datum refused, or the datum normalized and the
-//! tube built"); `lib_tube_r1_probes2` pins which branch actually
-//! runs, and the two together are the whole claim.
+//! second value pair plus the solid door).
 //!
 //! Each row here is an ATTACK that failed, kept because a failed
 //! attack is evidence and the suite did not already carry it:
@@ -21,9 +18,7 @@
 //! 2. name distinctness by CONSTRUCTION — two tubes and a revolve in
 //!    one document, which is the collision the revolve template would
 //!    show if it needed discrimination it cannot give;
-//! 3. the non-unit-AXIS verdict's disclosed unreachability, executed
-//!    from both sides;
-//! 4. a tube-bearing save read by a build that does not know the
+//! 3. a tube-bearing save read by a build that does not know the
 //!    vocabulary, at the bytes.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -33,10 +28,10 @@ use crate::fixture;
 
 use corpus::{body_of, eval, failures};
 use editor_core::{
-    Datum, DocEdit, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId,
+    DocEdit, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId,
     TubeWindow, apply, load, save,
 };
-use fixture::{ang, len, scl};
+use fixture::{ang, len};
 use geom_core::Tol;
 use topo::{Body, Surface};
 
@@ -56,31 +51,10 @@ fn stored_minor_bits(body: &Body<f64>) -> Vec<u64> {
     bits.sort_unstable();
     bits
 }
-/// A document holding the frame a tube on the spine axis `dir` reads,
-/// its reference `[1, 0, 0]`.
-fn axis_doc(name: &str, dir: [f64; 3]) -> (ProfileDoc, RecipeNodeId) {
-    frame_doc(name, dir, [1.0, 0.0, 0.0])
-}
-
-/// [`axis_doc`] with the reference `u`: the frame's `v` is `dir × u`,
-/// so its normal is `dir`.
-fn frame_doc(name: &str, dir: [f64; 3], u: [f64; 3]) -> (ProfileDoc, RecipeNodeId) {
-    let [a, b, c] = dir;
-    let [x, y, z] = u;
-    let mut doc = ProfileDoc::empty_derived(name, Tol::witness());
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::Datum(Datum::Frame {
-                origin: [len(0.0), len(0.0), len(0.0)],
-                u: u.map(scl),
-                v: [b * z - c * y, c * x - a * z, a * y - b * x].map(scl),
-            })),
-            fresh: Vec::new(),
-        },
-    );
-    let spine = *doc.ids().last().expect("the datum");
-    (doc, spine)
+/// An empty document named `name`: a tube reads no frame, so it is
+/// the whole of its own document.
+fn axis_doc(name: &str) -> ProfileDoc {
+    ProfileDoc::empty_derived(name, Tol::witness())
 }
 
 // ---------------------------------------------------------------
@@ -111,7 +85,7 @@ fn r2_the_storage_contract_holds_at_non_dyadic_radii() {
         "the probe is only sharp if 0.3 - 0.1 misses 0.2 — it does"
     );
 
-    let (mut doc, spine) = axis_doc("r2_nondyadic", [0.0, 0.0, 1.0]);
+    let mut doc = axis_doc("r2_nondyadic");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -163,7 +137,7 @@ fn r2_the_storage_contract_holds_at_non_dyadic_radii() {
 /// no duplicate, and that re-evaluating reproduces every name.
 #[test]
 fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
-    let (mut doc, spine) = axis_doc("r2_crowded", [0.0, 0.0, 1.0]);
+    let mut doc = axis_doc("r2_crowded");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -272,7 +246,7 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
 /// against the body's own entity count.
 #[test]
 fn r2_a_hollow_rings_cavity_is_named_by_the_revolve_template() {
-    let (mut doc, spine) = axis_doc("r2_cavity", [0.0, 0.0, 1.0]);
+    let mut doc = axis_doc("r2_cavity");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -305,114 +279,10 @@ fn r2_a_hollow_rings_cavity_is_named_by_the_revolve_template() {
 }
 
 // ---------------------------------------------------------------
-// 3. The disclosed unreachability, executed from both sides
+// 3. The stale-build direction, at the bytes
 // ---------------------------------------------------------------
 
-/// **PROBE 3 — the non-unit-axis verdict really is unreachable along
-/// the recipe path, and it is the DATUM that makes it so.**
-///
-/// The unit discloses this as main's doing. Executed: a datum axis
-/// with a non-unit direction refuses ONE NODE UPSTREAM, so the tube
-/// node never runs at all — and the refusal is the datum's, not the
-/// tube door's.
-#[test]
-fn r2_a_non_unit_axis_refuses_upstream_and_never_reaches_the_tube_door() {
-    // A direction of length 2 — a perfectly good non-unit axis.
-    let (mut doc, spine) = axis_doc("r2_nonunit_axis", [0.0, 0.0, 2.0]);
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::Tube {
-                major_radius: len(2.0),
-                window: TubeWindow::Full,
-                minor_radius: len(0.5),
-            }),
-            fresh: Vec::new(),
-        },
-    );
-    let tube = *doc.ids().last().expect("the tube");
-    let ev = eval::<f64>(&doc);
-
-    // Whatever happens, it must NOT be the tube door's own verdict.
-    if let Some(NodeResult::Failed(e)) = ev.nodes.get(&tube) {
-        assert!(
-            !matches!(e.kind, NodeErrorKind::Tube(_)),
-            "the disclosure says this verdict is unreachable from a document, \
-             but the tube door produced it: {:?}",
-            e.kind
-        );
-    }
-    // And the datum is where it is decided — either the datum refused,
-    // or the datum normalized and the tube built. Both are consistent
-    // with the disclosure; a tube-door refusal is not.
-    let datum_failed = matches!(ev.nodes.get(&spine), Some(NodeResult::Failed(_)));
-    let tube_built = matches!(ev.nodes.get(&tube), Some(NodeResult::Ok(_)));
-    assert!(
-        datum_failed || tube_built,
-        "either the datum decides the norm or the tube builds; \
-         datum={:?} tube={:?}",
-        ev.nodes.get(&spine).map(|_| "present"),
-        ev.nodes.get(&tube).map(|_| "present"),
-    );
-    println!("r2: non-unit axis -> datum_failed={datum_failed} tube_built={tube_built}");
-}
-
-/// **PROBE 3b — what a reference does from a document now that the
-/// tube reads a frame.** The frame datum decides it: a long `u` is
-/// normalized into the frame and builds, and one on the spine axis
-/// leaves the frame no second direction, so the FRAME refuses and the
-/// tube is poisoned through it. Neither is a tube verdict.
-#[test]
-fn r2_the_reference_verdicts_stay_reachable_from_a_document() {
-    let tube = |frame: RecipeNodeId| Node::Tube {
-        major_radius: len(2.0),
-        window: TubeWindow::Full,
-        minor_radius: len(0.5),
-    };
-    let (mut long_doc, long_frame) = frame_doc("r2_uref_long", [0.0, 0.0, 1.0], [2.0, 0.0, 0.0]);
-    long_doc = push(
-        &long_doc,
-        &DocEdit::InsertNode {
-            node: Box::new(tube(long_frame)),
-            fresh: Vec::new(),
-        },
-    );
-    let long_tube = *long_doc.ids().last().expect("the tube");
-    let long_ev = eval::<f64>(&long_doc);
-    assert!(
-        matches!(long_ev.nodes.get(&long_tube), Some(NodeResult::Ok(_))),
-        "a long reference names the same radial and must build"
-    );
-
-    let (mut doc, frame) = frame_doc("r2_uref", [0.0, 0.0, 1.0], [0.0, 0.0, 1.0]);
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(tube(frame)),
-            fresh: Vec::new(),
-        },
-    );
-    let on_axis = *doc.ids().last().expect("the tube");
-    let ev = eval::<f64>(&doc);
-    match ev.nodes.get(&frame) {
-        Some(NodeResult::Failed(e)) => assert!(
-            matches!(e.kind, NodeErrorKind::DegenerateDirection { .. }),
-            "a reference on the axis line refuses at the frame as a direction verdict, got {:?}",
-            e.kind
-        ),
-        other => panic!("a reference on the axis line must refuse at the frame, got {other:?}"),
-    }
-    assert!(
-        matches!(ev.nodes.get(&on_axis), Some(NodeResult::Poisoned { through }) if *through == frame),
-        "the tube is poisoned through its frame"
-    );
-}
-
-// ---------------------------------------------------------------
-// 4. The stale-build direction, at the bytes
-// ---------------------------------------------------------------
-
-/// **PROBE 4 — a build that does not know the tube vocabulary refuses
+/// **PROBE 3 — a build that does not know the tube vocabulary refuses
 /// a tube-bearing save TYPED, with the regenerate recourse.**
 ///
 /// A reviewer cannot compile a stale kernel, so this executes the
@@ -428,7 +298,7 @@ fn r2_the_reference_verdicts_stay_reachable_from_a_document() {
 /// a genuinely older binary.
 #[test]
 fn r2_a_tube_bearing_save_refuses_typed_on_a_build_that_lacks_the_vocabulary() {
-    let (mut doc, spine) = axis_doc("r2_stale", [0.0, 0.0, 1.0]);
+    let mut doc = axis_doc("r2_stale");
     doc = push(
         &doc,
         &DocEdit::InsertNode {

@@ -20,8 +20,8 @@
 //! and a live one at its kind, at both doors, because a file can be
 //! written with the pairing already broken.
 //!
-//! The kinds below are the two the narrowed walk could not see: an
-//! extrude and a frame datum. A PROFILE program's own step argument is
+//! The kind below is one the narrowed walk could not see: an extrude.
+//! A PROFILE program's own step argument is
 //! the same question at the same door, pinned by
 //! `m4_pr6_refusal::program_structure_doors_refuse_typed_at_load`.
 
@@ -34,19 +34,18 @@ use editor_core::{
     Axis3, Dimension, DocEdit, EditError, Node, PersistError, ProfileDoc, RecipeNodeId, SlotId,
     SnapshotError, apply, load, save,
 };
-use fixture::{ang, len, on_frame_keeping, square};
+use fixture::{ang, len, on_frame, square};
 use geom_core::Tol;
 
-/// A one-extrude document on an explicit frame: the frame's origin
-/// components are lengths, the extrude's distance is a length, and
-/// both are slots whose addresses fix that.
-fn doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, frame, profile) = on_frame_keeping(
+/// A one-extrude document: the extrude's distance is a length, a slot
+/// whose address fixes that.
+fn doc() -> (ProfileDoc, RecipeNodeId) {
+    let (doc, profile) = on_frame(
         ProfileDoc::empty(
             editor_core::DocumentId::derive("slot-dim-both-doors"),
             Tol::witness(),
         ),
-        [0.25, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
@@ -58,7 +57,7 @@ fn doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             distance: len(1.0),
         },
     );
-    (doc, frame, extrude)
+    (doc, extrude)
 }
 
 /// Retypes the variable a slot reads from `Length`/`m` to
@@ -78,7 +77,7 @@ fn retype_to_angle(
 /// the same node.
 #[test]
 fn a_retyped_extrude_distance_is_refused_at_both_doors() {
-    let (doc, _, extrude) = doc();
+    let (doc, extrude) = doc();
     match apply(
         &doc,
         &DocEdit::SetParam {
@@ -132,72 +131,11 @@ fn a_retyped_extrude_distance_is_refused_at_both_doors() {
     }
 }
 
-/// **A frame datum's origin component — both doors.** A second node
-/// kind, and a slot whose address is a COMPONENT rather than a whole
-/// quantity: the walk is over `Node::slots()`, so nothing about it is
-/// per-kind.
-#[test]
-fn a_retyped_frame_origin_is_refused_at_both_doors() {
-    let (doc, frame, _) = doc();
-    let slot = SlotId::Origin(Axis3::X);
-    match apply(
-        &doc,
-        &DocEdit::SetParam {
-            node: frame,
-            slot,
-            value: ang(0.25).into(),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    ) {
-        Err(EditError::SlotDimensionMismatch {
-            slot: refused,
-            expected,
-            found,
-        }) => {
-            assert_eq!(refused, slot);
-            assert_eq!(
-                (expected, found),
-                (
-                    editor_core::SlotKind::Is(editor_core::VarKind::Length),
-                    Dimension::Angle
-                )
-            );
-        }
-        other => panic!("the edit door must refuse an angle origin, got {other:?}"),
-    }
-
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
-    load(&text, Tol::witness()).expect("the fixture loads");
-    let corrupt = doctored(&text, |wire| {
-        retype_to_angle(wire, |wire| {
-            &wire["snapshot"]["nodes"][frame.0.to_string()]["Datum"]["Frame"]["origin"][0]
-        })
-    });
-    match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
-            node,
-            slot: refused,
-            found: declared,
-            expected: editor_core::SlotKind::Is(referenced),
-            ..
-        })) => {
-            assert_eq!((node.id(), refused), (frame, slot));
-            assert_eq!(
-                (declared, referenced),
-                (editor_core::VarKind::Angle, editor_core::VarKind::Length)
-            );
-        }
-        other => panic!("the load door must refuse an angle origin, got {other:?}"),
-    }
-}
-
 /// A one-extrude document whose distance is the PARAMETER `depth`,
 /// declared as a length.
 fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::VarName) {
     let name = editor_core::VarName::from_static("depth");
-    let (doc, _, extrude) = doc();
+    let (doc, extrude) = doc();
     let doc = apply(
         &doc,
         &DocEdit::DeclareVar {

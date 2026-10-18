@@ -96,7 +96,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::document::ExtrudeSide;
 use pncad::prelude::AuthoredNode;
 use std::collections::{BTreeMap, BTreeSet};
 use std::f64::consts::PI;
@@ -105,13 +104,13 @@ use std::sync::Arc;
 
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
-    Assembly, AssemblyError, CONTRADICTORY_RECOURSE, CancelToken, Constraint, Coord, Datum,
+    Assembly, AssemblyError, CONTRADICTORY_RECOURSE, CancelToken, Constraint, Coord,
     Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
     FreeVar, InlineError, LoopProgram, Mate, MateFault, MateReach, MateRef, MintRefusal,
     NO_AT_REST_RECORD_RECOURSE, Node, Operand, PartReach, PartResolver, PartSelect, PatternKind,
     ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace, SlideAxis, Space, Target,
     Value, ValuePayload, VarName, WorldRead, apply, assemble, content_pin, evaluate, inline, load,
-    mixed_pins, parse_formula, pin_at, place_at, product_named, save, solve_document, split,
+    mixed_pins, parse_formula, pin_at, place_at, product_named, save, solve_document, split, stand,
 };
 use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
@@ -396,17 +395,15 @@ fn place_in_world(
     set_values(doc, mate, placed.values, tol, &RefusingReach);
 }
 
-/// Places one copy of `body` in the world where it stands — pinned by
-/// the named interim's world pin, which reads nothing — and returns the
-/// placement's id.
+/// Places one copy of `body` in the world where it stands
+/// ([`stand`]: a plane mate on a face no variable reaches, with
+/// constant-zero values) and returns the placement's id.
 fn place(doc: &mut ProfileDoc, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
+    let placed = stand(doc, &body.into(), &EvalOptions::default(), tol)
+        .unwrap_or_else(|refusal| panic!("the copy stands over its geometry: {refusal}"));
     let placement = insert(doc, Node::place(vec![body.into()]), tol);
-    edit(
-        doc,
-        &DocEdit::PinWhereItStands { placement },
-        tol,
-        &RefusingReach,
-    );
+    let mate = constrain(doc, placement, placed.mate, tol, &RefusingReach);
+    set_values(doc, mate, placed.values, tol, &RefusingReach);
     placement
 }
 
@@ -513,17 +510,6 @@ fn prism_part(
         scope.insert(name, Dimension::Length);
     }
     let zero = pe("0 mm", &scope);
-    let plane = insert(
-        &mut doc,
-        Node::Datum(Datum::Frame {
-            origin: [pe("0 mm", &scope), pe("0 mm", &scope), pe("0 mm", &scope)],
-            // A bare integer parses as a Count; the frame's axes are
-            // Scalars, so they are spelled as decimals.
-            u: [pe("1.0", &scope), pe("0.0", &scope), pe("0.0", &scope)],
-            v: [pe("0.0", &scope), pe("1.0", &scope), pe("0.0", &scope)],
-        }),
-        tol,
-    );
     // The section, counter-clockwise from the origin corner: the two
     // extents are the document's own named parameters, so the corners
     // are expressions and the loop is built from them directly.

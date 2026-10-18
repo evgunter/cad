@@ -414,16 +414,16 @@ fn stated_consequence_undone_insert_moves_pin() {
     let (doc, _, _) = exemplar("asm1-next-id");
     let nodes_before = doc.len();
     let before = content_pin(&doc, Tol::witness()).unwrap();
-    // One node in, one node out: the profile alone, on a frame the
-    // document already carries, so the delete restores the count.
-    // The exemplar's own frame: node 0, ahead of its profile.
-    let plane = doc.ids()[0];
+    // One node in, one node out: the profile alone, so the delete
+    // restores the count.
     let (with_extra, extra) = insert(
         doc,
-        Node::Profile(desc(
-            plane,
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        Node::Profile(desc(vec![vec![
+            (0.0, 0.0),
+            (1.0, 0.0),
+            (1.0, 1.0),
+            (0.0, 1.0),
+        ]])),
     );
     let (undone, _) = step(with_extra, DocEdit::DeleteNode { id: extra });
     assert_eq!(undone.len(), nodes_before, "the node itself is gone");

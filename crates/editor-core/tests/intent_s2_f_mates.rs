@@ -372,10 +372,22 @@ fn a_mate_whose_side_no_longer_resolves_refuses_and_the_gate_says_so() {
     }
 }
 
-/// Two local cubes, `x` and `y`, a transform `t` lifting `x` by 5, and
-/// `x` and `y` placed; a distance measure reads a face of `x` in
-/// `body_of_x(x, t)` and a face of `y`. Answers the document and
-/// `(x, t, the placement of x)`.
+/// **A name worn by the copy `placement` makes**: one `Placed` wrapper
+/// round the name its body minted.
+fn in_placement(placement: RecipeNodeId, of: editor_core::StableName) -> editor_core::StableName {
+    editor_core::StableName {
+        kind: of.kind,
+        node: placement,
+        path: vec![editor_core::RoleSeg::Placed {
+            of: editor_core::NameRef::new(of),
+        }],
+    }
+}
+
+/// Two local cubes, `x` and `y`, a placement `t` lifting `x` by 5 in
+/// its own space, and `x` and `y` placed; a distance measure reads a
+/// face of `x` in `body_of_x(x, t)` and a face of `y`. Answers the
+/// document and `(x, t, the placement of x)`.
 fn lifted_cube_measured(
     label: &str,
     body_of_x: impl Fn(RecipeNodeId, RecipeNodeId) -> RecipeNodeId,
@@ -384,10 +396,10 @@ fn lifted_cube_measured(
     let cube = |doc: ProfileDoc, x: f64| {
         let (doc, p) = on_frame(
             doc,
-            [x, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+            vec![vec![(x, 0.0), (x + 1.0, 0.0), (x + 1.0, 1.0), (x, 1.0)]],
         );
         insert(
             doc,
@@ -400,20 +412,20 @@ fn lifted_cube_measured(
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, x) = cube(doc, 0.0);
     let (doc, y) = cube(doc, 3.0);
-    let (doc, t) = insert(
-        doc,
-        fixture::xform(x, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0),
-    );
+    let (doc, t) = fixture::xform(doc, x, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0);
+    let x_end = fixture::fname(x, editor_core::RoleSeg::Cap(CapEnd::End));
+    let x_end = if body_of_x(x, t) == t {
+        in_placement(t, x_end)
+    } else {
+        x_end
+    };
     let (doc, px) = fixture::place(doc, placed(x, t));
     let (doc, _) = fixture::place(doc, y);
     let (doc, _) = fixture::measure_node(
         &doc,
         editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
-            editor_core::SitedRef::new(
-                body_of_x(x, t),
-                fixture::fname(x, editor_core::RoleSeg::Cap(CapEnd::End)),
-            ),
+            editor_core::SitedRef::new(body_of_x(x, t), x_end),
             editor_core::SitedRef::new(
                 y,
                 fixture::fname(y, editor_core::RoleSeg::Cap(CapEnd::End)),
@@ -425,7 +437,7 @@ fn lifted_cube_measured(
 
 /// **A selection crosses a cut only through a placement of its own
 /// body** (review R1, MAJOR-1). A measure reads `x`'s face in the
-/// transform `t` over it, and only `x` is placed: the cut placement's
+/// placement `t` over it, and only `x` is placed: the cut placement's
 /// copy holds the name, but not where the measure reads it, so the
 /// read is severed rather than re-anchored five units away. The
 /// reverse — the face read in `x`, only `t` placed — likewise.
@@ -558,7 +570,7 @@ fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
 #[test]
 fn a_selection_crossing_a_posed_placement_refuses() {
     let (doc, [x, t, _]) = lifted_cube_measured("f-posed", |x, _| x, |_, t| t);
-    // Re-place `x` itself, posed, and drop the transform's placement.
+    // Re-place `x` itself, posed, and drop `t`'s world placement.
     let placed_t = doc
         .placements()
         .into_iter()
@@ -568,7 +580,7 @@ fn a_selection_crossing_a_posed_placement_refuses() {
             }
             _ => false,
         })
-        .expect("the transform is placed");
+        .expect("`t` is placed in the world");
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: placed_t });
     let (doc, posed) = insert(doc, Node::place(vec![x.into()]));
     let doc = fixture::pin(

@@ -89,18 +89,11 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     // Placed by the parameter, so the measured distance moves with it —
     // M10-5's finding that a rigid placement is what survives the
     // interval lane at a usable box.
-    let placed = r.insert(Node::transform(
-        solid,
-        editor_core::Step::Rigid {
-            translation: [
+    let placed = crate::m10_5_clearance_interval::slid_by(&mut r, solid, solid, [
                 Formula::named(name("place"), Dimension::Length),
                 len(0.0),
                 len(0.0),
-            ],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
+            ]);
     // distance(wall 0, wall 2) — two parallel walls of the prism, 2 m
     // apart, measured at the PLACED node.
     let web = MeasurePrimitive::Distance { a: 0, b: 1 };
@@ -109,11 +102,17 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &[
             SitedRef::new(
                 placed,
-                fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+                crate::m10_5_clearance_interval::in_placement(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+                ),
             ),
             SitedRef::new(
                 placed,
-                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                crate::m10_5_clearance_interval::in_placement(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                ),
             ),
         ],
     );

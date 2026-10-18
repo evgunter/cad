@@ -106,10 +106,6 @@ fn loft_doc_of(
             ids: Vec::new(),
         }),
     );
-    let (doc, upper_frame) = fixture::insert(
-        doc,
-        fixture::frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
     let (doc, upper) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -120,7 +116,14 @@ fn loft_doc_of(
     fixture::insert(
         doc,
         Node::Loft {
-            profiles: vec![lower.into(), upper.into()],
+            first: lower.into(),
+            then: vec![editor_core::LoftSection {
+                profile: upper.into(),
+                station: vec![editor_core::StationMove::Slide {
+                    along: editor_core::Axis3::Z,
+                    by: fixture::len(1.0),
+                }],
+            }],
             v_degree: Formula::count(1),
         },
     )

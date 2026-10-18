@@ -3483,7 +3483,7 @@ mod value_field_tests {
     use crate::props;
     use crate::session::ValueGestureName;
     use crate::session::{DocSession, Refusal, SessionOp};
-    use crate::test_support::{declared, framed_square, inserted, len, scl};
+    use crate::test_support::{declared, square_profile, inserted, len, scl};
     use eframe::egui;
     use pncad::document::{
         Dimension, DimensionError, Doc, Formula, FreeVar, Node, PatternKind, ProfileProgram,
@@ -3577,7 +3577,7 @@ mod value_field_tests {
                 FreeVar::written_length(WrittenLength::canonical_in(0.004, MM)),
                 tol,
             );
-            let (doc, profile) = framed_square(&doc, 0.04, tol);
+            let (doc, profile) = square_profile(&doc, 0.04, tol);
             let (doc, extrude) = inserted(
                 &doc,
                 Node::Extrude {

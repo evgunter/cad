@@ -24,10 +24,10 @@ use pncad::quantity::UnitDef;
 
 use crate::display::PruneReport;
 use crate::props::SlotValue;
-use crate::session::author::{DatumSpec, PartSelectSpec, PatternRuleSpec, ProfilePlane};
+use crate::session::author::{PartSelectSpec, PatternRuleSpec};
 use crate::session::probe::BoundsTarget;
 use crate::session::refuse::Refusal;
-use crate::session::select::{Hovered, Selection};
+use crate::session::select::{FaceSelection, Hovered, Selection};
 
 /// One typed operation on the session.
 #[derive(Clone, Debug)]
@@ -497,14 +497,8 @@ pub enum SessionOp {
         /// The document's name; the id is derived from its trim.
         name: String,
     },
-    /// Insert one datum node with literal slots — the add-datum forms'
-    /// one committed edit each.
-    AddDatum {
-        /// The datum's literal payload.
-        datum: DatumSpec,
-    },
-    /// Insert one profile node from template loops on a plane — the
-    /// add-profile tool's one committed edit.
+    /// Insert one profile node from template loops, drawn on its own
+    /// plane — the add-profile tool's one committed edit.
     ///
     /// `loops` is DESCRIPTION order, nothing more: which loop is the
     /// outer boundary and which are holes is decided by the profile
@@ -515,28 +509,35 @@ pub enum SessionOp {
     /// non-nested pair all refuse through the authoring-time check
     /// ([`Refusal::Edit`]), one rule for authored and hand-written
     /// programs alike (only a non-finite field refuses earlier, at
-    /// the literal door). The plane is a REFERENCE to a frame node,
-    /// which the pick below spells out.
+    /// the literal door). A profile reads no frame: where it stands is
+    /// the placement of what is built from it.
     AddProfile {
-        /// **The frame the profile is drawn on** — a PICK, not a
-        /// field, and [`ProfilePlane`] says which of the two ways it
-        /// was picked.
-        ///
-        /// A profile's plane is a document node, so the form names
-        /// one rather than carrying a plane on the side: the frame a
-        /// person drew on is the frame they can see in the viewport
-        /// and edit afterwards.
-        ///
-        /// [`ProfilePlane::Existing`] names a node that is already
-        /// there; a reference that does not name a `Datum::Frame`
-        /// refuses [`Refusal::WrongNodeKind`] at the door, like every
-        /// other pick. [`ProfilePlane::NewXy`] inserts the world XY
-        /// frame FIRST and draws on it, both edits in one committed
-        /// action and therefore one undo — so an empty document can
-        /// author a sketch without a trip to another form.
-        plane: ProfilePlane,
         /// The loop programs, in description order.
         loops: Vec<LoopProgram<Formula>>,
+    },
+    /// **"Sketch on this face"** (spec §5): `loops` drawn as a profile
+    /// on its own plane, extruded `distance` up its own `z`, the
+    /// extrude's copy placed against the picked face — a `Plane` mate
+    /// from its start cap, flipped, to the face's plane, its origin
+    /// over the face body's own and turned `spin` about the face's
+    /// normal — and the face's body and the copy fused, as ONE action
+    /// (`Recording::sketch_on_face`), the face body's world placements
+    /// re-pointed to the union (A10, Ev's residue 1).
+    ///
+    /// A pick on a copy is read on the body it places. A face whose
+    /// node is no body refuses [`Refusal::WrongNodeKind`]; every other
+    /// refusal is the edit door's ([`Refusal::Edit`]), and a face that
+    /// is not planar or does not resolve refuses at evaluation, on the
+    /// placement's badge.
+    SketchOnFace {
+        /// The picked face.
+        face: FaceSelection,
+        /// The loop programs, in description order.
+        loops: Vec<LoopProgram<Formula>>,
+        /// The extrusion depth (`Length`).
+        distance: Formula,
+        /// The turn about the face's normal (`Angle`).
+        spin: Formula,
     },
     /// **Write the path editor's program over a committed profile's**
     /// — the door the add-profile form's editor commits through when
@@ -591,9 +592,9 @@ pub enum SessionOp {
     /// `Node::Profile` in this document refuses
     /// [`Refusal::WrongNodeKind`] at the door.
     ///
-    /// The extrude goes along the sketch normal. The distance is a
+    /// The extrude goes up the profile's own `+z`. The distance is a
     /// depth: the door inserts what it is given, and a negative one
-    /// refuses at evaluation, naming the side as its recourse.
+    /// refuses at evaluation.
     AddExtrude {
         /// The profile node extruded.
         profile: RecipeNodeId,
@@ -636,29 +637,58 @@ pub enum SessionOp {
     /// leaves the world `[result]`, and one undo restores them. A
     /// repeated operand counts once; operands nothing places place
     /// nothing.
+    ///
+    /// **Operands in two spaces are related by a placement** (D10): each
+    /// operand after the first whose value lives in another space than
+    /// the first's is placed against the first operand's root at the
+    /// identity ([`pncad::document::place_against`]; in the world at
+    /// the identity where the first is a world copy), and the boolean
+    /// reads the placement — in the same action. An operand the door
+    /// cannot place is read as it is, and the boolean refuses
+    /// `SpaceMismatch` at evaluation, on its own badge.
     AddBoolean {
         /// The operation and its operands.
         spec: super::BooleanSpec,
     },
-    /// Insert one split of an existing body by an existing datum
-    /// plane — the split tool's one committed edit. A split defines two
-    /// bodies, its `above` and `below` outputs, and it changes nothing
-    /// in the world: the target's placements keep reading the target,
-    /// and a half is read by its port wherever a body seat takes one.
+    /// Insert one split of an existing body by a plane — the split
+    /// tool's one committed edit. A split defines two bodies, its
+    /// `above` and `below` outputs, and it changes nothing in the
+    /// world: the target's placements keep reading the target, and a
+    /// half is read by its port wherever a body seat takes one.
     ///
-    /// The tool seat is a PLANE and not a body: `Node::Split`'s tool
-    /// operand is the plane the cut is taken on. Both seats refuse
-    /// [`Refusal::WrongNodeKind`] for the wrong kind.
+    /// The plane is the one through `origin` with normal `normal` in
+    /// the target's own coordinates, read off the target's geometry
+    /// (`Node::Split`'s tool is a plane read whose reads reach its
+    /// operand's root alone) at the numbers' nominal values in the
+    /// document. A target seat of the wrong kind refuses
+    /// [`Refusal::WrongNodeKind`]; a number of the wrong dimension, one
+    /// that does not evaluate, a normal that names no direction and a
+    /// target with no geometry to read the plane off refuse
+    /// [`Refusal::Frame`].
     AddSplit {
         /// The body split.
         target: Operand,
-        /// The `Datum::Plane` node it is cut by.
-        tool: RecipeNodeId,
+        /// A point on the plane (`Length`).
+        origin: [Formula; 3],
+        /// The plane's normal (`Scalar`).
+        normal: [Formula; 3],
     },
-    /// Insert one rigid transform of an existing body — the transform
-    /// tool's one committed action, re-pointing the body's world
-    /// placements to it (A10, Ev's residue 1). The property panel is
-    /// the editor for every slot afterwards.
+    /// **Move an existing body rigidly** — the transform tool's one
+    /// committed action: a placement of the body against its own
+    /// geometry (`Node::Place` and its mate, `place_against`) at the
+    /// frame the numbers make — rotated by `rotation_angle` about
+    /// `rotation_axis` through the body's own origin, then translated
+    /// — with its values, and the body's world placements re-pointed to
+    /// it (A10, Ev's residue 1), as one action.
+    ///
+    /// The numbers are formulas taken at their NOMINAL values in the
+    /// document when the frame is made; what the placement holds
+    /// afterwards is its mate's values, editable through its value
+    /// slots. A number of the wrong dimension, one that does not
+    /// evaluate, and an axis that names no direction refuse
+    /// [`Refusal::Frame`]; an input that is no placeable body refuses
+    /// as a body seat does. A copy the placing door cannot place stands
+    /// loose, and [`OpOutcome::placed`] says so.
     AddTransform {
         /// The body placed.
         input: Operand,
@@ -686,8 +716,9 @@ pub enum SessionOp {
         input: Operand,
         /// Instance count.
         count: i64,
-        /// The replication rule, with the axis a circular rule was
-        /// picked with.
+        /// The replication rule; a circular rule's axis is read off
+        /// the input's own geometry at its numbers' nominal values, and
+        /// refuses [`Refusal::Frame`] as [`Self::AddSplit`]'s plane does.
         rule: PatternRuleSpec,
     },
     /// Insert one FUSED pattern of an existing body — the pattern
@@ -1087,8 +1118,8 @@ impl SessionOp {
     #[must_use]
     pub fn creates_a_node(&self) -> bool {
         match self {
-            Self::AddDatum { .. }
-            | Self::AddProfile { .. }
+            Self::AddProfile { .. }
+            | Self::SketchOnFace { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
@@ -1201,8 +1232,8 @@ impl SessionOp {
             | Self::SetInstanceHidden { .. }
             | Self::AddMate { .. }
             | Self::NewDocument { .. }
-            | Self::AddDatum { .. }
             | Self::AddProfile { .. }
+            | Self::SketchOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
@@ -1409,8 +1440,8 @@ impl SessionOp {
             | Self::Open(_)
             | Self::NewDocument { .. }
             | Self::AddMate { .. }
-            | Self::AddDatum { .. }
             | Self::AddProfile { .. }
+            | Self::SketchOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
@@ -1534,8 +1565,8 @@ impl SessionOp {
             | Self::Undo
             | Self::Redo
             | Self::AddMate { .. }
-            | Self::AddDatum { .. }
             | Self::AddProfile { .. }
+            | Self::SketchOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }

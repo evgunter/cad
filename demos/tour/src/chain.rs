@@ -12,48 +12,20 @@
 //!
 //! Joint `k` carries a parameter `joint_k` at [`Dimension::Angle`],
 //! and joint `k`'s error has to move links `k..n` — that is what
-//! "down the chain" means. The document says so STRUCTURALLY: link
-//! `k` is the bar profile under `k` nested [`Node::Transform`]s, the
-//! innermost carrying `joint_k` and the outermost `joint_1`, so the
+//! "down the chain" means. The document says so STRUCTURALLY: link 1
+//! is a copy of the bar placed in the world, its spin `joint_1`; link
+//! `k` is a copy placed against link `k-1`'s copy, its start cap mated
+//! to the parent's, slid one link length along it and spun by
+//! `joint_k`. So link `k`'s placement reads link `k-1`'s, the
 //! sub-chain downstream of a joint is literally downstream of that
-//! joint's node. Nothing here transcribes a forward-kinematic sum.
+//! joint's placement, and nothing here transcribes a forward-kinematic
+//! sum.
 //!
-//! `Node::Transform` rotates about an axis THROUGH THE WORLD ORIGIN
-//! and then translates (`eval::wire`'s `transform_map`), which is
-//! exactly a joint: the map that carries a point of link `k`'s own
-//! frame into link `k-1`'s frame is "rotate by `joint_k` about the
-//! joint, then step one link length along the parent". So `T_k` is
-//! `rotate joint_k, translate (L, 0, 0)` for `k >= 2`, `T_1` is
-//! `rotate joint_1, translate 0` (joint 1 is AT the origin), and link
-//! `k` is `T_1(T_2(...T_k(bar)))`.
-//!
-//! **Why not a [`Datum::Frame`] per link whose `u`/`v` carry
-//! `Expr::cos`/`sin` of the partial sum `joint_1 + … + joint_k`.**
-//! That door works, and it is the one a user reaches for when they
-//! have already done the kinematics on paper — which is the objection
-//! to it here twice over. It puts the forward kinematics in the
-//! author's algebra rather than in the document's shape, so "joint 2
-//! moves links 2, 3 and 4" becomes a property of four hand-written
-//! expressions instead of a property of the graph; and on the
-//! certified lane it looks like the longer argument, because a frame's
-//! `u` and `v` are ORTHONORMALISED at evaluation (`eval::wire`) and on
-//! intervals `cos(θ)² + sin(θ)²` is not 1, so that normalisation is a
-//! `sqrt` of a bracket around 1 and two divides by it, per link, on
-//! top of the `sin`/`cos` the study actually contains. The transform
-//! door's rotation axis is the literal `+z`, so the ONLY widened
-//! quantity in each joint's map is the `sin`/`cos` of that joint's
-//! angle — which is the quantity
-//! `work/sym/a-widened-rotation-angle-is-unmeasured-on-the-certified-lane`
-//! names, measured here rather than padded first.
-//!
-//! **The comparison is an argument from the two doors, not a
-//! measurement**: the frame document was never built, so how much
-//! narrower the transform door's box actually is has no number. What
-//! the certified table DOES measure is that on the transform door the
-//! plain interval lane refuses on exactly the column-unit check a
-//! widened normalisation would run into
-//! ([`crate::chaintol`]) — which is the shape of the argument showing
-//! up, one door over, and not the argument being checked.
+//! A value is charted on the two bodies' own frames: a spin turns the
+//! copy about its own origin, which is the bar's joint end, and a slide
+//! moves that origin along the parent's own axes. That is exactly a
+//! joint: "rotate by `joint_k` about the joint, then step one link
+//! length along the parent".
 //!
 //! # What the chain is made of
 //!
@@ -76,22 +48,22 @@
 //!
 //! Per `memories/demo-purpose.md`, the awkwardness is the finding:
 //!
-//! 1. **There is no joint in the vocabulary.** A revolute joint is
-//!    spelled as a rigid transform whose rotation axis the author has
-//!    to remember passes through the WORLD origin, so the stack reads
-//!    outermost-first and its kinematics has to be unfolded by the
-//!    reader. And it does not SHARE: link `k`'s stack and link
-//!    `k+1`'s agree on every joint but differ in their innermost
-//!    operand, so there is no sub-expression the two have in common
-//!    and a four-link chain with its pins is twenty-four transform
-//!    nodes for four rigid bodies.
+//! 1. **There is no joint in the vocabulary, and no door places a copy
+//!    against a copy.** A revolute joint is a plane mate between two
+//!    start caps plus three values, and the placement doors read the
+//!    target off a CONSTRUCTION's own geometry (a copy's faces stand
+//!    where its placement moved them), so the scene places each link
+//!    against the bar and moves the mate onto the parent's copy by hand
+//!    ([`crate::world::against_copy`]). The spin's sense is the chart's:
+//!    about the mated caps' outward normal `−z`, so a turn of `joint_k`
+//!    about `+z` is written `−joint_k`.
 //! 2. **The measure cannot reach the tip end face's centre.** The
 //!    closed form that gives a CENTRE exactly is cylinder × cylinder
 //!    (`eval::measure`'s `distance`, the axis distance); a planar end
 //!    face arrives as a plane carrier, whose point-plane distance is
 //!    the chain's REACH — second order in the joint errors, so it
 //!    barely disperses — and the face's own corner vertices have no
-//!    exact selector, only the DECIDED `GeomPred::DatumDistance`,
+//!    exact selector, only the DECIDED `GeomPred::PlaneDistance`,
 //!    which would be re-decided on every one of 512 replays. Hence
 //!    the pins: they make the quantity the study is about reachable
 //!    through an exact door, and they are what a chain has anyway.
@@ -102,10 +74,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::document::ExtrudeSide;
 use pncad::document::{
-    AssertionRelation, CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId,
-    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc,
+    AssertionRelation, CancelToken, Coord, Dimension, Distribution, DocEdit, DocumentId,
+    EvalOptions, Evaluation, Formula, Frame, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc,
     ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
 };
 use pncad::geom::Surface;
@@ -296,10 +267,6 @@ fn len(v: f64) -> Formula {
     Formula::literal(v, Dimension::Length).expect("finite length")
 }
 
-fn scl(v: f64) -> Formula {
-    Formula::literal(v, Dimension::Scalar).expect("finite scalar")
-}
-
 fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
@@ -384,18 +351,6 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         );
     }
 
-    // The sketch plane: the chain lies in world xy and every bar is
-    // extruded along +z, so the picture the sheet draws IS this plane.
-    let plane = insert(
-        &mut doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-        tol,
-    );
-
     // The three shapes the chain is built from, each authored ONCE at
     // the origin of a link's own frame and then placed. Literal
     // rectangles and circles: the study is about the JOINTS, and a
@@ -445,47 +400,68 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     let base_pin = pin_at(&mut doc, 0.0, tol);
     let tip_pin = pin_at(&mut doc, LINK_LENGTH, tol);
 
-    // **The joint stack.** `place(k, what)` wraps `what` in joints
-    // `k`, `k-1`, … 1, innermost first. Joint `j`'s node therefore
-    // sits ABOVE every joint below it in the chain and BELOW every
-    // joint above it, which is the kinematics: joint `j` turns links
-    // `j..n` and leaves links `1..j` where they were.
-    let place = |doc: &mut ProfileDoc, k: usize, what: RecipeNodeId, tol| {
-        let mut node = what;
-        for j in (1..=k).rev() {
-            let step = if j == 1 { 0.0 } else { LINK_LENGTH };
-            node = insert(
-                doc,
-                Node::transform(
-                    node,
-                    pncad::document::Step::Rigid {
-                        translation: [len(step), len(0.0), len(0.0)],
-                        axis: [scl(0.0), scl(0.0), scl(1.0)],
-                        angle: Formula::named(joint_name(j), Dimension::Angle),
-                    },
-                ),
-                tol,
-            );
+    // **The joints.** Link 1 stands in the world at the base joint,
+    // turned by `joint_1`; link `k` is placed against link `k-1`'s
+    // copy, one link length along it and turned by `joint_k`. Each
+    // link's placement reads its parent's copy, so joint `j` turns links
+    // `j..n` and leaves links `1..j` where they were. A spin is charted
+    // about the mated start caps' outward normal, `−z`, so a turn of
+    // `joint` about `+z` is a spin of `−joint`.
+    let turned = |j: usize| {
+        move |values: Vec<(Coord, Formula)>| {
+            values
+                .into_iter()
+                .map(|(coord, by)| match coord {
+                    Coord::Spin => (
+                        coord,
+                        Formula::neg(Formula::named(joint_name(j), Dimension::Angle))
+                            .expect("an angle negates"),
+                    ),
+                    Coord::Slide(_) => (coord, by),
+                })
+                .collect()
         }
-        node
     };
-
-    let bars: Vec<RecipeNodeId> = (1..=links).map(|k| place(&mut doc, k, bar, tol)).collect();
-    // Pin `k` sits at the base of link `k`, so it rides link `k`'s own
-    // stack; the last pin is link `links`'s TIP pin and rides the same
-    // stack one shape over.
-    let mut pins: Vec<RecipeNodeId> = (1..=links)
-        .map(|k| place(&mut doc, k, base_pin, tol))
-        .collect();
-    pins.push(place(&mut doc, links, tip_pin, tol));
-    // The mechanism is the world: every placed bar and pin, one copy
-    // each, base first.
-    for &body in bars.iter().chain(&pins) {
-        doc = crate::world::place_in_world(&doc, body, tol).doc;
+    let mut bars: Vec<RecipeNodeId> = Vec::with_capacity(links);
+    for k in 1..=links {
+        let placed = match bars.last() {
+            None => crate::world::in_world_valued(&doc, bar, &Frame::IDENTITY, turned(k), tol),
+            Some(&parent) => crate::world::against_copy(
+                &doc,
+                parent,
+                bar,
+                &Frame::translation([LINK_LENGTH, 0.0, 0.0]),
+                turned(k),
+                tol,
+            ),
+        };
+        doc = placed.doc;
+        bars.push(placed.placement);
+    }
+    // Pin `k` sits at the base of link `k`, so it rides link `k`'s copy;
+    // the last pin is link `links`'s TIP pin and rides the same copy one
+    // shape over. Each is drawn where it sits on its link.
+    let mut pins: Vec<RecipeNodeId> = Vec::with_capacity(links + 1);
+    for (k, &link) in bars.iter().enumerate() {
+        let shapes: &[RecipeNodeId] = if k + 1 == links {
+            &[base_pin, tip_pin]
+        } else {
+            &[base_pin]
+        };
+        for &shape in shapes {
+            let placed =
+                crate::world::against_copy(&doc, link, shape, &Frame::IDENTITY, |v| v, tol);
+            doc = placed.doc;
+            pins.push(placed.placement);
+        }
     }
 
-    // The target: the mating pin at the chain's nominal tip, fixed.
+    // The target: the mating pin at the chain's nominal tip, fixed in
+    // the world where it is drawn.
     let target = pin_at(&mut doc, links as f64 * LINK_LENGTH, tol);
+    let placed = crate::world::place_in_world(&doc, target, tol);
+    doc = placed.doc;
+    let target = placed.placement;
 
     // The wall names come from the SELECTION door, the way a user gets
     // them: evaluate what is built so far, then ask each pin for its

@@ -35,7 +35,7 @@ use editor_core::{
 use geom_core::sym::report::ShapeOutcome;
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::{Recorder, len, scl, xy_frame};
+use crate::fixture::{Recorder, len, scl};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{bound, dials, nominal_box, render_over_band};
 

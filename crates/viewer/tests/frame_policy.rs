@@ -905,7 +905,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     // report, where the Boolean the kernel refused is itself placed.
     // The healthy copy's picks go with it, which is what the label says.
     let empty: Doc<ProfileProgram> = Doc::empty_derived("vnews-derived-fault", tol);
-    let (doc, healthy_profile) = common::framed_square(&empty, 0.04, tol);
+    let (doc, healthy_profile) = common::square_profile(&empty, 0.04, tol);
     let (doc, healthy) = common::inserted(
         &doc,
         Node::Extrude {
@@ -914,7 +914,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         },
         tol,
     );
-    let (doc, broken_profile) = common::framed_square(&doc, 0.02, tol);
+    let (doc, broken_profile) = common::square_profile(&doc, 0.02, tol);
     let (doc, broken) = common::inserted(
         &doc,
         Node::Extrude {
@@ -2325,7 +2325,7 @@ fn face_of(hit: &pncad::select::PickHit) -> FaceSelection {
 /// placements, left then right.
 fn two_placements(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-two-placements", tol);
-    let (doc, profile) = common::framed_square(&doc, 0.02, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.02, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
@@ -3223,7 +3223,7 @@ fn the_pixel_to_ndc_conversion_round_trips_and_flips_y_once() {
 fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-offer", tol);
-    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.04, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {

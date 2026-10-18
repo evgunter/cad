@@ -12,7 +12,7 @@ use crate::corpus::failures;
 use crate::fixture::{insert, len, on_frame, prism_edges, revolve_about, square};
 use editor_core::{
     CancelToken, Dimension, DimensionError, Distribution, DistributionRefusal, DocEdit, DocumentId,
-    EvalError, EvalOptions, Evaluation, Expr, ExtrudeSide, Formula, FreeVar, LowerFault, Node,
+    EvalError, EvalOptions, Evaluation, Expr, Formula, FreeVar, LowerFault, Node,
     ParamValue, PersistError, ProfileDoc, ProfileProgram, Ratio, RecipeNodeId, SlotId, VarDecl,
     VarEnv, VarId, VarName, VarNameReason, apply, eval, evaluate, load, parse_formula, save,
 };

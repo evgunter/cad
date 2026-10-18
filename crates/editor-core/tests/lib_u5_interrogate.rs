@@ -599,7 +599,7 @@ fn the_reachable_ladder_is_driven_through_its_doors() {
 
     // A split named alone: its halves are two reads, each its own table
     // (NAMES N1), so the node alone answers no one table.
-    let (split_doc, [_, _, split]) = editor_core::test_support::clipped_cylinder(Tol::witness());
+    let (split_doc, [_, split]) = editor_core::test_support::clipped_cylinder(Tol::witness());
     let split_ev = eval(&split_doc);
 
     // Each entry: what the door was asked, what it must answer, and

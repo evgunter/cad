@@ -15,7 +15,7 @@ use editor_core::{
     CancelToken, CapEnd, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc, Qualifier,
     RecipeNodeId, RoleSeg, StableName, evaluate,
 };
-use fixture::{ang, insert, len, minted, on_frame, out, scl, table};
+use fixture::{insert, len, minted, on_frame, out, table};
 use geom_core::Tol;
 
 /// Evaluates, and holds every table the run produced to the N3
@@ -35,17 +35,16 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     ev
 }
 
-/// A rectangular block: profile on the plane z = `z0`, extruded `dz`.
+/// A rectangular block: profile on its own xy, extruded `dz`.
 fn block(
     doc: ProfileDoc,
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
-    z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, z0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
@@ -59,17 +58,37 @@ fn block(
     )
 }
 
+/// [`block`] placed against `target`, `z0` up its own z: the block's
+/// extrude and its placement, whose copy a combine with `target` reads.
+fn block_on(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    xs: (f64, f64),
+    ys: (f64, f64),
+    z0: f64,
+    dz: f64,
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let (doc, b) = block(doc, xs, ys, dz);
+    let (doc, placed) = fixture::slid(doc, target, b, [0.0, 0.0, z0]);
+    (doc, b, placed)
+}
+
+/// `name`, as the copy `placement` makes wears it.
+fn worn(placement: RecipeNodeId, name: StableName) -> StableName {
+    crate::m10_5_clearance_interval::in_placement(placement, name)
+}
+
 // ---- From + Seam + OrderAlong on the overlapping union. ----
 
 #[test]
 fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b, pb) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::Spelled(vec![a.into(), pb.into()]),
         },
     );
     let ev = run(&doc);
@@ -95,8 +114,8 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
             EntityKind::Face,
             u,
             RoleSeg::From {
-                read: out(&doc, b),
-                of: minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End)).into(),
+                read: out(&doc, pb),
+                of: worn(pb, minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End))).into(),
             },
         ),
     ];
@@ -136,8 +155,8 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
             }
         } else {
             RoleSeg::From {
-                read: out(&doc, b),
-                of: inner.into(),
+                read: out(&doc, pb),
+                of: worn(pb, inner).into(),
             }
         };
         assert!(
@@ -158,7 +177,7 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
 
     // A notch through `a`'s rim at y = 0, z = 1 cuts it at two genuine
     // valence-3 vertices, where the notch's x-walls cross it.
-    let (doc, n) = block(doc, (0.4, 0.6), (-0.5, 0.5), 0.5, 1.0);
+    let (doc, _, n) = block_on(doc, a, (0.4, 0.6), (-0.5, 0.5), 0.5, 1.0);
     let (doc, u2) = insert(
         doc,
         Node::Union {
@@ -221,8 +240,8 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
 fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
     // A: 3×3×1 block; B: a slot crossing the top cap fully in y.
-    let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
+    let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, _, b) = block_on(doc, a, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, sub) = insert(
         doc,
         Node::Subtract {
@@ -273,7 +292,7 @@ fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
 fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
     // A: 4×4×4 block.
-    let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
+    let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 4.0);
     // B: U-shaped prongs along −x, base OUTSIDE A (x ∈ [5,6]), prong
     // tips crossing A's wall x = 4; z ∈ [1,3] (inside A). B's caps
     // (z = 1 and z = 3, U-shaped, horizontal) are each cut by A's
@@ -282,7 +301,7 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
     // recorded, naming total.
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![
@@ -303,6 +322,7 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
             distance: len(2.0),
         },
     );
+    let (doc, b) = fixture::slid(doc, a, b, [0.0, 0.0, 1.0]);
     let (doc, sub) = insert(
         doc,
         Node::Subtract {
@@ -337,13 +357,18 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
 
 // ---- Flip localization (D5), node-granular and counted. ----
 
-/// `node`'s translation along x, value-edited to `to`: every id stays.
-fn slide(doc: ProfileDoc, node: RecipeNodeId, to: f64) -> ProfileDoc {
+/// `placement`'s slide along x, value-edited to `to`: every id stays.
+fn slide(doc: ProfileDoc, placement: RecipeNodeId, to: f64) -> ProfileDoc {
+    let slot = fixture::value_slot(
+        &doc,
+        placement,
+        editor_core::Coord::Slide(editor_core::SlideAxis::X),
+    );
     fixture::step(
         doc,
         editor_core::DocEdit::SetParam {
-            node,
-            slot: editor_core::SlotId::Translation(editor_core::Axis3::X),
+            node: placement,
+            slot,
             value: len(to).into(),
             fresh: Vec::new(),
         },
@@ -353,23 +378,13 @@ fn slide(doc: ProfileDoc, node: RecipeNodeId, to: f64) -> ProfileDoc {
 
 #[test]
 fn no_flip_translation_edit_leaves_every_table_identical() {
-    // B placed by a Transform whose translation is the edited knob.
+    // B placed against A, its slide along x the edited knob.
     let build = |tx: f64| {
         let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
-        let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-        let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-        let (doc, tb) = insert(
-            doc,
-            Node::transform(
-                b0,
-                editor_core::Step::Rigid {
-                    translation: [len(tx), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                },
-            ),
-        );
-        // The B side is read at the TRANSFORM, the boolean's operand.
+        let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+        let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+        let (doc, tb) = fixture::slid(doc, a, b0, [tx, 0.0, 0.0]);
+        // The B side is read at the PLACEMENT, the boolean's operand.
         let (doc, u) = insert(
             doc,
             Node::Union {
@@ -397,20 +412,10 @@ fn no_flip_translation_edit_leaves_every_table_identical() {
 fn flip_changes_exactly_the_boolean_nodes_table() {
     let build = |tx: f64| {
         let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
-        let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-        let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-        let (doc, tb) = insert(
-            doc,
-            Node::transform(
-                b0,
-                editor_core::Step::Rigid {
-                    translation: [len(tx), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                },
-            ),
-        );
-        // The B side is read at the TRANSFORM, the boolean's operand.
+        let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+        let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+        let (doc, tb) = fixture::slid(doc, a, b0, [tx, 0.0, 0.0]);
+        // The B side is read at the PLACEMENT, the boolean's operand.
         let (doc, u) = insert(
             doc,
             Node::Union {

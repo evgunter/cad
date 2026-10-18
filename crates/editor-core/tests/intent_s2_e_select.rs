@@ -20,7 +20,7 @@
 
 use crate::fixture;
 use editor_core::{
-    CapEnd, DocEdit, EditError, EntityKind, ExtrudeSide, MeasurePrimitive, MeasureVerb, Node,
+    CapEnd, DocEdit, EditError, EntityKind, MeasurePrimitive, MeasureVerb, Node,
     Operand, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, SlotKind,
     SnapshotError, StableName, VarKind, VarName, apply, load, save,
 };
@@ -354,8 +354,8 @@ fn a_file_whose_measure_reads_an_unadmitted_kind_refuses_at_load() {
     }
 }
 
-/// A placed unit prism the split rows cut out: its frame, profile,
-/// extrude and world placement, and the extrude's walls and an edge.
+/// A placed unit prism the split rows cut out: its profile, extrude
+/// and world placement, and the extrude's walls and an edge.
 struct Cut {
     nodes: std::collections::BTreeSet<RecipeNodeId>,
     extrude: RecipeNodeId,
@@ -371,7 +371,6 @@ fn placed_prism(doc: ProfileDoc) -> (ProfileDoc, Cut) {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 1.0)],
     );
-    let frame = doc.ids()[doc.ids().len() - 2];
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
@@ -386,7 +385,7 @@ fn placed_prism(doc: ProfileDoc) -> (ProfileDoc, Cut) {
     ];
     let edge = fixture::prism_edges(&doc, extrude, 4).remove(2);
     let cut = Cut {
-        nodes: [frame, profile, extrude, placed].into(),
+        nodes: [profile, extrude, placed].into(),
         extrude,
         faces,
         edge,

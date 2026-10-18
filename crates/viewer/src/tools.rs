@@ -59,11 +59,11 @@ vocabulary! {
         /// The boolean tool: any number of bodies for union and
         /// intersect, two for subtract.
         Boolean,
-        /// The split tool: a body and a datum plane.
+        /// The split tool: a body and its cutting plane's numbers.
         Split,
         /// The transform tool: one body.
         Transform,
-        /// The pattern tool: a body and (circular only) an axis.
+        /// The pattern tool: a body and its rule's numbers.
         Pattern,
         /// The blend tool: one body and a SET of its edges.
         Blend,
@@ -241,8 +241,8 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::CommitFreeMove { .. }
         | SessionOp::CancelFreeMove
         | SessionOp::NewDocument { .. }
-        | SessionOp::AddDatum { .. }
         | SessionOp::AddProfile { .. }
+        | SessionOp::SketchOnFace { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddInstance { .. }
@@ -300,13 +300,11 @@ fn compose(name: &str, what: &impl core::fmt::Display) -> String {
 vocabulary! {
     /// **A panel or field that commits and is not one of the modal
     /// tools** ([`ToolKind`]), named by what it does: the creation
-    /// pane's add-datum, add-profile and extrude forms, the profile
+    /// pane's add-profile and extrude forms, the profile
     /// editor's apply and revert, and the label field a create form and
     /// the properties pane each carry.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum FormKind {
-        /// The creation pane's add-datum form.
-        AddDatum,
         /// The creation pane's add-profile form.
         AddProfile,
         /// The creation pane's extrude form.
@@ -328,7 +326,6 @@ impl FormKind {
     /// The form's name, as its sentences open.
     pub fn label(self) -> &'static str {
         match self {
-            Self::AddDatum => "add datum",
             Self::AddProfile => "add profile",
             Self::Extrude => "extrude",
             Self::EditProfile => "edit profile",

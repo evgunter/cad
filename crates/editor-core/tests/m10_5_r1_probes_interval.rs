@@ -80,28 +80,13 @@ fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     declare_with(r, axis, nominal, half());
 }
 
-fn translated(input: RecipeNodeId, by: [Formula; 3]) -> AuthoredNode {
-    Node::transform(
-        input,
-        editor_core::Step::Rigid {
-            translation: by,
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    )
-}
-
-/// The xy sketch frame, as the `Datum::Frame` node a profile now names.
-///
-/// `ProfileProgram::plane` became a node reference under this branch
-/// (main's move), so every fixture mints the frame first and hands the
-/// profile its id.
-fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
-    r.insert(fixture::xy_frame())
+/// A copy of `input` slid by `by` along its own axes
+/// ([`crate::m10_5_clearance_interval::slid_by`]).
+fn translated(r: &mut Recorder, input: RecipeNodeId, by: [Formula; 3]) -> RecipeNodeId {
+    crate::m10_5_clearance_interval::slid_by(r, input, input, by)
 }
 
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
-    let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
@@ -127,7 +112,7 @@ fn blocks(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         1.0,
     );
     let by = Formula::add(len(1.0), param("gap")).expect("a length");
-    let b = r.insert(translated(a, [by, len(0.0), len(0.0)]));
+    let b = translated(&mut r, a, [by, len(0.0), len(0.0)]);
     (r.doc, a, b)
 }
 
@@ -274,7 +259,7 @@ fn l_plate_and_floating_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Reci
         1.0,
     );
     let up = Formula::add(len(1.5), param("lift")).expect("a length");
-    let floated = r.insert(translated(block, [len(0.0), len(0.0), up]));
+    let floated = translated(&mut r, block, [len(0.0), len(0.0), up]);
     (r.doc, plate, block, floated)
 }
 
@@ -388,7 +373,6 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 0.5]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let plane = insert_xy_frame(&mut r);
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![chain],
         ids: Vec::new(),
@@ -397,7 +381,7 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         profile: profile.into(),
         distance: len(1.0),
     });
-    let placed = r.insert(translated(solid, [param("place"), len(0.0), len(0.0)]));
+    let placed = translated(&mut r, solid, [param("place"), len(0.0), len(0.0)]);
     (r.doc, solid, placed)
 }
 
@@ -490,13 +474,14 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
 fn a_partial_revolve_band_reports_its_phantom_turn() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
-    let plane = insert_xy_frame(&mut r);
-    let profile = r.insert(Node::Profile(fixture::desc(
-        plane,
-        vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
-    )));
-    // The axis line, in the profile's own coordinates: its v is the
-    // world axis the quarter turns about.
+    let profile = r.insert(Node::Profile(fixture::desc(vec![vec![
+        (1.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 1.0),
+        (1.0, 1.0),
+    ]])));
+    // The axis line, in the profile's own coordinates: its y is the
+    // axis the quarter turns about.
     let quarter = r.insert(fixture::revolve_about(
         profile,
         (0.0, 0.0),
@@ -510,14 +495,14 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
         &[(-2.5, 0.0), (-2.1, 0.0), (-2.1, 1.0), (-2.5, 1.0)],
         0.4,
     );
-    let placed = r.insert(translated(
+    let placed = translated(&mut r, 
         block,
         [
             len(0.0),
             len(0.0),
             Formula::add(len(-0.2), param("place")).expect("a length"),
         ],
-    ));
+    );
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));
     let report = clearance(
         &r.doc,
@@ -577,28 +562,32 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
 fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
-    // Profile on the xz-plane (u = x̂, v = ẑ): the rectangle r ∈ [1, 2],
-    // z ∈ [0, 1], revolved 90° about ẑ.
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
-    let profile = r.insert(Node::Profile(fixture::desc(
-        plane,
-        vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
-    )));
-    // The axis line, in the profile's own coordinates: its v is the
-    // world axis the quarter turns about.
-    let quarter = r.insert(fixture::revolve_about(
+    // The rectangle r ∈ [1, 2], z ∈ [0, 1], revolved 90° about its own
+    // y, and its copy standing on the world's xz plane (u = x̂, v = ẑ),
+    // so the quarter turns about ẑ.
+    let profile = r.insert(Node::Profile(fixture::desc(vec![vec![
+        (1.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 1.0),
+        (1.0, 1.0),
+    ]])));
+    let revolve = r.insert(fixture::revolve_about(
         profile,
         (0.0, 0.0),
         crate::fixture::along_y(),
         ang(core::f64::consts::FRAC_PI_2),
     ));
+    let quarter = r.in_world(
+        revolve,
+        &fixture::frame_at([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+    );
     // The block: x ∈ [-2.5, -2.1], y ∈ [-0.2, 0.2] (placed), z ∈ [0, 1].
     let block = extruded(
         &mut r,
         &[(-2.5, -0.2), (-2.1, -0.2), (-2.1, 0.2), (-2.5, 0.2)],
         1.0,
     );
-    let placed = r.insert(translated(block, [len(0.0), param("place"), len(0.0)]));
+    let placed = translated(&mut r, block, [len(0.0), param("place"), len(0.0)]);
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));
     let started = std::time::Instant::now();
     let report = clearance(
@@ -877,14 +866,14 @@ fn channel_and_slider(place_half: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeI
         &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         1.0,
     );
-    let placed = r.insert(translated(
+    let placed = translated(&mut r, 
         slider,
         [
             Formula::add(len(1.0), param("place")).expect("a length"),
             len(1.0),
             len(0.0),
         ],
-    ));
+    );
     (r.doc, channel, placed)
 }
 
@@ -1150,7 +1139,7 @@ fn what_the_sound_prism_rows_hand_to_the_funnel() {
         ],
         2.0,
     );
-    let _placed = r.insert(translated(dumbbell, [param("place"), len(0.0), len(0.0)]));
+    let _placed = translated(&mut r, dumbbell, [param("place"), len(0.0), len(0.0)]);
     let report = self_intersection(
         &r.doc,
         &box_of(&r.doc, "place"),

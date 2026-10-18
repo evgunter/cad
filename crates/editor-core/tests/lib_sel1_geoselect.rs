@@ -8,15 +8,15 @@
 //!    margin, no refusal — a wrong-kind name or a missing carrier is
 //!    an honest NO. `select_where` with an empty conjunction is
 //!    `select`, exactly.
-//! 2. **The DECIDED atom refuses rather than lies.** A datum-distance
+//! 2. **The DECIDED atom refuses rather than lies.** A plane-distance
 //!    margin inside the ambiguity band does not silently include OR
 //!    exclude its candidate; it comes back as
 //!    `SelectRefusal::InBand` naming the candidate. That is the G1
 //!    NOTE-2 lesson — the escalation path is a tested row, not a
 //!    documented intention.
 //! 3. **The query's static faults are refusals too**: a value
-//!    expression that is not a length, a `datum` reference that is not
-//!    an evaluated datum.
+//!    expression that is not a length, a `face` that is not a plane of
+//!    the selected body.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -24,7 +24,7 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, CapEnd, Cmp, CurveKind, CurveKindSet, Datum, Dimension, EntityKind, EvalOptions,
+    CancelToken, CapEnd, Cmp, CurveKind, CurveKindSet, Dimension, EntityKind, EvalOptions,
     GeomPred, NamePat, Node, NodeStanding, ProfileDoc, RecipeNodeId, SegPat, SegTag, SelectRefusal,
     Selector, SurfaceKindSet, VarEnv, evaluate, select, select_where,
 };
@@ -43,10 +43,10 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     )
 }
 
-/// A unit box as an extruded square, plus a datum PLANE on z = 0 with
-/// its normal along +z — the frame every position row below measures
-/// against, referenced as a node exactly like any other input (GS-Q6).
-fn box_doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+/// A unit box as an extruded square, and its bottom cap: the plane
+/// z = 0 with its outward normal along −z, read off the box itself —
+/// the plane every position row below measures against (GS-Q6).
+fn box_doc() -> (ProfileDoc, RecipeNodeId, editor_core::StableName) {
     let (doc, p) = on_frame(
         ProfileDoc::empty_derived("lib_sel1_geoselect", Tol::witness()),
         [0.0, 0.0, 0.0],
@@ -61,14 +61,8 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             distance: len(1.0),
         },
     );
-    let (doc, datum) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            normal: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-        }),
-    );
-    (doc, cube, datum)
+    let floor = fixture::fname(cube, editor_core::RoleSeg::Cap(CapEnd::Start));
+    (doc, cube, floor)
 }
 
 fn no_params() -> VarEnv<f64> {
@@ -275,22 +269,23 @@ fn atoms_conjoin() {
 }
 
 // ------------------------------------------------------------------
-// 2. The DECIDED atom: datum-relative position through the funnel.
+// 2. The DECIDED atom: plane-relative position through the funnel.
 // ------------------------------------------------------------------
 
-fn at(datum: RecipeNodeId, cmp: Cmp, v: f64) -> [GeomPred; 1] {
-    [GeomPred::DatumDistance {
-        datum,
+fn at(face: &editor_core::StableName, cmp: Cmp, v: f64) -> [GeomPred; 1] {
+    [GeomPred::PlaneDistance {
+        face: face.clone(),
         cmp,
         value: len(v),
     }]
 }
 
-/// The three comparison arms partition the box's vertices about the
-/// z = 0 datum plane: four ON it, four a metre above, none below.
+/// The three comparison arms partition the box's vertices about its
+/// bottom cap's plane, outward normal −z: four ON it, four a metre
+/// inside (at −1), none outside.
 #[test]
-fn datum_distance_partitions_by_sign() {
-    let (doc, cube, datum) = box_doc();
+fn plane_distance_partitions_by_sign() {
+    let (doc, cube, floor) = box_doc();
     let ev = eval(&doc);
     let v = all(EntityKind::Vertex);
     let n = |cmp, value| {
@@ -298,34 +293,34 @@ fn datum_distance_partitions_by_sign() {
             &ev,
             cube,
             &v,
-            &at(datum, cmp, value),
+            &at(&floor, cmp, value),
             &no_params(),
             Tol::witness(),
         )
         .unwrap()
         .len()
     };
-    assert_eq!(n(Cmp::Approx, 0.0), 4, "the bottom cap sits ON the datum");
-    assert_eq!(n(Cmp::Approx, 1.0), 4, "the top cap is one metre up");
-    assert_eq!(n(Cmp::Greater, 0.0), 4);
-    assert_eq!(n(Cmp::Less, 0.0), 0, "the box is entirely above");
-    assert_eq!(n(Cmp::Less, 1.0), 4);
-    assert_eq!(n(Cmp::Greater, 1.0), 0);
+    assert_eq!(n(Cmp::Approx, 0.0), 4, "the bottom cap's corners sit ON its plane");
+    assert_eq!(n(Cmp::Approx, -1.0), 4, "the top cap is one metre inside");
+    assert_eq!(n(Cmp::Less, 0.0), 4);
+    assert_eq!(n(Cmp::Greater, 0.0), 0, "the box is entirely inside");
+    assert_eq!(n(Cmp::Greater, -1.0), 4);
+    assert_eq!(n(Cmp::Less, -1.0), 0);
     assert_eq!(select(&ev, cube, &v).len(), 8);
 }
 
 /// The face-side reading of "where is it": a face answers with its
 /// carrier frame origin (LIB-U5's own point), so the top cap is the
-/// one plane at distance 1.
+/// one plane at distance −1.
 #[test]
-fn datum_distance_reads_face_frames() {
-    let (doc, cube, datum) = box_doc();
+fn plane_distance_reads_face_frames() {
+    let (doc, cube, floor) = box_doc();
     let ev = eval(&doc);
     let top = select_where(
         &ev,
         cube,
         &all(EntityKind::Face),
-        &at(datum, Cmp::Approx, 1.0),
+        &at(&floor, Cmp::Approx, -1.0),
         &no_params(),
         Tol::witness(),
     )
@@ -340,14 +335,14 @@ fn datum_distance_reads_face_frames() {
     assert_eq!(top, named, "the decided atom finds what the role path does");
 }
 
-/// **The escalation path is a tested row.** A datum plane placed so
+/// **The escalation path is a tested row.** A distance stated so
 /// that a candidate's margin lands strictly inside the ambiguity band
 /// refuses and NAMES the candidate — it does not quietly include it
 /// (a razor-thin selection cliff) or quietly drop it (the
 /// staleness-shaped sin).
 #[test]
 fn an_in_band_margin_refuses_typed() {
-    let (doc, cube, datum) = box_doc();
+    let (doc, cube, floor) = box_doc();
     let ev = eval(&doc);
     let tol = geom_core::Tol::witness().get();
     // Inside (eps, k*eps): definite neither way.
@@ -356,7 +351,7 @@ fn an_in_band_margin_refuses_typed() {
         &ev,
         cube,
         &all(EntityKind::Vertex),
-        &at(datum, Cmp::Approx, sliver),
+        &at(&floor, Cmp::Approx, sliver),
         &no_params(),
         Tol::witness(),
     )
@@ -372,17 +367,17 @@ fn an_in_band_margin_refuses_typed() {
     }
 }
 
-/// A datum-distance atom against a whole-BODY name has no point to
+/// A plane-distance atom against a whole-BODY name has no point to
 /// measure, and says so rather than dropping the name.
 #[test]
 fn an_unreadable_candidate_refuses_typed() {
-    let (doc, cube, datum) = box_doc();
+    let (doc, cube, floor) = box_doc();
     let ev = eval(&doc);
     let refusal = select_where(
         &ev,
         cube,
         &all(EntityKind::Body),
-        &at(datum, Cmp::Approx, 0.0),
+        &at(&floor, Cmp::Approx, 0.0),
         &no_params(),
         Tol::witness(),
     )
@@ -397,10 +392,10 @@ fn an_unreadable_candidate_refuses_typed() {
 /// The comparand of a distance must BE a distance.
 #[test]
 fn a_non_length_value_refuses() {
-    let (doc, cube, datum) = box_doc();
+    let (doc, cube, floor) = box_doc();
     let ev = eval(&doc);
-    let bad = [GeomPred::DatumDistance {
-        datum,
+    let bad = [GeomPred::PlaneDistance {
+        face: floor,
         cmp: Cmp::Approx,
         value: ang(1.0),
     }];
@@ -419,41 +414,57 @@ fn a_non_length_value_refuses() {
     ));
 }
 
-/// A `datum` reference that names something else is a refusal, and the
-/// refusal says what the node actually produced.
+/// A `face` that is no plane of the selected body is a refusal: a
+/// curved face says it is no plane, and a name the body does not hold
+/// says it does not resolve.
 #[test]
-fn a_non_datum_reference_refuses() {
-    let (doc, cube, _) = box_doc();
+fn a_face_that_is_no_plane_refuses() {
+    let (doc, p) = insert(
+        ProfileDoc::empty_derived("lib_sel1_geoselect_cylinder", Tol::witness()),
+        Node::Profile(editor_core::ProfileProgram {
+            loops: vec![editor_core::LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
+            ids: Vec::new(),
+        }),
+    );
+    let (doc, cylinder) = insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(1.0),
+        },
+    );
     let ev = eval(&doc);
-    let bad = at(cube, Cmp::Approx, 0.0);
+    let wall = editor_core::all_faces(&ev, cylinder)
+        .into_iter()
+        .find(|n| editor_core::face_carrier_kind(&ev, cylinder, n) == Ok(SurfaceKind::Cylinder))
+        .expect("a cylindrical wall");
     match select_where(
         &ev,
-        cube,
+        cylinder,
         &all(EntityKind::Vertex),
-        &bad,
+        &at(&wall, Cmp::Approx, 0.0),
         &no_params(),
         Tol::witness(),
     ) {
-        Err(SelectRefusal::NotADatum { datum, found }) => {
-            assert_eq!(datum, cube);
-            assert_ne!(found, "datum");
-        }
-        other => panic!("expected NotADatum, got {other:?}"),
+        Err(SelectRefusal::NotAPlane { face }) => assert_eq!(*face, wall),
+        other => panic!("expected NotAPlane, got {other:?}"),
     }
-    // An unevaluated node id, same door: a node with no value is its
-    // own refusal, carrying the standing rather than a word for it.
-    let ghost = at(RecipeNodeId::new(0, 9999), Cmp::Approx, 0.0);
+    // A face of a node not in the document, same door: the selected
+    // body holds no such name.
+    let ghost = fixture::fname(
+        RecipeNodeId::new(0, 9999),
+        editor_core::RoleSeg::Cap(CapEnd::Start),
+    );
     assert!(matches!(
         select_where(
             &ev,
-            cube,
+            cylinder,
             &all(EntityKind::Vertex),
-            &ghost,
+            &at(&ghost, Cmp::Approx, 0.0),
             &no_params(),
             Tol::witness()
         ),
-        Err(SelectRefusal::DatumHasNoValue(NodeStanding::NotInDocument { node }))
-            if node == RecipeNodeId::new(0, 9999)
+        Err(SelectRefusal::FaceUnresolved { face }) if *face == ghost
     ));
 }
 
@@ -529,10 +540,10 @@ fn composed_ids(doc: &ProfileDoc) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) 
         doc.operation_of(read)
             .expect("an operand read has a producer")
     };
-    // The tool is the pip, a Transform of the ball; the ball's names
-    // ride it through unchanged, so the names carry the revolve's id.
+    // The tool is the pip, a placement of the ball; the ball's names
+    // ride it under its `Placed` layer, still carrying the revolve's id.
     let ball = match doc.node(operand(tool.read)) {
-        Some(Node::Transform { input, .. }) => operand(*input),
+        Some(Node::Place { shapes, .. }) => operand(shapes[0].read),
         other => panic!("the die's tool is the placed ball, got {other:?}"),
     };
     (operand(from.read), ball, pipped)
@@ -649,7 +660,8 @@ fn the_geometric_selector_materializes_the_authored_die_composed_selection() {
 
 /// The box, with its name table REPLACED by a single tied vertex name
 /// standing for two real entities — the bottom cap corner (on the
-/// datum) and the top cap corner (a metre up).
+/// bottom cap's plane) and the top cap corner (a metre inside it) —
+/// beside the bottom cap the position filter measures from.
 ///
 /// A tie is the name table's own fact and the emitters mint one only
 /// where two entities are genuinely undiscriminated, so the honest way
@@ -661,43 +673,46 @@ fn the_geometric_selector_materializes_the_authored_die_composed_selection() {
 fn tied_box() -> (
     editor_core::Evaluation<f64>,
     RecipeNodeId,
-    RecipeNodeId,
+    editor_core::StableName,
     editor_core::StableName,
 ) {
-    let (doc, cube, datum) = box_doc();
+    let (doc, cube, floor) = box_doc();
     let mut ev = eval(&doc);
     let pick = |v: f64| {
         select_where(
             &ev,
             cube,
             &all(EntityKind::Vertex),
-            &at(datum, Cmp::Approx, v),
+            &at(&floor, Cmp::Approx, v),
             &no_params(),
             Tol::witness(),
         )
         .expect("no candidate is in-band here")[0]
             .clone()
     };
-    let (low, high) = (pick(0.0), pick(1.0));
+    let (low, high) = (pick(0.0), pick(-1.0));
 
-    let (e_low, e_high) = {
+    let (e_low, e_high, e_floor) = {
         let table = ev.table_at(cube).expect("the box evaluated");
         let ent = |n| match table.lookup(n) {
             Some(editor_core::Entry::Unique(e)) => *e,
             _ => panic!("a corner vertex resolves uniquely before the swap"),
         };
-        (ent(&low), ent(&high))
+        (ent(&low), ent(&high), ent(&floor))
     };
 
     let mut table = editor_core::NameTable::new();
     table
         .insert_tied(low.clone(), vec![e_low, e_high])
         .expect("two distinct vertex candidates make a tie");
+    table
+        .insert(floor.clone(), e_floor)
+        .expect("the floor is a distinct name");
     match ev.nodes.get_mut(&cube) {
         Some(editor_core::NodeResult::Ok(v)) => v.replace_table(0, table),
         _ => panic!("the box evaluated"),
     }
-    (ev, cube, datum, low)
+    (ev, cube, floor, low)
 }
 
 /// **GS-Q4, all three arms.** The filter must evaluate ALL of a tie's
@@ -713,20 +728,20 @@ fn tied_box() -> (
 /// executable rather than documented.
 #[test]
 fn a_tied_name_meets_geometry_as_a_trilean() {
-    let (ev, cube, datum, tied) = tied_box();
+    let (ev, cube, floor, tied) = tied_box();
     let vertices = all(EntityKind::Vertex);
     let go = |cmp, v| {
         select_where(
             &ev,
             cube,
             &vertices,
-            &at(datum, cmp, v),
+            &at(&floor, cmp, v),
             &no_params(),
             Tol::witness(),
         )
     };
 
-    // ALL match — both candidates are less than 5 m from the datum.
+    // ALL match — both candidates are less than 5 m from the floor.
     // The name comes back, and it is still the TIED name.
     assert_eq!(go(Cmp::Less, 5.0).expect("all match"), vec![tied.clone()]);
     assert!(matches!(
@@ -740,7 +755,7 @@ fn a_tied_name_meets_geometry_as_a_trilean() {
     // excluded is a SUCCESS, not an error.
     assert!(go(Cmp::Greater, 5.0).expect("none match").is_empty());
 
-    // MIXED — the bottom corner sits ON the datum, the top does not.
+    // MIXED — the bottom corner sits ON the floor, the top does not.
     // The filter refuses, and NAMES the tie it could not resolve.
     match go(Cmp::Approx, 0.0).expect_err("a mixed tie cannot be half-selected") {
         SelectRefusal::TiedDisagrees {

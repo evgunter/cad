@@ -27,12 +27,11 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::AuthoredNode;
-use pncad::document::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use bvh::Aabb;
 use pncad::document::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Formula, Frame, HeldNodes,
+    CancelToken, Dimension, Doc, DocEdit, EvalOptions, Formula, Frame, HeldNodes,
     LoopProgram, Node, Operand, ProductError, ProfileProgram, RecipeNodeId, Said, Speaker, apply,
     evaluate, held_by, product,
 };
@@ -834,19 +833,6 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
         radius: length(PLATE_HOLE_RADIUS)?,
     };
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui-0-plate", tol);
-    // The frame the plate is drawn on — the world xy frame, spelled as
-    // a node because that is what a profile names now. It is the
-    // document's first node, so the plate reads in the feature tree
-    // the way it was authored: a frame, then a sketch on it.
-    let (doc, frame) = insert(
-        doc,
-        Node::Datum(Datum::Frame {
-            origin: [length(0.0)?, length(0.0)?, length(0.0)?],
-            u: [scalar(1.0)?, scalar(0.0)?, scalar(0.0)?],
-            v: [scalar(0.0)?, scalar(1.0)?, scalar(0.0)?],
-        }),
-        tol,
-    )?;
     let profile = ProfileProgram {
         loops: vec![outline, hole],
         ids: Vec::new(),
@@ -1565,10 +1551,6 @@ pub fn scene_of(
 
 fn length(metres: f64) -> Result<Formula, SceneDocError> {
     Formula::literal(metres, Dimension::Length).map_err(SceneDocError::Dimension)
-}
-
-fn scalar(v: f64) -> Result<Formula, SceneDocError> {
-    Formula::literal(v, Dimension::Scalar).map_err(SceneDocError::Dimension)
 }
 
 fn insert(

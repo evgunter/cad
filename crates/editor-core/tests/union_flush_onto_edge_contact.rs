@@ -5,7 +5,7 @@
 //! volume — the kernel rows are `topo`'s suite of the same name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
 use crate::fixture::insert;
 use editor_core::{Node, ProfileDoc, RecipeNodeId, RoleSeg};
@@ -29,9 +29,9 @@ const NAMES: [&str; 3] = ["a", "b", "c"];
 /// The three blocks, in `a, b, c` order.
 fn blocks(span: (f64, f64)) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let doc = ProfileDoc::empty_derived("union_flush_onto_edge_contact", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, span, (-1.0, 0.0), -1.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block_on(doc, a, span, (-1.0, 0.0), -1.0, 1.0);
     (doc, [a, b, c])
 }
 

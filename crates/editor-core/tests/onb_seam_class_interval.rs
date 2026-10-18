@@ -267,13 +267,13 @@ fn the_seam_hulls_over_a_minted_normal_and_decides_at_a_point() {
     );
 }
 
-/// A prism extruded from a sketch frame tilted `deg` about `+x`.
+/// A prism extruded on its own xy, standing in the world on a frame
+/// tilted `deg` about `+x`, slid along the world's `x` by `place`.
 fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
     let (c, s) = deg.to_radians().sin_cos();
     let (s, c) = (c, s);
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, c, s]));
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)].into_iter())
@@ -285,21 +285,21 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
         profile: p.into(),
         distance: len(0.5),
     });
-    let placed = r.insert(Node::Transform {
-        input: solid.into(),
-        placement: editor_core::placement::Step::Rigid {
-            translation: [
-                Formula::named(
-                    VarName::new("place").expect("a valid parameter name"),
-                    Dimension::Length,
-                ),
-                len(0.0),
-                len(0.0),
-            ],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: Formula::literal(0.0, Dimension::Angle).expect("finite angle"),
-        }
+    let placed = r.in_world(solid, &fixture::frame_at([0.0; 3], [1.0, 0.0, 0.0], [0.0, c, s]));
+    let slide_x = fixture::value_slot(
+        &r.doc,
+        placed,
+        editor_core::Coord::Slide(editor_core::SlideAxis::X),
+    );
+    r.push(editor_core::DocEdit::SetParam {
+        node: placed,
+        slot: slide_x,
+        value: Formula::named(
+            VarName::new("place").expect("a valid parameter name"),
+            Dimension::Length,
+        )
         .into(),
+        fresh: Vec::new(),
     });
     (r.doc, placed)
 }

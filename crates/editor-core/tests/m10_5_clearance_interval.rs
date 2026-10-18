@@ -181,32 +181,91 @@ fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     });
 }
 
-/// A rigid translation along +x — identity rotation, so every stored
-/// direction passes through exactly and the placed body's charts are as
-/// clean as the literal one's.
-fn translated(input: RecipeNodeId, by: Formula) -> AuthoredNode {
-    Node::transform(
-        input,
-        editor_core::Step::Rigid {
-            translation: [by, len(0.0), len(0.0)],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
+/// **A copy of `body` placed against `target`, slid by `by` along
+/// `target`'s own x, y and z** — the lengths written as given, so a
+/// parameter among them drives the copy, with no rotation, so every
+/// stored direction passes through exactly and the placed body's
+/// charts are as clean as the literal one's. The mate is the one
+/// [`editor_core::place_against_in`] writes at a probe translation
+/// (each body's own planar face on its own xy, the target's slid along
+/// its normal), its numbers replaced by `by`'s with the signs the probe
+/// read. Returns the placement, whose output is the copy.
+///
+/// # Panics
+///
+/// If either body offers no planar face on its own xy, or the probe's
+/// numbers are not written as the probe's lengths.
+pub(crate) fn slid_by(
+    r: &mut Recorder,
+    target: RecipeNodeId,
+    body: RecipeNodeId,
+    by: [Formula; 3],
+) -> RecipeNodeId {
+    use editor_core::{BodyRead, Coord, Operand, SlideAxis, Target, pose::PoseDef};
+    let target_read = fixture::body_read(&r.doc, target.into());
+    let read = fixture::body_read(&r.doc, body.into());
+    r.evaluated();
+    let ev = r.last.as_ref().expect("just evaluated");
+    let probe = [1.0, 2.0, 4.0];
+    let mut placed = editor_core::place_against_in(
+        &r.doc,
+        ev,
+        &target_read,
+        &read,
+        &editor_core::Frame::translation(probe),
+        Tol::witness(),
     )
+    .unwrap_or_else(|refusal| panic!("the copy places against its target: {refusal}"));
+    let signed = |written: &Formula, n: f64, to: &Formula| {
+        if *written == len(n) {
+            to.clone()
+        } else if *written == len(-n) {
+            Formula::neg(to.clone()).expect("a length negates")
+        } else {
+            panic!("the probe's {n} is written as ±{n}: {written:?}")
+        }
+    };
+    let Target::Pose(Operand::Pose(def)) = &mut placed.mate.to else {
+        panic!("a plane mate to a pose: {:?}", placed.mate.to)
+    };
+    let PoseDef::Slide { by: along, .. } = &mut **def else {
+        panic!("the target's plane slid along its normal: {def:?}")
+    };
+    *along = signed(along, probe[2], &by[2]);
+    for (coord, value) in &mut placed.values {
+        match coord {
+            Coord::Slide(SlideAxis::X) => *value = signed(value, probe[0], &by[0]),
+            Coord::Slide(SlideAxis::Y) => *value = signed(value, probe[1], &by[1]),
+            _ => {}
+        }
+    }
+    let placement = r.insert(Node::place(vec![BodyRead::plain(read)]));
+    r.constrain(placement, placed.mate, placed.values);
+    placement
+}
+
+/// **A name worn by the copy `placement` makes**: one `Placed` wrapper
+/// round the name its body minted.
+pub(crate) fn in_placement(
+    placement: RecipeNodeId,
+    of: editor_core::StableName,
+) -> editor_core::StableName {
+    editor_core::StableName {
+        kind: of.kind,
+        node: placement,
+        path: vec![editor_core::RoleSeg::Placed {
+            of: editor_core::NameRef::new(of),
+        }],
+    }
+}
+
+/// A copy of `input` slid by `by` along its own +x ([`slid_by`]).
+fn translated(r: &mut Recorder, input: RecipeNodeId, by: Formula) -> RecipeNodeId {
+    slid_by(r, input, input, [by, len(0.0), len(0.0)])
 }
 
 /// A prism over a literal polygon, extruded a literal depth.
-/// The xy sketch frame, as the `Datum::Frame` node a profile now names.
-///
-/// `ProfileProgram::plane` became a node reference under this branch
-/// (main's move), so every fixture mints the frame first and hands the
-/// profile its id.
-fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
-    r.insert(fixture::xy_frame())
-}
-
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
-    let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
@@ -250,10 +309,11 @@ fn dumbbell() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         ],
         2.0,
     );
-    let placed = r.insert(translated(
+    let placed = translated(
+        &mut r,
         solid,
         Formula::named(name("place"), Dimension::Length),
-    ));
+    );
     (r.doc, solid, placed)
 }
 
@@ -312,10 +372,11 @@ fn hexagon() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
     let solid = extruded(&mut r, &corners, 1.0);
-    let placed = r.insert(translated(
+    let placed = translated(
+        &mut r,
         solid,
         Formula::named(name("place"), Dimension::Length),
-    ));
+    );
     (r.doc, solid, placed)
 }
 
@@ -338,7 +399,7 @@ fn facing_blocks(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let by = Formula::add(len(1.0), Formula::named(name("gap"), Dimension::Length))
         .expect("1 m + a length is a length");
-    let b = r.insert(translated(a, by));
+    let b = translated(&mut r, a, by);
     (r.doc, a, b)
 }
 
@@ -1131,23 +1192,27 @@ fn the_unsupported_carrier_arm_refuses_naming_the_class() {
     declare(&mut r, "place", 0.0);
     let mut profiles = Vec::new();
     for (z, scale) in [(0.0, 1.0), (1.0, 1.6), (2.0, 1.0)] {
-        let plane = r.insert(fixture::frame(
-            [0.0, 0.0, z],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-        ));
-        profiles.push(r.insert(Node::Profile(fixture::desc(
-            plane,
-            vec![vec![
-                (0.0, 0.0),
-                (2.0 * scale, 0.0),
-                (2.0 * scale, 1.0 * scale),
-                (0.0, 1.0 * scale),
-            ]],
-        ))));
+        let profile = r.insert(Node::Profile(fixture::desc(vec![vec![
+            (0.0, 0.0),
+            (2.0 * scale, 0.0),
+            (2.0 * scale, 1.0 * scale),
+            (0.0, 1.0 * scale),
+        ]])));
+        profiles.push((profile, z));
     }
+    let (first, _) = profiles[0];
     let loft = r.insert(Node::Loft {
-        profiles: profiles.into_iter().map(Into::into).collect(),
+        first: first.into(),
+        then: profiles[1..]
+            .iter()
+            .map(|&(profile, z)| editor_core::LoftSection {
+                profile: profile.into(),
+                station: vec![editor_core::StationMove::Slide {
+                    along: editor_core::Axis3::Z,
+                    by: len(z),
+                }],
+            })
+            .collect(),
         v_degree: Formula::count(2),
     });
     let doc = r.doc;

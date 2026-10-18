@@ -1278,21 +1278,19 @@ fn a_product_inside_a_sub_assembly_still_refuses() {
     refuses_as_product(&store, &doc, instance, cube, "the sub-assembly's instance");
 }
 
-/// **A placer carries the copies through.** A transformed instance is
-/// still its copies, so the union of it refuses at the door.
+/// **A placer carries the copies through.** A placed copy of an
+/// instance is still its copies, so the union of it refuses at the door.
 #[test]
-fn a_transformed_product_still_refuses() {
+fn a_placed_product_still_refuses() {
     let (store, inner_ref, cube) = product_and_cube("moved", 0.0);
     let doc = ProfileDoc::empty(DocumentId::derive("docm6-bool-moved-outer"), Tol::witness());
     let (doc, instance) = pinned_instance(doc, &store, inner_ref);
     let (doc, moved) = insert(
         doc,
-        Node::Transform {
-            input: instance.into(),
-            placement: editor_core::Placement::literal(&Frame::translation([0.0, 10.0, 0.0])),
-        },
+        Node::place(vec![editor_core::BodyRead::plain(editor_core::Operand::from(instance))]),
     );
-    refuses_as_product(&store, &doc, moved, cube, "the transformed instance");
+    let doc = fixture::pinned(doc, moved, &with_resolver(store.clone()));
+    refuses_as_product(&store, &doc, moved, cube, "the placed instance");
 }
 
 /// **A placed union of a product refuses too**: its prototype takes the
@@ -1332,28 +1330,26 @@ fn a_placed_union_of_a_product_refuses() {
     );
 }
 
-/// **A datum reads a product.** A face frame consumes no material — it
-/// reads a face — so the product refusal is not its: a frame on the
-/// top cap of the stand's upper cube, read through an instance of the
+/// **A measure reads a product.** A measure consumes no material — it
+/// reads faces — so the product refusal is not its: the distance across
+/// the stand's upper cube, cap to cap, read through an instance of the
 /// two-part stand, evaluates.
 #[test]
-fn a_face_frame_on_a_product_evaluates() {
+fn a_measure_on_a_product_evaluates() {
     let mut store = PartStore::default();
     let (inner_ref, _, _, _, cube_body) = resting(&mut store, "docm6-datum-stand");
     let doc = ProfileDoc::empty(DocumentId::derive("docm6-datum-outer"), Tol::witness());
     let (doc, instance) = pinned_instance(doc, &store, inner_ref);
-    let (doc, datum) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::FaceFrame {
-            face: editor_core::Operand::select(
-                instance,
-                vec![wrap(
-                    instance,
-                    in_stand(&store, inner_ref, 1, cube_body, CapEnd::End),
-                )],
-            ),
-            spin: fixture::ang(0.0),
-        }),
+    let cap = |end| {
+        editor_core::Operand::select(
+            instance,
+            vec![wrap(instance, in_stand(&store, inner_ref, 1, cube_body, end))],
+        )
+    };
+    let (doc, datum) = fixture::measure_node(
+        &doc,
+        editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![cap(CapEnd::End), cap(CapEnd::Start)],
     );
     let ev = run(&doc, &with_resolver(store));
     assert_eq!(
@@ -1363,10 +1359,10 @@ fn a_face_frame_on_a_product_evaluates() {
     );
     assert!(
         ev.node_error(datum).is_none(),
-        "the frame reads the product: {:?}",
+        "the measure reads the product: {:?}",
         ev.node_error(datum).map(|e| &e.kind)
     );
-    assert!(ev.value(datum).is_some(), "the frame has a value");
+    assert!(ev.value(datum).is_some(), "the measure has a value");
 }
 
 /// R-I: a CERTIFIED assembly keeps the carried rows, so it can say

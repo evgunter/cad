@@ -13,11 +13,11 @@
 use crate::fixture;
 
 use editor_core::{
-    Axis3, CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation,
+    CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation,
     FragmentGroups, GroupCutters, NameTable, Node, ProfileDoc, Qualifier, RecipeNodeId, Resolution,
-    ResolveError, RoleSeg, RunCtx, SlotId, StableName, evaluate,
+    ResolveError, RoleSeg, RunCtx, SlideAxis, StableName, evaluate,
 };
-use fixture::{ang, insert, len, minted, on_frame, scl, step};
+use fixture::{insert, len, minted, step};
 use geom_core::Tol;
 use geom_core::k_stats::Verdict;
 
@@ -37,19 +37,16 @@ fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evalua
     )
 }
 
+/// A block on its own xy: a construction, the root of its own space.
 fn block(
     doc: ProfileDoc,
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
-    z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = on_frame(
+    let (doc, p) = insert(
         doc,
-        [0.0, 0.0, z0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
+        Node::Profile(fixture::desc(vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]])),
     );
     insert(
         doc,
@@ -61,7 +58,7 @@ fn block(
 }
 
 /// The scenario: plate `a` (3×3×1), bar `b` crossing its end cap
-/// fully in y behind a `Transform`, subtracted at `cut`.
+/// fully in y, placed against the plate, subtracted at `cut`.
 struct Slot {
     doc: ProfileDoc,
     /// The bar's own extrude, whose faces the cut's seams name.
@@ -85,19 +82,9 @@ fn wall(doc: &ProfileDoc, bar: RecipeNodeId, segment: u32) -> StableName {
 
 fn slot() -> Slot {
     let doc = ProfileDoc::empty_derived("bool7", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-    let (doc, b0) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
-    let (doc, tr) = insert(
-        doc,
-        Node::transform(
-            b0,
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
+    let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, b0) = block(doc, (1.0, 2.0), (-1.0, 4.0), 1.0);
+    let (doc, tr) = fixture::slid(doc, a, b0, [0.0, 0.0, 0.5]);
     let (doc, cut) = insert(
         doc,
         Node::Subtract {
@@ -114,12 +101,12 @@ fn slot() -> Slot {
 }
 
 /// Slides the bar along `axis` — the interaction-boundary edit.
-fn slide(s: &Slot, axis: Axis3, to: f64) -> ProfileDoc {
+fn slide(s: &Slot, axis: SlideAxis, to: f64) -> ProfileDoc {
     step(
         s.doc.clone(),
         DocEdit::SetParam {
             node: s.tr,
-            slot: SlotId::Translation(axis),
+            slot: fixture::value_slot(&s.doc, s.tr, editor_core::Coord::Slide(axis)),
             value: len(to).into(),
             fresh: Vec::new(),
         },
@@ -282,9 +269,9 @@ struct Hand {
 fn hand() -> Hand {
     let (doc, n) = insert(
         ProfileDoc::empty_derived("bool7-hand", Tol::witness()),
-        fixture::xy_frame(),
+        Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])),
     );
-    let (doc, m) = insert(doc, fixture::xy_frame());
+    let (doc, m) = insert(doc, Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])));
     let of = minted(EntityKind::Body, n, RoleSeg::OutputBody);
     let wall = |rank| StableName {
         kind: EntityKind::Body,
@@ -326,7 +313,7 @@ fn a_withdrawn_bar_is_answered_by_the_recorded_flip() {
     let s = slot();
     let ev1 = run(&s.doc, None);
     let frags = border_pieces(&ev1, s.cut);
-    let doc2 = slide(&s, Axis3::X, 5.0);
+    let doc2 = slide(&s, SlideAxis::X, 5.0);
     let ev2 = run(&doc2, Some(&ev1));
     assert!(border_pieces(&ev2, s.cut).is_empty(), "the cap is whole");
     let res = crate::fixture::resolve_with_prior_at_mint(
@@ -363,7 +350,7 @@ fn a_collapsed_borders_group_is_diagnosed_group_resized_and_offers_the_survivor(
         let s = slot();
         let ev1 = run(&s.doc, None);
         let frags = border_pieces(&ev1, s.cut);
-        let doc2 = slide(&s, Axis3::Y, to);
+        let doc2 = slide(&s, SlideAxis::Y, to);
         let ev2 = run(&doc2, Some(&ev1));
         assert!(border_pieces(&ev2, s.cut).is_empty(), "y = {to}");
         let res = crate::fixture::resolve_with_prior_at_mint(
@@ -432,7 +419,7 @@ fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
             !pieces.is_empty(),
             "the cut names some edge pieces by their ends"
         );
-        let doc2 = slide(&s, Axis3::Y, to);
+        let doc2 = slide(&s, SlideAxis::Y, to);
         let ev2 = run(&doc2, Some(&ev1));
         let gone: Vec<&StableName> = pieces
             .iter()

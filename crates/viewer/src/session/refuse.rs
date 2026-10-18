@@ -15,12 +15,11 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError, EvalError,
-    Evaluation, HeldNodes, Node, Operand, ParseError, ProfileProgram, RecipeNodeId, Said, SlotId,
-    Speaker, SpokenNode, SpokenVar, ValuePayload, VarId, VarName, held_by,
+    BooleanValue, Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node,
+    Operand, ParseError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar,
+    ValuePayload, VarId, VarName,
 };
-use pncad::prelude::{Body, StableName, SurfaceKind};
-use pncad::select::{InterrogateError, face_carrier_kind};
+use pncad::prelude::Body;
 use pncad::workspace::WorkspaceError;
 
 // The recourse this module's `NoSuchVariable` arm ends on, read from its
@@ -34,10 +33,9 @@ use editor_core::edit::UNKNOWN_VAR_RECOURSE;
 use crate::combine;
 use crate::display::{AdmissionFault, DisplayFault};
 use crate::docio::DocIoError;
-use crate::frame::Tone;
 use crate::history::History;
 use crate::props::{self, Notation, SlotValue};
-use crate::session::{FaceSelection, SessionOp};
+use crate::session::SessionOp;
 
 /// The node kind a creation op's seat requires — the payload of
 /// [`Refusal::WrongNodeKind`], so the refusal names what was wanted
@@ -46,14 +44,6 @@ use crate::session::{FaceSelection, SessionOp};
 pub enum NodeKindWanted {
     /// A `Node::Profile`.
     Profile,
-    /// A `Node::Datum(Datum::Axis)` — a world-space line, which is
-    /// what a circular placement rule turns about.
-    Axis,
-    /// A `Node::Datum(Datum::Plane)`.
-    Plane,
-    /// A `Node::Datum(Datum::Frame)` or a `Node::Datum(Datum::FaceFrame)`
-    /// — what a profile is drawn on. Both evaluate to a frame value.
-    Frame,
     /// A read of ONE body — the combining seats' kind: a node whose one
     /// output is a body ([`combine::denotes_body`] carries the
     /// admissible set and why a pattern's instances are not in it), or
@@ -88,10 +78,7 @@ pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWan
             .is_some_and(|var| {
                 pncad::document::SlotKind::Is(pncad::document::VarKind::Bodies).admits(var)
             }),
-        NodeKindWanted::Profile
-        | NodeKindWanted::Axis
-        | NodeKindWanted::Plane
-        | NodeKindWanted::Frame => held.and_then(seat_kind) == Some(wanted),
+        NodeKindWanted::Profile => held.and_then(seat_kind) == Some(wanted),
     }
 }
 
@@ -111,33 +98,20 @@ pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWa
     let kind = match wanted {
         NodeKindWanted::Body => VarKind::Body,
         NodeKindWanted::Instances => VarKind::Bodies,
-        NodeKindWanted::Profile
-        | NodeKindWanted::Axis
-        | NodeKindWanted::Plane
-        | NodeKindWanted::Frame => return false,
+        NodeKindWanted::Profile => return false,
     };
     var.and_then(|var| doc.var(var))
         .is_some_and(|var| SlotKind::Is(kind).admits(var))
 }
 
 /// **Which seat kind a node is by its kind alone**, or `None` for a
-/// node no profile, axis, plane or frame seat takes — the one
+/// node no profile seat takes — the one
 /// classification [`admits`] reads for every kind but the two read off
 /// the variable a node named alone defines ([`NodeKindWanted::Body`],
 /// [`NodeKindWanted::Instances`]).
 pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
     match node {
         Node::Profile(_) => Some(NodeKindWanted::Profile),
-        Node::Datum(datum) => match datum {
-            Datum::Axis { .. } => Some(NodeKindWanted::Axis),
-            Datum::Plane { .. } => Some(NodeKindWanted::Plane),
-            // Both frame kinds: a profile is drawn on a frame VALUE,
-            // and a derived frame evaluates to the same value an
-            // authored one does.
-            Datum::Frame { .. } | Datum::FaceFrame { .. } => Some(NodeKindWanted::Frame),
-            // No seat asks for a point.
-            Datum::Point { .. } => None,
-        },
         Node::Split { .. }
         | Node::Pattern { .. }
         | Node::Extrude { .. }
@@ -152,7 +126,6 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         | Node::Subtract { .. }
         | Node::Union { .. }
         | Node::Intersect { .. }
-        | Node::Transform { .. }
         | Node::Part { .. }
         | Node::PlacedUnion { .. }
         | Node::InstantiatePart { .. }
@@ -168,9 +141,6 @@ impl NodeKindWanted {
     pub fn name(self) -> &'static str {
         match self {
             Self::Profile => "a profile",
-            Self::Axis => "an axis datum",
-            Self::Plane => "a plane datum",
-            Self::Frame => "a frame datum",
             Self::Body => "a body",
             Self::Instances => "a pattern",
         }
@@ -331,6 +301,11 @@ pub enum Refusal {
     /// A duplicate could not be placed — its input's landed value is
     /// not one body with a width ([`combine::DuplicateFault`]).
     Duplicate(combine::DuplicateFault),
+    /// A gesture's frame could not be made: one of its numbers is not
+    /// of its dimension or does not evaluate, its direction is none, or
+    /// the body it reads the frame off offers no geometry to read
+    /// ([`GestureFrameFault`]).
+    Frame(Box<GestureFrameFault>),
     /// `apply` refused the edit — the door's own sentence, forwarded.
     ///
     /// **Layer 3 adds a frame and never a second opinion.** Every
@@ -485,6 +460,7 @@ impl Refusal {
             | Self::NotABodyRead { .. }
             | Self::EmptyName
             | Self::Dimension(_)
+            | Self::Frame(_)
             | Self::Parse(_)
             | Self::NoGesture
             | Self::GestureInFlight
@@ -516,6 +492,7 @@ impl Refusal {
             | Self::WrongNodeKind { .. }
             | Self::NotABodyRead { .. }
             | Self::Duplicate(_)
+            | Self::Frame(_)
             | Self::Edit(_)
             | Self::Dimension(_)
             | Self::NoGesture
@@ -560,6 +537,7 @@ impl Refusal {
             | Self::WrongNodeKind { .. }
             | Self::NotABodyRead { .. }
             | Self::Duplicate(_)
+            | Self::Frame(_)
             | Self::Edit(_)
             | Self::Dimension(_)
             | Self::Parse(_)
@@ -841,6 +819,7 @@ impl core::fmt::Display for Refusal {
             // and carry no category prefix of their own, so this reads
             // as one sentence rather than as two openings.
             Self::Duplicate(fault) => write!(f, "{fault}"),
+            Self::Frame(fault) => write!(f, "{fault}"),
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
             Self::Dimension(error) => write!(f, "{error}"),
             Self::Parse(error) => write!(f, "the expression did not parse: {error}"),
@@ -905,281 +884,66 @@ impl VersionOffer {
     }
 }
 
-/// **"Nothing is picked yet", for a frame on a face — one string, two
-/// readers.**
-///
-/// [`FaceFrameFault::NoFace`]'s sentence and the unmet-seat sentence
-/// [`crate::forms::DatumKindChoice`] gives that kind are the SAME
-/// sentence: the gate's "no face" and the form's "still waiting for a
-/// pick" are one state said from two sides. Two literals would be two
-/// spellings to keep in step, with the form suppressing one of them
-/// and nothing able to notice they had drifted, so there is one
-/// literal and nothing to keep in step.
-pub const NO_FACE_PICKED: &str = "pick a face in the viewport to read the frame off";
-
-/// **Why a face frame may not be authored on the face the viewport
-/// has picked** — the add-datum form's `frame on face` affordance,
-/// as a value.
-///
-/// Every arm is a fact about the pick and the landed evaluation, and
-/// none is a sentence a widget composed: the form renders these and
-/// decides nothing, so a headless row can drive the same question the
-/// button asks ([`face_frame_seat`]).
-///
-/// **An AFFORDANCE, never the safety.** `Datum::FaceFrame` refuses a
-/// non-planar carrier and a name that stops resolving at its own
-/// evaluation (DM1b), and an `at` whose value is not one body at the
-/// evaluator's single-body operand door. This says the same things one
-/// step earlier, so the author learns before the node lands rather
-/// than from a badge on it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FaceFrameFault {
-    /// Nothing is picked, or what is picked is not a face. A frame on
-    /// a face has no seat to fall back on: the face IS the pick.
-    NoFace,
-    /// Nothing has landed yet, so there is no evaluation to read the
-    /// face against. Distinct from a face that fails to resolve — one
-    /// is the document not having been answered yet, the other is an
-    /// answer that does not hold this name.
-    NotLanded,
-    /// The node the face was picked on EVALUATED to more than one
-    /// body, so it is not a node a face frame may be read out of: a
-    /// split's sides, a pattern's instances and a placer's map of
-    /// either are several bodies, and the frame node's `at` goes
-    /// through the evaluator's single-body operand door. The recipe's
-    /// way of naming one of several is `Node::Part`.
-    ///
-    /// **A question about the VALUE, which is the door's own
-    /// question.** A node-kind predicate answers a different one:
-    /// `Node::Transform` is shape-preserving over its input, so a
-    /// transform of a pattern is body-denoting by kind and several
-    /// bodies by value.
-    NotOneBody {
-        /// The node whose body the ray met, as the landed document
-        /// held it.
-        at: SpokenNode,
+/// **Why a gesture's frame could not be made** — the transform
+/// gesture's placement, a split's cutting plane, a circular pattern's
+/// axis. Each is made of numbers the gesture carries, taken at their
+/// nominal values in the document, and read off a body's own geometry
+/// (spec §5, the restate ladder).
+#[derive(Debug, Clone)]
+pub enum GestureFrameFault {
+    /// A number is not of the dimension its field takes.
+    Dimension {
+        /// The field, as the form names it.
+        field: &'static str,
+        /// The dimension it takes.
+        wanted: Dimension,
+        /// The dimension it was written in.
+        found: Dimension,
     },
-    /// The name does not resolve to one face in this evaluation — a
-    /// stale pick, a tie, a failed node, or a node this document no
-    /// longer holds at all. The interrogation door's own refusal,
-    /// CARRIED rather than flattened to a string here, for
-    /// [`crate::drafts::CommitFault`]'s reason.
-    ///
-    /// **A pick whose node an undo took away arrives here**, as
-    /// [`InterrogateError::Standing`] carrying
-    /// [`pncad::document::NodeStanding::NotInDocument`] — the standing of
-    /// a node id the evaluated document does not have. It is not
-    /// [`Self::NotOneBody`]: "several bodies" is a claim about a value
-    /// that exists, and telling an author to project the one they mean
-    /// would be advice about a feature that is gone.
+    /// A number reads a name the document does not hold at its kind.
     Unresolved {
-        /// The interrogation door's refusal, read as the feature tree
-        /// reads it ([`crate::tree::interrogation_as_drawn`]).
-        ///
-        /// Its `through` may be a mate, which is not the DAG ancestor
-        /// `NodeStanding` documents
-        /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
-        error: InterrogateError,
-        /// The nodes `error` names, as the landed document held them
-        /// ([`held_by`]).
-        held: HeldNodes,
+        /// The field, as the form names it.
+        field: &'static str,
+        /// The lowering door's refusal.
+        fault: pncad::document::LowerFault,
     },
-    /// The face's carrier is not a plane, and a sketch frame wants
-    /// one. Names the kind it actually is, because "not a plane" alone
-    /// leaves the author guessing which of their faces is curved.
-    NotPlanar {
-        /// The carrier kind the tag read answered.
-        carrier: SurfaceKind,
+    /// A number did not evaluate in the document.
+    Unevaluated {
+        /// The field, as the form names it.
+        field: &'static str,
+        /// The evaluator's refusal.
+        error: EvalError,
     },
-    /// The face resolves, but the picture does not draw it: a later
-    /// feature consumed its body, or its instance is hidden. The
-    /// viewport marks no held face it cannot see
-    /// ([`crate::marks::drawn_patch`]), and a frame is not authored on
-    /// a face nothing on screen is marking.
-    NotDrawn,
+    /// A direction names no direction (the direction door's refusal).
+    Direction {
+        /// The field, as the form names it.
+        field: &'static str,
+        /// The door's refusal.
+        refusal: pncad::document::AxisRefusal,
+    },
+    /// The body offers no geometry to read the frame off.
+    Geometry(pncad::document::PinRefusal),
 }
 
-impl FaceFrameFault {
-    /// This fault with its nodes spoken from `doc`, a later version of
-    /// the document it was raised in ([`Refusal::respoken`]).
-    #[must_use]
-    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
-        match self {
-            Self::NotOneBody { at } => Self::NotOneBody {
-                at: at.respoken(doc),
-            },
-            Self::Unresolved { error, held } => Self::Unresolved {
-                error,
-                held: held.respoken(doc),
-            },
-            unspoken @ (Self::NoFace
-            | Self::NotLanded
-            | Self::NotPlanar { .. }
-            | Self::NotDrawn) => unspoken,
-        }
-    }
-
-    /// **How loud the datum form draws this fault** — the salience a
-    /// surface reads off the value, as
-    /// [`crate::session::Standing::tone`] reads it off a selection.
-    ///
-    /// A fault about the PICK is [`Tone::Actionable`]: a face on
-    /// several bodies, a curved face, and a name that does not resolve
-    /// each refuse what the reader chose, and the form stays shut until
-    /// they choose again. [`Self::Unresolved`] is that on its own
-    /// merits: the form's pick is LATCHED (it outlives the selection,
-    /// so the reader can go on clicking elsewhere), and a latched face
-    /// that no longer resolves withholds the button until the reader picks
-    /// a face again, whatever is selected now.
-    ///
-    /// A seat not yet answerable is [`Tone::Advisory`]: no face picked
-    /// is the form asking for one, and no evaluation yet is "we cannot
-    /// tell", which the landing evaluation answers on its own.
-    #[must_use]
-    pub fn tone(&self) -> Tone {
-        match self {
-            Self::NoFace | Self::NotLanded => Tone::Advisory,
-            Self::NotOneBody { .. }
-            | Self::Unresolved { .. }
-            | Self::NotPlanar { .. }
-            | Self::NotDrawn => Tone::Actionable,
-        }
-    }
-}
-
-impl core::fmt::Display for FaceFrameFault {
+impl core::fmt::Display for GestureFrameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NoFace => f.write_str(NO_FACE_PICKED),
-            Self::NotLanded => {
-                f.write_str("the document has not evaluated yet, so the picked face cannot be read")
+            Self::Dimension {
+                field,
+                wanted,
+                found,
+            } => write!(f, "the {field} takes a {wanted}, not a {found}"),
+            Self::Unresolved { field, fault } => write!(f, "the {field} does not resolve: {fault}"),
+            Self::Unevaluated { field, error } => {
+                write!(f, "the {field} does not evaluate: {error}")
             }
-            Self::NotOneBody { at } => write!(
-                f,
-                "{at}'s value is several bodies, so a face on it names no single body to read \
-                 a frame out of — project the one you mean first"
-            ),
-            Self::Unresolved { error, held } => write!(
-                f,
-                "that face does not resolve: {}",
-                Said(error, Speaker::held(held))
-            ),
-            Self::NotPlanar { carrier } => write!(
-                f,
-                "a sketch frame is read off a PLANAR face, and that one's carrier is a {} — \
-                 the kernel's own word for it",
-                carrier.name()
-            ),
-            Self::NotDrawn => f.write_str(
-                "that face is not in the picture — a later feature consumed its body, or it is \
-                 hidden — so pick a face where it is drawn",
-            ),
+            Self::Direction { field, refusal } => write!(f, "the {field} {refusal}"),
+            Self::Geometry(refusal) => write!(f, "{refusal}"),
         }
     }
 }
 
-impl core::error::Error for FaceFrameFault {}
-
-/// **May a face frame be authored on this pick, and if not, why not?**
-/// — the add-datum form's `frame on face` gate, asked of values.
-///
-/// A free function beside [`admits`] for [`admits`]' own reason: the
-/// question is about a pick and an evaluation, not about a session, so
-/// a headless row asks it exactly as the widget does. The widget
-/// RENDERS the answer and decides nothing.
-///
-/// `Ok` carries the two picks the seat needs — the node whose body the
-/// ray met and the frozen face name, a pick on a copy read on the body
-/// it places ([`crate::world::on_body`]) — in the order
-/// [`crate::session::DatumSpec::FaceFrame`] takes them.
-///
-/// # Errors
-///
-/// Every [`FaceFrameFault`]: no face picked, nothing landed, an `at`
-/// whose VALUE is several bodies, a name that does not resolve (which
-/// includes an `at` this document no longer holds), and a carrier that
-/// is not a plane.
-pub fn face_frame_seat(
-    landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
-    picked: Option<&FaceSelection>,
-) -> Result<(RecipeNodeId, StableName), FaceFrameFault> {
-    let face = picked.ok_or(FaceFrameFault::NoFace)?;
-    // The PAIR is what a session hands out; every question below is
-    // of the evaluation, including whether the document still holds
-    // the node — an evaluation has no result for a node its document
-    // does not have, and the interrogation door says so in its own
-    // words.
-    let (doc, ev) = landed.ok_or(FaceFrameFault::NotLanded)?;
-    // `at` is the node whose BODY the ray met, never the feature that
-    // minted the face: the name is read out of that body's own table,
-    // and a flat shrunk by a later fillet is a smaller face there than
-    // the feature that swept it holds.
-    let at = face.node;
-    // The evaluator's operand door is over the VALUE, so this is too.
-    // A node KIND predicate answers a different question: `Transform`
-    // is shape-preserving over its input, so a transform of a pattern
-    // is body-denoting by kind and `Instances` by value, and a seat
-    // gated on the kind would mint a node that refuses on arrival.
-    //
-    // A node with no value AT ALL — the one an undo took away, most of
-    // all — is left to the interrogation below, which names why it has
-    // none. "Several bodies, project the one you mean" would be advice
-    // about a feature that is gone.
-    if ev
-        .value(at)
-        .is_some_and(|value| one_body(&value.payload).is_none())
-    {
-        return Err(FaceFrameFault::NotOneBody { at: doc.spoken(at) });
-    }
-    // DM1b as a TAG READ, consulting no number: the same comparison
-    // the node itself makes at evaluation.
-    match face_carrier_kind(ev, at, &face.name) {
-        // A pick on a copy is read on its body (A10).
-        Ok(SurfaceKind::Plane) => {
-            let (at, _, name) = crate::world::on_body(doc, at, face.body, &face.name);
-            Ok((at, name))
-        }
-        Ok(carrier) => Err(FaceFrameFault::NotPlanar { carrier }),
-        Err(error) => {
-            let error = crate::tree::interrogation_as_drawn(error, ev);
-            let held = held_by(&error, doc);
-            Err(FaceFrameFault::Unresolved { error, held })
-        }
-    }
-}
-
-/// **[`face_frame_seat`], asked of the picture on screen too**: the
-/// seat the add-datum form's button commits, refusing
-/// [`FaceFrameFault::NotDrawn`] for a face that resolves but that the
-/// picture does not draw.
-///
-/// "Drawn" is [`crate::marks::drawn_patch`]'s answer — the one the
-/// held mark lights — so the button and the mark cannot disagree about
-/// a face while there is a picture to ask. With no index for the
-/// picture on screen (`on_screen` is `None`) there is nothing to ask,
-/// and the evaluation's answer stands: the button is let through
-/// rather than withheld while the picture has no index — the same
-/// window in which the selection's own marks light nothing.
-///
-/// # Errors
-///
-/// Every [`face_frame_seat`] refusal first, so a face that is gone is
-/// said as gone; then [`FaceFrameFault::NotDrawn`].
-pub fn face_frame_seat_drawn(
-    landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
-    picked: Option<&FaceSelection>,
-    on_screen: Option<(&crate::pickindex::PickIndex, &crate::display::DisplayView)>,
-) -> Result<(RecipeNodeId, StableName), FaceFrameFault> {
-    let seat = face_frame_seat(landed, picked)?;
-    match (picked, on_screen) {
-        (Some(face), Some((index, display)))
-            if crate::marks::drawn_patch(index, display, face).is_none() =>
-        {
-            Err(FaceFrameFault::NotDrawn)
-        }
-        _ => Ok(seat),
-    }
-}
+impl core::error::Error for GestureFrameFault {}
 
 /// **The one body an evaluated value IS, if it is one** — the
 /// evaluator's single-body operand door (`eval::wire::body_operand`)
@@ -1187,7 +951,7 @@ pub fn face_frame_seat_drawn(
 ///
 /// The same two shapes that door takes: a `Body` payload, or a
 /// boolean's non-empty result. Everything else — a split's two sides,
-/// a pattern's or a placer's instances, a datum, a profile — is a
+/// a pattern's or a placer's instances, a profile — is a
 /// value it refuses `WrongOperand`.
 ///
 /// **Not [`crate::combine::denotes_body`]**, which answers the
@@ -1195,16 +959,14 @@ pub fn face_frame_seat_drawn(
 /// before any value exists. A seat that has an evaluation in hand can
 /// ask the door's own question instead of a predicate that tracks it.
 ///
-/// Two readers: the face-frame seat, which needs only the answer, and
-/// the duplicate door (`crate::combine::duplicate_step`), which
-/// measures the body it hands back.
+/// Its reader is the duplicate door (`crate::combine::duplicate_step`),
+/// which measures the body it hands back.
 pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&Body<f64>> {
     match payload {
         ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
             Some(body)
         }
         ValuePayload::Boolean(BooleanValue::Empty)
-        | ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
         | ValuePayload::Split { .. }
         | ValuePayload::Instances(_)

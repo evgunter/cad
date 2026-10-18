@@ -24,7 +24,7 @@ fn label(text: &str) -> Label {
 /// extrude.
 fn extruded(seed: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived(seed, tol);
-    let (doc, profile) = common::framed_square(&doc, 0.02, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.02, tol);
     common::inserted(
         &doc,
         Node::Extrude {
@@ -174,7 +174,7 @@ fn a_create_form_proposes_kind_n_counted_among_that_kinds_nodes() {
     };
     assert_eq!(proposal(&doc).as_deref(), Some("Extrude 2"), "one extrude");
     let another = |doc: &Doc<ProfileProgram>| {
-        let (doc, profile) = common::framed_square(doc, 0.01, tol);
+        let (doc, profile) = common::square_profile(doc, 0.01, tol);
         let (doc, extrude) = common::inserted(
             &doc,
             Node::Extrude {

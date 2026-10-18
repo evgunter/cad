@@ -203,9 +203,8 @@
 //! them all. The members are the at-rest verdict ([`at_rest_badge`]),
 //! the advisory checks ([`checks_badge`]), the δ the display budget
 //! chose ([`delta_badge`]), the product fault ([`product_badge`]), the
-//! store that keeps no preferences ([`prefs_badge`]), the datums this
-//! view draws nothing of ([`datums_badge`]), the profiles it draws
-//! nothing of ([`profiles_badge`]), the held edges the index cannot
+//! store that keeps no preferences ([`prefs_badge`]), the profiles
+//! the view draws nothing of ([`profiles_badge`]), the held edges the index cannot
 //! name ([`held_edges_badge`]), and the three display seams that
 //! hold a refusal — the scene ([`scene_badge`]), the pick index
 //! ([`index_badge`]) and the projection ([`projection_badge`]).
@@ -790,8 +789,8 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::CancelFreeMove
         | SessionOp::AddMate { .. }
         | SessionOp::NewDocument { .. }
-        | SessionOp::AddDatum { .. }
         | SessionOp::AddProfile { .. }
+        | SessionOp::SketchOnFace { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddRevolve { .. }
@@ -899,8 +898,8 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::CommitFreeMove { .. }
         | SessionOp::CancelFreeMove
         | SessionOp::AddMate { .. }
-        | SessionOp::AddDatum { .. }
         | SessionOp::AddProfile { .. }
+        | SessionOp::SketchOnFace { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddRevolve { .. }
@@ -1483,14 +1482,17 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 
 /// **How a place gesture placed its copy, as a notice**, or `None` for
 /// the gesture's ordinary answer: a plane mate on the copy's planar
-/// face, whose values move it. A copy with no planar face is pinned,
-/// with no value to move it by, and one that could not be read stands
-/// loose; each says so, in [`editor_core::PinRefusal`]'s own words for
-/// the second. Nothing else says it again ([`Retold::Never`]): the
+/// face, whose values move it. A copy with no planar face is placed by
+/// its own axis where it has one, and pinned, with no value to move it
+/// by, where it has none; one that could not be read stands loose; each
+/// says so, in [`editor_core::PinRefusal`]'s own words for the last. Nothing else says it again ([`Retold::Never`]): the
 /// tree row says what the bundle holds, not why.
 pub fn place_notice(report: &crate::session::PlaceReport) -> Option<Message> {
     let text = match &report.by {
         Ok(editor_core::PlacedBy::PlanarFace) => return None,
+        Ok(editor_core::PlacedBy::Axis) => "the copy has no planar face, so it is placed by its \
+                                           own axis, its values moving it along and about it"
+            .to_owned(),
         Ok(editor_core::PlacedBy::Pin) => "the copy has no planar face, so it is pinned where it \
                                           stands, with no values to move it by"
             .to_owned(),
@@ -2787,29 +2789,15 @@ pub fn projection_badge(error: Option<&CameraError>) -> Option<Badge> {
     })
 }
 
-/// **What the chrome badges about datums this view draws nothing
-/// of**, and `None` when every datum the document holds is on screen
-/// — or when it holds none.
+/// **What the chrome badges about committed profiles the viewport draws
+/// nothing of**, and `None` when it drew every one.
 ///
-/// **The fact it exists to make sayable is a DIFFERENCE.** Every mark
-/// `crate::datums` draws refuses on its own scale, correctly, and a
-/// datum whose every mark refuses contributes no geometry: the
-/// viewport then shows exactly what a document with no datums in it
-/// shows. This is the read that tells the two apart, and it is the
-/// whole of what it claims — `n` datums are in the document and none
-/// of their marks reached the picture.
-///
-/// [`Subject::Camera`], and a badge rather than a sentence, for
-/// [`projection_badge`]'s reasons in both halves. The subject: what
-/// makes the count the wrong answer is the camera moving, which is
-/// also what a reader does about it. No population of causes is named
-/// here, because naming one is a claim and there is no sweep rule
-/// that produces it: what empties a drawing is `crate::datums`'
-/// business and it has at least three ways
-/// (`datums::DatumDraws::vanished` enumerates them), each in its own
-/// band of the datum's magnitude and the view's. The channel: the
-/// count is true on every frame until the view or the document
-/// changes, so it is a read of held state and not news.
+/// A profile is drawn from its validated value at the display
+/// tolerance, and what empties it is a point the flattener cannot
+/// compute — a vertex's own position, an arc's frame, or a point along
+/// an arc (`crate::sketch::committed`) — a fact about the document at
+/// this tolerance, so the subject is the document and the tone
+/// [`Tone::Advisory`]: there is no camera move that brings it back.
 ///
 /// **What it does not do is HOLD.** The three display seams above
 /// keep a refusal until the seam succeeds; this is a per-frame count
@@ -2818,44 +2806,11 @@ pub fn projection_badge(error: Option<&CameraError>) -> Option<Badge> {
 /// draw whether or not the viewport is one of them. So it needs no
 /// sweeper, which is the defect
 /// `work/view/projection-fault-has-no-sweeper.md` records against the
-/// field beside it.
-///
-/// **It outlives the view it describes by exactly one frame**, and no
-/// further. The toolbar draws BEFORE the panes, so on the frame the
+/// field beside it. It outlives the view it describes by exactly one
+/// frame: the toolbar draws BEFORE the panes, so on the frame the
 /// viewport stops drawing this badge paints the count the previous
 /// frame made, and the zero written after that frame's panes takes it
-/// on the next. That is the same one-frame lag `crate::app`'s field
-/// docs argue is benign, and it is a bounded lag rather than the
-/// unbounded staleness a latch with no sweeper has.
-///
-/// [`Tone::Actionable`]: a reader can move the camera and get the
-/// datums back, which is exactly the difference from an
-/// [`Tone::Advisory`] report about something nobody can change.
-pub fn datums_badge(vanished: usize) -> Option<Badge> {
-    (vanished > 0).then(|| {
-        // The noun agrees with the count: "1 datums" is the tell that
-        // a sentence was assembled rather than written, and this one
-        // is read at a glance beside the others.
-        let noun = if vanished == 1 { "datum" } else { "datums" };
-        Badge::read(
-            Subject::Camera,
-            format!("datums: {vanished} {noun} this view draws nothing of"),
-            Tone::Actionable,
-        )
-    })
-}
-
-/// **What the chrome badges about committed profiles the viewport draws
-/// nothing of**, and `None` when it drew every one.
-///
-/// A badge, per-frame and unlatched, for [`datums_badge`]'s reasons.
-/// The cause is narrower than a datum's: a profile is drawn from its
-/// validated value at the display tolerance, and what empties it is a
-/// point the flattener cannot compute — a vertex's own position, an
-/// arc's frame, or a point along an arc (`crate::sketch::committed`)
-/// — a fact about the document at this tolerance, so the subject is
-/// the document and the tone [`Tone::Advisory`]: there is no camera
-/// move that brings it back.
+/// on the next.
 pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
     (undrawn > 0).then(|| {
         let noun = if undrawn == 1 { "profile" } else { "profiles" };
@@ -2908,7 +2863,7 @@ impl<T> Spelled<T> {
 /// The held mark lights the drawn edges whose names a tool holds
 /// ([`crate::marks::HeldEdges::mark`]), and a drawn edge with no name
 /// cannot be told held or not, so the mark may be short by it. This is
-/// what says so. Per-frame and unlatched, for [`datums_badge`]'s
+/// what says so. Per-frame and unlatched, for [`profiles_badge`]'s
 /// reasons: the viewport writes it from the marks it composes. The
 /// refusal is the naming layer's bug report, which no reader can act
 /// on, so [`Tone::Advisory`]; its subject is the document's

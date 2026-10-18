@@ -7,13 +7,11 @@
 //! can never alias float data, resolved values move the key, and
 //! display units NEVER enter it (D7).
 //!
-//! The plane is NOT in that stream. It is a document node the profile
-//! names, so it folds into the key as an upstream input key, the same
-//! way every other input does; these rows build every document with
-//! its frame first and read the profile second.
+//! A profile reads no plane: it is drawn on its own xy, so its key is
+//! its program's and nothing else's.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{ang, len, len2, scl, xy_frame};
+use crate::fixture::{ang, len, len2, scl};
 use editor_core::{
     CancelToken, ContentKey, Dimension, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram, Node,
     ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, SlotId,
@@ -21,19 +19,9 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-/// The frame every document below is built on: the id its insert
-/// mints, first among the minting edits of every document here, so one
-/// id in all of them (D9).
-fn plane() -> RecipeNodeId {
-    crate::fixture::newest(&with_frame(ProfileDoc::empty_derived(
-        "switch_program_key",
-        Tol::witness(),
-    )))
-}
-
-/// The profile drawn on that frame: the document's second node.
+/// The profile: each document's first node.
 fn profile(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.ids()[1]
+    doc.ids()[0]
 }
 
 fn key_of(doc: &ProfileDoc) -> ContentKey {
@@ -51,7 +39,7 @@ fn key_of(doc: &ProfileDoc) -> ContentKey {
 
 fn doc_with(loops: Vec<LoopProgram<Formula>>) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness());
-    with_frame(doc)
+    doc
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
@@ -67,22 +55,6 @@ fn doc_with(loops: Vec<LoopProgram<Formula>>) -> ProfileDoc {
         .doc
 }
 
-/// The world xy frame, inserted first. Every row here is about the PROGRAM's
-/// key, so every document shares one plane: a key difference between
-/// two of these documents can only have come from their programs.
-fn with_frame(doc: ProfileDoc) -> ProfileDoc {
-    doc.apply(
-        &DocEdit::InsertNode {
-            node: Box::new(xy_frame()),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("the frame inserts")
-    .doc
-}
-
 /// `doc` with the one expression of its profile at argument `arg`
 /// re-spelled as `expr`, through the value door: the steps keep the ids
 /// the insert minted, so two documents compared here differ in that one
@@ -93,7 +65,7 @@ fn with_frame(doc: ProfileDoc) -> ProfileDoc {
 fn respelled(doc: &ProfileDoc, arg: StepArg, expr: Formula) -> ProfileDoc {
     let slots: Vec<SlotId> = doc
         .node(profile(doc))
-        .expect("the profile is the second node")
+        .expect("the profile is the first node")
         .slots()
         .into_iter()
         .filter(|s| matches!(*s, SlotId::Profile { arg: a, .. } if a == arg))
@@ -166,10 +138,10 @@ fn verb_tags_are_structure() {
 #[test]
 fn resolved_values_feed_the_key() {
     let with_param = |value: f64| {
-        let doc = with_frame(ProfileDoc::empty_derived(
+        let doc = ProfileDoc::empty_derived(
             "switch_program_key",
             Tol::witness(),
-        ));
+        );
         let doc = doc
             .apply(
                 &DocEdit::DeclareVar {
@@ -220,10 +192,10 @@ fn resolved_values_feed_the_key() {
 /// what happened.
 #[test]
 fn a_carrier_centre_respelled_keys_identically() {
-    let doc = with_frame(ProfileDoc::empty_derived(
+    let doc = ProfileDoc::empty_derived(
         "switch_program_key",
         Tol::witness(),
-    ));
+    );
     let doc = doc
         .apply(
             &DocEdit::DeclareVar {
@@ -287,10 +259,10 @@ fn one_arc_chain(radius: Formula) -> LoopProgram<Formula> {
 /// A document declaring `r` at `value`, carrying one profile built from
 /// `loops` — the same two nodes every row here uses.
 fn doc_with_r(value: f64, loops: Vec<LoopProgram<Formula>>) -> ProfileDoc {
-    let doc = with_frame(ProfileDoc::empty_derived(
+    let doc = ProfileDoc::empty_derived(
         "switch_program_key",
         Tol::witness(),
-    ))
+    )
     .apply(
         &DocEdit::DeclareVar {
             name: VarName::from_static("r"),

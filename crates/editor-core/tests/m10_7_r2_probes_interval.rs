@@ -33,7 +33,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use crate::fixture::{Recorder, len, scl, xy_frame};
+use crate::fixture::{Recorder, len, scl};
 
 fn plen(n: &'static str) -> Formula {
     Formula::named(VarName::from_static(n), Dimension::Length)

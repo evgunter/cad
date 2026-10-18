@@ -10,7 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::document::ExtrudeSide;
+use pncad::sweep::ExtrudeSide;
 use pncad::prelude::{Open, Start, Via, query};
 use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::sweep::chamfer::chamfer_edges;

@@ -83,7 +83,7 @@ fn only_the_row_whose_own_operation_refused_is_actionable() {
     let tol = Tol::witness();
     let (doc, extrude, moved) = common::broken_document(tol);
     // A second, unrelated body, so an `Ok` row is in the population.
-    let (doc, other_profile) = common::framed_square(&doc, 0.02, tol);
+    let (doc, other_profile) = common::square_profile(&doc, 0.02, tol);
     let mut session = DocSession::inline(doc, tol);
 
     // Unpumped: nothing has been evaluated, so nothing is actionable.
@@ -120,7 +120,7 @@ fn an_independent_subgraph_completes_beside_a_failure() {
     let (doc, extrude, _moved) = common::broken_document(tol);
     // A second, unrelated body in the same document: GQ2's ratified
     // "a failure poisons only its descendants".
-    let (doc, other_profile) = common::framed_square(&doc, 0.02, tol);
+    let (doc, other_profile) = common::square_profile(&doc, 0.02, tol);
     let (doc, other_extrude) = common::inserted(
         &doc,
         pncad::document::Node::Extrude {

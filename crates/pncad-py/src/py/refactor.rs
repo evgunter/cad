@@ -184,7 +184,9 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
     };
     let none = || py.None();
     let (node, consumer, input, param, name, doc_id) = match err {
-        E::EmptyCut | E::CutsTheWorld => (none(), none(), none(), none(), none(), none()),
+        E::EmptyCut | E::CutsTheWorld | E::InstanceUnstood => {
+            (none(), none(), none(), none(), none(), none())
+        }
         E::UnknownCutNode { id: n } | E::NoMaterial { node: n } => {
             (id(n), none(), none(), none(), none(), none())
         }
@@ -545,9 +547,9 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        // The part placement is the subject, and the value rides `mate`
-        // (below).
-        E::ValueOnAMovedWorld { placement, .. } | E::WorldPinOnAMovedWorld { placement } => (
+        // The part placement is the subject; a value rides `mate`
+        // (below), and why the re-pin found no frame is the message's.
+        E::ValueOnAMovedWorld { placement, .. } | E::RepinRefused { placement, .. } => (
             id(placement),
             none(),
             none(),

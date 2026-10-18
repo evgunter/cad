@@ -11,25 +11,26 @@
 //! above half is empty.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, failure, run};
-use crate::fixture::{insert, len, scl};
+use crate::blocks::{block, block_on, failure, run};
+use crate::fixture::{insert, plane_on};
 use editor_core::{Evaluation, Node, ProfileDoc, RecipeNodeId, SplitSide, ValuePayload};
 use geom_core::Tol;
 
-fn split_of(doc: ProfileDoc, target: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
+/// `target` split by the plane through `(0, 1, 1)` normal to
+/// `(0, 1, 1)`, read off `root`, the construction whose space `target`
+/// lies in.
+fn split_of(
+    doc: ProfileDoc,
+    root: RecipeNodeId,
+    target: RecipeNodeId,
+) -> (ProfileDoc, RecipeNodeId) {
     let h = std::f64::consts::FRAC_1_SQRT_2;
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Plane {
-            origin: [len(0.0), len(1.0), len(1.0)],
-            normal: [scl(0.0), scl(h), scl(h)],
-        }),
-    );
+    let tool = plane_on(&doc, root, [0.0, 1.0, 1.0], [0.0, h, h]);
     insert(
         doc,
         Node::Split {
             target: target.into(),
-            tool: plane.into(),
+            tool,
         },
     )
 }
@@ -67,12 +68,12 @@ fn near(got: Option<f64>, want: f64) -> bool {
 #[test]
 fn a_tangent_split_of_a_fused_flush_union_cuts_only_the_slab() {
     let doc = ProfileDoc::empty_derived("emit_split_duplicate", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, g) = block(doc, (1.2, 1.3), (-1.0, 2.0), 0.5, 2.5);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, g) = block_on(doc, a, (1.2, 1.3), (-1.0, 2.0), 0.5, 2.5);
     for (label, order) in [("[a, g, b]", [a, g, b]), ("[g, a, b]", [g, a, b])] {
         let (d, u) = crate::fixture::union_over(doc.clone(), &order);
-        let (d, s) = split_of(d, u);
+        let (d, s) = split_of(d, a, u);
         let (above, below) = halves(label, &run(&d), u, s);
         assert!(near(above, 0.4375), "{label}: above {above:?}");
         assert!(near(below, 1.7625), "{label}: below {below:?}");
@@ -84,22 +85,22 @@ fn a_tangent_split_of_a_fused_flush_union_cuts_only_the_slab() {
 #[test]
 fn the_tangent_contact_standing_alone_lands_below_whole() {
     let doc = ProfileDoc::empty_derived("emit_split_duplicate", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, g0) = block(doc, (0.2, 0.3), (-1.0, 2.0), 0.5, 2.5);
-    let (d, s) = split_of(doc.clone(), a);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, g0) = block_on(doc, a, (0.2, 0.3), (-1.0, 2.0), 0.5, 2.5);
+    let (d, s) = split_of(doc.clone(), a, a);
     let (above, below) = halves("a", &run(&d), a, s);
     assert_eq!(above, None, "a");
     assert!(near(below, 1.0), "a: below {below:?}");
     for (label, order) in [("[a, b]", vec![a, b]), ("[b, a]", vec![b, a])] {
         let (d, u) = crate::fixture::union_over(doc.clone(), &order);
-        let (d, s) = split_of(d, u);
+        let (d, s) = split_of(d, a, u);
         let (above, below) = halves(label, &run(&d), u, s);
         assert_eq!(above, None, "{label}");
         assert!(near(below, 1.5), "{label}: below {below:?}");
     }
     let (d, u) = crate::fixture::union_over(doc, &[a, g0]);
-    let (d, s) = split_of(d, u);
+    let (d, s) = split_of(d, a, u);
     let (above, below) = halves("[a, g0]", &run(&d), u, s);
     assert!(near(above, 0.4375), "[a, g0]: above {above:?}");
     assert!(near(below, 1.2625), "[a, g0]: below {below:?}");

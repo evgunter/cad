@@ -255,15 +255,9 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
                 .expect("no fillet resolves in the plate, so replay has nothing to lose"),
         );
     }
-    // The plane the profile's `plane` id NAMES — a `Profile` is built
-    // from a `SketchPlane`, and the node id is not one. Read from the
-    // document, so this is the plane the evaluator would build too.
-    let plane = fixture::plane_of(
-        &doc.doc,
-        doc.doc
-            .operation_of(program.frame)
-            .expect("the plane read is live"),
-    );
+    // The profile's own xy: a profile reads no plane, so this is the
+    // plane the evaluator builds too.
+    let plane = profile::SketchPlane::<f64>::xy();
     let (_, canonical) = profile::ConstructedProfile::new(plane, nominal_loops(&nominal))
         .validate_recording(Tol::witness())
         .expect("the nominal validates and records");

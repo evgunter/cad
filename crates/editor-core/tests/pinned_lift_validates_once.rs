@@ -4,9 +4,8 @@
 //! every corpus document, at `f64`, `Dual64` and (in the interval
 //! lane) `Interval`, the node's value under `ProfileLift::Pinned`
 //! equals what the program replayed at `f64`, embedded through
-//! `from_f64` and validated at the lane scalar produces, on the plane
-//! computed the way the arm computes it (an authored frame's `f64`
-//! placement lifted; a derived frame's lane value): the same loops,
+//! `from_f64` and validated at the lane scalar produces, on the
+//! profile's own xy: the same loops,
 //! every stored scalar the same bits in every value channel (`Dual64`'s
 //! value, `Interval`'s bounds — the arc carriers the lift copies
 //! included), and a derivative channel that is zero either way. The
@@ -20,7 +19,7 @@
 use crate::corpus::documents;
 
 use editor_core::{
-    CancelToken, Datum, EvalOptions, EvalScalar, Node, PoseValue, ValuePayload, evaluate,
+    CancelToken, EvalOptions, EvalScalar, Node, ValuePayload, evaluate,
 };
 use geom_core::{Arc2, Real, Sign, Tol};
 use profile::{Profile, ProfileLoop, SegmentKind, SketchPlane, ValidatedProfile};
@@ -99,13 +98,6 @@ fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(channels: &[Channel<T>
             &EvalOptions::default(),
             tol,
         );
-        let at_f64 = evaluate::<f64>(
-            &d.doc,
-            None,
-            &CancelToken::new(),
-            &EvalOptions::default(),
-            tol,
-        );
         let env = d.doc.var_env::<f64>();
         for &id in &ev.order {
             let Some(Node::Profile(program)) = d.doc.node(id) else {
@@ -117,32 +109,8 @@ fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(channels: &[Channel<T>
             let ValuePayload::Profile(lifted) = &value.payload else {
                 panic!("{}: {id:?} carries a profile", d.name);
             };
-            // The plane the way the arm computes it, independently of
-            // the value under test: an authored frame places at its
-            // `f64` placement lifted (the `f64` run's plane, which at
-            // `f64` IS that placement); a derived frame at the lane's
-            // own frame value.
-            let frame = d
-                .doc
-                .operation_of(program.frame)
-                .expect("the plane read is live");
-            let plane: SketchPlane<T> = match d.doc.node(frame) {
-                Some(Node::Datum(Datum::Frame { .. })) => {
-                    let ValuePayload::Profile(p) = &at_f64.value(id).expect("evaluates").payload
-                    else {
-                        panic!("{}: {id:?} carries a profile at f64", d.name);
-                    };
-                    p.validated.plane().map(T::from_f64)
-                }
-                _ => {
-                    let ValuePayload::Datum(PoseValue::Frame(f)) =
-                        &ev.value(frame).expect("the frame evaluates").payload
-                    else {
-                        panic!("{}: {:?} is a frame", d.name, program.frame);
-                    };
-                    SketchPlane::from_frame(*f)
-                }
-            };
+            // A profile is drawn on its own xy.
+            let plane: SketchPlane<T> = SketchPlane::xy();
             let loops = program
                 .resolve(&env)
                 .expect("the corpus program resolves at f64")

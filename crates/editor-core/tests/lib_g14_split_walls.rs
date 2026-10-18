@@ -25,7 +25,7 @@ use crate::fixture;
 use test_utils::refusal::tagged;
 
 use editor_core::{
-    CancelToken, Cmp, CurveKind, CurveKindSet, Datum, EntityKind, Entry, EvalOptions, Evaluation,
+    CancelToken, Cmp, CurveKind, CurveKindSet, EntityKind, Entry, EvalOptions, Evaluation,
     GeomPred, NamePat, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId,
     RoleSeg, SegPat, SegTag, Selector, SplitHalf, StableName, VarEnv, evaluate, select,
     select_where,
@@ -34,7 +34,7 @@ use editor_core::{
 // `table` panics on a node with no value rather than answering `None`,
 // which is what this suite wants: a G14 regression IS a node failure,
 // and the panic's message is the diagnosis.
-use fixture::{insert, len, on_frame, scl, table};
+use fixture::{insert, len, on_frame, plane_on, slid, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -56,22 +56,11 @@ fn ties(t: &NameTable) -> Vec<(&StableName, usize)> {
         .collect()
 }
 
-/// A plane datum.
-fn plane(doc: ProfileDoc, origin: [f64; 3], normal: [f64; 3]) -> (ProfileDoc, RecipeNodeId) {
-    insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(origin[0]), len(origin[1]), len(origin[2])],
-            normal: [scl(normal[0]), scl(normal[1]), scl(normal[2])],
-        }),
-    )
-}
-
-/// A prism: the polygon `pts` on z = `z0`, extruded `dz`.
-fn prism(doc: ProfileDoc, pts: Vec<(f64, f64)>, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
+/// A prism: the polygon `pts` on its own xy, extruded `dz`.
+fn prism(doc: ProfileDoc, pts: Vec<(f64, f64)>, dz: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, z0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![pts],
@@ -89,10 +78,9 @@ fn block(
     doc: ProfileDoc,
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
-    z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    prism(doc, vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)], z0, dz)
+    prism(doc, vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)], dz)
 }
 
 /// The survey's tie fixture, verbatim in shape: a 4×4×4 block minus a
@@ -100,7 +88,7 @@ fn block(
 /// table carries genuine N2 ties (two equally-admissible prong
 /// fragments per cap — no covariant qualifier separates them).
 fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
+    let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 4.0);
     let (doc, b) = prism(
         doc,
         vec![
@@ -113,9 +101,9 @@ fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             (5.0, 1.5),
             (2.0, 1.5),
         ],
-        1.0,
         2.0,
     );
+    let (doc, b) = slid(doc, a, b, [0.0, 0.0, 1.0]);
     let (doc, sub) = insert(
         doc,
         Node::Subtract {
@@ -135,12 +123,12 @@ fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 #[test]
 fn split_over_a_tied_operand_names_and_keeps_the_tie() {
     let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
-    let (doc, tool) = plane(doc, [0.0, 0.0, 3.5], [0.0, 0.0, 1.0]);
+    let tool = plane_on(&doc, sub, [0.0, 0.0, 3.5], [0.0, 0.0, 1.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: sub.into(),
-            tool: tool.into(),
+            tool,
         },
     );
     let ev = run(&doc);
@@ -178,10 +166,11 @@ fn split_over_a_tied_operand_names_and_keeps_the_tie() {
 /// refused identically. It names now.
 #[test]
 fn boolean_over_a_tied_operand_names_and_keeps_the_tie() {
-    let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
+    let (doc, a, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
     // A second cutter, nowhere near the tied prong fragments: it
     // crosses A's top face at z = 4, well above z ∈ [1, 3].
-    let (doc, c) = block(doc, (1.0, 3.0), (1.0, 3.0), 3.5, 2.0);
+    let (doc, c) = block(doc, (1.0, 3.0), (1.0, 3.0), 2.0);
+    let (doc, c) = slid(doc, a, c, [0.0, 0.0, 3.5]);
     let (doc, sub2) = insert(
         doc,
         Node::Subtract {
@@ -213,10 +202,11 @@ fn boolean_over_a_tied_operand_names_and_keeps_the_tie() {
 /// the arm shipped untested in the first cut).
 #[test]
 fn a_tie_with_one_surviving_candidate_narrows_back_to_unique() {
-    let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
+    let (doc, a, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
     // Engulf the y-high prong region entirely: every candidate in
     // y ∈ [2.5, 3] dies, the y ∈ [1, 1.5] one survives intact.
-    let (doc, c) = block(doc, (1.5, 4.5), (2.25, 3.25), 0.5, 3.0);
+    let (doc, c) = block(doc, (1.5, 4.5), (2.25, 3.25), 3.0);
+    let (doc, c) = slid(doc, a, c, [0.0, 0.0, 0.5]);
     let (doc, sub2) = insert(
         doc,
         Node::Subtract {
@@ -266,12 +256,12 @@ fn tied_and_end_qualified_name_tables_are_identical_across_evaluations() {
         },
         || {
             let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
-            let (doc, tool) = plane(doc, [0.0, 0.0, 3.5], [0.0, 0.0, 1.0]);
+            let tool = plane_on(&doc, sub, [0.0, 0.0, 3.5], [0.0, 0.0, 1.0]);
             let (doc, split) = insert(
                 doc,
                 Node::Split {
                     target: sub.into(),
-                    tool: tool.into(),
+                    tool,
                 },
             );
             (doc, split)
@@ -304,17 +294,16 @@ fn l_split(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             (1.0, 3.0),
             (0.0, 3.0),
         ],
-        0.0,
         1.0,
     );
     // x + y = 2.5: two DISJOINT chords per cap — one across the
     // horizontal leg, one across the vertical leg.
-    let (doc, tool) = plane(doc, [2.5, 0.0, 0.0], [1.0, 1.0, 0.0]);
+    let tool = plane_on(&doc, ext, [2.5, 0.0, 0.0], [1.0, 1.0, 0.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: ext.into(),
-            tool: tool.into(),
+            tool,
         },
     );
     (doc, ext, split)
@@ -405,9 +394,21 @@ fn the_chords_are_reachable_one_by_one_through_the_selector_layer() {
     assert_eq!(lines, plain, "the exact atom dropped a chord");
 
     // A DECIDED atom that separates the two cap chords keeps some and
-    // drops the others.
-    let (doc, datum) = plane(doc, [1.25, 0.0, 0.0], [1.0, 0.0, 0.0]);
-    let ev = run(&doc);
+    // drops the others: measured from the half's piece of the L's
+    // `x = 0` wall (outward normal −x), the horizontal leg's chords lie
+    // past 1.25 and the vertical leg's short of it.
+    let x0_wall = |h: editor_core::VarId| {
+        editor_core::all_faces(&ev, h)
+            .into_iter()
+            .find(|n| {
+                editor_core::face_frame(&ev, h, n).is_ok_and(|at| {
+                    let s = if at.sense { 1.0 } else { -1.0 };
+                    let normal = at.axis * s;
+                    at.origin.x.abs() <= 1e-12 && (normal.x + 1.0).abs() <= 1e-12
+                })
+            })
+            .expect("each half holds a piece of the x = 0 wall")
+    };
     let far: Vec<StableName> = halves
         .iter()
         .flat_map(|&h| {
@@ -415,10 +416,10 @@ fn the_chords_are_reachable_one_by_one_through_the_selector_layer() {
                 &ev,
                 h,
                 &sel,
-                &[GeomPred::DatumDistance {
-                    datum,
-                    cmp: Cmp::Greater,
-                    value: len(0.1),
+                &[GeomPred::PlaneDistance {
+                    face: x0_wall(h),
+                    cmp: Cmp::Less,
+                    value: len(-1.25),
                 }],
                 &params,
                 Tol::witness(),

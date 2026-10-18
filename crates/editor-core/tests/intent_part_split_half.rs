@@ -3,7 +3,7 @@
 //! while one did refuses at load with the regenerate recourse.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{self, insert, len, on_frame_keeping, scl};
+use crate::fixture::{self, insert, len, on_frame, scl};
 use editor_core::{Formula, Node, PartSelect, PatternKind, ProfileDoc, load, save};
 use geom_core::Tol;
 
@@ -13,7 +13,7 @@ use geom_core::Tol;
 /// `Part { Instance }` spelled as the retired `SplitHalf`.
 #[test]
 fn a_file_holding_a_split_half_part_refuses_unreadable() {
-    let (doc, _, profile) = on_frame_keeping(
+    let (doc, profile) = on_frame(
         ProfileDoc::empty_derived("split-half-retires", Tol::witness()),
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -97,7 +97,7 @@ fn doctor(value: &mut serde_json::Value, count: &mut usize) {
 #[test]
 fn a_measure_across_one_splits_two_halves_reads_each_by_its_port() {
     use editor_core::{
-        CapEnd, Datum, EntityKind, MeasurePrimitive, NamePat, NodeResult, Operand, SegPat, SegTag,
+        CapEnd, EntityKind, MeasurePrimitive, NamePat, NodeResult, Operand, SegPat, SegTag,
         Selector, SplitHalf, ValuePayload, select,
     };
     let mut r = fixture::Recorder::new();
@@ -111,13 +111,10 @@ fn a_measure_across_one_splits_two_halves_reads_each_by_its_port() {
         profile: profile.into(),
         distance: len(4.0),
     });
-    let tool = r.insert(Node::Datum(Datum::Plane {
-        origin: [len(0.0), len(0.0), len(2.0)],
-        normal: [scl(0.0), scl(0.0), scl(1.0)],
-    }));
+    let tool = fixture::plane_on(&r.doc, column, [0.0, 0.0, 2.0], [0.0, 0.0, 1.0]);
     let split = r.insert(Node::Split {
         target: column.into(),
-        tool: tool.into(),
+        tool,
     });
     let ev = fixture::run(&r.doc, &editor_core::EvalOptions::default());
     // Each half is read by its port (NAMES N1): the end cap is the

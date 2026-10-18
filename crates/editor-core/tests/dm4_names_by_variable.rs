@@ -19,7 +19,7 @@
 
 use crate::fixture::{self, insert, len, on_frame, scl};
 use editor_core::{
-    Axis3, Datum, Diagnosis, DocEdit, EntityKind, Entry, ExtrudeSide, Formula, Node, ProfileDoc,
+    Axis3, Datum, Diagnosis, DocEdit, EntityKind, Entry, Formula, Node, ProfileDoc,
     RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, SplitHalf, StableName,
     resolve, resolve_with_prior,
 };

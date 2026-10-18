@@ -1220,7 +1220,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
 fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
     use editor_core::{EntityKind, derivation_nodes};
     let doc = ProfileDoc::empty_derived("asm4-reach-earliest", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
     let (doc, u) = insert(
         doc,
@@ -1274,7 +1274,7 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
 /// minter.
 fn selecting_fillet(doc: ProfileDoc, name: StableName) -> (ProfileDoc, BTreeSet<RecipeNodeId>) {
     let before: BTreeSet<RecipeNodeId> = doc.ids().iter().copied().collect();
-    let (doc, body) = block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, body) = block(doc, (5.0, 6.0), (0.0, 1.0), 1.0);
     let (doc, _fillet) = insert(
         doc,
         Node::Fillet {
@@ -1310,7 +1310,7 @@ fn fillet_of(doc: &ProfileDoc, cut: &BTreeSet<RecipeNodeId>) -> RecipeNodeId {
 fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
     use editor_core::{EntityKind, derivation_nodes};
     let doc = ProfileDoc::empty_derived("asm4-reach-deleted", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
     let (doc, u) = insert(
         doc,

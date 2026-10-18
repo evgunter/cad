@@ -1,7 +1,7 @@
 //! **EDIT-PLACEMENT P2 — world poses against an independent
 //! composition, and the doors across spaces** (ASSEMBLY.md A4, A9,
 //! A11 (2)–(5); D10, Spaces): a seat under a world pin whose pose two
-//! parameters drive, and a transform of the seated copy, in f64 and in
+//! parameters drive, and a copy placed against the seated copy, in f64 and in
 //! the interval lane; a constraint that moves a loose space onto the
 //! world; the clearance door, the at-rest gate and the document seam
 //! across spaces; inline of split. The expected poses are composed here
@@ -20,11 +20,11 @@ use crate::p2_gauges::{
 use editor_core::pose::PoseRole;
 use editor_core::{
     Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
-    FreeVar, Node, Operand, ParamBox, ProfileDoc, RecipeNodeId, Space, Step, Target, VarName,
+    FreeVar, Node, Operand, ParamBox, ProfileDoc, RecipeNodeId, Space, Target, VarName,
     WorldRead, evaluate,
 };
 use fixture::resolver::with_resolver;
-use fixture::{ang, head, insert, len, run, scl, solve, step};
+use fixture::{ang, head, insert, len, run, solve, step};
 use geom_core::{Bounds, Interval, Tol};
 use topo::Body;
 
@@ -254,8 +254,8 @@ fn the_seat_relation_the_rows_compose_with_is_the_solves() {
 /// **A seat under a two-parameter world pin against an independent
 /// composition**: the base pinned to the world at a pose two parameters
 /// drive composed with a turned literal, the top seated on it, and a
-/// Transform of the seated top, in f64 and in the interval lane at two
-/// parameter values.
+/// copy placed against the seated top at a turned lift in its own
+/// coordinates, in f64 and in the interval lane at two parameter values.
 #[test]
 fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
     let p = parts("r2-afb-x");
@@ -265,17 +265,9 @@ fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
     let (doc, base) = pinned_chain(doc, p.base, &root_off, &o);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let tm = M::tr([0.0, 0.0, 10.0]).c(&M::rot([1.0, 0.0, 0.0], 0.4));
-    let (doc, t) = insert(
-        doc,
-        Node::transform(
-            top,
-            Step::Rigid {
-                translation: [0.0, 0.0, 10.0].map(len),
-                axis: [1.0, 0.0, 0.0].map(scl),
-                angle: ang(0.4),
-            },
-        ),
-    );
+    let at = Frame::rotate_then_translate([1.0, 0.0, 0.0], 0.4, [0.0, 0.0, 10.0], fixture::band())
+        .expect("a literal axis");
+    let (doc, t) = crate::p2_gauges::copy_against(doc, top, &at, &o);
     let (doc, _) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
     let top_pts = part_points("r2-afb-x-top", 1.0, TOP_HEIGHT);
     let base_pts = part_points("r2-afb-x-base", BASE_WIDTH, BASE_HEIGHT);
@@ -294,7 +286,7 @@ fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
         assert!(got_b.dist(&f) <= 1e-12, "DEFECT: base pose");
         let ev = run(&doc, &o);
         check_body_f64(&ev, top, &top_pts, &w_top, "f64 top");
-        check_body_f64(&ev, t, &top_pts, &tm.c(&w_top), "f64 transformed top");
+        check_body_f64(&ev, t, &top_pts, &w_top.c(&tm), "f64 placed copy of the top");
         check_body_f64(&ev, base, &base_pts, &f, "f64 base");
         let lane = evaluate::<Interval>(
             &doc,
@@ -308,7 +300,7 @@ fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
             check_body_interval(&lane, top, &top_pts, &w_top, "interval top");
         });
         crate::p2_gauges::encloses_or_escalates(&lane, t, || {
-            check_body_interval(&lane, t, &top_pts, &tm.c(&w_top), "interval t");
+            check_body_interval(&lane, t, &top_pts, &w_top.c(&tm), "interval t");
         });
         crate::p2_gauges::encloses_or_escalates(&lane, base, || {
             check_body_interval(&lane, base, &base_pts, &f, "interval base");

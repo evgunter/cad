@@ -20,7 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::{p3, polygon, validated};
-use pncad::document::ExtrudeSide;
+use pncad::sweep::ExtrudeSide;
 use pncad::profile::SketchPlane;
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{AtRestBody, BooleanResultKind};

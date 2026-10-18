@@ -29,7 +29,7 @@ use editor_core::{
 };
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::{Recorder, len, scl, xy_frame};
+use crate::fixture::{Recorder, len, scl};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{OverBand, ceiling, certifies_whole, over_band_set, render_over_band};
 

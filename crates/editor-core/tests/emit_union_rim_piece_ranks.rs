@@ -23,7 +23,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::blocks::{failure, run};
 use crate::corpus::body_of;
-use crate::emit_shared_rim_several::{Bx, document, permutations, probe_corpus};
+use crate::emit_shared_rim_several::{
+    Bx, construction, document, own_name, permutations, probe_corpus,
+};
 use crate::fixture::{ang, face_vertices, insert, len, scl, table};
 
 use editor_core::{CapEnd, EntityKey, EntityKind, Entry, Node, RecipeNodeId, RoleSeg, StableName};
@@ -309,26 +311,23 @@ pub(crate) fn runs_in(
     let (doc, mut ids) = document(&case.blocks, &case.creation);
     let doc = match case.shift {
         None => doc,
-        // The shift is a value edit of one transform — its slot keeps
+        // The shift is a value edit of one placement — its slot keeps
         // the variable it reads, whose value moves, so nothing is minted
         // — and every shift of a case is one document's history and
-        // names one set of nodes.
+        // names one set of nodes. The root block is shifted through a
+        // copy of it placed over itself.
         Some((i, dx)) => {
-            let (doc, tr) = insert(
-                doc,
-                Node::transform(
-                    ids[i],
-                    editor_core::Step::Rigid {
-                        translation: [len(0.0), len(0.0), len(0.0)],
-                        axis: [scl(0.0), scl(0.0), scl(1.0)],
-                        angle: ang(0.0),
-                    },
-                ),
-            );
+            let (doc, tr) = match doc.node(ids[i]) {
+                Some(Node::Place { .. }) => (doc, ids[i]),
+                _ => crate::fixture::xform(doc, ids[i], [0.0; 3], [0.0, 0.0, 1.0], 0.0),
+            };
             ids[i] = tr;
-            let var = doc
-                .slot(tr, editor_core::SlotId::Translation(editor_core::Axis3::X))
-                .expect("a transform reads its translation");
+            let slot = crate::fixture::value_slot(
+                &doc,
+                tr,
+                editor_core::Coord::Slide(editor_core::SlideAxis::X),
+            );
+            let var = doc.slot(tr, slot).expect("a placement reads its value");
             crate::fixture::step(
                 doc,
                 editor_core::DocEdit::SetVarValue {
@@ -660,14 +659,15 @@ fn a_member_flush_with_two_others_names_its_rim_by_the_body() {
                 crate::fixture::member_entity(
                     union,
                     crate::fixture::out(&doc, m),
-                    StableName {
-                        kind: EntityKind::Edge,
-                        node: m,
-                        path: vec![RoleSeg::RimEdge(
+                    own_name(
+                        &doc,
+                        m,
+                        EntityKind::Edge,
+                        vec![RoleSeg::RimEdge(
                             CapEnd::Start,
-                            crate::fixture::piece(&doc, m, 0, 0).into(),
+                            crate::fixture::piece(&doc, construction(&doc, m), 0, 0).into(),
                         )],
-                    },
+                    ),
                     EntityKind::Edge,
                 )
             })
@@ -788,14 +788,15 @@ fn fam010_names_a_rim_the_same_way_in_both_orders() {
         &[0, 1, 2],
     );
     let (a, b, c) = (ids[0], ids[1], ids[2]);
-    let rim = |m: RecipeNodeId| StableName {
-        kind: EntityKind::Edge,
-        node: m,
-        path: vec![RoleSeg::RimEdge(
+    let rim = |m: RecipeNodeId| own_name(
+        &doc,
+        m,
+        EntityKind::Edge,
+        vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::piece(&doc, m, 0, 0).into(),
+            crate::fixture::piece(&doc, construction(&doc, m), 0, 0).into(),
         )],
-    };
+    );
     // x-span → the name there, for every edge along the rim line.
     let along = |order: [editor_core::RecipeNodeId; 3]| {
         let (docx, union) = crate::fixture::union_over(doc.clone(), &order);

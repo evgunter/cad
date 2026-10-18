@@ -27,7 +27,7 @@ use crate::fixture::point;
 
 #[test]
 fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_their_senses() {
-    let (doc, [ext, _, split]) = clipped_cylinder(Tol::witness());
+    let (doc, [ext, split]) = clipped_cylinder(Tol::witness());
     let ev = evaluate::<f64>(
         &doc,
         None,
@@ -196,25 +196,19 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_t
 /// plane is read.
 #[test]
 fn a_wall_crossed_twice_names_its_same_side_pieces_by_the_edges_they_keep() {
-    use editor_core::{Datum, Node, ProfileDoc};
+    use editor_core::{Node, ProfileDoc};
 
-    use crate::emit_union_borders::cylinder;
-    use crate::fixture::{insert, len, scl};
+    use crate::emit_union_borders::rod;
+    use crate::fixture::{insert, plane_on};
 
     let doc = ProfileDoc::empty_derived("wall-crossed-twice", Tol::witness());
-    let (doc, ext) = cylinder(doc, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 1.0);
-    let (doc, tool) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.15), len(0.0)],
-            normal: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-    );
+    let (doc, ext) = rod(doc, 1.0);
+    let tool = plane_on(&doc, ext, [0.0, 0.15, 0.0], [0.0, 1.0, 0.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: ext.into(),
-            tool: tool.into(),
+            tool,
         },
     );
     let ev = evaluate::<f64>(

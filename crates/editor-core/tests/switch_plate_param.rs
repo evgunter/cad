@@ -12,7 +12,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
-use crate::fixture;
 
 use crate::fixture::len;
 use corpus::plate_param::{
@@ -54,18 +53,7 @@ fn scene() -> Scene {
     let applied = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(fixture::xy_frame()),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("the sketch frame inserts");
-    let plane = applied.record.minted.expect("frame id");
-    let applied = apply(
-        &applied.doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::Profile(plate_profile(plane))),
+            node: Box::new(Node::Profile(plate_profile())),
             fresh: Vec::new(),
         },
         Tol::witness(),

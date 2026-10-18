@@ -11,7 +11,7 @@
 use crate::fixture::{insert, len};
 use editor_core::persist::SnapshotError;
 use editor_core::{
-    Axis3, Datum, Dimension, DocEdit, DocumentId, EditError, ExprPath, Formula, FreeVar,
+    Dimension, DocEdit, DocumentId, EditError, ExprPath, Formula, FreeVar,
     FreshEntry, Node, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, VarDecl,
     VarId, VarName, apply, load, save,
 };
@@ -41,31 +41,38 @@ fn needs_name(doc: &ProfileDoc, edit: DocEdit<ProfileProgram>) -> editor_core::S
 }
 
 fn x() -> SlotId {
-    SlotId::Origin(Axis3::X)
+    SlotId::TubeMajorRadius
+}
+
+/// A full ring of major radius `major` and minor radius `minor`: a node
+/// of two length slots that reads no other node.
+fn ring(major: Formula, minor: Formula) -> editor_core::AuthoredNode {
+    Node::Tube {
+        major_radius: major,
+        window: editor_core::TubeWindow::Full,
+        minor_radius: minor,
+    }
 }
 
 fn read(var: VarId) -> Formula {
     Formula::var(var, Dimension::Length)
 }
 
-/// A document holding a point at `(0.5, 0, 0)`, typed: its x reads an
-/// unnamed free variable, its one reader. The point and that variable.
-fn typed_point(seed: &str) -> (ProfileDoc, RecipeNodeId, VarId) {
+/// A document holding a ring of major radius 0.5, typed: its major
+/// radius reads an unnamed free variable, its one reader. The ring and
+/// that variable.
+fn typed_ring(seed: &str) -> (ProfileDoc, RecipeNodeId, VarId) {
     let doc = ProfileDoc::empty(DocumentId::derive(seed), Tol::witness());
-    let (doc, point) = insert(
-        doc,
-        Node::Datum(Datum::Point {
-            position: [len(0.5), len(0.0), len(0.0)],
-        }),
-    );
-    let v = doc.slot(point, x()).expect("the point reads its x");
+    let (doc, ring_node) = insert(doc, ring(len(0.5), len(0.1)));
+    let v = doc.slot(ring_node, x()).expect("the ring reads its major radius");
     assert_eq!(doc.var_name(v), None, "the premise: v is unnamed");
-    (doc, point, v)
+    (doc, ring_node, v)
 }
 
-fn point_reading(position: [Formula; 3]) -> DocEdit<ProfileProgram> {
+/// The insert of a ring of major radius `major`, its minor radius 0.1.
+fn ring_reading(major: Formula) -> DocEdit<ProfileProgram> {
     DocEdit::InsertNode {
-        node: Box::new(Node::Datum(Datum::Point { position })),
+        node: Box::new(ring(major, len(0.1))),
         fresh: Vec::new(),
     }
 }
@@ -75,8 +82,8 @@ fn point_reading(position: [Formula; 3]) -> DocEdit<ProfileProgram> {
 /// variable is named, the same insert lands and both read it.
 #[test]
 fn the_insert_door_refuses_a_second_reader_until_it_is_named() {
-    let (doc, _, v) = typed_point("fork7-insert");
-    let second = point_reading([read(v), len(0.0), len(0.0)]);
+    let (doc, _, v) = typed_ring("fork7-insert");
+    let second = ring_reading(read(v));
     assert_eq!(needs_name(&doc, second.clone()).id(), v);
     let named = step(
         &doc,
@@ -86,7 +93,7 @@ fn the_insert_door_refuses_a_second_reader_until_it_is_named() {
         },
     );
     let applied = try_step(&named, second).expect("a named variable is shared");
-    let b = applied.record.minted.expect("the second point");
+    let b = applied.record.minted.expect("the second ring");
     assert_eq!(applied.doc.slot(b, x()), Some(v));
 }
 
@@ -94,10 +101,10 @@ fn the_insert_door_refuses_a_second_reader_until_it_is_named() {
 /// unnamed variable into a slot's definition refuses.
 #[test]
 fn the_formula_door_refuses_a_path_edit_that_shares() {
-    let (doc, _, v) = typed_point("fork7-path");
+    let (doc, _, v) = typed_ring("fork7-path");
     let twice = Formula::mul(len(0.25), Formula::ratio(2, 1).unwrap()).unwrap();
-    let applied = try_step(&doc, point_reading([twice, len(0.0), len(0.0)])).unwrap();
-    let b = applied.record.minted.expect("the second point");
+    let applied = try_step(&doc, ring_reading(twice)).unwrap();
+    let b = applied.record.minted.expect("the second ring");
     let at = DocEdit::SetExpression {
         path: ExprPath {
             node: b,
@@ -115,7 +122,7 @@ fn the_formula_door_refuses_a_path_edit_that_shares() {
 /// unnamed variable twice lands.
 #[test]
 fn a_definition_is_a_reader() {
-    let (doc, _, v) = typed_point("fork7-define");
+    let (doc, _, v) = typed_ring("fork7-define");
     let plus = || Formula::add(read(v), len(0.001)).unwrap();
     let declare = DocEdit::DeclareVar {
         name: n("k"),
@@ -167,7 +174,7 @@ fn a_definition_is_a_reader() {
 /// the name it holds; the name of a variable one reader reads clears.
 #[test]
 fn clearing_the_name_two_readers_share_refuses() {
-    let (doc, _, v) = typed_point("fork7-clear");
+    let (doc, _, v) = typed_ring("fork7-clear");
     let doc = step(
         &doc,
         DocEdit::RenameVar {
@@ -182,7 +189,7 @@ fn clearing_the_name_two_readers_share_refuses() {
     let lone = step(&doc, clear.clone());
     assert_eq!(lone.var_name(v), None, "one reader: the name clears");
 
-    let doc = step(&doc, point_reading([read(v), len(0.0), len(0.0)]));
+    let doc = step(&doc, ring_reading(read(v)));
     let var = needs_name(&doc, clear);
     assert_eq!((var.id(), var.name()), (v, Some(&n("v"))));
 }
@@ -193,7 +200,7 @@ fn clearing_the_name_two_readers_share_refuses() {
 /// reader), and nothing else moves.
 #[test]
 fn an_unnamed_variable_goes_with_its_reader() {
-    let (doc, point, v) = typed_point("fork7-goes");
+    let (doc, ring_node, v) = typed_ring("fork7-goes");
     let doc = step(
         &doc,
         DocEdit::DeclareVar {
@@ -205,7 +212,7 @@ fn an_unnamed_variable_goes_with_its_reader() {
     let applied = try_step(
         &doc,
         DocEdit::SetParam {
-            node: point,
+            node: ring_node,
             slot: x(),
             value: read(w).into(),
             fresh: Vec::new(),
@@ -213,7 +220,7 @@ fn an_unnamed_variable_goes_with_its_reader() {
     )
     .unwrap();
     assert!(applied.doc.var(v).is_none(), "v went with its reader");
-    assert_eq!(applied.doc.slot(point, x()), Some(w));
+    assert_eq!(applied.doc.slot(ring_node, x()), Some(w));
 }
 
 /// **An output is exempt**: two operations reading one extrude's body
@@ -256,9 +263,7 @@ fn a_named_entry_rides_the_edit_log() {
     let doc = ProfileDoc::empty(DocumentId::derive("fork7-log"), Tol::witness());
     let fresh = || Formula::fresh(0, Dimension::Length);
     let edit = DocEdit::InsertNode {
-        node: Box::new(Node::Datum(Datum::Point {
-            position: [fresh(), fresh(), len(0.0)],
-        })),
+        node: Box::new(ring(fresh(), fresh())),
         fresh: vec![FreshEntry::named(
             n("s"),
             FreeVar::continuous(Dimension::Length, 0.5),
@@ -327,7 +332,7 @@ fn the_load_walk_refuses_a_shared_unnamed_variable() {
 /// re-mint.
 #[test]
 fn a_shared_variable_survives_its_text() {
-    let (doc, point, v) = typed_point("fork7-text");
+    let (doc, ring_node, v) = typed_ring("fork7-text");
     let doc = step(
         &doc,
         DocEdit::RenameVar {
@@ -335,8 +340,8 @@ fn a_shared_variable_survives_its_text() {
             name: Some(n("v")),
         },
     );
-    let doc = step(&doc, point_reading([read(v), len(0.0), len(0.0)]));
-    let written = doc.slot_expansion(point, x()).expect("x as written");
+    let doc = step(&doc, ring_reading(read(v)));
+    let written = doc.slot_expansion(ring_node, x()).expect("x as written");
     let text = editor_core::unparse(&written, &|id| doc.var_name(id));
     assert_eq!(text, "v");
     let names = [(n("v"), Dimension::Length)].into_iter().collect();
@@ -344,13 +349,13 @@ fn a_shared_variable_survives_its_text() {
     let doc = step(
         &doc,
         DocEdit::SetParam {
-            node: point,
+            node: ring_node,
             slot: x(),
             value: parsed.into(),
             fresh: Vec::new(),
         },
     );
-    assert_eq!(doc.slot(point, x()), Some(v), "the share holds");
+    assert_eq!(doc.slot(ring_node, x()), Some(v), "the share holds");
 }
 
 /// **An assertion's value and its bound are two slots** (VR4), so
@@ -383,19 +388,19 @@ fn the_value_and_the_bound_of_one_assertion_are_two_readers() {
 }
 
 /// **A log's replay passes the same door**: a saved log whose rename is
-/// cut out gives the second point an unnamed variable's second read, so
+/// cut out gives the second ring an unnamed variable's second read, so
 /// the load refuses `EditReplay` with `SharedVarNeedsName`, and the
 /// sentence's recourse is the file's (regenerate it), not the edit
 /// door's (name it). Breaks if replay skips the check, or forwards the
 /// edit door's recourse to a load that made no edit.
 #[test]
 fn a_replayed_share_refuses_with_the_files_recourse() {
-    let (doc, _, v) = typed_point("fork7-replay");
+    let (doc, _, v) = typed_ring("fork7-replay");
     let rename = DocEdit::RenameVar {
         var: v.into(),
         name: Some(n("v")),
     };
-    let second = point_reading([read(v), len(0.0), len(0.0)]);
+    let second = ring_reading(read(v));
     let text = save(&doc, &[rename, second], Tol::witness()).expect("the log saves");
     load(&text, Tol::witness()).expect("the undoctored log loads");
     let corrupt = crate::wire::doctored(&text, |wire| {

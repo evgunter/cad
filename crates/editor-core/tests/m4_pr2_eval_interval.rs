@@ -10,7 +10,7 @@ use crate::fixture;
 use editor_core::{
     BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
 };
-use fixture::{ang, insert, len, on_frame, scl};
+use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 use geom_core::{Bounds, Interval};
 use topo::{mass_properties, validate, validate_closed};
@@ -36,7 +36,7 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     );
     let (doc, pip_p) = on_frame(
         doc,
-        [0.0, 0.0, 2.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![fixture::square(0.0, 0.0, 0.125)],
@@ -46,19 +46,15 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
         Node::Extrude {
             profile: pip_p.into(),
             distance: len(0.125),
-            side: ExtrudeSide::Against,
         },
     );
-    let (doc, placed) = insert(
+    // The pip stands on the cube's top at (1, 1), its own z reversed so
+    // it reaches down into the cube.
+    let (doc, placed) = fixture::against(
         doc,
-        Node::transform(
-            pip,
-            editor_core::Step::Rigid {
-                translation: [len(1.0), len(1.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
+        cube,
+        pip,
+        &fixture::frame_at([1.0, 1.0, 2.0], [1.0, 0.0, 0.0], [0.0, -1.0, 0.0]),
     );
     // The pip's outer cap lies ON the cube's top; the subtract glues it.
     let (doc, sub) = insert(

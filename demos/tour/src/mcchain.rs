@@ -23,7 +23,7 @@
 //! half-edges in traversal order, each half-edge's start vertex read
 //! back through `topo::readback::vertex_point`, projected to the
 //! sketch plane. Not the placement the parameters imply, and not a
-//! re-derivation of the forward kinematics — if the transform stack
+//! re-derivation of the forward kinematics — if the placement chain
 //! moved a link somewhere else, the sheet would draw it there.
 //! Likewise every pin is a `Surface::Cylinder` read off the body that
 //! sample built, exactly as [`crate::mcplate`]'s holes are.
@@ -423,9 +423,9 @@ pub fn narration(tol: Tol) -> String {
     }
 
     let spreads = spreads(&samples);
-    // **The claim the sheet is FOR, asserted.** A transform stack
-    // nested the other way round would put every joint's error on its
-    // own link only, and the fan would be the same width at every pin;
+    // **The claim the sheet is FOR, asserted.** Links each placed
+    // against a fixed base rather than against their parent would put
+    // every joint's error on its own link only, and the fan would be the same width at every pin;
     // this is the runtime value that would make that false.
     for pair in spreads[1..].windows(2) {
         assert!(

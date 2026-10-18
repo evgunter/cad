@@ -790,7 +790,7 @@ mod tests {
         use pncad::geom_core::Tol;
         use pncad::select::{CapEnd, EntityKind, NamePat, SegPat, SegTag, Selector, select};
 
-        use crate::test_support::{ang, framed_square, inserted, len};
+        use crate::test_support::{ang, square_profile, inserted, len};
 
         let tol = Tol::witness();
         let run = |doc: &Doc<_>| {
@@ -802,7 +802,7 @@ mod tests {
                 tol,
             )
         };
-        let (doc, profile) = framed_square(&Doc::empty_derived("measure-rows", tol), 0.02, tol);
+        let (doc, profile) = square_profile(&Doc::empty_derived("measure-rows", tol), 0.02, tol);
         let (doc, solid) = inserted(
             &doc,
             Node::Extrude {

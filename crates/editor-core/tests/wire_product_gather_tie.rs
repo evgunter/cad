@@ -52,12 +52,9 @@ fn block(
 fn u_cutter_subtract() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("wire-product-gather-tie", Tol::witness());
     let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
-    let (doc, p) = on_frame(
+    let (doc, p) = insert(
         doc,
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![
+        Node::Profile(fixture::desc(vec![vec![
             (2.0, 1.0),
             (6.0, 1.0),
             (6.0, 3.0),
@@ -66,7 +63,7 @@ fn u_cutter_subtract() -> (ProfileDoc, RecipeNodeId) {
             (5.0, 2.5),
             (5.0, 1.5),
             (2.0, 1.5),
-        ]],
+        ]])),
     );
     let (doc, b) = insert(
         doc,
@@ -75,6 +72,7 @@ fn u_cutter_subtract() -> (ProfileDoc, RecipeNodeId) {
             distance: len(2.0),
         },
     );
+    let (doc, b) = fixture::slid(doc, a, b, [0.0, 0.0, 1.0]);
     let (doc, sub) = insert(
         doc,
         Node::Subtract {

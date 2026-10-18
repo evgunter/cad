@@ -280,7 +280,8 @@ pyo3::create_exception!(
     PncadError,
     "A selection query `select_where` could not answer — the same \
      typed refusal the Rust door returns (an in-band decided margin, \
-     a tied name whose candidates disagree, a non-datum reference, \
+     a tied name whose candidates disagree, a distance from a face \
+     that is not a plane, \
      ...). Carries `reason`, the stable tag of the refusing arm, plus \
      the arm's payload as attributes (`None` where inapplicable)."
 );
@@ -457,7 +458,7 @@ pyo3::create_exception!(
      present on every arm and `None` where that arm does not carry \
      it.\n\n\
      `not_a_body` and `no_such_body` are different states and stay \
-     apart: a datum, profile, declaration or mate NEVER draws, while a \
+     apart: a profile, declaration or mate NEVER draws, while a \
      node that draws nothing today (an annihilated boolean, an empty \
      split side) draws again after an edit.\n\n\
      Two arms FORWARD rather than wrap. The standing ladder arrives \

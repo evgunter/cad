@@ -52,7 +52,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use fixture::{Recorder, len, xy_frame};
+use fixture::{Recorder, len};
 
 fn eps() -> f64 {
     Tol::witness().eps()

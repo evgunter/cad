@@ -2,10 +2,10 @@
 //! pose (`work/tang/pierce-ring-has-no-join-arm.md`, the "user's blind
 //! pocket" recipe), authored node for node through the document doors.
 //!
-//! A cylinder `r = 0.04` along `+y` over `[0, 0.5]` (an XZ-frame circle
-//! extruded `−0.5`), and a tool drawn on the same frame — a letter-ish
-//! outline of two lines, a tangent arc and a bulge arc — extruded `0.01`
-//! and lifted `0.005`, so it straddles the `y = 0` cap and its section
+//! A cylinder `r = 0.04` along its own `+z` over `[0, 0.5]`, and a tool
+//! drawn on its own xy — a letter-ish outline of two lines, a tangent
+//! arc and a bulge arc — extruded `0.01` and placed against the
+//! cylinder `0.005` down, so it straddles the `z = 0` cap and its section
 //! with the cap is a closed loop strictly inside the disc: a ring in an
 //! arc-bounded planar face. `Subtract` cuts it, and the pocket is the
 //! tool's profile area times the `0.005` it sinks.
@@ -23,7 +23,7 @@ use core::f64::consts::PI;
 use editor_core::Formula;
 
 use crate::corpus::{body_of, eval};
-use crate::fixture::{frame, insert, len, len2, scl, xform};
+use crate::fixture::{insert, len, len2, scl, slid};
 use editor_core::{
     Evaluation, LoopProgram, Node, NodeResult, ProfileDoc, ProfileProgram, ProgramArcData,
     ProgramStep, ProgramTarget, RecipeNodeId,
@@ -81,29 +81,26 @@ fn letter_area() -> f64 {
     polygon + segment(rho, swept) + segment(chord / (2.0 * (theta / 2.0).sin()), theta)
 }
 
-/// The pose as authored: the cylinder (node 10), the tool's extrude
-/// (node 16) and the subtraction (node 19), with the tool lifted
-/// `DEPTH` along `+y` and slid `dx` along `x`.
+/// The pose as authored: the cylinder, the tool's extrude, its copy
+/// placed against the cylinder — sunk `DEPTH` below the start cap and
+/// slid `dx` along `x` — and the subtraction.
 fn engrave(tool: LoopProgram<Formula>, dx: f64) -> (Evaluation<f64>, [RecipeNodeId; 4]) {
     let doc = ProfileDoc::empty_derived("pierce-ring-engraving", Tol::witness());
-    // The XZ frame: its normal is −y, so an extrude against it runs +y.
-    let (doc, xz) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
-    let profile = |plane: RecipeNodeId, lp| {
+    let profile = |lp| {
         Node::Profile(ProfileProgram {
             loops: vec![lp],
             ids: Vec::new(),
         })
     };
-    let (doc, disc) = insert(doc, profile(xz, LoopProgram::circle(0.0, 0.0, R).unwrap()));
+    let (doc, disc) = insert(doc, profile(LoopProgram::circle(0.0, 0.0, R).unwrap()));
     let (doc, cylinder) = insert(
         doc,
         Node::Extrude {
             profile: disc.into(),
             distance: len(HEIGHT),
-            side: ExtrudeSide::Against,
         },
     );
-    let (doc, outline) = insert(doc, profile(xz, tool));
+    let (doc, outline) = insert(doc, profile(tool));
     let (doc, prism) = insert(
         doc,
         Node::Extrude {
@@ -111,7 +108,7 @@ fn engrave(tool: LoopProgram<Formula>, dx: f64) -> (Evaluation<f64>, [RecipeNode
             distance: len(2.0 * DEPTH),
         },
     );
-    let (doc, lifted) = insert(doc, xform(prism, [dx, DEPTH, 0.0], [0.0, 0.0, 1.0], 0.0));
+    let (doc, lifted) = slid(doc, cylinder, prism, [dx, 0.0, -DEPTH]);
     let (doc, cut) = insert(
         doc,
         Node::Subtract {
@@ -174,8 +171,8 @@ fn a_blind_pocket_in_a_cylinder_cap_cuts_to_the_closed_form() {
 /// closed form.
 ///
 /// The letter covers the whole lens of the disc beyond `x = 0.035`: the
-/// lens spans `|z| ≤ √(R² − 0.035²) ≈ 0.0194`, inside the letter's
-/// `z = −0.02` bottom edge, and the bulge arc's chord `z = 0.02 − 2x`
+/// lens spans `|y| ≤ √(R² − 0.035²) ≈ 0.0194`, inside the letter's
+/// `y = −0.02` bottom edge, and the bulge arc's chord `y = 0.02 − 2x`
 /// (local `x`) stays above the circle across it, the arc further out
 /// still. So the cut removes `DEPTH` times that circular segment.
 #[test]

@@ -15,7 +15,7 @@
 
 use crate::fixture;
 use editor_core::{
-    Bodies, BooleanValue, CancelToken, EntityKind, EvalOptions, Evaluation, ExtrudeSide, Node,
+    Bodies, BooleanValue, CancelToken, EntityKind, EvalOptions, Evaluation, Node,
     Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName, ValuePayload, VarId, evaluate,
 };
 use fixture::{insert, len, on_frame, scl, table};
@@ -211,18 +211,12 @@ fn a_union_or_intersect_of_no_body_is_the_typed_empty_body() {
 #[test]
 fn the_union_of_a_splits_two_halves_builds_the_block() {
     let (doc, target) = unit_block("dm4-halves");
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let tool = crate::fixture::plane_on(&doc, target, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: target.into(),
-            tool: plane.into(),
+            tool,
         },
     );
     let (above, below) = (

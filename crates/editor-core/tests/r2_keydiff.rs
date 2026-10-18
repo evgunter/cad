@@ -17,7 +17,7 @@ use editor_core::{
     CancelToken, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, FreeVar, Node,
     NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, VarName, apply, evaluate,
 };
-use fixture::{ang, len, scl};
+use fixture::len;
 use geom_core::Tol;
 
 fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
@@ -26,32 +26,16 @@ fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Profil
         .doc
 }
 
-fn boxed(
-    doc: &ProfileDoc,
-    x: (f64, f64),
-    y: (f64, f64),
-    z0: f64,
-    h: f64,
-) -> (ProfileDoc, RecipeNodeId) {
+fn boxed(doc: &ProfileDoc, x: (f64, f64), y: (f64, f64), h: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = push(
         doc,
         &DocEdit::InsertNode {
-            node: Box::new(fixture::frame(
-                [0.0, 0.0, z0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let plane = crate::fixture::newest(&doc);
-    let doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::Profile(fixture::desc(
-                plane,
-                vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-            ))),
+            node: Box::new(Node::Profile(fixture::desc(vec![vec![
+                (x.0, y.0),
+                (x.1, y.0),
+                (x.1, y.1),
+                (x.0, y.1),
+            ]]))),
             fresh: Vec::new(),
         },
     );
@@ -72,7 +56,7 @@ fn boxed(
 
 /// A measure-free document exercising the node kinds most likely to
 /// move if a key input were added unconditionally: two profiles, two
-/// extrudes (one parameter-driven), a boolean and a transform.
+/// extrudes (one parameter-driven), a boolean and a placed copy.
 #[test]
 fn r2_measure_free_content_keys() {
     let d0 = ProfileDoc::empty(DocumentId::derive("r2-keydiff"), Tol::witness());
@@ -88,27 +72,17 @@ fn r2_measure_free_content_keys() {
             }),
         },
     );
-    let (d2, a) = boxed(&d1, (0.0, 1.0), (0.0, 2.0), 0.0, 3.0);
+    let (d2, a) = boxed(&d1, (0.0, 1.0), (0.0, 2.0), 3.0);
     // A parameter under a slot, so the parameter channel is live.
-    let d2 = push(
-        &d2,
-        &DocEdit::InsertNode {
-            node: Box::new(fixture::frame(
-                [0.0, 0.0, 1.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let bplane = crate::fixture::newest(&d2);
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Profile(fixture::desc(
-                bplane,
-                vec![vec![(0.5, 0.5), (1.5, 0.5), (1.5, 2.5), (0.5, 2.5)]],
-            ))),
+            node: Box::new(Node::Profile(fixture::desc(vec![vec![
+                (0.5, 0.5),
+                (1.5, 0.5),
+                (1.5, 2.5),
+                (0.5, 2.5),
+            ]]))),
             fresh: Vec::new(),
         },
     );
@@ -124,6 +98,7 @@ fn r2_measure_free_content_keys() {
         },
     );
     let b = crate::fixture::newest(&d4);
+    let (d4, b) = fixture::slid(d4, a, b, [0.0, 0.0, 1.0]);
     let d5 = push(
         &d4,
         &DocEdit::InsertNode {
@@ -135,20 +110,7 @@ fn r2_measure_free_content_keys() {
         },
     );
     let cut = crate::fixture::newest(&d5);
-    let d6 = push(
-        &d5,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::transform(
-                cut,
-                editor_core::Step::Rigid {
-                    translation: [len(1.0), len(2.0), len(3.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                },
-            )),
-            fresh: Vec::new(),
-        },
-    );
+    let (d6, _) = fixture::xform(d5, cut, [1.0, 2.0, 3.0], [0.0, 0.0, 1.0], 0.0);
     let ev: Evaluation<f64> = evaluate::<f64>(
         &d6,
         None,

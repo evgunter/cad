@@ -165,7 +165,7 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
         },
         tol,
     );
-    let (doc, profile) = framed_square(&doc, 0.04, tol);
+    let (doc, profile) = square_profile(&doc, 0.04, tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
@@ -194,7 +194,7 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
 /// the document, the failing extrude and the poisoned transform.
 pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui3-broken", tol);
-    let (doc, profile) = framed_square(&doc, 0.04, tol);
+    let (doc, profile) = square_profile(&doc, 0.04, tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {

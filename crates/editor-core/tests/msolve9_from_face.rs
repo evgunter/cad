@@ -425,7 +425,7 @@ fn a2_a_nurbs_face_refuses_not_planar_where_its_reader_evaluates() {
     );
     let (doc, upper) = on_frame(
         doc,
-        [0.0, 0.0, 1.0],
+        [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.3)],
@@ -433,7 +433,14 @@ fn a2_a_nurbs_face_refuses_not_planar_where_its_reader_evaluates() {
     let (part, loft) = insert(
         doc,
         Node::Loft {
-            profiles: vec![lower.into(), upper.into()],
+            first: lower.into(),
+            then: vec![editor_core::LoftSection {
+                profile: upper.into(),
+                station: vec![editor_core::StationMove::Slide {
+                    along: editor_core::Axis3::Z,
+                    by: len(1.0),
+                }],
+            }],
             v_degree: Formula::count(1),
         },
     );
@@ -770,18 +777,14 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
         "the solved pose followed the face: {grown:?}"
     );
 
-    // An edit to the part that leaves the face where it was: a datum
-    // frame inserted into the post. The cap's pose is the same bits,
+    // An edit to the part that leaves the face where it was: a spare
+    // profile inserted into the post. The cap's pose is the same bits,
     // and the key moves anyway — the pin is the part's, not the face's.
     let cap_before = cap_pose(&s.post, s.post_body, CapEnd::End);
     edit_the_post(
         &mut s,
         DocEdit::InsertNode {
-            node: Box::new(fixture::frame(
-                [0.0, 0.0, 5.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-            )),
+            node: Box::new(Node::Profile(fixture::desc(vec![square(0.0, 0.0, 0.5)]))),
             fresh: Vec::new(),
         },
     );
@@ -820,11 +823,11 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
         "to the same pose"
     );
 
-    // An edit outside the part: a datum inserted beside the assembly's
-    // nodes.
+    // An edit outside the part: a profile inserted beside the
+    // assembly's nodes.
     let (doc, _) = insert(
         s.doc.clone(),
-        fixture::frame([0.0, 0.0, 5.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        Node::Profile(fixture::desc(vec![square(0.0, 0.0, 0.5)])),
     );
     let fourth = editor_core::evaluate::<f64>(
         &doc,

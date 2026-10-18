@@ -34,7 +34,7 @@ use viewer::tree::{self, RowStatus};
 /// A small block, as a whole part document, and its body.
 fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), tol);
-    let (doc, profile) = common::framed_square(&doc, 0.02, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.02, tol);
     common::inserted(
         &doc,
         Node::Extrude {

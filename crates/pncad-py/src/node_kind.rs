@@ -35,7 +35,7 @@
 //!
 //! # A node's kind is not its value's kind
 //!
-//! An extrude, a transform and a placed union all evaluate to a value
+//! An extrude, a placement and a placed union all evaluate to a value
 //! whose `kind` is `"body"` — that tag is the PAYLOAD's shape. Telling
 //! the recipes apart is what this vocabulary is for.
 
@@ -50,7 +50,6 @@ use pncad::document::Node;
 /// `src/tests.rs` and listed for callers in `pncad.pyi`.
 pub fn node_kind<P>(node: &Node<P>) -> &'static str {
     match node {
-        Node::Datum(_) => "datum",
         Node::Profile(_) => "profile",
         Node::Extrude { .. } => "extrude",
         Node::Revolve { .. } => "revolve",
@@ -65,7 +64,6 @@ pub fn node_kind<P>(node: &Node<P>) -> &'static str {
         Node::Union { .. } => "union",
         Node::Intersect { .. } => "intersect",
         Node::Subtract { .. } => "subtract",
-        Node::Transform { .. } => "transform",
         Node::Place { .. } => "place",
         Node::World => "world",
         Node::Pattern { .. } => "pattern",

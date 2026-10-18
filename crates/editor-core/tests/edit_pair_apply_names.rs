@@ -80,7 +80,7 @@ fn prism(id: &str, n: u32) -> (ProfileDoc, RecipeNodeId) {
     if n == 4 {
         return (doc, extrude);
     }
-    let loops = fixture::desc(profile, vec![ngon(n)]).loops;
+    let loops = fixture::desc(vec![ngon(n)]).loops;
     let ids = loops
         .iter()
         .map(|lp| vec![None; lp.authored_steps()])

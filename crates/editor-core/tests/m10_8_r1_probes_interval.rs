@@ -35,7 +35,7 @@ use editor_core::{
 use geom_core::sym::report::{DecisionShape, ShapeOutcome};
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::{Recorder, len, scl, xy_frame};
+use crate::fixture::{Recorder, len, scl};
 use crate::m10_7_plate::plate;
 use crate::m10_7_r2_probes_interval::bracket as r2_bracket;
 use crate::m10_8_arc_family_interval::replay;

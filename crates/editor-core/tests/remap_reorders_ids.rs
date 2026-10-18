@@ -17,7 +17,7 @@
 
 use crate::blocks::{block, failure, run};
 use crate::corpus::body_of;
-use crate::fixture::{ends, face_vertices, insert, point, table};
+use crate::fixture::{ends, face_vertices, insert, point, slid, table};
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -75,10 +75,22 @@ fn build(blocks: &[B], ops: &[Op], creation: &[usize]) -> Built {
     for &i in creation {
         let (x, y, z) = blocks[i];
         let before = doc.clone();
-        let (d, id) = block(doc, x, y, z.0, z.1 - z.0);
+        let (d, id) = block(doc, x, y, z.1 - z.0);
         keyed.insert(format!("b{i}"), added(&before, &d));
         doc = d;
         ids[i] = id;
+    }
+    // Every other block joins block 0's space, slid to its height there.
+    let root = ids[0];
+    for &i in creation.iter().filter(|&&i| i != 0) {
+        let before = doc.clone();
+        let (d, placed) = slid(doc, root, ids[i], [0.0, 0.0, blocks[i].2.0 - blocks[0].2.0]);
+        keyed
+            .get_mut(&format!("b{i}"))
+            .expect("the block was keyed")
+            .extend(added(&before, &d));
+        doc = d;
+        ids[i] = placed;
     }
     let mut out: Vec<RecipeNodeId> = Vec::new();
     for (k, op) in ops.iter().enumerate() {

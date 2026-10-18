@@ -237,7 +237,7 @@ pub enum CameraError {
     /// - [`Camera::projection_matrix`] takes only an aspect, so here
     ///   the arm is an aspect at or below zero — which is how a pane of
     ///   infinite height reaches it (its width over `inf` is `0.0`).
-    /// - [`Camera::ray_through`] and [`crate::datums::datum_view`] take
+    /// - [`Camera::ray_through`] and [`crate::screen::view_of`] take
     ///   only a viewport, and refuse a non-finite side as
     ///   [`CameraError::NotFinite`] first, so here the arm is a side of
     ///   zero pixels or fewer.

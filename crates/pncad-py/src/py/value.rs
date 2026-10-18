@@ -10,7 +10,6 @@
 //! | `Boolean`      | full — unwraps to a `Body`, or `None` when empty |
 //! | `Split`        | full — `above` / `below` as optional bodies |
 //! | `Instances`    | full — a list of bodies |
-//! | `Datum`        | full — typed plane / axis / point with `Length` coordinates |
 //! | `Profile`      | KIND ONLY — sketch geometry does not ship to Python before the v2 switch |
 //!
 //! The kind-only row is a SCOPE decision, not a capability limit.
@@ -831,50 +830,6 @@ impl ValidationFinding {
     }
 }
 
-/// A datum: a construction plane, frame, axis, or point.
-#[pyclass(frozen, module = "pncad")]
-pub(crate) struct Datum {
-    /// `"plane"`, `"frame"`, `"axis"`, or `"point"`.
-    #[pyo3(get)]
-    kind: &'static str,
-    /// Plane/frame/axis origin, or the point's position, as metres.
-    #[pyo3(get)]
-    origin: (Length, Length, Length),
-    /// Plane normal, frame normal (x̂ × ŷ), or axis direction; `None`
-    /// for a point.
-    #[pyo3(get)]
-    direction: Option<(f64, f64, f64)>,
-    /// A frame's sketch +x and +y axes, unit and perpendicular; `None`
-    /// for every other kind.
-    ///
-    /// The pair rides ALONGSIDE `direction` rather than replacing it:
-    /// a reader asking which way a datum faces gets the same answer
-    /// for a frame as for a plane, and one asking how the frame is
-    /// TURNED — the datum a plane does not carry — reads the axes.
-    //
-    // The tuple is spelled out rather than hidden behind a
-    // `type SketchAxes = ((f64, f64, f64), (f64, f64, f64))`, and the
-    // reason is that this is a `#[pyo3(get)]` projection: the written
-    // shape IS the object Python receives, and `pncad.pyi` states it
-    // literally as
-    // `Optional[tuple[tuple[float, float, float], tuple[float, float, float]]]`.
-    // An alias would name the pair on the Rust side while the thing the
-    // stub records stayed a bare nested tuple on the Python side, so a
-    // reader checking the binding against the stub would have to chase
-    // the alias to learn nothing new. The field above it, `direction`'s
-    // triple, is literal for the same reason.
-    #[allow(clippy::type_complexity)] // the tuple IS the Python-side contract; see above
-    #[pyo3(get)]
-    axes: Option<((f64, f64, f64), (f64, f64, f64))>,
-}
-
-#[pymethods]
-impl Datum {
-    fn __repr__(&self) -> String {
-        format!("Datum({})", self.kind)
-    }
-}
-
 /// **A measured quantity** (ERROR-DESIGN E3): the value a `Measure`
 /// node evaluated to, with the F1 dimension it was measured in.
 ///
@@ -1079,55 +1034,6 @@ impl Value {
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a split", other.kind_name()),
-                EvalReason::WrongKind,
-                self.node,
-            )),
-        }
-    }
-
-    /// The datum this value denotes.
-    fn datum(&self, py: Python<'_>) -> PyResult<Datum> {
-        match &self.payload {
-            d::ValuePayload::Datum(d::PoseValue::Plane { origin, normal }) => {
-                let n = normal.get();
-                Ok(Datum {
-                    kind: "plane",
-                    origin: lengths(*origin),
-                    direction: Some((n.x, n.y, n.z)),
-                    axes: None,
-                })
-            }
-            d::ValuePayload::Datum(d::PoseValue::Axis { origin, dir }) => {
-                let v = dir.get();
-                Ok(Datum {
-                    kind: "axis",
-                    origin: lengths(*origin),
-                    direction: Some((v.x, v.y, v.z)),
-                    axes: None,
-                })
-            }
-            d::ValuePayload::Datum(d::PoseValue::Point { position }) => Ok(Datum {
-                kind: "point",
-                origin: lengths(*position),
-                direction: None,
-                axes: None,
-            }),
-            d::ValuePayload::Datum(d::PoseValue::Frame(f)) => {
-                let (x, y) = (f.u().get(), f.v().get());
-                let n = f.w().get();
-                Ok(Datum {
-                    kind: "frame",
-                    origin: lengths(f.origin()),
-                    direction: Some((n.x, n.y, n.z)),
-                    axes: Some(((x.x, x.y, x.z), (y.x, y.y, y.z))),
-                })
-            }
-            d::ValuePayload::Datum(d::PoseValue::Direction { .. }) => {
-                unreachable!("a datum node's value is a point, an axis, a plane or a frame")
-            }
-            other => Err(eval_err(
-                py,
-                format!("a `{}` value is not a datum", other.kind_name()),
                 EvalReason::WrongKind,
                 self.node,
             )),
@@ -1497,8 +1403,9 @@ impl Evaluation {
     /// exact atoms are total and cannot refuse, but a DECIDED atom's
     /// in-band margin (`reason="in_band"`), a tied name whose
     /// candidates disagree (`"tied_disagrees"`), an unreadable
-    /// candidate (`"unreadable"`), a non-datum reference
-    /// (`"not_a_datum"`) all refuse rather than silently including or
+    /// candidate (`"unreadable"`), a distance measured from a face that
+    /// is not planar (`"not_a_plane"`) or that the body does not hold
+    /// (`"face_unresolved"`) all refuse rather than silently including or
     /// dropping a candidate. The band this query classifies against is
     /// built before any candidate is read, so an ambient tolerance that
     /// admits none refuses too, under the band constructor's OWN word —
@@ -1614,9 +1521,9 @@ impl Evaluation {
     /// It is the door [`Self::face_frame`] cannot be: a NURBS carrier
     /// has no canonical frame and the frame door refuses it
     /// (`no_canonical_frame`), while its kind is still readable here.
-    /// It is also how a caller checks a face BEFORE building a
-    /// `Node.datum_face_frame` on it, which refuses a non-planar
-    /// carrier at `evaluate`.
+    /// It is also how a caller checks a face BEFORE reading a plane off
+    /// it (`PoseDef.plane`, `GeomPred.plane_distance`), which refuses a
+    /// non-planar carrier.
     ///
     /// Raises `ReadbackError` as [`Self::face_frame`] does, with
     /// `wrong_kind` for an edge or vertex name.
@@ -1677,7 +1584,7 @@ impl Evaluation {
     /// name it minted, and otherwise raises `SelectRefusal`
     /// `node_not_held`: the node took its read with it, and a node
     /// handle cannot say which read that was. A `Var` that is no body
-    /// output (a scalar, a selection, a datum's) raises `SelectRefusal`
+    /// output (a scalar, a selection, a pose) raises `SelectRefusal`
     /// `read_not_an_output`: there is no table to ask. A node with
     /// several body outputs is a `ValueError`, since which one is meant
     /// is the caller's to say.
@@ -2747,7 +2654,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PlacedInstance>()?;
     m.add_class::<FaceCensus>()?;
     m.add_class::<ValidationFinding>()?;
-    m.add_class::<Datum>()?;
     m.add_class::<Measurement>()?;
     m.add_class::<Verdict>()?;
     m.add_function(wrap_pyfunction!(evaluate, m)?)?;

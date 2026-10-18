@@ -37,7 +37,7 @@ use editor_core::{
     StableName, Value, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{FIXTURE_MATE_AXIS, ang, insert, len, on_frame, run, solve};
+use fixture::{FIXTURE_MATE_AXIS, ang, insert, len, run, solve};
 use geom_core::Tol;
 use geom_core::linalg::{Affine3, Mat3, UnitVec3, Vec3};
 use geom_core::predicate::Band;
@@ -50,15 +50,17 @@ fn lever(arm: f64) -> Arm {
     Arm::of(0.0, arm).expect("a finite arm the format can decide over")
 }
 
-/// A unit box, the square `[0, 1]²` moved `x0` along `x` and extruded
-/// 1 tall, and its body.
+/// A unit box, the square `[x0, x0 + 1] × [0, 1]` on its own xy
+/// extruded 1 tall, and its body.
 fn unit_box(doc: ProfileDoc, x0: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, profile) = on_frame(
+    let (doc, profile) = insert(
         doc,
-        [x0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        Node::Profile(fixture::desc(vec![vec![
+            (x0, 0.0),
+            (x0 + 1.0, 0.0),
+            (x0 + 1.0, 1.0),
+            (x0, 1.0),
+        ]])),
     );
     insert(
         doc,

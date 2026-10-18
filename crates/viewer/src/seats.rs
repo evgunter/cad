@@ -50,18 +50,14 @@
 //! typed at the commit rather than being silently ignored at pick
 //! time, and the verdict lives in one place.
 //!
-//! What the kinds do decide here is WHICH SEAT a pick lands in. The
-//! seats of a two-seat tool have different kinds — a split cuts a
-//! BODY with a PLANE, a pattern steps a BODY around an AXIS — so
-//! under a plain fill-then-replace rule a user with both seats full
-//! who clicks a second body puts that body in the DATUM seat: a pick
-//! that can only ever refuse, having displaced one that was fine.
-//! There is exactly one seat such a pick can have been meant for, so
-//! it goes there. [`Seats::pick`] states the rule; the kinds
-//! themselves come from [`Seat::wants`], and the classification is
-//! the commit door's ([`crate::session::admits_read`] of the read the
-//! pick makes), widened by one case: a split picked alone may still
-//! become either half, so a body seat can hold it.
+//! What the kinds do decide here is WHICH SEAT a pick lands in, where
+//! a tool's two seats want different kinds: a pick the seat it would
+//! land in cannot hold, and the other seat can, goes to the other seat
+//! rather than displacing a pick that was fine. [`Seats::pick`] states
+//! the rule; the kinds themselves come from [`Seat::wants`], and the
+//! classification is the commit door's ([`crate::session::admits_read`]
+//! of the read the pick makes), widened by one case: a split picked
+//! alone may still become either half, so a body seat can hold it.
 //!
 //! # A seat holds a read
 //!
@@ -126,14 +122,10 @@ vocabulary! {
         SubtractTool,
         /// The body a split cuts.
         SplitTarget,
-        /// The datum plane a split cuts with.
-        SplitPlane,
         /// The body a transform places.
         TransformBody,
         /// The body a pattern replicates.
         PatternBody,
-        /// The datum axis a circular pattern steps around.
-        PatternAxis,
         /// The pattern a part projects one instance of.
         PartInstance,
         /// The body a duplicate copies.
@@ -165,8 +157,6 @@ impl Seat {
     pub fn wants(self) -> NodeKindWanted {
         match self {
             Self::RevolveProfile => NodeKindWanted::Profile,
-            Self::PatternAxis => NodeKindWanted::Axis,
-            Self::SplitPlane => NodeKindWanted::Plane,
             Self::PartInstance => NodeKindWanted::Instances,
             Self::Member
             | Self::SubtractFrom
@@ -186,10 +176,8 @@ impl Seat {
             Self::SubtractFrom => "body kept",
             Self::SubtractTool => "body removed",
             Self::SplitTarget => "split target",
-            Self::SplitPlane => "split plane",
             Self::TransformBody => "transformed body",
             Self::PatternBody => "patterned body",
-            Self::PatternAxis => "pattern axis",
             Self::PartInstance => "pattern to project",
             Self::DuplicateBody => "duplicated body",
         }
@@ -447,9 +435,8 @@ impl Seats {
     /// fits both seats, or neither, follows the plain rule, so the
     /// roles still fill in order and a re-pick still replaces the
     /// last. What the routing removes is the one move that could only
-    /// ever refuse — a second body clicked into a datum seat — where
-    /// wanting to re-target the body is the only thing the click can
-    /// have meant.
+    /// ever refuse — a pick clicked into a seat of another kind — where
+    /// the other seat is the only thing the click can have meant.
     ///
     /// **A pick on a copy seats its body** ([`crate::world::seat_read`]):
     /// a world placement's row, or the copy it draws, is a pick of the

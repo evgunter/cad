@@ -1289,23 +1289,14 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     );
 }
 
-/// A transform over `input`: the root a part's move makes.
+/// A placement of `input`, nominally pinned: the root a part's move
+/// makes.
 fn moved_over(doc: ProfileDoc, input: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
-    insert(
-        doc,
-        Node::transform(
-            input,
-            editor_core::Step::Rigid {
-                translation: [len(0.1), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    )
+    placed_nominally(doc, input)
 }
 
 /// A part whose extrude refuses (its distance is 1/0) and whose one
-/// placement places a transform over it: the extrude, then the
+/// placement places a placement of it: the extrude, then the
 /// placement.
 fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let part = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -1343,7 +1334,7 @@ fn own_line(doc: &ProfileDoc, node: RecipeNodeId, opts: &EvalOptions) -> String 
 /// **Two documents down, the chain still ends at the failing node.**
 /// The bracket holds an instance of the poisoned part, and the instance
 /// is a placement in the bracket's product: it fails in its own right
-/// (the placement a transform over it also reads is poisoned through
+/// (the placement a placement of it also reads is poisoned through
 /// it), and its own fault is the part's poisoned root in turn. The assembly's
 /// instance carries both levels, typed, each drawn as its own document
 /// draws it, and the last is the extrude's line.

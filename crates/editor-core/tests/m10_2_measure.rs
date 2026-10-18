@@ -22,7 +22,7 @@ use editor_core::{
     NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget,
     RecipeNodeId, SitedRef, SlotId, SplitHalf, StableName, ValuePayload, VarName, apply, evaluate,
 };
-use fixture::{ang, frame, len, scl, xy_frame};
+use fixture::{ang, len, scl};
 use geom_core::{Point3, Tol};
 
 /// The plate's hole radius, as a document parameter — the thing the
@@ -50,8 +50,7 @@ fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Profil
 }
 
 /// Inserts a node and returns the document beside the minted id — the
-/// [`push`] shape for a node whose id the caller needs, which a frame
-/// datum's is: every profile drawn on it names it.
+/// [`push`] shape for a node whose id the caller needs.
 fn mint(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         doc,
@@ -80,11 +79,6 @@ fn mint(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, Recip
 /// Returns the plate body and the two hole nodes.
 fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-plate"), Tol::witness());
-    // ONE frame for every sketch in this document: they were all on
-    // the world xy plane, and a frame that several profiles name is
-    // what "the same plane" is now spelled as.
-    let (next, xy) = mint(&doc, xy_frame());
-    doc = next;
     doc = push(
         &doc,
         &DocEdit::DeclareVar {
@@ -104,9 +98,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
         ProgramStep::LineTo(ProgramTarget::Point([len(-1.0), len(0.5)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    // Ids are READ from the document rather than counted out here:
-    // the frame above is a node, so a written-out number would be a
-    // second place to keep the layout in step.
+    // Ids are READ from the document rather than counted out here.
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -155,7 +147,11 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                 fresh: Vec::new(),
             },
         );
-        holes[i] = crate::fixture::newest(&doc);
+        // Each hole joins the plate's space where it stands.
+        let hole = crate::fixture::newest(&doc);
+        let (next, placed) = fixture::against(doc, plate, hole, &editor_core::Frame::IDENTITY);
+        doc = next;
+        holes[i] = placed;
     }
     (doc, plate, holes)
 }
@@ -227,10 +223,6 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     };
     let mut slabs = Vec::new();
     for z in [0.0, 1.0 + SLAB_GAP] {
-        // A frame PER SLAB: these are two different planes (the second
-        // is lifted in z), so they are two frames, not one shared.
-        let (next, plane) = mint(&doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
-        doc = next;
         doc = push(
             &doc,
             &DocEdit::InsertNode {
@@ -252,7 +244,17 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 fresh: Vec::new(),
             },
         );
-        slabs.push(crate::fixture::newest(&doc));
+        let slab = crate::fixture::newest(&doc);
+        // The upper slab stands `z` up the lower one's own z.
+        let slab = match slabs.first() {
+            None => slab,
+            Some(&lower) => {
+                let (next, placed) = fixture::slid(doc, lower, slab, [0.0, 0.0, z]);
+                doc = next;
+                placed
+            }
+        };
+        slabs.push(slab);
     }
     (doc, slabs[0], slabs[1])
 }
@@ -279,8 +281,6 @@ fn hole_wall_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> SitedRef {
 /// is exactly `r_bore - r_pin`. Returns (doc, bore, pin).
 fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-coaxial"), Tol::witness());
-    let (next, xy) = mint(&doc, xy_frame());
-    doc = next;
     let mut prisms = Vec::new();
     for r in [bore_r, pin_r] {
         doc = push(
@@ -307,7 +307,17 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
                 fresh: Vec::new(),
             },
         );
-        prisms.push(crate::fixture::newest(&doc));
+        let prism = crate::fixture::newest(&doc);
+        // The pin joins the bore's space on its axis.
+        let prism = match prisms.first() {
+            None => prism,
+            Some(&bore) => {
+                let (next, placed) = fixture::against(doc, bore, prism, &editor_core::Frame::IDENTITY);
+                doc = next;
+                placed
+            }
+        };
+        prisms.push(prism);
     }
     (doc, prisms[0], prisms[1])
 }
@@ -744,8 +754,6 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
 #[test]
 fn the_same_division_in_a_slot_has_always_refused() {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-inf-slot"), Tol::witness());
-    let (next, xy) = mint(&doc, xy_frame());
-    doc = next;
     doc = push(
         &doc,
         &DocEdit::DeclareVar {
@@ -804,19 +812,18 @@ fn the_same_division_in_a_slot_has_always_refused() {
 
 /// **MAJ-2: a measure reads the PLACED carrier.**
 ///
-/// A box is built at the origin and translated 100 m. A vertex
-/// selected from the TRANSFORM (`at` = the transform) must measure
+/// A box is built at the origin and a copy of it placed 100 m along
+/// its own x. A vertex selected from the PLACEMENT (`at` = the
+/// placement) must measure
 /// against the placed geometry; reading it at the minting extrude
 /// gives the authored position, and the two must differ by exactly the
 /// translation. Before the fix both spellings returned the authored
 /// number and said `Ok`.
 #[test]
-fn a_measure_at_a_transform_reads_the_placed_carrier() {
+fn a_measure_at_a_placement_reads_the_placed_carrier() {
     use editor_core::{EntityKind, NamePat, Selector, select};
     const SHIFT: f64 = 100.0;
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-placed"), Tol::witness());
-    let (next, xy) = mint(&doc, xy_frame());
-    doc = next;
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -845,29 +852,16 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
         },
     );
     let solid = crate::fixture::newest(&doc);
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::transform(
-                solid,
-                editor_core::Step::Rigid {
-                    translation: [len(SHIFT), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                },
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let placed = crate::fixture::newest(&doc);
+    let (doc, placed) = fixture::slid(doc, solid, solid, [SHIFT, 0.0, 0.0]);
 
     let ev = eval(&doc);
-    // ONE vertex name, measured against itself at two different
-    // reading sites: the only thing that differs is `at`.
+    // ONE vertex, measured against itself at two different reading
+    // sites: the only thing that differs is `at` (and the `Placed`
+    // layer the copy's names wear).
     let vname = {
         let mut vs = select(
             &ev,
-            placed,
+            solid,
             &Selector::of(NamePat::of_kind(EntityKind::Vertex)),
         );
         vs.sort();
@@ -882,15 +876,18 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
         MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
             SitedRef::new(solid, vname.clone()),
-            SitedRef::new(placed, vname),
+            SitedRef::new(
+                placed,
+                crate::m10_5_clearance_interval::in_placement(placed, vname),
+            ),
         ],
     )
     .0;
     let (d, _) = measured(&eval(&doc), last(&doc));
     assert!(
         (d - SHIFT).abs() < 1e-9,
-        "the same vertex read at the extrude and at the transform is {SHIFT} m apart, got {d} \
-         — a measure at the transform must see the PLACED carrier"
+        "the same vertex read at the extrude and at the placement is {SHIFT} m apart, got {d} \
+         — a measure at the placement must see the PLACED carrier"
     );
 }
 
@@ -1116,14 +1113,10 @@ fn cusp_lune() -> LoopProgram<Formula> {
 }
 
 /// A document holding one extrude of [`cusp_lune`], unit height, on the
-/// world xy plane — the extrude's id beside it.
+/// its own xy plane — the extrude's id beside it.
 fn cusp_extrude_doc(id: &str) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane) = mint(
-        &ProfileDoc::empty(DocumentId::derive(id), Tol::witness()),
-        xy_frame(),
-    );
     let (doc, profile) = mint(
-        &doc,
+        &ProfileDoc::empty(DocumentId::derive(id), Tol::witness()),
         Node::Profile(ProfileProgram {
             loops: vec![cusp_lune()],
             ids: Vec::new(),
@@ -1232,12 +1225,8 @@ fn a_cusp_revolve_document_gathers_at_the_product_gate() {
         ProgramStep::Line(len(1.0)),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let (doc, plane) = mint(
-        &ProfileDoc::empty(DocumentId::derive("cusp-revolve-crescent"), Tol::witness()),
-        xy_frame(),
-    );
     let (doc, profile) = mint(
-        &doc,
+        &ProfileDoc::empty(DocumentId::derive("cusp-revolve-crescent"), Tol::witness()),
         Node::Profile(ProfileProgram {
             loops: vec![crescent],
             ids: Vec::new(),
@@ -1267,10 +1256,9 @@ fn a_cusp_revolve_document_gathers_at_the_product_gate() {
 fn a_cusp_loft_document_gathers_with_its_nurbs_seam_unjudged_by_kind() {
     let mut doc = ProfileDoc::empty(DocumentId::derive("cusp-loft-lune"), Tol::witness());
     let mut profiles = Vec::new();
-    for z in [0.0, 1.0] {
-        let (d, plane) = mint(&doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    for _ in [0.0, 1.0] {
         let (d, p) = mint(
-            &d,
+            &doc,
             Node::Profile(ProfileProgram {
                 loops: vec![cusp_lune()],
                 ids: Vec::new(),
@@ -1282,7 +1270,14 @@ fn a_cusp_loft_document_gathers_with_its_nurbs_seam_unjudged_by_kind() {
     let (doc, loft) = mint(
         &doc,
         Node::Loft {
-            profiles: profiles.into_iter().map(Into::into).collect(),
+            first: profiles[0].into(),
+            then: vec![editor_core::LoftSection {
+                profile: profiles[1].into(),
+                station: vec![editor_core::StationMove::Slide {
+                    along: editor_core::Axis3::Z,
+                    by: len(1.0),
+                }],
+            }],
             v_degree: Formula::count(1),
         },
     );
@@ -1300,16 +1295,9 @@ fn a_cusp_loft_document_gathers_with_its_nurbs_seam_unjudged_by_kind() {
 #[test]
 fn a_cusp_extrude_notched_clear_of_its_strut_gathers() {
     let (doc, ex) = cusp_extrude_doc("cusp-extrude-notched");
-    let (doc, tool_plane) = mint(
-        &doc,
-        frame([0.0, 0.0, 0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
     let (doc, tool_profile) = mint(
         &doc,
-        Node::Profile(fixture::desc(
-            tool_plane,
-            vec![fixture::square(0.0, 3.0, 0.2)],
-        )),
+        Node::Profile(fixture::desc(vec![fixture::square(0.0, 3.0, 0.2)])),
     );
     let (doc, tool) = mint(
         &doc,
@@ -1318,6 +1306,8 @@ fn a_cusp_extrude_notched_clear_of_its_strut_gathers() {
             distance: len(2.0),
         },
     );
+    // The tool stands half way up the lune's own z.
+    let (doc, tool) = fixture::slid(doc, ex, tool, [0.0, 0.0, 0.5]);
     let (doc, cut) = mint(
         &doc,
         Node::Subtract {
@@ -1380,18 +1370,12 @@ fn a_pattern_of_a_cusp_extrude_gathers() {
 #[test]
 fn a_split_half_of_a_cusp_extrude_gathers() {
     let (doc, ex) = cusp_extrude_doc("cusp-extrude-split");
-    let (doc, tool) = mint(
-        &doc,
-        Node::Datum(editor_core::Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let tool = fixture::plane_on(&doc, ex, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
     let (doc, split) = mint(
         &doc,
         Node::Split {
             target: ex.into(),
-            tool: tool.into(),
+            tool,
         },
     );
     let (doc, _) = fixture::insert_pinned(

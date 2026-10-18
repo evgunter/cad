@@ -379,7 +379,7 @@ impl InputMap {
     /// `NaN`, and an ordering is not a domain test on a value that has
     /// no order, so the height is asked whether it is a number before
     /// the bound on it is read as one. [`Camera`]'s own `finite` and
-    /// `crate::datums::View::metres_per_pixel_at` ask it the same way.
+    /// `crate::screen::View::screen_metres_at` ask it the same way.
     ///
     /// **And the quotient is asked as well as the height**, because a
     /// height that is a positive number does not make every division

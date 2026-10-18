@@ -18,7 +18,7 @@ use editor_core::{
     LoopProgram, MeasurePrimitive, NamePat, Node, NodeResult, ProfileDoc, ProfileProgram,
     RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, evaluate, select_where,
 };
-use fixture::{Recorder, len, scl, xy_frame};
+use fixture::{Recorder, len, scl};
 use geom_core::Tol;
 
 use crate::m10_3_driver_interval::{slab, sliver_axis};

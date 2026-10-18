@@ -10,7 +10,7 @@
 //! `max(separation, 1 m)` — got the first wrong for every model smaller
 //! than a metre, which is most of them.
 //!
-//! Everything goes through the public doors: `Datum`, `Profile`,
+//! Everything goes through the public doors: `Profile`, `Place`,
 //! `Extrude`, the selection door for the faces, and a `Measure` node
 //! carrying `Distance`. Nothing here reaches into `eval::measure`, and
 //! no row asserts a margin — they assert what a CONSUMER sees, which is
@@ -41,11 +41,11 @@ use crate::fixture;
 use editor_core::AuthoredNode;
 
 use editor_core::{
-    CancelToken, CapEnd, Datum, DocEdit, DocumentId, EntityKind, EvalOptions, Evaluation,
+    CancelToken, CapEnd, DocEdit, DocumentId, EntityKind, EvalOptions, Evaluation,
     LoopProgram, MeasurePrimitive, NamePat, Node, NodeResult, ProfileDoc, ProfileProgram,
     RecipeNodeId, SegPat, SegTag, Selector, SitedRef, ValuePayload, apply, evaluate, select,
 };
-use fixture::{len, scl};
+use fixture::len;
 use geom_core::Tol;
 
 /// The air between the two plates: 10 mm, the amendment's own example.
@@ -58,11 +58,11 @@ const THICKNESS: f64 = 1.0e-3;
 ///
 /// The shipped arm is `reach(a) + reach(b) + ||ref(b) - ref(a)||`. Here
 /// each face is a square cap of half-width `half` whose plane origin is
-/// its sketch frame's origin, so its reach is the distance to a corner,
+/// its plate's own origin, so its reach is the distance to a corner,
 /// `sqrt(2) * half`; and the two plane origins are the lower plate's TOP
 /// cap (`z = THICKNESS`) and the upper plate's BOTTOM cap
 /// (`z = THICKNESS + SEPARATION`), `SEPARATION` apart. The tilt does not
-/// enter — it turns the upper frame about its own origin.
+/// enter — it turns the upper plate about its own origin.
 fn arm_of(half: f64) -> f64 {
     2.0 * std::f64::consts::SQRT_2 * half + SEPARATION
 }
@@ -82,13 +82,21 @@ fn mint(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, Recip
     (applied.doc, id)
 }
 
-/// A named cap of a prism, read at the node that owns it.
-fn cap(ev: &Evaluation<f64>, node: RecipeNodeId, end: CapEnd) -> SitedRef {
+/// A named cap of the prism `body`, read at `site`: the prism itself,
+/// or a placement of it, whose copy wears the prism's name under its
+/// `Placed` layer.
+fn cap(ev: &Evaluation<f64>, site: RecipeNodeId, body: RecipeNodeId, end: CapEnd) -> SitedRef {
     let sel =
         Selector::of(NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)));
-    let mut found = select(ev, node, &sel);
-    assert_eq!(found.len(), 1, "one {end:?} cap on node {node:?}");
-    SitedRef::new(node, found.remove(0))
+    let mut found = select(ev, body, &sel);
+    assert_eq!(found.len(), 1, "one {end:?} cap on node {body:?}");
+    let name = found.remove(0);
+    let name = if site == body {
+        name
+    } else {
+        crate::m10_5_clearance_interval::in_placement(site, name)
+    };
+    SitedRef::new(site, name)
 }
 
 /// **Two square plates of half-width `half`, the upper one TILTED by
@@ -96,8 +104,8 @@ fn cap(ev: &Evaluation<f64>, node: RecipeNodeId, end: CapEnd) -> SitedRef {
 /// caps, and a `Measure` reading the distance between the lower plate's
 /// TOP cap and the upper plate's BOTTOM cap.
 ///
-/// The tilt is authored as the sketch frame's `v` direction, so the
-/// DOCUMENT says "this plane is tilted" rather than the test saying
+/// The tilt is authored as the upper plate's placement, its frame's
+/// `v` direction tilted, so the DOCUMENT says "this plate is tilted" rather than the test saying
 /// "these normals differ" — which is what makes each row a statement
 /// about the measure and not about the predicate.
 fn measures(half: f64, theta: f64) -> Result<f64, String> {
@@ -120,19 +128,7 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
     let square = LoopProgram::polygon([(-half, -half), (half, -half), (half, half), (-half, half)])
         .expect("finite corners");
     let mut plates = Vec::new();
-    for (z, v) in [
-        (0.0, [scl(0.0), scl(1.0), scl(0.0)]),
-        (THICKNESS + SEPARATION, [scl(0.0), scl(c), scl(s)]),
-    ] {
-        let (next, plane) = mint(
-            &doc,
-            Node::Datum(Datum::Frame {
-                origin: [len(0.0), len(0.0), len(z)],
-                u: [scl(1.0), scl(0.0), scl(0.0)],
-                v,
-            }),
-        );
-        doc = next;
+    for _ in 0..2 {
         let (next, profile) = mint(
             &doc,
             Node::Profile(ProfileProgram {
@@ -151,6 +147,18 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
         doc = next;
         plates.push(prism);
     }
+    // The upper plate stands `THICKNESS + SEPARATION` up the lower
+    // one's z, its `v` tilted by `theta` about the x axis.
+    let (doc, upper) = fixture::against(
+        doc,
+        plates[0],
+        plates[1],
+        &fixture::frame_at(
+            [0.0, 0.0, THICKNESS + SEPARATION],
+            [1.0, 0.0, 0.0],
+            [0.0, c, s],
+        ),
+    );
 
     let ev: Evaluation<f64> = evaluate(
         &doc,
@@ -160,8 +168,8 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
         Tol::witness(),
     );
     let refs = vec![
-        cap(&ev, plates[0], CapEnd::End),
-        cap(&ev, plates[1], CapEnd::Start),
+        cap(&ev, plates[0], plates[0], CapEnd::End),
+        cap(&ev, upper, plates[1], CapEnd::Start),
     ];
     let expr = MeasurePrimitive::Distance { a: 0, b: 1 };
     let (doc, measure) = crate::fixture::measure_node(&doc, expr, refs);

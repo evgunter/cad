@@ -79,10 +79,7 @@ fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
         unreachable!("found as a profile")
     };
     let ids = program.kept_in_place();
-    let plane = part
-        .operation_of(program.frame)
-        .expect("the plane read is live");
-    let loops = fixture::desc(plane, vec![fixture::square(0.0, 0.0, half)]).loops;
+    let loops = fixture::desc(vec![fixture::square(0.0, 0.0, half)]).loops;
     let body = body_node(&part);
     let (part, _) = fixture::step(
         part,
@@ -1489,12 +1486,10 @@ fn a6_a_mate_chained_to_an_indeterminate_one_removes_like_any_other() {
 
 /// **A whole-assembly split pins its instance where it stands**: the
 /// cut's instances move into the new part, and the instance left
-/// behind is pinned by the named interim's world pin, which reads
-/// nothing, so the split asks no geometry of the part it mints and
-/// pins alike whether or not the caller holds a resolver.
+/// behind stands where the part's world stands, by one mate to the
+/// world, whether or not the caller holds a resolver.
 ///
-/// *Breaks if* a split leaves an unpinned instance, or pins it by a
-/// mate read off geometry it must evaluate.
+/// *Breaks if* a split leaves an unpinned instance.
 #[test]
 fn a6_a_split_pins_its_instance_where_it_stands_with_or_without_a_resolver() {
     let (doc, ids, opts, body) = instances("msolve6-p6", box_part("msolve6-p6-part", 0.5, 1.0), 2);
@@ -1512,16 +1507,14 @@ fn a6_a_split_pins_its_instance_where_it_stands_with_or_without_a_resolver() {
         )
         .unwrap_or_else(|e| panic!("a whole-assembly cut splits ({label}): {e}"));
         let remainder = &out.remainder;
-        let pinned: Vec<_> = remainder
-            .placements()
-            .into_iter()
-            .map(|at| fixture::bundle(remainder, at))
-            .collect();
-        assert_eq!(pinned.len(), 1, "one instance is left behind ({label})");
+        let placements = remainder.placements();
+        assert_eq!(placements.len(), 1, "one instance is left behind ({label})");
+        let bundle = fixture::bundle(remainder, placements[0]);
+        let mates: Vec<_> = bundle.iter().filter_map(|c| c.mate()).collect();
         assert!(
-            matches!(pinned[0].as_slice(), [c] if c.world_pin().is_some()),
-            "the instance is pinned where it stands by the world pin alone ({label}): {:?}",
-            pinned[0]
+            matches!(mates.as_slice(), [m] if matches!(m.to, editor_core::Target::World(_))),
+            "the instance stands where it stands by one mate to the world ({label}): \
+             {bundle:?}"
         );
     }
 }

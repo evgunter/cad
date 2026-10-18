@@ -9,7 +9,7 @@
 //! stores them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
 use crate::fixture::{ends, insert, point, table};
 use editor_core::{EntityKey, Entry, Node, ProfileDoc, RecipeNodeId, RoleSeg, Sense, StableName};
@@ -56,8 +56,8 @@ fn two_crossing_edges_carry_each_ones_sense_against_the_other_block() {
     let plan_a: Plan = (0.0, 1.0, 0.0, 1.0);
     let plan_b: Plan = (0.5, 1.5, 0.25, 1.25);
     let doc = ProfileDoc::empty_derived("crossing-sense-edges", Tol::witness());
-    let (doc, a) = block(doc, (plan_a.0, plan_a.1), (plan_a.2, plan_a.3), 0.0, 1.0);
-    let (doc, b) = block(doc, (plan_b.0, plan_b.1), (plan_b.2, plan_b.3), 0.0, 1.0);
+    let (doc, a) = block(doc, (plan_a.0, plan_a.1), (plan_a.2, plan_a.3), 1.0);
+    let (doc, b) = block_on(doc, a, (plan_b.0, plan_b.1), (plan_b.2, plan_b.3), 0.0, 1.0);
     let (doc, u) = insert(
         doc,
         Node::Union {
@@ -203,13 +203,13 @@ fn a_rim_on_the_other_cavitys_floor_meets_its_rim_where_it_meets_its_wall() {
 /// top, overhanging two of its sides, and its bottom corner at
 /// `(0.5, 0.25, 1)` rests on `a`'s top face. The union names it as `b`'s
 /// corner in either member order, as the union with `a` moved off to
-/// `x = 5` does.
+/// `x = 5` does, each block after `a` a copy placed against it.
 #[test]
 fn a_corner_resting_on_a_face_is_the_corner_in_either_order() {
     let doc = ProfileDoc::empty_derived("corner-rest", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 2.5), (0.25, 2.25), 1.0, 1.0);
-    let (doc, a_off) = block(doc, (5.0, 7.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
+    let (doc, b) = block_on(doc, a, (0.5, 2.5), (0.25, 2.25), 1.0, 1.0);
+    let (doc, a_off) = block_on(doc, a, (5.0, 7.0), (0.0, 2.0), 0.0, 1.0);
     let mut first: Option<StableName> = None;
     for members in [[a, b], [b, a], [a_off, b]] {
         let (doc, u) = crate::fixture::union_over(doc.clone(), &members);
@@ -243,8 +243,8 @@ fn a_corner_resting_on_a_face_is_the_corner_in_either_order() {
 #[test]
 fn an_edge_crossing_of_two_members_is_named_alike_in_either_order() {
     let doc = ProfileDoc::empty_derived("edge-crossing-orders", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 2.0);
+    let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 2.0);
     let mut first: Option<(&str, Vec<StableName>)> = None;
     for (label, members) in [("a b", [a, b]), ("b a", [b, a])] {
         let (doc, u) = crate::fixture::union_over(doc.clone(), &members);
@@ -314,13 +314,13 @@ fn an_edge_through_a_seam_is_read_against_the_seams_members() {
         [2, 1, 0],
     ] {
         let doc = ProfileDoc::empty_derived("edge-through-seam", Tol::witness());
-        let (doc, y) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
-        let (doc, z) = block(doc, (1.0, 3.0), (0.0, 2.0), 0.5, 1.0);
+        let (doc, y) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
+        let (doc, z) = block_on(doc, y, (1.0, 3.0), (0.0, 2.0), 0.5, 1.0);
         let (doc, p) = crate::fixture::on_frame(
             doc,
-            origin,
+            [0.0; 3],
+            [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
-            w,
             vec![vec![(0.0, 0.0), (0.05, 0.2), (-0.05, 0.2)]],
         );
         let (doc, x) = insert(
@@ -329,6 +329,12 @@ fn an_edge_through_a_seam_is_read_against_the_seams_members() {
                 profile: p.into(),
                 distance: crate::fixture::len(0.6),
             },
+        );
+        let (doc, x) = crate::fixture::against(
+            doc,
+            y,
+            x,
+            &crate::fixture::frame_at(origin, [0.0, 1.0, 0.0], w),
         );
         let m = [y, z, x];
         let (doc, u) = crate::fixture::union_over(doc, &order.map(|i| m[i]));

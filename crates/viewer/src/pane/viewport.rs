@@ -2924,7 +2924,7 @@ mod tests {
         let tol = Tol::witness();
         let chord = 1.0e-4;
         let side = 0.02;
-        let (doc, profile) = crate::test_support::framed_square(
+        let (doc, profile) = crate::test_support::square_profile(
             &Doc::empty_derived("c5-refused-edit", tol),
             side,
             tol,

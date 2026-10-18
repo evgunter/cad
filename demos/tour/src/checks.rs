@@ -25,13 +25,12 @@
 // the default half of the units exhibit, against `ring` (millimetres
 // and half-turns) and `diefillet` (millimetres and degrees).
 
-use pncad::document::ExtrudeSide;
 use pncad::prelude::AuthoredNode;
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    Bodies, CancelToken, ChecksConfig, Datum, Dimension, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Formula, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId,
+    Bodies, CancelToken, ChecksConfig, Dimension, DocEdit, DocumentId, EvalOptions,
+    Evaluation, Formula, Frame, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId,
     RefusingReach, Severity, apply, enforce_checks, evaluate, run_checks,
 };
 use pncad::geom_core::Tol;
@@ -53,20 +52,9 @@ fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     applied.record.minted.expect("an insert mints an id")
 }
 
-/// An extruded square: half-width `h` centered at `(cx, 0)` on the
-/// z = `z0` sketch plane, extruded `dz` up.
-fn slab(doc: &mut ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64, tol: Tol) -> RecipeNodeId {
-    let len = |v: f64| Formula::literal(v, Dimension::Length).expect("finite");
-    let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("finite");
-    let plane = insert(
-        doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(z0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-        tol,
-    );
+/// An extruded square: half-width `h` centered at `(cx, 0)` on its
+/// own `xy`, extruded `dz` up.
+fn slab(doc: &mut ProfileDoc, cx: f64, h: f64, dz: f64, tol: Tol) -> RecipeNodeId {
     let corners = vec![(cx - h, -h), (cx + h, -h), (cx + h, h), (cx - h, h)];
     let profile = insert(
         doc,
@@ -98,8 +86,15 @@ fn boolean_doc(
     tol: Tol,
 ) -> (ProfileDoc, RecipeNodeId, Evaluation<f64>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), tol);
-    let a = slab(&mut doc, a.0, a.1, a.2, a.3, tol);
-    let b = slab(&mut doc, b.0, b.1, b.2, b.3, tol);
+    // Each slab is drawn on its own `xy`; the second is placed against
+    // the first, `b.2 − a.2` up, so the boolean reads one space, and
+    // the boolean stands in the world `a.2` up.
+    let (lift, rise) = (a.2, b.2 - a.2);
+    let a = slab(&mut doc, a.0, a.1, a.3, tol);
+    let b = slab(&mut doc, b.0, b.1, b.3, tol);
+    let placed = crate::world::against(&doc, a, b, &Frame::translation([0.0, 0.0, rise]), tol);
+    doc = placed.doc;
+    let b = placed.placement;
     let boolean = insert(
         &mut doc,
         match op {
@@ -116,7 +111,7 @@ fn boolean_doc(
         },
         tol,
     );
-    let placed = crate::world::place_in_world(&doc, boolean, tol);
+    let placed = crate::world::in_world(&doc, boolean, &Frame::translation([0.0, 0.0, lift]), tol);
     doc = placed.doc;
     let placement = placed.placement;
     let ev = evaluate::<f64>(

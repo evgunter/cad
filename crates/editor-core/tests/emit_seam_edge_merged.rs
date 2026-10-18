@@ -12,9 +12,9 @@
 //! and named as the rim they share, because it lies within that rim.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
-use crate::emit_shared_rim_several::is_rim_piece;
+use crate::emit_shared_rim_several::{construction, is_rim_piece, own_name};
 use crate::fixture::{edge_of, table};
 
 use editor_core::{
@@ -53,12 +53,15 @@ fn slab(x0: f64, x1: f64) -> Bx {
 }
 
 /// `a`, `b` and the rest, in that creation order; `a` and `b` flush on
-/// all four families.
+/// all four families. `a` is the root, and each later block a copy
+/// placed against it.
 fn document(rest: &[Bx]) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let mut doc = ProfileDoc::empty_derived("emit_seam_edge_merged", Tol::witness());
-    let mut ids = Vec::new();
-    for &(x, y, z0, dz) in [A, B].iter().chain(rest) {
-        let (d, id) = block(doc, x, y, z0, dz);
+    let doc = ProfileDoc::empty_derived("emit_seam_edge_merged", Tol::witness());
+    let (x, y, _, dz) = A;
+    let (mut doc, a) = block(doc, x, y, dz);
+    let mut ids = vec![a];
+    for &(x, y, z0, dz) in [B].iter().chain(rest) {
+        let (d, id) = block_on(doc, a, x, y, z0, dz);
         doc = d;
         ids.push(id);
     }
@@ -110,13 +113,16 @@ fn assert_rim_pieces(
     (a, b): (RecipeNodeId, RecipeNodeId),
     order: &[RecipeNodeId],
 ) {
-    let rim = |m: RecipeNodeId| StableName {
-        kind: EntityKind::Edge,
-        node: m,
-        path: vec![RoleSeg::RimEdge(
-            CapEnd::End,
-            crate::fixture::piece(doc, m, 0, 2).into(),
-        )],
+    let rim = |m: RecipeNodeId| {
+        own_name(
+            doc,
+            m,
+            EntityKind::Edge,
+            vec![RoleSeg::RimEdge(
+                CapEnd::End,
+                crate::fixture::piece(doc, construction(doc, m), 0, 2).into(),
+            )],
+        )
     };
     let t = table(ev, union);
     let body = body_of(ev, union);

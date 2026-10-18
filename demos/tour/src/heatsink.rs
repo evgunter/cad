@@ -58,12 +58,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::document::ExtrudeSide;
 use pncad::prelude::AuthoredNode;
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    Bodies, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
+    Bodies, CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Formula, Frame,
     LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, RefusingReach, SlotId,
     ValuePayload, apply, evaluate, parse_formula,
 };
@@ -195,16 +194,6 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
         .expect("finite corners"),
     ];
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("heatsink", tol);
-    let len = |v: f64| Formula::literal(v, Dimension::Length).expect("finite");
-    let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("finite");
-    let frame_at = |z: f64| {
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(z)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        })
-    };
-    let base_plane = insert(&mut doc, frame_at(0.0), tol);
     let base_p = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
@@ -225,7 +214,6 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
         Seat::Sunk => (0.1875, "812.5 mm"),
         Seat::Flush => (0.25, "750 mm"),
     };
-    let fin_plane = insert(&mut doc, frame_at(fin_z), tol);
     let fin_p = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
@@ -242,6 +230,11 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
         },
         tol,
     );
+    // The fin is drawn on its own `xy`; its copy seated `fin_z` up the
+    // base is the fin the pattern repeats, in the base's space.
+    let seated = crate::world::against(&doc, base, fin_e, &Frame::translation([0.0, 0.0, fin_z]), tol);
+    doc = seated.doc;
+    let fin_e = seated.placement;
     // `placed_union` is the PARAMETRIC-rule constructor, so the count
     // is a structural slot.
     let group = insert(

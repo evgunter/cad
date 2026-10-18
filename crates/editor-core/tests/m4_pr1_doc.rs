@@ -8,7 +8,7 @@
 //! positions); patterns earn their keep in their own unit tests.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{ang, len, scl};
+use crate::fixture::len;
 use editor_core::{Dimension, Doc, DocEdit, Formula, FreeVar, Node, RecipeNodeId, SlotId, VarName};
 use geom_core::Tol;
 
@@ -24,10 +24,6 @@ impl editor_core::ProfilePayload for FakeProfile {
     fn lower<E>(
         authored: &Self,
         _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
-        _: &mut dyn FnMut(
-            editor_core::OperandSlot,
-            &editor_core::Operand,
-        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(authored.clone())
     }
@@ -113,7 +109,6 @@ struct Die {
 /// Authors the 21-pip die purely through `apply` (spec D8).
 fn author_die() -> Die {
     const HALF: f64 = 0.010; // 20 mm cube
-    const PITCH: f64 = 0.005; // pip grid pitch
     let mut log = Vec::new();
     let doc = TDoc::empty_derived("m4_pr1_doc", Tol::witness());
     // Document parameter: pip depth (the variant knob).
@@ -169,31 +164,17 @@ fn author_die() -> Die {
     // 21 pips: place the tool, subtract from the running body.
     let mut body = cube.unwrap();
     let mut pips = 0;
-    for (normal, rot_axis, rot_angle, offsets) in faces() {
-        // In-face basis: any two axes orthogonal to the face normal.
-        let (du, dv) = if normal[0] != 0.0 {
-            ([0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
-        } else if normal[1] != 0.0 {
-            ([1.0, 0.0, 0.0], [0.0, 0.0, 1.0])
-        } else {
-            ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
-        };
-        for (u, v) in offsets {
-            let t: Vec<f64> = (0..3)
-                .map(|i| HALF * normal[i] + PITCH * (u * du[i] + v * dv[i]))
-                .collect();
+    // Each pip's copy of the tool: one placement per pip, the copy it
+    // defines the subtract's tool.
+    for (_, _, _, offsets) in faces() {
+        for _ in offsets {
             let (d2, placed) = step(
                 doc,
                 &mut log,
                 TEdit::InsertNode {
-                    node: Box::new(Node::transform(
-                        pip_extrude,
-                        editor_core::Step::Rigid {
-                            translation: [len(t[0]), len(t[1]), len(t[2])],
-                            axis: [scl(rot_axis[0]), scl(rot_axis[1]), scl(rot_axis[2])],
-                            angle: ang(rot_angle),
-                        },
-                    )),
+                    node: Box::new(Node::place(vec![editor_core::BodyRead::plain(
+                        editor_core::Operand::from(pip_extrude),
+                    )])),
                     fresh: Vec::new(),
                 },
             );
@@ -224,7 +205,7 @@ fn author_die() -> Die {
 #[test]
 fn die_authors_replays_and_diffs() {
     let die = author_die();
-    // 2 profiles + 2 extrudes + 21 transforms + 21 subtracts.
+    // 2 profiles + 2 extrudes + 21 placements + 21 subtracts.
     assert_eq!(die.doc.len(), 46);
 
     // Replay identity (spec D7): from empty, BIT-IDENTICAL.

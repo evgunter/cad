@@ -745,11 +745,6 @@ fn a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls() {
 fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
     use editor_core::{LoopProgram, ProfileProgram, ProgramStep, ProgramTarget, Qualifier};
     let mut r = corpus::Recorder::new();
-    let plane = r.insert(fixture::frame(
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
-    ));
     let meridian = LoopProgram::Chain(vec![
         ProgramStep::At(fixture::len2([0.25, 0.0])),
         ProgramStep::LineTo(ProgramTarget::Point(fixture::len2([0.5, 0.0]))),

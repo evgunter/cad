@@ -1,8 +1,8 @@
 //! **The E6 drive over a loft at `Interval`, with the box elsewhere.**
 //! A loft whose sections read no boxed parameter certifies in one leaf
-//! when its sections are polygons, on an unrotated frame (every value a
-//! point) or a rotated one (the plane a few ulps wide, which the loft
-//! skins at the lane scalar). An arc section is a few ulps wide with no
+//! when its sections are polygons, standing at its own frame (every
+//! value a point) or placed on a rotated one (the copy's frame a few
+//! ulps wide, which the placement moves at the lane scalar). An arc section is a few ulps wide with no
 //! box at all, and an arc's weight is no point at `Interval`: the loft
 //! refuses `SkinError::ArcWeightNotAPoint` at every leaf, which a
 //! smaller box cannot lift, and the drive bisects to its leaf budget
@@ -41,8 +41,10 @@ fn rect(width: Formula) -> LoopProgram<Formula> {
 }
 
 /// A toleranced `w` read only by a profile of its own, and a loft of
-/// `section` on two frames one unit apart whose in-plane axis is `u`.
-/// The drive's box is `w`'s, and it reaches no loft section.
+/// `section` over two sections one unit apart up its own z — placed in
+/// the world on the frame whose in-plane axis is `u` where `u` is not
+/// the world's x. The drive's box is `w`'s, and it reaches no loft
+/// section. Returns the document and the loft, or its placement.
 fn loft_doc(
     section: impl Fn() -> LoopProgram<Formula>,
     u: [f64; 3],
@@ -63,22 +65,28 @@ fn loft_doc(
     });
     let v = [-u[1], u[0], 0.0];
     let mut sections = Vec::new();
-    for z in [0.0, 1.0] {
-        let frame = r.insert(fixture::frame([0.0, 0.0, z], u, v));
+    for _ in 0..2 {
         sections.push(r.insert(Node::Profile(ProfileProgram {
             loops: vec![section()],
             ids: Vec::new(),
         })));
     }
     let loft = r.insert(Node::Loft {
-        profiles: sections.into_iter().map(Into::into).collect(),
+        first: sections[0].into(),
+        then: vec![editor_core::LoftSection {
+            profile: sections[1].into(),
+            station: vec![editor_core::StationMove::Slide {
+                along: editor_core::Axis3::Z,
+                by: len(1.0),
+            }],
+        }],
         v_degree: Formula::count(1),
     });
-    let elsewhere = r.insert(fixture::frame(
-        [5.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-    ));
+    let loft = if u == [1.0, 0.0, 0.0] {
+        loft
+    } else {
+        r.in_world(loft, &fixture::frame_at([0.0; 3], u, v))
+    };
     r.insert(Node::Profile(ProfileProgram {
         loops: vec![rect(Formula::named(
             VarName::from_static("w"),
@@ -148,18 +156,19 @@ fn an_arc_loft_bisects_to_its_budget_under_a_box_elsewhere() {
 }
 
 #[test]
-fn a_rotated_frame_loft_certifies_under_a_box_elsewhere() {
+fn a_loft_placed_on_a_rotated_frame_certifies_under_a_box_elsewhere() {
     assert_certified_in_one_leaf("rotated", drive_loft(|| rect(len(1.0)), [0.6, 0.8, 0.0]));
 }
 
 /// What each row's loft does, one evaluation at `Interval` at the
 /// nominal: under the guided lift (an analysis's, here over an empty
-/// box) the arc section and the rotated plane are a few ulps wide. The arc's weight is no point and refuses
-/// by name; the rotated plane lofts in `T`. Under the pinned lift both
+/// box) the arc section and the rotated placement are a few ulps wide.
+/// The arc's weight is no point and refuses by name; the rotated copy
+/// places in `T`. Under the pinned lift both
 /// are the `f64` form lifted, and loft: an `Interval` evaluation with
 /// no box is the build.
 #[test]
-fn with_no_box_the_guided_lift_refuses_an_arc_section_and_lofts_a_rotated_plane() {
+fn with_no_box_the_guided_lift_refuses_an_arc_section_and_places_a_rotated_loft() {
     use editor_core::{NodeErrorKind, ProfileLift};
     use geom_core::Interval;
     use sweep::SkinError;
@@ -190,7 +199,7 @@ fn with_no_box_the_guided_lift_refuses_an_arc_section_and_lofts_a_rotated_plane(
     let guided = run(&rotated, ProfileLift::Guided);
     assert!(
         guided.node_error(rotated_loft).is_none(),
-        "the rotated plane lofts in T: {:?}",
+        "the rotated copy places in T: {:?}",
         guided.node_error(rotated_loft)
     );
 }

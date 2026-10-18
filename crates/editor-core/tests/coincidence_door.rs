@@ -114,7 +114,7 @@ fn entity(input: VarId, name: &StableName) -> NamedCell {
 #[test]
 fn a_glued_rest_is_one_unproven_row_named_by_its_operands() {
     let doc = ProfileDoc::empty_derived("coincide-declared-rest", Tol::witness());
-    let (doc, base) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, base) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
     let (doc, plate) = block(doc, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
     let top = fname(base, RoleSeg::Cap(CapEnd::End));
     let bottom = fname(plate, RoleSeg::Cap(CapEnd::Start));
@@ -253,7 +253,7 @@ fn face_of(
 #[test]
 fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
     let doc = ProfileDoc::empty_derived("coincide-same-source", Tol::witness());
-    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, placed) = insert(
         doc,
         Node::transform(
@@ -321,8 +321,8 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
 #[test]
 fn a_unions_rows_follow_its_member_order() {
     let doc = ProfileDoc::empty_derived("coincide-union-order", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 1.0);
     let n = crate::fixture::flush_segs(&doc, a).len();
     let mut seen = Vec::new();
     for members in [[a, b], [b, a]] {
@@ -367,7 +367,7 @@ fn a_unions_rows_follow_its_member_order() {
 #[test]
 fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
     let doc = ProfileDoc::empty_derived("coincide-pattern", Tol::witness());
-    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -466,7 +466,7 @@ fn edge_named(ev: &Evaluation<f64>, node: RecipeNodeId, a: [f64; 3], b: [f64; 3]
 #[test]
 fn a_filleted_box_records_one_unproven_turn_per_corner() {
     let doc = ProfileDoc::empty_derived("coincide-mitre", Tol::witness());
-    let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 0.0, 1.0);
+    let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 1.0);
     let ev = run(&doc);
     let corners = [[0.0, 0.0], [2.0, 0.0], [2.0, 1.5], [0.0, 1.5]];
     let rim = |z: f64| -> Vec<StableName> {
@@ -647,7 +647,7 @@ fn a_split_through_a_vertex_that_only_cuts_records_nothing() {
 #[test]
 fn the_check_off_is_visibly_skipped() {
     let doc = ProfileDoc::empty_derived("coincide-off", Tol::witness());
-    let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 0.0, 1.0);
+    let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 1.0);
     let ev = run(&doc);
     let edges = vec![
         edge_named(&ev, the_box, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]),
@@ -687,7 +687,7 @@ fn the_check_off_is_visibly_skipped() {
 #[test]
 fn a_reunited_splits_section_caps_are_one_construction() {
     let doc = ProfileDoc::empty_derived("coincide-reunite", Tol::witness());
-    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, tool) = insert(
         doc,
         Node::Datum(Datum::Plane {
@@ -777,8 +777,8 @@ fn a_reunited_splits_section_caps_are_one_construction() {
 /// carrier each, joined by `op`: the boolean's own rows and its node.
 fn apart(subtract: bool, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 1.0);
     let boolean = if subtract {
         Node::Subtract {
             from: a.into(),
@@ -1098,9 +1098,9 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
 #[test]
 fn a_union_records_a_vertex_touch_once() {
     let doc = ProfileDoc::empty_derived("coincide-union-kiss", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 2.0);
-    let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 1.0);
     let (doc, pair) = crate::fixture::union_over(doc, &[a, b]);
     // The kiss is the last step's, so its record is the union's.
     let (doc, union) = crate::fixture::union_over(doc, &[far, a, b]);
@@ -1213,7 +1213,7 @@ fn measure_rows(doc: &ProfileDoc, node: RecipeNodeId) {
 #[ignore = "a measurement: run in release with --nocapture"]
 fn measure_the_box_mitre_at_sym() {
     let doc = ProfileDoc::empty_derived("coincide-mitre", Tol::witness());
-    let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 0.0, 1.0);
+    let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 1.0);
     let ev = run(&doc);
     let corners = [[0.0, 0.0], [2.0, 0.0], [2.0, 1.5], [0.0, 1.5]];
     let rim = |z: f64| -> Vec<StableName> {
@@ -1268,7 +1268,7 @@ fn two_variables_typed_equal_are_one_constant_to_the_analysis_lane_and_two_symbo
     use editor_core::{FreeVar, ParamValue};
     use geom_core::{Band, Decide, Sym, SymBudget};
     let doc = ProfileDoc::empty_derived("coincide-two-metres", Tol::witness());
-    let (doc, _) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, _) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
     let (doc, _) = block(doc, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
     let metres: Vec<editor_core::VarId> = doc
         .free_vars()
@@ -1508,7 +1508,7 @@ impl editor_core::PartResolver for NoParts {
 fn a_symbolic_run_over_a_box_refuses_every_node() {
     use editor_core::{NodeErrorKind, NodeResult, ParamBox, ParamBoxError};
     let doc = ProfileDoc::empty_derived("coincide-symbols-box", Tol::witness());
-    let (doc, _) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let opts = editor_core::EvalOptions {
         symbols: true,
         param_box: Some(std::sync::Arc::new(ParamBox::from_axes(
@@ -1548,7 +1548,7 @@ fn a_symbolic_run_over_a_box_refuses_every_node() {
 fn a_symbolic_run_with_a_resolver_refuses_every_node() {
     use editor_core::{NodeErrorKind, NodeResult, ParamBoxError};
     let doc = ProfileDoc::empty_derived("coincide-seam", Tol::witness());
-    let (doc, _) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let opts = editor_core::EvalOptions {
         symbols: true,
         resolver: Some(std::sync::Arc::new(NoParts)),
@@ -1591,7 +1591,7 @@ fn a_symbolic_run_with_a_resolver_refuses_every_node() {
 #[test]
 fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
     let doc = ProfileDoc::empty_derived("coincide-copies-same-face", Tol::witness());
-    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, _) = crate::fixture::place(doc, the_box);
     let turned = editor_core::Frame::rotate_then_translate(
         [0.0, 0.0, 1.0],
@@ -1688,7 +1688,7 @@ fn a_report_settled_at_rest_is_the_synchronous_report() {
 /// moved `dx` along x; the plate, the blocks and their union.
 fn ring_pinch(dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("coincide-ring", Tol::witness());
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
     let (doc, p1) = block(doc, (1.0, 1.5), (-1.0, 1.0), 0.5, 1.5);
     let (doc, p2) = block(doc, (1.5 + dx, 2.0), (1.0, 3.0), 0.47, 1.23);
     let (doc, blocks) = insert(

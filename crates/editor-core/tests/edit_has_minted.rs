@@ -38,7 +38,7 @@ test_utils::gated_to![
 use crate::fixture;
 
 use editor_core::{DocEdit, DocumentId, Node, ProfileDoc, RecipeNodeId, load, save};
-use fixture::{desc, insert, len, next_mint, square, step, xy_frame};
+use fixture::{desc, insert, len, next_mint, square, step};
 use geom_core::Tol;
 
 /// A fresh document under a derived id — nothing inserted, nothing
@@ -70,9 +70,9 @@ fn a_fresh_document_has_minted_nothing() {
 #[test]
 fn an_insert_mints_that_id_and_not_the_next_one() {
     let doc = fresh("has-minted-insert");
-    let (doc, plane) = insert(doc, xy_frame());
+    let (doc, first) = insert(doc, Node::Profile(desc(vec![square(4.0, 4.0, 1.0)])));
     assert!(
-        doc.has_minted(plane),
+        doc.has_minted(first),
         "the id the insert returned is the id it minted"
     );
     let upcoming = next_mint(&doc);
@@ -81,9 +81,9 @@ fn an_insert_mints_that_id_and_not_the_next_one() {
         "the next id is not minted until the next insert mints it"
     );
 
-    let (doc, profile) = insert(doc, Node::Profile(desc(plane, vec![square(0.0, 0.0, 1.0)])));
-    assert_ne!(profile, plane, "each insert mints its own id");
-    for id in [plane, profile] {
+    let (doc, profile) = insert(doc, Node::Profile(desc(vec![square(0.0, 0.0, 1.0)])));
+    assert_ne!(profile, first, "each insert mints its own id");
+    for id in [first, profile] {
         assert!(doc.has_minted(id), "{id:?} was minted and stays so");
     }
     assert!(
@@ -98,8 +98,7 @@ fn an_insert_mints_that_id_and_not_the_next_one() {
 #[test]
 fn a_delete_leaves_the_id_minted() {
     let doc = fresh("has-minted-delete");
-    let (doc, plane) = insert(doc, xy_frame());
-    let (doc, profile) = insert(doc, Node::Profile(desc(plane, vec![square(0.0, 0.0, 1.0)])));
+    let (doc, profile) = insert(doc, Node::Profile(desc(vec![square(0.0, 0.0, 1.0)])));
     let (deleted, _) = step(doc, DocEdit::DeleteNode { id: profile });
 
     assert!(
@@ -119,7 +118,7 @@ fn a_delete_leaves_the_id_minted() {
     // predicate's answer above is the reason, spelled as behaviour.
     let (reinserted, next) = insert(
         deleted,
-        Node::Profile(desc(plane, vec![square(0.0, 0.0, 2.0)])),
+        Node::Profile(desc(vec![square(0.0, 0.0, 2.0)])),
     );
     assert_ne!(next, profile, "the deleted id is not handed out again");
     assert!(reinserted.has_minted(next));
@@ -132,8 +131,7 @@ fn a_delete_leaves_the_id_minted() {
 #[test]
 fn the_answer_survives_a_save_load_round_trip() {
     let doc = fresh("has-minted-round-trip");
-    let (doc, plane) = insert(doc, xy_frame());
-    let (doc, profile) = insert(doc, Node::Profile(desc(plane, vec![square(0.0, 0.0, 1.0)])));
+    let (doc, profile) = insert(doc, Node::Profile(desc(vec![square(0.0, 0.0, 1.0)])));
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
@@ -141,13 +139,13 @@ fn the_answer_survives_a_save_load_round_trip() {
             distance: len(0.5),
         },
     );
-    let (doc, scratch) = insert(doc, Node::Profile(desc(plane, vec![square(4.0, 4.0, 1.0)])));
+    let (doc, scratch) = insert(doc, Node::Profile(desc(vec![square(4.0, 4.0, 1.0)])));
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: scratch });
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     let loaded = load(&text, Tol::witness()).expect("and loads");
 
-    for id in [plane, profile, extrude, scratch] {
+    for id in [profile, extrude, scratch] {
         assert_eq!(
             loaded.doc.has_minted(id),
             doc.has_minted(id),

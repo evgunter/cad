@@ -15,7 +15,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
 use crate::fixture::{ename, fname, member_entity, member_face, table, vertex_of, wall};
 
@@ -77,11 +77,11 @@ struct Fixture {
 
 fn fixture(g_z: (f64, f64), with_h: bool) -> Fixture {
     let doc = ProfileDoc::empty_derived("emit_seam_junction", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, g) = block(doc, (0.3, 0.4), (-1.0, 2.0), g_z.0, g_z.1);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, g) = block_on(doc, a, (0.3, 0.4), (-1.0, 2.0), g_z.0, g_z.1);
     let (doc, h) = if with_h {
-        let (doc, h) = block(doc, (1.0, 1.1), (-1.0, 2.0), 0.5, 3.0);
+        let (doc, h) = block_on(doc, a, (1.0, 1.1), (-1.0, 2.0), 0.5, 3.0);
         (doc, Some(h))
     } else {
         (doc, None)
@@ -129,7 +129,12 @@ fn crossing(
     let g_x0 = member_face(
         union,
         crate::fixture::out(doc, g),
-        fname(g, wall(doc, g, 3)),
+        crate::emit_shared_rim_several::own_name(
+            doc,
+            g,
+            EntityKind::Face,
+            vec![wall(doc, crate::emit_shared_rim_several::construction(doc, g), 3)],
+        ),
     );
     StableName {
         kind: EntityKind::Vertex,

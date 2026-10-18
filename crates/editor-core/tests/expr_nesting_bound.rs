@@ -28,7 +28,7 @@ use editor_core::{
     ProgramTarget, RecipeNodeId, SlotId, ValuePayload, VarEnv, content_pin, eval, eval_count,
     parse_formula, unparse,
 };
-use fixture::{Recorder, len, run, scl, xy_frame};
+use fixture::{Recorder, len, run, scl};
 use geom_core::{Interval, Tol};
 use serde_json::Value;
 use test_utils::own_thread::on_the_smallest_stack;
@@ -105,11 +105,9 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
 /// `distance`, and the extrude.
 fn extrude_document(distance: Formula) -> (Recorder, RecipeNodeId) {
     let mut r = Recorder::new();
-    let plane = r.insert(xy_frame());
-    let profile = r.insert(Node::Profile(fixture::desc(
-        plane,
-        vec![fixture::square(0.0, 0.0, 0.5)],
-    )));
+    let profile = r.insert(Node::Profile(fixture::desc(vec![fixture::square(
+        0.0, 0.0, 0.5,
+    )])));
     let extrude = r.insert(Node::Extrude {
         profile: profile.into(),
         distance,

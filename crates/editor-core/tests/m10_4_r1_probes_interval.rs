@@ -133,8 +133,6 @@ fn stepped_shaft_sized(
         name: name("h2"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, h2, d2)),
     });
-    // One frame, named by both profiles: two sketches meant to share
-    // a plane bind the same id, which is how sharing is said now.
     let base_p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![
             LoopProgram::polygon([(-o, -o), (o, -o), (o, o), (-o, o)]).expect("finite corners"),
@@ -155,17 +153,23 @@ fn stepped_shaft_sized(
         profile: boss_p.into(),
         distance: param("h2", Dimension::Length),
     });
-    let boss = r.insert(Node::transform(
+    // The boss stands on the base's top: placed against the base, slid
+    // `h1` up its own z.
+    let boss = crate::m10_5_clearance_interval::slid_by(
+        &mut r,
+        base,
         boss_raw,
-        editor_core::Step::Rigid {
-            translation: [len(0.0), len(0.0), param("h1", Dimension::Length)],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
+        [len(0.0), len(0.0), param("h1", Dimension::Length)],
+    );
     let refs = vec![
         SitedRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),
-        SitedRef::new(boss, fname(boss_raw, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(
+            boss,
+            crate::m10_5_clearance_interval::in_placement(
+                boss,
+                fname(boss_raw, RoleSeg::Cap(CapEnd::End)),
+            ),
+        ),
     ];
     let m = r
         .measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs)

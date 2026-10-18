@@ -18,8 +18,8 @@ use crate::fixture::{insert, len, on_frame, prism_edges, square};
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::persist::SnapshotError;
 use editor_core::{
-    CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId, EditError, EvalOptions,
-    Evaluation, ExtrudeSide, Formula, FreeValue, FreeVar, FreshEntry, LoopProgram, Maintenance,
+    CancelToken, Dimension, Distribution, DocEdit, DocumentId, EditError, EvalOptions,
+    Evaluation, Formula, FreeValue, FreeVar, FreshEntry, LoopProgram, Maintenance,
     Node, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError, VarDecl,
     VarId, VarName, apply, evaluate, load, save,
 };
@@ -414,22 +414,17 @@ fn monte_carlo_draws_only_what_varies() {
 
 // -------------------------------------------------------------- row 10
 
-/// A frame whose origin's x and y read ONE variable, written once in
-/// the insert's fresh table under the name `s` (two readers share it,
-/// so it is named) and carrying a spread; a square on it, extruded. The
-/// frame, the profile and the extrude.
+/// A ring whose major and minor radii read ONE variable, written once
+/// in the insert's fresh table under the name `s` (two readers share
+/// it, so it is named) and carrying a spread; a square, extruded. The
+/// ring, the profile and the extrude.
 fn frame_sharing_a_fresh_entry(seed: &str) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let doc = ProfileDoc::empty(DocumentId::derive(seed), Tol::witness());
     let shared = || Formula::fresh(0, Dimension::Length);
-    let scalar = |v: f64| crate::fixture::scl(v);
     let frame = step(
         &doc,
         DocEdit::InsertNode {
-            node: Box::new(Node::Datum(Datum::Frame {
-                origin: [shared(), shared(), len(0.0)],
-                u: [scalar(1.0), scalar(0.0), scalar(0.0)],
-                v: [scalar(0.0), scalar(1.0), scalar(0.0)],
-            })),
+            node: Box::new(ring(shared(), shared())),
             fresh: vec![FreshEntry::named(
                 n("s"),
                 FreeVar::continuous_with(
@@ -441,7 +436,7 @@ fn frame_sharing_a_fresh_entry(seed: &str) -> (ProfileDoc, [RecipeNodeId; 3]) {
         },
     );
     assert_eq!(applied_fresh(&frame), 1, "the table minted its one entry");
-    let frame_id = frame.record.minted.expect("the frame");
+    let frame_id = frame.record.minted.expect("the ring");
     let (doc, profile) = insert(
         frame.doc,
         Node::Profile(ProfileProgram {
@@ -472,12 +467,12 @@ fn applied_fresh(applied: &editor_core::Applied<ProfileProgram>) -> usize {
 fn a_split_carries_a_variable_read_twice_as_one() {
     let (doc, cut) = frame_sharing_a_fresh_entry("intent-literals-c-split");
     let source = doc
-        .slot(cut[0], SlotId::Origin(editor_core::Axis3::X))
-        .expect("the origin's x");
+        .slot(cut[0], SlotId::TubeMajorRadius)
+        .expect("the major radius");
     assert_eq!(
-        doc.slot(cut[0], SlotId::Origin(editor_core::Axis3::Y)),
+        doc.slot(cut[0], SlotId::TubeMinorRadius),
         Some(source),
-        "the premise: x and y read one variable"
+        "the premise: both radii read one variable"
     );
     let out = split(
         &doc,
@@ -490,12 +485,12 @@ fn a_split_carries_a_variable_read_twice_as_one() {
     let frame = out.node_map[&cut[0]];
     let x = out
         .part
-        .slot(frame, SlotId::Origin(editor_core::Axis3::X))
-        .expect("the carried x");
+        .slot(frame, SlotId::TubeMajorRadius)
+        .expect("the carried major radius");
     assert_eq!(
-        out.part.slot(frame, SlotId::Origin(editor_core::Axis3::Y)),
+        out.part.slot(frame, SlotId::TubeMinorRadius),
         Some(x),
-        "x and y still read one variable"
+        "both radii still read one variable"
     );
     assert_eq!(out.part.var_name(x), Some(&n("s")), "under its name");
     assert!(
@@ -520,14 +515,12 @@ fn a_split_carries_a_variable_read_twice_as_one() {
 fn a_variable_read_on_both_sides_refuses_the_cut() {
     let (doc, cut) = frame_sharing_a_fresh_entry("intent-literals-c-uncut");
     let source = doc
-        .slot(cut[0], SlotId::Origin(editor_core::Axis3::X))
-        .expect("the origin's x");
-    // A kept point reading the same variable.
+        .slot(cut[0], SlotId::TubeMajorRadius)
+        .expect("the major radius");
+    // A kept ring reading the same variable.
     let (doc, kept) = insert(
         doc,
-        Node::Datum(Datum::Point {
-            position: [Formula::var(source, Dimension::Length), len(0.0), len(0.0)],
-        }),
+        ring(Formula::var(source, Dimension::Length), len(0.1)),
     );
     match split(
         &doc,
@@ -545,9 +538,19 @@ fn a_variable_read_on_both_sides_refuses_the_cut() {
 
 // ------------------------------------------------------ the fresh table
 
-fn point(position: [Formula; 3], fresh: Vec<VarDecl>) -> DocEdit<ProfileProgram> {
+/// A full ring of major radius `major` and minor radius `minor`: a
+/// node of two length slots that reads no other node.
+fn ring(major: Formula, minor: Formula) -> editor_core::AuthoredNode {
+    Node::Tube {
+        major_radius: major,
+        window: editor_core::TubeWindow::Full,
+        minor_radius: minor,
+    }
+}
+
+fn ring_edit(major: Formula, minor: Formula, fresh: Vec<VarDecl>) -> DocEdit<ProfileProgram> {
     DocEdit::InsertNode {
-        node: Box::new(Node::Datum(Datum::Point { position })),
+        node: Box::new(ring(major, minor)),
         fresh: fresh.into_iter().map(FreshEntry::from).collect(),
     }
 }
@@ -561,8 +564,8 @@ fn empty(seed: &str) -> ProfileDoc {
 #[test]
 fn a_read_of_an_entry_the_table_does_not_hold_refuses() {
     let doc = empty("intent-literals-c-unheld");
-    let edit = point(
-        [Formula::fresh(1, Dimension::Length), len(0.0), len(0.0)],
+    let edit = ring_edit(
+        Formula::fresh(1, Dimension::Length), len(0.1),
         vec![length(1.0)],
     );
     match try_step(&doc, edit) {
@@ -577,8 +580,8 @@ fn a_read_of_an_entry_the_table_does_not_hold_refuses() {
 #[test]
 fn a_read_of_an_entry_at_another_kind_refuses() {
     let doc = empty("intent-literals-c-kind");
-    let edit = point(
-        [Formula::fresh(0, Dimension::Length), len(0.0), len(0.0)],
+    let edit = ring_edit(
+        Formula::fresh(0, Dimension::Length), len(0.1),
         vec![VarDecl::Free(FreeVar::continuous(Dimension::Angle, 1.0))],
     );
     match try_step(&doc, edit) {
@@ -601,8 +604,8 @@ fn a_read_of_an_entry_at_another_kind_refuses() {
 #[test]
 fn an_entry_nothing_reads_refuses() {
     let doc = empty("intent-literals-c-unread-entry");
-    let edit = point(
-        [Formula::fresh(0, Dimension::Length), len(0.0), len(0.0)],
+    let edit = ring_edit(
+        Formula::fresh(0, Dimension::Length), len(0.1),
         vec![length(1.0), length(2.0)],
     );
     match try_step(&doc, edit) {
@@ -620,9 +623,7 @@ fn an_entry_two_slots_share_is_named() {
     let doc = empty("intent-literals-c-shared-entry");
     let fresh = || Formula::fresh(0, Dimension::Length);
     let edit = |entry: FreshEntry| DocEdit::InsertNode {
-        node: Box::new(Node::Datum(Datum::Point {
-            position: [fresh(), fresh(), len(0.0)],
-        })),
+        node: Box::new(ring(fresh(), fresh())),
         fresh: vec![entry],
     };
     match try_step(&doc, edit(length(0.5).into())) {
@@ -635,13 +636,13 @@ fn an_entry_two_slots_share_is_named() {
     let [entry] = applied.record.fresh[..] else {
         panic!("one entry minted: {:?}", applied.record.fresh)
     };
-    let node = applied.record.minted.expect("the point");
+    let node = applied.record.minted.expect("the ring");
     assert_eq!(applied.doc.var_name(entry), Some(&n("s")));
-    for axis in [editor_core::Axis3::X, editor_core::Axis3::Y] {
+    for slot in [SlotId::TubeMajorRadius, SlotId::TubeMinorRadius] {
         assert_eq!(
-            applied.doc.slot(node, SlotId::Origin(axis)),
+            applied.doc.slot(node, slot),
             Some(entry),
-            "{axis:?} reads the named entry"
+            "{slot:?} reads the named entry"
         );
     }
 }
@@ -655,9 +656,7 @@ fn an_entrys_name_is_unique() {
     let held = doc.var_named("s").expect("declared");
     let fresh = |i| Formula::fresh(i, Dimension::Length);
     let edit = |fresh_table| DocEdit::InsertNode {
-        node: Box::new(Node::Datum(Datum::Point {
-            position: [fresh(0), fresh(1), len(0.0)],
-        })),
+        node: Box::new(ring(fresh(0), fresh(1))),
         fresh: fresh_table,
     };
     match try_step(
@@ -692,9 +691,7 @@ fn an_entrys_name_is_unique() {
 fn a_named_entry_nothing_reads_refuses() {
     let doc = empty("intent-literals-c-unread-named-entry");
     let edit = DocEdit::InsertNode {
-        node: Box::new(Node::Datum(Datum::Point {
-            position: [Formula::fresh(0, Dimension::Length), len(0.0), len(0.0)],
-        })),
+        node: Box::new(ring(Formula::fresh(0, Dimension::Length), len(0.1))),
         fresh: vec![length(1.0).into(), FreshEntry::named(n("u"), length(2.0))],
     };
     match try_step(&doc, edit) {
@@ -715,19 +712,19 @@ fn an_entry_reads_the_entries_before_it() {
     .unwrap();
     let applied = step(
         &doc,
-        point(
-            [Formula::fresh(1, Dimension::Length), len(0.0), len(0.0)],
+        ring_edit(
+            Formula::fresh(1, Dimension::Length), len(0.1),
             vec![length(0.5), VarDecl::defined(twice)],
         ),
     );
     let [base, double] = applied.record.fresh[..] else {
         panic!("two entries minted: {:?}", applied.record.fresh)
     };
-    let point = applied.record.minted.expect("the point");
+    let point = applied.record.minted.expect("the ring");
     assert_eq!(
         applied
             .doc
-            .slot(point, SlotId::Origin(editor_core::Axis3::X)),
+            .slot(point, SlotId::TubeMajorRadius),
         Some(double)
     );
     let definition = applied
@@ -758,7 +755,7 @@ fn retimes(node: RecipeNodeId) -> DocEdit<ProfileProgram> {
     DocEdit::SetExpression {
         path: editor_core::ExprPath {
             node,
-            slot: SlotId::Origin(editor_core::Axis3::X),
+            slot: SlotId::TubeMajorRadius,
             path: vec![1],
         },
         expr: Formula::ratio(3, 1).unwrap(),
@@ -775,9 +772,9 @@ fn retimes(node: RecipeNodeId) -> DocEdit<ProfileProgram> {
 fn an_edit_at_a_path_keeps_its_anonymous_read() {
     let doc = empty("intent-literals-c-path-shared");
     let twice = Formula::mul(len(0.5), Formula::ratio(2, 1).unwrap()).unwrap();
-    let applied = step(&doc, point([twice, len(0.0), len(0.0)], Vec::new()));
-    let b = applied.record.minted.expect("the point");
-    let x = SlotId::Origin(editor_core::Axis3::X);
+    let applied = step(&doc, ring_edit(twice, len(0.1), Vec::new()));
+    let b = applied.record.minted.expect("the ring");
+    let x = SlotId::TubeMajorRadius;
     let before = applied.doc.slot(b, x).expect("b reads its x");
     let [v] = reads_of(&applied.doc, before)[..] else {
         panic!("the definition reads its one written quantity")
@@ -823,15 +820,15 @@ fn an_edit_at_a_path_keeps_a_fresh_entrys_read() {
             .with_distribution(Some(Distribution::Normal { sigma: 0.001 }))
             .expect("a length takes a normal"),
     );
-    let applied = step(&doc, point([twice, len(0.0), len(0.0)], vec![spread]));
-    let node = applied.record.minted.expect("the point");
+    let applied = step(&doc, ring_edit(twice, len(0.1), vec![spread]));
+    let node = applied.record.minted.expect("the ring");
     let [entry] = applied.record.fresh[..] else {
         panic!("one entry minted: {:?}", applied.record.fresh)
     };
     let edited = step(&applied.doc, retimes(node));
     let after = edited
         .doc
-        .slot(node, SlotId::Origin(editor_core::Axis3::X))
+        .slot(node, SlotId::TubeMajorRadius)
         .expect("x");
     assert_eq!(reads_of(&edited.doc, after), vec![entry]);
     assert_eq!(
@@ -851,14 +848,12 @@ fn the_load_door_reads_every_slots_variable() {
     let doc = empty("intent-literals-c-load");
     let (doc, point) = insert(
         doc,
-        Node::Datum(Datum::Point {
-            position: [len(1.0), len(0.0), len(0.0)],
-        }),
+        ring(len(1.0), len(0.1)),
     );
     let doc = declare(&doc, "n", VarDecl::Free(FreeVar::Count { value: 3 }));
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let at = |wire: &mut serde_json::Value, var: VarId| {
-        wire["snapshot"]["nodes"][point.0.to_string()]["Datum"]["Point"]["position"][1] =
+        wire["snapshot"]["nodes"][point.0.to_string()]["Tube"]["minor_radius"] =
             serde_json::json!(var);
     };
     let unminted = crate::wire::doctored(&text, |wire| at(wire, VarId::new(0, 1)));
@@ -881,7 +876,7 @@ fn the_load_door_reads_every_slots_variable() {
             (node.id(), slot, declared, referenced),
             (
                 point,
-                SlotId::Origin(editor_core::Axis3::Y),
+                SlotId::TubeMinorRadius,
                 editor_core::VarKind::Count,
                 editor_core::VarKind::Length
             )
@@ -895,7 +890,6 @@ fn the_load_door_reads_every_slots_variable() {
         empty("intent-literals-c-load-count"),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let (doc, pattern) = insert(
@@ -1074,7 +1068,7 @@ fn a_toleranced_variable_is_an_axis_and_a_symbol_named_or_anonymous() {
 
 /// The stackup's entries and the Monte Carlo draws list only the
 /// toleranced variables: a measure reading a toleranced `w` and an
-/// untoleranced `v`, beside a point at three typed lengths, has one
+/// untoleranced `v`, beside a ring at two typed lengths, has one
 /// entry and one draw, `w`'s. Breaks if an untoleranced variable is an axis again.
 #[test]
 fn stackup_and_monte_carlo_list_only_toleranced_variables() {
@@ -1104,12 +1098,12 @@ fn stackup_and_monte_carlo_list_only_toleranced_variables() {
     .doc;
     let measure = doc.var_named("m").expect("declared");
     // Typed lengths at slot roots: anonymous free variables, untoleranced.
-    let doc = step(&doc, point([len(0.25), len(0.5), len(0.75)], Vec::new())).doc;
+    let doc = step(&doc, ring_edit(len(0.25), len(0.5), Vec::new())).doc;
     let w = doc.var_named("w").unwrap();
     assert_eq!(
         crate::fixture::continuous_vars(&doc),
-        6,
-        "the premise: w, v, m's typed 5 mm and the point's three typed lengths"
+        5,
+        "the premise: w, v, m's typed 5 mm and the ring's two typed lengths"
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     assert_eq!(
@@ -1136,7 +1130,7 @@ fn stackup_and_monte_carlo_list_only_toleranced_variables() {
 
 // ------------------------------------- re-inserting as written (r1 m2)
 
-/// **What a written re-insert would not reproduce is named**: a point
+/// **What a written re-insert would not reproduce is named**: a ring
 /// whose x is `e + e`, one formula reading one toleranced fresh entry
 /// twice, is, re-inserted from `Node::written`, two untoleranced
 /// variables under new ids, so the document names that entry, and
@@ -1153,15 +1147,15 @@ fn a_twice_read_or_toleranced_anonymous_variable_is_not_rewritten() {
     );
     let fresh = || Formula::fresh(0, Dimension::Length);
     let doubled = Formula::add(fresh(), fresh()).unwrap();
-    let applied = step(&doc, point([doubled, len(0.0), len(0.0)], vec![spread]));
+    let applied = step(&doc, ring_edit(doubled, len(0.1), vec![spread]));
     let [entry] = applied.record.fresh[..] else {
         panic!("one entry: {:?}", applied.record.fresh)
     };
-    let shared = applied.record.minted.expect("the point");
+    let shared = applied.record.minted.expect("the ring");
     assert_eq!(applied.doc.written_would_not_reproduce(), vec![entry]);
     let lone = step(
         &empty("intent-literals-c-written-lone"),
-        point([len(0.5), len(0.0), len(0.0)], Vec::new()),
+        ring_edit(len(0.5), len(0.1), Vec::new()),
     );
     assert_eq!(lone.doc.written_would_not_reproduce(), Vec::new());
     let node = applied.doc.node(shared).expect("held").clone();

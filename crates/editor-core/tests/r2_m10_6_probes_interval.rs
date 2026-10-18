@@ -65,7 +65,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Tol};
 
-use fixture::{Recorder, ang, len, scl};
+use fixture::{Recorder, len};
 
 /// The clearance engine has no lane at the symbolic identity tier
 /// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
@@ -164,18 +164,19 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         profile: profile.into(),
         distance: len(2.0),
     });
-    let placed = r.insert(Node::transform(
-        solid,
-        editor_core::Step::Rigid {
-            translation: [
-                Formula::named(name("place"), Dimension::Length),
-                len(0.0),
-                len(0.0),
-            ],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
+    // A copy of the block slid along its own x by `place`.
+    let placed = r.against(solid, solid, &editor_core::Frame::IDENTITY);
+    let slide_x = fixture::value_slot(
+        &r.doc,
+        placed,
+        editor_core::Coord::Slide(editor_core::SlideAxis::X),
+    );
+    r.push(DocEdit::SetParam {
+        node: placed,
+        slot: slide_x,
+        value: Formula::named(name("place"), Dimension::Length).into(),
+        fresh: Vec::new(),
+    });
     // The two facing walls of the unit square: their distance is 1.0.
     let measured = r.measure(
         &[MeasurePrimitive::Distance { a: 0, b: 1 }],

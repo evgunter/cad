@@ -40,12 +40,12 @@ use crate::fixture;
 
 use corpus::{body_of, eval, failures};
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, FreeVar,
+    CancelToken, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeVar,
     LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, SlotId, StepArg, VarName, evaluate, persist,
 };
 use fixture::digest::digest;
-use fixture::{ang, frame, insert, len, revolve_about, scl, square, step, tol, xy_frame};
+use fixture::{ang, insert, len, revolve_about, scl, square, step, tol};
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use topo::{Body, FaceKey};
 
@@ -77,14 +77,10 @@ fn doc_with_r(name: &'static str) -> ProfileDoc {
     .0
 }
 
-/// A frame at `z` and a circle of radius `radius` drawn on it —
-/// returns the doc, the frame node and the profile node.
-fn circle_on_frame(
-    doc: ProfileDoc,
-    z: f64,
-    radius: Formula,
-) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+/// A cylinder about `z` of radius `radius`, `z ∈ [0, 2H]` in its own
+/// coordinates — the document spelling of the germ fixture's `cyl`,
+/// which a placement slides down `H`.
+fn cylinder(doc: ProfileDoc, radius: Formula) -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -95,13 +91,6 @@ fn circle_on_frame(
             ids: Vec::new(),
         }),
     );
-    (doc, plane, profile)
-}
-
-/// A cylinder about `z` of radius `radius`, `z ∈ [−H, H]` — the
-/// document spelling of the germ fixture's `cyl`.
-fn cylinder(doc: ProfileDoc, radius: Formula) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, _, profile) = circle_on_frame(doc, -H, radius);
     insert(
         doc,
         Node::Extrude {
@@ -111,24 +100,9 @@ fn cylinder(doc: ProfileDoc, radius: Formula) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-/// A rigid rotation of `input` about the origin.
-fn spin(
-    doc: ProfileDoc,
-    input: RecipeNodeId,
-    axis: [f64; 3],
-    angle: f64,
-) -> (ProfileDoc, RecipeNodeId) {
-    insert(
-        doc,
-        Node::transform(
-            input,
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: axis.map(scl),
-                angle: ang(angle),
-            },
-        ),
-    )
+/// A rotation about `axis` through the origin by `angle`.
+fn turn(axis: [f64; 3], angle: f64) -> Frame {
+    Frame::rotate_then_translate(axis, angle, [0.0; 3], fixture::band()).expect("a literal axis")
 }
 
 // ------------------------------------------------------------------
@@ -414,14 +388,12 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
 // 2. The profile's radius, at the walls and in the key
 // ------------------------------------------------------------------
 
-/// A profile of `loops` on a frame at `z`, extruded — returns the doc,
-/// the profile node and the swept body node.
+/// A profile of `loops`, extruded — returns the doc, the profile node
+/// and the swept body node.
 fn extruded(
     doc: ProfileDoc,
-    z: f64,
     loops: Vec<LoopProgram<Formula>>,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    // D-FRAME: let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -576,8 +548,8 @@ fn memo_eval(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> 
 #[test]
 fn the_memo_never_serves_a_sweep_a_stale_spelling() {
     let doc = doc_with_r("seat7-memo");
-    let (doc, profile_a, a) = extruded(doc, -H, vec![circle_loop(param("r"))]);
-    let (doc, _, b) = extruded(doc, 10.0, vec![circle_loop(param("r"))]);
+    let (doc, profile_a, a) = extruded(doc, vec![circle_loop(param("r"))]);
+    let (doc, _, b) = extruded(doc, vec![circle_loop(param("r"))]);
     let ev1 = memo_eval(&doc, None);
     assert!(failures(&ev1).is_empty(), "{:?}", failures(&ev1));
 
@@ -719,8 +691,8 @@ fn key_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> editor_core::ContentKey {
 #[test]
 fn a_chain_arcs_radius_spelling_moves_the_profiles_key() {
     let doc = doc_with_r("seat7-chain-arc");
-    let (doc, profile_a, a) = extruded(doc, -H, vec![one_arc_chain(param("r"))]);
-    let (doc, _, peg) = extruded(doc, 10.0, vec![circle_loop(param("r"))]);
+    let (doc, profile_a, a) = extruded(doc, vec![one_arc_chain(param("r"))]);
+    let (doc, _, peg) = extruded(doc, vec![circle_loop(param("r"))]);
     let ev1 = memo_eval(&doc, None);
     assert!(failures(&ev1).is_empty(), "{:?}", failures(&ev1));
     let walls = cylinder_walls(body_of(&ev1, a));
@@ -806,7 +778,7 @@ fn assert_two_arcs_at_their_own_radii(
         },
     );
     let (doc, profile_node, chain) =
-        extruded(doc, -H, vec![two_arc_chain(param("r"), param("q"), side)]);
+        extruded(doc, vec![two_arc_chain(param("r"), param("q"), side)]);
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
     assert!(
@@ -916,11 +888,20 @@ fn one_declared_radius_decides_equal_radii_at_the_germ_as_its_kernel_twin_does()
     let doc = doc_with_r("seat7-germ");
     let (doc, a) = cylinder(doc, param("r"));
     let (doc, b) = cylinder(doc, param("r"));
-    // B's axis becomes +y; then each is spun about its own axis to take
-    // the seams off the nodes.
-    let (doc, b) = spin(doc, b, [1.0, 0.0, 0.0], PI / 2.0);
-    let (doc, a) = spin(doc, a, [0.0, 0.0, 1.0], PHI);
-    let (doc, b) = spin(doc, b, [0.0, 1.0, 0.0], PHI);
+    // Each copy placed in A's coordinates, centred on the origin: B's
+    // axis becomes +y; then each is spun about its own axis to take the
+    // seams off the nodes.
+    let down = Frame::translation([0.0, 0.0, -H]);
+    let (doc, a_copy) = fixture::against(doc, a, a, &turn([0.0, 0.0, 1.0], PHI).compose(&down));
+    let (doc, b) = fixture::against(
+        doc,
+        a,
+        b,
+        &turn([0.0, 1.0, 0.0], PHI)
+            .compose(&turn([1.0, 0.0, 0.0], PI / 2.0))
+            .compose(&down),
+    );
+    let a = a_copy;
     let (doc, union) = insert(
         doc,
         Node::Union {

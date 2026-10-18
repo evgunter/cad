@@ -246,8 +246,6 @@ fn plate_spaced(
         name: name("depth"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 0.1, depth)),
     });
-    // One frame, named by every profile below: two sketches meant to
-    // share a plane bind the same id.
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![
             LoopProgram::polygon([(-1.0, -0.5), (1.0, -0.5), (1.0, 0.5), (-1.0, 0.5)])
@@ -273,6 +271,8 @@ fn plate_spaced(
             distance: len(0.1),
         }));
     }
+    // The second hole joins the first's space where it stands.
+    holes[1] = r.against(holes[0], holes[1], &editor_core::Frame::IDENTITY);
     // The wall names come from the selection door, the way a user gets
     // them: evaluate what is built so far, ask each hole for its
     // cylindrical faces, read at the extrude that owns them.
@@ -329,8 +329,6 @@ fn kink(dist: Distribution) -> (ProfileDoc, VarId) {
         name: name("t"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, Some(dist))),
     });
-    // One frame, named by every profile below: two sketches meant to
-    // share a plane bind the same id.
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
@@ -342,14 +340,12 @@ fn kink(dist: Distribution) -> (ProfileDoc, VarId) {
         profile: p.into(),
         distance: len(1.0),
     });
-    let copy = r.insert(Node::transform(
+    let copy = crate::m10_5_clearance_interval::slid_by(
+        &mut r,
         cube,
-        editor_core::Step::Rigid {
-            translation: [param("t", Dimension::Length), len(0.0), len(0.0)],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
+        cube,
+        [param("t", Dimension::Length), len(0.0), len(0.0)],
+    );
     let ev = eval(&r.doc);
     let at = |node, x: f64| {
         editor_core::all_vertices(&ev, node)
@@ -377,8 +373,6 @@ fn slab(half: f64) -> (ProfileDoc, VarId) {
         name: name("depth"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, Some(uniform(half)))),
     });
-    // One frame, named by every profile below: two sketches meant to
-    // share a plane bind the same id.
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
@@ -1412,8 +1406,6 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
         name: name("r"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 0.2, Some(uniform(half)))),
     });
-    // One frame, named by the bore and the pin alike: they are drawn
-    // on the same plane, so they bind the same id.
     let bore_p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
@@ -1436,6 +1428,8 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
         profile: pin_p.into(),
         distance: len(1.0),
     });
+    // The pin joins the bore's space where it stands.
+    let pin = r.against(bore, pin, &editor_core::Frame::IDENTITY);
     let ev = eval(&r.doc);
     let refs = vec![cyl_wall(&ev, &r.doc, bore), cyl_wall(&ev, &r.doc, pin)];
     let measured = r.measure(&[MeasurePrimitive::Gap { outer: 0, inner: 1 }], &refs);
@@ -1533,16 +1527,9 @@ fn a_loft_section_seed_rides_the_section_to_the_measure() {
         name: name("w"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 2.0, Some(uniform(half)))),
     });
-    // A frame per section height: the sections are drawn on DIFFERENT
-    // planes, so they are different nodes.
-    let frame_at = |r: &mut Recorder, z: f64| {
-        r.insert(fixture::frame(
-            [0.0, 0.0, z],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-        ))
-    };
-    let section = |plane| {
+    // Each section drawn on its own plane; the second's station slides
+    // it up the first's z.
+    let section = || {
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::Chain(vec![
                 editor_core::ProgramStep::At([len(0.0), len(0.0)]),
@@ -1563,12 +1550,17 @@ fn a_loft_section_seed_rides_the_section_to_the_measure() {
             ids: Vec::new(),
         })
     };
-    let f0 = frame_at(&mut r, 0.0);
-    let p0 = r.insert(section(f0.into()));
-    let f1 = frame_at(&mut r, 1.0);
-    let p1 = r.insert(section(f1.into()));
+    let p0 = r.insert(section());
+    let p1 = r.insert(section());
     let loft = r.insert(Node::Loft {
-        profiles: vec![p0.into(), p1.into()],
+        first: p0.into(),
+        then: vec![editor_core::LoftSection {
+            profile: p1.into(),
+            station: vec![editor_core::StationMove::Slide {
+                along: editor_core::Axis3::Z,
+                by: len(1.0),
+            }],
+        }],
         v_degree: Formula::count(1),
     });
     let ev = eval(&r.doc);

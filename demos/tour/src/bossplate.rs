@@ -20,7 +20,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::document::ExtrudeSide;
+use pncad::sweep::ExtrudeSide;
 use std::collections::HashMap;
 
 use pncad::authoring::{p2, polygon, v3, validated};

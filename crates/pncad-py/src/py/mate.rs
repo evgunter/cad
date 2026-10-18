@@ -468,11 +468,12 @@ impl MateValue {
 
 /// **What the "place part" gesture wrote** (`Doc.place_at`): the
 /// placement, its mate and its values, and how the copy was placed —
-/// `by == "planar_face"`, a plane mate on the copy's first planar face
-/// to the world plane it lies in at the pose, and the three values
-/// (slides along `x` and `y`, and the spin) that put it there; or
-/// `by == "pin"`, a copy with no planar face pinned over a frame read
-/// off its geometry, with no freedom left to set.
+/// `by == "planar_face"`, a plane mate on a planar face of the copy to
+/// the plane it lies in at the pose, and the three values (slides
+/// along `x` and `y`, and the spin) that put it there; `by == "axis"`,
+/// an axis mate on a full revolve's or ring's own axis and its two
+/// values; or `by == "pin"`, a copy with no planar face pinned over a
+/// frame read off its geometry, with no freedom left to set.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Placed {
@@ -496,14 +497,14 @@ impl Placed {
         self.mate
     }
 
-    /// The values' addresses: slide `x`, slide `y`, spin; empty for a
-    /// pin.
+    /// The values' addresses: slide `x`, slide `y`, spin for a planar
+    /// face; the axis mate's two for an axis; empty for a pin.
     #[getter]
     fn values(&self) -> Vec<MateRef> {
         self.values.clone()
     }
 
-    /// `"planar_face"` or `"pin"`.
+    /// `"planar_face"`, `"axis"` or `"pin"`.
     #[getter]
     fn by(&self) -> &'static str {
         placed_by_tag(self.by)
@@ -1370,29 +1371,12 @@ impl Maintenance {
     }
 }
 
-/// **A world pin** (stage 3 C's named interim): the copy placed where
-/// its body stands, the identity of the world's coordinates, with no
-/// read and no number. It stands alone in its bundle.
-/// `DocEdit.pin_where_it_stands` writes one; `Doc.place(shapes)` with
-/// neither `constraints` nor `pose` places by one.
-#[pyclass(frozen, module = "pncad", eq, hash, skip_from_py_object)]
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub(crate) struct WorldPin;
-
-#[pymethods]
-impl WorldPin {
-    fn __repr__(&self) -> &'static str {
-        "WorldPin()"
-    }
-}
-
 /// Register the mate surface on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MateSide>()?;
     m.add_class::<WorldRead>()?;
     m.add_class::<Coord>()?;
     m.add_class::<MateValue>()?;
-    m.add_class::<WorldPin>()?;
     m.add_class::<Placed>()?;
     m.add_class::<ConstraintId>()?;
     m.add_class::<MateRef>()?;

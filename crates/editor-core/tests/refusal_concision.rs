@@ -9,7 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::eval;
-use crate::fixture::{Recorder, ang, frame, len, revolve_about};
+use crate::fixture::{Recorder, ang, len, revolve_about};
 
 use editor_core::{LoopProgram, Node, NodeResult, ProfileProgram};
 
@@ -31,7 +31,6 @@ fn cone_block_union_refusal() -> String {
         crate::fixture::along_y(),
         ang(std::f64::consts::TAU),
     ));
-    // D-FRAME: let block_plane = r.insert(frame([0.0, 0.0, -0.25], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let block_p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![
             LoopProgram::polygon([(0.5, 0.4), (1.5, 0.4), (1.5, 0.6), (0.5, 0.6)]).unwrap(),
@@ -42,9 +41,16 @@ fn cone_block_union_refusal() -> String {
         profile: block_p.into(),
         distance: len(0.5),
     });
+    // Both in the world, the block straddling the cone's z = 0 meridian
+    // plane: z ∈ [-0.25, 0.25].
+    let cone = r.in_world(cone, &editor_core::Frame::IDENTITY);
+    let block = r.in_world(
+        block,
+        &editor_core::Frame::translation([0.0, 0.0, -0.25]),
+    );
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![
-            editor_core::Operand::output(cone, 0).into(),
+            cone.into(),
             block.into(),
         ]),
     });

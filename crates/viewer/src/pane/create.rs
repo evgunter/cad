@@ -2728,7 +2728,7 @@ mod creation_nouns {
 
     use super::{EXTRUDE_NOUN, INSTANCE_NOUN, PROFILE_NOUN};
     use crate::session::{DocSession, ProfilePlane, SessionOp};
-    use crate::test_support::{framed_square, len};
+    use crate::test_support::{square_profile, len};
 
     /// The node `op` made on `session` ([`crate::world::made`]), by its
     /// kind noun.
@@ -2743,7 +2743,7 @@ mod creation_nouns {
     fn the_profile_and_extrude_forms_nouns_are_their_nodes_kinds() {
         let tol = Tol::witness();
         let doc: Doc<ProfileProgram> = Doc::empty_derived("creation-nouns", tol);
-        let (doc, profile) = framed_square(&doc, 0.02, tol);
+        let (doc, profile) = square_profile(&doc, 0.02, tol);
         let mut session = DocSession::inline(doc, tol);
         let extrude = SessionOp::AddExtrude {
             profile,

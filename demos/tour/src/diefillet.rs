@@ -44,11 +44,10 @@
 // is exactly the shape a GUI form has, where the draft is canonical
 // whatever the picker shows.
 
-use pncad::document::ExtrudeSide;
-use pncad::document::{Bodies, BooleanValue, RefusingReach, save};
+use pncad::document::{Bodies, BooleanValue, Frame, Operand, RefusingReach, save};
 use pncad::prelude::AuthoredNode;
 use pncad::prelude::{
-    CancelToken, CurveKind, CurveKindSet, DEG, Datum, Dimension, Doc, DocEdit, EntityKind,
+    CancelToken, CurveKind, CurveKindSet, DEG, Dimension, Doc, DocEdit, EntityKind,
     EvalOptions, Evaluation, Formula, GeomPred, LoopProgram, MM, NamePat, Node, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SurfaceKind,
     SurfaceKindSet, ValuePayload, WrittenLength, all_edges, apply, evaluate, select_where,
@@ -57,7 +56,7 @@ use pncad::topo::Body;
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::geom_core::Tol;
+use pncad::geom_core::{Band, Tol};
 
 /// The die's side, shared by both dice (`diechamfer` closes its volume
 /// form over it).
@@ -101,14 +100,13 @@ fn layout(n: u32) -> Vec<(f64, f64)> {
 }
 
 /// One pip's placement: where its centre goes, and the EXACT rotation
-/// carrying the master ball's `+Z` pole onto the face normal it is cut
-/// by (the chart discipline the plane×sphere section needs).
+/// carrying the ball's pole (once [`POLE_UP`] stands it along `+Z`)
+/// onto the face normal it is cut by (the chart discipline the
+/// plane×sphere section needs).
 ///
 /// The six rotations are AUTHORED, one per face, rather than derived
-/// by a runtime `cross`/`acos` branch: `Node::Transform` is one
-/// unconditional fused `(R, t)` pass, so the placement wants to be
-/// data. Every angle here is `0`, `±π/2` or `π` about a coordinate
-/// axis — the same six placements the runtime branch used to compute.
+/// by a runtime `cross`/`acos` branch, so the placement is data. Every
+/// angle here is `0`, `±π/2` or `π` about a coordinate axis.
 struct Placement {
     centre: [f64; 3],
     axis: [f64; 3],
@@ -116,6 +114,14 @@ struct Placement {
     /// the unit the face table states and the recipe records.
     angle: f64,
 }
+
+/// The ball's own frame stood with its pole up: the meridian is drawn
+/// on the ball's own `xy` with the pole along its `y`, so its `x` stays
+/// `+X`, its `y` goes to `+Z` and its normal to `−Y`.
+const POLE_UP: Frame = Frame {
+    columns: [[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]],
+    translation: [0.0; 3],
+};
 
 const X: [f64; 3] = [1.0, 0.0, 0.0];
 const Y: [f64; 3] = [0.0, 1.0, 0.0];
@@ -178,6 +184,8 @@ fn half_disc() -> LoopProgram<Formula> {
 /// The die's recipe, and the three nodes the three stops read.
 struct Die {
     doc: Doc<ProfileProgram>,
+    /// Every edit `build` applied, in order.
+    log: Vec<DocEdit<ProfileProgram>>,
     blank: RecipeNodeId,
     pipped: RecipeNodeId,
     composed: RecipeNodeId,
@@ -191,19 +199,39 @@ fn eval(doc: &Doc<ProfileProgram>, tol: Tol) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol)
 }
 
-fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
-    let applied = apply(
-        doc,
-        &DocEdit::InsertNode {
+/// A document being authored, and every edit applied to it in order:
+/// the log [`corpus_text`] exports.
+struct Author {
+    doc: Doc<ProfileProgram>,
+    log: Vec<DocEdit<ProfileProgram>>,
+}
+
+impl Author {
+    fn new(label: &str, tol: Tol) -> Self {
+        Self {
+            doc: Doc::empty_derived(label, tol),
+            log: Vec::new(),
+        }
+    }
+
+    fn insert(&mut self, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
+        let edit = DocEdit::InsertNode {
             node: Box::new(node),
             fresh: Vec::new(),
-        },
-        tol,
-        &RefusingReach,
-    )
-    .expect("the edit applies");
-    *doc = applied.doc;
-    applied.record.minted.expect("insert mints an id")
+        };
+        let applied = apply(&self.doc, &edit, tol, &RefusingReach).expect("the edit applies");
+        self.doc = applied.doc;
+        self.log.push(edit);
+        applied.record.minted.expect("insert mints an id")
+    }
+
+    /// A placement's edits, applied by [`crate::world`], taken into
+    /// the log; returns the placement.
+    fn placed(&mut self, placed: crate::world::Placed) -> RecipeNodeId {
+        self.doc = placed.doc;
+        self.log.extend(placed.edits);
+        placed.placement
+    }
 }
 
 /// **The die's SOURCE SOLID**, as recipe nodes: the sharp cube, and
@@ -211,27 +239,16 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
 /// which is the stage BOTH dice start from, this scene's filleted one
 /// and `diechamfer`'s chamfered one — so the two panels differ in the
 /// verb and in nothing else.
-fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
+fn cube_node(a: &mut Author, tol: Tol) -> RecipeNodeId {
     // ---- the sharp cube, [0, L]³ ----
-    let cube_plane = insert(
-        doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-        tol,
-    );
-    let cube_p = insert(
-        doc,
+    let cube_p = a.insert(
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap()],
             ids: Vec::new(),
         }),
         tol,
     );
-    insert(
-        doc,
+    a.insert(
         Node::Extrude {
             profile: cube_p.into(),
             distance: len(L),
@@ -242,34 +259,19 @@ fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
 
 /// The 21 pips, cut from `cube` in one certified group operation —
 /// the second half of the shared source solid.
-fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> RecipeNodeId {
-    // ---- the master ball, poled along +Z ----
-    // u = +X, v = +Z: the sketch's revolve axis lands on the world +Z
-    // axis, which is the pole `placements` rotates.
-    let ball_plane = insert(
-        doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-        tol,
-    );
-    let ball_p = insert(
-        doc,
+fn pipped_node(a: &mut Author, cube: RecipeNodeId, tol: Tol) -> RecipeNodeId {
+    // ---- the master ball, poled along its own +y ----
+    let ball_p = a.insert(
         Node::Profile(ProfileProgram {
             loops: vec![half_disc()],
             ids: Vec::new(),
         }),
         tol,
     );
-    let ball = insert(
-        doc,
+    let ball = a.insert(
         Node::Revolve {
             profile: ball_p.into(),
-            // The pole axis, in the meridian frame's own coordinates:
-            // that frame's v IS world +Z, so the axis is its +y through
-            // (0, 0).
+            // The pole axis: the meridian's own +y through (0, 0).
             axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             // A full turn, in the degrees this document is written in.
@@ -294,32 +296,24 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
     // face is served through the sphere chart's own [azimuth] ×
     // [latitude] window, and the closed-group certificate is asked only
     // where it is used.
+    let band = Band::linear(tol).expect("the witnessed band");
     let members: Vec<RecipeNodeId> = placements()
         .into_iter()
         .map(|p| {
-            insert(
-                doc,
-                Node::transform(
-                    pncad::document::Operand::output(ball, 0),
-                    pncad::document::Step::Rigid {
-                        translation: p.centre.map(len),
-                        axis: p.axis.map(scl),
-                        angle: ang(p.angle),
-                    },
-                ),
-                tol,
-            )
+            let at = Frame::rotate_then_translate(p.axis, p.angle.to_radians(), p.centre, band)
+                .expect("a coordinate axis has a direction")
+                .compose(&POLE_UP);
+            let placed = crate::world::against(&a.doc, cube, Operand::output(ball, 0), &at, tol);
+            a.placed(placed)
         })
         .collect();
-    let tool = insert(
-        doc,
+    let tool = a.insert(
         Node::Union {
             members: Bodies::Spelled(members.into_iter().map(Into::into).collect()),
         },
         tol,
     );
-    insert(
-        doc,
+    a.insert(
         Node::Subtract {
             from: cube.into(),
             tool: tool.into(),
@@ -338,10 +332,10 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
 /// about an absent node.) What it can share is the model above the
 /// blends, and this is that door.
 pub fn source_bodies(tol: Tol) -> (Body<f64>, Body<f64>) {
-    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("die-source", tol);
-    let cube = cube_node(&mut doc, tol);
-    let pipped = pipped_node(&mut doc, cube, tol);
-    let ev = eval(&doc, tol);
+    let mut a = Author::new("die-source", tol);
+    let cube = cube_node(&mut a, tol);
+    let pipped = pipped_node(&mut a, cube, tol);
+    let ev = eval(&a.doc, tol);
     (body_at(&ev, cube), body_at(&ev, pipped))
 }
 
@@ -354,18 +348,18 @@ pub fn source_bodies(tol: Tol) -> (Body<f64>, Body<f64>) {
 /// grow under an upstream change, which is the staleness the freeze
 /// exists to prevent (`pncad::select` module docs).
 fn build(tol: Tol) -> Die {
-    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("die", tol);
+    let mut a = Author::new(DOC_LABEL, tol);
     // Every geometric selection in this file runs over EDGES.
     let edges = Selector::of(NamePat::of_kind(EntityKind::Edge));
 
-    let cube = cube_node(&mut doc, tol);
+    let cube = cube_node(&mut a, tol);
 
     // ---- the blank: EVERY edge of the cube, at one radius ----
     // No predicate needed — "all of them" has its own door.
-    let all_twelve = all_edges(&eval(&doc, tol), cube);
-    let blank = insert(&mut doc, Node::fillet(cube, len(R), all_twelve), tol);
+    let all_twelve = all_edges(&eval(&a.doc, tol), cube);
+    let blank = a.insert(Node::fillet(cube, len(R), all_twelve), tol);
 
-    let pipped = pipped_node(&mut doc, cube, tol);
+    let pipped = pipped_node(&mut a, cube, tol);
 
     // ---- the surgery, both blends selected GEOMETRICALLY ----
     //
@@ -373,13 +367,13 @@ fn build(tol: Tol) -> Die {
     // CALLS (SELECT-DESIGN §§1-2). Both atoms are EXACT — they read the
     // carrier's enum tag — so they are total: no funnel, no margin, and
     // `expect` here is a statement about the atoms, not optimism.
-    let params = doc.var_env::<f64>();
+    let params = a.doc.var_env::<f64>();
 
     // The twelve box edges: the only LINES in the pipped cube. Every
     // pip cavity contributes circles (two rim arcs, two meridian
     // seams), so the carrier tag alone separates them.
     let box_edges = select_where(
-        &eval(&doc, tol),
+        &eval(&a.doc, tol),
         pipped,
         &edges,
         &[GeomPred::CurveKind(CurveKindSet::just(CurveKind::Line))],
@@ -387,8 +381,7 @@ fn build(tol: Tol) -> Die {
         tol,
     )
     .expect("EXACT atoms are total");
-    let blanked = insert(
-        &mut doc,
+    let blanked = a.insert(
         Node::fillet(pipped, len(R), box_edges.clone()),
         tol,
     );
@@ -402,7 +395,7 @@ fn build(tol: Tol) -> Die {
     // surface have no dihedral wedge to roll a ball into. The
     // exclusion is by DESCRIPTION, not by a hand-maintained omission.
     let rims = select_where(
-        &eval(&doc, tol),
+        &eval(&a.doc, tol),
         blanked,
         &edges,
         &[GeomPred::AdjacentKinds(
@@ -413,14 +406,14 @@ fn build(tol: Tol) -> Die {
         tol,
     )
     .expect("EXACT atoms are total");
-    let composed = insert(
-        &mut doc,
+    let composed = a.insert(
         Node::fillet(blanked, len(RIM_R), rims.clone()),
         tol,
     );
 
     Die {
-        doc,
+        doc: a.doc,
+        log: a.log,
         blank,
         pipped,
         composed,
@@ -468,83 +461,31 @@ const DOC_LABEL: &str = "die";
 /// consumer is a test corpus instead of a viewer: a corpus evaluates,
 /// gathers and round-trips its documents, and its product is the die.
 ///
-/// The log is DERIVED from the built document rather than recorded
-/// beside it, and the derivation is exact because [`build`] mints every
-/// node through one `InsertNode` against the empty document: ids are
-/// minted in insertion order, so replaying the built nodes and then
-/// the placement gesture's edits rebuilds the document — ids and all, and the
-/// profiles' step ids with them, minted afresh in the same order. That is asserted here rather than assumed: a `build` that
-/// grows a non-insert edit fails this door instead of quietly
-/// exporting a document that is not the one the scene renders.
+/// The log is the one [`build`] RECORDED as it applied each edit
+/// (every insert, and each pip placement's mate and values), so
+/// replaying it into the empty document mints the same ids in the same
+/// order; that the replay plus the world placement IS the published
+/// document is asserted here rather than assumed.
 pub fn corpus_text(tol: Tol) -> String {
     let die = build(tol);
-    // Re-inserting as written reproduces the document only where no
-    // anonymous variable is read twice by its formula or toleranced
-    // (`Node::written`'s precondition); the replay's ids, compared
-    // below, rule out a value edited after its insert.
-    assert_eq!(
-        die.doc.written_would_not_reproduce(),
-        Vec::new(),
-        "the die's anonymous variables are each read once and untoleranced"
-    );
     let empty: Doc<ProfileProgram> = Doc::empty_derived(DOC_LABEL, tol);
-    let mut edits: Vec<DocEdit<ProfileProgram>> = die
-        .doc
-        .ids()
-        .iter()
-        .map(|id| {
-            let mut node = die
-                .doc
-                .node(*id)
-                .expect("an ordered node exists")
-                .written(&die.doc);
-            // A program enters the document without step ids: the
-            // insert door mints them, in the same order it did here.
-            if let Node::Profile(program) = &mut node {
-                program.ids = Vec::new();
-            }
-            DocEdit::InsertNode {
-                node: Box::new(node),
-                fresh: Vec::new(),
-            }
-        })
-        .collect();
+    let mut edits = die.log;
     let mut replay = empty.clone();
     for edit in &edits {
         replay = apply(&replay, edit, tol, &RefusingReach)
-            .expect("the derived log replays")
+            .expect("the recorded log replays")
             .doc;
     }
-    // The placement is the "place part" gesture: its edits are applied
-    // against the replayed nodes, because its values name the mate by
-    // the id that mate's own edit mints.
+    // The world placement is the "place part" gesture: its edits are
+    // applied against the replayed document, because its values name
+    // the mate by the id that mate's own edit mints.
     let placed = crate::world::place_in_world(&replay, die.composed, tol);
     edits.extend(placed.edits);
     replay = placed.doc;
-    let published = gallery_document(tol);
     assert_eq!(
-        replay.ids(),
-        published.ids(),
-        "the replay re-mints every node id `build` minted, then the placement's"
-    );
-    // The ids were cleared on the strength of the insert door minting
-    // them again in the same order; that precondition is checked
-    // profile by profile, so a `build` that mints a step any other way
-    // fails here by name.
-    for id in &die.doc.ids() {
-        if let (Some(Node::Profile(built)), Some(Node::Profile(replayed))) =
-            (die.doc.node(*id), replay.node(*id))
-        {
-            assert_eq!(
-                built.ids, replayed.ids,
-                "profile node {} re-mints its step ids exactly as `build` minted them",
-                id
-            );
-        }
-    }
-    assert_eq!(
-        replay, published,
-        "the derived log must reproduce the document this scene publishes"
+        replay,
+        gallery_document(tol),
+        "the recorded log must reproduce the document this scene publishes"
     );
     save(&empty, &edits, tol).expect("the die document saves")
 }

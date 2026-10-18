@@ -23,7 +23,7 @@ use editor_core::{
     Target, VarName, WorldRead, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, head, insert, len, on_frame, run, solve, step, xform};
+use fixture::{ang, head, insert, len, on_frame, run, solve, step};
 use geom_core::{Bounds, Interval, Tol};
 use topo::Body;
 
@@ -331,8 +331,10 @@ fn a_seat_under_a_parametric_world_pin_poses_as_composed() {
         Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.3, [1.0, 2.0, 0.0], band()).unwrap();
     let (doc, base) = pinned_lifted(doc, p.base, 2, 0.25, &gin_frame.compose(&off_frame), &o);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
-    // A transform over the pinned base, reading its world copy.
-    let (doc, tp) = insert(doc, xform(base, [0.0, 0.0, 4.0], [1.0, 0.0, 0.0], 0.5));
+    // A copy placed against the pinned base, reading its world copy.
+    let moved_at =
+        Frame::rotate_then_translate([1.0, 0.0, 0.0], 0.5, [0.0, 0.0, 4.0], band()).unwrap();
+    let (doc, tp) = crate::p2_gauges::copy_against(doc, base, &moved_at, &o);
     let (doc, mate) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
 
     let part_base = run(&p.base_doc, &EvalOptions::default());
@@ -350,7 +352,7 @@ fn a_seat_under_a_parametric_world_pin_poses_as_composed() {
         let w_base = mul(&g, &of_frame(&off_frame));
         let t_p = rigid([0.0, 0.0, 4.0], [1.0, 0.0, 0.0], 0.5);
         let w_top = mul(&w_base, &rel);
-        (w_base, mul(&t_p, &w_base), w_top)
+        (w_base, mul(&w_base, &t_p), w_top)
     };
 
     for liftv in [2.0, 7.0] {
@@ -579,7 +581,7 @@ fn a_cut_of_a_pinned_instance_and_plain_geometry_moves_nothing() {
     let before_ids: std::collections::BTreeSet<RecipeNodeId> = doc.ids().iter().copied().collect();
     let (doc, prof) = on_frame(
         doc,
-        [50.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
@@ -591,7 +593,7 @@ fn a_cut_of_a_pinned_instance_and_plain_geometry_moves_nothing() {
             distance: len(1.0),
         },
     );
-    let (doc, _) = fixture::place(doc, ext);
+    let (doc, _) = fixture::in_world(doc, ext, &Frame::translation([50.0, 0.0, 0.0]));
     let mut cut: std::collections::BTreeSet<RecipeNodeId> = doc
         .ids()
         .iter()

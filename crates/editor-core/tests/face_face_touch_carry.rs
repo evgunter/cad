@@ -10,10 +10,10 @@
 //! cell carries all three.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, failure, run};
-use crate::fixture::{ang, frame, insert, len, len2};
+use crate::blocks::{block, block_on, failure, run};
+use crate::fixture::{ang, insert, len, len2, slid};
 use editor_core::{
-    Bodies, BooleanValue, ExtrudeSide, LoopProgram, Node, ProfileDoc, ProfileProgram, ValuePayload,
+    Bodies, BooleanValue, LoopProgram, Node, ProfileDoc, ProfileProgram, ValuePayload,
 };
 use geom_core::Tol;
 use topo::ContactKind;
@@ -21,11 +21,7 @@ use topo::ContactKind;
 #[test]
 fn a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records() {
     let doc = ProfileDoc::empty_derived("ff-touch-carry", Tol::witness());
-    let (doc, plate) = block(doc, (-2.0, 2.0), (-2.0, 2.0), 0.0, 1.0);
-    let (doc, plane) = insert(
-        doc,
-        frame([0.0, 0.0, 0.25], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
+    let (doc, plate) = block(doc, (-2.0, 2.0), (-2.0, 2.0), 1.0);
     let (doc, disc) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -45,14 +41,15 @@ fn a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records() {
             distance: len(0.5),
         },
     );
+    let (doc, rod) = slid(doc, plate, rod, [0.0, 0.0, 0.25]);
     let (doc, rested) = insert(
         doc,
         Node::Union {
             members: Bodies::Spelled(vec![plate.into(), rod.into()]),
         },
     );
-    let (doc, far) = block(doc, (10.0, 11.0), (10.0, 11.0), 0.0, 1.0);
-    let (doc, hole) = block(doc, (-1.0, -0.5), (-1.0, -0.5), -1.0, 3.0);
+    let (doc, far) = block_on(doc, plate, (10.0, 11.0), (10.0, 11.0), 0.0, 1.0);
+    let (doc, hole) = block_on(doc, plate, (-1.0, -0.5), (-1.0, -0.5), -1.0, 3.0);
     let (doc, joined) = insert(
         doc,
         Node::Union {

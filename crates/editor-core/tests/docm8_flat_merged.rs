@@ -3,7 +3,8 @@
 //! order and over a boolean of a boolean.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block, block_on, failure, run};
+use crate::emit_shared_rim_several::{construction, own_name};
 use crate::corpus;
 use crate::corpus::body_of;
 use crate::fixture;
@@ -38,6 +39,17 @@ fn family(doc: &ProfileDoc, ext: RecipeNodeId, fam: usize) -> RoleSeg {
     flush_segs(doc, ext)[fam].clone()
 }
 
+/// Flush family `fam`'s face of operand `m`, as `m` names it: its
+/// construction's face, under `m`'s placement where it is one.
+fn own_face(doc: &ProfileDoc, m: RecipeNodeId, fam: usize) -> StableName {
+    own_name(
+        doc,
+        m,
+        EntityKind::Face,
+        vec![family(doc, construction(doc, m), fam)],
+    )
+}
+
 /// The merged row a whole chain's family fuses to: one `Merged` over
 /// every chain member's face of that family, sorted.
 fn chain_merged(
@@ -48,7 +60,7 @@ fn chain_merged(
 ) -> StableName {
     let mut set: Vec<StableName> = chain
         .iter()
-        .map(|&m| member_face(union, fixture::out(doc, m), fname(m, family(doc, m, fam))))
+        .map(|&m| member_face(union, fixture::out(doc, m), own_face(doc, m, fam)))
         .collect();
     set.sort();
     StableName {
@@ -111,9 +123,9 @@ fn volume(body: &topo::Body<f64>) -> f64 {
 #[test]
 fn a_three_member_chain_fuses_in_every_order() {
     let doc = ProfileDoc::empty_derived("docm8_chain3", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, d) = block(doc, (1.2, 2.2), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, c) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, d) = block_on(doc, a, (1.2, 2.2), (0.0, 1.0), 0.0, 1.0);
     let chain = [a, c, d];
     for order in permutations(&chain) {
         let label = format!("order {order:?}");
@@ -138,10 +150,10 @@ fn a_three_member_chain_fuses_in_every_order() {
 #[test]
 fn a_four_member_chain_fuses_in_every_order() {
     let doc = ProfileDoc::empty_derived("docm8_chain4", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, d) = block(doc, (1.2, 2.2), (0.0, 1.0), 0.0, 1.0);
-    let (doc, e) = block(doc, (1.9, 2.9), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, c) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, d) = block_on(doc, a, (1.2, 2.2), (0.0, 1.0), 0.0, 1.0);
+    let (doc, e) = block_on(doc, a, (1.9, 2.9), (0.0, 1.0), 0.0, 1.0);
     let chain = [a, c, d, e];
     for order in permutations(&chain) {
         let label = format!("order {order:?}");
@@ -167,10 +179,10 @@ fn a_four_member_chain_fuses_in_every_order() {
 #[test]
 fn a_chain_with_a_disjoint_member_fuses_in_every_order() {
     let doc = ProfileDoc::empty_derived("docm8_chain_far", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, d) = block(doc, (1.2, 2.2), (0.0, 1.0), 0.0, 1.0);
-    let (doc, far) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, c) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, d) = block_on(doc, a, (1.2, 2.2), (0.0, 1.0), 0.0, 1.0);
+    let (doc, far) = block_on(doc, a, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let chain = [a, c, d];
     for order in permutations(&[a, c, d, far]) {
         let label = format!("order {order:?}");
@@ -211,18 +223,27 @@ fn no_corpus_document_publishes_a_nested_merged_row() {
 // A3 — the pair boolean's own mint is flat.
 // ---------------------------------------------------------------------
 
-/// A block on the xy plane, recorded.
-fn recorded_block(rec: &mut Recorder, (x0, x1): (f64, f64)) -> RecipeNodeId {
+/// A block on its own xy, recorded — placed against `root` where one
+/// is given: the operand.
+fn recorded_block(
+    rec: &mut Recorder,
+    root: Option<RecipeNodeId>,
+    (x0, x1): (f64, f64),
+) -> RecipeNodeId {
     let p = rec.profile(
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(x0, 0.0), (x1, 0.0), (x1, 1.0), (x0, 1.0)]],
     );
-    rec.insert(Node::Extrude {
+    let block = rec.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-    })
+    });
+    match root {
+        Some(root) => rec.against(root, block, &editor_core::Frame::IDENTITY),
+        None => block,
+    }
 }
 
 /// The read operand `i` of the boolean `node` holds in `doc` — member
@@ -278,20 +299,20 @@ fn merged(node: RecipeNodeId, mut set: Vec<StableName>) -> StableName {
 fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
     let tol = Tol::witness();
     let mut rec = Recorder::new();
-    let a = recorded_block(&mut rec, (0.0, 1.0));
-    let b = recorded_block(&mut rec, (0.5, 1.5));
+    let a = recorded_block(&mut rec, None, (0.0, 1.0));
+    let b = recorded_block(&mut rec, Some(a), (0.5, 1.5));
     let inner = rec.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
     });
-    let c = recorded_block(&mut rec, (1.2, 2.2));
+    let c = recorded_block(&mut rec, Some(a), (1.2, 2.2));
     // The inner's merged rows, as the inner's table names them.
     let at = rec.doc.clone();
     let inner_row = |fam: usize| {
         merged(
             inner,
             vec![
-                from_a(&at, inner, fname(a, family(&at, a, fam))),
-                from_b(&at, inner, fname(b, family(&at, b, fam))),
+                from_a(&at, inner, own_face(&at, a, fam)),
+                from_b(&at, inner, own_face(&at, b, fam)),
             ],
         )
     };
@@ -308,14 +329,14 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
                 from_a(
                     &rec.doc,
                     outer,
-                    from_a(&rec.doc, inner, fname(a, family(&rec.doc, a, fam))),
+                    from_a(&rec.doc, inner, own_face(&rec.doc, a, fam)),
                 ),
                 from_a(
                     &rec.doc,
                     outer,
-                    from_b(&rec.doc, inner, fname(b, family(&rec.doc, b, fam))),
+                    from_b(&rec.doc, inner, own_face(&rec.doc, b, fam)),
                 ),
-                from_b(&rec.doc, outer, fname(c, family(&rec.doc, c, fam))),
+                from_b(&rec.doc, outer, own_face(&rec.doc, c, fam)),
             ],
         );
         assert!(
@@ -363,9 +384,9 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
 #[test]
 fn a_member_face_contained_whole_by_another_fuses() {
     let doc = ProfileDoc::empty_derived("docm8_vanished", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, big) = block(doc, (0.5, 3.0), (-1.0, 2.0), -1.0, 3.0);
-    let (doc, touch) = block(doc, (1.0, 1.2), (0.2, 0.8), 0.2, 0.4);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, big) = block_on(doc, a, (0.5, 3.0), (-1.0, 2.0), -1.0, 3.0);
+    let (doc, touch) = block_on(doc, a, (1.0, 1.2), (0.2, 0.8), 0.2, 0.4);
     let (docx, union) = crate::fixture::union_over(doc, &[a, big, touch]);
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
@@ -384,19 +405,19 @@ fn a_member_face_contained_whole_by_another_fuses() {
 #[test]
 fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
     let mut rec = Recorder::new();
-    let a = recorded_block(&mut rec, (0.0, 1.0));
-    let b = recorded_block(&mut rec, (0.5, 1.5));
+    let a = recorded_block(&mut rec, None, (0.0, 1.0));
+    let b = recorded_block(&mut rec, Some(a), (0.5, 1.5));
     let inner = rec.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
     });
-    let c = recorded_block(&mut rec, (1.2, 2.2));
+    let c = recorded_block(&mut rec, Some(a), (1.2, 2.2));
     let at = rec.doc.clone();
     let inner_row = |fam: usize| {
         merged(
             inner,
             vec![
-                from_a(&at, inner, fname(a, family(&at, a, fam))),
-                from_b(&at, inner, fname(b, family(&at, b, fam))),
+                from_a(&at, inner, own_face(&at, a, fam)),
+                from_b(&at, inner, own_face(&at, b, fam)),
             ],
         )
     };
@@ -416,14 +437,14 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
                 from_a(
                     &rec.doc,
                     outer,
-                    from_a(&rec.doc, inner, fname(a, family(&rec.doc, a, fam))),
+                    from_a(&rec.doc, inner, own_face(&rec.doc, a, fam)),
                 ),
                 from_a(
                     &rec.doc,
                     outer,
-                    from_b(&rec.doc, inner, fname(b, family(&rec.doc, b, fam))),
+                    from_b(&rec.doc, inner, own_face(&rec.doc, b, fam)),
                 ),
-                from_b(&rec.doc, outer, fname(c, family(&rec.doc, c, fam))),
+                from_b(&rec.doc, outer, own_face(&rec.doc, c, fam)),
             ],
         );
         // The consumed operand face: the inner merge, wrapped once.
@@ -441,7 +462,7 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
         let constituent = from_a(
             &rec.doc,
             outer,
-            from_a(&rec.doc, inner, fname(a, family(&rec.doc, a, fam))),
+            from_a(&rec.doc, inner, own_face(&rec.doc, a, fam)),
         );
         match crate::fixture::resolve_at_mint(ctx, &constituent) {
             Resolution::Failed(f) => assert!(f.offers.contains(&outer_row), "{:?}", f.offers),
@@ -458,8 +479,8 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
 #[test]
 fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
     let doc = ProfileDoc::empty_derived("docm8_fromb", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, inner) = insert(
         doc,
         Node::Union {
@@ -468,14 +489,14 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
     );
     // A far block, unioned with the merge as operand B, so the merged
     // rows ride through as `mid:FromB(inner:Merged(..))`.
-    let (doc, far) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, far) = block_on(doc, a, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, mid) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![far.into(), inner.into()]),
         },
     );
-    let (doc, c) = block(doc, (1.2, 2.2), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block_on(doc, a, (1.2, 2.2), (0.0, 1.0), 0.0, 1.0);
     let (doc, outer) = insert(
         doc,
         Node::Union {
@@ -495,7 +516,7 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
                     from_b(
                         &doc,
                         mid,
-                        from_a(&doc, inner, fname(a, family(&doc, a, fam))),
+                        from_a(&doc, inner, own_face(&doc, a, fam)),
                     ),
                 ),
                 from_a(
@@ -504,10 +525,10 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
                     from_b(
                         &doc,
                         mid,
-                        from_b(&doc, inner, fname(b, family(&doc, b, fam))),
+                        from_b(&doc, inner, own_face(&doc, b, fam)),
                     ),
                 ),
-                from_b(&doc, outer, fname(c, family(&doc, c, fam))),
+                from_b(&doc, outer, own_face(&doc, c, fam)),
             ],
         );
         assert!(
@@ -521,9 +542,9 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
 /// `a`'s top cap across its whole depth, flush with `a`'s two y-walls,
 /// so folding `s` in fragments that cap.
 pub(crate) fn split_fixture(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 3]) {
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, c) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, s) = block_on(doc, a, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
     (doc, [a, c, s])
 }
 
@@ -538,9 +559,9 @@ pub(crate) fn split_fixture(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 3]) 
 #[test]
 fn a_contact_against_a_fold_minted_fragment_glues() {
     let doc = ProfileDoc::empty_derived("docm8_fragment_refusal", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
-    let (doc, d) = block(doc, (0.5, 0.9), (0.2, 0.8), 1.0, 0.4);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, s) = block_on(doc, a, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
+    let (doc, d) = block_on(doc, a, (0.5, 0.9), (0.2, 0.8), 1.0, 0.4);
     let (docx, union) = crate::fixture::union_over(doc, &[a, s, d]);
     let ev = run(&docx);
     assert!(

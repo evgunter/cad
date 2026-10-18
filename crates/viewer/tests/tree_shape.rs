@@ -45,7 +45,7 @@ fn plate(
     side: f64,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
-    let (doc, profile) = common::framed_square(doc, side, tol);
+    let (doc, profile) = common::square_profile(doc, side, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {

@@ -20,14 +20,14 @@
 
 use std::collections::BTreeMap;
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block_on, failure, run};
 use crate::corpus::body_of;
 use crate::emit_shared_rim_several::permutations;
 use crate::emit_union_rim_piece_ranks::signature;
-use crate::fixture::{frame, insert, len, len2, member_of, table, union_over};
+use crate::fixture::{insert, len, len2, member_of, slid, table, union_over};
 
 use editor_core::{
-    EntityKey, EntityKind, Entry, Evaluation, ExtrudeSide, Formula, LoopProgram, Node, ProfileDoc,
+    EntityKey, EntityKind, Entry, Evaluation, Formula, LoopProgram, Node, ProfileDoc,
     ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, Qualifier, RecipeNodeId, RoleSeg,
     StableName,
 };
@@ -46,7 +46,6 @@ fn half_disc(doc: ProfileDoc, a0: f64, am: f64, a1: f64) -> (ProfileDoc, RecipeN
         let p = on_circle(a, 0.0);
         len2([p.x, p.y])
     };
-    let (doc, plane) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let steps: Vec<ProgramStep<Formula>> = vec![
         ProgramStep::At(pt(a0)),
         ProgramStep::ArcTo(ProgramArcData::Via {
@@ -71,12 +70,14 @@ fn half_disc(doc: ProfileDoc, a0: f64, am: f64, a1: f64) -> (ProfileDoc, RecipeN
     )
 }
 
-/// `h`, `q` and `w`, created in that order.
+/// `h`, `q` and `w`, created in that order: `q` and `w` copies placed
+/// against `h`.
 fn document() -> (ProfileDoc, [RecipeNodeId; 3]) {
     let doc = ProfileDoc::empty_derived("emit_union_curved_flush", Tol::witness());
     let (doc, h) = half_disc(doc, 0.0, 90.0, 180.0);
     let (doc, q) = half_disc(doc, 90.0, 180.0, 270.0);
-    let (doc, w) = block(doc, (-2.0, 2.0), (0.9, 2.0), 0.5, 1.0);
+    let (doc, q) = slid(doc, h, q, [0.0; 3]);
+    let (doc, w) = block_on(doc, h, (-2.0, 2.0), (0.9, 2.0), 0.5, 1.0);
     (doc, [h, q, w])
 }
 
@@ -116,10 +117,19 @@ fn one_table(runs: &[Run]) {
     }
 }
 
+/// The path of a member's entity `of` in its construction: through the
+/// `Placed` layer a placed copy names it under.
+fn own_path(of: &StableName) -> &[RoleSeg] {
+    match of.path.as_slice() {
+        [RoleSeg::Placed { of }] => own_path(of),
+        path => path,
+    }
+}
+
 /// Whether `name` is a member's rim edge carried bare.
 fn is_rim(name: &StableName) -> bool {
     match name.path.as_slice() {
-        [RoleSeg::From { of, .. }] => matches!(of.path.as_slice(), [RoleSeg::RimEdge(..)]),
+        [RoleSeg::From { of, .. }] => matches!(own_path(of), [RoleSeg::RimEdge(..)]),
         _ => false,
     }
 }
@@ -199,7 +209,7 @@ fn a_wall_across_two_flush_arcs_publishes_one_table_in_every_order() {
             [
                 RoleSeg::From { of, .. },
                 RoleSeg::Fragment(Qualifier::Ends(_)),
-            ] if matches!(of.path.as_slice(), [RoleSeg::RimEdge(..)]) => member_of(doc, name),
+            ] if matches!(own_path(of), [RoleSeg::RimEdge(..)]) => member_of(doc, name),
             _ => None,
         };
         let mut pieces: Vec<_> = rim_arcs(ev, *union, 1.0)

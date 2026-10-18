@@ -121,7 +121,7 @@ const OP_COUNT: usize = 54;
 /// actually open on, which the expression-driven fixture is not.
 fn fixture(tol: Tol) -> (DocSession, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("view1b-gesture-table", tol);
-    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.04, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
@@ -1639,7 +1639,7 @@ fn no_operation_dissolves_an_in_flight_free_move_in_silence() {
 /// through.
 fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, VarName) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("view-gesture-identity", tol);
-    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.04, tol);
     let (doc, first) = common::inserted(
         &doc,
         Node::Extrude {

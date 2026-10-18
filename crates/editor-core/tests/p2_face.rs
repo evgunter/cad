@@ -538,7 +538,7 @@ fn a_head_naming_no_part_face_does_not_evaluate() {
 /// [`PartStore::insert_part`] records one, so [`in_part`] spells the
 /// new body's caps.
 fn renamed(base: &ProfileDoc, body: RecipeNodeId, height: f64) -> (ProfileDoc, RecipeNodeId) {
-    let Some(Node::Extrude { profile, side, .. }) = base.node(body).cloned() else {
+    let Some(Node::Extrude { profile, .. }) = base.node(body).cloned() else {
         panic!("the base's body is an extrude");
     };
     let old_copies: Vec<RecipeNodeId> = base
@@ -560,7 +560,6 @@ fn renamed(base: &ProfileDoc, body: RecipeNodeId, height: f64) -> (ProfileDoc, R
         Node::Extrude {
             profile: profile.into(),
             distance: len(height),
-            side,
         },
     );
     let mut scratch = PartStore::new();

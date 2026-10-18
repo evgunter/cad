@@ -254,9 +254,8 @@ impl AssertionRelation {
 
 /// Every kernel relation has a member on the Python mirror.
 ///
-/// The direction is the load-bearing one, exactly as it is for
-/// `ExtrudeSide`: `to_kernel` matches on `Self`, a closed local enum, so
-/// it says nothing about the kernel growing. This match is over the
+/// The direction is the load-bearing one: `to_kernel` matches on
+/// `Self`, a closed local enum, so it says nothing about the kernel growing. This match is over the
 /// KERNEL enum, so a relation added there breaks this build and the
 /// binding must be written. Never called; the type-checked match is
 /// the whole product.

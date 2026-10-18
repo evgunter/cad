@@ -14,9 +14,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use crate::fixture::{
-    ang, frame, insert, len, len2, minted, piece, revolve_about, run, scl, table, vpiece,
-};
+use crate::fixture::{ang, insert, len, len2, minted, piece, revolve_about, run, scl, table, vpiece};
 
 fn to(x: f64, y: f64) -> ProgramTarget<Formula> {
     ProgramTarget::Point(len2([x, y]))
@@ -36,37 +34,30 @@ fn subdivided(x0: f64) -> Vec<ProgramStep<Formula>> {
     ]
 }
 
-fn profiled(steps: Vec<ProgramStep<Formula>>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn profiled(steps: Vec<ProgramStep<Formula>>) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("band_run_wall_names", Tol::witness());
-    let (doc, plane) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
-    let (doc, p) = insert(
+    insert(
         doc,
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
-    );
-    (doc, plane, p)
+    )
 }
 
 fn extruded(steps: Vec<ProgramStep<Formula>>) -> (ProfileDoc, RecipeNodeId) {
-    extruded_by(steps, ExtrudeSide::Along)
-}
-
-fn extruded_by(steps: Vec<ProgramStep<Formula>>, side: ExtrudeSide) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, _, p) = profiled(steps);
+    let (doc, p) = profiled(steps);
     insert(
         doc,
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side,
         },
     )
 }
 
 fn revolved(steps: Vec<ProgramStep<Formula>>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, _, p) = profiled(steps);
+    let (doc, p) = profiled(steps);
     insert(
         doc,
         revolve_about(p, (0.0, 0.0), crate::fixture::along_y(), ang(angle)),
@@ -257,54 +248,6 @@ fn a_one_piece_run_is_spelled_as_its_locator() {
     );
 }
 
-/// **A reversed extrusion names each wall by the piece it sweeps.**
-/// Against the sketch normal the sweep traverses the loop backwards; the names
-/// are read off canonical positions all the same, so the wall over the
-/// bottom side `y = 0` (segments 0 and 1) is the one named for them,
-/// and the wall over `x = 2` the one named for segment 2.
-#[test]
-fn a_reversed_extrusion_names_each_wall_by_its_own_pieces() {
-    let (doc, ex) = extruded_by(subdivided(0.0), ExtrudeSide::Against);
-    let ev = run(&doc, &Default::default());
-    let Some(editor_core::NodeResult::Ok(v)) = ev.nodes.get(&ex) else {
-        panic!("the extrude evaluated");
-    };
-    let editor_core::ValuePayload::Body(body) = &v.payload else {
-        panic!("a body value");
-    };
-    let plane_of = |name: &StableName| {
-        let Some(editor_core::Entry::Unique(e)) = ev.table_at(ex).expect("one table").lookup(name)
-        else {
-            panic!("a unique face for {name:?}");
-        };
-        let editor_core::EntityKey::Face(f) = e.key else {
-            panic!("a face key");
-        };
-        match body.get_surface(body.get_face(f).unwrap().surface) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
-            other => panic!("a plane wall, got {other:?}"),
-        }
-    };
-    let (o, n) = plane_of(&minted(
-        EntityKind::Face,
-        ex,
-        RoleSeg::Lateral(run_of(&doc, ex, &[0, 1])),
-    ));
-    assert!(
-        o.y.abs() < 1e-12 && n.y.abs() > 0.99,
-        "the bottom wall: {o:?} {n:?}"
-    );
-    let (o, n) = plane_of(&minted(
-        EntityKind::Face,
-        ex,
-        RoleSeg::Lateral(run_of(&doc, ex, &[2])),
-    ));
-    assert!(
-        (o.x - 2.0).abs() < 1e-12 && n.x.abs() > 0.99,
-        "the x = 2 wall: {o:?} {n:?}"
-    );
-}
-
 /// A D on `x = x0`: the half circle of radius 1 centred `(x0, 0)` drawn
 /// as a quarter arc and, across a declared tangent joint, the tangent
 /// arc that continues it (segments 0 and 1, one run), closed by its
@@ -422,7 +365,7 @@ fn offers(doc: &ProfileDoc, name: &StableName) -> Vec<StableName> {
 /// declared tangent joint becomes one run wall: the old one-piece
 /// wall's name is offered the run wall. Bending the station off the
 /// circle breaks the run: the run wall's name is offered each piece's
-/// wall. Extruded either way and fully revolved.
+/// wall. Extruded and fully revolved.
 #[test]
 fn offers_follow_an_arc_station_in_and_out() {
     let wall = |n: RecipeNodeId, revolve: bool, pieces: Vec<editor_core::ProfileEdgeRef>| {
@@ -437,15 +380,9 @@ fn offers_follow_an_arc_station_in_and_out() {
             },
         )
     };
-    for (label, angle, side, x0) in [
-        ("extrude +", None, ExtrudeSide::Along, 0.0),
-        ("extrude −", None, ExtrudeSide::Against, 0.0),
-        (
-            "full revolve",
-            Some(std::f64::consts::TAU),
-            ExtrudeSide::Along,
-            2.0,
-        ),
+    for (label, angle, x0) in [
+        ("extrude", None, 0.0),
+        ("full revolve", Some(std::f64::consts::TAU), 2.0),
     ] {
         let plain = vec![
             ProgramStep::At(len2([x0, -1.0])),
@@ -457,7 +394,7 @@ fn offers_follow_an_arc_station_in_and_out() {
         ];
         let (doc, n) = match angle {
             Some(a) => revolved(plain, a),
-            None => extruded_by(plain, side),
+            None => extruded(plain),
         };
         let p = profile_of(&doc, n);
         let rev = angle.is_some();
@@ -523,7 +460,7 @@ fn arc_run_names_agree_across_scalars() {
     ] {
         let (doc, n) = match angle {
             Some(a) => revolved(d_of_two_arcs(x0), a),
-            None => extruded_by(d_of_two_arcs(x0), ExtrudeSide::Against),
+            None => extruded(d_of_two_arcs(x0)),
         };
         let ev = run(&doc, &Default::default());
         let evi = editor_core::evaluate::<Interval>(

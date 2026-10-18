@@ -409,28 +409,27 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         profile: profile.into(),
         distance: len(2.0),
     });
-    let placed = r.insert(Node::transform(
-        solid,
-        editor_core::Step::Rigid {
-            translation: [
+    let placed = crate::m10_5_clearance_interval::slid_by(&mut r, solid, solid, [
                 Formula::named(name("place"), Dimension::Length),
                 len(0.0),
                 len(0.0),
-            ],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
+            ]);
     let measured = r.measure(
         &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
         &[
             SitedRef::new(
                 placed,
-                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                crate::m10_5_clearance_interval::in_placement(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                ),
             ),
             SitedRef::new(
                 placed,
-                fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
+                crate::m10_5_clearance_interval::in_placement(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
+                ),
             ),
         ],
     );

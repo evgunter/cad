@@ -60,7 +60,7 @@ use editor_core::{
 use geom_core::Tol;
 use geom_core::k_stats::{self, MarginSample, SampleOutcome};
 
-use fixture::{Recorder, xy_frame};
+use fixture::{Recorder};
 
 /// The fixture: a square extruded by a document-parameter depth, over a
 /// box narrow enough that the driver certifies most of it. Deliberately

@@ -6,12 +6,12 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, CapEnd, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
+    CancelToken, CapEnd, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
     MeridianEnd, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef,
     ProgramArcData, ProgramStep, ProgramTarget, Qualifier, RecipeNodeId, RoleSeg, Sense, SitedRef,
     SplitHalf, band, band_rim, band_rim_pi, evaluate, meridian_vertex,
 };
-use fixture::{ang, insert, len, len2, minted, on_frame, on_frame_keeping, revolve_about, table};
+use fixture::{ang, insert, len, len2, minted, on_frame, revolve_about, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -34,7 +34,7 @@ fn pv(doc: &editor_core::ProfileDoc, node: RecipeNodeId, l: u32, v: u32) -> Prof
 
 /// A unit-square profile + extrude prelude (xy plane).
 fn cube(doc: ProfileDoc, x0: f64, side: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, _plane, p) = on_frame_keeping(
+    let (doc, p) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -124,60 +124,6 @@ fn extrude_names_every_boundary_entity_with_the_d2_roles() {
             Entry::Tied(_) => panic!("unexpected tie in an extrude table: {n:?}"),
         }
     }
-}
-
-/// The cap names track the SWEEP VECTOR, not the world's up: an
-/// extrude against its sketch plane's normal sweeps along `−n`, so
-/// `Cap(End)` — the cap
-/// on the sketch plane translated by the vector — lies strictly below
-/// `Cap(Start)`, the cap on the sketch plane itself. Both names stay
-/// true; a spatial reading of them would not.
-#[test]
-fn an_extrude_against_the_normal_has_its_end_cap_below_its_start_cap() {
-    let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
-    let (doc, _plane, profile) = on_frame_keeping(
-        doc,
-        [0.0; 3],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-    );
-    let (doc, block) = insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            // The sketch plane's normal is u x v = +z.
-            distance: len(1.0),
-            side: ExtrudeSide::Against,
-        },
-    );
-    let ev = run(&doc);
-    let t = table(&ev, block);
-    let body = crate::corpus::body_of(&ev, block);
-    let cap_height = |end: CapEnd| -> f64 {
-        let n = minted(EntityKind::Face, block, RoleSeg::Cap(end));
-        let f = match t.lookup(&n) {
-            Some(Entry::Unique(r)) => match r.key {
-                EntityKey::Face(k) => k,
-                other => panic!("{n:?} names {other:?}"),
-            },
-            other => panic!("{n:?} is not uniquely named: {other:?}"),
-        };
-        let s = body
-            .get_surface(body.get_face(f).expect("a live face").surface)
-            .expect("a carrier");
-        match s {
-            geom::Surface::Plane { origin, .. } => origin.z,
-            other => panic!("a cap is planar, got {other:?}"),
-        }
-    };
-    let end = cap_height(CapEnd::End);
-    let start = cap_height(CapEnd::Start);
-    assert!(
-        end < start,
-        "extruded by -1 along +z, the end cap should lie BELOW the start cap; \
-         measured end={end} start={start}"
-    );
 }
 
 // ---- Revolve: the M2 band/pole/seam taxonomy, all four shapes. ----
@@ -577,18 +523,12 @@ fn split_names_sections_fragments_and_crossings() {
         0.0,
         2.0,
     );
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.0), len(1.0)],
-            normal: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-        }),
-    );
+    let tool = fixture::plane_on(&doc, ext, [0.0, 0.0, 1.0], [0.0, 0.0, 1.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: ext.into(),
-            tool: plane.into(),
+            tool,
         },
     );
     let ev = run(&doc);
@@ -705,26 +645,16 @@ fn split_names_sections_fragments_and_crossings() {
     }
 }
 
-// ---- Transform pass-through + Pattern wrapping. ----
+// ---- Placement wrapping + Pattern wrapping. ----
 
 #[test]
-fn transform_passes_names_through_and_pattern_wraps_instances() {
+fn a_placement_wraps_names_once_and_pattern_wraps_instances() {
     let (doc, ext) = cube(
         ProfileDoc::empty_derived("m4_pr3_names", Tol::witness()),
         0.0,
         1.0,
     );
-    let (doc, tr) = insert(
-        doc,
-        Node::transform(
-            ext,
-            editor_core::Step::Rigid {
-                translation: [len(3.0), len(0.0), len(0.0)],
-                axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
+    let (doc, tr) = fixture::slid(doc, ext, ext, [3.0, 0.0, 0.0]);
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
@@ -737,12 +667,21 @@ fn transform_passes_names_through_and_pattern_wraps_instances() {
         },
     );
     let ev = run(&doc);
-    // Transform: the SAME table value (names and keys verbatim).
-    assert_eq!(table(&ev, tr), table(&ev, ext));
+    // Placement: every name of the body worn under ONE `Placed`
+    // segment, at the same entity.
+    let (moved, master) = (table(&ev, tr), table(&ev, ext));
+    assert_eq!(moved.len(), master.len());
+    for (name, entry) in master.iter() {
+        let worn = crate::m10_5_clearance_interval::in_placement(tr, name.clone());
+        assert_eq!(moved.lookup(&worn), Some(entry), "{name:?} worn by the copy");
+    }
     // Pattern: every master entry wrapped per instance, body = i.
     let tp = table(&ev, pat);
     assert_eq!(tp.len(), 27 * 3);
-    let master_end = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
+    let master_end = crate::m10_5_clearance_interval::in_placement(
+        tr,
+        minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End)),
+    );
     for i in 0..3u32 {
         let wrapped = minted(
             EntityKind::Face,

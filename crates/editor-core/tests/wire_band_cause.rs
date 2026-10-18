@@ -36,7 +36,7 @@ use editor_core::{
     CancelToken, DocEdit, EvalOptions, NamePat, NamingError, Node, NodeErrorKind, NodeResult,
     ProfileDoc, RecipeNodeId, SelectRefusal, Selector, evaluate, select_where,
 };
-use fixture::{desc, insert, xy_frame};
+use fixture::{desc, insert};
 use geom_core::tolerance::{DEFAULT_K, Tolerance};
 use geom_core::{Band, BandError, BandField, Tol};
 
@@ -107,7 +107,7 @@ fn child_band_row() {
     // `Band::linear` fails, the evaluator's own band door refuses
     // every node before an operation runs, and it refuses carrying
     // the same `BandError` verbatim.
-    let (doc, node) = bare_frame();
+    let (doc, node) = bare_instance();
     let ev = evaluate::<f64>(
         &doc,
         None,
@@ -130,10 +130,12 @@ fn child_band_row() {
     let refused = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Box::new(Node::Profile(desc(
-                    node,
-                    vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-                ))),
+                node: Box::new(Node::Profile(desc(vec![vec![
+                    (0.0, 0.0),
+                    (1.0, 0.0),
+                    (1.0, 1.0),
+                    (0.0, 1.0),
+                ]]))),
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -167,13 +169,16 @@ fn child_band_row() {
     );
 }
 
-/// A bare frame datum — the only document shape that still EVALUATES
-/// where no band exists, and so the only seat from which
-/// `select_where` can be asked anything at all.
-fn bare_frame() -> (ProfileDoc, RecipeNodeId) {
+/// A bare instance of a part — a node whose authoring builds no band,
+/// so a document holding it exists where no band does, and the seat
+/// from which `select_where` can be asked anything at all.
+fn bare_instance() -> (ProfileDoc, RecipeNodeId) {
     insert(
         ProfileDoc::empty_derived("wire_band_cause", Tol::witness()),
-        xy_frame(),
+        Node::instantiate_part(editor_core::DocRef {
+            id: editor_core::DocumentId::derive("wire_band_cause_part"),
+            pin: editor_core::ContentPin([0; 32]),
+        }),
     )
 }
 

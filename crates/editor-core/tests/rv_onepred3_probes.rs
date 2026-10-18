@@ -22,22 +22,19 @@ use editor_core::{
     Dimension, DocEdit, EditError, Formula, Node, PatternKind, PersistError, ProfileDoc,
     RecipeNodeId, SlotId, SnapshotError, apply, load, save,
 };
-use fixture::{insert, len, on_frame_keeping, scl, square};
+use fixture::{desc, insert, len, scl, square};
 use geom_core::Tol;
 
 /// An extrude, patterned linearly — the pattern's `count` is a
-/// Count-typed STRUCTURAL slot, the third node kind (after the extrude
-/// and the frame datum the unit's own suite covers).
+/// Count-typed STRUCTURAL slot, a node kind beside the extrude the
+/// unit's own suite covers.
 fn patterned() -> (ProfileDoc, RecipeNodeId) {
-    let (doc, _, profile) = on_frame_keeping(
+    let (doc, profile) = insert(
         ProfileDoc::empty(
             editor_core::DocumentId::derive("rv-onepred3"),
             Tol::witness(),
         ),
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![square(0.0, 0.0, 0.5)],
+        Node::Profile(desc(vec![square(0.0, 0.0, 0.5)])),
     );
     let (doc, extrude) = insert(
         doc,

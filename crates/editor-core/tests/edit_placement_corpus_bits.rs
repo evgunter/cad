@@ -1,7 +1,5 @@
-//! **Every corpus `Transform` places its body by the same bits** — the
-//! value channel of each `Node::Transform` in the registry, pinned per
-//! node against digests taken on the merge base before the node held a
-//! `Placement`.
+//! **Every corpus placement places its body by the same bits** — the
+//! value channel of each `Node::Place` in the registry, pinned per node.
 //!
 //! The digest is the fixture's value channel (`value_digest_nodes`):
 //! the placed bodies' arena counts and every stored point, so a motion
@@ -14,7 +12,7 @@ use crate::fixture::value_channel::value_digest_nodes;
 use corpus::{eval, failures};
 use editor_core::Node;
 
-/// `(document, node's mint ordinal, digest)` for every `Transform` the
+/// `(document, node's mint ordinal, digest)` for every placement the
 /// registry holds, in registry then document order, the same at the
 /// default, `1e-6` and `1e-12` ε rows. The digest feeds the node id, so
 /// a re-minted id moves the word with no geometry moving; so does a
@@ -109,24 +107,24 @@ const PINNED: &[(&str, u32, u64)] = &[
 ];
 
 #[test]
-fn every_corpus_transform_places_its_body_by_the_pinned_bits() {
+fn every_corpus_placement_places_its_body_by_the_pinned_bits() {
     let mut got: Vec<(&'static str, u32, u64)> = Vec::new();
     for doc in corpus::documents() {
-        let transforms: Vec<_> = doc
+        let placements: Vec<_> = doc
             .doc
             .ids()
             .iter()
             .copied()
-            .filter(|id| matches!(doc.doc.node(*id), Some(Node::Transform { .. })))
+            .filter(|id| matches!(doc.doc.node(*id), Some(Node::Place { .. })))
             .collect();
-        if transforms.is_empty() {
+        if placements.is_empty() {
             continue;
         }
         let ev = eval::<f64>(&doc.doc);
         let bad = failures(&ev);
         assert!(bad.is_empty(), "{} failed to evaluate: {bad:?}", doc.name);
         for (id, word, fed) in value_digest_nodes(&ev) {
-            if transforms.contains(&id) {
+            if placements.contains(&id) {
                 assert!(fed > 0, "{} node {}: nothing was digested", doc.name, id);
                 got.push((doc.name, id.0.ordinal(), word));
             }
@@ -138,6 +136,6 @@ fn every_corpus_transform_places_its_body_by_the_pinned_bits() {
     assert_eq!(
         got.as_slice(),
         PINNED,
-        "a corpus transform's placed body moved"
+        "a corpus placement's placed body moved"
     );
 }

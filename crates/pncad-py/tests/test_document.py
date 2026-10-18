@@ -1469,6 +1469,7 @@ EDIT_ATTRS = (
     "found_kind",
     "expected_kind",
     "count",
+    "given",
     "first",
     "again",
     "value",

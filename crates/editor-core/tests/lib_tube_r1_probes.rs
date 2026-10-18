@@ -30,9 +30,9 @@ use crate::fixture;
 
 use corpus::{body_of, eval, failures};
 use editor_core::{
-    Datum, DocEdit, Node, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow, apply,
+    DocEdit, Node, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow, apply,
 };
-use fixture::{ang, len, scl};
+use fixture::{ang, len};
 use geom_core::Tol;
 use topo::Surface;
 
@@ -42,21 +42,10 @@ fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
         .doc
 }
 
-fn axis_doc() -> (ProfileDoc, RecipeNodeId) {
-    let mut doc = ProfileDoc::empty_derived("lib_tube_r1_probes", Tol::witness());
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::Datum(Datum::Frame {
-                origin: [len(0.0), len(0.0), len(0.0)],
-                u: [scl(1.0), scl(0.0), scl(0.0)],
-                v: [scl(0.0), scl(1.0), scl(0.0)],
-            })),
-            fresh: Vec::new(),
-        },
-    );
-    let spine = *doc.ids().last().expect("datum");
-    (doc, spine)
+/// An empty document: a tube reads no frame, so it is the whole of
+/// its own document.
+fn axis_doc() -> ProfileDoc {
+    ProfileDoc::empty_derived("lib_tube_r1_probes", Tol::witness())
 }
 
 fn stored_minor_bits(body: &topo::Body<f64>) -> Vec<u64> {
@@ -79,7 +68,7 @@ fn stored_minor_bits(body: &topo::Body<f64>) -> Vec<u64> {
 fn the_storage_contract_holds_at_non_dyadic_values() {
     for (outer, wall) in [(0.3_f64, 0.1_f64), (0.123456789_f64, 0.017_f64)] {
         let inner = outer - wall; // the caller's own one IEEE subtraction
-        let (mut doc, spine) = axis_doc();
+        let mut doc = axis_doc();
         doc = push(
             &doc,
             &DocEdit::InsertNode {
@@ -115,7 +104,7 @@ fn the_storage_contract_holds_at_non_dyadic_values() {
         );
     }
     // And the solid door at a non-dyadic minor radius stores it verbatim.
-    let (mut doc, spine) = axis_doc();
+    let mut doc = axis_doc();
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -143,7 +132,7 @@ fn the_storage_contract_holds_at_non_dyadic_values() {
 /// content key without sharing a single name.
 #[test]
 fn identical_tubes_in_one_document_mint_disjoint_total_name_tables() {
-    let (mut doc, spine) = axis_doc();
+    let mut doc = axis_doc();
     let mk = || Node::Tube {
         major_radius: len(2.0),
         window: TubeWindow::Full,
@@ -197,7 +186,7 @@ fn identical_tubes_in_one_document_mint_disjoint_total_name_tables() {
 /// emitter: every face, edge and vertex of BOTH shells.
 #[test]
 fn a_hollow_full_rings_cavity_faces_are_named_totally() {
-    let (mut doc, spine) = axis_doc();
+    let mut doc = axis_doc();
     doc = push(
         &doc,
         &DocEdit::InsertNode {

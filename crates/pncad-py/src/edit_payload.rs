@@ -95,6 +95,9 @@ pub struct EditPayload<'a> {
     pub expected_kind: Option<EntityKind>,
     /// A count the refusal names: the nodes a definition expands to.
     pub count: Option<usize>,
+    /// The count the edit HANDED, beside the one the node holds
+    /// ([`Self::count`]): a loft's sections against its re-pointing.
+    pub given: Option<usize>,
     /// The position a selection's shape fault is reported at. The
     /// fault decides which position it is: a repeated face's first
     /// occurrence, the edge that does not sort strictly before the one
@@ -142,7 +145,7 @@ impl EditPayload<'_> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over `EditError` is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 25] {
+    pub fn presence(&self) -> [(&'static str, bool); 26] {
         let Self {
             node,
             input,
@@ -158,6 +161,7 @@ impl EditPayload<'_> {
             found_kind,
             expected_kind,
             count,
+            given,
             first,
             again,
             value,
@@ -185,6 +189,7 @@ impl EditPayload<'_> {
             ("found_kind", found_kind.is_some()),
             ("expected_kind", expected_kind.is_some()),
             ("count", count.is_some()),
+            ("given", given.is_some()),
             ("first", first.is_some()),
             ("again", again.is_some()),
             ("value", value.is_some()),
@@ -224,6 +229,7 @@ impl EditPayload<'_> {
         found_kind: None,
         expected_kind: None,
         count: None,
+        given: None,
         first: None,
         again: None,
         value: None,
@@ -238,11 +244,11 @@ impl EditPayload<'_> {
     };
 }
 
-/// The position a placement frame's site names — a step of a
-/// transform's chain, or an explicit rule's listed placement.
+/// The position a placement frame's site names: an explicit rule's
+/// listed placement.
 fn frame_index(at: FrameSite) -> Option<usize> {
     match at {
-        FrameSite::Listed { index } | FrameSite::Step { index } => Some(index),
+        FrameSite::Listed { index } => Some(index),
     }
 }
 
@@ -277,7 +283,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         EditError::SetMembersOnNonList { node }
         | EditError::LoftSectionsSpelled { node }
         | EditError::SetProgramOnNonProfile { node }
-        | EditError::SetExtrudeSideOnNonExtrude { node }
         | EditError::WitnessOnNonSketch { node }
         | EditError::DuplicateWitnessEntry { node }
         | EditError::WorldIsUndeletable { node }
@@ -515,6 +520,16 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::DefinitionUnknownVarName { var, name: _ }
         | EditError::DefinitionUnresolvedVar { var, read: _ } => EditPayload {
             param: var.name(),
+            ..none
+        },
+        EditError::LoftSectionCount {
+            node,
+            sections,
+            given,
+        } => EditPayload {
+            node: Some(node.id()),
+            count: Some(*sections),
+            given: Some(*given),
             ..none
         },
         EditError::DefinitionTooLarge { var, nodes } => EditPayload {

@@ -9,7 +9,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::block;
+use crate::blocks::{block, block_on};
 use crate::fixture;
 use editor_core::{
     Dimension, Distribution, DocEdit, DocumentId, EditError, Formula, FreeVar, Node, PatternKind,
@@ -113,7 +113,7 @@ fn a_count_refuses_a_unit_and_a_distribution_and_names_the_variable_that_gets_th
 #[test]
 fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_through() {
     let doc = ProfileDoc::empty_derived("recourse_count_slot", Tol::witness());
-    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, _) = step(
         doc,
         DocEdit::DeclareVar {
@@ -189,7 +189,7 @@ fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_throug
 /// none of.
 fn forward_selection() -> (ProfileDoc, editor_core::StableName, editor_core::StableName) {
     let doc = ProfileDoc::empty_derived("recourse_split_forward", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let rim = |doc: &ProfileDoc, node| {
         fixture::rim_edge(
             node,
@@ -206,7 +206,7 @@ fn forward_selection() -> (ProfileDoc, editor_core::StableName, editor_core::Sta
         },
     );
     let doc = crate::fixture::place(doc, fillet).0;
-    let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 1.0);
     let (from, to) = (ra, rim(&doc, c));
     let body = doc.output(a, 0);
     let (doc, _) = step(
@@ -361,8 +361,8 @@ const WORDLESS: &[(&str, &[&str])] = &[
 #[test]
 fn every_predicate_a_subtract_logs_has_words_or_a_reason() {
     let doc = ProfileDoc::empty_derived("recourse_flip_census", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-    let (doc, m) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
+    let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, m) = block_on(doc, a, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, _cut) = insert(
         doc,
         Node::Subtract {

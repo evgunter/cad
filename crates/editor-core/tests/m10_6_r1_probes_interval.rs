@@ -126,18 +126,10 @@ fn param(r: &mut Recorder, n: &'static str, value: f64, dist: Option<Distributio
 }
 
 fn translate(r: &mut Recorder, input: RecipeNodeId, t: [Formula; 3]) -> RecipeNodeId {
-    r.insert(Node::transform(
-        input,
-        editor_core::Step::Rigid {
-            translation: t,
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ))
+    crate::m10_5_clearance_interval::slid_by(r, input, input, t)
 }
 
-fn prism(r: &mut Recorder, origin: [f64; 3], corners: &[(f64, f64)], height: f64) -> RecipeNodeId {
-    let plane = r.insert(fixture::frame(origin, [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+fn prism(r: &mut Recorder, corners: &[(f64, f64)], height: f64) -> RecipeNodeId {
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::polygon(corners.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
@@ -167,7 +159,6 @@ fn notch(
     let mut r = Recorder::new();
     let ell = prism(
         &mut r,
-        [0.0; 3],
         &[
             (0.0, 0.0),
             (2.0, 0.0),
@@ -180,16 +171,27 @@ fn notch(
     );
     let block = prism(
         &mut r,
-        [0.0, 0.0, 1.0 + LIFT],
         &[(1.25, 1.25), (1.75, 1.25), (1.75, 1.75), (1.25, 1.75)],
         0.5,
+    );
+    // The block hovers over the notch, `1 + LIFT` up the L's own z.
+    let block_at = r.against(
+        ell,
+        block,
+        &editor_core::Frame::translation([0.0, 0.0, 1.0 + LIFT]),
     );
     let measure = r
         .measure(
             &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
             &[
                 SitedRef::at_mint(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
-                SitedRef::at_mint(fixture::fname(block, RoleSeg::Cap(CapEnd::Start))),
+                SitedRef::new(
+                    block_at,
+                    crate::m10_5_clearance_interval::in_placement(
+                        block_at,
+                        fixture::fname(block, RoleSeg::Cap(CapEnd::Start)),
+                    ),
+                ),
             ],
         )
         .outputs[0];
@@ -326,13 +328,11 @@ fn a_convex_pair_brackets_the_built_gap_at_every_budget() {
     let mut r = Recorder::new();
     let a = prism(
         &mut r,
-        [0.0; 3],
         &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         1.0,
     );
     let b = prism(
         &mut r,
-        [0.0; 3],
         &[(1.7, 0.0), (2.7, 0.0), (2.7, 1.0), (1.7, 1.0)],
         1.0,
     );
@@ -391,7 +391,6 @@ fn min_clearance_of_a_body_against_itself_is_the_selections_self_clearance() {
     let mut r = Recorder::new();
     let solid = prism(
         &mut r,
-        [0.0; 3],
         &[
             (0.0, 0.0),
             (2.0, 0.0),
@@ -447,7 +446,6 @@ fn web_plate(bound: f64, law: Distribution) -> (ProfileDoc, editor_core::VarId, 
     param(&mut r, "place", 0.0, Some(law));
     let solid = prism(
         &mut r,
-        [0.0; 3],
         &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
         1.0,
     );
@@ -466,11 +464,17 @@ fn web_plate(bound: f64, law: Distribution) -> (ProfileDoc, editor_core::VarId, 
             &[
                 SitedRef::new(
                     placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+                    crate::m10_5_clearance_interval::in_placement(
+                        placed,
+                        fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+                    ),
                 ),
                 SitedRef::new(
                     placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                    crate::m10_5_clearance_interval::in_placement(
+                        placed,
+                        fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                    ),
                 ),
             ],
         )
@@ -722,7 +726,6 @@ fn neck_related(
     param(&mut r, "place", 0.0, Some(law));
     let solid = prism(
         &mut r,
-        [0.0; 3],
         &[
             (0.0, 0.0),
             (2.0, 0.0),
@@ -754,11 +757,17 @@ fn neck_related(
             &[
                 SitedRef::new(
                     placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                    crate::m10_5_clearance_interval::in_placement(
+                        placed,
+                        fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                    ),
                 ),
                 SitedRef::new(
                     placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, wall_b)),
+                    crate::m10_5_clearance_interval::in_placement(
+                        placed,
+                        fixture::fname(solid, fixture::wall(&r.doc, solid, wall_b)),
+                    ),
                 ),
             ],
         )
@@ -929,7 +938,6 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
     );
     let solid = prism(
         &mut r,
-        [0.0; 3],
         &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
         1.0,
     );
@@ -948,11 +956,17 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
             &[
                 SitedRef::new(
                     placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+                    crate::m10_5_clearance_interval::in_placement(
+                        placed,
+                        fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+                    ),
                 ),
                 SitedRef::new(
                     placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                    crate::m10_5_clearance_interval::in_placement(
+                        placed,
+                        fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                    ),
                 ),
             ],
         )
@@ -1037,18 +1051,17 @@ fn bracket(
     param(&mut r, "lift", 0.2, Some(lift_law));
     let base = prism(
         &mut r,
-        [0.0; 3],
         &[(0.0, 0.0), (4.0, 0.0), (4.0, 1.0), (0.0, 1.0)],
         1.0,
     );
     let post_solid = prism(
         &mut r,
-        [0.0; 3],
         &[(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)],
         2.0,
     );
-    let post = translate(
+    let post = crate::m10_5_clearance_interval::slid_by(
         &mut r,
+        base,
         post_solid,
         [
             Formula::named(name("offset"), Dimension::Length),
@@ -1068,7 +1081,10 @@ fn bracket(
             &[
                 SitedRef::new(
                     post,
-                    fixture::fname(post_solid, fixture::wall(&r.doc, post_solid, 3)),
+                    crate::m10_5_clearance_interval::in_placement(
+                        post,
+                        fixture::fname(post_solid, fixture::wall(&r.doc, post_solid, 3)),
+                    ),
                 ),
                 SitedRef::at_mint(fixture::fname(base, fixture::wall(&r.doc, base, 3))),
             ],
@@ -1085,11 +1101,14 @@ fn bracket(
             &[
                 SitedRef::new(
                     post,
-                    editor_core::StableName {
-                        kind: editor_core::EntityKind::Body,
-                        node: post_solid,
-                        path: vec![RoleSeg::OutputBody],
-                    },
+                    crate::m10_5_clearance_interval::in_placement(
+                        post,
+                        editor_core::StableName {
+                            kind: editor_core::EntityKind::Body,
+                            node: post_solid,
+                            path: vec![RoleSeg::OutputBody],
+                        },
+                    ),
                 ),
                 SitedRef::at_mint(editor_core::StableName {
                     kind: editor_core::EntityKind::Body,
@@ -1262,11 +1281,11 @@ fn the_bracket_walk_through_the_public_doors() {
 }
 
 fn node_named(doc: &editor_core::ProfileDoc, pick: usize) -> RecipeNodeId {
-    let mut transforms: Vec<RecipeNodeId> = doc
+    let mut placements: Vec<RecipeNodeId> = doc
         .ids()
         .iter()
         .copied()
-        .filter(|&id| matches!(doc.node(id), Some(Node::Transform { .. })))
+        .filter(|&id| matches!(doc.node(id), Some(Node::Place { .. })))
         .collect();
     let mut extrudes: Vec<RecipeNodeId> = doc
         .ids()
@@ -1275,7 +1294,7 @@ fn node_named(doc: &editor_core::ProfileDoc, pick: usize) -> RecipeNodeId {
         .filter(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
         .collect();
     if pick == 0 {
-        transforms.remove(0)
+        placements.remove(0)
     } else {
         extrudes.remove(0)
     }

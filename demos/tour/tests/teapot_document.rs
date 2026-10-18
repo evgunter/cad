@@ -33,7 +33,7 @@ use core::f64::consts::TAU;
 use pncad::prelude::AuthoredNode;
 
 use pncad::document::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
+    CancelToken, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
     Frame, LoopProgram, Node, NodeErrorClass, Operand, ProfileProgram, ProgramArcData, ProgramStep,
     ProgramTarget, RecipeNodeId, RefusingReach, Value, ValuePayload, apply, evaluate, place_at,
     split,
@@ -64,9 +64,6 @@ const ROLLED: [u32; 3] = [1, 2, 4];
 
 fn len(v: f64) -> Formula {
     Formula::literal(v, Dimension::Length).expect("a finite length")
-}
-fn scl(v: f64) -> Formula {
-    Formula::literal(v, Dimension::Scalar).expect("a finite scalar")
 }
 fn ang(v: f64) -> Formula {
     Formula::literal(v, Dimension::Angle).expect("a finite angle")
@@ -159,15 +156,6 @@ fn sharp_lid_in(
     bore: f64,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let plane = insert(
-        &mut doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-        tol,
-    );
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
@@ -702,12 +690,15 @@ fn the_interval_lane_mints_the_f64_names() {
 fn a_split_carries_a_held_slits_band() {
     let tol = Tol::witness();
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-lid-split", tol);
+    // A node nothing reads, which the cut leaves behind.
     let lead = insert(
         &mut doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(1.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
+        Node::Profile(ProfileProgram {
+            loops: vec![
+                LoopProgram::polygon([(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)])
+                    .expect("finite corners"),
+            ],
+            ids: Vec::new(),
         }),
         tol,
     );

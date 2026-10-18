@@ -62,7 +62,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::{p2, v3, validated};
-use pncad::document::ExtrudeSide;
+use pncad::sweep::ExtrudeSide;
 use pncad::geom_core::{Affine3, RigidMotion, Tol, Vec3};
 use pncad::prelude::SurfaceKind;
 use pncad::prelude::{SurfaceKindSet, query};

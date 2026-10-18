@@ -13,13 +13,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    CancelToken, EvalOptions, Evaluation, ExtrudeSide, LoopProgram, Node, NodeResult, ProfileDoc,
+    CancelToken, EvalOptions, Evaluation, LoopProgram, Node, NodeResult, ProfileDoc,
     ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, ValuePayload, evaluate,
 };
 use geom_core::Tol;
 use std::f64::consts::{FRAC_PI_2, TAU};
 
-use crate::fixture::{ang, frame, insert, len, len2, revolve_about};
+use crate::fixture::{against, ang, frame_at, insert, len, len2, revolve_about};
 
 fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -37,15 +37,18 @@ fn operand(ev: &Evaluation<f64>, n: RecipeNodeId) -> topo::AtRestBody<f64> {
         ValuePayload::Body(b) => {
             sweep::test_support::finished("the operand", (**b).clone(), Tol::witness())
         }
+        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => {
+            sweep::test_support::finished("the operand", (*copies.bodies[0]).clone(), Tol::witness())
+        }
         other => panic!("a sweep's payload is a body, got {}", other.kind_name()),
     }
 }
 
-/// The collar and the shaft: the shaft's vertex at azimuth `a` from
+/// The collar and the shaft (its placement against the collar): the
+/// shaft's vertex at azimuth `a` from
 /// the collar's seam (`+x`), spanning `y ∈ [y0, y0 + h]`.
 fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("a_mate_on_a_full_turn_bore", Tol::witness());
-    let (doc, plane) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let to = |x: f64, y: f64| ProgramTarget::Point(len2([x, y]));
     let (doc, section) = insert(
         doc,
@@ -66,7 +69,6 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     // x along azimuth `a` about `y`, and y chosen so the normal is `+y`.
     let (c, s) = (a.cos(), a.sin());
-    // D-FRAME: let (doc, base) = insert(doc, frame([0.0, y0, 0.0], [c, 0.0, -s], [-s, 0.0, -c]));
     let (doc, disc) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -83,6 +85,12 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             profile: disc.into(),
             distance: len(h),
         },
+    );
+    let (doc, shaft) = against(
+        doc,
+        collar,
+        shaft,
+        &frame_at([0.0, y0, 0.0], [c, 0.0, -s], [-s, 0.0, -c]),
     );
     (doc, collar, shaft)
 }

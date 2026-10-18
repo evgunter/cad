@@ -69,7 +69,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Interval, Tol};
 
-use fixture::{Recorder, ang, len, scl, xy_frame};
+use fixture::{Recorder, ang, len, scl};
 
 fn eps() -> f64 {
     Tol::witness().eps()
@@ -222,11 +222,11 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
     r.doc
 }
 
-/// **The terminal-sliver fixture**: a rigid transform whose rotation
-/// AXIS length is a document parameter, over a box reaching into the
+/// **The terminal-sliver fixture**: a linear pattern whose DIRECTION
+/// length is a document parameter, over a box reaching into the
 /// ambiguity band.
 ///
-/// The axis's norm is a margin like any other. At the nominal (`20ε`)
+/// The direction's norm is a margin like any other. At the nominal (`20ε`)
 /// it is definitely positive, so the witness builds; a leaf whose whole
 /// enclosure lands strictly inside `(ε, Kε)` is deciding a quantity
 /// that IS in the band, and no amount of narrowing moves it out. That
@@ -252,18 +252,18 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
         profile: p.into(),
         distance: len(1.0),
     });
-    r.insert(Node::transform(
-        block,
-        editor_core::Step::Rigid {
-            translation: [len(0.0), len(0.0), len(0.0)],
-            axis: [
+    r.insert(Node::Pattern {
+        input: block.into(),
+        count: Formula::count(2),
+        kind: editor_core::PatternKind::Linear {
+            direction: [
                 scl(0.0),
                 scl(0.0),
                 Formula::named(name("axis"), Dimension::Scalar),
             ],
-            angle: ang(0.0),
+            spacing: len(2.0),
         },
-    ));
+    });
     r.doc
 }
 

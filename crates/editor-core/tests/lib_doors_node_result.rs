@@ -20,8 +20,8 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-/// A square profile `[o,s]²` on `plane`, as a loop program.
-fn square(plane: RecipeNodeId, o: f64, s: f64) -> AuthoredNode {
+/// A square profile `[o,s]²` on its own xy, as a loop program.
+fn square(o: f64, s: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(o), len(o)]),
@@ -34,7 +34,8 @@ fn square(plane: RecipeNodeId, o: f64, s: f64) -> AuthoredNode {
     })
 }
 
-/// Two boxes sharing the z=0 plane, the inner one's x and y side
+/// Two boxes sharing the z=0 plane (the inner one placed against the
+/// outer at the identity), the inner one's x and y side
 /// planes off the outer's by a gap strictly inside the ambiguity band,
 /// subtracted: the margins decide neither plane pair one carrier nor
 /// two, so the Boolean node FAILS — and a node downstream of it is
@@ -55,13 +56,10 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         *doc = applied.doc;
         applied.record.minted.unwrap()
     };
-    // Both boxes are sketched on the same plane — that is the whole
-    // point of the row — so they name ONE frame between them.
-    let plane = insert(&mut doc, Box::new(fixture::xy_frame()));
     let tol = Tol::witness().get();
     // The band's midpoint: strictly inside (eps, k·eps) for any k > 1.
     let gap = 0.5 * (tol.eps + tol.k * tol.eps);
-    let outer_profile = insert(&mut doc, Box::new(square(plane, 0.0, 2.0)));
+    let outer_profile = insert(&mut doc, Box::new(square(0.0, 2.0)));
     let outer = insert(
         &mut doc,
         Box::new(Node::Extrude {
@@ -69,7 +67,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             distance: len(2.0),
         }),
     );
-    let inner_profile = insert(&mut doc, Box::new(square(plane, gap, 1.0)));
+    let inner_profile = insert(&mut doc, Box::new(square(gap, 1.0)));
     let inner = insert(
         &mut doc,
         Box::new(Node::Extrude {
@@ -77,6 +75,11 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             distance: len(1.0),
         }),
     );
+    // Both boxes stand on the same plane — that is the whole point of
+    // the row — so the inner one joins the outer's space at the
+    // identity.
+    let (placed, inner) = crate::fixture::slid(doc, outer, inner, [0.0; 3]);
+    let mut doc = placed;
     let cut = insert(
         &mut doc,
         Box::new(Node::Subtract {

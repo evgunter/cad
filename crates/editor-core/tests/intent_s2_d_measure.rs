@@ -19,7 +19,7 @@ use geom_core::Tol;
 /// extrudes, whose caps two measures can read.
 fn slabs(seed: &str, depth: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(seed, Tol::witness());
-    let (doc, _, a_profile) = fixture::on_frame_keeping(
+    let (doc, a_profile) = fixture::on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -33,7 +33,7 @@ fn slabs(seed: &str, depth: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             distance: len(1.0),
         },
     );
-    let (doc, _, b_profile) = fixture::on_frame_keeping(
+    let (doc, b_profile) = fixture::on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -335,8 +335,8 @@ fn an_observed_variable_is_read_only_by_an_assertion() {
 #[test]
 fn a_measure_key_reads_its_sites_by_content_not_by_id() {
     let (doc, a, _) = slabs("s2d-key", 2.5);
-    let (doc, first) = insert(doc, xform(a, [0.0; 3], [0.0, 0.0, 1.0], 0.0));
-    let (doc, second) = insert(doc, xform(a, [0.0; 3], [0.0, 0.0, 1.0], 0.0));
+    let (doc, first) = xform(doc, a, [0.0; 3], [0.0, 0.0, 1.0], 0.0);
+    let (doc, second) = xform(doc, a, [0.0; 3], [0.0, 0.0, 1.0], 0.0);
     let at = |site| caps(a).map(|r| editor_core::SitedRef::new(site, r.name));
     let distance = |[a, b]: [editor_core::SitedRef; 2]| Node::Measure {
         primitive: MeasurePrimitive::Distance {

@@ -50,7 +50,7 @@ use editor_core::{
     LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName, persist,
 };
 use fixture::digest::digest;
-use fixture::{len, prism_edges, tol, xy_frame};
+use fixture::{len, prism_edges, tol};
 
 /// The cube side and the two blend sizes, all dyadic.
 const L: f64 = 1.0;
@@ -525,6 +525,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
         profile: pb.into(),
         distance: len(L),
     });
+    let b = r.against(a, b, &editor_core::Frame::IDENTITY);
     let boolean = r.insert(Node::Intersect {
         members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
     });

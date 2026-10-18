@@ -32,7 +32,7 @@ use editor_core::{
     ValuePayload, VarName, WorldRead, apply, apply_replayed, evaluate, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, head, insert, len, offset_of, on_frame, run, solve, step, xform};
+use fixture::{ang, head, insert, len, offset_of, on_frame, run, solve, step};
 use geom_core::linalg::Affine3;
 use geom_core::{Bounds, Interval, Tol};
 use topo::Body;
@@ -779,7 +779,7 @@ fn a_seat_under_a_parametric_pin_poses_alike_in_every_lane() {
     let (doc, base) = pinned_lifting(doc, p.base, turned, &o);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let (doc, mate) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
-    let (doc, lifted) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
+    let (doc, lifted) = copy_against(doc, top, &Frame::translation([0.0, 0.0, 10.0]), &o);
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate.placement), None);
     assert_eq!(poses.space(top), Some(Space::World));
@@ -829,6 +829,26 @@ fn a_seat_under_a_parametric_pin_poses_alike_in_every_lane() {
             }
         }
     }
+}
+
+/// **A copy of `instance`'s copy, at `at` against the instance's own
+/// geometry** ([`editor_core::place_against`]), its part resolved
+/// through `o`. Returns the document and the placement, whose output is
+/// the copy.
+pub(crate) fn copy_against(
+    doc: ProfileDoc,
+    instance: RecipeNodeId,
+    at: &Frame,
+    o: &EvalOptions,
+) -> (ProfileDoc, RecipeNodeId) {
+    let copy = Operand::Var(doc.output(instance, 0).expect("an instance defines its copies"));
+    let placed = editor_core::place_against(&doc, &copy, &copy, at, o, Tol::witness())
+        .expect("the copy places against its own geometry");
+    let (doc, placement) = insert(doc, Node::place(vec![editor_core::BodyRead::plain(copy)]));
+    (
+        fixture::with_values(doc, placement, placed.mate, placed.values),
+        placement,
+    )
 }
 
 // ---- Row 6: split and inline ----

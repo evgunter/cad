@@ -19,12 +19,12 @@ use crate::fixture;
 
 use editor_core::expr::DimensionError;
 use editor_core::{Dimension, Formula, Node, PersistError, ProfileDoc, SlotId, load, save};
-use fixture::{insert, len, on_frame, scl};
+use fixture::{insert, on_frame};
 use geom_core::Tol;
 
 /// A document whose recipe carries an angle literal AUTHORED in
-/// half-turns — a transform's rotation angle, which is where a stored
-/// display unit reaches a file.
+/// half-turns — a revolve's sweep angle, which is where a stored display
+/// unit reaches a file.
 fn half_turn_doc() -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("pirad-wire", Tol::witness());
     let (doc, profile) = on_frame(
@@ -34,29 +34,15 @@ fn half_turn_doc() -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
-    let (doc, block) = insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(1.0),
-        },
-    );
     let angle = Formula::literal_with_unit(
         0.5 * core::f64::consts::PI,
         Dimension::Angle,
         quantity::PI.def(),
     )
     .expect("a half-turn multiple is an angle");
-    let (doc, _tr) = insert(
+    let (doc, _revolve) = insert(
         doc,
-        Node::transform(
-            block,
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle,
-            },
-        ),
+        crate::fixture::revolve_about(profile, (0.0, 0.0), crate::fixture::along_y(), angle),
     );
     doc
 }
@@ -77,14 +63,14 @@ fn a_half_turn_literal_round_trips() {
         "the retired spelling is gone: {text}"
     );
     let back = load(&text, Tol::witness()).expect("its own bytes load").doc;
-    // Frame, profile, extrude, then the transform.
-    let unit = match back.node(back.ids()[3]) {
-        Some(Node::Transform { .. }) => {
-            back.slot_value(back.ids()[3], SlotId::RotationAngle)
-                .expect("a one-step transform reads its written angle")
+    // The profile, then the revolve.
+    let unit = match back.node(back.ids()[1]) {
+        Some(Node::Revolve { .. }) => {
+            back.slot_value(back.ids()[1], SlotId::RevolveAngle)
+                .expect("a revolve reads its written angle")
                 .1
         }
-        other => panic!("expected the transform, got {other:?}"),
+        other => panic!("expected the revolve, got {other:?}"),
     };
     assert_eq!(unit.symbol(), "pi rad");
     assert_eq!(unit, quantity::PI.def(), "the same table row, not a copy");

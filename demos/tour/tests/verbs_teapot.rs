@@ -92,7 +92,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::{p2, validated};
-use pncad::document::ExtrudeSide;
+use pncad::sweep::ExtrudeSide;
 use pncad::geom::Surface;
 use pncad::geom_core::{Point2, Tol, Vec2};
 use pncad::prelude::{Open, Start};

@@ -1,15 +1,12 @@
-//! **The placers over `Instances`, at the `Interval` lane** — the
-//! bit-identity claims of `eval6_placers_over_instances`, evaluated
-//! at the lane scalar: a transform of a pattern is the transform of
-//! each instance, and a nested pattern's body `j·M + i` is placement
-//! `j` of the inner instance `i` alone. The documents and the bits
+//! **A pattern over `Instances`, at the `Interval` lane** — the
+//! bit-identity claim of `eval6_placers_over_instances`, evaluated at
+//! the lane scalar: a nested pattern's body `j·M + i` is placement `j`
+//! of the inner instance `i` alone. The documents and the bits
 //! instrument are that suite's own, so the two lanes pin one thing.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::eval6_placers_over_instances::{
-    M, N, bits, body_of, cube_doc, instances_of, linear, nested_doc, part, skew,
-};
+use crate::eval6_placers_over_instances::{M, N, bits, instances_of, linear, nested_doc, part};
 use crate::fixture::insert;
 
 use editor_core::{CancelToken, EvalOptions, Evaluation, ProfileDoc, evaluate};
@@ -23,28 +20,6 @@ fn run(doc: &ProfileDoc) -> Evaluation<Interval> {
         &EvalOptions::default(),
         Tol::witness(),
     )
-}
-
-/// Claim 1 at `Interval`.
-#[test]
-fn a_transform_of_a_pattern_is_the_transform_of_each_instance_at_interval() {
-    let (doc, cube) = cube_doc("eval6-c1-interval");
-    let (doc, pattern) = insert(doc, linear(cube, [1.0, 0.0, 0.0], 2.0, M));
-    let (doc, whole) = insert(doc, skew(pattern));
-    let mut doc = doc;
-    let mut each = Vec::new();
-    for i in 0..M {
-        let (next, selected) = insert(doc, part(pattern, i));
-        let (next, moved) = insert(next, skew(selected));
-        doc = next;
-        each.push(moved);
-    }
-    let ev = run(&doc);
-    let placed = instances_of(&ev, whole);
-    assert_eq!(placed.len() as i64, M);
-    for (i, moved) in each.iter().enumerate() {
-        assert_eq!(bits(&placed[i]), bits(&body_of(&ev, *moved)), "body {i}");
-    }
 }
 
 /// Claim 3's per-body identity at `Interval`.

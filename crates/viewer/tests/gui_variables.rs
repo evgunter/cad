@@ -22,7 +22,7 @@ use viewer::session::{BoundsTarget, DocSession, Refusal, SessionOp};
 fn two_extrudes() -> (DocSession, RecipeNodeId, RecipeNodeId, VarId, VarId) {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui-variables", tol);
-    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.04, tol);
     let extrude = |distance: f64| Node::Extrude {
         profile: profile.into(),
         distance: common::len(distance),

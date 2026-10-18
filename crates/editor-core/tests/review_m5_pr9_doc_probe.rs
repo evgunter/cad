@@ -14,7 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{frame, len, len2, xy_frame};
+use crate::fixture::{len, len2};
 use editor_core::AuthoredNode;
 use editor_core::{
     BooleanValue, CancelToken, DocEdit, EvalOptions, LoopProgram, Node, ProfileDoc, ProfileProgram,
@@ -24,14 +24,12 @@ use geom_core::Tol;
 
 struct Rec {
     doc: ProfileDoc,
-    edits: Vec<DocEdit<ProfileProgram>>,
 }
 
 impl Rec {
     fn new() -> Self {
         Self {
             doc: ProfileDoc::empty_derived("review_m5_pr9_doc_probe", Tol::witness()),
-            edits: Vec::new(),
         }
     }
     fn insert(&mut self, node: AuthoredNode) -> RecipeNodeId {
@@ -47,14 +45,13 @@ impl Rec {
         )
         .expect("edit applies");
         self.doc = applied.doc;
-        self.edits.push(edit);
         applied.record.minted.expect("minted id")
     }
 }
 
 /// The boss-union document: 3x3x0.8 plate, r=0.35 three-arc boss at
 /// (1.2, 1.7) from z=0.3, height 1.0.
-fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) {
+fn boss_union_doc() -> (ProfileDoc, RecipeNodeId) {
     let mut r = Rec::new();
     let plate_loop =
         LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]).unwrap();
@@ -70,9 +67,6 @@ fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) 
     // (a)); this probe mirrors it so the closed-form volume row keeps
     // metering the SAME document shape.
     let boss_loop = LoopProgram::circle_split(1.2, 1.7, 0.35, 3, 0.0).unwrap();
-    // The boss is sketched a third of the way up the plate: its own
-    // plane, so its own frame.
-    // D-FRAME: let boss_plane = r.insert(frame([0.0, 0.0, 0.3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let boss_p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![boss_loop],
         ids: Vec::new(),
@@ -81,10 +75,13 @@ fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) 
         profile: boss_p.into(),
         distance: len(1.0),
     });
+    // The boss stands a third of the way up the plate.
+    let (doc, boss) = crate::fixture::slid(r.doc, plate, boss, [0.0, 0.0, 0.3]);
+    r.doc = doc;
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
     });
-    (r.doc, r.edits, union)
+    (r.doc, union)
 }
 
 fn union_body<T: geom_core::Decide>(
@@ -100,7 +97,7 @@ fn union_body<T: geom_core::Decide>(
 
 #[test]
 fn the_boss_union_document_row_f64_volume_and_roundtrip() {
-    let (doc, _edits, union) = boss_union_doc();
+    let (doc, union) = boss_union_doc();
     let ev = evaluate::<f64>(
         &doc,
         None,
@@ -138,7 +135,7 @@ fn the_boss_union_document_row_interval_bit_replay() {
     // Deviation 9's unauthored row: the first curved boolean under
     // the certified interval scalar, twice, bit-identical — and green.
     use geom_core::Interval;
-    let (doc, _edits, union) = boss_union_doc();
+    let (doc, union) = boss_union_doc();
     let fp = || {
         let ev = evaluate::<Interval>(
             &doc,

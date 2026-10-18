@@ -148,7 +148,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use pncad::document::ExtrudeSide;
+use pncad::sweep::ExtrudeSide;
 
 use pncad::geom_core::{Affine3, Mat3, Point2, Point3, RigidMotion, RigidMotionError, Vec2, Vec3};
 use pncad::prelude::{Open, Start};

@@ -28,7 +28,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 
 use std::collections::BTreeMap;
 
@@ -95,24 +94,79 @@ fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     });
 }
 
-fn translated(input: RecipeNodeId, d: [Formula; 3]) -> AuthoredNode {
-    let [dx, dy, dz] = d;
-    Node::transform(
-        input,
-        editor_core::Step::Rigid {
-            translation: [dx, dy, dz],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    )
-}
+/// The sentinel slide [`translated`] places at, then re-spells.
+const SENTINEL: f64 = 0.5;
 
-fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
-    r.insert(fixture::xy_frame())
+/// **A copy of `input` slid by `d` in `target`'s own coordinates**, each
+/// component a formula: placed against `target` at a literal slide
+/// along `z` ([`editor_core::place_against`]), the mate's slide then
+/// re-spelled as `d[2]` and its `x` and `y` values as `d[0]` and `d[1]`.
+/// Returns the placement, whose output is the copy.
+fn translated(
+    r: &mut Recorder,
+    target: RecipeNodeId,
+    input: RecipeNodeId,
+    d: [Formula; 3],
+) -> RecipeNodeId {
+    use editor_core::pose::PoseDef;
+    use editor_core::{Coord, Operand, SlideAxis};
+    let [dx, dy, dz] = d;
+    let body = Operand::Node(input);
+    let placed = editor_core::place_against(
+        &r.doc,
+        &fixture::body_read(&r.doc, target.into()),
+        &body,
+        &editor_core::Frame::translation([0.0, 0.0, SENTINEL]),
+        &editor_core::EvalOptions::default(),
+        Tol::witness(),
+    )
+    .expect("the copy places against its target");
+    let lit = |v: f64| Formula::literal(v, Dimension::Length).expect("a literal");
+    let mut replaced = 0;
+    fn walk(op: &mut Operand, f: &mut dyn FnMut(&mut Formula)) {
+        if let Operand::Pose(def) = op {
+            match &mut **def {
+                PoseDef::Slide { pose, by, .. } => {
+                    f(by);
+                    walk(&mut pose.read, f);
+                }
+                PoseDef::Spin { pose, .. }
+                | PoseDef::Flip { pose }
+                | PoseDef::Carried { pose, .. } => walk(&mut pose.read, f),
+                _ => {}
+            }
+        }
+    }
+    let mut respell = |by: &mut Formula| {
+        if *by == lit(SENTINEL) {
+            *by = dz.clone();
+            replaced += 1;
+        } else if *by == lit(-SENTINEL) {
+            *by = Formula::neg(dz.clone()).expect("a length");
+            replaced += 1;
+        }
+    };
+    let mut mate = placed.mate;
+    walk(&mut mate.on, &mut respell);
+    if let Some(to) = mate.to.pose_mut() {
+        walk(to, &mut respell);
+    }
+    assert_eq!(replaced, 1, "the mate slides the copy once: {mate:?}");
+    let values = placed
+        .values
+        .into_iter()
+        .map(|(coord, by)| match coord {
+            Coord::Slide(SlideAxis::X) => (coord, dx.clone()),
+            Coord::Slide(SlideAxis::Y) => (coord, dy.clone()),
+            _ => (coord, by),
+        })
+        .collect();
+    let placement = r.insert(Node::place(vec![editor_core::BodyRead::plain(body)]));
+    r.constrain(placement, mate, values);
+    placement
 }
 
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
-    let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
@@ -186,14 +240,16 @@ fn ell_with_a_planted_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &[(0.45, 0.85), (0.55, 0.85), (0.55, 0.95), (0.45, 0.95)],
         0.1,
     );
-    let placed = r.insert(translated(
+    let placed = translated(
+        &mut r,
+        solid,
         probe,
         [
             Formula::named(name("place"), Dimension::Length),
             len(0.0),
             len(-0.05),
         ],
-    ));
+    );
     (r.doc, solid, placed)
 }
 
@@ -322,7 +378,6 @@ fn scalloped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 1.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let plane = insert_xy_frame(&mut r);
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![chain],
         ids: Vec::new(),
@@ -339,14 +394,16 @@ fn scalloped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &[(0.9, 0.62), (1.1, 0.62), (1.1, 0.8), (0.9, 0.8)],
         1.0,
     );
-    let placed = r.insert(translated(
+    let placed = translated(
+        &mut r,
+        solid,
         probe,
         [
             len(0.0),
             len(0.0),
             Formula::named(name("place"), Dimension::Length),
         ],
-    ));
+    );
     (r.doc, solid, placed)
 }
 
@@ -433,7 +490,6 @@ fn a_cylinder_band_answers_through_a_cut_root() {
 /// (`t3s-r2` lane, `t3s_probes_interval.rs::p6_block_mid_way_along_the_negative_band_wall`),
 /// adopted here with its measurement.
 fn split_peg(r: &mut Recorder, n: u32, phase: f64) -> RecipeNodeId {
-    let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::CircleSplit {
             centre: [len(0.0), len(0.0)],
@@ -452,7 +508,7 @@ fn split_peg(r: &mut Recorder, n: u32, phase: f64) -> RecipeNodeId {
 /// A 0.1 × 0.1 block whose near face stands `gap` off the peg's surface
 /// at world azimuth `theta`, spanning `z ∈ [0.3, 0.7]` so it sits
 /// mid-way up the wall rather than against either cap.
-fn block_at_azimuth(r: &mut Recorder, theta: f64, gap: f64) -> RecipeNodeId {
+fn block_at_azimuth(r: &mut Recorder, peg: RecipeNodeId, theta: f64, gap: f64) -> RecipeNodeId {
     let (c, s) = (theta.cos(), theta.sin());
     let (r0, r1) = (0.5 + gap, 0.5 + gap + 0.1);
     let (tx, ty) = (-s * 0.05, c * 0.05);
@@ -463,7 +519,9 @@ fn block_at_azimuth(r: &mut Recorder, theta: f64, gap: f64) -> RecipeNodeId {
         (r0 * c + tx, r0 * s + ty),
     ];
     let b = extruded(r, &pts, 0.4);
-    r.insert(translated(
+    translated(
+        r,
+        peg,
         b,
         [
             len(0.0),
@@ -471,7 +529,7 @@ fn block_at_azimuth(r: &mut Recorder, theta: f64, gap: f64) -> RecipeNodeId {
             Formula::add(len(0.3), Formula::named(name("place"), Dimension::Length))
                 .expect("a length"),
         ],
-    ))
+    )
 }
 
 /// **E7b — the periodic root rule, on a band that runs the wrong side
@@ -508,7 +566,7 @@ fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
     let peg = split_peg(&mut r, 4, -3.0 * core::f64::consts::FRAC_PI_4);
-    let block = block_at_azimuth(&mut r, 7.0 * core::f64::consts::FRAC_PI_8, 0.1);
+    let block = block_at_azimuth(&mut r, peg, 7.0 * core::f64::consts::FRAC_PI_8, 0.1);
     let wall = named(
         peg,
         vec![fixture::fname(peg, fixture::wall(&r.doc, peg, 3))],
@@ -598,11 +656,12 @@ fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
 fn a_revolved_quarter_band_is_windowed_and_holds() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
-    let plane = insert_xy_frame(&mut r);
-    let profile = r.insert(Node::Profile(fixture::desc(
-        plane,
-        vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
-    )));
+    let profile = r.insert(Node::Profile(fixture::desc(vec![vec![
+        (1.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 1.0),
+        (1.0, 1.0),
+    ]])));
     // The axis line, in the profile's own coordinates: its v is the
     // world axis the quarter turns about.
     let quarter = r.insert(fixture::revolve_about(
@@ -616,7 +675,9 @@ fn a_revolved_quarter_band_is_windowed_and_holds() {
         &[(-2.5, 0.0), (-2.1, 0.0), (-2.1, 1.0), (-2.5, 1.0)],
         0.4,
     );
-    let placed = r.insert(translated(
+    let placed = translated(
+        &mut r,
+        quarter,
         block,
         [
             len(0.0),
@@ -624,7 +685,7 @@ fn a_revolved_quarter_band_is_windowed_and_holds() {
             Formula::add(len(-0.2), Formula::named(name("place"), Dimension::Length))
                 .expect("a length"),
         ],
-    ));
+    );
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));
     let report = clearance(
         &r.doc,

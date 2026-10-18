@@ -31,9 +31,9 @@ use std::collections::BTreeMap;
 use std::time::Instant;
 
 use crate::corpus::Recorder;
-use crate::fixture::{self, len, scl};
+use crate::fixture::{self, len};
 use editor_core::{
-    CapEnd, Datum, EntityKey, EntityKind, EntityRef, EvalOptions, ExtrudeSide, MeasurePrimitive,
+    CapEnd, EntityKey, EntityKind, EntityRef, EvalOptions, MeasurePrimitive,
     NameRef, NameTable, NameTables, Node, NodeResult, PieceRole, ProfileEdgeRef, Qualifier,
     RecipeNodeId, RoleSeg, Speaker, StableName, StepId, VarId,
 };
@@ -608,7 +608,7 @@ fn block_and_cut(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
         distance: len(1.0),
     });
     let q = r.profile(
-        [0.0, 0.0, -0.5],
+        [0.0; 3],
         xy,
         uv,
         vec![vec![(1.0, 0.0), (1.5, 0.0), (1.5, 0.5), (1.0, 0.5)]],
@@ -617,6 +617,7 @@ fn block_and_cut(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
         profile: q.into(),
         distance: len(1.0),
     });
+    let pin = r.against(block, pin, &editor_core::Frame::translation([0.0, 0.0, -0.5]));
     let cut = r.insert(Node::Subtract {
         from: block.into(),
         tool: pin.into(),
@@ -637,13 +638,10 @@ fn block_and_split(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
         profile: p.into(),
         distance: len(1.0),
     });
-    let tool = r.insert(Node::Datum(Datum::Plane {
-        origin: [len(2.0), len(0.0), len(0.0)],
-        normal: [scl(1.0), scl(0.0), scl(0.0)],
-    }));
+    let tool = fixture::plane_on(&r.doc, block, [2.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
     let split = r.insert(Node::Split {
         target: block.into(),
-        tool: tool.into(),
+        tool,
     });
     (block, split)
 }
@@ -814,7 +812,7 @@ fn a_strand_row_names_a_deleted_union() {
     let mut r = Recorder::new();
     let (block, _) = block_and_split(&mut r);
     let q = r.profile(
-        [0.0, 0.0, 0.5],
+        [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(1.0, 0.0), (1.5, 0.0), (1.5, 0.5), (1.0, 0.5)]],
@@ -823,6 +821,7 @@ fn a_strand_row_names_a_deleted_union() {
         profile: q.into(),
         distance: len(1.0),
     });
+    let boss = r.against(block, boss, &editor_core::Frame::translation([0.0, 0.0, 0.5]));
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![block.into(), boss.into()]),
     });

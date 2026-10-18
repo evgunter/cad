@@ -18,7 +18,7 @@ Profile authoring is the PATHS lattice (`Open`, `PathOpen`,
 `PathPoint`, `PathDirectedPoint`, `PathAngle`, `PathDirected`,
 the arrival builders, `Start`, `circle`,
 `circle_split`) plus the straight-segment shortcut `Node.polygon`;
-one loop or a list of them, on any sketch plane. Arcs — sharp legs
+one loop or a list of them, drawn on the profile's own xy. Arcs — sharp legs
 and the fillet family alike — are authored by SPEC MODE (`Bulge`,
 `Via`, `Center`, `Radius`, `Sweep`, `ArcLen`).
 
@@ -26,7 +26,7 @@ Selection is materialize-then-store: the `Evaluation.all_*` doors
 answer a whole kind, and `Evaluation.select` / `select_where` narrow
 one — structurally (`Selector`, a union of `NamePat` role-path
 shapes) and geometrically (`GeomPred`: carrier kind, adjacent-surface
-kinds, datum distance). Every answer is opaque name TEXT, the one
+kinds, distance from a face's plane). Every answer is opaque name TEXT, the one
 alphabet `Node.fillet` reads; narrowing happens through these doors,
 never by parsing a name.
 
@@ -130,8 +130,10 @@ class EditError(PncadError):
       `index` the position of a section or a member.
     - `count` is how many nodes a definition expands to
       (`definition_too_large`), or how many entities a selection meant
-      to name one names (`selection_shape`). It is NOT `found`: a count
-      and a dimension are two types, and one attribute carries one.
+      to name one names (`selection_shape`), or how many sections a
+      loft holds (`loft_section_count`, beside `given`, how many the
+      edit handed). It is NOT `found`: a count and a dimension are two
+      types, and one attribute carries one.
     - `first` and `again` are POSITIONS in a selection's names, and
       the fault (`fault`) decides what `first` means. On `repeated` (a
       face set names a face twice) the two are the entry's first
@@ -192,6 +194,7 @@ class EditError(PncadError):
     found_kind: Optional[EntityKind]
     expected_kind: Optional[EntityKind]
     count: Optional[int]
+    given: Optional[int]
     first: Optional[int]
     again: Optional[int]
     value: Optional[float]
@@ -457,7 +460,7 @@ class EvalError(PncadError):
     holds at the dimension it is read at (the lowering's own refusal,
     which no evaluation step speaks), and `var_kind_mismatch` where a
     variable holds it at another kind (the same word the evaluator
-    gives a stored reader of the wrong kind). `GeomPred.datum_distance`
+    gives a stored reader of the wrong kind). `GeomPred.plane_distance`
     raises them too, lowering its comparand with no document in scope.
 
     Numeric domain is deliberately NOT here. Division by zero and
@@ -643,7 +646,7 @@ class SelectRefusal(PncadError):
     own typed refusal, crossing under its own name.
 
     `reason` is `in_band`, `tied_disagrees`, `unreadable`,
-    `not_a_datum`, `datum_has_no_value`, `not_a_length`, `bad_value`,
+    `not_a_plane`, `face_unresolved`, `not_a_length`, `bad_value`,
     `band`, `read_not_an_output` (`Evaluation.resolve` asked in a read
     that is no body output, so no table to ask), or `node_not_held`
     (`Evaluation.resolve` at a node handle the document no longer
@@ -651,17 +654,17 @@ class SelectRefusal(PncadError):
     refusing arm's payload, always present and `None` where
     inapplicable: `name` (the candidate's opaque name text),
     `predicate` (the funnel site), `matched`/`candidates` (a tied
-    name's disagreement counts), `datum` (the non-datum reference, or
-    the datum with no value), `found` (what it evaluated to),
-    `dim` (a non-length comparand's dimension tag)."""
+    name's disagreement counts), `face` (the opaque name text of the
+    face a distance measures from, where it is not planar or the body
+    does not hold it), `dim` (a non-length comparand's dimension
+    tag)."""
 
     reason: str
     name: Optional[str]
     predicate: Optional[str]
     matched: Optional[int]
     candidates: Optional[int]
-    datum: Optional[NodeId]
-    found: Optional[str]
+    face: Optional[str]
     dim: Optional[str]
 
 class MateError(PncadError):
@@ -774,8 +777,9 @@ class InlineError(PncadError):
     mate: Optional[MateRef]
     """`value_on_a_moved_world`: the part copy's value charted on the
     world the inline moves, `node` its placement, both in the part's
-    ids. `instance_unsolved`: `node` is the instance whose pin did not
-    solve; `pin_reads_variable`: `node` is the instance and `param` the
+    ids. `repin_refused`: `node` is the part placement whose re-pin at
+    the moved world found no frame. `instance_unsolved`: `node` is the
+    instance whose pin did not solve; `pin_reads_variable`: `node` is the instance and `param` the
     variable its pin reads. `unplaceable_part`:
     `node` is the instance whose bundle does not carry its part;
     `construction_reads_copy`: `node` is the construction reading the
@@ -891,7 +895,7 @@ class NodePickError(PncadError):
     `NodePick.build_all`.
 
     `not_a_body` and `no_such_body` are different states and stay
-    apart: a datum, profile, declaration or mate NEVER draws, while a
+    apart: a profile, declaration or mate NEVER draws, while a
     node that draws nothing today (an annihilated boolean, an empty
     split side) draws again after an edit. Only the second changes
     under an edit, which is why the two are not one arm.
@@ -1845,13 +1849,6 @@ class IndexedRead:
 
     def __repr__(self) -> str: ...
 
-class ExtrudeSide:
-    """Which side of its sketch plane a `Node.extrude` goes toward:
-    along the plane's normal `u x v`, or against it."""
-
-    Along: Final[ExtrudeSide]
-    Against: Final[ExtrudeSide]
-
 class TubeWindow:
     """A tube's traversed window — the full ring, or an arc of it.
 
@@ -1868,49 +1865,24 @@ class TubeWindow:
     def arc(t0: _AngleArg, t1: _AngleArg) -> TubeWindow: ...
     def __repr__(self) -> str: ...
 
-class SketchPlane:
-    """The rigid placement of a sketch plane in 3-space.
-
-    Sketch (x, y) maps to world `origin + x*u + y*v`, and the plane's
-    NORMAL is `u x v` — the direction `Node.extrude` runs, so the
-    plane is what chooses an extrusion's axis. The named frames are
-    cyclic (x->y->z->x): `xy` has normal +z, `yz` (u = y, v = z) has
-    normal +x, `zx` (u = z, v = x) has normal +y.
-
-    Rigidity — u, v unit and perpendicular — is CONVENTIONAL DATA,
-    UNCHECKED, exactly as in Rust: nothing here verifies it, and a
-    non-rigid frame yields a well-defined skewed sketch rather than
-    poison. Geometric certification is the kernel's tier-3 validation
-    at rest; the binding adds no orthogonality predicate of its own.
-    """
+class StationMove:
+    """One move of a loft section's station: a slide along, or a spin
+    about, one of the first section's own axes (`"x"`, `"y"` or `"z"`)
+    through its origin, by one length or one angle. Its number is the
+    loft's `station_slide` / `station_spin` slot."""
 
     @staticmethod
-    def xy() -> SketchPlane: ...
+    def slide(axis: Literal["x", "y", "z"], by: _LengthArg) -> StationMove: ...
     @staticmethod
-    def yz() -> SketchPlane: ...
-    @staticmethod
-    def zx() -> SketchPlane: ...
-    @staticmethod
-    def from_frame(
-        origin: tuple[Length, Length, Length],
-        u: tuple[float, float, float],
-        v: tuple[float, float, float],
-    ) -> SketchPlane: ...
+    def spin(axis: Literal["x", "y", "z"], by: _AngleArg) -> StationMove: ...
     @property
-    def origin(self) -> tuple[Length, Length, Length]: ...
+    def kind(self) -> Literal["slide", "spin"]: ...
     @property
-    def u(self) -> tuple[float, float, float]: ...
+    def axis(self) -> Literal["x", "y", "z"]: ...
     @property
-    def v(self) -> tuple[float, float, float]: ...
-    @property
-    def normal(self) -> tuple[float, float, float]: ...
+    def by(self) -> Formula: ...
     def __eq__(self, other: object) -> bool: ...
-
-    # Equality is BIT-exact — Rust's `SketchPlane`, whose `==` IS
-    # `bit_eq`, crossing unchanged. A sketch plane carries no epsilon,
-    # so `-0.0` keeps its own identity rather than being folded into
-    # `0.0`. No `__hash__`: the Rust type derives none either, and a
-    # plane is a placement to compare, not a key to tally by.
+    def __repr__(self) -> str: ...
 
 class Frame:
     """An ABSOLUTE placement: a linear part and a translation.
@@ -1935,11 +1907,9 @@ class Frame:
         v: tuple[Length, Length, Length],
     ) -> Frame:
         """Rotate about `axis` through the WORLD ORIGIN, THEN
-        translate — `Node.transform`'s own order, so a placement and a
-        modeled transform of the same part agree BIT FOR BIT.
+        translate.
 
-        The axis is DECIDED here, the way a transform node's is: an
-        axis of no definite direction raises EditError with tag
+        The axis is DECIDED here: an axis of no definite direction raises EditError with tag
         `placement_axis`, naming the axis and its role, rather than
         building a frame that is refused later for not being
         finite."""
@@ -1995,66 +1965,6 @@ class Frame:
     # kernel's `Frame` derives `PartialEq` and no `Hash`, and this
     # class mirrors its derives.
 
-class Placement:
-    """Where `Node.transform_by` puts its input: a chain of steps, each
-    a rigid step of expressions or a literal frame.
-
-    The chain composes as a product: `a.compose(b)` is `a ∘ b`, in
-    `Frame.compose`'s order, so `b` acts on the body first, in the frame
-    `a` builds. A rigid step's components are slot expressions a
-    parameter can drive; a literal frame is held to the placement bar
-    (finite, proper and rigid) at the edit door.
-    """
-
-    @staticmethod
-    def rigid(
-        *,
-        translation: tuple[_LengthArg, _LengthArg, _LengthArg],
-        axis: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
-        angle: _AngleArg,
-    ) -> Placement:
-        """One rigid step: rotate by `angle` about the axis through the
-        origin with direction `axis`, then translate — `Node.transform`'s
-        convention. Keyword-only. The components' dimensions are checked
-        where the step lands (`Node.transform_by`), whose refusal names
-        that step's slot."""
-
-    @staticmethod
-    def identity() -> Placement:
-        """The empty chain: the identity, and the unit of `compose` —
-        the offset an inserted instance carries on the world."""
-
-    @staticmethod
-    def literal(frame: Frame) -> Placement:
-        """One literal step: exactly `frame`, bit for bit."""
-
-    @staticmethod
-    def point_at(
-        eye: tuple[Length, Length, Length],
-        target: tuple[Length, Length, Length],
-        roll_reference: tuple[float, float, float],
-    ) -> Placement:
-        """One literal step: `Frame.point_at`'s frame. Refuses as that
-        constructor does (FrameError)."""
-
-    @staticmethod
-    def path_start_frame(
-        origin: tuple[Length, Length, Length],
-        tangent: tuple[float, float, float],
-    ) -> Placement:
-        """One literal step: `Frame.path_start_frame`'s frame. Refuses
-        as that constructor does (FrameError)."""
-
-    def compose(self, inner: Placement) -> Placement:
-        """The composition `self ∘ inner`: `inner` acts on the body
-        first, in the frame `self` builds."""
-
-    def __len__(self) -> int: ...
-    def __eq__(self, other: object) -> bool: ...
-
-    # Equality is BIT-exact over every step, `Frame.__eq__`'s rule. No
-    # `__hash__`, as `Frame` has none.
-
 class PatternKind:
     """A pattern's replication rule: how a prototype's placements are
     generated.
@@ -2078,8 +1988,8 @@ class PatternKind:
 
     @staticmethod
     def circular(axis: _PoseRead, step: _AngleArg) -> PatternKind:
-        """Stepped around `axis`, an upstream `datum_axis` node or a
-        frame's axis read through its role. The
+        """Stepped around `axis`, an axis read off geometry
+        (`PoseDef.axis`) or a frame's axis read through its role. The
         step is signed by the right-hand rule about the axis and lies
         within a turn: zero raises EvaluationError (`degenerate_step`),
         and so does a full turn or more (`full_range_step`), wherever a
@@ -2197,38 +2107,25 @@ class Node:
     """A recipe node, before insertion."""
 
     @staticmethod
-    def sketch_frame(
-        plane: Optional[SketchPlane] = None,
-        elevation: Optional[_LengthArg] = None,
-    ) -> Node:
-        """The sketch frame a profile is drawn on, as a node.
-
-        `plane=` and `elevation=` are the two spellings of one thing
-        and are mutually exclusive; they moved here from the sketch
-        doors when a profile's plane became a document node.
-        """
-
-    @staticmethod
-    def polygon(
-        points: list[tuple[_LengthArg, _LengthArg]],
-        plane: _Operand,
-    ) -> Node: ...
+    def polygon(points: list[tuple[_LengthArg, _LengthArg]]) -> Node:
+        """A closed polygonal sketch, drawn on its own xy. A profile is
+        2-D: where a body built from it stands is that body's
+        placement's."""
     @overload
     @staticmethod
-    def profile(outline: ClosedLoop, plane: _Operand) -> Node: ...
+    def profile(outline: ClosedLoop) -> Node: ...
     @overload
     @staticmethod
-    def profile(outline: list[ClosedLoop], plane: _Operand) -> Node: ...
+    def profile(outline: list[ClosedLoop]) -> Node: ...
     @staticmethod
-    def extrude(
-        profile: _Operand, distance: _LengthArg, side: ExtrudeSide = ExtrudeSide.Along
-    ) -> Node:
-        """Extrude a profile to one side of its sketch plane.
+    def extrude(profile: _Operand, distance: _LengthArg) -> Node:
+        """Extrude a profile up its own +z.
 
         `distance` mints a LITERAL in the node's `distance` slot. It is
         a depth: a size, refused at `evaluate` unless definitely
-        positive. Which way it goes is `side` alone, and
-        `DocEdit.set_extrude_side` moves it afterwards.
+        positive. The body lies in its own coordinates, between its
+        profile's xy and `distance` up; a body that stands below a
+        plane is placed so.
         `DocEdit.set_param(node, "distance", expr)` moves the depth,
         and makes it a named, editable number: a literal is a new
         document per value, a parameter reference is one
@@ -2254,16 +2151,16 @@ class Node:
         as an extrude's `distance` is."""
     @staticmethod
     def tube(
-        frame: _Operand,
         major_radius: _LengthArg,
         window: TubeWindow,
         minor_radius: _LengthArg,
     ) -> Node:
         """A solid ring torus, or an elbow of one, from its intent parameters.
 
-        `frame` is a `Node.datum_frame`: its origin is the tube's centre,
-        its normal (`u x v`) the spine axis, and its `u` the reference
-        direction the window's angles are measured from. Every number
+        The tube lies in its own coordinates: its spine is the circle
+        about its own z through its own origin, and its own x is the
+        reference direction the window's angles are measured from; where
+        it stands is its placement's. Every number
         is STORED, never reconstructed, so `minor_radius` comes back
         out of the body bit for bit.
 
@@ -2273,7 +2170,6 @@ class Node:
 
     @staticmethod
     def hollow_tube(
-        frame: _Operand,
         major_radius: _LengthArg,
         window: TubeWindow,
         minor_radius: _LengthArg,
@@ -2291,7 +2187,19 @@ class Node:
         """
 
     @staticmethod
-    def loft(profiles: Sequence[_Operand], v_degree: _CountArg) -> Node: ...
+    def loft(
+        first: _Operand,
+        then: Sequence[tuple[_Operand, Sequence[StationMove]]],
+        v_degree: _CountArg,
+    ) -> Node:
+        """A skinned solid through two or more sections: `first`'s
+        profile, then each later section as `(profile, station)`, the
+        `StationMove`s that carry the first section's plane to its own
+        (slides along and spins about the first section's own axes, in
+        the order written). Order is data. The loft lies in its first
+        section's coordinates. `v_degree` is a count
+        (`Formula.count`); `DocEdit.set_members` re-points the sections'
+        profiles, one per section (else `loft_section_count`)."""
     @staticmethod
     def chamfer(target: _Operand, distance: _LengthArg, selection: list[str]) -> Node:
         """Equal-setback flat chamfers on named edges of `target`.
@@ -2325,75 +2233,6 @@ class Node:
         """
 
     @staticmethod
-    def datum_axis(
-        origin: tuple[_LengthArg, _LengthArg, _LengthArg],
-        direction: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
-    ) -> Node: ...
-    @staticmethod
-    def datum_plane(
-        origin: tuple[_LengthArg, _LengthArg, _LengthArg],
-        normal: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
-    ) -> Node: ...
-    @staticmethod
-    def datum_point(position: tuple[_LengthArg, _LengthArg, _LengthArg]) -> Node:
-        """A datum point: a position, and nothing else.
-
-        There is no direction, because a point has none —
-        `Datum.direction` reads back `None` for this kind. A point
-        denotes no body and cuts nothing; what it is FOR is being
-        referred to, and `GeomPred.datum_distance` reads an entity's
-        UNSIGNED distance to it. Nothing refuses at `evaluate`; a
-        non-finite coordinate raises `LiteralError` here.
-        """
-    @staticmethod
-    def datum_face_frame(at: _Operand, face: str, spin: _AngleArg) -> Node:
-        """A sketch frame DERIVED from a face — "sketch on this face".
-
-        `at` is the body-denoting node the face is read out of, and a
-        DAG input: raise the body and every sketch on this frame rides
-        up with it. `face` is one of the opaque texts
-        `Evaluation.all_faces` or `select` answered with, handed back
-        unread — the face is NAMED, not transcribed as nine numbers.
-
-        `spin` turns sketch +x about the face's OUTWARD normal
-        (`Pose.sense` times `Pose.axis`) from the carrier's own
-        u-reference, right-handed. There is no default: pass
-        `0 * rad` to take the u-reference unturned.
-
-        An edge or vertex name refuses at the insert (`EditError`
-        `selection_name_kind`). The rest refuse typed at `evaluate`, never
-        here — `select_resolve` for a name that stopped denoting,
-        `face_frame_not_planar` for a curved carrier,
-        `face_frame_readback` for unreadable geometry.
-        """
-
-    @staticmethod
-    def datum_frame(
-        origin: tuple[_LengthArg, _LengthArg, _LengthArg],
-        u: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
-        v: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
-    ) -> Node:
-        """An oriented plane — a sketch frame, written as its origin
-        and its two in-plane directions.
-
-        `u` and `v` are authored freely and ORTHONORMALIZED at
-        evaluation with `u` kept: sketch +x is the direction written
-        here and `v` yields its component along `u`, so editing `v`
-        alone cannot silently turn every profile drawn on the frame. A
-        pair that is merely not perpendicular is legal.
-
-        A `datum_plane` pins five of a placement's six rigid degrees of
-        freedom; the sixth is the spin about the normal, which is what
-        a sketch's x and y axes ARE — so this, not a plane, is the node
-        `Node.profile` names. `Node.sketch_frame` mints the same arm
-        from a `SketchPlane` value; this door writes the three triples
-        straight into the node's nine slots.
-
-        A zero-length `u`, or a `v` parallel to it, refuses typed at
-        `evaluate` — `degenerate_direction`, naming which axis went.
-        """
-
-    @staticmethod
     def fillet(target: _Operand, radius: _LengthArg, selection: list[str]) -> Node:
         """Constant-radius blends on named edges of `target`.
 
@@ -2410,33 +2249,13 @@ class Node:
 
     @staticmethod
     def split(target: _BodyArg, tool: _PoseRead) -> Node:
-        """Split `target` by `tool` (a plane: a `datum_plane`, a
-        `PoseDef` of kind plane, or a frame's coordinate plane read
+        """Split `target` by `tool` (a plane: a `PoseDef` of kind
+        plane, or a frame's coordinate plane read
         through its role, `RoleRead(frame, "xy")`). The value is a split — read it with
         `Value.split()`, not `Value.body()`. Its two outputs are its
         halves, read by port (`doc.output(split, 0)` is the half above
         the plane's normal); a read of a half the cut left with no
         material refuses at `evaluate` (`empty_half`)."""
-
-    @staticmethod
-    def transform(
-        input: _Operand,
-        translation: tuple[_LengthArg, _LengthArg, _LengthArg],
-        rotation_axis: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
-        rotation_angle: _AngleArg,
-    ) -> Node:
-        """A rigid placement: rotate about `rotation_axis` through the
-        WORLD ORIGIN by `rotation_angle`, then translate. A pure
-        translation passes any non-degenerate axis and a zero angle;
-        a zero-length axis refuses rather than meaning "no rotation".
-        """
-
-    @staticmethod
-    def transform_by(input: _Operand, placement: Placement) -> Node:
-        """A placement of an upstream body by a `Placement` chain.
-        `Node.transform` is this with one rigid step. Every rigid step's
-        components are checked against the slot they land in (EditError
-        `slot_dimension_mismatch` naming that step's slot)."""
 
     @staticmethod
     def place(
@@ -2600,12 +2419,12 @@ class Node:
         or through a definition. Arithmetic over measured values is an
         ordinary `Formula` over the outputs.
 
-        The read site is what makes a measure report PLACED geometry. A
-        rigid transform is identity-preserving, so the moved body keeps
-        the upstream name and resolving at the minting node measures
-        the UNMOVED carrier. Select a face from a transform's own
-        selection door and name that transform for the placed number;
-        name the minting node for the authored one. Both are legal and
+        The read site is what makes a measure report PLACED geometry: a
+        placement's copy is named under the placement, and resolving at
+        the minting node measures the construction in its own
+        coordinates. Select a face from the placement's own selection
+        door and name that placement for the placed number; name the
+        minting node for the authored one. Both are legal and
         they are different questions.
 
         These references ARE recipe edges: each is a selection of the
@@ -2901,6 +2720,19 @@ class VarName:
     def name(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
+
+class SketchedOnFace:
+    """What `Doc.sketch_on_face` inserted."""
+
+    @property
+    def profile(self) -> NodeId: ...
+    @property
+    def extrude(self) -> NodeId: ...
+    @property
+    def placement(self) -> NodeId: ...
+    @property
+    def union(self) -> NodeId: ...
+    def __repr__(self) -> str: ...
 
 class Measured:
     """What `Doc.measure` inserted: the measures, one per primitive in
@@ -3422,7 +3254,9 @@ class DocEdit:
         read beside single reads), `would_cycle`. Any count is a list:
         one member, or none, is a union or intersect still. A loft's
         sections are spelled one read each, so a family there refuses
-        `loft_sections_spelled`, and a node carrying no list refuses
+        `loft_sections_spelled`, a count other than the loft's sections
+        refuses `loft_section_count` (each section keeps its station),
+        and a node carrying no list refuses
         `set_members_on_non_list`."""
 
     @staticmethod
@@ -3573,15 +3407,6 @@ class DocEdit:
         `mate_no_chart`."""
 
     @staticmethod
-    def pin_where_it_stands(placement: NodeId) -> DocEdit:
-        """Pin `placement`'s copy where its body stands (stage 3 C's
-        named interim): a world pin with no read and no number, placing
-        the copy at the identity of the world's coordinates. It stands
-        alone: refuses typed on `EditError`, `constraint_on_non_placement`
-        and `mate_refused` (`mate_overconstrained`) on a bundle holding
-        anything else."""
-
-    @staticmethod
     def remove_constraint(mate: MateRef) -> DocEdit:
         """Remove the constraint `mate` addresses from its placement's
         bundle. What it pinned is recomputed from what remains: a copy
@@ -3718,13 +3543,6 @@ class DocEdit:
         crosses and the edit cannot be aimed at a continuous slot. The
         edit's own refusals stay live — a node with no count slot, an
         unknown parameter, a parameter of the wrong dimension."""
-
-    @staticmethod
-    def set_extrude_side(node: NodeId, side: ExtrudeSide) -> DocEdit:
-        """Set which side of its sketch plane the extrude `node` goes
-        toward — the structural half of an extrude, which no value of
-        its depth can flip. Refuses typed on a node that is not an
-        extrude."""
 
     @staticmethod
     def bind_instance_param(node: NodeId, name: VarName) -> DocEdit:
@@ -3870,9 +3688,9 @@ class Doc:
         to it; it is not among the document's nodes (`order`,
         `node_count`)."""
 
-    def bundle(self, placement: NodeId) -> list[tuple[MateRef, Mate | MateValue | WorldPin]]:
+    def bundle(self, placement: NodeId) -> list[tuple[MateRef, Mate | MateValue]]:
         """A placement's bundle: each constraint by its address, with
-        its mate, its value or its world pin as written, in the
+        its mate or its value as written, in the
         bundle's order. Raises `EditError`
         (`constraint_on_non_placement`) for a node that holds no bundle,
         and (`unknown_node`) for one this document does not hold."""
@@ -3894,7 +3712,7 @@ class Doc:
         """Remove the constraint `mate` addresses as one action, a mate
         with every value that names it: each value's removal in bundle
         order, then the mate's, all applied or none; answers the removed
-        values' addresses. A value, a world pin, or a mate no value
+        values' addresses. A value, or a mate no value
         names is removed alone (answering `[]`).
         `DocEdit.remove_constraint` stays the raw edit, which refuses a
         mate a value names (`mate_named_by_value`). Raises `EditError`:
@@ -3923,14 +3741,14 @@ class Doc:
         """What KIND of node `node` is: one stable word per recipe
         node, and the read half of the `Node.*` constructor family.
 
-        The vocabulary, in full: `datum`, `profile`, `extrude`,
-        `revolve`, `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`,
-        `chamfer`, `shell`, `split`, `union`, `intersect`, `subtract`,
-        `transform`, `place`, `world`, `pattern`, `part`, `placed_union`,
-        `instantiate_part`, `measure`, `assertion`.
+        The vocabulary, in full: `profile`, `extrude`, `revolve`,
+        `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`, `chamfer`,
+        `shell`, `split`, `union`, `intersect`, `subtract`, `place`,
+        `world`, `pattern`, `part`, `placed_union`, `instantiate_part`,
+        `measure`, `assertion`.
 
         This is the NODE's kind, never its VALUE's: an extrude, a
-        transform and a placed union all evaluate to a value whose
+        placement and a placed union all evaluate to a value whose
         `kind` is `"body"`, because that is the PAYLOAD's shape.
         Telling the recipes apart is what this door is for, and it
         answers with no evaluation in hand at all.
@@ -3978,22 +3796,7 @@ class Doc:
         `DocEdit.declare_var` names it.
 
         Exactly `insert(Node.measure(p))` per primitive, recorded as one
-        action and answered with the outputs, as `sketch_frame` is
-        `insert(Node.sketch_frame(...))`."""
-    def sketch_frame(
-        self,
-        plane: Optional[SketchPlane] = None,
-        elevation: Optional[_LengthArg] = None,
-        *,
-        label: Optional[str] = None,
-    ) -> NodeId:
-        """Insert a sketch frame and return its id.
-
-        Exactly `insert(Node.sketch_frame(...), label=label)`. Each call
-        mints a FRESH frame; two sketches meant to share a plane bind
-        the id once and pass it twice.
-        """
-
+        action and answered with the outputs."""
     def place(
         self,
         shapes: _BodyArg | Sequence[_BodyArg],
@@ -4013,13 +3816,10 @@ class Doc:
         of its own until a constraint pins it. `None` with a `pose` is
         the "place part" gesture, `place_at(shapes, pose)`, answering the
         placement alone; `pose` beside `constraints` raises ValueError.
-        Neither: the copy stands where its body stands, pinned by a
-        world pin (`WorldPin`, stage 3 C's named interim), which reads
-        nothing and so follows the body's variables. The two differ at
-        the identity too, on purpose: `pose=Frame.identity()` is the
-        gesture, a plane mate and three values the copy can then be slid
-        and spun by, read off the copy's geometry at its nominal; no
-        `pose` is the pin, which holds no freedom and reads nothing.
+        Neither: the copy stands where its body's own coordinates put
+        it — a plane mate on a face of the copy no variable reaches (a
+        full revolve's or ring's own axis where it has none) and
+        constant-zero values, the kernel's `stand`.
 
         The one door that puts a body in the product: nothing places as
         a side effect, so a boolean of two placed bodies leaves both
@@ -4071,6 +3871,44 @@ class Doc:
         `pin_unevaluated`, `pin_not_a_body`, `pin_already_placed`,
         `pin_no_node`, `pin_band`); the edit doors' own refusals raise
         as theirs."""
+
+    def place_against(
+        self,
+        target: _Operand,
+        body: _BodyArg,
+        pose: Frame,
+        *,
+        resolver: Optional[Workspace] = None,
+        label: Optional[str] = None,
+    ) -> NodeId:
+        """One copy of `body` placed against `target`'s geometry at
+        `pose` — the copy's own frame in `target`'s own coordinates —
+        and the placement's id: how a construction combined with another
+        body joins that body's space, and how a body is moved rigidly
+        relative to another. A plane mate on a face of the copy no
+        variable reaches to `target`'s plane it lies on at `pose` (an
+        axis mate on a full revolve's or ring's own axis), and the
+        values that put it there; one action, refusing as `place_at`
+        does."""
+
+    def sketch_on_face(
+        self,
+        body: _Operand,
+        face: str,
+        outline: ClosedLoop | list[ClosedLoop],
+        distance: _LengthArg,
+        spin: Optional[_AngleArg] = None,
+        *,
+        label: Optional[str] = None,
+    ) -> SketchedOnFace:
+        """"Sketch on this face": `outline` drawn on its own plane and
+        extruded `distance` up its own `z`, the copy placed against
+        `face` of `body` (its start cap resting on the face's plane,
+        looking out along the outward normal, its origin over the face
+        body's own, turned `spin` about the normal; zero when `None`),
+        and `body` and the copy fused. `face` is opaque name text from
+        `Evaluation.all_faces` / `select`. One action; `label=` labels
+        the union."""
 
     @property
     def node_count(self) -> int: ...
@@ -4545,7 +4383,7 @@ class SurfaceKind:
     Approx: Final[SurfaceKind]
 
 class Cmp:
-    """The comparison `GeomPred.datum_distance` makes: the sign
+    """The comparison `GeomPred.plane_distance` makes: the sign
     trilean, never a bare float equality. A candidate whose margin
     lands INSIDE the ε-band answers neither strict arm and refuses
     (`SelectRefusal`, `reason="in_band"`)."""
@@ -4609,7 +4447,7 @@ class GeomPred:
 
     The atoms split EXACT/DECIDED and the split is typed, not
     flattened: the three kind atoms read the carrier's enum tag —
-    total, cannot refuse — while `datum_distance` is a real length
+    total, cannot refuse — while `plane_distance` is a real length
     comparison through the margin funnel, whose in-band candidates
     refuse as `SelectRefusal` rather than being silently included or
     dropped."""
@@ -4634,11 +4472,15 @@ class GeomPred:
         whichever side carries which."""
 
     @staticmethod
-    def datum_distance(datum: NodeId, cmp: Cmp, value: Formula) -> GeomPred:
-        """DECIDED: the entity's distance to a datum node against a
-        stated length `Formula` — signed to a datum plane, unsigned to an
-        axis or point. The datum is a node reference like every other
-        input, which keeps the rule equivariant.
+    def plane_distance(face: str, cmp: Cmp, value: Formula) -> GeomPred:
+        """DECIDED: the entity's signed distance from the plane of one of
+        the selected body's own planar faces, along its outward normal,
+        against a stated length `Formula`. `face` is opaque name text
+        (`Evaluation.all_faces` / `select`) naming a face of the body
+        selected from, which keeps the rule equivariant: the face moves
+        with the body. A face that is not planar refuses
+        `not_a_plane` at `select_where`, one the body does not hold
+        `face_unresolved`.
 
         The value is not a node slot, so its dimension is checked
         where the predicate is prepared: anything but a length is
@@ -4986,19 +4828,6 @@ class Mesh:
         is the Rust default — the producer text `BinaryOptions`
         carries, not 80 zero bytes."""
 
-class Datum:
-    @property
-    def kind(self) -> str: ...
-    @property
-    def origin(self) -> tuple[Length, Length, Length]: ...
-    @property
-    def direction(self) -> Optional[tuple[float, float, float]]: ...
-
-    @property
-    def axes(
-        self,
-    ) -> Optional[tuple[tuple[float, float, float], tuple[float, float, float]]]: ...
-
 class Measurement:
     """A `Measure` node's evaluated quantity: the value with the F1
     dimension it was measured in. Values are canonical kernel units
@@ -5046,7 +4875,6 @@ class Value:
     def body(self) -> Body: ...
     def bodies(self) -> list[Body]: ...
     def split(self) -> tuple[Optional[Body], Optional[Body]]: ...
-    def datum(self) -> Datum: ...
     def measure(self) -> Measurement: ...
     def assertion(self) -> Verdict: ...
 
@@ -5497,7 +5325,8 @@ class Evaluation:
         No tolerance enters. It is the door `face_frame` cannot be — a
         NURBS carrier has no canonical frame and refuses there, and
         its kind is still readable here — and it is how a caller
-        checks a face before building a `Node.datum_face_frame` on it.
+        checks a face before reading a plane off it (`PoseDef.plane`,
+        `GeomPred.plane_distance`).
 
         Raises `ReadbackError` as `face_frame` does, with
         `wrong_kind` for an edge or vertex name."""
@@ -5843,16 +5672,6 @@ class Coord:
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
-class WorldPin:
-    """A world pin (stage 3 C's named interim): the copy placed where its
-    body stands, the identity of the world's coordinates, with no read
-    and no number. It stands alone in its bundle.
-    `DocEdit.pin_where_it_stands` writes one; `Doc.place(shapes)` with
-    neither `constraints` nor `pose` places by one."""
-
-    def __eq__(self, other: object) -> bool: ...
-    def __hash__(self) -> int: ...
-
 class MateValue:
     """A mate's value: one freedom a mate of the same bundle leaves, set to a
     number — a `Length` for a slide, an `Angle` for a spin (a lone `0`
@@ -5892,11 +5711,12 @@ class MateValue:
 class Placed:
     """What the "place part" gesture wrote (`Doc.place_at`): the
     placement, its mate and its values, and how the copy was placed —
-    `by == "planar_face"`, a plane mate on the copy's first planar face
-    to the world plane it lies in at the pose and the three values
-    (slides along `x` and `y`, and the spin) that put it there; or
-    `by == "pin"`, a copy with no planar face pinned over a frame read
-    off its geometry, with no freedom left to set."""
+    `by == "planar_face"`, a plane mate on a planar face of the copy to
+    the plane it lies in at the pose and the three values (slides along
+    `x` and `y`, and the spin) that put it there; `by == "axis"`, an
+    axis mate on a full revolve's or ring's own axis and its two
+    values; or `by == "pin"`, a copy with no planar face pinned over a
+    frame read off its geometry, with no freedom left to set."""
 
     @property
     def placement(self) -> NodeId: ...
@@ -5904,9 +5724,10 @@ class Placed:
     def mate(self) -> MateRef: ...
     @property
     def values(self) -> list[MateRef]:
-        """Slide `x`, slide `y`, spin; empty for a pin."""
+        """Slide `x`, slide `y`, spin for a planar face; the axis mate's
+        two for an axis; empty for a pin."""
     @property
-    def by(self) -> Literal["planar_face", "pin"]: ...
+    def by(self) -> Literal["planar_face", "axis", "pin"]: ...
 
 class ClassAdmission:
     """How far a contact class gets in v1, as a value BOTH enforcing
@@ -6659,8 +6480,9 @@ def split(
     placement whose bundle reads a kept copy severs that read
     (`severed_edge`). A part delivers only its world: the cut's world
     placements are the part's, and the remainder holds ONE instance of
-    the part pinned where it stands by the world pin, so its copies
-    stand where the cut's did. A remainder read of the cut crosses only where
+    the part stood where its world stands (the kernel's `stand`), so
+    its copies stand where the cut's did; a part that offers no face to
+    stand it on refuses `instance_unstood`. A remainder read of the cut crosses only where
     the instance's copies carry what it reads, re-pointed to that copy
     of the instance; any other is severed (`severed_edge`,
     `remainder_read_uncarried`), as is a name reaching material the

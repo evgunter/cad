@@ -54,7 +54,7 @@ fn delta() -> scene::DisplayTolerance {
 /// - a bare extrude, placed — the last part.
 fn fixture(tol: Tol) -> Doc<ProfileProgram> {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("chrome-pick-windows", tol);
-    let (doc, profile) = common::framed_square(&doc, 0.02, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.02, tol);
     let (doc, block) = common::inserted(
         &doc,
         Node::Extrude {
@@ -86,7 +86,7 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         );
         common::placed(&doc, copy, tol).0
     });
-    let (doc, twinned) = common::framed_square(&doc, 0.015, tol);
+    let (doc, twinned) = common::square_profile(&doc, 0.015, tol);
     let (doc, twinned) = common::inserted(
         &doc,
         Node::Extrude {
@@ -109,7 +109,7 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
     let (doc, second) = common::inserted(&doc, placed(0.1), tol);
     let (doc, _) = common::placed(&doc, first, tol);
     let (doc, _) = common::placed(&doc, second, tol);
-    let (doc, last) = common::framed_square(&doc, 0.01, tol);
+    let (doc, last) = common::square_profile(&doc, 0.01, tol);
     let (doc, last) = common::inserted(
         &doc,
         Node::Extrude {

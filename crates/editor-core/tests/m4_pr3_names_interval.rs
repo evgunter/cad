@@ -12,23 +12,23 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, Datum, Entry, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, SplitHalf,
+    CancelToken, Entry, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, SplitHalf,
     evaluate,
 };
-use fixture::{insert, len, on_frame, scl, wall};
+use fixture::{insert, len, on_frame, plane_on, slid, wall};
 use geom_core::Interval;
 use geom_core::Tol;
 
+/// A block on its own xy, extruded `dz`.
 fn block(
     doc: ProfileDoc,
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
-    z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, z0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
@@ -48,15 +48,16 @@ fn block(
 /// prongs, with a read of one half — all dyadic.
 fn corpus() -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_interval", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 1.0);
+    let (doc, b) = slid(doc, a, b, [0.0; 3]);
     let (doc, _union) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
-    let (doc, c) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (doc, c) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
     // The slot spans z ∈ [0.5, 1.5]: it PROTRUDES through c's top cap
     // (z = 1.0) rather than resting in its plane, so the pair is not a
     // coincidence and carries no declaration — the same shape as the
@@ -71,7 +72,8 @@ fn corpus() -> ProfileDoc {
     // pair, which is what surfaced this. Coverage is not lost: `decl_u`
     // above still exercises the declared-boolean naming path with a
     // declaration that is TRUE.
-    let (doc, slot) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
+    let (doc, slot) = block(doc, (1.0, 2.0), (-1.0, 4.0), 1.0);
+    let (doc, slot) = slid(doc, c, slot, [0.0, 0.0, 0.5]);
     let _ = wall; // shared helper import parity with the f64 lane
     let (doc, _sub) = insert(
         doc,
@@ -80,25 +82,13 @@ fn corpus() -> ProfileDoc {
             tool: slot.into(),
         },
     );
-    let (doc, d) = block(doc, (4.0, 6.0), (0.0, 2.0), 0.0, 2.0);
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.0), len(1.0)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
-    let (doc, _split) = insert(
-        doc,
-        Node::Split {
-            target: d.into(),
-            tool: plane.into(),
-        },
-    );
-    let (doc, e) = block(doc, (10.0, 14.0), (0.0, 4.0), 0.0, 4.0);
+    let (doc, d) = block(doc, (4.0, 6.0), (0.0, 2.0), 2.0);
+    let tool = plane_on(&doc, d, [0.0, 0.0, 1.0], [0.0, 0.0, 1.0]);
+    let (doc, _split) = insert(doc, Node::Split { target: d.into(), tool });
+    let (doc, e) = block(doc, (10.0, 14.0), (0.0, 4.0), 4.0);
     let (doc, u) = on_frame(
         doc,
-        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![
@@ -119,6 +109,7 @@ fn corpus() -> ProfileDoc {
             distance: len(2.0),
         },
     );
+    let (doc, u) = slid(doc, e, u, [0.0, 0.0, 1.0]);
     let (doc, cut) = insert(
         doc,
         Node::Subtract {
@@ -126,31 +117,16 @@ fn corpus() -> ProfileDoc {
             tool: u.into(),
         },
     );
-    let (doc, between) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(2.0), len(0.0)],
-            normal: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-    );
+    let between = plane_on(&doc, cut, [0.0, 2.0, 0.0], [0.0, 1.0, 0.0]);
     let (doc, halves) = insert(
         doc,
         Node::Split {
             target: cut.into(),
-            tool: between.into(),
+            tool: between,
         },
     );
-    let (doc, _above) = insert(
-        doc,
-        Node::transform(
-            editor_core::Operand::output(halves, SplitHalf::Above.port()),
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: fixture::ang(0.0),
-            },
-        ),
-    );
+    let above = editor_core::Operand::output(halves, SplitHalf::Above.port());
+    let (doc, _above) = slid(doc, above.clone(), above, [0.0; 3]);
     doc
 }
 

@@ -24,7 +24,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use fixture::{Recorder, len, xy_frame};
+use fixture::{Recorder, len};
 
 /// The nominal hole spacing, in metres (3.1 mm) — the tour's own.
 pub(crate) const SPACING: f64 = 3.1e-3;

@@ -10,7 +10,6 @@
 
 use std::collections::BTreeSet;
 
-use crate::fixture;
 
 use crate::fixture::len;
 use editor_core::{
@@ -26,9 +25,8 @@ use geom_core::Tol;
 /// under this pure parameter edit, the §6 renumbering class on the
 /// nose.
 ///
-/// Every document here is a sketch frame, the profile drawn on it, and
-/// the extrude over that: `doc.ids()[1]` is the profile and
-/// `doc.ids()[2]` the body.
+/// Every document here is a profile and the extrude over it:
+/// `doc.ids()[0]` is the profile and `doc.ids()[1]` the body.
 fn param_rect_doc(x0: f64) -> ProfileDoc {
     let x0e = || Formula::named(VarName::from_static("x0"), Dimension::Length);
     let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
@@ -101,7 +99,7 @@ fn anchor_reversed(doc: &ProfileDoc) -> bool {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let ValuePayload::Profile(pv) = &ev.value(doc.ids()[1]).expect("profile").payload else {
+    let ValuePayload::Profile(pv) = &ev.value(doc.ids()[0]).expect("profile").payload else {
         panic!("profile payload");
     };
     pv.naming.loops[0].reversed
@@ -123,7 +121,7 @@ fn a_parameter_edit_that_moves_the_lex_min_corner_renumbers_nothing() {
             &EvalOptions::default(),
             Tol::witness(),
         );
-        let ValuePayload::Profile(pv) = &ev.value(doc.ids()[1]).expect("profile").payload else {
+        let ValuePayload::Profile(pv) = &ev.value(doc.ids()[0]).expect("profile").payload else {
             panic!("profile payload");
         };
         let vs = pv.validated.loops()[0].vertices();
@@ -149,8 +147,8 @@ fn a_parameter_edit_that_moves_the_lex_min_corner_renumbers_nothing() {
     );
     // …so the name set is identical…
     assert_eq!(
-        names_of(&before, before.ids()[2]),
-        names_of(&after, after.ids()[2])
+        names_of(&before, before.ids()[1]),
+        names_of(&after, after.ids()[1])
     );
     // …AND (set equality alone is renumbering-blind for a full table)
     // the DENOTATION held: in both documents, canonical segment 0 —
@@ -164,7 +162,7 @@ fn a_parameter_edit_that_moves_the_lex_min_corner_renumbers_nothing() {
             &EvalOptions::default(),
             Tol::witness(),
         );
-        let ValuePayload::Profile(pv) = &ev.value(doc.ids()[1]).expect("profile").payload else {
+        let ValuePayload::Profile(pv) = &ev.value(doc.ids()[0]).expect("profile").payload else {
             panic!("profile payload");
         };
         let start = pv.validated.loops()[0].vertices()[0];
@@ -178,11 +176,7 @@ fn a_parameter_edit_that_moves_the_lex_min_corner_renumbers_nothing() {
 #[test]
 fn circle_radius_edit_keeps_names() {
     let mk = |r: f64| {
-        let (doc, xy) = fixture::insert(
-            ProfileDoc::empty_derived("switch_naming", Tol::witness()),
-            fixture::xy_frame(),
-        );
-        let doc = doc
+        let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
             .apply(
                 &DocEdit::InsertNode {
                     node: Box::new(Node::Profile(ProfileProgram {
@@ -214,7 +208,7 @@ fn circle_radius_edit_keeps_names() {
     let after = before
         .apply(
             &DocEdit::SetParam {
-                node: before.ids()[1],
+                node: before.ids()[0],
                 slot: editor_core::SlotId::Profile {
                     loop_: 0,
                     step: 0,
@@ -229,8 +223,8 @@ fn circle_radius_edit_keeps_names() {
         .unwrap()
         .doc;
     assert_eq!(
-        names_of(&before, before.ids()[2]),
-        names_of(&after, after.ids()[2])
+        names_of(&before, before.ids()[1]),
+        names_of(&after, after.ids()[1])
     );
 }
 
@@ -251,13 +245,13 @@ fn stale_program_refs_refuse_vanished() {
     );
     let ghost = StableName {
         kind: EntityKind::Edge,
-        node: doc.ids()[2],
+        node: doc.ids()[1],
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
             crate::fixture::no_piece().into(), // the program draws no such piece
         )],
     };
-    let table = ev.table_at(doc.ids()[2]).expect("extrude");
+    let table = ev.table_at(doc.ids()[1]).expect("extrude");
     assert!(
         table.lookup(&ghost).is_none(),
         "a ref beyond the program's segments resolves to NOTHING — the \
@@ -267,10 +261,10 @@ fn stale_program_refs_refuse_vanished() {
     // And a REAL canonical ref resolves.
     let real = StableName {
         kind: EntityKind::Edge,
-        node: doc.ids()[2],
+        node: doc.ids()[1],
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::piece(&doc, doc.ids()[2], 0, 0).into(),
+            crate::fixture::piece(&doc, doc.ids()[1], 0, 0).into(),
         )],
     };
     assert!(table.lookup(&real).is_some());
@@ -291,7 +285,7 @@ fn program_vertex_zero_is_the_authored_entry() {
             &EvalOptions::default(),
             Tol::witness(),
         );
-        let ValuePayload::Profile(pv) = &ev.value(doc.ids()[1]).expect("profile").payload else {
+        let ValuePayload::Profile(pv) = &ev.value(doc.ids()[0]).expect("profile").payload else {
             panic!("profile payload");
         };
         let anchor = pv.naming.loops[0];
@@ -322,11 +316,7 @@ fn program_vertex_zero_is_the_authored_entry() {
 fn hole_circle_anchor_recovers_reversal() {
     let outer = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]).unwrap();
     let hole = LoopProgram::circle(2.0, 2.0, 0.5).unwrap();
-    let (doc, xy) = fixture::insert(
-        ProfileDoc::empty_derived("switch_naming", Tol::witness()),
-        fixture::xy_frame(),
-    );
-    let doc = doc
+    let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
@@ -361,7 +351,7 @@ fn hole_circle_anchor_recovers_reversal() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let ValuePayload::Profile(pv) = &ev.value(doc.ids()[1]).expect("profile").payload else {
+    let ValuePayload::Profile(pv) = &ev.value(doc.ids()[0]).expect("profile").payload else {
         panic!("profile payload");
     };
     // Canonical loop 1 is the hole; its anchor must say REVERSED
@@ -418,13 +408,13 @@ fn hole_circle_anchor_recovers_reversal() {
     // the hole's CANONICAL indices — its two program segments,
     // reflected.
     use editor_core::{EntityKind, RoleSeg};
-    let table = ev.table_at(doc.ids()[2]).expect("extrude");
+    let table = ev.table_at(doc.ids()[1]).expect("extrude");
     for seg in 0..2u32 {
         let name = StableName {
             kind: EntityKind::Face,
-            node: doc.ids()[2],
+            node: doc.ids()[1],
             path: vec![RoleSeg::Lateral(
-                crate::fixture::piece(&doc, doc.ids()[2], 1, seg as usize).into(),
+                crate::fixture::piece(&doc, doc.ids()[1], 1, seg as usize).into(),
             )],
         };
         assert!(

@@ -41,7 +41,7 @@ use editor_core::{
     SpokenNode, StableName, VarName, evaluate,
 };
 
-use fixture::{Recorder, len, scl, tol, xy_frame};
+use fixture::{Recorder, len, scl, tol};
 
 fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
@@ -66,10 +66,6 @@ fn budget(max_depth: u32, max_leaves: usize) -> DriveConfig {
     }
 }
 
-fn frame(r: &mut Recorder) -> RecipeNodeId {
-    r.insert(xy_frame())
-}
-
 fn declare(r: &mut Recorder, n: &'static str, value: f64) {
     r.push(DocEdit::DeclareVar {
         name: name(n),
@@ -88,7 +84,6 @@ fn unit_square() -> LoopProgram<Formula> {
 fn slab(depth: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     declare(&mut r, "depth", depth);
-    let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![unit_square()],
         ids: Vec::new(),
@@ -113,7 +108,6 @@ fn slab(depth: f64) -> ProfileDoc {
 fn notch(height: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     declare(&mut r, "height", height);
-    let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::polygon_expr([
             [len(0.0), len(0.0)],
@@ -149,7 +143,6 @@ const NOTCH_SEED: RangeSeed = RangeSeed { lo: -0.25, hi: 0.3 };
 fn defined_slab() -> ProfileDoc {
     let mut r = Recorder::new();
     declare(&mut r, "depth", 1.0);
-    let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![unit_square()],
         ids: Vec::new(),
@@ -163,7 +156,6 @@ fn defined_slab() -> ProfileDoc {
 
 fn slab_slot(depth: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
-    let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![unit_square()],
         ids: Vec::new(),
@@ -188,7 +180,6 @@ fn two_param_slab() -> ProfileDoc {
             Distribution::Uniform { lo: -0.1, hi: 0.1 },
         )),
     });
-    let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::polygon_expr([
             [len(0.0), len(0.0)],
@@ -208,7 +199,6 @@ fn two_param_slab() -> ProfileDoc {
 /// A document whose one interesting slot is STRUCTURAL.
 fn patterned() -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
-    let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![unit_square()],
         ids: Vec::new(),
@@ -345,11 +335,6 @@ fn a_driven_step_certifies_within_its_turn() {
         (-1.0, RangeSeed { lo: -7.0, hi: 3.0 }),
     ] {
         let mut r = Recorder::new();
-        let axis = r.insert(Node::Datum(editor_core::Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(0.0), scl(1.0)],
-        }));
-        let f = frame(&mut r);
         let p = r.insert(Node::Profile(ProfileProgram {
             loops: vec![unit_square()],
             ids: Vec::new(),
@@ -358,11 +343,12 @@ fn a_driven_step_certifies_within_its_turn() {
             profile: p.into(),
             distance: len(0.5),
         });
+        let axis = fixture::axis_on(&r.doc, e, [0.0; 3], [0.0, 0.0, 1.0]);
         let pattern = r.insert(Node::Pattern {
             input: e.into(),
             count: Formula::count(3),
             kind: PatternKind::Circular {
-                axis: axis.into(),
+                axis,
                 step: fixture::ang(step),
             },
         });
@@ -925,7 +911,6 @@ fn a_structural_slot_on_a_node_that_has_none_is_an_unknown_slot() {
 #[test]
 fn a_profile_step_argument_widens() {
     let mut r = Recorder::new();
-    let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![unit_square()],
         ids: Vec::new(),

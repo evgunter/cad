@@ -3825,9 +3825,7 @@ MEMBERS_BOUND_AS = {
     "InlineError::UnresolvedVarCrossesCut": "InlineError.variant",
     "InlineError::PinReadsVariable": "InlineError.variant",
     "InlineError::ValueOnAMovedWorld": "InlineError.variant",
-    "InlineError::WorldPinOnAMovedWorld": "InlineError.variant",
-    # The named interim's one world pin: the class is its one arm.
-    "WorldPin::Identity": "WorldPin",
+    "InlineError::RepinRefused": "InlineError.variant",
     "InlineError::InstanceUnsolved": "InlineError.variant",
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
     "InlineError::ForeignInstanceName": "InlineError.variant",

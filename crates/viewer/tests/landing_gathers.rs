@@ -418,7 +418,7 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
     let tol = Tol::witness();
     let bench = common::asm::bench("refused-gather-assembly", tol);
     let asm = ProfileDoc::empty(DocumentId::derive("refused-gather-assembly"), tol);
-    let (mut asm, profile) = common::framed_square(&asm, 0.04, tol);
+    let (mut asm, profile) = common::square_profile(&asm, 0.04, tol);
     // The instance stands on the world by its own pin.
     common::insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
     let extrude = common::insert_into(

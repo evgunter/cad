@@ -21,13 +21,13 @@ use editor_core::{
     RecipeNodeId, SlideAxis, StableName, Value, WorldRead, inline,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{insert, len, offset_of, on_frame_keeping, square};
+use fixture::{insert, len, offset_of, on_frame, square};
 use geom_core::Tol;
 
 /// A one-block part: a unit square extruded 1 tall, and its body.
 fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, _, profile) = on_frame_keeping(
+    let (doc, profile) = on_frame(
         doc,
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],

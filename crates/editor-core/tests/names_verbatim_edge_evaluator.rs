@@ -14,14 +14,12 @@
 //!
 //! | `verbatim_kind`  | the node's table                         |
 //! |------------------|------------------------------------------|
-//! | `Some(Whole)`    | at least one row, and every row foreign  |
 //! | `Some(Selected)` | at least one row, and every row foreign  |
 //! | `Some(Intact)`   | at least one foreign and one own row     |
 //! | `None`           | no foreign row                           |
 //!
-//! A transform or a part mints nothing, so one own row there is a
-//! partial re-mint the walks would carry a name across wrongly. A split
-//! publishes its intact entities under their original minters and its
+//! A part mints nothing, so one own row there is a partial re-mint
+//! the walks would carry a name across wrongly. A split publishes its intact entities under their original minters and its
 //! cut faces under its own id, so it carries both.
 //!
 //! **Why the head.** An op that re-mints by WRAPPING a foreign name
@@ -73,7 +71,6 @@ test_utils::f6_variants! {
     /// non-exhaustive until it is named here, and the census below then
     /// reds until the corpus samples one.
     const NODE_KIND: ProfileNode = [
-        Datum,
         Profile,
         Extrude,
         Revolve,
@@ -88,7 +85,6 @@ test_utils::f6_variants! {
         Intersect,
         Subtract,
         Union,
-        Transform,
         Place,
         World,
         Pattern,
@@ -100,12 +96,12 @@ test_utils::f6_variants! {
     ];
 }
 
-/// **The node kinds whose value carries no names**: a datum, a profile,
-/// the world, a measurement and an assertion verdict are not bodies, so
+/// **The node kinds whose value carries no names**: a profile, the
+/// world, a measurement and an assertion verdict are not bodies, so
 /// their tables are empty and the equivalence holds of them vacuously.
 /// Listed so that vacuity is asserted — every sample publishes zero rows — rather than counted as
 /// coverage.
-const ROW_FREE: [&str; 4] = ["Datum", "Profile", "Measure", "Assertion"];
+const ROW_FREE: [&str; 3] = ["Profile", "Measure", "Assertion"];
 
 /// The unit cube `[0,1]³` as a whole part document, and its body.
 fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
@@ -245,7 +241,7 @@ fn evaluated() -> Vec<Sample> {
 fn disagreement(s: &Sample) -> Option<String> {
     let (foreign, own) = (s.foreign.is_some(), s.own.is_some());
     let wanted = match s.edge {
-        Some(VerbatimKind::Whole | VerbatimKind::Selected) if !foreign || own => {
+        Some(VerbatimKind::Selected) if !foreign || own => {
             "every row headed by another node"
         }
         Some(VerbatimKind::Intact) if !foreign || !own => {

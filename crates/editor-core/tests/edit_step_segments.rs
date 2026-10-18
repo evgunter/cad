@@ -548,7 +548,7 @@ fn a_reversed_loop_from_any_corner_names_the_walls_its_steps_bound() {
 // segment's plan position.
 
 /// A loft of `sections[i]`'s loops (outer and holes, in the order the
-/// section authors them), section `i` at `z = i`.
+/// section authors them), section `i` at `z = i` up the first's own z.
 fn loft_of_loops(
     id: &str,
     sections: &[Vec<Vec<(f64, f64)>>],
@@ -558,7 +558,7 @@ fn loft_of_loops(
     for (i, loops) in sections.iter().enumerate() {
         let (d, s) = on_frame(
             doc,
-            [0.0, 0.0, i as f64],
+            [0.0; 3],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             loops.clone(),
@@ -566,10 +566,22 @@ fn loft_of_loops(
         doc = d;
         ids.push(s);
     }
+    let then = ids[1..]
+        .iter()
+        .enumerate()
+        .map(|(i, &s)| editor_core::LoftSection {
+            profile: s.into(),
+            station: vec![editor_core::StationMove::Slide {
+                along: editor_core::Axis3::Z,
+                by: len((i + 1) as f64),
+            }],
+        })
+        .collect();
     let (doc, loft) = insert(
         doc,
         Node::Loft {
-            profiles: ids.clone().into_iter().map(Into::into).collect(),
+            first: ids[0].into(),
+            then,
             v_degree: Formula::count(1),
         },
     );
@@ -925,7 +937,7 @@ fn a_loft_whose_outer_and_hole_start_off_their_lex_min_names_its_walls() {
 fn a_reauthored_section_is_answered_after_a_memoized_reevaluation() {
     let before = [vec![rect_ccw()], vec![rect_ccw()]];
     let (a, ids, loft) = loft_of_loops("loft-memo", &before);
-    let loops = crate::fixture::desc(ids[1], vec![rect_cw()]).loops;
+    let loops = crate::fixture::desc(vec![rect_cw()]).loops;
     let fresh = loops
         .iter()
         .map(|lp| vec![None; lp.authored_steps()])

@@ -11,7 +11,7 @@
 //! picture cannot survive.
 //!
 //! **The study's document does not cut its holes**: the web is read
-//! off the hole extrudes' own walls, and the document places the
+//! off the holes' own walls (each hole placed on the blank), and the document places the
 //! blank, so its product is a slab with no holes. A user would write
 //! the holes one of two natural ways, and both stop short of the
 //! study:
@@ -27,10 +27,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::document::ExtrudeSide;
 use pncad::document::{
     AssertionRelation, CancelToken, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc, ProfileProgram,
+    Evaluation, Formula, Frame, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc, ProfileProgram,
     RecipeNodeId, RefusingReach, SitedRef, VarId, VarName, apply, evaluate,
 };
 use pncad::geom_core::Tol;
@@ -66,10 +65,6 @@ pub const CERTIFIABLE_FRACTION: f64 = 7.81e-7;
 
 pub fn len(v: f64) -> Formula {
     Formula::literal(v, Dimension::Length).expect("finite length")
-}
-
-fn scl(v: f64) -> Formula {
-    Formula::literal(v, Dimension::Scalar).expect("finite scalar")
 }
 
 fn param(n: &'static str) -> Formula {
@@ -132,7 +127,7 @@ pub struct Plate {
     pub web: VarId,
     /// The `Assertion` over it. Read by [`crate::tolerance`].
     pub assertion: RecipeNodeId,
-    /// The two hole extrudes, in the order their centres run along
+    /// The two holes placed on the blank, in the order their centres run along
     /// `−x` then `+x`. Carried because a cell that DRAWS the study
     /// needs the built bodies and not only the summary over them.
     pub holes: [RecipeNodeId; 2],
@@ -198,15 +193,6 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         );
     }
 
-    let plane = insert(
-        &mut doc,
-        Node::Datum(pncad::document::Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-        tol,
-    );
     // The plate itself is a literal rectangle: the study is about the
     // holes, and a parameter nothing measures would be noise in the
     // stackup's per-parameter table.
@@ -263,6 +249,15 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         tol,
     );
     let hole_b = hole(&mut doc, param("half_spacing"), "hole_b_r", tol);
+    // Each hole is its own construction, drawn about its own origin;
+    // its copy placed on the blank's own frame is the hole in the
+    // blank's space, which the cut and the measure read.
+    let mut on_blank = |hole: RecipeNodeId| {
+        let placed = crate::world::against(&doc, blank, hole, &Frame::IDENTITY, tol);
+        doc = placed.doc;
+        placed.placement
+    };
+    let (hole_a, hole_b) = (on_blank(hole_a), on_blank(hole_b));
 
     // The holes run the plate's full depth, so each hole's caps lie
     // flush on the blank's: the cut glues those continuations on their

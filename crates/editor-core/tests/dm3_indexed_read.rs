@@ -130,20 +130,14 @@ fn a_union_of_a_family_and_of_its_members_spelled_name_and_build_alike() {
 
 #[test]
 fn an_indexed_read_at_a_body_seat_reads_that_member() {
-    let (doc, _, xs) = family("dm3-member-at-seat");
+    let (doc, cube, xs) = family("dm3-member-at-seat");
     let read = fixture::out(&doc, xs);
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let tool = fixture::plane_on(&doc, cube, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: member(xs, 1),
-            tool: plane.into(),
+            tool,
         },
     );
     let (doc, lower) = insert(

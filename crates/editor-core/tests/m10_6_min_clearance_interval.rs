@@ -135,28 +135,27 @@ fn dumbbell() -> Dumbbell {
     // so every stored direction passes through the interval lane
     // exactly (M10-5's finding, and the reason its fixtures are placed
     // rather than sized).
-    let placed = r.insert(Node::transform(
-        solid,
-        editor_core::Step::Rigid {
-            translation: [
+    let placed = crate::m10_5_clearance_interval::slid_by(&mut r, solid, solid, [
                 Formula::named(name("place"), Dimension::Length),
                 len(0.0),
                 len(0.0),
-            ],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
+            ]);
     let measured = r.measure(
         &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
         &[
             SitedRef::new(
                 placed,
-                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                crate::m10_5_clearance_interval::in_placement(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                ),
             ),
             SitedRef::new(
                 placed,
-                fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
+                crate::m10_5_clearance_interval::in_placement(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
+                ),
             ),
         ],
     );
@@ -205,7 +204,7 @@ impl<'v> Neck<'v> {
             panic!("the placed body evaluated");
         };
         let ValuePayload::Body(body) = &value.payload else {
-            panic!("a transform's value is one body");
+            panic!("a placement's value is one body");
         };
         let key = |seg: u32| {
             let n = fixture::fname(f.solid, fixture::wall(&f.doc, f.solid, seg));

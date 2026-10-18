@@ -23,7 +23,7 @@ use editor_core::{
 };
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::{Recorder, ang, len, scl, xy_frame};
+use crate::fixture::{Recorder, ang, len, scl};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{ceiling, certifies_whole, dials};
 

@@ -29,7 +29,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::document::ExtrudeSide;
+use pncad::sweep::ExtrudeSide;
 use pncad::prelude::{
     BlendError, Body, CurveKind, CurveKindSet, EdgeKey, SurfaceKind, SurfaceKindSet, fillet_edges,
     mass_properties, query, validate_geometric,

@@ -84,7 +84,7 @@ fn var() -> editor_core::SpokenVar {
 
 test_utils::f6_variants! {
     const SPLIT: SplitError = [
-        EmptyCut, UnknownCutNode, CutsTheWorld, PartIdCollides, RemainderReadUncarried,
+        EmptyCut, UnknownCutNode, CutsTheWorld, InstanceUnstood, PartIdCollides, RemainderReadUncarried,
         SeveredEdge, NoMaterial, UncutVarReference, DefinitionStraddlesCut,
         UnresolvedVarCrossesCut, PartNameReachesRemainder, NameStraddlesCut, NameOnDroppedStep, RankedRunReordered,
         BodyNameCrossesCut, NameOutsidePartWorld, Pin, PartEdit, RemainderEdit,
@@ -96,7 +96,7 @@ test_utils::f6_variants! {
         UnknownNode, NotAnInstance, UnplaceablePart, InstanceReadUncarried, Unresolved,
         EpsilonSeam, PartCarriesMetadata, VarNameConflict, InstanceOutputUncarried,
         UnresolvedVarCrossesCut, ConstructionReadsCopy, CopyPinnedToConstruction, PinReadsVariable,
-        ValueOnAMovedWorld, WorldPinOnAMovedWorld, InstanceUnsolved, InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep, RankedRunReordered,
+        ValueOnAMovedWorld, RepinRefused, InstanceUnsolved, InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep, RankedRunReordered,
         StrandedPartName,
         StrandedPartRead, Edit,
     ];
@@ -141,6 +141,7 @@ fn split_refusals() -> Vec<SplitError> {
             id: SpokenNode::absent(n(9)),
         },
         SplitError::CutsTheWorld,
+        SplitError::InstanceUnstood,
         SplitError::PartIdCollides {
             id: DocumentId::derive("refusal-concision-refactor"),
         },
@@ -297,8 +298,9 @@ fn inline_refusals() -> Vec<InlineError> {
             placement: s(8, "Place"),
             value: constraint(),
         },
-        InlineError::WorldPinOnAMovedWorld {
+        InlineError::RepinRefused {
             placement: s(8, "Place"),
+            refusal: editor_core::PinRefusal::NoFrame { node: n(8) },
         },
         InlineError::InstanceUnsolved {
             instance: s(7, "InstantiatePart"),

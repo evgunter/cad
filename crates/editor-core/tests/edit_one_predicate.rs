@@ -631,17 +631,14 @@ fn a_constraint_on_a_non_placement_is_refused_at_the_edit_door() {
     }
 }
 
-/// A part document and a transform of its body by `frame`'s literal
-/// step, inserted through the edit door.
+/// A part document and an explicit placed union of its body at
+/// `frame`, its one listed placement, inserted through the edit door.
 fn transformed(label: &str, frame: Frame) -> Result<(ProfileDoc, RecipeNodeId), EditError> {
     let (doc, body) = part(label);
     apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Transform {
-                input: body.into(),
-                placement: editor_core::Placement::literal(&frame),
-            }),
+            node: Box::new(Node::placed_union_at(body, vec![frame])),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -653,8 +650,8 @@ fn transformed(label: &str, frame: Frame) -> Result<(ProfileDoc, RecipeNodeId), 
     })
 }
 
-/// The saved text of a transform by a unit translation along `x`,
-/// which the rows below corrupt, and the transform.
+/// The saved text of a placed union at a unit translation along `x`,
+/// which the rows below corrupt, and the placed union.
 fn saved_transform(label: &str) -> (String, RecipeNodeId) {
     let (doc, transform) =
         transformed(label, Frame::translation([1.0, 0.0, 0.0])).expect("a proper rigid frame");
@@ -663,10 +660,10 @@ fn saved_transform(label: &str) -> (String, RecipeNodeId) {
     (text, transform)
 }
 
-/// The first entry of the first column of a transform's one-step
-/// literal placement, on the wire.
+/// The first entry of the first column of a placed union's one listed
+/// frame, on the wire.
 fn frame_cell(wire: &mut serde_json::Value, transform: RecipeNodeId) -> &mut serde_json::Value {
-    &mut wire["snapshot"]["nodes"][transform.0.to_string()]["Transform"]["placement"]["steps"][0]["Literal"]
+    &mut wire["snapshot"]["nodes"][transform.0.to_string()]["PlacedUnion"]["kind"]["Explicit"][0]
         ["columns"][0][0]
 }
 
@@ -710,16 +707,16 @@ fn an_improper_placement_is_refused_at_both_doors() {
 /// **A proper placement frame that is not rigid — both doors.** A
 /// scaled frame is refused where it is written, by the predicate the
 /// evaluation moves a body by, rather than admitted and refused later
-/// as `NotRigid` on the transform and on everything reading it.
+/// as `NotRigid` on the placed union and on everything reading it.
 #[test]
 fn a_non_rigid_placement_is_refused_at_both_doors() {
     let mut stretched = Frame::IDENTITY;
     stretched.columns[0] = [2.0, 0.0, 0.0];
     assert!(stretched.determinant() > 0.0, "the fixture is proper");
-    let step0 = FrameSite::Step { index: 0 };
+    let step0 = FrameSite::Listed { index: 0 };
     match transformed("onepred-non-rigid", stretched) {
         Err(ref error @ EditError::NonRigidPlacement { at, .. }) => {
-            assert_eq!(at, step0, "the transform's first step");
+            assert_eq!(at, step0, "the placed union's first listed frame");
             let text = error.to_string();
             assert!(
                 text.contains("not definitely rigid") && text.contains("Recourse:"),

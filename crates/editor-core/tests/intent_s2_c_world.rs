@@ -10,9 +10,9 @@ use std::collections::BTreeSet;
 use crate::corpus;
 use crate::fixture::resolver::PartStore;
 use crate::fixture::value_channel::body_digest;
-use crate::fixture::{insert, insert_pinned, len, on_frame, place, square};
+use crate::fixture::{insert, insert_pinned, len, on_frame, place, slid, square};
 use editor_core::{
-    AssertionRelation, CapEnd, ChecksConfig, DocEdit, DocumentId, EntityKind, ExtrudeSide,
+    AssertionRelation, CapEnd, ChecksConfig, DocEdit, DocumentId, EntityKind,
     InlineError, Maintenance, MeasurePrimitive, Node, NodeResult, ProductError, ProfileDoc,
     RecipeNodeId, RoleSeg, SitedRef, SplitError, StableName, product, product_named, run_checks,
 };
@@ -388,8 +388,9 @@ fn two_identity_placements_of_one_body_are_two_copies() {
 }
 
 /// The block, its placement, and a union of it with a second block
-/// that nothing places, in one document: what the split rows cut.
-fn split_scene(label: &str) -> (ProfileDoc, [RecipeNodeId; 5]) {
+/// placed against it and not in the world, in one document: what the
+/// split rows cut.
+fn split_scene(label: &str) -> (ProfileDoc, [RecipeNodeId; 4]) {
     let doc = ProfileDoc::empty_derived(label, Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -398,7 +399,6 @@ fn split_scene(label: &str) -> (ProfileDoc, [RecipeNodeId; 5]) {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
-    let frame = doc.ids()[0];
     let (doc, b) = insert(
         doc,
         Node::Extrude {
@@ -408,13 +408,14 @@ fn split_scene(label: &str) -> (ProfileDoc, [RecipeNodeId; 5]) {
     );
     let (doc, p) = place(doc, b);
     let (doc, other) = block(doc, 3.0);
+    let (doc, other) = slid(doc, b, other, [0.0; 3]);
     let (doc, reader) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![b.into(), other.into()]),
         },
     );
-    (doc, [frame, profile, b, p, reader])
+    (doc, [profile, b, p, reader])
 }
 
 /// **(C, test 12) Split and inline under the world.** A cut that places
@@ -425,10 +426,10 @@ fn split_scene(label: &str) -> (ProfileDoc, [RecipeNodeId; 5]) {
 /// inlined body.
 #[test]
 fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
-    let (doc, [frame, profile, b, p, reader]) = split_scene("intent-c-split");
+    let (doc, [profile, b, p, reader]) = split_scene("intent-c-split");
     let out = editor_core::split(
         &doc,
-        &BTreeSet::from([frame, profile, b, p]),
+        &BTreeSet::from([profile, b, p]),
         DocumentId::derive("intent-c-split-part"),
         Tol::witness(),
         None,
@@ -463,7 +464,7 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
 
     let refused = editor_core::split(
         &doc,
-        &BTreeSet::from([frame, profile, b]),
+        &BTreeSet::from([profile, b]),
         DocumentId::derive("intent-c-split-unplaced"),
         Tol::witness(),
         None,
@@ -616,13 +617,13 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
     };
     let (unposed, _) = place(doc.clone(), union);
     let (posed, _) = place_at(doc.clone(), union, &pose);
-    let (moved, by) = insert(doc, xform(union, t, axis, angle));
+    let (moved, by) = xform(doc, union, t, axis, angle);
     let (moved, _) = place(moved, by);
     // The pin writes the pose as spins and slides read back from the
     // frame's numbers (`pin_at`), so the posed copy stands where the
-    // transform's does to the rounding of that one re-composition:
-    // every vertex within 4 ulps of the transform's (measured 4.4e-16
-    // at most, 14 coordinates moved in their last bits).
+    // union's copy placed against itself at that pose does, to the
+    // rounding of that one re-composition: every vertex within 4 ulps
+    // of the moved copy's.
     let points = |doc: &ProfileDoc| {
         let body = product(doc, &ev(doc), Tol::witness()).expect("the world gathers");
         let mut points: Vec<_> = body
@@ -636,13 +637,13 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
     assert_eq!(
         at_pose.iter().map(|(k, _)| *k).collect::<Vec<_>>(),
         transformed.iter().map(|(k, _)| *k).collect::<Vec<_>>(),
-        "the posed copy has the transform's vertices"
+        "the posed copy has the moved copy's vertices"
     );
     for ((key, p), (_, q)) in at_pose.iter().zip(&transformed) {
         for (a, b) in p.iter().zip(q) {
             assert!(
                 (a - b).abs() <= 4.0 * f64::EPSILON * a.abs().max(b.abs()).max(1.0),
-                "the posed copy is the transform's body at the identity: {key:?} {p:?} {q:?}"
+                "the posed copy is the moved copy at the identity: {key:?} {p:?} {q:?}"
             );
         }
     }
@@ -781,7 +782,7 @@ fn an_empty_world_names_a_pattern_and_how_to_place_one_of_its_bodies() {
     assert!(said.contains("through a Part pick"), "{said}");
 }
 
-/// A split scene whose cut is `{frame, profile, b, placement}`: `b`
+/// A split scene whose cut is `{profile, b, placement}`: `b`
 /// placed at `pose`, and a kept union of `b` with a kept
 /// block, itself placed, reading `b` across the seam. With `second`,
 /// the cut also holds a second placement of `b` at the identity.
@@ -810,6 +811,7 @@ fn cut_with_a_reader(
         doc
     };
     let (doc, other) = block(doc, 10.0);
+    let (doc, other) = slid(doc, b, other, [0.0; 3]);
     let (doc, reader) = insert(
         doc,
         Node::Union {

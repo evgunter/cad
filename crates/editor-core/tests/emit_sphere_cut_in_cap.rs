@@ -16,7 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{failure, run};
-use crate::fixture::{ang, insert, len, len2, on_frame, scl, xy_frame};
+use crate::fixture::{against, ang, frame_at, insert, len, len2, on_frame, scl};
 use editor_core::{
     LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
     ProgramTarget, RecipeNodeId,
@@ -70,9 +70,12 @@ fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
 
 /// A `2w × 2w × t` brick whose near face lies in the plane `n·p = s`,
 /// centred on its foot, its material beyond the plane: `y` turned onto
-/// `n` about `y × n`, as `sweep`'s `snowman` rows turn theirs.
+/// `n` about `y × n`, as `sweep`'s `snowman` rows turn theirs — placed
+/// against `target`, in whose own coordinates `n` and `s` are read.
+/// Returns the placement.
 pub(crate) fn brick_toward(
     doc: ProfileDoc,
+    target: editor_core::Operand,
     n: [f64; 3],
     s: f64,
     w: f64,
@@ -91,18 +94,19 @@ pub(crate) fn brick_toward(
     let (u, v) = (rot([0.0, 0.0, 1.0]), rot([1.0, 0.0, 0.0]));
     let (doc, p) = on_frame(
         doc,
-        n.map(|x| x * s),
-        u,
-        v,
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
         vec![vec![(-w, -w), (w, -w), (w, w), (-w, w)]],
     );
-    insert(
+    let (doc, brick) = insert(
         doc,
         Node::Extrude {
             profile: p.into(),
             distance: len(t),
         },
-    )
+    );
+    against(doc, target, brick, &frame_at(n.map(|x| x * s), u, v))
 }
 
 /// Where the cut survives, the result holds two pieces of one sphere
@@ -116,16 +120,22 @@ fn document(op: &str, lens_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let doc = ProfileDoc::empty_derived("sphere_cut_in_cap", Tol::witness());
     let (doc, b1) = ball(doc, 1.0, 0.0);
     let (doc, b2) = ball(doc, 0.8, 1.4);
+    let (doc, b2) = crate::fixture::slid(
+        doc,
+        editor_core::Operand::output(b1, 0),
+        editor_core::Operand::output(b2, 0),
+        [0.0; 3],
+    );
     let (doc, lens) = insert(
         doc,
         Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![
                 editor_core::Operand::output(b1, 0).into(),
-                editor_core::Operand::output(b2, 0).into(),
+                editor_core::Operand::from(b2).into(),
             ]),
         },
     );
-    let (doc, brick) = brick_toward(doc, dir(68.0, 50.0), 0.985, 0.2, 0.3);
+    let (doc, brick) = brick_toward(doc, editor_core::Operand::output(b1, 0), dir(68.0, 50.0), 0.985, 0.2, 0.3);
     let (x, y) = if lens_first {
         (lens, brick)
     } else {

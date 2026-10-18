@@ -78,7 +78,7 @@
 //!    outer-then-holes, `LoopProgram::Circle` is a loop form, and the
 //!    revolve wires the holed profile through and names the cavity
 //!    shells. So [`through_the_document`] builds this same ring as a
-//!    three-node recipe and the scene ASSERTS the two doors agree —
+//!    two-node recipe and the scene ASSERTS the two doors agree —
 //!    same shell count, same census, same volume. The rendered body
 //!    comes off the plain sweep door because that is where the tour's
 //!    other revolves are authored and where the verb lives; the
@@ -106,7 +106,7 @@ use pncad::authoring::{p2, validated};
 use pncad::document::{Operand, RefusingReach};
 use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Formula, LoopProgram, MM, Node,
+    CancelToken, Dimension, Doc, DocEdit, EvalOptions, Formula, LoopProgram, MM, Node,
     PI as HALF_TURN, ProfileProgram, RecipeNodeId, ValuePayload, apply, evaluate,
 };
 // The prefix data lives with the unit TABLE, one hop away from the
@@ -149,10 +149,10 @@ fn section(radius: f64, tol: Tol) -> ConstructedLoop<f64> {
         .into()
 }
 
-/// **The same ring, through the DOCUMENT** — the three-node recipe a
+/// **The same ring, through the DOCUMENT** — the two-node recipe a
 /// consumer modelling in a `Doc` would write: one profile node whose
 /// loop list is `[Circle(rₒ), Circle(rᵢ)]` (outer first, then holes),
-/// an axis datum, and `Node::Revolve` at a full turn.
+/// and `Node::Revolve` at a full turn about an axis in its own plane.
 ///
 /// It exists to settle finding 1 by execution rather than by reading
 /// signatures, so `stops` asserts its answer against the plain door's
@@ -208,15 +208,6 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
         centre: [mm(R_MM), mm(0.0)],
         radius: mm(r_mm),
     };
-    let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("finite");
-    let plane = insert(
-        &mut doc,
-        Box::new(Node::Datum(Datum::Frame {
-            origin: [mm(0.0), mm(0.0), mm(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        })),
-    );
     let profile = insert(
         &mut doc,
         Box::new(Node::Profile(ProfileProgram {
@@ -231,7 +222,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
         Box::new(Node::Revolve {
             profile: profile.into(),
             // The axis of revolution, written in the sketch it turns:
-            // the frame's v is world +Y, so this is its own +y through
+            // its own +y through
             // (0, 0), a quarter turn from its x. Two lengths and an
             // angle in the sketch's coordinates, with no way to write
             // one that leaves its plane.
@@ -392,8 +383,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              render at any camera. The shape's remaining wall is its STEP export — the \
              writer's outward/void classifier has closed forms for planar faces only, so \
              this multi-shell CURVED solid refuses CurvedShellClassification, declared at \
-             the scene and probed every pass. The SAME ring built as a three-node recipe \
-             — one profile whose loop list is [Circle(rₒ), Circle(rᵢ)], an axis datum, \
+             the scene and probed every pass. The SAME ring built as a two-node recipe \
+             — one profile whose loop list is [Circle(rₒ), Circle(rᵢ)], and \
              Revolve(2π) — comes back with the same shells, the same {v}/{e}/{f} and a \
              bit-equal volume, so the hole reaches the verb through the document too",
             props.volume,

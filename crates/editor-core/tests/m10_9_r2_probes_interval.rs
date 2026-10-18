@@ -41,7 +41,7 @@ use editor_core::{
 use geom_core::sym::report::ShapeOutcome;
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::{Recorder, len, xy_frame};
+use crate::fixture::{Recorder, len};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{ceiling, certifies_whole, dials};
 

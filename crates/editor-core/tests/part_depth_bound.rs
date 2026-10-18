@@ -32,7 +32,7 @@ use editor_core::{
     RecipeNodeId, ResolveFailure, ResolveFault, SlideAxis, Value, mate_reach, product,
 };
 use fixture::resolver::{PartStore, with_resolver};
-use fixture::{insert, len, on_frame, run, square, step};
+use fixture::{insert, len, run, square};
 use geom_core::Tol;
 use std::sync::Arc;
 use test_utils::own_thread::on_the_smallest_stack;
@@ -52,13 +52,7 @@ fn leaf() -> ProfileDoc {
 /// caps the leaf's product names, as that placement's copy.
 fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, profile) = on_frame(
-        doc,
-        [0.0; 3],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![square(0.0, 0.0, 1.0)],
-    );
+    let (doc, profile) = insert(doc, Node::Profile(fixture::desc(vec![square(0.0, 0.0, 1.0)])));
     let (doc, block) = insert(
         doc,
         Node::Extrude {
@@ -66,13 +60,7 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
             distance: len(1.0),
         },
     );
-    let (doc, boss_profile) = on_frame(
-        doc,
-        [0.0, 0.0, 0.5],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![square(0.2, 0.2, 0.25)],
-    );
+    let (doc, boss_profile) = insert(doc, Node::Profile(fixture::desc(vec![square(0.2, 0.2, 0.25)])));
     let (doc, boss) = insert(
         doc,
         Node::Extrude {
@@ -80,6 +68,8 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
             distance: len(1.0),
         },
     );
+    // The boss stands halfway up the block.
+    let (doc, boss) = fixture::slid(doc, block, boss, [0.0, 0.0, 0.5]);
     let (doc, union) = insert(
         doc,
         Node::Union {
@@ -126,23 +116,33 @@ fn instantiating(label: &str, below: DocRef) -> (ProfileDoc, RecipeNodeId) {
     insert(doc, Node::instantiate_part(below))
 }
 
-/// `instance` pinned where its body stands: the named interim's world
-/// pin (stage 3 C), which reads nothing, so the copy is the part's at
-/// the identity whether or not its part evaluates.
-fn world_pinned(doc: ProfileDoc, instance: RecipeNodeId) -> ProfileDoc {
-    step(
-        doc,
-        DocEdit::PinWhereItStands {
-            placement: instance,
-        },
-    )
-    .0
+/// `instance` pinned to the world where its body stands, its part
+/// resolved through `opts` ([`editor_core::stand`]); an instance whose
+/// part does not evaluate is pinned nominally, by a rest of the cap its
+/// body would mint on the world's floor ([`fixture::pin_mate`]), which
+/// its placement never reaches.
+fn world_pinned(doc: ProfileDoc, instance: RecipeNodeId, opts: &EvalOptions) -> ProfileDoc {
+    let copy = editor_core::Operand::Var(
+        doc.output(instance, 0)
+            .expect("an instance defines its copies"),
+    );
+    match editor_core::stand(&doc, &copy, opts, Tol::witness()) {
+        Ok(stood) => fixture::with_values(doc, instance, stood.mate, stood.values),
+        Err(_) => {
+            let mate = fixture::pin_mate(&doc, instance, &editor_core::Frame::IDENTITY, opts);
+            fixture::constrain_at(doc, instance, mate).0
+        }
+    }
 }
 
 /// [`instantiating`], its instance [`world_pinned`].
-fn instantiating_pinned(label: &str, below: DocRef) -> (ProfileDoc, RecipeNodeId) {
+fn instantiating_pinned(
+    label: &str,
+    below: DocRef,
+    opts: &EvalOptions,
+) -> (ProfileDoc, RecipeNodeId) {
     let (doc, instance) = instantiating(label, below);
-    (world_pinned(doc, instance), instance)
+    (world_pinned(doc, instance, opts), instance)
 }
 
 /// A store holding the leaf and `levels` documents above it, each
@@ -154,7 +154,11 @@ fn chain(levels: usize) -> (PartStore, Vec<DocRef>) {
     let mut refs = vec![store.insert(leaf(), Tol::witness())];
     for level in 1..=levels {
         let below = *refs.last().expect("the leaf is stored");
-        let (doc, _) = instantiating_pinned(&format!("part-depth-level-{level}"), below);
+        let (doc, _) = instantiating_pinned(
+            &format!("part-depth-level-{level}"),
+            below,
+            &with_resolver(store.clone()),
+        );
         refs.push(store.insert(doc, Tol::witness()));
     }
     (store, refs)
@@ -262,8 +266,10 @@ fn the_refused_chain_flattened_by_one_level_evaluates_at_the_bound() {
         let (store, refs) = chain(BOUND);
         // One level flatter: the top skips the topmost stored level.
         let flattened_ref = refs[refs.len() - 2];
-        let (top, instance) = instantiating_pinned("part-depth-flattened-top", flattened_ref);
-        let ev = run(&top, &resolving(store));
+        let opts = resolving(store);
+        let (top, instance) =
+            instantiating_pinned("part-depth-flattened-top", flattened_ref, &opts);
+        let ev = run(&top, &opts);
         assert!(
             matches!(ev.result(instance), Some(NodeResult::Ok(_))),
             "a chain at the bound evaluates"
@@ -330,10 +336,14 @@ fn instantiating_all(label: &str, below: &[DocRef]) -> (ProfileDoc, Vec<RecipeNo
     (doc, ids)
 }
 
-/// [`instantiating_all`], each instance [`world_pinned`].
-fn instantiating_all_pinned(label: &str, below: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
+/// [`instantiating_all`], each instance [`world_pinned`] through `opts`.
+fn instantiating_all_pinned(
+    label: &str,
+    below: &[DocRef],
+    opts: &EvalOptions,
+) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, ids) = instantiating_all(label, below);
-    let doc = ids.iter().fold(doc, |doc, &id| world_pinned(doc, id));
+    let doc = ids.iter().fold(doc, |doc, &id| world_pinned(doc, id, opts));
     (doc, ids)
 }
 
@@ -360,8 +370,11 @@ fn a_loop_closing_at_the_bound_is_named_as_a_loop_and_one_past_it_is_too_deep() 
             let mut store = Unpinned::default();
             for (i, r) in refs.iter().enumerate() {
                 let next = refs.get(i + 1).copied().unwrap_or(refs[0]);
-                let (doc, _) =
-                    instantiating_all_pinned(&format!("part-depth-loop-{}", i + 1), &[next]);
+                let (doc, _) = instantiating_all_pinned(
+                    &format!("part-depth-loop-{}", i + 1),
+                    &[next],
+                    &EvalOptions::default(),
+                );
                 store.0.insert(*r, doc);
             }
             let (top, ids) = instantiating_all("part-depth-loop-top", &[refs[0]]);
@@ -414,6 +427,7 @@ fn below_the_top_a_documents_rows_are_the_ones_its_own_evaluation_produces() {
     let (hollow_doc, _) = instantiating_all_pinned(
         "part-descent-hollow",
         &[unpinned_ref("part-descent-hollow-missing")],
+        &EvalOptions::default(),
     );
     store.0.insert(hollow, hollow_doc);
     let mixed = unpinned_ref("part-descent-mixed");
@@ -439,7 +453,7 @@ fn below_the_top_a_documents_rows_are_the_ones_its_own_evaluation_produces() {
     });
     let mixed_doc = mixed_ids[2..]
         .iter()
-        .fold(mixed_doc, |doc, &id| world_pinned(doc, id));
+        .fold(mixed_doc, |doc, &id| world_pinned(doc, id, &EvalOptions::default()));
     store.0.insert(mixed, mixed_doc.clone());
     let (top, ids) = instantiating_all("part-descent-mixed-top", &[mixed]);
     let opts = store.options();

@@ -54,7 +54,6 @@ pub mod blend;
 pub mod bounds;
 pub mod camera;
 pub mod combine;
-pub mod datums;
 pub mod display;
 pub mod docio;
 pub mod evalseam;
@@ -76,6 +75,7 @@ pub mod props;
 pub mod readout;
 pub mod revolvetool;
 pub mod scene;
+pub mod screen;
 pub mod seats;
 pub mod session;
 pub mod sketch;
@@ -140,7 +140,6 @@ fn app_lane_skipped_no_app_feature_coverage_here() {
 
 pub use blend::{BlendError, BlendEvent, BlendKindChoice, BlendTarget, BlendTool, FREEZE_NOTE};
 pub use camera::{Camera, CameraError, CameraOp, CameraOpError, cursor_projection};
-pub use datums::{DatumDraw, DatumKind};
 pub use docio::DocIoError;
 pub use evalseam::{
     DoorDone, DoorRequest, DoorService, EvalDone, EvalRequest, EvalService, IndexDone,
@@ -175,7 +174,7 @@ pub use revolvetool::RevolveTool;
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};
 pub use seats::{Seat, SeatError, SeatEvent, Seats, seat_line};
 pub use session::{
-    BoundsReading, DatumSpec, DocSession, EdgeSelection, FaceFrameFault, FaceSelection, Hovered,
+    BoundsReading, DocSession, EdgeSelection, FaceSelection, GestureFrameFault, Hovered,
     Landing, NodeKindWanted, OpOutcome, PatternRuleSpec, PlaceReport, ProfileShape, Refusal,
     Selection, SessionOp, Standing,
 };

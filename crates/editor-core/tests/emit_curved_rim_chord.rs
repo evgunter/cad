@@ -10,13 +10,13 @@
 //! over a straight rim in two pieces is `resolve_cited_line`'s.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block_on, failure, run};
 use crate::corpus::body_of;
 use crate::emit_shared_rim_several::Bx;
-use crate::fixture::{edge_of, frame, insert, len, len2, out, table};
+use crate::fixture::{edge_of, insert, len, len2, out, table};
 
 use editor_core::{
-    EntityKind, ExtrudeSide, Formula, LoopProgram, NameRef, NameTable, Node, ProfileDoc,
+    EntityKind, Formula, LoopProgram, NameRef, NameTable, Node, ProfileDoc,
     ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, Qualifier, RecipeNodeId, RoleSeg,
     StableName, VarId,
 };
@@ -41,7 +41,6 @@ enum Rim {
 
 /// The prism of `rim`, extruded 1 from z = 0.
 fn prism(doc: ProfileDoc, rim: Rim) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let steps = match rim {
         Rim::Arc => vec![
             ProgramStep::At(len2([0.0, 0.0])),
@@ -78,18 +77,20 @@ fn prism(doc: ProfileDoc, rim: Rim) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-/// `rim`'s prism with its top rim notched into pieces: the document
-/// and the notched prism.
-fn notched_prism(rim: Rim) -> (ProfileDoc, RecipeNodeId) {
+/// `rim`'s prism with its top rim notched into pieces, each notch a
+/// block placed against the prism: the document, the notched prism and
+/// the prism, the root a later block is placed against.
+fn notched_prism(rim: Rim) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("emit_curved_rim_chord", Tol::witness());
-    let (doc, mut body) = prism(doc, rim);
+    let (doc, root) = prism(doc, rim);
+    let mut body = root;
     let notches: &[Bx] = match rim {
         Rim::Arc => &[NEAR_200],
         Rim::Circle => &[NEAR_200, NEAR_90],
     };
     let mut doc = doc;
     for &(x, y, z) in notches {
-        let (d, notch) = block(doc, x, y, z.0, z.1);
+        let (d, notch) = block_on(doc, root, x, y, z.0, z.1);
         (doc, body) = insert(
             d,
             Node::Subtract {
@@ -98,7 +99,7 @@ fn notched_prism(rim: Rim) -> (ProfileDoc, RecipeNodeId) {
             },
         );
     }
-    (doc, body)
+    (doc, body, root)
 }
 
 /// A notch through the top rim near 200°.
@@ -265,8 +266,8 @@ fn within_sources(
 /// edges on the top rim are named so.
 fn unites_in_both_orders(rim: Rim, x: (f64, f64), y: (f64, f64), pieces: usize, at: &str) {
     for flip in [false, true] {
-        let (doc, notched) = notched_prism(rim);
-        let (doc, post) = block(doc, x, y, 0.5, 1.0);
+        let (doc, notched, root) = notched_prism(rim);
+        let (doc, post) = block_on(doc, root, x, y, 0.5, 1.0);
         let members = if flip {
             vec![post, notched]
         } else {
@@ -338,9 +339,9 @@ fn a_post_across_the_other_piece_of_a_notched_circle_unites() {
 /// inside it. The pieces either side are named for the first piece.
 #[test]
 fn a_cavity_cut_by_the_notched_prism_names_its_rim_pieces() {
-    let (doc, notched) = notched_prism(Rim::Arc);
-    let (doc, boxed) = block(doc, (-1.5, 1.5), (-1.5, 1.5), 0.5, 1.0);
-    let (doc, slot) = block(doc, (0.6, 0.8), (0.4, 1.2), 0.4, 1.2);
+    let (doc, notched, root) = notched_prism(Rim::Arc);
+    let (doc, boxed) = block_on(doc, root, (-1.5, 1.5), (-1.5, 1.5), 0.5, 1.0);
+    let (doc, slot) = block_on(doc, root, (0.6, 0.8), (0.4, 1.2), 0.4, 1.2);
     let (doc, holed) = insert(
         doc,
         Node::Subtract {
@@ -383,8 +384,8 @@ fn a_cavity_cut_by_the_notched_prism_names_its_rim_pieces() {
 /// line, as it is when the wrong pick puts a second edge in its group.
 #[test]
 fn the_edge_check_refuses_a_name_for_the_other_piece() {
-    let (doc, notched) = notched_prism(Rim::Arc);
-    let (doc, post) = block(doc, (0.6, 0.8), (0.4, 1.2), 0.5, 1.0);
+    let (doc, notched, root) = notched_prism(Rim::Arc);
+    let (doc, post) = block_on(doc, root, (0.6, 0.8), (0.4, 1.2), 0.5, 1.0);
     let (doc, u) = insert(
         doc,
         Node::Union {

@@ -12,24 +12,31 @@
 
 use crate::corpus;
 use crate::fixture::{fname, insert, len, on_frame, place, square, wall};
+
+/// **One copy of `body` in the world, `z` up its own z**: where a
+/// construction drawn `z` up the world's z axis stands.
+fn place_up(doc: ProfileDoc, body: RecipeNodeId, z: f64) -> (ProfileDoc, RecipeNodeId) {
+    crate::fixture::in_world(doc, body, &editor_core::Frame::translation([0.0, 0.0, z]))
+}
 use editor_core::{
-    Assembly, AssertionRelation, ExtrudeSide, Formula, InterferenceFinding, MeasurePrimitive, Node,
+    Assembly, AssertionRelation, Formula, InterferenceFinding, MeasurePrimitive, Node,
     Overlap, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, assemble,
 };
 use geom_core::Tol;
 use topo::{CensusContact, ValidationError};
 
 /// A block extruded `height` from a square of half-side `h` at
-/// `(cx, cy)`, on a frame `z` up the world's z axis: the extrude.
+/// `(cx, cy)` on its own xy: the extrude, which a copy places `z` up
+/// the world's z axis ([`place_up`]).
 fn block(
     doc: ProfileDoc,
-    (cx, cy, z): (f64, f64, f64),
+    (cx, cy): (f64, f64),
     h: f64,
     height: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = on_frame(
         doc,
-        [0.0, 0.0, z],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(cx, cy, h)],
@@ -56,8 +63,9 @@ fn minus_x(doc: &ProfileDoc, b: RecipeNodeId) -> StableName {
 /// **Two copies overlapping in one slab**: a unit block `a`, and a
 /// smaller block `b` whose −x wall sits 0.05 inside `a`'s +x wall,
 /// strictly inside `a` across y and z, so every vertex of `b` on that
-/// wall is inside `a`'s material and nothing is coplanar. Each block
-/// placed once at the identity: `(doc, a, b, copy of a, copy of b)`.
+/// wall is inside `a`'s material and nothing is coplanar. `a` placed
+/// once at the identity and `b` once 0.25 up: `(doc, a, b, copy of a,
+/// copy of b)`.
 fn slab_overlap() -> (
     ProfileDoc,
     RecipeNodeId,
@@ -66,10 +74,10 @@ fn slab_overlap() -> (
     RecipeNodeId,
 ) {
     let doc = ProfileDoc::empty_derived("intent-s5-b-slab", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 0.0, 0.0), 0.5, 1.0);
-    let (doc, b) = block(doc, (0.75, 0.0, 0.25), 0.3, 0.5);
+    let (doc, a) = block(doc, (0.0, 0.0), 0.5, 1.0);
+    let (doc, b) = block(doc, (0.75, 0.0), 0.3, 0.5);
     let (doc, p) = place(doc, a);
-    let (doc, q) = place(doc, b);
+    let (doc, q) = place_up(doc, b, 0.25);
     (doc, a, b, p, q)
 }
 
@@ -144,11 +152,11 @@ fn two_overlapping_copies_gate_ok_with_one_loud_finding() {
 #[test]
 fn a_bar_through_a_plate_with_no_vertex_inside_is_one_finding() {
     let doc = ProfileDoc::empty_derived("intent-s5-b-pierce", Tol::witness());
-    let (doc, plate) = block(doc, (0.0, 0.0, 0.0), 0.5, 1.0);
+    let (doc, plate) = block(doc, (0.0, 0.0), 0.5, 1.0);
     // The bar: x ∈ [−1, 1], y ∈ [−0.1, 0.1], z ∈ [0.4, 0.6].
     let (doc, profile) = on_frame(
         doc,
-        [0.0, 0.0, 0.4],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(-1.0, -0.1), (1.0, -0.1), (1.0, 0.1), (-1.0, 0.1)]],
@@ -161,7 +169,7 @@ fn a_bar_through_a_plate_with_no_vertex_inside_is_one_finding() {
         },
     );
     let (doc, p) = place(doc, plate);
-    let (doc, q) = place(doc, bar);
+    let (doc, q) = place_up(doc, bar, 0.4);
     let assembly = assembled(&doc);
     let [finding] = assembly.interference.as_slice() else {
         panic!("one overlap, one finding: {:?}", assembly.interference)
@@ -358,9 +366,9 @@ fn an_assertion_on_one_lug_leaves_the_second_lug_loud() {
             distance: len(1.0),
         },
     );
-    let (doc, pin) = block(doc, (0.75, 0.0, 0.25), 0.3, 0.5);
+    let (doc, pin) = block(doc, (0.75, 0.0), 0.3, 0.5);
     let (doc, p) = place(doc, clevis);
-    let (doc, q) = place(doc, pin);
+    let (doc, q) = place_up(doc, pin, 0.25);
     let (first, second) = (
         fname(clevis, wall(&doc, clevis, 1)),
         fname(clevis, wall(&doc, clevis, 5)),
@@ -402,10 +410,10 @@ fn an_assertion_on_one_lug_leaves_the_second_lug_loud() {
 #[test]
 fn an_overlap_with_a_sunk_flange_stays_loud() {
     let doc = ProfileDoc::empty_derived("intent-s5-b-flange", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 0.0, 0.0), 0.5, 1.0);
+    let (doc, a) = block(doc, (0.0, 0.0), 0.5, 1.0);
     let (doc, profile) = on_frame(
         doc,
-        [0.0, 0.0, 0.25],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![
@@ -425,7 +433,7 @@ fn an_overlap_with_a_sunk_flange_stays_loud() {
         },
     );
     let (doc, p) = place(doc, a);
-    let (doc, q) = place(doc, b);
+    let (doc, q) = place_up(doc, b, 0.25);
     let (doc, _) = gap_at_copies(
         doc.clone(),
         (p, plus_x(&doc, a)),
@@ -502,11 +510,10 @@ fn bore_pin_and_holes(
     StableName,
     StableName,
 ) {
-    use crate::fixture::{frame, piece};
+    use crate::fixture::{in_world, piece, slid};
     use editor_core::{LoopProgram, ProfileProgram};
     let circle = |r| LoopProgram::<Formula>::circle(0.0, 0.0, r).expect("a literal circle");
-    let prism = |doc: ProfileDoc, z, loops, h| {
-        // D-FRAME: let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let prism = |doc: ProfileDoc, loops, h| {
         let (doc, profile) = insert(
             doc,
             Node::Profile(ProfileProgram {
@@ -523,7 +530,7 @@ fn bore_pin_and_holes(
         )
     };
     let doc = ProfileDoc::empty_derived("intent-s5-b-press", Tol::witness());
-    let outline = crate::fixture::desc(RecipeNodeId::new(0, 0), vec![square(0.0, 0.0, 1.0)])
+    let outline = crate::fixture::desc(vec![square(0.0, 0.0, 1.0)])
         .loops
         .remove(0);
     let mut loops = vec![outline, circle(0.5)];
@@ -532,10 +539,10 @@ fn bore_pin_and_holes(
             LoopProgram::<Formula>::circle(cx, cy, r).expect("a literal circle")
         }),
     );
-    let (doc, plate) = prism(doc, 0.0, loops, 1.0);
-    let (doc, pin) = prism(doc, -0.5, vec![circle(pin_r)], 2.0);
+    let (doc, plate) = prism(doc, loops, 1.0);
+    let (doc, pin) = prism(doc, vec![circle(pin_r)], 2.0);
     let (doc, p) = place(doc, plate);
-    let (doc, q) = place(doc, pin);
+    let (doc, q) = in_world(doc, pin, &editor_core::Frame::translation([0.0, 0.0, -0.5]));
     let lateral =
         |doc: &ProfileDoc, node, l| fname(node, RoleSeg::Lateral(piece(doc, node, l, 0).into()));
     let (bore, wall) = (lateral(&doc, plate, 1), lateral(&doc, pin, 0));
@@ -597,11 +604,10 @@ fn a_pin_pressed_into_a_bore_is_quiet_under_its_gap() {
 /// carrier keeps it, so the bore's own gap does not quiet the finding.
 #[test]
 fn a_pin_bottoming_through_a_blind_bore_stays_loud() {
-    use crate::fixture::{frame, piece};
+    use crate::fixture::{in_world, piece, slid};
     use editor_core::{Bodies, LoopProgram, ProfileProgram};
     let circle = |r| LoopProgram::<Formula>::circle(0.0, 0.0, r).expect("a literal circle");
-    let prism = |doc: ProfileDoc, z, loops, h| {
-        // D-FRAME: let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let prism = |doc: ProfileDoc, loops, h| {
         let (doc, profile) = insert(
             doc,
             Node::Profile(ProfileProgram {
@@ -618,22 +624,23 @@ fn a_pin_bottoming_through_a_blind_bore_stays_loud() {
         )
     };
     let outline = || {
-        crate::fixture::desc(RecipeNodeId::new(0, 0), vec![square(0.0, 0.0, 1.0)])
+        crate::fixture::desc(vec![square(0.0, 0.0, 1.0)])
             .loops
             .remove(0)
     };
     let doc = ProfileDoc::empty_derived("intent-s5-b-blind", Tol::witness());
-    let (doc, holed) = prism(doc, 0.0, vec![outline(), circle(0.5)], 1.0);
-    let (doc, floor) = prism(doc, -0.5, vec![outline()], 0.5);
+    let (doc, holed) = prism(doc, vec![outline(), circle(0.5)], 1.0);
+    let (doc, floor) = prism(doc, vec![outline()], 0.5);
+    let (doc, floor) = slid(doc, holed, floor, [0.0, 0.0, -0.5]);
     let (doc, plate) = insert(
         doc,
         Node::Union {
             members: Bodies::Spelled(vec![holed.into(), floor.into()]),
         },
     );
-    let (doc, pin) = prism(doc, -0.2, vec![circle(0.505)], 1.7);
+    let (doc, pin) = prism(doc, vec![circle(0.505)], 1.7);
     let (doc, p) = place(doc, plate);
-    let (doc, q) = place(doc, pin);
+    let (doc, q) = in_world(doc, pin, &editor_core::Frame::translation([0.0, 0.0, -0.2]));
     let lateral =
         |doc: &ProfileDoc, node, l| fname(node, RoleSeg::Lateral(piece(doc, node, l, 0).into()));
     let (bore, wall) = (lateral(&doc, holed, 1), lateral(&doc, pin, 0));
@@ -763,10 +770,10 @@ fn an_undecided_pair_beside_the_press_fit_keeps_it_loud() {
 #[test]
 fn a_touch_beside_a_quieted_overlap_keeps_it_loud() {
     let doc = ProfileDoc::empty_derived("intent-s5-b-slab-touch", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 0.0, 0.0), 0.5, 1.0);
+    let (doc, a) = block(doc, (0.0, 0.0), 0.5, 1.0);
     let (doc, profile) = on_frame(
         doc,
-        [0.0, 0.0, 0.25],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         // The tab's −x wall is the last segment.
@@ -793,7 +800,7 @@ fn a_touch_beside_a_quieted_overlap_keeps_it_loud() {
         },
     );
     let (doc, p) = place(doc, a);
-    let (doc, q) = place(doc, b);
+    let (doc, q) = place_up(doc, b, 0.25);
     let (doc, assertion) = gap_at_copies(
         doc.clone(),
         (p, plus_x(&doc, a)),

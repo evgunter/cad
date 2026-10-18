@@ -167,39 +167,3 @@ fn a_skewed_pair_is_repaired_at_the_sketch_plane_door() {
     assert_eq!(bits3(plane.normal()), bits3(Vec3::unit_z()));
 }
 
-// ---------------------------------------------------------------
-// A datum frame through the document
-// ---------------------------------------------------------------
-
-/// **A frame datum evaluates to the witness, and the fixture's plane
-/// is the evaluator's** — the two roads to a sketch plane off a frame
-/// node agree bit for bit, which is what carrying the witness through
-/// `PoseValue::Frame` buys. The node's literals are deliberately
-/// neither unit nor perpendicular.
-#[test]
-fn a_datum_frame_node_evaluates_to_the_witness_and_the_fixture_plane_agrees() {
-    let doc = ProfileDoc::empty_derived("scalar_frame_r1", Tol::witness());
-    let (doc, plane) = fixture::insert(
-        doc,
-        fixture::frame([1.0, 2.0, 3.0], [2.0, 0.0, 0.0], [1.0, 1.0, 0.0]),
-    );
-    let ev = evaluate::<f64>(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        Tol::witness(),
-    );
-    let ValuePayload::Datum(PoseValue::Frame(f)) = &ev.value(plane).expect("evaluated").payload
-    else {
-        panic!("not a frame")
-    };
-    assert_eq!(bits3(f.u().get()), bits3(Vec3::unit_x()));
-    assert_eq!(bits3(f.v().get()), bits3(Vec3::unit_y()));
-    assert_eq!(bits3(f.w().get()), bits3(Vec3::unit_z()));
-    let fixture_plane = fixture::plane_of(&doc, plane);
-    assert_eq!(
-        bits12(&fixture_plane.placement),
-        bits12(&SketchPlane::from_frame(*f).placement)
-    );
-}

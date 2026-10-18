@@ -46,18 +46,12 @@ use std::sync::Arc;
 
 // ---- Documents ----
 
-/// An axis-aligned block: `[x]×[y]` on the plane at `z0`, extruded
-/// `dz`. Its extrude node is the returned id.
-fn block(
-    doc: ProfileDoc,
-    x: (f64, f64),
-    y: (f64, f64),
-    z0: f64,
-    dz: f64,
-) -> (ProfileDoc, RecipeNodeId) {
+/// An axis-aligned block: `[x]×[y]` on its own xy, extruded `dz`. Its
+/// extrude node is the returned id.
+fn block(doc: ProfileDoc, x: (f64, f64), y: (f64, f64), dz: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, z0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
@@ -77,7 +71,6 @@ fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     )
 }
@@ -88,8 +81,9 @@ fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// declared contact records of its own — row 1's subject.
 fn kiss_part(label: &str) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0);
+    let (doc, b) = crate::fixture::slid(doc, a, b, [0.0, 0.0, 1.0]);
     let (doc, union) = insert(
         doc,
         Node::Union {
@@ -777,7 +771,6 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
         ProfileDoc::empty(part_id, Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let (doc_ref, body) = store.insert_part((part, body), Tol::witness());
@@ -804,16 +797,14 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
 
     // The move: the SAME document id, re-modelled so the declared
     // entity's minting node is no longer the one the crossing names.
-    // A leading datum shifts the extrude off the id `body` names — the
+    // A leading profile shifts the extrude off the id `body` names — the
     // part still has a product, and the crossing's reference is simply
     // gone.
     let (shifted, _) = insert(
         ProfileDoc::empty(part_id, Tol::witness()),
-        Node::Datum(editor_core::Datum::Point {
-            position: [len(0.0), len(0.0), len(0.0)],
-        }),
+        Node::Profile(crate::fixture::desc(vec![crate::fixture::square(5.0, 5.0, 0.5)])),
     );
-    let (shifted, shifted_body) = block(shifted, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (shifted, shifted_body) = block(shifted, (0.0, 1.0), (0.0, 1.0), 1.0);
     let shifted = crate::fixture::place(shifted, shifted_body).0;
     assert_ne!(shifted_body, body, "the move re-mints the extrude");
     let new_pin = content_pin(&shifted, Tol::witness()).expect("the pin computes");
@@ -870,7 +861,6 @@ fn row5_c_inline_dissolves_the_crossing_record() {
         ProfileDoc::empty(part_id, Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let (doc_ref, body) = store.insert_part((part, body), Tol::witness());
@@ -934,7 +924,6 @@ fn row5_e_a_pin_move_that_moves_the_contact_face_carries_the_seat_with_it() {
         ProfileDoc::empty(part_id, Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let (doc_ref, body) = store.insert_part((part.clone(), body), Tol::witness());
@@ -1029,7 +1018,6 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
         ProfileDoc::empty(part_id, Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let (doc_ref, body) = store.insert_part((part, body), Tol::witness());
@@ -1080,7 +1068,6 @@ fn a_crossing_record_keys_on_each_of_its_fields() {
         ProfileDoc::empty(part_id, Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let (doc_ref, body) = store.insert_part((part, body), Tol::witness());
@@ -1547,7 +1534,6 @@ fn slab_part(label: &str, x: (f64, f64), y: (f64, f64), dz: f64) -> (ProfileDoc,
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
         x,
         y,
-        0.0,
         dz,
     )
 }
@@ -1920,8 +1906,8 @@ fn a_mated_assembly_is_silent_and_the_declaration_is_why() {
 /// subject where the box rule cannot separate them.
 fn twinned_part(label: &str) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     crate::fixture::place_all(doc, &[a, b])
 }
 

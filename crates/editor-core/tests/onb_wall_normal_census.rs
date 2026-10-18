@@ -1,5 +1,4 @@
-//! **The frame-seam census over the Band 4 model corpus**, and the
-//! `Datum::FaceFrame` half of the frame-movement question.
+//! **The frame-seam census over the Band 4 model corpus.**
 //!
 //! `Vec3::orthonormal_basis` crosses the normal with the world axis its
 //! own components choose — `e_z` when `|n.z| ≤ max(|n.x|, |n.y|)/2` —
@@ -13,7 +12,7 @@
 //!
 //! [`no_corpus_face_sits_on_the_frame_seam`] ASSERTS the zero this
 //! corpus measures — the number that decided the comparison — and the
-//! two instruments below it print the full tables and are `#[ignore]`d.
+//! instrument below it prints the full table and is `#[ignore]`d.
 //!
 //! ```text
 //! cargo test -p editor-core --test all \
@@ -25,7 +24,7 @@
 use crate::corpus;
 
 use editor_core::{
-    CancelToken, Datum, EvalOptions, Node, NodeResult, ValuePayload, all_faces, evaluate,
+    CancelToken, EvalOptions, NodeResult, ValuePayload, evaluate,
 };
 use geom::Surface;
 use geom_core::Tol;
@@ -158,64 +157,5 @@ fn axis_tie_census_over_the_band4_corpus() {
         total.e_z_arm,
         total.e_y_arm,
         total.three_way_tie
-    );
-}
-
-/// Every `Datum::FaceFrame` in the corpus, with the tie class of the
-/// planar faces of the body it reads its face out of.
-///
-/// A frame stores its spin RELATIVE to the carrier's stored `u_ref`, so
-/// a changed constructor rotates a saved sketch with the document's
-/// bytes unchanged. A frame can only sit on a face of `at`'s body, so
-/// the per-body counts are the complete answer for this corpus and they
-/// need no name resolution to be it.
-#[test]
-#[ignore = "FaceFrame instrument; run explicitly"]
-fn face_frames_and_the_faces_they_could_sit_on() {
-    println!(
-        "| document | frame node | at | named faces on `at` | `at` planes | of those, on a tie |"
-    );
-    println!("| --- | --- | --- | --- | --- | --- | --- |");
-    let mut frames = 0usize;
-    let mut on_tie_bodies = 0usize;
-    for doc in corpus::documents() {
-        let ev = eval(&doc.doc);
-        for id in doc.doc.ids() {
-            let Some(Node::Datum(Datum::FaceFrame { face, .. })) = doc.doc.node(id) else {
-                continue;
-            };
-            frames += 1;
-            let at = &doc
-                .doc
-                .read_operation(*face)
-                .expect("a face frame reads a live body");
-            let mut c = SeamClasses::default();
-            let named = ev.value(*at).map_or(0, |_| all_faces(&ev, *at).len());
-            if let Some(ValuePayload::Body(b)) = ev.value(*at).map(|v| &v.payload) {
-                for (_, surface) in b.surfaces() {
-                    if let Surface::Plane { normal, .. } = surface {
-                        c.add((normal.x, normal.y, normal.z));
-                    }
-                }
-            }
-            if c.on_seam > 0 {
-                on_tie_bodies += 1;
-            }
-            println!(
-                "| {} | {} | {} | {named} | {} | {} |",
-                doc.name,
-                id.0,
-                at.0,
-                c.planes(),
-                c.on_seam
-            );
-        }
-    }
-    if frames == 0 {
-        println!("| **(none)** | — | — | — | — | — |");
-    }
-    println!(
-        "Datum::FaceFrame nodes in the corpus: {frames}; \
-         of those, on a body carrying any plane on the tie set: {on_tie_bodies}"
     );
 }

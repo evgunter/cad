@@ -5,7 +5,7 @@
 
 use crate::fixture::{len, scl};
 use editor_core::{
-    Datum, Dimension, Doc, DocEdit, EditError, ExprPath, Formula, Node, RecipeNodeId, SlotId,
+    Dimension, Doc, DocEdit, EditError, ExprPath, Formula, Node, RecipeNodeId, SlotId,
 };
 use geom_core::Tol;
 
@@ -22,10 +22,6 @@ impl editor_core::ProfilePayload for FakeProfile {
     fn lower<E>(
         authored: &Self,
         _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
-        _: &mut dyn FnMut(
-            editor_core::OperandSlot,
-            &editor_core::Operand,
-        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(authored.clone())
     }
@@ -83,7 +79,7 @@ fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
 
 #[test]
 fn expr_path_survives_edits_to_other_expressions() {
-    let (doc, _profile, extrude) = profile_and_extrude();
+    let (doc, profile, extrude) = profile_and_extrude();
     // Address the second addend of the extrude distance.
     let path = ExprPath {
         node: extrude,
@@ -92,27 +88,28 @@ fn expr_path_survives_edits_to_other_expressions() {
     };
     let before = doc.expr_at(&path).unwrap().clone();
 
-    // Insert an unrelated datum point and edit ITS expression: the
+    // Insert an unrelated extrude and edit ITS expression: the
     // ExprPath's referent is untouched (spec D5).
     let c = doc
         .apply(
             &TEdit::InsertNode {
-                node: Box::new(Node::Datum(Datum::Point {
-                    position: [len(0.0), len(0.0), len(0.0)],
-                })),
+                node: Box::new(Node::Extrude {
+                    profile: profile.into(),
+                    distance: len(0.001),
+                }),
                 fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap();
-    let datum = c.record.minted.unwrap();
+    let other = c.record.minted.unwrap();
     let d = c
         .doc
         .apply(
             &TEdit::SetParam {
-                node: datum,
-                slot: SlotId::Origin(editor_core::Axis3::X),
+                node: other,
+                slot: SlotId::Distance,
                 value: len(0.042).into(),
                 fresh: Vec::new(),
             },

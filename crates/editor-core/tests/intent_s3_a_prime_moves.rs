@@ -10,9 +10,9 @@ use crate::fixture::{self, ang, len};
 use editor_core::eval::bound_pose;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    CancelToken, CapEnd, Dimension, DocEdit, EditError, EvalOptions, Evaluation, ExtrudeSide,
+    CancelToken, CapEnd, Dimension, DocEdit, EditError, EvalOptions, Evaluation,
     Formula, Node, NodeResult, Operand, OperandSlot, PoseValue, ProfileDoc, RecipeNodeId, SlotId,
-    SlotValue, TubeWindow, VarDef, VarId, evaluate,
+    SlotValue, VarDef, VarId, VarName, evaluate,
 };
 use geom_core::{Tol, UnitVec3};
 
@@ -34,7 +34,7 @@ fn near(a: f64, b: f64, what: &str) {
     assert!((a - b).abs() <= 1e-12, "{what}: {a} vs {b}");
 }
 
-/// A unit box as an extruded square on the world xy plane.
+/// A unit box as an extruded square on its own xy plane.
 fn unit_box() -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = fixture::on_frame(
         ProfileDoc::empty_derived("s3ap_box", Tol::witness()),
@@ -52,14 +52,38 @@ fn unit_box() -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-/// A frame at `(1, 2, 3)` whose x is world +y and y world +z, so its z
-/// is world +x: no axis of it is the world's own.
-fn turned_frame(doc: ProfileDoc) -> (ProfileDoc, VarId) {
-    let (doc, frame) = fixture::insert(
+/// A frame read off `cube` at `(1, 2, 3)` in its own coordinates, whose
+/// x is the cube's +y and y its +z, so its z is the cube's +x: no axis
+/// of it is the cube's own. A split by its xy plane reads it, and it is
+/// named, so further seats share it.
+fn turned_frame(doc: ProfileDoc, cube: RecipeNodeId) -> (ProfileDoc, VarId) {
+    let at = fixture::frame_at([1.0, 2.0, 3.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
+    let frame = editor_core::frame_at(
+        &doc,
+        &Operand::from(cube),
+        &at,
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
+    .expect("the cube offers a frame");
+    let (doc, split) = fixture::insert(
         doc,
-        fixture::frame([1.0, 2.0, 3.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
+        Node::Split {
+            target: Operand::output(cube, 0).into(),
+            tool: RoleRead::through(frame, PoseRole::Xy),
+        },
     );
-    let var = doc.output(frame, 0).expect("a frame defines its pose");
+    let Some(Node::Split { tool, .. }) = doc.node(split) else {
+        panic!("the split");
+    };
+    let var = tool.read;
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::RenameVar {
+            var: var.into(),
+            name: Some(VarName::from_static("turned")),
+        },
+    );
     (doc, var)
 }
 
@@ -67,13 +91,14 @@ fn turned_frame(doc: ProfileDoc) -> (ProfileDoc, VarId) {
 /// read): through x its axis along `u`, through y along `v`, through z
 /// along its normal, each through its origin; through its yz and zx
 /// planes the planes normal to `u` and `v`; and the point at `(x, y, z)`
-/// in it is its origin slid along its axes. A ring about the frame's y
-/// and a split by its zx plane read the frame through those roles at
-/// their seats, and build.
+/// in it is its origin slid along its axes. A ring about the frame's y,
+/// a split by its zx plane and a split by the frame through its z axis
+/// and a point in it read the frame through those roles at their seats,
+/// and build.
 #[test]
 fn a_frames_axes_and_planes_read_through_their_roles() {
     let (doc, cube) = unit_box();
-    let (doc, frame) = turned_frame(doc);
+    let (doc, frame) = turned_frame(doc, cube);
     let ev = eval(&doc);
     let through = |role| RoleRead::through(frame, role);
     let axis = |role| match bound_pose(&doc, &ev, OperandSlot::Axis, through(role), Tol::witness())
@@ -132,37 +157,43 @@ fn a_frames_axes_and_planes_read_through_their_roles() {
             },
         },
     );
-    let (doc, tube) = fixture::insert(
+    let (doc, through) = fixture::insert(
         doc,
-        Node::Tube {
-            frame: pose(PoseDef::Through {
-                axis: RoleRead::through(Operand::Var(frame), PoseRole::Z),
-                point: RoleRead::plain(pose(PoseDef::point_in(
-                    &Operand::Var(frame),
-                    [len(0.5), len(0.25), len(-1.0)],
-                ))),
-            }),
-            major_radius: len(2.0),
-            window: TubeWindow::Full,
-            minor_radius: len(0.25),
+        Node::Split {
+            target: Operand::output(cube, 0).into(),
+            tool: RoleRead::through(
+                pose(PoseDef::Through {
+                    axis: RoleRead::through(Operand::Var(frame), PoseRole::Z),
+                    point: RoleRead::plain(pose(PoseDef::point_in(
+                        &Operand::Var(frame),
+                        [len(0.5), len(0.25), len(-1.0)],
+                    ))),
+                }),
+                PoseRole::Xy,
+            ),
         },
     );
     let ev = eval(&doc);
-    for (node, what) in [(split, "the split"), (ring, "the ring"), (tube, "the tube")] {
+    for (node, what) in [
+        (split, "the split"),
+        (ring, "the ring"),
+        (through, "the split by the frame through"),
+    ] {
         assert!(
             matches!(ev.nodes.get(&node), Some(NodeResult::Ok(_))),
             "{what}: {:?}",
             ev.nodes.get(&node)
         );
     }
-    let Some(Node::Tube { frame: at, .. }) = doc.node(tube) else {
-        panic!("the tube");
+    let Some(Node::Split { tool: at, .. }) = doc.node(through) else {
+        panic!("the split by the frame through");
     };
-    let Some(VarDef::Pose(PoseDef::Through { point, .. })) = doc.var(*at).map(|v| v.def()) else {
+    let Some(VarDef::Pose(PoseDef::Through { point, .. })) = doc.var(at.read).map(|v| v.def())
+    else {
         panic!("a frame through an axis and a point");
     };
     let Ok(PoseValue::Point { position }) =
-        bound_pose(&doc, &ev, OperandSlot::Frame, point.read, Tol::witness())
+        bound_pose(&doc, &ev, OperandSlot::Tool, point.read, Tol::witness())
     else {
         panic!("a point");
     };
@@ -178,7 +209,7 @@ fn a_frames_axes_and_planes_read_through_their_roles() {
 #[test]
 fn a_role_the_seat_does_not_admit_refuses() {
     let (doc, cube) = unit_box();
-    let (doc, frame) = turned_frame(doc);
+    let (doc, frame) = turned_frame(doc, cube);
     let refused = fixture::insert_refused(
         &doc,
         Node::Pattern {
@@ -230,52 +261,45 @@ fn a_role_the_seat_does_not_admit_refuses() {
 }
 
 /// **A self-read through a role is one reader** (VR7, at the edit and
-/// the load doors): a tube's frame, an unnamed pose its seat alone
-/// reads, re-pointed to that frame spun about its own z axis, is read
+/// the load doors): a split's tool, an unnamed plane its seat alone
+/// reads, re-pointed to that plane slid along its own normal, is read
 /// by one definition twice — once plainly and once through its role —
 /// and that is one reader. A second seat reading it is a second reader,
 /// and refuses.
 #[test]
 fn a_self_read_through_a_role_is_one_reader() {
     let (doc, cube) = unit_box();
-    let edge = fixture::rim_edge(cube, CapEnd::End, fixture::piece(&doc, cube, 0, 0));
-    let corner = fixture::cap_vertex(cube, CapEnd::End, fixture::vpiece(&doc, cube, 0, 2));
-    let (doc, tube) = fixture::insert(
+    let top = fixture::fname(cube, editor_core::RoleSeg::Cap(CapEnd::End));
+    let (doc, split) = fixture::insert(
         doc,
-        Node::Tube {
-            frame: pose(PoseDef::Through {
-                axis: RoleRead::plain(pose(PoseDef::Axis {
-                    of: Operand::select(Operand::output(cube, 0), vec![edge]),
-                })),
-                point: RoleRead::plain(pose(PoseDef::Point {
-                    of: Operand::select(Operand::output(cube, 0), vec![corner]),
-                })),
-            }),
-            major_radius: len(2.0),
-            window: TubeWindow::Full,
-            minor_radius: len(0.25),
+        Node::Split {
+            target: Operand::output(cube, 0).into(),
+            tool: pose(PoseDef::Plane {
+                face: Operand::select(Operand::output(cube, 0), vec![top]),
+            })
+            .into(),
         },
     );
-    let Some(Node::Tube { frame, .. }) = doc.node(tube) else {
-        panic!("the tube");
+    let Some(Node::Split { tool, .. }) = doc.node(split) else {
+        panic!("the split");
     };
-    let frame = *frame;
+    let plane = tool.read;
     assert!(
-        doc.var_name(frame).is_none(),
-        "premise: the frame is unnamed"
+        doc.var_name(plane).is_none(),
+        "premise: the plane is unnamed"
     );
 
-    let spun = pose(PoseDef::Spin {
-        pose: RoleRead::plain(Operand::Var(frame)),
-        about: RoleRead::through(Operand::Var(frame), PoseRole::Z),
-        by: ang(0.5),
+    let slid = pose(PoseDef::Slide {
+        pose: RoleRead::plain(Operand::Var(plane)),
+        along: RoleRead::through(Operand::Var(plane), PoseRole::Normal),
+        by: len(-0.5),
     });
     let applied = editor_core::apply(
         &doc,
         &DocEdit::SetParam {
-            node: tube,
-            slot: SlotId::Operand(OperandSlot::Frame),
-            value: SlotValue::Read(spun),
+            node: split,
+            slot: SlotId::Operand(OperandSlot::Tool),
+            value: SlotValue::Read(slid),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -284,31 +308,30 @@ fn a_self_read_through_a_role_is_one_reader() {
     .expect("a definition reading its pose twice is one reader");
     let doc = applied.doc;
     assert_eq!(
-        doc.reader_counts().get(&frame).copied(),
+        doc.reader_counts().get(&plane).copied(),
         Some(1),
         "one definition, one reader"
     );
     assert!(doc.shared_unnamed_vars().is_empty());
     let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("saves");
     let back = editor_core::persist::load(&text, Tol::witness()).expect("the load door admits it");
-    assert_eq!(back.snapshot.reader_counts().get(&frame).copied(), Some(1));
+    assert_eq!(back.snapshot.reader_counts().get(&plane).copied(), Some(1));
     let ev = eval(&doc);
     assert!(
-        matches!(ev.nodes.get(&tube), Some(NodeResult::Ok(_))),
+        matches!(ev.nodes.get(&split), Some(NodeResult::Ok(_))),
         "{:?}",
-        ev.nodes.get(&tube)
+        ev.nodes.get(&split)
     );
 
     let refused = fixture::insert_refused(
         &doc,
-        Node::Tube {
-            major_radius: len(2.0),
-            window: TubeWindow::Full,
-            minor_radius: len(0.25),
+        Node::Split {
+            target: Operand::output(cube, 0).into(),
+            tool: Operand::Var(plane).into(),
         },
     );
     assert!(
-        matches!(&refused, EditError::SharedVarNeedsName { var } if var.id() == frame),
+        matches!(&refused, EditError::SharedVarNeedsName { var } if var.id() == plane),
         "{refused:?}"
     );
 }
@@ -437,12 +460,9 @@ fn a_lone_zero_is_the_constant_of_its_slots_dimension() {
     assert!(!doc.lowers_to_constant(var));
 
     // A revolve's heading written `0` is along its profile's x.
-    let (doc, _plane, profile) = fixture::on_frame_keeping(
+    let (doc, profile) = fixture::insert(
         doc,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
-        vec![fixture::square(2.0, -0.5, 0.25)],
+        Node::Profile(fixture::desc(vec![fixture::square(2.0, -0.5, 0.25)])),
     );
     let (doc, revolve) = fixture::insert(
         doc,
@@ -482,7 +502,7 @@ fn a_lone_zero_is_the_constant_of_its_slots_dimension() {
 #[test]
 fn a_lone_zero_is_the_constant_at_the_insert_door() {
     let (doc, cube) = unit_box();
-    let (doc, frame) = turned_frame(doc);
+    let (doc, frame) = turned_frame(doc, cube);
     let (doc, pattern) = fixture::insert(
         doc,
         Node::Pattern {
@@ -565,7 +585,7 @@ fn a_dimensioned_zero_reads_back_through_the_text_door() {
 #[test]
 fn a_flip_of_a_flip_through_a_role_refuses() {
     let (doc, cube) = unit_box();
-    let (doc, frame) = turned_frame(doc);
+    let (doc, frame) = turned_frame(doc, cube);
     let refused = fixture::insert_refused(
         &doc,
         Node::Split {
@@ -597,7 +617,7 @@ fn a_flip_of_a_flip_through_a_role_refuses() {
 #[test]
 fn a_reads_role_is_in_the_content_key() {
     let (doc, cube) = unit_box();
-    let (doc, frame) = turned_frame(doc);
+    let (doc, frame) = turned_frame(doc, cube);
     let tool = |plane, along, by| {
         pose(PoseDef::Slide {
             pose: RoleRead::through(Operand::Var(frame), plane),
@@ -645,13 +665,13 @@ fn a_reads_role_is_in_the_content_key() {
 }
 
 /// **A re-point replaces a seat's read whole, its role with it**: a
-/// split's tool read as a frame's xy plane, re-pointed to a plane datum,
-/// reads that plane plainly and builds; re-pointed to the frame itself,
-/// it refuses, a frame being no plane.
+/// split's tool read as a frame's zx plane, re-pointed to a cap's plane
+/// slid along its normal, reads that plane plainly and builds;
+/// re-pointed to the frame itself, it refuses, a frame being no plane.
 #[test]
 fn a_repoint_replaces_the_read_and_its_role() {
     let (doc, cube) = unit_box();
-    let (doc, frame) = turned_frame(doc);
+    let (doc, frame) = turned_frame(doc, cube);
     let (doc, split) = fixture::insert(
         doc,
         Node::Split {
@@ -659,13 +679,19 @@ fn a_repoint_replaces_the_read_and_its_role() {
             tool: RoleRead::through(Operand::Var(frame), PoseRole::Zx),
         },
     );
-    let (doc, plane) = fixture::insert(
-        doc,
-        Node::Datum(editor_core::Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [0.0, 0.0, 1.0].map(fixture::scl),
-        }),
-    );
+    let top = || {
+        pose(PoseDef::Plane {
+            face: Operand::select(
+                Operand::output(cube, 0),
+                vec![fixture::fname(cube, editor_core::RoleSeg::Cap(CapEnd::End))],
+            ),
+        })
+    };
+    let plane = pose(PoseDef::Slide {
+        pose: RoleRead::plain(top()),
+        along: RoleRead::through(top(), PoseRole::Normal),
+        by: len(-0.5),
+    });
     let repoint = |doc: &ProfileDoc, read: Operand| {
         editor_core::apply(
             doc,
@@ -679,7 +705,7 @@ fn a_repoint_replaces_the_read_and_its_role() {
             &editor_core::RefusingReach,
         )
     };
-    let moved = repoint(&doc, Operand::output(plane, 0))
+    let moved = repoint(&doc, plane)
         .expect("a plane re-points the tool")
         .doc;
     let Some(Node::Split { tool, .. }) = moved.node(split) else {
@@ -712,7 +738,8 @@ fn a_repoint_replaces_the_read_and_its_role() {
 /// refuses naming that field, never "no variant matched".
 #[test]
 fn a_reads_wire_forms_read_back_and_refuse_by_field() {
-    let (_, frame) = turned_frame(ProfileDoc::empty_derived("wire", Tol::witness()));
+    let (doc, cube) = unit_box();
+    let (_, frame) = turned_frame(doc, cube);
     let plain: RoleRead<Operand> = RoleRead::plain(Operand::Var(frame));
     let through: RoleRead<Operand> = RoleRead::through(Operand::Var(frame), PoseRole::Zx);
     for read in [&plain, &through] {

@@ -122,7 +122,7 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
     // The boss: its one placed body is an extrude whose distance does
     // not evaluate, so the boss has no product.
     let (boss, profile) =
-        common::framed_square(&Doc::empty_derived("partroot-boss", tol), 0.04, tol);
+        common::square_profile(&Doc::empty_derived("partroot-boss", tol), 0.04, tol);
     let (boss, boss_root) = common::inserted(
         &boss,
         Node::Extrude {
@@ -362,7 +362,7 @@ fn labelled(doc: &ProfileDoc, node: RecipeNodeId, text: &str, tol: Tol) -> Profi
 /// A placed block: its document, its extrude and the extrude's world
 /// placement (A10).
 fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, profile) = common::framed_square(&Doc::empty_derived(label, tol), 0.02, tol);
+    let (doc, profile) = common::square_profile(&Doc::empty_derived(label, tol), 0.02, tol);
     let (doc, body) = common::inserted(
         &doc,
         Node::Extrude {

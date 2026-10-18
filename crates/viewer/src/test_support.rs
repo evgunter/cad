@@ -21,13 +21,13 @@
 #![allow(clippy::panic)]
 
 use pncad::document::{
-    AuthoredNode, BooleanValue, CancelToken, ContentPin, Datum, Dimension, Doc, DocEdit, DocRef,
+    AuthoredNode, BooleanValue, CancelToken, ContentPin, Dimension, Doc, DocEdit, DocRef,
     DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node,
     NodeErrorKind, PartFault, ProfileProgram, RecipeNodeId, RefusingReach, ValuePayload, VarName,
     apply, evaluate,
 };
 use pncad::geom_core::{Point2, Tol};
-use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
+use pncad::prelude::{EntityKind, StableName};
 #[cfg(test)]
 use pncad::profile::{PathErrorKind, TipState, Verb};
 use pncad::profile::{Step, Target};
@@ -147,10 +147,6 @@ pub fn try_inserted(
 
 // --- the nodes a fixture sketches with ------------------------------
 
-/// A sketch frame node, and the world xy frame these fixtures sketch
-/// on — `editor_core::test_support`'s, as the literals above.
-pub use editor_core::test_support::{frame, xy_frame};
-
 /// A spoken node built by hand, for a row a test builds without a
 /// document — `editor_core::test_support`'s.
 pub use editor_core::test_support::spoken;
@@ -175,21 +171,21 @@ pub fn rectangle_loop(origin: [f64; 2], w: f64, h: f64) -> LoopProgram<Formula> 
         .expect("finite corners")
 }
 
-/// An axis-aligned rectangular profile node's payload on `plane`:
-/// [`rectangle_loop`] drawn on it. `square` is this with two equal
-/// sides at the plane origin, and a fixture whose block sits elsewhere
-/// moves `origin`.
-pub fn rectangle(plane: RecipeNodeId, origin: [f64; 2], w: f64, h: f64) -> AuthoredNode {
+/// An axis-aligned rectangular profile node's payload:
+/// [`rectangle_loop`] drawn on its own plane. `square` is this with two
+/// equal sides at the plane origin, and a fixture whose block sits
+/// elsewhere moves `origin`.
+pub fn rectangle(origin: [f64; 2], w: f64, h: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
         loops: vec![rectangle_loop(origin, w, h)],
         ids: Vec::new(),
     })
 }
 
-/// A square profile node's payload on `plane`, `side` metres on a side,
-/// at the plane origin.
-pub fn square(plane: RecipeNodeId, side: f64) -> AuthoredNode {
-    rectangle(plane, [0.0, 0.0], side, side)
+/// A square profile node's payload, `side` metres on a side, at the
+/// plane origin.
+pub fn square(side: f64) -> AuthoredNode {
+    rectangle([0.0, 0.0], side, side)
 }
 
 // --- documents built from the doors above ---------------------------
@@ -255,23 +251,76 @@ pub fn placed_read(
     (pinned(&doc, placement, opts, tol), placement)
 }
 
-/// The copy `placement` defines, pinned where its body stands: the
-/// named interim's world pin ([`DocEdit::PinWhereItStands`], stage 3
-/// C), which reads nothing, so the copy follows its body's variables.
+/// The copy `placement` defines, standing where its body stands
+/// ([`pncad::document::stand`]): a plane mate on a face no variable
+/// reaches, or a revolve's or a full ring's own axis, and the constant
+/// `0` on the freedoms it leaves, so the copy follows its body's
+/// variables.
 pub fn pinned(
     doc: &Doc<ProfileProgram>,
     placement: RecipeNodeId,
-    _opts: &EvalOptions,
+    opts: &EvalOptions,
     tol: Tol,
 ) -> Doc<ProfileProgram> {
-    apply(
+    let copy = copy_of(doc, placement);
+    let stood = pncad::document::stand(doc, &copy, opts, tol)
+        .unwrap_or_else(|refusal| panic!("the copy stands over its geometry: {refusal}"));
+    constrained(doc, placement, stood.mate, stood.values, tol)
+}
+
+/// The read of the copy `placement` defines: a `Place` through its first
+/// shape, an instance through its own copies.
+fn copy_of(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> pncad::document::Operand {
+    match doc.node(placement) {
+        Some(Node::Place { shapes, .. }) => {
+            pncad::document::Operand::Var(shapes.first().expect("a placement copies a shape").read)
+        }
+        Some(Node::InstantiatePart { .. }) => pncad::document::Operand::Var(
+            doc.output(placement, 0)
+                .expect("an instance defines its copies"),
+        ),
+        other => panic!("{placement} is no placement: {other:?}"),
+    }
+}
+
+/// `mate` added to `placement`'s bundle, then each of `values` naming it.
+fn constrained(
+    doc: &Doc<ProfileProgram>,
+    placement: RecipeNodeId,
+    mate: pncad::document::Mate<Formula>,
+    values: Vec<(pncad::document::Coord, Formula)>,
+    tol: Tol,
+) -> Doc<ProfileProgram> {
+    let applied = apply(
         doc,
-        &DocEdit::PinWhereItStands { placement },
+        &DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(mate),
+            fresh: Vec::new(),
+        },
         tol,
         &RefusingReach,
     )
-    .expect("a world pin stands alone in its bundle")
-    .doc
+    .expect("the mate is admitted");
+    let [id] = applied.record.minted_constraints[..] else {
+        unreachable!("a mate mints one constraint id")
+    };
+    values.into_iter().fold(applied.doc, |doc, (coord, by)| {
+        edited(
+            &doc,
+            DocEdit::AddValue {
+                placement,
+                value: Box::new(pncad::document::Value {
+                    mate: id,
+                    coord,
+                    by,
+                }),
+                fresh: Vec::new(),
+            },
+            tol,
+        )
+        .0
+    })
 }
 
 /// **The copy `placement` defines, pinned to the world at `pose`**
@@ -294,16 +343,7 @@ pub fn pin(
     opts: &EvalOptions,
     tol: Tol,
 ) -> Doc<ProfileProgram> {
-    let copy = match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => {
-            pncad::document::Operand::Var(shapes.first().expect("a placement copies a shape").read)
-        }
-        Some(Node::InstantiatePart { .. }) => pncad::document::Operand::Var(
-            doc.output(placement, 0)
-                .expect("an instance defines its copies"),
-        ),
-        other => panic!("{placement} is no placement: {other:?}"),
-    };
+    let copy = copy_of(doc, placement);
     let (mate, values) = match editor_core::pin_at(doc, &copy, pose, opts, tol) {
         Ok(mate) => (mate, Vec::new()),
         Err(editor_core::PinRefusal::Unevaluated { node }) => {
@@ -331,36 +371,7 @@ pub fn pin(
         }
         Err(refusal) => panic!("the copy pins over its geometry: {refusal}"),
     };
-    let applied = apply(
-        doc,
-        &DocEdit::AddConstraint {
-            placement,
-            mate: Box::new(mate),
-            fresh: Vec::new(),
-        },
-        tol,
-        &RefusingReach,
-    )
-    .expect("the pin is admitted");
-    let [id] = applied.record.minted_constraints[..] else {
-        unreachable!("a mate mints one constraint id")
-    };
-    values.into_iter().fold(applied.doc, |doc, (coord, by)| {
-        edited(
-            &doc,
-            DocEdit::AddValue {
-                placement,
-                value: Box::new(pncad::document::Value {
-                    mate: id,
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-            tol,
-        )
-        .0
-    })
+    constrained(doc, placement, mate, values, tol)
 }
 
 /// The `&mut` spelling of `inserted`: insert a node in place and
@@ -380,16 +391,14 @@ pub fn edit_into(doc: &mut Doc<ProfileProgram>, edit: DocEdit<ProfileProgram>, t
     *doc = applied;
 }
 
-/// **A frame and a square drawn on it**, answering the document and the
-/// PROFILE's id — two nodes where a fixture used to insert one, because
-/// a profile names the plane it is drawn on.
-pub fn framed_square(
+/// **A square profile inserted**, answering the document and the
+/// profile's id.
+pub fn square_profile(
     doc: &Doc<ProfileProgram>,
     side: f64,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let (doc, plane) = inserted(doc, xy_frame(), tol);
-    inserted(&doc, square(plane, side), tol)
+    inserted(doc, square(side), tol)
 }
 
 /// The boss-on-a-face scene's block: 40 × 20 × 10 mm, centred on the
@@ -400,22 +409,22 @@ pub const BOSS_RADIUS: f64 = 0.005;
 /// …extruded this far up.
 pub const BOSS_HEIGHT: f64 = 0.004;
 
-/// **A block and a boss drawn on its top cap**, answering the document,
-/// the block and the boss — FLUSH with each other at that cap by
-/// construction, which is the whole point of the scene.
+/// **A block and a boss standing on its top cap**, answering the
+/// document, the block and the boss — FLUSH with each other at that cap
+/// by construction, which is the whole point of the scene.
 ///
-/// The boss's frame is read off the block's top cap
-/// (`Datum::FaceFrame`, zero spin), the node the add-datum form mints
-/// from a face pick. `tests/creation_ops.rs`'s boss row authors the same
-/// scene through the op vocabulary, because the gesture is what that
-/// row is about; this is the scene alone, each body placed. Its union's volume is
-/// `boss_on_block_union_volume`.
+/// Each body is a construction in its own coordinates, placed in the
+/// world: the block where it stands, the boss at the block's depth up
+/// the world's `z` ([`pncad::document::place_at`]). `tests/creation_ops.rs`'s
+/// boss row authors the scene through the op vocabulary
+/// ([`crate::session::SessionOp::SketchOnFace`]), because the gesture
+/// is what that row is about; this is the scene alone, each body
+/// placed. Its union's volume is `boss_on_block_union_volume`.
 pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let [width, height, depth] = BOSS_BLOCK;
-    let (doc, plane) = inserted(&Doc::empty_derived(label, tol), xy_frame(), tol);
     let (doc, section) = inserted(
-        &doc,
-        rectangle(plane, [-width / 2.0, -height / 2.0], width, height),
+        &Doc::empty_derived(label, tol),
+        rectangle([-width / 2.0, -height / 2.0], width, height),
         tol,
     );
     let (doc, block) = inserted(
@@ -424,21 +433,6 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
             profile: section.into(),
             distance: len(depth),
         },
-        tol,
-    );
-    let (doc, frame) = inserted(
-        &doc,
-        Node::Datum(Datum::FaceFrame {
-            face: pncad::document::Operand::select(
-                block,
-                vec![StableName {
-                    kind: EntityKind::Face,
-                    node: block,
-                    path: vec![RoleSeg::Cap(CapEnd::End)],
-                }],
-            ),
-            spin: ang(0.0),
-        }),
         tol,
     );
     let (doc, disc) = inserted(
@@ -459,7 +453,20 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
     );
     // Both bodies are the world (A10), block first.
     let (doc, _) = placed(&doc, block, tol);
-    let (doc, _) = placed(&doc, boss, tol);
+    let opts = EvalOptions::default();
+    let on_top = pncad::document::Frame {
+        translation: [0.0, 0.0, depth],
+        ..pncad::document::Frame::IDENTITY
+    };
+    let boss_read = pncad::document::Operand::from(boss);
+    let at = pncad::document::place_at(&doc, &boss_read, &on_top, &opts, tol)
+        .unwrap_or_else(|refusal| panic!("the boss places on the block's top: {refusal}"));
+    let (doc, placement) = inserted(
+        &doc,
+        Node::place(vec![pncad::document::BodyRead::plain(boss_read)]),
+        tol,
+    );
+    let doc = constrained(&doc, placement, at.mate, at.values, tol);
     (doc, block, boss)
 }
 

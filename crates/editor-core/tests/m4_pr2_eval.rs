@@ -144,79 +144,12 @@ fn doc_param_edit_recomputes_the_param_cone() {
     assert_eq!(vol, 8.0 - 21.0 * 0.25 * 0.25 * 0.0625); // 7.91796875
 }
 
-/// **A side flip recomputes the flipped extrude's cone, and the memo
-/// serves nothing stale.** An extrude's side is not a slot, so it
-/// reaches the content key as its own word; without it, a warm
-/// evaluation after `SetExtrudeSide` reused all 84 nodes and served the
-/// pre-flip body. Flipping the +z pip master recomputes exactly its
-/// cone — the master, the last transform and the last subtract — and
-/// the warm run equals a cold run of the same document node for node.
-/// Then the undo: the original document, evaluated warm against the
-/// flipped evaluation (what the viewer's undo does — it restores the
-/// prior `Doc` and re-evaluates against the standing memo), recomputes
-/// the same three nodes back and equals the original cold run.
-#[test]
-fn a_side_flip_recomputes_its_cone_and_undo_restores_the_body() {
-    use crate::fixture::value_channel::value_digest;
-    let d = die();
-    let full = run(&d.doc, None, false);
-    let flipped = d
-        .doc
-        .apply(
-            &editor_core::DocEdit::SetExtrudeSide {
-                node: d.pz_extrude,
-                side: ExtrudeSide::Along,
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("a side flip at an extrude")
-        .doc;
-    let warm = run(&flipped, Some(&full), false);
-    let cold = run(&flipped, None, false);
-    assert_eq!(
-        (warm.recomputed, warm.reused),
-        (3, d.n_nodes - 3),
-        "the flipped master, its transform and the last subtract"
-    );
-    assert_eq!(
-        value_digest(&warm),
-        value_digest(&cold),
-        "warm against cold"
-    );
-    assert_ne!(
-        value_digest(&warm),
-        value_digest(&full),
-        "the flip moved the body; a digest that held would mean the memo served the old one"
-    );
-    for id in &cold.order {
-        assert_eq!(
-            warm.value(*id).map(|v| v.content_key),
-            cold.value(*id).map(|v| v.content_key),
-            "{id:?}: warm and cold keys"
-        );
-    }
-    assert_ne!(
-        warm.value(d.pz_extrude).map(|v| v.content_key),
-        full.value(d.pz_extrude).map(|v| v.content_key),
-        "the side moves the extrude's key"
-    );
-
-    let undone = run(&d.doc, Some(&warm), false);
-    assert_eq!((undone.recomputed, undone.reused), (3, d.n_nodes - 3));
-    assert_eq!(
-        value_digest(&undone),
-        value_digest(&full),
-        "undo against the original"
-    );
-}
-
 /// **The negative-depth refusal is true whatever drives the depth.**
 /// Here a document parameter does, so there is no minus sign in the
 /// extrude to delete: the sentence quotes the value the depth
 /// evaluated to and says its sign comes from what drives it, and the
-/// recourse — the parameter made positive, the side flipped — builds
-/// the block on the other side of the sketch plane.
+/// recourse — the parameter made positive, the block's copy turned
+/// over — builds the block on the other side of the sketch plane.
 #[test]
 fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     use editor_core::{
@@ -245,7 +178,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
                 matches!(
                     e.kind,
                     NodeErrorKind::Extrude(sweep::ExtrudeError::NegativeDepth {
-                        side: ExtrudeSide::Along,
+                        side: sweep::ExtrudeSide::Along,
                         ..
                     })
                 ),
@@ -264,25 +197,28 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
         assert!(text.contains(want), "{want:?} in: {text}");
     }
 
-    let mut mended = r.doc.clone();
-    for edit in [
-        DocEdit::DefineVar {
-            var: h.into(),
-            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
-            fresh: Vec::new(),
-        },
-        DocEdit::SetExtrudeSide {
-            node: block,
-            side: ExtrudeSide::Against,
-        },
-    ] {
-        mended = mended
-            .apply(&edit, Tol::witness(), &RefusingReach)
-            .expect("the recourse's edits")
-            .doc;
-    }
+    let mended = r
+        .doc
+        .apply(
+            &DocEdit::DefineVar {
+                var: h.into(),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+            &RefusingReach,
+        )
+        .expect("the recourse's edit")
+        .doc;
+    // The block's copy turned over about its own x: its z reversed.
+    let (mended, turned) = fixture::against(
+        mended,
+        block,
+        block,
+        &fixture::frame_at([0.0; 3], [1.0, 0.0, 0.0], [0.0, -1.0, 0.0]),
+    );
     let ev = run(&mended, None, false);
-    let body = match &ev.value(block).expect("the recourse builds").payload {
+    let body = match &ev.value(turned).expect("the recourse builds").payload {
         ValuePayload::Body(b) => b,
         other => panic!("expected a body, got {}", other.kind_name()),
     };
@@ -459,7 +395,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
 
 #[test]
 fn split_evaluates_both_parts_role_tagged() {
-    use editor_core::{Datum, Node, PoseValue, SplitSide};
+    use editor_core::{Node, PoseValue, SplitSide};
     let doc = ProfileDoc::empty_derived("m4_pr2_eval", Tol::witness());
     let (doc, prof) = fixture::on_frame(
         doc,
@@ -475,29 +411,33 @@ fn split_evaluates_both_parts_role_tagged() {
             distance: len(2.0),
         },
     );
-    // The tool: a datum plane z = 0.5 (normal +z).
-    let (doc, plane) = fixture::insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(2.0)],
-        }),
-    );
+    // The tool: the plane z = 0.5 read off the cube (normal +z, written
+    // unnormalized).
+    let tool = fixture::plane_on(&doc, cube, [0.0, 0.0, 0.5], [0.0, 0.0, 2.0]);
     let (doc, split_node) = fixture::insert(
         doc,
         Node::Split {
             target: cube.into(),
-            tool: plane.into(),
+            tool,
         },
     );
     let ev = run(&doc, None, false);
-    // The datum evaluated with a NORMALIZED normal.
-    match &ev.value(plane).unwrap().payload {
-        ValuePayload::Datum(PoseValue::Plane { normal, .. }) => {
+    // The tool binds with a NORMALIZED normal.
+    let Some(Node::Split { tool, .. }) = doc.node(split_node) else {
+        panic!("a split")
+    };
+    match editor_core::eval::bound_pose(
+        &doc,
+        &ev,
+        editor_core::OperandSlot::Tool,
+        *tool,
+        Tol::witness(),
+    ) {
+        Ok(PoseValue::Plane { normal, .. }) => {
             let normal = normal.get();
             assert_eq!((normal.x, normal.y, normal.z), (0.0, 0.0, 1.0));
         }
-        other => panic!("expected datum, got {}", other.kind_name()),
+        other => panic!("expected a plane, got {other:?}"),
     }
     match &ev.value(split_node).unwrap().payload {
         ValuePayload::Split { above, below } => {

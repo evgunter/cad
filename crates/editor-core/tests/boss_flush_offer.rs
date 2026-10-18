@@ -1,18 +1,18 @@
 //! **A boss drawn to the edge of a block's top, through the op
 //! vocabulary, unions.**
 //!
-//! A `40 × 20 × 10` mm block extruded from a centred rectangle; a frame
-//! read off its top cap (`Datum::FaceFrame`, spin 0); on it the path
-//! through `(10, −5)`, `(20, −5)`, `(20, 5)`, `(10, 5)` mm, extruded
-//! 4 mm, so the boss's `+x` wall lies in the block's. The margins
+//! A `40 × 20 × 10` mm block extruded from a centred rectangle; the
+//! path through `(10, −5)`, `(20, −5)`, `(20, 5)`, `(10, 5)` mm,
+//! extruded 4 mm and placed on the block's top, so the boss's `+x` wall
+//! lies in the block's. The margins
 //! decide the flush walls and the resting caps one carrier each, so the
 //! union builds at `8000 + 400` mm³.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{block, failure, run};
-use crate::fixture::{ang, desc, fname, insert, len};
-use editor_core::{BooleanValue, CapEnd, Node, ProfileDoc, RoleSeg, ValuePayload};
+use crate::fixture::{desc, insert, len, slid};
+use editor_core::{BooleanValue, Node, ProfileDoc, ValuePayload};
 use geom_core::Tol;
 
 #[test]
@@ -23,20 +23,11 @@ fn the_flush_boss_unions() {
         doc,
         (-20.0 * MM, 20.0 * MM),
         (-10.0 * MM, 10.0 * MM),
-        0.0,
         10.0 * MM,
-    );
-    let (doc, top) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::FaceFrame {
-            face: editor_core::Operand::select(blk, vec![fname(blk, RoleSeg::Cap(CapEnd::End))]),
-            spin: ang(0.0),
-        }),
     );
     let (doc, path) = insert(
         doc,
         Node::Profile(desc(
-            top,
             vec![vec![
                 (10.0 * MM, -5.0 * MM),
                 (20.0 * MM, -5.0 * MM),
@@ -52,6 +43,8 @@ fn the_flush_boss_unions() {
             distance: len(4.0 * MM),
         },
     );
+    // The boss stands on the block's top, flush with its x = 20 wall.
+    let (doc, boss) = slid(doc, blk, boss, [0.0, 0.0, 10.0 * MM]);
     let (doc, union) = insert(
         doc,
         Node::Union {

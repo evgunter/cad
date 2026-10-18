@@ -25,7 +25,7 @@ use editor_core::analysis::{AnalysisPolicy, analyzed_box, seed_env};
 use editor_core::persist::SnapshotError;
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, DocumentId, EditError, EvalError, EvalOptions,
-    Evaluation, ExtrudeSide, Formula, FreeVar, InlineError, Maintenance, Node, NodeErrorKind,
+    Evaluation, Formula, FreeVar, InlineError, Maintenance, Node, NodeErrorKind,
     NodeResult, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError,
     VarDecl, VarId, VarName, apply, evaluate, inline, load, save, split,
 };
@@ -478,16 +478,8 @@ fn the_door_lowers_names_before_it_mints() {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
-    let frame = next.ids()[0];
     log.push(DocEdit::InsertNode {
-        node: Box::new(editor_core::test_support::as_written(
-            &next,
-            next.node(frame).unwrap(),
-        )),
-        fresh: Vec::new(),
-    });
-    log.push(DocEdit::InsertNode {
-        node: Box::new(Node::Profile(desc(frame, vec![square(0.0, 0.0, 0.5)]))),
+        node: Box::new(Node::Profile(desc(vec![square(0.0, 0.0, 0.5)]))),
         fresh: Vec::new(),
     });
     let extrude = Node::Extrude {
