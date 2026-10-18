@@ -2059,4 +2059,3 @@ fn a5_certified_clearance_runs_over_a_seated_mate() {
         "the clearance leaf",
     );
 }
-
