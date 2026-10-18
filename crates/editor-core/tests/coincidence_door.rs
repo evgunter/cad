@@ -58,6 +58,7 @@ fn proofs(doc: &ProfileDoc, node: RecipeNodeId, rows: &[NamedCoincidence]) -> Ve
     coincide::prove(
         doc,
         &[(node, rows)],
+        None,
         Tol::witness(),
         &editor_core::CancelToken::new(),
     )
@@ -1422,6 +1423,7 @@ fn census_the_door_over_the_corpus() {
         let proofs = coincide::prove(
             &cd.doc,
             &nodes,
+            None,
             Tol::witness(),
             &editor_core::CancelToken::new(),
         )
@@ -1502,6 +1504,7 @@ fn the_door_proves_half_the_composed_dies_joints() {
         let all: Vec<Proof> = coincide::prove(
             &cd.doc,
             &nodes,
+            None,
             Tol::witness(),
             &editor_core::CancelToken::new(),
         )
@@ -1522,24 +1525,6 @@ fn the_door_proves_half_the_composed_dies_joints() {
                 .all(|u| *u == coincide::Unreplayed::Numeric),
             "{name}: the rest are unproven: {replayed:?}"
         );
-    }
-}
-
-/// A resolver that resolves nothing: what a run carries when it may
-/// cross a part seam.
-#[derive(Debug)]
-struct NoParts;
-
-impl editor_core::PartResolver for NoParts {
-    fn resolve(
-        &self,
-        _: &editor_core::DocRef,
-        _: Tol,
-    ) -> Result<ProfileDoc, editor_core::ResolveFailure> {
-        Err(editor_core::ResolveFailure {
-            fault: editor_core::ResolveFault::Unresolved,
-            message: "no parts here".to_owned(),
-        })
     }
 }
 
@@ -1580,42 +1565,89 @@ fn a_symbolic_run_over_a_box_refuses_every_node() {
     }
 }
 
-/// **A symbolic run crosses no part seam.** Two documents built by the
-/// same edits mint the same variable ids, and a symbol is keyed by its
-/// id, so two parts' variables would be one symbol and their difference
-/// a false identity. A run asked for symbols and a resolver refuses
-/// every node, typed, before any runs.
+/// **A part's variables are symbols of its own document version.** Two
+/// documents built by the same edits mint the same variable ids, and two
+/// versions of one document share them; the door keys each symbol by the
+/// document, the version its reference pins and the id, so two
+/// documents' widths, or two versions', are two symbols and their
+/// difference is no identity, while one version's width read twice (a
+/// part instanced twice) is one symbol.
+///
+/// Red if a symbol is keyed by its id alone, or by its document without
+/// the pin: the widths then cancel as a theorem.
 #[test]
-fn a_symbolic_run_with_a_resolver_refuses_every_node() {
-    use editor_core::{NodeErrorKind, NodeResult, ParamBoxError};
-    let doc = ProfileDoc::empty_derived("coincide-seam", Tol::witness());
-    let (doc, _) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let opts = editor_core::EvalOptions {
-        symbols: true,
-        resolver: Some(std::sync::Arc::new(NoParts)),
-        ..editor_core::EvalOptions::default()
+fn two_documents_variables_are_two_symbols() {
+    use editor_core::ContentPin;
+    use editor_core::ParamValue;
+    use editor_core::analysis::{var_env_symbolic, var_env_symbolic_pinned};
+    use geom_core::{Band, Decide, Sym, SymBudget};
+    let built = |seed: &str| {
+        let doc = ProfileDoc::empty_derived(seed, Tol::witness());
+        block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0).0
     };
-    let ev: Evaluation<geom_core::Sym<f64>> = editor_core::evaluate(
-        &doc,
-        None,
-        &editor_core::CancelToken::new(),
-        &opts,
-        Tol::witness(),
+    let (a, b) = (built("coincide-seam-a"), built("coincide-seam-b"));
+    let ids: Vec<VarId> = a.free_vars().map(|(id, _)| id).collect();
+    assert_eq!(
+        ids,
+        b.free_vars().map(|(id, _)| id).collect::<Vec<_>>(),
+        "the same edits mint the same ids"
     );
-    assert!(!ev.order.is_empty());
-    for id in &ev.order {
-        assert!(
-            matches!(
-                ev.result(*id),
-                Some(NodeResult::Failed(e)) if matches!(
-                    e.kind,
-                    NodeErrorKind::ParamBox { source: ParamBoxError::SymbolsAcrossAPartSeam }
-                )
-            ),
-            "{:?}",
-            ev.result(*id)
+    let band = Band::linear(Tol::witness()).expect("a band");
+    let budget = SymBudget {
+        max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
+        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+    };
+    let (decided, _) = geom_core::sym::with_session(budget, || {
+        let (ea, eb) = (
+            var_env_symbolic::<Sym<f64>, _>(&a).expect("every variable binds"),
+            var_env_symbolic::<Sym<f64>, _>(&b).expect("every variable binds"),
         );
-    }
+        let value = |env: &editor_core::VarEnv<Sym<f64>>, id| match env.bindings.get(id) {
+            Some(ParamValue::Continuous { value, .. }) => *value,
+            other => panic!("{id:?} binds {other:?}"),
+        };
+        let proven = |x: Sym<f64>| {
+            let d = x.sign_within(band).expect("a difference decides");
+            (d.sign, d.margin.proven())
+        };
+        let pinned = |pin: u8| {
+            var_env_symbolic_pinned::<Sym<f64>, _>(&a, Some(&ContentPin([pin; 32])))
+                .expect("every variable binds")
+        };
+        let (v1, v1_again, v2) = (pinned(1), pinned(1), pinned(2));
+        (
+            proven(value(&ea, &ids[0]) - value(&eb, &ids[0])),
+            proven(value(&ea, &ids[0]) - value(&ea, &ids[0])),
+            proven(value(&v1, &ids[0]) - value(&v2, &ids[0])),
+            proven(value(&v1, &ids[0]) - value(&v1_again, &ids[0])),
+            proven(value(&ea, &ids[0]) - value(&v1, &ids[0])),
+        )
+    });
+    assert_eq!(
+        decided.0,
+        (geom_core::Sign::Zero, false),
+        "two documents' variable of one id: Zero at the values, two symbols"
+    );
+    assert_eq!(
+        decided.1,
+        (geom_core::Sign::Zero, true),
+        "one document's variable read twice is one symbol"
+    );
+    assert_eq!(
+        decided.2,
+        (geom_core::Sign::Zero, false),
+        "two pinned versions of one document: two symbols"
+    );
+    assert_eq!(
+        decided.3,
+        (geom_core::Sign::Zero, true),
+        "one pinned version bound twice (a part instanced twice): one symbol"
+    );
+    assert_eq!(
+        decided.4,
+        (geom_core::Sign::Zero, false),
+        "the document being evaluated and a pinned version of it: two symbols"
+    );
 }
 
 /// **Two copies of one body are two constructions placed apart, never
