@@ -5934,3 +5934,22 @@ failure mode). Told to stop on held ground or a fork over which pinch rows
 a fold publishes.
 
 Signed (WIRE orchestrator).
+
+## 2026-10-18 — FORK-PARTCACHE converged in round 1; dispatching
+
+Both designers rejected the framing (how to make the lock safe) and
+recommended one final state: the top evaluation enters its parts in a
+serial pre-pass, as nested evaluations already do, carrying rows across
+evaluations from the prior; the cache becomes an immutable lock-free
+table. The decision is on `part-cache-lock-held-across-a-nested-rayon-join`;
+WIRETAIL's `part-cache-miss-samples-…` moved here to ride with it. Both
+struck the row's fresh-pool sketch as unsound by reading rayon-core's
+`in_worker_cross`. Not Ev's (agent-written text only); no fork-log row.
+
+Review tier: FULL single — a new evaluation stage, but reversible.
+
+FORK-FOLDPINCH: designer B reported that ratified DM4 (PR 4323) already
+answers the fold-pinch question (publish the judgement's pinch rows whole,
+in member space; a covered contact keeps its pair's row). Waiting on A.
+
+Signed (WIRE orchestrator).

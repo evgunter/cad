@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-24
 priority: P4
 cost: M
-design: true
+rides_with: part-cache-lock-held-across-a-nested-rayon-join
 ---
 
 
@@ -52,5 +52,11 @@ nested evaluation's own fold owes the outer one.
 ## Moved to WIRETAIL (2026-10-17)
 
 WIRE's priority-seam cut moved this row, keeping its id and body: WIRE keeps its P0–P2 rows and the E rows that ride with them.
+
+Signed (WIRE orchestrator).
+
+## Moved to WIRE and decided (2026-10-18)
+
+One defect with `part-cache-lock-held-across-a-nested-rayon-join`; FORK-PARTCACHE decided both (see that row). Rides with it.
 
 Signed (WIRE orchestrator).
