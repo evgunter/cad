@@ -10,11 +10,11 @@
 //! no body in hand — it works over the recipe — so both answers reach
 //! it through [`MateReach`]: [`MateReach::reach`] answering a part's
 //! reach, [`MateReach::face_pose`] answering one of its faces' pose,
-//! implemented by the evaluation over its own part cache
-//! (`eval::mate_reach` is the public door; the evaluation's own run
-//! reads the cache it already built), so a mated part is evaluated
-//! once and both questions are answered off that one product, in the
-//! part's own coordinates.
+//! implemented by the evaluation over the part table it entered
+//! before the solve (`eval::mate_reach` is the public door, over a
+//! store of its own), so a mated part is evaluated once and both
+//! questions are answered off that one product, in the part's own
+//! coordinates.
 //!
 //! # What "reach" is
 //!
@@ -85,10 +85,11 @@ use crate::ident::DocRef;
 /// its own document and names the instance when it wraps a refusal
 /// ([`super::LeverRefusal`]).
 ///
-/// Answered lazily: a part no mate names is never asked for, and a
-/// part that is asked for is evaluated exactly once per evaluation
-/// (the evaluation's implementation reads its own part cache, which
-/// the instantiate node then hits).
+/// Asked only for a part a mate names. The evaluation's
+/// implementation reads the table it entered before the solve, which
+/// the instantiate nodes read too, so a part is evaluated at most once
+/// per evaluation; `eval::mate_reach`'s evaluates a part on its first
+/// ask.
 ///
 /// **At the scalar the solve runs at, `T`** (`ASSEMBLY.md` A11 (5)): a
 /// face's pose crosses as the part's own product reads it — a seed

@@ -530,6 +530,8 @@ pub(crate) trait Denoted: Copy {
     const KIND: EntityKind;
     /// This kind's key, where the resolved entity is of this kind.
     fn of(key: EntityKey) -> Option<Self>;
+    /// The key as an entity key, the inverse of [`Self::of`].
+    fn entity(self) -> EntityKey;
 }
 
 impl Denoted for topo::FaceKey {
@@ -539,6 +541,9 @@ impl Denoted for topo::FaceKey {
             EntityKey::Face(f) => Some(f),
             EntityKey::Body | EntityKey::Edge(_) | EntityKey::Vertex(_) => None,
         }
+    }
+    fn entity(self) -> EntityKey {
+        EntityKey::Face(self)
     }
 }
 
@@ -550,6 +555,9 @@ impl Denoted for topo::EdgeKey {
             EntityKey::Body | EntityKey::Face(_) | EntityKey::Vertex(_) => None,
         }
     }
+    fn entity(self) -> EntityKey {
+        EntityKey::Edge(self)
+    }
 }
 
 impl Denoted for topo::VertexKey {
@@ -559,6 +567,9 @@ impl Denoted for topo::VertexKey {
             EntityKey::Vertex(v) => Some(v),
             EntityKey::Body | EntityKey::Face(_) | EntityKey::Edge(_) => None,
         }
+    }
+    fn entity(self) -> EntityKey {
+        EntityKey::Vertex(self)
     }
 }
 

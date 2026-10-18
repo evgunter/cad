@@ -159,3 +159,18 @@ Evidence (the full list is on the REACHHOLD row):
 `topo/tests/sliver_shell_role.rs`
 `a_needle_ships_an_in_band_edge_pair_until_the_door_runs_the_census`
 pins the repro's rows; it goes red when the door runs the census.
+
+## 2026-10-17: the needle's in-band edge pair was the census's arithmetic (RESTREAD)
+
+The `pm_census_ee_span` escalations on the `notch307` needle
+(`topo/tests/sliver_shell_role.rs`) were two edges leaving the corner's
+one point key whose crossing the closed form, read from the edges'
+starts, put 1.4e-9 to 2.8e-9 off that point. Their far ends part by
+8.4e-8 to 2.5e-7: a definite number under DESIGN.md tier 3′. RESTREAD's
+crossing lane reads the crossing from the shared point
+(`the-census-crossing-lane-misplaces-a-shared-points-crossing-on-a-near-collinear-pair`),
+and every run of the needle now passes the census at rest. The test is
+renamed `a_needle_reads_every_pair_of_its_cells_definite` and pins that.
+So a door census leaves these runs green. R2's other notch307 needles
+carry the same span escalation and are likely the same shape; they were
+not re-measured.

@@ -338,3 +338,60 @@ fn an_undecided_place_beside_an_off_carrier_is_off() {
     assert_eq!(place(span.place(q, t, band())), "escalated");
     assert_eq!(read(&span, q, t), "none");
 }
+
+/// **A point on a circle's axis is off its span with no place read.**
+/// Every parameter of the carrier is its foot, and the one
+/// [`geom::Curve3::foot`] finds is the seed turned by `atan2` of two
+/// signed zeros: with the seed at a span's middle of 4π/3, where the
+/// middle's cosine and sine are both negative, `atan2(+0, −0) = π` puts
+/// the foot exactly antipodal to the middle. Read there, a half turn's
+/// cut decides from an exact zero, and a move off the axis flips it
+/// (boss_union's `curve_pair_span_branch`, where a disc's three-arc rim
+/// puts the centroid of three of its vertices on the axis, and the arc's
+/// own middle is the seed). The carrier reads the point off, and that is
+/// the answer at every seed, the middle included, with the carrier's
+/// reading recorded and no `curve_pair_span_*` row decided. Red where
+/// the place is read first, and where the carrier's reading is dropped.
+#[cfg(feature = "probe")]
+#[test]
+fn a_point_on_a_circles_axis_is_off_with_no_place_read() {
+    use geom_core::Real;
+    use geom_core::k_stats::{self, Probe};
+    let p = Probe::from_f64;
+    let c = Curve3::Circle {
+        center: Point3::new(p(0.0), p(0.0), p(1.0)),
+        axis: Vec3::new(p(0.0), p(0.0), p(1.0)),
+        radius: p(2.0),
+        u_ref: Vec3::new(p(1.0), p(0.0), p(0.0)),
+    };
+    let centre = Point3::new(p(0.0), p(0.0), p(1.0));
+    let antipode = c.foot(centre, p(4.0 * PI / 3.0)).t().0;
+    assert_eq!(
+        antipode,
+        7.0 * PI / 3.0,
+        "the middle's foot is its antipode"
+    );
+    for (t0, t1) in [(2.0 * PI / 3.0, 4.0 * PI / 3.0), (PI, 5.0 * PI / 3.0)] {
+        let span = Span::new(&c, (p(t0), p(t1)));
+        let mid = 0.5 * (t0 + t1);
+        for seed in [0.0, PI / 3.0, PI, 5.0 * PI / 3.0, TAU, mid] {
+            k_stats::start_recording();
+            let got = span.contact(centre, p(seed), band());
+            let names: Vec<&str> = k_stats::take_samples()
+                .iter()
+                .map(|s| s.predicate)
+                .collect();
+            let placed: Vec<&&str> = names
+                .iter()
+                .filter(|n| n.starts_with("curve_pair_span_"))
+                .collect();
+            let label = format!("span ({t0}, {t1}), seed {seed}");
+            assert!(matches!(got, Ok(None)), "{label}: {got:?}");
+            assert!(placed.is_empty(), "{label}: the place was read: {placed:?}");
+            assert!(
+                names.contains(&"curve_carrier_gap"),
+                "{label}: the carrier's reading is not recorded: {names:?}"
+            );
+        }
+    }
+}

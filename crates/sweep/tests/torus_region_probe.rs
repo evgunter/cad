@@ -41,6 +41,7 @@ test_utils::gated_to!(
     "crates/topo/src/splitting/",
     "crates/sweep/tests/germ_plane_torus_chord.rs",
     "crates/sweep/tests/germ_plane_torus_frame.rs",
+    "crates/sweep/tests/revolve_common/",
 );
 
 use core::f64::consts::{PI, TAU};

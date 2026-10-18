@@ -55,13 +55,10 @@ impl EntityKey {
         }
     }
 
-    /// **The face this key denotes, or `None`** — the projection a
-    /// face-wanting road reads through (`eval::wire`'s entity door: a
-    /// shell's open designation, a derived frame's face). `None` is
-    /// "not a face", never "no such face": the key is an already
-    /// resolved entity, so the arms it does not match are the other
-    /// three kinds and nothing else, and [`EntityKey::kind`] is what
-    /// says which.
+    /// **The face this key denotes, or `None`**: "not a face", never "no
+    /// such face" — the key is an already resolved entity, so the arms
+    /// it does not match are the other three kinds, and
+    /// [`EntityKey::kind`] is what says which.
     pub(crate) fn face(self) -> Option<FaceKey> {
         match self {
             Self::Face(k) => Some(k),
@@ -69,8 +66,8 @@ impl EntityKey {
         }
     }
 
-    /// **The edge this key denotes, or `None`** — [`EntityKey::face`]'s
-    /// twin, for the roads that select edges (a blend's selection).
+    /// **The edge this key denotes, or `None`** ([`EntityKey::face`]'s
+    /// twin).
     pub(crate) fn edge(self) -> Option<EdgeKey> {
         match self {
             Self::Edge(k) => Some(k),
@@ -78,8 +75,8 @@ impl EntityKey {
         }
     }
 
-    /// **The vertex this key denotes, or `None`** — [`EntityKey::face`]'s
-    /// twin, for the roads that select vertices.
+    /// **The vertex this key denotes, or `None`** ([`EntityKey::face`]'s
+    /// twin).
     pub(crate) fn vertex(self) -> Option<VertexKey> {
         match self {
             Self::Vertex(k) => Some(k),

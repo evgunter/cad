@@ -26,7 +26,7 @@ its whole radius.
   circle × circle arm: retired. `carrier_cross` reads
   `geom_brep::curve_pair::meet`, whose coplanar circles read their
   distance as a first harmonic with exact metre extremes (stage (c) of
-  `work/fuse/the-curve-pair-reader.md`).
+  `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227)).
 - `crates/topo/src/boolean/rim_wedge.rs`, the coplanar-circles arm of
   the rim candidates (`x` and `y2 = re² − x²`).
 - `crates/topo/src/boolean/section_cert.rs` `sphere_sphere`: the

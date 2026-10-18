@@ -39,7 +39,7 @@ The pin asserts both refusals exactly; the fix updates it.
    `conic_bend` (`geom_brep::conic_bend::conic_bend_side`), at a margin
    of about `1e-19`: the bend does not clear the residue. It showed once
    `carrier_cross` became a caller of `geom_brep::curve_pair::meet`
-   (`work/fuse/the-curve-pair-reader.md`, stage (c)). Before that, a
+   (`the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227), stage (c)). Before that, a
    boundary vertex on the far side of the rod was projected onto a seam
    ruling and split it at a point inside the run the ruling shares with
    the face's seam edge, and the op reached the `CurvedPierceUnsupported`

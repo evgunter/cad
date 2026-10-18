@@ -602,6 +602,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::UnresolvedInput { .. } => "unresolved_input",
         EditError::WouldCycle { .. } => "would_cycle",
         EditError::SelectionShape { .. } => "selection_shape",
+        EditError::SelectionNameKind { .. } => "selection_name_kind",
         EditError::PoseShape { .. } => "pose_shape",
         EditError::IndexedRead { .. } => "indexed_read",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
@@ -981,10 +982,8 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // An operand reads a variable its operation no longer defines:
         // the delete that removed it reported the strand.
         C::UnresolvedRead => "unresolved_read",
-        // A selection a node reads: a name the ladder refused, or one
-        // denoting another entity kind than the selection's.
+        // A selection a node reads: a name the ladder refused.
         C::SelectResolve => "select_resolve",
-        C::SelectKind => "select_kind",
         C::EmptyOperand => "empty_operand",
         C::ProductOperand => "product_operand",
         C::UnfinishedOperand => "unfinished_operand",
@@ -1158,7 +1157,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::CopiesShareAKey { .. } => None,
         NodeErrorKind::UnresolvedRead { .. } => None,
         NodeErrorKind::SelectResolve { error, .. } => Some(resolve_error_tag(error)),
-        NodeErrorKind::SelectKind { .. } => None,
         NodeErrorKind::EmptyOperand { .. } => None,
         NodeErrorKind::ProductOperand { .. } => None,
         NodeErrorKind::UnfinishedOperand { .. } => None,
@@ -1249,6 +1247,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::UnresolvedInput { .. } => None,
         EditError::WouldCycle { .. } => None,
         EditError::SelectionShape { fault, .. } => Some(selection_fault_tag(fault)),
+        EditError::SelectionNameKind { .. } => None,
         EditError::PoseShape { fault, .. } => Some(pose_fault_tag(fault)),
         EditError::IndexedRead { fault, .. } => Some(input_fault_tag(fault)),
         EditError::SetMembersOnNonList { .. } => None,
@@ -3489,6 +3488,13 @@ pub fn selection_fault_tag(fault: &pncad::document::SelectionFault) -> &'static 
         F::Seat { .. } => "seat",
         F::Singleton { .. } => "singleton",
         F::NotCanonical { .. } => "not_canonical",
+        // Not `kind`: that word is `pose_fault_tag`'s (a pose read
+        // through a role of another kind), an unrelated fact, and the
+        // shared-word roster (`tests::every_word_two_tag_maps_share_is_on_the_committed_roster`)
+        // would have to carry the coincidence. The edit door raises
+        // this fault as its own arm, `selection_name_kind`; the load
+        // door raises it here.
+        F::Kind { .. } => "name_kind",
         F::Repeated { .. } => "repeated",
         F::OtherBody => "other_body",
     }

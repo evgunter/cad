@@ -22,7 +22,7 @@ design.
 
 | Decisions | Modules |
 |---|---|
-| A2 evaluation seam, memo | `src/part.rs` (`PartResolver`, `ResolveFault`), `src/eval/parts.rs` (`PartCache`, `PartFault`); `transform_rigid`, `graft_disjoint_all_keyed` in `crates/topo/src/instance.rs` |
+| A2 evaluation seam, memo | `src/part.rs` (`PartResolver`, `ResolveFault`), `src/eval/parts.rs` (`PartStore`, `Reached`, `PartFault`); `transform_rigid`, `graft_disjoint_all_keyed` in `crates/topo/src/instance.rs` |
 | A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`, `src/resolve/pick.rs`; the memo's drop in `src/eval/mod.rs` |
 | A3, A11 placements, mates, solve | `Node::Place`, `Node::World`, `InstantiatePart`'s `constraints` in `src/node.rs`; `src/mate.rs` (`Constraint`, `Mate`, `MateRef`, `SideRead`, `class_admission`, `MateFault`), `src/mate/coset.rs`, `src/mate/solve.rs`; `DocEdit::AddConstraint`/`RemoveConstraint` in `src/edit.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
@@ -55,8 +55,11 @@ has world coordinates: the world sets only the coordinates export
 writes), and materializes it through `topo::transform_rigid`
 (rigidity carried by the witness or decided at the door, every
 carrier re-certified) and the disjoint graft. A resolved document whose recorded ε disagrees refuses
-`ResolveFault::EpsilonSeam`. `PartCache` memoizes per `(DocRef, ε)`
-within one evaluation; a reference already on the descent chain is a
+`ResolveFault::EpsilonSeam`. An evaluation enters each `(DocRef, ε)` it
+instantiates at most once (`PartStore`), before its mate solve and node
+map read it (`Reached`); a part the prior evaluation carried under the
+same pin is reused rather than evaluated again, and a faulted one is
+asked again. A reference already on the descent chain is a
 cycle and refuses naming the loop. Which solids are one part, and that
 fusing is an explicit boolean, is DESIGN `[assemblies.document]`.
 
@@ -386,9 +389,10 @@ copy) is one member, and its mates fold.
 *What the solve reads.* The solve's inputs are the document plus its
 mated parts' evaluations, at the evaluation's own scalar and over the
 evaluation's own parameters. It reads no geometry except what each
-mated part's own evaluation answers, through one door asked lazily per
-pair (`mate::MateReach`; the evaluation answers from its own part cache,
-so a mated part is evaluated once). Two answers cross that door:
+mated part's own evaluation answers, through one door asked per pair
+(`mate::MateReach`; the evaluation answers from the part table it
+entered before the solve, which its instantiate nodes read too, so a
+mated part is evaluated at most once). Two answers cross that door:
 
 - The part's EXTENT, an upper bound taken from its evaluated body,
   enters only as the lever a parallelism verdict is decided over:

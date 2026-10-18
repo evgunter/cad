@@ -25,6 +25,7 @@ from pncad import (
     CapEnd,
     Doc,
     DocEdit,
+    EditError,
     EntityKind,
     EvaluationError,
     Formula,
@@ -230,12 +231,20 @@ class TestRefusals(unittest.TestCase):
         node = doc.insert(Node.shell(box, Formula.length_in(T, m), [ghost]))
         self.assertEqual(self.refusal(doc, node).kind, "select_resolve")
 
-    def test_an_edge_in_the_open_list_refuses_typed(self):
+    def test_an_edge_in_the_open_list_refuses_at_the_insert(self):
         doc = Doc()
         box = blank(doc, L, H)
         edge = evaluate(doc).all_edges(box)[0]
-        node = doc.insert(Node.shell(box, Formula.length_in(T, m), [edge]))
-        self.assertEqual(self.refusal(doc, node).kind, "select_kind")
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.shell(box, Formula.length_in(T, m), [edge]))
+        refused = caught.exception
+        self.assertEqual(refused.variant, "selection_name_kind")
+        self.assertIsNone(refused.inner_variant)
+        self.assertEqual(refused.first, 0)
+        self.assertEqual(refused.found_kind, EntityKind.Edge)
+        self.assertEqual(refused.expected_kind, EntityKind.Face)
+        self.assertEqual(refused.slot, "open")
+        self.assertIn("open face 0 names", str(refused))
 
     def test_a_non_positive_wall_is_the_kernels_refusal(self):
         doc = Doc()

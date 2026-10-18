@@ -1,15 +1,15 @@
-//! **An emitter refusal an ordinary union reaches, and what
-//! the author is told when it does — and one it no longer reaches.**
+//! **Ordinary unions over merged faces, and what they name.**
 //!
 //! `NamingError::Emission` means a mint-time fact disagreed with the
-//! result body — a kernel bug. The refusal pinned here is not one: the
-//! recipe is well formed, every member is an ordinary solid, and the
-//! bodies the fold builds are sound. What is missing is a naming RULE
-//! for the construction the fold produced, and the row pins that the
-//! refusal says so rather than sending the author to file a bug against
-//! the kernel. The next two rows are constructions that once refused
-//! and now name: a merged wall whose edges are pieces of member edges,
-//! and a rim in several pieces. The last three run members whose
+//! result body: a kernel bug. A legal recipe that reaches a missing
+//! naming rule must say so, not send the author to file a bug against
+//! the kernel. The first rows are cuts across a sunk boss whose chords no
+//! single glued face holds, which refuse as the missing rule; then a
+//! union whose seam chords the chord rule names and whose end pass still
+//! refuses under the bug's words, the one known exception, pinned with
+//! the row that owns it. The next two are constructions that once
+//! refused and now name: a merged wall whose edges are pieces of member
+//! edges, and a rim in several pieces. The last three run members whose
 //! coincident faces overlap in area, under a covering block, in every
 //! member order: no fold step may refuse a contact the pairwise
 //! judgement passed.
@@ -28,29 +28,20 @@ use geom_core::Tol;
 const BUG_FRAMING: &str =
     "name emission found a kernel bug — an invariant it relies on does not hold";
 
-fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness())
-        .expect("mass")
-        .volume
-}
+/// A block's x span, y span, base z and height, as [`block`] takes them.
+type Spans = ((f64, f64), (f64, f64), f64, f64);
 
-/// **A merged face no rule reads a seam chord through refuses as a
-/// missing rule.**
-///
-/// A plate and a cylinder boss sunk into it, its wall drawn as two
-/// semicircular pieces, joined by a pair union; a slab subtracted across
-/// the boss along y. The slab cuts each wall piece in two, and the
-/// subtract merges the two cosurface pieces on each side of the slot, so
-/// each merged wall face holds both boss pieces. The chord where a slab
-/// wall meets it is a join's own and reads through to its A-side
-/// constituent, of which there are two. Nothing picks the one the chord
-/// lies on.
-///
-/// Nothing is wrong with this document: the boss joins the plate, and
-/// the slot along x across the same boss names
-/// (`emit_union_borders::a_slot_along_x_across_a_sunk_boss_names`).
-#[test]
-fn a_merged_face_with_several_constituents_is_a_missing_rule_not_a_kernel_bug() {
+/// A plate `[0,3]² × [0,1]` and a cylinder boss sunk into it, its wall
+/// drawn as two semicircular pieces either side of y = 1.5, joined by a
+/// two-member union, minus the union of `tool`'s blocks (or the one
+/// block). The boss joins the plate; the cut must refuse
+/// `MergedChordConstituents` with both boss pieces glued on the side its
+/// chord reads through to, at the chord whose ends are `chord` (either
+/// way round), and the refusal, rendered at the node boundary, must not
+/// read as a kernel bug. The refused edge is a key of the cut's body,
+/// which a refused node does not keep, so it is read off the same
+/// subtract run on the two operand bodies.
+fn assert_sunk_boss_cut_refuses_as_a_missing_rule(tool: &[Spans], chord: [[f64; 3]; 2]) {
     let doc = ProfileDoc::empty_derived("wire_merged_chord", Tol::witness());
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, boss) = crate::emit_union_borders::cylinder(
@@ -60,7 +51,22 @@ fn a_merged_face_with_several_constituents_is_a_missing_rule_not_a_kernel_bug() 
         [0.0, 1.0, 0.0],
         1.0,
     );
-    let (doc, slab) = block(doc, (1.4, 1.6), (-1.0, 4.0), 0.8, 1.2);
+    let mut doc = doc;
+    let mut blocks = Vec::new();
+    for &(x, y, z0, dz) in tool {
+        let (d, b) = block(doc, x, y, z0, dz);
+        doc = d;
+        blocks.push(b);
+    }
+    let (doc, tool) = match blocks.as_slice() {
+        [one] => (doc, *one),
+        several => crate::fixture::insert(
+            doc,
+            editor_core::Node::Union {
+                members: editor_core::Bodies::Spelled(several.iter().map(|&b| b.into()).collect()),
+            },
+        ),
+    };
     let (doc, joined) = crate::fixture::insert(
         doc,
         editor_core::Node::Union {
@@ -71,30 +77,148 @@ fn a_merged_face_with_several_constituents_is_a_missing_rule_not_a_kernel_bug() 
         doc,
         editor_core::Node::Subtract {
             from: joined.into(),
-            tool: slab.into(),
+            tool: tool.into(),
         },
     );
     let ev = run(&doc);
     assert!(failure(&ev, joined).is_none(), "the boss joins the plate");
-    // Rendered at the NODE boundary, which is the only route by which an
-    // emitter refusal reaches a human.
-    let shown = match failure(&ev, cut) {
+    assert!(failure(&ev, tool).is_none(), "the tool builds");
+    let (shown, edge) = match failure(&ev, cut) {
         Some(
-            e @ NodeErrorKind::Naming(NamingError::MergedChordConstituents { several: 2, .. }),
-        ) => e.to_string(),
+            e @ NodeErrorKind::Naming(NamingError::MergedChordConstituents {
+                several: 2, edge, ..
+            }),
+        ) => (e.to_string(), *edge),
         other => panic!("wanted the merged-chord refusal, got {other:?}"),
     };
     assert!(
         !shown.contains(BUG_FRAMING),
         "a legal document was told the kernel is broken: {shown}"
     );
+    let at_rest = |n| topo::AtRestBody::validate(body_of(&ev, n).clone(), Tol::witness()).unwrap();
+    let topo::BooleanResult::Body(cut_body) =
+        topo::subtract(&at_rest(joined), &at_rest(tool), Tol::witness()).expect("the cut builds")
+    else {
+        panic!("the cut is not empty");
+    };
+    let got = crate::fixture::ends(&cut_body.body, edge)
+        .map(|v| crate::fixture::point(&cut_body.body, v));
+    let near = |p: geom_core::Point3<f64>, q: [f64; 3]| {
+        (p.x - q[0]).abs() < 1e-3 && (p.y - q[1]).abs() < 1e-3 && (p.z - q[2]).abs() < 1e-3
+    };
     assert!(
-        shown.contains("merged face"),
-        "the refusal must name the construction: {shown}"
+        (near(got[0], chord[0]) && near(got[1], chord[1]))
+            || (near(got[0], chord[1]) && near(got[1], chord[0])),
+        "the refused chord is {edge:?} from {:?} to {:?}, not {chord:?}",
+        got[0],
+        got[1]
     );
+}
+
+/// **A chord across the glued boss pieces' common rim refuses as the
+/// missing rule.**
+///
+/// A slab along y through the boss, and a box on the boss's left wall
+/// beside it whose floor at z = 1.3 cuts the left merged wall in one
+/// chord, from (1.217, 1.4) to (1.4, 1.783): across y = 1.5, where the
+/// two boss pieces met before the merge glued them. No one piece holds
+/// it, and its middle alone would pick the upper piece.
+#[test]
+fn a_chord_across_the_glued_pieces_rim_refuses_as_a_missing_rule() {
+    assert_sunk_boss_cut_refuses_as_a_missing_rule(
+        &[
+            ((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2),
+            ((0.9, 1.4), (1.4, 4.0), 1.3, 0.7),
+        ],
+        [[1.2172, 1.4, 1.3], [1.4, 1.7828, 1.3]],
+    );
+}
+
+/// **The same chord, its middle on the lower piece.** The box runs the
+/// other way along y, so its floor's chord on the left wall crosses
+/// y = 1.5 from above; its middle alone would pick the lower piece.
+#[test]
+fn a_chord_across_the_glued_pieces_rim_the_other_way_refuses_as_a_missing_rule() {
+    assert_sunk_boss_cut_refuses_as_a_missing_rule(
+        &[
+            ((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2),
+            ((0.9, 1.4), (-1.0, 1.7), 1.3, 0.7),
+        ],
+        [[1.2764, 1.7, 1.3], [1.4, 1.2172, 1.3]],
+    );
+}
+
+/// **A chord along the glued pieces' common rim refuses as the missing
+/// rule.** A block whose wall at y = 1.5 is the boss's split plane cuts
+/// the boss's right wall in a chord along the line the two pieces met
+/// on: both hold it on their boundary, and neither inside.
+#[test]
+fn a_chord_along_the_glued_pieces_rim_refuses_as_a_missing_rule() {
+    assert_sunk_boss_cut_refuses_as_a_missing_rule(
+        &[((1.4, 2.0), (1.5, 4.0), 0.8, 1.2)],
+        [[1.8, 1.5, 1.0], [1.8, 1.5, 1.5]],
+    );
+}
+
+fn volume(body: &topo::Body<f64>) -> f64 {
+    topo::mass_properties(body, Tol::witness())
+        .expect("mass")
+        .volume
+}
+
+/// **A bar through a sunk boss passes the chord rule and refuses at the
+/// union's parents.**
+///
+/// A plate and a cylinder boss sunk into it, its wall drawn as two
+/// semicircular pieces, joined by a union; a bar along y through the
+/// boss, joined to them by a second union. The bar's walls cut each wall
+/// piece in two, and the judgement of the two members merges the two
+/// cosurface pieces on each side of the bar, so each merged wall face
+/// holds both boss pieces. The chord where a bar wall meets it reads
+/// through to the piece that holds it, as the sunk-boss slot's does
+/// (`emit_union_borders::a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls`).
+/// The union's end pass then links member faces only across the two
+/// members a judgement holds, so the two faces of the first member it
+/// merged are two parents in one finished face, and that refuses as an
+/// emission bug: the one legal recipe here told the kernel is broken,
+/// pinned as the known exception. Owned by
+/// `work/refs/a-union-judgement-that-merges-two-faces-of-one-member-links-neither.md`,
+/// whose fix flips this row.
+#[test]
+fn a_bar_through_a_sunk_boss_refuses_at_the_unions_parents() {
+    let doc = ProfileDoc::empty_derived("wire_merged_chord", Tol::witness());
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (doc, boss) = crate::emit_union_borders::cylinder(
+        doc,
+        [1.5, 1.5, 0.5],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        1.0,
+    );
+    let (doc, bar) = block(doc, (1.4, 1.6), (0.5, 2.5), 0.8, 1.2);
+    let (doc, joined) = crate::fixture::insert(
+        doc,
+        editor_core::Node::Union {
+            members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
+        },
+    );
+    let (doc, barred) = crate::fixture::insert(
+        doc,
+        editor_core::Node::Union {
+            members: editor_core::Bodies::Spelled(vec![joined.into(), bar.into()]),
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, joined).is_none(), "the boss joins the plate");
     assert!(
-        !shown.contains("  "),
-        "prose a human reads has no padded run in it: {shown}"
+        matches!(
+            failure(&ev, barred),
+            Some(NodeErrorKind::Naming(NamingError::Emission {
+                what: "a union's face descends from member faces no judged pair links"
+            }))
+        ),
+        "the union's parents do not link the boss's two pieces: {:?}",
+        failure(&ev, barred)
     );
 }
 

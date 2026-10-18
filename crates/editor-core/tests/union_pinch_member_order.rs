@@ -573,6 +573,56 @@ fn holes_touching_at_a_corner_build_one_body_in_every_member_order() {
     );
 }
 
+/// **Every member order of a pinch union publishes one table**, the
+/// vertex at each pinch under one name: for the top pinch, for blocks
+/// through the plate, for the two holes meeting at a corner, and for a
+/// third block making a second pinch, over every order of its four
+/// members. Red if a pinch vertex keeps the name of whichever block
+/// reached it last.
+#[test]
+fn a_pinch_union_publishes_one_table_in_every_member_order() {
+    type Fixture = fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>);
+    let rows: [(&str, Fixture, &[Point]); 4] = [
+        ("top", pinch, &[top()]),
+        ("through", through, &[top(), (1_500_000, 1_000_000, 0)]),
+        ("corner holes", corner_holes, &[top()]),
+        (
+            "two pinches on the top",
+            two_pinches,
+            &[top(), (1_000_000, 1_000_000, 1_000_000)],
+        ),
+    ];
+    for (label, fixture, pinches) in rows {
+        let mut first: Option<NamedShape> = None;
+        let n = fixture(ProfileDoc::empty_derived("union_pinch", Tol::witness()))
+            .1
+            .len();
+        for order in orders(n) {
+            let (doc, m) = fixture(ProfileDoc::empty_derived("union_pinch", Tol::witness()));
+            let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
+            let (doc, u) = crate::fixture::union_over(doc, &members);
+            let what = format!("{label}, member order {order:?} (0 = plate)");
+            let ev = run(&doc);
+            if let Some(e) = failure(&ev, u) {
+                panic!("{what}: refused: {e:?}");
+            }
+            for &p in pinches {
+                let names = names_at(&ev, u, p);
+                assert_eq!(
+                    names.len(),
+                    1,
+                    "{what}: one name at the pinch {p:?}: {names:?}"
+                );
+            }
+            let here = named_shape(&ev, u);
+            match &first {
+                None => first = Some(here),
+                Some(f) => same_table(&here, f, &what),
+            }
+        }
+    }
+}
+
 /// **The plate against the joined blocks: a union both ways round
 /// builds the member-order body, an intersection keeps the two
 /// footprints apart, and a subtraction refuses `Revert`**: the blocks'
@@ -1236,6 +1286,27 @@ fn named_shape(ev: &Evaluation<f64>, id: RecipeNodeId) -> NamedShape {
         .collect()
 }
 
+/// Asserts `here` is `first`, row by row, listing every row only one
+/// of them holds.
+fn same_table(here: &NamedShape, first: &NamedShape, what: &str) {
+    let differ: Vec<String> = here
+        .iter()
+        .filter(|(n, w)| first.get(*n) != Some(*w))
+        .map(|(n, w)| format!("here only: {n} at {w:?}"))
+        .chain(
+            first
+                .iter()
+                .filter(|(n, w)| here.get(*n) != Some(*w))
+                .map(|(n, w)| format!("first only: {n} at {w:?}")),
+        )
+        .collect();
+    assert!(
+        differ.is_empty(),
+        "{what}: a different table from the first order:\n{}",
+        differ.join("\n")
+    );
+}
+
 /// The wedges at 0°–50° and 120°–170° about the line through (1.5, 1),
 /// and two bridges over 30°–140°, each filling the gap between the
 /// wedges over a stretch of the line: `d` from z 0.2 to 0.4 and `c` over
@@ -1339,22 +1410,7 @@ fn named_alike(gap: &Gap) -> usize {
         let here = (shape(body), named_shape(&ev, u));
         if let Some(f) = &first {
             assert_eq!(here.0, f.0, "{what}: a different body from the first order");
-            let differ: Vec<String> = here
-                .1
-                .iter()
-                .filter(|(n, w)| f.1.get(*n) != Some(*w))
-                .map(|(n, w)| format!("here only: {n} at {w:?}"))
-                .chain(
-                    f.1.iter()
-                        .filter(|(n, w)| here.1.get(*n) != Some(*w))
-                        .map(|(n, w)| format!("first only: {n} at {w:?}")),
-                )
-                .collect();
-            assert!(
-                differ.is_empty(),
-                "{what}: a different table from the first order:\n{}",
-                differ.join("\n")
-            );
+            same_table(&here.1, &f.1, &what);
         } else {
             first = Some(here);
         }

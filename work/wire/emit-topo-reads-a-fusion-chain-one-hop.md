@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-06
 priority: P2
 cost: E
-refs: [fused-into-names-vertices-not-live-in-the-result, 4116]
+refs: [4398, 4116]
 closed: 2026-10-17
 ---
 
