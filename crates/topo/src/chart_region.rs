@@ -2432,19 +2432,26 @@ fn pcurve_entry<T: Decide + Bounds>(
         } else {
             Point2::new(p0.x + pd.x, p0.y + pd.y)
         }),
-        // Straight iff BOTH trig channels are exact-structural zeros
-        // (C6): rim circles (`pl = (β, 0)`), meridians, and every
-        // line edge of a plane chart land here; a tilted-section
-        // sinusoid (`pa`/`pb` alive) refuses — including a
-        // numerically-almost-zero channel, deliberately.
+        // Straight iff each channel is (C6). An angle channel is, by
+        // its kind: a phase and a winding's rate, with no trig terms.
+        // A free channel is straight iff its trig coefficients are
+        // exact-structural zeros: a plane chart's line edges land here;
+        // a tilted-section sinusoid (`a`/`b` alive) refuses — including
+        // a numerically-almost-zero channel, deliberately.
         Pcurve::Harmonic { u, v } => {
-            let (p0, pa, pb, pl) = geom_brep::harmonic_form_of(*u, *v);
-            if exact_zero(pa.x) && exact_zero(pa.y) && exact_zero(pb.x) && exact_zero(pb.y) {
-                let t = if forward { t0 } else { t1 };
-                Ok(Point2::new(p0.x + pl.x * t, p0.y + pl.y * t))
-            } else {
-                Err("Harmonic trig channels are not exact-structural zeros \
-                     (the sinusoid / tilted-cut class)")
+            let t = if forward { t0 } else { t1 };
+            let at = |c: geom_brep::Channel<T>| match c {
+                geom_brep::Channel::Angle { phase, winding } => {
+                    Some(phase + geom_brep::angle_rate::<T>(winding) * t)
+                }
+                geom_brep::Channel::Free { c, a, b, l } => {
+                    (exact_zero(a) && exact_zero(b)).then(|| c + l * t)
+                }
+            };
+            match (at(*u), at(*v)) {
+                (Some(x), Some(y)) => Ok(Point2::new(x, y)),
+                _ => Err("Harmonic trig channels are not exact-structural zeros \
+                          (the sinusoid / tilted-cut class)"),
             }
         }
         Pcurve::Fitted(_) => Err("Fitted chart image (rung-3 trace) is not a straight segment"),

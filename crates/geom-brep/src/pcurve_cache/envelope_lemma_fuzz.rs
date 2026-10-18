@@ -745,37 +745,35 @@ fn jittered(image: &Pcurve<f64>, mut jitter: impl FnMut(f64) -> f64) -> Pcurve<f
     Pcurve::Harmonic { u, v }
 }
 
-/// `image` with `du`, `dv` added to its channels' constants, and each
-/// channel's slope negated where `flip` asks: an angle's windings, a
-/// free channel's linear coefficient.
+/// `image` translated by `du`, `dv`, with each channel's slope negated
+/// where `flip` asks. An angle's windings are negated through
+/// [`Channel::mapped`], by the reflection about its own phase, which
+/// keeps the phase; a free channel's linear coefficient is a number,
+/// negated as one.
 fn restated(image: &Pcurve<f64>, du: f64, dv: f64, flip: [bool; 2]) -> Pcurve<f64> {
-    let Pcurve::Harmonic { u, v } = *image else {
+    let Pcurve::Harmonic { u, v } = image.translate(du, dv) else {
         unreachable!("the rows store harmonic images")
     };
-    let mv = |c: Channel<f64>, d: f64, f: bool| match c {
-        Channel::Angle { phase, winding } => Channel::Angle {
-            phase: phase + d,
-            winding: if f { -winding } else { winding },
-        },
-        Channel::Free { c, a, b, l } => Channel::Free {
-            c: c + d,
-            a,
-            b,
-            l: if f { -l } else { l },
-        },
+    let mv = |c: Channel<f64>, f: bool| match c {
+        _ if !f => c,
+        Channel::Angle { phase, .. } => c
+            .mapped(AxisMap::reflect_about(2.0 * phase))
+            .expect("a derived winding has a negation"),
+        Channel::Free { c, a, b, l } => Channel::Free { c, a, b, l: -l },
     };
     Pcurve::Harmonic {
-        u: mv(u, du, flip[0]),
-        v: mv(v, dv, flip[1]),
+        u: mv(u, flip[0]),
+        v: mv(v, flip[1]),
     }
 }
 
-/// The twin map of a sphere chart, `(u + π + shift, π − v)`.
-fn twin(shift: f64) -> ChartMap<f64> {
-    ChartMap {
-        u: AxisMap::shift(PI + shift),
-        v: AxisMap::reflect_about(PI),
-    }
+/// `image`'s twin on a sphere chart ([`ChartMap::sphere_involution`]),
+/// then `shift` along `u`: `(u + π + shift, π − v)`.
+fn twin(image: &Pcurve<f64>, shift: f64) -> Pcurve<f64> {
+    image
+        .map_affine(ChartMap::sphere_involution())
+        .expect("a derived row has a twin")
+        .translate(shift, 0.0)
 }
 
 /// One row the sweeps read: the arm the derivation selected and each
@@ -848,7 +846,7 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     let k = s.range(-1.5, 1.5).round();
     stored = stored.shift_branch(k, TAU);
     if matches!(surface, Surface::Sphere { .. }) && s.below(2) == 0 {
-        stored = stored.map_affine(twin(0.0)).unwrap();
+        stored = twin(&stored, 0.0);
     }
     let form = carrier_harmonic(&carrier).unwrap();
     let context = || {
@@ -1104,9 +1102,9 @@ fn the_envelope_dominates_where_no_circle_reaches() {
 /// an unlucky one). On a pinned stream of rows of every class, each
 /// row's dominance is asserted (as in the sweep above), and for every
 /// arm `derive_harmonic` selects, each of its terms is over the row's
-/// noise in at least one row. So a table that drops or under-states any
-/// term is met by a row where that term is load-bearing, at `f64` and
-/// at `Interval`, whatever seed the counterexample search draws.
+/// noise in at least one row. What it checks is that much: every term
+/// is exercised by a row where it is not negligible. It does not assert
+/// that dropping the term there breaks dominance.
 #[test]
 fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
     let mut s = fuzz::pinned(
@@ -1130,7 +1128,7 @@ fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
     }
     // The pairs the stream reaches only through a move, written down
     // (`zero_winding_axis_circle`).
-    for row in axis_charts().map(|(chart, _)| zero_winding_axis_circle(&chart, 4.0)) {
+    for (row, _) in axis_charts().map(|(chart, _)| zero_winding_axis_circle(&chart, 4.0)) {
         for term in EnvelopeTerm::ALL {
             if row.terms[term.slot()] > row.noise {
                 seen.insert((row.arm, term.slot()));
@@ -1154,8 +1152,9 @@ fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
 /// plane ⊥ the axis, its centre `floors` noise floors off the axis. On a
 /// cone it is the zero-winding rim, on a torus the zero-winding parallel.
 /// The row's dominance is asserted at `f64` and at `Interval`, as the
-/// sweep's are, and its `Centre` term is over the noise at both.
-fn zero_winding_axis_circle(chart: &Surface<f64>, floors: f64) -> Row {
+/// sweep's are. Returned with the row: its `Centre` term's lower end at
+/// `Interval`, which the row that pins the witness reads.
+fn zero_winding_axis_circle(chart: &Surface<f64>, floors: f64) -> (Row, f64) {
     let (rho, h, reach) = (0.25 * band().zero(), 1.0, TAU);
     let on_axis = circle(
         Point3::new(0.0, 0.0, h),
@@ -1218,16 +1217,14 @@ fn zero_winding_axis_circle(chart: &Surface<f64>, floors: f64) -> Row {
         "{floors} floors: the Interval envelope {:e} under the sampled sup {sup:e}",
         at_iv.total().hi()
     );
-    let centre_i = at_iv.0[EnvelopeTerm::Centre.slot()];
-    assert!(
-        centre_i.lo() > noise,
-        "{floors} floors: Centre {centre_i:?} is not over the noise {noise:e} at Interval"
-    );
-    Row {
-        arm: arm(derivation),
-        terms: terms.0,
-        noise,
-    }
+    (
+        Row {
+            arm: arm(derivation),
+            terms: terms.0,
+            noise,
+        },
+        at_iv.0[EnvelopeTerm::Centre.slot()].lo(),
+    )
 }
 
 /// **A zero-winding cone rim's and torus parallel's `Centre` are
@@ -1244,8 +1241,13 @@ fn a_zero_winding_axis_circles_centre_off_the_axis_is_load_bearing() {
         .into_iter()
         .flat_map(|c| [2.0, 4.0, 8.0].map(move |f| (c.clone(), f)))
     {
-        let row = zero_winding_axis_circle(&chart, floors);
+        let (row, centre_iv) = zero_winding_axis_circle(&chart, floors);
         assert_eq!(row.arm, want, "{floors} floors");
+        assert!(
+            centre_iv > row.noise,
+            "{want}, {floors} floors: Centre's lower end {centre_iv:e} is not over the noise {:e} at Interval",
+            row.noise
+        );
         let centre = row.terms[EnvelopeTerm::Centre.slot()];
         assert!(
             centre > row.noise,
@@ -1378,22 +1380,32 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
             band(),
         )
         .unwrap();
-        let Some((_, _, _, pl)) = image.harmonic_form() else {
-            unreachable!()
+        let Pcurve::Harmonic {
+            u: u_channel,
+            v: v_channel,
+        } = image
+        else {
+            unreachable!("the fixtures derive harmonic images")
         };
         let h = |du: f64, dv: f64| restated(&image, du, dv, [false, false]);
         // A slope negated: a winding's is structure, refused as the
         // windings' mismatch (`Err(true)`); a free channel's linear
         // coefficient is a number, refused as a residual (`Err(false)`).
-        let flipped = |slope: f64, angle: bool| match (slope == 0.0, angle) {
-            (true, _) => Ok(()),
-            (false, true) => Err(true),
-            (false, false) => Err(false),
+        let flipped = |c: Channel<f64>, structural: bool| {
+            let still = match c {
+                Channel::Angle { winding, .. } => winding == 0,
+                Channel::Free { l, .. } => l == 0.0,
+            };
+            match (still, structural) {
+                (true, _) => Ok(()),
+                (false, true) => Err(true),
+                (false, false) => Err(false),
+            }
         };
         // Off a sphere the twin map is no renaming: it negates a winding
         // polar channel (a torus meridian's), a structural refusal, and
         // reflects a free one, a residual.
-        let off_sphere_twin = if angular_v && pl.y != 0.0 {
+        let off_sphere_twin = if v_channel.winding().is_some_and(|w| w != 0) {
             Err(true)
         } else {
             Err(false)
@@ -1416,7 +1428,7 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
             (
                 "slope u flipped",
                 restated(&image, 0.0, 0.0, [true, false]),
-                flipped(pl.x, true),
+                flipped(u_channel, true),
             ),
             // On a sphere meridian a polar winding negated is the
             // twin's, so the row reads as the twin with its azimuth a
@@ -1424,17 +1436,17 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
             (
                 "slope v flipped",
                 restated(&image, 0.0, 0.0, [false, true]),
-                flipped(pl.y, angular_v && !sphere),
+                flipped(v_channel, angular_v && !sphere),
             ),
             ("u + π, v kept (half a twin)", h(PI, 0.0), Err(false)),
             (
                 "the involution twin",
-                image.map_affine(twin(0.0)).unwrap(),
+                twin(&image, 0.0),
                 if sphere { Ok(()) } else { off_sphere_twin },
             ),
             (
                 "the twin, a period on",
-                image.map_affine(twin(TAU)).unwrap(),
+                twin(&image, TAU),
                 if sphere { Ok(()) } else { off_sphere_twin },
             ),
         ];
