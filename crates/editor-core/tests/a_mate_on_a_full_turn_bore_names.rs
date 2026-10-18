@@ -44,7 +44,7 @@ fn operand(ev: &Evaluation<f64>, n: RecipeNodeId) -> topo::AtRestBody<f64> {
     }
 }
 
-/// The collar and the shaft (its placement against the collar): the
+/// The collar (its placement against the shaft) and the shaft: the
 /// shaft's vertex at azimuth `a` from
 /// the collar's seam (`+x`), spanning `y ∈ [y0, y0 + h]`.
 fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
@@ -86,11 +86,14 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             distance: len(h),
         },
     );
-    let (doc, shaft) = against(
+    // The shaft is the root: its own frame stands at `(0, y0, 0)` in
+    // the collar's coordinates, `x` along `(c, 0, −s)` and `y` along
+    // `(−s, 0, −c)`, so the collar is placed at that frame's inverse.
+    let (doc, collar) = against(
         doc,
-        collar,
         shaft,
-        &frame_at([0.0, y0, 0.0], [c, 0.0, -s], [-s, 0.0, -c]),
+        editor_core::Operand::output(collar, 0),
+        &frame_at([0.0, 0.0, -y0], [c, -s, 0.0], [0.0, 0.0, 1.0]),
     );
     (doc, collar, shaft)
 }

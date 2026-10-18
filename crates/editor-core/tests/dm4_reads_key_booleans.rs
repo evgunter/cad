@@ -263,7 +263,9 @@ fn a_three_member_intersect_with_coincident_faces_folds() {
     let doc = ProfileDoc::empty_derived("dm4-three-intersect", Tol::witness());
     let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 1.0);
     let (doc, b) = block(doc, (1.0, 3.0), (0.0, 1.0), 1.0);
+    let (doc, b) = crate::fixture::slid(doc, a, b, [0.0; 3]);
     let (doc, c) = block(doc, (0.0, 3.0), (0.0, 1.0), 0.5);
+    let (doc, c) = crate::fixture::slid(doc, a, c, [0.0; 3]);
     let (doc, i) = insert(
         doc,
         Node::Intersect {
@@ -290,6 +292,7 @@ fn a_read_spelled_twice_beside_a_resting_partner_builds_in_every_order() {
     let doc = ProfileDoc::empty_derived("dm5-decl-twice", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, b) = block(doc, (1.0, 2.0), (0.0, 1.0), 1.0);
+    let (doc, b) = crate::fixture::slid(doc, a, b, [0.0; 3]);
     let mut doc = doc;
     let mut unions = Vec::new();
     for order in [[a, a, b], [a, b, a], [b, a, a]] {
@@ -326,6 +329,7 @@ fn a_stored_name_carrying_a_read_the_document_never_minted_refuses_at_load() {
     let doc = ProfileDoc::empty_derived("dm4-carry-read-at-load", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 1.0);
+    let (doc, b) = crate::fixture::slid(doc, a, b, [0.0; 3]);
     let (doc, union) = insert(
         doc,
         Node::Union {

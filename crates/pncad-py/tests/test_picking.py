@@ -29,6 +29,7 @@ from pncad import (
     DocEdit,
     EntityKind,
     Formula,
+    Frame,
     HitTestError,
     NamePat,
     Node,
@@ -45,6 +46,8 @@ from pncad import (
     m,
     mm,
 )
+
+from placing import plane_on
 from spoken import tag
 
 #: The chordal budget every index in this file is built at. A cube's
@@ -238,19 +241,12 @@ class TestNearestAndTheCertifiedTie(unittest.TestCase):
     them."""
 
     def test_the_nearest_body_wins(self):
+        # Two copies of one cube standing in the world, one 2 m above
+        # the other: the targets of one query are read in one space.
         doc = Doc()
-        lower = unit_cube(doc)
-        upper = doc.insert(
-            Node.transform(lower, (
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-                Formula.length_in(2, m),
-            ), (
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-                Formula.literal(1.0),
-            ), Formula.angle_in(0, deg))
-        )
+        cube = unit_cube(doc)
+        lower = doc.place(cube)
+        upper = doc.place(cube, pose=Frame.translation((0 * m, 0 * m, 2 * m)))
         ev = evaluate(doc)
         picks = [
             NodePick.build(ev, lower, 0, DELTA),
@@ -265,14 +261,14 @@ class TestNearestAndTheCertifiedTie(unittest.TestCase):
         self.assertEqual(ev.pick_face(list(reversed(picks)), straight_down(z=10.0)).node, upper)
 
     def test_an_exact_tie_refuses_and_names_every_tied_face(self):
-        # Two nodes drawing the SAME cube in the same place: the ray
-        # hits both at the same `t` and nothing orders the two faces,
-        # so the door names both rather than choosing on the order they
-        # were offered in. Reversing the list reverses the LIST and
-        # changes nothing else.
+        # Two nodes drawing the SAME cube in the same place in the
+        # world: the ray hits both at the same `t` and nothing orders
+        # the two faces, so the door names both rather than choosing on
+        # the order they were offered in. Reversing the list reverses
+        # the LIST and changes nothing else.
         doc = Doc()
-        first = unit_cube(doc)
-        second = doc.insert(Node.extrude(square(doc), Formula.length_in(1, m)))
+        first = doc.place(unit_cube(doc))
+        second = doc.place(doc.insert(Node.extrude(square(doc), Formula.length_in(1, m))))
         ev = evaluate(doc)
         a = NodePick.build(ev, first, 0, DELTA)
         b = NodePick.build(ev, second, 0, DELTA)
@@ -406,17 +402,7 @@ class TestEnumeratingAWholeNode(unittest.TestCase):
         # a dense range the caller may assume.
         doc = Doc()
         cube = unit_cube(doc)
-        knife = doc.insert(
-            Node.datum_plane((
-                Formula.length_in(0.5, m),
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-            ), (
-                Formula.literal(1.0),
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-            ))
-        )
+        knife = plane_on(doc, cube, (0.5, 0.0, 0.0), (1.0, 0.0, 0.0))
         cut = doc.insert(Node.split(cube, knife))
         ev = evaluate(doc)
         picks = NodePick.build_all(ev, cut, DELTA)
@@ -461,25 +447,15 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
 
     def test_a_node_that_never_draws_refuses_not_a_body(self):
         doc = Doc()
-        datum = doc.insert(
-            Node.datum_plane((
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-            ), (
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-                Formula.literal(1.0),
-            ))
-        )
+        sketch = square(doc)
         ev = evaluate(doc)
-        err = self.refusal(lambda: NodePick.build(ev, datum, 0, DELTA))
+        err = self.refusal(lambda: NodePick.build(ev, sketch, 0, DELTA))
         self.assertEqual(err.variant, "not_a_body")
-        self.assertEqual(err.node, datum)
+        self.assertEqual(err.node, sketch)
         # `build_all` refuses the same way rather than answering empty:
         # "never draws" is not "draws nothing today".
         self.assertEqual(
-            self.refusal(lambda: NodePick.build_all(ev, datum, DELTA)).variant,
+            self.refusal(lambda: NodePick.build_all(ev, sketch, DELTA)).variant,
             "not_a_body",
         )
 
@@ -488,22 +464,12 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
         # holds the document the evaluation is of, so its sentence
         # says the node's kind, label and tag. `node` keeps the id.
         doc = Doc()
-        datum = doc.insert(
-            Node.datum_plane((
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-            ), (
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-                Formula.literal(1.0),
-            ))
-        )
-        doc.apply(DocEdit.set_label(datum, "sketch plane"))
-        err = self.refusal(lambda: NodePick.build(evaluate(doc), datum, 0, DELTA))
-        self.assertEqual(err.node, datum)
+        sketch = square(doc)
+        doc.apply(DocEdit.set_label(sketch, "floor sketch"))
+        err = self.refusal(lambda: NodePick.build(evaluate(doc), sketch, 0, DELTA))
+        self.assertEqual(err.node, sketch)
         self.assertIn(
-            f'pick: Datum plane "sketch plane" ({tag(datum)})\'s value',
+            f'pick: Profile "floor sketch" ({tag(sketch)})\'s value',
             str(err),
         )
 
@@ -533,20 +499,10 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
         # `None` where an arm does not apply, never absent: a caller
         # reads the payload without first branching on `variant`.
         doc = Doc()
-        datum = doc.insert(
-            Node.datum_plane((
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-            ), (
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-                Formula.literal(1.0),
-            ))
-        )
+        sketch = square(doc)
         ev = evaluate(doc)
         for call in (
-            lambda: NodePick.build(ev, datum, 0, DELTA),
+            lambda: NodePick.build(ev, sketch, 0, DELTA),
             lambda: NodePick.build(self.ev, self.cube, 7, DELTA),
             lambda: NodePick.build(self.ev, self.cube, 0, -1 * m),
         ):
@@ -593,17 +549,7 @@ class TestThePickRefusesTyped(unittest.TestCase):
         doc = Doc()
         cube = unit_cube(doc)
         before = evaluate(doc)
-        later_node = doc.insert(
-            Node.transform(cube, (
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-                Formula.length_in(2, m),
-            ), (
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-                Formula.literal(1.0),
-            ), Formula.angle_in(0, deg))
-        )
+        later_node = doc.place(cube, pose=Frame.translation((0 * m, 0 * m, 2 * m)))
         after = evaluate(doc)
         stale = NodePick.build(after, later_node, 0, DELTA)
         with self.assertRaises(HitTestError) as caught:
@@ -624,17 +570,7 @@ class TestThePickRefusesTyped(unittest.TestCase):
         doc = Doc()
         cube = unit_cube(doc)
         before = evaluate(doc)
-        later_node = doc.insert(
-            Node.transform(cube, (
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-                Formula.length_in(2, m),
-            ), (
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-                Formula.literal(1.0),
-            ), Formula.angle_in(0, deg))
-        )
+        later_node = doc.place(cube, pose=Frame.translation((0 * m, 0 * m, 2 * m)))
         after = evaluate(doc)
         stale = NodePick.build(after, later_node, 0, DELTA)
         with self.assertRaises(HitTestError):

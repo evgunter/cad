@@ -506,7 +506,7 @@ mod tests {
 
     /// A row as `tree::rows` builds one for an instance of the part in
     /// `file`.
-    fn instance_row(id: u64, file: &str) -> TreeRow {
+    fn instance_row_of(id: u64, file: &str) -> TreeRow {
         TreeRow {
             id: RecipeNodeId::new(0, test_utils::refusal::tagged(id)),
             spoken: spoken(
@@ -533,7 +533,7 @@ mod tests {
     #[test]
     fn an_instance_row_says_which_part_it_is() {
         let drawn = painted_text(|ui| {
-            row_label(ui, &instance_row(3, "bracket.pncad"), false);
+            row_label(ui, &instance_row_of(3, "bracket.pncad"), false);
         });
         assert!(drawn.contains("InstantiatePart"), "{drawn}");
         assert!(
@@ -546,10 +546,10 @@ mod tests {
     #[test]
     fn two_instance_rows_of_two_parts_read_differently() {
         let one = painted_text(|ui| {
-            row_label(ui, &instance_row(3, "bracket.pncad"), false);
+            row_label(ui, &instance_row_of(3, "bracket.pncad"), false);
         });
         let other = painted_text(|ui| {
-            row_label(ui, &instance_row(7, "hinge.pncad"), false);
+            row_label(ui, &instance_row_of(7, "hinge.pncad"), false);
         });
         assert_ne!(one, other, "{one} / {other}");
     }
@@ -594,7 +594,7 @@ mod tests {
     /// around.
     #[test]
     fn a_placed_row_carries_which_it_is_and_the_world_badge() {
-        let mut row = instance_row(2, "bracket.pncad");
+        let mut row = instance_row_of(2, "bracket.pncad");
         row.placed = true;
         let drawn = painted_text(|ui| {
             row_label(ui, &row, false);

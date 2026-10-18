@@ -15,7 +15,7 @@
 //! judgement passed.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
 use crate::docm8_flat_merged::split_fixture;
 
@@ -46,6 +46,7 @@ fn assert_sunk_boss_cut_refuses_as_a_missing_rule(tool: &[Spans], chord: [[f64; 
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
     let (doc, boss) = crate::emit_union_borders::cylinder(
         doc,
+        plate,
         [1.5, 1.5, 0.5],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
@@ -190,6 +191,7 @@ fn a_bar_through_a_sunk_boss_refuses_at_the_unions_parents() {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
     let (doc, boss) = crate::emit_union_borders::cylinder(
         doc,
+        plate,
         [1.5, 1.5, 0.5],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
@@ -415,7 +417,7 @@ fn no_order_of_the_area_overlap_union_with_a_fourth_member_refuses_a_fold_contac
     use Seen::Fused;
     let doc = ProfileDoc::empty_derived("wire_fold_contact_4", Tol::witness());
     let (doc, [a, s, big]) = area_overlap_fixture(doc);
-    let (doc, p) = block(doc, (0.6, 0.9), (0.2, 0.8), 0.2);
+    let (doc, p) = block_on(doc, a, (0.6, 0.9), (0.2, 0.8), 1.0, 0.2);
     every_order(
         &doc,
         &[("a", a), ("s", s), ("big", big), ("p", p)],
@@ -457,7 +459,7 @@ fn no_order_of_the_split_fixture_under_a_covering_block_refuses_a_fold_contact()
     use Seen::Fused;
     let doc = ProfileDoc::empty_derived("wire_fold_contact_split", Tol::witness());
     let (doc, [a, c, s]) = split_fixture(doc);
-    let (doc, big) = block(doc, (-0.5, 1.2), (-0.5, 1.5), 1.2);
+    let (doc, big) = block_on(doc, a, (-0.5, 1.2), (-0.5, 1.5), 0.8, 1.2);
     // `big` (4.08) plus `a ∪ c` (1.5) less their overlap (1.2 × 1 × 0.2).
     every_order(
         &doc,

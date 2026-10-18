@@ -268,7 +268,7 @@ fn with_leg(base: &ProfileDoc, profile: RecipeNodeId, at: usize, corner: (f64, f
     let [placement] = doc.placements()[..] else {
         panic!("the part places its body once")
     };
-    let doc = fixture::bundle(&doc, placement)
+    let doc = values_first(fixture::bundle(&doc, placement))
         .into_iter()
         .fold(doc, |doc, c| {
             fixture::step(
@@ -451,4 +451,11 @@ fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
             other => panic!("{what}: expected a NodeGone failure, got {other:?}"),
         }
     }
+}
+
+/// `bundle` with its values ahead of its mates: the order its
+/// constraints come out in, so no value is left naming a removed mate.
+fn values_first(mut bundle: Vec<editor_core::Constraint>) -> Vec<editor_core::Constraint> {
+    bundle.sort_by_key(|c| c.mate().is_some());
+    bundle
 }

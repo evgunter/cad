@@ -53,6 +53,7 @@ fn a_band_along_a_joined_flush_edge_is_named_by_that_edge() {
     let doc = ProfileDoc::empty_derived("band_joined_rim_names", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0));
     let (doc, b) = block(doc, (0.5, 2.0));
+    let (doc, b) = crate::fixture::slid(doc, a, b, [0.0; 3]);
     let (doc, u) = insert(
         doc,
         Node::Union {

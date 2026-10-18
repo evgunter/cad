@@ -32,6 +32,7 @@ from pncad import (
     Center,
     Doc,
     Formula,
+    Frame,
     Node,
     Open,
     Radius,
@@ -519,9 +520,9 @@ class TestTheProfileNode(unittest.TestCase):
         volume = ev.value(solid).body().mass_properties().volume
         self.assertAlmostEqual(volume, math.pi * 0.25 * 2.0, delta=1e-12)
 
-    def test_the_elevation_is_the_polygon_plane_story_unchanged(self):
-        # A boss on a plate, raised half its own height: the fused
-        # volume names where `elevation` put the boss — at z = 0 the
+    def test_a_boss_placed_half_up_fuses_where_it_stands(self):
+        # A boss on a plate, placed half its own height up: the fused
+        # volume names where the placement put the boss — at z = 0 the
         # boss would be swallowed whole and the union would be 4.0.
         def rect(x0, x1, y0, y1):
             return (
@@ -538,12 +539,11 @@ class TestTheProfileNode(unittest.TestCase):
         )
         boss = doc.insert(
             Node.extrude(
-                doc.insert(
-                    Node.profile(rect(0.5, 1.5, 0.5, 1.5), plane=doc.sketch_frame(elevation=Formula.length_in(0.5, m)))
-                ),
+                doc.insert(Node.profile(rect(0.5, 1.5, 0.5, 1.5))),
                 Formula.length_in(1, m),
             )
         )
+        boss = doc.place_against(plate, boss, Frame.translation((0 * m, 0 * m, 0.5 * m)))
         fused = doc.insert(Node.union([plate, boss]))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(fused))

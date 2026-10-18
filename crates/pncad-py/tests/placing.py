@@ -11,7 +11,7 @@ absolute place in a body's own coordinates, read off one of its faces
 
 import math
 
-from pncad import Frame, PoseDef, RoleRead, SurfaceKind, evaluate, m, rad
+from pncad import Frame, PoseDef, RoleRead, SurfaceKind, evaluate, m
 
 
 def _unit(v):
@@ -34,26 +34,15 @@ def _dot(a, b):
 def frame_at(origin, u, v):
     """The rigid frame at `origin` (metres) whose x is `u` and whose y
     is `v` made orthogonal to it, its z `u x v`: the frame a
-    construction drawn on its own xy stands at."""
+    construction drawn on its own xy stands at. Built by
+    `Frame.point_at`, aiming its z and rolling its y onto `v`, so an
+    axis-aligned frame's columns are exact."""
     x = _unit(u)
     y = _unit(tuple(c - x_c * _dot(v, x) for c, x_c in zip(v, x)))
     z = _cross(x, y)
-    # The rotation's axis and angle, from its matrix [x y z] (columns).
-    r = ((x[0], y[0], z[0]), (x[1], y[1], z[1]), (x[2], y[2], z[2]))
-    cos = max(-1.0, min(1.0, (r[0][0] + r[1][1] + r[2][2] - 1.0) / 2.0))
-    angle = math.acos(cos)
-    if angle < 1e-15:
-        axis = (0.0, 0.0, 1.0)
-    elif math.pi - angle < 1e-9:
-        # A half turn: the axis is the column of r + I with the largest
-        # diagonal entry.
-        i = max(range(3), key=lambda k: r[k][k])
-        col = [r[k][i] + (1.0 if k == i else 0.0) for k in range(3)]
-        axis = _unit(col)
-    else:
-        axis = _unit((r[2][1] - r[1][2], r[0][2] - r[2][0], r[1][0] - r[0][1]))
-    t = tuple(c * m for c in origin)
-    return Frame.rotate_then_translate(axis, angle * rad, t)
+    eye = tuple(c * m for c in origin)
+    target = tuple((o + d) * m for o, d in zip(origin, z))
+    return Frame.point_at(eye, target, y)
 
 
 def lifted(z):
@@ -92,3 +81,31 @@ def plane_on(doc, body, origin, normal):
             return plane
         return PoseDef.slide(plane, RoleRead(plane, "normal"), by * m)
     raise AssertionError(f"no planar face of {body} is parallel to {normal}")
+
+
+def own_frame(doc, body, origin=(0.0, 0.0, 0.0), x=(1.0, 0.0, 0.0)):
+    """`body`'s own frame at `origin`, read off its geometry: the frame
+    through its straight edge along its own z that passes through
+    `origin`, and its vertex `x` (metres) on its own +x — a frame read
+    where a test needs the body's own axes and planes."""
+    ev = evaluate(doc)
+    edge = None
+    for name in sorted(ev.all_edges(body)):
+        pose = ev.edge_frame(body, name)
+        if pose.u_ref is not None or abs(abs(pose.axis[2]) - 1.0) > 1e-12:
+            continue
+        at = tuple(c.meters for c in pose.origin)
+        if abs(at[0] - origin[0]) < 1e-12 and abs(at[1] - origin[1]) < 1e-12:
+            edge = (name, pose.axis[2] > 0.0)
+            break
+    assert edge is not None, f"{body} has no straight edge along its z through {origin}"
+    vertex = [
+        v
+        for v in ev.all_vertices(body)
+        if max(abs(c.meters - w) for c, w in zip(ev.vertex_position(body, v), x)) < 1e-12
+    ]
+    assert len(vertex) == 1, f"{body} has no vertex at {x}"
+    axis = PoseDef.axis(body, edge[0])
+    if not edge[1]:
+        axis = PoseDef.flip(axis)
+    return PoseDef.through(axis, PoseDef.point(body, vertex[0]))

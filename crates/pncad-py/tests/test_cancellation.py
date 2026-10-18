@@ -20,7 +20,7 @@ cannot run cannot set a flag.
 
 The numbers behind the choice, measured on this box against the debug
 extension (LIB-B-CANCEL, 2026-09-03), on the `stack(WIDE)` document
-these tests use: 31 nodes, ~300 ms. A helper thread cancelling 20 ms
+these tests use: 30 nodes, ~300 ms. A helper thread cancelling 20 ms
 in stopped it 20/20 with a 7-node prefix; cancelling with no delay
 stopped it 20/20 with a prefix of 0, the helper winning the start.
 The SAME code against a build differing only in that it does not
@@ -44,14 +44,17 @@ from pncad import (
     Doc,
     EvaluationError,
     Formula,
+    Frame,
     Node,
     evaluate,
     m,
 )
 
 
-def slab(doc, x, y, z):
-    """Insert the axis-aligned box [x0,x1] x [y0,y1] x [z0,z1]."""
+def slab(doc, x, y, z, on=None):
+    """Insert the axis-aligned box [x0,x1] x [y0,y1] x [z0,z1]: in its
+    own coordinates where it stands alone (`z0` zero), placed against
+    `on` where it is combined with it."""
     x0, x1 = x
     y0, y1 = y
     z0, z1 = z
@@ -63,10 +66,12 @@ def slab(doc, x, y, z):
                 (Formula.literal(x1), Formula.literal(y1)),
                 (Formula.literal(x0), Formula.literal(y1)),
             ],
-            plane=doc.sketch_frame(elevation=Formula.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
+    body = doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
+    if on is None:
+        return body
+    return doc.place_against(on, body, Frame.translation((0 * m, 0 * m, z0)))
 
 
 def stack(count):
@@ -82,11 +87,12 @@ def stack(count):
     Every box is offset in y and z as well as x, so no two faces are
     coincident: coplanar operands are the C4 unrecorded-contact
     refusal, and a document that FAILS nodes would confuse a stopped
-    run with a broken one. `count` boxes give `4 * count - 1` nodes,
-    all of which succeed.
+    run with a broken one. Every box after the first is placed against
+    the first. `count` boxes give `4 * count - 2` nodes, all of which
+    succeed.
     """
     doc = Doc()
-    fused = None
+    fused = first = None
     for i in range(count):
         dy, dz = 0.37 * i, 0.23 * i
         box = slab(
@@ -94,7 +100,9 @@ def stack(count):
             (i * 1.0 * m, (i + 3.0) * m),
             (dy * m, (3.0 + dy) * m),
             (dz * m, (3.0 + dz) * m),
+            on=first,
         )
+        first = first or box
         fused = (
             box
             if fused is None
@@ -108,7 +116,7 @@ def stack(count):
 #: stay cheap.
 SMALL = 3
 
-#: The concurrent arm's document, sized by measurement: 31 nodes take
+#: The concurrent arm's document, sized by measurement: 30 nodes take
 #: ~300 ms against the debug extension on this box, which leaves a
 #: helper thread a wide window to be scheduled in. Nothing asserted
 #: below depends on that duration — see the module docstring.
@@ -182,7 +190,7 @@ class TestCanceledEvaluation(unittest.TestCase):
         as a prefix rather than as an arbitrary subset."""
         complete = evaluate(self.doc)
         self.assertEqual(self.canceled.order(), complete.order())
-        self.assertEqual(len(self.canceled.order()), 4 * SMALL - 1)
+        self.assertEqual(len(self.canceled.order()), 4 * SMALL - 2)
 
     def test_nothing_ran_and_nothing_was_reused(self):
         self.assertEqual(self.canceled.recomputed, 0)
@@ -387,7 +395,7 @@ class TestCancelingARunUnderWay(unittest.TestCase):
         helper.join()
 
         order = run.order()
-        self.assertEqual(len(order), 4 * WIDE - 1)
+        self.assertEqual(len(order), 4 * WIDE - 2)
         reached = [run.succeeded(node) for node in order]
         if not run.canceled:
             self.assertTrue(all(reached))

@@ -2858,7 +2858,6 @@ mod tests {
         use pncad::profile::{Step, TipState, Verb};
 
         use crate::drafts::{Drafts, ProfileDoors, RowEdit};
-        use crate::session::ProfilePlane;
 
         let tol = Tol::witness();
         let chord = 1.0e-4;
@@ -2879,12 +2878,11 @@ mod tests {
         drafts
             .profile_edit(&doc, profile)
             .expect("the square is held");
-        let frame = match drafts.door_loops().edit.and_then(|held| held.plane) {
-            Some(ProfilePlane::Existing(frame)) => Some(frame),
-            _ => None,
-        }
-        .expect("the edit door draws on the square's own frame");
-        let placement = sketch::frame_placement(&doc, &evaluation, frame).expect("placed");
+        assert!(
+            drafts.door_loops().edit.is_some(),
+            "the edit door holds the square"
+        );
+        let placement = sketch::profile_plane();
         let segments = |lane: &marks::LegLane| -> Vec<[[f64; 2]; 2]> {
             lane.segments()
                 .chunks_exact(2)

@@ -161,7 +161,6 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     );
     // v4: the constructed fillet authors as the chain fillet form
     // (exact `toward` directors — G1/VQ4).
-    let len0 = || len(0.0);
     let fillet_loop = LoopProgram::Chain(vec![
         ProgramStep::At(len2([0.0, 0.0])),
         ProgramStep::LineTo(ProgramTarget::Point(len2([3.0, 0.0]))),

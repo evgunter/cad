@@ -1874,9 +1874,9 @@ mod layout_tests {
     use std::path::PathBuf;
 
     use eframe::egui;
-    use pncad::document::{DocumentId, RecipeNodeId};
+    use pncad::document::DocumentId;
 
-    use super::{NO_FRAMES, frame_picker, part_entry, part_window};
+    use super::{part_entry, part_window};
     use crate::pane::headless::{
         SLACK, assert_inside, assert_own_lines, assert_under, drawn_in, find, landed_after,
         painted_while_hovering,
@@ -1887,25 +1887,6 @@ mod layout_tests {
     /// A narrow pane, and wider than `crate::widgets::message_floor`,
     /// so these rows read the region and not the floor.
     const REGION: f32 = 260.0;
-
-    #[test]
-    fn a_frame_pickers_empty_line_is_said_under_its_label_inside_the_pane() {
-        let mut picked: Option<RecipeNodeId> = None;
-        let (region, painted) = drawn_in(REGION, |ui| {
-            frame_picker(
-                ui,
-                &Theme::DEFAULT,
-                "in frame",
-                "salt",
-                &[],
-                &mut picked,
-                |id| format!("node {}", test_utils::refusal::tag(id.0.digest())),
-            );
-        });
-        let empty = find(&painted, NO_FRAMES);
-        assert_own_lines(region, empty);
-        assert_under(find(&painted, "in frame"), empty);
-    }
 
     #[test]
     fn a_parts_id_is_said_under_its_file_name_inside_the_pane() {
@@ -2042,19 +2023,12 @@ mod layout_tests {
 mod tone_tests {
     use std::path::PathBuf;
 
-    use pncad::document::{DocumentId, HeldNodes, RecipeNodeId, SpokenNode};
-    use pncad::prelude::SurfaceKind;
+    use pncad::document::DocumentId;
 
-    use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
-    use pncad::select::{InterrogateError, Resolution};
-
-    use super::{
-        Withheld, bore_withholds, face_frame_fault, part_listing, selection_says_unresolved,
-        withheld_for, withheld_line,
-    };
+    use super::{Withheld, bore_withholds, part_listing, withheld_for, withheld_line};
     use crate::pane::headless::{Landed, Voices, find, find_opening, landed_voiced};
     use crate::parts::{PartCensus, PartChooser, PartEntry};
-    use crate::session::{FaceFrameFault, FaceSelection, Refusal, Standing};
+    use crate::session::Refusal;
     use crate::theme::Theme;
 
     fn listed(
@@ -2113,132 +2087,6 @@ mod tone_tests {
         assert_eq!(find(&painted, &id.to_string()).ink, Some(voices.weak));
     }
 
-    fn latched() -> FaceSelection {
-        FaceSelection {
-            name: StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
-                path: vec![RoleSeg::Cap(CapEnd::End)],
-            },
-            node: RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
-            body: 0,
-        }
-    }
-
-    fn unresolved() -> FaceFrameFault {
-        FaceFrameFault::Unresolved {
-            error: InterrogateError::NoSuchName,
-            held: HeldNodes::default(),
-        }
-    }
-
-    /// **A face-frame fault about the pick is loud**, a stale latched
-    /// pick included; one about a seat not yet answerable is quiet.
-    #[test]
-    fn a_face_frame_fault_takes_the_voice_the_fault_gives_it() {
-        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
-            face_frame_fault(
-                ui,
-                theme,
-                &FaceFrameFault::NotPlanar {
-                    carrier: SurfaceKind::Cylinder,
-                },
-                false,
-            );
-            face_frame_fault(
-                ui,
-                theme,
-                &FaceFrameFault::NotOneBody {
-                    at: SpokenNode::absent(RecipeNodeId::new(0, test_utils::refusal::tagged(4))),
-                },
-                false,
-            );
-            face_frame_fault(ui, theme, &unresolved(), false);
-            face_frame_fault(ui, theme, &FaceFrameFault::NotLanded, false);
-        });
-        assert_eq!(
-            find_opening(&painted, "a sketch frame is read off a PLANAR face").ink,
-            Some(voices.actionable)
-        );
-        assert_eq!(
-            find_opening(&painted, "node 000000000004's value is several bodies").ink,
-            Some(voices.actionable)
-        );
-        assert_eq!(
-            find_opening(&painted, "that face does not resolve: ").ink,
-            Some(voices.actionable)
-        );
-        assert_eq!(
-            find_opening(&painted, "the document has not evaluated yet").ink,
-            Some(voices.weak)
-        );
-    }
-
-    /// **A stale pick the selection is already calling gone is not said
-    /// a second time** by the form; one the selection is not about is.
-    #[test]
-    fn a_stale_latched_face_is_said_once_in_the_pane() {
-        let (said_once, _) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
-            face_frame_fault(ui, theme, &unresolved(), true);
-        });
-        assert!(
-            said_once.is_empty(),
-            "{:?}",
-            said_once.iter().map(|l| &l.text).collect::<Vec<_>>()
-        );
-        // Only `Unresolved` is the selection's to say.
-        let (planar, _) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
-            face_frame_fault(
-                ui,
-                theme,
-                &FaceFrameFault::NotPlanar {
-                    carrier: SurfaceKind::Cylinder,
-                },
-                true,
-            );
-        });
-        assert_eq!(planar.len(), 1);
-    }
-
-    /// **The selection says a latched face does not resolve exactly when
-    /// it IS that face and no longer denotes** — the one case the form
-    /// leaves the sentence to it.
-    #[test]
-    fn the_selection_speaks_for_the_latched_face_only_when_it_is_that_face_and_gone() {
-        let face = |resolution: Option<Resolution>| Standing::Face {
-            face: latched(),
-            resolution: resolution.map(Box::new),
-        };
-        let gone = face(Some(Resolution::Failed(pncad::select::ResolutionFailure {
-            error: pncad::select::ResolveError::NodeGone {
-                name: latched().name,
-                edit: editor_core::RecipeEditRef::NodeDeleted {
-                    node: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
-                },
-            },
-            offers: Vec::new(),
-        })));
-        assert!(selection_says_unresolved(&gone, Some(&latched())));
-        // Another face, or nothing latched: the form must say it.
-        let other = FaceSelection {
-            node: RecipeNodeId::new(0, test_utils::refusal::tagged(9)),
-            ..latched()
-        };
-        assert!(!selection_says_unresolved(&gone, Some(&other)));
-        assert!(!selection_says_unresolved(&gone, None));
-        // The latched face selected with no evaluation behind it: the
-        // selection says "no evaluation yet", not that it is gone.
-        assert!(!selection_says_unresolved(&face(None), Some(&latched())));
-        // A node selected: the header is about the node.
-        assert!(!selection_says_unresolved(
-            &Standing::Node {
-                node: RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
-                present: false,
-            },
-            Some(&latched())
-        ));
-    }
-
     /// **A bore at least as wide as the radius is a refused input**, and
     /// loud — not the form asking for its next one.
     #[test]
@@ -2256,7 +2104,7 @@ mod tone_tests {
     /// one kind, the earlier.
     #[test]
     fn a_refused_input_outranks_a_missing_one_and_the_form_order_breaks_ties() {
-        let frame = Withheld::Waiting("pick a frame to draw on");
+        let frame = Withheld::Waiting("pick a face to draw on");
         let chain = Withheld::Waiting("add a step to the chain");
         let bore = Withheld::Refused("the bore is too wide");
         let wider = Withheld::Refused("the bore is wider still");
@@ -2300,7 +2148,7 @@ mod creation_nouns {
     use pncad::geom_core::Tol;
 
     use super::{EXTRUDE_NOUN, INSTANCE_NOUN, PROFILE_NOUN};
-    use crate::session::{DocSession, ProfilePlane, SessionOp};
+    use crate::session::{DocSession, SessionOp};
     use crate::test_support::{square_profile, len};
 
     /// The node `op` made on `session` ([`crate::world::made`]), by its
@@ -2324,7 +2172,6 @@ mod creation_nouns {
         };
         assert_eq!(minted_noun(&mut session, extrude), EXTRUDE_NOUN);
         let add_profile = SessionOp::AddProfile {
-            plane: ProfilePlane::NewXy,
             loops: vec![crate::test_support::rectangle_loop([0.0, 0.0], 0.01, 0.01)],
         };
         assert_eq!(minted_noun(&mut session, add_profile), PROFILE_NOUN);
@@ -2342,11 +2189,11 @@ mod creation_nouns {
     }
 }
 
-/// **The face-frame form's held face across a selection that moved
-/// on** ([`ViewerBehavior::datum_face_frame_rows`]'s pick, and
+/// **The add-profile form's held face across a selection that moved
+/// on** ([`ViewerBehavior::sketch_face_rows`]'s pick, and
 /// `Drafts::respeak` after each op).
 #[cfg(test)]
-mod datum_face_said {
+mod sketch_face_said {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
@@ -2356,14 +2203,14 @@ mod datum_face_said {
     use crate::drafts::Drafts;
     use crate::session::{DocSession, FaceSelection, Selection, SessionOp};
 
-    /// **The face-frame form keeps its face's nodes past the
+    /// **The add-profile form keeps its held face's nodes past the
     /// selection**: once the selection moves on, the form still says
     /// its face's minting node by the last label it had, after a rename
     /// and a delete, where the selection's snapshot no longer names it.
     #[test]
-    fn a_held_datum_face_says_its_deleted_node_by_its_last_label() {
+    fn a_held_sketch_face_says_its_deleted_node_by_its_last_label() {
         let tol = pncad::tolerance::witness();
-        let (doc, block, boss) = crate::test_support::boss_on_block("datum-face-said", tol);
+        let (doc, block, boss) = crate::test_support::boss_on_block("sketch-face-said", tol);
         let t = test_utils::refusal::tag(block.0.digest());
         let face = FaceSelection {
             name: StableName {
@@ -2395,7 +2242,7 @@ mod datum_face_said {
             &mut drafts,
             SessionOp::Select(Selection::Face(face.clone())),
         );
-        drafts.hold_datum_face(face, session.selection_said());
+        drafts.hold_sketch_face(face, session.selection_said());
         perform(
             &mut session,
             &mut drafts,
@@ -2418,7 +2265,7 @@ mod datum_face_said {
         );
         let said = |kept| Speaker::of(landed).or_held(kept).node(block).to_string();
         assert_eq!(
-            said(drafts.datum_face_said()),
+            said(drafts.sketch_face_said()),
             format!("Extrude \"plinth\" ({t})"),
             "the form says the held face's node by its last label"
         );

@@ -264,9 +264,12 @@ fn placed_nominally(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeN
     (nominally_pinned(doc, placement), placement)
 }
 
-/// `placement` with its bundle emptied.
+/// `placement` with its bundle emptied: its values first, so no value
+/// is left naming a mate already removed.
 fn unpinned(doc: ProfileDoc, placement: RecipeNodeId) -> ProfileDoc {
-    fixture::bundle(&doc, placement)
+    let mut bundle = fixture::bundle(&doc, placement);
+    bundle.sort_by_key(|c| c.value().is_none());
+    bundle
         .into_iter()
         .fold(doc, |doc, c| {
             step(

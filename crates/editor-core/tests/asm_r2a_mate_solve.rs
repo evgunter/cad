@@ -176,7 +176,7 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, Kit) {
 /// **`placement`'s bundle replaced by one world pin at `frame`** — how
 /// a copy is put at a world pose ([`fixture::pin`]).
 fn repin(doc: ProfileDoc, placement: RecipeNodeId, frame: &Frame, o: &EvalOptions) -> ProfileDoc {
-    let doc = fixture::bundle(&doc, placement)
+    let doc = values_first(fixture::bundle(&doc, placement))
         .into_iter()
         .fold(doc, |doc, c| {
             step(
@@ -1514,4 +1514,11 @@ fn row7e_a_mate_not_on_its_copy_refuses_at_the_door() {
         "{fault:?}"
     );
     assert!(fault.to_string().contains("pins nothing"), "{fault}");
+}
+
+/// `bundle` with its values ahead of its mates: the order its
+/// constraints come out in, so no value is left naming a removed mate.
+fn values_first(mut bundle: Vec<editor_core::Constraint>) -> Vec<editor_core::Constraint> {
+    bundle.sort_by_key(|c| c.mate().is_some());
+    bundle
 }

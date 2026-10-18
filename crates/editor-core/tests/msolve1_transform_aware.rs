@@ -29,7 +29,7 @@ use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::seat::map_gap;
 use fixture::{
     constrain_at, gate, head, head_at, in_copy, insert, insert_pinned, len, on_frame, plane, rest,
-    run, scl, solve, step_with, xform,
+    run, scl, solve, step_with,
 };
 use geom_core::Tol;
 use geom_core::linalg::Affine3;
@@ -299,7 +299,7 @@ fn scene_at(label: &str, on_base: &[Step], at: &editor_core::Frame) -> Scene {
     let (doc, base) = insert(doc, fixture::mated_instance(base_part.doc_ref));
     let doc = fixture::pin(doc, base, at, &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
-    let (doc, a_at) = chain(doc, base, on_base);
+    let (doc, a_at) = chain(doc, base, on_base, &opts);
     let doc = world(doc, &opts, &[a_at], &[]);
     let (doc, mate) = seat(doc, top, &top_part, &|n| head_at(a_at, n), &base_part, base);
     Scene {
@@ -314,11 +314,46 @@ fn scene_at(label: &str, on_base: &[Step], at: &editor_core::Frame) -> Scene {
     }
 }
 
-/// Wraps `at` in each step of a transform chain, innermost first,
+/// **A copy of `input` moved within its own space** by the rigid
+/// motion `(t, axis, angle)`: a placement of it against its own
+/// geometry, under `o`. Returns the document and the placement.
+fn place_moved(
+    doc: ProfileDoc,
+    input: RecipeNodeId,
+    t: [f64; 3],
+    axis: [f64; 3],
+    angle: f64,
+    o: &EvalOptions,
+) -> (ProfileDoc, RecipeNodeId) {
+    let at = editor_core::Frame::rotate_then_translate(axis, angle, t, fixture::band())
+        .expect("a rotation axis with a direction");
+    crate::mate1_member_vocab::against_with(doc, input, input, &at, o)
+}
+
+/// `name` as the body `at` reads wears it: one `Placed` layer per
+/// placement between `at` and the body that minted it.
+fn worn_at(doc: &ProfileDoc, at: RecipeNodeId, name: StableName) -> StableName {
+    match doc.node(at) {
+        Some(Node::Place { shapes, .. }) => {
+            let below = doc
+                .operation_of(shapes[0].read)
+                .expect("the copied body is live");
+            crate::m10_5_clearance_interval::in_placement(at, worn_at(doc, below, name))
+        }
+        _ => name,
+    }
+}
+
+/// Wraps `at` in each step of a placement chain, innermost first,
 /// answering the last node.
-fn chain(mut doc: ProfileDoc, mut at: RecipeNodeId, steps: &[Step]) -> (ProfileDoc, RecipeNodeId) {
+fn chain(
+    mut doc: ProfileDoc,
+    mut at: RecipeNodeId,
+    steps: &[Step],
+    o: &EvalOptions,
+) -> (ProfileDoc, RecipeNodeId) {
     for &(t, ax, ang) in steps {
-        let (d, id)= place_moved(doc, at, t, ax, ang, OPTS);
+        let (d, id) = place_moved(doc, at, t, ax, ang, o);
         doc = d;
         at = id;
     }
@@ -507,7 +542,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
         let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a3a"), Tol::witness());
         let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
         let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
-        let (doc, xf)= place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, OPTS);
+        let (doc, xf) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts);
         let (doc, pattern) = insert(
             doc,
             Node::Pattern {
@@ -570,7 +605,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
                 },
             },
         );
-        let (doc, xf)= place_moved(doc, pattern, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], std::f64::consts::FRAC_PI_2, OPTS);
+        let (doc, xf) = place_moved(doc, pattern, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], std::f64::consts::FRAC_PI_2, &opts);
         let doc = world(doc, &opts, &[], &[(xf, 3)]);
         let a = in_copy(pattern, COPY, base_part.cap(base, CapEnd::End));
         let b = top_part.cap(top, CapEnd::Start);
@@ -745,8 +780,8 @@ fn two_operands(
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
-    let (doc, x1)= place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, OPTS);
-    let (doc, x2)= place_moved(doc, base, [5.0, 5.0, 10.0 + extra_lift], [0.0, 0.0, 1.0], 0.0, OPTS);
+    let (doc, x1) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts);
+    let (doc, x2) = place_moved(doc, base, [5.0, 5.0, 10.0 + extra_lift], [0.0, 0.0, 1.0], 0.0, &opts);
     let doc = world(doc, &opts, &[x1, x2], &[]);
     let (doc, m1) = seat(doc, top, &top_part, &|n| head_at(x1, n), &base_part, base);
     let second = rest(
@@ -828,7 +863,7 @@ fn a6_a_residual_bundle_leaves_the_copy_loose_with_or_without_the_transform() {
         let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
         let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
         let (doc, at) = if lift {
-            place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, OPTS)
+            place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts)
         } else {
             (doc, base)
         };
@@ -947,7 +982,7 @@ fn a8c_the_content_key_separates_two_operands() {
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
         let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
         let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
-        let (doc, xf)= place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, OPTS);
+        let (doc, xf) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts);
         let (doc, mate) = constrain_at(
             doc,
             top,
@@ -1217,7 +1252,7 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     );
     let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &o);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
-    let (doc, xf)= place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, OPTS);
+    let (doc, xf) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &o);
     let (doc, _) = constrain_at(
         doc,
         top,
@@ -1269,17 +1304,16 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         crate::fixture::side_head(&out.remainder, *on),
         crate::fixture::side_head(&out.remainder, *to),
     );
-    assert_ne!(
-        b.at, b.name.node,
-        "the `to` face is still read somewhere other than its mint"
-    );
-    let Some(Node::Transform { input, .. }) = out.remainder.node(b.at) else {
-        panic!("the `to` operand still names a transform");
+    let Some(Node::Place { shapes, .. }) = out.remainder.node(b.at) else {
+        panic!("the `to` operand still names a placement");
+    };
+    let [RoleSeg::Placed { of }] = b.name.path.as_slice() else {
+        panic!("the `to` face wears the placement's layer: {:?}", b.name);
     };
     assert_eq!(
-        out.remainder.operation_of(*input),
-        Some(b.name.node),
-        "over the very instance the name is headed at"
+        out.remainder.operation_of(shapes[0].read),
+        Some(of.name().node),
+        "over the very instance the name it wraps is headed at"
     );
     assert_eq!(
         a.at, a.name.node,
@@ -1381,7 +1415,7 @@ fn severed_operand_scene(label: &str) -> (ProfileDoc, MateRef, RecipeNodeId, Rec
     let (base_part, top_part, opts) = parts(label);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
-    let (doc, xf)= place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, OPTS);
+    let (doc, xf) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, mate) = constrain_at(
         doc,
@@ -1424,7 +1458,7 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
         },
     );
     let spin = std::f64::consts::FRAC_PI_2;
-    let (doc, t)= place_moved(doc, inner, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], spin, OPTS);
+    let (doc, t) = place_moved(doc, inner, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], spin, &opts);
     let (doc, outer) = insert(
         doc,
         Node::Pattern {
@@ -1519,7 +1553,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
         },
     );
     let (doc, of) = if via_transform {
-        place_moved(doc, outer, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, OPTS)
+        place_moved(doc, outer, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts)
     } else {
         (doc, outer)
     };

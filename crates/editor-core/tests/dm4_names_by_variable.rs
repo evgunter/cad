@@ -59,20 +59,36 @@ fn step_split(at: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         doc,
         Node::Split {
             target: ext.into(),
-            tool,
+            tool: tool.into(),
         },
     );
     (doc, ext, split)
 }
 
 /// The plane `x = at`, normal `+x`, read off `ext`'s own geometry.
-fn plane_at(
-    doc: &ProfileDoc,
-    ext: RecipeNodeId,
-    at: f64,
-) -> editor_core::pose::RoleRead<editor_core::Operand> {
-    fixture::plane_on(doc, ext, [at, 0.0, 0.0], [1.0, 0.0, 0.0])
+fn plane_at(doc: &ProfileDoc, ext: RecipeNodeId, at: f64) -> editor_core::Operand {
+    plane_read(doc, ext, [at, 0.0, 0.0], [1.0, 0.0, 0.0])
 }
+
+/// **The plane through `origin` normal to `normal`, read off `body`**, as
+/// one `Plane` read: the frame [`fixture::plane_on`] reads, through its
+/// `xy`, slid by the constant zero along its `z` — the spelling a
+/// split's tool slot is re-pointed at.
+fn plane_read(
+    doc: &ProfileDoc,
+    body: RecipeNodeId,
+    origin: [f64; 3],
+    normal: [f64; 3],
+) -> editor_core::Operand {
+    use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+    let frame = fixture::plane_on(doc, body, origin, normal).read;
+    editor_core::Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::through(frame.clone(), PoseRole::Xy),
+        along: RoleRead::through(frame, PoseRole::Z),
+        by: editor_core::Formula::zero(editor_core::Dimension::Length),
+    }))
+}
+
 
 /// `doc` with `split`'s tool moved to the plane `x = at`.
 fn plane_moved(doc: &ProfileDoc, ext: RecipeNodeId, split: RecipeNodeId, at: f64) -> ProfileDoc {
@@ -81,7 +97,7 @@ fn plane_moved(doc: &ProfileDoc, ext: RecipeNodeId, split: RecipeNodeId, at: f64
         DocEdit::SetParam {
             node: split,
             slot: SlotId::Operand(editor_core::OperandSlot::Tool),
-            value: plane_at(doc, ext, at).read.into(),
+            value: plane_at(doc, ext, at).into(),
             fresh: Vec::new(),
         },
     )

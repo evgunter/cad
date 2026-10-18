@@ -15,7 +15,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{failure, run};
-use crate::emit_sphere_cut_in_cap::{ball, brick_toward, dir};
+use crate::emit_sphere_cut_in_cap::{ball, brick_toward, dir, world_in_brick};
 use crate::fixture::insert;
 use editor_core::{
     BooleanValue, EntityKey, EntityKind, Entry, Node, ProfileDoc, RecipeNodeId, RoleSeg,
@@ -26,12 +26,14 @@ use geom_core::Tol;
 const ROW: &str =
     "work/emit/a-whole-ball-cut-by-a-tilted-brick-refuses-an-unclassified-member-edge-side.md";
 
-/// The ball, the brick, and `op` over them, ball first or not.
+/// The ball (its copy beside the brick), the brick, and `op` over
+/// them, ball first or not.
 fn document(op: &str, ball_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let doc = ProfileDoc::empty_derived("ball_cut_by_brick", Tol::witness());
     let (doc, b) = ball(doc, 1.0, 0.0);
-    let (doc, brick) = brick_toward(doc, editor_core::Operand::output(b, 0), dir(68.0, 50.0), 0.985, 0.2, 0.3);
-    let ball_body = editor_core::Operand::output(b, 0);
+    let (doc, brick, stands) = brick_toward(doc, dir(68.0, 50.0), 0.985, 0.2, 0.3);
+    let (doc, b) = world_in_brick(doc, brick, &stands, editor_core::Operand::output(b, 0));
+    let ball_body = editor_core::Operand::from(b);
     let brick_body = editor_core::Operand::from(brick);
     let (x, y) = if ball_first {
         (ball_body, brick_body)
@@ -58,6 +60,7 @@ fn body_of(payload: &ValuePayload<f64>) -> &topo::Body<f64> {
     match payload {
         ValuePayload::Body(b) => b,
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
+        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => panic!("expected a body, got {other:?}"),
     }
 }
@@ -103,7 +106,8 @@ fn a_ball_cut_by_a_brick_refuses_at_its_turned_pole_where_a_member_vertex_is_rea
             .filter_map(|(n, e)| match (n.path.as_slice(), e) {
                 ([RoleSeg::From { of, .. }], Entry::Unique(r))
                     if of.kind == EntityKind::Vertex
-                        && matches!(of.path.as_slice(), [RoleSeg::Pole(_)]) =>
+                        && matches!(of.path.as_slice(), [RoleSeg::Placed { of }]
+                            if matches!(of.path.as_slice(), [RoleSeg::Pole(_)])) =>
                 {
                     match r.key {
                         EntityKey::Vertex(v) => Some(points[&v]),

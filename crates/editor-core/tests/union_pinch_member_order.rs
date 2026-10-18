@@ -39,11 +39,11 @@
 
 use std::collections::BTreeMap;
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
-use crate::fixture::{ends, face_vertices, insert, len, on_frame, point};
+use crate::fixture::{ends, face_vertices, insert, len, point};
 use editor_core::{
-    BooleanValue, Evaluation, ExtrudeSide, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    BooleanValue, Evaluation, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
     ValuePayload,
 };
 use geom_core::Tol;
@@ -102,22 +102,39 @@ fn side_pinch(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     (doc, vec![plate, p1, p2])
 }
 
-/// A prism over the counterclockwise `corners` from `z0`, `dz` high.
-fn prism(doc: ProfileDoc, corners: &[(f64, f64)], z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = on_frame(
-        doc,
-        [0.0, 0.0, z0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![corners.to_vec()],
-    );
-    insert(
+/// Where a prism's copy stands: placed against a body, its base `z0` up
+/// that body's own z, or in the world `z0` up the world's z.
+#[derive(Clone, Copy)]
+enum Stand {
+    On(RecipeNodeId),
+    World,
+}
+
+/// A prism over the counterclockwise `corners` on its own xy, `dz`
+/// high, its copy standing from `z0` as `at` says: the placement.
+fn prism(
+    doc: ProfileDoc,
+    at: Stand,
+    corners: &[(f64, f64)],
+    z0: f64,
+    dz: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = insert(doc, Node::Profile(crate::fixture::desc(vec![corners.to_vec()])));
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
         },
-    )
+    );
+    match at {
+        Stand::On(target) => crate::fixture::slid(doc, target, body, [0.0, 0.0, z0]),
+        Stand::World => crate::fixture::in_world(
+            doc,
+            body,
+            &editor_core::Frame::translation([0.0, 0.0, z0]),
+        ),
+    }
 }
 
 /// The plate and two blocks whose footprints on its top are holes
@@ -148,7 +165,7 @@ const WEDGE: [(f64, f64); 3] = [(1.5, 1.0), (1.0, 0.6), (1.2, 0.5)];
 /// angle of 3π/2, with the wedge inside the quadrant the L leaves.
 fn reflex_hole(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
-    let (doc, wedge) = prism(doc, &WEDGE, 0.5, 1.5);
+    let (doc, wedge) = prism(doc, Stand::On(plate), &WEDGE, 0.5, 1.5);
     let ell = [
         (1.0, 1.0),
         (1.5, 1.0),
@@ -157,7 +174,7 @@ fn reflex_hole(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
         (2.0, 1.5),
         (1.0, 1.5),
     ];
-    let (doc, l) = prism(doc, &ell, 0.47, 1.23);
+    let (doc, l) = prism(doc, Stand::On(plate), &ell, 0.47, 1.23);
     (doc, vec![plate, wedge, l])
 }
 
@@ -984,21 +1001,28 @@ fn two_wedges_name_their_meeting_point_the_touch_of_their_legs_in_either_order()
 
 /// An upright prism over the triangle from (1.5, 1) to the points at the
 /// bearings `a0` and `a1` (degrees) 0.4 from it, over `z`.
-fn sector_prism(doc: ProfileDoc, a0: f64, a1: f64, z: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
-    let at = |a: f64| {
+fn sector_prism(
+    doc: ProfileDoc,
+    at: Stand,
+    a0: f64,
+    a1: f64,
+    z: (f64, f64),
+) -> (ProfileDoc, RecipeNodeId) {
+    let stand = at;
+    let on = |a: f64| {
         let (s, c) = f64::to_radians(a).sin_cos();
         (0.4f64.mul_add(c, MEET[0]), 0.4f64.mul_add(s, MEET[1]))
     };
-    prism(doc, &[(MEET[0], MEET[1]), at(a0), at(a1)], z.0, z.1 - z.0)
+    prism(doc, stand, &[(MEET[0], MEET[1]), on(a0), on(a1)], z.0, z.1 - z.0)
 }
 
 /// The plate and three prisms over 50° sectors about (1.5, 1), each 70°
 /// from the next, touching pairwise along the vertical line through it.
 fn three_on_a_line(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
-    let (doc, a) = sector_prism(doc, 0.0, 50.0, (0.5, 2.0));
-    let (doc, b) = sector_prism(doc, 120.0, 170.0, (0.47, 1.7));
-    let (doc, c) = sector_prism(doc, 240.0, 290.0, (0.44, 1.81));
+    let (doc, a) = sector_prism(doc, Stand::On(plate), 0.0, 50.0, (0.5, 2.0));
+    let (doc, b) = sector_prism(doc, Stand::On(plate), 120.0, 170.0, (0.47, 1.7));
+    let (doc, c) = sector_prism(doc, Stand::On(plate), 240.0, 290.0, (0.44, 1.81));
     (doc, vec![plate, a, b, c])
 }
 
@@ -1006,10 +1030,10 @@ fn three_on_a_line(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 /// from the next, touching pairwise along the vertical line through it.
 fn four_on_a_line(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
-    let (doc, a) = sector_prism(doc, 0.0, 50.0, (0.5, 2.0));
-    let (doc, b) = sector_prism(doc, 90.0, 140.0, (0.47, 1.7));
-    let (doc, c) = sector_prism(doc, 180.0, 230.0, (0.44, 1.81));
-    let (doc, d) = sector_prism(doc, 270.0, 320.0, (0.41, 1.63));
+    let (doc, a) = sector_prism(doc, Stand::On(plate), 0.0, 50.0, (0.5, 2.0));
+    let (doc, b) = sector_prism(doc, Stand::On(plate), 90.0, 140.0, (0.47, 1.7));
+    let (doc, c) = sector_prism(doc, Stand::On(plate), 180.0, 230.0, (0.44, 1.81));
+    let (doc, d) = sector_prism(doc, Stand::On(plate), 270.0, 320.0, (0.41, 1.63));
     (doc, vec![plate, a, b, c, d])
 }
 
@@ -1245,9 +1269,9 @@ fn a_subtract_against_the_wedges_union_names_their_meeting_alike_in_every_member
 /// the gap between the first two's wedges, crossing both.
 fn bridging(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
-    let (doc, a) = sector_prism(doc, 0.0, 50.0, (0.5, 2.0));
-    let (doc, b) = sector_prism(doc, 120.0, 170.0, (0.47, 1.7));
-    let (doc, c) = sector_prism(doc, 30.0, 140.0, (0.44, 1.81));
+    let (doc, a) = sector_prism(doc, Stand::On(plate), 0.0, 50.0, (0.5, 2.0));
+    let (doc, b) = sector_prism(doc, Stand::On(plate), 120.0, 170.0, (0.47, 1.7));
+    let (doc, c) = sector_prism(doc, Stand::On(plate), 30.0, 140.0, (0.44, 1.81));
     (doc, vec![plate, a, b, c])
 }
 
@@ -1314,10 +1338,10 @@ fn same_table(here: &NamedShape, first: &NamedShape, what: &str) {
 /// wedges over a stretch of the line: `d` from z 0.2 to 0.4 and `c` over
 /// `c_z`.
 fn two_bridges(doc: ProfileDoc, c_z: (f64, f64)) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, a) = sector_prism(doc, 0.0, 50.0, (0.12, 2.0));
-    let (doc, b) = sector_prism(doc, 120.0, 170.0, (0.1, 1.7));
-    let (doc, d) = sector_prism(doc, 30.0, 140.0, (0.2, 0.4));
-    let (doc, c) = sector_prism(doc, 30.0, 140.0, c_z);
+    let (doc, a) = sector_prism(doc, Stand::World, 0.0, 50.0, (0.12, 2.0));
+    let (doc, b) = sector_prism(doc, Stand::World, 120.0, 170.0, (0.1, 1.7));
+    let (doc, d) = sector_prism(doc, Stand::World, 30.0, 140.0, (0.2, 0.4));
+    let (doc, c) = sector_prism(doc, Stand::World, 30.0, 140.0, c_z);
     (doc, vec![a, b, d, c])
 }
 

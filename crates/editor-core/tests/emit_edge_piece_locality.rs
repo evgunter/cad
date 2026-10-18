@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 
 use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
-use crate::fixture::{insert, len, point, step, table};
+use crate::fixture::{self, insert, len, point, step, table};
 use editor_core::{
     Coord, DocEdit, EntityKey, Entry, Node, ProfileDoc, Qualifier, RoleSeg, SlideAxis, SlotId,
     StableName,
@@ -162,14 +162,14 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
     // read off the rod's own geometry.
     let plane = |doc: &ProfileDoc, other: f64| {
         let (nx, ny) = normal(other);
-        crate::fixture::plane_on(doc, rod, [p.0, p.1, 0.0], [nx, ny, 0.0])
+        plane_read(doc, rod, [p.0, p.1, 0.0], [nx, ny, 0.0])
     };
     let tool = plane(&doc, 300.0);
     let (doc, cut) = insert(
         doc,
         Node::Split {
             target: rod.into(),
-            tool,
+            tool: tool.into(),
         },
     );
     let (doc2, _) = step(
@@ -177,7 +177,7 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
         DocEdit::SetParam {
             node: cut,
             slot: SlotId::Operand(editor_core::OperandSlot::Tool),
-            value: plane(&doc, 30.0).read.into(),
+            value: plane(&doc, 30.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -277,4 +277,23 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
         ),
         "the rim leaves the Below half at 30°: {second:?}"
     );
+}
+
+/// **The plane through `origin` normal to `normal`, read off `body`**, as
+/// one `Plane` read: the frame [`fixture::plane_on`] reads, through its
+/// `xy`, slid by the constant zero along its `z` — the spelling a
+/// split's tool slot is re-pointed at.
+fn plane_read(
+    doc: &ProfileDoc,
+    body: RecipeNodeId,
+    origin: [f64; 3],
+    normal: [f64; 3],
+) -> editor_core::Operand {
+    use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+    let frame = fixture::plane_on(doc, body, origin, normal).read;
+    editor_core::Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::through(frame.clone(), PoseRole::Xy),
+        along: RoleRead::through(frame, PoseRole::Z),
+        by: editor_core::Formula::zero(editor_core::Dimension::Length),
+    }))
 }

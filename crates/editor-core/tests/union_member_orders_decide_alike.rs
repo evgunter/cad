@@ -40,7 +40,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
 use crate::emit_boolean_vertex_keys::named_geometry;
 use crate::fixture::insert;
@@ -74,11 +74,12 @@ fn stepped_stack(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 /// A table: a top resting on four legs at its corners, each leg flush
 /// with two of the top's walls — 120 orders, sampled.
 fn table(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    // The top's own z = 0 stands 2 up: the legs reach down to z = -2.
     let (doc, top) = block(doc, (0.0, 4.0), (0.0, 3.0), 0.25);
-    let (doc, l0) = block_on(doc, top, (0.0, 0.5), (0.0, 0.5), 0.0, 2.0);
-    let (doc, l1) = block_on(doc, top, (3.5, 4.0), (0.0, 0.5), 0.0, 2.0);
-    let (doc, l2) = block_on(doc, top, (0.0, 0.5), (2.5, 3.0), 0.0, 2.0);
-    let (doc, l3) = block_on(doc, top, (3.5, 4.0), (2.5, 3.0), 0.0, 2.0);
+    let (doc, l0) = block_on(doc, top, (0.0, 0.5), (0.0, 0.5), -2.0, 2.0);
+    let (doc, l1) = block_on(doc, top, (3.5, 4.0), (0.0, 0.5), -2.0, 2.0);
+    let (doc, l2) = block_on(doc, top, (0.0, 0.5), (2.5, 3.0), -2.0, 2.0);
+    let (doc, l3) = block_on(doc, top, (3.5, 4.0), (2.5, 3.0), -2.0, 2.0);
     (doc, vec![top, l0, l1, l2, l3])
 }
 

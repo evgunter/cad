@@ -205,17 +205,14 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
     );
     let (doc, moved) = inserted(
         &doc,
-        Node::transform(
-            extrude,
-            pncad::document::Step::Rigid {
-                translation: [len(0.01), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
+        Node::place(vec![pncad::document::BodyRead::plain(extrude.into())]),
         tol,
     );
-    let (doc, _) = placed(&doc, moved, tol);
+    let at = pncad::document::Frame {
+        translation: [0.01, 0.0, 0.0],
+        ..pncad::document::Frame::IDENTITY
+    };
+    let doc = pin(&doc, moved, &at, &pncad::document::EvalOptions::default(), tol);
     (doc, extrude, moved)
 }
 
@@ -276,23 +273,6 @@ pub fn gallery_ring_at(tol: Tol) -> String {
 // suite's geometry, so a per-suite copy could only drift.
 
 use viewer::session::{DocSession, FaceSelection, SessionOp};
-
-/// Add the world xy frame through the session, answering its id — the
-/// pick every `SessionOp::AddProfile` below hands over.
-///
-/// Through the vocabulary's own numbers (`ProfilePlane::world_xy`)
-/// rather than a second spelling of them here: the add-profile form's
-/// `NewXy` choice mints that frame, so a suite that hand-wrote the
-/// components would stop testing the frame the chrome authors the
-/// moment either moved.
-pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {
-    session_insert(
-        session,
-        SessionOp::AddDatum {
-            datum: viewer::session::ProfilePlane::world_xy().expect("the world xy frame lowers"),
-        },
-    )
-}
 
 /// **Perform one authoring op and answer the node it made**: its first
 /// committed edit inserts that node, and every later edit is the world's
@@ -463,32 +443,25 @@ pub fn add_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::Mat
 }
 
 /// **A rectangle profile through the session**: the chrome's rectangle
-/// template, `width` by `height` and centred on `plane`'s origin,
-/// drawn by `SessionOp::AddProfile` — answering the profile.
-pub fn rectangle_in(
-    session: &mut DocSession,
-    plane: RecipeNodeId,
-    width: f64,
-    height: f64,
-) -> RecipeNodeId {
+/// template, `width` by `height` and centred on the profile's own
+/// origin, drawn by `SessionOp::AddProfile` — answering the profile.
+pub fn rectangle_in(session: &mut DocSession, width: f64, height: f64) -> RecipeNodeId {
     session_insert(
         session,
         SessionOp::AddProfile {
-            plane: viewer::session::ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Rectangle { width, height })],
         },
     )
 }
 
-/// **A box through the session**: [`rectangle_in`] on `plane`, then
+/// **A box through the session**: [`rectangle_in`], then
 /// `SessionOp::AddExtrude` by `depth` — answering the profile and the
 /// extrude.
 pub fn box_in(
     session: &mut DocSession,
-    plane: RecipeNodeId,
     [width, height, depth]: [f64; 3],
 ) -> (RecipeNodeId, RecipeNodeId) {
-    let profile = rectangle_in(session, plane, width, height);
+    let profile = rectangle_in(session, width, height);
     let extrude = session_insert(
         session,
         SessionOp::AddExtrude {
@@ -499,11 +472,10 @@ pub fn box_in(
     (profile, extrude)
 }
 
-/// [`box_in`] on a fresh world xy frame ([`xy_frame_in`]) — answering
-/// the extrude, the body a row goes on to combine, blend or measure.
+/// [`box_in`], answering the extrude — the body a row goes on to
+/// combine, blend or measure.
 pub fn xy_box_in(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
-    let plane = xy_frame_in(session);
-    box_in(session, plane, size).1
+    box_in(session, size).1
 }
 
 /// **One node's row out of a tree render.**

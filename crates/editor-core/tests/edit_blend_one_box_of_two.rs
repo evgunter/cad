@@ -43,6 +43,7 @@ fn two_boxes(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(label, tol());
     let (doc, a) = unit_box(doc, 0.0);
     let (doc, b) = unit_box(doc, 2.0);
+    let (doc, b) = fixture::slid(doc, a, b, [0.0; 3]);
     fixture::insert(
         doc,
         Node::Union {

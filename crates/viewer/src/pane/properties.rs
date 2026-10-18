@@ -2117,7 +2117,7 @@ mod verdict_tests {
     use super::standing_verdict;
     use crate::pane::headless::{Landed, Voices, find, find_opening, landed_voiced};
     use crate::session::{
-        DocSession, EdgeSelection, FaceSelection, ProfilePlane, Selection, SessionOp, Standing,
+        DocSession, EdgeSelection, FaceSelection, Selection, SessionOp, Standing,
     };
     use crate::theme::Theme;
 
@@ -2426,26 +2426,26 @@ mod verdict_tests {
         let (doc, _, _) = crate::test_support::boss_on_block("verdict-unlanded", tol);
         let mut session = DocSession::inline(doc, tol);
         session.pump();
-        let added = session.perform(SessionOp::AddDatum {
-            datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
+        let added = session.perform(SessionOp::AddProfile {
+            loops: vec![crate::test_support::rectangle_loop([0.0, 0.0], 0.01, 0.01)],
         });
         assert!(added.refusal.is_none(), "{:?}", added.refusal);
-        let datum = *session.doc().ids().last().expect("the added datum");
+        let profile = *session.doc().ids().last().expect("the added profile");
         let named = session.perform(SessionOp::SetLabel {
-            node: datum,
+            node: profile,
             label: Some(Label::new("floor").expect("a label")),
         });
         assert!(named.refusal.is_none(), "{:?}", named.refusal);
         assert!(
             session
                 .landed_pair()
-                .is_some_and(|(landed, _)| landed.node(datum).is_none()),
-            "the landed run does not hold the datum yet"
+                .is_some_and(|(landed, _)| landed.node(profile).is_none()),
+            "the landed run does not hold the profile yet"
         );
-        let labelled = session.doc().spoken(datum).to_string();
+        let labelled = session.doc().spoken(profile).to_string();
         assert!(labelled.contains("\"floor\""), "{labelled}");
-        session.perform(SessionOp::Select(Selection::Node(datum)));
-        let deleted = session.perform(SessionOp::DeleteNode { node: datum });
+        session.perform(SessionOp::Select(Selection::Node(profile)));
+        let deleted = session.perform(SessionOp::DeleteNode { node: profile });
         assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
         session.pump();
         let files = crate::parts::PartFiles::default();
@@ -2454,11 +2454,11 @@ mod verdict_tests {
                 session.doc(),
                 &files,
                 session.selection_said(),
-                datum,
+                profile,
                 false
             ),
             labelled,
-            "the deleted datum heads the pane as the shown document said it"
+            "the deleted profile heads the pane as the shown document said it"
         );
     }
 

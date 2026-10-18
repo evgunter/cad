@@ -153,18 +153,14 @@ UNHASHABLE = {
     "McValue": "by design: `editor_core::McValue` derives "
     "`PartialEq` and no `Hash`, and this class mirrors its derives, "
     "for `McMeasure`'s reason: a row of empirical statistics",
-    "Placement": "by design: `editor_core::Placement` derives "
-    "`PartialEq` and no `Hash`, and this class mirrors its derives — "
-    "`Frame`'s reason, one level out: a literal step bottoms out in "
-    "`f64`",
+    "StationMove": "by design: `editor_core::StationMove` derives "
+    "`PartialEq` and no `Hash`, and this class mirrors its derives. A "
+    "station move is part of the loft section that holds it, never "
+    "keyed on, and its number is a `Formula`",
     "WorldRead": "by design: `editor_core::WorldRead` derives "
     "`PartialEq` and no `Hash`, and this class mirrors its derives. A "
     "world read is part of the mate that holds it, never keyed on, and "
     "its moves' numbers are `Formula`s",
-    "SketchPlane": "by design: `profile::SketchPlane<f64>` spells `==` "
-    "as `bit_eq` and derives no `Hash`, and this class mirrors it. The "
-    "comparison is bit-for-bit on both sides — `-0.0` and `0.0` are "
-    "different planes — and neither side keys by one",
     "ValidationFinding": "by design: the binding's own "
     "`validation::Finding` projection derives `PartialEq` and `Eq` and "
     "no `Hash`, and this class mirrors its derives — unhashed to match "
@@ -180,7 +176,7 @@ class TestEveryMirrorIsAKey(unittest.TestCase):
         self.mirrors = enum_mirrors()
         # A probe that found nothing would pass every row below in
         # silence. It has to find the surface it is measuring.
-        self.assertGreaterEqual(len(self.mirrors), 20)
+        self.assertGreaterEqual(len(self.mirrors), 19)
 
     def test_every_member_of_every_mirror_hashes(self):
         unhashable = sorted(

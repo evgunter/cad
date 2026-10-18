@@ -275,15 +275,6 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
 
     // Replay from empty reproduces the appearance bit-identically.
     let edits = [
-        // The frame first: the profile names it, so a replay that
-        // skipped it would insert a profile with an unresolved input.
-        DocEdit::InsertNode {
-            node: Box::new(editor_core::test_support::as_written(
-                &doc3,
-                doc3.node(plane).unwrap(),
-            )),
-            fresh: Vec::new(),
-        },
         DocEdit::InsertNode {
             node: Box::new(crate::fixture::as_authored(&doc3, doc3.node(p).unwrap())),
             fresh: Vec::new(),

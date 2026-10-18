@@ -1,12 +1,12 @@
-//! **A profile placed on a DERIVED frame whose placement is a pure
+//! **A body placed on a DERIVED pose whose placement is a pure
 //! TRANSLATION, on the symbolic lane** — DOCM-1 review lane R1's two
 //! rows (`docm/1-review-r1`, `docm1_review_r1_probes_interval.rs`),
 //! ported unchanged in what they assert, and the measurement of what
 //! answers them.
 //!
-//! A derived frame (`Datum::FaceFrame`) reads its axes off the body it
-//! is placed on, so those axes are the kernel's ALREADY-normalised
-//! stored vectors and the boss extrude above normalises them again.
+//! A derived placement reads its pose off the body its copy rests on
+//! (a face of it, read as its plane), so its axes are the kernel's
+//! stored vectors, which the placed boss carries.
 //! On THIS document the widened parameter is the cube's HEIGHT, so
 //! every normalised quantity in the chain is CONSTANT in it: the
 //! `sqrt` atoms are `sqrt(16384/256)` and friends, rule A0 folds them
@@ -44,7 +44,7 @@ use crate::m10_8_harness::head;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
-    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
+    CancelToken, CapEnd, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
     FreeVar, Node, NodeResult, ProfileDoc, ProfileLift, RecipeNodeId, RoleSeg, UnitSym, VarName,
     evaluate,
 };
@@ -132,9 +132,64 @@ fn failures<T: geom_core::Decide>(ev: &Evaluation<T>) -> Vec<String> {
         .collect()
 }
 
-/// **The derived-frame document**: a unit box whose HEIGHT is the
-/// widened parameter, a frame derived from its top cap, a profile on
-/// that frame, and an extrude of the profile.
+/// The zero values a seat at rest names: no slide, no spin.
+fn at_rest() -> Vec<(editor_core::Coord, Formula)> {
+    use editor_core::{Coord, SlideAxis};
+    vec![
+        (Coord::Slide(SlideAxis::X), Formula::zero(Dimension::Length)),
+        (Coord::Slide(SlideAxis::Y), Formula::zero(Dimension::Length)),
+        (Coord::Spin, Formula::zero(Dimension::Angle)),
+    ]
+}
+
+/// The plane of `body`'s `end` cap, read at `site` (the body itself, or
+/// a placement of it, whose copy wears the cap's name under its
+/// `Placed` layer).
+fn cap_plane(site: RecipeNodeId, body: RecipeNodeId, end: CapEnd) -> editor_core::Operand {
+    let name = fixture::fname(body, RoleSeg::Cap(end));
+    let name = if site == body {
+        name
+    } else {
+        crate::m10_5_clearance_interval::in_placement(site, name)
+    };
+    fixture::plane(editor_core::Operand::select(site, vec![name]))
+}
+
+/// **`body` seated on `to`**: a copy of it whose start cap rests on the
+/// plane `to`, at rest in that plane. Returns the placement.
+fn seated(r: &mut Recorder, body: RecipeNodeId, to: editor_core::Operand) -> RecipeNodeId {
+    let placement = r.insert(Node::place(vec![editor_core::BodyRead::plain(
+        editor_core::Operand::from(body),
+    )]));
+    r.constrain(
+        placement,
+        editor_core::Mate {
+            on: cap_plane(body, body, CapEnd::Start),
+            to: editor_core::Target::Pose(to),
+            class: editor_core::ContactClass::Rest,
+        },
+        at_rest(),
+    );
+    placement
+}
+
+/// `body`'s start-cap plane slid `by` up its own z and turned to face
+/// up it: the plane a copy of `body` rests on to stand `by` up.
+fn raised(body: RecipeNodeId, by: Formula) -> editor_core::Operand {
+    use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+    let start = || cap_plane(body, body, CapEnd::Start);
+    let down = editor_core::Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(start()),
+        along: RoleRead::through(start(), PoseRole::Normal),
+        by: Formula::neg(by).expect("a length negates"),
+    }));
+    fixture::flip(down)
+}
+
+/// **The derived-placement document**: a unit box whose HEIGHT is the
+/// widened parameter, and a boss whose copy rests on the box's top cap
+/// — a pose read off the box's geometry, which the height reaches.
+/// Returns the document, the boss's profile and the boss's placement.
 pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     param_doc("h", 1.0, half, &mut r);
@@ -148,54 +203,35 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
         profile: p.into(),
         distance: Formula::named(VarName::from_static("h"), Dimension::Length),
     });
-    let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        face: editor_core::Operand::select(
-            cube,
-            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
-        ),
-        spin: ang(0.0),
-    }));
-    let boss_p = r.insert(Node::Profile(fixture::desc(
-        frame,
-        vec![fixture::square(0.0, 0.0, 0.5)],
-    )));
+    let boss_p = r.insert(Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])));
     let boss = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(0.25),
     });
-    (r.doc, boss_p, boss)
+    let placed = seated(&mut r, boss, cap_plane(cube, cube, CapEnd::End));
+    (r.doc, boss_p, placed)
 }
 
-/// **The authored twin**: a frame whose ORIGIN z is the widened
-/// parameter, a profile on it, an extrude — under `Guided`, the
-/// placement is at `T` exactly as a derived frame's is under every
-/// lift.
+/// **The authored twin**: a boss whose copy stands the widened
+/// parameter `z0` up its own z, on a pose of its own geometry the
+/// parameter moves — under `Guided`, the placement is at `T` exactly as
+/// the derived placement's is under every lift.
 pub(crate) fn boss_on_widened_authored_frame(half: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     param_doc("z0", 1.0, half, &mut r);
-    let frame = r.insert(Node::Datum(Datum::Frame {
-        origin: [
-            len(0.0),
-            len(0.0),
-            Formula::named(VarName::from_static("z0"), Dimension::Length),
-        ],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
-    let boss_p = r.insert(Node::Profile(fixture::desc(
-        frame,
-        vec![fixture::square(0.0, 0.0, 0.5)],
-    )));
+    let boss_p = r.insert(Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])));
     let boss = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(0.25),
     });
-    (r.doc, boss)
+    let z0 = Formula::named(VarName::from_static("z0"), Dimension::Length);
+    let placed = seated(&mut r, boss, raised(boss, z0));
+    (r.doc, placed)
 }
 
-/// **The transform-lifted document**: an EXACT box lifted by a widened
-/// rigid transform, a derived frame on the lifted body's top cap, a
-/// profile, and an extrude above it.
+/// **The lifted document**: an EXACT box whose copy is lifted by a
+/// widened slide, and a boss whose copy rests on the lifted copy's top
+/// cap.
 pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     param_doc("lift", 0.0, half, &mut r);
@@ -209,33 +245,14 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
         profile: p.into(),
         distance: len(1.0),
     });
-    let lifted = r.insert(Node::transform(
-        cube,
-        editor_core::Step::Rigid {
-            translation: [
-                len(0.0),
-                len(0.0),
-                Formula::named(VarName::from_static("lift"), Dimension::Length),
-            ],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
-    let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        face: editor_core::Operand::select(
-            lifted,
-            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
-        ),
-        spin: ang(0.0),
-    }));
-    let boss_p = r.insert(Node::Profile(fixture::desc(
-        frame,
-        vec![fixture::square(0.0, 0.0, 0.5)],
-    )));
-    r.insert(Node::Extrude {
+    let lift = Formula::named(VarName::from_static("lift"), Dimension::Length);
+    let lifted = seated(&mut r, cube, raised(cube, lift));
+    let boss_p = r.insert(Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])));
+    let boss = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(0.25),
     });
+    seated(&mut r, boss, cap_plane(lifted, cube, CapEnd::End));
     r.doc
 }
 

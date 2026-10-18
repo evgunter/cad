@@ -124,11 +124,6 @@ use editor_core::{
 };
 use profile::{ArcMode, TargetKind, Verb};
 
-/// The plane the corpus programs name. These programs are resolved and
-/// serialized on their own, never inserted into a document, so nothing
-/// here reads the node it points at.
-const SCAFFOLD_PLANE: editor_core::RecipeNodeId = editor_core::RecipeNodeId::new(0, 0);
-
 fn point(x: f64, y: f64) -> ProgramTarget<Formula> {
     ProgramTarget::Point(len2([x, y]))
 }

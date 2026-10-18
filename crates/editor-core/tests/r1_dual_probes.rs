@@ -114,12 +114,6 @@ impl D {
         self.sc(p.y);
         self.sc(p.z);
     }
-
-    fn v3<T: Decide + Bounds>(&mut self, v: geom_core::Vec3<T>) {
-        self.sc(v.x);
-        self.sc(v.y);
-        self.sc(v.z);
-    }
 }
 
 /// The (u, v) lattice every surface is sampled on, and the parameters

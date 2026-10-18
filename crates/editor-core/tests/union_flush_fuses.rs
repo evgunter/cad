@@ -4,28 +4,18 @@
 //! cites.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
-use crate::fixture::{self, ang, flush_pairs, fname, insert, len, member_face, scl, step, table};
+use crate::fixture::{self, flush_pairs, fname, insert, member_face, step, table};
 use editor_core::{
     BooleanValue, DocEdit, EntityKind, Entry, Evaluation, Node, ProfileDoc, RecipeNodeId, RoleSeg,
     StableName, ValuePayload, VarId,
 };
 use geom_core::Tol;
 
-/// A rigid placement of `input`, translated along +x.
+/// A copy of `input` placed against its own geometry, slid along +x.
 fn placed(doc: ProfileDoc, input: RecipeNodeId, dx: f64) -> (ProfileDoc, RecipeNodeId) {
-    insert(
-        doc,
-        Node::transform(
-            input,
-            editor_core::Step::Rigid {
-                translation: [len(dx), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    )
+    fixture::slid(doc, input, input, [dx, 0.0, 0.0])
 }
 
 /// **Two flush placements of ONE prototype fuse into one body.**
@@ -240,9 +230,7 @@ fn redrawing_another_member_never_takes_a_held_flush_stretch() {
             let doc = ProfileDoc::empty_derived("redraw-flush", tol);
             let (doc, _) = insert(
                 doc,
-                Node::Datum(editor_core::Datum::Point {
-                    position: [len(f64::from(salt)), len(0.0), len(0.0)],
-                }),
+                Node::Profile(fixture::desc(vec![fixture::square(f64::from(salt), 0.0, 0.5)])),
             );
             let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 1.0);
             let (doc, b) = block_on(doc, a, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);

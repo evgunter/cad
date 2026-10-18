@@ -78,9 +78,9 @@ fn w_and_h(seed: &str) -> ProfileDoc {
     declare(&doc, "h", VarDecl::defined(times(2, "w")))
 }
 
-/// A unit square at `cx` extruded by `depth`: the frame, the profile
-/// and the extrude.
-fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId; 3]) {
+/// A unit square at `cx` extruded by `depth`: the profile and the
+/// extrude.
+fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId; 2]) {
     let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
@@ -88,7 +88,6 @@ fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId
         [0.0, 1.0, 0.0],
         vec![square(cx, 0.0, 0.5)],
     );
-    let frame = doc.ids()[doc.ids().len() - 2];
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
@@ -96,12 +95,12 @@ fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId
             distance: depth,
         },
     );
-    (doc, [frame, profile, extrude])
+    (doc, [profile, extrude])
 }
 
 /// A unit cube at `cx` with every edge blended by `radius`: the blend.
 fn filleted(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, [_, _, cube]) = block(doc, cx, len(1.0));
+    let (doc, [_, cube]) = block(doc, cx, len(1.0));
     let edges = prism_edges(&doc, cube, 4);
     insert(doc, Node::fillet(cube, radius, edges))
 }
@@ -254,7 +253,7 @@ fn a_defined_variable_carries_its_inputs_derivative_and_takes_no_seed() {
 fn an_input_edit_closes_the_diff_over_its_definitions() {
     let doc = w_and_h("intent-literals-a-invalidation");
     let doc = declare(&doc, "v", free(0.5));
-    let (doc, [_, _, reads_h]) = block(doc, 0.0, named("h"));
+    let (doc, [_, reads_h]) = block(doc, 0.0, named("h"));
     let (doc, _) = block(doc, 4.0, named("v"));
     let prior = eval_after(&doc, None);
     assert!(failures(&prior).is_empty(), "{:?}", failures(&prior));
@@ -533,7 +532,7 @@ fn a_definition_past_the_expansion_bound_refuses() {
 fn the_anonymous_lifecycle_cascades_through_definitions() {
     let doc = w_and_h("intent-literals-a-cascade");
     let (w, h) = (id(&doc, "w"), id(&doc, "h"));
-    let (doc, [_, _, extrude]) = block(doc, 0.0, named("h"));
+    let (doc, [_, extrude]) = block(doc, 0.0, named("h"));
     let unname = |doc: &ProfileDoc, var: VarId| {
         step(
             doc,
@@ -594,7 +593,7 @@ fn a_variable_read_by_a_named_definition_may_be_anonymous() {
 fn a_definition_reading_a_deleted_variable_refuses_at_its_readers() {
     let doc = w_and_h("intent-literals-a-refused");
     let (w, h) = (id(&doc, "w"), id(&doc, "h"));
-    let (doc, [_, _, extrude]) = block(doc, 0.0, named("h"));
+    let (doc, [_, extrude]) = block(doc, 0.0, named("h"));
     let doc = step(&doc, DocEdit::DeleteVar { var: n("w").into() }).doc;
     let ev = eval_after(&doc, None);
     let Some(NodeResult::Failed(err)) = ev.nodes.get(&extrude) else {
@@ -705,7 +704,7 @@ fn split_and_inline_carry_definitions() {
     .doc;
     let (doc, cut) = block(doc, 0.0, named("h"));
     let (doc, kept) = block(doc, 10.0, named("kept"));
-    let doc = crate::fixture::place_all(doc, &[cut[2], kept[2]]);
+    let doc = crate::fixture::place_all(doc, &[cut[1], kept[1]]);
     let out = split(
         &doc,
         &BTreeSet::from(cut),
@@ -1002,7 +1001,7 @@ fn part_defining_h(seed: &str) -> (ProfileDoc, PartStore, editor_core::DocRef) {
         "h",
         VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
     );
-    let (part, [_, _, body]) = block(part, 0.0, named("h"));
+    let (part, [_, body]) = block(part, 0.0, named("h"));
     let part = crate::fixture::place(part, body).0;
     let mut store = PartStore::default();
     let doc_ref = store.insert(part.clone(), Tol::witness());

@@ -163,7 +163,7 @@ fn repinned(
         )
         .expect("the update applies")
         .doc;
-    let doc = fixture::bundle(&doc, node).into_iter().fold(doc, |doc, c| {
+    let doc = values_first(fixture::bundle(&doc, node)).into_iter().fold(doc, |doc, c| {
         fixture::step(
             doc,
             DocEdit::RemoveConstraint {
@@ -862,4 +862,11 @@ fn row7_a_logged_update_round_trips_and_undoes_across_the_load() {
         v1,
         "dropping the update restores the prior version"
     );
+}
+
+/// `bundle` with its values ahead of its mates: the order its
+/// constraints come out in, so no value is left naming a removed mate.
+fn values_first(mut bundle: Vec<editor_core::Constraint>) -> Vec<editor_core::Constraint> {
+    bundle.sort_by_key(|c| c.mate().is_some());
+    bundle
 }

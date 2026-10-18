@@ -32,7 +32,7 @@ import math
 import os
 import tempfile
 
-from pncad import Doc, Formula, Node, Open, Start, evaluate, import_step, mm
+from pncad import Doc, Formula, Frame, Node, Open, Start, evaluate, import_step, mm
 
 PLATE = (80, 40)  # mm
 # The plate's corner radius: the natural one for this plate. It was
@@ -71,8 +71,10 @@ def rounded_plate(doc, width, height, radius, thickness):
     return doc.insert(Node.extrude(doc.insert(Node.profile(outline)), Formula.literal(thickness)))
 
 
-def slab(doc, x, y, z):
-    """The axis-aligned box [x0,x1] x [y0,y1] x [z0,z1]."""
+def slab(doc, x, y, z, on):
+    """The axis-aligned box [x0,x1] x [y0,y1] x [z0,z1] in `on`'s
+    coordinates: drawn on its own plane, extruded its height, and
+    placed against `on` `z0` up."""
     x0, x1 = x
     y0, y1 = y
     z0, z1 = z
@@ -84,10 +86,10 @@ def slab(doc, x, y, z):
                 (Formula.literal(x1), Formula.literal(y1)),
                 (Formula.literal(x0), Formula.literal(y1)),
             ],
-            plane=doc.sketch_frame(elevation=Formula.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
+    body = doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
+    return doc.place_against(on, body, Frame.translation((0 * mm, 0 * mm, z0)))
 
 
 def main():
@@ -99,11 +101,11 @@ def main():
 
     # A rounded base plate, and an upright web standing on it.
     base = rounded_plate(doc, PLATE[0], PLATE[1], CORNER, 8 * mm)
-    web = slab(doc, (36 * mm, 44 * mm), (5 * mm, 35 * mm), (8 * mm, 34 * mm))
+    web = slab(doc, (36 * mm, 44 * mm), (5 * mm, 35 * mm), (8 * mm, 34 * mm), base)
     bracket = doc.insert(Node.union([base, web]))
 
     # A lightening pocket, entering from below and stopping inside.
-    pocket = slab(doc, (8 * mm, 28 * mm), (10 * mm, 30 * mm), (0 * mm, 5 * mm))
+    pocket = slab(doc, (8 * mm, 28 * mm), (10 * mm, 30 * mm), (0 * mm, 5 * mm), base)
     lightened = doc.insert(Node.subtract(bracket, pocket))
 
     ev = evaluate(doc)

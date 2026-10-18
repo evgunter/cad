@@ -109,7 +109,7 @@ from bench_scene import (
     SHELF_VOLUME,
     STAND_SEATS,
 )
-from pncad import CapEnd, Doc, DocEdit, DocRef, Formula, Node, SegTag, Workspace, content_pin, evaluate, m, mm
+from pncad import CapEnd, Doc, DocEdit, DocRef, Formula, Frame, Node, SegTag, Workspace, content_pin, evaluate, m, mm
 
 #: The layout's nodes: the post instance, its pattern and the shelf
 #: instance, then each pattern copy projected and placed.
@@ -492,14 +492,8 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         self.assertEqual(boss_refusal.document, self.boss_ref)
 
     def test_a_node_poisoned_through_the_part_hands_on_its_cause(self):
-        moved = self.assembly.insert(
-            Node.transform(
-                self.instance,
-                (Formula.length_in(0.01, m), Formula.length_in(0, m), Formula.length_in(0, m)),
-                (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
-                Formula.literal(0.0 * pncad.rad),
-            )
-        )
+        # A loose copy of the instance's copies: a node that reads it.
+        moved = self.assembly.place(self.instance, [])
         refusal = failures(evaluate(self.assembly, resolver=self.store))[moved]
         self.assertEqual(refusal.reason, "poisoned")
         self.assertEqual(refusal.through, self.instance)
@@ -546,7 +540,7 @@ class TestAPartWithAnEmptyWorld(unittest.TestCase):
 
 class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
     """`part_root_poisoned`, reached: a part whose extrude refuses and
-    whose one placed body, a transform over it, never runs.
+    whose one placed copy of it never runs.
 
     The instance names the part's placement and points at the extrude, the
     node the author repairs; the extrude's refusal crosses TYPED as the
@@ -570,17 +564,11 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
             )
         )
         self.extrude = part.insert(Node.extrude(profile, Formula.length_in(0.01, m)))
-        self.root = part.insert(
-            Node.transform(
-                self.extrude,
-                (Formula.length_in(0.01, m), Formula.length_in(0, m), Formula.length_in(0, m)),
-                (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
-                Formula.literal(0.0 * pncad.rad),
-            )
-        )
-        # Placed while it builds — the gesture reads the transform's
+        # Placed while it builds — the gesture reads the extrude's
         # faces — then edited to no length, so the extrude refuses.
-        self.placed = part.place(self.root)
+        self.placed = part.place(
+            self.extrude, pose=Frame.translation((0.01 * m, 0 * m, 0 * m))
+        )
         part.apply(DocEdit.set_param(self.extrude, "distance", Formula.length_in(0.0, m)))
         self.store.create(part)
         self.part = part
@@ -619,13 +607,13 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         )
 
     def test_two_documents_down_the_cause_chain_ends_at_the_failing_node(self):
-        """A bracket whose root is a placement of a transform over an
-        instance of the part: the bracket's root is poisoned through
+        """A bracket whose root is a placement of an instance of the
+        part: the bracket's root is poisoned through
         that failed instance, and the chain runs instance, instance,
         extrude. The inner instance is loose, so it is no root of the
         bracket's world itself."""
         # The bracket is placed while the part builds — the gesture
-        # reads the transform's faces — and then pinned to the part as
+        # reads the instance's faces — and then pinned to the part as
         # it stands, edited to no length.
         def at_length(length):
             self.part.apply(
@@ -638,14 +626,8 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         bracket = pncad.Doc("pncad-partpoison-bracket")
         inner = bracket.insert(Node.instantiate_part(building, []))
         bracket.place(
-            bracket.insert(
-                Node.transform(
-                    inner,
-                    (Formula.length_in(0.01, m), Formula.length_in(0, m), Formula.length_in(0, m)),
-                    (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
-                    Formula.literal(0.0 * pncad.rad),
-                )
-            ),
+            inner,
+            pose=Frame.translation((0.01 * m, 0 * m, 0 * m)),
             resolver=self.store,
         )
         flat = at_length(0.0)
@@ -898,23 +880,22 @@ class TestTheMemoIsObservable(CorpusCase):
         the length is not a parameter this document holds and the edit
         is the one a Python author actually has — delete the extrude
         and insert a longer one over the same profile. What the memo
-        answers to is the same either way: the frame and the profile
-        are unchanged, so they are served, and only the node that
-        changed runs.
+        answers to is the same either way: the profile is unchanged, so
+        it is served, and only the nodes that changed run.
         """
         _, docs = opened()
         post = docs["post"]
         first = evaluate(post)
-        frame, profile, extrude, placed = post.order()
+        profile, extrude, placed = post.order()
         post.apply(DocEdit.delete_node(placed))
         post.apply(DocEdit.delete_node(extrude))
         post.place(post.insert(Node.extrude(profile, Formula.length_in(2 * POST_HEIGHT, m))))
         again = evaluate(post, prior=first)
-        # TWO reused: the post's sketch frame and the section drawn on
-        # it, which are what the deleted extrude consumed, and neither
-        # moved; the new extrude and its placement run.
-        self.assertEqual(post.order()[:2], [frame, profile])
-        self.assertEqual((again.reused, again.recomputed), (2, 2))
+        # ONE reused: the post's section, which is what the deleted
+        # extrude consumed, and it did not move; the new extrude and
+        # its placement run.
+        self.assertEqual(post.order()[:1], [profile])
+        self.assertEqual((again.reused, again.recomputed), (1, 2))
         self.assertVolumes(volumes(again, again.order()[-1]), [2 * POST_VOLUME])
 
     def test_a_prior_of_another_document_reuses_nothing_and_is_legal(self):

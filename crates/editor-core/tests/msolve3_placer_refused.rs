@@ -1,15 +1,13 @@
 //! **A placement whose mate reads a failing placer's copy points at
 //! the placer, and the placer states the cause.**
 //!
-//! A mate whose target is read off a pattern copy or a transform reads
-//! that node's value: the placer is upstream of the placement, so when
-//! the placer refuses — a slot that does not evaluate, a direction of
-//! no definite length, a degenerate step — the placement is poisoned
-//! through it, and the placer's own row states its refusal in its own
-//! words, exactly as its evaluation raises it on the TWIN document (the
-//! same recipe with the mate left out). The nearest failed node is
-//! named, so a refusal raised by a datum the placer reads is pointed at
-//! that datum.
+//! A mate whose target is read off a pattern copy reads that node's
+//! value: the placer is upstream of the placement, so when the placer
+//! refuses — a slot that does not evaluate, a direction of no definite
+//! length, a degenerate step — the placement is poisoned through it,
+//! and the placer's own row states its refusal in its own words,
+//! exactly as its evaluation raises it on the TWIN document (the same
+//! recipe with the mate left out). The nearest failed node is named.
 //!
 //! A target that stops resolving after the mate is in — a copy past a
 //! shrunk count, a placer deleted — is the placement's own refusal
@@ -26,12 +24,12 @@ use crate::fixture;
 use std::sync::Arc;
 
 use editor_core::{
-    Axis3, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EditError, EvalOptions, Formula,
+    CapEnd, ContactClass, DocEdit, DocumentId, EditError, EvalOptions, Formula,
     Frame, MateFault, MateRef, MateSide, Node, NodeErrorClass, NodeErrorKind, NodeResult,
     OperandSlot, PatternKind, ProfileDoc, RecipeNodeId, SlotId, StableName,
 };
 use fixture::resolver::{PartStore, in_part};
-use fixture::{ang, in_copy, insert, insert_pinned, len, on_frame, run, scl, solve, step, xform};
+use fixture::{ang, in_copy, insert, insert_pinned, len, on_frame, run, scl, solve, step};
 use geom_core::Tol;
 
 // ---- the scene ----
@@ -151,13 +149,6 @@ fn patterned(label: &str, kind: PatternKind<Formula>, count: i64, i: u32) -> Sce
     .0
 }
 
-/// A slot the edit door admits and the evaluator refuses: a count
-/// promoted out of the exactly-representable range. (An unbound
-/// parameter cannot be used — `InsertNode` refuses it.)
-fn unevaluable() -> Formula {
-    Formula::count_to_scalar(Formula::count(1 << 40)).expect("a count promotes to a scalar")
-}
-
 /// The scene builder both shapes share: two part documents, the
 /// placed instance pinned to the world, the placer with the name the
 /// mate reads it by, the capping instance, and the mate. `place` is
@@ -267,92 +258,19 @@ fn a1_a_slot_that_does_not_evaluate_names_the_slot() {
     );
 }
 
-/// A TRANSFORM read by the target refuses in its own role word: the
-/// same door, a different vector.
-#[test]
-fn a1_a_transform_with_a_non_finite_axis_names_its_axis() {
-    let (scene, _) = build("msolve3-transform", |doc, legs, leg_body| {
-        let (doc, moved) = insert(doc, xform(legs, [0.0, 0.0, 0.0], [1e200, 0.0, 0.0], 0.5));
-        // A transform mints no name segment: the reference is the
-        // part's own face, read AT the transform.
-        (doc, moved, in_part(legs, leg_body, CapEnd::End), Vec::new())
-    });
-    let (kind, class) = scene.points_at(scene.placer, "transform");
-    assert!(
-        class == NodeErrorClass::NonFiniteDirection && kind.contains("transform rotation axis"),
-        "{kind}"
-    );
-}
-
-/// **A transform's CHAIN refuses in its own voice too.** A literal step
-/// then a rigid step whose motion does not derive — an axis of no
-/// definite length, or an angle that does not evaluate: the placement
-/// is poisoned through the TRANSFORM, whose own row carries exactly the
-/// kind its evaluation raises on the twin — the angle named at step
-/// 1's own address.
-#[test]
-fn a1_a_chain_whose_later_step_does_not_derive_names_the_transform() {
-    for (label, late, want) in [
-        (
-            "msolve3-chain-axis",
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: [scl(1e200), scl(0.0), scl(0.0)],
-                angle: ang(0.5),
-            },
-            NodeErrorClass::NonFiniteDirection,
-        ),
-        (
-            "msolve3-chain-angle",
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: Formula::mul(ang(1e200), scl(1e200)).expect("an angle times a scalar"),
-            },
-            NodeErrorClass::Expr,
-        ),
-    ] {
-        let (scene, _) = build(label, |doc, legs, leg_body| {
-            let chain = editor_core::Placement {
-                steps: vec![
-                    editor_core::Step::Literal(Frame::translation([0.0, 0.0, 2.0])),
-                    late,
-                ],
-            };
-            let (doc, moved) = insert(doc, Node::transform(legs, chain));
-            (doc, moved, in_part(legs, leg_body, CapEnd::End), Vec::new())
-        });
-        let (kind, class) = scene.points_at(scene.placer, label);
-        assert_eq!(class, want, "{label}: {kind}");
-        if class == NodeErrorClass::Expr {
-            assert!(
-                kind.contains(&format!(
-                    "{:?}",
-                    SlotId::rigid(1, editor_core::RigidArg::RotationAngle)
-                )),
-                "{label}: the refusal names step 1's angle: {kind}"
-            );
-        }
-    }
-}
-
 /// **A circular rule whose `axis` reads no axis is refused at the
-/// door.** The axis slot reads an `Axis` variable, so a plane datum, a
-/// body, or a transform of a body or of a pattern is refused by kind
-/// before any evaluation or solve runs: no mate can reach a placer so
+/// door.** The axis slot reads an `Axis` variable, so a plane, a body
+/// or a pattern is refused by kind before any evaluation or solve runs: no mate can reach a placer so
 /// wired, and the evaluation's operand refusal is a defence behind the
 /// door.
 #[test]
 fn a1_a_circular_rule_over_a_non_axis_is_refused_at_the_door() {
     use editor_core::{EditError, OperandSlot, SlotKind, VarKind};
     let (doc, body) = block("msolve3-circular");
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let plane = fixture::plane(editor_core::Operand::select(
+        body,
+        vec![fixture::fname(body, editor_core::RoleSeg::Cap(CapEnd::Start))],
+    ));
     let (doc, array) = insert(
         doc,
         Node::Pattern {
@@ -364,14 +282,10 @@ fn a1_a_circular_rule_over_a_non_axis_is_refused_at_the_door() {
             },
         },
     );
-    let (doc, moved) = insert(doc, xform(body, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
-    let (doc, again) = insert(doc, xform(moved, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
-    let (doc, moved_array) = insert(doc, xform(array, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
     for (axis, found) in [
         (plane, VarKind::Plane),
-        (body, VarKind::Body),
-        (again, VarKind::Body),
-        (moved_array, VarKind::Bodies),
+        (editor_core::Operand::Node(body), VarKind::Body),
+        (editor_core::Operand::Node(array), VarKind::Bodies),
     ] {
         let refusal = fixture::insert_refused(
             &doc,
@@ -397,78 +311,6 @@ fn a1_a_circular_rule_over_a_non_axis_is_refused_at_the_door() {
             "{found:?}: {refusal:?}"
         );
     }
-}
-
-/// **A slot of the axis DATUM is reported at the datum.** The pattern
-/// has no `Direction(X)` slot, so naming the pattern here would blame
-/// a node for a slot it does not carry: the placement is poisoned
-/// through the node whose evaluation raised it — the nearest FAILED
-/// node, past the pattern it poisons — which is the node an author
-/// goes and fixes.
-#[test]
-fn a1_an_axis_datums_slot_refusal_is_reported_at_the_datum() {
-    let (scene, extra) = build("msolve3-circular-datum-slot", |doc, legs, leg_body| {
-        let (doc, axis) = insert(
-            doc,
-            Node::Datum(Datum::Axis {
-                origin: [len(0.0), len(0.0), len(0.0)],
-                direction: [unevaluable(), scl(0.0), scl(1.0)],
-            }),
-        );
-        let (doc, pattern) = insert(
-            doc,
-            Node::Pattern {
-                input: legs.into(),
-                count: Formula::count(4),
-                kind: PatternKind::Circular {
-                    axis: axis.into(),
-                    step: ang(0.5),
-                },
-            },
-        );
-        let name = in_copy(pattern, 1, in_part(legs, leg_body, CapEnd::End));
-        (doc, pattern, name, vec![axis])
-    });
-    let datum = extra[0];
-    let (kind, _) = scene.points_at(datum, "datum slot");
-    assert!(
-        kind.contains(&format!("{:?}", SlotId::Direction(Axis3::X))),
-        "{kind}"
-    );
-}
-
-/// The datum's DIRECTION, decided: the vector is the datum's, so the
-/// placement points at the datum, whose refusal carries its role word.
-#[test]
-fn a1_an_axis_datums_degenerate_direction_is_reported_at_the_datum() {
-    let (scene, extra) = build("msolve3-circular-datum-zero", |doc, legs, leg_body| {
-        let (doc, axis) = insert(
-            doc,
-            Node::Datum(Datum::Axis {
-                origin: [len(0.0), len(0.0), len(0.0)],
-                direction: [scl(0.0), scl(0.0), scl(0.0)],
-            }),
-        );
-        let (doc, pattern) = insert(
-            doc,
-            Node::Pattern {
-                input: legs.into(),
-                count: Formula::count(4),
-                kind: PatternKind::Circular {
-                    axis: axis.into(),
-                    step: ang(0.5),
-                },
-            },
-        );
-        let name = in_copy(pattern, 1, in_part(legs, leg_body, CapEnd::End));
-        (doc, pattern, name, vec![axis])
-    });
-    let datum = extra[0];
-    let (kind, class) = scene.points_at(datum, "datum direction");
-    assert!(
-        class == NodeErrorClass::DegenerateDirection && kind.contains("datum axis direction"),
-        "{kind}"
-    );
 }
 
 /// **A spacing or a step the pattern refuses is the pattern's refusal.**
@@ -511,7 +353,7 @@ fn a1_a_spacing_or_step_the_pattern_refuses_is_its_own_refusal() {
 
 /// A stepped rule [`a1_a_spacing_or_step_the_pattern_refuses_is_its_own_refusal`]
 /// mates through: a linear rule as written, or a circular one at a
-/// step about a z-axis datum the scene inserts.
+/// step about the axis of the placed copy's top cap.
 #[derive(Clone)]
 enum Rule {
     Plain(PatternKind<Formula>),
@@ -525,13 +367,10 @@ impl Rule {
             Self::Plain(kind) => patterned(label, kind.clone(), 4, i),
             Self::Turning(step) => {
                 build(label, |doc, legs, leg_body| {
-                    let (doc, axis) = insert(
-                        doc,
-                        Node::Datum(Datum::Axis {
-                            origin: [len(0.0), len(0.0), len(0.0)],
-                            direction: [scl(0.0), scl(0.0), scl(1.0)],
-                        }),
-                    );
+                    let axis = fixture::axis(editor_core::SitedRef::new(
+                        legs,
+                        in_part(legs, leg_body, CapEnd::End),
+                    ));
                     let (doc, pattern) = insert(
                         doc,
                         Node::Pattern {
@@ -544,7 +383,7 @@ impl Rule {
                         },
                     );
                     let name = in_copy(pattern, i, in_part(legs, leg_body, CapEnd::End));
-                    (doc, pattern, name, vec![axis])
+                    (doc, pattern, name, Vec::new())
                 })
                 .0
             }
