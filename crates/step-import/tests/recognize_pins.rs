@@ -536,11 +536,14 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
         Tol::witness(),
     )
     .expect("the arc prism exports");
-    // #127 is the middle control point of #129, the B-spline carrier
-    // of EDGE_CURVE #130 — the seam this unit certifies.
+    // #121 is the middle control point of #123, the B-spline carrier
+    // of EDGE_CURVE #124 — the seam this unit certifies. (The ids are
+    // emission order: they moved from #127 / #129 / #130 when C6's
+    // sub-arc η made the prism's quarter arc one span, three control
+    // points a row where there were five.)
     let doctored = text.replace(
-        "#127 = CARTESIAN_POINT('', (1.0, 1.0, 1.0));",
-        "#127 = CARTESIAN_POINT('', (1.001, 1.0, 1.0));",
+        "#121 = CARTESIAN_POINT('', (1.0, 1.0, 1.0));",
+        "#121 = CARTESIAN_POINT('', (1.001, 1.0, 1.0));",
     );
     assert_ne!(text, doctored, "the falsifier applied");
 
@@ -549,7 +552,7 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
     else {
         panic!("a carrier displaced 1e-3 m off the locus is NEVER trusted");
     };
-    assert_eq!(id, 130, "the doctored seam, named");
+    assert_eq!(id, 124, "the doctored seam, named");
     let msg = format!("{:?}", attempts);
     let measured = attempts.iter().find_map(|a| match a.refusal {
         topo::EulerOpError::Certification {

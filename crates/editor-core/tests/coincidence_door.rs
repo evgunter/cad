@@ -629,9 +629,7 @@ fn split_prism(
 /// half): a diamond prism split by `y = 1` has four operand vertices ON
 /// the plane (the diamond's side corners, at both ends), each with one
 /// run on either side, so the plane cuts there and leaves no pieces
-/// touching. The pinch half of the row is the kernel's (`topo`'s
-/// `m3_pr3_split`): a document cannot yet split through a pinch
-/// (`work/wire/a-split-through-a-pinch-names-both-tip-copies-alike.md`).
+/// touching.
 #[test]
 fn a_split_through_a_vertex_that_only_cuts_records_nothing() {
     let diamond = [(1.0, 0.0), (2.0, 1.0), (1.0, 2.0), (0.0, 1.0)];
@@ -642,6 +640,43 @@ fn a_split_through_a_vertex_that_only_cuts_records_nothing() {
         "an ON vertex that cuts is no pinch"
     );
     assert!(unproven(&doc, &ev).is_empty());
+}
+
+/// **A split through a pinch records it** (§11 row 6's first half): the
+/// notched prism's tip `(4, 1)` has both neighbours above `y = 1`, so the
+/// split leaves two pieces touching there, one row per tip vertex, each
+/// the operand vertex the split's side verdict read ON the tool.
+#[test]
+fn a_split_through_a_pinch_records_one_row_per_pinched_vertex() {
+    let notched = [
+        (0.0, 0.0),
+        (8.0, 0.0),
+        (8.0, 2.0),
+        (7.0, 1.0),
+        (6.0, 1.0),
+        (5.0, 2.0),
+        (4.0, 1.0),
+        (3.0, 2.0),
+        (0.0, 2.0),
+    ];
+    let (_, ev, split) = split_prism("coincide-pinch", &notched, 1.0);
+    let rows = rows(&ev, split);
+    assert_eq!(rows.len(), 2, "one row per tip vertex: {rows:?}");
+    for row in &rows {
+        assert_eq!(
+            (row.relation, row.site),
+            (Relation::OnCarrier, DecisionSite::SplitOn)
+        );
+        assert!(
+            matches!(
+                (&row.cells[0], &row.cells[1]),
+                (NamedCell::Entity { name, .. }, NamedCell::Tool { .. })
+                    if name.kind == EntityKind::Vertex
+            ),
+            "an operand vertex on the tool: {row:?}"
+        );
+    }
+    assert_ne!(rows[0].cells[0], rows[1].cells[0], "the two tip vertices");
 }
 
 /// **Turning the check off removes the reports and nothing else**
@@ -1096,10 +1131,11 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
 /// **A union records a vertex touch once, as a pair does.** Two blocks
 /// kissing at a corner: their two-member union — the pair — holds one
 /// `VertexFusion` row, cited by its one record. Folded into a union with
-/// a third block apart, the pairwise judgement decides the same touch,
-/// but its records are not the union's, so only the fold step's row,
-/// which the union's record cites, is published: the union's rows and
-/// findings are the pair's, the vertex touch once.
+/// a third block apart, the pairwise judgement decides the same touch
+/// and publishes its row, and the fold step's row, which the union's
+/// record cites, states the same two member cells, so the record cites
+/// the judged row: the union's rows and findings are the pair's, the
+/// vertex touch once.
 #[test]
 fn a_union_records_a_vertex_touch_once() {
     let doc = ProfileDoc::empty_derived("coincide-union-kiss", Tol::witness());

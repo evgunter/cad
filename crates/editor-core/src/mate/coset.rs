@@ -547,6 +547,15 @@ impl Arm {
         self.0
     }
 
+    /// **The arm in `T`**: a bound read off the resolved origins, so it
+    /// enters as a computed value ([`Real::from_computed`]), at `Sym`
+    /// an unknown of its own. Each intersection mints it once, and every
+    /// levered decision in it multiplies by that one value; nothing the
+    /// fold builds carries it.
+    pub fn lever<T: Real>(self) -> T {
+        T::from_computed(self.0)
+    }
+
     /// The longer of two arms, which is one of them.
     pub fn max(self, other: Self) -> Self {
         Self(self.0.max(other.0))
@@ -597,19 +606,16 @@ impl Arm {
 /// that vanishing sample is not recorded — reachable by no pair of
 /// witnesses at any arm the reach bounds). A length that is no number
 /// has no input to come from: the arm is an [`Arm`].
+///
+/// `lever` is that arm in `T` ([`Arm::lever`]), the decision's alone.
 fn parallel<T: SolveScalar>(
     u: UnitVec3<T>,
     v: UnitVec3<T>,
     band: Band,
-    arm: Arm,
+    lever: T,
 ) -> Result<Option<(UnitVec3<T>, T)>, Indeterminate> {
     let sine = u.get().cross(v.get());
-    match UnitVec3::new_scaled(
-        sine,
-        T::from_computed(arm.get()),
-        "mate_axes_parallel",
-        band,
-    ) {
+    match UnitVec3::new_scaled(sine, lever, "mate_axes_parallel", band) {
         Ok(line) => Ok(Some((line, sine.norm()))),
         Err(UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength) => Ok(None),
         Err(UnitVec3Error::Escalated(diag)) => Err(diag),
@@ -622,20 +628,20 @@ fn parallel<T: SolveScalar>(
 
 /// Predicate: a direction is perpendicular to a normal. The margin is
 /// the cosine — the dot product of two witnesses — levered into a
-/// displacement at `arm`: `None` when perpendicular, `Some(cosine)`
-/// when not, the cosine the funnel decided out of the zero band and so
-/// nonzero.
+/// displacement at the arm `lever` ([`Arm::lever`]): `None` when
+/// perpendicular, `Some(cosine)` when not, the cosine the funnel
+/// decided out of the zero band and so nonzero.
 fn perpendicular<T: SolveScalar>(
     u: UnitVec3<T>,
     n: UnitVec3<T>,
     band: Band,
-    arm: Arm,
+    lever: T,
 ) -> Result<Option<T>, Indeterminate> {
     let cosine = u.get().dot(n.get());
     Ok(
         match decide(
             "mate_axis_normal_perpendicular",
-            Margin::levered(cosine, T::from_computed(arm.get())),
+            Margin::levered(cosine, lever),
             band,
         )? {
             Sign::Zero => None,
@@ -718,7 +724,7 @@ pub fn intersect_subgroups<T: SolveScalar>(
     band: Band,
     arm: Arm,
 ) -> Result<Subgroup<T>, Indeterminate> {
-    table(g1, g2, band, arm).map(|(residual, _)| residual)
+    table(g1, g2, band, arm.lever()).map(|(residual, _)| residual)
 }
 
 /// [`intersect_subgroups`], with the number its verdict decided away
@@ -727,7 +733,7 @@ fn table<T: SolveScalar>(
     g1: Subgroup<T>,
     g2: Subgroup<T>,
     band: Band,
-    arm: Arm,
+    lever: T,
 ) -> Result<(Subgroup<T>, Separated<T>), Indeterminate> {
     use Subgroup::{
         Cylindrical, Empty, Parallel, Planar, PlaneTranslation, Prismatic, Revolute, Se3,
@@ -744,7 +750,7 @@ fn table<T: SolveScalar>(
         (Trivial, _) | (_, Trivial) => not(Trivial),
         // 1. planar ∩ planar — the flush merge and the V-block.
         (Planar { normal: n1 }, Planar { normal: n2 }) => {
-            match parallel(n1, n2, band, arm)? {
+            match parallel(n1, n2, band, lever)? {
                 None => not(Planar { normal: n1 }),
                 // The line the two planes meet in, as the verdict
                 // minted it.
@@ -767,13 +773,13 @@ fn table<T: SolveScalar>(
             },
             Planar { normal: n },
         ) => {
-            if parallel(u, n, band, arm)?.is_none() {
+            if parallel(u, n, band, lever)?.is_none() {
                 not(Revolute {
                     point: p,
                     direction: u,
                 })
             } else {
-                match perpendicular(u, n, band, arm)? {
+                match perpendicular(u, n, band, lever)? {
                     None => not(Prismatic { direction: u }),
                     Some(cosine) => (Trivial, Separated::Cosine(cosine)),
                 }
@@ -782,7 +788,7 @@ fn table<T: SolveScalar>(
         // 3. planar ∩ prismatic.
         (Planar { normal: n }, Prismatic { direction: d })
         | (Prismatic { direction: d }, Planar { normal: n }) => {
-            match perpendicular(d, n, band, arm)? {
+            match perpendicular(d, n, band, lever)? {
                 None => not(Prismatic { direction: d }),
                 Some(cosine) => (Trivial, Separated::Cosine(cosine)),
             }
@@ -802,7 +808,7 @@ fn table<T: SolveScalar>(
             },
             Planar { normal: n },
         ) => {
-            if parallel(u, n, band, arm)?.is_none() {
+            if parallel(u, n, band, lever)?.is_none() {
                 not(Revolute {
                     point: p,
                     direction: u,
@@ -822,7 +828,7 @@ fn table<T: SolveScalar>(
                 point: p2,
                 direction: u2,
             },
-        ) => match parallel(u1, u2, band, arm)? {
+        ) => match parallel(u1, u2, band, lever)? {
             None => {
                 if point_on_line(p2, p1, u1, band)? {
                     not(Cylindrical {
@@ -838,7 +844,7 @@ fn table<T: SolveScalar>(
         // 6. cylindrical ∩ prismatic.
         (Cylindrical { direction: u, .. }, Prismatic { direction: d })
         | (Prismatic { direction: d }, Cylindrical { direction: u, .. }) => {
-            match parallel(d, u, band, arm)? {
+            match parallel(d, u, band, lever)? {
                 None => not(Prismatic { direction: d }),
                 Some((_, sine)) => (Trivial, Separated::Sine(sine)),
             }
@@ -864,7 +870,7 @@ fn table<T: SolveScalar>(
                 direction: uc,
             },
         ) => {
-            if parallel(uc, ur, band, arm)?.is_none() && point_on_line(pr, pc, uc, band)? {
+            if parallel(uc, ur, band, lever)?.is_none() && point_on_line(pr, pc, uc, band)? {
                 not(Revolute {
                     point: pr,
                     direction: ur,
@@ -875,7 +881,7 @@ fn table<T: SolveScalar>(
         }
         // 8. prismatic ∩ prismatic.
         (Prismatic { direction: d1 }, Prismatic { direction: d2 }) => {
-            match parallel(d1, d2, band, arm)? {
+            match parallel(d1, d2, band, lever)? {
                 None => not(Prismatic { direction: d1 }),
                 Some((_, sine)) => (Trivial, Separated::Sine(sine)),
             }
@@ -893,7 +899,7 @@ fn table<T: SolveScalar>(
                 direction: u2,
             },
         ) => {
-            if parallel(u1, u2, band, arm)?.is_none() && point_on_line(p2, p1, u1, band)? {
+            if parallel(u1, u2, band, lever)?.is_none() && point_on_line(p2, p1, u1, band)? {
                 not(Revolute {
                     point: p1,
                     direction: u1,
@@ -965,7 +971,7 @@ fn table<T: SolveScalar>(
         // 16. parallel ∩ planar: the plane's own group when its normal
         //     is the direction, else its translations alone.
         (Parallel { direction: d }, Planar { normal: n })
-        | (Planar { normal: n }, Parallel { direction: d }) => match parallel(d, n, band, arm)? {
+        | (Planar { normal: n }, Parallel { direction: d }) => match parallel(d, n, band, lever)? {
             None => not(Planar { normal: n }),
             Some((_, sine)) => (PlaneTranslation { normal: n }, Separated::Sine(sine)),
         },
@@ -983,7 +989,7 @@ fn table<T: SolveScalar>(
                 direction: u,
             },
             Parallel { direction: d },
-        ) => match parallel(d, u, band, arm)? {
+        ) => match parallel(d, u, band, lever)? {
             None => not(Cylindrical {
                 point,
                 direction: u,
@@ -1003,7 +1009,7 @@ fn table<T: SolveScalar>(
                 direction: u,
             },
             Parallel { direction: d },
-        ) => match parallel(d, u, band, arm)? {
+        ) => match parallel(d, u, band, lever)? {
             None => not(Revolute {
                 point,
                 direction: u,
@@ -1018,7 +1024,7 @@ fn table<T: SolveScalar>(
         }
         // 19. parallel ∩ parallel.
         (Parallel { direction: d1 }, Parallel { direction: d2 }) => {
-            match parallel(d1, d2, band, arm)? {
+            match parallel(d1, d2, band, lever)? {
                 None => not(Parallel { direction: d1 }),
                 Some((_, sine)) => (Translation, Separated::Sine(sine)),
             }
@@ -1041,7 +1047,7 @@ fn table<T: SolveScalar>(
             Planar { normal: n2 } | PlaneTranslation { normal: n2 },
         )
         | (Planar { normal: n1 }, PlaneTranslation { normal: n2 }) => {
-            match parallel(n1, n2, band, arm)? {
+            match parallel(n1, n2, band, lever)? {
                 None => not(PlaneTranslation { normal: n1 }),
                 Some((direction, sine)) => (Prismatic { direction }, Separated::Sine(sine)),
             }
@@ -1055,7 +1061,7 @@ fn table<T: SolveScalar>(
         | (
             Cylindrical { direction: u, .. } | Prismatic { direction: u },
             PlaneTranslation { normal: n },
-        ) => match perpendicular(u, n, band, arm)? {
+        ) => match perpendicular(u, n, band, lever)? {
             None => not(Prismatic { direction: u }),
             Some(cosine) => (Trivial, Separated::Cosine(cosine)),
         },
@@ -1261,8 +1267,9 @@ pub fn intersect<T: SolveScalar>(
     let arm = arm
         .decides_over(band)
         .map_err(|refusal| FoldStop::Unleverable(Box::new(refusal)))?;
-    let (residual, separated) = table(held.subgroup, added.subgroup, band, arm)?;
-    let rotation = candidate_rotation(held, added, residual, band, arm)?;
+    let lever = arm.lever();
+    let (residual, separated) = table(held.subgroup, added.subgroup, band, lever)?;
+    let rotation = candidate_rotation(held, added, residual, band, arm, lever)?;
     let translation = candidate_translation(held, added, residual, separated, rotation);
     if !is_finite_length(translation.norm()) {
         return Err(FoldStop::OutOfRange);
@@ -1294,6 +1301,7 @@ fn candidate_rotation<T: SolveScalar>(
     residual: Subgroup<T>,
     band: Band,
     arm: Arm,
+    lever: T,
 ) -> Result<Mat3<T>, FoldStop> {
     use Subgroup::{Cylindrical, Revolute, Spherical};
     // A ball frees every rotation but pins a point, so against a line
@@ -1321,7 +1329,7 @@ fn candidate_rotation<T: SolveScalar>(
             (Rotations::Fixed, _) => q1,
             (_, Rotations::Fixed) => q2,
             (Rotations::About(a1), Rotations::About(a2)) => {
-                if parallel(a1, a2, band, arm)?.is_none() {
+                if parallel(a1, a2, band, lever)?.is_none() {
                     // PARALLEL rotation axes: the held side admits EVERY
                     // rotation about its own axis, so the candidate's
                     // clocking about that axis is free — and free means it
@@ -1697,7 +1705,8 @@ pub(crate) fn turn_line<T: SolveScalar>(
     band: Band,
     arm: Arm,
 ) -> Result<Option<Option<Point3<T>>>, Indeterminate> {
-    let along = |axis: UnitVec3<T>| parallel(dir, axis, band, arm).map(|apart| apart.is_none());
+    let lever = arm.lever();
+    let along = |axis: UnitVec3<T>| parallel(dir, axis, band, lever).map(|apart| apart.is_none());
     Ok(match g {
         Subgroup::Se3 => Some(None),
         Subgroup::Spherical { point } => Some(Some(point)),
@@ -1729,10 +1738,10 @@ pub(crate) fn slides_along<T: SolveScalar>(
     Ok(match g {
         Subgroup::Se3 | Subgroup::Parallel { .. } | Subgroup::Translation => true,
         Subgroup::Planar { normal } | Subgroup::PlaneTranslation { normal } => {
-            perpendicular(v, normal, band, arm)?.is_none()
+            perpendicular(v, normal, band, arm.lever())?.is_none()
         }
         Subgroup::Cylindrical { direction, .. } | Subgroup::Prismatic { direction } => {
-            parallel(v, direction, band, arm)?.is_none()
+            parallel(v, direction, band, arm.lever())?.is_none()
         }
         Subgroup::Revolute { .. }
         | Subgroup::Spherical { .. }
@@ -1773,7 +1782,7 @@ pub(crate) fn across<T: SolveScalar>(
     band: Band,
     arm: Arm,
 ) -> Result<Option<UnitVec3<T>>, Indeterminate> {
-    Ok(parallel(u, v, band, arm)?.map(|(line, _)| line))
+    Ok(parallel(u, v, band, arm.lever())?.map(|(line, _)| line))
 }
 
 /// **Whether a translation along `r` moves a measure along `v`**: `v`
@@ -1788,7 +1797,7 @@ pub(crate) fn reaches<T: SolveScalar>(
     band: Band,
     arm: Arm,
 ) -> Result<bool, Indeterminate> {
-    Ok(perpendicular(v, r, band, arm)?.is_some())
+    Ok(perpendicular(v, r, band, arm.lever())?.is_some())
 }
 
 /// **Whether two directions are parallel**, decided over `arm`
@@ -1803,7 +1812,7 @@ pub(crate) fn directions_parallel<T: SolveScalar>(
     band: Band,
     arm: Arm,
 ) -> Result<bool, Indeterminate> {
-    Ok(parallel(u, v, band, arm)?.is_none())
+    Ok(parallel(u, v, band, arm.lever())?.is_none())
 }
 
 /// **Whether `p` lies on the line through `origin` along `direction`**
@@ -1819,4 +1828,112 @@ pub(crate) fn on_the_line<T: SolveScalar>(
     band: Band,
 ) -> Result<bool, Indeterminate> {
     point_on_line(p, origin, direction, band)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::{Arm, Coset, Subgroup, intersect};
+    use geom_core::linalg::{Affine3, Mat3, UnitVec3, Vec3};
+    use geom_core::predicate::{Band, Margin, Sign};
+    use geom_core::sym::{session_counts, with_session};
+    use geom_core::{ParamSymbol, Real, Sym, SymBudget, Tol};
+
+    type S = Sym<f64>;
+
+    fn p(name: &str, v: f64) -> S {
+        Sym::param(ParamSymbol::new(test_utils::symbol_id(name)), v)
+    }
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the witness tolerance has a linear band")
+    }
+
+    fn at(subgroup: Subgroup<S>, t: [S; 3]) -> Coset<S> {
+        Coset {
+            subgroup,
+            representative: Affine3::from_parts(Mat3::identity(), Vec3::new(t[0], t[1], t[2])),
+        }
+    }
+
+    /// The candidate's translation of `held ∩ added` at two arms, and
+    /// how many of the three component decisions `t(2) − t(5) = 0` the
+    /// symbolic tier proved.
+    fn proved_arm_free(held: Coset<S>, added: Coset<S>) -> u64 {
+        let (proved, _) = with_session(
+            SymBudget {
+                max_terms: 4096,
+                max_degree: 128,
+            },
+            || {
+                let t = |arm: f64| {
+                    intersect(held, added, band(), Arm::of(arm, 0.0).unwrap())
+                        .expect("the two meet")
+                        .representative
+                        .translation
+                };
+                let (a, b) = (t(2.0), t(5.0));
+                let before = session_counts().unwrap().symbolic;
+                for d in [a.x - b.x, a.y - b.y, a.z - b.z] {
+                    let sign =
+                        geom_core::k_stats::decide("coset_test_arm_free", Margin::of(d), band());
+                    assert_eq!(sign, Ok(Sign::Zero));
+                }
+                session_counts().unwrap().symbolic - before
+            },
+        );
+        proved
+    }
+
+    /// **The meeting point carries no arm, symbolically.** The arm
+    /// levers the verdicts ([`Arm::lever`]) and stops there: the line
+    /// and the sine `parallel` hands out are the unlevered cross
+    /// product's, and the anchor step divides by that sine alone, so
+    /// the meeting point is the same at any arm. At `Sym` the tier
+    /// proves `t(arm₁) − t(arm₂) = 0` in every component, for two planes
+    /// meeting in a line and for two lines meeting in a point. Red where
+    /// the step or the sine re-enters the arm (each decision then falls
+    /// to the numeric tier).
+    #[test]
+    fn the_meeting_point_carries_no_arm_at_sym() {
+        let z = UnitVec3::exact_z;
+        let tilted = || {
+            UnitVec3::new(
+                Vec3::new(p("a", 0.3), S::zero(), S::one()),
+                "coset_test_tilt",
+                band(),
+            )
+            .unwrap()
+        };
+        let zero = || S::zero();
+        let planes = proved_arm_free(
+            at(
+                Subgroup::PlaneTranslation { normal: z() },
+                [zero(), zero(), p("h", 0.5)],
+            ),
+            at(
+                Subgroup::PlaneTranslation { normal: tilted() },
+                [p("w", 0.7), zero(), zero()],
+            ),
+        );
+        let lines = proved_arm_free(
+            at(
+                Subgroup::Prismatic {
+                    direction: UnitVec3::exact_x(),
+                },
+                [zero(), p("b", 0.4), zero()],
+            ),
+            at(
+                Subgroup::Prismatic {
+                    direction: UnitVec3::exact_y(),
+                },
+                [p("c", 0.6), zero(), zero()],
+            ),
+        );
+        assert_eq!(
+            (planes, lines),
+            (3, 3),
+            "proved symbolically, of three components each"
+        );
+    }
 }

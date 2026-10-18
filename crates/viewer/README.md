@@ -582,8 +582,8 @@ the two drags refuse different sets, and one table could serve both
 only by refusing the union. A value gesture refuses every operation
 that moves the document, because it previews against a snapshot of it;
 a free move does not, because a commit landing under a probe is pruned
-against the new document and REPORTED, which is a better answer than a
-refusal.
+against the new document, and again against its evaluation when that
+lands, and REPORTED, which is a better answer than a refusal.
 
 **What the two tables agree on is exactly these two doors.** `Open` and
 `NewDocument` REPLACE the document rather than moving it, and
@@ -1578,7 +1578,7 @@ own.
 
 Two gestures implement G1's preview/commit shape — the value drag
 `DocSession` owns over a slot or a document variable, and the
-free-move probe `DisplayState` owns over an instance's frame — and
+free-move probe `DisplayState` owns over a loose space's frame — and
 their three transition rules are one value, `g1::Slot`:
 
 - a **begin** refuses when one is already in flight, and validates its
@@ -1592,15 +1592,12 @@ their three transition rules are one value, `g1::Slot`:
 **They are not one type and this is not a step toward making them
 one.** They own different value kinds (a `SlotValue` against a
 `Frame`), different validation (a slot's driver and dimension against a
-rigid-motion check on an unmated instance) and different side effects
-(a scratch `Doc` and an evaluation request against a display revision).
-What is shared is the transitions, and a generic over the rest would be
-a type nobody has a use for. DI5 changes what a probe's commit LANDS
-(`crates/editor-core/IDENTITY.md`: a document edit rather than a
-`moves` entry) and changes none of the three rules, which is why
-holding them once did not wait for it — after DI5 the landing step that
-moves is the caller's, and the machine it must not break is one
-function rather than two.
+rigid-motion check on a loose space's frame) and different side
+effects (a scratch `Doc` and an evaluation request against a display
+revision). What is shared is the transitions, and a generic over the
+rest would be a type nobody has a use for. DI5
+(`crates/editor-core/IDENTITY.md`) keeps a probe's commit a `moves`
+entry, keyed by the space's root, and writes nothing to the document.
 
 **What the shape makes impossible**: `g1::Slot`'s in-flight state is
 private to its module, so no caller can read it, take it or replace it
@@ -1659,13 +1656,13 @@ same reason — `DocSession` holds `gesture` and `DisplayState` holds
 `free_move` — so a reader who greps `self.gesture` gets one concept
 back. What the value table's four `*FreeMove` rows permit, and the
 identity that makes the overlap sound, is stated at
-`permitted_during_value_gesture` itself, scoped to the tree DI5 has not
-yet changed.
+`permitted_during_value_gesture` itself, DI5's spaces included.
 
 **The second table refuses two rows and has a name for them**:
 `Open` and `NewDocument`, the operations that REPLACE the document
 rather than move it. The asymmetry with the first table is the point —
-a commit that lands under a probe is pruned and reported, and only a
+a commit that lands under a probe is pruned and reported (at the edit,
+and at its landing), and only a
 replacement drops the display state whole with no document left to
 report against (`DisplayState::clear` carries that argument). So the
 free-move table is checked against the property rather than against a
@@ -1706,9 +1703,10 @@ field's number. The subject of a driving operation is the field the
 user has hold of, and naming it is what makes the mismatch refusable.
 
 **The probe's target is the instance, and that is the same rule rather
-than a coarser one.** `PreviewFreeMove` names an instance because an
-instance has exactly one probe, the way `PreviewGesture` names a slot
-because a slot has exactly one drag. Each names the SUBJECT whose
+than a coarser one.** `PreviewFreeMove` names the instance the probe
+was opened on because at most one probe is in flight and it was opened
+on one copy of its space, the way `PreviewGesture` names a slot because
+a slot has exactly one drag. Each names the SUBJECT whose
 gesture it drives, and how fine that subject is follows from what state
 exists, not from how finely a chrome cuts the subject up: the three
 boxes the panel draws are one chrome's decomposition of one
