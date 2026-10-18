@@ -88,13 +88,19 @@ pub struct EditPayload<'a> {
     pub from_kind: Option<EntityKind>,
     /// A rebind's TARGET entity kind.
     pub to_kind: Option<EntityKind>,
+    /// The entity kind a selection's name DENOTES, where the refusal is
+    /// that the seat reads another (or reads no selection of it).
+    pub found_kind: Option<EntityKind>,
+    /// The entity kind the seat READS, beside [`Self::found_kind`].
+    pub expected_kind: Option<EntityKind>,
     /// A count the refusal names: the nodes a definition expands to.
     pub count: Option<usize>,
     /// The position a selection's shape fault is reported at. The
     /// fault decides which position it is: a repeated face's first
-    /// occurrence, or the edge that does not sort strictly before the
-    /// one after it. Both are one index into one list, so they share
-    /// the attribute rather than minting a second word for it.
+    /// occurrence, the edge that does not sort strictly before the one
+    /// after it, or the name of another entity kind than the
+    /// selection's. Each is one index into one list, so they share the
+    /// attribute rather than minting a second word for it.
     pub first: Option<usize>,
     /// The position at which a repeat is named AGAIN — carried only by
     /// a repeated face, the one fault that names two entries.
@@ -141,7 +147,7 @@ impl EditPayload<'_> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over `EditError` is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 24] {
+    pub fn presence(&self) -> [(&'static str, bool); 26] {
         let Self {
             node,
             input,
@@ -154,6 +160,8 @@ impl EditPayload<'_> {
             kind,
             from_kind,
             to_kind,
+            found_kind,
+            expected_kind,
             count,
             first,
             again,
@@ -180,6 +188,8 @@ impl EditPayload<'_> {
             ("kind", kind.is_some()),
             ("from_kind", from_kind.is_some()),
             ("to_kind", to_kind.is_some()),
+            ("found_kind", found_kind.is_some()),
+            ("expected_kind", expected_kind.is_some()),
             ("count", count.is_some()),
             ("first", first.is_some()),
             ("again", again.is_some()),
@@ -218,6 +228,8 @@ impl EditPayload<'_> {
         kind: None,
         from_kind: None,
         to_kind: None,
+        found_kind: None,
+        expected_kind: None,
         count: None,
         first: None,
         again: None,
@@ -345,9 +357,20 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             use pncad::document::SelectionFault as F;
             let (first, again, count) = match fault {
                 F::Repeated { first, again } => (Some(*first), Some(*again), None),
-                F::NotCanonical { at } => (Some(*at), None, None),
+                F::NotCanonical { at } | F::Kind { at, .. } => (Some(*at), None, None),
                 F::Singleton { count } => (None, None, Some(*count)),
                 F::NotASelection { .. } | F::Seat { .. } | F::OtherBody => (None, None, None),
+            };
+            let (found_kind, expected_kind) = match fault {
+                F::Kind {
+                    found, expected, ..
+                } => (Some(*found), Some(*expected)),
+                F::Seat { entity } => (Some(*entity), None),
+                F::Repeated { .. }
+                | F::NotCanonical { .. }
+                | F::Singleton { .. }
+                | F::NotASelection { .. }
+                | F::OtherBody => (None, None),
             };
             EditPayload {
                 node: Some(node.id()),
@@ -356,9 +379,28 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 first,
                 again,
                 count,
+                found_kind,
+                expected_kind,
                 ..none
             }
         }
+        EditError::SelectionNameKind {
+            node,
+            slot,
+            at,
+            name,
+            found,
+            expected,
+        } => EditPayload {
+            node: Some(node.id()),
+            slot: Some(slot_id_tag(slot)),
+            index: operand_index(slot),
+            name: Some(name.name()),
+            first: Some(*at),
+            found_kind: Some(*found),
+            expected_kind: Some(*expected),
+            ..none
+        },
         EditError::PoseShape { node, slot, fault: _ } => EditPayload {
             node: Some(node.id()),
             slot: Some(slot_id_tag(slot)),

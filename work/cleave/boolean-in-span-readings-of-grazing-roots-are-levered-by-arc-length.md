@@ -38,7 +38,7 @@ PR 4246 found and fixed this shape in the ring lane
   crossing of the other's plane at the carriers' closest pair, polished
   under a basin meter, and reads each against both spans through
   `Span::contact`'s chord to each end (stage (c) of
-  `work/fuse/the-curve-pair-reader.md`).
+  `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227)).
 
 ## What it costs
 

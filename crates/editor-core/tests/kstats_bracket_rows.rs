@@ -169,11 +169,11 @@ fn two_instances(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions) {
     (doc, ids, opts)
 }
 
-/// **The parallel schedule.** Two instances racing for the part cache
-/// under rayon: whichever wins the miss, the instantiate node's log is
-/// the same — the same as the other instance's and the same as the
-/// sequential schedule's — over eight runs. The shield on the cache's
-/// miss path is what this row exists for.
+/// **The parallel schedule.** Two instances of one part under rayon:
+/// the instantiate node's log is the same — the same as the other
+/// instance's and the same as the sequential schedule's — over eight
+/// runs. The shield on the part's evaluation is what this row exists
+/// for.
 #[test]
 fn the_instantiate_log_is_schedule_independent() {
     let (doc, ids, seq_opts) = two_instances("kstats-sched");
@@ -189,7 +189,7 @@ fn the_instantiate_log_is_schedule_independent() {
     }
 }
 
-/// **A part inside a part**: two nested miss paths, each shielded. The
+/// **A part inside a part**: two nested part evaluations, shielded. The
 /// outer instantiate nodes' logs are their own op's — equal to each
 /// other and to the same document under the parallel schedule — and
 /// larger than a leaf's instantiate log, because the placed body is
@@ -330,8 +330,8 @@ fn a_lone_frame_decides_its_placement_with_no_one_to_read_it() {
 }
 
 /// **The assembly decides nothing outside its instances' brackets**:
-/// the part's decisions are shielded on the cache's miss path, and
-/// each instance's log is its own op's.
+/// the part's decisions are shielded where the census evaluates it,
+/// and each instance's log is its own op's.
 #[test]
 fn the_assembly_decides_nothing_outside_its_instances_brackets() {
     let (doc, ids, opts) = two_instances("kstats-outside");

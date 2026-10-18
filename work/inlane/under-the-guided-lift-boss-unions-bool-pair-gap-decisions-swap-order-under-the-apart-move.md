@@ -1,10 +1,10 @@
 ---
 id: under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move
 kind: issue
-title: Under the guided lift, boss_union's apart move decides two bool_pair_gap margins in the other order (read as a laundering), then parts at pcurve_chart_azimuth_frame, decision 3996 of 11384; NOTHING PINS THIS once the row runs in step
+title: The revalue instrument pairs p0 and p1 decisions by index, so an order change it cannot see reads as a laundering (boss_union's bool_pair_gap under the apart move, kitchen_sink's bool_plane_parallel); pair them by what they decide
 status: open
 opened: 2026-10-17
-refs: [kitchen-sink-census-pairs-planes-out-of-order]
+refs: [kitchen-sink-census-pairs-planes-out-of-order, under-the-guided-lift-plate-params-apart-move-parts-at-a-point-exactly-on-its-loop]
 priority: P2
 cost: M
 ---
@@ -29,3 +29,30 @@ Found by the shared replay session unit (`inlane/sym-replay-session`), guided li
 - Find what orders `bool_pair_gap`'s decisions. If it is value-sorted, decide whether the instrument should key decisions by pair rather than position.
 - Explain the `pcurve_chart_azimuth_frame` parting.
 - Return `revalue_boss_union` to the apart move.
+
+## Root cause, and why the kernel is not the fix (INLANE orchestrator's ruling (b), 2026-10-18)
+
+**What orders the decisions.** The narrow phase's candidate separating axes (`topo::boolean::separating::operand_axes`) are every planar face's outward normal on either operand, de-duplicated by exact bracket-key identity (`boxes::axis_key`) against a kept axis or its negation.
+- At boss_union's nominal the axis-aligned faces merge, 8 normals to 3 axes.
+- Under the apart move every face turns by its own ~1e-7 (even a box's opposite caps differ by rounding), so 8 stay 8.
+- Each extra axis is another `apart_along` read, so every `bool_pair_gap` after it sits at another index: p1's #3996 is p0's #3993. The instrument pairs by index and reads a laundering. Its parting at `pcurve_chart_azimuth_frame` (#3997) is the same misalignment.
+
+**The kernel fix tried and rejected.** One axis per planar face with no merge (branch `inlane/bool-pair-gap-order`, kept for its measurements) makes the log a function of topology. The apart move then compared 5,804 decisions with nothing laundered and parted at #5804 `point_in_arc_loop_side`, a vertex exactly on an axis-aligned schedule ray's line (0 → 7.000005503301634e-8), which is plate_param's ray-schedule class. The cost, isolated, main against no merge:
+
+| row (sweep) | main | no merge |
+|---|---|---|
+| `band_apart_partners_on_a_steep_ellipse` | 0.55 s | 1.4 s |
+| `germ_interior_oval::a_torus_oval_refuses_every_op_at_the_guard` | 0.75 s | 1.6 s |
+| `germ_plane_torus_frame::the_fat_corner_bars_corners_pair_on_one_oval` | 0.8 s | 1.25 s |
+| `rest_mate_every_op::arc_split_bore_intersect_and_differences_are_the_closed_form` | 20 s | 31 s |
+
+About 16 fast-set rows would cross the one-second bar. A non-apart pair tries every axis, and two boxes read 12 where they read 3.
+
+**The ruling.** The merge is exact-identity de-duplication of one computed value, not a predicate. It drops only an axis already read, so no verdict and no separation depends on it: a memo, not a decision. A 2–3× cost on the common axis-aligned case to make the instrument's index pairing line up is the instrument asking the kernel to bend. `operand_axes` now says so in its doc, and `separating::tests::the_axis_merge_keeps_two_normals_one_ulp_apart` pins identity, not tolerance.
+
+## Owed: the instrument pairs decisions by what they decide
+
+- **What changes.** `revalue_corpus` (`tally`) pairs p0's and p1's decisions by position. Pair them by what each decides instead: the predicate and a key for its operands (an identity or form key the recording carries), so a decision the other build took at another index, or not at all, is matched or reported as unmatched, never compared with a neighbour's margin.
+- **Folded in.** `kitchen-sink-census-pairs-planes-out-of-order` is folded in here: kitchen_sink's `bool_plane_parallel` swap is the same misreading.
+- **Done when** boss_union's apart move reads no laundering at the `bool_pair_gap` swap, kitchen_sink's census reads none at its plane swap, and a row pins each.
+- **What stays outside.** boss_union's apart move will then meet plate_param's ray-schedule exact zero further on. That item owns it.

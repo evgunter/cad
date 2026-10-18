@@ -74,7 +74,7 @@ tangent's one point, each its owner's to weigh:
 - `crates/topo/src/boolean/carrier_cross.rs`, the circle crossing's
   `apart`/`nested` Zero return of `foot`: retired with
   `carrier_cross::meetings` (stage (c) of
-  `work/fuse/the-curve-pair-reader.md`).
+  `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227)).
 - `crates/topo/src/validate.rs`, the circle-circle edge-pair candidates'
   tangent arm (RESTFRONT). Its `a` now comes from the clearances
   (`geom_core::Circles::radical`), as seg.rs's does; the point is
@@ -88,7 +88,7 @@ tangent's one point, each its owner's to weigh:
   `tan.touch` closure on a `REACH` or `NEST` escalation: its touch is
   `c₁ + k·(dd² + r₁² − r₂²)/2dd` (CLEAVE/HONE/ORBIT). Found by FUSE's
   sweep for the curve-pair reader (stage (b) of
-  `work/fuse/the-curve-pair-reader.md`). The reader itself places a
+  `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227)). The reader itself places a
   touch at the residual's extreme, on one circle exactly
   (`geom_brep::curve_pair::pose`, `harmonic_roots`), which
   `carrier_cross` now reads.

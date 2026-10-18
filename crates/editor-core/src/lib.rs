@@ -147,10 +147,7 @@ pub use spoken::{
     FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenVar, held_by,
     node_kind_noun, spoken_by, spoken_within,
 };
-// The entity door's token: a field of four `NodeErrorKind` variants, so
-// a reader that matches one needs to be able to name it here rather
-// than through the module path.
-pub use eval::entity_door::Found;
+
 pub use expr::{
     AuthoredLeaf, Dimension, DimensionError, EvalError, Expr, ExprPath, ExprTree, LeafSet,
     ParamValue, Quantity, Ratio, Slot, StoredLeaf, UnitSym, Unlowered, VarEnv, eval, eval_count,

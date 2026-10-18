@@ -6,10 +6,10 @@ status: open
 opened: 2026-10-15
 priority: P3
 cost: E
-refs: [the-curve-pair-reader]
+refs: [5227]
 ---
 
-Found by stage (c) of `work/fuse/the-curve-pair-reader.md`, which moved `LoopEdge::contact`'s conic rows (`ConicArc::hit`) onto `geom_brep::curve_pair::Span::contact`.
+Found by stage (c) of `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227), which moved `LoopEdge::contact`'s conic rows (`ConicArc::hit`) onto `geom_brep::curve_pair::Span::contact`.
 
 `reduce::split_other_at_point` asks whether a split point lies on its circle carrier through `contain::point_on_circle`, row `bool_contact_arc`. That row's doc said the boundary pre-pass asks the same distance under the same row name. It no longer does: the pre-pass reads `Span::contact`, whose gap row `curve_pair_span_gap` reads the point's distance from the carrier's point at its foot. On a circle that is the same distance, under a second row.
 

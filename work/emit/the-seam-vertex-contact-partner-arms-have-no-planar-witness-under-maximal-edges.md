@@ -34,7 +34,7 @@ were rewritten to pin the touched edge whole on the right side.
 
 The arms are reachable only where the touched edge is curved, which the
 join does not take yet
-(`work/fuse/curved-joinable-vertices-are-left-unjoined.md`). No row
+(`curved-joinable-vertices-are-left-unjoined` (closed, PR 4233)). No row
 witnesses that today.
 - If curved joins land, the arms' subject is gone everywhere and they
   should go with it.

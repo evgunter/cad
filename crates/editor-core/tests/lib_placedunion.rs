@@ -674,7 +674,11 @@ fn an_empty_placement_list_refuses_like_a_zero_count() {
     match eval::<f64>(&zero.doc).nodes.get(&id) {
         Some(NodeResult::Failed(e)) => assert!(matches!(
             e.kind,
-            NodeErrorKind::NonPositiveCount { count: 0 }
+            NodeErrorKind::CountOutOfRange {
+                slot: editor_core::SlotId::Count,
+                count: 0,
+                ..
+            }
         )),
         other => panic!("a zero count must refuse, got {other:?}"),
     }

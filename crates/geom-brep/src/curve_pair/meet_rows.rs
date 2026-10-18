@@ -1547,3 +1547,139 @@ fn a_fillet_joint_between_two_ellipses_is_read_by_its_window() {
         );
     }
 }
+
+/// **A height harmonic whose highest point lies on the negative `û`
+/// axis is read clear of `atan2`'s cut.** A die's pip, as the corpus
+/// builds it and in the enclosures it carries at interval: the pip's rim
+/// of radius `0.0806` on the face `z = 1`, the half of it at `y ≥ 0.5`,
+/// and the section arc of radius `0.09` about `(0.5, 0.5, 1.04)` in the
+/// plane `y = 0.5`, from the face down. The rim's height above the
+/// arc's plane has its cosine part `−r` and its sine part an enclosure
+/// of zero, so the principal `atan2` reads the turn `[−π, π]`; the root
+/// gap then reads `[0, 0.228]` and escalates
+/// (`curve_pair_pose_root_gap`), where `f64` reads the two ends' joint.
+/// Read a turn on, the angle is `π` to its rounding, and the pair meets
+/// at the joint alone, whichever span is read first. Red where the
+/// angle is read on the principal branch.
+#[test]
+fn a_height_harmonic_on_the_negative_axis_is_read_clear_of_the_cut() {
+    use geom_core::Interval;
+    let i = Interval::from_bounds;
+    let p = |x, y, z| Point3::new(x, y, z);
+    let v = |x, y, z| Vec3::new(x, y, z);
+    let rim = Curve3::Circle {
+        center: p(i(0.5, 0.5), i(0.5, 0.5), i(1.0, 1.0)),
+        axis: v(i(-0.0, -0.0), i(-0.0, -0.0), i(-1.0, -1.0)),
+        radius: i(0.080_622_577_482_985_46, 0.080_622_577_482_985_49),
+        u_ref: v(
+            i(-4e-323, 4e-323),
+            i(0.999_999_999_999_997_2, 1.000_000_000_000_002_7),
+            i(0.0, 0.0),
+        ),
+    };
+    let rim_span = (
+        i(-1.570_796_326_794_898_3, -1.570_796_326_794_894_3),
+        i(1.570_796_326_794_890_3, 1.570_796_326_794_902_3),
+    );
+    let arc = Curve3::Circle {
+        center: p(i(0.5, 0.5), i(0.5, 0.5), i(1.04, 1.04)),
+        axis: v(
+            i(-1.224_646_799_147_357_4e-16, 3.216_245_299_353_283e-16),
+            i(-1.000_000_000_000_000_2, -0.999_999_999_999_998_9),
+            i(-1.969_382_255_562_861_5e-32, 5.172_116_912_806_034e-32),
+        ),
+        radius: i(0.09, 0.09),
+        u_ref: v(
+            i(0.0, 0.0),
+            i(0.0, 0.0),
+            i(0.999_999_999_999_999, 1.000_000_000_000_001),
+        ),
+    };
+    let arc_span = (
+        i(2.031_350_318_476_216_3, 2.031_350_318_476_222_5),
+        i(core::f64::consts::PI, core::f64::consts::PI),
+    );
+    let (r, a) = (Span::new(&rim, rim_span), Span::new(&arc, arc_span));
+    for (order, got) in [
+        ("rim first", meet(&r, &a, band())),
+        ("arc first", meet(&a, &r, band())),
+    ] {
+        let got = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        assert!(
+            matches!(got.points[..], [p] if matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
+            "{order}: the joint alone: {got:?}"
+        );
+    }
+}
+
+/// **A touch at a harmonic's lowest point is read clear of the
+/// reduction's cut.** A die's pip as the composed tour builds it, in its
+/// enclosures at interval: a circle of radius `0.02` about
+/// `(0.8122, 0.02, 0.28)` in the plane `z = 0.28`, touching the plane
+/// `y = 0` at its start, and the section arc of radius `0.0922` about
+/// `(0.72, 0, 0.28)` in that plane, ending there. The circle's height
+/// above the arc's plane touches zero at its lowest point, half a turn
+/// from its highest, so the polish's reach reads the angle from the
+/// highest point through a reduction whose cut lies exactly there: read
+/// so, the reach is the whole half turn and the basin meter refuses
+/// (`Unsettled::Meter`). Read from the lowest point, the reach is the
+/// band's arc, and the pair meets at the joint alone, whichever span is
+/// read first. Red where the reach is read across the cut.
+#[test]
+fn a_touch_at_a_harmonics_lowest_point_is_read_clear_of_the_cut() {
+    use geom_core::Interval;
+    let i = Interval::from_bounds;
+    let p = |x, y, z| Point3::new(x, y, z);
+    let v = |x, y, z| Vec3::new(x, y, z);
+    let pip = Curve3::Circle {
+        center: p(
+            i(0.812_195_444_572_928_1, 0.812_195_444_572_929_5),
+            i(0.019_999_999_999_999_98, 0.020_000_000_000_000_028),
+            i(0.279_999_999_999_999_25, 0.280_000_000_000_000_75),
+        ),
+        axis: v(
+            i(-9.663_752_709_139_367e-14, 9.332_596_074_246_75e-14),
+            i(-7.216_449_660_066_244e-14, 7.216_449_660_066_244e-14),
+            i(-1.000_000_000_000_377_3, -0.999_999_999_999_622_7),
+        ),
+        radius: i(0.02, 0.02),
+        u_ref: v(
+            i(-5.551_115_123_125_793e-14, 5.551_115_123_125_793e-14),
+            i(-1.000_000_000_000_003_6, -0.999_999_999_999_996_4),
+            i(-7.216_449_660_063_531e-14, 7.216_449_660_063_531e-14),
+        ),
+    };
+    let pip_span = (
+        i(0.0, 0.0),
+        i(0.993_864_981_558_250_5, 0.993_864_981_558_627_5),
+    );
+    let arc = Curve3::Circle {
+        center: p(
+            i(0.72, 0.72),
+            i(-3.469_446_951_953_614e-18, 1.040_834_085_586_084_3e-17),
+            i(0.28, 0.28),
+        ),
+        axis: v(i(-0.0, -0.0), i(1.0, 1.0), i(-0.0, -0.0)),
+        radius: i(0.092_195_444_572_928_8, 0.092_195_444_572_928_9),
+        u_ref: v(
+            i(-9.846_911_277_814_305e-33, 3.749_399_456_654_659e-33),
+            i(0.0, 0.0),
+            i(0.999_999_999_999_997, 1.000_000_000_000_002_9),
+        ),
+    };
+    let arc_span = (
+        i(-4.712_388_980_384_697, -4.712_388_980_384_683),
+        i(1.570_796_326_794_889_5, 1.570_796_326_794_903_7),
+    );
+    let (c, a) = (Span::new(&pip, pip_span), Span::new(&arc, arc_span));
+    for (order, got) in [
+        ("pip first", meet(&c, &a, band())),
+        ("arc first", meet(&a, &c, band())),
+    ] {
+        let got = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        assert!(
+            matches!(got.points[..], [p] if matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
+            "{order}: the joint alone: {got:?}"
+        );
+    }
+}

@@ -13,7 +13,7 @@ cost: M
 
 ## The finding
 
-Measured by a FUSE designer lane weighing `work/fuse/two-curve-curve-meeting-finders.md`. The probe ran in a throwaway worktree and was never committed.
+Measured by a FUSE designer lane weighing `two-curve-curve-meeting-finders` (closed, PRs 5154, 5162 and 5227). The probe ran in a throwaway worktree and was never committed.
 
 The fault is in `carrier_cross::parallel_circles` (`crates/topo/src/boolean/carrier_cross.rs`), in the touch branch `if apart == Sign::Zero || nested == Sign::Zero { return Ok(vec![foot]); }`. It places the touch with the generic radical-line foot `c1 + e·(d² + r1² − r2²)/2d`. That formula multiplies the decision's residue (`d − |r1 − r2|`, or `|r1 + r2| − d`) by `(r1 + r2)/2d`, which is unbounded as `d → 0`.
 
@@ -58,7 +58,7 @@ A second designer lane ran its own probe, also never committed: 2000 random pair
 - Decide a double root by the gap between its two roots along the curve, in metres, not by a centre-line margin.
 - Rows: one red-then-green row per reproduction above.
 
-FUSE's curve-meeting design (`work/fuse/two-curve-curve-meeting-finders.md`, now with Ev) would absorb these arms. **This defect is silent today, so fix it now, independently of that design.**
+FUSE's curve-meeting design (`two-curve-curve-meeting-finders` (closed, PRs 5154, 5162 and 5227), now with Ev) would absorb these arms. **This defect is silent today, so fix it now, independently of that design.**
 
 ## Closed — `carrier_cross` reads its meetings from `geom_brep::curve_pair::meet` (fuse/curve-pair-reader-c)
 
@@ -85,7 +85,7 @@ foot in place; it only moved the one-circle decision onto
     tilted family.
 - **Where the pose sits below the tangency floor** it refuses typed
   rather than placing a candidate
-  (`work/fuse/curve-pair-polish-meters-refuse-shallow-meetings.md`),
+  (`work/cpair/curve-pair-polish-meters-refuse-shallow-meetings.md`),
   and `carrier_cross` answers `Unread`. The caller keeps its frontier
   door rather than reading `Clear`.
 

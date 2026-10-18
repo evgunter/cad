@@ -26,7 +26,7 @@ by exact id, under the comment naming this file:
 - `crates/editor-core/tests/refusal_concision_chains.rs`, `FILED_NO_RECOURSE`:
   94 feature-tree rows.
 
-Families: `AssertionDimension`, `AxisInDifferentPlane`, `BlendSelectionEmpty`, `CrossingUnverified`, `CurvedSolidFrontier`, `DeclareResolve`, `DeclareSiteNotAnOperand`, `DeclareUnsupportedPair`, `DegenerateDirection`, `EmptyHalf`, `EmptyOperand`, `Expr`, `FaceFrameNotPlanar`, `FaceFrameReadback`, `FrameDirection`, `InstanceOutOfRange`, `MeasureClearanceRefused`, `MeasureMalformed`, `MeasureNonFinite`, `MeasureNotParallel`, `MeasureRefUnreadable`, `MeasureSelectionKind`, `MeasureUnsupported`, `MissingInput`, `MissingSlot`, `Naming`, `NonPositiveCount`, `ParamBox`, `ParamSourceAttach`, `PayloadExpr`, `PlacementRule`, `PlacementsUncertified`, `ProfileAnchor`, `ProfileLaneReplay(Flipped)`, `ProfileLaneReplay(None)`, `ProfilePieces`, `Seed`, `SelectKind`, `SelectResolve`, `ShellLaneUnsupported`, `ToleranceConflict`, `UnschedulableCycle`, `VerbArity`, `WitnessBifurcation`, `WrongOperand`.
+Families: `AssertionDimension`, `AxisInDifferentPlane`, `BlendSelectionEmpty`, `CrossingUnverified`, `CurvedSolidFrontier`, `DeclareResolve`, `DeclareSiteNotAnOperand`, `DeclareUnsupportedPair`, `DegenerateDirection`, `EmptyHalf`, `EmptyOperand`, `Expr`, `FaceFrameNotPlanar`, `FaceFrameReadback`, `FrameDirection`, `InstanceOutOfRange`, `MeasureClearanceRefused`, `MeasureMalformed`, `MeasureNonFinite`, `MeasureNotParallel`, `MeasureRefUnreadable`, `MeasureSelectionKind`, `MeasureUnsupported`, `MissingInput`, `MissingSlot`, `Naming`, `NonPositiveCount`, `ParamBox`, `ParamSourceAttach`, `PayloadExpr`, `PlacementRule`, `PlacementsUncertified`, `ProfileAnchor`, `ProfileLaneReplay(Flipped)`, `ProfileLaneReplay(None)`, `ProfilePieces`, `Seed`, `SelectResolve`, `ShellLaneUnsupported`, `ToleranceConflict`, `UnschedulableCycle`, `VerbArity`, `WitnessBifurcation`, `WrongOperand`.
 
 ## Repair shape
 
@@ -105,3 +105,7 @@ every arm, enforced by `every_knot_algebra_error_arm_names_a_recourse`
 beside it, so the row the admission was holding open renders a recourse
 and the admission went red for being unused — which is
 `every_admission_admits_a_row_it_is_needed_for` working.
+
+## Triage (2026-10-17, WIRE orchestrator)
+
+WIRE's block of `FILED_NO_RECOURSE` is down to 79 entries; the `Declare*`, `AxisInDifferentPlane` and `ParamSourceAttach` families are gone. The `PlacementRule/*`, `PlacementsUncertified`, `InstanceOutOfRange`, `FaceFrame*` and `FrameDirection` entries stand on stage 3 ground and are NOT this row's to write now; the rest (`Select*`, `Expr/*`, `MeasureRefUnreadable/*`, `Naming/*`, `Seed/*`, `Profile*`) can start. The escalation-menu section predates the declare door's deletion: re-read `COINCIDENCE_RECOURSE` before acting on it.

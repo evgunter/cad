@@ -1327,7 +1327,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // no row of this tree is.
         NodeErrorKind::Part { .. }
         | NodeErrorKind::SelectResolve { .. }
-        | NodeErrorKind::SelectKind { .. }
         | NodeErrorKind::MeasureRefUnreadable { .. }
         | NodeErrorKind::Naming(_) => None,
         // The member names the step that refused, not the node to
@@ -1341,8 +1340,9 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Profile(_)
         | NodeErrorKind::ProfileReplay { .. }
         | NodeErrorKind::ProfileLaneReplay { .. }
-        | NodeErrorKind::ProfileAnchor { .. }
+        | NodeErrorKind::ProfileAnchor
         | NodeErrorKind::ProfilePieces { .. }
+        | NodeErrorKind::ProfileRecordMissing { .. }
         | NodeErrorKind::Extrude(_)
         | NodeErrorKind::Revolve(_)
         | NodeErrorKind::Tube(_)
@@ -1367,7 +1367,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::MeasureEscalated { .. }
         | NodeErrorKind::PlacementAxisEscalated { .. }
         | NodeErrorKind::PoseDirectionEscalated { .. }
-        | NodeErrorKind::NonPositiveCount { .. }
+        | NodeErrorKind::CountOutOfRange { .. }
         | NodeErrorKind::NegativeSpacing { .. }
         | NodeErrorKind::DegenerateSpacing
         | NodeErrorKind::DegenerateStep

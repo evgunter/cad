@@ -3,10 +3,10 @@
 //!
 //! A selection is a COMMITMENT (the #217 freeze ruling), so a name
 //! that stops resolving is a refusal, never a silent shrink. The
-//! vocabulary is `resolve_declarations`' verbatim — the two sites
-//! answer the same question, so they answer it the same way — plus two
-//! refusals a single-operand selection needs and a Declare pair does
-//! not: a mis-KINDED name and an EMPTY set.
+//! vocabulary is the mid-evaluation N5 ladder's (`eval/wire.rs`
+//! `ladder`), the same refusals `crate::resolve` mints, plus the one a
+//! selection adds: an EMPTY set. A mis-KINDED name is the insert
+//! door's, whether or not it is tied.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -162,15 +162,11 @@ fn rim(doc: &editor_core::ProfileDoc, node: RecipeNodeId, seg: u32) -> StableNam
 }
 
 /// Runs the plant and hands its typed refusal to `check`.
-fn refuses(
-    doc: &editor_core::ProfileDoc,
-    fillet: RecipeNodeId,
-    check: impl FnOnce(&NodeErrorKind),
-) {
+fn refuses(doc: &editor_core::ProfileDoc, node: RecipeNodeId, check: impl FnOnce(&NodeErrorKind)) {
     let ev = eval(doc);
-    match ev.nodes.get(&fillet) {
+    match ev.nodes.get(&node) {
         Some(NodeResult::Failed(e)) => check(&e.kind),
-        other => panic!("the fillet must refuse, got {other:?}"),
+        other => panic!("the selection's reader must refuse, got {other:?}"),
     }
 }
 
@@ -313,7 +309,9 @@ fn a_selection_naming_an_absent_entity_is_vanished() {
 
 /// **Ambiguous + TieWitness**: a tie-marked name has two or more
 /// equally-admissible candidates, so a selection cannot pick one. The
-/// tie is the symmetric U cutter's N2 tie.
+/// tie is the symmetric U cutter's N2 tie, which ties faces, so the
+/// selection is a shell's open faces: a tie of the kind its reader
+/// takes.
 #[test]
 fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
     let (doc, us) = symmetric_u();
@@ -322,25 +320,24 @@ fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
         .table_at(us)
         .expect("the U subtract evaluates")
         .iter()
-        // Any tied row will do: the resolver reaches the TIE before it
-        // reaches the kind check, so ambiguity is refused first — which
-        // is the right order (a name that names two things cannot be
-        // checked for what it names).
-        .find_map(|(n, e)| matches!(e, editor_core::Entry::Tied(_)).then(|| n.clone()))
-        .expect("the U fixture ties");
+        .find_map(|(n, e)| {
+            (matches!(e, editor_core::Entry::Tied(_)) && n.kind == EntityKind::Face)
+                .then(|| n.clone())
+        })
+        .expect("the U fixture ties a face");
 
     let applied = editor_core::apply(
         &doc,
         &editor_core::DocEdit::InsertNode {
-            node: Box::new(Node::fillet(us, len(0.125), vec![tied.clone()])),
+            node: Box::new(Node::shell(us, len(0.125), vec![tied.clone()])),
             fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
-    .expect("the fillet inserts");
-    let fillet = applied.record.minted.expect("a minted id");
-    refuses(&applied.doc, fillet, |kind| match kind {
+    .expect("the shell inserts");
+    let shell = applied.record.minted.expect("a minted id");
+    refuses(&applied.doc, shell, |kind| match kind {
         NodeErrorKind::SelectResolve { error, .. } => match error.as_ref() {
             ResolveError::Ambiguous {
                 name,
@@ -363,23 +360,61 @@ fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
 }
 
 /// **Mis-kinded**: a selection naming a FACE is a recipe bug, refused
-/// rather than reinterpreted as "the face's edges".
+/// at the insert rather than reinterpreted as "the face's edges" — what
+/// a name denotes is its own kind, so the door that reads it asks.
 #[test]
-fn a_selection_naming_a_face_refuses_on_kind() {
-    let face = |doc: &ProfileDoc| StableName {
+fn a_selection_naming_a_face_refuses_on_kind_at_the_insert() {
+    let (doc, _) = planted(|doc| vec![rim(doc, body(doc), 0)]);
+    let face = StableName {
         kind: EntityKind::Face,
-        node: body(doc),
+        node: body(&doc),
         path: vec![RoleSeg::Cap(editor_core::CapEnd::End)],
     };
-    let (doc, fillet) = planted(|doc| vec![face(doc)]);
-    let face = face(&doc);
-    refuses(&doc, fillet, |kind| match kind {
-        NodeErrorKind::SelectKind { name, found, .. } => {
-            assert_eq!(**name, face);
-            assert_eq!(found.kind(), EntityKind::Face);
-        }
-        other => panic!("expected a kind refusal, got {other:?}"),
-    });
+    let err = fixture::insert_refused(&doc, Node::fillet(body(&doc), len(0.125), vec![face]));
+    assert!(
+        matches!(
+            err,
+            editor_core::EditError::SelectionNameKind {
+                at: 0,
+                found: EntityKind::Face,
+                expected: EntityKind::Edge,
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+}
+
+/// **A TIED name of the wrong kind refuses its kind, not its tie**:
+/// narrowing a face name could never make it an edge, so `Ambiguous`
+/// would be the wrong word — and the kind is the name's, answerable
+/// without resolving it.
+#[test]
+fn a_tied_name_of_another_kind_refuses_on_kind_at_the_insert() {
+    let (doc, us) = symmetric_u();
+    let ev = eval(&doc);
+    let tied: StableName = ev
+        .table_at(us)
+        .expect("the U subtract evaluates")
+        .iter()
+        .find_map(|(n, e)| {
+            (matches!(e, editor_core::Entry::Tied(_)) && n.kind == EntityKind::Face)
+                .then(|| n.clone())
+        })
+        .expect("the U fixture ties a face");
+    let err = fixture::insert_refused(&doc, Node::fillet(us, len(0.125), vec![tied]));
+    assert!(
+        matches!(
+            err,
+            editor_core::EditError::SelectionNameKind {
+                at: 0,
+                found: EntityKind::Face,
+                expected: EntityKind::Edge,
+                ..
+            }
+        ),
+        "{err:?}"
+    );
 }
 
 /// **Empty**: a fillet of nothing is not the identity — it is an

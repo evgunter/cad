@@ -57,6 +57,8 @@ pub enum NodeErrorClass {
     ProfileAnchor,
     /// [`NodeErrorKind::ProfilePieces`].
     ProfilePieces,
+    /// [`NodeErrorKind::ProfileRecordMissing`].
+    ProfileRecordMissing,
     /// [`NodeErrorKind::Extrude`].
     Extrude,
     /// [`NodeErrorKind::Revolve`].
@@ -87,8 +89,6 @@ pub enum NodeErrorClass {
     UnresolvedRead,
     /// [`NodeErrorKind::SelectResolve`].
     SelectResolve,
-    /// [`NodeErrorKind::SelectKind`].
-    SelectKind,
     /// [`NodeErrorKind::ToleranceConflict`].
     ToleranceConflict,
     /// [`NodeErrorKind::ParamBox`].
@@ -133,8 +133,8 @@ pub enum NodeErrorClass {
     PoseDegenerate,
     /// [`NodeErrorKind::PoseScalar`].
     PoseScalar,
-    /// [`NodeErrorKind::NonPositiveCount`].
-    NonPositiveCount,
+    /// [`NodeErrorKind::CountOutOfRange`].
+    CountOutOfRange,
     /// [`NodeErrorKind::NegativeSpacing`].
     NegativeSpacing,
     /// [`NodeErrorKind::DegenerateSpacing`].
@@ -294,8 +294,9 @@ impl NodeErrorKind {
             Self::Profile(_) => C::Profile,
             Self::ProfileReplay { .. } => C::ProfileReplay,
             Self::ProfileLaneReplay { .. } => C::ProfileLaneReplay,
-            Self::ProfileAnchor { .. } => C::ProfileAnchor,
+            Self::ProfileAnchor => C::ProfileAnchor,
             Self::ProfilePieces { .. } => C::ProfilePieces,
+            Self::ProfileRecordMissing { .. } => C::ProfileRecordMissing,
             Self::Extrude(_) => C::Extrude,
             Self::Revolve(_) => C::Revolve,
             Self::Tube(_) => C::Tube,
@@ -310,7 +311,6 @@ impl NodeErrorKind {
             Self::MissingInput { .. } => C::MissingInput,
             Self::UnresolvedRead { .. } => C::UnresolvedRead,
             Self::SelectResolve { .. } => C::SelectResolve,
-            Self::SelectKind { .. } => C::SelectKind,
             Self::ToleranceConflict { .. } => C::ToleranceConflict,
             Self::ParamBox { .. } => C::ParamBox,
             Self::Seed { .. } => C::Seed,
@@ -336,7 +336,7 @@ impl NodeErrorKind {
             Self::PoseRead { .. } => C::PoseRead,
             Self::PoseDegenerate { .. } => C::PoseDegenerate,
             Self::PoseScalar { .. } => C::PoseScalar,
-            Self::NonPositiveCount { .. } => C::NonPositiveCount,
+            Self::CountOutOfRange { .. } => C::CountOutOfRange,
             Self::NegativeSpacing { .. } => C::NegativeSpacing,
             Self::DegenerateSpacing => C::DegenerateSpacing,
             Self::DegenerateStep => C::DegenerateStep,
@@ -482,7 +482,7 @@ fn by_verb(verb: BlendKind, fillet: NodeErrorClass, chamfer: NodeErrorClass) -> 
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{NodeErrorClass as C, NodeErrorKind as K};
-    use crate::names::{EntityKey, EntityKind, StableName};
+    use crate::names::{EntityKind, StableName};
     use crate::node::RecipeNodeId;
     use geom_core::{Band, BandError, Indeterminate, MarginDiag, Tol, UnitVec3Error};
     use sweep::blend::BlendKind;
@@ -512,6 +512,7 @@ mod tests {
         ProfileLaneReplay,
         ProfileAnchor,
         ProfilePieces,
+        ProfileRecordMissing,
         Extrude,
         Revolve,
         Tube,
@@ -527,7 +528,6 @@ mod tests {
         MissingInput,
         UnresolvedRead,
         SelectResolve,
-        SelectKind,
         ToleranceConflict,
         ParamBox,
         Seed,
@@ -550,7 +550,7 @@ mod tests {
         PoseRead,
         PoseDegenerate,
         PoseScalar,
-        NonPositiveCount,
+        CountOutOfRange,
         NegativeSpacing,
         DegenerateSpacing,
         DegenerateStep,
@@ -654,13 +654,6 @@ mod tests {
         })
     }
 
-    /// The entity door's own answer for a whole body, which is the only
-    /// way a [`crate::Found`] is minted.
-    fn found_body(refuse: fn(crate::Found) -> K) -> K {
-        crate::eval::entity_door::entity(EntityKey::Body, |_| None::<()>, refuse)
-            .expect_err("a read that finds nothing refuses")
-    }
-
     fn doc_ref() -> crate::DocRef {
         crate::DocRef {
             id: crate::DocumentId::derive("bracket"),
@@ -725,7 +718,7 @@ mod tests {
                 step: 2,
                 structure: None,
             },
-            C::ProfileAnchor => K::ProfileAnchor { loop_: 0 },
+            C::ProfileAnchor => K::ProfileAnchor,
             C::ProfilePieces => K::ProfilePieces {
                 fault: crate::PiecesFault::Length {
                     loop_: 0,
@@ -733,6 +726,7 @@ mod tests {
                     anchored: 5,
                 },
             },
+            C::ProfileRecordMissing => K::ProfileRecordMissing { loop_: Some(1) },
             C::Extrude => K::Extrude(sweep::ExtrudeError::ObliqueExtrusion),
             C::Revolve => K::Revolve(sweep::RevolveError::DegenerateAxis),
             C::Tube => K::Tube(Box::new(sweep::TubeError::DegenerateWindow)),
@@ -766,13 +760,6 @@ mod tests {
                 reference: 0,
                 error: resolve_error(),
             },
-            C::SelectKind => found_body(|found| K::SelectKind {
-                slot: crate::OperandSlot::Selection,
-                var: crate::VarId::new(3, 3),
-                name: Box::new(name()),
-                expected: crate::EntityKind::Edge,
-                found,
-            }),
             C::ToleranceConflict => K::ToleranceConflict {
                 document_eps: 1.0e-7,
                 process_eps: 1.0e-9,
@@ -864,7 +851,11 @@ mod tests {
                 var: crate::VarId::new(2, 0),
                 source: EvalError::NonFiniteResult,
             },
-            C::NonPositiveCount => K::NonPositiveCount { count: 0 },
+            C::CountOutOfRange => K::CountOutOfRange {
+                slot: crate::node::SlotId::Count,
+                count: 0,
+                admits: 1..=i64::MAX,
+            },
             C::NegativeSpacing => K::NegativeSpacing {
                 spacing: geom_core::MarginDiag::value(-4.0),
                 reversed: [-1.0, 0.0, 0.0]

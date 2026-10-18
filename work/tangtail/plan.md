@@ -36,7 +36,7 @@ the dual on triaged-in units only, opus/opus outside it. Which units
 are candidates is OPEN for this program's first dispatch. A lane
 measures its row's repro on current main before it builds: the ground
 has moved since most of these rows were filed. Blocks draw from
-13500 on.
+13700 on.
 
 ## Exit
 

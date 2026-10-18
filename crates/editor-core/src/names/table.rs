@@ -55,13 +55,10 @@ impl EntityKey {
         }
     }
 
-    /// **The face this key denotes, or `None`** — the projection a
-    /// face-wanting road reads through (`eval::wire`'s entity door: a
-    /// shell's open designation, a derived frame's face). `None` is
-    /// "not a face", never "no such face": the key is an already
-    /// resolved entity, so the arms it does not match are the other
-    /// three kinds and nothing else, and [`EntityKey::kind`] is what
-    /// says which.
+    /// **The face this key denotes, or `None`**: "not a face", never "no
+    /// such face" — the key is an already resolved entity, so the arms
+    /// it does not match are the other three kinds, and
+    /// [`EntityKey::kind`] is what says which.
     pub(crate) fn face(self) -> Option<FaceKey> {
         match self {
             Self::Face(k) => Some(k),
@@ -69,8 +66,8 @@ impl EntityKey {
         }
     }
 
-    /// **The edge this key denotes, or `None`** — [`EntityKey::face`]'s
-    /// twin, for the roads that select edges (a blend's selection).
+    /// **The edge this key denotes, or `None`** ([`EntityKey::face`]'s
+    /// twin).
     pub(crate) fn edge(self) -> Option<EdgeKey> {
         match self {
             Self::Edge(k) => Some(k),
@@ -78,19 +75,8 @@ impl EntityKey {
         }
     }
 
-    /// **The vertex this key denotes, or `None`** — the third
-    /// projection, and NOT [`EntityKey::face`]'s twin in the way the
-    /// other two are twins.
-    ///
-    /// `face` and `edge` are handed to `eval::wire`'s entity door as
-    /// `read` function pointers, so the door mints the `Found` word
-    /// from the key they decline. This one is read directly, by
-    /// `resolve_declarations`'s same-operand projection, where the
-    /// kind was already decided from the NAME and a `None` here means
-    /// the table broke its own rule rather than that a caller named
-    /// the wrong kind. If a road ever wants a vertex through that
-    /// door, this is the projection to hand it — which would make the
-    /// three genuinely alike.
+    /// **The vertex this key denotes, or `None`** ([`EntityKey::face`]'s
+    /// twin).
     pub(crate) fn vertex(self) -> Option<VertexKey> {
         match self {
             Self::Vertex(k) => Some(k),

@@ -49,7 +49,7 @@ fn edit_fields(
     variant: &str,
     inner: Option<&'static str>,
     payload: &crate::edit_payload::EditPayload<'_>,
-) -> [(&'static str, Py<PyAny>); 26] {
+) -> [(&'static str, Py<PyAny>); 28] {
     let none = || py.None();
     // A field whose own construction failed degrades to `None` rather
     // than replacing the kernel's refusal with a boundary one: the
@@ -83,6 +83,8 @@ fn edit_fields(
         ("kind", word(payload.kind)),
         ("from_kind", kind(payload.from_kind)),
         ("to_kind", kind(payload.to_kind)),
+        ("found_kind", kind(payload.found_kind)),
+        ("expected_kind", kind(payload.expected_kind)),
         (
             "count",
             num(payload.count.map(|n| infallible(n.into_pyobject(py)))),
@@ -2738,10 +2740,11 @@ impl Node {
     /// two facts `Evaluation.face_frame` hands out — so a sketch on
     /// the underside of a plate faces out of the plate.
     ///
-    /// Refuses typed at `evaluate`, never here: `select_resolve` for a
-    /// name that stopped denoting (the repair is `DocEdit.rebind`),
-    /// `select_kind` for an edge or vertex name, `face_frame_not_planar`
-    /// for a curved carrier — a
+    /// An edge or vertex name refuses at the insert
+    /// (`EditError` `selection_name_kind`). The rest refuse typed at
+    /// `evaluate`, never here: `select_resolve` for a name that stopped
+    /// denoting (the repair is `DocEdit.rebind`),
+    /// `face_frame_not_planar` for a curved carrier — a
     /// sketch frame wants a plane, and `Evaluation.face_carrier_kind`
     /// is the door that answers which carrier it found — and
     /// `face_frame_readback` for a body whose stored geometry cannot
@@ -2892,12 +2895,12 @@ impl Node {
     /// that adds edges does NOT extend it. Materialize, store, and
     /// the recipe means what it said.
     ///
-    /// Nothing is pre-checked beyond the text being a name at all. An
-    /// EMPTY selection (`fillet_selection_empty`), a name that
-    /// resolves to nothing (`select_resolve`), a name of the
-    /// wrong kind (`select_kind`), a tangential edge the
-    /// roller cannot enter (`fillet`) — every one of those is the
-    /// kernel's own typed refusal at `evaluate`.
+    /// Nothing is pre-checked beyond the text being a name at all. A
+    /// name of the wrong kind refuses at the insert (`EditError`
+    /// `selection_name_kind`). An EMPTY selection (`fillet_selection_empty`),
+    /// a name that resolves to nothing (`select_resolve`), a tangential
+    /// edge the roller cannot enter (`fillet`) — every one of those is
+    /// the kernel's own typed refusal at `evaluate`.
     ///
     /// The node is built through Rust's `Node::fillet`, the one
     /// construction door, so the stored set is canonical (sorted,
@@ -2937,12 +2940,12 @@ impl Node {
     /// not a radius. That is the one thing this door does not share
     /// with its twin.
     ///
-    /// Nothing is pre-checked beyond the text being a name at all. An
-    /// EMPTY selection (`chamfer_selection_empty`), a name that
-    /// resolves to nothing (`select_resolve`), a name of
-    /// the wrong kind (`select_kind`), an edge whose two
-    /// supports are not both planes (`chamfer`) — every one of those
-    /// is the kernel's own typed refusal at `evaluate`.
+    /// Nothing is pre-checked beyond the text being a name at all. A
+    /// name of the wrong kind refuses at the insert (`EditError`
+    /// `selection_name_kind`). An EMPTY selection (`chamfer_selection_empty`),
+    /// a name that resolves to nothing (`select_resolve`), an edge
+    /// whose two supports are not both planes (`chamfer`) — every one
+    /// of those is the kernel's own typed refusal at `evaluate`.
     ///
     /// The node is built through Rust's `Node::chamfer`, the one
     /// construction door, so the stored set is canonical.
@@ -2993,11 +2996,12 @@ impl Node {
     /// solid's never names them. The
     /// designation FREEZES in the sense `Node.fillet` states.
     ///
-    /// A name that resolves to nothing (`select_resolve`), a name
-    /// of the wrong kind (`select_kind`), a non-positive wall or a
-    /// wall two facing faces cannot both afford, a rim the kernel cannot
-    /// build or read (`shell`) — every one of those is the kernel's own
-    /// typed refusal at `evaluate`.
+    /// A name of the wrong kind refuses at the insert (`EditError`
+    /// `selection_name_kind`). A name that resolves to nothing
+    /// (`select_resolve`), a non-positive wall or a wall two facing
+    /// faces cannot both afford, a rim the kernel cannot build or read
+    /// (`shell`) — every one of those is the kernel's own typed refusal
+    /// at `evaluate`.
     ///
     /// `thickness` is the node's `shell_thickness` slot, moved
     /// afterwards by `DocEdit.set_param`; a designated
@@ -3206,7 +3210,7 @@ impl Node {
     /// `count` is a count `Formula` — `Formula.count(4)` — and it is the
     /// node's `Count` slot, so `DocEdit.bind_count_param` is what
     /// makes it a named, editable number. A count below one refuses
-    /// at `evaluate` (`non_positive_count`).
+    /// at `evaluate` (`count_out_of_range`).
     ///
     /// An `explicit` rule refuses typed at `Doc.insert`
     /// (`EditError`, `placement_rule_mismatch`): it carries its own

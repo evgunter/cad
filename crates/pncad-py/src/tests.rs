@@ -1665,9 +1665,9 @@ fn resolution_status_tags_are_stable() {
 /// speaks, so a kernel arm added without a tag here is an absence in
 /// a list rather than invisible behind the wildcard. The safety
 /// property is the crossing's own typed `unclassified` refusal
-/// (`py/select.rs`), not this test. (`InBand`/`PairInBand`/
-/// `BadValue` carry funnel/expression internals with no public
-/// constructor; their tags are covered by the match itself.)
+/// (`py/select.rs`), not this test. (`InBand`/`BadValue` carry
+/// funnel/expression internals with no public constructor; their tags
+/// are covered by the match itself.)
 #[test]
 fn select_refusal_tags_are_stable() {
     use crate::tags::select_refusal_tag;
@@ -2374,9 +2374,9 @@ fn the_stl_writers_arms_are_construction_only() {
 /// arm buildable without geometry: the op family at its f64 witness
 /// and the lane refusal.
 ///
-/// The open faces' selection refusals (`select_resolve`, `select_kind`)
-/// are driven through a real document instead, in `tests/test_shell.py`:
-/// their payloads are not this layer's to mint.
+/// The open faces' selection refusal (`select_resolve`) is driven
+/// through a real document instead, in `tests/test_shell.py`: its
+/// payload is not this layer's to mint.
 #[test]
 fn shell_refusal_tags_are_stable() {
     use crate::tags::node_error_tag;
@@ -2433,6 +2433,7 @@ fn node_error_tags_are_the_published_words() {
         ProfileLaneReplay => "profile_lane_replay",
         ProfileAnchor => "profile_anchor",
         ProfilePieces => "profile_pieces",
+        ProfileRecordMissing => "profile_record_missing",
         Extrude => "extrude",
         Revolve => "revolve",
         Tube => "tube",
@@ -2455,7 +2456,6 @@ fn node_error_tags_are_the_published_words() {
         CopiesShareAKey => "copies_share_a_key",
         UnresolvedRead => "unresolved_read",
         SelectResolve => "select_resolve",
-        SelectKind => "select_kind",
         EmptyOperand => "empty_operand",
         ProductOperand => "product_operand",
         UnfinishedOperand => "unfinished_operand",
@@ -2471,7 +2471,7 @@ fn node_error_tags_are_the_published_words() {
         PoseRead => "pose_read",
         PoseDegenerate => "pose_degenerate",
         PoseScalar => "pose_scalar",
-        NonPositiveCount => "non_positive_count",
+        CountOutOfRange => "count_out_of_range",
         NegativeSpacing => "negative_spacing",
         DegenerateSpacing => "degenerate_spacing",
         DegenerateStep => "degenerate_step",
@@ -3121,6 +3121,54 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             fault: pncad::document::SelectionFault::NotCanonical { at: 2 },
         },
         &["node", "slot", "first"],
+    );
+    // A name of another kind than the selection's: one position too,
+    // and the two entity kinds.
+    carries(
+        &E::SelectionShape {
+            node: sp(1),
+            slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Selection),
+            fault: pncad::document::SelectionFault::Kind {
+                at: 1,
+                found: pncad::select::EntityKind::Face,
+                expected: pncad::select::EntityKind::Edge,
+            },
+        },
+        &["node", "slot", "found_kind", "expected_kind", "first"],
+    );
+    // A seat that reads no selection of the names' kind: that kind.
+    carries(
+        &E::SelectionShape {
+            node: sp(1),
+            slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Measured(
+                pncad::document::MeasureVerb::MinClearance,
+                0,
+            )),
+            fault: pncad::document::SelectionFault::Seat {
+                entity: pncad::select::EntityKind::Edge,
+            },
+        },
+        &["node", "slot", "found_kind"],
+    );
+    // The insert door's own arm for that name: the name itself, where
+    // it sits, and the two kinds.
+    carries(
+        &E::SelectionNameKind {
+            node: sp(1),
+            slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Selection),
+            at: 1,
+            name: named(),
+            found: pncad::select::EntityKind::Face,
+            expected: pncad::select::EntityKind::Edge,
+        },
+        &[
+            "node",
+            "slot",
+            "name",
+            "found_kind",
+            "expected_kind",
+            "first",
+        ],
     );
 
     // ---- names, kinds and appearance ----
@@ -5191,6 +5239,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_no_references",
             "rebind_target_missing_node",
             "rebind_unknown_name",
+            "selection_name_kind",
             "selection_shape",
             "set_extrude_side_on_non_extrude",
             "set_members_on_non_list",
@@ -5582,6 +5631,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chamfer_selection_empty",
             "copies_share_a_key",
             "copy_shape",
+            "count_out_of_range",
             "crossing_unverified",
             "curved_solid_frontier",
             "degenerate_direction",
@@ -5634,7 +5684,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "no_such_copy",
             "non_finite_direction",
             "non_finite_placement",
-            "non_positive_count",
             "non_rigid_placement",
             "param_box",
             "part_depth_exceeded",
@@ -5656,10 +5705,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "profile_anchor",
             "profile_lane_replay",
             "profile_pieces",
+            "profile_record_missing",
             "profile_replay",
             "revolve",
             "seed",
-            "select_kind",
             "select_resolve",
             "shell",
             "shell_lane_unsupported",
@@ -6122,6 +6171,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "selection_fault_tag",
         values: &[
+            "name_kind",
             "not_a_selection",
             "not_canonical",
             "other_body",
@@ -7998,10 +8048,10 @@ fn read_tag_table(source: &str) -> TagTable {
 /// checkable by reading is each pin, beside the map it pins.
 ///
 /// **Out of scope, stated so it is not read as covered.**
-/// `SelectRefusal::{InBand, PairInBand}` carry a `predicate: &'static
-/// str` that `py/select.rs` surfaces as `SelectRefusal.predicate`, so
-/// K predicate names reach Python too. Those names are minted in
-/// `editor-core` and `topo`, not here, and neither arm is
+/// `SelectRefusal::InBand` carries a `predicate: &'static str` that
+/// `py/select.rs` surfaces as `SelectRefusal.predicate`, so K
+/// predicate names reach Python too. Those names are minted in
+/// `editor-core` and `topo`, not here, and the arm is not
 /// constructible from this crate (see
 /// `select_refusal_tags_are_stable`), so nothing on this page pins
 /// them. `work/lib/` carries that as its own row.

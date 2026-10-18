@@ -1,6 +1,6 @@
 //! M4 PR 3 naming tests, part 1 (spec D6): per-op role coverage for
 //! the sweep ops, split, transform pass-through, pattern wrapping,
-//! and Declare pairs resolving against the real tables.
+//! and authored face names resolving against the real tables.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -763,10 +763,10 @@ fn transform_passes_names_through_and_pattern_wraps_instances() {
     }
 }
 
-// ---- Declared pairs resolve against the real tables (D6). ----
+// ---- Authored names resolve against the real tables (D6). ----
 
 #[test]
-fn declare_pairs_resolve_in_the_named_nodes_tables() {
+fn authored_face_names_resolve_in_the_named_nodes_tables() {
     let (doc, a) = cube(
         ProfileDoc::empty_derived("m4_pr3_names", Tol::witness()),
         0.0,
@@ -783,7 +783,7 @@ fn declare_pairs_resolve_in_the_named_nodes_tables() {
         let t = table(&ev, r.at);
         assert!(
             matches!(t.lookup(name), Some(Entry::Unique(_))),
-            "declared name does not resolve: {name:?}"
+            "authored name does not resolve: {name:?}"
         );
     }
 }

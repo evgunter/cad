@@ -196,7 +196,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/wire/wire-refusals-short-of-the-shape-guard.md
     "AssertionDimension",
     "BlendSelectionEmpty",
-    "SelectKind",
     "SelectResolve/Ambiguous",
     "SelectResolve/Vanished",
     "CrossingUnverified",
@@ -213,7 +212,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Expr/Unlowered",
     "Expr/UnresolvedVar",
     "Expr/VarKindMismatch",
-    "SelectKind",
     "FaceFrameNotPlanar",
     "FaceFrameReadback/Dangling",
     "FaceFrameReadback/NoCanonicalFrame",
@@ -229,7 +227,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "SelectResolve/Vanished",
     "MeasureRefUnreadable/Ambiguous",
     "MeasureRefUnreadable/NoBodies",
-    "MeasureRefUnreadable/NoSuchBody",
     "MeasureRefUnreadable/NoSuchName",
     "MeasureRefUnreadable/NodeFailed",
     "MeasureRefUnreadable/NodeNotEvaluated",
@@ -239,7 +236,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MeasureRefUnreadable/WrongKind",
     "MeasureUnsupported",
     "MissingInput",
-    "MissingSlot",
     "Naming/Duplicate",
     "Naming/Emission",
     "Naming/MissingUpstream",
@@ -247,7 +243,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Naming/SharedRim",
     "Naming/SplitLineage",
     "Naming/Unnamed",
-    "NonPositiveCount",
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
     "PayloadExpr",
@@ -256,20 +251,16 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "PlacementRule/NoPlacements",
     "PlacementRule/NonFiniteFrame",
     "PlacementsUncertified",
-    "ProfileAnchor",
     "ProfileLaneReplay(Flipped)",
     "ProfileLaneReplay(None)",
-    "ProfilePieces",
     "Seed/CountVar",
     "Seed/TangentUnrepresentable",
     "Seed/UnknownVar",
     "ShellLaneUnsupported",
-    "SelectKind",
     "SelectResolve/Ambiguous",
     "SelectResolve/Vanished",
     "ToleranceConflict",
     "UnschedulableCycle",
-    "VerbArity",
     "WitnessBifurcation",
     "WrongOperand",
     // work/paths/paths-refusals-short-of-the-shape-guard.md
@@ -958,7 +949,6 @@ fn node_refusals() -> Vec<(String, NodeErrorKind)> {
     rows.extend(document_arms());
     rows.extend(mate());
     rows.extend(shell());
-    rows.extend(found_arms());
     rows
 }
 
@@ -989,7 +979,15 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
                 structure: None,
             },
         ),
-        row("ProfileAnchor", NodeErrorKind::ProfileAnchor { loop_: 0 }),
+        row("ProfileAnchor", NodeErrorKind::ProfileAnchor),
+        row(
+            "ProfileRecordMissing(None)",
+            NodeErrorKind::ProfileRecordMissing { loop_: None },
+        ),
+        row(
+            "ProfileRecordMissing(Some)",
+            NodeErrorKind::ProfileRecordMissing { loop_: Some(1) },
+        ),
         row(
             "ProfilePieces",
             NodeErrorKind::ProfilePieces {
@@ -1199,8 +1197,12 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "NonPositiveCount",
-            NodeErrorKind::NonPositiveCount { count: 0 },
+            "CountOutOfRange",
+            NodeErrorKind::CountOutOfRange {
+                slot: SlotId::VDegree,
+                count: -1,
+                admits: 0..=i64::MAX,
+            },
         ),
         row(
             "NegativeSpacing",
@@ -4811,61 +4813,6 @@ const REPLACE_FACE_ARMS: [&str; 42] = [
     "Join",
     "ResultNotClosed",
 ];
-
-/// The four arms that say what a designation turned out to be carry a
-/// `Found` only the entity door can mint, so they are raised through
-/// real documents: a square prism's face, edge and vertex designated
-/// where another kind is wanted.
-fn found_arms() -> Vec<(String, NodeErrorKind)> {
-    use crate::fixture::{self, ang, fname, insert, len, on_frame, square, wall};
-    use editor_core::{CancelToken, Datum, EvalOptions, Node, NodeResult, ProfileDoc, evaluate};
-    use geom_core::Tol;
-    let doc = ProfileDoc::empty_derived("refusal_concision_chains", Tol::witness());
-    let (doc, profile) = on_frame(
-        doc,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![square(0.0, 0.0, 1.0)],
-    );
-    let (doc, body) = insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(1.0),
-            side: ExtrudeSide::Along,
-        },
-    );
-    let face = fname(body, wall(&doc, body, 2));
-    let edge = fixture::prism_edges(&doc, body, 4).remove(2);
-    let (doc, shell) = insert(doc, Node::shell(body, len(0.1), vec![edge.clone()]));
-    let (doc, fillet) = insert(doc, Node::fillet(body, len(0.1), vec![face.clone()]));
-    let (doc, frame) = insert(
-        doc,
-        Node::Datum(Datum::FaceFrame {
-            face: editor_core::Operand::select(body, vec![edge]),
-            spin: ang(0.0),
-        }),
-    );
-    let mut ev = evaluate::<f64>(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        Tol::witness(),
-    );
-    [
-        ("SelectKind", shell),
-        ("SelectKind", fillet),
-        ("SelectKind", frame),
-    ]
-    .into_iter()
-    .map(|(n, node)| match ev.nodes.remove(&node) {
-        Some(NodeResult::Failed(e)) => row(n, e.kind),
-        other => panic!("{n}: the designation must refuse; got {other:?}"),
-    })
-    .collect()
-}
 
 /// **Every checks-window finding fits the window it is listed in.** The
 /// checks window draws each finding's `Display` verbatim beside its
