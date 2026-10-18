@@ -1367,7 +1367,6 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> Standing<'_>
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
         MateFault::ClassNotAdmitted { mate }
-        | MateFault::Indeterminate { mate, .. }
         | MateFault::NotOnTheCopy { mate }
         | MateFault::Unleverable { mate, .. }
         | MateFault::KindsDiffer { mate, .. }
@@ -1384,17 +1383,6 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         // Names no mate and reaches NO row (`MateFault`'s doc says
         // why); the empty answer here is unreachable, not a reading.
         MateFault::PosesOfAnotherDocument { .. } => Vec::new(),
-        // A meeting point past the format is a claim about a PAIR of
-        // mates: neither is the wrong one on the fault's own telling, so
-        // both placements read as causes and the user picks which to
-        // relax.
-        MateFault::PoseOutOfRange { held, added } => {
-            if held.placement == added.placement {
-                vec![held.placement]
-            } else {
-                vec![held.placement, added.placement]
-            }
-        }
     }
 }
 

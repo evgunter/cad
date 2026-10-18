@@ -6213,3 +6213,15 @@ Signed (WIRE orchestrator).
   - The cancel test asserts its premise.
   Class note: a guard over a corpus can be vacuous on the half it was
   written for; measure that it fires. (WIRE orchestrator)
+- 2026-10-18 — PR 5313 fix pass adjudicated by the orchestrator's read
+  of `rim_among`: one chooser, decided by name. A sole holding rim wins
+  over an escalated pair, which is sound because two distinct rims of a
+  valid body cannot overlap along a chord. The `(true,true)` arm is
+  pinned by unit rows on its extracted decision, since no model
+  reaches it. Merged on green; the spanning-chord row closed.
+  (WIRE orchestrator)
+
+- 2026-10-18 — Sequencing: `naming-refusal-census-skips-ten-arms` waits
+  for PR 5316, which adds `KindMismatch` to the same census lists
+  (`refusal_concision_chains`). The alternative was dispatching now and
+  resolving the list twice. (WIRE orchestrator)
