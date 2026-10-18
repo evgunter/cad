@@ -48,15 +48,11 @@
 //!
 //! Per `memories/demo-purpose.md`, the awkwardness is the finding:
 //!
-//! 1. **There is no joint in the vocabulary, and no door places a copy
-//!    against a copy.** A revolute joint is a plane mate between two
-//!    start caps plus three values, and the placement doors read the
-//!    target off a CONSTRUCTION's own geometry (a copy's faces stand
-//!    where its placement moved them), so the scene places each link
-//!    against the bar and moves the mate onto the parent's copy by hand
-//!    ([`crate::world::against_copy`]). The spin's sense is the chart's:
-//!    about the mated caps' outward normal `−z`, so a turn of `joint_k`
-//!    about `+z` is written `−joint_k`.
+//! 1. **There is no joint in the vocabulary.** A revolute joint is a
+//!    copy placed against its parent's copy plus three values, and the
+//!    spin's sense is the chart's: about the mated caps' outward
+//!    normal `−z`, so a turn of `joint_k` about `+z` is written
+//!    `−joint_k`.
 //! 2. **The measure cannot reach the tip end face's centre.** The
 //!    closed form that gives a CENTRE exactly is cylinder × cylinder
 //!    (`eval::measure`'s `distance`, the axis distance); a planar end
@@ -426,7 +422,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     for k in 1..=links {
         let placed = match bars.last() {
             None => crate::world::in_world_valued(&doc, bar, &Frame::IDENTITY, turned(k), tol),
-            Some(&parent) => crate::world::against_copy(
+            Some(&parent) => crate::world::against_valued(
                 &doc,
                 parent,
                 bar,
@@ -449,8 +445,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
             &[base_pin]
         };
         for &shape in shapes {
-            let placed =
-                crate::world::against_copy(&doc, link, shape, &Frame::IDENTITY, |v| v, tol);
+            let placed = crate::world::against(&doc, link, shape, &Frame::IDENTITY, tol);
             doc = placed.doc;
             pins.push(placed.placement);
         }

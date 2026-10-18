@@ -122,11 +122,6 @@ pub trait SolveScalar: Decide {
     fn exactly_zero(self) -> bool {
         false
     }
-
-    /// ZZM probe: the enclosure's bounds.
-    fn zz_lohi(self) -> (f64, f64) {
-        (self.quoted(), self.quoted())
-    }
 }
 
 impl SolveScalar for f64 {
@@ -519,9 +514,6 @@ pub(crate) fn admitted<T: SolveScalar>(
 /// cancel against itself leaves the third coordinate wider than one.
 fn on_its_axis<T: SolveScalar>(d: geom_core::UnitVec3<T>) -> geom_core::UnitVec3<T> {
     use geom_core::UnitVec3;
-    if std::env::var_os("ZZM_NO_AXIS").is_some() {
-        return d;
-    }
     let v = d.get();
     let (k, e) = match (v.x.exactly_zero(), v.y.exactly_zero(), v.z.exactly_zero()) {
         (false, true, true) => (UnitVec3::exact_x(), v.x),
@@ -554,26 +546,6 @@ pub(crate) fn tightened<T: SolveScalar>(pose: PoseValue<T>) -> PoseValue<T> {
         },
         other => other,
     }
-}
-
-/// ZZM probe trace.
-pub(crate) fn zz_trace<T: SolveScalar>(label: &str, map: &Affine3<T>) {
-    if std::env::var_os("ZZM_TRACE").is_none() {
-        return;
-    }
-    let q = map.linear;
-    let cols = [q.c0, q.c1, q.c2, map.translation];
-    let mut out = String::new();
-    let mut wmax = 0.0f64;
-    for c in cols {
-        out.push_str(" |");
-        for e in [c.x, c.y, c.z] {
-            let (lo, hi) = e.zz_lohi();
-            wmax = wmax.max(hi - lo);
-            out.push_str(&format!(" {:.6}±{:.2e}", 0.5 * lo + 0.5 * hi, 0.5 * (hi - lo)));
-        }
-    }
-    eprintln!("ZZM {label}: wmax/2={:.3e}{out}", 0.5 * wmax);
 }
 
 /// The funnel name the re-witness of a solved map decides its frame
@@ -709,9 +681,6 @@ fn frame_of<T: Real>(pose: &PoseValue<T>) -> Affine3<T> {
 /// The two poses are of one kind: the door refuses two of different
 /// kinds ([`MateFault::KindsDiffer`]).
 pub fn mate_coset<T: SolveScalar>(on: &PoseValue<T>, to: &PoseValue<T>) -> Coset<T> {
-    zz_trace("F_on", &frame_of(on));
-    zz_trace("F_on_inv", &frame_of(on).inverse());
-    zz_trace("F_to", &frame_of(to));
     Coset {
         subgroup: to.symmetry(),
         representative: frame_of(to) * frame_of(on).inverse(),
@@ -813,7 +782,6 @@ pub(crate) fn solve_bundle<T: SolveScalar>(
         return Ok(Folded::Loose);
     }
     let coset = fold_bundle(mates, arm, band)?;
-    zz_trace("coset_rep", &coset.representative);
     if coset.subgroup.is_determined() && mates.len() > 1 {
         let mut redundant = Vec::new();
         for k in 0..mates.len() {

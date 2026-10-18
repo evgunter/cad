@@ -24,7 +24,6 @@ use pncad::document::{
 use pncad::document::{Coord, Formula, Mate, Target};
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
-use pncad::select::{NameRef, RoleSeg};
 
 /// What a placement left: the document, the placement it minted, and
 /// the edits it applied, in order.
@@ -89,7 +88,8 @@ pub fn in_world_valued(
 
 /// A copy of `body` placed against `target`'s geometry at `at` — the
 /// copy's own frame in `target`'s own coordinates ([`place_against`]).
-/// The placement's output is the copy, in `target`'s space.
+/// The placement's output is the copy, in `target`'s space; a target
+/// that is itself a placed copy carries `at` by its motion.
 ///
 /// # Panics
 ///
@@ -101,10 +101,28 @@ pub fn against(
     at: &Frame,
     tol: Tol,
 ) -> Placed {
+    against_valued(doc, target, body, at, |values| values, tol)
+}
+
+/// [`against`], its values rewritten by `values` before they are
+/// written (a joint's spin read off a variable, say). The values are
+/// charted on the two bodies' own frames.
+///
+/// # Panics
+///
+/// As [`against`]'s.
+pub fn against_valued(
+    doc: &Doc<ProfileProgram>,
+    target: impl Into<Operand>,
+    body: impl Into<Operand>,
+    at: &Frame,
+    values: impl FnOnce(Vec<(Coord, Formula)>) -> Vec<(Coord, Formula)>,
+    tol: Tol,
+) -> Placed {
     let (target, body) = (target.into(), body.into());
     let placed = place_against(doc, &target, &body, at, &EvalOptions::default(), tol)
         .unwrap_or_else(|e| panic!("the copy places against its target: {e}"));
-    written(doc, body, placed.mate, placed.values, tol)
+    written(doc, body, placed.mate, values(placed.values), tol)
 }
 
 /// **The frame at `origin` with axes `u` and `v`** (`v` made orthogonal
@@ -188,63 +206,6 @@ pub fn axis_on(
     RoleRead::through(plane_on(doc, body, origin, dir, tol).read, PoseRole::Z)
 }
 
-/// **A copy of `body` placed against `target` through a frame read off
-/// `target`'s geometry** — for a target that offers no planar face on
-/// its own `xy` (a revolve), which [`against`] refuses. The mate is the
-/// one [`place_against`] writes for a copy whose face `at` tilts off
-/// the target's own `z`: the copy's own-`xy` face's plane to the `xy`
-/// of a frame read off the target standing where that face stands
-/// ([`frame_at`]), with the values that put the copy at `at`. They are
-/// charted on the two bodies' own frames, so they are taken from the
-/// door's placement of `body` against itself at the same `at`, and only
-/// the frame is read off `target`.
-///
-/// # Panics
-///
-/// If `at` does not tilt the copy's face, or a door refuses.
-pub fn against_frame(
-    doc: &Doc<ProfileProgram>,
-    target: impl Into<Operand>,
-    body: impl Into<Operand>,
-    at: &Frame,
-    tol: Tol,
-) -> Placed {
-    let (target, body) = (target.into(), body.into());
-    let opts = EvalOptions::default();
-    let placed = place_against(doc, &body, &body, at, &opts, tol)
-        .unwrap_or_else(|e| panic!("the copy places against its own geometry: {e}"));
-    let Mate { on, to, class } = placed.mate;
-    let Target::Pose(Operand::Pose(def)) = to else {
-        panic!("the mate's target is a pose, got {to:?}");
-    };
-    let PoseDef::Slide { pose, .. } = *def else {
-        panic!("a tilted face's target is a frame's plane slid along its z, got {def:?}");
-    };
-    // The frame the door read stands at `at`, or at `at` turned a half
-    // turn about its `x` when the copy's face looks down its own `−z`.
-    let half_turn = Frame {
-        columns: [[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]],
-        translation: [0.0; 3],
-    };
-    let stands = [*at, at.compose(&half_turn)]
-        .into_iter()
-        .find(|stands| frame_at(doc, &body, stands, &opts, tol).is_ok_and(|read| read == pose.read))
-        .expect("the door's frame stands at `at`, or at `at` turned");
-    let frame = frame_at(doc, &target, &stands, &opts, tol)
-        .unwrap_or_else(|e| panic!("the target offers a frame to read: {e}"));
-    let to = Operand::Pose(Box::new(PoseDef::Slide {
-        pose: RoleRead::through(frame.clone(), PoseRole::Xy),
-        along: RoleRead::through(frame, PoseRole::Z),
-        by: Formula::zero(pncad::document::Dimension::Length),
-    }));
-    let mate = Mate {
-        on,
-        to: Target::Pose(to),
-        class,
-    };
-    written(doc, body, mate, placed.values, tol)
-}
-
 /// **A copy of `body` placed against `target` by its own axis**, the
 /// axis of `body`'s face `face` (a tube's torus, whose axis is the
 /// tube's own `z`), mated to the `z` of a frame read off `target`
@@ -288,82 +249,12 @@ pub fn against_on_axis(
             Coord::Slide(pncad::document::SlideAxis::Z),
             Formula::zero(pncad::document::Dimension::Length),
         ),
-        (Coord::Spin, Formula::zero(pncad::document::Dimension::Angle)),
+        (
+            Coord::Spin,
+            Formula::zero(pncad::document::Dimension::Angle),
+        ),
     ];
     written(doc, body, mate, values, tol)
-}
-
-/// **A copy of `body` placed against another COPY's geometry**: the
-/// placement [`against`] writes against `copy`'s own body (the one
-/// `Node::Place` shape `copy` places) at `at` — `at` the new copy's own
-/// frame in that body's own coordinates — with the mate's target
-/// moved onto `copy`'s face, so the new copy rides wherever `copy`
-/// stands. The values are charted on the target body's own frame, which
-/// the copy carries rigidly, so they are the same numbers. `values`
-/// rewrites them before they are written (a joint's spin read off a
-/// variable, say).
-///
-/// # Panics
-///
-/// If `copy` is no one-shape placement, if a door refuses, or if the
-/// mate's target is not the plane of one face of `copy`'s body.
-pub fn against_copy(
-    doc: &Doc<ProfileProgram>,
-    copy: RecipeNodeId,
-    body: impl Into<Operand>,
-    at: &Frame,
-    values: impl FnOnce(Vec<(Coord, Formula)>) -> Vec<(Coord, Formula)>,
-    tol: Tol,
-) -> Placed {
-    let Some(Node::Place { shapes, .. }) = doc.node(copy) else {
-        panic!("node {copy} is a placement");
-    };
-    let [shape] = shapes.as_slice() else {
-        panic!("placement {copy} places one shape");
-    };
-    let original = doc
-        .operation_of(shape.read)
-        .unwrap_or_else(|| panic!("placement {copy}'s shape is a node's output"));
-    let body = body.into();
-    let placed = place_against(
-        doc,
-        &Operand::Node(original),
-        &body,
-        at,
-        &EvalOptions::default(),
-        tol,
-    )
-    .unwrap_or_else(|e| panic!("the copy places against {copy}'s body: {e}"));
-    let Mate { on, to, class } = placed.mate;
-    let to = match to {
-        Target::Pose(Operand::Pose(def)) => match *def {
-            PoseDef::Plane {
-                face: Operand::Select { body: read, names },
-            } if *read == Operand::Node(original) => Operand::Pose(Box::new(PoseDef::Plane {
-                face: Operand::select(
-                    copy,
-                    names
-                        .into_iter()
-                        .map(|name| StableName {
-                            kind: name.kind,
-                            node: copy,
-                            path: vec![RoleSeg::Placed {
-                                of: NameRef::new(name),
-                            }],
-                        })
-                        .collect(),
-                ),
-            })),
-            other => panic!("the mate's target is a face's plane, got {other:?}"),
-        },
-        other => panic!("the mate's target is a pose, got {other:?}"),
-    };
-    let mate = Mate {
-        on,
-        to: Target::Pose(to),
-        class,
-    };
-    written(doc, body, mate, values(placed.values), tol)
 }
 
 /// The placement of `body` written as edits: the insert, the mate, and

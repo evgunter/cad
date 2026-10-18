@@ -970,11 +970,11 @@ fn build_doc(tol: Tol) -> Recipe {
     );
 
     // ---- the spout: a CANAL lofted about its own bent spine, then
-    // placed against the pot. The pot offers no planar face on its own
+    // placed against the pot: the pot offers no planar face on its own
     // `xy`, so the spout's root is mated to a frame read off the pot.
     let stations = spout_stations();
     let spout_body = spout_loft(&mut doc, &stations, tol);
-    let placed = crate::world::against_frame(
+    let placed = crate::world::against(
         &doc,
         pncad::document::Operand::output(bellied, 0),
         spout_body,

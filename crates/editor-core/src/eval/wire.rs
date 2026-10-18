@@ -729,10 +729,6 @@ where
         crate::mate::solve::Folded::Loose => Ok((None, Space::Loose { root: id })),
         crate::mate::solve::Folded::Pinned(rep) => {
             // The one at-rest verdict, decided once (fork C-5).
-            crate::mate::solve::zz_trace("rep", &rep);
-            if std::env::var_os("ZZM_TRACE").is_some() {
-                eprintln!("ZZM rest_verdict={:?} reach={reach}", crate::mate::solve::rest_verdict(&rep, reach, b));
-            }
             let placed = match crate::mate::solve::rest_verdict(&rep, reach, b) {
                 Some(true) if T::carries_no_variation(&rep) => None,
                 Some(true) => T::identity_varying_as(&rep).or(Some(rep)),
@@ -744,16 +740,7 @@ where
             };
             Ok((
                 match placed {
-                    Some(map) => {
-                        crate::mate::solve::zz_trace("placed", &map);
-                        let a = crate::mate::solve::admitted(crate::mate::solve::marked(map), b);
-                        match &a {
-                            Ok(Some(m)) => crate::mate::solve::zz_trace("admitted", &m.to_affine()),
-                            Ok(None) => crate::mate::solve::zz_trace("admitted_none", &map),
-                            Err(e) => if std::env::var_os("ZZM_TRACE").is_some() { eprintln!("ZZM admitted err {e}") },
-                        }
-                        a?
-                    }
+                    Some(map) => crate::mate::solve::admitted(crate::mate::solve::marked(map), b)?,
                     None => None,
                 },
                 target_space.unwrap_or(Space::World),

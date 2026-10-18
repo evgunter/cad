@@ -3297,11 +3297,6 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         geom_core::Bounds::hi(self)
     }
 
-    fn zz_lohi(self) -> (f64, f64) {
-        use geom_core::Bounds;
-        (self.lo(), self.hi())
-    }
-
     fn spins_by_frames() -> bool {
         true
     }
@@ -3447,10 +3442,6 @@ where
         self.value.upper()
     }
 
-    fn zz_lohi(self) -> (f64, f64) {
-        self.value.zz_lohi()
-    }
-
     fn exactly_zero(self) -> bool {
         self.value.exactly_zero()
     }
@@ -3467,11 +3458,10 @@ where
         geom_core::Real::atan2(y, x)
     }
 
-    /// ZZM prototype: as its lane scalar's map does.
+    /// As its lane scalar's map does: a map the band decided at rest
+    /// places its copy by no map on the symbolic tier exactly where it
+    /// does on the tier's own lane, so the two lanes' verdicts agree.
     fn carries_no_variation(map: &geom_core::Affine3<Self>) -> bool {
-        if std::env::var_os("ZZM_SYM_NEVER_SETTLES").is_some() {
-            return false;
-        }
         use geom_core::linalg::Vec3;
         let v = |c: Vec3<Self>| Vec3::new(c.x.value, c.y.value, c.z.value);
         let q = map.linear;

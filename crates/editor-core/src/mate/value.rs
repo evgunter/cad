@@ -120,7 +120,6 @@ impl<T: SolveScalar> Chart<T> {
         T::solve_atan2(x.cross(xc).dot(self.d.get()), x.dot(xc))
     }
 
-    /// The axis a slide runs along.
     /// The turn carrying the copy's chart frame onto the target's
     /// turned `by` about `d`: the linear part of every map whose spin
     /// is `by`, read off the two charts alone.
@@ -133,6 +132,7 @@ impl<T: SolveScalar> Chart<T> {
         to * from.transpose()
     }
 
+    /// The axis a slide runs along.
     fn axis(&self, along: SlideAxis) -> UnitVec3<T> {
         match along {
             SlideAxis::X => self.x,
@@ -249,7 +249,7 @@ pub(crate) fn settle<T: SolveScalar>(
                 Affine3::from_parts(turn.linear * m.linear, m.translation)
             }
         };
-        m = if T::spins_by_frames() && std::env::var_os("ZZM_NO_FRAMES").is_none() {
+        m = if T::spins_by_frames() {
             Affine3::from_parts(chart.turned(v.by), turned.translation)
         } else {
             turned
@@ -257,7 +257,6 @@ pub(crate) fn settle<T: SolveScalar>(
         // A turn the table holds no rest of (a ball's, less one) leaves
         // a turn free beside it: no value can pin what remains, and a
         // second turn is not charted on it.
-        super::solve::zz_trace("after_spin", &m);
         let Some(rest) = after_turn(left) else {
             return Err(not_a_freedom(v));
         };
@@ -283,7 +282,6 @@ pub(crate) fn settle<T: SolveScalar>(
             .map_err(indeterminate(v.value))?
             .ok_or_else(|| not_a_freedom(v))?;
         m = Affine3::from_parts(Mat3::identity(), shift) * m;
-        super::solve::zz_trace("after_slide", &m);
         free = rest;
     }
     Ok((turns_fixed && matches!(free, Translations::None)).then_some(m))
