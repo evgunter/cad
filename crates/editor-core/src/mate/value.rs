@@ -5,7 +5,9 @@
 //! target body's frame: the mated direction `d` (the target's, its
 //! flip normalised to the copy's side), each body's frame swung onto
 //! `d` by the shortest turn ([`super::reference_about`]), and the
-//! target body's origin. A value is then a function of the copy's
+//! target body's origin. A swing the band cannot decide refuses only
+//! the values that read it: a slide along `d` reads neither, a slide
+//! across it the target's, a spin both. A value is then a function of the copy's
 //! relative pose alone — a spin the angle about `d` from the target's
 //! swung `x` to the copy's, a slide the copy's origin measured from
 //! the target's along the target's swung axis — so no order of the
@@ -13,8 +15,8 @@
 //!
 //! [`settle`] places a folded bundle's copy at its values: each spin
 //! turns the copy about `d` inside the bundle's residual, then each
-//! slide moves it, by the least translation the residual still holds,
-//! until its measure along its axis is the value. The bundle rule has
+//! slide moves it along its own axis until its measure there is the
+//! value. The bundle rule has
 //! admitted each value's freedom as one the rest of the bundle leaves,
 //! so nothing here asks whether the residual holds it. The values are
 //! taken in one order whatever order they are listed in (spins, then
@@ -39,14 +41,15 @@ pub(crate) struct Chart<T: geom_core::Real> {
     /// The mated direction: the target's, its flip normalised to the
     /// copy's side.
     d: UnitVec3<T>,
-    /// The target body's swung `x`.
-    x: UnitVec3<T>,
-    /// The target body's swung `y`, `d × x`.
-    y: UnitVec3<T>,
+    /// The target body's swung `x` and `y` (`d × x`), or `None` where
+    /// the band could not decide the swing: what a slide across `d`
+    /// and a spin read.
+    across: Option<(UnitVec3<T>, UnitVec3<T>)>,
     /// The target body's origin.
     origin: Point3<T>,
-    /// The copy's swung `x`, in the copy's own coordinates.
-    copy_x: Vec3<T>,
+    /// The copy's swung `x`, in the copy's own coordinates, or `None`
+    /// where the band could not decide the swing: what a spin reads.
+    copy_x: Option<Vec3<T>>,
     /// A point of the mate's own line, for an axis mate: the line its
     /// spin turns about.
     line: Option<Point3<T>>,
@@ -60,12 +63,10 @@ impl<T: SolveScalar> Chart<T> {
     ///
     /// Beside each body's swing (one [`super::reference_about`] verdict
     /// each), its three directions are minted as a datum's are
-    /// (`DATUM_UNIT_NORM`), and every refusal is the chart's.
-    ///
-    /// # Errors
-    ///
-    /// The swing's own refusal ([`super::reference_about`]), or a
-    /// direction the band cannot mint.
+    /// (`DATUM_UNIT_NORM`), and every refusal is the chart's. A swing
+    /// is decided here and refused only where a value reads it
+    /// ([`Chart::spin_at`], [`Chart::slide_at`]), so building a chart
+    /// refuses nothing.
     pub(crate) fn of(
         on: &PoseValue<T>,
         to: &PoseValue<T>,
@@ -73,14 +74,14 @@ impl<T: SolveScalar> Chart<T> {
         target: &Affine3<T>,
         arm: Arm,
         band: Band,
-    ) -> Result<Option<Self>, NodeErrorKind> {
+    ) -> Option<Self> {
         let (to_dir, on_dir, line) = match (on, to) {
             (PoseValue::Plane { normal: o, .. }, PoseValue::Plane { normal: t, .. })
             | (PoseValue::Direction { dir: o }, PoseValue::Direction { dir: t }) => (*t, *o, None),
             (PoseValue::Axis { dir: o, .. }, PoseValue::Axis { origin, dir: t }) => {
                 (*t, *o, Some(*origin))
             }
-            _ => return Ok(None),
+            _ => return None,
         };
         let (d, copy_d) = if flipped {
             (-to_dir, -on_dir)
@@ -94,45 +95,70 @@ impl<T: SolveScalar> Chart<T> {
                 }
             })
         };
-        let own_d = unit(target.linear.transpose() * d.get())?;
-        let x = unit(target.linear * super::reference_about(own_d, arm.get(), band)?)?;
-        let y = unit(d.get().cross(x.get()))?;
-        Ok(Some(Self {
+        let across = (|| {
+            let own_d = unit(target.linear.transpose() * d.get())?;
+            let x = unit(target.linear * super::reference_about(own_d, arm.get(), band)?)?;
+            let y = unit(d.get().cross(x.get()))?;
+            Ok::<_, NodeErrorKind>((x, y))
+        })()
+        .ok();
+        Some(Self {
             d,
-            x,
-            y,
+            across,
             origin: Point3::origin() + target.translation,
-            copy_x: super::reference_about(copy_d, arm.get(), band)?,
+            copy_x: super::reference_about(copy_d, arm.get(), band).ok(),
             line,
-        }))
+        })
+    }
+
+    /// A swing the band could not decide, as a value that reads it
+    /// refuses.
+    fn undecided() -> NodeErrorKind {
+        NodeErrorKind::PoseDegenerate {
+            construction: crate::pose::PoseConstruction::Chart,
+        }
     }
 
     /// The spin of the copy at relative pose `m`: the angle about `d`
     /// from the target's swung `x` to the copy's, as `m` carries it.
-    fn spin(&self, m: &Affine3<T>) -> T {
-        let xc = m.linear * self.copy_x;
-        let x = self.x.get();
-        T::solve_atan2(x.cross(xc).dot(self.d.get()), x.dot(xc))
+    fn spin(&self, m: &Affine3<T>) -> Result<T, NodeErrorKind> {
+        let ((x, _), copy_x) = self.across.zip(self.copy_x).ok_or_else(Self::undecided)?;
+        let xc = m.linear * copy_x;
+        let x = x.get();
+        Ok(T::solve_atan2(x.cross(xc).dot(self.d.get()), x.dot(xc)))
     }
 
-    /// The axis a slide runs along.
-    fn axis(&self, along: SlideAxis) -> UnitVec3<T> {
+    /// The axis a slide runs along: `d` itself, or the target's swung
+    /// `x` or `y`.
+    fn axis(&self, along: SlideAxis) -> Result<UnitVec3<T>, NodeErrorKind> {
         match along {
-            SlideAxis::X => self.x,
-            SlideAxis::Y => self.y,
-            SlideAxis::Z => self.d,
+            SlideAxis::Z => Ok(self.d),
+            SlideAxis::X | SlideAxis::Y => {
+                let (x, y) = self.across.ok_or_else(Self::undecided)?;
+                Ok(if along == SlideAxis::X { x } else { y })
+            }
         }
     }
 
     /// **The value a spin takes at relative pose `m`** — what a gesture
     /// writes to put the copy at `m`.
-    pub(crate) fn spin_at(&self, m: &Affine3<T>) -> T {
+    ///
+    /// # Errors
+    ///
+    /// [`NodeErrorKind::PoseDegenerate`] (`Chart`) where either body's
+    /// swing is undecided at the band.
+    pub(crate) fn spin_at(&self, m: &Affine3<T>) -> Result<T, NodeErrorKind> {
         self.spin(m)
     }
 
     /// **The value a slide along `along` takes at relative pose `m`**.
-    pub(crate) fn slide_at(&self, m: &Affine3<T>, along: SlideAxis) -> T {
-        self.slide(m, self.axis(along))
+    ///
+    /// # Errors
+    ///
+    /// [`NodeErrorKind::PoseDegenerate`] (`Chart`) for a slide across
+    /// `d` where the target's swing is undecided at the band.
+    pub(crate) fn slide_at(&self, m: &Affine3<T>, along: SlideAxis) -> Result<T, NodeErrorKind> {
+        Ok(self.slide(m, self.axis(along)?))
     }
 
     /// The slide of the copy at relative pose `m` along `axis`: its
@@ -163,21 +189,26 @@ pub(crate) struct ReadValue<T> {
 /// by construction, and nothing here decides whether it is: a spin
 /// turns about the residual's own line, or about `d` through the
 /// copy's origin where every line along `d` will do; a slide moves the
-/// copy by the least translation the residual holds that moves its
-/// measure.
+/// copy along its own axis.
+///
+/// **Why a slide moves along its axis alone.** The rule admits a slide
+/// only beside mates that free every translation
+/// (`super::solve::own_freedom`), which only a direction mate does,
+/// and a direction mate beside any other mate overconstrains it. So
+/// every slide a bundle sets is on one mate's chart, along `x`, `y` or
+/// `d`, which are perpendicular, and the residual holds each: one
+/// slide's move changes no other's measure, and no line is left to
+/// mint between them.
 ///
 /// # Errors
 ///
 /// [`MateFault::NoChart`] for a value whose mate has no chart, and
-/// [`NodeErrorKind::PoseDegenerate`] (`Chart`) where the line a slide
-/// leaves cannot be minted at the band, and [`MateFault::Indeterminate`]
-/// where its mint lands in the band.
+/// [`NodeErrorKind::PoseDegenerate`] (`Chart`) for a value that reads a
+/// swing the band cannot decide.
 pub(crate) fn settle<T: SolveScalar>(
     coset: Coset<T>,
     values: &[ReadValue<T>],
     charts: &BTreeMap<ConstraintId, Option<Chart<T>>>,
-    arm: Arm,
-    band: Band,
 ) -> Result<Affine3<T>, NodeErrorKind> {
     let mut m = coset.representative;
     let mut left = coset.subgroup;
@@ -205,7 +236,7 @@ pub(crate) fn settle<T: SolveScalar>(
     // Spins first: every slide after them re-measures the copy's origin.
     for v in spins {
         let chart = chart(v)?;
-        let by = v.by - chart.spin(&m);
+        let by = v.by - chart.spin(&m)?;
         // A turn about the copy's own origin keeps its translation as it
         // is: composed as a turn about that point, a box lane would
         // widen it by the turn's own width levered over the origin's
@@ -219,17 +250,14 @@ pub(crate) fn settle<T: SolveScalar>(
         };
         left = after_turn(left).unwrap_or(left);
     }
-    let mut free = Translations::of(left);
     for v in slides {
         let chart = chart(v)?;
         let Coord::Slide(along) = v.coord else {
             unreachable!("the spins were taken above")
         };
-        let axis = chart.axis(along);
+        let axis = chart.axis(along)?;
         let gap = v.by - chart.slide(&m, axis);
-        let (shift, rest) = free.slide(axis, gap, v.value, band, arm)?;
-        m = Affine3::from_parts(Mat3::identity(), shift) * m;
-        free = rest;
+        m = Affine3::from_parts(Mat3::identity(), axis.get() * gap) * m;
     }
     Ok(m)
 }
@@ -252,76 +280,95 @@ fn residual_turn_point<T: geom_core::Real>(g: Subgroup<T>) -> Option<Point3<T>> 
     }
 }
 
-/// **The translations a residual still holds**, apart from its turns:
-/// every one, those across a normal (a plane of them), those along a
-/// direction (a line of them), or none.
-#[derive(Debug, Clone, Copy)]
-enum Translations<T: geom_core::Real> {
-    Every,
-    Across(UnitVec3<T>),
-    Along(UnitVec3<T>),
-    None,
-}
+#[cfg(test)]
+mod tests {
+    use geom_core::linalg::{Affine3, UnitVec3, Vec3};
+    use geom_core::predicate::Band;
 
-impl<T: SolveScalar> Translations<T> {
-    fn of(g: Subgroup<T>) -> Self {
-        match g {
-            Subgroup::Se3 | Subgroup::Parallel { .. } | Subgroup::Translation => Self::Every,
-            Subgroup::Planar { normal } | Subgroup::PlaneTranslation { normal } => {
-                Self::Across(normal)
-            }
-            Subgroup::Cylindrical { direction, .. } | Subgroup::Prismatic { direction } => {
-                Self::Along(direction)
-            }
-            Subgroup::Revolute { .. } | Subgroup::Spherical { .. } | Subgroup::Trivial => {
-                Self::None
-            }
+    use super::Chart;
+    use crate::NodeErrorKind;
+    use crate::mate::SlideAxis;
+    use crate::mate::coset::Arm;
+    use crate::pose::{PoseConstruction, PoseValue};
+
+    fn band() -> Band {
+        Band::linear(geom_core::Tol::witness()).expect("a band")
+    }
+
+    fn direction(v: [f64; 3]) -> PoseValue<f64> {
+        PoseValue::Direction {
+            dir: UnitVec3::new(Vec3::from_array(v), topo::query::DATUM_UNIT_NORM, band())
+                .expect("a direction"),
         }
     }
 
-    /// **The least translation these hold that moves a measure along
-    /// `axis` by `gap`**, and the translations left that keep it. The
-    /// bundle rule admitted the slide, so `axis` is one these reach: in
-    /// the plane across a normal it lies in it, along a line it is the
-    /// line.
-    fn slide(
-        self,
-        axis: UnitVec3<T>,
-        gap: T,
-        value: MateRef,
-        band: Band,
-        arm: Arm,
-    ) -> Result<(Vec3<T>, Self), NodeErrorKind> {
-        let a = axis.get();
-        Ok(match self {
-            Self::Every => (a * gap, Self::Across(axis)),
-            Self::Across(n) => {
-                // The line the plane keeps once `a`'s measure is fixed,
-                // across `a` and `n`, minted at the arm's lever.
-                let left = match super::coset::across(axis, n, band, arm) {
-                    Ok(Some(left)) => left,
-                    Ok(None) => {
-                        return Err(NodeErrorKind::PoseDegenerate {
-                            construction: crate::pose::PoseConstruction::Chart,
-                        });
-                    }
-                    Err(diag) => {
-                        return Err(NodeErrorKind::Mate(Box::new(MateFault::Indeterminate {
-                            mate: value,
-                            diag: Box::new(diag),
-                        })));
-                    }
-                };
-                // `a` with its share along `n` taken out: the plane's
-                // nearest translation to `a`, whose own measure along `a`
-                // is its squared length.
-                let reach = a - n.get() * a.dot(n.get());
-                (reach * (gap / reach.dot(a)), Self::Along(left))
-            }
-            Self::Along(r) => (r.get() * (gap / r.get().dot(a)), Self::None),
-            Self::None => unreachable!(
-                "the bundle rule admits no slide beyond the translations its residual holds"
-            ),
-        })
+    /// A direction the band cannot tell from `−z`: its swing is
+    /// undecided.
+    fn in_the_antipode_band() -> [f64; 3] {
+        [1.5 * band().zero(), 0.0, -1.0]
+    }
+
+    fn undecided(read: Result<f64, NodeErrorKind>) -> bool {
+        matches!(
+            read,
+            Err(NodeErrorKind::PoseDegenerate {
+                construction: PoseConstruction::Chart
+            })
+        )
+    }
+
+    /// **A value refuses only the swing it reads**
+    /// (`a-lone-slide-refuses-the-chart-it-never-reads`). With the
+    /// copy's direction in the antipode band, a slide along `d` and the
+    /// slides across it read, and only a spin, which reads the copy's
+    /// swing, refuses. With the target's in the band, the slide along
+    /// `d` still reads, and every value across it refuses.
+    ///
+    /// *Breaks if* the chart is built whole again, refusing every value
+    /// of a mate whose either swing the band cannot decide.
+    #[test]
+    fn a_value_refuses_only_the_swing_it_reads() {
+        let arm = Arm::of(1.0, 0.0).expect("an arm");
+        let at = Affine3::identity();
+        let copy_undecided = Chart::of(
+            &direction(in_the_antipode_band()),
+            &direction([0.0, 0.0, 1.0]),
+            false,
+            &Affine3::identity(),
+            arm,
+            band(),
+        )
+        .expect("a direction mate has a chart");
+        for along in [SlideAxis::X, SlideAxis::Y, SlideAxis::Z] {
+            assert!(
+                copy_undecided.slide_at(&at, along).is_ok(),
+                "a slide reads no copy swing: {along:?}"
+            );
+        }
+        assert!(undecided(copy_undecided.spin_at(&at)), "a spin reads it");
+
+        let target_undecided = Chart::of(
+            &direction([0.0, 0.0, 1.0]),
+            &direction(in_the_antipode_band()),
+            false,
+            &Affine3::identity(),
+            arm,
+            band(),
+        )
+        .expect("a direction mate has a chart");
+        assert!(
+            target_undecided.slide_at(&at, SlideAxis::Z).is_ok(),
+            "a slide along d reads no swing"
+        );
+        for along in [SlideAxis::X, SlideAxis::Y] {
+            assert!(
+                undecided(target_undecided.slide_at(&at, along)),
+                "a slide across d reads the target's swing: {along:?}"
+            );
+        }
+        assert!(
+            undecided(target_undecided.spin_at(&at)),
+            "and so does a spin"
+        );
     }
 }

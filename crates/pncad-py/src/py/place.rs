@@ -49,8 +49,8 @@ use pncad::tolerance::Tol;
 /// or `InvalidLeverArm`.
 ///
 /// The classifier half is [`crate::escalation::escalation`] rather
-/// than a fork written here: the mate door publishes the SAME
-/// escalation under these same words, and one projection is what
+/// than a fork written here: [`orthonormalize_err`] publishes the
+/// SAME escalation under these same words, and one projection is what
 /// keeps the two from drifting.
 pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> PyErr {
     use pncad::geom_core::{BandError, FrameError as E};
@@ -94,8 +94,7 @@ pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> P
                 ..
             } => {
                 // The margin's fork is `crate::escalation`'s, shared
-                // with the mate door that publishes the same
-                // escalation under these same words.
+                // with the frame witness mint's refusal.
                 let e = crate::escalation::escalation(i);
                 (
                     none(),

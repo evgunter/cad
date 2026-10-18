@@ -43,12 +43,6 @@ use pncad::tolerance::Tol;
 
 use super::doc::NodeId;
 use super::place::Frame;
-use super::quantity::Length;
-
-/// One bare metre figure as the length it is.
-fn length(m: f64) -> Length {
-    Length(pncad::quantity::Length::from_meters(m))
-}
 
 /// Which pose of a mate a diagnostic is about: `On`, the copy's, or
 /// `To`, the pose it is equated with.
@@ -659,21 +653,12 @@ impl MateRef {
 ///
 /// Every payload attribute is present on every arm, `None` where the
 /// arm does not carry it: `mate`, `side`, `error`, `instance`,
-/// `shape`, `placement`, `constraints`, `free`, `held`, `added`,
-/// `predicate`, `what`, `expected_document`, `found_document`,
-/// `inner_variant`, `margin`, `margin_low`, `margin_high`, `zero`,
-/// `escalate`, `on_kind`, `to_kind`, `value_ref`, `named`, `coord`,
-/// `mate_kind`, `why`, `cause`. The human
+/// `shape`, `placement`, `constraints`, `free`, `what`,
+/// `expected_document`, `found_document`, `inner_variant`, `on_kind`,
+/// `to_kind`, `value_ref`, `named`, `coord`, `mate_kind`, `why`,
+/// `cause`. The human
 /// message is the kernel's own prose, available as `str(fault)`; the
 /// refusal it carries and does not quote is `cause`.
-///
-/// **The classifier's words are the frame door's words.** `margin` /
-/// `margin_low` / `margin_high`, `zero` / `escalate` and `predicate`
-/// are spelled here exactly as
-/// [`super::place::frame_err`] spells them, because an escalation a
-/// mate reports and one a frame constructor reports are the same
-/// value; the fork itself is `crate::escalation`, which both doors
-/// call.
 ///
 /// All of them read off ONE record, [`crate::mate_payload`], whose
 /// match over the kernel enum is exhaustive with no wildcard: a fault
@@ -723,9 +708,10 @@ impl MateFault {
     }
 
     /// The mate the fault is about, `None` for an arm whose subject is
-    /// not one mate (`mate_pose_out_of_range`, which names `held` and
-    /// `added` instead; `mate_poses_of_another_document`, whose
-    /// subject is two documents).
+    /// not one mate: a bundle's faults, whose subject is the
+    /// `placement`; a value's, whose subject is the `value_ref`; and
+    /// `mate_poses_of_another_document`, whose subject is two
+    /// documents.
     #[getter]
     fn mate(&self) -> Option<MateRef> {
         self.payload().mate.map(MateRef)
@@ -804,27 +790,6 @@ impl MateFault {
         self.payload().free
     }
 
-    /// The mate already folded, for a pair meeting out of range
-    /// (`mate_pose_out_of_range`).
-    #[getter]
-    fn held(&self) -> Option<MateRef> {
-        self.payload().held.map(MateRef)
-    }
-
-    /// The mate whose meeting named the point
-    /// (`mate_pose_out_of_range`).
-    #[getter]
-    fn added(&self) -> Option<MateRef> {
-        self.payload().added.map(MateRef)
-    }
-
-    /// The predicate an escalation could not decide
-    /// (`mate_indeterminate`).
-    #[getter]
-    fn predicate(&self) -> Option<&'static str> {
-        self.payload().predicate
-    }
-
     /// The kind of pose the mate's `on` reads, where the two kinds
     /// differ (`mate_kinds_differ`).
     #[getter]
@@ -895,53 +860,11 @@ impl MateFault {
     }
 
     /// **The nested refusal's own word**: the lever refusal's, or the
-    /// world read's (`mate_world_read`). `None` on an arm whose payload is a struct
-    /// rather than an enum — an escalation has no inner word, and its
-    /// shape is which margin attribute is set.
+    /// world read's (`mate_world_read`). `None` on an arm with no
+    /// nested refusal.
     #[getter]
     fn inner_variant(&self) -> Option<&'static str> {
         self.payload().inner_variant
-    }
-
-    /// The in-band margin the classifier saw, when it saw a value.
-    ///
-    /// For error text only, not a decision input: what the escalation
-    /// contract forbids is recovering the margin to make the sign
-    /// decision the classifier refused.
-    #[getter]
-    fn margin(&self) -> Option<Length> {
-        self.payload().margin.map(length)
-    }
-
-    /// The classified enclosure's lower bound, where the classifier
-    /// saw an enclosure rather than a value. For error text only, not
-    /// a decision input.
-    #[getter]
-    fn margin_low(&self) -> Option<Length> {
-        self.payload().margin_low.map(length)
-    }
-
-    /// Its upper bound. For error text only, not a decision input.
-    #[getter]
-    fn margin_high(&self) -> Option<Length> {
-        self.payload().margin_high.map(length)
-    }
-
-    /// The coincidence threshold of the band a margin was classified
-    /// against.
-    ///
-    /// A plain real, as the frame door answers it: a `Band`'s
-    /// thresholds are whatever its predicate measures in, and the
-    /// same type carries angular ones.
-    #[getter]
-    fn zero(&self) -> Option<f64> {
-        self.payload().zero
-    }
-
-    /// Its escalation threshold.
-    #[getter]
-    fn escalate(&self) -> Option<f64> {
-        self.payload().escalate
     }
 
     /// The fault's words, each node it names spoken from the document

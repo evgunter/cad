@@ -739,22 +739,6 @@ pub(crate) fn after_turn<T: Real>(g: Subgroup<T>) -> Option<Subgroup<T>> {
     }
 }
 
-/// **The line across two directions** — their cross product minted at
-/// `arm`'s lever, as [`parallel`] decides it — or `None` where they are
-/// parallel.
-///
-/// # Errors
-///
-/// [`Indeterminate`] when the verdict lands in the band.
-pub(crate) fn across<T: SolveScalar>(
-    u: UnitVec3<T>,
-    v: UnitVec3<T>,
-    band: Band,
-    arm: Arm,
-) -> Result<Option<UnitVec3<T>>, Indeterminate> {
-    Ok(parallel(u, v, band, arm.lever())?.map(|(line, _)| line))
-}
-
 /// **Whether two directions are parallel**, decided over `arm`
 /// ([`parallel`]'s verdict as a yes or no).
 ///

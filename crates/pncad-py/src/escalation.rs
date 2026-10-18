@@ -1,25 +1,25 @@
-//! The classifier's escalation, projected once for the two doors that
-//! publish it.
+//! The classifier's escalation, projected once for the frame door that
+//! publishes it.
 //!
 //! A predicate that could not certify a sign refuses with an
 //! [`Indeterminate`]: the margin it saw, the band it was classified
-//! against, and the predicate's own name. Two doors on this surface
-//! carry one — the frame constructors' degenerate arm
-//! (`FrameError::Degenerate`) and the mate solve's escalation
-//! (`MateFault::Indeterminate`, and the frame refusal a mate's datum
-//! wraps) — and both publish it under the SAME attribute words.
+//! against, and the predicate's own name. The frame door raises it
+//! from two refusals — the ladder constructors' degenerate arm
+//! (`FrameError::Degenerate`) and a frame witness mint's escalation
+//! (`UnitVec3Error::Escalated`) — and both publish it as one
+//! `FrameError` under the SAME attribute words.
 //!
-//! One projection rather than one per door: the shape of the margin
+//! One projection rather than one per refusal: the shape of the margin
 //! is a fork (a value, an enclosure's two bounds, or a poisoned
-//! margin that is no number at all) and two doors forking separately
-//! is two spellings of one fact that can drift. This is the fork,
-//! written once.
+//! margin that is no number at all) and two refusals forking
+//! separately is two spellings of one fact that can drift. This is the
+//! fork, written once.
 //!
 //! # Why it lives outside `py`
 //!
 //! `crate::py` compiles only under the `python` feature, so a
 //! projection sited there is one the default build cannot test. Sited
-//! here both doors reach it under every feature — the
+//! here it is reachable under every feature — the
 //! `crate::mate_payload` argument, one rung down.
 
 use pncad::geom_core::{ErrorTextReading, Indeterminate};
@@ -58,7 +58,7 @@ pub struct Escalation {
 /// numbers come through the reporting margin's one door. The match
 /// over [`ErrorTextReading`] is exhaustive with no wildcard: an arm
 /// added kernel-side is a compile error here rather than a margin that
-/// silently reaches both doors as three `None`s.
+/// silently reaches Python as three `None`s.
 pub fn escalation(diag: &Indeterminate) -> Escalation {
     let (margin, margin_low, margin_high) = match diag.margin.diagnostic_f64_for_error_text() {
         ErrorTextReading::Value(m) => (Some(m), None, None),

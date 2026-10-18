@@ -530,25 +530,28 @@ pub fn place_at(
         )),
         role: PoseRole::Xy,
     };
-    let Ok(chart) =
+    let chart =
         super::value::Chart::of(&on, &to, false, &geom_core::Affine3::identity(), arm, band)
-    else {
+            .unwrap_or_else(|| unreachable!("a plane mate has a chart"));
+    // A plane mate's three values read both swings, so one the band
+    // cannot decide pins, as an undecided chart always has.
+    let (Ok(x), Ok(y), Ok(spin)) = (
+        chart.slide_at(&at, super::SlideAxis::X),
+        chart.slide_at(&at, super::SlideAxis::Y),
+        chart.spin_at(&at),
+    ) else {
         return pinned();
     };
-    let chart = chart.unwrap_or_else(|| unreachable!("a plane mate has a chart"));
     let values = vec![
         (
             super::Coord::Slide(super::SlideAxis::X),
-            written(chart.slide_at(&at, super::SlideAxis::X), Dimension::Length),
+            written(x, Dimension::Length),
         ),
         (
             super::Coord::Slide(super::SlideAxis::Y),
-            written(chart.slide_at(&at, super::SlideAxis::Y), Dimension::Length),
+            written(y, Dimension::Length),
         ),
-        (
-            super::Coord::Spin,
-            written(chart.spin_at(&at), Dimension::Angle),
-        ),
+        (super::Coord::Spin, written(spin, Dimension::Angle)),
     ];
     let on = Operand::Pose(Box::new(PoseDef::Plane {
         face: Operand::select(body.clone(), vec![face]),

@@ -1236,7 +1236,6 @@ class TestMateFaultPayload(BenchWorkspace):
         self.assertEqual(fault.placement, post)
         self.assertEqual(fault.free, 1)
         self.assertIsNone(fault.mate)
-        self.assertIsNone(fault.held)
         self.assertIn(pncad.OVERCONSTRAINED_RECOURSE, str(fault))
 
     def test_a_solve_read_for_another_document_names_both(self):

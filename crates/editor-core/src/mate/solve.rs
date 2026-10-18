@@ -589,9 +589,10 @@ pub fn mate_coset<T: SolveScalar>(on: &PoseValue<T>, to: &PoseValue<T>) -> Coset
 
 /// **One constraint's equations, as the bundle rule reads them**
 /// (FORK-S3O): a mate's are its pose kind's symmetry, a value's the one
-/// freedom it sets on the mate it names. The doors read them off the
-/// definitions and the fold off the poses' values, whose kinds the pose
-/// evaluator asserts are the definitions'.
+/// freedom it sets on the mate it names. Read once per bundle, off its
+/// definitions ([`equations_of`]), by the edit doors and by the solve
+/// alike, so the rule the door asks and the rule the fold asks are one
+/// reading.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Equations {
     /// A mate, by its kind's symmetry.
@@ -898,14 +899,21 @@ pub(crate) fn equations_of<P>(
 ///
 /// [`MateFault::Overconstrained`] naming every mate where two do not
 /// meet transversally (a pose whose kind is not its definition's, which
-/// the pose evaluator refuses first), and [`MateFault::PoseOutOfRange`]
-/// where they meet further away than a length can say.
+/// the pose evaluator refuses first).
+///
+/// **The meeting is always a finite length away.** The bundle's arm
+/// ([`bundle_arm`]) is formed before the solve, and [`Arm::of`] refuses
+/// one whose sixteenfold square overflows, so every mate's two poses
+/// sit within `datum < 3.4e153` of their origins. A lone mate's
+/// representative moves by at most `|o_on| + |o_to| ≤ datum`, and the
+/// one transverse meeting ([`super::coset::intersect`], a ball and a
+/// direction) by `p − R·p + R·t`, at most `3·datum`, whose squared
+/// norm stays inside the format. So no range is asked here.
 pub(crate) fn fold_bundle<T: SolveScalar>(
     placement: RecipeNodeId,
     mates: &[ReadMate<T>],
 ) -> Result<Coset<T>, Box<MateFault>> {
     let mut held = Coset::unconstrained();
-    let mut held_mate: Option<MateRef> = None;
     for m in mates {
         held = super::coset::intersect(held, mate_coset(&m.on, &m.to)).ok_or_else(|| {
             let met = mates
@@ -920,13 +928,6 @@ pub(crate) fn fold_bundle<T: SolveScalar>(
                 free: 6 - met,
             })
         })?;
-        if !geom_core::is_finite_length(held.representative.translation.norm()) {
-            return Err(Box::new(MateFault::PoseOutOfRange {
-                held: held_mate.unwrap_or(m.mate),
-                added: m.mate,
-            }));
-        }
-        held_mate.get_or_insert(m.mate);
     }
     Ok(held)
 }
@@ -941,13 +942,16 @@ pub(crate) enum Folded<T: Real> {
     Pinned(Affine3<T>),
 }
 
-/// **One placement's bundle, solved.** Each value is first asked what
-/// its mate's kind decides (a freedom the kind leaves, with a chart),
-/// then the bundle rule ([`overconstrained`]) refuses a constraint any
-/// of whose equations the rest already fix. The mates fold, and the
-/// values place the copy inside what they leave
-/// ([`super::value::settle`]). A bundle that pins less than its copy
-/// needs ([`pins`]) makes a loose copy, never a refusal.
+/// **One placement's bundle, solved.** `equations` are the bundle's,
+/// read once off its definitions ([`equations_of`]) — the reading the
+/// edit doors ask the rule of, so the door and the solve decide over
+/// one value. Each value is first asked what its mate's kind decides (a
+/// freedom the kind leaves, with a chart), then the bundle rule
+/// ([`overconstrained`]) refuses a constraint any of whose equations
+/// the rest already fix. The mates fold, and the values place the copy
+/// inside what they leave ([`super::value::settle`]). A bundle that
+/// pins less than its copy needs ([`pins`]) makes a loose copy, never a
+/// refusal.
 ///
 /// # Errors
 ///
@@ -957,17 +961,12 @@ pub(crate) enum Folded<T: Real> {
 /// values ([`super::value::settle`]).
 pub(crate) fn solve_bundle<T: SolveScalar>(
     placement: RecipeNodeId,
+    equations: &[(crate::node::ConstraintId, Equations)],
     mates: &[ReadMate<T>],
     values: &[super::value::ReadValue<T>],
     charts: &BTreeMap<crate::node::ConstraintId, Option<super::value::Chart<T>>>,
-    arm: Arm,
-    band: Band,
 ) -> Result<Folded<T>, crate::NodeErrorKind> {
     let fault = |f: MateFault| crate::NodeErrorKind::Mate(Box::new(f));
-    let mut equations: Vec<(crate::node::ConstraintId, Equations)> = mates
-        .iter()
-        .map(|m| (m.mate.id, Equations::Mate(m.to.symmetry().family())))
-        .collect();
     for v in values {
         let Some(&(_, Equations::Mate(family))) = equations.iter().find(|&&(id, _)| id == v.mate)
         else {
@@ -982,22 +981,13 @@ pub(crate) fn solve_bundle<T: SolveScalar>(
                 .map_err(|refusal| fault(refused_freedom(v.value, v.coord, kind, refusal)))?;
         }
     }
-    equations.extend(values.iter().map(|v| {
-        (
-            v.value.id,
-            Equations::Value {
-                mate: v.mate,
-                coord: v.coord,
-            },
-        )
-    }));
-    overconstrained(placement, &equations).map_err(|f| fault(*f))?;
+    overconstrained(placement, equations).map_err(|f| fault(*f))?;
     if mates.is_empty() {
         return Ok(Folded::Loose);
     }
     let coset = fold_bundle(placement, mates).map_err(|f| fault(*f))?;
-    let at = super::value::settle(coset, values, charts, arm, band)?;
-    Ok(if pins(&equations) {
+    let at = super::value::settle(coset, values, charts)?;
+    Ok(if pins(equations) {
         Folded::Pinned(at)
     } else {
         Folded::Loose

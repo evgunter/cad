@@ -1763,21 +1763,19 @@ fn fault_class<T: geom_core::Decide>(r: &NodeResult<T>) -> String {
 const INTERVAL_ESCALATIONS: [(f64, &str, &str); 1] =
     [(1e-12, "pinned-chain", "carrier_endpoint_start")];
 
-/// The escalation `id` fails with in `ev`, if its fault is one: a mate
-/// fault `Indeterminate` (the solve could not decide), or the first
-/// escalation its own log carries where it failed downstream of the
-/// solve (certifying the placed copy's edges).
+/// The escalation `id` fails with in `ev`, if its fault is one: the
+/// first escalation its own log carries where it failed downstream of
+/// the solve (certifying the placed copy's edges). The solve itself
+/// decides nothing a mate fault would escalate: its slides move along
+/// their chart's own axes.
 fn escalation<T: geom_core::Decide>(
     ev: &Evaluation<T>,
     id: RecipeNodeId,
 ) -> Option<geom_core::predicate::Indeterminate> {
-    use editor_core::{MateFault, NodeErrorKind};
+    use editor_core::NodeErrorKind;
     let error = ev.node_error(id)?;
     match &error.kind {
-        NodeErrorKind::Mate(fault) => match &**fault {
-            MateFault::Indeterminate { diag, .. } => Some(**diag),
-            _ => None,
-        },
+        NodeErrorKind::Mate(_) => None,
         _ => error.escalations.first().map(|e| e.source),
     }
 }
