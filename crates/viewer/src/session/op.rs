@@ -1264,12 +1264,12 @@ impl SessionOp {
     ///   [`super::DocSession::space_evaluation`]);
     /// - the view the scene draws
     ///   ([`super::DocSession::display_view`]) resolves against the
-    ///   PREVIEWED one, and so does the Properties pane, which runs
-    ///   the SAME admission test the view does
-    ///   ([`crate::display::instance_check`], which
-    ///   [`crate::display::drawn_targets`] runs first) to decide
-    ///   whether to DRAW the control the operation then decides
-    ///   whether to ACCEPT;
+    ///   PREVIEWED one; the Properties pane reads the COMMITTED one and
+    ///   runs the SAME admission test the operation does
+    ///   ([`crate::display::free_move_check`], over the same
+    ///   [`super::DocSession::space_evaluation`]) to decide whether to
+    ///   DRAW the control the operation then decides whether to
+    ///   ACCEPT;
     /// - every committed edit prunes the display state against the new
     ///   document, and again when its evaluation lands — a prune that
     ///   DISCARDS committed frames and kills an in-flight free-move

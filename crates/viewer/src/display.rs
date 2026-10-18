@@ -136,7 +136,10 @@ const RIGID_SLACK: f64 = 1e-9;
 /// [`AdmissionFault::NoSpace`], [`AdmissionFault::MovedSpace`],
 /// [`AdmissionFault::FusedGeometry`])
 /// — the word the properties panel and the feature tree use for the
-/// thing a user hides or probes. An arm whose whole content is that
+/// thing a user hides or probes. A frame's withdrawal asks about its
+/// space's root, which is a placement and may be a `Place` rather than
+/// an instance; the arm then says what [`SpokenNode`] says of that
+/// node, its kind included. An arm whose whole content is that
 /// the id does NOT denote one says **"node N"**
 /// ([`AdmissionFault::NoSuchNode`], [`AdmissionFault::NotAnInstance`]),
 /// because calling it an instance there would assert the very thing
