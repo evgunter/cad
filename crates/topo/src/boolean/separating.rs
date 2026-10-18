@@ -91,36 +91,27 @@ pub(crate) struct Circle<T: Real> {
 /// The outward normal of every planar face of `a` and of `b`
 /// ([`planar_axis`]): the candidate axes that turn with the operands.
 /// One the band cannot read, or a face with no reach, is left out,
-/// which only drops a candidate. So is one whose `key` is a kept axis's, or its
-/// negation's: a gap along `−n` is the gap along `n` (a box's six faces
-/// give three axes).
-fn operand_axes<T: Decide>(
-    a: &Body<T>,
-    b: &Body<T>,
-    band: Band,
-    key: AxisKey<T>,
-) -> Vec<UnitVec3<T>> {
-    let mut axes: Vec<UnitVec3<T>> = Vec::new();
-    let mut kept: Vec<[(f64, f64); 3]> = Vec::new();
-    for body in [a, b] {
-        for (face, _) in body.faces() {
-            let Some(unit) = planar_axis(
-                body,
-                face,
-                || crate::census::face_reach(body, face, band),
-                band,
-            ) else {
-                continue;
-            };
-            let (plus, minus) = (key(unit.get()), key(-unit.get()));
-            if kept.iter().any(|k| *k == plus || *k == minus) {
-                continue;
-            }
-            kept.push(plus);
-            axes.push(unit);
-        }
-    }
-    axes
+/// which only drops a candidate. Two parallel normals are both kept:
+/// whether two faces are parallel is a fact about the pose (a box's
+/// opposite faces are parallel to the last bit only where it is axis
+/// aligned), so a set that merged them would read a different number of
+/// axes, and decide a different sequence of gaps, at a pose a hair from
+/// that one. A repeated direction reads a gap its twin already read, and
+/// adds no separation its twin lacks.
+fn operand_axes<T: Decide>(a: &Body<T>, b: &Body<T>, band: Band) -> Vec<UnitVec3<T>> {
+    [a, b]
+        .into_iter()
+        .flat_map(|body| {
+            body.faces().filter_map(move |(face, _)| {
+                planar_axis(
+                    body,
+                    face,
+                    || crate::census::face_reach(body, face, band),
+                    band,
+                )
+            })
+        })
+        .collect()
 }
 
 /// A planar face's outward normal as a unit direction, levered by the
@@ -139,11 +130,6 @@ pub(crate) fn planar_axis<T: Decide>(
     UnitVec3::levered(n.vec(), PAIR_NORMAL, band, (hi - lo).norm()).ok()
 }
 
-/// What [`operand_axes`] compares two axes by: two equal keys are one
-/// axis. The bracket lane's (`boxes::axis_key`), handed in by a caller
-/// that reads brackets, so this module decides and does not bracket.
-pub(crate) type AxisKey<T> = fn(Vec3<T>) -> [(f64, f64); 3];
-
 /// **One operand pair's candidate axes** ([`operand_axes`]), read on
 /// first use and then shared by every item pair the caller asks about,
 /// so a stage that reads many pairs walks the operands' faces once. An
@@ -155,22 +141,20 @@ pub(crate) type AxisKey<T> = fn(Vec3<T>) -> [(f64, f64); 3];
 /// that gave them.
 pub(crate) struct OperandAxes<T: Real> {
     axes: std::cell::OnceCell<Vec<UnitVec3<T>>>,
-    key: AxisKey<T>,
 }
 
 impl<T: Decide> OperandAxes<T> {
-    /// Not yet read; `key` compares two axes.
-    pub(crate) fn new(key: AxisKey<T>) -> Self {
+    /// Not yet read.
+    pub(crate) fn new() -> Self {
         Self {
             axes: std::cell::OnceCell::new(),
-            key,
         }
     }
 
     /// The axes of the pair `a`, `b`: read now on the first call, and
     /// the first call's thereafter.
     pub(crate) fn of(&self, a: &Body<T>, b: &Body<T>, band: Band) -> &[UnitVec3<T>] {
-        self.axes.get_or_init(|| operand_axes(a, b, band, self.key))
+        self.axes.get_or_init(|| operand_axes(a, b, band))
     }
 }
 
@@ -290,4 +274,37 @@ fn anchor<T: Decide>(body: &Body<T>, item: Item<T>) -> Option<Point3<T>> {
         let k = T::one() / T::from_f64(f64::from(n));
         Point3::new(sum.x * k, sum.y * k, sum.z * k)
     })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use geom_core::{RigidMotion, Tol};
+
+    use super::*;
+    use crate::test_support_fixtures::geometric_cube;
+
+    /// **The candidate axes are one per planar face, whatever the pose.**
+    /// Two cubes read twelve, axis aligned or turned by 1e-7 rad: a set
+    /// that merged parallel normals would read three at the aligned pose
+    /// and twelve a hair from it, and every gap decided after them would
+    /// sit at another place in the log (boss_union's `bool_pair_gap`
+    /// order swap under the revalue apart move). Red where axes are
+    /// merged by their values.
+    #[test]
+    fn the_axes_are_one_per_planar_face_at_every_pose() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let cube = geometric_cube::<f64>(tol).body;
+        let axis = UnitVec3::new(Vec3::new(1.0, 2.0, 3.0), PAIR_AXIS, band).unwrap();
+        let turned = crate::transform::transform_rigid(
+            &cube,
+            &RigidMotion::rotation(axis, 1.0e-7).unwrap(),
+            tol,
+        )
+        .unwrap();
+        for (label, b) in [("aligned", &cube), ("turned", &turned)] {
+            assert_eq!(operand_axes(&cube, b, band).len(), 12, "{label}");
+        }
+    }
 }

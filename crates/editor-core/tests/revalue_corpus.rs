@@ -406,12 +406,11 @@ rows! {
     // part after it, from decision 6036 of 15539
     // (`work/inlane/under-the-guided-lift-plate-params-apart-move-parts-at-a-point-exactly-on-its-loop.md`).
     revalue_plate_param: "plate_param", InStep, 3938, [];
-    // In step: moved apart, its `bool_pair_gap` margins are decided in
-    // another order and the builds part after decision 3996, the first
-    // difference at #3997 (`pcurve_chart_azimuth_frame`)
-    // (`work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md`,
-    // which NOTHING here pins).
-    revalue_boss_union: "boss_union", InStep, 3236, [];
+    // In step: moved apart, a vertex sits exactly on an axis-aligned
+    // ray's line at the nominal (`point_in_arc_loop_side`, margin 0,
+    // decision 5804), so the walk grazes there and not at p1, and the
+    // builds part after it (owed with plate_param's, above).
+    revalue_boss_union: "boss_union", InStep, 3258, [];
     // In step: moved apart, its split parts at `split_join_frame_axis`
     // (an axis the cleave's join frame decides against a datum's), so
     // only the in-step move compares the whole document.

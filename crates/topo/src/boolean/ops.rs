@@ -1659,7 +1659,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
         evented,
         |s| path.names(s),
         stop,
-        &super::separating::OperandAxes::new(boxes::axis_key),
+        &super::separating::OperandAxes::new(),
     ))
 }
 
@@ -5676,7 +5676,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
         }
     }
     let pad = boxes::sweep_pad(band);
-    let axes = super::separating::OperandAxes::new(boxes::axis_key);
+    let axes = super::separating::OperandAxes::new();
     let mut section_charts = ChartCache::default();
     let rows = [face_rows(a, band)?, face_rows(b, band)?];
     let mut out: Vec<SphereRecut<T>> = Vec::new();
@@ -9557,7 +9557,7 @@ mod tests {
         ] {
             let other = brick::<f64>(x, y, z, tol);
             // Each brick its own cell: the axes are read off this pair.
-            let axes = crate::boolean::separating::OperandAxes::new(boxes::axis_key);
+            let axes = crate::boolean::separating::OperandAxes::new();
             for (yf, _) in other.faces() {
                 let face_box = boxes::face_box(&other, yf, pad, band).unwrap();
                 assert!(face_box.overlaps(&ball_box), "{what}: the boxes overlap");
