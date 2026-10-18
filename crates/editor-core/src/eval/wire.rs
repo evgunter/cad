@@ -3965,43 +3965,29 @@ fn judge_pairwise_contact<T: Decide>(
 /// the pair nowhere else.
 #[derive(Clone, Copy, Debug)]
 struct PairVerdict {
-    /// The listed-first member, which the fold holds when it joins `q`.
-    p: usize,
-    /// The other member.
-    q: usize,
-    /// The verdict, `p`'s face as its A face.
+    /// The judgement's operand A.
+    a: usize,
+    /// Its operand B.
+    b: usize,
+    /// The verdict, in the two members' keys.
     verdict: topo::GlueVerdict,
 }
 
 /// The carrier pairs the judgement of members `a` (operand A) and `b`
-/// (operand B) glued: the kernel's verdicts ([`topo::GlueVerdict`]),
-/// each held listed-first member first.
+/// (operand B) glued: the kernel's verdicts ([`topo::GlueVerdict`]).
 fn pair_verdicts(a: usize, b: usize, verdicts: &[topo::GlueVerdict]) -> Vec<PairVerdict> {
     verdicts
         .iter()
-        .map(|&verdict| {
-            if a < b {
-                PairVerdict {
-                    p: a,
-                    q: b,
-                    verdict,
-                }
-            } else {
-                PairVerdict {
-                    p: b,
-                    q: a,
-                    verdict: verdict.swapped(),
-                }
-            }
-        })
+        .map(|&verdict| PairVerdict { a, b, verdict })
         .collect()
 }
 
 /// **The pass's verdicts for the fold step that folds in member
 /// `member`**, the step's given pairs ([`BooleanInputs::given`]): each
-/// verdict whose second face is `member`'s, between that face and
-/// every accumulation face whose lineage holds the verdict's first
-/// face.
+/// verdict one of whose faces is `member`'s, between that face and
+/// every accumulation face whose lineage holds the verdict's other
+/// face. The judgement's operand A may be either member, so either face
+/// may be `member`'s.
 ///
 /// # Errors
 ///
@@ -4014,21 +4000,36 @@ fn given_pairs<T: Decide>(
     fold: &names::UnionFold,
     acc: &topo::Body<T>,
 ) -> Result<Vec<topo::GluedPair>, NodeErrorKind> {
+    use topo::Operand;
     let bug = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
-    let mut given: std::collections::BTreeMap<(topo::FaceKey, topo::FaceKey), topo::GlueVerdict> =
-        std::collections::BTreeMap::new();
+    let mut given: std::collections::BTreeMap<
+        (topo::FaceKey, topo::FaceKey),
+        (Operand, topo::GlueVerdict),
+    > = std::collections::BTreeMap::new();
     for (f, _) in acc.faces() {
         let parents = fold.member_faces(f).ok_or(bug(UNION_FACE_NO_LINEAGE))?;
-        for v in verdicts.iter().filter(|v| v.q == member) {
-            if !parents.contains(&(v.p, v.verdict.a())) {
+        for v in verdicts {
+            // The accumulation's side of the verdict, and `member`'s face.
+            let (held, at) = if v.b == member {
+                (Operand::A, (v.a, v.verdict.a()))
+            } else if v.a == member {
+                (Operand::B, (v.b, v.verdict.b()))
+            } else {
+                continue;
+            };
+            if !parents.contains(&at) {
                 continue;
             }
-            match given.entry((f, v.verdict.b())) {
+            let joining = match held {
+                Operand::A => v.verdict.b(),
+                Operand::B => v.verdict.a(),
+            };
+            match given.entry((f, joining)) {
                 std::collections::btree_map::Entry::Vacant(slot) => {
-                    slot.insert(v.verdict);
+                    slot.insert((held, v.verdict));
                 }
-                std::collections::btree_map::Entry::Occupied(held) => {
-                    if held.get().relation() != v.verdict.relation() {
+                std::collections::btree_map::Entry::Occupied(prior) => {
+                    if prior.get().1.relation() != v.verdict.relation() {
                         return Err(bug(UNION_VERDICTS_DISAGREE));
                     }
                 }
@@ -4037,7 +4038,7 @@ fn given_pairs<T: Decide>(
     }
     Ok(given
         .into_iter()
-        .map(|((a, _), verdict)| verdict.given_at(a))
+        .map(|((f, _), (held, verdict))| verdict.given_at(held, f))
         .collect())
 }
 

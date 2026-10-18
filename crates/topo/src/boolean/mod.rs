@@ -960,24 +960,18 @@ impl GlueVerdict {
         self.class.relation()
     }
 
-    /// This verdict with its operands exchanged, as the boolean of B
-    /// with A decides it: every glue class is symmetric in its two
-    /// faces.
-    #[must_use]
-    pub fn swapped(self) -> Self {
-        Self {
-            a: self.b,
-            b: self.a,
-            class: self.class,
-        }
-    }
-
-    /// **This verdict, given to a fold step**: the pair of `a` and the
-    /// judged B face, under the judged class. The fold passes each
-    /// accumulation face whose lineage holds the judged A face, over
-    /// the judged B operand; nothing here checks either.
-    pub fn given_at(self, a: FaceKey) -> GluedPair {
-        GluedPair::new(a, self.b, self.class)
+    /// **This verdict, given to a fold step**: the pair of `at`, an
+    /// accumulation face whose lineage holds the judged `held` face, and
+    /// the judged face of the other operand, under the judged class
+    /// (every class is symmetric in its two faces). The fold passes each
+    /// such accumulation face, over the operand that other face belongs
+    /// to; nothing here checks either.
+    pub fn given_at(self, held: Operand, at: FaceKey) -> GluedPair {
+        let other = match held {
+            Operand::A => self.b,
+            Operand::B => self.a,
+        };
+        GluedPair::new(at, other, self.class)
     }
 
     /// The verdicts `rows` record: each row relating an A-operand face
