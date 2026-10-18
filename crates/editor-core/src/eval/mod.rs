@@ -3490,9 +3490,10 @@ pub struct EvalOptions {
     /// Production default: `Realized`.
     pub boolean_sweep: topo::SweepStrategy,
     /// The document seam (ASM-2A D-3): how an `InstantiatePart` node
-    /// reaches the document it pins. `None` — the default — is a
-    /// kernel-only evaluation, in which every instantiate node refuses
-    /// typed rather than pretending a part is empty.
+    /// reaches the document it pins. `None` — the default — crosses no
+    /// seam: a part the prior evaluation carried is served from it (the
+    /// pin says which content, A4), and every other instantiate node
+    /// refuses typed rather than pretending a part is empty.
     pub resolver: Option<Arc<dyn crate::part::PartResolver>>,
     /// The PARAMETER BOX this evaluation runs over (E6's leaf replay):
     /// each named axis binds `nominal + [lo, hi]` instead of the
@@ -3804,7 +3805,18 @@ impl<T: EvalScalar> crate::mate::MateReach<T> for TableReach<'_, T> {
 /// through a group of edits, each applied to its predecessor's output.
 ///
 /// Not `Sync`: the store fills by `&mut` behind a `RefCell`, so one
-/// thread asks at a time and no ask waits on another's evaluation.
+/// thread asks at a time and no ask waits on another's evaluation. It
+/// can still be sent:
+///
+/// ```compile_fail,E0277
+/// fn shared<R: Sync>() {}
+/// shared::<editor_core::PartReach<'static, f64>>();
+/// ```
+///
+/// ```
+/// fn sent<R: Send>() {}
+/// sent::<editor_core::PartReach<'static, f64>>();
+/// ```
 pub struct PartReach<'a, T: EvalScalar> {
     parts: core::cell::RefCell<parts::PartStore<'a, T>>,
     tol: Tol,

@@ -81,7 +81,7 @@ fn run(doc: &editor_core::ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
 
 /// An evaluation carrying a WARM prior — the incremental editing
 /// session, which is the only place a stale-serving bug can hide: a
-/// fresh evaluation rebuilds the part cache from nothing, so it cannot
+/// fresh evaluation enters its parts from nothing, so it cannot
 /// serve yesterday's geometry no matter how the node is keyed.
 fn run_warm(
     doc: &editor_core::ProfileDoc,
@@ -633,7 +633,7 @@ fn assembly_under(id: DocumentId, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNod
 
 /// Row 5c — the WARM channel, which is where "the old content is not
 /// served" can actually fail. Rows 5a/5b evaluate from cold, so the
-/// per-evaluation part cache alone decides their content; the
+/// parts each run enters alone decide their content; the
 /// cross-evaluation `prior` memo keys an instantiate node by a
 /// ContentKey that must FEED THE PIN, and only an
 /// evaluate → update → re-evaluate-with-the-prior session can observe

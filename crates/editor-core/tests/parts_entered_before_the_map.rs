@@ -5,12 +5,12 @@
 //! schedule or a lock answers.
 //!
 //! The rows here read the `probe` sample sequence, which is where an
-//! owner shows: the part's samples lead every node's, under the serial
-//! walk, under the parallel node map at one and four threads, and with
-//! a mate whose solve reads the part (whose recording units belong to
-//! placements). The count rows beside them (`part_evaluations` under the
-//! parallel map, a pose edit, an unchanged re-run and a faulted part)
-//! live in
+//! owner shows: the part's samples lead every node's under the serial
+//! walk, with and without a mate whose solve reads the part (whose
+//! recording units belong to placements), and the parallel node map
+//! records the serial walk's sequence over a three-level assembly. The
+//! count rows beside them (`part_evaluations` under the parallel map, a
+//! pose edit, an unchanged re-run and a faulted part) live in
 //! `asm2a_instantiate.rs`, beside the memo rows they extend.
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -18,8 +18,8 @@
 use crate::fixture;
 use editor_core::{
     Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocRef, DocumentId, EvalOptions,
-    Evaluation, ExtrudeSide, MateFrame, MatePrimitive, Node, NodeResult, ProfileDoc, RecipeNodeId,
-    evaluate, mate_reach,
+    Evaluation, ExtrudeSide, Frame, Mate, MateFrame, MatePrimitive, Node, NodeResult, Placement,
+    ProfileDoc, RecipeNodeId, evaluate, mate_reach,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{at_the_door, insert, len, on_frame, on_pool, square};
@@ -208,24 +208,62 @@ fn the_part_leads(label: &str, n: usize, rest: Rest) -> (Vec<Sample>, usize) {
     (full_samples, full_ev.part_evaluations)
 }
 
-/// **One part instanced three times is entered once, ahead of every
-/// node, at every schedule.** Serially its samples lead the leading
-/// block's; under the parallel node map, at one thread and at four,
-/// the sequence is the serial walk's element for element and the part
-/// is evaluated once.
+/// **One part instanced three times is evaluated once, ahead of every
+/// node.** Serially its samples lead the leading block's.
 #[test]
-fn a_part_instanced_three_times_is_entered_once_ahead_of_every_node_at_any_schedule() {
-    let label = "parts-entered-pinned";
-    let (serial, count) = the_part_leads(label, 3, Rest::Pinned);
+fn a_part_instanced_three_times_is_entered_once_ahead_of_every_node() {
+    let (_, count) = the_part_leads("parts-entered-pinned", 3, Rest::Pinned);
     assert_eq!(count, 1, "three instances, one part, one evaluation");
-    let part = stored_part(&format!("{label}-part"));
-    let full = assembly(&format!("{label}-full"), true, &part, 3, Rest::Pinned);
-    for threads in [1, 4] {
-        let (ev, parallel) = on_pool(threads, || recorded(&full, &part.0, true));
+}
+
+/// A block part, stored, and its reference.
+fn stored_block(store: &mut PartStore, label: &str, half: f64, height: f64) -> DocRef {
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    store
+        .insert_part(block(doc, [0.0; 3], half, height), Tol::witness())
+        .0
+}
+
+/// **The parallel node map records the serial walk's sample sequence
+/// over a three-level assembly**, at one, three and four threads: a
+/// leading block, then six instances — a mid-level part that instances
+/// one leaf twice, that leaf, a second leaf, and the three again. Every
+/// instance sits in level 0, so a part evaluated by whichever instance
+/// a worker reached first would splice its samples at that instance;
+/// entered before the map, the parts' samples are the serial walk's at
+/// every width.
+#[test]
+fn a_nested_assembly_records_the_serial_walks_sequence_under_the_parallel_map() {
+    let label = "parts-entered-nested";
+    let mut store = PartStore::new();
+    let leaf = stored_block(&mut store, &format!("{label}-leaf"), 0.5, 1.0);
+    let other = stored_block(&mut store, &format!("{label}-other"), 0.4, 0.6);
+    let mid = ProfileDoc::empty(DocumentId::derive(&format!("{label}-mid")), Tol::witness());
+    let (mid, _) = insert(mid, Node::instantiate_part(leaf));
+    let (mid, apart) = insert(mid, fixture::mated_instance(leaf));
+    let mid = fixture::constrain_at(
+        mid,
+        apart,
+        Mate::world_pin(Placement::literal(&Frame::translation([9.0, 0.0, 0.0]))),
+    )
+    .0;
+    let mid = store.insert(mid, Tol::witness());
+    let opts = with_resolver(store);
+    let mut top = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    top = block(top, [3.0, 0.0, 0.0], 0.3, 0.7).0;
+    for part in [mid, leaf, other, mid, leaf, other] {
+        top = insert(top, Node::instantiate_part(part)).0;
+    }
+    let (serial_ev, serial) = recorded(&top, &opts, false);
+    assert_eq!(
+        serial_ev.part_evaluations, 4,
+        "the mid part and the leaf inside it, the leaf, the other leaf"
+    );
+    for threads in [1, 3, 4] {
+        let (ev, parallel) = on_pool(threads, || recorded(&top, &opts, true));
         assert_eq!(
-            ev.part_evaluations, 1,
-            "{threads} thread(s): the parallel map evaluated the part {} times",
-            ev.part_evaluations
+            ev.part_evaluations, serial_ev.part_evaluations,
+            "{threads} thread(s): the parallel map evaluated another set of parts"
         );
         assert!(
             parallel == serial,

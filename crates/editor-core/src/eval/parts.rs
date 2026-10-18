@@ -1,9 +1,10 @@
-//! The per-evaluation instantiated-part memo (ASM-2A D-3).
+//! The instantiated parts an evaluation reads (ASM-2A D-3).
 //!
 //! A2 says evaluation MATERIALIZES: an instantiate node evaluates the
 //! document it pins and takes that document's A10 product. N instances
-//! of one part must not evaluate it N times, so one table per
-//! evaluation holds each resolved part's product.
+//! of one part must not evaluate it N times, so each evaluation enters
+//! every part it instantiates once, into one table its nodes read, and
+//! carries the successful rows to the run that names it as its prior.
 //!
 //! # Three hash vocabularies, deliberately not unified
 //!
@@ -609,7 +610,8 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
     /// ([`Self::row`]). Serial, and run before the evaluation's mate
     /// solve and node map, so which part is evaluated, and where its
     /// samples land, is a property of the document and not of a
-    /// schedule.
+    /// schedule. The store's rows ARE the table it hands over, so it is
+    /// consumed, and is called on a store fresh from [`Self::new`].
     ///
     /// A cancel stops the pass before its next evaluation; the rows it
     /// did not enter refuse [`PartFault::NotEntered`], and the
@@ -622,31 +624,28 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
         cancel: &super::CancelToken,
         tol: Tol,
     ) -> Entry<T> {
-        let mut reached = BTreeMap::new();
         let mut carried = BTreeMap::new();
         for doc_ref in doc.ids().iter().filter_map(|&id| instantiated(doc, id)) {
             let key = (doc_ref, self.eps_bits);
-            if reached.contains_key(&key) {
+            if self.rows.contains_key(&key) {
                 continue;
             }
             if let Some(value) = prior.and_then(|p| p.0.get(&key)) {
                 carried.insert(key, value.clone());
-                reached.insert(key, Ok(value.clone()));
+                self.rows.insert(key, Ok(value.clone()));
                 continue;
             }
             if cancel.is_canceled() {
                 break;
             }
-            let row = self.row(&doc_ref, tol, cancel);
-            if let Ok(value) = &row
+            if let Ok(value) = self.row(&doc_ref, tol, cancel)
                 && !cancel.is_canceled()
             {
-                carried.insert(key, value.clone());
+                carried.insert(key, value);
             }
-            reached.insert(key, row);
         }
         Entry {
-            reached: Reached(reached),
+            reached: Reached(self.rows),
             carried: Carried(carried),
             evaluations: self.evaluations,
         }

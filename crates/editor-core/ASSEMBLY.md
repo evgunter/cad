@@ -55,9 +55,11 @@ has world coordinates: the world sets only the coordinates export
 writes), and materializes it through `topo::transform_rigid`
 (rigidity carried by the witness or decided at the door, every
 carrier re-certified) and the disjoint graft. A resolved document whose recorded ε disagrees refuses
-`ResolveFault::EpsilonSeam`. `PartStore` evaluates each `(DocRef, ε)`
-once per evaluation, before its mate solve and node map read it from
-`Reached`; a reference already on the descent chain is a
+`ResolveFault::EpsilonSeam`. An evaluation enters each `(DocRef, ε)` it
+instantiates at most once (`PartStore`), before its mate solve and node
+map read it (`Reached`); a part the prior evaluation carried under the
+same pin is reused rather than evaluated again, and a faulted one is
+asked again. A reference already on the descent chain is a
 cycle and refuses naming the loop. Which solids are one part, and that
 fusing is an explicit boolean, is DESIGN `[assemblies.document]`.
 
@@ -387,9 +389,10 @@ copy) is one member, and its mates fold.
 *What the solve reads.* The solve's inputs are the document plus its
 mated parts' evaluations, at the evaluation's own scalar and over the
 evaluation's own parameters. It reads no geometry except what each
-mated part's own evaluation answers, through one door asked lazily per
-pair (`mate::MateReach`; the evaluation answers from its own part cache,
-so a mated part is evaluated once). Two answers cross that door:
+mated part's own evaluation answers, through one door asked per pair
+(`mate::MateReach`; the evaluation answers from the part table it
+entered before the solve, which its instantiate nodes read too, so a
+mated part is evaluated at most once). Two answers cross that door:
 
 - The part's EXTENT, an upper bound taken from its evaluated body,
   enters only as the lever a parallelism verdict is decided over:

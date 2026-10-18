@@ -609,7 +609,7 @@ fn placement_map<T: crate::mate::SolveScalar>(
 
 /// ASM-2A D-3: materialize an instance through the shipped doors.
 ///
-/// Resolve (memoized per reference), take the referenced document's A10
+/// Read the part the evaluation entered, take the referenced document's A10
 /// PRODUCT, place it with the kernel's own `transform_rigid`, and hand
 /// back a body-denoting value. The placed body is an ordinary `Body` —
 /// one solid or N, under ONE rigid map — so the root gather and the

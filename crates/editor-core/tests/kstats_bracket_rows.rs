@@ -330,8 +330,8 @@ fn a_lone_frame_decides_its_placement_with_no_one_to_read_it() {
 }
 
 /// **The assembly decides nothing outside its instances' brackets**:
-/// the part's decisions are shielded on the cache's miss path, and
-/// each instance's log is its own op's.
+/// the part's decisions are shielded where the census evaluates it,
+/// and each instance's log is its own op's.
 #[test]
 fn the_assembly_decides_nothing_outside_its_instances_brackets() {
     let (doc, ids, opts) = two_instances("kstats-outside");
