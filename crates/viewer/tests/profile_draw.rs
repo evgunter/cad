@@ -13,7 +13,7 @@
 
 use crate::common;
 
-use common::{inserted, rectangle, rectangle_loop};
+use common::{inserted, rectangle};
 use pncad::document::{
     CancelToken, Doc, EvalOptions, Evaluation, ProfileProgram, RecipeNodeId, evaluate,
 };
@@ -116,29 +116,51 @@ fn the_profile_being_edited_is_the_one_left_out() {
 /// viewport could not draw, and a refused node has none: the tree's
 /// badge says why it is missing.
 ///
-/// The profile's two loops cross, which validation refuses, so the
-/// profile has no value. A healthy profile beside it is the control:
-/// the pass still draws what did evaluate.
+/// The refused profile is a circle whose radius reads a variable,
+/// written negative once the profile is in the document, which the
+/// evaluator refuses, so the profile has no value. A healthy profile
+/// beside it is the control: the pass still draws what did evaluate.
 #[test]
 fn a_profile_whose_evaluation_refused_draws_nothing() {
+    use pncad::document::{
+        Dimension, DocEdit, Formula, FreeValue, FreeVar, LoopProgram, Node, VarName,
+    };
     let tol = Tol::witness();
-    let doc = Doc::empty_derived("profile-draw-refused", tol);
+    let r = VarName::from_static("r");
+    let doc = common::declared(
+        "profile-draw-refused",
+        &r,
+        FreeVar::continuous(Dimension::Length, 0.005),
+        tol,
+    );
     let (doc, refused) = inserted(
         &doc,
-        pncad::document::Node::Profile(ProfileProgram {
-            loops: vec![
-                rectangle_loop([0.0, 0.0], SIDE, SIDE),
-                rectangle_loop([SIDE / 2.0, SIDE / 2.0], SIDE, SIDE),
-            ],
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::Circle {
+                centre: [
+                    Formula::zero(Dimension::Length),
+                    Formula::zero(Dimension::Length),
+                ],
+                radius: Formula::named(r.clone(), Dimension::Length),
+            }],
             ids: Vec::new(),
         }),
+        tol,
+    );
+    let var = doc.var_named(r.as_str()).expect("declared");
+    let (doc, _) = common::edited(
+        &doc,
+        DocEdit::SetVarValue {
+            var: var.into(),
+            value: FreeValue::Continuous(-0.005),
+        },
         tol,
     );
     let (doc, healthy) = square_at(&doc, [0.0, 0.0], tol);
     let evaluation = evaluated(&doc, tol);
     assert!(
         evaluation.value(refused).is_none(),
-        "the fixture: a profile whose loops cross has no value",
+        "the fixture: a circle of negative radius has no value",
     );
 
     let drawn = sketch::committed(&doc, &evaluation, CHORD, None);

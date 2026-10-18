@@ -241,9 +241,7 @@ fn evaluated() -> Vec<Sample> {
 fn disagreement(s: &Sample) -> Option<String> {
     let (foreign, own) = (s.foreign.is_some(), s.own.is_some());
     let wanted = match s.edge {
-        Some(VerbatimKind::Selected) if !foreign || own => {
-            "every row headed by another node"
-        }
+        Some(VerbatimKind::Selected) if !foreign || own => "every row headed by another node",
         Some(VerbatimKind::Intact) if !foreign || !own => {
             "rows headed by another node AND rows headed by itself"
         }

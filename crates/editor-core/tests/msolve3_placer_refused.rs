@@ -24,9 +24,9 @@ use crate::fixture;
 use std::sync::Arc;
 
 use editor_core::{
-    CapEnd, ContactClass, DocEdit, DocumentId, EditError, EvalOptions, Formula,
-    Frame, MateFault, MateRef, MateSide, Node, NodeErrorClass, NodeErrorKind, NodeResult,
-    OperandSlot, PatternKind, ProfileDoc, RecipeNodeId, SlotId, StableName,
+    CapEnd, ContactClass, DocEdit, DocumentId, EditError, EvalOptions, Formula, Frame, MateFault,
+    MateRef, MateSide, Node, NodeErrorClass, NodeErrorKind, NodeResult, OperandSlot, PatternKind,
+    ProfileDoc, RecipeNodeId, SlotId, StableName,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{ang, in_copy, insert, insert_pinned, len, on_frame, run, scl, solve, step};
@@ -269,7 +269,10 @@ fn a1_a_circular_rule_over_a_non_axis_is_refused_at_the_door() {
     let (doc, body) = block("msolve3-circular");
     let plane = fixture::plane(editor_core::Operand::select(
         body,
-        vec![fixture::fname(body, editor_core::RoleSeg::Cap(CapEnd::Start))],
+        vec![fixture::fname(
+            body,
+            editor_core::RoleSeg::Cap(CapEnd::Start),
+        )],
     ));
     let (doc, array) = insert(
         doc,

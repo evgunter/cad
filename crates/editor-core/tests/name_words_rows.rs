@@ -33,9 +33,9 @@ use std::time::Instant;
 use crate::corpus::Recorder;
 use crate::fixture::{self, len};
 use editor_core::{
-    CapEnd, EntityKey, EntityKind, EntityRef, EvalOptions, MeasurePrimitive,
-    NameRef, NameTable, NameTables, Node, NodeResult, PieceRole, ProfileEdgeRef, Qualifier,
-    RecipeNodeId, RoleSeg, Speaker, StableName, StepId, VarId,
+    CapEnd, EntityKey, EntityKind, EntityRef, EvalOptions, MeasurePrimitive, NameRef, NameTable,
+    NameTables, Node, NodeResult, PieceRole, ProfileEdgeRef, Qualifier, RecipeNodeId, RoleSeg,
+    Speaker, StableName, StepId, VarId,
 };
 use test_utils::fuzz;
 
@@ -617,7 +617,11 @@ fn block_and_cut(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
         profile: q.into(),
         distance: len(1.0),
     });
-    let pin = r.against(block, pin, &editor_core::Frame::translation([0.0, 0.0, -0.5]));
+    let pin = r.against(
+        block,
+        pin,
+        &editor_core::Frame::translation([0.0, 0.0, -0.5]),
+    );
     let cut = r.insert(Node::Subtract {
         from: block.into(),
         tool: pin.into(),
@@ -821,7 +825,11 @@ fn a_strand_row_names_a_deleted_union() {
         profile: q.into(),
         distance: len(1.0),
     });
-    let boss = r.against(block, boss, &editor_core::Frame::translation([0.0, 0.0, 0.5]));
+    let boss = r.against(
+        block,
+        boss,
+        &editor_core::Frame::translation([0.0, 0.0, 0.5]),
+    );
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![block.into(), boss.into()]),
     });

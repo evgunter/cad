@@ -35,14 +35,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-
 use crate::corpus;
 use crate::fixture;
 
 use corpus::{Recorder, eval, failures};
 use editor_core::{
-    Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SplitHalf, SplitSide,
-    ValuePayload, persist,
+    Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SplitHalf, SplitSide, ValuePayload,
+    persist,
 };
 use fixture::digest::digest;
 use fixture::{len, square, tol};

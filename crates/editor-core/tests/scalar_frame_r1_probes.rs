@@ -163,4 +163,3 @@ fn a_skewed_pair_is_repaired_at_the_sketch_plane_door() {
     let plane = SketchPlane::from_frame(skewed);
     assert_eq!(bits3(plane.normal()), bits3(Vec3::unit_z()));
 }
-

@@ -44,7 +44,10 @@ fn refusal(doc: &ProfileDoc, edit: DocEdit<editor_core::ProfileProgram>) -> Edit
 /// A square block on its own xy, `cx` along x: the profile and the
 /// extrude, in the order inserted.
 fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, [RecipeNodeId; 2]) {
-    let (doc, profile) = insert(doc, Node::Profile(fixture::desc(vec![square(cx, 0.0, 0.5)])));
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(fixture::desc(vec![square(cx, 0.0, 0.5)])),
+    );
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
@@ -251,7 +254,10 @@ fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
                 unreachable!("matched above")
             };
             assert_eq!(node, &doc.spoken(extrude), "the refused node");
-            let said = format!("Extrude \"base \\\"plate\\\"\" ({})", tag(extrude.0.digest()));
+            let said = format!(
+                "Extrude \"base \\\"plate\\\"\" ({})",
+                tag(extrude.0.digest())
+            );
             let sentence = PersistError::Snapshot(error.clone()).to_string();
             assert!(
                 sentence.contains(&format!("{said}'s profile reads")),

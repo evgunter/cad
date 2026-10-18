@@ -4,8 +4,8 @@
 
 use crate::fixture::{insert, len, on_frame, place, square};
 use editor_core::{
-    CapEnd, DocEdit, EntityKind, MeasurePrimitive, Node, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedRef, StableName,
+    CapEnd, DocEdit, EntityKind, MeasurePrimitive, Node, ProfileDoc, RecipeNodeId, RoleSeg,
+    SitedRef, StableName,
 };
 use geom_core::Tol;
 
@@ -162,8 +162,8 @@ mod interference {
     use crate::corpus;
     use crate::fixture::{fname, insert, len, on_frame, place, square, wall};
     use editor_core::{
-        Assembly, AssertionRelation, Formula, MeasurePrimitive, Node, ProfileDoc,
-        RecipeNodeId, RoleSeg, SitedRef, StableName, assemble,
+        Assembly, AssertionRelation, Formula, MeasurePrimitive, Node, ProfileDoc, RecipeNodeId,
+        RoleSeg, SitedRef, StableName, assemble,
     };
     use geom_core::Tol;
 

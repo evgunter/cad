@@ -20,8 +20,8 @@ use crate::p2_gauges::{
 use editor_core::pose::PoseRole;
 use editor_core::{
     Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
-    FreeVar, Node, Operand, ParamBox, ProfileDoc, RecipeNodeId, Space, Target, VarName,
-    WorldRead, evaluate,
+    FreeVar, Node, Operand, ParamBox, ProfileDoc, RecipeNodeId, Space, Target, VarName, WorldRead,
+    evaluate,
 };
 use fixture::resolver::with_resolver;
 use fixture::{ang, head, insert, len, run, solve, step};
@@ -284,7 +284,13 @@ fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
         assert!(got_b.dist(&f) <= 1e-12, "DEFECT: base pose");
         let ev = run(&doc, &o);
         check_body_f64(&ev, top, &top_pts, &w_top, "f64 top");
-        check_body_f64(&ev, t, &top_pts, &w_top.c(&tm), "f64 placed copy of the top");
+        check_body_f64(
+            &ev,
+            t,
+            &top_pts,
+            &w_top.c(&tm),
+            "f64 placed copy of the top",
+        );
         check_body_f64(&ev, base, &base_pts, &f, "f64 base");
         let lane = evaluate::<Interval>(
             &doc,

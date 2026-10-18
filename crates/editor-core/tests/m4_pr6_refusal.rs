@@ -592,7 +592,7 @@ fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    assert_eq!(ev.nodes.len(), 3);
+    assert_eq!(ev.nodes.len(), 2, "the profile and the extrude");
     for result in ev.nodes.values() {
         assert!(
             matches!(

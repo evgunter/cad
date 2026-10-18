@@ -39,20 +39,19 @@ fn key_of(doc: &ProfileDoc) -> ContentKey {
 
 fn doc_with(loops: Vec<LoopProgram<Formula>>) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness());
-    doc
-        .apply(
-            &DocEdit::InsertNode {
-                node: Box::new(Node::Profile(ProfileProgram {
-                    loops,
-                    ids: Vec::new(),
-                })),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("valid program")
-        .doc
+    doc.apply(
+        &DocEdit::InsertNode {
+            node: Box::new(Node::Profile(ProfileProgram {
+                loops,
+                ids: Vec::new(),
+            })),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("valid program")
+    .doc
 }
 
 /// `doc` with the one expression of its profile at argument `arg`
@@ -138,10 +137,7 @@ fn verb_tags_are_structure() {
 #[test]
 fn resolved_values_feed_the_key() {
     let with_param = |value: f64| {
-        let doc = ProfileDoc::empty_derived(
-            "switch_program_key",
-            Tol::witness(),
-        );
+        let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness());
         let doc = doc
             .apply(
                 &DocEdit::DeclareVar {
@@ -192,10 +188,7 @@ fn resolved_values_feed_the_key() {
 /// what happened.
 #[test]
 fn a_carrier_centre_respelled_keys_identically() {
-    let doc = ProfileDoc::empty_derived(
-        "switch_program_key",
-        Tol::witness(),
-    );
+    let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness());
     let doc = doc
         .apply(
             &DocEdit::DeclareVar {
@@ -259,20 +252,17 @@ fn one_arc_chain(radius: Formula) -> LoopProgram<Formula> {
 /// A document declaring `r` at `value`, carrying one profile built from
 /// `loops` — the same two nodes every row here uses.
 fn doc_with_r(value: f64, loops: Vec<LoopProgram<Formula>>) -> ProfileDoc {
-    let doc = ProfileDoc::empty_derived(
-        "switch_program_key",
-        Tol::witness(),
-    )
-    .apply(
-        &DocEdit::DeclareVar {
-            name: VarName::from_static("r"),
-            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .unwrap()
-    .doc;
+    let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness())
+        .apply(
+            &DocEdit::DeclareVar {
+                name: VarName::from_static("r"),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .unwrap()
+        .doc;
     doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {

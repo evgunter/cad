@@ -34,11 +34,11 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
 /// The plants build their own documents through the public authoring
 /// door instead of mutating one: a cube, an extrude, and a fillet
 /// whose selection is the plant.
-/// This suite's documents all start the same way: the sketch frame,
-/// the profile drawn on it, then the extrude whose body every rim name
-/// below is minted by — the document's third node.
+/// This suite's documents all start the same way: the profile, then
+/// the extrude whose body every rim name below is minted by — the
+/// document's second node.
 fn body(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.ids()[2]
+    doc.ids()[1]
 }
 
 fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
@@ -211,7 +211,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: doc.ids()[1].into(),
+                profile: doc.ids()[0].into(),
                 distance: len(2.0),
             }),
             fresh: Vec::new(),

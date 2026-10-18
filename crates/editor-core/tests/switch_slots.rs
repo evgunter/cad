@@ -13,11 +13,11 @@ use crate::fixture;
 use editor_core::AuthoredNode;
 
 use editor_core::{
-    AssertionRelation, CancelToken, CapEnd, ContactClass, ContentPin, Dimension, DocEdit,
-    DocRef, DocumentId, EditError, EvalOptions, ExprPath, Formula, FreeVar, InterfaceRecord,
-    LoopProgram, Node, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc,
-    ProfileProgram, ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, SlotId, StepArg, TubeWindow, ValuePayload, VarName, evaluate,
+    AssertionRelation, CancelToken, CapEnd, ContactClass, ContentPin, Dimension, DocEdit, DocRef,
+    DocumentId, EditError, EvalOptions, ExprPath, Formula, FreeVar, InterfaceRecord, LoopProgram,
+    Node, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
+    StepArg, TubeWindow, ValuePayload, VarName, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -599,7 +599,10 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         },
         Node::Revolve {
             profile: nid(1).into(),
-            axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
             axis_heading: Formula::zero(Dimension::Angle),
             angle: ang(1.0),
         },
@@ -827,15 +830,13 @@ fn every_node_kinds_slots_are_all_readable() {
         }
     }
 
-    for (rostered, walked) in [
-        (
-            NODE_KIND.identifiers(),
-            nodes
-                .iter()
-                .map(test_utils::f6::variant_identifier)
-                .collect::<Vec<_>>(),
-        ),
-    ] {
+    for (rostered, walked) in [(
+        NODE_KIND.identifiers(),
+        nodes
+            .iter()
+            .map(test_utils::f6::variant_identifier)
+            .collect::<Vec<_>>(),
+    )] {
         let covered: Vec<&str> = walked.iter().map(String::as_str).collect();
         if let Some(report) = test_utils::census::set_difference(
             rostered,

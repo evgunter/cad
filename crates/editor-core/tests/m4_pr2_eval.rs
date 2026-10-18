@@ -59,13 +59,13 @@ fn final_body(ev: &Evaluation<f64>, id: editor_core::RecipeNodeId) -> &Body<f64>
 //   as `24.0 + 21.0 * 4.0 * 0.25 * DEPTH`, which is that number), plus
 //   a floor on how many documents still carry a pin at all.
 //
-// The one assertion that is a literal 63 rather than the document's own
+// The one assertion that is a literal 56 rather than the document's own
 // length stays in this file: `cancelation_returns_a_typed_partial_\
-// result` asserts `ev.order.len() == 63` and `(63, 0)` on the same
+// result` asserts `ev.order.len() == 56` and `(56, 0)` on the same
 // document, and `poisoning_hits_descendants_only_and_is_walkable`
-// asserts `63 - 3`. So the die's node count is still pinned here: the
-// cube, seven sketch frames, and per pip a profile, an extrude, a
-// transform and a declared subtract.
+// asserts `56 - 3`. So the die's node count is still pinned here: the
+// cube, and per pip a profile, an extrude, a placement and a declared
+// subtract.
 
 // **RETIRED (2026-08-13 test-time audit): `incremental_edit_recomputes\
 // _only_the_downstream_cone`.** It moved the +z pip's Transform x from
@@ -116,7 +116,7 @@ fn doc_param_edit_recomputes_the_param_cone() {
     let d = die();
     let full = run(&d.doc, None, false);
     // pip_depth 0.125 → 0.0625: every pip master extrude and all 42
-    // downstream pip nodes recompute; the 7 frames, the 7 profiles
+    // downstream pip nodes recompute; the 7 profiles
     // and the cube extrude are reused.
     let edited = d
         .doc
@@ -135,9 +135,7 @@ fn doc_param_edit_recomputes_the_param_cone() {
         .unwrap()
         .doc;
     let memo = run(&edited, Some(&full), false);
-    // The seven frames are reused: a `pip_depth` edit does not
-    // touch a sketch plane.
-    assert_eq!((memo.recomputed, memo.reused), (48, 15));
+    assert_eq!((memo.recomputed, memo.reused), (48, 8));
     let vol = mass_properties(final_body(&memo, d.final_node), Tol::witness())
         .unwrap()
         .volume;
@@ -277,7 +275,7 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
         other => panic!("expected Failed, got {other:?}"),
     }
 
-    // Descendants ONLY: exactly the +z transform and the final
+    // Descendants ONLY: exactly the +z placement and the final
     // subtract are poisoned, each pointing at the failed extrude.
     let poisoned: Vec<_> = ev
         .nodes
@@ -298,7 +296,7 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
         .values()
         .filter(|r| matches!(r, NodeResult::Ok(_)))
         .count();
-    assert_eq!(ok_count, 63 - 3); // all but Failed + 2 Poisoned
+    assert_eq!(ok_count, 56 - 3); // all but Failed + 2 Poisoned
 }
 
 #[test]
@@ -310,7 +308,7 @@ fn cancelation_returns_a_typed_partial_result() {
     let ev = evaluate::<f64>(&d.doc, None, &cancel, &opts, Tol::witness());
     assert_eq!(ev.outcome, EvalOutcome::Canceled);
     assert!(ev.nodes.is_empty()); // canceled before the first node
-    assert_eq!(ev.order.len(), 63); // order is data, not schedule
+    assert_eq!(ev.order.len(), 56); // order is data, not schedule
     assert_eq!(ev.epoch, opts.epoch); // the identity token round-trips
 
     // Distinct evaluations carry distinct minted epochs (GQ2's
@@ -328,7 +326,7 @@ fn cancelation_returns_a_typed_partial_result() {
         Tol::witness(),
     );
     assert_eq!(full.outcome, EvalOutcome::Completed);
-    assert_eq!((full.recomputed, full.reused), (63, 0));
+    assert_eq!((full.recomputed, full.reused), (56, 0));
 }
 
 #[test]
@@ -412,8 +410,8 @@ fn split_evaluates_both_parts_role_tagged() {
             distance: len(2.0),
         },
     );
-    // The tool: the plane z = 0.5 read off the cube (normal +z, written
-    // unnormalized).
+    // The tool: the plane z = 0.5 read off the cube, its normal +z
+    // written unnormalized.
     let tool = fixture::plane_on(&doc, cube, [0.0, 0.0, 0.5], [0.0, 0.0, 2.0]);
     let (doc, split_node) = fixture::insert(
         doc,
@@ -435,8 +433,15 @@ fn split_evaluates_both_parts_role_tagged() {
         Tol::witness(),
     ) {
         Ok(PoseValue::Plane { normal, .. }) => {
+            // The frame read off the cube carries its spins' rounding.
             let normal = normal.get();
-            assert_eq!((normal.x, normal.y, normal.z), (0.0, 0.0, 1.0));
+            assert!(
+                (normal.norm() - 1.0).abs() <= 4.0 * f64::EPSILON
+                    && normal.x.abs() <= 1e-15
+                    && normal.y.abs() <= 1e-15
+                    && normal.z > 0.0,
+                "a unit normal along +z: {normal:?}"
+            );
         }
         other => panic!("expected a plane, got {other:?}"),
     }

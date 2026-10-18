@@ -660,7 +660,12 @@ fn extrude(r: &mut Recorder, profile: RecipeNodeId, distance: f64) -> RecipeNode
 }
 
 /// A copy of `input` slid `by` in `target`'s own coordinates.
-fn moved(r: &mut Recorder, target: RecipeNodeId, input: RecipeNodeId, by: [f64; 3]) -> RecipeNodeId {
+fn moved(
+    r: &mut Recorder,
+    target: RecipeNodeId,
+    input: RecipeNodeId,
+    by: [f64; 3],
+) -> RecipeNodeId {
     r.against(target, input, &editor_core::Frame::translation(by))
 }
 
@@ -723,8 +728,8 @@ fn documents_outside_the_corpus_read_apart_too() {
     r.doc = doc;
     let cut = boolean(&mut r, BooleanOp::Subtract, second, union);
     docs.push(("copies".to_owned(), r.doc.clone()));
-    let bosses = [[0.0, 1.0, PIN_Z + 0.5], [0.75, 1.0, PIN_Z + 0.5]]
-        .map(|at| moved(&mut r, block, pin, at));
+    let bosses =
+        [[0.0, 1.0, PIN_Z + 0.5], [0.75, 1.0, PIN_Z + 0.5]].map(|at| moved(&mut r, block, pin, at));
     let once = boolean(&mut r, BooleanOp::Union, cut, bosses[0]);
     boolean(&mut r, BooleanOp::Union, once, bosses[1]);
     docs.push(("copies and bosses".to_owned(), r.doc.clone()));
@@ -777,7 +782,8 @@ fn documents_outside_the_corpus_read_apart_too() {
     let upper = extrude(&mut r, upper, 0.5);
     let raised = moved(&mut r, lower, upper, [0.0, 0.0, 0.25]);
     boolean(&mut r, BooleanOp::Union, lower, raised);
-    let apart = [(lower, 0.0), (upper, 0.25)].map(|(at, z)| moved(&mut r, lower, at, [6.0, 0.0, z]));
+    let apart =
+        [(lower, 0.0), (upper, 0.25)].map(|(at, z)| moved(&mut r, lower, at, [6.0, 0.0, z]));
     let (doc, _) = fixture::union_over(r.doc.clone(), &[apart[0], apart[1], lower]);
     docs.push(("loops and two profiles".to_owned(), doc));
 

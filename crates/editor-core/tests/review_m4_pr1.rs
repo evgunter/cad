@@ -185,9 +185,7 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
     );
     // The signed zero written by a value edit on the slot's own
     // variable, so the carrier keeps its id and its slot its variable.
-    let x = pos
-        .slot(pos.ids()[0], X)
-        .expect("the carrier reads its x");
+    let x = pos.slot(pos.ids()[0], X).expect("the carrier reads its x");
     let (neg, _) = apply_all(
         pos.clone(),
         &[DocEdit::SetVarValue {
@@ -197,14 +195,12 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
     );
     // Bitwise the docs DIFFER…
     let vp = eval::<f64>(
-        &pos.slot_expansion(pos.ids()[0], X)
-            .unwrap(),
+        &pos.slot_expansion(pos.ids()[0], X).unwrap(),
         &pos.var_env(),
     )
     .unwrap();
     let vn = eval::<f64>(
-        &neg.slot_expansion(neg.ids()[0], X)
-            .unwrap(),
+        &neg.slot_expansion(neg.ids()[0], X).unwrap(),
         &neg.var_env(),
     )
     .unwrap();
@@ -595,7 +591,10 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         .doc;
     let (doc, _) = apply_all(
         doc,
-        &[carrier_edit(Formula::named(name.clone(), Dimension::Length))],
+        &[carrier_edit(Formula::named(
+            name.clone(),
+            Dimension::Length,
+        ))],
     );
     // Dimension flip under the referencing slot: refused, because a
     // variable's kind is fixed whatever reads it.

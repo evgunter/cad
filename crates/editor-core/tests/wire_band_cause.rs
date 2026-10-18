@@ -107,12 +107,12 @@ fn child_band_row() {
     // `Band::linear` fails, the evaluator's own band door refuses
     // every node before an operation runs, and it refuses carrying
     // the same `BandError` verbatim.
-    let (doc, node, opts) = bare_instance();
+    let (doc, node) = bare_placement();
     let ev = evaluate::<f64>(
         &doc,
         None,
         &CancelToken::new(),
-        &opts,
+        &EvalOptions::default(),
         Tol::witness(),
     );
     let Some(NodeResult::Failed(failed)) = ev.nodes.get(&node) else {
@@ -169,21 +169,14 @@ fn child_band_row() {
     );
 }
 
-/// A bare instance of an empty part, and the options that resolve it —
-/// a node whose authoring builds no band, so a document holding it
-/// exists where no band does, and the seat from which `select_where`
-/// can be asked anything at all.
-fn bare_instance() -> (ProfileDoc, RecipeNodeId, EvalOptions) {
-    let mut store = fixture::resolver::PartStore::new();
-    let part = store.insert(
-        ProfileDoc::empty_derived("wire_band_cause_part", Tol::witness()),
-        Tol::witness(),
-    );
-    let (doc, node) = insert(
+/// A bare placement, copying nothing — a node whose authoring builds
+/// no band, so a document holding it exists where no band does, and
+/// the seat from which `select_where` can be asked anything at all.
+fn bare_placement() -> (ProfileDoc, RecipeNodeId) {
+    insert(
         ProfileDoc::empty_derived("wire_band_cause", Tol::witness()),
-        Node::instantiate_part(part),
-    );
-    (doc, node, fixture::resolver::with_resolver(store))
+        Node::place(Vec::new()),
+    )
 }
 
 fn spawn_row(row: &str) {

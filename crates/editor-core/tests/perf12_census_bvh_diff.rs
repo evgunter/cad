@@ -41,8 +41,8 @@ use crate::fixture;
 
 use corpus::{documents, eval, failures};
 use editor_core::{
-    DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram, TubeWindow,
-    VarName, apply, product_recorded,
+    DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram, TubeWindow, VarName,
+    apply, product_recorded,
 };
 use fixture::{Recorder, band, len};
 use geom_core::Tol;

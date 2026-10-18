@@ -232,7 +232,11 @@ fn redrawing_another_member_never_takes_a_held_flush_stretch() {
             let doc = ProfileDoc::empty_derived("redraw-flush", tol);
             let (doc, _) = insert(
                 doc,
-                Node::Profile(fixture::desc(vec![fixture::square(f64::from(salt), 0.0, 0.5)])),
+                Node::Profile(fixture::desc(vec![fixture::square(
+                    f64::from(salt),
+                    0.0,
+                    0.5,
+                )])),
             );
             let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 1.0);
             let (doc, b) = block_on(doc, a, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);

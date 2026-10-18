@@ -66,7 +66,14 @@ fn a_slab_cut_through_a_drum_answers_its_volume() {
     let doc = ProfileDoc::empty_derived("round_crenellation", Tol::witness());
     // The drum's own z = 0 is the world's z0.
     let (doc, drum) = disc(doc, LoopProgram::circle(0.0, 0.0, r).unwrap(), h);
-    let (doc, cutter) = block_on(doc, drum, (-0.020, 0.020), (-half_t, half_t), cut_z - z0, 0.008);
+    let (doc, cutter) = block_on(
+        doc,
+        drum,
+        (-0.020, 0.020),
+        (-half_t, half_t),
+        cut_z - z0,
+        0.008,
+    );
     let (doc, n) = insert(
         doc,
         Node::Subtract {
@@ -97,7 +104,11 @@ fn a_slab_across_a_round_boss_builds_in_every_order() {
     let (r, cx, cy) = (0.6, 1.5, 1.0);
     let doc = ProfileDoc::empty_derived("round_boss_slab", Tol::witness());
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
-    let (doc, boss) = disc(doc, LoopProgram::circle_split(cx, cy, r, 3, 0.0).unwrap(), 1.8);
+    let (doc, boss) = disc(
+        doc,
+        LoopProgram::circle_split(cx, cy, r, 3, 0.0).unwrap(),
+        1.8,
+    );
     let (doc, boss) = slid(doc, plate, boss, [0.0, 0.0, 0.44]);
     let (doc, slab) = block_on(doc, plate, (1.4, 1.6), (-1.0, 3.0), 0.5, 1.5);
     let truth = 6.0 + PI * r * r * (2.24 - 1.0) + 0.2 * 2.0 * 0.5 + (0.2 * 4.0 - strip(0.1, r));

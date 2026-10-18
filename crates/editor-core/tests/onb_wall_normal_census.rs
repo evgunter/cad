@@ -23,9 +23,7 @@
 
 use crate::corpus;
 
-use editor_core::{
-    CancelToken, EvalOptions, NodeResult, ValuePayload, evaluate,
-};
+use editor_core::{CancelToken, EvalOptions, NodeResult, ValuePayload, evaluate};
 use geom::Surface;
 use geom_core::Tol;
 use test_utils::seam_census::SeamClasses;

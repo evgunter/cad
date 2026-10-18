@@ -19,9 +19,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{insert, len, on_frame, plane_on, slid};
-use editor_core::{
-    Entry, Evaluation, Node, Operand, ProfileDoc, RecipeNodeId, Speaker, SplitHalf,
-};
+use editor_core::{Entry, Evaluation, Node, Operand, ProfileDoc, RecipeNodeId, Speaker, SplitHalf};
 use geom_core::Tol;
 
 /// The bar's length along x, meters.

@@ -18,9 +18,7 @@
 
 use crate::corpus::documents;
 
-use editor_core::{
-    CancelToken, EvalOptions, EvalScalar, Node, ValuePayload, evaluate,
-};
+use editor_core::{CancelToken, EvalOptions, EvalScalar, Node, ValuePayload, evaluate};
 use geom_core::{Arc2, Real, Sign, Tol};
 use profile::{Profile, ProfileLoop, SegmentKind, SketchPlane, ValidatedProfile};
 

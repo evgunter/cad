@@ -43,8 +43,7 @@ use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
 use crate::fixture::{ends, face_vertices, insert, len, point};
 use editor_core::{
-    BooleanValue, Evaluation, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
-    ValuePayload,
+    BooleanValue, Evaluation, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, ValuePayload,
 };
 use geom_core::Tol;
 use topo::BooleanOp;
@@ -119,7 +118,10 @@ fn prism(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(doc, Node::Profile(crate::fixture::desc(vec![corners.to_vec()])));
+    let (doc, p) = insert(
+        doc,
+        Node::Profile(crate::fixture::desc(vec![corners.to_vec()])),
+    );
     let (doc, body) = insert(
         doc,
         Node::Extrude {
@@ -129,11 +131,9 @@ fn prism(
     );
     match at {
         Stand::On(target) => crate::fixture::slid(doc, target, body, [0.0, 0.0, z0]),
-        Stand::World => crate::fixture::in_world(
-            doc,
-            body,
-            &editor_core::Frame::translation([0.0, 0.0, z0]),
-        ),
+        Stand::World => {
+            crate::fixture::in_world(doc, body, &editor_core::Frame::translation([0.0, 0.0, z0]))
+        }
     }
 }
 
@@ -1013,7 +1013,13 @@ fn sector_prism(
         let (s, c) = f64::to_radians(a).sin_cos();
         (0.4f64.mul_add(c, MEET[0]), 0.4f64.mul_add(s, MEET[1]))
     };
-    prism(doc, stand, &[(MEET[0], MEET[1]), on(a0), on(a1)], z.0, z.1 - z.0)
+    prism(
+        doc,
+        stand,
+        &[(MEET[0], MEET[1]), on(a0), on(a1)],
+        z.0,
+        z.1 - z.0,
+    )
 }
 
 /// The plate and three prisms over 50° sectors about (1.5, 1), each 70°

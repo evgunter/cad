@@ -100,7 +100,15 @@ fn loft_inputs_are_its_profiles_in_order() {
     let (doc, loft, profiles) = loft_doc();
     let node = doc.node(loft).expect("the loft node");
     assert_eq!(doc.upstream(loft), profiles);
-    assert_eq!(node.slots(), vec![SlotId::VDegree]);
+    assert_eq!(
+        node.slots(),
+        vec![
+            SlotId::StationSlide { section: 1, step: 0 },
+            SlotId::StationSlide { section: 2, step: 0 },
+            SlotId::VDegree,
+        ],
+        "each later section's one slide, then the degree"
+    );
     assert!(node.expr(SlotId::VDegree).is_some());
     assert!(node.expr(SlotId::Stations).is_none());
     assert!(node.named_nodes().is_empty());

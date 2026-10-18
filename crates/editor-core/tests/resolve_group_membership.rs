@@ -24,9 +24,9 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation,
-    GroupCutters, Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx,
-    SlotId, StableName, evaluate,
+    CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, GroupCutters,
+    Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, StableName,
+    evaluate,
 };
 use fixture::{insert, len, step};
 use geom_core::Tol;
@@ -144,14 +144,6 @@ pub(crate) fn moved_to(
         Tol::witness(),
     )
     .expect("the copy places against its target");
-    let number = |f: &editor_core::Formula| {
-        if f.is_zero() {
-            0.0
-        } else {
-            f.literal_value()
-                .unwrap_or_else(|| panic!("a literal number: {f:?}"))
-        }
-    };
     let Some(Operand::Pose(def)) = again.mate.to.pose() else {
         panic!("a pose target")
     };
@@ -164,27 +156,39 @@ pub(crate) fn moved_to(
         .find_map(|c| c.mate())
         .and_then(|m| m.to.pose().copied())
         .expect("the placement's mate reads a pose");
-    let Some(VarDef::Pose(PoseDef::Slide { by: slide_var, .. })) = doc.var(to).map(|v| v.def().clone())
+    let Some(VarDef::Pose(PoseDef::Slide { by: slide_var, .. })) =
+        doc.var(to).map(|v| v.def().clone())
     else {
         panic!("the placement's target is a slid face")
     };
-    let mut edits = vec![(slide_var, number(slide))];
+    let mut edits = vec![(slide_var, slide.clone())];
     for (coord, value) in &again.values {
         let var = bundle
             .iter()
             .find_map(|c| c.value().filter(|v| v.coord == *coord).map(|v| v.by))
             .unwrap_or_else(|| panic!("the placement holds a value on {coord:?}"));
-        edits.push((var, number(value)));
+        edits.push((var, value.clone()));
     }
+    // A free variable takes the number; a defined one, the formula.
     edits.into_iter().fold(doc, |doc, (var, value)| {
-        step(
-            doc,
-            DocEdit::SetVarValue {
+        let edit = match doc.var(var).map(|v| v.def()) {
+            Some(VarDef::Free(_)) => DocEdit::SetVarValue {
                 var: var.into(),
-                value: FreeValue::Continuous(value),
+                value: FreeValue::Continuous(if value.is_zero() {
+                    0.0
+                } else {
+                    value
+                        .literal_value()
+                        .unwrap_or_else(|| panic!("a literal number: {value:?}"))
+                }),
             },
-        )
-        .0
+            _ => DocEdit::DefineVar {
+                var: var.into(),
+                def: editor_core::VarDecl::defined(value),
+                fresh: Vec::new(),
+            },
+        };
+        step(doc, edit).0
     })
 }
 
@@ -494,11 +498,27 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
             matches!(n.path.first(), Some(RoleSeg::From { read, .. }) if *read == m_read)
         };
         for (axis, by, ranked, gone, new) in [
-            ("y", 2.5, false, vec![], vec![member_wall(tr.placement, bar, 0)]),
-            ("x", 1.5, true, vec![member_wall(tr.placement, bar, 1)], vec![]),
+            (
+                "y",
+                2.5,
+                false,
+                vec![],
+                vec![member_wall(tr.placement, bar, 0)],
+            ),
+            (
+                "x",
+                1.5,
+                true,
+                vec![member_wall(tr.placement, bar, 1)],
+                vec![],
+            ),
         ] {
             let ev1 = run(&doc, None);
-            let slide = if axis == "x" { [by, 0.0, 0.0] } else { [0.0, by, 0.0] };
+            let slide = if axis == "x" {
+                [by, 0.0, 0.0]
+            } else {
+                [0.0, by, 0.0]
+            };
             let doc2 = moved(doc.clone(), &tr, slide);
             // The slide records a containment flip at the union, the
             // answer above this rung; read the two real runs without
@@ -527,7 +547,10 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
                 let (gone, new) = if from(&n, plate) {
                     (gone.clone(), new.clone())
                 } else {
-                    assert!(from(&n, tr.placement) && !ranked, "{order:?} {axis:?}: {n:?}");
+                    assert!(
+                        from(&n, tr.placement) && !ranked,
+                        "{order:?} {axis:?}: {n:?}"
+                    );
                     (vec![member_wall(plate, plate, 0)], vec![])
                 };
                 assert_eq!(

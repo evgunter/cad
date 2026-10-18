@@ -255,7 +255,8 @@ pub fn placed_read(
 /// ([`pncad::document::stand`]): a plane mate on a face no variable
 /// reaches, or a revolve's or a full ring's own axis, and the constant
 /// `0` on the freedoms it leaves, so the copy follows its body's
-/// variables.
+/// variables. A copy whose body does not evaluate stands as [`pin`]
+/// stands one.
 pub fn pinned(
     doc: &Doc<ProfileProgram>,
     placement: RecipeNodeId,
@@ -263,9 +264,12 @@ pub fn pinned(
     tol: Tol,
 ) -> Doc<ProfileProgram> {
     let copy = copy_of(doc, placement);
-    let stood = pncad::document::stand(doc, &copy, opts, tol)
-        .unwrap_or_else(|refusal| panic!("the copy stands over its geometry: {refusal}"));
-    constrained(doc, placement, stood.mate, stood.values, tol)
+    let (mate, values) = match pncad::document::stand(doc, &copy, opts, tol) {
+        Ok(stood) => (stood.mate, stood.values),
+        Err(editor_core::PinRefusal::Unevaluated { node }) => unread(copy, node),
+        Err(refusal) => panic!("the copy stands over its geometry: {refusal}"),
+    };
+    constrained(doc, placement, mate, values, tol)
 }
 
 /// The read of the copy `placement` defines: a `Place` through its first
@@ -346,32 +350,43 @@ pub fn pin(
     let copy = copy_of(doc, placement);
     let (mate, values) = match editor_core::pin_at(doc, &copy, pose, opts, tol) {
         Ok(mate) => (mate, Vec::new()),
-        Err(editor_core::PinRefusal::Unevaluated { node }) => {
-            use pncad::document::{Coord, SlideAxis, Target, WorldRead};
-            let face = StableName {
-                kind: EntityKind::Face,
-                node,
-                path: Vec::new(),
-            };
-            let on =
-                pncad::document::Operand::Pose(Box::new(pncad::document::pose::PoseDef::Plane {
-                    face: pncad::document::Operand::select(copy, vec![face]),
-                }));
-            let mate = pncad::document::Mate {
-                on,
-                to: Target::World(WorldRead::through(pncad::document::pose::PoseRole::Xy)),
-                class: pncad::select::ContactClass::Rest,
-            };
-            let zero = vec![
-                (Coord::Slide(SlideAxis::X), len(0.0)),
-                (Coord::Slide(SlideAxis::Y), len(0.0)),
-                (Coord::Spin, ang(0.0)),
-            ];
-            (mate, zero)
-        }
+        Err(editor_core::PinRefusal::Unevaluated { node }) => unread(copy, node),
         Err(refusal) => panic!("the copy pins over its geometry: {refusal}"),
     };
     constrained(doc, placement, mate, values, tol)
+}
+
+/// The mate and values that stand `copy`, whose body `node` does not
+/// evaluate, against the world: a plane mate on a face of the body by a
+/// bare name, which is never read, to the world's `xy` plane, and the
+/// three values naming it.
+fn unread(
+    copy: pncad::document::Operand,
+    node: RecipeNodeId,
+) -> (
+    pncad::document::Mate<Formula>,
+    Vec<(pncad::document::Coord, Formula)>,
+) {
+    use pncad::document::{Coord, SlideAxis, Target, WorldRead};
+    let face = StableName {
+        kind: EntityKind::Face,
+        node,
+        path: Vec::new(),
+    };
+    let on = pncad::document::Operand::Pose(Box::new(pncad::document::pose::PoseDef::Plane {
+        face: pncad::document::Operand::select(copy, vec![face]),
+    }));
+    let mate = pncad::document::Mate {
+        on,
+        to: Target::World(WorldRead::through(pncad::document::pose::PoseRole::Xy)),
+        class: pncad::select::ContactClass::Rest,
+    };
+    let zero = vec![
+        (Coord::Slide(SlideAxis::X), len(0.0)),
+        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Spin, ang(0.0)),
+    ];
+    (mate, zero)
 }
 
 /// The `&mut` spelling of `inserted`: insert a node in place and

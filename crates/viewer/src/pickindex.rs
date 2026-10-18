@@ -1010,7 +1010,7 @@ impl PickIndex {
         index
     }
 
-    /// The walk both doors share: every placement's copy through `parts`,
+    /// The walk both doors share: every world copy through `parts`,
     /// then the id windows over them.
     fn assemble(
         doc: &Doc<ProfileProgram>,
@@ -1019,7 +1019,14 @@ impl PickIndex {
         mut build_parts: impl FnMut(RecipeNodeId) -> Result<Vec<NodePick>, NodePickError>,
     ) -> Result<Self, PickIndexError> {
         let mut parts: Vec<NodePick> = Vec::new();
-        for node in doc.placements() {
+        // The drawn copies: the placements the world's space holds, as
+        // the product gathers them; a placement joining a body's space
+        // is read through the world copy that places it.
+        let drawn = doc
+            .placements()
+            .into_iter()
+            .filter(|&node| eval.space(node) == pncad::document::Space::World);
+        for node in drawn {
             match build_parts(node) {
                 Ok(built) => parts.extend(built),
                 Err(error) => return Err(PickIndexError::Node { node, error }),

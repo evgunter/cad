@@ -171,7 +171,8 @@ fn seat(label: &str, post_height: f64) -> Seat {
         store.insert_part(block(&format!("{label}-block"), 0.5, 0.25), Tol::witness());
     let opts = with_resolver(store.clone());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, post_i) = fixture::insert_pinned(doc, Node::instantiate_part(post_ref), &opts);
+    let (doc, post_i) = insert(doc, Node::instantiate_part(post_ref));
+    let doc = stood_on_its_base(doc, post_i, post_body);
     let (doc, block_i) = insert(doc, fixture::mated_instance(block_ref));
     let (doc, mate) = seated_on(
         doc,
@@ -191,6 +192,37 @@ fn seat(label: &str, post_height: f64) -> Seat {
         store,
         post,
     }
+}
+
+/// **`instance` standing in the world on its part's base**: its copy's
+/// start cap of `body` resting on the world's floor, the three values
+/// zero — so an edit growing the part moves its top and keeps its base
+/// where it stands.
+fn stood_on_its_base(doc: ProfileDoc, instance: RecipeNodeId, body: RecipeNodeId) -> ProfileDoc {
+    let copy = editor_core::Operand::Var(
+        doc.output(instance, 0)
+            .expect("an instance defines its copies"),
+    );
+    let mate = editor_core::Mate {
+        on: fixture::plane(editor_core::Operand::select(
+            copy,
+            vec![in_part(instance, body, CapEnd::Start)],
+        )),
+        to: editor_core::Target::World(
+            editor_core::WorldRead::through(editor_core::pose::PoseRole::Xy).flip(),
+        ),
+        class: ContactClass::Rest,
+    };
+    fixture::with_values(
+        doc,
+        instance,
+        mate,
+        vec![
+            (Coord::Slide(SlideAxis::X), len(0.0)),
+            (Coord::Slide(SlideAxis::Y), len(0.0)),
+            (Coord::Spin, ang(0.0)),
+        ],
+    )
 }
 
 /// The post's cap pose, read off the post document's OWN evaluation

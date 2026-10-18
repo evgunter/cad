@@ -42,9 +42,9 @@ use crate::fixture;
 use corpus::{documents, eval, failures};
 use editor_core::eval::KeyHasher;
 use editor_core::{
-    AssertionVerdict, BooleanValue, CancelToken, ContentKey, Dimension, EvalOptions,
-    Evaluation, LoopProgram, Node, NodeResult, ProductError, ProfileProgram, SplitSide,
-    ValuePayload, assemble, evaluate, product_recorded,
+    AssertionVerdict, BooleanValue, CancelToken, ContentKey, Dimension, EvalOptions, Evaluation,
+    LoopProgram, Node, NodeResult, ProductError, ProfileProgram, SplitSide, ValuePayload, assemble,
+    evaluate, product_recorded,
 };
 use geom::{Curve3, Surface};
 use geom_core::{Bounds, Decide, Dual64, Tol};

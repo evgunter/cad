@@ -311,7 +311,12 @@ fn a_poisoned_operand_never_reaches_the_gate() {
             editor_core::Operand::Node(top),
         )]),
     );
-    let lift = fixture::pin_mate(&doc, xf, &editor_core::Frame::translation([0.0, 0.0, 10.0]), &opts);
+    let lift = fixture::pin_mate(
+        &doc,
+        xf,
+        &editor_core::Frame::translation([0.0, 0.0, 10.0]),
+        &opts,
+    );
     let (doc, _) = fixture::constrain_at(doc, xf, lift);
     let (doc, pattern) = insert(
         doc,

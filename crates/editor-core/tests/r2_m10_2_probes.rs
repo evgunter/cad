@@ -746,7 +746,11 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
         d3,
         c1,
         c2,
-        &fixture::frame_at([0.01, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, theta.cos(), -theta.sin()]),
+        &fixture::frame_at(
+            [0.01, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, theta.cos(), -theta.sin()],
+        ),
     );
     let ev = eval(&d3);
     let f1 = faces(&ev, c1, geom::SurfaceKind::Cylinder);
@@ -828,7 +832,9 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
             ),
             (
                 "place",
-                Node::place(vec![editor_core::BodyRead::plain(editor_core::Operand::Node(victim))]),
+                Node::place(vec![editor_core::BodyRead::plain(
+                    editor_core::Operand::Node(victim),
+                )]),
             ),
             (
                 "extrude-profile",

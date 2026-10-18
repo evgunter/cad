@@ -30,8 +30,8 @@ use crate::fixture;
 
 use editor_core::measure::MeasurePrimitive;
 use editor_core::{
-    CapEnd, EditError, EntityKind, Node, OperandSlot, PersistError, ProfileDoc,
-    RecipeNodeId, SelectionFault, SitedRef, SnapshotError, StableName, load, save,
+    CapEnd, EditError, EntityKind, Node, OperandSlot, PersistError, ProfileDoc, RecipeNodeId,
+    SelectionFault, SitedRef, SnapshotError, StableName, load, save,
 };
 use fixture::{fname, insert, insert_refused, len, on_frame, square, wall};
 use geom_core::Tol;

@@ -285,7 +285,10 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
         profile: p.into(),
         distance: len(0.5),
     });
-    let placed = r.in_world(solid, &fixture::frame_at([0.0; 3], [1.0, 0.0, 0.0], [0.0, c, s]));
+    let placed = r.in_world(
+        solid,
+        &fixture::frame_at([0.0; 3], [1.0, 0.0, 0.0], [0.0, c, s]),
+    );
     let slide_x = fixture::value_slot(
         &r.doc,
         placed,

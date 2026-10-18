@@ -111,16 +111,16 @@ fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
     (session, revolve)
 }
 
-/// **A body with no planar face is pinned, and the gesture says so.**
-/// The revolve gesture places the ring it made; a ring of revolution
-/// has no planar face to rest a plane mate on, so the "place part"
-/// gesture falls back to the pin — one mate to the world, no values to
-/// move it by, the copy where it was made — and the outcome's notice
-/// says so. Breaks if the fallback leaves the copy loose, writes values
-/// a pin does not leave, places it anywhere but where it was made, or
-/// goes unsaid.
+/// **A body with no planar face is placed by its own axis, and the
+/// gesture says so.** The revolve gesture places the ring it made; a
+/// ring of revolution has no planar face to rest a plane mate on, so
+/// the "place part" gesture mates its own axis to the world's — one
+/// mate to the world and the two values it leaves, the copy where it
+/// was made — and the outcome's notice says so. Breaks if the copy is
+/// left loose, is placed by anything but its axis, stands anywhere but
+/// where it was made, or goes unsaid.
 #[test]
-fn a_body_with_no_planar_face_is_pinned_and_the_gesture_says_so() {
+fn a_body_with_no_planar_face_is_placed_by_its_own_axis_and_the_gesture_says_so() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let profile = session_insert(
@@ -149,24 +149,28 @@ fn a_body_with_no_planar_face_is_pinned_and_the_gesture_says_so() {
         outcome.placed,
         vec![viewer::session::PlaceReport {
             placement,
-            by: Ok(editor_core::PlacedBy::Pin),
+            by: Ok(editor_core::PlacedBy::Axis),
         }],
-        "the ring is pinned: it has no planar face"
+        "the ring is placed by its own axis: it has no planar face"
     );
     let notices: Vec<String> = viewer::frame::outcome_notices(&outcome)
         .map(|notice| notice.text().to_owned())
         .collect();
     assert!(
-        notices.iter().any(|text| text.contains("no planar face")),
+        notices
+            .iter()
+            .any(|text| text.contains("no planar face") && text.contains("its own axis")),
         "the gesture says how it placed the copy: {notices:?}"
     );
     session.pump();
     let doc = session.committed_doc();
     let bundle = crate::fixture::bundle(doc, placement);
     assert!(
-        matches!(bundle.as_slice(), [pin]
-            if pin.mate().is_some_and(|m| matches!(m.to, pncad::document::Target::World(_)))),
-        "one mate to the world and no values: {bundle:?}"
+        matches!(bundle.as_slice(), [axis, along, about]
+            if axis.mate().is_some_and(|m| matches!(m.to, pncad::document::Target::World(_)))
+                && along.value().is_some_and(|v| v.mate == axis.id)
+                && about.value().is_some_and(|v| v.mate == axis.id)),
+        "one mate to the world and its two values: {bundle:?}"
     );
     assert!(
         common::solve(&session, doc, tol).at_identity(placement),

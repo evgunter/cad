@@ -64,11 +64,7 @@ fn linear(direction: [f64; 3], spacing: f64) -> PatternKind<Formula> {
 }
 
 /// A pattern (or, with `union`, a placed union) of the block.
-fn patterned(
-    count: i64,
-    kind: impl FnOnce(Axis) -> PatternKind<Formula>,
-    union: bool,
-) -> Built {
+fn patterned(count: i64, kind: impl FnOnce(Axis) -> PatternKind<Formula>, union: bool) -> Built {
     built(count, kind, union, None)
 }
 

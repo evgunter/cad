@@ -28,10 +28,9 @@ use editor_core::clearance::{
 };
 use editor_core::{
     CancelToken, ChecksConfig, ChecksError, DocEdit, EntityKind, EvalOptions, Evaluation,
-    HitTestError, InterrogateError, NameLookupError, Node, NodePick,
-    NodePickError, NodeStanding, ProfileDoc, RecipeNodeId, Resolution, ResolveIndeterminate,
-    RoleSeg, RunCtx, RunStatus, SlotId, VerdictRow, VerdictVector,
-    body_name, denotation, evaluate, run_checks,
+    HitTestError, InterrogateError, NameLookupError, Node, NodePick, NodePickError, NodeStanding,
+    ProfileDoc, RecipeNodeId, Resolution, ResolveIndeterminate, RoleSeg, RunCtx, RunStatus, SlotId,
+    VerdictRow, VerdictVector, body_name, denotation, evaluate, run_checks,
 };
 use geom_core::Tol;
 
@@ -172,7 +171,6 @@ fn every_standing_renders_one_way_through_every_door() {
         let read = denotation(eval, node, &name).expect_err("no table to read");
         assert_eq!(read, InterrogateError::Standing(standing));
         speaks("the name read", "", &read, standing);
-
     }
 
     // The checks registry and the gather read the document's

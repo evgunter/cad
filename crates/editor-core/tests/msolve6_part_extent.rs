@@ -1508,7 +1508,8 @@ fn a6_a_split_pins_its_instance_where_it_stands_and_refuses_without_a_resolver()
             resolver,
         )
     };
-    let out = split(opts.resolver.as_ref()).unwrap_or_else(|e| panic!("a whole-assembly cut splits: {e}"));
+    let out = split(opts.resolver.as_ref())
+        .unwrap_or_else(|e| panic!("a whole-assembly cut splits: {e}"));
     let remainder = &out.remainder;
     let placements = remainder.placements();
     assert_eq!(placements.len(), 1, "one instance is left behind");

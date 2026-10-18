@@ -3699,8 +3699,8 @@ fn doc_ref() -> editor_core::DocRef {
 fn document_arms() -> Vec<(String, NodeErrorKind)> {
     use editor_core::clearance::ClearanceRefusal;
     use editor_core::{
-        BifurcationKind, BranchMarginEvidence, EntityKind, FaceName, Implicated,
-        InterrogateError, PartFault, WitnessAge, WitnessBifurcation,
+        BifurcationKind, BranchMarginEvidence, EntityKind, FaceName, Implicated, InterrogateError,
+        PartFault, WitnessAge, WitnessBifurcation,
     };
     use payloads::*;
     use topo::{FaceKey, ReadbackError};

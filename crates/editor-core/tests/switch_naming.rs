@@ -10,7 +10,6 @@
 
 use std::collections::BTreeSet;
 
-
 use crate::fixture::len;
 use editor_core::{
     CancelToken, Dimension, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram, Node, ProfileDoc,

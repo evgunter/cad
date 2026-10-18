@@ -1349,7 +1349,17 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
             members: editor_core::Bodies::Spelled(vec![b.into(), d.into()]),
         },
     );
-    let (doc1, n) = fixture::slid(doc, x, x, [0.0, 0.25, 0.0]);
+    let (doc1, n) = insert(
+        doc,
+        Node::Pattern {
+            input: x.into(),
+            count: editor_core::Formula::count(2),
+            kind: editor_core::PatternKind::Linear {
+                direction: [0.0, 1.0, 0.0].map(fixture::scl),
+                spacing: len(2.0),
+            },
+        },
+    );
     let ev1 = run(&doc1, None);
     let (doc2, _) = step(
         doc1,
@@ -1359,14 +1369,13 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
-    // The grandchild's table must speak C's names now (transform
-    // pass-through: rows keep the MINTING node = the union, whose
-    // member edge is the twin).
+    // The grandchild's table must speak C's names now (the pattern
+    // wraps the union's rows, whose member edge is the twin).
     let table = match ev2.nodes.get(&n) {
         Some(NodeResult::Ok(v)) => {
             assert!(
-                matches!(v.payload, ValuePayload::Body(_)),
-                "grandchild is a body"
+                matches!(v.payload, ValuePayload::Instances(_)),
+                "grandchild is its instances"
             );
             ev2.table_at(n).expect("the grandchild's table")
         }

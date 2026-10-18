@@ -13,9 +13,9 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation,
-    FragmentGroups, GroupCutters, NameTable, Node, ProfileDoc, Qualifier, RecipeNodeId, Resolution,
-    ResolveError, RoleSeg, RunCtx, StableName, evaluate,
+    CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, FragmentGroups,
+    GroupCutters, NameTable, Node, ProfileDoc, Qualifier, RecipeNodeId, Resolution, ResolveError,
+    RoleSeg, RunCtx, StableName, evaluate,
 };
 use fixture::{insert, len, minted, step};
 use geom_core::Tol;
@@ -46,7 +46,12 @@ fn block(
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = insert(
         doc,
-        Node::Profile(fixture::desc(vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]])),
+        Node::Profile(fixture::desc(vec![vec![
+            (x0, y0),
+            (x1, y0),
+            (x1, y1),
+            (x0, y1),
+        ]])),
     );
     insert(
         doc,
@@ -261,7 +266,10 @@ fn hand() -> Hand {
         ProfileDoc::empty_derived("bool7-hand", Tol::witness()),
         Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])),
     );
-    let (doc, m) = insert(doc, Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])));
+    let (doc, m) = insert(
+        doc,
+        Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])),
+    );
     let of = minted(EntityKind::Body, n, RoleSeg::OutputBody);
     let wall = |rank| StableName {
         kind: EntityKind::Body,

@@ -4,7 +4,10 @@
 //! The product is the copies the document's placements (`Node::Place`,
 //! and an instance, which is a placement) define wherever their bundle
 //! pins them to the world, in their document order, and the viewport
-//! draws exactly those copies. A copy's names are its body's,
+//! draws exactly those copies. A placement whose mates read a body's
+//! geometry joins that body's space (D10) — a body moved against its
+//! own geometry, an operand placed against a combine's first — and is
+//! no world copy: what the world places is the copy that reads it. A copy's names are its body's,
 //! each wrapped in one `Placed` qualifier headed at the placement
 //! (`StableName::in_copy`), so a pick on the picture names the copy; a
 //! gesture that authors against a body reads the placement's body and
@@ -13,7 +16,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, Node, Operand, ProfileProgram, RecipeNodeId, VarId};
+use pncad::document::{Doc, Node, Operand, ProfileProgram, RecipeNodeId, Target, VarId};
 use pncad::prelude::StableName;
 
 /// **The body `placement` places**, or `None` for a node that is not a
@@ -38,19 +41,77 @@ fn placed_vars(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Vec<VarId>
     }
 }
 
-/// **The placements copying `var`**, in document order: the copies of
-/// that body the document holds.
-pub fn placements_of_var(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNodeId> {
+/// **The root of the loose space `node`'s value lives in**, read off
+/// its recipe (D10, Spaces), or `None` for the world's: a placement
+/// with no mate is a loose copy of its own, one whose mates read the
+/// world is the world's, one whose mates read a pose joins the space of
+/// the body the pose is read off; a construction is the root of its
+/// own space, and any other node joins the first loose space among the
+/// bodies it reads.
+pub fn loose_root(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<RecipeNodeId> {
+    let read_space = |var: VarId| {
+        doc.read_ports(var)
+            .into_iter()
+            .find_map(|(at, _)| loose_root(doc, at))
+    };
+    let held = doc.node(node)?;
+    match held {
+        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
+            match constraints.iter().find_map(|c| c.mate()) {
+                None => Some(node),
+                Some(mate) => match &mate.to {
+                    Target::World(_) => None,
+                    Target::Pose(var) => read_space(*var),
+                },
+            }
+        }
+        Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. } => Some(node),
+        other => other
+            .body_reads()
+            .into_iter()
+            .find_map(|(_, read)| read_space(read.read)),
+    }
+}
+
+/// **Whether `placement` is a copy of the world's**: a placement whose
+/// space is the world, or a loose copy of its own (one no mate pins
+/// yet, which the world gesture made and a mate will pin). A placement
+/// that joins a body's space is a relation between two bodies, and
+/// copies nothing into the world.
+pub fn is_world_copy(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> bool {
+    match loose_root(doc, placement) {
+        None => doc.node(placement).is_some(),
+        Some(root) => root == placement,
+    }
+}
+
+/// **The world's copies**, in document order: [`is_world_copy`] over
+/// the document's placements.
+pub fn world_copies(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
     doc.placements()
+        .into_iter()
+        .filter(|&placement| is_world_copy(doc, placement))
+        .collect()
+}
+
+/// **The world copies of `var`**, in document order: the copies of
+/// that body the world holds.
+pub fn placements_of_var(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNodeId> {
+    world_copies(doc)
         .into_iter()
         .filter(|&placement| placed_vars(doc, placement).contains(&var))
         .collect()
 }
 
-/// **The placements copying any output of `node`**, in document order.
+/// **The world copies of any output of `node`**, in document order.
 pub fn placements_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<RecipeNodeId> {
     let outputs = doc.outputs(node);
-    doc.placements()
+    world_copies(doc)
         .into_iter()
         .filter(|&placement| {
             placed_vars(doc, placement)
@@ -175,11 +236,13 @@ pub fn placements_of_read(doc: &Doc<ProfileProgram>, read: &Operand) -> Vec<Reci
 /// **The node a creation made**, out of the ids its action minted: the
 /// last one that is not a placement — a creation gesture places
 /// what it made after making it, and the placement is the world's, not
-/// the thing a label or a form is about.
+/// the thing a label or a form is about — or, for a gesture whose
+/// creation IS a placement (the transform's), the first it minted.
 pub fn made(doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) -> Option<RecipeNodeId> {
     minted
         .iter()
         .rev()
         .copied()
         .find(|&node| !matches!(doc.node(node), Some(Node::Place { .. })))
+        .or_else(|| minted.first().copied())
 }

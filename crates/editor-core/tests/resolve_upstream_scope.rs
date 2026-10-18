@@ -11,9 +11,9 @@ use crate::resolve_group_membership::Placed;
 use std::collections::BTreeSet;
 
 use editor_core::{
-    CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, NameTable,
-    Node, ProfileDoc, Qualifier, RecipeEditRef, RecipeNodeId, Resolution, ResolveError, RoleSeg,
-    RunCtx, SlotId, StableName, UpstreamCause, evaluate,
+    CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
+    ProfileDoc, Qualifier, RecipeEditRef, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx,
+    SlotId, StableName, UpstreamCause, evaluate,
 };
 use fixture::{insert, len, scl, step};
 use geom_core::Sign;
@@ -39,7 +39,12 @@ fn block(
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = insert(
         doc,
-        Node::Profile(fixture::desc(vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]])),
+        Node::Profile(fixture::desc(vec![vec![
+            (x0, y0),
+            (x1, y0),
+            (x1, y1),
+            (x0, y1),
+        ]])),
     );
     insert(
         doc,
@@ -52,7 +57,12 @@ fn block(
 
 /// A copy of `input` placed against `target`, `z0` up its own `z`: its
 /// placement, whose output is the copy and whose values slide it.
-fn placed(doc: ProfileDoc, target: RecipeNodeId, input: RecipeNodeId, z0: f64) -> (ProfileDoc, Placed) {
+fn placed(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    input: RecipeNodeId,
+    z0: f64,
+) -> (ProfileDoc, Placed) {
     crate::resolve_group_membership::placed(doc, target, input, z0)
 }
 
@@ -390,7 +400,11 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
             tool: x.into(),
         },
     );
-    let doc2 = set_members(set_members(doc.clone(), x, vec![tr.placement, c3]), p, vec![c1, r]);
+    let doc2 = set_members(
+        set_members(doc.clone(), x, vec![tr.placement, c3]),
+        p,
+        vec![c1, r],
+    );
     let doc2 = slide(slide(doc2, &r_tr, 0, 5.0), &tr, 1, 2.5);
     // The premises, each read per document.
     assert!(!ancestors_in(&doc, cut).contains(&r) && !ancestors_in(&doc2, cut).contains(&r));
@@ -601,7 +615,10 @@ fn the_border_delta_outranks_an_upstream_flip() {
     let doc = ProfileDoc::empty_derived("upstream-scope", Tol::witness());
     let (doc, u) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, n) = crate::fixture::slid(doc, u, u, [0.0; 3]);
-    let (doc, m) = insert(doc, Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])));
+    let (doc, m) = insert(
+        doc,
+        Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])),
+    );
     assert!(ancestors_in(&doc, n).contains(&u));
     let body = |i: u32| editor_core::EntityRef {
         body: i,

@@ -314,10 +314,13 @@ pub fn gallery_ring_at(tol: Tol) -> String {
 
 use viewer::session::{DocSession, FaceSelection, SessionOp};
 
-/// **Perform one authoring op and answer the node it made**: its first
-/// committed edit inserts that node, and every later edit is the world's
-/// (A10) — the new body's placement and the mate and values that place
-/// it, or the target's placements re-pointed or withdrawn.
+/// **Perform one authoring op and answer the node it made**: the node
+/// is its first committed insert that is not a placement — or its first
+/// insert, for an op whose node is one — and every other edit places
+/// bodies (A10, D10): the operands a combine places against its first
+/// operand's root before it reads them, the new body's world placement
+/// and the mate and values that place it, or the target's placements
+/// re-pointed or withdrawn.
 ///
 /// This is the op vocabulary's door, and it holds the session's
 /// contract. [`inserted`] and [`insert_into`] are the document's door
@@ -328,15 +331,27 @@ use viewer::session::{DocSession, FaceSelection, SessionOp};
 pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let (first, world) = outcome
+    let inserts: Vec<&pncad::document::AuthoredNode> = outcome
         .committed
-        .split_first()
-        .expect("the op committed an edit");
-    assert!(
-        matches!(first, DocEdit::InsertNode { .. }),
-        "the op's first edit inserts its node: {first:?}"
-    );
-    for edit in world {
+        .iter()
+        .filter_map(|edit| match edit {
+            DocEdit::InsertNode { node, .. } => Some(&**node),
+            _ => None,
+        })
+        .collect();
+    assert!(!inserts.is_empty(), "the op inserts its node: {outcome:?}");
+    let at = inserts
+        .iter()
+        .position(|node| !matches!(node, Node::Place { .. }))
+        .unwrap_or(0);
+    let mut seen = 0;
+    for edit in &outcome.committed {
+        if let DocEdit::InsertNode { .. } = edit {
+            seen += 1;
+            if seen == at + 1 {
+                continue;
+            }
+        }
         assert!(
             matches!(
                 edit,
@@ -349,11 +364,12 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
                 } | DocEdit::DeleteNode { .. }
                     | DocEdit::AddConstraint { .. }
                     | DocEdit::AddValue { .. }
+                    | DocEdit::RemoveConstraint { .. }
             ),
-            "every later edit is the world's: {edit:?}"
+            "every other edit places bodies: {edit:?}"
         );
     }
-    *outcome.minted.first().expect("the insert minted its node")
+    *outcome.minted.get(at).expect("the insert minted its node")
 }
 
 /// **Add an instance of the part `id` through the session**, pump the
@@ -722,7 +738,7 @@ pub use crate::fixture::{head, head_at};
 /// **What the world places** (A10): for each world placement, in
 /// document order, the node defining the body it places.
 pub fn world(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
-    doc.placements()
+    viewer::world::world_copies(doc)
         .into_iter()
         .map(|placement| viewer::world::seat_of(doc, placement))
         .collect()

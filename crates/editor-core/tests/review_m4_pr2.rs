@@ -227,7 +227,9 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
     // One more hop: a copy of the poisoned join.
     let (doc, tail) = insert(
         doc,
-        Node::place(vec![editor_core::BodyRead::plain(editor_core::Operand::Node(join))]),
+        Node::place(vec![editor_core::BodyRead::plain(
+            editor_core::Operand::Node(join),
+        )]),
     );
     for parallel in [false, true] {
         let ev = run(&doc, None, parallel);

@@ -607,7 +607,7 @@ fn attack_meta_order_canonical() {
     let (doc, _) = small();
     let name = StableName {
         kind: EntityKind::Body,
-        node: doc.ids()[2],
+        node: doc.ids()[1],
         path: vec![RoleSeg::OutputBody],
     };
     let tree = |order: bool| {
@@ -654,7 +654,7 @@ fn duplicate_keys_refuse_in_every_map() {
     let doc = apply(
         &doc,
         &DocEdit::ReWitness {
-            node: doc.ids()[1],
+            node: doc.ids()[0],
             witness: WitnessDatum {
                 schema: 1,
                 bytes: vec![0x11],
@@ -667,7 +667,7 @@ fn duplicate_keys_refuse_in_every_map() {
     .doc;
     let body = StableName {
         kind: EntityKind::Body,
-        node: doc.ids()[2],
+        node: doc.ids()[1],
         path: vec![RoleSeg::OutputBody],
     };
     let doc = apply(
@@ -704,7 +704,7 @@ fn duplicate_keys_refuse_in_every_map() {
     // different door (`WitnessSite`).
     let witness_again = format!(
         "\"witnesses\": {{\"{}\": {{\"schema\": 9, \"bytes\": \"22\"}}, ",
-        doc.ids()[1].0
+        doc.ids()[0].0
     );
 
     // (surgery pattern, expected section words)

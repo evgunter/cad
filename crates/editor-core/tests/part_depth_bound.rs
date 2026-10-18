@@ -52,7 +52,10 @@ fn leaf() -> ProfileDoc {
 /// caps the leaf's product names, as that placement's copy.
 fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, profile) = insert(doc, Node::Profile(fixture::desc(vec![square(0.0, 0.0, 1.0)])));
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(fixture::desc(vec![square(0.0, 0.0, 1.0)])),
+    );
     let (doc, block) = insert(
         doc,
         Node::Extrude {
@@ -60,7 +63,10 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
             distance: len(1.0),
         },
     );
-    let (doc, boss_profile) = insert(doc, Node::Profile(fixture::desc(vec![square(0.2, 0.2, 0.25)])));
+    let (doc, boss_profile) = insert(
+        doc,
+        Node::Profile(fixture::desc(vec![square(0.2, 0.2, 0.25)])),
+    );
     let (doc, boss) = insert(
         doc,
         Node::Extrude {
@@ -520,9 +526,9 @@ fn below_the_top_a_documents_rows_are_the_ones_its_own_evaluation_produces() {
     let mixed_doc = mixed_ids[..2].iter().fold(mixed_doc, |doc, &id| {
         fixture::pinned(doc, id, &healthy_only)
     });
-    let mixed_doc = mixed_ids[2..]
-        .iter()
-        .fold(mixed_doc, |doc, &id| world_pinned(doc, id, &EvalOptions::default()));
+    let mixed_doc = mixed_ids[2..].iter().fold(mixed_doc, |doc, &id| {
+        world_pinned(doc, id, &EvalOptions::default())
+    });
     store.0.insert(mixed, mixed_doc.clone());
     let (top, ids) = instantiating_all("part-descent-mixed-top", &[mixed]);
     let opts = store.options();
@@ -777,4 +783,3 @@ fn a_part_no_instance_asks_for_is_evaluated_and_its_failure_reaches_nothing() {
         "the unasked subtree's failure changes nothing the top draws"
     );
 }
-

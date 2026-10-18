@@ -122,7 +122,8 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
     let (doc, ib) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &opts);
     // A copy of `ib`'s copy: the mate reads `ib`'s face AT the copy,
     // so the operand is a node the name does not name.
-    let ib_copy = editor_core::Operand::Var(doc.output(ib, 0).expect("an instance defines its copies"));
+    let ib_copy =
+        editor_core::Operand::Var(doc.output(ib, 0).expect("an instance defines its copies"));
     let (doc, placed) = insert(
         doc,
         Node::place(vec![editor_core::BodyRead::plain(ib_copy)]),

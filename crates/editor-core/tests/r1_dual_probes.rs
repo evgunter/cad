@@ -72,8 +72,8 @@ use test_utils::fuzz;
 use corpus::{Recorder, documents, eval, failures};
 use editor_core::eval::{ContentBits, KeyHasher};
 use editor_core::{
-    AssertionVerdict, ContentKey, DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram,
-    SlotId, ValuePayload, product_recorded,
+    AssertionVerdict, ContentKey, DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, SlotId,
+    ValuePayload, product_recorded,
 };
 use editor_core::{BooleanValue, Evaluation, NodeResult, SplitSide};
 use fixture::len;

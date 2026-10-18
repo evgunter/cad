@@ -153,10 +153,28 @@ fn translated(
             replaced += 1;
         }
     };
+    // A world target's slide up the world's own `z`.
+    fn walk_world(read: &mut editor_core::WorldRead<Formula>, f: &mut dyn FnMut(&mut Formula)) {
+        use editor_core::WorldRead as W;
+        match read {
+            W::Slide { pose, along, by } => {
+                if matches!(
+                    &**along,
+                    W::Role { pose, role: editor_core::pose::PoseRole::Z } if matches!(**pose, W::Frame)
+                ) {
+                    f(by);
+                }
+                walk_world(pose, f);
+            }
+            W::Role { pose, .. } | W::Spin { pose, .. } | W::Flip { pose } => walk_world(pose, f),
+            _ => {}
+        }
+    }
     let mut mate = placed.mate;
     walk(&mut mate.on, &mut respell);
-    if let Some(to) = mate.to.pose_mut() {
-        walk(to, &mut respell);
+    match &mut mate.to {
+        editor_core::Target::Pose(to) => walk(to, &mut respell),
+        editor_core::Target::World(world) => walk_world(world, &mut respell),
     }
     assert_eq!(replaced, 1, "the mate slides the copy once: {mate:?}");
     let values = placed
