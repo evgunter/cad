@@ -59,3 +59,25 @@ A fold step's pinch row has to be published when the final body still
 pinches there, and not when a later step consumed the pinch. A later
 step reads the accumulator's copies as structure and decides nothing
 there, so the publication cannot be read off the last step alone.
+
+## Measured (2026-10-18, `wire-pinch`)
+
+The witness as an editor document (the L extruded z 0 to 1 on the xy
+frame; the cube a square of half-width 2 on the frame through
+(1, 1, 1) with normal (1, 1.3, 0.7) normalised, extruded 4), at
+`4489bedb04`, counting `VertexFusion` rows per pairwise judgement, per
+fold step, and on the node:
+
+- `Union [prism, cube]`: the one step holds one `VertexFusion` row no
+  record cites; the node publishes it; two vertices at the corner.
+- `Union [far, prism, cube]`: the judgement of prism and cube holds
+  one uncited `VertexFusion` row, step 2 holds one; the node publishes
+  none, and the result holds two vertices at the corner. The defect.
+- `Union [prism, cube, cap]` and `[cap, prism, cube]` (cap: the block
+  0.8..1.2 in x and y, z 0.8 to 1.2): the judgement of prism and cube
+  holds the uncited row in both; in the first order step 1 holds it
+  too; the result holds no vertex at the corner. A consumed pinch the
+  judgement and the first step both decided.
+- `Union [prism, cube, far]` and `Intersect [prism, cube, big]` refuse
+  in naming before any row is published
+  (`work/refs/a-pinch-carried-through-a-later-fold-step-refuses-naming.md`).
