@@ -345,10 +345,18 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     // either end. None reads
     // a root as an identity, which is why the floor stays: a structural
     // pick would decide nothing a reader uses.
-    let mid = (t0 + t1) / two;
-    let near_mid = |raw: T| mid + (raw - mid).reduce_periodic_centred(T::tau());
     Ok(Roots::all([
-        near_mid(phi - half_chord),
-        near_mid(phi + half_chord),
+        near_span(phi - half_chord, (t0, t1)),
+        near_span(phi + half_chord, (t0, t1)),
     ]))
+}
+
+/// **An angle on the branch of a span's middle**: `raw` moved by whole
+/// turns to within `π` of the middle of `(t0, t1)`, so it compares with the
+/// span's ends without wrapping. The one unwinding of a carrier's angle
+/// onto the span it is read against: this door's roots, and an angle a
+/// region reads off a point of an edge.
+pub(super) fn near_span<T: Decide>(raw: T, (t0, t1): (T, T)) -> T {
+    let mid = (t0 + t1) / T::from_f64(2.0);
+    mid + (raw - mid).reduce_periodic_centred(T::tau())
 }

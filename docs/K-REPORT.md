@@ -999,7 +999,7 @@ for its boundary pre-pass:
 
 | name | carrier |
 |---|---|
-| `bool_torus_region_component` | a bare literal: which of a plane's two curves a root lies on, in metres (a meridian plane's `(y − c)·ρ̂`, a circle's distance from its mirror and from itself, an oval's `(y − c)·m`), and an edge in a leg's plane against the leg's own circle |
+| `bool_torus_region_component` | a bare literal: which of a plane's two curves a root lies on, in metres (a meridian plane's `(y − c)·ρ̂`, a parallel plane's `ρ − R` against the edge's decided side, a circle's distance from its mirror and from itself, an oval's `(y − c)·m`); and whether an edge in a leg's plane is on the leg's own circle (a meridian's centre against the leg's `ρ̂`, a parallel's radius less the leg's) |
 | `bool_torus_region_family` | a bare literal: whether a circle edge is a parallel (the sine between its axis and the torus's, at its radius) off the top and bottom circles (`ρ − R`, metres): a class selection between two readings, each sound |
 | `bool_torus_region_span` | a bare literal: a root's parameter against its edge's span ends, at the circle's radius or the tube's |
 | `bool_torus_region_at` | a bare literal: a crossing's place along its leg from the leg's start, at the leg's radius |

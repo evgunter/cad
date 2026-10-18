@@ -132,7 +132,7 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::BooleanDecision;
 use super::circle_roots::{
-    FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_roots_in_band,
+    FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_roots_in_band, near_span,
 };
 use super::region::{
     Hit, RegionRefusal, TARGET_SHARES, circle_edge_hit, in_band, side_at_closest, span,
@@ -272,6 +272,23 @@ enum LegKind<T: geom_core::Real> {
     /// A meridian: its plane holds the axis and meets the torus in two
     /// meridians; `radial` points from the axis to this one.
     Meridian { radial: Vec3<T> },
+}
+
+/// Which reading a circle edge takes on a meridian leg
+/// (`bool_torus_region_family`).
+#[derive(Clone, Copy)]
+enum CircleFamily {
+    /// A parallel whose plane is transversal to the torus (`r·cos v`
+    /// definitely nonzero), read in the leg's parameter against its plane;
+    /// `outer` is which of the plane's two parallels it is (`ρ > R`).
+    Parallel { outer: bool },
+    /// A parallel on the top or bottom circle, where its plane is tangent
+    /// to the torus, or one whose `r·cos v` is in band: read in its own
+    /// parameter.
+    Rim,
+    /// Any other circle (a meridian, a Villarceau circle), or one whose
+    /// tilt from the axis is in band: read in its own parameter.
+    Other,
 }
 
 /// One leg of a path: the circle `center + radius·(e1 cos s + e2 sin s)`
@@ -724,13 +741,11 @@ impl<T: Decide> TorusFaceRegion<T> {
                     u_ref,
                 },
                 LegKind::Meridian { .. },
-            ) if let Some(outer) = self.transversal_parallel(axis, radius, band) => {
+            ) if let CircleFamily::Parallel { outer } = self.circle_family(axis, radius, band) => {
                 // A parallel off the top and bottom circles: its plane meets
                 // the meridian leg at simple roots, read in the leg's
                 // parameter (speed `r`). The plane holds two parallels at
                 // `ρ − R = ±r·cos v`, which the decided `outer` tells apart.
-                let v_ref = axis.cross(u_ref);
-                let mid = (edge.t0 + edge.t1) * T::from_f64(0.5);
                 for s in found(self.plane_roots(leg, axis, center, band))? {
                     let y = leg.at(s);
                     let (rho, _, _) = self.polar(y);
@@ -741,9 +756,10 @@ impl<T: Decide> TorusFaceRegion<T> {
                         _ => continue,
                     }
                     let w = y - center;
-                    let theta = (w.dot(v_ref).atan2(w.dot(u_ref)) - mid)
-                        .reduce_periodic_centred(T::tau())
-                        + mid;
+                    let theta = near_span(
+                        w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref)),
+                        (edge.t0, edge.t1),
+                    );
                     if let Some(sideless) = span(theta, radius)? {
                         out.push((y, theta, sideless));
                     }
@@ -803,17 +819,16 @@ impl<T: Decide> TorusFaceRegion<T> {
                     }
                     roots => found(roots)?,
                 };
-                let v_ref = axis.cross(u_ref);
-                let mid = (edge.t0 + edge.t1) * T::from_f64(0.5);
                 // A meridian's or a Villarceau circle's plane meets the
                 // torus in it and its mirror through the centre.
                 let mirror = self.center + (self.center - center);
                 for s in roots {
                     let y = leg.at(s);
                     let w = y - center;
-                    let theta = (w.dot(v_ref).atan2(w.dot(u_ref)) - mid)
-                        .reduce_periodic_centred(T::tau())
-                        + mid;
+                    let theta = near_span(
+                        w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref)),
+                        (edge.t0, edge.t1),
+                    );
                     let Some(sideless) = span(theta, radius)? else {
                         continue;
                     };
@@ -854,8 +869,7 @@ impl<T: Decide> TorusFaceRegion<T> {
                     }
                     let h = w.dot(axis);
                     let rho = (w - axis * h).norm();
-                    let mid = (edge.t0 + edge.t1) * T::from_f64(0.5);
-                    let v = (h.atan2(rho - major) - mid).reduce_periodic_centred(T::tau()) + mid;
+                    let v = near_span(h.atan2(rho - major), (edge.t0, edge.t1));
                     if let Some(sideless) = span(v, minor)? {
                         out.push((y, v, sideless));
                     }
@@ -865,28 +879,25 @@ impl<T: Decide> TorusFaceRegion<T> {
         Ok(out)
     }
 
-    /// Whether a circle edge `(axis, radius)` is a parallel whose plane is
-    /// transversal to the torus — off the top and bottom circles, where
-    /// `ρ − R = r·cos v` is definitely nonzero — and then which of the
-    /// plane's two parallels it is (`true` the outer one). `None` for any
-    /// other circle, a rim circle, or a margin in band of either: those
-    /// are read in the circle's own parameter, which serves every circle.
-    fn transversal_parallel(&self, axis: Vec3<T>, radius: T, band: Band) -> Option<bool> {
+    /// Which reading a circle edge `(axis, radius)` takes on a meridian
+    /// leg ([`CircleFamily`]). A margin in band of either question reads
+    /// the circle in its own parameter, which serves every circle.
+    fn circle_family(&self, axis: Vec3<T>, radius: T, band: Band) -> CircleFamily {
         let tilt = Margin::levered(axis.cross(self.axis).norm(), radius);
         if !matches!(
             decide("bool_torus_region_family", tilt, band),
             Ok(Sign::Zero)
         ) {
-            return None;
+            return CircleFamily::Other;
         }
         match decide(
             "bool_torus_region_family",
             Margin::of(radius - self.major),
             band,
         ) {
-            Ok(Sign::Positive) => Some(true),
-            Ok(Sign::Negative) => Some(false),
-            Ok(Sign::Zero) | Err(_) => None,
+            Ok(Sign::Positive) => CircleFamily::Parallel { outer: true },
+            Ok(Sign::Negative) => CircleFamily::Parallel { outer: false },
+            Ok(Sign::Zero) | Err(_) => CircleFamily::Rim,
         }
     }
 

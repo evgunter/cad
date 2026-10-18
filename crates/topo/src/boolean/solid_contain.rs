@@ -3594,26 +3594,10 @@ pub fn point_in_solid_faces<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// Each face of a selection with its resolved query geometry, built once
-/// per query: the boundary pre-pass, every ray of the schedule and every
-/// aimed ray read the same list, so a face's region is read off its
-/// boundary once rather than at every ray.
+/// per query by the boundary pre-pass, in the selection's order: every
+/// ray of the schedule and every aimed ray read the same list, so a
+/// face's region is read off its boundary once rather than at every ray.
 type FaceGeos<T> = Vec<(FaceKey, FaceGeo<T>)>;
-
-/// [`FaceGeos`] for `sel`.
-///
-/// # Errors
-///
-/// The first face whose geometry does not resolve ([`face_geo`]).
-fn face_geos<T: Decide>(
-    body: &Body<T>,
-    sel: &SolidFaces,
-    band: Band,
-) -> Result<FaceGeos<T>, PointInSolidError> {
-    sel.faces()
-        .iter()
-        .map(|&face| Ok((face, face_geo(body, face, &sel.charts, band)?)))
-        .collect()
-}
 
 /// The one closest-hit core behind both entries: the boundary
 /// pre-pass and the schedule sweep over exactly `faces` (module docs).
@@ -3634,11 +3618,14 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
         return Err(PointInSolidError::ZeroVolumeBody);
     }
 
-    let geos = face_geos(body, sel, band)?;
-
     // ---- Boundary pre-pass: q on any face ⇒ OnBoundary. ----
-    for &(face, ref geo) in &geos {
+    // Each face's geometry is built as the pass reaches it, so a point on
+    // an earlier face answers before a later face is resolved.
+    let mut geos: FaceGeos<T> = Vec::with_capacity(faces.len());
+    for &face in faces {
         let escalate = |diag| PointInSolidError::Escalated { face, diag };
+        geos.push((face, face_geo(body, face, &sel.charts, band)?));
+        let geo = &geos[geos.len() - 1].1;
         match *geo {
             FaceGeo::Plane(origin, normal) => {
                 // Orientation-free: a residual compared against Zero
@@ -5224,7 +5211,11 @@ mod per_solid_entry_tests {
         let band = Band::linear(tol).unwrap();
         let body = two_cubes();
         let sel = SolidFaces::select(&body, body.faces().map(|(k, _)| k).collect()).unwrap();
-        let geos = face_geos(&body, &sel, band).unwrap();
+        let geos: Vec<_> = sel
+            .faces()
+            .iter()
+            .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
+            .collect();
         let cast = |q: Point3<f64>, d: Vec3<f64>| {
             let reach = selection_reach(&body, sel.faces(), q).unwrap();
             cast_ray(&body, &geos, q, d.normalize(), reach, band)
