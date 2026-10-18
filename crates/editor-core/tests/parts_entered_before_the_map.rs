@@ -8,8 +8,9 @@
 //! owner shows: the part's samples lead every node's, under the serial
 //! walk, under the parallel node map at one and four threads, and with
 //! a mate whose solve reads the part (whose recording units belong to
-//! placements). The count rows beside them (`part_evaluations` under a
-//! pose edit, an unchanged re-run and a faulted part) live in
+//! placements). The count rows beside them (`part_evaluations` under the
+//! parallel map, a pose edit, an unchanged re-run and a faulted part)
+//! live in
 //! `asm2a_instantiate.rs`, beside the memo rows they extend.
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

@@ -921,7 +921,6 @@ impl<T: Decide> core::fmt::Debug for Carried<T> {
 /// `pair_reach` and a face-based side's face pose both ask through).
 /// Every reference it names is entered before the document evaluates,
 /// and the table refuses any other ask ([`PartFault::NotEntered`]).
-
 pub(crate) fn instantiated<P>(doc: &crate::Doc<P>, id: RecipeNodeId) -> Option<DocRef> {
     match doc.node(id) {
         Some(crate::node::Node::InstantiatePart { doc_ref, .. }) => Some(*doc_ref),

@@ -859,6 +859,34 @@ fn row6_placement_is_part_of_the_content_key() {
     );
 }
 
+/// Row 6 (schedule) — one part instanced three times is evaluated
+/// once under the parallel node map, at one thread and at four: the
+/// part is entered before the map runs, so no instance races for it.
+#[test]
+fn row6_a_part_instanced_three_times_is_evaluated_once_under_the_parallel_map() {
+    let mut store = StubStore::default();
+    let doc_ref = store.insert(part("asm2a-r6p-part", 0.0, 1.0), Tol::witness());
+    let opts = EvalOptions {
+        parallel: true,
+        ..with_resolver(store)
+    };
+    let (doc, ids) = assembly("asm2a-r6p-asm", &[doc_ref, doc_ref, doc_ref]);
+    for threads in [1, 4] {
+        let ev = fixture::on_pool(threads, || run(&doc, &opts));
+        assert_eq!(
+            ev.part_evaluations, 1,
+            "{threads} thread(s): three instances, one part, one evaluation"
+        );
+        for &id in &ids {
+            assert!(
+                matches!(ev.result(id), Some(NodeResult::Ok(_))),
+                "{threads} thread(s): instance {} evaluates",
+                id.0
+            );
+        }
+    }
+}
+
 /// Row 6 (faults) — a part row that faulted is not carried: the run
 /// that names its evaluation as prior asks the seam again, and a seam
 /// that now answers serves the part.
