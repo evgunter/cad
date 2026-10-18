@@ -2,12 +2,12 @@
 id: a-box-over-a-solved-clocking-widens-thirty-thousandfold
 kind: issue
 title: An Interval box over a solved clocking widens the membership margin about 3e4 times the box, so no practical box decides it
-status: parked
+status: closed
 priority: P3
 cost: M
 opened: 2026-10-03
-blocked_on: [intent-stage3-is-built]
 refs: [MSOLVE-14, an-identically-zero-margin-escalates-at-a-fine-eps]
+closed: 2026-10-18
 ---
 
 ## Finding
@@ -63,3 +63,11 @@ not convergence. The rest is the §5 (b) design question.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage3-is-built`, not on the whole program: the widening comes from member_of re-measuring a residual met by construction; stage 3's "a mate places and never checks", overconstraint by subgroup algebra without measuring, retires that re-measure. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (INTENT stage 3 F)
+
+The membership re-measure is gone: `coset::member_of` retired with the
+table's measured case splits, and a bundle's cosets are met by
+construction (`coset::intersect`). The two-pin document this row
+measured is now refused at the door (two coaxial mates fix one
+direction twice), and the msolve14 corpus no longer holds it.

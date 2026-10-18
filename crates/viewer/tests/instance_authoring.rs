@@ -144,12 +144,9 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
 
     // The shipped mate tool's op takes them from here. Both instances
     // stand placed, so the mate joins the post's bundle, which its
-    // world mate and values already fix: the door admits it (it
-    // measures nothing) and the evaluation refuses the post's bundle
-    // typed — overconstrained, contradicting the world mate it does not
-    // agree with, or, while a bundle relates its copy to one target, as
-    // a second target beside the world. A mate beyond the pin is never
-    // dropped silently, and undo takes it off.
+    // world mate and values already fix: the door refuses it typed,
+    // overconstrained, measuring nothing, and the document is as it
+    // was. A mate beyond the pin is never dropped silently.
     let seat = || {
         asm::seat_op_under(
             &bench,
@@ -160,29 +157,21 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
         )
     };
     let beyond = session.perform(seat());
-    assert!(beyond.refusal.is_none(), "{:?}", beyond.refusal);
-    session.pump();
-    {
-        let (_, ev) = session.landed_pair().expect("landed");
-        let fault = match ev.result(post_i).and_then(|r| r.error()).map(|e| &e.kind) {
-            Some(pncad::document::NodeErrorKind::Mate(fault)) => fault.as_ref().clone(),
-            other => panic!("the post's bundle refuses the mate beyond its pin, got {other:?}"),
-        };
-        assert!(
+    match beyond.refusal.as_ref() {
+        Some(Refusal::Edit(error)) => assert!(
             matches!(
-                &fault,
-                pncad::document::MateFault::Overconstrained { placement, .. }
-                    | pncad::document::MateFault::TargetsDiffer { placement, .. }
-                    if *placement == post_i
-            ) || matches!(
-                &fault,
-                pncad::document::MateFault::Contradictory { held, added, .. }
-                    if held.placement == post_i && added.placement == post_i
+                error.as_ref(),
+                pncad::document::EditError::MateRefused { fault, .. }
+                    if matches!(
+                        fault.as_ref(),
+                        pncad::document::MateFault::Overconstrained { placement, .. }
+                            if *placement == post_i
+                    )
             ),
-            "the post's bundle refuses the mate beyond its pin: {fault:?}"
-        );
+            "the post's bundle refuses the mate beyond its pin: {error:?}"
+        ),
+        other => panic!("the door refuses the mate beyond the pin, got {other:?}"),
     }
-    assert!(session.perform(SessionOp::Undo).refusal.is_none());
     session.pump();
     probe(&mut session);
     // With the post's world mate (and its values) taken off, the same

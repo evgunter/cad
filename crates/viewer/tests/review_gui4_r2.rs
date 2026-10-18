@@ -17,7 +17,7 @@
 //!   inverse-ray transform (the unit's displaced-pick rows are
 //!   translation-only, which a transposed or forward linear map would
 //!   survive).
-//! - Adversarial flows: a contradictory second mate on one pair; a
+//! - Adversarial flows: a second mate beyond the pin on one pair; a
 //!   mate landing while a free-move GESTURE is in flight; hide
 //!   surviving a mate that supersedes the same instance's probe;
 //!   save-as into a partless directory; the threaded seam resolving
@@ -284,15 +284,14 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
     );
 }
 
-/// **A second mate on the same pair refuses typed and is recoverable.**
-/// The first mate and its values pin post_b, so a second rest of the
-/// same faces a centimetre lower is a mate beyond the pin that
-/// contradicts it: the door admits it (it measures nothing) and the
-/// evaluation refuses post_b's bundle typed, naming both; undo takes
-/// the second off, and the assembly works again. No crash, no silent
+/// **A second mate on the same pair refuses typed and leaves the
+/// assembly working.** The first mate and its values pin post_b, so a
+/// second rest of the same faces a centimetre lower is a mate beyond
+/// the pin: the door refuses it, measuring nothing, naming post_b's
+/// bundle, and the assembly works as before. No crash, no silent
 /// success, no silent drop.
 #[test]
-fn a_second_mate_beyond_the_pin_refuses_typed_and_undo_recovers() {
+fn a_second_mate_beyond_the_pin_refuses_typed_at_the_door() {
     let tol = Tol::witness();
     let bench = asm::bench("r2contra", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -331,34 +330,23 @@ fn a_second_mate_beyond_the_pin_refuses_typed_and_undo_recovers() {
         values: Vec::new(),
     });
     // post_b's bundle already pins it, so the second mate is a mate
-    // beyond the pin: the evaluation refuses the bundle typed, naming
-    // the pair.
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    session.pump();
-    {
-        let (_, ev) = session.landed_pair().expect("landed");
-        let fault = match ev
-            .result(bench.post_b)
-            .and_then(|r| r.error())
-            .map(|e| &e.kind)
-        {
-            Some(pncad::document::NodeErrorKind::Mate(fault)) => fault.as_ref().clone(),
-            other => panic!("a mate beyond the pin refuses, got {other:?}"),
-        };
-        assert!(
+    // beyond the pin: the door refuses it typed, measuring nothing, and
+    // the assembly is as it was.
+    match outcome.refusal.as_ref() {
+        Some(Refusal::Edit(error)) => assert!(
             matches!(
-                &fault,
-                pncad::document::MateFault::Contradictory { held, added, .. }
-                    if held.placement == bench.post_b && added.placement == bench.post_b
-                        && held != added
+                error.as_ref(),
+                pncad::document::EditError::MateRefused { fault, .. }
+                    if matches!(
+                        fault.as_ref(),
+                        pncad::document::MateFault::Overconstrained { placement, constraints, .. }
+                            if *placement == bench.post_b && constraints.len() > 1
+                    )
             ),
-            "the second mate contradicts the first: {fault:?}"
-        );
+            "the second mate is beyond the pin: {error:?}"
+        ),
+        other => panic!("the door refuses the second mate, got {other:?}"),
     }
-
-    // Undo removes the second mate; the assembly works again.
-    let outcome = session.perform(SessionOp::Undo);
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "after undo: {row:?}");

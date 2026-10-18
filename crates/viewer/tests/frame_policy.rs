@@ -1060,9 +1060,9 @@ fn a_refusal_reached_through_a_mate_names_the_placement_the_tree_blames() {
     let tol = Tol::witness();
     let bench = common::asm::bench("vnews-derived-mate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
-    // post_a seated under the shelf, then the shelf's own bundle
-    // contradicted on post_b: post_a, first in the index's order, is
-    // chained to the refused shelf.
+    // post_a seated under the shelf, then the shelf's own bundle a mate
+    // its evaluation refuses, against post_b: post_a, first in the
+    // index's order, is chained to the refused shelf.
     common::asm::unpin(&mut session, bench.post_a);
     common::commit_mate(
         &mut session,
@@ -1074,12 +1074,10 @@ fn a_refusal_reached_through_a_mate_names_the_placement_the_tree_blames() {
         ),
     );
     common::asm::unpin(&mut session, bench.shelf_i);
-    for offset in [0.0, 0.01] {
-        common::commit_mate(
-            &mut session,
-            common::asm::shelf_rest_op(&bench, bench.post_b, offset),
-        );
-    }
+    common::commit_mate(
+        &mut session,
+        common::asm::no_centre_op(&bench, bench.post_b),
+    );
     let offender = bench.shelf_i;
     let refusal = common::index_at(&session, common::asm::delta())
         .expect_err("a placement the solve refused refuses the index");
