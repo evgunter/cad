@@ -88,11 +88,20 @@ use profile::{
     SketchPlane, ValidatedProfile,
 };
 
-/// The quarter-turn ceiling on one rational-quadratic arc span: every
+/// η, the slack above a quarter turn one sub-arc may take (C6's
+/// sub-arc rule): the count's breakpoints sit at `k·(π/2)(1 + η)`, off
+/// the multiples of π/2 where documents' sweeps sit, so an arc whose
+/// true sweep is `k·π/2` counts `k` for every value it stands for.
+/// `1/16` is exact, keeps `k·π/2` at count `k` for every `k ≤ 4` (a
+/// full turn: it needs `4/(1 + η) > 3`), and keeps a sub-arc's
+/// tangent-intersection point well conditioned.
+const SUB_ARC_ETA: f64 = 1.0 / 16.0;
+
+/// The ceiling on one rational-quadratic arc span, `(π/2)(1 + η)`: every
 /// sub-arc of a converted profile arc is at most this wide, so the
 /// tangent-intersection control point stays finite and well
-/// conditioned (`cos(Δ/2) ≥ cos(π/4)`).
-const MAX_SUB_ARC: f64 = core::f64::consts::FRAC_PI_2;
+/// conditioned (`cos(Δ/2) ≥ cos((π/4)(1 + η))`).
+const MAX_SUB_ARC: f64 = core::f64::consts::FRAC_PI_2 * (1.0 + SUB_ARC_ETA);
 
 /// Typed refusal of the §10.3/§10.4 constructions (closed enum, D4 ¶3).
 ///
