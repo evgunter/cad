@@ -105,9 +105,7 @@ fn dumbbell() -> Dumbbell {
             }),
         }),
     });
-    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon(
                 [
@@ -133,7 +131,6 @@ fn dumbbell() -> Dumbbell {
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(2.0),
-        side: ExtrudeSide::Along,
     });
     // A rigid translation by the document parameter: identity rotation,
     // so every stored direction passes through the interval lane
@@ -506,9 +503,7 @@ fn a_pairing_the_wedge_rule_empties_refuses_typed() {
 #[test]
 fn a_selection_that_is_not_a_body_or_a_face_refuses_at_the_door() {
     let mut r = Recorder::new();
-    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -518,7 +513,6 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_at_the_door() {
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     // A real EDGE name — the extrude's own lateral edge at profile
     // vertex 0 — so the refusal is about its KIND rather than about a

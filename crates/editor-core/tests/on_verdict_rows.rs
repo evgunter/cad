@@ -46,7 +46,6 @@ fn block(
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(h),
-        side: ExtrudeSide::Along,
     })
 }
 

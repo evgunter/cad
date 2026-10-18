@@ -208,7 +208,6 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     let base_p = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            frame: base_plane.into(),
             loops: base_loops,
             ids: Vec::new(),
         }),
@@ -219,7 +218,6 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
         Node::Extrude {
             profile: base_p.into(),
             distance: pe("250 mm"),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -231,7 +229,6 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     let fin_p = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            frame: fin_plane.into(),
             loops: fin_loops,
             ids: Vec::new(),
         }),
@@ -242,7 +239,6 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
         Node::Extrude {
             profile: fin_p.into(),
             distance: pe(fin_height),
-            side: ExtrudeSide::Along,
         },
         tol,
     );

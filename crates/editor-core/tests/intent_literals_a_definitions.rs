@@ -94,7 +94,6 @@ fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId
         Node::Extrude {
             profile: profile.into(),
             distance: depth,
-            side: ExtrudeSide::Along,
         },
     );
     (doc, [frame, profile, extrude])
@@ -346,7 +345,6 @@ fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
         let (doc, profile) = insert(
             doc,
             Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops: vec![editor_core::LoopProgram::Circle {
                     centre: [len(0.0), len(0.0)],
                     radius,
@@ -359,7 +357,6 @@ fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(1.0),
-                side: ExtrudeSide::Along,
             },
         )
     };

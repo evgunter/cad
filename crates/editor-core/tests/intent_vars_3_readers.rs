@@ -84,7 +84,6 @@ fn filleted(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, RecipeNod
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let edges = prism_edges(&doc, cube, 4);
@@ -494,7 +493,6 @@ fn the_door_lowers_names_before_it_mints() {
     let extrude = Node::Extrude {
         profile: profile.into(),
         distance: named("w"),
-        side: ExtrudeSide::Along,
     };
     let recorded = step(
         &next,
@@ -703,7 +701,6 @@ fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId
         Node::Extrude {
             profile: profile.into(),
             distance: depth,
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, placed) = crate::fixture::place(doc, extrude);
@@ -1591,7 +1588,6 @@ fn recording_insert_lowers_as_apply_does() {
     let node = Node::Extrude {
         profile: profile.into(),
         distance: named("w"),
-        side: ExtrudeSide::Along,
     };
     let by_apply = step(
         &doc,

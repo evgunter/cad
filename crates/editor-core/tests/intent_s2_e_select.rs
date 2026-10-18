@@ -55,7 +55,6 @@ fn prism(doc: ProfileDoc, x: f64) -> (ProfileDoc, Prism) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let faces = [
@@ -378,7 +377,6 @@ fn placed_prism(doc: ProfileDoc) -> (ProfileDoc, Cut) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, placed) = fixture::place(doc, extrude);

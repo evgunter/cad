@@ -100,7 +100,6 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, 
         );
     }
 
-    let plane = r.insert(xy_frame());
 
     // The L, with a PARAMETRIC fillet at its inner corner — the arc.
     let pt = |x: Formula, y: Formula| ProgramTarget::Point([x, y]);
@@ -122,7 +121,6 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, 
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![bracket_loop],
         ids: Vec::new(),
     }));
@@ -131,12 +129,10 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, 
     let _body = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: thickness.clone(),
-        side: ExtrudeSide::Along,
     });
 
     let bore = |r: &mut Recorder, x: f64, radius: &'static str| {
         let profile = r.insert(Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(x), len(0.5e-3)],
                 radius: plen(radius),
@@ -146,7 +142,6 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, 
         r.insert(Node::Extrude {
             profile: profile.into(),
             distance: thickness.clone(),
-            side: ExtrudeSide::Along,
         })
     };
     let bore_a = bore(&mut r, BORE_A_X, "bore_a");
@@ -462,14 +457,12 @@ fn collinear_walls() -> ProfileDoc {
             }),
         }),
     });
-    let plane = r.insert(xy_frame());
     // The middle vertex of the bottom edge splits ONE straight edge in
     // two: segments 0 and 1 are collinear by construction, whatever `w`
     // does, so `side_planes_cosurface` is a genuine IDENTITY here and
     // not a coincidence at the nominal.
     let w = || Formula::named(VarName::from_static("w"), Dimension::Length);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             // The DECLARED straight continuation: `LineTo` at a zero-turn
@@ -490,7 +483,6 @@ fn collinear_walls() -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(1.0e-3),
-        side: ExtrudeSide::Along,
     });
     r.doc
 }

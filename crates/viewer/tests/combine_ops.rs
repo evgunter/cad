@@ -323,7 +323,6 @@ fn a_feature_re_points_each_placement_of_its_target() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(A[2]),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -2055,7 +2054,6 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
     let (next, ring) = common::inserted(
         &doc,
         Node::Profile(ProfileProgram {
-            frame: sketch_frame.into(),
             loops: vec![LoopProgram::circle(0.05, 0.0, 0.01).expect("finite circle")],
             ids: Vec::new(),
         }),
@@ -2076,7 +2074,6 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
         Node::Extrude {
             profile: profile.into(),
             distance: common::len(0.01),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -2093,7 +2090,6 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
         Node::Extrude {
             profile: profile_b.into(),
             distance: common::len(0.01),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -2174,7 +2170,6 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
             Node::Extrude {
                 profile: profile.into(),
                 distance: common::len(0.004),
-                side: ExtrudeSide::Along,
             },
         ),
         (

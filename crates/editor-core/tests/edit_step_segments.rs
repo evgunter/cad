@@ -385,7 +385,6 @@ fn prism(id: &str, points: Vec<(f64, f64)>) -> (ProfileDoc, RecipeNodeId, Recipe
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, ext)
@@ -1564,11 +1563,9 @@ fn arc_prism(
     }
     steps.push(ProgramStep::LineTo(ProgramTarget::Start));
     let doc = ProfileDoc::empty_derived(id, tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -1578,7 +1575,6 @@ fn arc_prism(
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, ext, exprs)
@@ -1720,12 +1716,10 @@ fn a_reversed_chains_arcs_are_answered_in_program_indices() {
 #[test]
 fn a_carrier_loop_is_answered_at_every_edge() {
     let doc = ProfileDoc::empty_derived("segment-radii-carrier", tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let radius = len(0.5);
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::CircleSplit {
                 centre: [len(0.0), len(0.0)],
                 radius: radius.clone(),
@@ -1865,11 +1859,9 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
         "the program answers the fillet's radius at the step that holds it"
     );
     let doc = ProfileDoc::empty_derived("segment-radii-fillet", tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![filleted],
             ids: Vec::new(),
         }),
@@ -1879,7 +1871,6 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);
@@ -1984,11 +1975,9 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
          a through-point instead"
     );
     let doc = ProfileDoc::empty_derived("segment-radii-via-arrival", tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![chain],
             ids: Vec::new(),
         }),
@@ -1998,7 +1987,6 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);
@@ -2259,11 +2247,9 @@ fn rotated_arc_prism(
         ProgramStep::LineTo(ProgramTarget::Start),
     ];
     let doc = ProfileDoc::empty_derived(id, tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -2273,7 +2259,6 @@ fn rotated_arc_prism(
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, ext, vec![r1, r2])
@@ -2490,11 +2475,9 @@ fn keyed_but_never_attached() -> ProfileDoc {
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let doc = ProfileDoc::empty_derived("segment-radii-extension", tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, _) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![program],
             ids: Vec::new(),
         }),
@@ -2543,11 +2526,9 @@ fn a_fillet_cannot_be_a_loops_closing_corner() {
         ProgramStep::ContinueTo(ProgramTarget::Start),
     ] {
         let doc = ProfileDoc::empty_derived("segment-radii-closing-fillet", tol());
-        let (doc, plane) = insert(doc, fixture::xy_frame());
         let attempt = doc.apply(
             &editor_core::DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    frame: plane.into(),
                     loops: vec![head(closer.clone())],
                     ids: Vec::new(),
                 })),
@@ -2658,12 +2639,10 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
          the content key"
     );
     let doc = ProfileDoc::empty_derived("segment-radii-fused-bulge", tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let applied = doc
         .apply(
             &editor_core::DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    frame: plane.into(),
                     loops: vec![program],
                     ids: Vec::new(),
                 })),
@@ -2680,7 +2659,6 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);
@@ -2771,11 +2749,9 @@ fn a_fused_steps_three_radii_each_reach_their_own_wall() {
         "the key's feed takes all three spellings"
     );
     let doc = ProfileDoc::empty_derived("segment-radii-three", tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![program],
             ids: Vec::new(),
         }),
@@ -2785,7 +2761,6 @@ fn a_fused_steps_three_radii_each_reach_their_own_wall() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);

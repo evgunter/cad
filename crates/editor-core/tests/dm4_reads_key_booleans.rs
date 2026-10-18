@@ -50,7 +50,6 @@ fn block(
         Node::Extrude {
             profile: p.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     )
 }

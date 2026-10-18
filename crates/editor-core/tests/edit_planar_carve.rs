@@ -46,11 +46,9 @@ fn bored_square_doc(chamfer: bool, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeN
         },
     ];
     let doc = ProfileDoc::empty_derived("bored_square", tol());
-    let (doc, plane) = fixture::insert(doc, fixture::xy_frame());
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -60,7 +58,6 @@ fn bored_square_doc(chamfer: bool, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeN
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let crease = fixture::ename(

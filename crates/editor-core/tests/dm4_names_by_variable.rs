@@ -51,7 +51,6 @@ fn step_split(at: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId)
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, tool) = insert(
@@ -520,7 +519,6 @@ fn a_repoint_that_takes_a_keys_name_out_of_reach_strands_it() {
     let ext = |p: RecipeNodeId| Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     };
     let (doc, a) = insert(doc, ext(pa));
     let (doc, b) = insert(doc, ext(pb));
@@ -584,7 +582,6 @@ fn cube_and_transform() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, StableName) 
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, moved) = insert(

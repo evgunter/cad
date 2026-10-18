@@ -238,9 +238,7 @@ fn distributed_plate() -> ProfileDoc {
             }),
         });
     }
-    let plane = r.insert(fixture::xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (-4.0e-3, -2.0e-3),
@@ -255,11 +253,9 @@ fn distributed_plate() -> ProfileDoc {
     let _plate = r.insert(Node::Extrude {
         profile: plate_p.into(),
         distance: len(1.0e-3),
-        side: ExtrudeSide::Along,
     });
     let hs = Formula::named(name("half_spacing"), Dimension::Length);
     let hole_a_p = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [
                 Formula::neg(hs.clone()).expect("a shallow negation"),
@@ -272,10 +268,8 @@ fn distributed_plate() -> ProfileDoc {
     let hole_a = r.insert(Node::Extrude {
         profile: hole_a_p.into(),
         distance: len(1.0e-3),
-        side: ExtrudeSide::Along,
     });
     let hole_b_p = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [hs, len(0.0)],
             radius: Formula::named(name("hole_b_r"), Dimension::Length),
@@ -285,7 +279,6 @@ fn distributed_plate() -> ProfileDoc {
     let hole_b = r.insert(Node::Extrude {
         profile: hole_b_p.into(),
         distance: len(1.0e-3),
-        side: ExtrudeSide::Along,
     });
     let ev = evaluate::<f64>(
         &r.doc,
@@ -393,9 +386,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
             distribution: Some(distribution),
         }),
     });
-    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (0.0, 0.0),
@@ -418,7 +409,6 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(2.0),
-        side: ExtrudeSide::Along,
     });
     let placed = r.insert(Node::transform(
         solid,
@@ -871,9 +861,7 @@ fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
 /// reaches every assertion-carrying document in the tree.
 fn plain_distance_doc() -> ProfileDoc {
     let mut r = Recorder::new();
-    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -883,7 +871,6 @@ fn plain_distance_doc() -> ProfileDoc {
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let measured = r.measure(
         &[MeasurePrimitive::Distance { a: 0, b: 1 }],

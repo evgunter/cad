@@ -18,7 +18,7 @@
 use crate::blocks::{failure, run};
 use crate::fixture::{ang, insert, len, len2, on_frame, scl, xy_frame};
 use editor_core::{
-    ExtrudeSide, LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
+    LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
     ProgramTarget, RecipeNodeId,
 };
 use geom_core::Tol;
@@ -34,11 +34,9 @@ pub(crate) fn ball(doc: ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let (doc, xy) = insert(doc, xy_frame());
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: xy.into(),
             loops: vec![meridian],
             ids: Vec::new(),
         }),
@@ -103,7 +101,6 @@ pub(crate) fn brick_toward(
         Node::Extrude {
             profile: p.into(),
             distance: len(t),
-            side: ExtrudeSide::Along,
         },
     )
 }

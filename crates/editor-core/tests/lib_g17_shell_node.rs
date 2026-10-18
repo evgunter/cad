@@ -758,7 +758,6 @@ fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![meridian],
         ids: Vec::new(),
     }));

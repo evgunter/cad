@@ -123,16 +123,13 @@ pub fn lateral_edge(doc: &editor_core::ProfileDoc, rod: RecipeNodeId, vertex: us
 /// The reshaped-rod corpus document.
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
-    let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![rod_loop(false)],
         ids: Vec::new(),
     }));
     let rod = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(ROD_L),
-        side: ExtrudeSide::Along,
     });
     // The fillet is authored against the PLAIN program's crease, and
     // the reshaping below keeps the step whose piece the name spells,

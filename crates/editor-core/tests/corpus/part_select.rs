@@ -88,7 +88,6 @@ pub fn document() -> CorpusDoc {
     let cube = r.insert(Node::Extrude {
         profile: box_p.into(),
         distance: Formula::named(VarName::from_static(H), Dimension::Length),
-        side: ExtrudeSide::Along,
     });
 
     // ---- the cut at mid-height, and its two halves as bodies ----

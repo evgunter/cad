@@ -96,9 +96,8 @@ pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>
 
     // u = +X (the radius), v = +Z (the axis): the meridian's own axis
     // is its +v through the origin, written in the frame it turns.
-    let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
+    // D-FRAME: let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![meridian()],
         ids: Vec::new(),
     }));
@@ -177,9 +176,8 @@ pub fn capped_meridian() -> LoopProgram<Formula> {
 /// shell node and the revolve node.
 pub fn capped_document() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
+    // D-FRAME: let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![capped_meridian()],
         ids: Vec::new(),
     }));

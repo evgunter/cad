@@ -233,7 +233,6 @@ fn an_output_two_operations_read_needs_no_name() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     let edges = crate::fixture::prism_edges(&doc, cube, 4);

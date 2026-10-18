@@ -77,7 +77,6 @@ fn extrude(doc: &TDoc, profile: RecipeNodeId) -> (TDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.01),
-            side: ExtrudeSide::Along,
         },
     )
 }

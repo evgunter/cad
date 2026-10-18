@@ -247,27 +247,23 @@ pub fn document() -> CorpusDoc {
     // ---- the sharp cube, [0, L]³ (die_pips' chain, verbatim) ----
     let square =
         LoopProgram::polygon([(0.0, 0.0), (DIE_L, 0.0), (DIE_L, DIE_L), (0.0, DIE_L)]).unwrap();
-    let cube_plane = r.insert(xy_frame());
     let cube_p = r.insert(Node::Profile(ProfileProgram {
-        frame: cube_plane.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile: cube_p.into(),
         distance: len(DIE_L),
-        side: ExtrudeSide::Along,
     });
 
     // ---- the master ball, poled along the +Z face normal ----
     // die_pips' half-disc: the bulge-1 semicircle closed on-axis.
     let half_disc = half_disc_program();
-    let ball_plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
+    // D-FRAME: let ball_plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
     // The axis, written in the meridian frame it turns: that frame's
     // v is world +Z, so the pole axis is its own +y through (0, 0).
     // It is minted AFTER the frame because it names it.
     let ball_p = r.insert(Node::Profile(ProfileProgram {
-        frame: ball_plane.into(),
         loops: vec![half_disc],
         ids: Vec::new(),
     }));

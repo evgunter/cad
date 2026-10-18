@@ -269,7 +269,6 @@ fn a_stranded_placement_lands_with_a_fault_and_no_report() {
         Node::Extrude {
             profile: profile.into(),
             distance: common::len(0.02),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -428,7 +427,6 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
             profile: profile.into(),
             distance: Formula::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
-            side: ExtrudeSide::Along,
         },
         tol,
     );

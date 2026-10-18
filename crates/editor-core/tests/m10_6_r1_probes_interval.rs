@@ -140,14 +140,12 @@ fn translate(r: &mut Recorder, input: RecipeNodeId, t: [Formula; 3]) -> RecipeNo
 fn prism(r: &mut Recorder, origin: [f64; 3], corners: &[(f64, f64)], height: f64) -> RecipeNodeId {
     let plane = r.insert(fixture::frame(origin, [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::polygon(corners.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(height),
-        side: ExtrudeSide::Along,
     })
 }
 
@@ -601,9 +599,7 @@ fn report_key_tells_two_budgets_apart() {
             hi: 40.0 * eps,
         }),
     );
-    let plane = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).expect("square"),
         ],
@@ -612,7 +608,6 @@ fn report_key_tells_two_budgets_apart() {
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: Formula::named(name("depth"), Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
     let starved = drive(
@@ -1330,9 +1325,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     for n in ["hole_a_r", "hole_b_r"] {
         param(&mut r, n, RADIUS, Some(Distribution::Normal { sigma }));
     }
-    let plane = r.insert(fixture::xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (-4.0e-3, -2.0e-3),
@@ -1347,11 +1340,9 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     let _plate = r.insert(Node::Extrude {
         profile: plate_p.into(),
         distance: len(1.0e-3),
-        side: ExtrudeSide::Along,
     });
     let hole = |r: &mut Recorder, centre: Formula, radius: &'static str| {
         let p = r.insert(Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [centre, len(0.0)],
                 radius: Formula::named(name(radius), Dimension::Length),
@@ -1361,7 +1352,6 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         r.insert(Node::Extrude {
             profile: p.into(),
             distance: len(1.0e-3),
-            side: ExtrudeSide::Along,
         })
     };
     let hole_a = hole(

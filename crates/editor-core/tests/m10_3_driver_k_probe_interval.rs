@@ -81,9 +81,7 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
             }),
         }),
     });
-    let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_0.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite square corners"),
@@ -93,7 +91,6 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: editor_core::Formula::named(VarName::from_static("depth"), Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     r.doc
 }

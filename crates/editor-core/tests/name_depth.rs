@@ -40,7 +40,6 @@ fn chain(label: &str, k: usize) -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>)
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let mut patterns = Vec::with_capacity(k);
@@ -178,7 +177,6 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId, StableName, StableName) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let rim = fixture::rim_edge(extrude, CapEnd::End, fixture::piece(&doc, extrude, 0, 0));

@@ -336,16 +336,13 @@ fn a_default_interval_evaluation_of_an_extruded_copied_arc_builds() {
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let tol = Tol::witness();
     let at = |doc| {

@@ -53,7 +53,6 @@ fn block(th: Option<(&VarName, f64)>) -> (corpus::Recorder, RecipeNodeId, Recipe
     let solid = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     (r, solid, axis)
 }

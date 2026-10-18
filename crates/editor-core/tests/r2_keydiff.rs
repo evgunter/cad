@@ -63,7 +63,6 @@ fn boxed(
             node: Box::new(Node::Extrude {
                 profile: p.into(),
                 distance: len(h),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },
@@ -121,7 +120,6 @@ fn r2_measure_free_content_keys() {
             node: Box::new(Node::Extrude {
                 profile: bp.into(),
                 distance: Formula::named(VarName::from_static("t"), Dimension::Length),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },

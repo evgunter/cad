@@ -53,7 +53,6 @@ fn block(doc: ProfileDoc, at: [f64; 3], half: f64, height: f64) -> (ProfileDoc, 
         Node::Extrude {
             profile: profile.into(),
             distance: len(height),
-            side: ExtrudeSide::Along,
         },
     )
 }

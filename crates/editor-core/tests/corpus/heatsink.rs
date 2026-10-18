@@ -57,7 +57,6 @@ pub fn document() -> CorpusDoc {
     let base = r.insert(Node::Extrude {
         profile: base_p.into(),
         distance: len(0.25),
-        side: ExtrudeSide::Along,
     });
     let fin_p = r.profile(
         [0.0, 0.0, 0.1875],
@@ -73,7 +72,6 @@ pub fn document() -> CorpusDoc {
     let fin = r.insert(Node::Extrude {
         profile: fin_p.into(),
         distance: len(0.8125),
-        side: ExtrudeSide::Along,
     });
     // The instance-payload half of the document.
     let pattern = r.insert(Node::Pattern {

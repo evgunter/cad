@@ -85,7 +85,6 @@ pub fn outline() -> LoopProgram<Formula> {
 /// two holes.
 pub fn plate_profile(plane: RecipeNodeId) -> ProfileProgram<Formula> {
     ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             outline(),
             hole_loop(HOLE_CENTRES[0]),
@@ -107,7 +106,6 @@ pub fn document() -> CorpusDoc {
     let plate = r.insert(Node::Extrude {
         profile: plate_p.into(),
         distance: len(PLATE_DEPTH),
-        side: ExtrudeSide::Along,
     });
 
     // A plain tab on its own branch: the incremental probe bumps this
@@ -115,9 +113,8 @@ pub fn document() -> CorpusDoc {
     // plane sits strictly INSIDE the plate's slab and its footprint
     // crosses the plate's +x/+y walls transversally, so the union has
     // no coincident faces to refuse.
-    let tab_plane = r.insert(frame([0.0, 0.0, 0.125], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    // D-FRAME: let tab_plane = r.insert(frame([0.0, 0.0, 0.125], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let tab_p = r.insert(Node::Profile(ProfileProgram {
-        frame: tab_plane.into(),
         loops: vec![
             LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
                 .expect("finite tab corners"),
@@ -127,7 +124,6 @@ pub fn document() -> CorpusDoc {
     let tab = r.insert(Node::Extrude {
         profile: tab_p.into(),
         distance: len(0.25),
-        side: ExtrudeSide::Along,
     });
 
     let union = r.insert(Node::Union {

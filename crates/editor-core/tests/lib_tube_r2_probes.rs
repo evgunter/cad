@@ -116,7 +116,6 @@ fn r2_the_storage_contract_holds_at_non_dyadic_radii() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::HollowTube {
-                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(outer),
@@ -169,7 +168,6 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Tube {
-                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Arc {
                     t0: ang(0.0),
@@ -185,7 +183,6 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::HollowTube {
-                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Arc {
                     t0: ang(0.0),
@@ -205,7 +202,6 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Tube {
-                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Arc {
                     t0: ang(0.0),
@@ -281,7 +277,6 @@ fn r2_a_hollow_rings_cavity_is_named_by_the_revolve_template() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::HollowTube {
-                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
@@ -328,7 +323,6 @@ fn r2_a_non_unit_axis_refuses_upstream_and_never_reaches_the_tube_door() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Tube {
-                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
@@ -371,7 +365,6 @@ fn r2_a_non_unit_axis_refuses_upstream_and_never_reaches_the_tube_door() {
 #[test]
 fn r2_the_reference_verdicts_stay_reachable_from_a_document() {
     let tube = |frame: RecipeNodeId| Node::Tube {
-        frame: frame.into(),
         major_radius: len(2.0),
         window: TubeWindow::Full,
         minor_radius: len(0.5),
@@ -440,7 +433,6 @@ fn r2_a_tube_bearing_save_refuses_typed_on_a_build_that_lacks_the_vocabulary() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Tube {
-                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),

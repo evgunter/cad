@@ -55,7 +55,6 @@ fn with_depth_and_extrude() -> (ProfileDoc, VarName, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let doc = apply(

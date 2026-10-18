@@ -59,7 +59,6 @@ fn block(
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -99,7 +98,6 @@ fn band_cut() -> BandCut {
         Node::Extrude {
             profile: bp.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, transform) = insert(

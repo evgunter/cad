@@ -83,16 +83,13 @@ pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
 
     let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
-    let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(L),
-        side: ExtrudeSide::Along,
     });
     // Every edge of the cube, AUTHORED: the recipe STATES the set
     // instead of meaning "whatever edges exist". The bump stretches

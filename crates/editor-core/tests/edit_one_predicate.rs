@@ -74,7 +74,6 @@ fn with_value() -> (ProfileDoc, editor_core::VarId) {
     let _ = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let gap = editor_core::VarName::from_static("gap");
     r.push(DocEdit::DeclareVar {
@@ -297,7 +296,6 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }

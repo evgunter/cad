@@ -12,7 +12,7 @@
 
 use crate::blocks::{block, failure, run};
 use crate::fixture::{ang, desc, fname, insert, len};
-use editor_core::{BooleanValue, CapEnd, ExtrudeSide, Node, ProfileDoc, RoleSeg, ValuePayload};
+use editor_core::{BooleanValue, CapEnd, Node, ProfileDoc, RoleSeg, ValuePayload};
 use geom_core::Tol;
 
 #[test]
@@ -50,7 +50,6 @@ fn the_flush_boss_unions() {
         Node::Extrude {
             profile: path.into(),
             distance: len(4.0 * MM),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, union) = insert(

@@ -29,7 +29,6 @@ fn a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records() {
     let (doc, disc) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::CircleSplit {
                 centre: len2([0.0, 2.5]),
                 radius: len(0.5),
@@ -44,7 +43,6 @@ fn a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records() {
         Node::Extrude {
             profile: disc.into(),
             distance: len(0.5),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, rested) = insert(

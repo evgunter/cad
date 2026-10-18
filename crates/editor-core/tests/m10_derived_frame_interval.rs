@@ -148,7 +148,6 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
     let cube = r.insert(Node::Extrude {
         profile: p.into(),
         distance: Formula::named(VarName::from_static("h"), Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
         face: editor_core::Operand::select(
@@ -164,7 +163,6 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
     let boss = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(0.25),
-        side: ExtrudeSide::Along,
     });
     (r.doc, boss_p, boss)
 }
@@ -192,7 +190,6 @@ pub(crate) fn boss_on_widened_authored_frame(half: f64) -> (ProfileDoc, RecipeNo
     let boss = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(0.25),
-        side: ExtrudeSide::Along,
     });
     (r.doc, boss)
 }
@@ -212,7 +209,6 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
     let cube = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let lifted = r.insert(Node::transform(
         cube,
@@ -240,7 +236,6 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(0.25),
-        side: ExtrudeSide::Along,
     });
     r.doc
 }

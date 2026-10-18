@@ -200,16 +200,13 @@ fn width_slab(w: f64) -> (ProfileDoc, editor_core::VarId) {
         ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(1.0)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let slab = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     // Segment 3 is the x = 0 wall, segment 1 the x = w wall (chain
     // order: bottom, right, top, left).

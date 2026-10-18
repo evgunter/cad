@@ -33,7 +33,6 @@ fn slab(seed: &str) -> (ProfileDoc, editor_core::VarId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(DEPTH),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     let (doc, measured) = fixture::measure(

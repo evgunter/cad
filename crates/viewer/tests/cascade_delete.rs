@@ -49,7 +49,6 @@ fn die_shaped(tol: Tol) -> Die {
         Node::Extrude {
             profile: blank_profile.into(),
             distance: common::len(0.04),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -59,7 +58,6 @@ fn die_shaped(tol: Tol) -> Die {
         Node::Extrude {
             profile: pip_profile.into(),
             distance: common::len(0.004),
-            side: ExtrudeSide::Along,
         },
         tol,
     );

@@ -276,7 +276,6 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
     let (s, c) = (c, s);
     let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, c, s]));
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)].into_iter())
                 .expect("finite corners"),
@@ -286,7 +285,6 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
     let solid = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(0.5),
-        side: ExtrudeSide::Along,
     });
     let placed = r.insert(Node::Transform {
         input: solid.into(),

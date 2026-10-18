@@ -27,11 +27,10 @@ use geom_core::Tol;
 /// A disc of radius `r` about `(cx, cy)` on the plane `z = z0`,
 /// extruded `dz`.
 fn disc(doc: ProfileDoc, lp: LoopProgram<Formula>, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane) = insert(doc, frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    // D-FRAME: let (doc, plane) = insert(doc, frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![lp],
             ids: Vec::new(),
         }),
@@ -41,7 +40,6 @@ fn disc(doc: ProfileDoc, lp: LoopProgram<Formula>, z0: f64, dz: f64) -> (Profile
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }

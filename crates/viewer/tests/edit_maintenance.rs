@@ -78,7 +78,6 @@ fn extruded(
     let (doc, profile) = common::inserted(
         &doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -89,7 +88,6 @@ fn extruded(
         Node::Extrude {
             profile: profile.into(),
             distance: common::len(1.0),
-            side: ExtrudeSide::Along,
         },
         tol,
     );

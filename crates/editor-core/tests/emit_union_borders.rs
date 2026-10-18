@@ -138,7 +138,6 @@ fn add(doc: ProfileDoc, m: &Mem) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p.into(),
             distance: len(distance),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -1021,7 +1020,6 @@ fn tied_prongs() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     insert(
@@ -1236,7 +1234,6 @@ pub(crate) fn cylinder(
     let (doc, disc) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::circle_split(0.0, 0.0, 0.3, 2, 0.0).unwrap()],
             ids: Vec::new(),
         }),
@@ -1246,7 +1243,6 @@ pub(crate) fn cylinder(
         Node::Extrude {
             profile: disc.into(),
             distance: len(length),
-            side: ExtrudeSide::Along,
         },
     )
 }

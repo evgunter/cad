@@ -128,7 +128,6 @@ pub fn document() -> CorpusDoc {
     let block_a = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: dist,
-        side: ExtrudeSide::Along,
     });
 
     // A flush neighbour and its union (F5). The offset is HALF the
@@ -143,7 +142,6 @@ pub fn document() -> CorpusDoc {
     let block_b = r.insert(Node::Extrude {
         profile: profile_b.into(),
         distance: len(1.25),
-        side: ExtrudeSide::Along,
     });
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![block_a.into(), block_b.into()]),
@@ -180,7 +178,6 @@ pub fn document() -> CorpusDoc {
     let lone = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(0.5),
-        side: ExtrudeSide::Along,
     });
     let circular = r.insert(Node::Pattern {
         input: lone.into(),

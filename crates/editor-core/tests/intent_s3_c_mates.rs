@@ -326,7 +326,6 @@ fn a_box(id: &str, size: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(size),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -1654,7 +1653,6 @@ fn a_box_of_height_pinned_where_it_stands(nominal: f64) -> (ProfileDoc, RecipeNo
                 editor_core::VarName::new("h").expect("a name"),
                 editor_core::Dimension::Length,
             ),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, placement) = placed(doc, body);

@@ -25,7 +25,6 @@ fn a_file_holding_a_split_half_part_refuses_unreadable() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     let (doc, copies) = insert(
@@ -111,7 +110,6 @@ fn a_measure_across_one_splits_two_halves_reads_each_by_its_port() {
     let column = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(4.0),
-        side: editor_core::ExtrudeSide::Along,
     });
     let tool = r.insert(Node::Datum(Datum::Plane {
         origin: [len(0.0), len(0.0), len(2.0)],

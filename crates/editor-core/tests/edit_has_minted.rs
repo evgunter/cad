@@ -140,7 +140,6 @@ fn the_answer_survives_a_save_load_round_trip() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.5),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, scratch) = insert(doc, Node::Profile(desc(plane, vec![square(4.0, 4.0, 1.0)])));

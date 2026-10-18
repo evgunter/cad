@@ -231,7 +231,6 @@ fn extrude_body() -> (Recorder, StableName) {
     let extrude = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(0.5),
-        side: ExtrudeSide::Along,
     });
     let body = StableName {
         kind: EntityKind::Body,

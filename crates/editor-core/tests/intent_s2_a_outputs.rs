@@ -29,7 +29,6 @@ fn block(seed: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     (doc, frame, profile, extrude)
@@ -124,7 +123,6 @@ fn an_insert_reports_its_outputs_and_a_delete_takes_them_with_its_node() {
                 node: Box::new(Node::Extrude {
                     profile: profile.into(),
                     distance: len(2.0),
-                    side: editor_core::ExtrudeSide::Along,
                 }),
                 fresh: Vec::new(),
             },
@@ -649,7 +647,6 @@ fn instance_named_bracket(
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(2.0),
-                side: editor_core::ExtrudeSide::Along,
             },
         );
         doc = fixture::place(next, second).0;

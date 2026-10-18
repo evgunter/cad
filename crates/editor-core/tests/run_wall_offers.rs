@@ -33,7 +33,6 @@ fn build(
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -196,7 +195,6 @@ fn run_names_agree_across_scalar_types() {
         let (doc, p) = insert(
             doc,
             Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops: vec![LoopProgram::Chain(steps)],
                 ids: Vec::new(),
             }),

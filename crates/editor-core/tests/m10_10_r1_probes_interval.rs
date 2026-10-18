@@ -102,7 +102,6 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
         },
     );
 
-    let plane = r.insert(xy_frame());
 
     let neg_c = Formula::neg(plen("chord_half")).expect("a shallow negation");
     let seg_loop = LoopProgram::Chain(vec![
@@ -114,7 +113,6 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
         }),
     ]);
     let seg_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![seg_loop],
         ids: Vec::new(),
     }));
@@ -122,11 +120,9 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
     let seg = r.insert(Node::Extrude {
         profile: seg_profile.into(),
         distance: thickness.clone(),
-        side: ExtrudeSide::Along,
     });
     let bore_centre_y = Formula::mul(plen("chord_half"), scl(0.2)).expect("Length * Scalar");
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), bore_centre_y],
             radius: plen("bore_r"),
@@ -136,7 +132,6 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
     let bore = r.insert(Node::Extrude {
         profile: bore_profile.into(),
         distance: thickness,
-        side: ExtrudeSide::Along,
     });
 
     let refs = {

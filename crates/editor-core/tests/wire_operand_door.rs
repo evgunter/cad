@@ -106,7 +106,6 @@ fn wired() -> (
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, plane) = insert(
@@ -229,7 +228,6 @@ fn wired() -> (
         Node::Extrude {
             profile: plane.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
         plane,
     );
@@ -252,7 +250,6 @@ fn wired() -> (
         "tube_args (a Tube built in a profile) — behind the edit door",
         Owes::EditDoor(VarKind::Profile, SlotKind::Is(VarKind::Frame)),
         Node::Tube {
-            frame: profile.into(),
             major_radius: len(2.0),
             window: TubeWindow::Full,
             minor_radius: len(0.5),

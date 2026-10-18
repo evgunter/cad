@@ -50,7 +50,6 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, section) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Chain(vec![
                 ProgramStep::At(len2([0.3, 0.0])),
                 ProgramStep::LineTo(to(0.6, 0.0)),
@@ -67,11 +66,10 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     // x along azimuth `a` about `y`, and y chosen so the normal is `+y`.
     let (c, s) = (a.cos(), a.sin());
-    let (doc, base) = insert(doc, frame([0.0, y0, 0.0], [c, 0.0, -s], [-s, 0.0, -c]));
+    // D-FRAME: let (doc, base) = insert(doc, frame([0.0, y0, 0.0], [c, 0.0, -s], [-s, 0.0, -c]));
     let (doc, disc) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: base.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(0.0)],
                 radius: len(0.3),
@@ -84,7 +82,6 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: disc.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, collar, shaft)

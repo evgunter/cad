@@ -40,7 +40,6 @@ fn half_turn_doc() -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let angle = Formula::literal_with_unit(

@@ -103,7 +103,6 @@ fn slab(w: f64, h: f64, t: f64, label: &str) -> (Doc<ProfileProgram>, RecipeNode
         Node::Extrude {
             profile: profile.into(),
             distance: len(t),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = common::placed(&doc, extrude, tol());

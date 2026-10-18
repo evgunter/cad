@@ -72,7 +72,6 @@ fn a_turn_is_named_by_its_mitre_and_feet() {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);

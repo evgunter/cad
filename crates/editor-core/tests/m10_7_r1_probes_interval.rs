@@ -309,7 +309,6 @@ fn bracket_with(
     });
     let w = || param("w");
     let div = |a: Formula, k: f64| Formula::div(a, scl(k)).unwrap();
-    let plane = r.insert(xy_frame());
     let half = |k: f64| div(w(), k);
     // The plate: (−w/2, −w/4) .. (w/2, w/4), parametric corners.
     let plate_loop = if literal_plate {
@@ -342,18 +341,15 @@ fn bracket_with(
         ])
     };
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![plate_loop],
         ids: Vec::new(),
     }));
     let _plate = r.insert(Node::Extrude {
         profile: plate_profile.into(),
         distance: div(w(), 10.0),
-        side: ExtrudeSide::Along,
     });
     let hole = |r: &mut Recorder, cx: Formula| {
         let profile = r.insert(Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [cx, len(0.0)],
                 radius: div(w(), 16.0),
@@ -363,7 +359,6 @@ fn bracket_with(
         r.insert(Node::Extrude {
             profile: profile.into(),
             distance: div(w(), 10.0),
-            side: ExtrudeSide::Along,
         })
     };
     let hole_a = hole(&mut r, Formula::neg(half(4.0)).expect("a shallow negation"));

@@ -80,7 +80,6 @@ fn scene() -> Scene {
             node: Box::new(Node::Extrude {
                 profile: profile.into(),
                 distance: len(PLATE_DEPTH),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },

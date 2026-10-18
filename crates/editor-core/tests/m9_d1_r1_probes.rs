@@ -37,11 +37,9 @@ fn outer_pole(doc: &editor_core::ProfileDoc, node: RecipeNodeId, v: u32) -> Stab
 /// [`m4_pr3_names`]'s ball fixture (axis = sketch y).
 fn revolve_chain(steps: Vec<ProgramStep<Formula>>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m9_d1_r1_probes", Tol::witness());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -66,9 +64,7 @@ fn subdivided_axis_run_is_representable_through_the_program_layer() {
     // The frame goes in first: this row is about the PROGRAM's
     // same-carrier refusal, and a profile naming a plane the document
     // does not have would be turned away for that instead.
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let node = Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At(len2([0.0, 1.0])),
             ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 0.0]))),

@@ -52,7 +52,6 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -1226,7 +1225,6 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &o);

@@ -91,7 +91,6 @@ fn engrave(tool: LoopProgram<Formula>, dx: f64) -> (Evaluation<f64>, [RecipeNode
     let (doc, xz) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
     let profile = |plane: RecipeNodeId, lp| {
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![lp],
             ids: Vec::new(),
         })
@@ -111,7 +110,6 @@ fn engrave(tool: LoopProgram<Formula>, dx: f64) -> (Evaluation<f64>, [RecipeNode
         Node::Extrude {
             profile: outline.into(),
             distance: len(2.0 * DEPTH),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, lifted) = insert(doc, xform(prism, [dx, DEPTH, 0.0], [0.0, 0.0, 1.0], 0.0));

@@ -58,9 +58,7 @@ pub fn document() -> CorpusDoc {
 
     // Plate and holes are sketched on the SAME plane, so they name
     // one frame node between them.
-    let plane = r.insert(xy_frame());
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(-1.0, -0.5), (1.0, -0.5), (1.0, 0.5), (-1.0, 0.5)])
                 .expect("finite plate corners"),
@@ -70,12 +68,10 @@ pub fn document() -> CorpusDoc {
     let plate = r.insert(Node::Extrude {
         profile: plate_profile.into(),
         distance: len(0.1),
-        side: ExtrudeSide::Along,
     });
 
     let hole = |cx: f64| {
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: Formula::named(VarName::from_static(HOLE_R), Dimension::Length),
@@ -87,13 +83,11 @@ pub fn document() -> CorpusDoc {
     let hole_a = r.insert(Node::Extrude {
         profile: pa.into(),
         distance: len(0.1),
-        side: ExtrudeSide::Along,
     });
     let pb = r.insert(hole(HOLE_X));
     let hole_b = r.insert(Node::Extrude {
         profile: pb.into(),
         distance: len(0.1),
-        side: ExtrudeSide::Along,
     });
 
     // The wall names come from the SELECTION door, the way a user gets

@@ -61,7 +61,6 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, editor_core::EvalOptions, Re
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (part_ref, body) = store.insert_part((part, body), Tol::witness());
@@ -689,7 +688,6 @@ fn twin(id: &str) -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     crate::fixture::place(doc, body).0
@@ -732,7 +730,6 @@ fn slab(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -797,7 +794,6 @@ fn twin_pair(id: &str, apart: f64) -> ProfileDoc {
         Node::Extrude {
             profile: first.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, second) = on_frame(
@@ -812,7 +808,6 @@ fn twin_pair(id: &str, apart: f64) -> ProfileDoc {
         Node::Extrude {
             profile: second.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     crate::fixture::place_all(doc, &[a, b])

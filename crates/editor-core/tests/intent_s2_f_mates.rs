@@ -35,7 +35,6 @@ fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -396,7 +395,6 @@ fn lifted_cube_measured(
             Node::Extrude {
                 profile: p.into(),
                 distance: len(1.0),
-                side: ExtrudeSide::Along,
             },
         )
     };

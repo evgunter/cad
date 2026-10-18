@@ -71,7 +71,6 @@ fn a_cut_off_is_named_by_its_end_arcs_and_feet() {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);
@@ -145,7 +144,6 @@ fn an_oblique_cut_off_is_named_by_its_elliptic_end_arcs_and_feet() {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);

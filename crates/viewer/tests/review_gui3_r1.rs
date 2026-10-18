@@ -51,7 +51,6 @@ fn depth_param() -> VarName {
 /// from the unit suites' square. No row asserts on the shape.
 fn triangle(plane: RecipeNodeId, side: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (side, 0.0), (0.0, side)]).expect("finite corners"),
         ],
@@ -79,7 +78,6 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
             profile: profile.into(),
             distance: Formula::mul(Formula::named(depth_param(), Dimension::Length), scl(3.0))
                 .expect("length * scalar is a length"),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -321,7 +319,6 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.005), // literal to begin with,
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -381,7 +378,6 @@ fn r1_document_edits_are_refused_while_a_gesture_is_in_flight() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.005),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -450,7 +446,6 @@ fn r1_a_two_hop_poison_chain_reports_the_root_cause() {
             profile: profile.into(),
             // Well-dimensioned at the door, non-finite at evaluation.
             distance: Formula::div(len(0.005), scl(0.0)).expect("length / scalar"),
-            side: ExtrudeSide::Along,
         },
         tol,
     );

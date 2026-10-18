@@ -2669,7 +2669,6 @@ impl Node {
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
             inner: d::Node::Profile(d::ProfileProgram {
-                frame: plane,
                 loops: vec![d::LoopProgram::polygon_expr(corners)],
                 ids: Vec::new(),
             }),
@@ -2702,7 +2701,6 @@ impl Node {
         let loops = loops_from_outline(py, outline)?;
         Ok(Self {
             inner: d::Node::Profile(d::ProfileProgram {
-                frame: plane,
                 loops,
                 ids: Vec::new(),
             }),
@@ -2811,7 +2809,6 @@ impl Node {
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Tube {
-                frame: frame.read(),
                 major_radius: slot_expr(py, d::SlotId::TubeMajorRadius, &major_radius)?,
                 window: window.inner.clone(),
                 minor_radius: slot_expr(py, d::SlotId::TubeMinorRadius, &minor_radius)?,
@@ -2857,7 +2854,6 @@ impl Node {
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::HollowTube {
-                frame: frame.read(),
                 major_radius: slot_expr(py, d::SlotId::TubeMajorRadius, &major_radius)?,
                 window: window.inner.clone(),
                 minor_radius: slot_expr(py, d::SlotId::TubeMinorRadius, &minor_radius)?,

@@ -142,7 +142,6 @@ fn author_die() -> Die {
             node: Box::new(Node::Extrude {
                 profile: cube_profile.unwrap().into(),
                 distance: len(2.0 * HALF),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },
@@ -163,7 +162,6 @@ fn author_die() -> Die {
             node: Box::new(Node::Extrude {
                 profile: pip_profile.unwrap().into(),
                 distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },

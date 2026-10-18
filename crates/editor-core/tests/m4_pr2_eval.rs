@@ -238,7 +238,6 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     let block = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: Formula::named(h.clone(), Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     let ev = run(&r.doc, None, false);
     let text = match ev.nodes.get(&block) {
@@ -414,7 +413,6 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
         Node::Extrude {
             profile: small_p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, big_p) = fixture::on_frame(
@@ -429,7 +427,6 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
         Node::Extrude {
             profile: big_p.into(),
             distance: len(3.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = fixture::insert(
@@ -477,7 +474,6 @@ fn split_evaluates_both_parts_role_tagged() {
         Node::Extrude {
             profile: prof.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     // The tool: a datum plane z = 0.5 (normal +z).

@@ -61,7 +61,6 @@ fn box_part(label: &str, half: f64, height: f64) -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(height),
-            side: ExtrudeSide::Along,
         },
     );
     placed_part(doc, body)
@@ -289,7 +288,6 @@ fn tilted_copy(label: &str, half: f64, height: f64, theta: f64) -> TiltedCopy {
         Node::Extrude {
             profile: profile.into(),
             distance: len(height),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, copy) = insert(
@@ -1291,7 +1289,6 @@ fn block(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     placed_part(doc, body)

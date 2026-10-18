@@ -45,7 +45,6 @@ fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -591,7 +590,6 @@ fn a_cut_of_a_pinned_instance_and_plain_geometry_moves_nothing() {
         Node::Extrude {
             profile: prof.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = fixture::place(doc, ext);

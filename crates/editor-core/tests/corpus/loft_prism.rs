@@ -48,9 +48,8 @@ use super::{CorpusDoc, Recorder};
 /// own frame — a shared one would be a shared plane, which is exactly
 /// what a loft's sections are not.
 fn section(r: &mut Recorder, z: f64, pts: [(f64, f64); 4]) -> RecipeNodeId {
-    let plane = r.insert(frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    // D-FRAME: let plane = r.insert(frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::polygon(pts).unwrap()],
         ids: Vec::new(),
     }))

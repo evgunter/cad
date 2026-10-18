@@ -23,11 +23,9 @@ const R: f64 = 0.05;
 /// A circular profile loop of radius `r` at `(cx, cy)` on the xy frame,
 /// extruded `h` along `+z`.
 fn disc(doc: ProfileDoc, cx: f64, cy: f64, r: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane) = fixture::insert(doc, fixture::xy_frame());
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::circle(cx, cy, r).expect("a finite circle")],
             ids: Vec::new(),
         }),
@@ -37,7 +35,6 @@ fn disc(doc: ProfileDoc, cx: f64, cy: f64, r: f64, h: f64) -> (ProfileDoc, Recip
         Node::Extrude {
             profile: profile.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -151,11 +148,9 @@ fn assert_two_bands(doc: &ProfileDoc, fillet: RecipeNodeId, what: &str) {
 #[test]
 fn a_plate_holes_two_rims_fillet_in_one_node() {
     let doc = ProfileDoc::empty_derived("edit_bore_two_rims_plate", tol());
-    let (doc, plane) = fixture::insert(doc, fixture::xy_frame());
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![
                 LoopProgram::polygon(fixture::square(0.0, 0.0, 1.0)).expect("a square"),
                 LoopProgram::circle(0.0, 0.0, 0.3).expect("a finite hole"),
@@ -168,7 +163,6 @@ fn a_plate_holes_two_rims_fillet_in_one_node() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, fillet) = fillet_both(doc, block, 0.0, 1.0);
@@ -190,7 +184,6 @@ fn a_box_minus_a_cylinder_has_both_rims_filleted_in_one_node() {
         Node::Extrude {
             profile: block.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, drill) = disc(doc, 0.0, 0.0, 0.3, 3.0);
@@ -243,7 +236,6 @@ fn a_band_crossing_a_wall_seams_piece_cites_the_seams_line() {
         Node::Extrude {
             profile: block.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, drill) = disc(doc, 0.0, 0.0, 0.3, 3.0);
@@ -259,7 +251,6 @@ fn a_band_crossing_a_wall_seams_piece_cites_the_seams_line() {
         Node::Extrude {
             profile: notch.into(),
             distance: len(0.2),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, notched) = fixture::insert(

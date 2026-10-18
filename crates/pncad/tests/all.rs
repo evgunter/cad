@@ -2099,7 +2099,6 @@ fn xy_frame() -> pncad::document::AuthoredNode {
 fn square(plane: pncad::document::RecipeNodeId, s: f64) -> pncad::document::AuthoredNode {
     use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
     Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([len(s), len(0.0)])),
@@ -2151,7 +2150,6 @@ fn box_doc(
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.5),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, placement) = insert(
@@ -2307,11 +2305,9 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
 
     // And it evaluates as a document node.
     let doc = pncad::document::ProfileDoc::empty_derived("all", Tol::witness());
-    let (doc, plane) = insert(doc, xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![lifted],
             ids: Vec::new(),
         }),
@@ -2321,7 +2317,6 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(8.0),
-            side: ExtrudeSide::Along,
         },
     );
     let evaluated = doors_evaluate(&doc);
@@ -2433,7 +2428,6 @@ fn square_at(
 ) -> pncad::document::AuthoredNode {
     use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
     Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(x), len(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([len(x + s), len(0.0)])),
@@ -2460,7 +2454,6 @@ fn the_document_export_door_ships_the_multi_solid_product() {
         Node::Extrude {
             profile: p0.into(),
             distance: len(1.5),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, plane) = insert(doc, xy_frame());
@@ -2470,7 +2463,6 @@ fn the_document_export_door_ships_the_multi_solid_product() {
         Node::Extrude {
             profile: p1.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = place(doc, b0);
@@ -2530,7 +2522,6 @@ fn the_document_export_door_refuses_an_empty_world_naming_the_unplaced() {
     let extrude = |profile: pncad::document::RecipeNodeId| Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     };
     let (doc, b0) = insert(doc, extrude(p0));
     let (doc, p1) = insert(doc, square_at(plane, 1.0, 10.0));
@@ -2596,7 +2587,6 @@ fn the_export_door_refuses_typed_not_vaguely() {
         Node::Extrude {
             profile: second_profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, cut) = insert(
@@ -2703,11 +2693,9 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(2.0)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let (doc, plane) = insert(doc, xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
             ids: Vec::new(),
         }),
@@ -2717,7 +2705,6 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.5),
-            side: ExtrudeSide::Along,
         },
     );
     // The tab sits inside the plate's slab: its own plane, so its own
@@ -2733,7 +2720,6 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     let (doc, tab_p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: tab_plane.into(),
             loops: vec![
                 LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
                     .expect("finite tab corners"),
@@ -2746,7 +2732,6 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         Node::Extrude {
             profile: tab_p.into(),
             distance: len(0.25),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, solid) = insert(
@@ -2958,7 +2943,6 @@ fn ws_doc_and_body(label: &str) -> (pncad::document::ProfileDoc, String, PartBod
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.5),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, placement) = place(doc, body);
@@ -3768,7 +3752,6 @@ fn asm2a_row5b_stale_pin_refuses_through_the_real_store() {
             pncad::document::Node::Extrude {
                 profile: profile.into(),
                 distance: len(1.5),
-                side: ExtrudeSide::Along,
             },
         );
         pncad::document::save(&doc, &[], Tol::witness()).expect("saves")
@@ -6666,13 +6649,11 @@ mod the_hollowed_box_through_the_facade {
     /// hollowed node, in one document.
     fn open_box() -> (ProfileDoc, RecipeNodeId) {
         let doc = ProfileDoc::empty_derived("shell-e2e", Tol::witness());
-        let (doc, plane) = super::insert(doc, super::xy_frame());
         let square =
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap();
         let (doc, profile) = super::insert(
             doc,
             Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops: vec![square],
                 ids: Vec::new(),
             }),
@@ -6682,7 +6663,6 @@ mod the_hollowed_box_through_the_facade {
             Node::Extrude {
                 profile: profile.into(),
                 distance: super::len(1.0),
-                side: ExtrudeSide::Along,
             },
         );
         let top = StableName {

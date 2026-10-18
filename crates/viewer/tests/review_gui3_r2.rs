@@ -76,7 +76,6 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.006),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -664,7 +663,6 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
             // A zero extrude distance: well-dimensioned at the edit
             // door, refused by the operation at evaluation.
             distance: len(0.0),
-            side: ExtrudeSide::Along,
         },
         tol,
     );

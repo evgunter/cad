@@ -42,7 +42,6 @@ fn block(
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -75,7 +74,6 @@ fn u_cutter_subtract() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = insert(

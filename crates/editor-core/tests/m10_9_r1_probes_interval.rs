@@ -200,10 +200,8 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
             sigma: 1.0e-5 * scale,
         },
     );
-    let plane = r.insert(xy_frame());
     let thickness = Formula::div(plen("outer_r"), scl(4.0)).expect("Length / Scalar");
     let disc_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: plen("outer_r"),
@@ -213,10 +211,8 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
     let disc = r.insert(Node::Extrude {
         profile: disc_profile.into(),
         distance: thickness.clone(),
-        side: ExtrudeSide::Along,
     });
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::CircleSplit {
             centre: [plen("offset"), len(0.0)],
             radius: plen("bore_r"),
@@ -228,7 +224,6 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
     let bore = r.insert(Node::Extrude {
         profile: bore_profile.into(),
         distance: thickness,
-        side: ExtrudeSide::Along,
     });
     let refs = {
         let ev: editor_core::Evaluation<f64> = editor_core::evaluate(

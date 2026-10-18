@@ -550,7 +550,6 @@ fn a_supplementary_chamfer_turn_is_recorded_unproven() {
     let extrude = |profile: RecipeNodeId| Node::Extrude {
         profile: profile.into(),
         distance: len(5.0),
-        side: editor_core::ExtrudeSide::Along,
     };
     let (doc, y) = insert(doc, extrude(along_y));
     let (doc, x) = insert(doc, extrude(along_x));
@@ -603,7 +602,6 @@ fn split_prism(
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     let (doc, tool) = insert(
@@ -825,7 +823,6 @@ fn profile_of(doc: ProfileDoc, steps: LoopProgram<Formula>) -> (ProfileDoc, Reci
     insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![steps],
             ids: Vec::new(),
         }),
@@ -1020,7 +1017,6 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);
@@ -1249,7 +1245,6 @@ fn measure_the_filleted_disc_at_sym() {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);
@@ -1766,7 +1761,6 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(6.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     let (doc, cut) = insert(

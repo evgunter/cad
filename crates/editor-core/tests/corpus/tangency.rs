@@ -56,16 +56,13 @@ pub fn document() -> CorpusDoc {
         ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 3.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let fillet_plane = r.insert(xy_frame());
     let fillet_p = r.insert(Node::Profile(ProfileProgram {
-        frame: fillet_plane.into(),
         loops: vec![filleted],
         ids: Vec::new(),
     }));
     let fillet_body = r.insert(Node::Extrude {
         profile: fillet_p.into(),
         distance: len(0.5),
-        side: ExtrudeSide::Along,
     });
 
     // (b) Tangency BY HAND: the #100 bracket. The quarter arc leaving
@@ -93,16 +90,14 @@ pub fn document() -> CorpusDoc {
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     // A parallel plane, so the two bodies never interact.
-    let tangent_plane = r.insert(frame([0.0, 0.0, 4.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    // D-FRAME: let tangent_plane = r.insert(frame([0.0, 0.0, 4.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let tangent_p = r.insert(Node::Profile(ProfileProgram {
-        frame: tangent_plane.into(),
         loops: vec![bracket],
         ids: Vec::new(),
     }));
     let tangent_body = r.insert(Node::Extrude {
         profile: tangent_p.into(),
         distance: len(0.25),
-        side: ExtrudeSide::Along,
     });
     r.place_part(fillet_body);
     r.place_part(tangent_body);

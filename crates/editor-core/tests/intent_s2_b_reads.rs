@@ -28,7 +28,6 @@ fn block(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     (doc, profile, extrude)
@@ -955,7 +954,6 @@ pub(crate) fn families_document() -> ProfileDoc {
         Node::Extrude {
             profile: low.into(),
             distance: len(1.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     let (doc, loft) = insert(

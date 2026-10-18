@@ -66,7 +66,6 @@ fn loft_doc(
     for z in [0.0, 1.0] {
         let frame = r.insert(fixture::frame([0.0, 0.0, z], u, v));
         sections.push(r.insert(Node::Profile(ProfileProgram {
-            frame: frame.into(),
             loops: vec![section()],
             ids: Vec::new(),
         })));
@@ -81,7 +80,6 @@ fn loft_doc(
         [0.0, 1.0, 0.0],
     ));
     r.insert(Node::Profile(ProfileProgram {
-        frame: elsewhere.into(),
         loops: vec![rect(Formula::named(
             VarName::from_static("w"),
             Dimension::Length,

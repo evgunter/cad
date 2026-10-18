@@ -174,7 +174,6 @@ fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], 
         Node::Extrude {
             profile: first.into(),
             distance: fixture::len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, frame, [first, second], extrude)
@@ -288,7 +287,6 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
         Node::Extrude {
             profile: base.into(),
             distance: fixture::len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, derived) = fixture::insert(
@@ -316,7 +314,6 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
         Node::Extrude {
             profile: boss.into(),
             distance: fixture::len(0.5),
-            side: ExtrudeSide::Along,
         },
     );
     let ev = eval(&doc, None);
@@ -519,7 +516,6 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
     let (doc, tube) = fixture::insert(
         doc,
         Node::Tube {
-            frame: frame.into(),
             major_radius: fixture::len(2.0),
             window: editor_core::TubeWindow::Full,
             minor_radius: fixture::len(0.5),

@@ -179,7 +179,6 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
                 scl(2.0),
             )
             .expect("length / scalar is a length"),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -202,7 +201,6 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
         Node::Extrude {
             profile: profile.into(),
             distance: Formula::div(len(0.008), scl(0.0)).expect("length / scalar is a length"),
-            side: ExtrudeSide::Along,
         },
         tol,
     );

@@ -58,7 +58,6 @@ fn half_disc(doc: ProfileDoc, a0: f64, am: f64, a1: f64) -> (ProfileDoc, RecipeN
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -68,7 +67,6 @@ fn half_disc(doc: ProfileDoc, a0: f64, am: f64, a1: f64) -> (ProfileDoc, RecipeN
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }

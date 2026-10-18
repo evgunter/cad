@@ -58,7 +58,6 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     fixture::place(doc, body).0
@@ -303,7 +302,6 @@ fn row1_split_plain_subtree_preserves_structure() {
         Node::Extrude {
             profile: p2.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let doc = fixture::place(doc, e2).0;
@@ -600,7 +598,6 @@ fn row3_uncut_param_reference_refuses() {
         Node::Extrude {
             profile: p1.into(),
             distance: h(),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, f2) = insert(doc, xy_frame());
@@ -610,7 +607,6 @@ fn row3_uncut_param_reference_refuses() {
         Node::Extrude {
             profile: p2.into(),
             distance: h(),
-            side: ExtrudeSide::Along,
         },
     );
     let doc = fixture::place_all(doc, &[e1, e2]);
@@ -725,7 +721,6 @@ fn row3_further_typed_refusals() {
         Node::Extrude {
             profile: block_profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (host, consumer) = insert(
@@ -985,7 +980,6 @@ fn a_separated_cut_comes_back_after_the_kept_placements_and_the_round_trip_keeps
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let doc = fixture::place(doc, e).0;
@@ -1131,7 +1125,6 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         Node::Extrude {
             profile: cut_p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let straddler = StableName {
@@ -1587,7 +1580,6 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             Node::Extrude {
                 profile: extra_profile.into(),
                 distance: len(1.0),
-                side: ExtrudeSide::Along,
             },
         );
         let body = part_doc.ids()[BODY_POSITION];
@@ -1700,7 +1692,6 @@ fn reshaped_component(
         Node::Extrude {
             profile: p2.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let program = match doc.node(p2) {
@@ -2265,7 +2256,6 @@ fn inline_at_a_pose_refuses_a_copy_pinned_against_a_construction() {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(1.0),
-                side: ExtrudeSide::Along,
             },
         )
     };

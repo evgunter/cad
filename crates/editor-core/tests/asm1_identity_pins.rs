@@ -43,7 +43,6 @@ fn exemplar(
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.5),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = step(

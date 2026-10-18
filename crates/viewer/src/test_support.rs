@@ -182,7 +182,6 @@ pub fn rectangle_loop(origin: [f64; 2], w: f64, h: f64) -> LoopProgram<Formula> 
 /// moves `origin`.
 pub fn rectangle(plane: RecipeNodeId, origin: [f64; 2], w: f64, h: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![rectangle_loop(origin, w, h)],
         ids: Vec::new(),
     })
@@ -425,7 +424,6 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
         Node::Extrude {
             profile: section.into(),
             distance: len(depth),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -447,7 +445,6 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
     let (doc, disc) = inserted(
         &doc,
         Node::Profile(ProfileProgram {
-            frame: frame.into(),
             loops: vec![LoopProgram::circle(0.0, 0.0, BOSS_RADIUS).expect("a finite circle")],
             ids: Vec::new(),
         }),
@@ -458,7 +455,6 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
         Node::Extrude {
             profile: disc.into(),
             distance: len(BOSS_HEIGHT),
-            side: ExtrudeSide::Along,
         },
         tol,
     );

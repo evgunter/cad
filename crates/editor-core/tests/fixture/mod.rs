@@ -956,7 +956,6 @@ pub fn unplaced_world(id: &str) -> (ProfileDoc, EvalOptions) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     let (part_ref, _) = store.insert_part((part, body), Tol::witness());
@@ -1196,7 +1195,6 @@ pub fn wall_row(id: &str, loops: Vec<LoopProgram<Formula>>) -> Swept {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -1206,7 +1204,6 @@ pub fn wall_row(id: &str, loops: Vec<LoopProgram<Formula>>) -> Swept {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc, &EvalOptions::default());
@@ -1267,7 +1264,6 @@ pub fn desc(plane: RecipeNodeId, loops: Vec<Vec<(f64, f64)>>) -> ProfileProgram<
         .map(|pts| LoopProgram::polygon(pts).expect("finite corners"))
         .collect();
     ProfileProgram {
-        frame: plane.into(),
         loops,
         ids: Vec::new(),
     }
@@ -1427,7 +1423,6 @@ impl Recorder {
         let cube = self.insert(Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         });
         let copy = self.insert(Node::transform(
             cube,
@@ -1611,7 +1606,6 @@ pub fn die() -> Die {
     let cube = r.insert(Node::Extrude {
         profile: cube_profile.into(),
         distance: len(2.0),
-        side: ExtrudeSide::Along,
     });
 
     // Per-face masters: pip profile centered at the plane origin,
@@ -1744,7 +1738,6 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: block_profile.into(),
             distance: len(4.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, u_profile) = on_frame(
@@ -1768,7 +1761,6 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: u_profile.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     insert(
@@ -2524,7 +2516,6 @@ pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
             Node::Extrude {
                 profile: p.into(),
                 distance: len(1.0),
-                side: ExtrudeSide::Along,
             },
         )
     };
@@ -2732,7 +2723,6 @@ fn glued_block(
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }

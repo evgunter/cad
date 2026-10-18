@@ -33,7 +33,6 @@ fn both_rules_round_trip() {
     let solid = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let stepped = r.insert(
         Node::placed_union(

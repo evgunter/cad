@@ -123,7 +123,6 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
     let w = Formula::named(VarName::from_static("w"), Dimension::Length);
     let neg_w = Formula::neg(w.clone()).expect("a shallow negation");
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::polygon_expr([
             [neg_w.clone(), len(-0.5)],
             [w.clone(), len(-0.5)],
@@ -135,7 +134,6 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
     let cube = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
         face: editor_core::Operand::select(
@@ -151,7 +149,6 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(0.25),
-        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -232,7 +229,6 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
         let cube = r.insert(Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         });
         r.insert(Node::Datum(Datum::FaceFrame {
             face: editor_core::Operand::select(
@@ -251,7 +247,6 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(0.25),
-        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -622,7 +617,6 @@ fn stacked(r: &mut Recorder, base: RecipeNodeId, n: usize) -> RecipeNodeId {
         let cube = r.insert(Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         });
         on = r.insert(Node::Datum(Datum::FaceFrame {
             face: editor_core::Operand::select(
@@ -646,7 +640,6 @@ fn start_cap_frame(r: &mut Recorder, base: RecipeNodeId) -> RecipeNodeId {
     let cube = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     r.insert(Node::Datum(Datum::FaceFrame {
         face: editor_core::Operand::select(
@@ -687,7 +680,6 @@ fn boss_on(r: &mut Recorder, on: RecipeNodeId) {
     r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(0.25),
-        side: ExtrudeSide::Along,
     });
 }
 

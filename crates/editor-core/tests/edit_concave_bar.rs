@@ -30,7 +30,6 @@ fn extrude(profile: RecipeNodeId, distance: f64) -> editor_core::AuthoredNode {
     Node::Extrude {
         profile: profile.into(),
         distance: len(distance),
-        side: ExtrudeSide::Along,
     }
 }
 
@@ -67,7 +66,6 @@ fn barred_die() -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.262), len(0.512)],
                 radius: len(A),

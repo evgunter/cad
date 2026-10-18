@@ -62,7 +62,6 @@ fn block(
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -231,7 +230,6 @@ where
         Node::Extrude {
             profile: up.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (docu, us) = insert(

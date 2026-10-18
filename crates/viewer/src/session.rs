@@ -332,7 +332,6 @@ fn carry_unmoved(
         .collect();
     let old = Node::Profile(current.clone());
     let mut new = Node::Profile(ProfileProgram {
-        frame: current.frame.into(),
         loops,
         ids: Vec::new(),
     });
@@ -2741,7 +2740,6 @@ impl DocSession {
         };
         self.commit(DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops,
                 ids: Vec::new(),
             })),
@@ -2767,7 +2765,6 @@ impl DocSession {
         self.commit_run(|run| {
             let plane = run.insert(frame)?;
             run.insert(Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops,
                 ids: Vec::new(),
             }))?;
@@ -2862,7 +2859,6 @@ impl DocSession {
         // The carried loops read each unmoved argument's variable, so
         // they are compared with the program re-authored.
         let authored = ProfileProgram {
-            frame: current.frame.into(),
             loops: current.loops.iter().map(LoopProgram::authored).collect(),
             ids: current.ids.clone(),
         };
@@ -2884,7 +2880,6 @@ impl DocSession {
         self.create_placed(Node::Extrude {
             profile: profile.into(),
             distance,
-            side: ExtrudeSide::Along,
         })
     }
 
@@ -3916,7 +3911,6 @@ mod tests {
         let outcome = session.commit_run(|run| {
             let plane = run.insert(frame())?;
             let _ = run.insert(Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops: Vec::new(),
                 ids: Vec::new(),
             }));

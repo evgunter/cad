@@ -39,7 +39,6 @@ fn block(
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -119,7 +118,6 @@ fn corpus() -> ProfileDoc {
         Node::Extrude {
             profile: u.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, cut) = insert(

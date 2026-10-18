@@ -56,7 +56,6 @@ fn prism(doc: ProfileDoc, pts: Vec<(f64, f64)>, z0: f64, dz: f64) -> (ProfileDoc
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -913,7 +912,6 @@ fn the_pieces_of_one_line_from_two_parents_are_one_group() {
         Node::Extrude {
             profile: u_profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, cut) = insert(

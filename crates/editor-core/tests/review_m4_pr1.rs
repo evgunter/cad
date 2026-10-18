@@ -75,7 +75,6 @@ fn body(doc: Doc) -> (Doc, RecipeNodeId) {
             node: Box::new(editor_core::Node::Extrude {
                 profile: ids[0].into(),
                 distance: len(1.0),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         }],
@@ -529,7 +528,6 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
                 node: Box::new(Node::Extrude {
                     profile: ids[0].into(),
                     distance: len(1.0),
-                    side: ExtrudeSide::Along,
                 }),
                 fresh: Vec::new(),
             },

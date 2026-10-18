@@ -3978,7 +3978,6 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(1.0),
-                side: ExtrudeSide::Along,
             },
         );
         let (doc, _) = crate::fixture::place(doc, body);

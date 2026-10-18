@@ -225,7 +225,6 @@ fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
     let cube_p = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: cube_plane.into(),
             loops: vec![LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap()],
             ids: Vec::new(),
         }),
@@ -236,7 +235,6 @@ fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
         Node::Extrude {
             profile: cube_p.into(),
             distance: len(L),
-            side: ExtrudeSide::Along,
         },
         tol,
     )
@@ -260,7 +258,6 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
     let ball_p = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: ball_plane.into(),
             loops: vec![half_disc()],
             ids: Vec::new(),
         }),

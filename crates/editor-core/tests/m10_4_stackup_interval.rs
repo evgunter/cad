@@ -249,9 +249,7 @@ fn plate_spaced(
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
-    let frame = r.insert(fixture::xy_frame());
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(-1.0, -0.5), (1.0, -0.5), (1.0, 0.5), (-1.0, 0.5)])
                 .expect("finite plate corners"),
@@ -261,12 +259,10 @@ fn plate_spaced(
     let _plate = r.insert(Node::Extrude {
         profile: plate_profile.into(),
         distance: param("depth", Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     let mut holes = Vec::new();
     for cx in [-hole_x, hole_x] {
         let p = r.insert(Node::Profile(ProfileProgram {
-            frame: frame.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: param("hole_r", Dimension::Length),
@@ -276,7 +272,6 @@ fn plate_spaced(
         holes.push(r.insert(Node::Extrude {
             profile: p.into(),
             distance: len(0.1),
-            side: ExtrudeSide::Along,
         }));
     }
     // The wall names come from the selection door, the way a user gets
@@ -337,9 +332,7 @@ fn kink(dist: Distribution) -> (ProfileDoc, VarId) {
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
-    let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -349,7 +342,6 @@ fn kink(dist: Distribution) -> (ProfileDoc, VarId) {
     let cube = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let copy = r.insert(Node::transform(
         cube,
@@ -388,9 +380,7 @@ fn slab(half: f64) -> (ProfileDoc, VarId) {
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
-    let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -400,7 +390,6 @@ fn slab(half: f64) -> (ProfileDoc, VarId) {
     let block = r.insert(Node::Extrude {
         profile: p.into(),
         distance: param("depth", Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     let refs = vec![
         SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Start))),
@@ -1426,9 +1415,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     });
     // One frame, named by the bore and the pin alike: they are drawn
     // on the same plane, so they bind the same id.
-    let frame = r.insert(fixture::xy_frame());
     let bore_p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: len(0.5),
@@ -1438,10 +1425,8 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     let bore = r.insert(Node::Extrude {
         profile: bore_p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let pin_p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.1), len(0.0)],
             radius: param("r", Dimension::Length),
@@ -1451,7 +1436,6 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     let pin = r.insert(Node::Extrude {
         profile: pin_p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let ev = eval(&r.doc);
     let refs = vec![cyl_wall(&ev, &r.doc, bore), cyl_wall(&ev, &r.doc, pin)];
@@ -1561,7 +1545,6 @@ fn a_loft_section_seed_rides_the_section_to_the_measure() {
     };
     let section = |plane| {
         Node::Profile(ProfileProgram {
-            frame: plane,
             loops: vec![LoopProgram::Chain(vec![
                 editor_core::ProgramStep::At([len(0.0), len(0.0)]),
                 editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([

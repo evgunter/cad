@@ -63,7 +63,6 @@ fn solid() -> (ProfileDoc, RecipeNodeId, StableName, StableName, StableName) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let face = fname(body, wall(&doc, body, 2));

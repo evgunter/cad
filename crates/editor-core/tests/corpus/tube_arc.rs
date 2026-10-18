@@ -62,7 +62,6 @@ pub fn document() -> CorpusDoc {
         v: [scl(0.0), scl(0.0), scl(-1.0)],
     }));
     let bend = r.insert(Node::Tube {
-        frame: spine.into(),
         major_radius: len(R),
         window: TubeWindow::Arc {
             t0: ang(T0),

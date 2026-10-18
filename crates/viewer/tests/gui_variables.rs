@@ -27,7 +27,6 @@ fn two_extrudes() -> (DocSession, RecipeNodeId, RecipeNodeId, VarId, VarId) {
     let extrude = |distance: f64| Node::Extrude {
         profile: profile.into(),
         distance: common::len(distance),
-        side: ExtrudeSide::Along,
     };
     let (doc, a) = common::inserted(&doc, extrude(0.008), tol);
     let (doc, b) = common::inserted(&doc, extrude(0.010), tol);
@@ -618,7 +617,6 @@ fn a_spins_angle_is_offered_only_free_values() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.01),
-            side: ExtrudeSide::Along,
         },
         tol,
     );

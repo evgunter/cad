@@ -60,7 +60,6 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -97,7 +96,6 @@ fn ball_doc() -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![corpus::die_pips::half_disc_program()],
             ids: Vec::new(),
         }),
@@ -676,7 +674,6 @@ fn a4_a_vanished_face_fails_the_frame_typed_and_poisons_the_sketch_and_rebind_re
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.3),
-            side: ExtrudeSide::Along,
         },
     );
     assert!(corpus::failures(&eval(&doc)).is_empty());

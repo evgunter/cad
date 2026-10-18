@@ -57,7 +57,6 @@ fn slab(doc: ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64) -> (ProfileDoc, Reci
         Node::Extrude {
             profile: profile.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -637,7 +636,6 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, EvalOptions, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (part_ref, body) = store.insert_part((part, body), Tol::witness());

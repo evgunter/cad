@@ -98,16 +98,13 @@ pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
 
     let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
-    let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
     let blank = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(H),
-        side: ExtrudeSide::Along,
     });
     // The top: the extrude's END cap, the face the sweep vector points
     // out of. Authored, not queried — a designation FREEZES, so the

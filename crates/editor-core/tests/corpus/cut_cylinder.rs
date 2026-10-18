@@ -36,14 +36,12 @@ pub fn document() -> CorpusDoc {
     let disc = LoopProgram::circle(0.0, 0.0, 0.5).unwrap();
     let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![disc],
         ids: Vec::new(),
     }));
     let cylinder = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
 
     // The tilted tool plane through mid-height: normal at TILT off the

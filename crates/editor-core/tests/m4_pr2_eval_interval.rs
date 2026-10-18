@@ -33,7 +33,6 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
         Node::Extrude {
             profile: cube_p.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, pip_p) = on_frame(

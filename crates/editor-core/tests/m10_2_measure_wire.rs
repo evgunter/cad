@@ -45,7 +45,6 @@ fn two_named_nodes(doc: &ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 2]) {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(1.0),
-                side: editor_core::ExtrudeSide::Along,
             },
         );
         doc = d;

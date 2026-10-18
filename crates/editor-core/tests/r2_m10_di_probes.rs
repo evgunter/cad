@@ -537,16 +537,13 @@ fn assemble_census_door_matches_f64_at_dual64() {
 fn own_document_builds_at_dual64_with_f64_value_channel() {
     let mut r = fixture::Recorder::new();
     let disc = LoopProgram::circle(0.0, 0.0, 0.75).unwrap();
-    let xy_frame_0 = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_0.into(),
         loops: vec![disc],
         ids: Vec::new(),
     }));
     let puck = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: fixture::len(0.5),
-        side: ExtrudeSide::Along,
     });
     let tool = r.insert(Node::Datum(Datum::Plane {
         origin: [fixture::len(0.1), fixture::len(0.0), fixture::len(0.25)],

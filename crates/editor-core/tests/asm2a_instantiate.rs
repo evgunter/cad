@@ -103,7 +103,6 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     crate::fixture::place(doc, body).0
@@ -128,7 +127,6 @@ fn boolean_part(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile: plate_p.into(),
             distance: len(0.8),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, boss_p) = on_frame(
@@ -143,7 +141,6 @@ fn boolean_part(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile: boss_p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, fused) = insert(
@@ -171,7 +168,6 @@ fn two_solid_part(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     crate::fixture::place(doc, body).0
@@ -1188,7 +1184,6 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
         Node::Extrude {
             profile: profile.into(),
             distance: editor_core::Formula::div(len(1.0), scl(0.0)).unwrap(),
-            side: ExtrudeSide::Along,
         },
     );
     let p3 = placed_nominally(p3, p3_root).0;
@@ -1327,7 +1322,6 @@ fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: editor_core::Formula::div(len(1.0), scl(0.0)).unwrap(),
-            side: ExtrudeSide::Along,
         },
     );
     let (part, moved) = moved_over(part, extrude);

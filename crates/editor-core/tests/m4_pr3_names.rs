@@ -52,7 +52,6 @@ fn cube(doc: ProfileDoc, x0: f64, side: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p.into(),
             distance: len(side),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -208,11 +207,9 @@ fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![meridian],
             ids: Vec::new(),
         }),

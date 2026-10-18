@@ -39,7 +39,6 @@ fn prism() -> (ProfileDoc, RecipeNodeId) {
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: fixture::len(1.0),
-        side: ExtrudeSide::Along,
     });
     (r.doc, solid)
 }

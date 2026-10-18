@@ -24,7 +24,6 @@ use geom_core::Tol;
 /// A square profile `[o,s]²` on `plane`, as a loop program.
 fn square(plane: RecipeNodeId, o: f64, s: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(o), len(o)]),
             ProgramStep::LineTo(ProgramTarget::Point([len(s), len(o)])),
@@ -69,7 +68,6 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Box::new(Node::Extrude {
             profile: outer_profile.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         }),
     );
     let inner_profile = insert(&mut doc, Box::new(square(plane, gap, 1.0)));
@@ -78,7 +76,6 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Box::new(Node::Extrude {
             profile: inner_profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         }),
     );
     let cut = insert(

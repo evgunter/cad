@@ -52,7 +52,6 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     fixture::place(doc, body).0
@@ -581,7 +580,6 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
         },
     );
-    let (doc, plane) = insert(doc, xy_frame());
     let at_edge = || Formula::named(edge.clone(), Dimension::Length);
     let island = LoopProgram::polygon_expr([
         [len(0.0), len(-0.25)],
@@ -590,7 +588,6 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
         [len(0.0), len(0.25)],
     ]);
     let program = ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon(square(0.0, 0.0, 0.5)).expect("finite corners"),
             island,
@@ -603,7 +600,6 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = step(
@@ -658,13 +654,11 @@ fn a_pre_key_expr_refusal_carries_no_escalations() {
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, 1.0)),
         },
     );
-    let (doc, plane) = insert(doc, xy_frame());
     let over = || {
         Formula::div(len(1.0), Formula::named(divisor.clone(), Dimension::Scalar))
             .expect("a length over a scalar")
     };
     let program = ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::polygon_expr([
             [len(0.0), len(0.0)],
             [over(), len(0.0)],

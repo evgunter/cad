@@ -81,7 +81,6 @@ pub fn document() -> CorpusDoc {
     let fin = r.insert(Node::Extrude {
         profile: fin_p.into(),
         distance: len(0.8125),
-        side: ExtrudeSide::Along,
     });
     // The whole fin group, in ONE node.
     let fins = r.insert(

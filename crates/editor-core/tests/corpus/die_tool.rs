@@ -107,22 +107,18 @@ pub fn document() -> CorpusDoc {
     // ---- the sharp cube, [0, L]³ ----
     let square = LoopProgram::polygon([(0.0, 0.0), (DIE_L, 0.0), (DIE_L, DIE_L), (0.0, DIE_L)])
         .expect("the die's square");
-    let cube_plane = r.insert(xy_frame());
     let cube_p = r.insert(Node::Profile(ProfileProgram {
-        frame: cube_plane.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile: cube_p.into(),
         distance: len(DIE_L),
-        side: ExtrudeSide::Along,
     });
 
     // ---- the master ball, poled along +Z (`die_pips`' construction) ----
-    let ball_plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
+    // D-FRAME: let ball_plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
     let ball_p = r.insert(Node::Profile(ProfileProgram {
-        frame: ball_plane.into(),
         loops: vec![half_disc_program()],
         ids: Vec::new(),
     }));

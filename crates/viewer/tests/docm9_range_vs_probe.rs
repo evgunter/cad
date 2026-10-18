@@ -50,7 +50,6 @@ fn slab(depth: f64) -> ProfileDoc {
         Node::Extrude {
             profile: p.into(),
             distance: Formula::named(name("depth"), Dimension::Length),
-            side: ExtrudeSide::Along,
         },
         tol(),
     );

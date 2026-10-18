@@ -52,7 +52,6 @@ fn doc_with_axis_dir(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Tube {
-                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),

@@ -39,7 +39,6 @@ fn block(
         Node::Extrude {
             profile: profile.into(),
             distance: len(height),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -159,7 +158,6 @@ fn a_bar_through_a_plate_with_no_vertex_inside_is_one_finding() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.2),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, p) = place(doc, plate);
@@ -358,7 +356,6 @@ fn an_assertion_on_one_lug_leaves_the_second_lug_loud() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, pin) = block(doc, (0.75, 0.0, 0.25), 0.3, 0.5);
@@ -425,7 +422,6 @@ fn an_overlap_with_a_sunk_flange_stays_loud() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.5),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, p) = place(doc, a);
@@ -510,11 +506,10 @@ fn bore_pin_and_holes(
     use editor_core::{LoopProgram, ProfileProgram};
     let circle = |r| LoopProgram::<Formula>::circle(0.0, 0.0, r).expect("a literal circle");
     let prism = |doc: ProfileDoc, z, loops, h| {
-        let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+        // D-FRAME: let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
         let (doc, profile) = insert(
             doc,
             Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops,
                 ids: Vec::new(),
             }),
@@ -524,7 +519,6 @@ fn bore_pin_and_holes(
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(h),
-                side: ExtrudeSide::Along,
             },
         )
     };
@@ -607,11 +601,10 @@ fn a_pin_bottoming_through_a_blind_bore_stays_loud() {
     use editor_core::{Bodies, LoopProgram, ProfileProgram};
     let circle = |r| LoopProgram::<Formula>::circle(0.0, 0.0, r).expect("a literal circle");
     let prism = |doc: ProfileDoc, z, loops, h| {
-        let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+        // D-FRAME: let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
         let (doc, profile) = insert(
             doc,
             Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops,
                 ids: Vec::new(),
             }),
@@ -621,7 +614,6 @@ fn a_pin_bottoming_through_a_blind_bore_stays_loud() {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(h),
-                side: ExtrudeSide::Along,
             },
         )
     };
@@ -798,7 +790,6 @@ fn a_touch_beside_a_quieted_overlap_keeps_it_loud() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.5),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, p) = place(doc, a);

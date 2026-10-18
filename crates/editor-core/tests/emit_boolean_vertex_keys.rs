@@ -196,7 +196,6 @@ pub(crate) fn ell_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeN
         Node::Extrude {
             profile: lp.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     // Drawn on the plane through the apex normal to (1, 1, 0), and
@@ -213,7 +212,6 @@ pub(crate) fn ell_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeN
         Node::Extrude {
             profile: tp.into(),
             distance: len(0.5),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, ell, tip)
@@ -304,7 +302,6 @@ fn an_assembly_keeps_the_touched_edge_whole_in_either_order() {
         Node::Extrude {
             profile: p.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, cube_first) = union(doc, cube, wedge);
@@ -349,7 +346,6 @@ pub(crate) fn face_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNo
         Node::Extrude {
             profile: tp.into(),
             distance: len(0.4),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, bl, tip)
@@ -403,7 +399,6 @@ pub(crate) fn seamed_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, Recipe
         Node::Extrude {
             profile: lp.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let n = (1.0f64 + 1.0 + 0.09).sqrt();
@@ -429,7 +424,6 @@ pub(crate) fn seamed_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, Recipe
         Node::Extrude {
             profile: p.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, ell, wedge)
@@ -479,7 +473,6 @@ fn bar_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: tp.into(),
             distance: len(0.3),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, bar, tip)

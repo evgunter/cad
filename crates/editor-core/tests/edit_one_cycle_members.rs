@@ -32,7 +32,6 @@ fn extrude(profile: RecipeNodeId, distance: f64) -> editor_core::AuthoredNode {
     Node::Extrude {
         profile: profile.into(),
         distance: len(distance),
-        side: ExtrudeSide::Along,
     }
 }
 
@@ -46,7 +45,6 @@ fn rod(doc: ProfileDoc, x0: f64, (y, z): (f64, f64), length: f64) -> (ProfileDoc
     let (doc, p) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(y), len(z)],
                 radius: len(A),

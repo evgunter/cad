@@ -88,16 +88,13 @@ fn slab_with(dist: Distribution, nominal: f64) -> ProfileDoc {
             distribution: Some(dist),
         }),
     });
-    let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_0.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: Formula::named(name("q"), Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -122,20 +119,15 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
             }),
         }),
     });
-    let xy_frame_1 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_1.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: Formula::named(name("q"), Dimension::Length),
-        side: ExtrudeSide::Along,
     });
-    let xy_frame_2 = r.insert(xy_frame());
     let p2 = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_2.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
@@ -143,7 +135,6 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
         profile: p2.into(),
         distance: Formula::sub(len(c), Formula::named(name("q"), Dimension::Length))
             .expect("length minus length"),
-        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -444,9 +435,7 @@ fn evidence_only_e2e_consumer_walk() {
                 distribution: Some(Distribution::Normal { sigma: half_d }),
             }),
         });
-        let xy_frame_3 = r.insert(xy_frame());
         let p = r.insert(Node::Profile(ProfileProgram {
-            frame: xy_frame_3.into(),
             loops: vec![
                 LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
                     .expect("finite plate corners"),
@@ -460,7 +449,6 @@ fn evidence_only_e2e_consumer_walk() {
         r.insert(Node::Extrude {
             profile: p.into(),
             distance: Formula::named(name("depth"), Dimension::Length),
-            side: ExtrudeSide::Along,
         });
         r.doc
     };

@@ -279,7 +279,6 @@ fn the_session_probes_a_real_slots_range() {
         Node::Extrude {
             profile: profile.into(),
             distance: common::len_mm(0.008),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -570,7 +569,6 @@ fn thickness_document(tol: Tol) -> Doc<ProfileProgram> {
         Node::Extrude {
             profile: profile.into(),
             distance: Formula::named(common::thickness_param(), Dimension::Length),
-            side: ExtrudeSide::Along,
         },
         tol,
     )

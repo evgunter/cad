@@ -22,7 +22,6 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -183,7 +182,6 @@ mod interference {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(height),
-                side: ExtrudeSide::Along,
             },
         )
     }
@@ -280,11 +278,10 @@ mod interference {
         use editor_core::{LoopProgram, ProfileProgram};
         let circle = |r| LoopProgram::<Formula>::circle(0.0, 0.0, r).expect("a literal circle");
         let prism = |doc: ProfileDoc, z, loops, h| {
-            let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+            // D-FRAME: let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
             let (doc, profile) = insert(
                 doc,
                 Node::Profile(ProfileProgram {
-                    frame: plane.into(),
                     loops,
                     ids: Vec::new(),
                 }),
@@ -294,7 +291,6 @@ mod interference {
                 Node::Extrude {
                     profile: profile.into(),
                     distance: len(h),
-                    side: ExtrudeSide::Along,
                 },
             )
         };
@@ -369,7 +365,6 @@ mod interference {
                 Node::Extrude {
                     profile: profile.into(),
                     distance: len(0.5),
-                    side: ExtrudeSide::Along,
                 },
             )
         };
@@ -399,11 +394,10 @@ mod interference {
         use crate::fixture::{frame, piece};
         use editor_core::{LoopProgram, ProfileProgram};
         let rod = |doc: ProfileDoc, cx: f64, r: f64, z: f64| {
-            let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+            // D-FRAME: let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
             let (doc, profile) = insert(
                 doc,
                 Node::Profile(ProfileProgram {
-                    frame: plane.into(),
                     loops: vec![LoopProgram::<Formula>::circle(cx, 0.0, r).expect("a circle")],
                     ids: Vec::new(),
                 }),
@@ -413,7 +407,6 @@ mod interference {
                 Node::Extrude {
                     profile: profile.into(),
                     distance: len(if z == 0.0 { 1.0 } else { 0.5 }),
-                    side: ExtrudeSide::Along,
                 },
             )
         };
@@ -471,7 +464,6 @@ mod interference {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(0.5),
-                side: ExtrudeSide::Along,
             },
         );
         let (doc, p) = place(doc, a);
@@ -508,11 +500,10 @@ mod interference {
         use editor_core::{LoopProgram, ProfileProgram};
         let circle = |r| LoopProgram::<Formula>::circle(0.0, 0.0, r).expect("a literal circle");
         let prism = |doc: ProfileDoc, z, loops, h| {
-            let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+            // D-FRAME: let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
             let (doc, profile) = insert(
                 doc,
                 Node::Profile(ProfileProgram {
-                    frame: plane.into(),
                     loops,
                     ids: Vec::new(),
                 }),
@@ -522,7 +513,6 @@ mod interference {
                 Node::Extrude {
                     profile: profile.into(),
                     distance: len(h),
-                    side: ExtrudeSide::Along,
                 },
             )
         };

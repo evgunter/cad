@@ -72,7 +72,6 @@ fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
                 node: Box::new(Node::Extrude {
                     profile: profile.into(),
                     distance,
-                    side: ExtrudeSide::Along,
                 }),
                 fresh: Vec::new(),
             },
@@ -219,7 +218,6 @@ fn dangling_ref_rejected() {
                 node: Box::new(Node::Extrude {
                     profile: ghost.into(),
                     distance: len(0.01),
-                    side: ExtrudeSide::Along,
                 }),
                 fresh: Vec::new(),
             },
@@ -249,7 +247,6 @@ fn self_reference_cannot_forge_the_next_id() {
                 node: Box::new(Node::Extrude {
                     profile: guessed.into(),
                     distance: len(0.01),
-                    side: ExtrudeSide::Along,
                 }),
                 fresh: Vec::new(),
             },

@@ -329,7 +329,6 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             v_degree: Formula::count(3),
         },
         Node::Tube {
-            frame: frame.into(),
             major_radius: len(0.5),
             minor_radius: len(0.1),
             window: TubeWindow::Arc {

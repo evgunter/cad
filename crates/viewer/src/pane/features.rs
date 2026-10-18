@@ -410,7 +410,7 @@ mod tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::{ExtrudeSide, RecipeNodeId, SpokenNode};
+    use pncad::document::{RecipeNodeId, SpokenNode};
 
     use eframe::egui;
 
@@ -808,7 +808,6 @@ mod tests {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(HEIGHT),
-                side: ExtrudeSide::Along,
             },
             tol,
         );

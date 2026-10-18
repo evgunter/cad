@@ -89,7 +89,6 @@ fn circle_on_frame(
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(0.0)],
                 radius,
@@ -109,7 +108,6 @@ fn cylinder(doc: ProfileDoc, radius: Formula) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(2.0 * H),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -154,22 +152,17 @@ fn both_sweeps() -> BothSweeps {
     let mut r = corpus::Recorder::new();
     let snapshot = r.doc.clone();
     let square_loop = LoopProgram::polygon(square(0.0, 0.0, 0.5)).unwrap();
-    let frame = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![square_loop],
         ids: Vec::new(),
     }));
     let extruded = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     // The revolve's own profile: a square clear of the axis, drawn on
     // its own frame, spun about an axis written in that same frame.
-    let rev_frame = r.insert(xy_frame());
     let rev_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: rev_frame.into(),
         loops: vec![LoopProgram::polygon(square(0.0, -2.0, 0.5)).unwrap()],
         ids: Vec::new(),
     }));
@@ -429,11 +422,10 @@ fn extruded(
     z: f64,
     loops: Vec<LoopProgram<Formula>>,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    // D-FRAME: let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -443,7 +435,6 @@ fn extruded(
         Node::Extrude {
             profile: profile.into(),
             distance: len(2.0 * H),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, body)
@@ -483,7 +474,6 @@ fn cylinder_walls(body: &Body<f64>) -> Vec<(FaceKey, f64)> {
 #[test]
 fn a_revolve_over_an_on_axis_edge_mints_no_wall_for_it() {
     let doc = doc_with_r("seat7-revolve-on-axis");
-    let (doc, plane) = insert(doc, xy_frame());
     // Negative y is the door's half-plane about the +x axis, and the
     // first leg runs ALONG that axis from the origin.
     let mut steps = vec![
@@ -504,7 +494,6 @@ fn a_revolve_over_an_on_axis_edge_mints_no_wall_for_it() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),

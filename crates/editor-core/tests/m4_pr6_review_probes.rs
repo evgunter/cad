@@ -33,7 +33,6 @@ fn small() -> (ProfileDoc, String) {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let doc = apply(
@@ -302,7 +301,6 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             node: Box::new(Node::Extrude {
                 profile: p0.into(),
                 distance: Formula::named(VarName::from_static("d"), Dimension::Length),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },
@@ -330,7 +328,6 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             node: Box::new(Node::Extrude {
                 profile: p1.into(),
                 distance: len(1.5),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },

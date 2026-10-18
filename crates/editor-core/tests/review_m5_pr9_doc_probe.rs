@@ -59,16 +59,13 @@ fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) 
     let mut r = Rec::new();
     let plate_loop =
         LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]).unwrap();
-    let plate_plane = r.insert(xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
-        frame: plate_plane.into(),
         loops: vec![plate_loop],
         ids: Vec::new(),
     }));
     let plate = r.insert(Node::Extrude {
         profile: plate_p.into(),
         distance: len(0.8),
-        side: ExtrudeSide::Along,
     });
     // v4: the corpus boss re-authored as circle_split (corpus ruling
     // (a)); this probe mirrors it so the closed-form volume row keeps
@@ -76,16 +73,14 @@ fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) 
     let boss_loop = LoopProgram::circle_split(1.2, 1.7, 0.35, 3, 0.0).unwrap();
     // The boss is sketched a third of the way up the plate: its own
     // plane, so its own frame.
-    let boss_plane = r.insert(frame([0.0, 0.0, 0.3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    // D-FRAME: let boss_plane = r.insert(frame([0.0, 0.0, 0.3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let boss_p = r.insert(Node::Profile(ProfileProgram {
-        frame: boss_plane.into(),
         loops: vec![boss_loop],
         ids: Vec::new(),
     }));
     let boss = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
@@ -202,16 +197,13 @@ fn tangent_intersection_edges_survive_save_load_at_rest() {
         ProgramStep::Line(len(0.75)),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let xy_frame_1 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_1.into(),
         loops: vec![lp],
         ids: Vec::new(),
     }));
     let ex = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let count = |doc: &ProfileDoc| -> usize {
         let ev = evaluate::<f64>(

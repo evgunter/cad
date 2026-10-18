@@ -183,7 +183,6 @@ fn author_theirs() -> Authored {
             node: Box::new(Node::Extrude {
                 profile: cube_p.unwrap().into(),
                 distance: len(2.0 * HALF),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },
@@ -203,7 +202,6 @@ fn author_theirs() -> Authored {
             node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap().into(),
                 distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },
@@ -267,7 +265,6 @@ fn author_mine() -> Authored {
             node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap().into(),
                 distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },
@@ -279,7 +276,6 @@ fn author_mine() -> Authored {
             node: Box::new(Node::Extrude {
                 profile: cube_p.unwrap().into(),
                 distance: len(2.0 * HALF),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },

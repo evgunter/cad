@@ -64,11 +64,9 @@ fn run(doc: &editor_core::ProfileDoc, shelf: &Arc<VersionShelf>) -> Evaluation<f
 /// `(doc, profile, extrude, placement)`.
 fn part() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive("held-names-part"), Tol::witness());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![
                 LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]).unwrap(),
             ],
@@ -80,7 +78,6 @@ fn part() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, placement) = fixture::place(doc, ext);
@@ -423,7 +420,6 @@ fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(3.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (b, taller) = insert(
@@ -431,7 +427,6 @@ fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(5.0),
-            side: ExtrudeSide::Along,
         },
     );
     assert_ne!(tall, taller, "each branch mints its own node's id");

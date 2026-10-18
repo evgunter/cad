@@ -727,7 +727,6 @@ fn spout_loft(
             insert(
                 doc,
                 Node::Profile(ProfileProgram {
-                    frame: plane.into(),
                     loops,
                     ids: Vec::new(),
                 }),
@@ -815,7 +814,6 @@ fn revolved(
     let profile = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![loop_],
             ids: Vec::new(),
         }),
@@ -980,7 +978,6 @@ fn build_doc(tol: Tol) -> Recipe {
     let handle = insert(
         &mut doc,
         Node::Tube {
-            frame: spine.into(),
             major_radius: len(HANDLE_R),
             window: TubeWindow::Arc {
                 t0: ang(-(FRAC_PI_2 + HANDLE_OVER)),

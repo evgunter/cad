@@ -52,10 +52,8 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
         }),
     });
     let w = || Formula::named(VarName::from_static("w"), Dimension::Length);
-    let plane = r.insert(xy_frame());
     let pt = |x: Formula, y: Formula| ProgramStep::LineTo(ProgramTarget::Point([x, y]));
     let profile = Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             pt(Formula::div(w(), scl(2.0)).unwrap(), len(0.0)),
@@ -82,7 +80,6 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
     r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     Ok(r.doc)
 }

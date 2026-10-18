@@ -48,7 +48,6 @@ fn boxed(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.01),
-            side: ExtrudeSide::Along,
         },
         tol,
     )

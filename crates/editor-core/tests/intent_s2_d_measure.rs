@@ -31,7 +31,6 @@ fn slabs(seed: &str, depth: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: a_profile.into(),
             distance: len(1.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     let (doc, _, b_profile) = fixture::on_frame_keeping(
@@ -46,7 +45,6 @@ fn slabs(seed: &str, depth: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: b_profile.into(),
             distance: len(depth),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     (doc, a, b)

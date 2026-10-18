@@ -171,7 +171,6 @@ fn sharp_lid_in(
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![lid_meridian(bore)],
             ids: Vec::new(),
         }),

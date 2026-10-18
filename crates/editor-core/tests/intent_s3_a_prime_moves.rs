@@ -48,7 +48,6 @@ fn unit_box() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -303,7 +302,6 @@ fn a_self_read_through_a_role_is_one_reader() {
     let refused = fixture::insert_refused(
         &doc,
         Node::Tube {
-            frame: Operand::Var(frame),
             major_radius: len(2.0),
             window: TubeWindow::Full,
             minor_radius: len(0.25),

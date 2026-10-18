@@ -309,7 +309,6 @@ pub(crate) fn d_tab_at(
     } else {
         scl(bulge_nominal)
     };
-    let plane = r.insert(xy_frame());
     let outline = LoopProgram::Chain(vec![
         ProgramStep::At([len(-4.0e-3), len(-2.0e-3)]),
         ProgramStep::LineTo(ProgramTarget::Point([len(4.0e-3), len(-2.0e-3)])),
@@ -321,7 +320,6 @@ pub(crate) fn d_tab_at(
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![outline],
         ids: Vec::new(),
     }));
@@ -329,10 +327,8 @@ pub(crate) fn d_tab_at(
     let tab = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: thickness.clone(),
-        side: ExtrudeSide::Along,
     });
     let hole_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [
                 Formula::named(VarName::from_static("hole_x"), Dimension::Length),
@@ -345,7 +341,6 @@ pub(crate) fn d_tab_at(
     let hole = r.insert(Node::Extrude {
         profile: hole_profile.into(),
         distance: thickness,
-        side: ExtrudeSide::Along,
     });
     let refs = {
         let ev: editor_core::Evaluation<f64> = editor_core::evaluate(

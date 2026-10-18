@@ -62,7 +62,6 @@ pub fn document() -> CorpusDoc {
     let top = r.insert(Node::Extrude {
         profile: top_profile.into(),
         distance: len(0.25),
-        side: ExtrudeSide::Along,
     });
 
     let mut acc = top;
@@ -77,7 +76,6 @@ pub fn document() -> CorpusDoc {
         let ext = r.insert(Node::Extrude {
             profile: prof.into(),
             distance: len(1.125),
-            side: ExtrudeSide::Along,
         });
         if i == 0 {
             first_leg = ext;

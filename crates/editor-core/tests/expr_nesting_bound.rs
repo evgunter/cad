@@ -77,9 +77,7 @@ fn refused_bound(error: &DimensionError) -> usize {
 /// writes), an extrude's distance, and a measurement.
 fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([len(2.0), len(0.0)])),
@@ -95,7 +93,6 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
     let extrude = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: deep_length(0.5, levels),
-        side: ExtrudeSide::Along,
     });
     let measure = r.insert(Node::Assertion {
         value: deep_sum(0.5, levels, levels.div_ceil(2)),
@@ -117,7 +114,6 @@ fn extrude_document(distance: Formula) -> (Recorder, RecipeNodeId) {
     let extrude = r.insert(Node::Extrude {
         profile: profile.into(),
         distance,
-        side: ExtrudeSide::Along,
     });
     (r, extrude)
 }

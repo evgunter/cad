@@ -75,7 +75,6 @@ fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: pa.into(),
             distance: len(0.01),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -85,7 +84,6 @@ fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: pb.into(),
             distance: len(0.02),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -432,7 +430,6 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.015),
-            side: ExtrudeSide::Along,
         },
         tol,
     );

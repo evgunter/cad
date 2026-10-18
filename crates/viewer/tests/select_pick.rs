@@ -67,7 +67,6 @@ fn patterned_blocks(tol: Tol, count: i64) -> (Doc<ProfileProgram>, RecipeNodeId,
         Node::Extrude {
             profile: profile.into(),
             distance: common::len(0.01),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -960,7 +959,6 @@ fn two_boxes(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
             Node::Extrude {
                 profile: profile.into(),
                 distance: common::len(0.01),
-                side: ExtrudeSide::Along,
             },
             tol,
         );

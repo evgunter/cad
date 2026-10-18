@@ -71,12 +71,10 @@ fn lifted(program: &[Step<f64>]) -> LoopProgram<Formula> {
 /// A document holding the chain placed as two profiles on one frame.
 fn placed_twice(loop_: &LoopProgram<Formula>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("step-handle-binding", tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let profile = |doc| {
         insert(
             doc,
             Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops: vec![loop_.clone()],
                 ids: Vec::new(),
             }),
@@ -209,7 +207,6 @@ fn a_piece_door_refuses_a_role_its_verb_never_draws() {
     assert!(p.piece(0, &a.fillet, PieceRole::RunIn).is_ok());
     // Unminted: the program before it entered the document.
     let free = ProfileProgram {
-        frame: p.frame,
         loops: p.loops.clone(),
         ids: Vec::new(),
     };

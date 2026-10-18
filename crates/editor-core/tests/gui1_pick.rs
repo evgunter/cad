@@ -48,7 +48,6 @@ fn cube_doc_node(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -244,7 +243,6 @@ fn unusable_nodes_surface_typed_errors() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.0), // degenerate: the extrude fails,
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, poisoned) = insert(
@@ -419,7 +417,6 @@ fn node_pick_door_is_prepaired_and_typed() {
         Node::Extrude {
             profile: lone_profile.into(),
             distance: len(0.0), // degenerate: fails,
-            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);

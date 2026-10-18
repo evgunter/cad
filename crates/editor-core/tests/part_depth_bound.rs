@@ -65,7 +65,6 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, boss_profile) = on_frame(
@@ -80,7 +79,6 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: boss_profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, union) = insert(

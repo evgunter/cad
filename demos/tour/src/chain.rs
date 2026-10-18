@@ -405,7 +405,6 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     let bar_profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![
                 LoopProgram::polygon([(0.0, -h), (LINK_LENGTH, -h), (LINK_LENGTH, h), (0.0, h)])
                     .expect("finite bar corners"),
@@ -419,7 +418,6 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         Node::Extrude {
             profile: bar_profile.into(),
             distance: len(LINK_THICKNESS),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -427,7 +425,6 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         let profile = insert(
             doc,
             Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops: vec![LoopProgram::Circle {
                     centre: [len(x), len(0.0)],
                     radius: len(PIN_RADIUS),
@@ -441,7 +438,6 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(LINK_THICKNESS),
-                side: ExtrudeSide::Along,
             },
             tol,
         )

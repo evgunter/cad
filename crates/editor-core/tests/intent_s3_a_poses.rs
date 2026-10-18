@@ -23,7 +23,7 @@ use editor_core::eval::bound_pose;
 use editor_core::pose::{PoseConstruction, PoseDef, PoseReadFault, PoseRole, RoleRead};
 use editor_core::{
     CancelToken, CapEnd, Dimension, Distribution, DocEdit, EditError, EvalOptions, Evaluation,
-    ExtrudeSide, Formula, FreeVar, LoopProgram, Node, NodeErrorKind, NodeResult, Operand,
+    Formula, FreeVar, LoopProgram, Node, NodeErrorKind, NodeResult, Operand,
     OperandSlot, PoseValue, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SlotKind, UnitSym,
     VarId, VarKind, VarName, all_faces, evaluate, face_carrier_kind,
 };
@@ -51,7 +51,6 @@ fn cylinder() -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(0.0)],
                 radius: len(1.0),
@@ -64,7 +63,6 @@ fn cylinder() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -83,7 +81,6 @@ fn unit_box() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -489,7 +486,6 @@ fn ring_about_a_meet(a_origin: [f64; 3], a_tilt: f64) -> String {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, world) = fixture::insert(

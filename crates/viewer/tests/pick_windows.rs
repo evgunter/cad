@@ -60,7 +60,6 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         Node::Extrude {
             profile: profile.into(),
             distance: common::len(0.01),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -93,7 +92,6 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         Node::Extrude {
             profile: twinned.into(),
             distance: common::len(0.008),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -117,7 +115,6 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         Node::Extrude {
             profile: last.into(),
             distance: common::len(0.004),
-            side: ExtrudeSide::Along,
         },
         tol,
     );

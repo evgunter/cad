@@ -47,11 +47,9 @@ fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDo
     let square =
         LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).expect("finite");
     let doc = ProfileDoc::empty_derived("m6_5_selection_refusals", Tol::witness());
-    let (doc, plane) = fixture::insert(doc, fixture::xy_frame());
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![square],
             ids: Vec::new(),
         }),
@@ -61,7 +59,6 @@ fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDo
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let applied = apply(
@@ -112,7 +109,6 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: bp.into(),
             distance: len(4.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (d, up) = on_frame(
@@ -136,7 +132,6 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: up.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (d, us) = insert(
@@ -218,7 +213,6 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
             node: Box::new(Node::Extrude {
                 profile: doc.ids()[1].into(),
                 distance: len(2.0),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },

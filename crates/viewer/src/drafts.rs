@@ -1468,7 +1468,6 @@ mod tests {
         let (doc, profile) = inserted(
             &doc,
             Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops: loops.clone(),
                 ids: Vec::new(),
             }),
@@ -1627,7 +1626,6 @@ mod tests {
             .profile_programs(Notation::DEFAULT)
             .expect("the default path lowers");
         let node = Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops,
             ids: Vec::new(),
         });
@@ -1753,7 +1751,6 @@ mod tests {
             .expect("finite"),
         ];
         let node = Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops,
             ids: Vec::new(),
         });

@@ -494,9 +494,7 @@ fn r1_no_value_only_key_collision_search() {
 /// the parameter node the e2e bumps.
 fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let mut r = Recorder::new();
-    let xy_frame_0 = r.insert(xy_frame());
     let plate = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_0.into(),
         loops: vec![
             LoopProgram::polygon([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]).unwrap(),
         ],
@@ -505,18 +503,14 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let slab = r.insert(Node::Extrude {
         profile: plate.into(),
         distance: len(0.25),
-        side: ExtrudeSide::Along,
     });
-    let xy_frame_1 = r.insert(xy_frame());
     let boss_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_1.into(),
         loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).unwrap()],
         ids: Vec::new(),
     }));
     let boss = r.insert(Node::Extrude {
         profile: boss_profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let fused = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![slab.into(), boss.into()]),

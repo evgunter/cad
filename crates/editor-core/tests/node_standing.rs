@@ -77,7 +77,6 @@ impl Standings {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(1.0),
-                side: ExtrudeSide::Along,
             },
         );
         let (doc, poisoned) = insert(

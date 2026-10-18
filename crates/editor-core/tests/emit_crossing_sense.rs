@@ -328,7 +328,6 @@ fn an_edge_through_a_seam_is_read_against_the_seams_members() {
             Node::Extrude {
                 profile: p.into(),
                 distance: crate::fixture::len(0.6),
-                side: editor_core::ExtrudeSide::Along,
             },
         );
         let m = [y, z, x];

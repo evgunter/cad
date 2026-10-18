@@ -50,7 +50,6 @@ pub fn document() -> CorpusDoc {
         v: [scl(0.0), scl(1.0), scl(0.0)],
     }));
     let ring = r.insert(Node::Tube {
-        frame: spine.into(),
         major_radius: len(R),
         window: TubeWindow::Full,
         minor_radius: len(MINOR),

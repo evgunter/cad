@@ -234,7 +234,6 @@ fn three_shapes() -> (ProfileDoc, EvalOptions) {
 fn foreign_master() -> (ProfileDoc, EvalOptions) {
     let o = blocks_reach(&["rev-xs-f-a", "rev-xs-f-c", "rev-xs-f-d"]);
     let doc = ProfileDoc::empty(DocumentId::derive("rev-xs-foreign"), Tol::witness());
-    let (doc, _datum) = insert(doc, fixture::xy_frame());
     let (doc, a, _) = pinned_block(doc, "rev-xs-f-a");
     let (doc, pa) = insert(
         doc,

@@ -158,7 +158,6 @@ fn both_radii(outer: f64, inner: f64) -> Vec<u64> {
 
 fn solid_node(major: f64, window: TubeWindow<Formula>, minor: f64) -> AuthoredNode {
     Node::Tube {
-        frame: RecipeNodeId::new(0, 0).into(),
         major_radius: len(major),
         window,
         minor_radius: len(minor),
@@ -167,7 +166,6 @@ fn solid_node(major: f64, window: TubeWindow<Formula>, minor: f64) -> AuthoredNo
 
 fn hollow_node(major: f64, window: TubeWindow<Formula>, minor: f64, wall: f64) -> AuthoredNode {
     Node::HollowTube {
-        frame: RecipeNodeId::new(0, 0).into(),
         major_radius: len(major),
         window,
         minor_radius: len(minor),
@@ -357,7 +355,6 @@ fn the_full_hollow_ring_is_a_torus_shell_with_a_cavity() {
     let (outer, wall, r) = (0.5, 0.125, 2.0);
     let inner = outer - wall;
     let (doc, tube) = spine_doc([0.0, 0.0, 1.0], |spine| Node::HollowTube {
-        frame: spine.into(),
         major_radius: len(r),
         window: TubeWindow::Full,
         minor_radius: len(outer),
@@ -395,7 +392,6 @@ fn the_full_hollow_ring_is_a_torus_shell_with_a_cavity() {
 fn the_solid_elbow_meters_its_pappus_form() {
     let (r, minor, t0, t1) = (2.0, 0.5, 0.25, 1.75);
     let (doc, tube) = spine_doc([0.0, 1.0, 0.0], |spine| Node::Tube {
-        frame: spine.into(),
         major_radius: len(r),
         window: arc(t0, t1),
         minor_radius: len(minor),
@@ -450,7 +446,6 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Tube {
-                frame: spine.into(),
                 major_radius: len(r),
                 window: arc(t0, t1),
                 minor_radius: len(outer),
@@ -463,7 +458,6 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::HollowTube {
-                frame: spine.into(),
                 major_radius: len(r),
                 window: arc(t0, t1),
                 minor_radius: len(outer),
@@ -513,7 +507,6 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
 fn the_window_variant_feeds_the_content_key() {
     let mk = |window: TubeWindow<Formula>| {
         let (doc, tube) = spine_doc([0.0, 0.0, 1.0], |spine| Node::Tube {
-            frame: spine.into(),
             major_radius: len(2.0),
             window,
             minor_radius: len(0.5),
@@ -734,7 +727,6 @@ fn a_tube_reading_no_frame_refuses_at_the_door() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Tube {
-                frame: point.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),

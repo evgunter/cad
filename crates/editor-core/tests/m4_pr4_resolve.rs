@@ -61,7 +61,6 @@ fn block(
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -285,7 +284,6 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
         Node::Extrude {
             profile: p.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = insert(
@@ -1161,7 +1159,6 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
         Node::Extrude {
             profile: bp.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, tr) = insert(

@@ -656,7 +656,6 @@ fn extrude(r: &mut Recorder, profile: RecipeNodeId, distance: f64) -> RecipeNode
     r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(distance),
-        side: ExtrudeSide::Along,
     })
 }
 
@@ -783,7 +782,6 @@ fn documents_outside_the_corpus_read_apart_too() {
         let block = extrude(&mut r, block, 1.0);
         let plane = r.insert(fixture::frame([0.0, 0.0, 0.75], XY.0, XY.1));
         let pin = r.insert(Node::Profile(editor_core::ProfileProgram {
-            frame: plane.into(),
             loops: vec![editor_core::LoopProgram::circle(0.5, 0.5, 0.2).expect("a circle")],
             ids: Vec::new(),
         }));
@@ -896,11 +894,9 @@ fn respoken_after_a_dropped_step() {
 
     let tol = fixture::tol();
     let doc = ProfileDoc::empty_derived("respoken-after-a-dropped-step", tol);
-    let (doc, plane) = fixture::insert(doc, fixture::xy_frame());
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![rod_loop(false)],
             ids: Vec::new(),
         }),
@@ -910,7 +906,6 @@ fn respoken_after_a_dropped_step() {
         Node::Extrude {
             profile: profile.into(),
             distance: fixture::len(2.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     let crease = lateral_edge(&doc, rod, CREASE);

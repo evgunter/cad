@@ -136,9 +136,7 @@ fn stepped_shaft_sized(
     });
     // One frame, named by both profiles: two sketches meant to share
     // a plane bind the same id, which is how sharing is said now.
-    let frame = r.insert(fixture::xy_frame());
     let base_p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(-o, -o), (o, -o), (o, o), (-o, o)]).expect("finite corners"),
         ],
@@ -147,10 +145,8 @@ fn stepped_shaft_sized(
     let base = r.insert(Node::Extrude {
         profile: base_p.into(),
         distance: param("h1", Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     let boss_p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(-i, -i), (i, -i), (i, i), (-i, i)]).expect("finite corners"),
         ],
@@ -159,7 +155,6 @@ fn stepped_shaft_sized(
     let boss_raw = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: param("h2", Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     let boss = r.insert(Node::transform(
         boss_raw,
@@ -232,16 +227,13 @@ fn arc_slab(w: f64) -> (ProfileDoc, editor_core::VarId) {
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let slab = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     // Segment 3 is the x = 0 wall, segment 1 the x = w wall; their
     // distance is `w`, so ∂m/∂w = 1 exactly.

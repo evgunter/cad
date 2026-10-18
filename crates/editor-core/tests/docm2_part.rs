@@ -54,7 +54,6 @@ fn unit_box(r: &mut Recorder, x0: f64) -> RecipeNodeId {
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     })
 }
 
@@ -805,7 +804,6 @@ fn prism(r: &mut Recorder, pts: Vec<(f64, f64)>, z0: f64, dz: f64) -> RecipeNode
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(dz),
-        side: ExtrudeSide::Along,
     })
 }
 

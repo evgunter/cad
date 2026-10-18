@@ -81,11 +81,9 @@ struct Rod {
 
 fn rod(label: &str, creases: &[usize]) -> Rod {
     let doc = ProfileDoc::empty_derived(label, tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![rod_loop(false)],
             ids: Vec::new(),
         }),
@@ -95,7 +93,6 @@ fn rod(label: &str, creases: &[usize]) -> Rod {
         Node::Extrude {
             profile: profile.into(),
             distance: len(ROD_L),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, fillet) = if creases.is_empty() {
@@ -909,11 +906,9 @@ fn extruded(
     loops: Vec<LoopProgram<Formula>>,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(label, tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -923,7 +918,6 @@ fn extruded(
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, ext)
@@ -947,7 +941,6 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
         },
         DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops: vec![rod_loop(false)],
                 ids: Vec::new(),
             })),
@@ -957,7 +950,6 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
             node: Box::new(Node::Extrude {
                 profile: profile_node.into(),
                 distance: len(ROD_L),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },
@@ -1399,11 +1391,9 @@ fn extrude_of(
     doc: ProfileDoc,
     loops: Vec<LoopProgram<Formula>>,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -1413,7 +1403,6 @@ fn extrude_of(
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, ext)
@@ -2275,12 +2264,10 @@ fn a_reshaping_reports_exactly_the_held_names_whose_referent_it_takes() {
 #[test]
 fn both_sweeps_of_a_profile_name_by_its_pieces() {
     let doc = declared("value-two-sweeps", "p", 0.15);
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let radius = Formula::mul(param_len("p"), scl(2.0)).unwrap();
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![
                 LoopProgram::Chain(square_steps()),
                 LoopProgram::Circle {
@@ -2296,7 +2283,6 @@ fn both_sweeps_of_a_profile_name_by_its_pieces() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, b) = insert(
@@ -2304,7 +2290,6 @@ fn both_sweeps_of_a_profile_name_by_its_pieces() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     let piece = fixture::piece(&doc, profile, 0, 2);
@@ -2341,11 +2326,9 @@ fn lofted(
     upper: LoopProgram<Formula>,
 ) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let doc = ProfileDoc::empty_derived(label, tol());
-    let (doc, p0) = insert(doc, fixture::xy_frame());
     let (doc, sec0) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: p0.into(),
             loops: vec![lower],
             ids: Vec::new(),
         }),
@@ -2357,7 +2340,6 @@ fn lofted(
     let (doc, sec1) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: p1.into(),
             loops: vec![upper],
             ids: Vec::new(),
         }),

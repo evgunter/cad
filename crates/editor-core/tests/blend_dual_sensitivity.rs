@@ -102,9 +102,7 @@ fn filleted_cube() -> (ProfileDoc, RecipeNodeId) {
         name: name("depth"),
         def: editor_core::VarDecl::Free(length(D0)),
     });
-    let frame = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -114,7 +112,6 @@ fn filleted_cube() -> (ProfileDoc, RecipeNodeId) {
     let cube = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: Formula::named(name("depth"), Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     let blank = r.insert(Node::fillet(
         cube,

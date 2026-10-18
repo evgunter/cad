@@ -116,16 +116,13 @@ pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
             distribution: Some(uniform(half)),
         }),
     });
-    let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_0.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: param("depth"),
-        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -163,9 +160,7 @@ pub(crate) fn notch_with(nominal: f64, dist: Distribution, height: Formula) -> P
             distribution: Some(dist),
         }),
     });
-    let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_0.into(),
         loops: vec![LoopProgram::polygon_expr([
             [len(0.0), len(0.0)],
             [len(0.5), height],
@@ -178,7 +173,6 @@ pub(crate) fn notch_with(nominal: f64, dist: Distribution, height: Formula) -> P
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -211,9 +205,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
             distribution: Some(depth),
         }),
     });
-    let xy_frame_1 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_1.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
                 .expect("finite plate corners"),
@@ -227,7 +219,6 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: param("depth"),
-        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -254,16 +245,13 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
             distribution: Some(uniform(15.0 * eps())),
         }),
     });
-    let xy_frame_2 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_2.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     r.insert(Node::transform(
         block,

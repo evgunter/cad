@@ -43,7 +43,6 @@ fn profiled(steps: Vec<ProgramStep<Formula>>) -> (ProfileDoc, RecipeNodeId, Reci
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),

@@ -118,7 +118,6 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
         },
     );
 
-    let plane = r.insert(xy_frame());
 
     let neg_w = Formula::neg(plen("half_w")).expect("a shallow negation");
     // The chain's own idiom for a tangent arc between two tangent legs:
@@ -136,7 +135,6 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
         ProgramStep::TangentArcTo(ProgramTarget::StartArriving),
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![outline],
         ids: Vec::new(),
     }));
@@ -144,10 +142,8 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
     let body = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: thickness.clone(),
-        side: ExtrudeSide::Along,
     });
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(HALF_L), len(0.0)],
             radius: plen("bore_r"),
@@ -157,7 +153,6 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
     let bore = r.insert(Node::Extrude {
         profile: bore_profile.into(),
         distance: thickness,
-        side: ExtrudeSide::Along,
     });
 
     let refs = {

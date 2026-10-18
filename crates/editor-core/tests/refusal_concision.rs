@@ -20,9 +20,7 @@ use editor_core::{LoopProgram, Node, NodeResult, ProfileProgram};
 /// this is the refusal the sentence below is about.
 fn cone_block_union_refusal() -> String {
     let mut r = Recorder::new();
-    let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let cone_p = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (0.4, 1.0), (0.0, 1.0)]).unwrap(),
         ],
@@ -34,9 +32,8 @@ fn cone_block_union_refusal() -> String {
         crate::fixture::along_y(),
         ang(std::f64::consts::TAU),
     ));
-    let block_plane = r.insert(frame([0.0, 0.0, -0.25], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    // D-FRAME: let block_plane = r.insert(frame([0.0, 0.0, -0.25], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let block_p = r.insert(Node::Profile(ProfileProgram {
-        frame: block_plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.5, 0.4), (1.5, 0.4), (1.5, 0.6), (0.5, 0.6)]).unwrap(),
         ],
@@ -45,7 +42,6 @@ fn cone_block_union_refusal() -> String {
     let block = r.insert(Node::Extrude {
         profile: block_p.into(),
         distance: len(0.5),
-        side: ExtrudeSide::Along,
     });
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![

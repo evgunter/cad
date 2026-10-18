@@ -104,7 +104,6 @@ fn r2_the_declared_arrivals_survive_the_wire() {
             // Scaffolding: this program is serialized on its own, never
             // inserted into a document, so no row here reads the node
             // the plane points at.
-            frame: (RecipeNodeId::new(0, 0)).into(),
             loops: vec![LoopProgram::Chain(doc)],
             ids: Vec::new(),
         };

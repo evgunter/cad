@@ -57,7 +57,6 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -148,7 +147,6 @@ fn four_legs(
 ) {
     let o = legs_reach();
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, _kept) = insert(doc, fixture::xy_frame());
     let (leg_ref, leg_body) = block_ref("fix-xs-leg");
     let (doc, leg) = fixture::insert_pinned(doc, Node::instantiate_part(leg_ref), &o);
     let (doc, pattern) = insert(
@@ -534,7 +532,6 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
 #[test]
 fn a_stranded_operand_over_an_instance_head_resolves_to_no_member() {
     let doc = ProfileDoc::empty(DocumentId::derive("fix-xs-stranded"), Tol::witness());
-    let (doc, _datum) = insert(doc, fixture::xy_frame());
     // A live instance that consumes nothing: it neither places nor
     // projects `leg`, so no walk from it reaches `leg`.
     let (doc, stranger, _) = pinned_block(doc, "fix-xs-st-other");

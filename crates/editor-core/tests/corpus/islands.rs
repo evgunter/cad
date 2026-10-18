@@ -60,7 +60,6 @@ fn block(r: &mut Recorder, x: (f64, f64), y: (f64, f64), z: f64, h: f64) -> Reci
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(h),
-        side: ExtrudeSide::Along,
     })
 }
 

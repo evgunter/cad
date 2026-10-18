@@ -71,7 +71,6 @@ fn slab(doc: &mut ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64, tol: Tol) -> Re
     let profile = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::polygon(corners).expect("finite corners")],
             ids: Vec::new(),
         }),
@@ -82,7 +81,6 @@ fn slab(doc: &mut ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64, tol: Tol) -> Re
         Node::Extrude {
             profile: profile.into(),
             distance: Formula::literal(dz, Dimension::Length).unwrap(),
-            side: ExtrudeSide::Along,
         },
         tol,
     )

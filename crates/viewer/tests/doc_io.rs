@@ -332,7 +332,6 @@ fn overlapping_copies_still_draw_and_land_a_finding() {
             pncad::document::Node::Extrude {
                 profile: profile.into(),
                 distance: common::len(1.0),
-                side: ExtrudeSide::Along,
             },
             tol,
         );

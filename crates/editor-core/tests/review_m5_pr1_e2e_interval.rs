@@ -60,7 +60,6 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
         Node::Extrude {
             profile: cube_p.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     // A second, ROTATED cutter well inside the cube: rotation angle 0.5 rad
@@ -83,7 +82,6 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
         Node::Extrude {
             profile: cut_p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, placed) = insert(
@@ -204,7 +202,6 @@ fn a_degenerate_document_refuses_typed_end_to_end() {
         Node::Extrude {
             profile: prof.into(),
             distance: len(0.0),
-            side: ExtrudeSide::Along,
         },
     );
     let ev = evaluate::<Interval>(

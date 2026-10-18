@@ -46,7 +46,6 @@ fn cube(doc: ProfileDoc, x0: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -1005,7 +1004,6 @@ fn boxed(
         Node::Extrude {
             profile: p.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     )
 }

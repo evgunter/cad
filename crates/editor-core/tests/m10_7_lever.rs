@@ -137,7 +137,6 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
         let (next, profile) = mint(
             &doc,
             Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops: vec![square.clone()],
                 ids: Vec::new(),
             }),
@@ -148,7 +147,6 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(THICKNESS),
-                side: ExtrudeSide::Along,
             },
         );
         doc = next;

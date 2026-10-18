@@ -614,7 +614,6 @@ mod tests {
             .expect("finite"),
         ];
         let node = Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops,
             ids: Vec::new(),
         });
@@ -1152,7 +1151,6 @@ mod tests {
         let (doc, profile) = inserted(
             &doc,
             Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops,
                 ids: Vec::new(),
             }),
@@ -1163,7 +1161,6 @@ mod tests {
             Node::Extrude {
                 profile: profile.into(),
                 distance: crate::test_support::len(0.01),
-                side: ExtrudeSide::Along,
             },
             tol,
         );

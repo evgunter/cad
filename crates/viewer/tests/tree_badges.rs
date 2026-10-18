@@ -126,7 +126,6 @@ fn an_independent_subgraph_completes_beside_a_failure() {
         pncad::document::Node::Extrude {
             profile: other_profile.into(),
             distance: common::len(0.005),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -948,7 +947,6 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             Node::Extrude {
                 profile: profile.into(),
                 distance: common::len(0.02),
-                side: ExtrudeSide::Along,
             },
             tol,
         )

@@ -143,7 +143,6 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            frame: frame.into(),
             loops: vec![
                 LoopProgram::from_recorded(&outline(tol).program)
                     .expect("a literal recording lifts"),
@@ -157,7 +156,6 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(DEPTH),
-            side: ExtrudeSide::Along,
         },
         tol,
     );

@@ -84,7 +84,6 @@ fn the_storage_contract_holds_at_non_dyadic_values() {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::HollowTube {
-                    frame: spine.into(),
                     major_radius: len(2.0),
                     window: TubeWindow::Arc {
                         t0: ang(0.0),
@@ -121,7 +120,6 @@ fn the_storage_contract_holds_at_non_dyadic_values() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Tube {
-                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.3),
@@ -147,7 +145,6 @@ fn the_storage_contract_holds_at_non_dyadic_values() {
 fn identical_tubes_in_one_document_mint_disjoint_total_name_tables() {
     let (mut doc, spine) = axis_doc();
     let mk = || Node::Tube {
-        frame: spine.into(),
         major_radius: len(2.0),
         window: TubeWindow::Full,
         minor_radius: len(0.5),
@@ -205,7 +202,6 @@ fn a_hollow_full_rings_cavity_faces_are_named_totally() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::HollowTube {
-                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),

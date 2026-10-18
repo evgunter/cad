@@ -55,7 +55,6 @@ fn part_doc(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: fixture::len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }

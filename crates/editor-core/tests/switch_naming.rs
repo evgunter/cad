@@ -50,12 +50,10 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
         ProgramStep::LineTo(ProgramTarget::Point([x0e(), len(1.0)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let (doc, xy) = fixture::insert(doc, fixture::xy_frame());
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    frame: xy.into(),
                     loops: vec![loop_],
                     ids: Vec::new(),
                 })),
@@ -71,7 +69,6 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
             node: Box::new(Node::Extrude {
                 profile: crate::fixture::newest(&doc).into(),
                 distance: len(1.0),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },
@@ -190,7 +187,6 @@ fn circle_radius_edit_keeps_names() {
             .apply(
                 &DocEdit::InsertNode {
                     node: Box::new(Node::Profile(ProfileProgram {
-                        frame: xy.into(),
                         loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                         ids: Vec::new(),
                     })),
@@ -206,7 +202,6 @@ fn circle_radius_edit_keeps_names() {
                 node: Box::new(Node::Extrude {
                     profile: crate::fixture::newest(&doc).into(),
                     distance: len(1.0),
-                    side: ExtrudeSide::Along,
                 }),
                 fresh: Vec::new(),
             },
@@ -336,7 +331,6 @@ fn hole_circle_anchor_recovers_reversal() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    frame: xy.into(),
                     loops: vec![outer, hole],
                     ids: Vec::new(),
                 })),
@@ -353,7 +347,6 @@ fn hole_circle_anchor_recovers_reversal() {
                 node: Box::new(Node::Extrude {
                     profile: crate::fixture::newest(&doc).into(),
                     distance: len(1.0),
-                    side: ExtrudeSide::Along,
                 }),
                 fresh: Vec::new(),
             },

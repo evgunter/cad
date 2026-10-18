@@ -130,7 +130,6 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Box::new(Node::Extrude {
                 profile: arc_profile.into(),
                 distance: Formula::named(VarName::from_static("depth"), Dimension::Length),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },
@@ -167,7 +166,6 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops: vec![bracket],
                 ids: Vec::new(),
             })),
@@ -198,7 +196,6 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops: vec![fillet_loop],
                 ids: Vec::new(),
             })),
@@ -237,7 +234,6 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Box::new(Node::Extrude {
                 profile: square.into(),
                 distance: len(0.5),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },
@@ -358,7 +354,6 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Tube {
-                frame: spine.into(),
                 major_radius: len(2.0),
                 window: editor_core::TubeWindow::Full,
                 minor_radius: len(0.5),
@@ -370,7 +365,6 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::HollowTube {
-                frame: spine.into(),
                 major_radius: len(2.0),
                 window: editor_core::TubeWindow::Arc {
                     t0: ang(0.0),
@@ -408,7 +402,6 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Box::new(Node::Extrude {
                 profile: box_profile.into(),
                 distance: len(0.5),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },

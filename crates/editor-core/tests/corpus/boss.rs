@@ -28,16 +28,13 @@ pub fn document() -> CorpusDoc {
 
     let plate_loop =
         LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]).unwrap();
-    let plate_plane = r.insert(xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
-        frame: plate_plane.into(),
         loops: vec![plate_loop],
         ids: Vec::new(),
     }));
     let plate = r.insert(Node::Extrude {
         profile: plate_p.into(),
         distance: len(0.8),
-        side: ExtrudeSide::Along,
     });
 
     // v4 (LIB-SWITCH corpus ruling (a)): the three-arc boss authors as
@@ -48,16 +45,14 @@ pub fn document() -> CorpusDoc {
     // deviation: the boss's export bits shift; geometry is the same
     // circle).
     let boss_loop = LoopProgram::circle_split(1.2, 1.7, 0.35, 3, 0.0).unwrap();
-    let boss_plane = r.insert(frame([0.0, 0.0, 0.3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    // D-FRAME: let boss_plane = r.insert(frame([0.0, 0.0, 0.3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let boss_p = r.insert(Node::Profile(ProfileProgram {
-        frame: boss_plane.into(),
         loops: vec![boss_loop],
         ids: Vec::new(),
     }));
     let boss = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
 
     let union = r.insert(Node::Union {

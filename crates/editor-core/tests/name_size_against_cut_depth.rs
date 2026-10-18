@@ -58,7 +58,6 @@ fn bar(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -90,7 +89,6 @@ fn boolean_chain() -> (ProfileDoc, Vec<Trim>) {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(3.0),
-                side: ExtrudeSide::Along,
             },
         );
         let (d, trimmed) = insert(

@@ -13,7 +13,7 @@
 use crate::fixture::{insert, len, on_frame, step};
 use editor_core::{
     Axis3, CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation,
-    ExtrudeSide, Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId,
+    Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId,
     StableName, evaluate,
 };
 use geom_core::Tol;
@@ -47,7 +47,6 @@ fn block(
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }

@@ -18,7 +18,7 @@ use editor_core::eval::bound_pose;
 use editor_core::pose::{PoseDef, PoseRole};
 use editor_core::{
     BodyRead, CapEnd, ContactClass, CopyKey, DocEdit, DocumentId, EditError, EvalOptions,
-    ExtrudeSide, Formula, Frame, MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand,
+    Formula, Frame, MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand,
     OperandSlot, PoseValue, ProductError, ProfileDoc, RecipeNodeId, RoleSeg, Space, StableName,
     Target, WorldRead,
 };
@@ -43,7 +43,6 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -365,7 +364,6 @@ fn block_at(doc: ProfileDoc, half: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -647,7 +645,6 @@ fn a_union_of_an_instances_copy_and_a_block_evaluates() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, union) = insert(
@@ -798,7 +795,6 @@ fn a_place_of_several_shapes_keys_its_copies_by_read() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, place) = insert(doc, Node::place(vec![first.into(), second.into()]));

@@ -52,7 +52,6 @@ pub fn document() -> CorpusDoc {
     let plate = r.insert(Node::Extrude {
         profile: plate_p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
 
     // Slot 1: runs in y, floor at z = 0.5.
@@ -65,7 +64,6 @@ pub fn document() -> CorpusDoc {
     let slot1 = r.insert(Node::Extrude {
         profile: slot1_p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     // Nothing is coincident yet (the tool pierces the plate top and
     // overhangs both ends).
@@ -85,7 +83,6 @@ pub fn document() -> CorpusDoc {
     let slot2 = r.insert(Node::Extrude {
         profile: slot2_p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let sub2 = r.insert(Node::Subtract {
         from: sub1.into(),

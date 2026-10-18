@@ -99,11 +99,9 @@ fn loft_doc_of(
         )
         .expect("the parameter declares")
         .doc;
-    let (doc, lower_frame) = fixture::insert(doc, fixture::xy_frame());
     let (doc, lower) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: lower_frame.into(),
             loops: vec![lower],
             ids: Vec::new(),
         }),
@@ -115,7 +113,6 @@ fn loft_doc_of(
     let (doc, upper) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: upper_frame.into(),
             loops: vec![upper],
             ids: Vec::new(),
         }),

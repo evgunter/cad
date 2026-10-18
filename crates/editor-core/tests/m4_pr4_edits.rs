@@ -44,7 +44,6 @@ fn block(
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, p, e)

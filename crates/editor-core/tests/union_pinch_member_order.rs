@@ -116,7 +116,6 @@ fn prism(doc: ProfileDoc, corners: &[(f64, f64)], z0: f64, dz: f64) -> (ProfileD
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -731,7 +730,6 @@ fn tilted_holes(doc: ProfileDoc, holes: &[Hole]) -> (ProfileDoc, Vec<RecipeNodeI
             Node::Extrude {
                 profile: p.into(),
                 distance: len(h.length),
-                side: ExtrudeSide::Along,
             },
         );
         doc = d;

@@ -606,7 +606,6 @@ fn block_and_cut(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
     let block = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let q = r.profile(
         [0.0, 0.0, -0.5],
@@ -617,7 +616,6 @@ fn block_and_cut(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
     let pin = r.insert(Node::Extrude {
         profile: q.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let cut = r.insert(Node::Subtract {
         from: block.into(),
@@ -638,7 +636,6 @@ fn block_and_split(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
     let block = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let tool = r.insert(Node::Datum(Datum::Plane {
         origin: [len(2.0), len(0.0), len(0.0)],
@@ -825,7 +822,6 @@ fn a_strand_row_names_a_deleted_union() {
     let boss = r.insert(Node::Extrude {
         profile: q.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![block.into(), boss.into()]),

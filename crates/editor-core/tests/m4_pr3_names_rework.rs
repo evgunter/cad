@@ -44,7 +44,6 @@ fn block(
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -219,7 +218,6 @@ fn split_through_a_reflex_corner_names_its_copy_where_the_corner_stands() {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, plane) = insert(
@@ -371,11 +369,9 @@ fn graze_split_edge_names(
 ) -> (Vec<Vec<RoleSeg>>, Vec<Vec<RoleSeg>>) {
     use editor_core::{LoopProgram, ProfileProgram};
     let doc = ProfileDoc::empty_derived("m4_pr3_names_rework", Tol::witness());
-    let (doc, frame) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: frame.into(),
             loops: vec![LoopProgram::circle(0.0, 0.0, 1.0).expect("a finite circle")],
             ids: Vec::new(),
         }),
@@ -385,7 +381,6 @@ fn graze_split_edge_names(
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, plane) = insert(

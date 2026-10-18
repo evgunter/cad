@@ -201,7 +201,6 @@ fn build_doc(tol: Tol) -> Recipe {
     let hub_p = insert(
         &mut doc,
         Box::new(Node::Profile(ProfileProgram {
-            frame: hub_plane.into(),
             loops: vec![hub_polygon()],
             ids: Vec::new(),
         })),
@@ -211,7 +210,6 @@ fn build_doc(tol: Tol) -> Recipe {
         Box::new(Node::Extrude {
             profile: hub_p.into(),
             distance: len(HUB_H),
-            side: ExtrudeSide::Along,
         }),
     );
 
@@ -219,7 +217,6 @@ fn build_doc(tol: Tol) -> Recipe {
     let blade_p = insert(
         &mut doc,
         Box::new(Node::Profile(ProfileProgram {
-            frame: blade_plane.into(),
             loops: vec![blade_polygon()],
             ids: Vec::new(),
         })),
@@ -229,7 +226,6 @@ fn build_doc(tol: Tol) -> Recipe {
         Box::new(Node::Extrude {
             profile: blade_p.into(),
             distance: len(BLADE_H),
-            side: ExtrudeSide::Along,
         }),
     );
 

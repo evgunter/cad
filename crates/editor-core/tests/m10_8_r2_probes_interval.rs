@@ -83,7 +83,6 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, Reci
         },
     );
 
-    let plane = r.insert(xy_frame());
 
     // The rounded rectangle: four straight legs joined by four
     // PARAMETRIC fillet arcs, all sharing one radius parameter.
@@ -113,7 +112,6 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, Reci
         ProgramStep::CloseTo,
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![pad_loop],
         ids: Vec::new(),
     }));
@@ -121,11 +119,9 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, Reci
     let body = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: thickness.clone(),
-        side: ExtrudeSide::Along,
     });
 
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: plen("bore_r"),
@@ -135,7 +131,6 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, Reci
     let bore = r.insert(Node::Extrude {
         profile: bore_profile.into(),
         distance: thickness,
-        side: ExtrudeSide::Along,
     });
 
     let refs = {
