@@ -3240,21 +3240,35 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     }
 }
 
-/// **Where a row was read from**, beside its member-space cells: `None`
-/// for a judged row, and for a fold row the fold-minted names
-/// [`names::fold_cell`] read as member cells (a crossing read as its
-/// edge), sorted. Two crossings of one member edge spell alike, and the
-/// names they were minted under are what keep their two points apart.
-type RowOrigin = Option<Vec<names::StableName>>;
+/// **Where a row was read from**, beside its member-space cells.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum RowOrigin {
+    /// A judged row, from the pair of members `pair` (operands A, B).
+    Judged {
+        /// The judged pair.
+        pair: (usize, usize),
+    },
+    /// A fold row, with the fold-minted names [`names::fold_cell`]
+    /// read as member cells (a crossing read as its edge), sorted. Two
+    /// crossings of one member edge spell alike, and the names they were
+    /// minted under are what keep their two points apart.
+    Fold(Vec<names::StableName>),
+}
 
 /// Where `rows` holds the statement `row` makes, pushing it where none
 /// does; `origins` is `rows`' [`RowOrigin`]s, kept beside it. A
 /// statement is the unordered pair of cells and the relation between
 /// them: which cell a decision read first follows operand order and
-/// sweep order, and says nothing about the coincidence. Two fold rows
-/// read from different minted names are two statements, since each
-/// sites another point; a judged row states its fact for every fold row
-/// spelled as it.
+/// sweep order, and says nothing about the coincidence. Beyond that:
+///
+/// - two judged rows are one statement only when two different pairs
+///   made them and they agree exactly, site, margin and discharge too:
+///   that is a member read twice, whose pairs are bit-identical runs.
+///   One pair's two rows are two decisions (an edge touching a curved
+///   face at two isolated points), and both publish;
+/// - two fold rows read from different minted names are two
+///   statements, since each sites another point;
+/// - a judged row states its fact for every fold row spelled as it.
 fn stated_at(
     rows: &mut Vec<crate::coincide::NamedCoincidence>,
     origins: &mut Vec<RowOrigin>,
@@ -3264,9 +3278,18 @@ fn stated_at(
     let [a, b] = &row.cells;
     let same = |(r, o): (&crate::coincide::NamedCoincidence, &RowOrigin)| {
         let [c, d] = &r.cells;
-        r.relation == row.relation
-            && ((a == c && b == d) || (a == d && b == c))
-            && (o.is_none() || origin.is_none() || *o == origin)
+        let alike = r.relation == row.relation && ((a == c && b == d) || (a == d && b == c));
+        alike
+            && match (o, &origin) {
+                (RowOrigin::Judged { pair: p }, RowOrigin::Judged { pair: q }) => {
+                    p != q
+                        && r.site == row.site
+                        && r.margin == row.margin
+                        && r.discharge == row.discharge
+                }
+                (RowOrigin::Fold(x), RowOrigin::Fold(y)) => x == y,
+                _ => true,
+            }
     };
     rows.iter()
         .zip(origins.iter())
@@ -3637,8 +3660,13 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // read twice, beside a third) publish it once.
     let mut coincidences = Vec::with_capacity(judged.len());
     let mut origins = Vec::with_capacity(judged.len());
-    for row in judged {
-        stated_at(&mut coincidences, &mut origins, row, None);
+    for (row, pair) in judged {
+        stated_at(
+            &mut coincidences,
+            &mut origins,
+            row,
+            RowOrigin::Judged { pair },
+        );
     }
     let judged_rows = coincidences.len();
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
@@ -3866,7 +3894,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     &mut coincidences,
                     &mut origins,
                     row,
-                    Some(minted),
+                    RowOrigin::Fold(minted),
                 )]
             } else {
                 restated
@@ -3984,7 +4012,7 @@ const UNION_NO_STEP: &str = "a union fold of two members or more ran no step";
 /// Returns the member faces the judgements consumed
 /// ([`names::UnionLinks`]): the one place a union's faces are linked
 /// (N2), so the links are member order's no more than the verdict is;
-/// the judgements' rows; and the carrier pairs they glued, the fold's
+/// the judgements' rows, each beside the pair that made it; and the carrier pairs they glued, the fold's
 /// one verdict per pair ([`PairVerdict`]). `None` where a judged
 /// intersection is empty.
 #[allow(clippy::type_complexity)] // the judge's one record, or none for an empty intersection
@@ -4005,7 +4033,7 @@ fn judge_pairwise_contact<T: Decide>(
 ) -> Result<
     Option<(
         names::UnionLinks<T>,
-        Vec<crate::coincide::NamedCoincidence>,
+        Vec<(crate::coincide::NamedCoincidence, (usize, usize))>,
         Vec<PairVerdict>,
     )>,
     NodeErrorKind,
@@ -4027,7 +4055,7 @@ fn judge_pairwise_contact<T: Decide>(
             links
                 .judged(a, b, &naming, &body)
                 .map_err(NodeErrorKind::Naming)?;
-            rows.extend(judged);
+            rows.extend(judged.into_iter().map(|r| (r, (a, b))));
             verdicts.extend(glued);
         }
     }
@@ -5035,11 +5063,23 @@ mod union_row_tests {
             let mut rows = Vec::new();
             let mut origins: Vec<RowOrigin> = Vec::new();
             for j in judged {
-                stated_at(&mut rows, &mut origins, j.clone(), None);
+                stated_at(
+                    &mut rows,
+                    &mut origins,
+                    j.clone(),
+                    RowOrigin::Judged { pair: (0, 1) },
+                );
             }
             let at: Vec<usize> = folded
                 .iter()
-                .map(|(r, m)| stated_at(&mut rows, &mut origins, r.clone(), Some(m.clone())))
+                .map(|(r, m)| {
+                    stated_at(
+                        &mut rows,
+                        &mut origins,
+                        r.clone(),
+                        RowOrigin::Fold(m.clone()),
+                    )
+                })
                 .collect();
             (rows.len(), at)
         };
@@ -5051,12 +5091,70 @@ mod union_row_tests {
             "a judged row states the fact for each crossing spelled as it"
         );
         let mut rows = vec![judged];
-        let mut origins: Vec<RowOrigin> = vec![None];
+        let mut origins: Vec<RowOrigin> = vec![RowOrigin::Judged { pair: (0, 1) }];
         let plain = row(c.clone(), member_e.clone());
         assert_eq!(
-            stated_at(&mut rows, &mut origins, plain, Some(Vec::new())),
+            stated_at(&mut rows, &mut origins, plain, RowOrigin::Fold(Vec::new())),
             0,
             "a fold row read from member cells alone is the judged row"
+        );
+    }
+
+    /// **One pair's two rows are two statements** (DM4: a coincidence
+    /// row is a decision): an edge touching a curved face at two
+    /// isolated points is two rows with one cell pair and one relation,
+    /// and both publish. Two pairs stating one row exactly, a member
+    /// read twice, publish it once; two pairs whose rows differ in their
+    /// margin are two rows.
+    #[test]
+    fn one_pairs_two_rows_publish_and_a_repeated_read_collapses() {
+        let cell = |m: u64, kind| NamedCell::Entity {
+            input: VarId::new(1, m),
+            name: name(
+                kind,
+                RecipeNodeId::new(0, m),
+                vec![RoleSeg::Cap(CapEnd::Start)],
+            ),
+        };
+        let at = |margin: f64| {
+            let margin = geom_core::MarginDiag::value(margin);
+            NamedCoincidence {
+                cells: [cell(1, EntityKind::Edge), cell(2, EntityKind::Face)],
+                relation: topo::Relation::SurfaceTangent,
+                site: topo::DecisionSite::TangentWitness,
+                margin,
+                discharge: topo::Discharge::of(margin),
+            }
+        };
+        let publish = |judged: &[(NamedCoincidence, (usize, usize))]| {
+            let mut rows = Vec::new();
+            let mut origins = Vec::new();
+            judged
+                .iter()
+                .map(|(r, pair)| {
+                    stated_at(
+                        &mut rows,
+                        &mut origins,
+                        r.clone(),
+                        RowOrigin::Judged { pair: *pair },
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            publish(&[(at(0.0), (0, 1)), (at(0.0), (0, 1))]),
+            [0, 1],
+            "one pair's two touches, both published"
+        );
+        assert_eq!(
+            publish(&[(at(1e-9), (0, 2)), (at(1e-9), (1, 2))]),
+            [0, 0],
+            "a member read twice states one row"
+        );
+        assert_eq!(
+            publish(&[(at(0.0), (0, 2)), (at(1e-9), (1, 2))]),
+            [0, 1],
+            "two pairs at two margins are two rows"
         );
     }
 
