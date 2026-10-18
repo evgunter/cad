@@ -548,6 +548,9 @@ impl NameTable {
         name: NameRef,
         mut ents: Vec<EntityRef>,
     ) -> Result<(), SeatingRefusal> {
+        for e in &ents {
+            SeatingRefusal::check_kind(&name, e)?;
+        }
         ents.sort_unstable();
         ents.dedup();
         if ents.len() < 2 {
@@ -582,6 +585,9 @@ impl NameTable {
         name: NameRef,
         mut pairs: Vec<(Candidate, EntityRef)>,
     ) -> Result<(), SeatingRefusal> {
+        for (_, e) in &pairs {
+            SeatingRefusal::check_kind(&name, e)?;
+        }
         let dup = |name: &NameRef| SeatingRefusal::duplicate(name);
         pairs.sort_unstable_by_key(|&(_, e)| e);
         let mut ks = Vec::with_capacity(pairs.len());
@@ -626,9 +632,9 @@ impl NameTable {
         debug_assert_eq!(ents.len(), ks.len(), "one candidate per entity");
         for e in &ents {
             SeatingRefusal::check_kind(&name, e)?;
-            if self.reverse.contains_key(e) {
-                return Err(SeatingRefusal::duplicate(&name));
-            }
+        }
+        if ents.iter().any(|e| self.reverse.contains_key(e)) {
+            return Err(SeatingRefusal::duplicate(&name));
         }
         // The forward direction is searched once, as `insert_ref`'s is.
         // The reverse direction cannot be: a tie writes SEVERAL rows,
@@ -1092,7 +1098,36 @@ mod carrying_door {
                     "{door}: an edge beside a face"
                 );
             }
+            // Doubly defective: the name is already held and its first
+            // candidate already seated, and the kind disagrees. The kind
+            // is checked first, whichever door and entity order.
+            let mut held = NameTable::new();
+            held.insert((*name()).clone(), face(1)).unwrap();
+            assert_eq!(
+                seat(&mut held, edge(1), edge(2)),
+                Err(mismatch.clone()),
+                "{door}: a held name under an edge"
+            );
+            if door == "insert_tied" {
+                assert_eq!(
+                    seat(&mut held, face(1), edge(2)),
+                    Err(mismatch.clone()),
+                    "{door}: a seated face beside an edge"
+                );
+            }
         }
+        // A malformed list and a mismatch: still the mismatch.
+        let mut t = NameTable::new();
+        assert_eq!(
+            t.insert_candidates_ref(name(), vec![(Only, face(1)), (Only, edge(2))]),
+            Err(mismatch.clone()),
+            "two strict rows, one an edge"
+        );
+        assert_eq!(
+            t.insert_tied((*name()).clone(), vec![edge(1)]),
+            Err(mismatch),
+            "a one-candidate tie of an edge"
+        );
     }
 
     #[test]
