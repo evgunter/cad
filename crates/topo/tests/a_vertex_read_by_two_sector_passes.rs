@@ -170,7 +170,7 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
 /// contacts there may refuse too: coincident corners, and edges
 /// overlapping along a side. Those are the operand's records, which an
 /// op called without them does not carry
-/// (`work/fuse/a-booleans-records-are-complete-only-relative-to-the-records-passed-in.md`);
+/// (`work/contacthold/a-booleans-records-are-complete-only-relative-to-the-records-passed-in.md`);
 /// an edge of the other operand through the rectangle's interior is not
 /// admitted. Returns whether 3′ held.
 fn three_prime(

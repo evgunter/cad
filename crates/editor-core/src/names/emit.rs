@@ -269,7 +269,7 @@ pub enum NamingError {
     /// would name. It has no identity of its own (`docs/DESIGN.md`,
     /// maximal edges), so no member- or position-citing name may stand
     /// for it, and the edge-derived name it takes instead is unbuilt
-    /// (`work/fuse/a-conventional-vertex-mints-no-edge-derived-name`).
+    /// (`work/emit/a-conventional-vertex-mints-no-edge-derived-name`).
     /// A construction's own rim self-loop vertex
     /// (`RoleSeg::MeridianVertex` at the seam) keeps its name and is
     /// not refused.
@@ -540,7 +540,7 @@ impl crate::spoken::Say for NamingError {
                 "{UNRULED_FRAMING}: vertex {vertex:?} of output body {body} is a closed \
                  edge's conventional vertex, which has no identity of its own, and the name it \
                  takes from its edge is not built yet \
-                 (work/fuse/a-conventional-vertex-mints-no-edge-derived-name)"
+                 (work/emit/a-conventional-vertex-mints-no-edge-derived-name)"
             ),
             Self::MergedChordConstituents {
                 edge,
@@ -2358,7 +2358,7 @@ mod walk_tests {
 /// only edge is one closed edge, at both ends, has no identity of its
 /// own, so a table naming it refuses typed — unless the name is a
 /// construction's own rim self-loop vertex. Hand-assembled: no document
-/// reaches a closed join yet (`work/fuse/a-conventional-vertex-mints-no-edge-derived-name`).
+/// reaches a closed join yet (`work/emit/a-conventional-vertex-mints-no-edge-derived-name`).
 #[cfg(test)]
 mod conventional_vertex_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
