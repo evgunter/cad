@@ -1200,8 +1200,9 @@ fn a_join_landing_a_value_gesture_overtakes_still_prunes() {
 }
 
 /// **A refused placement waits for the committed landing**, whatever
-/// refused it. Two seats over-constrain the framed post_b, which the
-/// evaluation refuses — a refusal the graph decides, but the scratch
+/// refused it. A ball mate on post_b's top centre, which a plane has
+/// none of, is admitted at the door and refused where post_b evaluates
+/// — a refusal the graph decides, but the scratch
 /// landing cannot tell it from one a previewed value decides, so it
 /// keeps the frame; the committed landing after the cancel drops it,
 /// saying the post is in no space.
@@ -1214,15 +1215,10 @@ fn a_refused_placement_waits_for_the_committed_landing() {
     asm::unpin(&mut session, bench.post_b);
     asm::unpin(&mut session, bench.shelf_i);
     commit_frame(&mut session, bench.post_b);
-    for _ in 0..2 {
-        let seat = session.perform(asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Rest,
-            asm::middle_seat_values(),
-        ));
-        assert!(seat.refusal.is_none(), "{:?}", seat.refusal);
-    }
+    // A mate the door admits and the evaluation refuses: post_b's
+    // placement fails, so its copy is in no space.
+    let seat = session.perform(asm::no_centre_seat_op(&bench, bench.post_b));
+    assert!(seat.refusal.is_none(), "{:?}", seat.refusal);
     drag_and_land(&mut session, pattern);
     assert!(
         landed_superseded(&mut session).is_empty(),

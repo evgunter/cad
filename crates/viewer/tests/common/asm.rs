@@ -491,6 +491,23 @@ pub fn no_centre_op(bench: &Bench, post: RecipeNodeId) -> SessionOp {
     }
 }
 
+/// [`no_centre_op`] in `post`'s bundle: a ball mate on the centre of
+/// `post`'s top cap, which a plane has none of, against the shelf's
+/// underside centre. The door admits it; `post` refuses it where it
+/// evaluates (`NoCentre`), so its copy is in no space.
+pub fn no_centre_seat_op(bench: &Bench, post: RecipeNodeId) -> SessionOp {
+    let (post_top, shelf_bottom) = seat_faces(bench, post, bench.shelf_i);
+    SessionOp::AddMate {
+        placement: post,
+        mate: Box::new(crate::fixture::mate(
+            crate::fixture::point_of(post_top),
+            crate::fixture::point_of(shelf_bottom),
+            pncad::select::ContactClass::Rest,
+        )),
+        values: Vec::new(),
+    }
+}
+
 /// **The shelf's bundle refused, and post_b chained to it**: post_b's
 /// world pin off and post_b seated under the shelf's middle (`sound`,
 /// in post_b's bundle), then the shelf's world pin off and its bundle
