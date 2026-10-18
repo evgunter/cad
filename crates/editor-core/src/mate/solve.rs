@@ -880,9 +880,10 @@ pub(crate) fn admit_mate<P>(
 }
 
 /// **The named interim's world pin stands alone** ([`super::WorldPin`]):
-/// a bundle holding one holds nothing else, so the constraint `at` is
-/// refused where its bundle holds a world pin and another constraint
-/// ([`MateFault::Overconstrained`]: the pin already fixes the copy).
+/// a bundle holding one holds no mate or value, so the constraint `at`
+/// is refused where its bundle holds a world pin and a constraint that
+/// is none ([`MateFault::Overconstrained`]: the pin already fixes the
+/// copy). Two world pins say one thing, as a replayed log may write.
 /// Asked of every constraint by the edit door and the load door alike.
 ///
 /// # Errors
@@ -892,7 +893,8 @@ pub(crate) fn admit_beside_world_pin(
     at: MateRef,
     bundle: &[super::Constraint],
 ) -> Result<(), Box<MateFault>> {
-    if bundle.len() > 1 && bundle.iter().any(|c| c.world_pin().is_some()) {
+    let pinned = bundle.iter().any(|c| c.world_pin().is_some());
+    if pinned && bundle.iter().any(|c| c.world_pin().is_none()) {
         return Err(Box::new(MateFault::Overconstrained {
             placement: at.placement,
             constraints: vec![at.id],

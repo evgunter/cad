@@ -222,12 +222,12 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// lone `0` is the constant, so the mint chain re-draws. No total moved.
 ///
 /// INTENT stage 3 C (a mate relates two poses) moved it in every
-/// document, by tags: each places its copy by the "place part" gesture,
-/// a loose `Place` and then its mate and values, where one edit minted
+/// document, by tags: each places its copy where it stands, a loose
+/// `Place` and then the named interim's world pin, where one edit minted
 /// the placement holding its world pin, so the placement's tag moved
 /// and every tag minted after it. [`NAME_WORDS`] held: no name says a
 /// word more or fewer.
-const SAID_DIGEST: u64 = 0x9c7e_e17e_d745_3fc6;
+const SAID_DIGEST: u64 = 0x961f_05f0_952f_8b55;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

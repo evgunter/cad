@@ -5255,6 +5255,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unplaceable_part",
             "unresolved_var_crosses_cut",
             "value_on_a_moved_world",
+            "world_pin_on_a_moved_world",
             "var_name_conflict",
         ],
         delegates: &["resolve_fault_tag"],

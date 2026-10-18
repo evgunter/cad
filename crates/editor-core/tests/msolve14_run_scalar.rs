@@ -944,7 +944,7 @@ fn run_at<T: editor_core::EvalScalar>(
 /// three ε but for that one; its seats' values are listed in the one
 /// order the solve takes them, so no reordering moved it.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x136f_a292_c983_3e42),
+    (1e-9, 0x2902_fc93_713f_a236),
     (1e-6, 0x529d_f2e3_617f_70ea),
     (1e-12, 0x64be_0e25_5803_fbc5),
 ];

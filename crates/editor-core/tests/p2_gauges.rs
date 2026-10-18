@@ -1152,17 +1152,10 @@ fn an_inline_at_the_identity_keeps_every_bundle() {
     for (source, spliced) in bundles_through(&part, through, &back.doc) {
         assert_eq!(spliced, source, "and each placement's constraints");
     }
-    // The only maintenance is the silent retirement of the host's own
-    // anonymous variables the inlined instance's pin read; nothing
-    // carried from the part is reported.
-    assert!(!back.maintenance.is_empty(), "the instance's pin goes");
-    for m in &back.maintenance {
-        assert!(
-            matches!(m, Maintenance::AnonymousVarRemoved { var, distribution: None }
-                if host.var(var.id()).is_some() && back.doc.var(var.id()).is_none()),
-            "only the host's own pin variables retire: {m:?}"
-        );
-    }
+    // The instance stands where its body stands by a world pin, which
+    // reads no variable, so its going retires none; nothing carried
+    // from the part is reported.
+    assert_eq!(back.maintenance, Vec::<Maintenance>::new());
 }
 
 /// **The carry's edit lists replay to its documents without a solve**:

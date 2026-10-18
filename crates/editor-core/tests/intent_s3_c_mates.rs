@@ -1289,6 +1289,12 @@ fn motion_of<T: editor_core::EvalScalar>(
 ) -> Option<geom_core::RigidMotion<T>> {
     match ev.result(placement) {
         Some(NodeResult::Ok(value)) => value.motion,
+        Some(NodeResult::Poisoned { through }) => {
+            panic!(
+                "the placement is poisoned through {through:?}: {:?}",
+                ev.node_error(*through)
+            )
+        }
         other => panic!("the placement evaluates: {other:?}"),
     }
 }
@@ -1657,7 +1663,8 @@ fn a_box_of_height_pinned_where_it_stands(nominal: f64) -> (ProfileDoc, RecipeNo
 /// value** (stage 3 C's named interim). A box whose height is a
 /// variable, its copy pinned by the world pin: the copy is in the world
 /// and placed by no map at the nominal, at another value, and under an
-/// interval box over the height, where a pin read off the copy's
+/// interval box over the height (a tenth of ε wide, so the body itself
+/// certifies), where a pin read off the copy's
 /// geometry would carry the height's width into the copy.
 ///
 /// *Breaks if* the world pin reads the copy's geometry or a number (a
@@ -1682,13 +1689,19 @@ fn a_world_pin_places_its_copy_where_its_body_stands_at_every_value() {
         param_box: Some(std::sync::Arc::new(
             editor_core::analysis::ParamBox::from_axes(std::collections::BTreeMap::from([(
                 h,
-                editor_core::analysis::BoxAxis::Varying { lo: -0.1, hi: 0.1 },
+                editor_core::analysis::BoxAxis::Varying {
+                    lo: -0.1 * Tol::witness().eps(),
+                    hi: 0.1 * Tol::witness().eps(),
+                },
             )])),
         )),
         ..EvalOptions::default()
     };
     let ev = evaluated::<geom_core::Interval>(&doc, &boxed);
-    assert!(motion_of(&ev, placement).is_none(), "no width under the box");
+    assert!(
+        motion_of(&ev, placement).is_none(),
+        "no width under the box"
+    );
 }
 
 /// **A world pin stands alone in its bundle.** A mate added beside it,
@@ -1710,7 +1723,7 @@ fn a_world_pin_stands_alone_in_its_bundle() {
     let beside = doc.apply(
         &DocEdit::AddConstraint {
             placement,
-            mate: Box::new(mate.clone()),
+            mate: Box::new(mate),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -1728,6 +1741,12 @@ fn a_world_pin_stands_alone_in_its_bundle() {
     overconstrained(beside.map(|_| ()));
     let (doc, body) = a_box("s3c_world_pin_after", 1.0);
     let (doc, placement) = placed(doc, body);
+    let mate = fixture::pin_mate(
+        &doc,
+        placement,
+        &editor_core::Frame::translation([1.0, 0.0, 0.0]),
+        &EvalOptions::default(),
+    );
     let (doc, _) = fixture::constrain_at(doc, placement, mate);
     overconstrained(
         doc.apply(
@@ -1739,47 +1758,58 @@ fn a_world_pin_stands_alone_in_its_bundle() {
     );
 }
 
-/// **Inline refuses a moved landing under a world pin.** A part whose
-/// copy is pinned where it stands, instanced in a host and pinned off
-/// the identity: the world pin holds no pose to move with the instance,
-/// so inline refuses `WorldPinOnAMovedWorld` naming the part placement.
-/// At the identity the same instance inlines, and its copy stays pinned
-/// where it stands.
+/// **Inline carries a world pin at the identity, and pins its copy at
+/// a moved landing.** A part whose copy is pinned where it stands,
+/// instanced in a host: pinned at the identity, the inlined copy stays
+/// pinned where it stands; pinned off the identity, the world pin holds
+/// no pose to move with the instance, so the copy is pinned at the
+/// instance's motion by `pin_at` (the pin any other pose takes) and
+/// stands there.
 ///
-/// *Breaks if* the inline drops the world pin or carries it under a
+/// *Breaks if* the inline drops the world pin, or carries it under a
 /// moved landing (the copy would stay at the part's identity).
 #[test]
-fn inline_refuses_a_moved_landing_under_a_world_pin() {
-    let (part, p) = a_box_of_height_pinned_where_it_stands(1.0);
+fn inline_carries_a_world_pin_and_pins_its_copy_at_a_moved_landing() {
+    let (part, _) = a_box_of_height_pinned_where_it_stands(1.0);
     let mut store = fixture::resolver::PartStore::new();
     let part_ref = store.insert(part, Tol::witness());
     let o = fixture::resolver::with_resolver(store.clone());
     let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
     let host = ProfileDoc::empty_derived("s3c_world_pin_host", Tol::witness());
     let (host, instance) = fixture::insert(host, Node::instantiate_part(part_ref));
+    let world_pins = |doc: &ProfileDoc| {
+        doc.placements()
+            .into_iter()
+            .flat_map(|at| fixture::bundle(doc, at))
+            .filter(|c| c.world_pin().is_some())
+            .count()
+    };
+    let still = fixture::pinned(host.clone(), instance, &o);
+    let inlined = editor_core::inline(&still, instance, &resolver, Tol::witness())
+        .expect("at the identity the part's world is the host's");
+    assert_eq!(
+        world_pins(&inlined.doc),
+        1,
+        "the copy stays pinned where it stands"
+    );
     let moved = fixture::pin(
-        host.clone(),
+        host,
         instance,
         &editor_core::Frame::translation([3.0, 0.0, 0.0]),
         &o,
     );
-    match editor_core::inline(&moved, instance, &resolver, Tol::witness()) {
-        Err(editor_core::InlineError::WorldPinOnAMovedWorld { placement }) => {
-            assert_eq!(placement.id(), p, "the part placement is named");
-        }
-        other => panic!("a moving landing under a world pin refuses: {other:?}"),
-    }
-    let still = fixture::pinned(host, instance, &o);
-    let inlined = editor_core::inline(&still, instance, &resolver, Tol::witness())
-        .expect("at the identity the part's world is the host's");
-    let pins = inlined
-        .doc
-        .placements()
-        .into_iter()
-        .flat_map(|at| fixture::bundle(&inlined.doc, at))
-        .filter(|c| c.world_pin().is_some())
-        .count();
-    assert_eq!(pins, 1, "the part's copy stays pinned where it stands");
+    let inlined = editor_core::inline(&moved, instance, &resolver, Tol::witness())
+        .expect("a moved landing pins the copy at the move");
+    assert_eq!(world_pins(&inlined.doc), 0, "no world pin holds the move");
+    let [copy] = inlined.doc.placements()[..] else {
+        panic!("one placement in the host");
+    };
+    let at = solved(&inlined.doc, copy);
+    assert!(
+        turn_between(at.linear, Mat3::identity()) < 1e-12
+            && (at.translation - Vec3::new(3.0, 0.0, 0.0)).norm() < 1e-12,
+        "the copy stands at the move: {at:?}"
+    );
 }
 
 /// **A world pin crosses save and load.** The document saves, loads,

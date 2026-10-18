@@ -3,7 +3,7 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
   "snapshot": {
     "id": "e55cffc81a5ad8cfe85239d944a3ae95",
     "mint": {
-      "chain": "938b224a69f22586d71db368c0a4076d377daebb8603a2eed4968247548b3ca7",
+      "chain": "ff588446501f6bec42c68ee0dbb975d73f4de58bf00bcf13ab2e4833eed0c8af",
       "log": [
         {
           "var": "1:b639d844bab8e826"
@@ -195,40 +195,7 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           "var": "63:81e4a37344acd62d"
         },
         {
-          "var": "64:812736b8994e9090"
-        },
-        {
-          "var": "65:31cd4d6d854d863a"
-        },
-        {
-          "var": "66:5892b86a5e394101"
-        },
-        {
-          "var": "67:38ed80197c704e51"
-        },
-        {
-          "var": "68:40dc05156b8361c0"
-        },
-        {
-          "constraint": "69:20830b9bd83424ba"
-        },
-        {
-          "var": "70:3a03d9dac5a1c995"
-        },
-        {
-          "constraint": "71:581da993cf94b501"
-        },
-        {
-          "var": "72:610035e520cc578b"
-        },
-        {
-          "constraint": "73:e350273ae7032c05"
-        },
-        {
-          "var": "74:2bd07d8efa2a7cd4"
-        },
-        {
-          "constraint": "75:938b224a69f22586"
+          "constraint": "64:ff588446501f6bec"
         }
       ]
     },
@@ -553,87 +520,9 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           ],
           "constraints": [
             {
-              "id": "69:20830b9bd83424ba",
+              "id": "64:ff588446501f6bec",
               "kind": {
-                "mate": {
-                  "on": "65:31cd4d6d854d863a",
-                  "to": {
-                    "world": {
-                      "role": {
-                        "pose": {
-                          "slide": {
-                            "pose": {
-                              "slide": {
-                                "pose": {
-                                  "slide": {
-                                    "pose": "frame",
-                                    "along": {
-                                      "role": {
-                                        "pose": "frame",
-                                        "role": "X"
-                                      }
-                                    },
-                                    "by": "66:5892b86a5e394101"
-                                  }
-                                },
-                                "along": {
-                                  "role": {
-                                    "pose": "frame",
-                                    "role": "Y"
-                                  }
-                                },
-                                "by": "67:38ed80197c704e51"
-                              }
-                            },
-                            "along": {
-                              "role": {
-                                "pose": "frame",
-                                "role": "Z"
-                              }
-                            },
-                            "by": "68:40dc05156b8361c0"
-                          }
-                        },
-                        "role": "Xy"
-                      }
-                    }
-                  },
-                  "class": "rest"
-                }
-              }
-            },
-            {
-              "id": "71:581da993cf94b501",
-              "kind": {
-                "value": {
-                  "mate": "69:20830b9bd83424ba",
-                  "coord": {
-                    "slide": "x"
-                  },
-                  "by": "70:3a03d9dac5a1c995"
-                }
-              }
-            },
-            {
-              "id": "73:e350273ae7032c05",
-              "kind": {
-                "value": {
-                  "mate": "69:20830b9bd83424ba",
-                  "coord": {
-                    "slide": "y"
-                  },
-                  "by": "72:610035e520cc578b"
-                }
-              }
-            },
-            {
-              "id": "75:938b224a69f22586",
-              "kind": {
-                "value": {
-                  "mate": "69:20830b9bd83424ba",
-                  "coord": "spin",
-                  "by": "74:2bd07d8efa2a7cd4"
-                }
+                "world_pin": "identity"
               }
             }
           ]
@@ -1164,118 +1053,6 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           "Output": {
             "node": "62:c6424ce65c4dd5f1",
             "port": 0
-          }
-        }
-      },
-      "64:812736b8994e9090": {
-        "kind": "Face",
-        "def": {
-          "Select": {
-            "body": "61:2ca1b132d6a6b941",
-            "names": [
-              {
-                "kind": "Face",
-                "node": "60:7696d89a98ddca19",
-                "path": [
-                  {
-                    "From": {
-                      "read": "29:9117322ce802f579",
-                      "of": {
-                        "kind": "Face",
-                        "node": "28:065cfa8f90376363",
-                        "path": [
-                          {
-                            "Cap": "End"
-                          }
-                        ]
-                      }
-                    }
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      },
-      "65:31cd4d6d854d863a": {
-        "kind": "Plane",
-        "def": {
-          "Pose": {
-            "Plane": {
-              "face": "64:812736b8994e9090"
-            }
-          }
-        }
-      },
-      "66:5892b86a5e394101": {
-        "kind": "Length",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": 0.5,
-              "display_unit": "m"
-            }
-          }
-        }
-      },
-      "67:38ed80197c704e51": {
-        "kind": "Length",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": 0.5,
-              "display_unit": "m"
-            }
-          }
-        }
-      },
-      "68:40dc05156b8361c0": {
-        "kind": "Length",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": 1.0,
-              "display_unit": "m"
-            }
-          }
-        }
-      },
-      "70:3a03d9dac5a1c995": {
-        "kind": "Length",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": 0.0,
-              "display_unit": "m"
-            }
-          }
-        }
-      },
-      "72:610035e520cc578b": {
-        "kind": "Length",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": 0.0,
-              "display_unit": "m"
-            }
-          }
-        }
-      },
-      "74:2bd07d8efa2a7cd4": {
-        "kind": "Angle",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Angle",
-              "value": 0.0,
-              "display_unit": "rad"
-            }
           }
         }
       }

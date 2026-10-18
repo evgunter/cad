@@ -6481,6 +6481,24 @@ fn add_constraint<P: Clone + crate::ProfilePayload>(
     // mate of that copy, which is the more specific refusal.
     admit_written_constraint(new, placement, id, k, tol, reach)?;
     check_acyclic(new)?;
+    // Last, the bundle's make-up, which only an added constraint
+    // changes: a world pin stands alone, so a constraint beside one
+    // refuses as the bundle already fixing its copy.
+    if let Some(bundle) = new
+        .nodes
+        .get(&placement)
+        .and_then(crate::mate::solve::bundle_of)
+    {
+        crate::mate::solve::admit_beside_world_pin(
+            crate::mate::MateRef::new(placement, id),
+            bundle,
+        )
+        .map_err(|fault| EditError::MateRefused {
+            node: new.spoken(placement),
+            held: crate::spoken::held_by(&*fault, new),
+            fault,
+        })?;
+    }
     Ok((id, fresh))
 }
 
@@ -6513,8 +6531,7 @@ fn admit_written_constraint<P: Clone + crate::ProfilePayload>(
         unreachable!("the edit wrote constraint {constraint} into the bundle")
     };
     let at = crate::mate::MateRef::new(placement, constraint);
-    let beside = crate::mate::solve::admit_beside_world_pin(at, bundle);
-    let admitted = beside.and_then(|()| match &added.kind {
+    let admitted = match &added.kind {
         // A mate re-written re-asks every value naming it: a value's
         // chart is read off its mate's poses (a target re-pointed onto
         // two bodies has none), so the door's verdict on a value holds
@@ -6542,7 +6559,7 @@ fn admit_written_constraint<P: Clone + crate::ProfilePayload>(
             crate::mate::solve::admit_value(new, at, bundle, value)
         }
         crate::mate::ConstraintKind::WorldPin(_) => Ok(()),
-    });
+    };
     admitted.map_err(|fault| EditError::MateRefused {
         node: new.spoken(placement),
         held: crate::spoken::held_by(&*fault, new),

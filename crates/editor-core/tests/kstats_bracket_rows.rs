@@ -112,13 +112,12 @@ const PRE_PASS: usize = 69;
 const FRAME_LOG: usize = 4;
 const PROFILE_LOG: usize = PRE_PASS;
 const EXTRUDE_LOG: usize = 655;
-/// A placement pinned to the world by one mate read off its copy's
-/// geometry ([`fixture::pin`]): the decisions its fold makes reading
-/// the copy's frame at the identity. An instance pinned off the
-/// identity carries its own pin fold on top of its op's log: three
-/// decisions — the two datum normals, and the at-rest predicate decided
-/// once by the fold's snap.
-const PIN_LOG: usize = 3;
+/// A placement pinned where its body stands by the named interim's world
+/// pin ([`fixture::pin`] at the identity): it reads nothing, so its fold
+/// decides nothing. (An instance pinned off the identity carries its own
+/// pin fold on top of its op's log: three decisions — the two datum
+/// normals, and the at-rest predicate decided once by the fold's snap.)
+const WORLD_PIN_LOG: usize = 0;
 
 /// Two instances, both pinned to the world, so both ops do the same
 /// work. `o` reaches the part they copy.
@@ -282,9 +281,9 @@ fn every_decision_the_part_makes_lands_on_one_of_its_nodes_brackets() {
             (order[0], FRAME_LOG),
             (order[1], PROFILE_LOG),
             (order[2], EXTRUDE_LOG),
-            // The world placement folds its pin: the decisions of
-            // reading its frame off the copy's edge and vertex.
-            (order[3], PIN_LOG),
+            // The world placement's pin reads nothing and decides
+            // nothing.
+            (order[3], WORLD_PIN_LOG),
         ]),
         "one log per node, the Profile node's carrying its precompute: {counts:?}"
     );

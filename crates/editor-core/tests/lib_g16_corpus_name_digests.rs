@@ -210,24 +210,23 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// moves, and whose merged values are neither tree's.
 ///
 /// **Re-pinned for INTENT stage 3 C** (a mate relates two poses), every
-/// row: each document places its copy by the "place part" gesture — a
-/// loose `Place`, then one mate onto a world plane and its values (a pin
-/// where the copy has no planar face) — where one `place_in_world` edit
-/// minted the placement holding its world pin. The placement's mint
+/// row: each document places its copy where it stands by a loose
+/// `Place` and the named interim's world pin, where one `place_in_world`
+/// edit minted the placement holding its world pin. The placement's mint
 /// preimage moved, and every id drawn after it. No outcome or point
 /// moved: `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0x34df2e9c2dc71228),
     ("corner_table", 0xc87991ff2a580c70),
-    ("heat_sink", 0xa84719bb4ff276bf),
+    ("heat_sink", 0x04120ec6d62ef7f6),
     ("crossing_slots", 0xac1f4dfeed7271e3),
     ("nested_islands_105", 0x23ef0bd25d97014f),
     ("nested_islands_106_depth1", 0xbb2608969c4bdff2),
     ("nested_islands_106_depth2", 0x7d47ceb3a8f6fb10),
-    ("declared_tangency", 0x3ce25ed7dd155cfd),
-    ("kitchen_sink", 0xe3e31ed32ee34544),
-    ("cut_cylinder", 0xbc099ba42d857774),
+    ("declared_tangency", 0xdadb9b611dfeec91),
+    ("kitchen_sink", 0x78e1bcfb451a86e9),
+    ("cut_cylinder", 0xed4591d0e46ab26c),
     ("measured_web", 0xb60ba5962e3bb7ae),
     ("boss_union", 0x0cfde2c7b3d753df),
     ("die_fillet", 0x3fba24f805b44522),
@@ -236,7 +235,7 @@ const PINNED: &[(&str, u64)] = &[
     ("heat_sink_fins", 0x77b693009a096215),
     ("die_tool", 0x14c3b16d494dd0ea),
     ("face_sketch", 0xaca757ed8125029c),
-    ("part_select", 0x1be0a3fd4b981da6),
+    ("part_select", 0x0f1851989e0f6454),
     ("loft_prism", 0xd378e1199a49b979),
     ("die_composed", 0x2aa2ac2b837dd67f),
     ("die_composed_tour", 0x6f9c6f0fdb75b39c),

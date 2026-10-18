@@ -653,8 +653,8 @@ pub fn mated_instance(doc_ref: editor_core::DocRef) -> AuthoredNode {
 }
 
 /// **The world read a placement is pinned at**, as written, where its
-/// bundle is one mate to the world ([`pin`]); `None` for any other
-/// bundle. Panics on a node that is no placement.
+/// bundle is one mate to the world ([`pin`]), or the world's own frame
+/// where it is one world pin; `None` for any other bundle. Panics on a node that is no placement.
 pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<editor_core::WorldRead<Formula>> {
     let constraints = match doc.node(id) {
         Some(Node::InstantiatePart { constraints, .. } | Node::Place { constraints, .. }) => {
@@ -665,6 +665,10 @@ pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<editor_core::Worl
     let [only] = constraints.as_slice() else {
         return None;
     };
+    // A world pin is the world's own frame, moved by nothing.
+    if only.world_pin().is_some() {
+        return Some(editor_core::WorldRead::Frame);
+    }
     let editor_core::Target::World(world) = &only.mate()?.to else {
         return None;
     };

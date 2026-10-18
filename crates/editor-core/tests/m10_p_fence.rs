@@ -921,7 +921,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0xea9e_614b_1ee9_0721, 0xaf8f_cd7f_f8b5_207d),
+        (0x2e03_527c_cebb_fff7, 0x6672_c1c3_d4af_bf7b),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -947,7 +947,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xa361_4e25_f5e2_1f44, 0xbea4_a1e0_497a_03f0),
+        (0xbf0f_56b7_f284_574a, 0xec82_7d10_2242_66be),
         "the corpus's Interval evaluation moved"
     );
 }

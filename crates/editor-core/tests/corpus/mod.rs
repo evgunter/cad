@@ -555,9 +555,11 @@ pub const NODE_KINDS: [&str; 23] = [
 /// `RemoveConstraint`, `RenameVar`, `DeleteVar` and `UpdateReference`
 /// are arms of `DocEdit` that no corpus document authors, and listing
 /// them here would report five permanent misses rather than covering
-/// anything. `AddConstraint` and `AddValue` are listed: every placement
-/// the recorder authors writes the "place part" gesture, a mate and the
-/// values that set its freedoms.
+/// anything. `PinWhereItStands` is listed: every placement the recorder
+/// authors at the identity writes the named interim's world pin.
+/// `AddConstraint` and `AddValue` are listed: the documents that mate
+/// copies to each other write mates and the values that set their
+/// freedoms.
 /// `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
@@ -569,7 +571,7 @@ pub const NODE_KINDS: [&str; 23] = [
 /// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
 /// the tally in both directions, so a kind listed and never exercised
 /// is as red as a kind exercised and never listed.
-pub const EDIT_KINDS: [&str; 23] = [
+pub const EDIT_KINDS: [&str; 24] = [
     "InsertNode",
     "DeleteNode",
     "SetProgram",
@@ -593,6 +595,7 @@ pub const EDIT_KINDS: [&str; 23] = [
     "SetLabel",
     "AddConstraint",
     "AddValue",
+    "PinWhereItStands",
 ];
 
 /// The node SUB-kinds the corpus must also cover in full: every datum

@@ -382,10 +382,13 @@ fn in_id_order(old: &[Vec<StepId>], minted: &[Vec<StepId>]) -> Vec<Vec<StepId>> 
 /// its placement, so it waits for both. A constraint changes no output,
 /// so no node inserted meanwhile reads it. Each constraint, authored,
 /// passes `settle` with its
-/// placement's old id (a world pin, [`crate::WorldPin`], as `None`),
-/// which may rewrite it or drop it (`false`): the one rewrite inline
-/// makes, a mate to the world moved by the instance's pose, or the
-/// part's root taking the instance's bundle in place of its own.
+/// placement's old id, which may rewrite it or drop it (`false`): the
+/// one rewrite inline makes, a mate to the world moved by the
+/// instance's pose, or the part's root taking the instance's bundle in
+/// place of its own. A world pin ([`crate::WorldPin`]) passes
+/// `world_pin` with its placement's old and new ids and the target as
+/// it stands, which answers the edit it lands as, or `None` to drop
+/// it.
 ///
 /// A name the maps lack whose missing id belongs to a node still to
 /// come is a FORWARD reference (a blend selection or a frame's face rebound
@@ -402,7 +405,12 @@ fn carry<E>(
     olds: &[RecipeNodeId],
     target: &mut Recording<'_, ProfileProgram>,
     vars: &mut VarCarry<'_>,
-    settle: impl Fn(RecipeNodeId, Option<&mut crate::mate::Mate<Formula>>) -> bool,
+    settle: impl Fn(RecipeNodeId, &mut crate::mate::Mate<Formula>) -> bool,
+    world_pin: impl Fn(
+        RecipeNodeId,
+        RecipeNodeId,
+        &ProfileDoc,
+    ) -> Result<Option<DocEdit<ProfileProgram>>, E>,
     edit: impl Fn(EditError) -> E,
     miss: impl Fn(RecipeNodeId, RemapMiss) -> E,
 ) -> Result<(NodeMap, StepMap, ReadMap), E> {
@@ -562,14 +570,13 @@ fn carry<E>(
             };
             let mut mate = match authored.kind {
                 crate::mate::ConstraintKind::Mate(mate) => mate,
-                // A world pin reads nothing to rewrite; `settle` decides
-                // whether it stays (inline's root takes the instance's
-                // bundle in its place, and refuses a moved landing above).
+                // A world pin reads nothing to rewrite: `world_pin`
+                // answers what it lands as (inline's root takes the
+                // instance's bundle in its place; a moved landing pins
+                // the copy at the instance's motion).
                 crate::mate::ConstraintKind::WorldPin(_) => {
-                    if settle(old, None) {
-                        let record = target
-                            .apply_recorded(DocEdit::PinWhereItStands { placement: new })
-                            .map_err(&edit)?;
+                    if let Some(landed) = world_pin(old, new, target.doc())? {
+                        let record = target.apply_recorded(landed).map_err(&edit)?;
                         if let Some(&id) = record.minted_constraints.first() {
                             ids.insert(constraint.id, id);
                         }
@@ -592,7 +599,7 @@ fn carry<E>(
                     continue;
                 }
             };
-            if !settle(old, Some(&mut mate)) {
+            if !settle(old, &mut mate) {
                 continue;
             }
             let record = target
@@ -1438,9 +1445,12 @@ pub enum InlineError {
         value: crate::node::ConstraintId,
     },
     /// **A part copy is pinned where its body stands, on the world the
-    /// inline moves** ([`crate::WorldPin::Identity`], stage 3 C's named
-    /// interim): the pin holds no pose to move with the instance, so
-    /// the copy would stay at the part's identity in the host's world.
+    /// inline moves, and offers no frame to pin it at the move**
+    /// ([`crate::WorldPin::Identity`], stage 3 C's named interim): the
+    /// pin holds no pose to move with the instance, so the copy is
+    /// pinned at the instance's motion by [`crate::pin_at`], which reads
+    /// a frame off the copy's geometry; a copy with none cannot move
+    /// with the rest.
     WorldPinOnAMovedWorld {
         /// The part placement, spoken from the referenced document.
         placement: SpokenNode,
@@ -1640,7 +1650,8 @@ impl core::fmt::Display for InlineError {
             Self::WorldPinOnAMovedWorld { placement } => write!(
                 f,
                 "inline: {placement} is pinned where its body stands, which holds no pose to \
-                 move with the instance, so the copy would not move with the rest. {}",
+                 move with the instance, and its copy offers no frame to pin it at the move, \
+                 so it would not move with the rest. {}",
                 Recourse("inline the instance where it stands at the identity, or keep it")
             ),
             Self::InstanceUnsolved { instance } => write!(
@@ -3322,6 +3333,7 @@ pub fn split(
         &mut part,
         &mut vars,
         |_, _| true,
+        |_, new, _| Ok(Some(DocEdit::PinWhereItStands { placement: new })),
         part_refused,
         |old, miss| match miss {
             RemapMiss::Input(input) => SplitError::PartEdit {
@@ -3991,8 +4003,9 @@ pub fn inline(
             .and_then(crate::mate::solve::bundle_of)
             .is_some_and(|bundle| {
                 bundle.iter().any(|c| {
-                    c.mate()
-                        .is_some_and(|m| matches!(m.to, crate::mate::Target::World(_)))
+                    c.world_pin().is_some()
+                        || c.mate()
+                            .is_some_and(|m| matches!(m.to, crate::mate::Target::World(_)))
                 })
             })
     };
@@ -4088,12 +4101,6 @@ pub fn inline(
                 return Err(InlineError::ValueOnAMovedWorld {
                     placement: part.spoken(placement),
                     value: value.id,
-                });
-            }
-            // A world pin holds no pose the move could append to.
-            if bundle.iter().any(|c| c.world_pin().is_some()) {
-                return Err(InlineError::WorldPinOnAMovedWorld {
-                    placement: part.spoken(placement),
                 });
             }
         }
@@ -4327,9 +4334,7 @@ pub fn inline(
             // A constraint on the part's world is one on the host's
             // world, moved by the instance's pose.
             Landing::Pinned(motion) => {
-                if let (Some(motion), Some(crate::mate::Target::World(world))) =
-                    (motion, mate.map(|mate| &mut mate.to))
-                {
+                if let (Some(motion), crate::mate::Target::World(world)) = (motion, &mut mate.to) {
                     *world = crate::mate::pin::moved_by(
                         world.clone(),
                         motion.linear,
@@ -4337,6 +4342,38 @@ pub fn inline(
                     );
                 }
                 true
+            }
+        },
+        // A world pin: the root's goes as its mates do; at the identity
+        // it lands as it is; under a moved landing its copy is pinned at
+        // the instance's motion by `pin_at`, the pin any other pose
+        // takes, read off the copy as the host now holds it.
+        |old, new, host| match &landing {
+            Landing::Root(root) if old == *root => Ok(None),
+            Landing::Root(_) | Landing::Pinned(None) => {
+                Ok(Some(DocEdit::PinWhereItStands { placement: new }))
+            }
+            Landing::Pinned(Some(motion)) => {
+                let copy = match host.node(new) {
+                    Some(Node::Place { shapes, .. }) => {
+                        shapes.first().map(|shape| crate::Operand::Var(shape.read))
+                    }
+                    Some(Node::InstantiatePart { .. }) => {
+                        host.output(new, 0).map(crate::Operand::Var)
+                    }
+                    _ => None,
+                };
+                let pose = crate::placement::Frame::from_affine(*motion);
+                let mate = copy
+                    .and_then(|copy| crate::mate::pin_at(host, &copy, &pose, &opts, tol).ok())
+                    .ok_or_else(|| InlineError::WorldPinOnAMovedWorld {
+                        placement: part.spoken(old),
+                    })?;
+                Ok(Some(DocEdit::AddConstraint {
+                    placement: new,
+                    mate: Box::new(mate),
+                    fresh: Vec::new(),
+                }))
             }
         },
         refused,

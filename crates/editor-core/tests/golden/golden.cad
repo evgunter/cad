@@ -3,7 +3,7 @@ id: 7ddec231df0049f879136a2f7624647d
   "snapshot": {
     "id": "7ddec231df0049f879136a2f7624647d",
     "mint": {
-      "chain": "064df62aa2b9a600e8ad411fa479712e2ac809d3bea41d220eebbb167a161fac",
+      "chain": "b55e676ae3e3b9e4a6ca7fb25355e2c306be9556d2f0a476eaebf3b04bc0bf83",
       "log": [
         {
           "var": "1:e2382e0f27e19466"
@@ -480,133 +480,34 @@ id: 7ddec231df0049f879136a2f7624647d
           "var": "158:7a2ebbafdeedf1a5"
         },
         {
-          "var": "159:3584f857dc28bfa4"
+          "constraint": "159:da2e2f70c96f4e5d"
         },
         {
-          "var": "160:7db14a5596d5af0e"
+          "node": "160:457c295c5cb813f5"
         },
         {
-          "var": "161:b70d6f1e0bdda376"
+          "var": "161:ef535be08f2b7c23"
         },
         {
-          "var": "162:71fe3d45e95c3df4"
+          "constraint": "162:b12527bfd8764162"
         },
         {
-          "var": "163:33d002284fe72daa"
+          "node": "163:8e5f4b43c8b3bd65"
         },
         {
-          "var": "164:3827b2bace1958fd"
+          "var": "164:d9a641d1290ddc3a"
         },
         {
-          "var": "165:495c8b65a0632b50"
+          "constraint": "165:5625080c99f351f8"
         },
         {
-          "var": "166:e09f34ae989fdeac"
+          "node": "166:7b8d31122e6200b9"
         },
         {
-          "var": "167:40887ad4225abae3"
+          "var": "167:3531b80d2081814a"
         },
         {
-          "var": "168:07089d1e9845308a"
-        },
-        {
-          "var": "169:7b16c3a4542b10d8"
-        },
-        {
-          "constraint": "170:9e548db258f2114a"
-        },
-        {
-          "node": "171:ed5fe7b771582613"
-        },
-        {
-          "var": "172:d2979745a400b2aa"
-        },
-        {
-          "var": "173:99f3f141ac58da68"
-        },
-        {
-          "var": "174:493ae38e02087bb1"
-        },
-        {
-          "var": "175:c996ad1f9d663425"
-        },
-        {
-          "var": "176:1cf94c13fe0bac1f"
-        },
-        {
-          "var": "177:882ec0fcb5e82a30"
-        },
-        {
-          "var": "178:c5a543182e2da774"
-        },
-        {
-          "var": "179:cf1466f1dde18c44"
-        },
-        {
-          "constraint": "180:d9db7136f499bb6b"
-        },
-        {
-          "node": "181:0974bfff46fe8bb6"
-        },
-        {
-          "var": "182:5aae1342d17b4c5f"
-        },
-        {
-          "var": "183:674f1cee03d16146"
-        },
-        {
-          "var": "184:c28131229f8f64f3"
-        },
-        {
-          "var": "185:8290868f11df2545"
-        },
-        {
-          "var": "186:34db1495d9567fd2"
-        },
-        {
-          "var": "187:fe631176c7a941bf"
-        },
-        {
-          "var": "188:9856e3270b83d405"
-        },
-        {
-          "var": "189:ac62ce54e5f906b0"
-        },
-        {
-          "constraint": "190:27e09034dbbd340d"
-        },
-        {
-          "node": "191:8007870de725ba73"
-        },
-        {
-          "var": "192:8f83c26708eb3408"
-        },
-        {
-          "var": "193:2706133b5909f3b3"
-        },
-        {
-          "var": "194:d7069ada5dd80a8f"
-        },
-        {
-          "var": "195:e7ea061ad03e76db"
-        },
-        {
-          "var": "196:d69353e0328c4992"
-        },
-        {
-          "var": "197:e0195ca73cc87aa5"
-        },
-        {
-          "var": "198:8f81048c0771bbdb"
-        },
-        {
-          "var": "199:daab75e405b45eef"
-        },
-        {
-          "var": "200:8649d2f2ed8272e6"
-        },
-        {
-          "constraint": "201:064df62aa2b9a600"
+          "constraint": "168:b55e676ae3e3b9e4"
         }
       ]
     },
@@ -1053,221 +954,54 @@ id: 7ddec231df0049f879136a2f7624647d
           ],
           "constraints": [
             {
-              "id": "170:9e548db258f2114a",
+              "id": "159:da2e2f70c96f4e5d",
               "kind": {
-                "mate": {
-                  "on": "163:33d002284fe72daa",
-                  "to": {
-                    "world": {
-                      "slide": {
-                        "pose": {
-                          "slide": {
-                            "pose": {
-                              "slide": {
-                                "pose": {
-                                  "spin": {
-                                    "pose": {
-                                      "spin": {
-                                        "pose": {
-                                          "spin": {
-                                            "pose": "frame",
-                                            "about": {
-                                              "role": {
-                                                "pose": "frame",
-                                                "role": "X"
-                                              }
-                                            },
-                                            "by": "164:3827b2bace1958fd"
-                                          }
-                                        },
-                                        "about": {
-                                          "role": {
-                                            "pose": "frame",
-                                            "role": "Y"
-                                          }
-                                        },
-                                        "by": "165:495c8b65a0632b50"
-                                      }
-                                    },
-                                    "about": {
-                                      "role": {
-                                        "pose": "frame",
-                                        "role": "Z"
-                                      }
-                                    },
-                                    "by": "166:e09f34ae989fdeac"
-                                  }
-                                },
-                                "along": {
-                                  "role": {
-                                    "pose": "frame",
-                                    "role": "X"
-                                  }
-                                },
-                                "by": "167:40887ad4225abae3"
-                              }
-                            },
-                            "along": {
-                              "role": {
-                                "pose": "frame",
-                                "role": "Y"
-                              }
-                            },
-                            "by": "168:07089d1e9845308a"
-                          }
-                        },
-                        "along": {
-                          "role": {
-                            "pose": "frame",
-                            "role": "Z"
-                          }
-                        },
-                        "by": "169:7b16c3a4542b10d8"
-                      }
-                    }
-                  },
-                  "class": "rest"
-                }
+                "world_pin": "identity"
               }
             }
           ]
         }
       },
-      "171:ed5fe7b771582613": {
+      "160:457c295c5cb813f5": {
         "Place": {
           "shapes": [
             "127:2ca140c425f1bff8"
           ],
           "constraints": [
             {
-              "id": "180:d9db7136f499bb6b",
+              "id": "162:b12527bfd8764162",
               "kind": {
-                "mate": {
-                  "on": "177:882ec0fcb5e82a30",
-                  "to": {
-                    "world": {
-                      "slide": {
-                        "pose": {
-                          "spin": {
-                            "pose": "frame",
-                            "about": {
-                              "role": {
-                                "pose": "frame",
-                                "role": "X"
-                              }
-                            },
-                            "by": "178:c5a543182e2da774"
-                          }
-                        },
-                        "along": {
-                          "role": {
-                            "pose": "frame",
-                            "role": "X"
-                          }
-                        },
-                        "by": "179:cf1466f1dde18c44"
-                      }
-                    }
-                  },
-                  "class": "rest"
-                }
+                "world_pin": "identity"
               }
             }
           ]
         }
       },
-      "181:0974bfff46fe8bb6": {
+      "163:8e5f4b43c8b3bd65": {
         "Place": {
           "shapes": [
             "134:be4267bdc0cb9ad7"
           ],
           "constraints": [
             {
-              "id": "190:27e09034dbbd340d",
+              "id": "165:5625080c99f351f8",
               "kind": {
-                "mate": {
-                  "on": "187:fe631176c7a941bf",
-                  "to": {
-                    "world": {
-                      "slide": {
-                        "pose": {
-                          "spin": {
-                            "pose": "frame",
-                            "about": {
-                              "role": {
-                                "pose": "frame",
-                                "role": "X"
-                              }
-                            },
-                            "by": "188:9856e3270b83d405"
-                          }
-                        },
-                        "along": {
-                          "role": {
-                            "pose": "frame",
-                            "role": "X"
-                          }
-                        },
-                        "by": "189:ac62ce54e5f906b0"
-                      }
-                    }
-                  },
-                  "class": "rest"
-                }
+                "world_pin": "identity"
               }
             }
           ]
         }
       },
-      "191:8007870de725ba73": {
+      "166:7b8d31122e6200b9": {
         "Place": {
           "shapes": [
             "156:a77fbde1ef59c01d"
           ],
           "constraints": [
             {
-              "id": "201:064df62aa2b9a600",
+              "id": "168:b55e676ae3e3b9e4",
               "kind": {
-                "mate": {
-                  "on": "197:e0195ca73cc87aa5",
-                  "to": {
-                    "world": {
-                      "slide": {
-                        "pose": {
-                          "spin": {
-                            "pose": {
-                              "spin": {
-                                "pose": "frame",
-                                "about": {
-                                  "role": {
-                                    "pose": "frame",
-                                    "role": "X"
-                                  }
-                                },
-                                "by": "198:8f81048c0771bbdb"
-                              }
-                            },
-                            "about": {
-                              "role": {
-                                "pose": "frame",
-                                "role": "Z"
-                              }
-                            },
-                            "by": "199:daab75e405b45eef"
-                          }
-                        },
-                        "along": {
-                          "role": {
-                            "pose": "frame",
-                            "role": "X"
-                          }
-                        },
-                        "by": "200:8649d2f2ed8272e6"
-                      }
-                    }
-                  },
-                  "class": "rest"
-                }
+                "world_pin": "identity"
               }
             }
           ]
@@ -2738,599 +2472,30 @@ id: 7ddec231df0049f879136a2f7624647d
           }
         }
       },
-      "159:3584f857dc28bfa4": {
-        "kind": "Edge",
-        "def": {
-          "Select": {
-            "body": "104:29cc5b9699919985",
-            "names": [
-              {
-                "kind": "Edge",
-                "node": "103:a0968da1919fe080",
-                "path": [
-                  {
-                    "EndArc": {
-                      "vertex": {
-                        "kind": "Vertex",
-                        "node": "99:d90e0234c8cddbed",
-                        "path": [
-                          {
-                            "CapVertex": [
-                              "Start",
-                              {
-                                "Piece": {
-                                  "step": "93:ad2d8f2de1451689",
-                                  "role": "Leg"
-                                }
-                              }
-                            ]
-                          }
-                        ]
-                      },
-                      "edge": {
-                        "kind": "Edge",
-                        "node": "99:d90e0234c8cddbed",
-                        "path": [
-                          {
-                            "LateralEdge": {
-                              "Piece": {
-                                "step": "93:ad2d8f2de1451689",
-                                "role": "Leg"
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      },
-      "160:7db14a5596d5af0e": {
-        "kind": "Axis",
-        "def": {
-          "Pose": {
-            "Axis": {
-              "of": "159:3584f857dc28bfa4"
-            }
-          }
-        }
-      },
-      "161:b70d6f1e0bdda376": {
-        "kind": "Vertex",
-        "def": {
-          "Select": {
-            "body": "104:29cc5b9699919985",
-            "names": [
-              {
-                "kind": "Vertex",
-                "node": "103:a0968da1919fe080",
-                "path": [
-                  {
-                    "FootVertex": {
-                      "vertex": {
-                        "kind": "Vertex",
-                        "node": "99:d90e0234c8cddbed",
-                        "path": [
-                          {
-                            "CapVertex": [
-                              "End",
-                              {
-                                "Piece": {
-                                  "step": "96:e3ed170d7e6ebb06",
-                                  "role": "Leg"
-                                }
-                              }
-                            ]
-                          }
-                        ]
-                      },
-                      "support": {
-                        "kind": "Face",
-                        "node": "99:d90e0234c8cddbed",
-                        "path": [
-                          {
-                            "Cap": "End"
-                          }
-                        ]
-                      }
-                    }
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      },
-      "162:71fe3d45e95c3df4": {
-        "kind": "Point",
-        "def": {
-          "Pose": {
-            "Point": {
-              "of": "161:b70d6f1e0bdda376"
-            }
-          }
-        }
-      },
-      "163:33d002284fe72daa": {
-        "kind": "Frame",
-        "def": {
-          "Pose": {
-            "Through": {
-              "axis": "160:7db14a5596d5af0e",
-              "point": "162:71fe3d45e95c3df4"
-            }
-          }
-        }
-      },
-      "164:3827b2bace1958fd": {
-        "kind": "Angle",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Angle",
-              "value": 1.5707963267948966,
-              "display_unit": "rad"
-            }
-          }
-        }
-      },
-      "165:495c8b65a0632b50": {
-        "kind": "Angle",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Angle",
-              "value": -0.5611404261704191,
-              "display_unit": "rad"
-            }
-          }
-        }
-      },
-      "166:e09f34ae989fdeac": {
-        "kind": "Angle",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Angle",
-              "value": 0.7853981633974481,
-              "display_unit": "rad"
-            }
-          }
-        }
-      },
-      "167:40887ad4225abae3": {
-        "kind": "Length",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": -0.35000000000000014,
-              "display_unit": "m"
-            }
-          }
-        }
-      },
-      "168:07089d1e9845308a": {
-        "kind": "Length",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": 0.4500000000000001,
-              "display_unit": "m"
-            }
-          }
-        }
-      },
-      "169:7b16c3a4542b10d8": {
-        "kind": "Length",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": 0.1,
-              "display_unit": "m"
-            }
-          }
-        }
-      },
-      "172:d2979745a400b2aa": {
+      "161:ef535be08f2b7c23": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "171:ed5fe7b771582613",
+            "node": "160:457c295c5cb813f5",
             "port": 0
           }
         }
       },
-      "173:99f3f141ac58da68": {
-        "kind": "Edge",
-        "def": {
-          "Select": {
-            "body": "127:2ca140c425f1bff8",
-            "names": [
-              {
-                "kind": "Edge",
-                "node": "126:54af3cea2f647260",
-                "path": [
-                  {
-                    "Meridian": [
-                      "Seam",
-                      {
-                        "Section": {
-                          "circle": "Outer",
-                          "role": {
-                            "Piece": 1
-                          }
-                        }
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      },
-      "174:493ae38e02087bb1": {
-        "kind": "Axis",
-        "def": {
-          "Pose": {
-            "Axis": {
-              "of": "173:99f3f141ac58da68"
-            }
-          }
-        }
-      },
-      "175:c996ad1f9d663425": {
-        "kind": "Vertex",
-        "def": {
-          "Select": {
-            "body": "127:2ca140c425f1bff8",
-            "names": [
-              {
-                "kind": "Vertex",
-                "node": "126:54af3cea2f647260",
-                "path": [
-                  {
-                    "MeridianVertex": [
-                      "Seam",
-                      {
-                        "Section": {
-                          "circle": "Outer",
-                          "role": {
-                            "Piece": 0
-                          }
-                        }
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      },
-      "176:1cf94c13fe0bac1f": {
-        "kind": "Point",
-        "def": {
-          "Pose": {
-            "Point": {
-              "of": "175:c996ad1f9d663425"
-            }
-          }
-        }
-      },
-      "177:882ec0fcb5e82a30": {
-        "kind": "Frame",
-        "def": {
-          "Pose": {
-            "Through": {
-              "axis": "174:493ae38e02087bb1",
-              "point": "176:1cf94c13fe0bac1f"
-            }
-          }
-        }
-      },
-      "178:c5a543182e2da774": {
-        "kind": "Angle",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Angle",
-              "value": -1.5707963267948966,
-              "display_unit": "rad"
-            }
-          }
-        }
-      },
-      "179:cf1466f1dde18c44": {
-        "kind": "Length",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": 2.0,
-              "display_unit": "m"
-            }
-          }
-        }
-      },
-      "182:5aae1342d17b4c5f": {
+      "164:d9a641d1290ddc3a": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "181:0974bfff46fe8bb6",
+            "node": "163:8e5f4b43c8b3bd65",
             "port": 0
           }
         }
       },
-      "183:674f1cee03d16146": {
-        "kind": "Edge",
-        "def": {
-          "Select": {
-            "body": "134:be4267bdc0cb9ad7",
-            "names": [
-              {
-                "kind": "Edge",
-                "node": "133:31d4157af1a080a4",
-                "path": [
-                  {
-                    "Meridian": [
-                      "Start",
-                      {
-                        "Section": {
-                          "circle": "Outer",
-                          "role": {
-                            "Piece": 1
-                          }
-                        }
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      },
-      "184:c28131229f8f64f3": {
-        "kind": "Axis",
-        "def": {
-          "Pose": {
-            "Axis": {
-              "of": "183:674f1cee03d16146"
-            }
-          }
-        }
-      },
-      "185:8290868f11df2545": {
-        "kind": "Vertex",
-        "def": {
-          "Select": {
-            "body": "134:be4267bdc0cb9ad7",
-            "names": [
-              {
-                "kind": "Vertex",
-                "node": "133:31d4157af1a080a4",
-                "path": [
-                  {
-                    "MeridianVertex": [
-                      "Start",
-                      {
-                        "Section": {
-                          "circle": "Outer",
-                          "role": {
-                            "Piece": 0
-                          }
-                        }
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      },
-      "186:34db1495d9567fd2": {
-        "kind": "Point",
-        "def": {
-          "Pose": {
-            "Point": {
-              "of": "185:8290868f11df2545"
-            }
-          }
-        }
-      },
-      "187:fe631176c7a941bf": {
-        "kind": "Frame",
-        "def": {
-          "Pose": {
-            "Through": {
-              "axis": "184:c28131229f8f64f3",
-              "point": "186:34db1495d9567fd2"
-            }
-          }
-        }
-      },
-      "188:9856e3270b83d405": {
-        "kind": "Angle",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Angle",
-              "value": -1.5707963267948966,
-              "display_unit": "rad"
-            }
-          }
-        }
-      },
-      "189:ac62ce54e5f906b0": {
-        "kind": "Length",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": 2.0,
-              "display_unit": "m"
-            }
-          }
-        }
-      },
-      "192:8f83c26708eb3408": {
+      "167:3531b80d2081814a": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "191:8007870de725ba73",
+            "node": "166:7b8d31122e6200b9",
             "port": 0
-          }
-        }
-      },
-      "193:2706133b5909f3b3": {
-        "kind": "Edge",
-        "def": {
-          "Select": {
-            "body": "156:a77fbde1ef59c01d",
-            "names": [
-              {
-                "kind": "Edge",
-                "node": "155:939ba3947d78f08e",
-                "path": [
-                  {
-                    "From": {
-                      "read": "152:9fb6152ca42692d8",
-                      "of": {
-                        "kind": "Edge",
-                        "node": "151:cc3a6e1c5811241d",
-                        "path": [
-                          {
-                            "RimEdge": [
-                              "Start",
-                              {
-                                "Piece": {
-                                  "step": "145:74bb812e97ce101b",
-                                  "role": "Leg"
-                                }
-                              }
-                            ]
-                          }
-                        ]
-                      }
-                    }
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      },
-      "194:d7069ada5dd80a8f": {
-        "kind": "Axis",
-        "def": {
-          "Pose": {
-            "Axis": {
-              "of": "193:2706133b5909f3b3"
-            }
-          }
-        }
-      },
-      "195:e7ea061ad03e76db": {
-        "kind": "Vertex",
-        "def": {
-          "Select": {
-            "body": "156:a77fbde1ef59c01d",
-            "names": [
-              {
-                "kind": "Vertex",
-                "node": "155:939ba3947d78f08e",
-                "path": [
-                  {
-                    "From": {
-                      "read": "152:9fb6152ca42692d8",
-                      "of": {
-                        "kind": "Vertex",
-                        "node": "151:cc3a6e1c5811241d",
-                        "path": [
-                          {
-                            "CapVertex": [
-                              "Start",
-                              {
-                                "Piece": {
-                                  "step": "147:7cd80f3873ce523a",
-                                  "role": "Leg"
-                                }
-                              }
-                            ]
-                          }
-                        ]
-                      }
-                    }
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      },
-      "196:d69353e0328c4992": {
-        "kind": "Point",
-        "def": {
-          "Pose": {
-            "Point": {
-              "of": "195:e7ea061ad03e76db"
-            }
-          }
-        }
-      },
-      "197:e0195ca73cc87aa5": {
-        "kind": "Frame",
-        "def": {
-          "Pose": {
-            "Through": {
-              "axis": "194:d7069ada5dd80a8f",
-              "point": "196:d69353e0328c4992"
-            }
-          }
-        }
-      },
-      "198:8f81048c0771bbdb": {
-        "kind": "Angle",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Angle",
-              "value": 1.5707963267948966,
-              "display_unit": "rad"
-            }
-          }
-        }
-      },
-      "199:daab75e405b45eef": {
-        "kind": "Angle",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Angle",
-              "value": 1.5707963267948966,
-              "display_unit": "rad"
-            }
-          }
-        }
-      },
-      "200:8649d2f2ed8272e6": {
-        "kind": "Length",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": 4.0,
-              "display_unit": "m"
-            }
           }
         }
       }

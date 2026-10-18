@@ -68,14 +68,15 @@ struct Tally {
 /// The pinned tally over the aim below (docs: re-derive with
 /// `--nocapture`).
 ///
-/// Last moved when every corpus placement came to be written as mates
-/// (INTENT stage 3 C: the `place_at` gesture's plane mate and values,
-/// or a pin over the copy's own geometry): from
-/// `(441198, 141261, 14088, 7230)`. The rays are unchanged; 49 more are
-/// answered at the aimed vertex, and 552 fewer candidates over 6 fewer
-/// rays refuse at the determinant. The gallery ring's bumped landing is
-/// re-placed after the bump, whose partial revolve drops the seam its
-/// pin read (`common::repin_stranded`).
+/// Last moved when every corpus placement came to be written by the
+/// named interim's world pin (INTENT stage 3 C), from the gesture's
+/// mates' `(441198, 141310, 13536, 7224)`, which had moved from
+/// `(441198, 141261, 14088, 7230)`. The rays are unchanged; against the
+/// mates' tally, 453 more are answered at the aimed vertex, and 1230
+/// more candidates over 690 more rays refuse at the determinant. The
+/// gallery ring's bumped landing is re-placed after the bump, whose
+/// partial revolve drops the seam its pin read
+/// (`common::repin_stranded`).
 ///
 /// No genuine crossing is refused either way.
 ///
@@ -126,7 +127,7 @@ struct Tally {
 /// unchanged.
 ///
 /// No genuine crossing is refused either way.
-const PINNED: (usize, usize, usize, usize) = (441_198, 141_310, 13_536, 7_224);
+const PINNED: (usize, usize, usize, usize) = (441_198, 141_763, 12_306, 6_534);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);
