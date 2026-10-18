@@ -7,7 +7,7 @@ crates/geom-core 18
 crates/mesh 37
 crates/step-export 9
 crates/step-import 45
-crates/sweep 141
+crates/sweep 139
 crates/topo 36
 demos/tour 2
 # Fields holding f64 knots or weights, by crate (src/ outside test modules):

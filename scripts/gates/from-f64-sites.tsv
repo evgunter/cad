@@ -69,7 +69,8 @@ crates/geom-core/src/dual.rs	1	constant	x	the Real impl's own door: Dual::from_f
 crates/geom-core/src/interval.rs	1	constant	x	the Real impl's own door: Interval::from_computed is the point embed by design
 crates/geom-core/src/interval/certification.rs	1	constant	x	the concrete Interval's point embed, the door itself: never Sym
 crates/geom-core/src/real.rs	1	constant	k	scale_pow2's default: the power of two a subdivision's 2^-r scale names, a constant of the cut
-crates/geom-core/src/spline/algebra.rs	1	constant	a	apply_rational: degree elevation's binomial ratio i/(p + 1), a constant of the operation
+crates/geom-core/src/spline/projective.rs	1	constant	den	form_coef: degree elevation's binomial i/(p + 1), its denominator p + 1, an integer of the operation
+crates/geom-core/src/spline/projective.rs	1	constant	num	form_coef: degree elevation's binomial i/(p + 1), its numerator i, an integer of the operation
 crates/geom-core/src/spline/basis.rs	1	constant	factor	a falling factorial of the degree, a count
 crates/geom-core/src/spline/basis.rs	1	constant	self.0.knots_f64_interim().knots()[i]	the lifted basis over a bare KnotVector, which holds no value in a scalar: its one production caller is geom's f64 fit, where from_f64 is the identity; a carrier's evaluation reads basis_funs_in over its held knots. KNOWN GAP: pub and generic, so a future caller passing a carrier's channel knots at Sym adds no gate site
 crates/geom-core/src/spline/derivative.rs	2	constant	p as f64	the degree, a derivative coefficient's factor over the held knots (and a Bézier axis's degree, the r-th derivative's scale)
