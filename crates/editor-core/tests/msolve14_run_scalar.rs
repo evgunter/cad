@@ -904,10 +904,16 @@ fn run_at<T: editor_core::EvalScalar>(
 /// three ε; the two overconstrained rows are written past the door and
 /// name every constraint the rest fix, and the two-pin and cross-pin
 /// rows, whose fold branches retired, left the corpus.
+///
+/// And again when a pose's frame became the decided shortest turn and
+/// the line across two directions stopped carrying the fold's arm (all
+/// three rows): only the pinned chain's two seats moved, by at most
+/// 8.9e-16 in any entry of their solved maps; every other solved pose is
+/// bit-identical.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x637e_6536_d455_43b2),
-    (1e-6, 0x2a27_7f5b_9679_2692),
-    (1e-12, 0x0fa3_39ca_bb42_6aca),
+    (1e-9, 0x4eaf_f77c_56e7_76b2),
+    (1e-6, 0x66d0_97aa_791d_aeb5),
+    (1e-12, 0x84a0_e9c4_8e67_0bf2),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and

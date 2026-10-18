@@ -530,16 +530,13 @@ impl Arm {
 /// ONE mint. The margin is the sine of the angle between them — which
 /// the cross product's length IS because both are witnesses — levered
 /// by `arm` into the displacement it induces there, spelled as the
-/// length of the levered vector `(u × v) · arm` so that the direction
-/// the non-parallel verdict hands out is minted by the very decision
-/// that made it: `None` when parallel, `Some((line, sine))` when not
-/// — `line` the unit direction of `u × v`, the line two planes with
-/// these normals meet in, and `sine` the levered vector's length, in
-/// metres, which the door decided at least `K·ε`. A second decision
-/// of the same number at a mint would be spelled a rounding apart and
-/// could land in the band where this one did not; the length handed
-/// out is the door's own measure of that vector (`Vec3::norm`, which
-/// is deterministic).
+/// length of the levered vector `(u × v) · arm` and decided by the door
+/// that mints the direction the non-parallel verdict hands out
+/// ([`UnitVec3::new_scaled`]): `None` when parallel, `Some(line)` when
+/// not — `line` the unit direction of `u × v`, the line two planes with
+/// these normals meet in. It does not carry the arm, so a map built
+/// along it is a function of its poses alone at every scalar, and the
+/// arm stays opaque to the decision it levers.
 ///
 /// The direction door's arms in this predicate's vocabulary: a
 /// decided-zero length is the parallel verdict, and so is a levered
@@ -549,17 +546,15 @@ impl Arm {
 /// witnesses at any arm the reach bounds). A length that is no number
 /// has no input to come from: the arm is an [`Arm`].
 ///
-/// `lever` is that arm in `T` ([`Arm::lever`]), which the sine is
-/// levered by.
+/// `lever` is that arm in `T` ([`Arm::lever`]), the decision's alone.
 fn parallel<T: SolveScalar>(
     u: UnitVec3<T>,
     v: UnitVec3<T>,
     band: Band,
     lever: T,
-) -> Result<Option<(UnitVec3<T>, T)>, Indeterminate> {
-    let levered = u.get().cross(v.get()) * lever;
-    match UnitVec3::new(levered, "mate_axes_parallel", band) {
-        Ok(line) => Ok(Some((line, levered.norm()))),
+) -> Result<Option<UnitVec3<T>>, Indeterminate> {
+    match UnitVec3::new_scaled(u.get().cross(v.get()), lever, "mate_axes_parallel", band) {
+        Ok(line) => Ok(Some(line)),
         Err(UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength) => Ok(None),
         Err(UnitVec3Error::Escalated(diag)) => Err(diag),
         Err(UnitVec3Error::NonFiniteLength) => unreachable!(
@@ -739,9 +734,9 @@ pub(crate) fn after_turn<T: Real>(g: Subgroup<T>) -> Option<Subgroup<T>> {
     }
 }
 
-/// **The line across two directions** — their cross product minted at
-/// `arm`'s lever, as [`parallel`] decides it — or `None` where they are
-/// parallel.
+/// **The line across two directions** — their cross product,
+/// normalised, as [`parallel`] decides it at `arm`'s lever — or `None`
+/// where they are parallel.
 ///
 /// # Errors
 ///
@@ -752,7 +747,7 @@ pub(crate) fn across<T: SolveScalar>(
     band: Band,
     arm: Arm,
 ) -> Result<Option<UnitVec3<T>>, Indeterminate> {
-    Ok(parallel(u, v, band, arm.lever())?.map(|(line, _)| line))
+    parallel(u, v, band, arm.lever())
 }
 
 /// **Whether two directions are parallel**, decided over `arm`
@@ -783,4 +778,59 @@ pub(crate) fn on_the_line<T: SolveScalar>(
     band: Band,
 ) -> Result<bool, Indeterminate> {
     point_on_line(p, origin, direction, band)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::{Arm, across};
+    use geom_core::linalg::{UnitVec3, Vec3};
+    use geom_core::predicate::{Band, Decide, Sign};
+    use geom_core::{ParamSymbol, Sym, SymBudget, Tol};
+
+    type S = Sym<f64>;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the witness tolerance has a linear band")
+    }
+
+    /// **The line across two directions carries no lever arm.** Over two
+    /// symbolic directions it is their cross product normalised and
+    /// nothing else, so a value's slide along it (`value::settle`) is a
+    /// function of the poses alone, and the arm stays inside the
+    /// decision it levers. Red where the line is minted from the levered
+    /// cross product (the arm, opaque at `Sym`, then stays in it).
+    #[test]
+    fn the_line_across_two_directions_carries_no_lever_arm() {
+        let (proven, _) = geom_core::sym::with_session(
+            SymBudget {
+                max_terms: 256,
+                max_degree: 128,
+            },
+            || {
+                let p = |k: u64, v: f64| Sym::param(ParamSymbol::new(k), v);
+                let unit = |k: u64, v: [f64; 3]| {
+                    UnitVec3::new(
+                        Vec3::new(p(k, v[0]), p(k + 1, v[1]), p(k + 2, v[2])),
+                        "test",
+                        band(),
+                    )
+                    .unwrap()
+                };
+                let (u, v) = (unit(1, [0.0, 0.1, 1.0]), unit(10, [1.0, 0.2, 0.1]));
+                let line = across(u, v, band(), Arm::of(1.0, 2.0).unwrap())
+                    .unwrap()
+                    .expect("two directions at a definite angle");
+                let d: Vec3<S> = line.get() - u.get().cross(v.get()).normalize();
+                [d.x, d.y, d.z].map(|x| {
+                    let decided = x.sign_within(band()).unwrap();
+                    decided.sign == Sign::Zero && decided.margin.proven()
+                })
+            },
+        );
+        assert_eq!(
+            proven, [true; 3],
+            "the line is the cross product normalised"
+        );
+    }
 }
