@@ -111,6 +111,15 @@ fn copy_of(
     }
 }
 
+/// What [`read_of`] reads: the node, its first solid, its name table and
+/// the motion its placement moved it by.
+type ReadBody = (
+    RecipeNodeId,
+    std::sync::Arc<topo::Body<f64>>,
+    crate::names::NameTable,
+    Option<geom_core::RigidMotion<f64>>,
+);
+
 /// **The body read through `body`, placed or not**: [`copy_of`]'s
 /// answer, with the motion its placement moved it by (`None` for a
 /// body that stands where its construction put it). A frame read off a
@@ -120,15 +129,7 @@ fn read_of(
     doc: &crate::ProfileDoc,
     evaluation: &Evaluation<f64>,
     body: &Operand,
-) -> Result<
-    (
-        RecipeNodeId,
-        std::sync::Arc<topo::Body<f64>>,
-        crate::names::NameTable,
-        Option<geom_core::RigidMotion<f64>>,
-    ),
-    PinRefusal,
-> {
+) -> Result<ReadBody, PinRefusal> {
     let node = match body {
         Operand::Output { node, .. } | Operand::Node(node) => *node,
         Operand::Var(var) => doc.operation_of(*var).ok_or(PinRefusal::NoNode)?,
@@ -314,19 +315,7 @@ pub(crate) fn moved_by(
     linear: Mat3<f64>,
     translation: geom_core::linalg::Vec3<f64>,
 ) -> WorldRead<Formula> {
-    // Entry `r(i, j)`: row `i` of column `j`.
-    let r = |i: usize, j: usize| {
-        let c = [linear.c0, linear.c1, linear.c2][j];
-        [c.x, c.y, c.z][i]
-    };
-    let cos_beta = r(0, 0).hypot(r(1, 0));
-    let beta = (-r(2, 0)).atan2(cos_beta);
-    let (alpha, gamma) = if cos_beta > f64::EPSILON {
-        (r(2, 1).atan2(r(2, 2)), r(1, 0).atan2(r(0, 0)))
-    } else {
-        // Gimbal lock: the x and z turns share an axis, so z's is none.
-        ((-r(1, 2)).atan2(r(1, 1)), 0.0)
-    };
+    let (alpha, beta, gamma) = turns(linear);
     let mut world = world;
     for (role, angle) in [
         (PoseRole::X, alpha),
@@ -347,6 +336,28 @@ pub(crate) fn moved_by(
         }
     }
     world
+}
+
+/// **`linear`'s turns about x, then y, then z**, `(α, β, γ)` with
+/// `linear = Rz(γ)·Ry(β)·Rx(α)`, each taken once by `atan2`. Near
+/// gimbal lock (`β` within about `√ε` of ±π/2) the x and z turns share
+/// an axis: α and γ read apart from entries of size `cos β` are then
+/// rounding, and only their difference is the map's. So there the z turn
+/// is none and the x turn carries it, read off entries of size one. At
+/// `cos β = √ε` the two readings err alike, about `√ε`.
+fn turns(linear: Mat3<f64>) -> (f64, f64, f64) {
+    // Entry `r(i, j)`: row `i` of column `j`.
+    let r = |i: usize, j: usize| {
+        let c = [linear.c0, linear.c1, linear.c2][j];
+        [c.x, c.y, c.z][i]
+    };
+    let cos_beta = r(0, 0).hypot(r(1, 0));
+    let beta = (-r(2, 0)).atan2(cos_beta);
+    if cos_beta > f64::EPSILON.sqrt() {
+        (r(2, 1).atan2(r(2, 2)), beta, r(1, 0).atan2(r(0, 0)))
+    } else {
+        ((-r(1, 2)).atan2(r(1, 1)), beta, 0.0)
+    }
 }
 
 /// **The run of world-axis moves `world` ends in, taken off**: the read
@@ -994,17 +1005,7 @@ fn moved_pose(
     linear: Mat3<f64>,
     translation: geom_core::linalg::Vec3<f64>,
 ) -> Operand {
-    let r = |i: usize, j: usize| {
-        let c = [linear.c0, linear.c1, linear.c2][j];
-        [c.x, c.y, c.z][i]
-    };
-    let cos_beta = r(0, 0).hypot(r(1, 0));
-    let beta = (-r(2, 0)).atan2(cos_beta);
-    let (alpha, gamma) = if cos_beta > f64::EPSILON {
-        (r(2, 1).atan2(r(2, 2)), r(1, 0).atan2(r(0, 0)))
-    } else {
-        ((-r(1, 2)).atan2(r(1, 1)), 0.0)
-    };
+    let (alpha, beta, gamma) = turns(linear);
     let axis = |role| RoleRead::through(base.clone(), role);
     let mut pose = base.clone();
     for (role, angle) in [

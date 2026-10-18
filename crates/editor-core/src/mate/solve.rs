@@ -111,6 +111,18 @@ pub trait SolveScalar: Decide {
     /// keeps its map (a value lane's undecided map is kept whole).
     fn with_rest(map: &Affine3<Self>) -> Option<Affine3<Self>>;
 
+    /// Whether a value's spin sets the map's turn from the two charts'
+    /// frames ([`super::value`]) rather than turning the folded map by
+    /// the measured difference.
+    fn spins_by_frames() -> bool {
+        false
+    }
+
+    /// Whether this scalar is exactly zero (a point enclosure of zero).
+    fn exactly_zero(self) -> bool {
+        false
+    }
+
     /// ZZM probe: the enclosure's bounds.
     fn zz_lohi(self) -> (f64, f64) {
         (self.quoted(), self.quoted())
@@ -499,6 +511,49 @@ pub(crate) fn admitted<T: SolveScalar>(
     )
     .map(Some)
     .map_err(|_| crate::NodeErrorKind::Motion(refusal))
+}
+
+/// **A direction two of whose coordinates are exactly zero is the
+/// third axis**, its sign the third coordinate's: the unit it is, read
+/// exactly, where a box lane's normalisation of a length it cannot
+/// cancel against itself leaves the third coordinate wider than one.
+fn on_its_axis<T: SolveScalar>(d: geom_core::UnitVec3<T>) -> geom_core::UnitVec3<T> {
+    use geom_core::UnitVec3;
+    if std::env::var_os("ZZM_NO_AXIS").is_some() {
+        return d;
+    }
+    let v = d.get();
+    let (k, e) = match (v.x.exactly_zero(), v.y.exactly_zero(), v.z.exactly_zero()) {
+        (false, true, true) => (UnitVec3::exact_x(), v.x),
+        (true, false, true) => (UnitVec3::exact_y(), v.y),
+        (true, true, false) => (UnitVec3::exact_z(), v.z),
+        _ => return d,
+    };
+    if e.upper() < 0.0 {
+        -k
+    } else if (T::zero() - e).upper() < 0.0 {
+        k
+    } else {
+        d
+    }
+}
+
+/// A pose with every direction it carries read [`on_its_axis`].
+pub(crate) fn tightened<T: SolveScalar>(pose: PoseValue<T>) -> PoseValue<T> {
+    match pose {
+        PoseValue::Direction { dir } => PoseValue::Direction {
+            dir: on_its_axis(dir),
+        },
+        PoseValue::Axis { origin, dir } => PoseValue::Axis {
+            origin,
+            dir: on_its_axis(dir),
+        },
+        PoseValue::Plane { origin, normal } => PoseValue::Plane {
+            origin,
+            normal: on_its_axis(normal),
+        },
+        other => other,
+    }
 }
 
 /// ZZM probe trace.

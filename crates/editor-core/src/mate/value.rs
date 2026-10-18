@@ -49,6 +49,8 @@ pub(crate) struct Chart<T: geom_core::Real> {
     origin: Point3<T>,
     /// The copy's swung `x`, in the copy's own coordinates.
     copy_x: Vec3<T>,
+    /// The copy's mated direction, in the copy's own coordinates.
+    copy_d: Vec3<T>,
     /// A point of the mate's own line, for an axis mate: the line its
     /// spin turns about.
     line: Option<Point3<T>>,
@@ -105,6 +107,7 @@ impl<T: SolveScalar> Chart<T> {
             y,
             origin: Point3::origin() + target.translation,
             copy_x: super::reference_about(copy_d, arm.get(), band)?,
+            copy_d: copy_d.get(),
             line,
         }))
     }
@@ -118,6 +121,18 @@ impl<T: SolveScalar> Chart<T> {
     }
 
     /// The axis a slide runs along.
+    /// The turn carrying the copy's chart frame onto the target's
+    /// turned `by` about `d`: the linear part of every map whose spin
+    /// is `by`, read off the two charts alone.
+    fn turned(&self, by: T) -> Mat3<T> {
+        let (sin, cos) = by.sin_cos();
+        let (x, y, d) = (self.x.get(), self.y.get(), self.d.get());
+        let to_x = x * cos + y * sin;
+        let to = Mat3::from_cols(to_x, d.cross(to_x), d);
+        let from = Mat3::from_cols(self.copy_x, self.copy_d.cross(self.copy_x), self.copy_d);
+        to * from.transpose()
+    }
+
     fn axis(&self, along: SlideAxis) -> UnitVec3<T> {
         match along {
             SlideAxis::X => self.x,
@@ -227,12 +242,17 @@ pub(crate) fn settle<T: SolveScalar>(
         // is: composed as a turn about that point, a box lane would
         // widen it by the turn's own width levered over the origin's
         // distance, twice.
-        m = match line.or(chart.line) {
+        let turned = match line.or(chart.line) {
             Some(at) => Affine3::rotation_about_axis(at, chart.d.get(), by) * m,
             None => {
                 let turn = Affine3::rotation_about_axis(Point3::origin(), chart.d.get(), by);
                 Affine3::from_parts(turn.linear * m.linear, m.translation)
             }
+        };
+        m = if T::spins_by_frames() && std::env::var_os("ZZM_NO_FRAMES").is_none() {
+            Affine3::from_parts(chart.turned(v.by), turned.translation)
+        } else {
+            turned
         };
         // A turn the table holds no rest of (a ball's, less one) leaves
         // a turn free beside it: no value can pin what remains, and a

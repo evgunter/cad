@@ -3302,6 +3302,15 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         (self.lo(), self.hi())
     }
 
+    fn spins_by_frames() -> bool {
+        true
+    }
+
+    fn exactly_zero(self) -> bool {
+        use geom_core::Bounds;
+        self.lo() == 0.0 && self.hi() == 0.0
+    }
+
     fn is_stored_identity(_map: &geom_core::Affine3<Self>) -> bool {
         false
     }
@@ -3365,6 +3374,10 @@ where
 
     fn upper(self) -> f64 {
         self.value.upper()
+    }
+
+    fn spins_by_frames() -> bool {
+        T::spins_by_frames()
     }
 
     fn is_stored_identity(_map: &geom_core::Affine3<Self>) -> bool {
@@ -3438,6 +3451,14 @@ where
         self.value.zz_lohi()
     }
 
+    fn exactly_zero(self) -> bool {
+        self.value.exactly_zero()
+    }
+
+    fn spins_by_frames() -> bool {
+        T::spins_by_frames()
+    }
+
     fn is_stored_identity(_map: &geom_core::Affine3<Self>) -> bool {
         false
     }
@@ -3446,10 +3467,18 @@ where
         geom_core::Real::atan2(y, x)
     }
 
-    /// A symbolic map records its expression, which the identity would
-    /// lose: it never settles.
-    fn carries_no_variation(_map: &geom_core::Affine3<Self>) -> bool {
-        false
+    /// ZZM prototype: as its lane scalar's map does.
+    fn carries_no_variation(map: &geom_core::Affine3<Self>) -> bool {
+        if std::env::var_os("ZZM_SYM_NEVER_SETTLES").is_some() {
+            return false;
+        }
+        use geom_core::linalg::Vec3;
+        let v = |c: Vec3<Self>| Vec3::new(c.x.value, c.y.value, c.z.value);
+        let q = map.linear;
+        T::carries_no_variation(&geom_core::Affine3::from_parts(
+            geom_core::linalg::Mat3::from_cols(v(q.c0), v(q.c1), v(q.c2)),
+            v(map.translation),
+        ))
     }
 
     fn identity_varying_as(_map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {

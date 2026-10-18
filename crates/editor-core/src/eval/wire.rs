@@ -640,6 +640,7 @@ where
             tol,
         )
         .map_err(|kind| unevaluated(MateSide::On, kind))?;
+        let on = crate::mate::solve::tightened(on);
         let (to, space, body) = match &m.to {
             Target::Pose(var) => {
                 let to = pose::eval_pose(
@@ -690,6 +691,7 @@ where
             }
             Some(_) => {}
         }
+        let to = crate::mate::solve::tightened(to);
         let flipped = crate::mate::solve::target_flipped(doc, &m.to);
         charted.push((c.id, on.clone(), to.clone(), flipped, body));
         mates.push(crate::mate::solve::ReadMate { mate, on, to });
