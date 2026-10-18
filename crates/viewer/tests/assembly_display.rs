@@ -1200,8 +1200,9 @@ fn a_join_landing_a_value_gesture_overtakes_still_prunes() {
 }
 
 /// **A refused placement waits for the committed landing**, whatever
-/// refused it. Two seats over-constrain the framed post_b, which the
-/// evaluation refuses — a refusal the graph decides, but the scratch
+/// refused it. A ball mate on post_b's top centre, which a plane has
+/// none of, is admitted at the door and refused where post_b evaluates
+/// — a refusal the graph decides, but the scratch
 /// landing cannot tell it from one a previewed value decides, so it
 /// keeps the frame; the committed landing after the cancel drops it,
 /// saying the post is in no space.
@@ -1214,15 +1215,10 @@ fn a_refused_placement_waits_for_the_committed_landing() {
     asm::unpin(&mut session, bench.post_b);
     asm::unpin(&mut session, bench.shelf_i);
     commit_frame(&mut session, bench.post_b);
-    for _ in 0..2 {
-        let seat = session.perform(asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Rest,
-            asm::middle_seat_values(),
-        ));
-        assert!(seat.refusal.is_none(), "{:?}", seat.refusal);
-    }
+    // A mate the door admits and the evaluation refuses: post_b's
+    // placement fails, so its copy is in no space.
+    let seat = session.perform(asm::no_centre_seat_op(&bench, bench.post_b));
+    assert!(seat.refusal.is_none(), "{:?}", seat.refusal);
     drag_and_land(&mut session, pattern);
     assert!(
         landed_superseded(&mut session).is_empty(),
@@ -1275,6 +1271,138 @@ fn deleting_a_frames_root_drops_it_at_the_edit() {
         withdrawn.cause
     );
     assert!(session.display().free_move_of(bench.post_b).is_none());
+}
+
+/// **A gesture whose copy a refusal takes waits for the committed
+/// landing too**, as a frame does: a ball mate on post_b's top centre,
+/// which a plane has none of, is admitted at the door and refused where
+/// post_b evaluates, under a free-move in flight on it. A value drag's
+/// scratch landing keeps the gesture, and the committed landing after
+/// the cancel kills it, saying the post is in no space.
+#[test]
+fn a_refused_gestures_copy_waits_for_the_committed_landing() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fmgesturerefused", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let pattern = drag_slot(&mut session, &bench);
+    asm::unpin(&mut session, bench.post_b);
+    asm::unpin(&mut session, bench.shelf_i);
+    let outcome = session.perform(SessionOp::BeginFreeMove {
+        instance: bench.post_b,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let seat = session.perform(asm::no_centre_seat_op(&bench, bench.post_b));
+    assert!(seat.refusal.is_none(), "{:?}", seat.refusal);
+    drag_and_land(&mut session, pattern);
+    assert!(
+        session
+            .take_landed_withdrawals()
+            .iter()
+            .all(|report| report.killed_gesture.is_none()),
+        "the scratch landing kills nothing over a refusal"
+    );
+    assert_eq!(session.display().probing(), Some(bench.post_b));
+
+    assert!(session.perform(SessionOp::CancelGesture).refusal.is_none());
+    session.pump();
+    let killed: Vec<_> = session
+        .take_landed_withdrawals()
+        .into_iter()
+        .filter_map(|report| report.killed_gesture)
+        .collect();
+    let [killed] = &killed[..] else {
+        panic!("the committed landing kills the gesture: {killed:?}")
+    };
+    assert!(
+        matches!(
+            &killed.cause,
+            AdmissionFault::NoSpace { instance } if instance.id() == bench.post_b
+        ),
+        "{}",
+        killed.cause
+    );
+    assert!(session.display().probing().is_none());
+}
+
+/// **Deleting a gesture's root takes the gesture's copy with it**, so
+/// the gesture dies at the edit naming the copy: every copy in a space
+/// reads its root. (An undo can take the root alone:
+/// `an_undo_past_a_gestures_root_kills_it_at_the_edit`.)
+#[test]
+fn deleting_a_gestures_root_takes_its_copy_and_kills_it() {
+    let tol = Tol::witness();
+    let (bench, mut session, root) = gesture_on_a_non_root_copy("fmdeletegestureroot", tol);
+    let outcome = session.perform(SessionOp::DeleteNode { node: root });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        session.doc().node(bench.post_b).is_none(),
+        "the copy mated onto the root goes with it"
+    );
+    let killed = outcome
+        .withdrawn
+        .killed_gesture
+        .as_ref()
+        .expect("the delete kills the gesture");
+    assert!(
+        matches!(&killed.cause, AdmissionFault::NoSuchNode { node } if node.id() == bench.post_b),
+        "{}",
+        killed.cause
+    );
+}
+
+/// **An undo that removes a gesture's root but not its copy kills the
+/// gesture at the edit.** A second shelf, inserted after post_b and then
+/// mated onto by it, roots the space the gesture moves; three undos
+/// take the seat, the unpin and the insertion in that order, so the
+/// shelf goes and post_b stays. No landing answers the document yet,
+/// so the root's absence is all there is to ask — and it is asked.
+#[test]
+fn an_undo_past_a_gestures_root_kills_it_at_the_edit() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fmundoroot", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    asm::unpin(&mut session, bench.post_b);
+    let shelf = common::instance_in(&mut session, bench.shelf.id);
+    asm::unpin(&mut session, shelf);
+    common::commit_mate(
+        &mut session,
+        asm::seat_op_under(
+            &bench,
+            bench.post_b,
+            shelf,
+            ContactClass::Rest,
+            asm::middle_seat_values(),
+        ),
+    );
+    session.pump();
+    assert_eq!(
+        display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b),
+        Ok(shelf),
+        "the second shelf roots post_b's space"
+    );
+    let outcome = session.perform(SessionOp::BeginFreeMove {
+        instance: bench.post_b,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+
+    let mut killed = None;
+    for _ in 0..3 {
+        let outcome = session.perform(SessionOp::Undo);
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        killed = killed.or(outcome.withdrawn.killed_gesture);
+    }
+    assert!(session.doc().node(shelf).is_none(), "the root is gone");
+    assert!(
+        session.doc().node(bench.post_b).is_some(),
+        "the copy is not"
+    );
+    let killed = killed.expect("the undo that took the root killed the gesture");
+    assert!(
+        matches!(&killed.cause, AdmissionFault::NoSuchNode { node } if node.id() == shelf),
+        "{}",
+        killed.cause
+    );
+    assert!(session.display().probing().is_none());
 }
 
 #[test]

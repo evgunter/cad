@@ -137,7 +137,7 @@ use pncad::document::{
     NodeStanding, ParseError, PersistError, PiecesFault, PinRefusal, PlacedBy, PlacementRuleFault,
     ProgramFault, ProgramRefusal, ReachRefusal, RecordedProgramError, RefusedRef, Relation,
     ResolveFault, ShellClassifyError, SlideAxis, SlotId, SnapshotError, SplitError,
-    StepHandleRefusal, StepIdFault, Subgroup, Unlocalized, UpdateError, WorldReadFault,
+    StepHandleRefusal, StepIdFault, Unlocalized, UpdateError, WorldReadFault,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthonormalizeError,
@@ -971,8 +971,8 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // "ask for the box at a scalar that can carry it".
         C::ParamBox => "param_box",
         // The box arm's twin, and its own tag for the same reason: the
-        // recourse is "seed at a scalar with a tangent channel" (or
-        // name a continuous parameter), not the box's.
+        // recourse is "evaluate at a dual scalar, or drop the seed" (or
+        // seed a free length, angle or scalar variable), not the box's.
         C::Seed => "seed",
         C::WrongOperand => "wrong_operand",
         // A read of one copy of a placement's copies: a key naming no
@@ -1054,14 +1054,13 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PartDepthExceeded => "part_depth_exceeded",
         C::PartNotEntered => "part_not_entered",
         // The mate solve's refusals tag per FAULT, the way
-        // the root invariants do — OVERCONSTRAINED, CONTRADICTORY and a
+        // the root invariants do — OVERCONSTRAINED, an out-of-range pose and a
         // dangling head carry different recourses, so a caller
         // branches on which one fired, not on "a mate failed".
         C::MatePosesOfAnotherDocument => "mate_poses_of_another_document",
         C::MateClassNotAdmitted => "mate_class_not_admitted",
         C::MateIndeterminate => "mate_indeterminate",
         C::MatePoseOutOfRange => "mate_pose_out_of_range",
-        C::MateContradictory => "mate_contradictory",
         C::MateOverconstrained => "mate_overconstrained",
         C::MateTargetsDiffer => "mate_targets_differ",
         C::MateNotOnTheCopy => "mate_not_on_the_copy",
@@ -1887,6 +1886,7 @@ pub fn no_chart_why_tag(why: NoChartWhy) -> &'static str {
     match why {
         NoChartWhy::PointRotation => "point_rotation",
         NoChartWhy::TwoBodies => "two_bodies",
+        NoChartWhy::SlideTurnsABall => "slide_turns_a_ball",
     }
 }
 
@@ -3374,30 +3374,6 @@ pub fn ring_pair_contact_tag(contact: &RingPairContact) -> &'static str {
         RingPairContact::OtherVertexOnEdge { .. } => "vertex_on_ring_edge",
         RingPairContact::EdgesMeet { .. } => "edge_edge_point",
         RingPairContact::Circles { .. } => "circle_circle",
-    }
-}
-
-/// The stable tag for a residual SUBGROUP — which rigid motions a
-/// solved mate leaves free.
-///
-/// `empty` is the contradictory answer, not the free one: no motion
-/// satisfies the constraints at all, where `trivial` is the single
-/// motion that does. A caller branching the two apart is separating
-/// "over-constrained" from "fully located", which is why the
-/// discriminant is worth a word.
-pub fn subgroup_tag(subgroup: &Subgroup) -> &'static str {
-    match subgroup {
-        Subgroup::Se3 => "se3",
-        Subgroup::Planar { .. } => "planar",
-        Subgroup::Cylindrical { .. } => "cylindrical",
-        Subgroup::Prismatic { .. } => "prismatic",
-        Subgroup::Revolute { .. } => "revolute",
-        Subgroup::Spherical { .. } => "spherical",
-        Subgroup::Parallel { .. } => "parallel",
-        Subgroup::Translation => "translation",
-        Subgroup::PlaneTranslation { .. } => "plane_translation",
-        Subgroup::Trivial => "trivial",
-        Subgroup::Empty => "empty",
     }
 }
 

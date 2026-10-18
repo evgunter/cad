@@ -1263,10 +1263,10 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// The frame around the faults counts where there is anything to count,
 /// and never names: every [`AdmissionFault`] names its own SUBJECT, so
 /// naming the id again in the preamble would say it twice. It does not
-/// promise a vocabulary for that subject: an arm about an instance says
-/// "instance N" and an arm about an id that names no instance
-/// (`NoSuchNode`, `NotAnInstance`) says "node N", which is that enum's
-/// own rule and the only honest wording there.
+/// promise a vocabulary for that subject: each arm says it as the
+/// spoken node does, its kind included (`InstantiatePart N`, `Place N`,
+/// and `node N` for an id the document does not hold), which is that
+/// enum's own rule and the only honest wording there.
 ///
 /// [`crate::display::DisplayFault`]'s own arms name no id at all — they are about a
 /// gesture or a frame rather than a node — and a `Withdrawn` cannot
