@@ -304,8 +304,9 @@ which every other mate leaves too (a slide beside mates freeing every
 translation, a spin beside mates freeing every rotation). The solve
 reads a slide as a translation equation and a spin as a rotation one
 and settles each inside what the mates leave, so a slide beside a ball
-refuses although, through the copy's lever, it would fix the ball's
-turn. Where the mates repeat an equation, the mates are named and no
+refuses `MateFault::NoChart` (`SlideTurnsABall`): through the copy's
+lever it would fix the ball's turn, which is no repeat, but the ball
+leaves it no translation to set. Where the mates repeat an equation, the mates are named and no
 value. The rule is
 order-free and decides determination by codimension alone, so a copy's
 space is the recipe's, never a value's (`mate::solve::overconstrained`,

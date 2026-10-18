@@ -1886,6 +1886,7 @@ pub fn no_chart_why_tag(why: NoChartWhy) -> &'static str {
     match why {
         NoChartWhy::PointRotation => "point_rotation",
         NoChartWhy::TwoBodies => "two_bodies",
+        NoChartWhy::SlideTurnsABall => "slide_turns_a_ball",
     }
 }
 

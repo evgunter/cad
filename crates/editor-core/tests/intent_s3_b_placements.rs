@@ -594,6 +594,75 @@ fn a_bundle_of_two_targets_refuses() {
     }
 }
 
+/// **A slide beside a ball has no chart** (review finding 4 of F): a
+/// ball and a direction on one target leave a turn about the direction
+/// through the ball, and a slide on the direction mate would, through
+/// the copy's lever, fix that turn, which is no repeat. The ball leaves
+/// it no translation to set, and the solve does not settle a turn from
+/// a slide, so the door refuses it `NoChart` (`SlideTurnsABall`), not
+/// as an overconstraint.
+#[test]
+fn a_slide_beside_a_ball_refuses_as_having_no_chart() {
+    let label = "s3b-slide-ball";
+    let (doc, store, doc_ref, body) = host(label);
+    let (part, part_body) = block(&format!("{label}-part"));
+    let corner = fixture::vpiece(&part, part_body, 0, 0);
+    let o = with_resolver(store);
+    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, c) = insert(doc, mated_instance(doc_ref));
+    let point = |at| {
+        fixture::point_of(fixture::read_minted(fixture::resolver::in_part_of(
+            editor_core::EntityKind::Vertex,
+            at,
+            body,
+            RoleSeg::CapVertex(CapEnd::Start, corner),
+        )))
+    };
+    let normal = |at| {
+        editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Flip {
+            pose: editor_core::pose::RoleRead::through(
+                fixture::plane(fixture::head(face_in(at, body, RoleSeg::Cap(CapEnd::End)))),
+                editor_core::pose::PoseRole::Normal,
+            ),
+        }))
+    };
+    let (doc, _) = fixture::constrain_at(
+        doc,
+        c,
+        fixture::mate(point(c), point(a), ContactClass::Rest),
+    );
+    let (doc, direction) = fixture::constrain_at(
+        doc,
+        c,
+        fixture::mate(normal(c), normal(a), ContactClass::Rest),
+    );
+    let refused = doc.apply(
+        &DocEdit::AddValue {
+            placement: c,
+            value: Box::new(editor_core::Value {
+                mate: direction.id,
+                coord: editor_core::Coord::Slide(editor_core::SlideAxis::X),
+                by: len(0.1),
+            }),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
+    match refused {
+        Err(EditError::MateRefused { fault, .. }) => match *fault {
+            MateFault::NoChart { value, why } => {
+                assert_eq!(value.placement, c);
+                assert_eq!(why, editor_core::NoChartWhy::SlideTurnsABall);
+                let said = MateFault::NoChart { value, why }.to_string();
+                assert!(said.contains("direction mate's spin"), "{said}");
+            }
+            other => panic!("a slide beside a ball has no chart, not {other:?}"),
+        },
+        other => panic!("the door refuses the slide, got {other:?}"),
+    }
+}
+
 /// **A mate on a pinned copy is overconstrained**: on a copy its world
 /// pin already pins, a rest on another copy in the world that holds
 /// where the pin puts it is a mate the pin already fixes, refused at

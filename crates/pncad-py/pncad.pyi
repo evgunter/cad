@@ -6023,7 +6023,7 @@ class MateFault:
     name the value as `value_ref`: `mate_value_names_no_mate` the id it
     names as `named`, `mate_not_a_freedom` the `coord` and the
     `mate_kind` that fixes it, and `mate_no_chart` `why`
-    (`point_rotation`, `two_bodies`)."""
+    (`point_rotation`, `two_bodies`, `slide_turns_a_ball`)."""
 
     @property
     def variant(self) -> str: ...
@@ -6073,7 +6073,7 @@ class MateFault:
     @property
     def mate_kind(self) -> Optional[str]: ...
     @property
-    def why(self) -> Optional[Literal["point_rotation", "two_bodies"]]: ...
+    def why(self) -> Optional[Literal["point_rotation", "two_bodies", "slide_turns_a_ball"]]: ...
     @property
     def what(self) -> Optional[str]:
         """What a lever's unbounded face is, in its own words."""

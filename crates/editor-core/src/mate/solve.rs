@@ -785,6 +785,40 @@ fn already_fixed(
         .collect()
 }
 
+/// **A slide the mates leave no translation to set**: where the mates
+/// repeat no equation, the first slide on a mate of its kind whose
+/// fellow mates fix a translation — a ball beside a direction, the one
+/// pair that meets transversally. In general position it would fix the
+/// ball's turn, so it is no repeat, and it refuses
+/// [`super::NoChartWhy::SlideTurnsABall`], not as an overconstraint.
+fn slide_beside_a_ball(
+    bundle: &[(crate::node::ConstraintId, Equations)],
+) -> Option<crate::node::ConstraintId> {
+    let mates = mates_of(bundle);
+    let independent = u16::from(mates_codimension(&mates))
+        == mates
+            .iter()
+            .map(|&(_, f)| u16::from(f.codimension()))
+            .sum::<u16>();
+    if !independent {
+        return None;
+    }
+    bundle.iter().find_map(|&(id, e)| match e {
+        Equations::Value {
+            mate,
+            coord: coord @ super::Coord::Slide(_),
+        } => {
+            let own = mates.iter().find(|&&(m, _)| m == mate)?.1;
+            let charted = kind_of(own).is_some_and(|kind| coord.admitted_by(kind).is_ok());
+            let held = mates
+                .iter()
+                .any(|&(m, f)| m != mate && !f.frees_every_translation());
+            (charted && held).then_some(id)
+        }
+        _ => None,
+    })
+}
+
 /// **The bundle rule** (FORK-S3O): `placement`'s constraints, read as
 /// equations, refuse [`MateFault::Overconstrained`] where any of them
 /// fixes an equation the others already fix, pinned or not, naming
@@ -804,6 +838,15 @@ pub(crate) fn overconstrained(
     let named = already_fixed(bundle);
     if named.is_empty() {
         return Ok(());
+    }
+    if let Some(value) = slide_beside_a_ball(bundle) {
+        return Err(Box::new(MateFault::NoChart {
+            value: MateRef {
+                placement,
+                id: value,
+            },
+            why: super::NoChartWhy::SlideTurnsABall,
+        }));
     }
     Err(Box::new(MateFault::Overconstrained {
         placement,
@@ -1271,7 +1314,7 @@ pub(crate) fn admit_value<P>(
 mod tests {
     use super::{Equations, overconstrained, pins};
     use crate::mate::coset::SubgroupFamily as F;
-    use crate::mate::{Coord, MateFault, SlideAxis};
+    use crate::mate::{Coord, MateFault, NoChartWhy, SlideAxis};
     use crate::node::ConstraintId;
     use crate::{MintId, RecipeNodeId};
 
@@ -1307,7 +1350,8 @@ mod tests {
     /// where that one leaves its freedom** (spec §4, C-2): a lone plane
     /// admits a slide, an axis a slide along it and a spin, a ball and a
     /// direction a spin about the direction (the ball frees every
-    /// rotation) but no slide (the ball fixes every translation), and a
+    /// rotation) but no slide (the ball fixes every translation, so the
+    /// slide has no chart: `SlideTurnsABall`), and a
     /// plane beside an axis fixes, in general position, more than the
     /// two count apart, so both are named.
     #[test]
@@ -1337,14 +1381,21 @@ mod tests {
         assert_eq!(verdict(&ball_and_direction), Ok(false));
         let spun = [ball_and_direction.to_vec(), vec![value(2, Coord::Spin)]].concat();
         assert_eq!(verdict(&spun), Ok(true));
-        // ... and with a slide on the direction: the ball fixes the
-        // translation it sets, so both are named.
+        // ... and with a slide on the direction: no repeat (in general
+        // position it would fix the ball's turn), but no translation the
+        // ball leaves it to set, so it refuses as having no chart.
         let slid = [
             ball_and_direction.to_vec(),
             vec![value(2, Coord::Slide(SlideAxis::Z))],
         ]
         .concat();
-        assert_eq!(verdict(&slid), Err((vec![id(1), slid[2].0], 1)));
+        match *overconstrained(RecipeNodeId::WORLD, &slid).expect_err("the slide refuses") {
+            MateFault::NoChart { value, why } => {
+                assert_eq!(value.id, slid[2].0);
+                assert_eq!(why, NoChartWhy::SlideTurnsABall);
+            }
+            other => panic!("a slide beside a ball has no chart, got {other:?}"),
+        }
         // Plane + Axis: each fixes what the other does.
         assert_eq!(
             verdict(&[

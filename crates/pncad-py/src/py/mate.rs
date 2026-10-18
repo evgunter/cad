@@ -868,7 +868,7 @@ impl MateFault {
     }
 
     /// Why a value's freedom has no chart (`mate_no_chart`):
-    /// `"point_rotation"` or `"two_bodies"`.
+    /// `"point_rotation"`, `"two_bodies"` or `"slide_turns_a_ball"`.
     #[getter]
     fn why(&self) -> Option<&'static str> {
         self.payload().why.map(no_chart_why_tag)

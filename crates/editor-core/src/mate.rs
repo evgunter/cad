@@ -855,6 +855,12 @@ pub enum NoChartWhy {
     /// The mate's `to` reads two bodies: each has its own frame, and
     /// the chart is the one body's.
     TwoBodies,
+    /// A slide on a direction mate beside a ball mate: the ball fixes
+    /// every translation, so the slide could only fix the ball's turn
+    /// through the copy's lever, a circle meeting a plane at two points
+    /// or none, which the solve's structural settle does not choose
+    /// between.
+    SlideTurnsABall,
 }
 
 /// **Why a mate's kind leaves a value no freedom to set.**
@@ -1249,8 +1255,9 @@ pub enum MateFault {
         kind: crate::VarKind,
     },
     /// **A value's freedom has no chart** (ruling C-1): a lone point
-    /// mate's rotation, or a mate whose `to` reads two bodies, whose
-    /// own frames do not agree on which reference to measure from.
+    /// mate's rotation, a mate whose `to` reads two bodies, whose own
+    /// frames do not agree on which reference to measure from, or a
+    /// slide beside a ball, which leaves it no translation to measure.
     NoChart {
         /// The value.
         value: MateRef,
@@ -1460,6 +1467,17 @@ impl crate::spoken::Say for MateFault {
                 f,
                 "{} is charted on its mate's target body, and the mate's `to` reads two. \
                  Recourse: read `to` off one body, or pin the copy by a frame mate",
+                mate_(*value)
+            ),
+            Self::NoChart {
+                value,
+                why: NoChartWhy::SlideTurnsABall,
+            } => write!(
+                f,
+                "{} sets a slide beside a ball mate, which fixes every translation, so the \
+                 slide could only turn the copy about the ball, and the solve does not settle \
+                 a turn from a slide. Recourse: set the turn as the direction mate's spin, or \
+                 pin the copy by a frame mate and its values",
                 mate_(*value)
             ),
             // The refusal is the pose's own, drawn on the carried line.

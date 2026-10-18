@@ -5367,7 +5367,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "no_chart_why_tag",
-        values: &["point_rotation", "two_bodies"],
+        values: &["point_rotation", "slide_turns_a_ball", "two_bodies"],
         delegates: &[],
     },
     TagEntry {
