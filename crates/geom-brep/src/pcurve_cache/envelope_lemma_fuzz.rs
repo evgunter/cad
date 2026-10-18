@@ -1128,6 +1128,15 @@ fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
             }
         }
     }
+    // The pairs the stream reaches only through a move, written down
+    // (`zero_winding_axis_circle`).
+    for row in axis_charts().map(|(chart, _)| zero_winding_axis_circle(&chart, 4.0)) {
+        for term in EnvelopeTerm::ALL {
+            if row.terms[term.slot()] > row.noise {
+                seen.insert((row.arm, term.slot()));
+            }
+        }
+    }
     let missing: Vec<(&str, EnvelopeTerm)> = arm_terms()
         .into_iter()
         .flat_map(|(arm, terms)| terms.into_iter().map(move |t| (arm, t)))
@@ -1137,6 +1146,139 @@ fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
         missing.is_empty(),
         "no row carried these (arm, term) pairs over the noise: {missing:?}"
     );
+}
+
+/// **A zero-winding axis circle with its centre off the axis**, written
+/// down (implementer discipline §8, shape 2): a circle inside the band
+/// about a chart's axis (its winding reads Zero at its own radius), its
+/// plane ⊥ the axis, its centre `floors` noise floors off the axis. On a
+/// cone it is the zero-winding rim, on a torus the zero-winding parallel.
+/// The row's dominance is asserted at `f64` and at `Interval`, as the
+/// sweep's are, and its `Centre` term is over the noise at both.
+fn zero_winding_axis_circle(chart: &Surface<f64>, floors: f64) -> Row {
+    let (rho, h, reach) = (0.25 * band().zero(), 1.0, TAU);
+    let on_axis = circle(
+        Point3::new(0.0, 0.0, h),
+        Vec3::unit_z(),
+        rho,
+        Vec3::unit_x(),
+    );
+    let offset = floors * 64.0 * f64::EPSILON * scale(chart, &on_axis, reach);
+    let carrier = circle(
+        Point3::new(offset, 0.0, h),
+        Vec3::unit_z(),
+        rho,
+        Vec3::unit_x(),
+    );
+    let (stored, _) = derive_harmonic(
+        &carrier,
+        chart,
+        super::Placement::own(&carrier, chart),
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("{floors} floors: the rim derives: {e}"));
+    let (_, derivation) = derive_harmonic(
+        &carrier,
+        &orthonormal_chart(chart),
+        super::Placement::own(&carrier, chart),
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("{floors} floors: the rim derives: {e}"));
+    let noise = 64.0 * f64::EPSILON * scale(chart, &carrier, reach);
+    let terms = periodic_envelope(
+        channels_of(&stored),
+        &carrier,
+        carrier_harmonic(&carrier).unwrap(),
+        chart,
+        (0.0, TAU),
+        reach,
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("{floors} floors: the envelope refused at f64: {e}"));
+    let sup = sampled_sup(&stored, chart, &carrier, 0.0, TAU);
+    assert!(
+        terms.total() >= sup - noise,
+        "{floors} floors: envelope {:e} under the sampled sup {sup:e}",
+        terms.total()
+    );
+    let lift = Interval::from_f64;
+    let carrier_i = carrier.map_scalar(lift);
+    let at_iv = periodic_envelope(
+        channels_of(&lift_harmonic(&stored)),
+        &carrier_i,
+        carrier_harmonic(&carrier_i).unwrap(),
+        &chart.map_scalar(lift),
+        (lift(0.0), lift(TAU)),
+        lift(reach),
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("{floors} floors: the envelope refused at Interval: {e}"));
+    assert!(
+        at_iv.total().hi() >= sup - noise,
+        "{floors} floors: the Interval envelope {:e} under the sampled sup {sup:e}",
+        at_iv.total().hi()
+    );
+    let centre_i = at_iv.0[EnvelopeTerm::Centre.slot()];
+    assert!(
+        centre_i.lo() > noise,
+        "{floors} floors: Centre {centre_i:?} is not over the noise {noise:e} at Interval"
+    );
+    Row {
+        arm: arm(derivation),
+        terms: terms.0,
+        noise,
+    }
+}
+
+/// **A zero-winding cone rim's and torus parallel's `Centre` are
+/// load-bearing at every ε row.** The pinned sweep's stream reached
+/// these pairs only through a move that carried an axis circle's centre
+/// off the axis, in three or four rows, and at ε 1e-12 a reshuffled
+/// stream lost the cone's; the witnesses are written down instead
+/// ([`zero_winding_axis_circle`]), at two, four and eight noise
+/// floors: at ε 1e-12 a floor is a few hundredths of the band, so the
+/// offset and the radius together keep the winding inside it.
+#[test]
+fn a_zero_winding_axis_circles_centre_off_the_axis_is_load_bearing() {
+    for ((chart, want), floors) in axis_charts()
+        .into_iter()
+        .flat_map(|c| [2.0, 4.0, 8.0].map(move |f| (c.clone(), f)))
+    {
+        let row = zero_winding_axis_circle(&chart, floors);
+        assert_eq!(row.arm, want, "{floors} floors");
+        let centre = row.terms[EnvelopeTerm::Centre.slot()];
+        assert!(
+            centre > row.noise,
+            "{want}, {floors} floors: Centre {centre:e} is not over the noise {:e}",
+            row.noise
+        );
+    }
+}
+
+/// The charts [`zero_winding_axis_circle`] is drawn on, with the arm each
+/// selects.
+fn axis_charts() -> [(Surface<f64>, &'static str); 2] {
+    [
+        (
+            Surface::Cone {
+                apex: Point3::origin(),
+                axis: Vec3::unit_z(),
+                half_angle: 0.4,
+                u_ref: Vec3::unit_x(),
+            },
+            "cone rim, zero winding",
+        ),
+        (
+            Surface::Torus {
+                center: Point3::origin(),
+                axis: Vec3::unit_z(),
+                major_radius: 2.0,
+                minor_radius: 1.5,
+                u_ref: Vec3::unit_x(),
+            },
+            "torus parallel, zero winding",
+        ),
+    ]
 }
 
 /// **A corrupted stored image refuses at `Interval` as at `f64`**
