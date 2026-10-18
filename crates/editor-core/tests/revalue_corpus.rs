@@ -399,6 +399,11 @@ macro_rules! rows {
 /// flips.
 const DECLARED_TANGENCY_FLIP: &str = "work/inlane/under-the-guided-lift-declared-tangencys-pcurve-chart-azimuth-frame-flips-from-an-exact-zero.md";
 
+/// The item that owes the at-rest snap's flip on a copy the place-part
+/// gesture pins at the identity: it rests there only at the nominal.
+const PLACED_AT_REST_FLIP: &str =
+    "work/intent/a-placed-copy-rests-at-the-identity-only-at-the-nominal.md";
+
 rows! {
     // In step: moved apart, the ray-schedule gate's margin is exactly 0
     // at the nominal (`point_in_loop_arm`, an axis-aligned face normal on
@@ -414,17 +419,51 @@ rows! {
     revalue_boss_union: "boss_union", InStep, 3236, [];
     // In step: moved apart, its split parts at `split_join_frame_axis`
     // (an axis the cleave's join frame decides against a datum's), so
-    // only the in-step move compares the whole document.
-    revalue_cut_cylinder: "cut_cylinder", InStep, 1051, [];
-    revalue_die_chamfer: "die_chamfer", Apart, 1690, [];
-    revalue_face_sketch: "face_sketch", Apart, 582, [];
-    revalue_heat_sink_fins: "heat_sink_fins", Apart, 1353, [];
-    revalue_loft_prism: "loft_prism", Apart, 259, [];
-    revalue_measured_web: "measured_web", Apart, 716, [];
+    // only the in-step move compares the whole document. Its placed
+    // copy's face is antiparallel to its target at the nominal, so the
+    // chart's swing flips before the at-rest snap, both owed below.
+    revalue_cut_cylinder: "cut_cylinder", InStep, 1051, [],
+        flips [
+            ("mate_chart_reference_antipode", PLACED_AT_REST_FLIP),
+            ("solve_copy_at_identity", PLACED_AT_REST_FLIP)
+        ],
+        after [];
+    // Each copy the place-part gesture pins at the identity rests there
+    // only at the nominal: its at-rest snap flips, owed below.
+    revalue_die_chamfer: "die_chamfer", Apart, 1690, [],
+        flips [
+            ("solve_copy_at_identity", PLACED_AT_REST_FLIP)
+        ],
+        after [];
+    revalue_face_sketch: "face_sketch", Apart, 582, [],
+        flips [
+            ("solve_copy_at_identity", PLACED_AT_REST_FLIP)
+        ],
+        after [];
+    revalue_heat_sink_fins: "heat_sink_fins", Apart, 1353, [],
+        flips [
+            ("solve_copy_at_identity", PLACED_AT_REST_FLIP)
+        ],
+        after [];
+    revalue_loft_prism: "loft_prism", Apart, 259, [],
+        flips [
+            ("solve_copy_at_identity", PLACED_AT_REST_FLIP)
+        ],
+        after [];
+    revalue_measured_web: "measured_web", Apart, 716, [],
+        flips [
+            ("solve_copy_at_identity", PLACED_AT_REST_FLIP)
+        ],
+        after [];
     // Apart: two chart frames on an azimuth exactly zero at the nominal
-    // flip, and nothing re-values away after them, owed below.
+    // flip, and again on the placed copy's build, with its at-rest snap
+    // between; nothing re-values away after them, owed below.
     revalue_declared_tangency: "declared_tangency", Apart, 1217, [],
         flips [
+            ("pcurve_chart_azimuth_frame", DECLARED_TANGENCY_FLIP),
+            ("pcurve_chart_azimuth_frame", DECLARED_TANGENCY_FLIP),
+            ("solve_copy_at_identity", PLACED_AT_REST_FLIP),
+            ("solve_copy_at_identity", PLACED_AT_REST_FLIP),
             ("pcurve_chart_azimuth_frame", DECLARED_TANGENCY_FLIP),
             ("pcurve_chart_azimuth_frame", DECLARED_TANGENCY_FLIP)
         ],

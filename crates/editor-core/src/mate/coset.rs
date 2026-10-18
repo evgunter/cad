@@ -604,7 +604,7 @@ fn parallel<T: SolveScalar>(
     band: Band,
     arm: Arm,
 ) -> Result<Option<(UnitVec3<T>, T)>, Indeterminate> {
-    let levered = u.get().cross(v.get()) * T::from_f64(arm.get());
+    let levered = u.get().cross(v.get()) * T::from_computed(arm.get());
     match UnitVec3::new(levered, "mate_axes_parallel", band) {
         Ok(line) => Ok(Some((line, levered.norm()))),
         Err(UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength) => Ok(None),
@@ -631,7 +631,7 @@ fn perpendicular<T: SolveScalar>(
     Ok(
         match decide(
             "mate_axis_normal_perpendicular",
-            Margin::levered(cosine, T::from_f64(arm.get())),
+            Margin::levered(cosine, T::from_computed(arm.get())),
             band,
         )? {
             Sign::Zero => None,

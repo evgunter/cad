@@ -1108,7 +1108,7 @@ impl<T: geom_core::Real> Lever<T> {
     /// the number the funnel decided are one value.
     pub fn margin(self) -> Margin<T> {
         match self {
-            Self::Residual { value, arm } => Margin::levered(value, T::from_f64(arm)),
+            Self::Residual { value, arm } => Margin::levered(value, T::from_computed(arm)),
         }
     }
 }
