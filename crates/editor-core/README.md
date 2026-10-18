@@ -253,9 +253,9 @@ replay bitwise (`tests/m10_p_fence.rs`,
   enclosed, and wider ones (a box over the section, or under the guided
   lift values a few ulps wide with no box at all, as the plane of a rotated
   or derived frame) are skinned at the lane scalar. An arc's weight is no
-  point at `Interval`, so an arc section there refuses typed
-  (`SkinError::ArcWeightNotAPoint`) rather than standing for the nominal
-  over its box. Under the pinned lift a section's values are its `f64` form
+  point at `Interval`, so an arc section there refuses typed at the
+  carrier's door (`SplineError::CarrierWeightNotAPoint`, until C6's S4/S5)
+  rather than standing for the nominal over its box. Under the pinned lift a section's values are its `f64` form
   lifted, so neither a seed nor a box reaches them.
 - **The sketch plane, by frame kind.** An authored frame's plane is the f64
   plane embedded under the pinned lift (`mint_frame_placement`, from the frame

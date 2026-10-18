@@ -24,7 +24,7 @@ use pncad::document::{Doc, DocumentId, Node, NodeResult, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
-use viewer::display::AdmissionFault;
+use viewer::display::{AdmissionFault, DisplayFault};
 use viewer::parts::{PartChooser, PartEntry};
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::{self, RowStatus};
@@ -123,21 +123,22 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     });
     assert!(shown.refusal.is_none(), "{:?}", shown.refusal);
 
-    // Free-move: an authored instance stands on its world mate alone
-    // until a mate names it, so the probe opens and commits.
+    // Free-move: an authored instance is placed at the identity by the
+    // place gesture's mate to the world, so it lives in the world's space,
+    // and the probe, which moves a loose space (DI5), refuses it typed.
     let probe = |session: &mut DocSession| {
-        for op in [
-            SessionOp::BeginFreeMove { instance: shelf_i },
-            SessionOp::PreviewFreeMove {
-                instance: shelf_i,
-                frame: pncad::document::Frame::translation([0.0, 0.0, 0.02]),
-            },
-            SessionOp::CommitFreeMove { instance: shelf_i },
-        ] {
-            let outcome = session.perform(op);
-            assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        }
-        assert!(session.display().free_move_of(shelf_i).is_some());
+        let outcome = session.perform(SessionOp::BeginFreeMove { instance: shelf_i });
+        assert!(
+            matches!(
+                &outcome.refusal,
+                Some(Refusal::Display(DisplayFault::Admission(
+                    AdmissionFault::InTheWorld { instance }
+                ))) if instance.id() == shelf_i
+            ),
+            "an authored instance stands in the world: {:?}",
+            outcome.refusal
+        );
+        assert!(session.display().free_move_of(shelf_i).is_none());
     };
     probe(&mut session);
 
@@ -179,27 +180,6 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     let outcome = session.perform(seat());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 4);
-    let [superseded] = &outcome.withdrawn.superseded[..] else {
-        panic!(
-            "exactly one placement is superseded: {:?}",
-            outcome.withdrawn.superseded
-        )
-    };
-    assert_eq!(
-        superseded.instance, shelf_i,
-        "the mate supersedes the probe on the instance it names"
-    );
-    assert!(
-        matches!(
-            &superseded.cause,
-            AdmissionFault::MateConstrained { instance, mates }
-                if instance.id() == shelf_i && !mates.is_empty()
-        ),
-        "and the outcome carries WHY it went, not only which went — the \
-         fault's own PAYLOAD, which is what would go red if the prune paired \
-         the right fault with the wrong instance: {}",
-        superseded.cause
-    );
     session.pump();
     assert!(!tree::has_faults(&session.tree_rows()));
 

@@ -2541,7 +2541,14 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
         ),
         ("PathTangentReversal", E::PathTangentReversal { station: 4 }),
         ("RowMotionUndecided", E::RowMotionUndecided { row: 1 }),
-        ("ArcWeightNotAPoint", E::ArcWeightNotAPoint { section: 1 }),
+        (
+            "ArcSweepUndecided",
+            E::ArcSweepUndecided {
+                section: 1,
+                which: sweep::ArcSweepDecision::SubArcCount,
+                margin: geom_core::MarginDiag::enclosure(-0.25, 0.5),
+            },
+        ),
         (
             "IncompatibleAtEnclosure",
             E::IncompatibleAtEnclosure { section: 1 },

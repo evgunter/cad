@@ -9,10 +9,12 @@
 //! so every suite's evaluations stay cheap; what matters is the
 //! STRUCTURE: two pinned part documents, three instances, each pinned
 //! to the world by one world pin (a frame mate read off the copy's
-//! geometry, `editor_core::pin_at`) and related by no mate — post_b
-//! free to probe, which is what the free-move rows start from. A
-//! mate-tool row takes post_b's world pin off first ([`unpin`]), so the
-//! mate it commits places post_b rather than overconstraining it.
+//! geometry, `editor_core::pin_at`) and related by no mate. A pinned
+//! copy lives in the world's space, which the free-move probe does not
+//! move (DI5), so a free-move row takes post_b's world pin off first
+//! ([`unpin`]) and probes the loose post with [`where_b_stood`]; a
+//! mate-tool row takes it off too, so the mate it commits places post_b
+//! rather than overconstraining it.
 
 #![allow(dead_code)] // loaded once per consumer; each uses a subset
 #![allow(unreachable_pub)]
@@ -247,6 +249,19 @@ pub fn unpin(session: &mut DocSession, instance: RecipeNodeId) {
     let outcome = session.perform(SessionOp::RemoveConstraint { mate });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
+}
+
+/// **A free-move frame for the loose post_b, drawn where its pin stood
+/// it**, composed with `frame`: `frame ∘ T(POST_B_AT)`.
+///
+/// A free-move moves the picture of a loose space (DI5), and a loose
+/// copy is drawn at its body's own coordinates. Its pin off ([`unpin`]),
+/// post_b is drawn at the part's origin, so a probe that should show it
+/// where the pinned post stood, displaced by `frame` as the display
+/// frame displaced the pinned copy, composes the pin's translation in
+/// first. A row asserting a drawn position keeps its numbers.
+pub fn where_b_stood(frame: Frame) -> Frame {
+    frame.compose(&Frame::translation(POST_B_AT))
 }
 
 /// **The read of `instance`'s one copy**, as a seat that reads one body

@@ -204,6 +204,9 @@ fn a_rotating_probe_is_picked_at_its_drawn_position() {
     let tol = Tol::witness();
     let bench = asm::bench("r2rotpick", tol);
     let mut session = asm::open_bench(&bench, tol);
+    // post_b's world pin off: a loose space the probe moves, the frame
+    // composed so it moves the post from where its pin stood it.
+    asm::unpin(&mut session, bench.post_b);
     session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });
@@ -212,13 +215,15 @@ fn a_rotating_probe_is_picked_at_its_drawn_position() {
     // y' ∈ [0.06, 0.08]; z is unchanged.
     let outcome = session.perform(SessionOp::PreviewFreeMove {
         instance: bench.post_b,
-        frame: Frame::rotate_then_translate(
-            [0.0, 0.0, 1.0],
-            std::f64::consts::FRAC_PI_2,
-            [0.12, 0.0, 0.0],
-            common::band(),
-        )
-        .expect("a literal axis has a definite direction"),
+        frame: asm::where_b_stood(
+            Frame::rotate_then_translate(
+                [0.0, 0.0, 1.0],
+                std::f64::consts::FRAC_PI_2,
+                [0.12, 0.0, 0.0],
+                common::band(),
+            )
+            .expect("a literal axis has a definite direction"),
+        ),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.perform(SessionOp::CommitFreeMove {
@@ -351,8 +356,10 @@ fn a_second_mate_beyond_the_pin_refuses_typed_at_the_door() {
 /// **A mate landing while a free-move GESTURE is in flight kills the
 /// gesture** (the unit's rows supersede a COMMITTED probe; the
 /// in-flight arm is `prune`'s third clause and deserves its own
-/// exercise). Afterwards the preview op refuses `NoFreeMove` — the
-/// gesture died with its instance's eligibility.
+/// exercise). The mate puts post_b in the world's space, which its
+/// landing knows, so the landing's prune kills it. Afterwards the
+/// preview op refuses `NoFreeMove` — the gesture died with its
+/// instance's eligibility.
 #[test]
 fn a_landing_mate_kills_an_in_flight_gesture() {
     let tol = Tol::witness();
@@ -378,6 +385,14 @@ fn a_landing_mate_kills_an_in_flight_gesture() {
     });
     let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    assert!(
+        session
+            .take_landed_withdrawals()
+            .iter()
+            .any(|report| report.killed_gesture.is_some()),
+        "the landing reports the gesture it killed"
+    );
     // The in-flight gesture is dead: a further preview has nothing to
     // preview into.
     let outcome = session.perform(SessionOp::PreviewFreeMove {
@@ -422,7 +437,7 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     });
     session.perform(SessionOp::PreviewFreeMove {
         instance: bench.post_b,
-        frame: Frame::translation([0.02, 0.0, 0.0]),
+        frame: asm::where_b_stood(Frame::translation([0.02, 0.0, 0.0])),
     });
     session.perform(SessionOp::CommitFreeMove {
         instance: bench.post_b,
@@ -454,29 +469,34 @@ fn hide_survives_the_mate_that_discards_the_probe() {
 
     let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [superseded] = &outcome.withdrawn.superseded[..] else {
-        panic!(
-            "exactly one placement is superseded: {:?}",
-            outcome.withdrawn.superseded
-        )
+    assert!(
+        outcome.withdrawn.superseded.is_empty(),
+        "the space is known at the landing, not at the edit"
+    );
+    session.pump();
+    let [superseded] = &session
+        .take_landed_withdrawals()
+        .into_iter()
+        .flat_map(|report| report.superseded)
+        .collect::<Vec<_>>()[..]
+    else {
+        panic!("exactly one placement is superseded at the landing")
     };
     assert_eq!(
         superseded.instance, bench.post_b,
-        "the mate discards the probe"
+        "the mate's landing discards the probe"
     );
     assert!(
         matches!(
             &superseded.cause,
-            AdmissionFault::MateConstrained { instance, mates }
-                if instance.id() == bench.post_b && !mates.is_empty()
+            AdmissionFault::InTheWorld { instance } if instance.id() == bench.post_b
         ),
-        "and the outcome carries WHY it went, not only which went — the \
+        "and the report carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
          the right fault with the wrong instance: {}",
         superseded.cause
     );
     assert!(session.display().is_hidden(bench.post_b), "hide stands");
-    session.pump();
     let index = asm::index_of(&session);
     let scene = index
         .scene_for(&session.display_view())
