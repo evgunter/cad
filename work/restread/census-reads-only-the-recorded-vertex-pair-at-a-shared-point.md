@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-18
 priority: P1
 cost: M
+rides_with: a-pinch-point-the-census-reads-as-mixed-touch-where-the-body-holds-no-overlap
 ---
 
 
