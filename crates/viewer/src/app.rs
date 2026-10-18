@@ -5354,13 +5354,22 @@ mod properties_pane_tests {
             .ids()
             .iter()
             .copied()
-            .find(|id| matches!(doc.node(*id), Some(pncad::document::Node::InstantiatePart { .. })))
+            .find(|id| {
+                matches!(
+                    doc.node(*id),
+                    Some(pncad::document::Node::InstantiatePart { .. })
+                )
+            })
             .expect("the instance went in");
         // Its placement off, the copy is a loose space the probe moves.
         let mate = match doc.node(instance) {
             Some(pncad::document::Node::InstantiatePart { constraints, .. }) => {
-                let [placed] = constraints.as_slice() else {
-                    panic!("the instance is placed by one constraint: {constraints:?}")
+                let mates: Vec<_> = constraints
+                    .iter()
+                    .filter(|constraint| constraint.mate().is_some())
+                    .collect();
+                let [placed] = mates.as_slice() else {
+                    panic!("the instance is placed by one mate: {constraints:?}")
                 };
                 pncad::document::MateRef::new(instance, placed.id)
             }
@@ -5379,7 +5388,12 @@ mod properties_pane_tests {
             SessionOp::CommitFreeMove { instance },
         ]);
         assert!(
-            driven.app.session.display().free_move_of(instance).is_some(),
+            driven
+                .app
+                .session
+                .display()
+                .free_move_of(instance)
+                .is_some(),
             "the probe committed: {:?}",
             status(&driven)
         );
@@ -5388,13 +5402,23 @@ mod properties_pane_tests {
         // the space; its landing does, in a later frame.
         driven.app.perform_batch(vec![SessionOp::Undo]);
         assert!(
-            driven.app.session.display().free_move_of(instance).is_some(),
+            driven
+                .app
+                .session
+                .display()
+                .free_move_of(instance)
+                .is_some(),
             "the edit's own prune keeps the frame"
         );
         driven.settle();
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         assert!(
-            driven.app.session.display().free_move_of(instance).is_none(),
+            driven
+                .app
+                .session
+                .display()
+                .free_move_of(instance)
+                .is_none(),
             "the landing dropped the frame"
         );
         let said = status(&driven).unwrap_or_default();

@@ -2,10 +2,11 @@
 id: sync-scene-landing-notices-have-no-row
 kind: issue
 title: viewer: no row drives sync_scene, so a landing's withdrawal notices are unpinned
-status: open
+status: closed
 opened: 2026-10-18
 priority: P3
 cost: E
+closed: 2026-10-18
 ---
 
 Found by the sequential review of PR 5296 (F5, by grep).
@@ -22,3 +23,16 @@ The fix is a row in app.rs's own tests (the `driven` harness), shaped like the
 asynchronous app: commit a probe on a loose copy, commit a mate that pins it,
 let the landing arrive through `sync_scene`, and assert that the notice reaches
 `notices`.
+
+## Built
+
+`app::properties_pane_tests::a_landings_withdrawal_reaches_the_status_line`
+drives the real app frame by frame. It authors a part file and an assembly
+with one instance, takes the instance's placement off, and commits a free-move
+on the loose copy. It then undoes the removal, which pins the copy again.
+Through that edit the frame still holds; the landing drops it, in a later
+frame, and the `InTheWorld` withdrawal is on the status line. Removing the
+`sync_scene` lines that extend `notices` turns the row red.
+
+Review tier: single STYLE review. The unit adds one test and no production
+code.
