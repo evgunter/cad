@@ -2263,11 +2263,10 @@ impl crate::spoken::Say for NodeErrorKind {
                     "profile loop {loop_}'s lane elaboration refused at step {step} on its \
                      own geometry under this binding (the f64 pass is the one whose \
                      refusals carry numbers). {}",
-                    crate::sentence::Recourse(format_args!(
-                        "{} until the profile builds across it, or move the nominal off this \
-                         binding",
-                        profile::NARROW_THE_BOX
-                    ))
+                    crate::sentence::Recourse(
+                        "narrow the parameter box until the profile builds across it, or move \
+                         the nominal off this binding"
+                    )
                 ),
             },
             Self::ProfileReplay { loop_, error } => {

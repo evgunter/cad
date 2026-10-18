@@ -962,7 +962,7 @@ impl core::fmt::Display for DecisionValue {
 /// across it. A point pass (a seeded dual, no box) has no box to
 /// narrow, so each sentence names moving the nominal as its second
 /// lever.
-pub const NARROW_THE_BOX: &str = "narrow the parameter box";
+const NARROW_THE_BOX: &str = "narrow the parameter box";
 
 impl core::fmt::Display for StructureRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
