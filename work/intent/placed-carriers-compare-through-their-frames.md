@@ -33,7 +33,7 @@ After the stage 3 re-spec (2026-10-09), H waits on stage 3 C (`a-mate-relates-tw
 
 PR 5300 lands what the replay needs. It does not switch on reading placed copies, because that costs the door 10–20× on mated assemblies and proves no seat today (orchestrator's ruling, option 2).
 
-- **The fold's map is a function of its poses alone.** The line two planes meet in, and both anchor steps, carry no lever arm (`mate/coset.rs` `parallel`, `UnitVec3::new_scaled`). A pose's frame is the decided shortest turn, inverted by transpose (`mate/solve.rs` `frame_of`).
+- **The fold's map is a function of its poses alone.** The line two planes meet in carries no lever arm (`mate/coset.rs` `parallel`, `UnitVec3::new_scaled`). A pose's frame is the decided shortest turn, inverted by transpose (`mate/solve.rs` `frame_of`).
 - **A symbolic run resolves parts.** Each document version's variables are its own symbols, keyed by document, pin and id (`analysis::symbol_scope`, `var_env_symbolic_pinned`), so `SymbolsAcrossAPartSeam` retires. `Evaluation::resolver` is the run's resolver, and `DoorJob` and `coincide::prove` carry it.
 - **A mated census row names each face in its copy** (`checks/at_rest.rs` `copy_cell`).
 - **One switch for the rest.** `coincide::REPLAYS_PLACED_COPIES` is off. Turning it on resolves parts in the door's replay and reads an at-rest row by the carrier verdict on the copies' faces. The code is in `coincide/replay.rs` `prove_row`. Pinned off by `mate6_gather_mints::a_mated_record_cites_the_census_row_the_lint_reports` and `asm2a_instantiate::a_symbolic_run_builds_a_part_and_the_door_leaves_a_row_on_one_unreplayed`.
