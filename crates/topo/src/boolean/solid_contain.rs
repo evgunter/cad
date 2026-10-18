@@ -3412,7 +3412,10 @@ pub(crate) fn point_in_face<T: Decide>(
 ///
 /// One of the door's two entries over the one closest-hit core
 /// ([`point_in_faces`]): this one hands the core every face of the
-/// body in arena order; [`point_in_solid_of`] hands it one solid's.
+/// body in arena order; [`point_in_solid_of`] hands it one solid's. A
+/// caller probing one body at many points holds
+/// [`SolidFaces::of_body`] and asks [`point_in_solid_faces`], so the
+/// body's side at infinity is read once.
 ///
 /// # Errors
 ///
@@ -3424,10 +3427,7 @@ pub fn point_in_solid<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
-    // Deterministic face sweep order (arena order); the whole body is
-    // this entry's selection.
-    let sel = SolidFaces::select(body, body.faces().map(|(k, _)| k).collect())?;
-    point_in_faces(body, &sel, q, band, tol)
+    point_in_faces(body, &SolidFaces::of_body(body)?, q, band, tol)
 }
 
 /// [`point_in_solid`]'s selection read as given ([`SolidFaces::read_as_given`]):
@@ -3440,7 +3440,7 @@ pub fn point_in_solid<T: Decide + crate::props::AtRestPolicy>(
 /// [`PointInSolidError::CorruptFace`] for a face whose chart does not
 /// group.
 pub(crate) fn operand_faces<T: Decide>(body: &Body<T>) -> Result<SolidFaces, PointInSolidError> {
-    Ok(SolidFaces::select(body, body.faces().map(|(k, _)| k).collect())?.read_as_given())
+    Ok(SolidFaces::of_body(body)?.read_as_given())
 }
 
 /// Trilean containment of `q` in the material of ONE solid of a
@@ -3509,6 +3509,19 @@ impl SolidFaces {
             .faces_of_solid(solid)
             .ok_or(PointInSolidError::NoSuchSolid { solid })?;
         Self::select(body, faces)
+    }
+
+    /// Every face of the body in face-arena order: [`point_in_solid`]'s
+    /// selection, for a caller probing the whole body at many points
+    /// through [`point_in_solid_faces`], which reads the body's side at
+    /// infinity once for all of them.
+    ///
+    /// # Errors
+    ///
+    /// [`PointInSolidError::CorruptFace`] for a face whose chart does not
+    /// group.
+    pub fn of_body<T: Decide>(body: &Body<T>) -> Result<Self, PointInSolidError> {
+        Self::select(body, body.faces().map(|(k, _)| k).collect())
     }
 
     /// One SHELL's faces in face-arena order — selected by the faces' own `shell`
