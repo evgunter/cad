@@ -154,9 +154,24 @@ pub struct Evaluation<T: Decide> {
     /// The parts this run entered and evaluated, carried for the run
     /// that names it as its prior.
     parts: parts::Carried<T>,
+    /// The resolver this run crossed the document seam with: what a
+    /// replay of the same document at another scalar resolves its parts
+    /// through ([`Self::resolver`]). Asserted unwind-safe: the evaluation
+    /// only hands it on to a later run, never calls it itself, so no
+    /// unwind across an evaluation can interrupt the resolver or leave
+    /// the evaluation's own state torn.
+    resolver: Option<std::panic::AssertUnwindSafe<Arc<dyn crate::part::PartResolver>>>,
 }
 
 impl<T: Decide> Evaluation<T> {
+    /// **The resolver this run crossed the document seam with**
+    /// ([`EvalOptions::resolver`]), `None` for a run that resolved no
+    /// part.
+    #[must_use]
+    pub fn resolver(&self) -> Option<&Arc<dyn crate::part::PartResolver>> {
+        self.resolver.as_ref().map(|r| &r.0)
+    }
+
     /// **The name table of the variable `var`** (NAMES N1, the scope):
     /// the names of the bodies that variable holds, a split's half its
     /// own. The one door to a table: a name is scoped by the variable
@@ -990,6 +1005,7 @@ impl Evaluation<f64> {
             env: crate::expr::VarEnv::default(),
             reads: Arc::new(reads),
             parts: parts::Carried::none(),
+            resolver: None,
         }
     }
 
@@ -3298,8 +3314,8 @@ pub struct EvalOptions {
     /// coincidence door replays a document in. `false` — the default —
     /// is every other evaluation. Exclusive with `param_box`, which
     /// widens named variables over a box instead: an evaluation asked
-    /// for both refuses every node. So does one that also carries a
-    /// `resolver` ([`crate::analysis::ParamBoxError::SymbolsAcrossAPartSeam`]).
+    /// for both refuses every node. A part it resolves binds its own
+    /// variables as symbols of its own document.
     pub symbols: bool,
 }
 
@@ -3870,12 +3886,13 @@ pub(crate) fn evaluate_nested<T>(
     cancel: &CancelToken,
     opts: &EvalOptions,
     reached: parts::Reached<T>,
+    pin: &crate::ident::ContentPin,
     tol: Tol,
 ) -> Evaluation<T>
 where
     T: EvalScalar,
 {
-    evaluate_at_descent(doc, None, cancel, opts, Some(reached), tol)
+    evaluate_at_descent(doc, None, cancel, opts, Some((reached, pin)), tol)
 }
 
 /// Whether `doc` was recorded at the process's ε — the D4 door below.
@@ -3890,7 +3907,7 @@ fn evaluate_at_descent<T>(
     prior: Option<&Evaluation<T>>,
     cancel: &CancelToken,
     opts: &EvalOptions,
-    reached: Option<parts::Reached<T>>,
+    reached: Option<(parts::Reached<T>, &crate::ident::ContentPin)>,
     tol: Tol,
 ) -> Evaluation<T>
 where
@@ -3922,10 +3939,9 @@ where
     // each call site.
     let env = match (opts.param_box.as_deref(), opts.symbols) {
         (None, false) => Ok(doc.var_env::<T>()),
-        (None, true) if opts.resolver.is_some() => {
-            Err(crate::analysis::ParamBoxError::SymbolsAcrossAPartSeam)
+        (None, true) => {
+            crate::analysis::var_env_symbolic_pinned::<T, _>(doc, reached.as_ref().map(|r| r.1))
         }
-        (None, true) => crate::analysis::var_env_symbolic::<T, _>(doc),
         (Some(b), false) => crate::analysis::var_env_over::<T, _>(doc, b),
         (Some(_), true) => Err(crate::analysis::ParamBoxError::SymbolsOverABox),
     };
@@ -3953,7 +3969,7 @@ where
     // one serial pass that reuses what the prior carried (`parts`
     // module docs).
     let entry = match reached {
-        Some(reached) => parts::Entry {
+        Some((reached, _)) => parts::Entry {
             reached,
             carried: parts::Carried::none(),
             evaluations: 0,
@@ -4070,6 +4086,7 @@ where
         env,
         reads: Arc::new(doc.output_ports()),
         parts: entry.carried,
+        resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
     }
 }
 
@@ -4193,6 +4210,7 @@ where
         env: doc.var_env::<T>(),
         reads: Arc::new(doc.output_ports()),
         parts: parts::Carried::none(),
+        resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
     }
 }
 
