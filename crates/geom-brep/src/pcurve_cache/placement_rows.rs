@@ -683,11 +683,12 @@ fn a_direction_on_the_windows_cut_reads_its_closed_end_at_every_scalar() {
 }
 
 /// **A southern latitude places as the latitude it reads, at every
-/// scalar.** The latitude window `(−π, π]` is `atan2`'s own range, so the
-/// latitude is read as plain `atan2` (`Azimuth::latitude`): a latitude
-/// below `−1`, which the angle window's read would name a turn up and
-/// placement take back down again, keeps `k = 0` and the read bit for bit
-/// (PR 5225's round-4 delta, K1).
+/// scalar.** A latitude is read in its own window, `(1 − π, 1 + π]`
+/// (`LATITUDE_WINDOW_START`), on the direct side of its cut line, so it
+/// reads as `atan2`: a latitude below `−1`, which the angle window's read
+/// would name a turn up and placement take back down again, keeps `k = 0`
+/// and the read bit for bit (PR 5225's round-4 delta, K1). Compared
+/// against `Real::atan2`, the kernel's own, not std's inherent one.
 #[test]
 fn a_southern_latitude_places_bit_equal_to_its_atan2() {
     use geom_core::{Bounds, Interval, Real};
@@ -714,7 +715,7 @@ fn a_southern_latitude_places_bit_equal_to_its_atan2() {
             .unwrap();
         assert_eq!(
             placed.to_bits(),
-            y.atan2(x).to_bits(),
+            Real::atan2(y, x).to_bits(),
             "f64, latitude {lat}: {placed}"
         );
         let f = Interval::from_f64;
@@ -754,4 +755,186 @@ fn an_undecided_cut_side_reads_the_turned_formula() {
         at.lo() > PI && at.lo() <= closed && at.hi() >= closed,
         "the undecided cut side reads the turned formula, about the closed end {closed}: {at:?}"
     );
+}
+
+/// **A far-half meridian's polar angle at an equator start reads a
+/// narrow enclosure.** On a meridian's far half the polar angle is read
+/// as `π − δ`; at an equator start (`aa` zero, or an enclosure astride
+/// it) that is `π`, which `atan2`'s own cut would read a whole turn wide
+/// at `Interval`. Read in the latitude window, whose cut is at `1 ± π`,
+/// it stays as narrow as the direction (PR 5225's round-5 delta, M1).
+#[test]
+fn a_far_half_polar_angle_at_an_equator_start_reads_narrow() {
+    use geom_core::{Bounds, Interval, Real};
+
+    use super::{Along, Azimuth, Levers, Placement};
+
+    let f = Interval::from_f64;
+    for (lo, hi) in [(0.0, 0.0), (-1e-17, 1e-17), (-1e-12, 1e-12)] {
+        let place = Placement::<Interval> {
+            mid: f(3.0),
+            levers: Levers {
+                azimuth: f(1.0),
+                tube: f(1.0),
+                latitude: f(1.0),
+            },
+        };
+        let dir = Azimuth::of(Interval::from_bounds(lo, hi), f(-1.0));
+        let placed = place.phase(Along::Latitude, dir, |m| m, band()).unwrap();
+        assert!(
+            placed.hi() - placed.lo() < 1e-9,
+            "aa in [{lo:e}, {hi:e}]: the placed polar angle is as narrow as the direction: {placed:?}"
+        );
+    }
+}
+
+/// **A far-half meridian certifies at `Interval` from any start.** A
+/// great circle of a sphere with a generic axis, its carrier started on
+/// the equator, its edge on the far half (midpoint at `t = 3`): it
+/// certifies at `Interval`, as the same edge does on the carrier started
+/// a quarter turn on, and as the near half does (C4: where a carrier's
+/// parameter starts moves neither the image nor its certificate).
+#[test]
+fn a_far_half_meridian_certifies_at_interval_from_any_start() {
+    use geom_core::{Interval, Real};
+
+    let axis = Vec3::new(0.0, 0.6, 0.8);
+    let sphere = Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 0.0),
+        radius: 1.0,
+        axis,
+        u_ref: Vec3::unit_x(),
+    };
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let start_eq = circle(o, Vec3::new(-1.0, 0.0, 0.0), 1.0, Vec3::new(0.0, 0.8, -0.6));
+    let start_q = circle(o, Vec3::new(-1.0, 0.0, 0.0), 1.0, axis * -1.0);
+    let f = Interval::from_f64;
+    for (name, c, (t0, t1)) in [
+        ("equator start, far half", &start_eq, (2.5, 3.5)),
+        ("equator start, near half", &start_eq, (-0.5, 0.5)),
+        (
+            "quarter start, the far half's edge",
+            &start_q,
+            (2.5 - FRAC_PI_2, 3.5 - FRAC_PI_2),
+        ),
+    ] {
+        let (ci, si) = (c.map_scalar(f), sphere.map_scalar(f));
+        let image = chart_pcurve_over(&ci, f(t0), f(t1), &si, band())
+            .unwrap_or_else(|e| panic!("{name}: derives at Interval: {e}"));
+        PcurveCache::certify(image, f(t0), f(t1), &ci, &si, band())
+            .unwrap_or_else(|e| panic!("{name}: certifies at Interval: {e:?}"));
+    }
+}
+
+/// **A latitude read on the latitude window's cut reads its closed end,
+/// at every scalar.** A far-half meridian whose `δ` is `−1` reads its
+/// polar angle as `π + 1`, the latitude window's cut: the margin is zero,
+/// the read takes the turned formula, and names it `1 + π`, the window's
+/// closed end; at `Interval` the enclosure is the angle's own.
+#[test]
+fn a_latitude_on_its_windows_cut_reads_the_closed_end() {
+    use geom_core::{Bounds, Interval, Real};
+
+    use super::{Azimuth, LATITUDE_WINDOW_START, Window};
+
+    let closed = LATITUDE_WINDOW_START + TAU;
+    let (s, c) = LATITUDE_WINDOW_START.sin_cos();
+    let r = 0.6;
+    let at = Azimuth::of(s * r, c * r).principal_in(Window::Latitude, band());
+    assert!(
+        (at - closed).abs() < 1e-12,
+        "f64: the cut reads the closed end {closed}: {at}"
+    );
+    let f = Interval::from_f64;
+    let at = Azimuth::of(f(s * r), f(c * r)).principal_in(Window::Latitude, band());
+    assert!(
+        at.lo() <= closed + 1e-12 && at.hi() >= closed - 1e-12 && at.hi() - at.lo() < 1e-12,
+        "Interval: the cut reads the closed end, a narrow enclosure: {at:?}"
+    );
+}
+
+/// **Placement on charts with a generic axis certifies at `Interval`
+/// from either start.** A sphere parallel, a torus parallel and meridian,
+/// and a cone rim, on charts whose axis is `(0, 0.6, 0.8)`, each derived
+/// and certified at `Interval` over one edge from two carrier starts a
+/// quarter turn apart (C4: where the parameter starts moves neither the
+/// image nor its certificate; PR 5225's round-5 delta, S3).
+#[test]
+fn placement_on_a_generic_axis_certifies_at_interval_from_either_start() {
+    use geom_core::{Interval, Real};
+
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let a = Vec3::new(0.0, 0.6, 0.8);
+    let e1 = Vec3::unit_x();
+    let e2 = a.cross(e1);
+    let (sphere, torus, cone) = (
+        Surface::Sphere {
+            center: o,
+            radius: 1.0,
+            axis: a,
+            u_ref: e1,
+        },
+        Surface::Torus {
+            center: o,
+            axis: a,
+            major_radius: 2.0,
+            minor_radius: 0.7,
+            u_ref: e1,
+        },
+        Surface::Cone {
+            apex: o,
+            axis: a,
+            half_angle: 0.4,
+            u_ref: e1,
+        },
+    );
+    let lat: f64 = -1.2;
+    let tube: f64 = 2.4;
+    let rim_h = 1.5;
+    // Each carrier as (centre, normal, radius, start direction, a second
+    // start a quarter turn on about the normal).
+    let parallel = |c: Point3<f64>, n: Vec3<f64>, r: f64| {
+        let q = n.cross(e1);
+        (circle(c, n, r, e1), circle(c, n, r, q))
+    };
+    let cases = [
+        (
+            "sphere parallel",
+            &sphere,
+            parallel(o + a * lat.sin(), a, lat.cos()),
+        ),
+        (
+            "torus parallel",
+            &torus,
+            parallel(o + a * (0.7 * tube.sin()), a, 2.0 + 0.7 * tube.cos()),
+        ),
+        (
+            "torus meridian",
+            &torus,
+            (
+                circle(o + e2 * 2.0, a.cross(e2), 0.7, e2),
+                circle(o + e2 * 2.0, a.cross(e2), 0.7, a.cross(e2).cross(e2)),
+            ),
+        ),
+        (
+            "cone rim",
+            &cone,
+            parallel(o + a * rim_h, a, rim_h * 0.4_f64.tan()),
+        ),
+    ];
+    let f = Interval::from_f64;
+    for (name, surface, (first, second)) in cases {
+        // The second start is the first turned a quarter on, so the same
+        // edge sits a quarter turn earlier in its parameter.
+        for (start, c, (t0, t1)) in [
+            ("first start", &first, (0.3, 1.9)),
+            ("quarter start", &second, (0.3 - FRAC_PI_2, 1.9 - FRAC_PI_2)),
+        ] {
+            let (ci, si) = (c.map_scalar(f), surface.map_scalar(f));
+            let image = chart_pcurve_over(&ci, f(t0), f(t1), &si, band())
+                .unwrap_or_else(|e| panic!("{name}, {start}: derives at Interval: {e}"));
+            PcurveCache::certify(image, f(t0), f(t1), &ci, &si, band())
+                .unwrap_or_else(|e| panic!("{name}, {start}: certifies at Interval: {e:?}"));
+        }
+    }
 }

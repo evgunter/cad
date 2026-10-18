@@ -15,7 +15,7 @@ A point's chart coordinates (uv inversion) are computed in three places:
 - `ChartRead`;
 - `step-import`'s `chart::uv_of` (`crates/step-import/src/chart.rs:120`).
 
-`stable_azimuth` was spelled twice: in `crates/geom-brep/src/pcurve_cache.rs` and in `crates/topo/src/chord_join.rs`. PCERT B1 (PR 5225) removed topo's copy, so ring re-homing reads through `geom_brep::Azimuth::principal`. The read is spelled once now.
+`stable_azimuth` was spelled twice: in `crates/geom-brep/src/pcurve_cache.rs` and in `crates/topo/src/chord_join.rs`. PCERT B1 (PR 5225) removed topo's copy, so ring re-homing reads through `geom_brep::Azimuth::principal`. That read is spelled once now. Four other copies of its old frame lane, which choose the formula on a component's sign, remain outside it (`work/cleave/two-frame-lanes-still-decide-their-atan2-formula-on-a-components-sign.md`).
 
 The NURBS foot `NurbsSurface::project` is f64-only, with three wrappers.
 
