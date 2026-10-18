@@ -475,8 +475,9 @@ macro_rules! nurbs_curve {
             /// # Errors
             ///
             /// [`SplineError`] naming the exact violation: a weight that
-            /// is no single point ([`SplineError::WeightNotAPoint`]), a
-            /// breakpoint that is no single point
+            /// is no single point ([`SplineError::CarrierWeightNotAPoint`],
+            /// or [`SplineError::WeightSignUndecided`] where its sign is
+            /// undecided), a breakpoint that is no single point
             /// ([`SplineError::CarrierKnotNotAPoint`]), count
             /// mismatches, or a non-positive/non-finite weight.
             /// (Knot vector violations are refused earlier, by
@@ -557,11 +558,16 @@ macro_rules! nurbs_curve {
                 &self.weights
             }
 
-            /// The weights' value channel: the `f64` every structure
-            /// decision on them reads (positivity, the knot algebra's
-            /// plans, the rational test). Arithmetic reads
-            /// [`Self::weights`].
-            pub fn weight_channel(&self) -> &[f64] {
+            /// **C6's interim**: the weights' value channel, the `f64`
+            /// every structure decision on them reads (the knot
+            /// algebra's plans, the certificates, the rational test).
+            /// Arithmetic reads [`Self::weights`]. A carrier's door
+            /// admits only point weights
+            /// ([`SplineError::CarrierWeightNotAPoint`]), so a built
+            /// carrier always has it. Counted by
+            /// `scripts/gates/knots-f64-interim.sh`; it goes in C6's S5.
+            #[track_caller]
+            pub fn weights_f64_interim(&self) -> &[f64] {
                 &self.weight_channel
             }
 
@@ -906,7 +912,7 @@ macro_rules! nurbs_curve {
                     // own knot rather than a constant copy of it.
                     let held = |v: f64| match cur.knots.value_at(v) {
                         Ok(k) => k.unwrap_or_else(|| Self::inserted(v)),
-                        Err(e) => unreachable!("a carrier's knots are points (`net::carrier_knots`): {e}"),
+                        Err(e) => unreachable!("a carrier's door admits only point knots (`CarrierKnotNotAPoint`): {e}"),
                     };
                     let reinserted =
                         removed.apply_plans(core::slice::from_ref(&step.reinsert), &held);
@@ -1708,6 +1714,67 @@ mod tests {
         let knots =
             KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0, 2.0], 3).unwrap();
         NurbsCurve3::new(knots, control, vec![1.0; 5]).unwrap()
+    }
+
+    /// **A carrier's weights are points, and their sign is certified
+    /// first (C6 S2).** Held weights take a wide one, but a curve or
+    /// surface reads its weights through their `f64` vector, so its door
+    /// refuses one wholly above zero as `CarrierWeightNotAPoint`. A wide
+    /// weight that reaches zero for some members refuses as that,
+    /// `WeightSignUndecided`, with its enclosure as the margin. Point
+    /// weights build. Red where the door admits a wide weight, or
+    /// reports a straddling one as merely wide.
+    #[test]
+    fn a_carrier_door_refuses_a_weight_wider_than_a_point_after_its_sign() {
+        use crate::surfaces::NurbsSurface;
+        use geom_core::Interval;
+        use geom_core::spline::SplineError;
+        let pt = Interval::from_f64;
+        let knots = |n: usize| {
+            let mut k = vec![0.0, 0.0];
+            k.extend((1..n - 1).map(|i| f64::from(u32::try_from(i).unwrap())));
+            k.extend([f64::from(u32::try_from(n - 1).unwrap()); 2]);
+            Knots::lift(
+                &Knots::from(KnotVector::clamped(k, 1).unwrap()),
+                Interval::from_f64,
+            )
+        };
+        let net = |n: usize| -> Vec<Point3<Interval>> {
+            (0..n)
+                .map(|i| Point3::new(pt(f64::from(u32::try_from(i).unwrap())), pt(0.0), pt(0.0)))
+                .collect()
+        };
+        let curve =
+            |w: Interval| NurbsCurve3::new(knots(3), net(3), vec![pt(1.0), w, pt(1.0)]).map(|_| ());
+        let surface = |w: Interval| {
+            let mut ws = vec![pt(1.0); 9];
+            ws[4] = w;
+            NurbsSurface::new(knots(3), knots(3), net(9), ws).map(|_| ())
+        };
+        for (door, at, got) in [
+            ("curve", 1, curve(Interval::from_bounds(0.5, 2.0))),
+            ("surface", 4, surface(Interval::from_bounds(0.5, 2.0))),
+        ] {
+            match got {
+                Err(SplineError::CarrierWeightNotAPoint { index }) => {
+                    assert_eq!(index, at, "{door}")
+                }
+                other => panic!("{door}: a wide weight: {other:?}"),
+            }
+        }
+        for (door, at, got) in [
+            ("curve", 1, curve(Interval::from_bounds(-0.5, 2.0))),
+            ("surface", 4, surface(Interval::from_bounds(-0.5, 2.0))),
+        ] {
+            match got {
+                Err(SplineError::WeightSignUndecided { index, .. }) => {
+                    assert_eq!(index, at, "{door}")
+                }
+                other => panic!("{door}: a straddling weight: {other:?}"),
+            }
+        }
+        assert!(curve(pt(2.0)).is_ok(), "a point weight builds");
+        assert!(surface(pt(2.0)).is_ok(), "a point weight builds");
     }
 
     /// **A carrier's breakpoints are points (C6 S1).** The held knots

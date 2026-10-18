@@ -808,10 +808,14 @@ impl<T: Real> NurbsSurface<T> {
         &self.weights
     }
 
-    /// The weights' value channel, same layout: the `f64` every
-    /// structure decision on them reads. Arithmetic reads
-    /// [`Self::weights`].
-    pub fn weight_channel(&self) -> &[f64] {
+    /// **C6's interim**: the weights' value channel, same layout, the
+    /// `f64` every structure decision on them reads. Arithmetic reads
+    /// [`Self::weights`]. A carrier's door admits only point weights
+    /// ([`SplineError::CarrierWeightNotAPoint`]), so a built surface
+    /// always has it. Counted by `scripts/gates/knots-f64-interim.sh`;
+    /// it goes in C6's S5.
+    #[track_caller]
+    pub fn weights_f64_interim(&self) -> &[f64] {
         &self.weight_channel
     }
 
@@ -1366,7 +1370,9 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
                 let held = |v: f64| match cur.knots_u.value_at(v) {
                     Ok(k) => k.unwrap_or_else(|| T::from_f64(v)),
                     Err(e) => {
-                        unreachable!("a carrier's knots are points (`net::carrier_knots`): {e}")
+                        unreachable!(
+                            "a carrier's door admits only point knots (`CarrierKnotNotAPoint`): {e}"
+                        )
                     }
                 };
                 let (reinserted, _) = Column {

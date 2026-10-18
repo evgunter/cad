@@ -12,7 +12,7 @@
 
 use core::ops::{Mul, Sub};
 
-use geom_core::spline::{Knots, SpanLocate, SplineError};
+use geom_core::spline::{Knots, SpanLocate, SplineError, Weights};
 use geom_core::{CertifiedBounds, Interval, Point2, Point3, Real, Vec2, Vec3};
 
 /// A control point as the rank-blind net helpers see it: coordinates
@@ -197,24 +197,38 @@ pub(crate) fn certified_coords<T: CertifiedBounds, P: ControlPoint<T>>(
 
 /// The weights' value channel: each weight's one `f64`
 /// ([`SpanLocate::point_value`]), what every structure decision on the
-/// weights reads. A poison weight reads as NaN, so the positivity check
+/// weights reads (C6's interim: the knot algebra's plans, the
+/// certificates). A poison weight reads as NaN, so the positivity check
 /// beside this refuses it as it refuses a NaN `f64` weight
 /// ([`SplineError::NonPositiveWeight`]).
 ///
+/// A weight wider than a point is held weights' business ([`Weights`]):
+/// its sign is certified for every member there first, so a weight
+/// some members take non-positive refuses as that
+/// ([`SplineError::WeightSignUndecided`], with its margin), and only a
+/// wide weight that is certified fine reaches the carrier's own refusal.
+///
 /// # Errors
 ///
-/// [`SplineError::WeightNotAPoint`] for the first weight that is an
-/// enclosure wider than a point.
+/// [`Weights::new`]'s, where some weight is wider than a point; then
+/// [`SplineError::CarrierWeightNotAPoint`] for the first such weight.
 pub(crate) fn weight_channel<T: SpanLocate>(weights: &[T]) -> Result<Vec<f64>, SplineError> {
-    weights
+    let channel: Option<Vec<f64>> = weights
         .iter()
-        .enumerate()
-        .map(|(index, w)| match w.point_value() {
-            Some(v) => Ok(v),
-            None if w.is_poison() => Ok(f64::NAN),
-            None => Err(SplineError::WeightNotAPoint { index }),
+        .map(|w| {
+            w.point_value()
+                .or_else(|| w.is_poison().then_some(f64::NAN))
         })
-        .collect()
+        .collect();
+    if let Some(channel) = channel {
+        return Ok(channel);
+    }
+    Weights::new(weights.to_vec())?;
+    let index = weights
+        .iter()
+        .position(|w| w.point_value().is_none() && !w.is_poison())
+        .unwrap_or(0);
+    Err(SplineError::CarrierWeightNotAPoint { index })
 }
 
 /// A carrier's knots have their `f64` vector: its evaluation, span

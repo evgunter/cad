@@ -614,13 +614,13 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             carrier,
             (
                 pcurve.knots_f64_interim(),
-                pcurve.weight_channel(),
+                pcurve.weights_f64_interim(),
                 &pcoords,
             ),
             (
                 surface.knots_u_f64_interim(),
                 surface.knots_v_f64_interim(),
-                surface.weight_channel(),
+                surface.weights_f64_interim(),
                 &scoords,
             ),
             &grid,
@@ -1218,7 +1218,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
     // reads as a definite refusal (no box, so nothing banked).
     let Some((kv, coords)) = refined_net(
         carrier.knots_f64_interim(),
-        carrier.weight_channel(),
+        carrier.weights_f64_interim(),
         &carrier.certified_coords(),
     ) else {
         return out;

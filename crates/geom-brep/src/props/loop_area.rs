@@ -138,7 +138,7 @@ fn nurbs_vector_area<T: SpanLocate>(
     t1: T,
     ref_point: Point3<T>,
 ) -> Result<Vec3<T>, PropsError> {
-    if curve.weight_channel().iter().any(|w| *w != 1.0) {
+    if curve.weights_f64_interim().iter().any(|w| *w != 1.0) {
         return Err(PropsError::Unimplemented);
     }
     let degree = curve.degree().max(1);

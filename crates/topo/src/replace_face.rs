@@ -3903,7 +3903,9 @@ fn corner_of_root<T: Decide>(
     // `held` is a carrier's knots, which are points (`net::carrier_knots`).
     let held_end = |v: f64| match held.value_at(v) {
         Ok(k) => k.unwrap_or_else(|| T::from_computed(v)),
-        Err(e) => unreachable!("a carrier's knots are points: {e}"),
+        Err(e) => {
+            unreachable!("a carrier's door admits only point knots (`CarrierKnotNotAPoint`): {e}")
+        }
     };
     use crate::offset_derive::SplineRoot;
     match root {

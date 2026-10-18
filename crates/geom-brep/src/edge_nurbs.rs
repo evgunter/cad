@@ -308,7 +308,8 @@ impl CarrierDomainRefusal {
             | SplineError::NonFiniteWeight { .. }
             | SplineError::ControlCountMismatch { .. }
             | SplineError::WeightCountMismatch { .. }
-            | SplineError::WeightNotAPoint { .. }
+            | SplineError::CarrierWeightNotAPoint { .. }
+            | SplineError::WeightSignUndecided { .. }
             | SplineError::KnotIsPoison { .. }
             | SplineError::KnotRunsUndecided { .. }
             | SplineError::CarrierKnotNotAPoint { .. } => unreachable!(
@@ -1370,7 +1371,7 @@ fn edge_piece<T: SpanLocate>(
             "the edge's interval is empty on the carrier's domain",
         ));
     }
-    let channel = carrier.weight_channel();
+    let channel = carrier.weights_f64_interim();
     let constant = channel.iter().all(|w| w.to_bits() == channel[0].to_bits());
     if (a <= d0 && b >= d1) || !constant {
         return Ok(carrier.clone());
@@ -2578,7 +2579,7 @@ mod tests {
         assert_eq!(piece.domain(), (a, b));
         assert!(
             piece
-                .weight_channel()
+                .weights_f64_interim()
                 .iter()
                 .all(|&x| x.to_bits() == w.to_bits())
         );

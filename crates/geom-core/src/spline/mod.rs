@@ -60,6 +60,7 @@ pub mod pieces;
 pub mod projective;
 pub mod range;
 pub mod weight_scale;
+pub mod weights;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep, RingRefinement};
 pub use blossom::{BlossomError, SpanRow, diagonal_in_span, restrict_bernstein, restrict_segment};
@@ -83,3 +84,4 @@ pub use locate::{SpanLocate, SpanSet, poison_from, structure_ascends, structure_
 pub use net::{TensorChannels, TensorCoeffs, TensorNet};
 pub use projective::{ProjectivePoint, ProjectiveScalar, ProjectiveSplit};
 pub use range::{Param, ParamRange, last_at_or_below};
+pub use weights::Weights;

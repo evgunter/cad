@@ -15,6 +15,9 @@
 #   Knots::structure_f64_interim
 #   (and geom_core::spline::Span::knots_f64_interim)
 #
+# and, for the weights (C6 S2), the carriers' and `Weights`'
+# `weights_f64_interim`.
+#
 # Every caller is a reader that has not yet moved to the held knots or
 # the combinatorial structure. C6's slices S2–S5 move them; S5 deletes
 # the accessors and this gate with them. So the count is a RATCHET: the
@@ -61,7 +64,7 @@ gate() {
 import glob, re, sys
 
 baseline_path = sys.argv[1]
-NAMES = r"(?:knots_f64_interim|knots_u_f64_interim|knots_v_f64_interim|structure_f64_interim)"
+NAMES = r"(?:knots_f64_interim|knots_u_f64_interim|knots_v_f64_interim|structure_f64_interim|weights_f64_interim)"
 CALL = re.compile(r"\b" + NAMES + r"\s*\(")
 DECL = re.compile(r"\bfn\s+" + NAMES + r"\b")
 VIS = r"^\s*(?:pub(?:\([a-z:]+\))?\s+)?"
@@ -129,7 +132,7 @@ PY
     gate_error "C6 interim f64 knot vector callers fell — lower $BASELINE to the new counts, so the ratchet holds them there"
     exit 1
   fi
-  gate_ok "C6 interim f64 knot vector callers at their baseline ($(sed -n 's/^TOTAL //p' <<<"$report") in all; $(sed -n 's/^HELD //p' <<<"$report") f64 knot or weight holders)"
+  gate_ok "C6 interim f64 knot and weight callers at their baseline ($(sed -n 's/^TOTAL //p' <<<"$report") in all; $(sed -n 's/^HELD //p' <<<"$report") f64 knot or weight holders)"
 }
 
 gate_plant_clean() {
