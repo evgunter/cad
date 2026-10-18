@@ -39,7 +39,7 @@ Still refusing:
 
 - **Two pairs whose runs are one arc**: reachable as two dangling
   null edges with one segment, and refusing typed:
-  `work/fuse/two-dangling-null-edges-with-one-segment-refuse-shared-vertex-crossings.md`.
+  `two-dangling-null-edges-with-one-segment-refuse-shared-vertex-crossings` (closed, PR 3953).
   For two fans, the other way round is the complement on the opposite
   side, so one turns: no refusal.
 - **A fan both of whose ways round hold a cut (interleave)**: disjoint

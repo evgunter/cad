@@ -6,11 +6,11 @@ status: open
 opened: 2026-10-14
 priority: P2
 cost: M
-refs: [the-curve-pair-reader]
+refs: [5227]
 ---
 
 
-Found in the review of PR 5121 (stage (b) of `work/fuse/the-curve-pair-reader.md`).
+Found in the review of PR 5121 (stage (b) of `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227)).
 
 **What refuses.** Across planes, `geom_brep::curve_pair::pose` places each candidate at the closest pair, polished by Gauss–Newton from where one curve crosses the other's plane (`pose.rs`, `Polish::closest`). Its basin meter (`curve_pair_pose_basin`) refuses `Unsettled::Meter` unless `sin φ − 2(κ₁ + κ₂)·2(ℓ + e)` reads positive. `φ` is the angle between the tangents, `ℓ` the arc about the crossing within the band's escalation `e` of the other's plane, and `κ` each carrier's curvature near the start (`Side::curvature_near`). Two windows refuse, measured on unit circles at `ε = 1e-9`, `K = 10` (`meet_rows`):
 

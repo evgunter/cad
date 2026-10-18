@@ -21,7 +21,7 @@ under one solid. So on the bodies the editor builds the count of
 decided `Outer` shells equals `body.solids().count()` — except a solid
 with one decided `Outer` and a shell whose role stays undecided, which
 the sort leaves alone and which may really be a second piece
-(`work/fuse/one-home-for-where-a-shell-stands.md`, NOTE-1): there the
+(`one-home-for-where-a-shell-stands` (closed, PR 4108), NOTE-1): there the
 classifier escalates where a solid count would say 1. Counting solids
 would need no sign walk and no escalation.
 

@@ -6,10 +6,10 @@ status: open
 opened: 2026-10-14
 priority: P2
 cost: M
-refs: [the-curve-pair-reader]
+refs: [5227]
 ---
 
-Found while building the curve-pair reader (`work/fuse/the-curve-pair-reader.md`, stage (b)).
+Found while building the curve-pair reader (`the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227), stage (b)).
 
 Two poses of `geom_brep::curve_pair::pose` (`crates/geom-brep/src/curve_pair/pose.rs`, `conic_conic`) answer with a typed refusal where a closed form could answer:
 

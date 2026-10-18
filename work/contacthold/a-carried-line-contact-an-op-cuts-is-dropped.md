@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-15
 priority: P3
 cost: M
-refs: [a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped]
+refs: [3955]
 ---
 
 ## What

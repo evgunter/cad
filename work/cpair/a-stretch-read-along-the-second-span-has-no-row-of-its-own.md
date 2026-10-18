@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-16
 priority: P3
 cost: M
-refs: [curve-pair-meetings-are-runs]
+refs: [5227]
 ---
 
 

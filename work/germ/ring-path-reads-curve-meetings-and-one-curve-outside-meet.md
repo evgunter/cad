@@ -6,10 +6,10 @@ status: open
 opened: 2026-10-14
 priority: P3
 cost: M
-refs: [the-curve-pair-reader]
+refs: [5227]
 ---
 
-Found by the review of PR 5154 (stage (c) of `work/fuse/the-curve-pair-reader.md`): its sweep for curve-pair meetings and one-curve readings outside `geom_brep::curve_pair` missed these.
+Found by the review of PR 5154 (stage (c) of `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227)): its sweep for curve-pair meetings and one-curve readings outside `geom_brep::curve_pair` missed these.
 
 In `crates/topo/src/ring_path.rs`:
 - **`misses_in_plane`** decides whether a pierce ring's circle arc and a conic arc in one plane miss each other.

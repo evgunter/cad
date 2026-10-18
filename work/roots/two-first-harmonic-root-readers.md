@@ -6,10 +6,10 @@ status: open
 opened: 2026-10-15
 priority: P3
 cost: M
-refs: [the-curve-pair-reader]
+refs: [5227]
 ---
 
-From the stage (b) review residue (`work/fuse/curve-pair-reader-stage-b-review-residue.md`, item 8), carried out of stage (c) of `work/fuse/the-curve-pair-reader.md`.
+From the stage (b) review residue (`curve-pair-reader-stage-b-review-residue` (closed, PR 5154), item 8), carried out of stage (c) of `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227).
 
 Two readers solve the same question, the roots of `c₀ + A·cos(θ − φ)` along a conic:
 - `geom_brep::curve_pair::pose::harmonic_roots`: extremes read through `roots::extreme_sign`. An extreme in the zero band is a touch, unless the root gap, read at the extreme less its noise, is definite. A definite straddle is two roots, read from the extreme that has crossed less.

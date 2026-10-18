@@ -6,10 +6,10 @@ status: open
 opened: 2026-10-15
 priority: P3
 cost: M
-refs: [the-curve-pair-reader]
+refs: [5227]
 ---
 
-Carried out of stage (c) of `work/fuse/the-curve-pair-reader.md`, which listed it "if small". It is not: the split touches every root-finder row.
+Carried out of stage (c) of `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227), which listed it "if small". It is not: the split touches every root-finder row.
 
 `geom_brep::roots::Unsettled` holds three kinds in one enum:
 - **pose-caused:** `Tangency`, plus `AtApex` and `Degenerate`, which are the cone door's vocabulary in a crate with no cone door;

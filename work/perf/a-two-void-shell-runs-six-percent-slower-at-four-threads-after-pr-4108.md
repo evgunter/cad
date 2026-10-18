@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-06
 priority: P3
 cost: E
-refs: [one-home-for-where-a-shell-stands]
+refs: [4108]
 ---
 
 

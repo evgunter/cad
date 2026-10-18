@@ -7,7 +7,7 @@ opened: 2026-10-12
 priority: P3
 cost: E
 design: true
-refs: [face-lineage-rows-are-checked-by-their-readers-not-where-they-are-added, 4868]
+refs: [4868]
 ---
 
 

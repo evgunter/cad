@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-30
 priority: P1
 cost: M
-refs: [a-split-half-loses-the-lineage-of-a-twice-crossed-edge, a-cylinder-split-refuses-missing-upstream-once-its-pieces-rank, join-desync-is-the-catch-all-for-cyclic-lineage-records]
+refs: [a-split-half-loses-the-lineage-of-a-twice-crossed-edge, a-cylinder-split-refuses-missing-upstream-once-its-pieces-rank, 5086]
 ---
 
 

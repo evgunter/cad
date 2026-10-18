@@ -6,11 +6,11 @@ status: open
 opened: 2026-10-14
 priority: P3
 cost: E
-refs: [the-curve-pair-reader]
+refs: [5227]
 ---
 
 
-Found in the review of PR 5121 (stage (b) of `work/fuse/the-curve-pair-reader.md`).
+Found in the review of PR 5121 (stage (b) of `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227)).
 
 `geom_brep::curve_pair::pose`'s first-harmonic reader (`pose.rs`, `harmonic_roots`) refuses `Unsettled::Tangency` where both extremes read zero. The arms that reach it have already read the swing definite: the line in a conic's plane and the transverse height (`curve_pair_pose_swing`), or the circles' centres (`curve_pair_pose_centres`). So `hi − lo` is past `2K·ε`, and both ends can read zero only when each extreme's rounding charge (`Range::noise`) is itself past the band. That is a pose whose coordinates the band cannot resolve. The refusal names a tangency, but the cause is resolution.
 
