@@ -20,9 +20,11 @@ then nothing reads a `MateReach`:
   `FacePoseRefusal` with it. The trait is left with one method nobody
   calls.
 - `apply`'s `reach` parameter (`crates/editor-core/src/edit.rs`,
-  `apply`/`apply_replayed` and `admit_written_constraint`) is
-  threaded through and unread. The door is structural (`admit_mate`,
-  `admit_value`).
+  `apply`/`apply_replayed` and `apply_insert`, each `let _ = reach`)
+  is threaded through and unread. The door is structural
+  (`admit_mate`, `admit_value`, and stage 3 F's bundle rule
+  `admit_bundle_make_up`); F dropped the parameter from the internal
+  functions below `apply` (`admit_written_constraint` and the rest).
 - `PartReach`, `RefusingReach` and `mate_reach` exist only to fill
   that parameter.
 

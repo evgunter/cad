@@ -9,12 +9,13 @@ cost: E
 ---
 
 
-**A candidate, not shown.** The coset fold (`crates/editor-core/src/mate/coset.rs:1320`)
-refuses `FoldStop::OutOfRange` when
-`!is_finite_length(translation.norm())`. `is_finite_length` is the
+**A candidate, not shown.** The bundle fold (`fold_bundle`,
+`crates/editor-core/src/mate/solve.rs:790`; before stage 3 F it was
+`coset.rs`'s `FoldStop::OutOfRange`) refuses `MateFault::PoseOutOfRange`
+when `!is_finite_length(held.representative.translation.norm())`. `is_finite_length` is the
 length reading, and it waves an enclosure through by design, so at
 `Interval` an unbounded translation could pass. Whether it can depends
-on what `candidate_translation` builds. If it returns a point value, or
+on what `mate_coset` and `ball_meets` build. If it returns a point value, or
 an enclosure already bounded, there is nothing to fix.
 
 `Real::is_bounded` (`crates/geom-core/src/real.rs:385`, PR #4197) is the
