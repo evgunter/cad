@@ -323,3 +323,68 @@ fn a_loft_section_stands_at_its_station() {
         );
     }
 }
+
+/// **A copy slid up its target's own `z` stands up it**: the target's
+/// own-xy face is its start cap, which looks DOWN its `z`, so the mate's
+/// target plane is slid along that normal by the negated height.
+#[test]
+fn a_copy_slid_up_its_target_stands_up_it() {
+    let doc = ProfileDoc::empty_derived("d", Tol::witness());
+    let (doc, a) = unit_box(doc);
+    let (doc, b) = unit_box(doc);
+    let own = vertices(&doc, b);
+    let (doc, placed) = fixture::slid(doc, a, b, [0.25, 0.5, 0.75]);
+    assert_eq!(vertices(&doc, placed), shifted(&own, [0.25, 0.5, 0.75]));
+}
+
+/// **A boolean's copy has its body's reach**: a value on a copy of a
+/// union is decided over the union's extent, so a copy of two split
+/// halves fused stands where its body stands.
+#[test]
+fn a_boolean_copy_stands_over_its_bodys_reach() {
+    let doc = ProfileDoc::empty_derived("d", Tol::witness());
+    let (doc, b) = unit_box(doc);
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: b.into(),
+            tool: fixture::start_cap_at(b, len(0.5)),
+        },
+    );
+    let half = |side: editor_core::SplitHalf| {
+        Operand::Var(doc.output(split, side.port()).expect("a split defines its halves"))
+    };
+    let members = vec![
+        BodyRead::plain(half(editor_core::SplitHalf::Above)),
+        BodyRead::plain(half(editor_core::SplitHalf::Below)),
+    ];
+    let (doc, whole) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(members),
+        },
+    );
+    let own = vertices(&doc, whole);
+    let (doc, placement) = fixture::place(doc, whole);
+    assert_eq!(vertices(&doc, placement), own);
+}
+
+/// **A construction is the root of its own space, and no loose copy**:
+/// the loose copies an evaluation lists are placements whose bundle pins
+/// less than their body needs, never a construction.
+#[test]
+fn a_construction_is_no_loose_copy() {
+    let doc = ProfileDoc::empty_derived("d", Tol::witness());
+    let (doc, b) = unit_box(doc);
+    let (doc, _) = fixture::place(doc, b);
+    let (doc, loose) = insert(doc, Node::place(vec![BodyRead::plain(Operand::from(b))]));
+    let ev = editor_core::evaluate::<f64>(
+        &doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    assert_eq!(ev.space(b), editor_core::Space::Loose { root: b });
+    assert_eq!(ev.loose_roots(), vec![loose]);
+}
