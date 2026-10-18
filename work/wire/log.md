@@ -5982,3 +5982,22 @@ kind fault its own sentence and checked every name against an `Is` seat's
 kind. Merged over CLEAVE's `review_pick_r2` red, commented on the PR.
 
 Signed (WIRE orchestrator).
+
+## 2026-10-18 — FORK-CIRCLEPHASE to Ev (PR 5278); PR 5273 reviewed
+
+- **FORK-CIRCLEPHASE converged:** both designers found the circle-split
+  row's premise reads a name as a point set, which N1 rules out; a piece is
+  its index, a phase edit moves it continuously, and a whole-arc shift is
+  not a re-aim. No code change; the one sentence stating it in N1's
+  `circle_split` bullet is Ev's (`[ev]` PR 5278, fork-log row 158). The row
+  closes with a pinning test after.
+- **PR 5273 (part pre-pass):** full review approved with fixes. The
+  design held under every executed claim (schedule-independence at 1–16
+  threads, cancel mid-pass, carry keyed on content). Taken into a fix pass:
+  the schedule row could not go red at its own fixture (a nested fixture
+  does), two carry widenings undisclosed (resolver `None` and an unrepinned
+  store now evaluate on a pose edit), ASSEMBLY A2/A11 prose not matching
+  the code, and the stale "lazy part cache" prose the sweep missed in
+  `mate/`.
+
+Signed (WIRE orchestrator).
