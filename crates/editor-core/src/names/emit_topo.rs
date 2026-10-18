@@ -531,6 +531,9 @@ fn name_split_edges_vertices<T: Decide>(
         .map(|e| root_of[&e])
         .collect();
     let joined = split_joined_readings(node, sides, naming, &root_of, target_node, target_table)?;
+    let lineage = &naming.joined_lineage;
+    let joins: Vec<topo::EdgeJoin> = naming.edge_joins.iter().map(|&(_, j)| j).collect();
+    let covers = topo::join_covers(&joins);
     for s in sides {
         let slot = s.slot();
         let body = s.body;
@@ -617,14 +620,17 @@ fn name_split_edges_vertices<T: Decide>(
         }
         // Vertices. Pair membership FIRST: a vertex the tool plane
         // passed through exists as a coincident copy in BOTH halves
-        // (null-pair rows), so even an operand-named original must
-        // take a side-tagged role, never the bare pass-through (the
-        // bare name would alias across the two halves).
+        // (null-pair rows), so even an operand-named original takes
+        // `OnToolVertex`, never the bare pass-through (the bare name
+        // would alias across the two halves).
         let pair_originals: BTreeSet<VertexKey> =
             naming.vertex_pairs.iter().map(|&(_, o)| o).collect();
         // Crossing vertices, by the operand edge they cross: (from a
         // tie, the vertices).
         let mut crossings: BTreeMap<EdgeKey, (Upstream, Vec<VertexKey>)> = BTreeMap::new();
+        // Copies of an operand vertex the plane passed through, by that
+        // vertex.
+        let mut on_tool: BTreeMap<VertexKey, (Upstream, Vec<VertexKey>)> = BTreeMap::new();
         for (v, _) in body.vertices() {
             let is_pair_member = copy_to_original.contains_key(&v) || pair_originals.contains(&v);
             if !is_pair_member
@@ -637,9 +643,10 @@ fn name_split_edges_vertices<T: Decide>(
                 continue;
             }
             // Resolve the birth record — directly, or through the
-            // null-pair copy row (the original's record lives in
-            // whichever side kept it).
-            let src = copy_to_original.get(&v).copied().unwrap_or(v);
+            // null-pair copy rows (a copy can be minted at an earlier
+            // copy; the original's record lives in whichever side kept
+            // it).
+            let src = pair_original(&copy_to_original, v)?;
             let parent_edge = sides
                 .iter()
                 .find_map(|sb| match sb.body.vertex_provenance_of(src) {
@@ -667,27 +674,86 @@ fn name_split_edges_vertices<T: Decide>(
                 .name_of(&ent(0, EntityKey::Vertex(src)))
                 .is_some()
             {
-                // The plane passed THROUGH an operand vertex (review
-                // R2): side-tagged pass-through — operand identity
-                // from the pair row, side from body membership (a
-                // recorded verdict).
-                let of = upstream_name(target_table, target_node, ent(0, EntityKey::Vertex(src)))?;
-                put(
-                    t,
-                    tie,
-                    of.tied,
-                    name1(
-                        EntityKind::Vertex,
-                        node,
-                        RoleSeg::OnToolVertex { of: of.name },
-                    ),
-                    ent(0, EntityKey::Vertex(v)),
-                )?;
+                // The plane passed THROUGH an operand vertex: its
+                // copies in this half, named below.
+                match on_tool.get_mut(&src) {
+                    Some((_, vs)) => vs.push(v),
+                    None => {
+                        let of = upstream_name(
+                            target_table,
+                            target_node,
+                            ent(0, EntityKey::Vertex(src)),
+                        )?;
+                        on_tool.insert(src, (of, vec![v]));
+                    }
+                }
             } else {
                 return Err(bug(
                     "on-plane vertex with neither a SplitEdge record nor an operand identity",
                 ));
             }
+        }
+        for (corner, (of, copies)) in on_tool {
+            let base = name1(
+                EntityKind::Vertex,
+                node,
+                RoleSeg::OnToolVertex { of: of.name },
+            );
+            if let [v] = copies.as_slice() {
+                put(t, tie, of.tied, base, ent(0, EntityKey::Vertex(*v)))?;
+                continue;
+            }
+            // Several copies in this half: each by the corner's own
+            // edges it is an end of a piece of here (N2's `Keeps`). A
+            // piece descends from its edge, or, where the edge lies in
+            // the tool plane, is a section chord along it from this
+            // copy to a copy of the edge's other end.
+            let mut own: Vec<(EdgeKey, VertexKey)> = Vec::new();
+            for o in target_body
+                .edges_of_vertex(corner)
+                .ok_or_else(|| bug("an operand corner's orbit does not read"))?
+            {
+                let (a, b) = edge_ends(target_body, o)?;
+                own.push((o, if a == corner { b } else { a }));
+            }
+            let mut pieces = Vec::with_capacity(copies.len());
+            for v in copies {
+                let mut kept: BTreeSet<EdgeKey> = BTreeSet::new();
+                for e in body
+                    .edges_of_vertex(v)
+                    .ok_or_else(|| bug("a corner copy's orbit does not read"))?
+                {
+                    for c in covers.get(&e).cloned().unwrap_or_else(|| vec![e]) {
+                        let root = chase_split_lineage(sides, target_table, lineage, c)?;
+                        if own.iter().any(|&(o, _)| o == root) {
+                            kept.insert(root);
+                        }
+                    }
+                    if !chord_faces.contains_key(&e) {
+                        continue;
+                    }
+                    let (a, b) = edge_ends(body, e)?;
+                    let far = pair_original(&copy_to_original, if a == v { b } else { a })?;
+                    for &(o, o_far) in &own {
+                        if o_far == far
+                            && o_far != corner
+                            && chord_within(body, e, target_body, o, bnd)?
+                        {
+                            kept.insert(o);
+                        }
+                    }
+                }
+                let mut lines = BTreeSet::new();
+                for o in kept {
+                    let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(o)))?;
+                    lines.insert((*edge_line(&up.name)).clone());
+                }
+                pieces.push((
+                    Qualifier::Keeps(lines.into_iter().collect()),
+                    ent(0, EntityKey::Vertex(v)),
+                ));
+            }
+            mint_qualified(t, tie, of.tied, &base, pieces)?;
         }
         // Each crossing carries its sense against this half; a plane
         // crosses a straight edge at most once, and an arc it crosses
@@ -750,6 +816,29 @@ fn name_split_edges_vertices<T: Decide>(
         pieces.mint(&mut h.t, &mut h.tie)?;
     }
     Ok(())
+}
+
+/// The operand vertex a split's copy `v` stands for: `v` itself, or
+/// the end of its chain of null-pair rows (`copy_to_original`), each
+/// copy minted at an earlier one or at the operand vertex.
+///
+/// # Errors
+///
+/// [`NamingError::Emission`] where the rows cycle.
+fn pair_original(
+    copy_to_original: &BTreeMap<VertexKey, VertexKey>,
+    v: VertexKey,
+) -> Result<VertexKey, NamingError> {
+    let mut at = v;
+    for _ in 0..=copy_to_original.len() {
+        match copy_to_original.get(&at) {
+            Some(&o) => at = o,
+            None => return Ok(at),
+        }
+    }
+    Err(NamingError::Emission {
+        what: "a split's null-pair rows cycle",
+    })
 }
 
 /// **The sense of a Split's crossing at `v`** (N2) against the half
