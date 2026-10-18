@@ -455,6 +455,9 @@ pub trait AxisScalar: geom_core::Real {
     /// same ids and two versions of one document share them, so a run
     /// that binds a part's variables beside its own never makes two of
     /// them one symbol.
+    /// A scalar that binds identities ([`AxisScalar::BINDS_IDENTITIES`])
+    /// overrides this as well as [`AxisScalar::axis_of`]: the default
+    /// drops `scope`, which only an anonymous enclosure may.
     fn axis_of_in(scope: u64, var: VarId, lo: f64, hi: f64) -> Option<Self> {
         let _ = scope;
         Self::axis_of(var, lo, hi)

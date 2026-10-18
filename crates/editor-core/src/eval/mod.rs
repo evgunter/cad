@@ -156,9 +156,10 @@ pub struct Evaluation<T: Decide> {
     parts: parts::Carried<T>,
     /// The resolver this run crossed the document seam with: what a
     /// replay of the same document at another scalar resolves its parts
-    /// through ([`Self::resolver`]). Asserted unwind-safe: a resolver is
-    /// `Sync`, so whatever it mutates it guards, and an evaluation is
-    /// read across a `catch_unwind` as every other field allows.
+    /// through ([`Self::resolver`]). Asserted unwind-safe: the evaluation
+    /// only hands it on to a later run, never calls it itself, so no
+    /// unwind across an evaluation can interrupt the resolver or leave
+    /// the evaluation's own state torn.
     resolver: Option<std::panic::AssertUnwindSafe<Arc<dyn crate::part::PartResolver>>>,
 }
 

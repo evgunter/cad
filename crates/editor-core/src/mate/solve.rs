@@ -49,7 +49,13 @@ use crate::pose::PoseValue;
 /// never decides one; an interval definitely or by escalating).
 ///
 /// What a scalar answers here beyond deciding is per scalar. No pose value is derived from
-/// [`Self::quoted`] or [`Self::upper`]. `quoted` feeds payloads only.
+/// [`Self::quoted`] or [`Self::upper`]. `quoted` feeds payloads, and it
+/// chooses between two spellings of one value where each is exact and
+/// only their conditioning differs: [`super::reference_about`]'s two
+/// formulas for `1 + c`, and [`frame_of`]'s pole a direction is aimed
+/// from. Such a choice is no verdict and is not sampled; a box lane may
+/// take the other spelling than its value lane, and each encloses the
+/// same value.
 /// `upper` forms the arm ([`Arm::of`]), so it feeds the lever's own
 /// refusal branches — `LeverRefusal::OutOfRange` where the arm is
 /// formed, `Unleverable` where it is asked to decide
@@ -555,8 +561,10 @@ pub(crate) struct ReadMate<T: Real> {
 /// `z` onto it, whose columns are rational in `d`'s components with the
 /// one divisor `1 + c`; where `c < 0` it is aimed from `−z` instead
 /// (divisor `1 − c`), after the half-turn about `x`. Which of the two
-/// is a choice of arithmetic, not a verdict: both carry `z` to `d`, and
-/// neither divisor falls below one where it is taken. So at `Sym` a
+/// is a choice of arithmetic, not a verdict ([`SolveScalar`]): both
+/// carry `z` to `d`, and at a point neither divisor falls below one
+/// where it is taken (over an enclosure, below one by at most half its
+/// width in `c`). So at `Sym` a
 /// frame is a rational function of the pose, with no guard the
 /// symbolic tier cannot see through.
 fn frame_of<T: SolveScalar>(pose: &PoseValue<T>) -> Affine3<T> {

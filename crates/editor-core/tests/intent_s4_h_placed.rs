@@ -72,7 +72,10 @@ fn unproven_orthonormality(m: Mat3<S>) -> Vec<&'static str> {
 ///
 /// Red if the frame's in-plane basis is chosen by a guard the tier
 /// keeps as an atom (a `select` on `|z|` against `|x|`, a `max` of
-/// norms).
+/// norms), or if one pole's frame is a reflection or carries `z` other
+/// than to the normal. The lower normal is aimed from `−z` and `z` from
+/// `+z`, so the coset compares the two branches; a defect both branches
+/// share cancels in a coset and moves nothing.
 #[test]
 fn a_poses_frame_is_orthonormal_as_a_polynomial_identity() {
     for (key, at) in [(10, [0.2, 0.1, 0.9]), (20, [0.1, -0.3, -0.8])] {
@@ -85,15 +88,30 @@ fn a_poses_frame_is_orthonormal_as_a_polynomial_identity() {
                 origin: Point3::origin(),
                 normal: UnitVec3::exact_z(),
             };
+            let frame = mate_coset(&z, &plane).representative.linear;
+            let d = direction(key, at).get();
+            let mut defects = unproven_orthonormality(frame);
+            defects.extend(
+                [
+                    ("c2 − d (x)", frame.c2.x - d.x),
+                    ("c2 − d (y)", frame.c2.y - d.y),
+                    ("c2 − d (z)", frame.c2.z - d.z),
+                    ("det − 1", frame.determinant() - S::one()),
+                ]
+                .into_iter()
+                .filter(|&(_, x)| !identically_zero(x))
+                .map(|(what, _)| what),
+            );
             [
-                unproven_orthonormality(mate_coset(&z, &plane).representative.linear),
+                defects,
                 unproven_orthonormality(mate_coset(&plane, &z).representative.linear),
             ]
         });
         assert_eq!(
             unproven,
             [Vec::<&str>::new(), Vec::new()],
-            "the frame over {at:?}, and its inverse: defects not proven"
+            "the frame over {at:?} (a rotation carrying z to the normal), and its inverse: \
+             defects not proven"
         );
     }
 }

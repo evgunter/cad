@@ -36,7 +36,11 @@
 //!
 //! A row of the replay is the f64 row's when it was decided at the same
 //! node, at the same site, as the same ordinal among that site's rows
-//! there, between cells of the same names.
+//! there, between cells of the same names. An at-rest row is matched
+//! by no ordinal (the census is not re-run): its cells are read off the
+//! replay's copies by name, which stand where the f64 run's do because
+//! the deferring session takes every decision as the numeric channel
+//! takes it.
 
 use std::collections::BTreeMap;
 
