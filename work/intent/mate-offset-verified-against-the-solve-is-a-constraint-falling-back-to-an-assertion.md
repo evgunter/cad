@@ -2,12 +2,12 @@
 id: mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion
 kind: issue
 title: A non-root member's offset is verified against the solve (OffsetDisagrees/OffsetUnchecked): a constraint that falls back to an assertion
-status: parked
-blocked_on: [a-mate-on-a-pinned-copy-refuses]
+status: closed
 opened: 2026-10-03
 priority: P0
 cost: M
 refs: [one-way-to-say-dependency-and-intent]
+closed: 2026-10-18
 ---
 
 
@@ -26,3 +26,12 @@ Found by the ruling's designer pair.
 ## The offset half, closed by INTENT stage 3 B (PR #5232)
 
 Offsets retired with gauges. There is no `InstantiatePart.offset`, and `check_offsets`, `MateFault::OffsetDisagrees`, `OffsetUnchecked` and `OffsetCheck` are gone. A copy's world pose is a world pin, one constraint in its bundle. A second placing statement on a pinned copy refuses `MateFault::Overconstrained`, never a check. What this row still waits on is the rest of `a-mate-on-a-pinned-copy-refuses`.
+
+## Closed (INTENT stage 3 F)
+
+The rest of `a-mate-on-a-pinned-copy-refuses` landed: no constraint is
+checked against the solve. A constraint any of whose equations its
+bundle already fixes refuses `Overconstrained` at the door, pinned or
+not, by subgroup algebra; `Contradictory` retired, and A11 (4)'s
+"an inconsistent loop dies at its closing mate's verification" with it
+(`crates/editor-core/ASSEMBLY.md`).

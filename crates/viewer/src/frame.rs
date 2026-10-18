@@ -1263,10 +1263,10 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// The frame around the faults counts where there is anything to count,
 /// and never names: every [`AdmissionFault`] names its own SUBJECT, so
 /// naming the id again in the preamble would say it twice. It does not
-/// promise a vocabulary for that subject: an arm about an instance says
-/// "instance N" and an arm about an id that names no instance
-/// (`NoSuchNode`, `NotAnInstance`) says "node N", which is that enum's
-/// own rule and the only honest wording there.
+/// promise a vocabulary for that subject: each arm says it as the
+/// spoken node does, its kind included (`InstantiatePart N`, `Place N`,
+/// and `node N` for an id the document does not hold), which is that
+/// enum's own rule and the only honest wording there.
 ///
 /// [`crate::display::DisplayFault`]'s own arms name no id at all — they are about a
 /// gesture or a frame rather than a node — and a `Withdrawn` cannot
@@ -1289,16 +1289,22 @@ vocabulary! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum WithdrawalKind {
         /// **A SUBSTITUTION.** The user's hand placement answered "where
-        /// does this part go", and the mate that landed answers it better,
-        /// so the probe steps aside and the picture keeps the part.
+        /// does this part go", and the document that landed answers it
+        /// differently — a pin, a join with another space, a placement it
+        /// refuses — so the probe steps aside and the picture keeps the
+        /// part.
         ///
-        /// [`crate::display::PruneReport::superseded`], carried to the
-        /// chrome on [`crate::session::OpOutcome::withdrawn`], names the
-        /// instances whose COMMITTED free-move placement an operation's document
-        /// transition discarded — the G3 supersession, reported by the
-        /// session rather than inferred ([`crate::display::DisplayState::prune`] is
-        /// where it happens, and [`crate::display::free_move_check`] is the
-        /// condition). A killed in-flight gesture is NOT in that list, so
+        /// [`crate::display::PruneReport::superseded`] names, by their
+        /// roots, the loose spaces whose COMMITTED free-move frame a prune
+        /// discarded — the G3 supersession, reported by the session rather
+        /// than inferred. Most arrive with a landing, which is when a space
+        /// is known (`DocSession::take_landed_withdrawals`), and the rest
+        /// on [`crate::session::OpOutcome::withdrawn`] (a root gone);
+        /// [`crate::display::DisplayState::prune`] is where it happens
+        /// ([`crate::display::DisplayState::prune_structural`] for a value
+        /// gesture's scratch), and [`crate::display::space_check`] is the
+        /// condition. A killed
+        /// in-flight gesture is NOT in that list, so
         /// it is not this channel's to report; the next gesture op refuses
         /// typed instead.
         ///

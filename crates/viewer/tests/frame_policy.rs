@@ -362,8 +362,11 @@ fn cause_ordinal(cause: &AdmissionFault) -> usize {
         AdmissionFault::InTheWorld { .. } => 2,
         AdmissionFault::NotEvaluated { .. } => 3,
         AdmissionFault::NoSpace { .. } => 4,
-        AdmissionFault::MovedSpace { .. } => 5,
-        AdmissionFault::FusedGeometry { .. } => 6,
+        // One ordinal per SENTENCE: the arm's guard chooses between a
+        // join and a split, mirrored here so each needs its own sample.
+        AdmissionFault::MovedSpace { instance, into } if instance.id() != into.id() => 5,
+        AdmissionFault::MovedSpace { .. } => 6,
+        AdmissionFault::FusedGeometry { .. } => 7,
     }
 }
 
@@ -422,8 +425,8 @@ fn every_cause() -> Vec<AdmissionFault> {
 /// `AdmissionFault` and `Withdrawn::cause` stores what they answer, so
 /// the sentences this claim ranges over are exactly these arms' — the
 /// compiler's census, `cause_ordinal` being exhaustive and the
-/// ordinals having to run from 0 with no hole, with one sample more
-/// for each sentence an arm chooses by a guard (`MovedSpace`'s two) —
+/// ordinals having to run from 0 with no hole, one ordinal per sentence
+/// where an arm chooses its sentence by a guard (`MovedSpace`'s two) —
 /// and this row is the
 /// claim over it. Before the narrowing the field was the whole of
 /// `DisplayFault`, where `NonRigidFrame` writes a `LIST_SEPARATOR`
@@ -451,6 +454,15 @@ fn a_withdrawn_cause_never_carries_the_list_mark() {
 
     for cause in every_cause() {
         let sentence = cause.to_string();
+        // The subject's kind is the spoken node's to say (a frame's root
+        // may be a `Place`), so no sentence writes "instance" itself —
+        // but the one whose content is that the node is not one.
+        assert!(
+            matches!(cause, AdmissionFault::NotAnInstance { .. })
+                || !sentence.to_lowercase().contains("instance"),
+            "a cause names its subject's kind through the spoken node, not \
+             its own words: {sentence}"
+        );
         assert!(
             !sentence.contains(frame::LIST_SEPARATOR),
             "a cause that writes the list mark nests inside the join that \
@@ -458,6 +470,32 @@ fn a_withdrawn_cause_never_carries_the_list_mark() {
              has: {sentence}"
         );
     }
+}
+
+/// **"Not evaluated yet" ranks with the gesture-order faults, below a
+/// real failure** (`Refusal::rank`): it is a wait on a landing, not a
+/// decision about what the user tried, so a batch that meets both keeps
+/// the decision.
+#[test]
+fn a_space_not_known_yet_ranks_below_a_space_that_refuses() {
+    let admission = |fault| Refusal::Display(DisplayFault::Admission(fault));
+    let waiting = admission(AdmissionFault::NotEvaluated {
+        instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(1))),
+    });
+    let refused = admission(AdmissionFault::InTheWorld {
+        instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(2))),
+    });
+    assert!(waiting.rank() > refused.rank());
+    let kept = Refusal::preferred(Some(waiting), refused);
+    assert!(
+        matches!(
+            kept,
+            Some(Refusal::Display(DisplayFault::Admission(
+                AdmissionFault::InTheWorld { .. }
+            )))
+        ),
+        "the real failure replaces the wait: {kept:?}"
+    );
 }
 
 /// **A withdrawal's cause list splits back into the causes it joined.**
@@ -1022,9 +1060,9 @@ fn a_refusal_reached_through_a_mate_names_the_placement_the_tree_blames() {
     let tol = Tol::witness();
     let bench = common::asm::bench("vnews-derived-mate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
-    // post_a seated under the shelf, then the shelf's own bundle
-    // contradicted on post_b: post_a, first in the index's order, is
-    // chained to the refused shelf.
+    // post_a seated under the shelf, then the shelf's own bundle a mate
+    // its evaluation refuses, against post_b: post_a, first in the
+    // index's order, is chained to the refused shelf.
     common::asm::unpin(&mut session, bench.post_a);
     common::commit_mate(
         &mut session,
@@ -1036,12 +1074,10 @@ fn a_refusal_reached_through_a_mate_names_the_placement_the_tree_blames() {
         ),
     );
     common::asm::unpin(&mut session, bench.shelf_i);
-    for offset in [0.0, 0.01] {
-        common::commit_mate(
-            &mut session,
-            common::asm::shelf_rest_op(&bench, bench.post_b, offset),
-        );
-    }
+    common::commit_mate(
+        &mut session,
+        common::asm::no_centre_op(&bench, bench.post_b),
+    );
     let offender = bench.shelf_i;
     let refusal = common::index_at(&session, common::asm::delta())
         .expect_err("a placement the solve refused refuses the index");
