@@ -1477,7 +1477,7 @@ impl SitedRef {
 ///     }))
 /// };
 /// let flipped = Operand::Pose(Box::new(PoseDef::Flip {
-///     pose: plane(face.clone()),
+///     pose: plane(face.clone()).into(),
 /// }));
 /// let _: Mate<Formula> = Mate {
 ///     on: plane(face),
