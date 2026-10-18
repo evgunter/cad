@@ -2,10 +2,11 @@
 id: census-face-reach-returns-a-nan-box-for-an-unclaimable-boundary-edge
 kind: issue
 title: census::face_reach returns a NaN-ended Some for a cylinder or cone face with an unclaimable boundary edge, against its own None contract
-status: open
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: E
+closed: 2026-10-17
 ---
 
 ## What
@@ -40,3 +41,15 @@ Make the slab arms answer `None` when the axial window is poison, as
 the `ControlNet` arm already does for a placeholder. Alternatively,
 weaken the doc to match the arms and audit the callers. Either way, a
 row should pin a cylinder face with an unclaimable boundary edge.
+
+## Closed
+
+`census::boundary_axial` answers `None` as soon as a boundary edge has
+no axial claim (`EdgeBoxRule::NoSoundBox` or `Spiric`). So the
+`CylinderSlab` and `ConeSlab` arms of `face_reach_in` return `None`
+through their `?`, rather than a slab built on a poisoned window. That
+matches `boundary_reach` and the `ControlNet` arm. Pinned by
+`boolean::boxes::tests::a_slab_face_with_an_unclaimable_boundary_edge_has_no_census_reach`:
+a cylinder wall and a cone wall, each with one straight generator made
+null scaffolding, gave `Some((NaN…), (NaN…))` on main and give `None`
+now.
