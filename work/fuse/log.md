@@ -1118,3 +1118,5 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - fillet joints are decided by the certified window reading.
 
   Open follow-ons: the coplanar touch (`two-coplanar-ellipses-have-no-meeting-method`, P2), the polish-meter windows (P2), the second-span stretch row (P3). The review worktree is retired.
+
+- 2026-10-18: **FUSE closes** (branch `fuse/close-the-program`). The curve-pair reader's last unit landed in PR 5227 and the pass 5′ regression fix rides PR 5268. `curve-pair-meetings-are-runs` and `a-mirrored-split-that-joins-has-no-row` close; the 33 live rows move by `git mv`, ids kept, to CPAIR (opened for the curve-pair reader's residue), ROOTS, EMIT, HONE, GAUGE, TOPO, COINCIDE, PERF and CONTACTHOLD. The plan set no exit criteria, so there is no exit walk. Done-state of record: `docs/doc-ledger/fuse-leaves-the-tracker.md`.
