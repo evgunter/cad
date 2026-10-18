@@ -194,7 +194,7 @@ pub use node::{
     AuthoredNode, Axis3, ConstraintId, CountMismatch, InputFault,
     InterfaceCrossing, InterfaceRecord, ListFault, Node, OutputPort, PartSelect, PatternKind,
     PlacementRuleFault, PortKind, RecipeNodeId, SitedFace, SitedRef, SlotId, StepArg,
-    StepId, TubeWindow, VectorSlot,
+    StepId, StationMove, LoftSection, TubeWindow, VectorSlot,
 };
 pub use operand::{Bodies, BodyRead, CopyKey, Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};

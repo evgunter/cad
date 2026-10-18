@@ -403,7 +403,7 @@ pub fn with_values(
             DocEdit::AddValue {
                 placement,
                 value: Box::new(editor_core::Value {
-                    mate: id.constraint,
+                    mate: id.id,
                     coord,
                     by,
                 }),
@@ -757,10 +757,47 @@ pub fn step_with(
     (applied.doc, applied.record.minted)
 }
 
+/// **A copy of `body` slid by `by` in `target`'s own coordinates**
+/// ([`against`] at a translation): how a construction that sat on a
+/// datum off its target's origin joins the target's space. Returns the
+/// document and the placement, whose output is the copy.
+pub fn slid(
+    doc: ProfileDoc,
+    target: impl Into<editor_core::Operand>,
+    body: impl Into<editor_core::Operand>,
+    by: [f64; 3],
+) -> (ProfileDoc, RecipeNodeId) {
+    against(doc, target, body, &editor_core::Frame::translation(by))
+}
+
+/// **The slot of `placement`'s value on `coord`**: the address a row
+/// revalues a placed copy's slide or spin through.
+///
+/// # Panics
+///
+/// If `placement` is no placement or holds no value on `coord`.
+pub fn value_slot(
+    doc: &ProfileDoc,
+    placement: RecipeNodeId,
+    coord: editor_core::Coord,
+) -> editor_core::SlotId {
+    let Some(Node::Place { constraints, .. }) = doc.node(placement) else {
+        panic!("{placement} is a placement");
+    };
+    let c = constraints
+        .iter()
+        .find(|c| c.value().is_some_and(|v| v.coord == coord))
+        .unwrap_or_else(|| panic!("{placement} holds a value on {coord:?}"));
+    match coord {
+        editor_core::Coord::Slide(_) => editor_core::SlotId::ValueSlide { constraint: c.id },
+        editor_core::Coord::Spin => editor_core::SlotId::ValueSpin { constraint: c.id },
+    }
+}
+
 /// **The id `doc`'s next insert would mint**, read by making that
 /// insert on a copy: an id no node of `doc` holds, whatever the mint.
 pub fn next_mint(doc: &ProfileDoc) -> RecipeNodeId {
-    insert(doc.clone(), xy_frame()).1
+    insert(doc.clone(), Node::Profile(desc(vec![square(0.0, 0.0, 1.0)]))).1
 }
 
 /// **The last node in `doc.order()`** — the one a just-applied
@@ -1421,7 +1458,7 @@ impl Recorder {
                 vec![fname(cube, RoleSeg::Cap(CapEnd::Start))],
             ))
         };
-        let copy = self.insert(Node::place(vec![editor_core::BodyRead::plain(cube.into())]));
+        let copy = self.insert(Node::place(vec![editor_core::BodyRead::plain(editor_core::Operand::from(cube))]));
         self.constrain(
             copy,
             editor_core::Mate {
@@ -1562,10 +1599,10 @@ pub struct Die {
     /// The final Subtract (the die body).
     pub final_node: RecipeNodeId,
     /// The +z face's pip-master Extrude (the poisoning target: its
-    /// descendants are exactly the LAST transform + subtract).
+    /// descendants are exactly the LAST placement + subtract).
     pub pz_extrude: RecipeNodeId,
-    /// The +z pip's Transform (the incremental-edit target).
-    pub pz_transform: RecipeNodeId,
+    /// The +z pip's placement (the incremental-edit target).
+    pub pz_placement: RecipeNodeId,
     /// Total node count.
     pub n_nodes: usize,
 }
@@ -1649,46 +1686,36 @@ pub fn die() -> Die {
         distance: len(2.0),
     });
 
-    // Per-face masters: pip profile centered at the plane origin,
-    // extruded INWARD by pip_depth (the normal points out, so against
-    // it).
-    let mut masters = Vec::new(); // (extrude id, u, v, pips)
+    // Per-face masters: a pip profile centered at its own origin,
+    // extruded along its own +z by pip_depth.
+    let mut masters = Vec::new(); // (extrude id, origin, u, v, pips)
     for (o, u, v, pips) in faces() {
-        let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
+        let prof = r.profile([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![
+            square(0.0, 0.0, 0.125),
+        ]);
         let ext = r.insert(Node::Extrude {
             profile: prof.into(),
             distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
-            side: ExtrudeSide::Against,
         });
-        masters.push((ext, u, v, pips));
+        masters.push((ext, o, u, v, pips));
     }
 
-    // Interleaved Transform + Subtract pairs: every pip's outer cap
-    // lies exactly ON its cube face, a coincidence the subtract's
-    // margins decide and glue.
+    // Interleaved placement + Subtract pairs: each pip placed against
+    // the cube with its start cap ON its cube face and its own +z
+    // INTO the cube (the frame's `v` reversed), a coincidence the
+    // subtract's margins decide and glue.
     let mut acc = cube;
-    let mut pz_transform = acc; // overwritten below
-    for &(ext, u, v, pips) in &masters {
+    let mut pz_placement = acc; // overwritten below
+    for &(ext, o, u, v, pips) in &masters {
         for &(a, b) in pips {
-            let t = [
-                a * u[0] + b * v[0],
-                a * u[1] + b * v[1],
-                a * u[2] + b * v[2],
-            ];
-            let tr = r.insert(Node::transform(
-                ext,
-                editor_core::Step::Rigid {
-                    translation: [len(t[0]), len(t[1]), len(t[2])],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                },
-            ));
+            let at = core::array::from_fn(|i| o[i] + a * u[i] + b * v[i]);
+            let placed = r.against(cube, ext, &frame_at(at, u, v.map(|c| -c)));
             let sub = r.insert(Node::Subtract {
                 from: acc.into(),
-                tool: tr.into(),
+                tool: placed.into(),
             });
             acc = sub;
-            pz_transform = tr;
+            pz_placement = placed;
         }
     }
 
@@ -1698,7 +1725,7 @@ pub fn die() -> Die {
         edits: r.edits,
         final_node: acc,
         pz_extrude: masters[5].0,
-        pz_transform,
+        pz_placement,
         n_nodes,
     }
 }
@@ -2686,42 +2713,6 @@ pub fn same_as_written(a: &ProfileDoc, b: &ProfileDoc) -> bool {
         && named(a) == named(b)
 }
 
-/// **A stored placement as it was written** in `doc`: each rigid step's
-/// components the formulas their variables were written as
-/// (`Doc::written`), for a row comparing it with the placement it
-/// authored.
-pub fn written_placement(
-    doc: &ProfileDoc,
-    placement: &editor_core::Placement,
-) -> editor_core::Placement<editor_core::Formula> {
-    let dims: std::collections::BTreeMap<editor_core::VarId, editor_core::Dimension> = placement
-        .authored()
-        .steps
-        .iter()
-        .flat_map(|step| match step {
-            editor_core::Step::Rigid {
-                translation,
-                axis,
-                angle,
-            } => translation
-                .iter()
-                .chain(axis)
-                .chain([angle])
-                .cloned()
-                .collect::<Vec<_>>(),
-            editor_core::Step::Literal(_) => Vec::new(),
-        })
-        .filter_map(|leaf| Some((leaf.as_var()?, leaf.dim())))
-        .collect();
-    placement
-        .try_map_slots(&mut |var| {
-            Ok::<_, core::convert::Infallible>(editor_core::Formula::from(
-                doc.written(&editor_core::Expr::var(*var, dims[var])),
-            ))
-        })
-        .unwrap_or_else(|e| match e {})
-}
-
 /// How many continuous free variables `doc` holds — every parameter
 /// axis, named or written in a slot (VR8).
 pub fn continuous_vars(doc: &ProfileDoc) -> usize {
@@ -2736,29 +2727,25 @@ pub fn continuous_vars(doc: &ProfileDoc) -> usize {
 /// `b`'s y = 0.25 bottom rim.
 pub fn glued_rim(lift: f64) -> impl Fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     move |doc| {
-        let (doc, a) = glued_block(doc, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
-        let (doc, b) = glued_block(doc, (0.5, 1.5), (0.25, 0.75), 1.0 + lift, 0.5);
-        let (doc, c) = glued_block(doc, (1.2, 2.5), (-0.2, 1.2), 0.5, 1.3);
+        let (doc, a) = glued_block(doc, (0.0, 2.0), (0.0, 1.0), 1.0);
+        let (doc, b) = glued_block(doc, (0.5, 1.5), (0.25, 0.75), 0.5);
+        let (doc, b) = against(doc, a, b, &editor_core::Frame::translation([0.0, 0.0, 1.0 + lift]));
+        let (doc, c) = glued_block(doc, (1.2, 2.5), (-0.2, 1.2), 1.3);
+        let (doc, c) = against(doc, a, c, &editor_core::Frame::translation([0.0, 0.0, 0.5]));
         (doc, vec![a, b, c])
     }
 }
 
-/// An axis-aligned block on the xy plane at height `z0`, extruded `dz`:
-/// [`glued_rim`]'s members.
+/// An axis-aligned block on its own xy plane, extruded `dz`:
+/// [`glued_rim`]'s members, each after the first placed against it.
 fn glued_block(
     doc: ProfileDoc,
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
-    z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = on_frame(
-        doc,
-        [0.0, 0.0, z0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
-    );
+    let p_node = Node::Profile(desc(vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]]));
+    let (doc, p) = insert(doc, p_node);
     insert(
         doc,
         Node::Extrude {

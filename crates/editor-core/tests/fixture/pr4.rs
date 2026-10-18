@@ -7,13 +7,12 @@
 //! diagnosis is a function of both).
 #![allow(dead_code)] // shared across test binaries
 
-use editor_core::ExtrudeSide;
 use editor_core::{
     CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
     Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate,
 };
 
-use super::{ang, insert, len, minted, on_frame, scl, step};
+use super::{insert, len, minted, scl, slid, step, value_slot};
 use geom_core::Tol;
 
 /// The corpus's evaluator — the PRODUCTION path (realized BVH sweep),
@@ -47,15 +46,11 @@ fn block(
     doc: ProfileDoc,
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
-    z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = on_frame(
+    let (doc, p) = insert(
         doc,
-        [0.0, 0.0, z0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
+        Node::Profile(super::desc(vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]])),
     );
     insert(
         doc,
@@ -83,19 +78,9 @@ where
     // by their ends; slid clear of `a`, it leaves the rims whole. No
     // vertex of the slab lies inside `a` in either run.
     let doc = ProfileDoc::empty_derived("pr4", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b0) = block(doc, (-0.05, 0.05), (-1.0, 2.0), 0.5, 2.5);
-    let (doc, tr) = insert(
-        doc,
-        Node::transform(
-            b0,
-            editor_core::Step::Rigid {
-                translation: [len(0.5), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b0) = block(doc, (-0.05, 0.05), (-1.0, 2.0), 2.5);
+    let (doc, tr) = slid(doc, a, b0, [0.5, 0.0, 0.5]);
     let (doc, u) = insert(
         doc,
         Node::Union {
@@ -142,7 +127,11 @@ where
         doc.clone(),
         DocEdit::SetParam {
             node: tr,
-            slot: SlotId::Translation(editor_core::Axis3::X),
+            slot: value_slot(
+                &doc,
+                tr,
+                editor_core::Coord::Slide(editor_core::SlideAxis::X),
+            ),
             value: len(2.5).into(),
             fresh: Vec::new(),
         },
@@ -190,8 +179,8 @@ where
 
     // ---- Scenario C: a name minted by a deleted node (NodeGone). ----
     let docd = ProfileDoc::empty_derived("pr4", Tol::witness());
-    let (docd, _) = block(docd, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (docd, db) = block(docd, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
+    let (docd, _) = block(docd, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (docd, db) = block(docd, (2.0, 3.0), (0.0, 1.0), 1.0);
     let cap_b = minted(EntityKind::Face, db, RoleSeg::Cap(CapEnd::End));
     let (docd, _) = step(docd, DocEdit::DeleteNode { id: db });
     let evd = run::<T>(&docd, None);
@@ -208,13 +197,10 @@ where
 
     // ---- Scenario D: the symmetric U tie (Ambiguous). ----
     let docu = ProfileDoc::empty_derived("pr4", Tol::witness());
-    let (docu, ua) = block(docu, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
-    let (docu, up) = on_frame(
+    let (docu, ua) = block(docu, (0.0, 4.0), (0.0, 4.0), 4.0);
+    let (docu, up) = insert(
         docu,
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![
+        Node::Profile(super::desc(vec![vec![
             (2.0, 1.0),
             (6.0, 1.0),
             (6.0, 3.0),
@@ -223,7 +209,7 @@ where
             (5.0, 2.5),
             (5.0, 1.5),
             (2.0, 1.5),
-        ]],
+        ]])),
     );
     let (docu, ub) = insert(
         docu,
@@ -232,6 +218,7 @@ where
             distance: len(2.0),
         },
     );
+    let (docu, ub) = slid(docu, ua, ub, [0.0, 0.0, 1.0]);
     let (docu, us) = insert(
         docu,
         Node::Subtract {
