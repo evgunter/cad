@@ -3561,9 +3561,9 @@ struct LinesClosest<T: Real> {
 /// Counted to first order, the error is about
 /// `8.5u·|e|/s + 5.5u·|reach| + 5.5u·gap/s` in a reach and
 /// `(5.5/s + 4)u·|e|` in the gap, under the
-/// `16u` of [`geom_brep::rounding_charge`] by about 2×; measured, the
-/// worst error is under a fifth of its charge, at coordinates to `1e4`
-/// and ends to a thousand lengths off the crossing
+/// `16u` of [`geom_brep::rounding_charge`] by about 2×, and every single
+/// reading's error is held under half its charge at coordinates to
+/// `1e4` and ends to a thousand lengths off the crossing
 /// (`segment_fuzz::each_readings_error_stays_inside_its_charge_far_from_the_unit_box`).
 /// Each reading is taken from every pair of ends it allows and the
 /// enclosures intersected, so the nearest ends bound it.
@@ -3587,14 +3587,7 @@ fn ee_lines_closest<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> LinesClosest<T
             point: end(ea, i),
         };
     }
-    let n = ea.dir.cross(eb.dir);
-    let nn = n.norm_squared();
-    let s = nn.sqrt();
-    let gap = |e: Vec3<T>| {
-        let g = e.dot(n).abs() / s;
-        let charge = geom_brep::rounding_charge(e.norm() * (T::one() + s)) / s;
-        [g - charge, g + charge]
-    };
+    let (n, nn, s) = lines_frame(ea, eb);
     let ends = [
         (ea.p0, eb.p0),
         (ea.p0, eb.p1),
@@ -3603,19 +3596,14 @@ fn ee_lines_closest<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> LinesClosest<T
     ];
     let [lo, hi] = ends
         .into_iter()
-        .map(|(p, q)| gap(q - p))
+        .map(|(p, q)| gap_from_ends(q - p, n, s))
         .reduce(both_enclose)
         .unwrap_or_else(|| unreachable!("four ends"));
     // `x`'s ends against the line of `y`: from its start, to its end.
     let reaches = |x: &EdgeGeo<T>, y: &EdgeGeo<T>| {
-        let w = y.dir.cross(x.dir.cross(y.dir)) / nn;
+        let w = reach_axis(x, y, nn);
         let from = |p: Point3<T>, flip: bool| {
-            let read = |q: Point3<T>| {
-                let e = q - p;
-                let r = if flip { -e.dot(w) } else { e.dot(w) };
-                let charge = geom_brep::rounding_charge(e.norm() + r.abs() + hi / s) / s;
-                [r - charge, r + charge]
-            };
+            let read = |q: Point3<T>| reach_from_end(q - p, w, flip, hi, s);
             both_enclose(read(y.p0), read(y.p1))
         };
         [from(x.p0, false), from(x.p1, true)]
@@ -3627,6 +3615,36 @@ fn ee_lines_closest<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> LinesClosest<T
         point: ea.p0 + ea.dir * geom::mid_param(from_lo, from_hi),
         reach,
     }
+}
+
+/// Two edge lines' frame: `n = da × db`, `|n|²` and `s = |n|`.
+fn lines_frame<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> (Vec3<T>, T, T) {
+    let n = ea.dir.cross(eb.dir);
+    let nn = n.norm_squared();
+    (n, nn, nn.sqrt())
+}
+
+/// The lines' gap read from ends `e` apart, `|e·n|/s`, enclosed by its
+/// rounding charge ([`ee_lines_closest`]).
+fn gap_from_ends<T: Real>(e: Vec3<T>, n: Vec3<T>, s: T) -> [T; 2] {
+    let g = e.dot(n).abs() / s;
+    let charge = geom_brep::rounding_charge(e.norm() * (T::one() + s)) / s;
+    [g - charge, g + charge]
+}
+
+/// The axis `w = d_y × (d_x × d_y)/|n|²` whose dot with `q − p` is how
+/// far `x`'s end `p` stands from the closest point, `q` on `y`'s line.
+fn reach_axis<T: Real>(x: &EdgeGeo<T>, y: &EdgeGeo<T>, nn: T) -> Vec3<T> {
+    y.dir.cross(x.dir.cross(y.dir)) / nn
+}
+
+/// A reach read from an end `e` short of a point of the other line,
+/// `e·w` (negated from an edge's far end, `flip`), enclosed by its
+/// rounding charge, `gap_hi` the gap's upper bound ([`ee_lines_closest`]).
+fn reach_from_end<T: Real>(e: Vec3<T>, w: Vec3<T>, flip: bool, gap_hi: T, s: T) -> [T; 2] {
+    let r = if flip { -e.dot(w) } else { e.dot(w) };
+    let charge = geom_brep::rounding_charge(e.norm() + r.abs() + gap_hi / s) / s;
+    [r - charge, r + charge]
 }
 
 /// The intersection of two enclosures of one value.

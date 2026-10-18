@@ -3146,4 +3146,11 @@ under `band_zero/100`. Rule 1's rows are the same on both sides (41
 `chart_bound_outer_span` invalid, 2 `props_quad_converged` in band), and
 the population's zero-side ceiling, on both, is
 `bool_circle_torus_root_slack` at 3.14912e-13 (demo/lily_walls), which
-no census name approaches.
+no census name approaches
+(`work/germ/circle-torus-root-slack-crowds-the-zero-band-at-1e-12.md`;
+the invalid rows are `work/chart/chart-bound-outer-span-decides-a-poisoned-margin.md`).
+The full lint fails at the branch on definite-arm flags, none a census
+name and so the same at main (`curve_pair_pose_parallel`, `curve_pair_pose_clear`,
+`curve_pair_pose_travel` on demo/projectbox_cutaway, `bool_pair_gap` on
+demo/tiltedcut), and the nightly's sweep stops before it in the
+plain-suite prelude, so these figures are a local reading.

@@ -281,9 +281,10 @@ should know why. They live only in an `Indeterminate.predicate`:
   `rh_straddle` are fixtures):
   - an ellipse's lower and upper bound on one distance, or on its span's
     overlap, under each caller's conic rows: `bool_contact_arc_straddle`,
-    `point_in_arc_loop_conic_straddle`, `pm_census_ef_cross_arc_straddle`
-    and `bool_sphere_region_arc_straddle` (whose arcs are circles, whose
-    two bounds are one, so it is never raised);
+    `point_in_arc_loop_conic_straddle`, `pm_census_ef_cross_arc_straddle`,
+    and `bool_sphere_region_arc_straddle` and
+    `bool_torus_region_arc_straddle` (each a circle edge's rows, whose
+    two bounds are one, so neither is raised);
   - `pc_axis_plane_parallel_straddle`, a plane×cylinder section on the
     declared-tangency path read in the rulings' lane over a wall face's
     reach measured over each edge's span and in the conic lane over it

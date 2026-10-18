@@ -372,12 +372,15 @@ fn the_closed_forms_enclosures_hold_the_exact_values() {
     );
 }
 
-/// **Each single reading's error stays inside its charge**, over
-/// regimes the enclosure test does not sample: coordinates near 1e4,
-/// edges up to 1e3 long, ends up to 1e3 lengths off the crossing, φ
-/// down to 1e-14. Prints the worst ratio of error to charge per regime.
+/// **Each single reading's error stays inside half its charge**, the
+/// margin [`ee_lines_closest`] claims, over regimes the enclosure test
+/// does not sample: coordinates near 1e4, edges up to 1e3 long, ends up
+/// to 1e3 lengths off the crossing, φ down to 1e-14. Each reading is the
+/// census's own ([`gap_from_ends`], [`reach_from_end`]). Prints the worst
+/// ratio of error to charge per regime.
 #[test]
 fn each_readings_error_stays_inside_its_charge_far_from_the_unit_box() {
+    const HALF: f64 = 0.5;
     let mut r = test_utils::fuzz::start("census_lines_closest_charge_ratio");
     let count = test_utils::fuzz::scaled(800);
     for (regime, scale, lmax, far, gmax) in [
@@ -415,9 +418,13 @@ fn each_readings_error_stays_inside_its_charge_far_from_the_unit_box() {
             let real_gap = exact.gap();
             let p = |v: V| Point3::new(v[0], v[1], v[2]);
             let (ga, gb) = (segment((p(ea.0), p(ea.1))), segment((p(eb.0), p(eb.1))));
-            let n = ga.dir.cross(gb.dir);
-            let nn = n.norm_squared();
-            let s = nn.sqrt();
+            let (n, nn, s) = lines_frame(&ga, &gb);
+            // A reading's error over its charge, the real value's own few
+            // ulps aside: past 1, the enclosure misses it.
+            let ratio = |[lo, hi]: [f64; 2], real: f64| {
+                let miss = ((lo + hi) / 2.0 - real).abs() - 4.0 * f64::EPSILON * real.abs();
+                miss.max(0.0) / ((hi - lo) / 2.0)
+            };
             let mut hi = f64::INFINITY;
             for (pp, qq) in [
                 (ga.p0, gb.p0),
@@ -425,26 +432,20 @@ fn each_readings_error_stays_inside_its_charge_far_from_the_unit_box() {
                 (ga.p1, gb.p0),
                 (ga.p1, gb.p1),
             ] {
-                let e = qq - pp;
-                let gg = e.dot(n).abs() / s;
-                let charge = geom_brep::rounding_charge(e.norm() * (1.0 + s)) / s;
-                hi = hi.min(gg + charge);
-                let ratio = (gg - real_gap).abs() / charge;
+                let read = gap_from_ends(qq - pp, n, s);
+                hi = hi.min(read[1]);
+                let ratio = ratio(read, real_gap);
                 if ratio > worst[0].0 {
                     worst[0] = (ratio, format!("phi {phi:e} g {g:e} la {la:e} sa {sa:e}"));
                 }
-                over += usize::from(ratio > 1.0);
+                over += usize::from(ratio > HALF);
             }
             for (side, (xx, yy, t)) in [(&ga, &gb, ta), (&gb, &ga, tb)].into_iter().enumerate() {
-                let w = yy.dir.cross(xx.dir.cross(yy.dir)) / nn;
+                let w = reach_axis(xx, yy, nn);
                 for (k, pp) in [xx.p0, xx.p1].into_iter().enumerate() {
                     let real = t[k] * xx.len;
                     for qq in [yy.p0, yy.p1] {
-                        let e = qq - pp;
-                        let rr = if k == 1 { -e.dot(w) } else { e.dot(w) };
-                        let charge = geom_brep::rounding_charge(e.norm() + rr.abs() + hi / s) / s;
-                        let ratio =
-                            ((rr - real).abs() - 4.0 * f64::EPSILON * real.abs()).max(0.0) / charge;
+                        let ratio = ratio(reach_from_end(qq - pp, w, k == 1, hi, s), real);
                         if ratio > worst[1].0 {
                             worst[1] = (
                                 ratio,
@@ -453,7 +454,7 @@ fn each_readings_error_stays_inside_its_charge_far_from_the_unit_box() {
                                 ),
                             );
                         }
-                        over += usize::from(ratio > 1.0);
+                        over += usize::from(ratio > HALF);
                     }
                 }
             }
@@ -462,7 +463,10 @@ fn each_readings_error_stays_inside_its_charge_far_from_the_unit_box() {
             "[fuzz] census_lines_closest_charge_ratio {regime}: worst gap ratio {:.3} ({}), worst reach ratio {:.3} ({}), over {over}",
             worst[0].0, worst[0].1, worst[1].0, worst[1].1
         );
-        assert_eq!(over, 0, "{regime}: a reading's error exceeded its charge");
+        assert_eq!(
+            over, 0,
+            "{regime}: a reading's error exceeded half its charge"
+        );
     }
 }
 
@@ -508,10 +512,12 @@ fn a_span_straddle_past_an_end_is_never_a_crossing() {
 
 /// **A crossing beside two near ends is decided from them**: two
 /// segments at φ crossing `t` before both their ends, `a` starting a
-/// metre back and `b` a centimetre back. Read from the starts, the gap
-/// carries `rounding_charge(1 m)/sin φ`, over ε = 1e-12 and under
-/// `Kε`, so it escalates; read from the ends, `t·φ` apart, it carries
-/// next to nothing. Only the intersection of every reading decides it.
+/// metre back and `b` a centimetre back. Read from either start, or
+/// from `a`'s start to `b`'s end, the gap carries about
+/// `rounding_charge(1 m)/sin φ`, over ε = 1e-12 and under `Kε` at every
+/// φ here (8.9e-12 to 1.8e-12), so it escalates; read from the ends,
+/// `t·φ` apart, it carries next to nothing. Only the intersection of
+/// every reading decides it.
 #[test]
 fn a_crossing_beside_two_near_ends_is_decided_from_them() {
     let eps = 1e-12;
@@ -519,7 +525,8 @@ fn a_crossing_beside_two_near_ends_is_decided_from_them() {
     let x = [0.3, 0.2, 0.1];
     let a = [1.0, 0.0, 0.0];
     let t = 1e-6;
-    for phi in [1e-3, 2e-3, 4e-3] {
+    let mut undecided = Vec::new();
+    for phi in [2e-4, 5e-4, 1e-3] {
         let b = [phi.cos(), phi.sin(), 0.0];
         let ea = (add(x, a, -1.0), add(x, a, t));
         let eb = (add(x, b, -0.01), add(x, b, t));
@@ -535,15 +542,52 @@ fn a_crossing_beside_two_near_ends_is_decided_from_them() {
             "φ {phi:e}: the real segments cross inside both spans"
         );
         for (p, q) in [(ea, eb), (eb, ea)] {
+            let (f, iv) = (meets::<f64>(p, q, band), meets::<Interval>(p, q, band));
+            if (f, iv) != (Some(true), Some(true)) {
+                undecided.push(format!("φ {phi:e}: f64 {f:?}, Interval {iv:?}"));
+            }
+        }
+    }
+    assert!(
+        undecided.is_empty(),
+        "each scalar decides the crossing from the near ends:\n{}",
+        undecided.join("\n")
+    );
+}
+
+/// **Lines apart by a gap their enclosure straddles never read as
+/// meeting**: two nearly parallel segments crossing in plan inside
+/// both spans, their lines `2Kε` apart, every end at least half a metre
+/// from every other. Each reading of the gap carries over `2Kε` of
+/// charge, so `lo` reads Zero and `hi` Positive: the gap straddles, and
+/// the pair escalates. A Zero there is a crossing that is not there.
+#[test]
+fn a_gap_straddle_on_lines_apart_escalates() {
+    let eps = 1e-12;
+    let band = Band::new(eps, K * eps).unwrap();
+    let x = [0.3, 0.2, 0.1];
+    let a = [1.0, 0.0, 0.0];
+    let up = [0.0, 0.0, 2.0 * K * eps];
+    for phi in [1e-5, 2e-5, 4e-5] {
+        let b = [phi.cos(), phi.sin(), 0.0];
+        let xb = add(x, up, 1.0);
+        let ea = (add(x, a, -1.0), add(x, a, 0.5));
+        let eb = (add(xb, b, -0.5), add(xb, b, 1.0));
+        let exact = Exact::of(ea, eb);
+        let inside = exact
+            .fractions()
+            .iter()
+            .all(|[from, to]| from.min(*to) * 1.5 >= 0.4);
+        assert!(
+            inside && exact.gap() >= 1.5 * K * eps,
+            "φ {phi:e}: the real lines pass over Kε apart inside both spans"
+        );
+        for (p, q) in [(ea, eb), (eb, ea)] {
+            let (f, iv) = (meets::<f64>(p, q, band), meets::<Interval>(p, q, band));
             assert_eq!(
-                meets::<f64>(p, q, band),
-                Some(true),
-                "φ {phi:e}: f64 decides the crossing from the near ends"
-            );
-            assert_eq!(
-                meets::<Interval>(p, q, band),
-                Some(true),
-                "φ {phi:e}: Interval decides the crossing from the near ends"
+                (f, iv),
+                (None, None),
+                "φ {phi:e}: the gap's straddle escalates at both scalars"
             );
         }
     }
