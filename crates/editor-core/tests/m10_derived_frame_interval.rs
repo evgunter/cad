@@ -38,7 +38,7 @@
 
 use std::sync::Arc;
 
-use crate::fixture::{self, Recorder, ang, len, scl};
+use crate::fixture::{self, Recorder, len};
 use crate::m10_8_harness::head;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
@@ -203,7 +203,9 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
         profile: p.into(),
         distance: Formula::named(VarName::from_static("h"), Dimension::Length),
     });
-    let boss_p = r.insert(Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])));
+    let boss_p = r.insert(Node::Profile(fixture::desc(vec![fixture::square(
+        0.0, 0.0, 0.5,
+    )])));
     let boss = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(0.25),
@@ -219,7 +221,9 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
 pub(crate) fn boss_on_widened_authored_frame(half: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     param_doc("z0", 1.0, half, &mut r);
-    let boss_p = r.insert(Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])));
+    let boss_p = r.insert(Node::Profile(fixture::desc(vec![fixture::square(
+        0.0, 0.0, 0.5,
+    )])));
     let boss = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(0.25),
@@ -247,7 +251,9 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
     });
     let lift = Formula::named(VarName::from_static("lift"), Dimension::Length);
     let lifted = seated(&mut r, cube, raised(cube, lift));
-    let boss_p = r.insert(Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])));
+    let boss_p = r.insert(Node::Profile(fixture::desc(vec![fixture::square(
+        0.0, 0.0, 0.5,
+    )])));
     let boss = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(0.25),

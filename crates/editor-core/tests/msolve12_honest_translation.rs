@@ -26,8 +26,8 @@ use crate::fixture;
 use editor_core::mate::coset::{Arm, Coset, FoldStop, Subgroup, intersect};
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    CapEnd, ContactClass, DocumentId, LeverRefusal, MateFault, NameRef, Node,
-    NodeErrorClass, Operand, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
+    CapEnd, ContactClass, DocumentId, LeverRefusal, MateFault, NameRef, Node, NodeErrorClass,
+    Operand, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, ang, insert, len, on_frame, solve, square};

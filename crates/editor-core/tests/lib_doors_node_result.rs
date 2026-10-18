@@ -9,7 +9,6 @@
 //! `NodeError`) needs the distinction, so this suite pins it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture;
 use editor_core::AuthoredNode;
 use test_utils::refusal::tagged;
 

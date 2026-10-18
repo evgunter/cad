@@ -23,7 +23,7 @@ use editor_core::{
     ResolveIndeterminate, RoleSeg, RunCtx, SlotId, StableName, apply_with_names, evaluate,
     rebind_suggestions,
 };
-use fixture::{ang, insert, len, minted, on_frame, scl, step};
+use fixture::{insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;
 
 /// Idealized (brute-force) boolean sweep since M5 PR 8: this file
@@ -1245,7 +1245,11 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
             read: fixture::out(&doc1, m),
             of: worn(
                 m,
-                minted(EntityKind::Face, placed_body(&doc1, m), RoleSeg::Cap(CapEnd::End)),
+                minted(
+                    EntityKind::Face,
+                    placed_body(&doc1, m),
+                    RoleSeg::Cap(CapEnd::End),
+                ),
             )
             .into(),
         }],

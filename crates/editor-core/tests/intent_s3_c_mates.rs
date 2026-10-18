@@ -22,9 +22,9 @@ use crate::fixture::{self, ang, len};
 use editor_core::mate::coset::{Arm, Coset, FoldStop, Subgroup, intersect, intersect_subgroups};
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    BodyRead, ConstraintId, ContactClass, Coord, DocEdit, EditError, EvalOptions,
-    Formula, Mate, MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc,
-    RecipeNodeId, RefusingReach, SlideAxis, StableName, Target, Value, WorldRead,
+    BodyRead, ConstraintId, ContactClass, Coord, DocEdit, EditError, EvalOptions, Formula, Mate,
+    MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId,
+    RefusingReach, SlideAxis, StableName, Target, Value, WorldRead,
 };
 use geom_core::Tol;
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
@@ -1248,7 +1248,8 @@ fn inline_moves_a_landing_under_a_world_value_with_its_instance() {
     let world = |doc: &ProfileDoc, o: &EvalOptions| {
         let body = editor_core::product(doc, &fixture::run(doc, o), Tol::witness())
             .expect("the world gathers");
-        let mut points: Vec<[f64; 3]> = body.vertex_points().map(|(_, p)| [p.x, p.y, p.z]).collect();
+        let mut points: Vec<[f64; 3]> =
+            body.vertex_points().map(|(_, p)| [p.x, p.y, p.z]).collect();
         points.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
         points
     };
@@ -1267,14 +1268,20 @@ fn inline_moves_a_landing_under_a_world_value_with_its_instance() {
     let inlined = editor_core::inline(&moved, instance, &resolver, Tol::witness())
         .unwrap_or_else(|e| panic!("a moving landing under a world value inlines: {e}"));
     assert!(
-        same(world(&inlined.doc, &EvalOptions::default()), world(&moved, &o)),
+        same(
+            world(&inlined.doc, &EvalOptions::default()),
+            world(&moved, &o)
+        ),
         "the copy moved with the instance"
     );
     let still = fixture::pinned(host, instance, &o);
     let inlined = editor_core::inline(&still, instance, &resolver, Tol::witness())
         .expect("at the identity the part's world is the host's");
     assert!(
-        same(world(&inlined.doc, &EvalOptions::default()), world(&still, &o)),
+        same(
+            world(&inlined.doc, &EvalOptions::default()),
+            world(&still, &o)
+        ),
         "and at the identity it stays"
     );
     assert!(

@@ -8,8 +8,8 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EvalOptions, Evaluation, Node, NodeErrorClass, ProfileDoc, RecipeNodeId,
-    RoleSeg, evaluate,
+    CancelToken, EvalOptions, Evaluation, Node, NodeErrorClass, ProfileDoc, RecipeNodeId, RoleSeg,
+    evaluate,
 };
 use fixture::{insert, len, on_frame, scl};
 use geom_core::Tol;

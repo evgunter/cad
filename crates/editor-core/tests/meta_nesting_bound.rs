@@ -222,7 +222,9 @@ fn refused_read<T: std::fmt::Debug>(result: Result<T, MetaError>) -> usize {
 /// recorder holding it.
 fn extrude_body() -> (Recorder, StableName) {
     let mut r = Recorder::new();
-    let profile = r.insert(Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])));
+    let profile = r.insert(Node::Profile(fixture::desc(vec![fixture::square(
+        0.0, 0.0, 0.5,
+    )])));
     let extrude = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(0.5),

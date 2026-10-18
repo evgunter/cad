@@ -272,7 +272,8 @@ fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("r2-obl"), Tol::witness());
     let (doc, leg) = instance_at(doc, leg_ref, leg_frame(), &o);
-    let axis = crate::mate1_member_vocab::axis_with(&doc, leg, [1.0, 0.0, 0.0], [1.0, 1.0, 1.0], &o);
+    let axis =
+        crate::mate1_member_vocab::axis_with(&doc, leg, [1.0, 0.0, 0.0], [1.0, 1.0, 1.0], &o);
     let theta = 2.0 * core::f64::consts::PI / 5.0;
     let (doc, pattern) = insert(
         doc,

@@ -17,7 +17,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 
 use std::collections::BTreeMap;
 
@@ -506,7 +505,8 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
     );
     // The quarter joins the block's space where it is drawn.
     let quarter = r.against(block, quarter, &editor_core::Frame::IDENTITY);
-    let placed = translated(&mut r, 
+    let placed = translated(
+        &mut r,
         block,
         block,
         [
@@ -880,7 +880,8 @@ fn channel_and_slider(place_half: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeI
         &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         1.0,
     );
-    let placed = translated(&mut r, 
+    let placed = translated(
+        &mut r,
         channel,
         slider,
         [
@@ -1154,7 +1155,12 @@ fn what_the_sound_prism_rows_hand_to_the_funnel() {
         ],
         2.0,
     );
-    let _placed = translated(&mut r, dumbbell, dumbbell, [param("place"), len(0.0), len(0.0)]);
+    let _placed = translated(
+        &mut r,
+        dumbbell,
+        dumbbell,
+        [param("place"), len(0.0), len(0.0)],
+    );
     let report = self_intersection(
         &r.doc,
         &box_of(&r.doc, "place"),

@@ -62,7 +62,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use fixture::{Recorder, ang, len, scl};
+use fixture::{Recorder, len};
 
 /// **The committed accounting goldens, ONE PER ε ROW** (row 2).
 ///
@@ -412,11 +412,16 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         profile: profile.into(),
         distance: len(2.0),
     });
-    let placed = crate::m10_5_clearance_interval::slid_by(&mut r, solid, solid, [
-                Formula::named(name("place"), Dimension::Length),
-                len(0.0),
-                len(0.0),
-            ]);
+    let placed = crate::m10_5_clearance_interval::slid_by(
+        &mut r,
+        solid,
+        solid,
+        [
+            Formula::named(name("place"), Dimension::Length),
+            len(0.0),
+            len(0.0),
+        ],
+    );
     let measured = r.measure(
         &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
         &[

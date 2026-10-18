@@ -99,7 +99,6 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, 
         );
     }
 
-
     // The L, with a PARAMETRIC fillet at its inner corner — the arc.
     let pt = |x: Formula, y: Formula| ProgramTarget::Point([x, y]);
     let bracket_loop = LoopProgram::Chain(vec![

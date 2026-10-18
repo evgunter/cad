@@ -8,7 +8,8 @@
 //!
 //! The words live with each predicate's owner, beside the decision
 //! they describe: the naming layer's (`names::DECISION_WORDS`), this
-//! crate's evaluation's (`eval::DECISION_WORDS`), the boolean's
+//! crate's evaluation's (`eval::DECISION_WORDS`), the mate solve's
+//! (`mate::DECISION_WORDS`), the boolean's
 //! (`topo::decision_words`) and the sketch validator's
 //! (`profile::decision_subject`). This function only consults them, so
 //! a predicate is given words in one place, where it is decided.
@@ -21,6 +22,7 @@ use geom_core::{COINCIDENCE_RECOURSE, EndingKind, Indeterminate};
 pub(crate) fn words(predicate: &str) -> Option<&'static str> {
     lookup(crate::names::DECISION_WORDS, predicate)
         .or_else(|| lookup(crate::eval::DECISION_WORDS, predicate))
+        .or_else(|| lookup(crate::mate::DECISION_WORDS, predicate))
         .or_else(|| topo::decision_words(predicate))
         .or_else(|| profile::decision_subject(predicate))
 }

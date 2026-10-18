@@ -94,13 +94,17 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
     });
     let t = Formula::named(VarName::from_static("t"), Dimension::Scalar);
     let tilt = Formula::atan2(t, scl(1.0)).expect("an angle");
-    let boss_p = r.insert(Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])));
+    let boss_p = r.insert(Node::Profile(fixture::desc(vec![fixture::square(
+        0.0, 0.0, 0.5,
+    )])));
     let boss = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(0.25),
     });
     let (under, end) = if derived {
-        let p = r.insert(Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 1.0)])));
+        let p = r.insert(Node::Profile(fixture::desc(vec![fixture::square(
+            0.0, 0.0, 1.0,
+        )])));
         let cube = r.insert(Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
@@ -112,18 +116,29 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
     let face = editor_core::Operand::select(under, vec![fixture::fname(under, RoleSeg::Cap(end))]);
     let rim = editor_core::Operand::select(
         under,
-        vec![fixture::rim_edge(under, end, fixture::piece(&r.doc, under, 0, 0))],
+        vec![fixture::rim_edge(
+            under,
+            end,
+            fixture::piece(&r.doc, under, 0, 0),
+        )],
     );
     let tilted = editor_core::Operand::Pose(Box::new(PoseDef::Spin {
         pose: RoleRead::plain(fixture::plane(face)),
         about: RoleRead::plain(fixture::axis(rim)),
         by: tilt,
     }));
-    let to = if derived { tilted } else { fixture::flip(tilted) };
+    let to = if derived {
+        tilted
+    } else {
+        fixture::flip(tilted)
+    };
     let placement = r.insert(Node::place(vec![editor_core::BodyRead::plain(
         editor_core::Operand::from(boss),
     )]));
-    let start = editor_core::Operand::select(boss, vec![fixture::fname(boss, RoleSeg::Cap(CapEnd::Start))]);
+    let start = editor_core::Operand::select(
+        boss,
+        vec![fixture::fname(boss, RoleSeg::Cap(CapEnd::Start))],
+    );
     r.constrain(
         placement,
         editor_core::Mate {

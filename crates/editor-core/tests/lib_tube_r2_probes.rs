@@ -27,10 +27,7 @@ use crate::corpus;
 use crate::fixture;
 
 use corpus::{body_of, eval, failures};
-use editor_core::{
-    DocEdit, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId,
-    TubeWindow, apply, load, save,
-};
+use editor_core::{DocEdit, Node, ProfileDoc, ProfileProgram, TubeWindow, apply, load, save};
 use fixture::{ang, len};
 use geom_core::Tol;
 use topo::{Body, Surface};

@@ -101,7 +101,6 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
         },
     );
 
-
     let neg_c = Formula::neg(plen("chord_half")).expect("a shallow negation");
     let seg_loop = LoopProgram::Chain(vec![
         ProgramStep::At([neg_c, len(0.0)]),

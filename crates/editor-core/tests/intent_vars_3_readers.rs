@@ -25,9 +25,9 @@ use editor_core::analysis::{AnalysisPolicy, analyzed_box, seed_env};
 use editor_core::persist::SnapshotError;
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, DocumentId, EditError, EvalError, EvalOptions,
-    Evaluation, Formula, FreeVar, InlineError, Maintenance, Node, NodeErrorKind,
-    NodeResult, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError,
-    VarDecl, VarId, VarName, apply, evaluate, inline, load, save, split,
+    Evaluation, Formula, FreeVar, InlineError, Maintenance, Node, NodeErrorKind, NodeResult,
+    PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError, VarDecl, VarId,
+    VarName, apply, evaluate, inline, load, save, split,
 };
 use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::{ParamSymbol, Real, Sym, SymBudget, SymRules, Tol};

@@ -114,8 +114,13 @@ fn the_fin_group_equals_the_placement_union_chain() {
     let mut chain = base_doc.clone();
     let mut acc: Option<RecipeNodeId> = None;
     for i in 0..5 {
-        let (doc, placed) =
-            fixture::xform(chain, fin, [f64::from(i) * PITCH, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0);
+        let (doc, placed) = fixture::xform(
+            chain,
+            fin,
+            [f64::from(i) * PITCH, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+            0.0,
+        );
         chain = doc;
         acc = Some(match acc {
             None => placed,

@@ -79,7 +79,7 @@ pub(crate) fn against_with(
 ) -> (ProfileDoc, RecipeNodeId) {
     let read = editor_core::Operand::from(body);
     let placed = editor_core::place_against(&doc, &target.into(), &read, at, o, Tol::witness())
-    .expect("the copy places against its target");
+        .expect("the copy places against its target");
     let (doc, placement) = insert(doc, Node::place(vec![editor_core::BodyRead::plain(read)]));
     let applied = doc
         .apply(
@@ -93,17 +93,20 @@ pub(crate) fn against_with(
         )
         .expect("the mate adds");
     let mate = applied.record.minted_constraints[0];
-    let doc = placed.values.into_iter().fold(applied.doc, |doc, (coord, by)| {
-        step(
-            doc,
-            DocEdit::AddValue {
-                placement,
-                value: Box::new(editor_core::Value { mate, coord, by }),
-                fresh: Vec::new(),
-            },
-        )
-        .0
-    });
+    let doc = placed
+        .values
+        .into_iter()
+        .fold(applied.doc, |doc, (coord, by)| {
+            step(
+                doc,
+                DocEdit::AddValue {
+                    placement,
+                    value: Box::new(editor_core::Value { mate, coord, by }),
+                    fresh: Vec::new(),
+                },
+            )
+            .0
+        });
     (doc, placement)
 }
 

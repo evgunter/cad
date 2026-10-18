@@ -52,7 +52,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use fixture::{Recorder, ang, fname, len, scl, wall};
+use fixture::{Recorder, fname, len, wall};
 
 /// Hole centres at x = ±`HOLE_X`; the web is `2·HOLE_X − 2·hole_r`.
 const HOLE_X: f64 = 0.30;

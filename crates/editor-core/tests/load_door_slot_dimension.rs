@@ -31,7 +31,7 @@ use crate::fixture;
 
 use crate::wire::doctored;
 use editor_core::{
-    Axis3, Dimension, DocEdit, EditError, Node, PersistError, ProfileDoc, RecipeNodeId, SlotId,
+    Dimension, DocEdit, EditError, Node, PersistError, ProfileDoc, RecipeNodeId, SlotId,
     SnapshotError, apply, load, save,
 };
 use fixture::{ang, len, on_frame, square};

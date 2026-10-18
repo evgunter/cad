@@ -252,7 +252,14 @@ fn attack_inf_via_big_exponent() {
 /// fingerprint identity (independent of the shipped kitchen sink).
 #[test]
 fn attack_all_fourteen_edit_variants_round_trip() {
-    let quad = |o: f64| desc(vec![vec![(o, 0.0), (o + 1.0, 0.0), (o + 1.0, 1.0), (o, 1.0)]]);
+    let quad = |o: f64| {
+        desc(vec![vec![
+            (o, 0.0),
+            (o + 1.0, 0.0),
+            (o + 1.0, 1.0),
+            (o, 1.0),
+        ]])
+    };
     let mut doc = ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness());
     let mut edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
     let mut push = |doc: &mut ProfileDoc, e: DocEdit<ProfileProgram>| -> Option<RecipeNodeId> {

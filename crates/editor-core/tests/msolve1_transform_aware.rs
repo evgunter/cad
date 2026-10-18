@@ -330,20 +330,6 @@ fn place_moved(
     crate::mate1_member_vocab::against_with(doc, input, input, &at, o)
 }
 
-/// `name` as the body `at` reads wears it: one `Placed` layer per
-/// placement between `at` and the body that minted it.
-fn worn_at(doc: &ProfileDoc, at: RecipeNodeId, name: StableName) -> StableName {
-    match doc.node(at) {
-        Some(Node::Place { shapes, .. }) => {
-            let below = doc
-                .operation_of(shapes[0].read)
-                .expect("the copied body is live");
-            crate::m10_5_clearance_interval::in_placement(at, worn_at(doc, below, name))
-        }
-        _ => name,
-    }
-}
-
 /// Wraps `at` in each step of a placement chain, innermost first,
 /// answering the last node.
 fn chain(
@@ -605,7 +591,14 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
                 },
             },
         );
-        let (doc, xf) = place_moved(doc, pattern, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], std::f64::consts::FRAC_PI_2, &opts);
+        let (doc, xf) = place_moved(
+            doc,
+            pattern,
+            [0.0, 0.0, 10.0],
+            [0.0, 0.0, 1.0],
+            std::f64::consts::FRAC_PI_2,
+            &opts,
+        );
         let doc = world(doc, &opts, &[], &[(xf, 3)]);
         let a = in_copy(pattern, COPY, base_part.cap(base, CapEnd::End));
         let b = top_part.cap(top, CapEnd::Start);
@@ -781,7 +774,14 @@ fn two_operands(
     let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, x1) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts);
-    let (doc, x2) = place_moved(doc, base, [5.0, 5.0, 10.0 + extra_lift], [0.0, 0.0, 1.0], 0.0, &opts);
+    let (doc, x2) = place_moved(
+        doc,
+        base,
+        [5.0, 5.0, 10.0 + extra_lift],
+        [0.0, 0.0, 1.0],
+        0.0,
+        &opts,
+    );
     let doc = world(doc, &opts, &[x1, x2], &[]);
     let (doc, m1) = seat(doc, top, &top_part, &|n| head_at(x1, n), &base_part, base);
     let second = rest(

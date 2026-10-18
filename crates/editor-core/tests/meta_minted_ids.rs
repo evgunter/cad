@@ -9,8 +9,8 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, DocEdit, EntityKind, MetaError, MetaValue, Node, ProfileDoc, ProfileProgram,
-    RecipeNodeId, RoleSeg, StableName, content_pin, from_value, load, save, to_value,
+    CapEnd, DocEdit, EntityKind, MetaError, MetaValue, Node, ProfileDoc, RecipeNodeId, RoleSeg,
+    StableName, content_pin, from_value, load, save, to_value,
 };
 use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;

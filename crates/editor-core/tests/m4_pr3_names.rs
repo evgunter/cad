@@ -6,10 +6,10 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, CapEnd, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
-    MeridianEnd, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef,
-    ProgramArcData, ProgramStep, ProgramTarget, Qualifier, RecipeNodeId, RoleSeg, Sense, SitedRef,
-    SplitHalf, band, band_rim, band_rim_pi, evaluate, meridian_vertex,
+    CancelToken, CapEnd, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram, MeridianEnd,
+    Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, ProgramArcData,
+    ProgramStep, ProgramTarget, Qualifier, RecipeNodeId, RoleSeg, Sense, SitedRef, SplitHalf, band,
+    band_rim, band_rim_pi, evaluate, meridian_vertex,
 };
 use fixture::{ang, insert, len, len2, minted, on_frame, revolve_about, table};
 use geom_core::Tol;
@@ -677,7 +677,11 @@ fn a_placement_wraps_names_once_and_pattern_wraps_instances() {
         } else {
             crate::m10_5_clearance_interval::in_placement(tr, name.clone())
         };
-        assert_eq!(moved.lookup(&worn), Some(entry), "{name:?} worn by the copy");
+        assert_eq!(
+            moved.lookup(&worn),
+            Some(entry),
+            "{name:?} worn by the copy"
+        );
     }
     // Pattern: every master entry wrapped per instance, body = i.
     let tp = table(&ev, pat);

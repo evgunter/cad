@@ -52,7 +52,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Tol};
 
-use fixture::{Recorder, ang, len, scl};
+use fixture::{Recorder, len};
 
 /// The clearance engine has no lane at the symbolic identity tier
 /// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
@@ -135,11 +135,16 @@ fn dumbbell() -> Dumbbell {
     // so every stored direction passes through the interval lane
     // exactly (M10-5's finding, and the reason its fixtures are placed
     // rather than sized).
-    let placed = crate::m10_5_clearance_interval::slid_by(&mut r, solid, solid, [
-                Formula::named(name("place"), Dimension::Length),
-                len(0.0),
-                len(0.0),
-            ]);
+    let placed = crate::m10_5_clearance_interval::slid_by(
+        &mut r,
+        solid,
+        solid,
+        [
+            Formula::named(name("place"), Dimension::Length),
+            len(0.0),
+            len(0.0),
+        ],
+    );
     let measured = r.measure(
         &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
         &[

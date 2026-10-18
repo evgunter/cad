@@ -9,8 +9,8 @@ use crate::fixture;
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use editor_core::{
-    CancelToken, EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult, PatternKind,
-    ProfileDoc, ValuePayload, evaluate,
+    CancelToken, EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult, PatternKind, ProfileDoc,
+    ValuePayload, evaluate,
 };
 use fixture::{ang, insert, len, on_frame, scl};
 use geom_core::Tol;

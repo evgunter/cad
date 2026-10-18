@@ -73,7 +73,7 @@ fn a_landings_door_reads_pending_until_its_own_answer_settles() {
     let tol = Tol::witness();
     let doc = corpus::documents()
         .into_iter()
-        .find(|c| c.name == "reshaped_rod")
+        .find(|c| c.name == "die_composed")
         .expect("a corpus document")
         .doc;
     let held = Held::default();
@@ -156,7 +156,7 @@ fn a_landings_door_reads_pending_until_its_own_answer_settles() {
     assert_eq!(
         unproven(&session),
         1,
-        "the rod's support row is unproven: {report}"
+        "the composed die's one unproven row: {report}"
     );
     assert!(pending_line(report).is_none());
 
@@ -193,7 +193,7 @@ fn the_threaded_door_seam_answers_the_newest_landing() {
     let doc = Arc::new(
         corpus::documents()
             .into_iter()
-            .find(|c| c.name == "reshaped_rod")
+            .find(|c| c.name == "die_composed")
             .expect("a corpus document")
             .doc,
     );

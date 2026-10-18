@@ -23,8 +23,8 @@ use std::collections::BTreeMap;
 
 use editor_core::{
     CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
-    Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, StableName,
-    diff_verdicts, evaluate,
+    Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, StableName, diff_verdicts,
+    evaluate,
 };
 use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;

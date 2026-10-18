@@ -330,7 +330,6 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
         volume(&ev, a),
         "a member read twice is that member's body"
     );
-
 }
 
 /// **One door, the slot typed by kind** (Q1 ruled): the door that

@@ -52,7 +52,7 @@ use editor_core::{
     Axis3, Dimension, DocEdit, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram,
     RecipeNodeId, SlotId, TubeWindow, apply, load, save,
 };
-use fixture::{ang, len, scl};
+use fixture::{ang, len};
 use geom_core::Tol;
 use topo::{Body, Surface};
 
@@ -515,8 +515,7 @@ fn the_shared_refusals_are_reachable_from_both_kinds() {
             hollow_node(0.25, TubeWindow::Full, 0.5, 0.125),
         ),
     ] {
-        let sm =
-            tube_refusal(s).unwrap_or_else(|| panic!("{what} must refuse through Node::Tube"));
+        let sm = tube_refusal(s).unwrap_or_else(|| panic!("{what} must refuse through Node::Tube"));
         let hm = tube_refusal(h)
             .unwrap_or_else(|| panic!("{what} must refuse through Node::HollowTube"));
         // A shared arm reads the SAME from both kinds, word for word:

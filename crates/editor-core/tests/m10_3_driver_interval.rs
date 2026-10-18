@@ -69,7 +69,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Interval, Tol};
 
-use fixture::{Recorder, ang, len, scl};
+use fixture::{Recorder, len, scl};
 
 fn eps() -> f64 {
     Tol::witness().eps()

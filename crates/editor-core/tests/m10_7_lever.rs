@@ -40,12 +40,12 @@
 use crate::fixture;
 use editor_core::AuthoredNode;
 
-use editor_core::{
-    CancelToken, CapEnd, DocEdit, DocumentId, EntityKind, EvalOptions, Evaluation,
-    LoopProgram, MeasurePrimitive, NamePat, Node, NodeResult, ProfileDoc, ProfileProgram,
-    RecipeNodeId, SegPat, SegTag, Selector, SitedRef, ValuePayload, apply, evaluate, select,
-};
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+use editor_core::{
+    CancelToken, CapEnd, DocEdit, DocumentId, EntityKind, EvalOptions, Evaluation, LoopProgram,
+    MeasurePrimitive, NamePat, Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SegPat,
+    SegTag, Selector, SitedRef, ValuePayload, apply, evaluate, select,
+};
 use fixture::len;
 use geom_core::Tol;
 
@@ -166,13 +166,16 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
     }));
     let (doc, upper) = mint(
         &doc,
-        Node::place(vec![editor_core::BodyRead::plain(editor_core::Operand::from(
-            plates[1],
-        ))]),
+        Node::place(vec![editor_core::BodyRead::plain(
+            editor_core::Operand::from(plates[1]),
+        )]),
     );
     let bottom = editor_core::Operand::select(
         plates[1],
-        vec![fixture::fname(plates[1], editor_core::RoleSeg::Cap(CapEnd::Start))],
+        vec![fixture::fname(
+            plates[1],
+            editor_core::RoleSeg::Cap(CapEnd::Start),
+        )],
     );
     let doc = fixture::with_values(
         doc,

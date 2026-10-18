@@ -76,10 +76,7 @@ fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
         doc = d;
         profiles.push(id);
     }
-    let (doc, loft) = insert(
-        doc,
-        lofted(&profiles, count(2)),
-    );
+    let (doc, loft) = insert(doc, lofted(&profiles, count(2)));
     (doc, loft, profiles)
 }
 
@@ -103,8 +100,14 @@ fn loft_inputs_are_its_profiles_in_order() {
     assert_eq!(
         node.slots(),
         vec![
-            SlotId::StationSlide { section: 1, step: 0 },
-            SlotId::StationSlide { section: 2, step: 0 },
+            SlotId::StationSlide {
+                section: 1,
+                step: 0
+            },
+            SlotId::StationSlide {
+                section: 2,
+                step: 0
+            },
             SlotId::VDegree,
         ],
         "each later section's one slide, then the degree"
@@ -301,10 +304,7 @@ fn mismatched_sections_refuse_before_the_frontier() {
         vec![vec![(0.0, 0.0), (2.0, 0.0), (1.0, 1.0)]],
     );
     doc = d;
-    let (doc, loft) = insert(
-        doc,
-        lofted(&[a, b], count(1)),
-    );
+    let (doc, loft) = insert(doc, lofted(&[a, b], count(1)));
     with_failure(&doc, loft, |kind| match kind {
         NodeErrorKind::Skin(e) => {
             let msg = e.to_string();

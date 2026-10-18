@@ -987,8 +987,8 @@ fn rim_named(ev: &Evaluation<f64>, node: RecipeNodeId, z: f64) -> Vec<StableName
 /// `BatteryJoint` over the two rim edges meeting there, each named by
 /// the disc's own names. The cap and the wall are two constructions;
 /// replayed with every variable a symbol, each coaxiality is the zero
-/// polynomial, and each joint's form outgrows the door's budget, so the
-/// joints alone are reported.
+/// polynomial, and so is each joint's form now that the disc reads no
+/// frame (D10): nothing is reported.
 ///
 /// Red if either decision stops being recorded, or is not carried to
 /// the fillet's value.
@@ -1047,34 +1047,15 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
     }
     let proved = proofs(&doc, fillet, &got);
     assert_eq!(
-        proved[..2],
-        [const { Proof::Structural(Rung::MarginIdentity) }; 2],
-        "each support's departure from the shared axis is the zero polynomial"
-    );
-    for proof in &proved[2..] {
-        assert!(
-            matches!(proof, Proof::Unproven { residual, .. }
-                if residual.replay == coincide::Unreplayed::Numeric),
-            "a joint's form outgrows the door's budget: {proof:?}"
-        );
-    }
-    assert_eq!(
-        recourses(&proved[2..]),
-        [Some(coincide::Recourse::OneConstruction); 2],
-        "a joint's form freezes on the door's budget: no special recourse"
+        proved,
+        [const { Proof::Structural(Rung::MarginIdentity) }; 4],
+        "each support's departure from the shared axis, and each joint's, is the zero \
+         polynomial"
     );
     let findings = unproven(&doc, &ev);
-    assert_eq!(
-        findings.len(),
-        2,
-        "the report carries the door's verdict: the supports proven, the joints left: \
-         {findings:?}"
-    );
-    let said: Vec<String> = findings.iter().map(|f| spoken_by(f, &doc)).collect();
     assert!(
-        said.iter()
-            .any(|s| s.contains("a blend chain's joint read as tangent")),
-        "{said:?}"
+        findings.is_empty(),
+        "the report carries the door's verdict, every row proven: {findings:?}"
     );
 }
 
@@ -1629,7 +1610,7 @@ fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
 fn a_report_settled_at_rest_is_the_synchronous_report() {
     let cd = crate::corpus::documents()
         .into_iter()
-        .find(|cd| cd.name == "reshaped_rod")
+        .find(|cd| cd.name == "die_composed")
         .expect("a corpus document");
     let ev = run(&cd.doc);
     let tol = Tol::witness();
@@ -1651,7 +1632,7 @@ fn a_report_settled_at_rest_is_the_synchronous_report() {
     assert_eq!(
         sync.findings.iter().map(|f| f.check).collect::<Vec<_>>()[..2],
         [CheckId::Connectedness, CheckId::UnprovenCoincidence],
-        "the stale expectation, then the rod's support row: {sync}"
+        "the stale expectation, then the composed die's unproven row: {sync}"
     );
     let (mut at_rest, job) = editor_core::run_checks_at_rest_on(
         &cd.doc,
@@ -1719,8 +1700,11 @@ fn fusions(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
 /// (`topo` `vtxfac::mint_ring`), and the intersection keeps both pierces
 /// as two vertices. It records the decision: one `VertexFusion`
 /// `OnCarrier` row, its two cells the two blocks' edges as the union
-/// names them, its margin the gap. The door leaves it unproven
-/// with the one-construction recourse, and the check reports it. Red if
+/// names them, its margin the gap. The door leaves it unproven, and
+/// the check reports it. The blocks are copies placed on the plate,
+/// whose poses the door reads as opaque atoms, so the recourse is to
+/// assert the fusion
+/// (`a-placed-copys-pose-is-an-opaque-atom-to-the-coincidence-door`). Red if
 /// the ring glues the two by a shared point key alone, which records
 /// nothing.
 ///
@@ -1789,8 +1773,8 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
     );
     assert_eq!(
         recourses(&proofs(&doc, common, &fused)),
-        vec![Some(coincide::Recourse::OneConstruction)],
-        "unproven, with the one-construction recourse"
+        vec![Some(coincide::Recourse::Assert)],
+        "unproven, with the assert recourse: the copies' poses are opaque to the door"
     );
     let reported: Vec<_> = unproven(&doc, &ev)
         .into_iter()

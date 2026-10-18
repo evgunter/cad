@@ -36,7 +36,8 @@ fn plate_on_a_block(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
 
 /// **Row 15: a flush rest glues and records.** One solid,
 /// the summed volume, and one `SameOpposite` row the plane ladder
-/// decided — unproven, since the two caps are two constructions.
+/// decided — unproven, since the two caps are two constructions, the
+/// plate a copy placed on the block.
 #[test]
 fn a_flush_rest_glues_and_records_one_unproven_row() {
     let (doc, _, _, union) = plate_on_a_block(0.0);
@@ -64,13 +65,14 @@ fn a_flush_rest_glues_and_records_one_unproven_row() {
             )
             .expect("an uncanceled door")[0][0],
             Proof::Unproven {
-                recourse: coincide::Recourse::OneConstruction,
+                recourse: coincide::Recourse::Assert,
                 ..
             }
         ),
-        "two constructions, no proof; the offset's form freezes at the door's budget \
-         (declared-rest-rows-are-two-values-or-too-big-to-close), which is no value \
-         computed apart from the variables, so the recourse is to build one construction"
+        "two constructions, no proof; the plate stands where its placement's solve put \
+         it, a value computed apart from the variables (an opaque atom), so the recourse \
+         is to assert the rest \
+         (a-placed-copys-pose-is-an-opaque-atom-to-the-coincidence-door)"
     );
 }
 

@@ -25,8 +25,8 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, CapEnd, Cmp, CurveKind, CurveKindSet, Dimension, EntityKind, EvalOptions,
-    GeomPred, NamePat, Node, NodeStanding, ProfileDoc, RecipeNodeId, SegPat, SegTag, SelectRefusal,
-    Selector, SurfaceKindSet, VarEnv, evaluate, select, select_where,
+    GeomPred, NamePat, Node, ProfileDoc, RecipeNodeId, SegPat, SegTag, SelectRefusal, Selector,
+    SurfaceKindSet, VarEnv, evaluate, select, select_where,
 };
 use geom::SurfaceKind;
 
@@ -300,7 +300,11 @@ fn plane_distance_partitions_by_sign() {
         .unwrap()
         .len()
     };
-    assert_eq!(n(Cmp::Approx, 0.0), 4, "the bottom cap's corners sit ON its plane");
+    assert_eq!(
+        n(Cmp::Approx, 0.0),
+        4,
+        "the bottom cap's corners sit ON its plane"
+    );
     assert_eq!(n(Cmp::Approx, -1.0), 4, "the top cap is one metre inside");
     assert_eq!(n(Cmp::Less, 0.0), 4);
     assert_eq!(n(Cmp::Greater, 0.0), 0, "the box is entirely inside");

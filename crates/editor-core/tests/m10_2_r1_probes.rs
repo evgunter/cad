@@ -840,7 +840,9 @@ fn r1_ops_refuse_measurement_operands_typed() {
     // A placement of the MEASURE: a measured length is not placeable.
     let refusal = crate::fixture::insert_refused(
         &doc,
-        Node::place(vec![editor_core::BodyRead::plain(editor_core::Operand::from(m))]),
+        Node::place(vec![editor_core::BodyRead::plain(
+            editor_core::Operand::from(m),
+        )]),
     );
     assert!(
         matches!(

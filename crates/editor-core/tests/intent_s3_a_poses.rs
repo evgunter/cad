@@ -23,9 +23,9 @@ use editor_core::eval::bound_pose;
 use editor_core::pose::{PoseConstruction, PoseDef, PoseReadFault, PoseRole, RoleRead};
 use editor_core::{
     CancelToken, CapEnd, Dimension, Distribution, DocEdit, EditError, EvalOptions, Evaluation,
-    Formula, FreeVar, LoopProgram, Node, NodeErrorKind, NodeResult, Operand,
-    OperandSlot, PoseValue, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SlotKind, UnitSym,
-    VarId, VarKind, VarName, all_faces, evaluate, face_carrier_kind,
+    Formula, FreeVar, LoopProgram, Node, NodeErrorKind, NodeResult, Operand, OperandSlot,
+    PoseValue, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SlotKind, UnitSym, VarId,
+    VarKind, VarName, all_faces, evaluate, face_carrier_kind,
 };
 use geom::SurfaceKind;
 use geom_core::{Bounds, Decide, Decided, Interval, Sign, Sym, Tol, UnitVec3};
@@ -352,7 +352,10 @@ fn headed_revolve(width: f64) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Revolve {
             profile: profile.into(),
-            axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
             axis_heading: Formula::named(VarName::from_static("h"), Dimension::Angle),
             angle: ang(std::f64::consts::TAU),
         },

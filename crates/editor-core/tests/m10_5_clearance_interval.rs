@@ -118,7 +118,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 
 use std::collections::BTreeMap;
 
@@ -136,7 +135,7 @@ use editor_core::{
 };
 use geom_core::{Sign, Tol};
 
-use fixture::{Recorder, ang, len, scl};
+use fixture::{Recorder, len};
 
 /// The analysis box's half-width, in metres.
 ///

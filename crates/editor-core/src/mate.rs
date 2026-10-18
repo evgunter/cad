@@ -1438,6 +1438,41 @@ impl MateFault {
     }
 }
 
+/// **What the mate solve's predicates decide, in words** (the lookup is
+/// `decision::words`): each is decided where a placement's bundle is
+/// solved (`coset`, and the chart its values are read on), so a flip
+/// between two runs of a placement reads what turned.
+pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
+    ("mate_axes_parallel", "whether a mate's two axes are parallel"),
+    (
+        "mate_axis_normal_perpendicular",
+        "whether a mate's axis lies across its plane's normal",
+    ),
+    ("mate_axis_point_offset", "whether a mate's point lies on its axis"),
+    ("mate_points_coincide", "whether a mate's two points coincide"),
+    (
+        "mate_clocking_radius",
+        "whether a mate's point stands off the axis its copy turns about",
+    ),
+    (
+        "mate_ball_radius",
+        "whether a point stands off the axis a ball mate turns its copy about",
+    ),
+    (
+        "mate_ball_turn_axis",
+        "whether a ball mate's two directions are parallel",
+    ),
+    (
+        "mate_ball_turn_sense",
+        "whether a ball mate's two directions point the same way",
+    ),
+    (
+        "mate_chart_reference_antipode",
+        "whether the direction a mate's values are charted about points straight down its \
+         reference's z",
+    ),
+];
+
 /// The predicate that decides the EMPTY intersection. It is the one
 /// name in the membership vocabulary that reports no measurement — the
 /// empty set holds nothing and no margin decides that — so it is a

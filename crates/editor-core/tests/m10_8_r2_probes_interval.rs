@@ -82,7 +82,6 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, Reci
         },
     );
 
-
     // The rounded rectangle: four straight legs joined by four
     // PARAMETRIC fillet arcs, all sharing one radius parameter.
     let pt = |x: f64, y: f64| ProgramTarget::Point(len2([x, y]));

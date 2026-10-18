@@ -264,7 +264,8 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 fn cap(ev: &Evaluation<f64>, node: RecipeNodeId, end: editor_core::CapEnd) -> SitedRef {
     use editor_core::{EntityKind, NamePat, SegPat, SegTag, Selector, select};
     let own = NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end));
-    let worn = NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Placed).of([own.clone()]));
+    let worn =
+        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Placed).of([own.clone()]));
     let mut found = select(ev, node, &Selector::of(own));
     found.extend(select(ev, node, &Selector::of(worn)));
     assert_eq!(found.len(), 1, "one {end:?} cap on node {node:?}");
@@ -314,7 +315,8 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
         let prism = match prisms.first() {
             None => prism,
             Some(&bore) => {
-                let (next, placed) = fixture::against(doc, bore, prism, &editor_core::Frame::IDENTITY);
+                let (next, placed) =
+                    fixture::against(doc, bore, prism, &editor_core::Frame::IDENTITY);
                 doc = next;
                 placed
             }

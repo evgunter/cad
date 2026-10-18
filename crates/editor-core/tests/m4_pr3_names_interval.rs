@@ -84,7 +84,13 @@ fn corpus() -> ProfileDoc {
     );
     let (doc, d) = block(doc, (4.0, 6.0), (0.0, 2.0), 2.0);
     let tool = plane_on(&doc, d, [0.0, 0.0, 1.0], [0.0, 0.0, 1.0]);
-    let (doc, _split) = insert(doc, Node::Split { target: d.into(), tool });
+    let (doc, _split) = insert(
+        doc,
+        Node::Split {
+            target: d.into(),
+            tool,
+        },
+    );
     let (doc, e) = block(doc, (10.0, 14.0), (0.0, 4.0), 4.0);
     let (doc, u) = on_frame(
         doc,

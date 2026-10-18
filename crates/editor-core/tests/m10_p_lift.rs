@@ -200,7 +200,7 @@ fn a_dual_seed_on_a_profile_parameter_now_carries_a_tangent() {
 fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     // All three of these are used ONLY by this row, so they are
     // imported here rather than at module scope.
-    use crate::fixture;
+
     use geom_core::{Interval, Real};
     /// The nominal f64 loops, replayed for the record's sake.
     fn nominal_loops(resolved: &[Vec<profile::Step<f64>>]) -> Vec<profile::ConstructedLoop<f64>> {

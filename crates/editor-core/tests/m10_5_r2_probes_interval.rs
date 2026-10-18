@@ -33,7 +33,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 
 use std::collections::BTreeMap;
 
@@ -52,7 +51,7 @@ use editor_core::{
 use geom_core::k_stats::decide;
 use geom_core::{Band, Margin, Sign, Tol};
 
-use fixture::{Recorder, ang, len, scl};
+use fixture::{Recorder, len};
 
 // ------------------------------------------------------------ authoring
 
@@ -163,7 +162,8 @@ fn comb() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         ],
         1.0,
     );
-    let placed = translated(&mut r, 
+    let placed = translated(
+        &mut r,
         solid,
         solid,
         Formula::named(name("place"), Dimension::Length),
@@ -213,7 +213,8 @@ fn ell_with_a_block_in_the_notch() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &[(0.85, 0.85), (0.95, 0.85), (0.95, 0.95), (0.85, 0.95)],
         0.1,
     );
-    let placed = translated(&mut r, 
+    let placed = translated(
+        &mut r,
         solid,
         probe,
         Formula::named(name("place"), Dimension::Length),
@@ -235,7 +236,8 @@ fn blocks_apart(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         1.0,
     );
     let b = translated(&mut r, a, a, len(1.0 + gap), len(0.0), len(0.0));
-    let _ = translated(&mut r, 
+    let _ = translated(
+        &mut r,
         a,
         a,
         Formula::named(name("place"), Dimension::Length),

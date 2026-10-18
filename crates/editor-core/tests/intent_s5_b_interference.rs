@@ -14,8 +14,8 @@ use crate::corpus;
 use crate::fixture::{fname, insert, len, on_frame, place, square, wall};
 
 use editor_core::{
-    Assembly, AssertionRelation, Formula, InterferenceFinding, MeasurePrimitive, Node,
-    Overlap, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, assemble,
+    Assembly, AssertionRelation, Formula, InterferenceFinding, MeasurePrimitive, Node, Overlap,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, assemble,
 };
 use geom_core::Tol;
 use topo::{CensusContact, ValidationError};
@@ -29,12 +29,7 @@ fn place_up(doc: ProfileDoc, body: RecipeNodeId, z: f64) -> (ProfileDoc, RecipeN
 /// A block extruded `height` from a square of half-side `h` at
 /// `(cx, cy)` on its own xy: the extrude, which a copy places `z` up
 /// the world's z axis ([`place_up`]).
-fn block(
-    doc: ProfileDoc,
-    (cx, cy): (f64, f64),
-    h: f64,
-    height: f64,
-) -> (ProfileDoc, RecipeNodeId) {
+fn block(doc: ProfileDoc, (cx, cy): (f64, f64), h: f64, height: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = on_frame(
         doc,
         [0.0, 0.0, 0.0],
@@ -516,7 +511,7 @@ fn bore_pin_and_holes(
     StableName,
     StableName,
 ) {
-    use crate::fixture::{in_world, piece, slid};
+    use crate::fixture::{in_world, piece};
     use editor_core::{LoopProgram, ProfileProgram};
     let circle = |r| LoopProgram::<Formula>::circle(0.0, 0.0, r).expect("a literal circle");
     let prism = |doc: ProfileDoc, loops, h| {

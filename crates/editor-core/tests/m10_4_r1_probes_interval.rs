@@ -28,7 +28,7 @@ use editor_core::{
 };
 use geom_core::{Dual64, Tol};
 
-use fixture::{Recorder, ang, len, scl};
+use fixture::{Recorder, len, scl};
 
 fn name(n: &'static str) -> VarName {
     VarName::from_static(n)

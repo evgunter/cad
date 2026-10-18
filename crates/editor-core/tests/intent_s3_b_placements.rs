@@ -17,10 +17,9 @@ use crate::fixture::{
 use editor_core::eval::bound_pose;
 use editor_core::pose::{PoseDef, PoseRole};
 use editor_core::{
-    BodyRead, CapEnd, ContactClass, CopyKey, DocEdit, DocumentId, EditError, EvalOptions,
-    Formula, Frame, MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand,
-    OperandSlot, PoseValue, ProductError, ProfileDoc, RecipeNodeId, RoleSeg, Space, StableName,
-    Target, WorldRead,
+    BodyRead, CapEnd, ContactClass, CopyKey, DocEdit, DocumentId, EditError, EvalOptions, Formula,
+    Frame, MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PoseValue,
+    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, Space, StableName, Target, WorldRead,
 };
 use geom_core::Tol;
 use geom_core::UnitVec3;
