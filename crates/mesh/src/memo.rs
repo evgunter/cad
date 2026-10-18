@@ -1002,7 +1002,7 @@ impl KeyWriter {
     }
 
     fn nurbs3(&mut self, c: &NurbsCurve3<f64>) {
-        self.knots(c.knots());
+        self.knots(c.knots_f64_interim());
         self.len(c.control().len());
         for &p in c.control() {
             self.p3(p);
@@ -1011,7 +1011,7 @@ impl KeyWriter {
     }
 
     fn nurbs2(&mut self, c: &NurbsCurve2<f64>) {
-        self.knots(c.knots());
+        self.knots(c.knots_f64_interim());
         self.len(c.control().len());
         for &p in c.control() {
             self.p2(p);
@@ -1020,8 +1020,8 @@ impl KeyWriter {
     }
 
     fn nurbs_surface(&mut self, s: &NurbsSurface<f64>) {
-        self.knots(s.knots_u());
-        self.knots(s.knots_v());
+        self.knots(s.knots_u_f64_interim());
+        self.knots(s.knots_v_f64_interim());
         self.len(s.control().len());
         for &p in s.control() {
             self.p3(p);

@@ -798,8 +798,8 @@ fn plane_wall_section(
                 Ok(SectionReading::Branch(branch)) => branch_carrier(branch),
                 Ok(SectionReading::Region(SsiBoundaryContact::Side { side, .. })) => {
                     let (lo, hi) = match side.fixed {
-                        ChartAxis::U => wall.knots_u().domain(),
-                        ChartAxis::V => wall.knots_v().domain(),
+                        ChartAxis::U => wall.knots_u_f64_interim().domain(),
+                        ChartAxis::V => wall.knots_v_f64_interim().domain(),
                     };
                     let at = if side.end == ChartEnd::High { hi } else { lo };
                     match wall_row(wall, side.fixed, at) {
@@ -953,7 +953,7 @@ fn level_row(
         }
         // `net`'s height depends on its `v` alone, so the plane's root
         // along one of its columns is the row the plane holds.
-        let (u0, _) = net.knots_u().domain();
+        let (u0, _) = net.knots_u_f64_interim().domain();
         let column = match geom_brep::interior_iso_u(&net, u0) {
             Ok(c) => c,
             Err(_) => continue,

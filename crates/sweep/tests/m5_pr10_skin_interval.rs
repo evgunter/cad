@@ -50,8 +50,14 @@ fn the_interval_lane_encloses_the_same_definitional_surface() {
     let exact = skin(&compat, 2).expect("skins");
     let lifted = exact.map_scalar(Interval::from_f64);
 
-    assert_eq!(lifted.knots_u().knots(), exact.knots_u().knots());
-    assert_eq!(lifted.knots_v().knots(), exact.knots_v().knots());
+    assert_eq!(
+        lifted.knots_u_f64_interim().knots(),
+        exact.knots_u_f64_interim().knots()
+    );
+    assert_eq!(
+        lifted.knots_v_f64_interim().knots(),
+        exact.knots_v_f64_interim().knots()
+    );
     assert_eq!(lifted.weight_channel(), exact.weight_channel());
 
     // Sample counts DERIVE from the structure, not from a literal.

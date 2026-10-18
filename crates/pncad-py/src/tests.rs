@@ -2242,9 +2242,9 @@ fn the_stl_writers_arms_are_construction_only() {
 /// arm buildable without geometry: the op family at its f64 witness
 /// and the lane refusal.
 ///
-/// The open faces' selection refusals (`select_resolve`, `select_kind`)
-/// are driven through a real document instead, in `tests/test_shell.py`:
-/// their payloads are not this layer's to mint.
+/// The open faces' selection refusal (`select_resolve`) is driven
+/// through a real document instead, in `tests/test_shell.py`: its
+/// payload is not this layer's to mint.
 #[test]
 fn shell_refusal_tags_are_stable() {
     use crate::tags::node_error_tag;
@@ -2324,7 +2324,6 @@ fn node_error_tags_are_the_published_words() {
         CopiesShareAKey => "copies_share_a_key",
         UnresolvedRead => "unresolved_read",
         SelectResolve => "select_resolve",
-        SelectKind => "select_kind",
         EmptyOperand => "empty_operand",
         ProductOperand => "product_operand",
         UnfinishedOperand => "unfinished_operand",
@@ -2975,6 +2974,54 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             fault: pncad::document::SelectionFault::NotCanonical { at: 2 },
         },
         &["node", "slot", "first"],
+    );
+    // A name of another kind than the selection's: one position too,
+    // and the two entity kinds.
+    carries(
+        &E::SelectionShape {
+            node: sp(1),
+            slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Selection),
+            fault: pncad::document::SelectionFault::Kind {
+                at: 1,
+                found: pncad::select::EntityKind::Face,
+                expected: pncad::select::EntityKind::Edge,
+            },
+        },
+        &["node", "slot", "found_kind", "expected_kind", "first"],
+    );
+    // A seat that reads no selection of the names' kind: that kind.
+    carries(
+        &E::SelectionShape {
+            node: sp(1),
+            slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Measured(
+                pncad::document::MeasureVerb::MinClearance,
+                0,
+            )),
+            fault: pncad::document::SelectionFault::Seat {
+                entity: pncad::select::EntityKind::Edge,
+            },
+        },
+        &["node", "slot", "found_kind"],
+    );
+    // The insert door's own arm for that name: the name itself, where
+    // it sits, and the two kinds.
+    carries(
+        &E::SelectionNameKind {
+            node: sp(1),
+            slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Selection),
+            at: 1,
+            name: named(),
+            found: pncad::select::EntityKind::Face,
+            expected: pncad::select::EntityKind::Edge,
+        },
+        &[
+            "node",
+            "slot",
+            "name",
+            "found_kind",
+            "expected_kind",
+            "first",
+        ],
     );
 
     // ---- names, kinds and appearance ----
@@ -5053,6 +5100,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_no_references",
             "rebind_target_missing_node",
             "rebind_unknown_name",
+            "selection_name_kind",
             "selection_shape",
             "set_extrude_side_on_non_extrude",
             "set_members_on_non_list",
@@ -5503,7 +5551,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "profile_replay",
             "revolve",
             "seed",
-            "select_kind",
             "select_resolve",
             "shell",
             "shell_lane_unsupported",
@@ -5983,6 +6030,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "selection_fault_tag",
         values: &[
+            "name_kind",
             "not_a_selection",
             "not_canonical",
             "other_body",

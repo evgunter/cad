@@ -1808,6 +1808,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::UnresolvedInput { .. }
             | EditError::WouldCycle { .. }
             | EditError::SelectionShape { .. }
+            | EditError::SelectionNameKind { .. }
             | EditError::PoseShape { .. }
             | EditError::IndexedRead { .. }
             | EditError::SetMembersOnNonList { .. }

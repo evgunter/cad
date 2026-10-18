@@ -317,20 +317,13 @@ pub use editor_core::DocParamField;
 // `NodeErrorClass` rides with `NodeErrorKind`: it is `NodeErrorKind::class`'s
 // answer, the refusal's class a consumer can clone, compare and hash where
 // the refusal itself cannot be.
-// `Found` rides with `NodeErrorKind` by the same rule: it is the
-// `found` field of the four entity-kind refusals, so a consumer can
-// match those variants but not name what they say was there instead.
-// It carries an `EntityKind`, never a key, so it is not the LB13
-// exception `EntityKey` is — and it cannot be CONSTRUCTED from here,
-// which is the point of it: its field is private to the door that
-// mints it.
 // `StepTurns` rides with `NodeErrorKind`: it is `FullRangeStep`'s
 // `turns`, how the copies of a step a turn or more would land.
 pub use editor_core::{
     Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DirectionRefusal,
-    EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired, NodeError,
-    NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue,
-    ProfileLift, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
+    EvalOptions, EvalOutcome, Evaluation, FramePlacement, Mispaired, NodeError, NodeErrorClass,
+    NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue, ProfileLift,
+    SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
 };
 // A placement's copies, keyed (`ValuePayload::Copies`): each copy by
 // its key, with its own names.

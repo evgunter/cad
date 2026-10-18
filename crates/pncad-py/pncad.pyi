@@ -140,7 +140,10 @@ class EditError(PncadError):
       is the entry that does not sort strictly before the one after
       it, and `again` is `None` — the break is between that entry and
       its successor, so the second position is the first plus one and
-      is not carried.
+      is not carried. On `name_kind` (a stored selection holding a name
+      of another entity kind than its own) and on the
+      `selection_name_kind` arm (the same, authored at a seat) `first`
+      alone is that name's position.
     - `slot` is the named expression slot (`distance`, `count`,
       `origin_x`); a slot is a NAME, never an index. `param` is a
       document parameter's name and `name` a stable name's text.
@@ -155,6 +158,12 @@ class EditError(PncadError):
     - `from_kind` and `to_kind` are a rebind's two entity kinds.
       Neither keeps the kernel's bare word because `from` is a Python
       keyword.
+    - `found_kind` and `expected_kind` are the entity kind a
+      selection's name denotes and the one its seat reads:
+      `selection_name_kind` carries both, with the name, its position
+      in `first` and the seat in `slot`; `selection_shape` carries both
+      on `name_kind` and `found_kind` alone on `seat`. They are not
+      `found`/`expected`, which are dimensions.
 
     An arm carrying a NESTED refusal projects the carrier's own
     payload and nothing more: `inner_variant` names the arm of the
@@ -180,6 +189,8 @@ class EditError(PncadError):
     kind: Optional[str]
     from_kind: Optional[EntityKind]
     to_kind: Optional[EntityKind]
+    found_kind: Optional[EntityKind]
+    expected_kind: Optional[EntityKind]
     count: Optional[int]
     first: Optional[int]
     again: Optional[int]
@@ -2353,10 +2364,11 @@ class Node:
         u-reference, right-handed. There is no default: pass
         `0 * rad` to take the u-reference unturned.
 
-        Refuses typed at `evaluate`, never here — `select_resolve`
-        for a name that stopped denoting, `select_kind` for an
-        edge or vertex name, `face_frame_not_planar` for a curved
-        carrier, `face_frame_readback` for unreadable geometry.
+        An edge or vertex name refuses at the insert (`EditError`
+        `selection_name_kind`). The rest refuse typed at `evaluate`, never
+        here — `select_resolve` for a name that stopped denoting,
+        `face_frame_not_planar` for a curved carrier,
+        `face_frame_readback` for unreadable geometry.
         """
 
     @staticmethod

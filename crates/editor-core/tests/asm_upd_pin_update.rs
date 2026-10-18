@@ -81,7 +81,7 @@ fn run(doc: &editor_core::ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
 
 /// An evaluation carrying a WARM prior — the incremental editing
 /// session, which is the only place a stale-serving bug can hide: a
-/// fresh evaluation rebuilds the part cache from nothing, so it cannot
+/// fresh evaluation enters its parts from nothing, so it cannot
 /// serve yesterday's geometry no matter how the node is keyed.
 fn run_warm(
     doc: &editor_core::ProfileDoc,
@@ -642,7 +642,7 @@ fn assembly_under(
 
 /// Row 5c — the WARM channel, which is where "the old content is not
 /// served" can actually fail. Rows 5a/5b evaluate from cold, so the
-/// per-evaluation part cache alone decides their content; the
+/// parts each run enters alone decide their content; the
 /// cross-evaluation `prior` memo keys an instantiate node by a
 /// ContentKey that must FEED THE PIN, and only an
 /// evaluate → update → re-evaluate-with-the-prior session can observe
@@ -687,10 +687,24 @@ fn row5c_a_warm_prior_never_serves_the_old_content_after_an_update() {
     assert!((vol_staged - 5.0).abs() < 1e-9, "v1 + v2: {vol_staged}");
 
     // The second site moves over the STAGED prior: the old version is
-    // now named nowhere, and nothing serves it.
-    let done = repinned(staged, ids[0], r2.pin, 0.0, &opts);
+    // now named nowhere, and nothing serves it. The new one the staged
+    // run evaluated, and carried.
+    let done = staged
+        .apply(
+            &DocEdit::UpdateReference {
+                node: ids[0],
+                new_pin: r2.pin,
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("the update applies")
+        .doc;
     let warm_done = run_warm(&done, &warm_staged, &opts);
-    assert_eq!(warm_done.part_evaluations, 1, "one reference moved");
+    assert_eq!(
+        warm_done.part_evaluations, 0,
+        "the moved reference names the version the staged prior carried"
+    );
     let vol_done = volume(&product(&done, &warm_done, Tol::witness()).expect("gathers"));
     assert!((vol_done - 8.0).abs() < 1e-9, "two v2 solids: {vol_done}");
 }

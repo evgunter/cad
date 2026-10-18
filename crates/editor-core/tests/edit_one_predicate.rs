@@ -362,31 +362,36 @@ fn retype_head(text: &str, read: editor_core::VarId, kind: EntityKind) -> String
     })
 }
 
-/// **A saved mate pose whose selection names no face resolves to no
-/// head.**
+/// **A saved mate pose whose selection names no face refuses at load.**
 ///
-/// A mate's pose reads a `Face` selection, and what each of its names
-/// denotes is asked where the name resolves (`Select::fault` leaves it
-/// to evaluation's `SelectKind`). The head constructor asks it first
-/// (`editor_core::head_of`, through the one face-name constructor), so
-/// a file whose pose's selection names a body, an edge or a vertex
-/// loads, and its evaluation refuses the pose rather than reading a
-/// name that is not a face.
+/// A pose reads a `Face` selection, and what each of its names denotes
+/// is the name's own kind, so the load door holds it as it holds any
+/// selection's (`Select::fault`'s per-name arm): a file whose pose
+/// names a body, an edge or a vertex is not one a door writes.
 ///
 /// Both poses and all three non-face kinds.
 #[test]
-fn a_saved_mate_side_that_is_not_a_face_resolves_to_no_head() {
+fn a_saved_mate_side_that_is_not_a_face_refuses_at_load() {
     for kind in [EntityKind::Body, EntityKind::Edge, EntityKind::Vertex] {
         for side in 0..2 {
             let (text, _, reads) = saved_mate("onepred-matehead");
             let corrupt = retype_head(&text, reads[side], kind);
-            let loaded = load(&corrupt, Tol::witness())
-                .unwrap_or_else(|e| panic!("a {kind:?} selection loads: {e:?}"));
-            assert_eq!(
-                editor_core::head_of(&loaded.doc, reads[side]),
-                None,
-                "a {kind:?} selection on pose {side} is no face head"
-            );
+            match load(&corrupt, Tol::witness()) {
+                Err(PersistError::Snapshot(SnapshotError::SelectionShape { fault, .. })) => {
+                    assert_eq!(
+                        fault,
+                        editor_core::SelectionFault::Kind {
+                            at: 0,
+                            found: kind,
+                            expected: EntityKind::Face,
+                        },
+                        "a {kind:?} selection on pose {side}"
+                    );
+                }
+                other => {
+                    panic!("a {kind:?} selection on pose {side} refuses at load, got {other:?}")
+                }
+            }
         }
     }
 }

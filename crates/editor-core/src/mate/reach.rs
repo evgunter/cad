@@ -6,8 +6,9 @@
 //! length the two parts span together from the datum. [`body_reach`]
 //! answers the body term; [`MateReach::reach`] is the same question
 //! asked of a part by reference, implemented by the evaluation over
-//! its own part cache (`eval::mate_reach` is the public door), in the
-//! part's own coordinates.
+//! the part table it entered before the solve (`eval::mate_reach` is
+//! the public door, over a store of its own), in the part's own
+//! coordinates.
 //!
 //! # What "reach" is
 //!

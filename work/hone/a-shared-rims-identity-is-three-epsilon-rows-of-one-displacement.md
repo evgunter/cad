@@ -41,6 +41,6 @@ one-curve reading (`one_curve`, row `curve_pair_pose_one_curve`) reads
 tilt included: `|c_e − c_f| + ‖L_e − L_f·Q‖`, with
 `L = Conic::semi_axis_vectors()` and `Q` the way-up flip and Procrustes
 rotation (PR 5058, moved into geom-brep with stage (c) of
-`work/fuse/the-curve-pair-reader.md`). It decides one curve for every
+`the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227)). It decides one curve for every
 conic pair in one plane, circles included. `same_circle` is a second
 spelling of that question and can read the same reading.

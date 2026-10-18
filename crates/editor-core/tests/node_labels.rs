@@ -588,8 +588,8 @@ fn an_inline_forward_reference_speaks_from_the_part() {
     );
 }
 
-/// A document holding a fillet whose selection was rebound onto the
-/// wall of a block inserted after the fillet, labelled `late block`:
+/// A document holding a shell whose open faces were rebound onto the
+/// wall of a block inserted after the shell, labelled `late block`:
 /// the rebound name and that block's extrude. A selection is a frozen
 /// name with no document-order rule, so the rebind is admitted and the
 /// reference points forward.
@@ -598,11 +598,11 @@ fn forward_reference(id: &str) -> (ProfileDoc, editor_core::StableName, RecipeNo
     let (doc, [_, _, a]) = block(doc, 0.0);
     let (doc, [_, _, b]) = block(doc, 0.5);
     let early = fixture::fname(b, fixture::wall(&doc, b, 0));
-    let (doc, _fillet) = insert(
+    let (doc, _shell) = insert(
         doc,
-        Node::Fillet {
-            radius: len(0.1),
-            selection: editor_core::Operand::select(a, vec![early.clone()]),
+        Node::Shell {
+            thickness: len(0.1),
+            open: editor_core::Operand::select(a, vec![early.clone()]),
         },
     );
     let (doc, [_, _, c]) = block(doc, 0.5);

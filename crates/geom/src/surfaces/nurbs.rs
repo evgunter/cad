@@ -604,7 +604,9 @@ impl<T: Real> core::fmt::Debug for NurbsSurface<T> {
 impl<T: SpanLocate> NurbsSurface<T> {
     /// Validated construction: `control.len()` must equal
     /// `knots_u.control_count() · knots_v.control_count()` (row-major
-    /// layout, module docs), weights match, each is one point, and they
+    /// layout, module docs), every breakpoint is one point
+    /// ([`SplineError::CarrierKnotNotAPoint`]), weights match, each is
+    /// one point, and they
     /// are strictly positive and finite on their value channel. Knots
     /// and weights are held in `T` (at `f64` a [`KnotVector`]
     /// converts), as [`crate::curves::NurbsCurve3::new`] holds them.
@@ -619,6 +621,8 @@ impl<T: SpanLocate> NurbsSurface<T> {
         weights: Vec<T>,
     ) -> Result<Self, SplineError> {
         let (knots_u, knots_v) = (knots_u.into(), knots_v.into());
+        net::carrier_knots(&knots_u)?;
+        net::carrier_knots(&knots_v)?;
         let weight_channel = net::weight_channel(&weights)?;
         let expected = knots_u.structure().control_count() * knots_v.structure().control_count();
         net::validate_counts(expected, control.len(), &weight_channel)?;
@@ -765,14 +769,22 @@ impl<T: Real> NurbsSurface<T> {
         }
     }
 
-    /// The u-direction knot vector: the held knots' value channel.
-    pub fn knots_u(&self) -> &KnotVector {
-        self.knots_u.structure()
+    /// **C6's interim**: the u-direction `f64` knot vector, where
+    /// every held knot is a point ([`Knots::structure_f64_interim`]).
+    /// Counted by `scripts/gates/knots-f64-interim.sh`; it goes in C6's
+    /// S5.
+    #[track_caller]
+    pub fn knots_u_f64_interim(&self) -> &KnotVector {
+        self.knots_u.structure_f64_interim()
     }
 
-    /// The v-direction knot vector: the held knots' value channel.
-    pub fn knots_v(&self) -> &KnotVector {
-        self.knots_v.structure()
+    /// **C6's interim**: the v-direction `f64` knot vector, where
+    /// every held knot is a point ([`Knots::structure_f64_interim`]).
+    /// Counted by `scripts/gates/knots-f64-interim.sh`; it goes in C6's
+    /// S5.
+    #[track_caller]
+    pub fn knots_v_f64_interim(&self) -> &KnotVector {
+        self.knots_v.structure_f64_interim()
     }
 
     /// The u-direction knots held in `T`.
@@ -806,8 +818,8 @@ impl<T: Real> NurbsSurface<T> {
     /// `(nu, nv)` — control counts per direction.
     pub fn control_counts(&self) -> (usize, usize) {
         (
-            self.knots_u().control_count(),
-            self.knots_v().control_count(),
+            self.knots_u.structure().control_count(),
+            self.knots_v.structure().control_count(),
         )
     }
 
@@ -933,7 +945,7 @@ impl<T: Real> NurbsSurface<T> {
         span_u: KnotSpan<'a, T>,
         span_v: KnotSpan<'a, T>,
     ) -> SurfaceWindow<'a, T> {
-        let stride = self.knots_v().control_count();
+        let stride = self.knots_v_f64_interim().control_count();
         SurfaceWindow {
             surface: self,
             span_u,
@@ -957,8 +969,8 @@ impl<T: Real> NurbsSurface<T> {
     /// (out-of-domain clamps to an end span).
     pub fn window_at(&self, u: f64, v: f64) -> Option<SurfaceWindow<'_, T>> {
         self.window(
-            self.knots_u().span_at(u)?.index(),
-            self.knots_v().span_at(v)?.index(),
+            self.knots_u_f64_interim().span_at(u)?.index(),
+            self.knots_v_f64_interim().span_at(v)?.index(),
         )
     }
 
@@ -1017,7 +1029,7 @@ impl<T: Real> NurbsSurface<T> {
     /// symmetry: this door is DEFINED only on a `knots_u` that is its
     /// own reflection.
     pub fn reversed_u(&self) -> Result<Self, KnotMirrorError> {
-        self.knots_u().mirror_symmetric()?;
+        self.knots_u_f64_interim().mirror_symmetric()?;
         let (nu, nv) = self.control_counts();
         let mut control = Vec::with_capacity(self.control.len());
         let mut weights = Vec::with_capacity(self.weights.len());
@@ -1226,7 +1238,7 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
         let mut new_knots_u = self.knots_u.clone();
         for iv in 0..nv {
             let col = self.u_column(iv);
-            let plans = build(self.knots_u(), &col.channel)?;
+            let plans = build(self.knots_u_f64_interim(), &col.channel)?;
             let (col, knots) = col.through(&self.knots_u, &plans, &T::from_f64);
             new_knots_u = knots;
             cols.push(col);
@@ -1331,7 +1343,12 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
             let mut new_knots_u = cur.knots_u.clone();
             for iv in 0..nv {
                 let col = cur.u_column(iv);
-                let steps = spline::algebra::remove_knot_plan(cur.knots_u(), &col.channel, u, 1)?;
+                let steps = spline::algebra::remove_knot_plan(
+                    cur.knots_u_f64_interim(),
+                    &col.channel,
+                    u,
+                    1,
+                )?;
                 // remove_knot_plan(times = 1) yields exactly one step;
                 // the refusal arm is unreachable but keeps this total
                 // without an unwrap (D9: no panic path).
@@ -1494,7 +1511,7 @@ impl<T: geom_core::CertifiedBounds> NurbsSurface<T> {
     /// `geom_core::spline::compose::tensor`: channel `d`, control
     /// index `i` in the row-major `iu·nv + iv` layout, as `[x, y, z]`
     /// channels of certification enclosures. Pair with
-    /// [`Self::knots_u`]/[`Self::knots_v`]/[`Self::weights`] to build a
+    /// [`Self::knots_u_f64_interim`]/[`Self::knots_v_f64_interim`]/[`Self::weights`] to build a
     /// `SurfaceCertData` for composite residual bounds. The rank does
     /// not enter the lift, so this is the same body the curves use
     /// (`net::certified_coords`).
@@ -1634,13 +1651,13 @@ mod reversal_tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(
-            bits(got.knots_u().knots()),
-            bits(want.knots_u().knots()),
+            bits(got.knots_u_f64_interim().knots()),
+            bits(want.knots_u_f64_interim().knots()),
             "{what}: knots_u carried verbatim, bit for bit"
         );
         assert_eq!(
-            bits(got.knots_v().knots()),
-            bits(want.knots_v().knots()),
+            bits(got.knots_v_f64_interim().knots()),
+            bits(want.knots_v_f64_interim().knots()),
             "{what}: knots_v carried verbatim, bit for bit"
         );
         assert_eq!(
@@ -1736,8 +1753,13 @@ mod reversal_tests {
                 weights.push(s.weights()[iu * nv + iv]);
             }
         }
-        let direct =
-            NurbsSurface::new(s.knots_u().clone(), s.knots_v().clone(), control, weights).unwrap();
+        let direct = NurbsSurface::new(
+            s.knots_u_f64_interim().clone(),
+            s.knots_v_f64_interim().clone(),
+            control,
+            weights,
+        )
+        .unwrap();
         same_structure(
             &r,
             &direct,
@@ -1770,8 +1792,13 @@ mod reversal_tests {
                 weights.push(s.weights()[iu * nv + iv]);
             }
         }
-        let direct =
-            NurbsSurface::new(s.knots_u().clone(), s.knots_v().clone(), control, weights).unwrap();
+        let direct = NurbsSurface::new(
+            s.knots_u_f64_interim().clone(),
+            s.knots_v_f64_interim().clone(),
+            control,
+            weights,
+        )
+        .unwrap();
         let got = s.reversed_u().expect("a symmetric knots_u is reversible");
         same_structure(&got, &direct, "reversed_u");
         assert_ne!(
@@ -1871,8 +1898,13 @@ mod reversal_tests {
                 weights.push(s.weights()[iu * nv + iv]);
             }
         }
-        let hand_built =
-            NurbsSurface::new(s.knots_u().clone(), s.knots_v().clone(), control, weights).unwrap();
+        let hand_built = NurbsSurface::new(
+            s.knots_u_f64_interim().clone(),
+            s.knots_v_f64_interim().clone(),
+            control,
+            weights,
+        )
+        .unwrap();
         let (u, v) = (0.5, 0.25);
         let got = hand_built.eval(u, v);
         let want = s.eval(u, 1.0 - v);
@@ -1909,7 +1941,7 @@ mod reversal_tests {
             .reversed_v()
             .expect("−0.0 is real zero, so this vector is its own reflection");
         assert_eq!(
-            r.knots_v().knots()[0].to_bits(),
+            r.knots_v_f64_interim().knots()[0].to_bits(),
             (-0.0f64).to_bits(),
             "the −0.0 is carried verbatim, sign bit and all"
         );

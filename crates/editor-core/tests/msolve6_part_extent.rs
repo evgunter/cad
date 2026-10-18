@@ -646,9 +646,9 @@ fn a4_a_face_whose_reach_cannot_be_bounded_refuses_typed() {
 // ---- A5: the evaluation and the memo ----
 
 /// **A mated part is evaluated exactly once**: the fold's reach is the
-/// copy's own, off the run's part cache, so seating one instance on
-/// another crosses into the part once — the same count as with no mate
-/// at all.
+/// copy's own, and the instantiate nodes read the one table the run
+/// entered before either, so seating one instance on another crosses
+/// into the part once — the same count as with no mate at all.
 ///
 /// *Breaks if* forming a lever resolves the part a second time.
 #[test]

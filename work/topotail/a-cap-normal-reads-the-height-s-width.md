@@ -34,3 +34,5 @@ parameter — or the plane read takes the normal from the carrier's
 definition rather than from a frame built through the height. Then the
 ladder's placement rungs go green again: re-baseline
 `docm2_part_interval`'s ladder and `A7_DIVISOR` to the measured floor.
+
+**No longer exercised by the ladder** (PR 5267, after the orchestrator's interim). The corpus places its copies at the identity by the named interim's world pin, which reads no cap, so `docm2_part_interval`'s ladder and `A7_DIVISOR` are main's again (ε/32 green, 128). The finding stands for any reader of an extrude cap's carrier normal at `Interval`, among them `place_at` at a pose off the identity (`a-pin-read-off-a-copys-geometry-carries-its-width-into-the-copy`). A row pinning it directly is what this item still needs.

@@ -2,10 +2,12 @@
 id: a-union-fold-publishes-no-pinch-row
 kind: issue
 title: An n-ary union or intersect publishes no pinch row: the pairwise judgement drops its vertex identities and a fold step publishes only the rows a record cites
-status: open
+status: review
 opened: 2026-10-12
 priority: P2
 cost: M
+pr: 5276
+branch: wire/fold-rows-in-member-space
 ---
 
 

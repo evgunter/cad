@@ -5904,3 +5904,152 @@ Residue filed by the unit: `wire-rs-defaults-two-missed-records-to-empty`,
 pass, filed here) `a-fold-steps-coincidence-rows-are-named-without-the-end-passes`.
 
 Signed (WIRE orchestrator).
+
+## 2026-10-17 — PR 5263 (merged-chord rule): full review NOT mergeable, one MAJOR
+
+The reviewer built a legal recipe the rule mis-names: a chord that crosses
+the merged-away boundary between the two constituents. The pick read only
+the chord's middle, so it cited one piece confidently (and flipped with the
+cut's extent), and the vertex pass then refused a bug-framed `Emission`
+where main had refused typed `MergedChordConstituents`. Its sibling
+`rim_holding` reads the whole chord. Fix pass sent: pick only a constituent
+that holds the whole chord, otherwise keep the typed refusal; propagate
+containment errors; restore a guard that a legal recipe never reads as a
+kernel bug. The lesson is the brief's: "the fixture passes" is not "the
+rule is stated", and the reviewer's mutants proved the fixture caught wrong
+picks but not wrong premises.
+
+Filed `a-chord-spanning-two-merged-constituents-has-no-name` (design): what
+a spanning chord is named, and whether N2 should state the chord-descent
+rule at all (new ratified text, so Ev's if so).
+
+Signed (WIRE orchestrator).
+
+## 2026-10-18 — dispatched `wire-pinch` (`wire/union-fold-pinch-row`)
+
+`a-union-fold-publishes-no-pinch-row` with the union pin that closes
+`a-pinch-vertexs-name-depends-on-the-unions-member-order`. Review tier:
+FULL single (which rows a fold publishes is a confident-wrong-record
+failure mode). Told to stop on held ground or a fork over which pinch rows
+a fold publishes.
+
+Signed (WIRE orchestrator).
+
+## 2026-10-18 — FORK-PARTCACHE converged in round 1; dispatching
+
+Both designers rejected the framing (how to make the lock safe) and
+recommended one final state: the top evaluation enters its parts in a
+serial pre-pass, as nested evaluations already do, carrying rows across
+evaluations from the prior; the cache becomes an immutable lock-free
+table. The decision is on `part-cache-lock-held-across-a-nested-rayon-join`;
+WIRETAIL's `part-cache-miss-samples-…` moved here to ride with it. Both
+struck the row's fresh-pool sketch as unsound by reading rayon-core's
+`in_worker_cross`. Not Ev's (agent-written text only); no fork-log row.
+
+Review tier: FULL single — a new evaluation stage, but reversible.
+
+FORK-FOLDPINCH: designer B reported that ratified DM4 (PR 4323) already
+answers the fold-pinch question (publish the judgement's pinch rows whole,
+in member space; a covered contact keeps its pair's row). Waiting on A.
+
+Signed (WIRE orchestrator).
+
+## 2026-10-18 — correction: FORK-PINCHNAME is design-fork log row 157
+
+INTENT recorded its own row 156 concurrently; the merge of main into PR 5258 renumbered this program's row to 157. The entry above saying "row 156" means 157.
+
+Signed (WIRE orchestrator).
+
+## 2026-10-18 — PR 5263 MERGED (`6bf23859b7`): the P0 merged-chord rule
+
+Three rounds: full review (one MAJOR: the middle-point pick named a
+chord spanning both constituents confidently, and the pick flipped with
+the cut), fix pass (pick only an unjoined chord whose middle one
+constituent holds; ends checked), delta review (mergeable; every wrong-pick
+mutant caught, the join premise unbroken), a last small push. CI fully
+green on the head. P0 row closed; the spanning chord's name stays on its
+own design row. Merged before it: PR 5258 (`5be81cde65`, the N2 Split
+vertex `Keeps` rule Ev approved) and PR 5270 (`56a650efc7`, the union
+pinch-name pin and the FORK-FOLDPINCH decision).
+
+Signed (WIRE orchestrator).
+
+## 2026-10-18 — PR 5264 MERGED (`a3a5bf6d05`): a selection's kind is the doors'
+
+FORK-ENTITYDOOR built; both rows closed. Full review approved with fixes
+(the author-facing refusal had lost the verb and the name); fix pass gave a
+kind fault its own sentence and checked every name against an `Is` seat's
+kind. Merged over CLEAVE's `review_pick_r2` red, commented on the PR.
+
+Signed (WIRE orchestrator).
+
+## 2026-10-18 — FORK-CIRCLEPHASE to Ev (PR 5278); PR 5273 reviewed
+
+- **FORK-CIRCLEPHASE converged:** both designers found the circle-split
+  row's premise reads a name as a point set, which N1 rules out; a piece is
+  its index, a phase edit moves it continuously, and a whole-arc shift is
+  not a re-aim. No code change; the one sentence stating it in N1's
+  `circle_split` bullet is Ev's (`[ev]` PR 5278, fork-log row 158). The row
+  closes with a pinning test after.
+- **PR 5273 (part pre-pass):** full review approved with fixes. The
+  design held under every executed claim (schedule-independence at 1–16
+  threads, cancel mid-pass, carry keyed on content). Taken into a fix pass:
+  the schedule row could not go red at its own fixture (a nested fixture
+  does), two carry widenings undisclosed (resolver `None` and an unrepinned
+  store now evaluate on a pose edit), ASSEMBLY A2/A11 prose not matching
+  the code, and the stale "lazy part cache" prose the sweep missed in
+  `mate/`.
+
+Signed (WIRE orchestrator).
+
+## 2026-10-18 — FORK-SPANCHORD to Ev (PR 5279); it would retire PR 5263's pick
+
+Both designers converged in round 1, and both reached past the question:
+the pair boolean spells one merged face two ways (its `Borders` walls cite
+the parent `Merged` set, its seam pass descends to a constituent), and
+Ev's N3 ruling (PR 3222) already has a union's seam cite the parent. The
+recommendation is to widen N3's seam sentence to every boolean and delete
+the chord descent — including the constituent pick PR 5263 built and
+merged yesterday. That is not a waste to defend: PR 5263 made legal
+recipes name that refused, and its review proved the pick sound where it
+picks; the parent rule names those and the spanning ones too, with a name
+stable as the cut moves. `[ev]` PR 5279, fork-log row 159.
+
+Signed (WIRE orchestrator).
+
+## 2026-10-18 — PR 5273 MERGED (`7e636c2bca`): a part is entered once, before the node map
+
+FORK-PARTCACHE built; both rows closed. Full review approved with fixes;
+the lane's own schedule row could not go red at its fixture, and the
+reviewer's nested fixture could (red on the old code); the carry's two
+widened behaviours are now disclosed; ASSEMBLY A2/A11 describe the code.
+CI fully green. Seam note on GUARD's log (the census roster line).
+
+Signed (WIRE orchestrator).
+
+## 2026-10-18 — PR 5275 (split vertex Keeps): full review NOT mergeable, one MAJOR
+
+The reviewer split 43 documents at head, at the merge base and under four
+mutants. No existing name moved; `pair_original` is right; the in-plane
+chord reading never credits the wrong edge. The MAJOR: a closed in-plane
+edge (a revolved notch's apex circle) is never credited, so a curved pinch
+gets a confident name that is not N2's — the guard `o_far != corner`
+discards every closed edge, uncommented. Two mutants survived (Keeps
+order reversed; `chord_within` replaced by `true`): the pins checked
+counts, not spellings. Fix pass sent; three class rows to file
+(two Keeps builders, a −y orientation that refuses where +y names, three
+hand-written lineage chases).
+
+Signed (WIRE orchestrator).
+
+## 2026-10-18 — PR 5276 (fold rows in member space): mergeable, two duplicate classes taken into a fix pass
+
+No MAJOR; every pinch row it now publishes is true; the lint's findings equal
+the row count over 11 fixtures in every order. Two duplicate-row classes,
+mostly pre-existing: identical fold rows pushed twice (the citation only
+searched judged rows), and a repeated read making two identical judged
+rows. One keyed table over (unordered cells, relation) for judged and
+already-published fold rows closes both. The pin only asserted presence;
+it now asserts the multiset.
+
+Signed (WIRE orchestrator).

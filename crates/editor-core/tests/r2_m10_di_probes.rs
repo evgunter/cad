@@ -143,7 +143,7 @@ impl Fnv {
                 for w in n.weight_channel() {
                     self.u64(w.to_bits());
                 }
-                for k in n.knots().knots() {
+                for k in n.knots_f64_interim().knots() {
                     self.u64(k.to_bits());
                 }
             }
@@ -223,10 +223,10 @@ impl Fnv {
                 for w in n.weight_channel() {
                     self.u64(w.to_bits());
                 }
-                for k in n.knots_u().knots() {
+                for k in n.knots_u_f64_interim().knots() {
                     self.u64(k.to_bits());
                 }
-                for k in n.knots_v().knots() {
+                for k in n.knots_v_f64_interim().knots() {
                     self.u64(k.to_bits());
                 }
             }

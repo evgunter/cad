@@ -265,9 +265,12 @@ pub struct Select {
 impl Select {
     /// **Why `names` is not a stored selection of `kind`**, or `None`:
     /// a kind that is not a selection, a singleton not holding exactly
-    /// one name, or a set out of its stored order ([`Select`]). What
-    /// each name denotes is evaluation's to check, where the name
-    /// resolves (`NodeErrorKind::SelectKind`).
+    /// one name, a name of another entity kind than the selection's, or
+    /// a set out of its stored order ([`Select`]).
+    ///
+    /// What a name denotes is its own `kind`, which the name table
+    /// makes every entity answering to it agree with, so a selection
+    /// this passes resolves only to entities of its kind.
     #[must_use]
     pub fn fault(kind: VarKind, names: &[crate::names::StableName]) -> Option<SelectionFault> {
         let Some((entity, set)) = kind.selection() else {
@@ -275,6 +278,13 @@ impl Select {
         };
         if !set && names.len() != 1 {
             return Some(SelectionFault::Singleton { count: names.len() });
+        }
+        if let Some((at, name)) = names.iter().enumerate().find(|(_, n)| n.kind != entity) {
+            return Some(SelectionFault::Kind {
+                at,
+                found: name.kind,
+                expected: entity,
+            });
         }
         if entity == crate::names::EntityKind::Edge {
             names
@@ -326,8 +336,13 @@ pub enum SelectionFault {
         /// The kind.
         kind: VarKind,
     },
-    /// The seat reads no selection of this entity kind (a blend reads
-    /// edges, a shell faces; a whole body is read as the body).
+    /// The seat reads no selection of this entity kind, at a seat that
+    /// admits several and takes the kind from the names (a pose read
+    /// off geometry admitting only some kinds; a whole body is read as
+    /// the body). At a seat of one selection kind (a blend's edges, a
+    /// shell's faces) a name of another kind is that name's own refusal,
+    /// [`Self::Kind`], which the edit door speaks as
+    /// [`crate::EditError::SelectionNameKind`].
     ///
     /// This arm and [`Self::OtherBody`] are the edit door's, which
     /// knows the seat and the read; [`Select::fault`] answers the
@@ -346,6 +361,16 @@ pub enum SelectionFault {
     NotCanonical {
         /// The first index of the out-of-order pair.
         at: usize,
+    },
+    /// A name denoting another entity kind than the selection holds (a
+    /// face in an edge set).
+    Kind {
+        /// The name's place.
+        at: usize,
+        /// What it denotes.
+        found: crate::names::EntityKind,
+        /// What the selection holds.
+        expected: crate::names::EntityKind,
     },
     /// A face set naming one face twice.
     Repeated {
@@ -380,6 +405,18 @@ impl core::fmt::Display for SelectionFault {
                 f,
                 "the edges are not sorted and deduplicated (names {at} and {} are out of order)",
                 at + 1
+            ),
+            Self::Kind {
+                at,
+                found,
+                expected,
+            } => write!(
+                f,
+                "name {at} is {} {}, not {} {}",
+                found.article(),
+                found.noun(),
+                expected.article(),
+                expected.noun()
             ),
             Self::Repeated { first, again } => write!(f, "name {again} repeats name {first}"),
         }

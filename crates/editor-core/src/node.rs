@@ -4103,19 +4103,16 @@ impl<P, S: Slot> Node<P, S> {
         reference: usize,
     ) -> Option<(&'static str, String)> {
         use crate::OperandSlot as O;
-        match (self, slot) {
-            (Node::Fillet { .. }, O::Selection) => Some(("fillet", format!("edge {reference}"))),
-            (Node::Chamfer { .. }, O::Selection) => Some(("chamfer", format!("edge {reference}"))),
-            (Node::Shell { .. }, O::Open) => Some(("shell", format!("open face {reference}"))),
-            (Node::Datum(Datum::FaceFrame { .. }), O::Face) => Some(("frame", "face".to_owned())),
-            (Node::Measure { .. }, O::Measured(_, i)) => {
-                Some(("measure", format!("reference {i}")))
-            }
-            (Node::Place { .. } | Node::InstantiatePart { .. }, O::Side { constraint, side }) => {
-                Some(("constraint", format!("{constraint} side {}", side.name())))
-            }
-            _ => None,
-        }
+        let owner = match (self, slot) {
+            (Node::Fillet { .. }, O::Selection) => "fillet",
+            (Node::Chamfer { .. }, O::Selection) => "chamfer",
+            (Node::Shell { .. }, O::Open) => "shell",
+            (Node::Datum(Datum::FaceFrame { .. }), O::Face) => "frame",
+            (Node::Measure { .. }, O::Measured(..)) => "measure",
+            (Node::Place { .. } | Node::InstantiatePart { .. }, O::Side { .. }) => "constraint",
+            _ => return None,
+        };
+        Some((owner, slot.selection_entry(reference)?))
     }
 
     /// Builds a [`Node::InstantiatePart`] with the EMPTY interface

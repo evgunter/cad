@@ -481,7 +481,7 @@ enum HostFoot {
 /// tier 3's check 11 refuses at rest, so no blend door takes the body
 /// (`fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_is_construction_state`).
 /// The half-band gate that refused it has no at-rest witness left
-/// (`work/fuse/door-arms-only-a-hand-split-operand-reached.md`).
+/// (`work/gauge/door-arms-only-a-hand-split-operand-reached.md`).
 ///
 /// A RINGED host is served under [`Self::Struts`]: the band's host trim
 /// becomes that face's new outer boundary, and each ring is admissible

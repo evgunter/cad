@@ -339,7 +339,7 @@ pub(crate) fn carrier_net<T: CertifiedBounds>(
 ) -> Result<CarrierNet, CarrierEnclosureRefusal> {
     if let Curve3::Nurbs(net) = carrier {
         return Ok(CarrierNet {
-            knots: net.knots().clone(),
+            knots: net.knots_f64_interim().clone(),
             weights: net.weight_channel().to_vec(),
             coords: net.certified_coords(),
             cuts: breaks.to_vec(),
@@ -669,7 +669,11 @@ mod tests {
         )
         .unwrap();
         let (knots, weights, coords) = net.operand();
-        assert_eq!(knots, spline.knots(), "a spline's knots are its own");
+        assert_eq!(
+            knots,
+            spline.knots_f64_interim(),
+            "a spline's knots are its own"
+        );
         assert_eq!(weights, spline.weight_channel(), "and its weights");
         let bits = |c: &[Vec<Interval>]| -> Vec<(f64, f64)> {
             c.iter().flatten().map(|i| (i.lo(), i.hi())).collect()
