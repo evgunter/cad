@@ -116,7 +116,8 @@ These were not measured. They sit on multi-mate bundles; the measured case was o
 
 The switched-off code in `coincide/replay.rs` was reviewed but has no row. Both reviewers' mutants survived on it:
 
-- **A positive row:** an at-rest row the carrier verdict proves `Structural`. R2 measured one constructible today: two copies of one part at their identity pins.
+- **A positive row:** an at-rest row the carrier verdict proves `Structural`. R2 measured union rows between two copies of one part at their identity pins proving by the carrier verdict; an at-rest row that proves is still to be constructed (copies at one pin overlap, so a resting pair needs an offset pin).
+- **The pin's threading:** a resolved part is bound under its own pin. The scope reaches `evaluate_at_descent` from the part store, and nothing pins that: R1's mutant passing `None` there survives. Only `var_env_symbolic_pinned` called directly is pinned.
 - **The relation guard:** a verdict of another relation proves nothing (`carrier_verdict`'s `relation == wanted`).
 - **`at_rest_unread`:** a copy the replay did not build says `ThroughAPart`/`Refused`, not `NotReplayed`. A replay that decides the pair otherwise needs a reason of its own, not "not two faces".
 - **Cancellation:** the census arm stops canceled.
