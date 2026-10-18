@@ -2,8 +2,9 @@
 id: free-move-post-merge-review-minors
 kind: issue
 title: viewer: PR 5296's post-merge review — an overtaken pin landing, unpinned NotEvaluated and pane window, stale docs
-status: open
+status: closed
 opened: 2026-10-18
+closed: 2026-10-18
 priority: P2
 cost: E
 ---
@@ -74,3 +75,20 @@ Still open here:
 - Finding 5's census sample sharing an ordinal, and the "instance N" rule for
   a `Place` root.
 - The pre-existing pane-document prose.
+
+## Closed (2026-10-18)
+
+- **Finding 2's pane half:**
+  `app::properties_pane_tests::the_pane_does_not_offer_the_probe_off_an_older_landing`.
+  It holds an undo's run behind the `Gated` seam and checks that the pane says
+  "not known yet" rather than offering the probe off the older landing. It goes
+  red with the pane reading `evaluation()`.
+- **Finding 3's rank half:** `a_space_not_known_yet_ranks_below_a_space_that_refuses`
+  (the earlier PR).
+- **Finding 5's census:** `cause_ordinal` now gives each sentence its own
+  ordinal, mirroring `MovedSpace`'s guard, so dropping a sample breaks the
+  contiguity check.
+- **The "instance N" rule:** the census asserts that no sentence but
+  `NotAnInstance`'s writes "instance" itself, since the spoken node says its
+  subject's kind (a frame's root may be a `Place`).
+- **The pane-document prose:** corrected in the earlier PR.

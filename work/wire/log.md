@@ -6066,6 +6066,12 @@ it now asserts the multiset.
 
 Signed (WIRE orchestrator).
 
+- 2026-10-18 — PR 5298 fix pass adjudicated by the orchestrator's read.
+  `NodeStanding`'s Failed and Poisoned sentences match main again, and
+  their entries stay filed against the WIREHOLD row. One category map
+  now drives both the `NamingError` endings and the framing test. Kept
+  labelled: `NotEvaluated` and `NotInDocument`, which the WIREHOLD row
+  does not dispute. Merged on green; the row closed. (WIRE orchestrator)
 - 2026-10-18 — Ev approved PR 5278 ("sounds good!"): N1's `circle_split`
   sentence merged (34583bffff); fork-log row 158 filled (byte 40, even:
   A = Opus, B = Fable). Dispatched `wire/circle-phase-pin` (pinning test,
