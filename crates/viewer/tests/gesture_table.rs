@@ -647,9 +647,9 @@ fn nothing_is_fenced_when_no_gesture_is_in_flight() {
 /// the two drags can be open at once. What makes that sound is one
 /// identity: a value gesture's edits leave the recipe's NODE GRAPH
 /// alone, and every display predicate is a function of that graph — so
-/// the scratch document the view resolves against, the committed one
-/// `free_move_check` admits against and the shown one the panel draws
-/// the control from all give the same answer, and the prune a
+/// the scratch document the view resolves against and the committed
+/// one `free_move_check` admits against — for the op and for the panel
+/// that draws the control — give the same answer, and the prune a
 /// gesture's commit runs cannot discard what it is holding.
 ///
 /// **The gesture here drags a node's slots, both kinds.** A pattern

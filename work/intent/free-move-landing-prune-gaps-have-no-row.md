@@ -2,8 +2,9 @@
 id: free-move-landing-prune-gaps-have-no-row
 kind: issue
 title: viewer: the scratch-landing prune gate and two gesture_check arms have no row
-status: open
+status: closed
 opened: 2026-10-18
+closed: 2026-10-18
 priority: P3
 cost: E
 ---
@@ -31,3 +32,30 @@ mutant that survives the viewer suite:
   Spaces are given to failed nodes too (`spaces_of`). Check whether a copy
   mated to a refused root refuses as well. If it can survive, ask the root
   too.
+
+**Update (the PR that closed `an-overtaken-pin-landing-is-never-pruned`).** The
+gate is now `Answers::Structural` at a scratch landing, and
+`a_refused_placement_waits_for_the_committed_landing` pins it: the scratch
+landing keeps a refused frame, and the committed landing drops it. Still open:
+the root half of `gesture_check`, and a gesture whose root is refused while
+its copy is not. A frame's deleted root is pinned by
+`deleting_a_frames_root_drops_it_at_the_edit`.
+
+## Closed (2026-10-18)
+
+- **The gate:** pinned in the PR that closed
+  `an-overtaken-pin-landing-is-never-pruned`.
+- **M7, the gesture side under a scratch landing:**
+  `a_refused_gestures_copy_waits_for_the_committed_landing`. It goes red when
+  `gesture_check` is given `Answers::All`.
+- **The root half of `gesture_check`:** kept, and now pinned. A cascade delete
+  of the root takes the copy too
+  (`deleting_a_gestures_root_takes_its_copy_and_kills_it`), but an undo can
+  take the root alone: a second shelf inserted after the copy and then mated
+  onto by it is undone seat first and insertion last. So the root check is
+  what kills the gesture at the edit
+  (`an_undo_past_a_gestures_root_kills_it_at_the_edit`, which goes red without
+  it). The review of this PR found the undo shape; an earlier draft of this PR
+  had removed the check on a wrong argument about undo order.
+- **A refused root under a copy that is not refused:** moved to its own item,
+  `a-gesture-under-a-refused-root-is-unchecked`.

@@ -1944,13 +1944,12 @@ numbers. A copy with no planar face is pinned (`PlacedBy::Pin`), and
 one `place_at` cannot read stands loose; `OpOutcome::placed` carries
 which, and the status line says so (`frame::place_notice`).
 
-**A mate beyond the pin refuses, typed.** The edit door's admission is
-structural and measures nothing, so a mate added to a bundle that
-already pins its copy commits, and the evaluation refuses the
-placement typed — `MateFault::Overconstrained`, `Contradictory` where
-it disagrees with the pin, or `TargetsDiffer` while a bundle relates
-its copy to one target and its pin reads the world; the mate is never
-dropped, and undo takes it off. Taking a mate off is
+**A mate beyond the pin refuses, typed.** The edit door reads the
+bundle's families and measures nothing, so a mate added to a bundle
+that already fixes any of its equations — pinned or not — is refused
+where it is authored (`EditError::MateRefused` carrying
+`MateFault::Overconstrained`), whether it agrees with the pin or not;
+the document stays as it was, and the mate is never dropped silently. Taking a mate off is
 `SessionOp::RemoveConstraint`, which removes the values naming it in
 the same action; a copy its bundle no longer pins is a loose copy in
 its own space, which is no refusal.

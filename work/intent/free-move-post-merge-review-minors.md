@@ -2,8 +2,9 @@
 id: free-move-post-merge-review-minors
 kind: issue
 title: viewer: PR 5296's post-merge review — an overtaken pin landing, unpinned NotEvaluated and pane window, stale docs
-status: open
+status: closed
 opened: 2026-10-18
+closed: 2026-10-18
 priority: P2
 cost: E
 ---
@@ -54,3 +55,40 @@ execution unless marked.
      (`a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other`'s doc)
      calls it "the shown one the panel draws the control from". The pane
      reads `committed_doc()`.
+
+## Taken in the PR that closed `an-overtaken-pin-landing-is-never-pruned`
+
+- Finding 1 got an item of its own, and is fixed.
+- Finding 2's admission half: `the_probe_refuses_while_the_document_has_not_landed`
+  pins `NotEvaluated` and the rule against reading an older document's spaces.
+  The `space_evaluation`-unconditional mutant now goes red.
+- Finding 3's sentence half: the split row asserts the "a loose space of its own
+  now" sentence.
+- Finding 4: all four stale passages are corrected.
+- Finding 5's first bullet: `space_check` and `gesture_check` share `in_space`.
+
+Still open here:
+- Finding 2's pane half: the properties pane reading `evaluation()` instead of
+  `space_evaluation()` survives. It wants a driven-app row, unpinned and then
+  undone before the landing.
+- Finding 3's rank half: the `NotEvaluated` rank mutant.
+- Finding 5's census sample sharing an ordinal, and the "instance N" rule for
+  a `Place` root.
+- The pre-existing pane-document prose.
+
+## Closed (2026-10-18)
+
+- **Finding 2's pane half:**
+  `app::properties_pane_tests::the_pane_does_not_offer_the_probe_off_an_older_landing`.
+  It holds an undo's run behind the `Gated` seam and checks that the pane says
+  "not known yet" rather than offering the probe off the older landing. It goes
+  red with the pane reading `evaluation()`.
+- **Finding 3's rank half:** `a_space_not_known_yet_ranks_below_a_space_that_refuses`
+  (the earlier PR).
+- **Finding 5's census:** `cause_ordinal` now gives each sentence its own
+  ordinal, mirroring `MovedSpace`'s guard, so dropping a sample breaks the
+  contiguity check.
+- **The "instance N" rule:** the census asserts that no sentence but
+  `NotAnInstance`'s writes "instance" itself, since the spoken node says its
+  subject's kind (a frame's root may be a `Place`).
+- **The pane-document prose:** corrected in the earlier PR.

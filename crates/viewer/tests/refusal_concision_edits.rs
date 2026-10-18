@@ -842,7 +842,7 @@ fn long_path_refusals() -> Vec<(&'static str, profile::PathError<f64>)> {
 
 /// A mate fault of every arm, for the two edit arms that forward one.
 fn mate_faults() -> Vec<(&'static str, MateFault)> {
-    use editor_core::{Clash, Coord, LeverRefusal, MateSide, SlideAxis, Subgroup, VarKind};
+    use editor_core::{Coord, LeverRefusal, MateSide, SlideAxis, VarKind};
     use geom_core::{Band, Indeterminate, MarginDiag, Tol};
     let band = Band::linear(Tol::witness()).expect("the witness band");
     let doc_ref = editor_core::DocRef {
@@ -874,20 +874,11 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
             },
         ),
         (
-            "Contradictory",
-            MateFault::Contradictory {
-                held: r(8),
-                added: r(9),
-                predicate: "mate_coaxial",
-                clash: Clash::Length { metres: 0.002 },
-            },
-        ),
-        (
             "Overconstrained",
             MateFault::Overconstrained {
                 placement: n(7),
                 constraints: vec![c(8), c(9)],
-                held: Subgroup::Trivial,
+                free: 0,
             },
         ),
         (
@@ -925,7 +916,7 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
             MateFault::NotAFreedom {
                 value: r(9),
                 coord: Coord::Slide(SlideAxis::Z),
-                kind: Some(VarKind::Plane),
+                kind: VarKind::Plane,
             },
         ),
         (

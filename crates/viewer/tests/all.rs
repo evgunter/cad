@@ -125,8 +125,6 @@ mod mate_tool_flow;
 
 #[path = "msolve3_placer_refused.rs"]
 mod msolve3_placer_refused;
-#[path = "msolve4_blame_rows.rs"]
-mod msolve4_blame_rows;
 #[path = "msolve5_unplaced_read_badge.rs"]
 mod msolve5_unplaced_read_badge;
 #[path = "node_labels.rs"]

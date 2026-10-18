@@ -450,10 +450,9 @@ pub fn seat_op_under(
 /// the session takes: the shelf's underside on the post's top cap,
 /// flipped and slid `offset` along its own normal (a standoff), in the
 /// shelf's bundle once the shelf's world pin is off ([`unpin`]). It
-/// fixes the shelf's seating plane and nothing else, so the bundle
-/// stays open to a second rest — and two at different offsets cannot
-/// both hold, which the edit door does not see and the evaluation
-/// refuses `Contradictory`, naming the pair.
+/// fixes the shelf's seating plane and nothing else, so the shelf is a
+/// loose copy; a second rest beside it fixes the plane again, which the
+/// edit door refuses.
 pub fn shelf_rest_op(bench: &Bench, post: RecipeNodeId, offset: f64) -> SessionOp {
     use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
     let (post_top, shelf_bottom) = seat_faces(bench, post, bench.shelf_i);
@@ -474,20 +473,54 @@ pub fn shelf_rest_op(bench: &Bench, post: RecipeNodeId, offset: f64) -> SessionO
     }
 }
 
+/// **A mate the shelf's bundle refuses where it evaluates**: a ball
+/// mate on the centre of the shelf's underside, which a plane has none
+/// of, against the centre of `post`'s top. The door admits it (its
+/// kinds agree and its `on` reads the shelf); the placement refuses it
+/// where it evaluates, its `on` pose unevaluated (`NoCentre`).
+pub fn no_centre_op(bench: &Bench, post: RecipeNodeId) -> SessionOp {
+    let (post_top, shelf_bottom) = seat_faces(bench, post, bench.shelf_i);
+    SessionOp::AddMate {
+        placement: bench.shelf_i,
+        mate: Box::new(crate::fixture::mate(
+            crate::fixture::point_of(shelf_bottom),
+            crate::fixture::point_of(post_top),
+            pncad::select::ContactClass::Rest,
+        )),
+        values: Vec::new(),
+    }
+}
+
+/// [`no_centre_op`] in `post`'s bundle: a ball mate on the centre of
+/// `post`'s top cap, which a plane has none of, against the shelf's
+/// underside centre. The door admits it; `post` refuses it where it
+/// evaluates (`NoCentre`), so its copy is in no space.
+pub fn no_centre_seat_op(bench: &Bench, post: RecipeNodeId) -> SessionOp {
+    let (post_top, shelf_bottom) = seat_faces(bench, post, bench.shelf_i);
+    SessionOp::AddMate {
+        placement: post,
+        mate: Box::new(crate::fixture::mate(
+            crate::fixture::point_of(post_top),
+            crate::fixture::point_of(shelf_bottom),
+            pncad::select::ContactClass::Rest,
+        )),
+        values: Vec::new(),
+    }
+}
+
 /// **The shelf's bundle refused, and post_b chained to it**: post_b's
 /// world pin off and post_b seated under the shelf's middle (`sound`,
-/// in post_b's bundle), then the shelf's world pin off and two rests of
-/// the shelf on post_a at different offsets (`held`, then `offender`).
-/// The evaluation refuses the shelf `Contradictory` naming the pair, and
-/// post_b, placed against the shelf, has no pose either; post_a, which
-/// only the shelf's constraints read, keeps its own. Committed, each
-/// pumped.
+/// in post_b's bundle), then the shelf's world pin off and its bundle
+/// one mate the evaluation refuses ([`no_centre_op`], the `offender`,
+/// against post_a). The shelf has no pose, and post_b, placed against
+/// the shelf, has none either; post_a, which only the shelf's
+/// constraints read, keeps its own. Committed, each pumped.
 pub fn refuse_shelf(session: &mut DocSession, bench: &Bench) -> Refused {
     refuse_shelf_chaining(session, bench, bench.post_b, bench.post_a)
 }
 
 /// [`refuse_shelf`] with `chained` seated under the shelf and the
-/// shelf's two rests on `rest_on`.
+/// shelf's refused mate against `rest_on`.
 pub fn refuse_shelf_chaining(
     session: &mut DocSession,
     bench: &Bench,
@@ -505,23 +538,16 @@ pub fn refuse_shelf_chaining(
         ),
     );
     unpin(session, bench.shelf_i);
-    let held = super::commit_mate(session, shelf_rest_op(bench, rest_on, 0.0));
-    let offender = super::commit_mate(session, shelf_rest_op(bench, rest_on, 0.01));
-    Refused {
-        sound,
-        held,
-        offender,
-    }
+    let offender = super::commit_mate(session, no_centre_op(bench, rest_on));
+    Refused { sound, offender }
 }
 
-/// The three constraints [`refuse_shelf`] commits.
+/// The two constraints [`refuse_shelf`] commits.
 #[derive(Debug, Clone, Copy)]
 pub struct Refused {
     /// post_b's seat under the shelf, in post_b's bundle.
     pub sound: pncad::document::MateRef,
-    /// The shelf's first rest on post_a.
-    pub held: pncad::document::MateRef,
-    /// The shelf's second rest on post_a, contradicting the first.
+    /// The shelf's one mate, which its evaluation refuses.
     pub offender: pncad::document::MateRef,
 }
 
