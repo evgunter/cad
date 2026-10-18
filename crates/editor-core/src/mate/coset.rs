@@ -489,6 +489,14 @@ impl Arm {
         self.0
     }
 
+    /// **The arm in `T`**: a bound read off the resolved origins, so it
+    /// enters as a computed value ([`Real::from_computed`]), at `Sym`
+    /// an unknown of its own. Each predicate mints it once and its levered
+    /// product multiplies by that one value.
+    pub fn lever<T: Real>(self) -> T {
+        T::from_computed(self.0)
+    }
+
     /// The longer of two arms, which is one of them.
     pub fn max(self, other: Self) -> Self {
         Self(self.0.max(other.0))
@@ -540,13 +548,17 @@ impl Arm {
 /// that vanishing sample is not recorded — reachable by no pair of
 /// witnesses at any arm the reach bounds). A length that is no number
 /// has no input to come from: the arm is an [`Arm`].
+///
+/// `lever` is that arm in `T` ([`Arm::lever`]): the one value the
+/// intersection's every levered product multiplies by, so a step that
+/// divides by `sine` cancels the arm it multiplies by.
 fn parallel<T: SolveScalar>(
     u: UnitVec3<T>,
     v: UnitVec3<T>,
     band: Band,
-    arm: Arm,
+    lever: T,
 ) -> Result<Option<(UnitVec3<T>, T)>, Indeterminate> {
-    let levered = u.get().cross(v.get()) * T::from_computed(arm.get());
+    let levered = u.get().cross(v.get()) * lever;
     match UnitVec3::new(levered, "mate_axes_parallel", band) {
         Ok(line) => Ok(Some((line, levered.norm()))),
         Err(UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength) => Ok(None),
@@ -560,20 +572,20 @@ fn parallel<T: SolveScalar>(
 
 /// Predicate: a direction is perpendicular to a normal. The margin is
 /// the cosine — the dot product of two witnesses — levered into a
-/// displacement at `arm`: `None` when perpendicular, `Some(cosine)`
-/// when not, the cosine the funnel decided out of the zero band and so
-/// nonzero.
+/// displacement at the arm `lever` ([`Arm::lever`]): `None` when
+/// perpendicular, `Some(cosine)` when not, the cosine the funnel
+/// decided out of the zero band and so nonzero.
 fn perpendicular<T: SolveScalar>(
     u: UnitVec3<T>,
     n: UnitVec3<T>,
     band: Band,
-    arm: Arm,
+    lever: T,
 ) -> Result<Option<T>, Indeterminate> {
     let cosine = u.get().dot(n.get());
     Ok(
         match decide(
             "mate_axis_normal_perpendicular",
-            Margin::levered(cosine, T::from_computed(arm.get())),
+            Margin::levered(cosine, lever),
             band,
         )? {
             Sign::Zero => None,
@@ -669,7 +681,8 @@ pub(crate) fn turn_line<T: SolveScalar>(
     band: Band,
     arm: Arm,
 ) -> Result<Option<Option<Point3<T>>>, Indeterminate> {
-    let along = |axis: UnitVec3<T>| parallel(dir, axis, band, arm).map(|apart| apart.is_none());
+    let lever = arm.lever();
+    let along = |axis: UnitVec3<T>| parallel(dir, axis, band, lever).map(|apart| apart.is_none());
     Ok(match g {
         Subgroup::Se3 => Some(None),
         Subgroup::Spherical { point } => Some(Some(point)),
@@ -700,10 +713,10 @@ pub(crate) fn slides_along<T: SolveScalar>(
     Ok(match g {
         Subgroup::Se3 | Subgroup::Parallel { .. } | Subgroup::Translation => true,
         Subgroup::Planar { normal } | Subgroup::PlaneTranslation { normal } => {
-            perpendicular(v, normal, band, arm)?.is_none()
+            perpendicular(v, normal, band, arm.lever())?.is_none()
         }
         Subgroup::Cylindrical { direction, .. } | Subgroup::Prismatic { direction } => {
-            parallel(v, direction, band, arm)?.is_none()
+            parallel(v, direction, band, arm.lever())?.is_none()
         }
         Subgroup::Revolute { .. } | Subgroup::Spherical { .. } | Subgroup::Trivial => false,
     })
@@ -740,7 +753,7 @@ pub(crate) fn across<T: SolveScalar>(
     band: Band,
     arm: Arm,
 ) -> Result<Option<UnitVec3<T>>, Indeterminate> {
-    Ok(parallel(u, v, band, arm)?.map(|(line, _)| line))
+    Ok(parallel(u, v, band, arm.lever())?.map(|(line, _)| line))
 }
 
 /// **Whether two directions are parallel**, decided over `arm`
@@ -755,7 +768,7 @@ pub(crate) fn directions_parallel<T: SolveScalar>(
     band: Band,
     arm: Arm,
 ) -> Result<bool, Indeterminate> {
-    Ok(parallel(u, v, band, arm)?.is_none())
+    Ok(parallel(u, v, band, arm.lever())?.is_none())
 }
 
 /// **Whether `p` lies on the line through `origin` along `direction`**

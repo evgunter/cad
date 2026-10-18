@@ -3245,6 +3245,55 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     }
 }
 
+/// Where `rows` holds the statement `row` makes, pushing it where none
+/// does. A statement is the unordered pair of cells and the relation
+/// between them: which cell a decision read first follows operand order
+/// and sweep order, and says nothing about the coincidence.
+fn stated_at(
+    rows: &mut Vec<crate::coincide::NamedCoincidence>,
+    row: crate::coincide::NamedCoincidence,
+) -> usize {
+    let [a, b] = &row.cells;
+    let same = |r: &crate::coincide::NamedCoincidence| {
+        let [c, d] = &r.cells;
+        r.relation == row.relation && ((a == c && b == d) || (a == d && b == c))
+    };
+    rows.iter().position(same).unwrap_or_else(|| {
+        rows.push(row);
+        rows.len() - 1
+    })
+}
+
+/// A fold row in member space (DM4, "A row names member cells"): each
+/// cell named in the node's own space, `own_read`, by its collapsed fold
+/// name, is the member cell that name lies in, or stays the node's where
+/// the fold minted it ([`names::fold_cell`]).
+fn in_member_space(
+    row: crate::coincide::NamedCoincidence,
+    own_read: crate::VarId,
+) -> Result<crate::coincide::NamedCoincidence, names::NamingError> {
+    use crate::coincide::NamedCell;
+    let cell = |cell: NamedCell| match cell {
+        NamedCell::Entity { input, name } if input == own_read => {
+            Ok(match names::fold_cell(&name)? {
+                names::FoldCell::Member { read, name } => NamedCell::Entity { input: read, name },
+                names::FoldCell::Minted(name) => NamedCell::Entity {
+                    input: own_read,
+                    name,
+                },
+            })
+        }
+        _ => Err(names::NamingError::Emission {
+            what: UNION_FOLD_ROW_FOREIGN_CELL,
+        }),
+    };
+    let [a, b] = row.cells;
+    Ok(crate::coincide::NamedCoincidence {
+        cells: [cell(a)?, cell(b)?],
+        ..row
+    })
+}
+
 /// **The union's and the intersect's lowering** (DM4): the SAME pair
 /// verb, folded over the members in list order — `((m0 ∘ m1) ∘ m2) ∘ …`,
 /// through the same `run_pair` door and the same refusal menu, one body
@@ -3422,23 +3471,11 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     })),
                 };
             };
-            // The judgement's rows, named in the two members' own tables:
-            // the node's coincidences are its pairwise judgement's (#4323:
-            // the pass is its coincidence door, rows in member space),
-            // each pair's in the author's list order. The judgement's
-            // records are not the node's, so its vertex identities are
-            // dropped: the fold step that keeps a touch publishes the row
-            // its record cites. A pinch's row, which no record cites, is
-            // published by no step
-            // (`work/wire/a-union-fold-publishes-no-pinch-row.md`).
-            let judged: Vec<topo::Coincidence> = out
-                .coincidences
-                .iter()
-                .filter(|row| row.site != topo::DecisionSite::VertexFusion)
-                .copied()
-                .collect();
+            // The judgement's rows, whole, named in the two members' own
+            // tables: the node's coincidences are its member pairs' (DM4),
+            // each pair's in the author's list order.
             let rows = crate::coincide::name_rows(
-                &judged,
+                &out.coincidences,
                 &crate::coincide::RowInputs {
                     a: own[p],
                     b: Some(own[q]),
@@ -3460,9 +3497,15 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             }
         })?
     };
-    let Some((mut links, mut coincidences, verdicts)) = judged else {
+    let Some((mut links, judged, verdicts)) = judged else {
         return empty();
     };
+    // One row per statement: two pairs that state one thing (a member
+    // read twice, beside a third) publish it once.
+    let mut coincidences = Vec::with_capacity(judged.len());
+    for row in judged {
+        stated_at(&mut coincidences, row);
+    }
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
     // What the end pass reads of every step: each face's member faces
     // and each step's discards.
@@ -3564,17 +3607,19 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                             .collect::<Result<Vec<_>, _>>()?;
                     let acc_view =
                         names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
-                    fold_rows.extend(
-                        crate::coincide::name_rows(
-                            &cited,
-                            &crate::coincide::RowInputs {
-                                a: (own_read, &acc_view),
-                                b: Some((own_read, &member_table)),
-                                tool: None,
-                            },
-                        )
-                        .map_err(NodeErrorKind::Naming)?,
-                    );
+                    for row in crate::coincide::name_rows(
+                        &cited,
+                        &crate::coincide::RowInputs {
+                            a: (own_read, &acc_view),
+                            b: Some((own_read, &member_table)),
+                            tool: None,
+                        },
+                    )
+                    .map_err(NodeErrorKind::Naming)?
+                    {
+                        fold_rows
+                            .push(in_member_space(row, own_read).map_err(NodeErrorKind::Naming)?);
+                    }
                 }
                 let member = u32::try_from(step + 1).unwrap_or(u32::MAX);
                 let held = Arc::clone(&acc_records);
@@ -3661,36 +3706,40 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             what: UNION_NO_STEP,
         }));
     };
-    // The fold rows the node's records cite are published after the
-    // pairwise judgement's, the records renumbered onto them.
-    let contacts =
-        if pairwise {
-            let used = contacts.decided();
-            let base = coincidences.len();
-            for &k in &used {
-                coincidences.push(fold_rows.get(k as usize).cloned().ok_or(
+    // A fold row the node's records cite is the published row stating
+    // the same thing where there is one (DM4: a judged row, or a fold
+    // row an earlier citation published), and is published after the
+    // judgement's otherwise; the records are renumbered onto the rows
+    // they cite.
+    let contacts = if pairwise {
+        let used = contacts.decided();
+        let mut at = Vec::with_capacity(used.len());
+        for &k in &used {
+            let row = fold_rows
+                .get(k as usize)
+                .cloned()
+                .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
+                    what: UNION_STEP_UNDECIDED_CITE,
+                }))?;
+            at.push(stated_at(&mut coincidences, row));
+        }
+        Arc::new(
+            (*contacts)
+                .clone()
+                .renumbered(|k| {
+                    used.binary_search(&k)
+                        .ok()
+                        .map(|rank| u32::try_from(at[rank]).unwrap_or(u32::MAX))
+                })
+                .map_err(|_| {
                     NodeErrorKind::Naming(names::NamingError::Emission {
-                        what: UNION_STEP_UNDECIDED_CITE,
-                    }),
-                )?);
-            }
-            Arc::new(
-                (*contacts)
-                    .clone()
-                    .renumbered(|k| {
-                        used.binary_search(&k)
-                            .ok()
-                            .map(|rank| u32::try_from(base + rank).unwrap_or(u32::MAX))
+                        what: UNION_CARRY_UNCITED,
                     })
-                    .map_err(|_| {
-                        NodeErrorKind::Naming(names::NamingError::Emission {
-                            what: UNION_CARRY_UNCITED,
-                        })
-                    })?,
-            )
-        } else {
-            contacts
-        };
+                })?,
+        )
+    } else {
+        contacts
+    };
     Ok(OpOut::plain(
         ValuePayload::Boolean(BooleanValue::Body {
             body: Arc::new(body),
@@ -3735,6 +3784,11 @@ const UNION_FAMILY_INDEXED: &str =
 
 /// A union or an intersect the document defines no output for.
 const UNION_NO_OUTPUT: &str = "a union or an intersect defines no output variable";
+
+/// A union fold row's cell is not named in the node's own space, the
+/// only space a fold step's rows are named in.
+const UNION_FOLD_ROW_FOREIGN_CELL: &str =
+    "a union fold row's cell is not named in the node's own space";
 
 /// A union fold step's record cites a row the step did not decide.
 const UNION_STEP_UNDECIDED_CITE: &str = "a union fold step's record cites a row it did not decide";

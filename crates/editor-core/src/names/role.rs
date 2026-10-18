@@ -1089,10 +1089,12 @@ pub enum Qualifier {
     /// result's topology and the boolean's record of what it discarded;
     /// the pieces the wall set does not tell apart are N2's tie.
     Borders(Vec<StableName>),
-    /// The boundary edges of its parent face a Split's same-side face
-    /// piece holds a stretch of, each cited by its name without piece
-    /// qualifiers, sorted and deduplicated (N2). Pieces with equal sets
-    /// are N2's tie.
+    /// A Split's same-side face piece or vertex copy, by what it keeps
+    /// of its parent: for a face piece, the parent face's boundary edges
+    /// it holds a stretch of; for a vertex copy, the operand vertex's
+    /// own edges it is an end of a piece of, an edge lying in the tool
+    /// plane included. Each cited by its name without piece qualifiers,
+    /// sorted and deduplicated (N2). Equal sets are N2's tie.
     Keeps(Vec<StableName>),
     /// The names of an edge piece's two end vertices as the node
     /// publishes them, sorted, a repeat kept (N2): the qualifier of
@@ -1395,10 +1397,11 @@ pub enum RoleSeg {
         /// The edge's sense against the half that holds the copy.
         sense: Sense,
     },
-    /// A half's copy of an operand vertex the tool plane passed THROUGH
-    /// (review R2): both halves keep a coincident copy, each in its own
-    /// table. Fully birth-derived: the operand identity via the
-    /// null-pair copy row.
+    /// A half's copy of an operand vertex the tool plane passed THROUGH:
+    /// each half keeps a coincident copy, in its own table, the operand
+    /// identity read through the null-pair copy rows. A half holding
+    /// several copies (a pinch: one per piece of material at the point)
+    /// appends `Fragment(Keeps)` to each (N2).
     OnToolVertex {
         /// The operand vertex the plane passed through.
         of: NameRef,
