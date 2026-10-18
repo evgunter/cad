@@ -9,8 +9,9 @@
 //! `f64` channel; and [`CurvePlan::apply_certified`](super::CurvePlan::apply_certified) in the homogeneous
 //! form, in the certification ring.
 
+use super::algebra::{Coef, CurvePlan, Form, KnotAt};
 use super::locate::SpanLocate;
-use crate::{Point2, Point3};
+use crate::{Point2, Point3, Real};
 
 /// The scalars the PROJECTIVE knot algebra means something at: `f64`,
 /// `Probe`, and `Dual` and `Sym` over them — not `Interval`, and not
@@ -23,9 +24,11 @@ use crate::{Point2, Point3};
 /// of the plan's projective form, which is not how a certificate holds
 /// a refinement (C6: a refinement inside a certificate is held only as
 /// homogeneous enclosures `(w·P, w)`, [`CurvePlan::apply_certified`](super::CurvePlan::apply_certified)).
-/// So the applier, and every knot operation built on it, is bounded by
-/// this trait, and a call at the certification scalar does not
-/// typecheck:
+/// So the projective applier is bounded by this trait, and a call at
+/// the certification scalar does not typecheck. A carrier's knot
+/// operation is not: it runs this applier at a projective scalar and
+/// [`CurvePlan::apply_homogeneous`](super::CurvePlan::apply_homogeneous) on `(w·P, w)` at an enclosure
+/// scalar ([`ProjectiveSplit`], C6 S4):
 ///
 /// ```compile_fail,E0277
 /// use geom_core::Interval;
@@ -214,6 +217,73 @@ impl<T: ProjectiveScalar> sealed::SealedPoint<T> for Point3<T> {}
 impl<T: ProjectiveScalar> ProjectivePoint<T> for Point3<T> {}
 impl<T: ProjectiveScalar, const N: usize> sealed::SealedPoint<T> for [T; N] {}
 impl<T: ProjectiveScalar, const N: usize> ProjectivePoint<T> for [T; N] {}
+
+impl CurvePlan {
+    /// **The schedule over a HOMOGENEOUS net held at `T`**, at any
+    /// scalar: each control point as `(w·P, w)`, the pair combined as
+    /// one, so no weight quotient `λ` is formed (C6 S4: a refinement
+    /// at an enclosure scalar is held as homogeneous enclosures, and
+    /// the projective [`Self::apply_rational`] does not run there). Each
+    /// step's coefficient `a` is formed at `T` from `knots`, as
+    /// [`Self::apply_rational`] forms it, and the step is
+    /// [`SpanLocate::homogeneous_step`] (`x + (y − x)·t`; at `Interval`
+    /// a blend takes the ring's monotone step) on both members of the
+    /// pair, `affine` applying it per channel of the homogeneous point,
+    /// with
+    /// - `t = a` for an insertion's and an elevation's blend;
+    /// - `t = 1/a` for a removal's forward unblend
+    ///   (`(y − (1 − a)·x)/a`, rearranged);
+    /// - `t = 1/(1 − a)` for its backward unblend (`(y − a·x)/(1 − a)`).
+    ///
+    /// The form keeps a constant column exact (`y − x` is zero), so a
+    /// polynomial net's unit weights come out as unit weights. The
+    /// caller de-homogenizes once at the end.
+    ///
+    /// It is the ring applier's schedule ([`Self::apply_certified`],
+    /// which takes one `Interval` channel and re-derives each ratio from
+    /// its exact knots) at a generic scalar: `Dual` and `Sym` over
+    /// `Interval` carry a derivative or a symbol the ring does not.
+    ///
+    /// Total: a malformed plan, a short channel or a knot index past
+    /// `knots` leaves `poison` in the targets it reaches.
+    pub fn apply_homogeneous<T: SpanLocate, V: Copy>(
+        &self,
+        knots: &[T],
+        old: &[(V, T)],
+        (poison, fresh): ((V, T), &dyn Fn(f64) -> T),
+        affine: impl Fn(V, V, T) -> V,
+    ) -> Vec<(V, T)> {
+        let one = T::from_f64(1.0);
+        let step = |(vx, wx): (V, T), (vy, wy): (V, T), form: Form| -> Option<(V, T)> {
+            let t = match form {
+                Form::Blend(c) => form_coef(c, knots, fresh)?,
+                Form::UnblendForward(c) => one / form_coef(c, knots, fresh)?,
+                Form::UnblendBackward(c) => one / (one - form_coef(c, knots, fresh)?),
+            };
+            Some((affine(vx, vy, t), T::homogeneous_step(wx, wy, t)))
+        };
+        self.apply_ratios(old, poison, |x, y, _, form| step(x, y, form))
+    }
+}
+
+/// A combination's coefficient `a` formed at `T` (the projective and
+/// homogeneous appliers): a ratio of `knots`, the input vector's held
+/// values, with a value the step brings in entered by `fresh`, or
+/// elevation's quotient of two integers. `None` for a knot index past
+/// `knots`.
+pub(super) fn form_coef<T: Real>(c: Coef, knots: &[T], fresh: &dyn Fn(f64) -> T) -> Option<T> {
+    match c {
+        Coef::Knots { u, lo, hi } => {
+            let u = match u {
+                KnotAt::Index(i) => *knots.get(i)?,
+                KnotAt::Fresh(v) => fresh(v),
+            };
+            let (lo, hi) = (*knots.get(lo)?, *knots.get(hi)?);
+            Some((u - lo) / (hi - lo))
+        }
+        Coef::Constant { num, den } => Some(T::from_f64(num) / T::from_f64(den)),
+    }
+}
 
 #[cfg(test)]
 mod tests {
