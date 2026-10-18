@@ -379,14 +379,22 @@ fn both_sweeps_evaluate_in_one_document() {
 /// bundle of mates), which re-blessed these rows by its new mint chain:
 /// `cut_cylinder`, `kitchen_sink` moved by this unit as well, and
 /// their merged values are neither tree's; every other row is main's.
+///
+/// RE-BLESSED, every row, for INTENT stage 3 C (a mate relates two
+/// poses): each document places its copy where it stands by a loose
+/// `Place` and the named interim's world pin, where one edit minted
+/// the placement holding its world pin, so the placement's id and every
+/// id drawn after it moved. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x093b_121e_cf25_d2bb),
-        ("corner_table", 0x0dab_8120_ac1a_23b9),
-        ("cut_cylinder", 0x2346_bf6f_fea8_eda4),
-        ("boss_union", 0xb1d9_d2ed_e8ae_2ffb),
-        ("kitchen_sink", 0x210d_f516_2a4c_c228),
+        ("die", 0xb0ac_b6ff_5b86_687f),
+        ("corner_table", 0x4d24_cb55_a481_538d),
+        ("cut_cylinder", 0x3e5f_559f_058c_1664),
+        ("boss_union", 0x456c_0507_7a29_9842),
+        ("kitchen_sink", 0x1032_8a96_fb12_9d02),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

@@ -24,17 +24,16 @@
 
 use crate::fixture;
 use editor_core::ExtrudeSide;
-use editor_core::Formula;
 
 use std::collections::BTreeMap;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, ContentPin, DocRef, DocumentId, EvalOptions,
-    MateFrame, MatePrimitive, MateReach, Node, NodeErrorKind, NodeResult, PartFault, PartResolver,
-    ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFailure, ResolveFault, mate_reach, product,
+    CapEnd, ContactClass, ContentPin, Coord, DocEdit, DocRef, DocumentId, EvalOptions, MateReach,
+    Node, NodeErrorKind, NodeResult, PartFault, PartResolver, ProfileDoc, ReachRefusal,
+    RecipeNodeId, ResolveFailure, ResolveFault, SlideAxis, Value, mate_reach, product,
 };
 use fixture::resolver::{PartStore, with_resolver};
-use fixture::{at_the_door, insert, len, on_frame, run, square};
+use fixture::{insert, len, on_frame, run, square, step};
 use geom_core::Tol;
 use std::sync::Arc;
 use test_utils::own_thread::on_the_smallest_stack;
@@ -123,23 +122,42 @@ fn leaf_cap(leaf: &ProfileDoc, block: RecipeNodeId, end: CapEnd) -> editor_core:
     editor_core::FaceName::new(cap.in_copy(copy)).expect("a cap is a face")
 }
 
-/// A document whose one instance, of `below`, it places in its world.
+/// A document whose one instance, of `below`, is loose: what the
+/// descent refuses is asked of it, and nothing of its place.
 fn instantiating(label: &str, below: DocRef) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    // An instance is its own placement, pinned to the world: a `Place`
-    // over it would copy the whole part a second time at every level.
     insert(doc, Node::instantiate_part(below))
 }
 
+/// `instance` pinned where its body stands: the named interim's world
+/// pin (stage 3 C), which reads nothing, so the copy is the part's at
+/// the identity whether or not its part evaluates.
+fn world_pinned(doc: ProfileDoc, instance: RecipeNodeId) -> ProfileDoc {
+    step(
+        doc,
+        DocEdit::PinWhereItStands {
+            placement: instance,
+        },
+    )
+    .0
+}
+
+/// [`instantiating`], its instance [`world_pinned`].
+fn instantiating_pinned(label: &str, below: DocRef) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, instance) = instantiating(label, below);
+    (world_pinned(doc, instance), instance)
+}
+
 /// A store holding the leaf and `levels` documents above it, each
-/// instantiating the one below, and the references it answers: the
-/// leaf's first, the topmost document's last.
+/// pinning an instance of the one below to its world, and the
+/// references it answers — the leaf's first, the topmost document's
+/// last.
 fn chain(levels: usize) -> (PartStore, Vec<DocRef>) {
     let mut store = PartStore::new();
     let mut refs = vec![store.insert(leaf(), Tol::witness())];
     for level in 1..=levels {
         let below = *refs.last().expect("the leaf is stored");
-        let (doc, _) = instantiating(&format!("part-depth-level-{level}"), below);
+        let (doc, _) = instantiating_pinned(&format!("part-depth-level-{level}"), below);
         refs.push(store.insert(doc, Tol::witness()));
     }
     (store, refs)
@@ -247,7 +265,7 @@ fn the_refused_chain_flattened_by_one_level_evaluates_at_the_bound() {
         let (store, refs) = chain(BOUND);
         // One level flatter: the top skips the topmost stored level.
         let flattened_ref = refs[refs.len() - 2];
-        let (top, instance) = instantiating("part-depth-flattened-top", flattened_ref);
+        let (top, instance) = instantiating_pinned("part-depth-flattened-top", flattened_ref);
         let ev = run(&top, &resolving(store));
         assert!(
             matches!(ev.result(instance), Some(NodeResult::Ok(_))),
@@ -266,7 +284,7 @@ fn the_refused_chain_flattened_by_one_level_evaluates_at_the_bound() {
         assert_eq!(
             volume(&body).to_bits(),
             volume(&leaf_body).to_bits(),
-            "BOUND unplaced instances carry the leaf through bit for bit"
+            "BOUND instances pinned at the identity carry the leaf through bit for bit"
         );
     });
 }
@@ -303,8 +321,7 @@ fn unpinned_ref(label: &str) -> DocRef {
     }
 }
 
-/// A document whose nodes instantiate `below`, in order, each placed
-/// in its world.
+/// A document whose nodes instantiate `below`, in order, each loose.
 fn instantiating_all(label: &str, below: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
@@ -316,6 +333,13 @@ fn instantiating_all(label: &str, below: &[DocRef]) -> (ProfileDoc, Vec<RecipeNo
     (doc, ids)
 }
 
+/// [`instantiating_all`], each instance [`world_pinned`].
+fn instantiating_all_pinned(label: &str, below: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, ids) = instantiating_all(label, below);
+    let doc = ids.iter().fold(doc, |doc, &id| world_pinned(doc, id));
+    (doc, ids)
+}
+
 /// A refusal as a surface draws it: its own sentence, then each
 /// carried level's line.
 fn drawn(kind: &NodeErrorKind) -> Vec<String> {
@@ -324,8 +348,9 @@ fn drawn(kind: &NodeErrorKind) -> Vec<String> {
         .collect()
 }
 
-/// **The loop check runs before the depth check.** A chain whose last
-/// document, `BOUND` documents down, instantiates the first again is
+/// **The loop check runs before the depth check.** A chain of
+/// documents, each pinning its instance of the next to its world, whose
+/// last document, `BOUND` documents down, instantiates the first again is
 /// refused as the loop it is; the same loop closing one document lower
 /// is past the bound first, and refuses `DepthExceeded`.
 #[test]
@@ -338,7 +363,8 @@ fn a_loop_closing_at_the_bound_is_named_as_a_loop_and_one_past_it_is_too_deep() 
             let mut store = Unpinned::default();
             for (i, r) in refs.iter().enumerate() {
                 let next = refs.get(i + 1).copied().unwrap_or(refs[0]);
-                let (doc, _) = instantiating_all(&format!("part-depth-loop-{}", i + 1), &[next]);
+                let (doc, _) =
+                    instantiating_all_pinned(&format!("part-depth-loop-{}", i + 1), &[next]);
                 store.0.insert(*r, doc);
             }
             let (top, ids) = instantiating_all("part-depth-loop-top", &[refs[0]]);
@@ -376,8 +402,8 @@ fn a_loop_closing_at_the_bound_is_named_as_a_loop_and_one_past_it_is_too_deep() 
 }
 
 /// **Every row a nested document reads is the one its own evaluation
-/// produces.** Below the top, `mixed` instantiates a healthy part
-/// twice, a part whose own part is missing, a missing part, and
+/// produces.** Below the top, `mixed` pins to its world a healthy
+/// part twice, a part whose own part is missing, a missing part, and
 /// itself; each is decided against `mixed`'s chain before `mixed`
 /// evaluates. The refusal the top carries up is drawn exactly as
 /// `mixed`'s own evaluation draws the node it names, and the healthy
@@ -388,13 +414,13 @@ fn below_the_top_a_documents_rows_are_the_ones_its_own_evaluation_produces() {
     let healthy = unpinned_ref("part-descent-healthy");
     store.0.insert(healthy, leaf());
     let hollow = unpinned_ref("part-descent-hollow");
-    let (hollow_doc, _) = instantiating_all(
+    let (hollow_doc, _) = instantiating_all_pinned(
         "part-descent-hollow",
         &[unpinned_ref("part-descent-hollow-missing")],
     );
     store.0.insert(hollow, hollow_doc);
     let mixed = unpinned_ref("part-descent-mixed");
-    let (mixed_doc, _) = instantiating_all(
+    let (mixed_doc, mixed_ids) = instantiating_all(
         "part-descent-mixed",
         &[
             healthy,
@@ -404,6 +430,19 @@ fn below_the_top_a_documents_rows_are_the_ones_its_own_evaluation_produces() {
             mixed,
         ],
     );
+    // Each copy in `mixed`'s world: the healthy ones pinned over their
+    // geometry at the identity, the rest nominally.
+    let healthy_only = {
+        let mut only = Unpinned::default();
+        only.0.insert(healthy, leaf());
+        only.options()
+    };
+    let mixed_doc = mixed_ids[..2].iter().fold(mixed_doc, |doc, &id| {
+        fixture::pinned(doc, id, &healthy_only)
+    });
+    let mixed_doc = mixed_ids[2..]
+        .iter()
+        .fold(mixed_doc, |doc, &id| world_pinned(doc, id));
     store.0.insert(mixed, mixed_doc.clone());
     let (top, ids) = instantiating_all("part-descent-mixed-top", &[mixed]);
     let opts = store.options();
@@ -433,92 +472,99 @@ fn stored(store: &mut PartStore, leaf: (ProfileDoc, RecipeNodeId)) -> Stored {
     (store.insert(leaf.0.clone(), Tol::witness()), leaf)
 }
 
-fn frame(origin: [f64; 3]) -> MateFrame<Formula> {
-    MateFrame::authored(
-        origin,
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        geom_core::Tol::witness(),
-    )
-    .expect("a definite frame")
+/// A stored leaf: its reference, and its document with its block.
+type Stored = (DocRef, (ProfileDoc, RecipeNodeId));
+
+/// `label`'s document with an instance of `first` pinned to its world
+/// at the identity (`authoring` resolving it), and an instance of
+/// `second`, loose until a constraint is added to it.
+fn first_pinned(
+    label: &str,
+    first: DocRef,
+    second: DocRef,
+    authoring: &EvalOptions,
+) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, mut ids) = instantiating_all(label, &[first]);
+    let doc = fixture::pinned(doc, ids[0], authoring);
+    let (doc, placed) = insert(doc, fixture::mated_instance(second));
+    ids.push(placed);
+    (doc, ids)
 }
 
 /// A document instantiating `first` and `second` — each a reference
 /// with the block its caps are named on — `first` pinned to the world
-/// and `second` placed by a mate onto it, admitted at the constraint
-/// door over `authoring`'s reach.
-/// A stored leaf: its reference, and its document with its block.
-type Stored = (DocRef, (ProfileDoc, RecipeNodeId));
-
+/// and `second` seated on its top cap, square, by a rest and a zero
+/// value on each freedom it leaves.
 fn mated(
     label: &str,
     (first, (first_doc, first_block)): Stored,
     (second, (second_doc, second_block)): Stored,
     authoring: &EvalOptions,
 ) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, mut ids) = instantiating_all(label, &[first]);
-    let (doc, placed) = insert(doc, fixture::mated_instance(second));
-    ids.push(placed);
-    let mate = fixture::mate(
-        fixture::head(
-            leaf_cap(&first_doc, first_block, CapEnd::End)
-                .in_part(ids[0])
-                .into_name(),
-        ),
+    let (doc, ids) = first_pinned(label, first, second, authoring);
+    let mate = fixture::rest(
         fixture::head(
             leaf_cap(&second_doc, second_block, CapEnd::Start)
                 .in_part(ids[1])
                 .into_name(),
         ),
+        fixture::head(
+            leaf_cap(&first_doc, first_block, CapEnd::End)
+                .in_part(ids[0])
+                .into_name(),
+        ),
         ContactClass::Rest,
-        Alignment {
-            a: frame([0.0, 0.0, 1.0]),
-            b: frame([0.0; 3]),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Aligned,
-            clocking: Some(0.0),
-        },
     );
-    let reach = mate_reach::<f64>(authoring, Tol::witness());
-    let (doc, _) = at_the_door(&doc, &reach, mate).unwrap_or_else(|(_, f)| panic!("{f}"));
+    let (doc, mate) = fixture::constrain_at(doc, ids[1], mate);
+    let doc = [
+        (Coord::Slide(SlideAxis::X), len(0.0)),
+        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Spin, fixture::ang(0.0)),
+    ]
+    .into_iter()
+    .fold(doc, |doc, (coord, by)| {
+        fixture::step(
+            doc,
+            DocEdit::AddValue {
+                placement: mate.placement,
+                value: Box::new(Value {
+                    mate: mate.id,
+                    coord,
+                    by,
+                }),
+                fresh: Vec::new(),
+            },
+        )
+        .0
+    });
     (doc, ids)
 }
 
 /// A document instantiating `first` — a reference with the block its
 /// caps are named on — pinned to the world, and `second` placed by one
-/// constraint from `first`'s top cap to `second`'s own copy, admitted at
-/// the constraint door over `authoring`'s reach.
-fn placed_on_copy(
+/// rest of its own copy's bottom cap, as `second`'s leaf names it, on
+/// `first`'s top cap.
+fn rested_on_first(
     label: &str,
     (first, (first_doc, first_block)): Stored,
-    second: DocRef,
+    (second, (second_doc, second_block)): Stored,
     authoring: &EvalOptions,
 ) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, mut ids) = instantiating_all(label, &[first]);
-    let (doc, placed) = insert(doc, fixture::mated_instance(second));
-    ids.push(placed);
-    let mate = editor_core::Mate {
-        a: editor_core::SideRead::Face(
-            fixture::head(
-                leaf_cap(&first_doc, first_block, CapEnd::End)
-                    .in_part(ids[0])
-                    .into_name(),
-            )
-            .into(),
+    let (doc, ids) = first_pinned(label, first, second, authoring);
+    let mate = fixture::rest(
+        fixture::head(
+            leaf_cap(&second_doc, second_block, CapEnd::Start)
+                .in_part(ids[1])
+                .into_name(),
         ),
-        b: editor_core::SideRead::Copy,
-        class: ContactClass::Rest,
-        alignment: Alignment {
-            a: frame([0.0, 0.0, 1.0]),
-            b: frame([0.0; 3]),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Aligned,
-            clocking: Some(0.0),
-        },
-    };
-    let reach = mate_reach::<f64>(authoring, Tol::witness());
-    let (doc, _) =
-        fixture::at_the_door_of(&doc, &reach, placed, mate).unwrap_or_else(|(_, f)| panic!("{f}"));
+        fixture::head(
+            leaf_cap(&first_doc, first_block, CapEnd::End)
+                .in_part(ids[0])
+                .into_name(),
+        ),
+        ContactClass::Rest,
+    );
+    let (doc, _) = fixture::constrain_at(doc, ids[1], mate);
     (doc, ids)
 }
 
@@ -540,8 +586,9 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
         &with_resolver(store.clone()),
     );
     let assembly_ref = store.insert(assembly.clone(), Tol::witness());
-    let (top, top_ids) = instantiating_all("part-descent-mated-top", &[assembly_ref]);
     let opts = with_resolver(store);
+    let (top, top_ids) = instantiating_all("part-descent-mated-top", &[assembly_ref]);
+    let top = fixture::pinned(top, top_ids[0], &opts);
 
     let own = run(&assembly, &opts);
     for id in &ids {
@@ -574,10 +621,9 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
 /// **A part no instance asks for is evaluated, and its failure reaches
 /// nothing.** `holder` pins an instance of a part the store cannot
 /// resolve to the world, and places a second instance, of `asked`, by
-/// a constraint from a face of the first to its own copy. A copy side
-/// reads no face, so the solve forms no lever for `asked`, and the face
-/// side's part refuses: the constraint faults and nothing asks for
-/// `asked`. Its census evaluates it anyway, with the two documents
+/// a rest on a face of the first. The first refuses, so the second,
+/// which reads it, is poisoned before it evaluates, and nothing asks
+/// for `asked`. Its census evaluates it anyway, with the two documents
 /// under it, whether `holder` is evaluated at the top or below it.
 /// Whether that subtree is healthy or ends in a missing document, the
 /// top's refusal is drawn the same, and it is the one `holder`'s own
@@ -590,10 +636,10 @@ fn a_part_no_instance_asks_for_is_evaluated_and_its_failure_reaches_nothing() {
     let asked_ref = asked.0;
     // `lost` is pinned to the world, `asked` the copy the constraint
     // places.
-    let (holder, ids) = placed_on_copy(
+    let (holder, ids) = rested_on_first(
         "part-descent-holder",
         lost,
-        asked.0,
+        asked,
         &with_resolver(authoring),
     );
     let holder_ref = unpinned_ref("part-descent-holder");

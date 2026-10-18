@@ -23,6 +23,7 @@
 //! D2 bump: the tool plane's height (mid-DAG — its cone is the plane,
 //! the split and the union; the pattern chain is reused).
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::{
     Dimension, DocEdit, EntityKind, Formula, FreeVar, Node, PartSelect, PatternKind, RecipeNodeId,
@@ -133,8 +134,8 @@ pub fn document() -> CorpusDoc {
             angle: ang(0.0),
         },
     ));
-    r.place(whole);
-    r.place(lifted);
+    r.place_part(whole);
+    r.place_part(lifted);
 
     CorpusDoc {
         name: "part_select",

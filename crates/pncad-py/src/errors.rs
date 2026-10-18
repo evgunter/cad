@@ -815,12 +815,12 @@ impl ValidationRefusal {
 /// Every variant but [`Self::NameSerialize`] carries the KERNEL VALUE
 /// behind it, and that is the rule `crate::py::doc`'s boundary raise
 /// states: where the value is a kernel enum ([`Self::PlacementRule`],
-/// [`Self::Label`]), the word is that enum's own map's, so a refusal a
-/// caller can reach through either door stays one word. The other three
-/// are one word each, minted in `crate::tags`: [`Self::NameSerialize`]
-/// because a `serde_json` failure has no arm anywhere, and
-/// [`Self::MateHead`] and [`Self::ParamName`] because each is one
-/// constructor's one refusal, with no enum arm to spell it.
+/// [`Self::Label`], [`Self::Pin`]), the word is that enum's own map's,
+/// so a refusal a caller can reach through either door stays one word.
+/// The other two are one word each, minted in `crate::tags`:
+/// [`Self::NameSerialize`] because a `serde_json` failure has no arm
+/// anywhere, and [`Self::ParamName`] because it is one constructor's
+/// one refusal, with no enum arm to spell it.
 #[derive(Debug, Clone, Copy)]
 pub enum BoundaryEdit<'a> {
     /// A stable name that would not serialize. The one arm with no
@@ -831,14 +831,11 @@ pub enum BoundaryEdit<'a> {
     /// A placement rule spelled through the wrong constructor, worded
     /// by the document layer's own fault map.
     PlacementRule(&'a pncad::document::PlacementRuleFault),
-    /// A mate head that is not a FACE. `Node.mate` takes names as
-    /// TEXT, so this boundary is one of the three that turn data into
-    /// names, and it is the door where `FaceName::new` is called: the
-    /// kernel expresses the rule in the TYPE of a head, which a
-    /// dynamically-typed caller cannot be held to by the compiler, so
-    /// the binding holds it here and answers with the constructor's
-    /// own refusal.
-    MateHead(&'a pncad::document::NotAFaceName),
+    /// A copy the "place part" gesture (`Doc.place_at`) could not
+    /// place over its geometry, worded by the kernel's own refusal
+    /// map: it did not evaluate, is no body, is placed already, or
+    /// offers no frame.
+    Pin(&'a pncad::document::PinRefusal),
     /// A text that is not a parameter name. `ParamName(text)` is the
     /// boundary that turns text into a name, and the document layer's
     /// one rule for one — an identifier an expression reads back — is

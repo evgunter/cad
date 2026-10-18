@@ -85,3 +85,13 @@ answered in that order to see any width.
 ## Home
 
 SYM — the tier's reach on a construction Ev asked for.
+
+## Note (2026-10-18, stage 3 C)
+
+With each link placed where it stands by the named interim's world pin
+(`DocEdit::PinWhereItStands`, PR #5267) rather than main's world-pin
+mate holding a literal placement, evaluation order moved and the first
+refusal over the whole study is the wedge (`dihedral_wedge`,
+`EdgeKey(1v1)`, sample 4) at two, three and four links alike; the cell
+gates that. The straddle itself is not shown gone, only no longer
+first, so this item stands.

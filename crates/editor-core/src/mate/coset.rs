@@ -20,10 +20,10 @@
 //! (`intent_s3_a_poses::the_subgroup_table_spans_the_intersection_of_every_pair`). No screw subgroup arises: the primitives'
 //! parallel-cylinder intersection is pure translation.
 //!
-//! The representative stage covers the pairs today's mates fold. A
-//! pair with a point's, a direction's or a pure translation group
-//! refuses there typed ([`FoldStop::NoRepresentative`]): no mate
-//! relates two such poses yet.
+//! The representative stage covers every pair: a ball's turn about a
+//! line or about a second ball is solved ([`ball_on_line`],
+//! [`ball_pair`]), and a group freeing every translation meets the
+//! other side at its anchor.
 //!
 //! # Why the intersection is two stages, not a table of formulas
 //!
@@ -258,22 +258,6 @@ impl SubgroupFamily {
             Self::Cylindrical | Self::PlaneTranslation => 2,
             Self::Prismatic | Self::Revolute => 1,
             Self::Trivial => 0,
-        }
-    }
-
-    /// Whether today's mates fold this family, so the representative
-    /// stage ([`intersect`]) constructs a coset of it: the closure of
-    /// the frame, axis and plane primitives.
-    #[must_use]
-    pub fn folded_by_mates(self) -> bool {
-        match self {
-            Self::Se3
-            | Self::Planar
-            | Self::Cylindrical
-            | Self::Prismatic
-            | Self::Revolute
-            | Self::Trivial => true,
-            Self::Spherical | Self::Parallel | Self::Translation | Self::PlaneTranslation => false,
         }
     }
 
@@ -514,16 +498,6 @@ pub enum FoldStop {
     /// The fold's arm is no lever an angle can be decided over at
     /// this band ([`Arm::decides_over`]); refused before any angle is.
     Unleverable(Box<LeverRefusal>),
-    /// The subgroups meet ([`intersect_subgroups`] answers), but the
-    /// representative stage has no construction for the pair: one of
-    /// them is a point's, a direction's or a pure translation group,
-    /// which no mate folds yet.
-    NoRepresentative {
-        /// The held side's family.
-        held: SubgroupFamily,
-        /// The added side's family.
-        added: SubgroupFamily,
-    },
 }
 
 impl From<Indeterminate> for FoldStop {
@@ -545,17 +519,14 @@ impl From<Indeterminate> for FoldStop {
 /// that product to the direction door, which squares it. An arm whose
 /// sixteenfold square is finite keeps every one of those finite, so
 /// such a margin is never infinite for want of range, which `Decide`
-/// would read as maximally definite. **One exception**: the clocking
-/// rider's roll (`Lever::Roll`, `mate/solve.rs`) levers the authored
-/// clocking unreduced, which no bound holds, so its margin can still
-/// overflow (`work/msolve/a-clocking-rider-is-levered-unreduced.md`).
+/// would read as maximally definite.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Arm(f64);
 
 impl Arm {
-    /// **The one door a lever is formed through**: the mated parts'
-    /// reach `parts` (`R_a + R_b`) plus the datum's own terms `datum`
-    /// ([`super::Alignment::lever_arm`]).
+    /// **The one door a lever is formed through**: the copy's reach
+    /// `parts` plus the mates' poses' own distances from their origins
+    /// `datum` (`mate::solve::bundle_arm`).
     ///
     /// # Errors
     ///
@@ -633,7 +604,7 @@ fn parallel<T: SolveScalar>(
     band: Band,
     arm: Arm,
 ) -> Result<Option<(UnitVec3<T>, T)>, Indeterminate> {
-    let levered = u.get().cross(v.get()) * T::from_f64(arm.get());
+    let levered = u.get().cross(v.get()) * T::from_computed(arm.get());
     match UnitVec3::new(levered, "mate_axes_parallel", band) {
         Ok(line) => Ok(Some((line, levered.norm()))),
         Err(UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength) => Ok(None),
@@ -660,7 +631,7 @@ fn perpendicular<T: SolveScalar>(
     Ok(
         match decide(
             "mate_axis_normal_perpendicular",
-            Margin::levered(cosine, T::from_f64(arm.get())),
+            Margin::levered(cosine, T::from_computed(arm.get())),
             band,
         )? {
             Sign::Zero => None,
@@ -1058,12 +1029,14 @@ fn table<T: SolveScalar>(
         | (g @ (Prismatic { .. } | PlaneTranslation { .. }), Translation) => not(g),
         (Translation, Revolute { .. }) | (Revolute { .. }, Translation) => not(Trivial),
         // 21. plane translation ∩ planar: both normals one, or the
-        //     slide along the line the planes meet in.
+        //     slide along the line the planes meet in, minted held
+        //     normal first as row 1's is, which the translation stage
+        //     crosses back into the held plane.
         (
             PlaneTranslation { normal: n1 },
             Planar { normal: n2 } | PlaneTranslation { normal: n2 },
         )
-        | (Planar { normal: n2 }, PlaneTranslation { normal: n1 }) => {
+        | (Planar { normal: n1 }, PlaneTranslation { normal: n2 }) => {
             match parallel(n1, n2, band, arm)? {
                 None => not(PlaneTranslation { normal: n1 }),
                 Some((direction, sine)) => (Prismatic { direction }, Separated::Sine(sine)),
@@ -1097,9 +1070,8 @@ fn table<T: SolveScalar>(
 /// [`Measured::clash`], so the number the sentence prints is the
 /// number the funnel decided on.
 ///
-/// At the solve's scalar; the arm is the reach's `f64` upper bound and
-/// an authored roll is the datum's own `f64`, so only what the solve
-/// computed is at `T`. The refusal quotes it at `f64`
+/// At the solve's scalar; the arm is the reach's `f64` upper bound, so
+/// only what the solve computed is at `T`. The refusal quotes it at `f64`
 /// ([`SolveScalar::quoted`]), the number the margin's own lane reads.
 #[derive(Debug, Clone, Copy)]
 pub(super) enum Measured<T: Real> {
@@ -1124,9 +1096,6 @@ impl<T: SolveScalar> Measured<T> {
             Self::Length(metres) => Clash::Length {
                 metres: metres.quoted(),
             },
-            Self::Lever(Lever::Roll { radians, arm }) => {
-                Clash::Levered(Lever::Roll { radians, arm })
-            }
             Self::Lever(Lever::Residual { value, arm }) => Clash::Levered(Lever::Residual {
                 value: value.quoted(),
                 arm,
@@ -1285,11 +1254,6 @@ pub fn intersect<T: SolveScalar>(
     if matches!(added.subgroup, Subgroup::Se3) {
         return Ok(held);
     }
-    if let (Some(h), Some(a)) = (held.subgroup.family(), added.subgroup.family())
-        && (!h.folded_by_mates() || !a.folded_by_mates())
-    {
-        return Err(FoldStop::NoRepresentative { held: h, added: a });
-    }
     let arm = arm
         .decides_over(band)
         .map_err(|refusal| FoldStop::Unleverable(Box::new(refusal)))?;
@@ -1327,6 +1291,21 @@ fn candidate_rotation<T: SolveScalar>(
     band: Band,
     arm: Arm,
 ) -> Result<Mat3<T>, FoldStop> {
+    use Subgroup::{Cylindrical, Revolute, Spherical};
+    // A ball frees every rotation but pins a point, so against a line
+    // or a second ball the rotation is solved, not taken from the other
+    // side: the other side's free turn about its own axis is what
+    // carries the ball's point where its own coset puts it.
+    match (held.subgroup, added.subgroup) {
+        (Spherical { .. }, Spherical { .. }) => return ball_pair(held, added, residual, band),
+        (Spherical { .. }, Cylindrical { .. } | Revolute { .. }) => {
+            return Ok(ball_on_line(held, added, residual, band)?);
+        }
+        (Cylindrical { .. } | Revolute { .. }, Spherical { .. }) => {
+            return Ok(ball_on_line(added, held, residual, band)?);
+        }
+        _ => {}
+    }
     let q1 = held.representative.linear;
     let q2 = added.representative.linear;
     Ok(
@@ -1453,6 +1432,113 @@ fn clocking_about<T: SolveScalar>(
     ))
 }
 
+/// **A ball on a line's coset, its turn about the line solved.**
+///
+/// The candidate is `h·R_l`, `h` a turn by `α` about the line `(c, u)`
+/// (and, for a cylindrical, a slide along it), and the ball asks that
+/// it carry the ball's own point back to `P`. The line's
+/// representative already carries that point to `w = R_l·R_b⁻¹(P)`,
+/// so `α` is the turn about `u` taking `w`'s radius onto `P`'s: one
+/// angle, closed form, as [`clocking_about`]'s.
+///
+/// Where the table put `P` on the line (a revolute residual), every
+/// turn keeps it there and the line's own rotation is taken. Where it
+/// did not, `P`'s radius is the offset that verdict decided nonzero;
+/// `w`'s is decided here, under `mate_ball_radius`, and on the line it
+/// has no angle to give: the line's rotation is taken and the
+/// membership check measures the radius mismatch. So the arctangent
+/// never reads the origin.
+///
+/// # Errors
+///
+/// [`Indeterminate`] when `w`'s radius lands in the band.
+fn ball_on_line<T: SolveScalar>(
+    ball: Coset<T>,
+    line: Coset<T>,
+    residual: Subgroup<T>,
+    band: Band,
+) -> Result<Mat3<T>, Indeterminate> {
+    let q = line.representative.linear;
+    let (Subgroup::Spherical { point }, Some(c), Rotations::About(u)) = (
+        ball.subgroup,
+        axis_point(line.subgroup),
+        line.subgroup.rotations(),
+    ) else {
+        unreachable!("a ball and a line: a spherical, and a cylindrical or revolute")
+    };
+    if !matches!(residual, Subgroup::Trivial) {
+        return Ok(q);
+    }
+    let u = u.get();
+    let w = (line.representative * ball.representative.inverse()).transform_point(point);
+    let from = (w - c).reject_from(u);
+    if decide("mate_ball_radius", Margin::norm3(from), band)? == Sign::Zero {
+        return Ok(q);
+    }
+    let d = point - c;
+    let to = d - u * d.dot(u);
+    Ok(Mat3::rotation_about(u, T::solve_atan2(from.cross(to).dot(u), from.dot(to))) * q)
+}
+
+/// **Two balls' cosets, the turn carrying one chord onto the other.**
+///
+/// The candidate keeps the held ball's point and turns the added
+/// ball's point about it: the held representative carries the added
+/// copy point to `w = R₁·R₂⁻¹(P₂)`, and the rotation taking `w − P₁`
+/// onto `P₂ − P₁` (about their cross product, by the angle between
+/// them) carries it home. The chords' lengths must agree, which the
+/// membership check measures.
+///
+/// Where the table found the two points one (a spherical residual),
+/// the held rotation is taken. Where it found them apart, it minted
+/// the chord's direction, which is taken here rather than decided
+/// again. Collinear chords have no cross product: the sense of `w − P₁`
+/// along the chord decides between no turn and a half-turn about a
+/// direction across the chord.
+///
+/// # Errors
+///
+/// [`FoldStop::Indeterminate`] when the turn's axis or its sense lands
+/// in the band.
+fn ball_pair<T: SolveScalar>(
+    held: Coset<T>,
+    added: Coset<T>,
+    residual: Subgroup<T>,
+    band: Band,
+) -> Result<Mat3<T>, FoldStop> {
+    let q = held.representative.linear;
+    let (Subgroup::Spherical { point: p1 }, Subgroup::Spherical { point: p2 }) =
+        (held.subgroup, added.subgroup)
+    else {
+        unreachable!("two balls: two sphericals")
+    };
+    let Subgroup::Revolute {
+        direction: chord, ..
+    } = residual
+    else {
+        return Ok(q);
+    };
+    let a = (held.representative * added.representative.inverse()).transform_point(p2) - p1;
+    let b = chord.get();
+    match UnitVec3::new(a.cross(b), "mate_ball_turn_axis", band) {
+        Ok(axis) => Ok(Mat3::rotation_about(
+            axis.get(),
+            T::solve_atan2(a.cross(b).dot(axis.get()), a.dot(b)),
+        ) * q),
+        Err(UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength) => {
+            match decide("mate_ball_turn_sense", Margin::of(a.dot(b)), band)? {
+                Sign::Negative => Ok(Mat3::rotation_about(
+                    chord.orthonormal_basis().0,
+                    T::from_f64(core::f64::consts::PI),
+                ) * q),
+                Sign::Zero | Sign::Positive => Ok(q),
+            }
+        }
+        Err(UnitVec3Error::Escalated(diag)) => Err(diag.into()),
+        Err(UnitVec3Error::NonFiniteLength) => Err(FoldStop::OutOfRange),
+    }
+}
+
 /// The point a subgroup's axis is pinned through, `None` for the
 /// point-free subgroups (whose membership states no position
 /// constraint at all).
@@ -1492,7 +1578,10 @@ fn candidate_translation<T: SolveScalar>(
     rotation: Mat3<T>,
     arm: Arm,
 ) -> Vec3<T> {
-    use Subgroup::{Cylindrical, Planar, Prismatic, Revolute, Trivial};
+    use Subgroup::{
+        Cylindrical, Parallel, Planar, PlaneTranslation, Prismatic, Revolute, Spherical,
+        Translation, Trivial,
+    };
     let a1 = rotation * held.representative.linear.transpose();
     let a2 = rotation * added.representative.linear.transpose();
     let q1 = held
@@ -1507,10 +1596,18 @@ fn candidate_translation<T: SolveScalar>(
         return q1;
     }
     let step = match (held.subgroup, added.subgroup, separated) {
+        // A held side freeing every translation (a direction's group, or
+        // the translations alone) meets the added side at its own
+        // anchor, which the added side holds by construction.
+        (Parallel { .. } | Translation, _, _) => delta,
         // Two planes meeting in the residual's line `d`: cross it
         // within the held plane, along `e = d × n`, to the added
         // plane. `m·e = d·(n × m)` is the sine the verdict levered.
-        (Planar { normal: n }, Planar { normal: m }, Separated::Sine(sine)) => {
+        (
+            Planar { normal: n } | PlaneTranslation { normal: n },
+            Planar { normal: m } | PlaneTranslation { normal: m },
+            Separated::Sine(sine),
+        ) => {
             let Prismatic { direction: d } = residual else {
                 unreachable!("two planes the table separates meet in its prismatic line")
             };
@@ -1520,13 +1617,13 @@ fn candidate_translation<T: SolveScalar>(
         // A line crossing the plane at the cosine the verdict decided:
         // the point where it does, either side held.
         (
-            Planar { normal: n },
+            Planar { normal: n } | PlaneTranslation { normal: n },
             Cylindrical { direction: u, .. } | Prismatic { direction: u },
             Separated::Cosine(cosine),
         ) => delta - u.get() * (n.get().dot(delta) / cosine),
         (
             Cylindrical { direction: u, .. } | Prismatic { direction: u },
-            Planar { normal: n },
+            Planar { normal: n } | PlaneTranslation { normal: n },
             Separated::Cosine(cosine),
         ) => u.get() * (n.get().dot(delta) / cosine),
         // A line the verdict called along the normal (a revolute
@@ -1534,13 +1631,15 @@ fn candidate_translation<T: SolveScalar>(
         // anchor's foot on the held plane, which is where the first
         // meets the plane and a point of the second. So is the point of
         // the plane nearest an added side that pins the translation.
-        (Planar { normal: n }, _, Separated::Not) => delta - n.get() * n.get().dot(delta),
+        (Planar { normal: n } | PlaneTranslation { normal: n }, _, Separated::Not) => {
+            delta - n.get() * n.get().dot(delta)
+        }
         // A held line along the normal of an added plane (a revolute
         // residual): the point where it crosses, the line being the
         // normal up to its sense.
         (
             Cylindrical { direction: u, .. } | Prismatic { direction: u },
-            Planar { normal: n },
+            Planar { normal: n } | PlaneTranslation { normal: n },
             Separated::Not,
         ) => u.get() * (u.get().dot(n.get()) * n.get().dot(delta)),
         // Two lines the table called non-parallel: the point of the
@@ -1561,7 +1660,7 @@ fn candidate_translation<T: SolveScalar>(
         // of the held line nearest it.
         (
             Cylindrical { direction: u, .. } | Prismatic { direction: u },
-            Revolute { .. } | Trivial,
+            Revolute { .. } | Spherical { .. } | Trivial,
             Separated::Not,
         ) => u.get() * u.get().dot(delta),
         (held_subgroup, added_subgroup, separated) => unreachable!(
@@ -1578,4 +1677,145 @@ fn candidate_translation<T: SolveScalar>(
 /// `a − b`, columnwise, in one written order (D9).
 fn sub<T: Real>(a: Mat3<T>, b: Mat3<T>) -> Mat3<T> {
     Mat3::from_cols(a.c0 - b.c0, a.c1 - b.c1, a.c2 - b.c2)
+}
+
+// ---- A value's freedom, inside a residual ----
+
+/// **The line a turn about `dir` must take to stay in `g`**
+/// (ruling C-2): `None` where `g` holds no rotation about that
+/// direction; `Some(Some(p))` where its rotations about it fix the
+/// line through `p`; `Some(None)` where any line along `dir` will do
+/// (`g` holds every translation across it).
+///
+/// # Errors
+///
+/// [`Indeterminate`] when the parallel verdict lands in the band.
+pub(crate) fn turn_line<T: SolveScalar>(
+    g: Subgroup<T>,
+    dir: UnitVec3<T>,
+    band: Band,
+    arm: Arm,
+) -> Result<Option<Option<Point3<T>>>, Indeterminate> {
+    let along = |axis: UnitVec3<T>| parallel(dir, axis, band, arm).map(|apart| apart.is_none());
+    Ok(match g {
+        Subgroup::Se3 => Some(None),
+        Subgroup::Spherical { point } => Some(Some(point)),
+        Subgroup::Planar { normal: axis } | Subgroup::Parallel { direction: axis } => {
+            along(axis)?.then_some(None)
+        }
+        Subgroup::Cylindrical { point, direction } | Subgroup::Revolute { point, direction } => {
+            along(direction)?.then_some(Some(point))
+        }
+        Subgroup::Prismatic { .. }
+        | Subgroup::Translation
+        | Subgroup::PlaneTranslation { .. }
+        | Subgroup::Trivial
+        | Subgroup::Empty => None,
+    })
+}
+
+/// **Whether `g` holds the translations along `v`** (ruling C-2).
+///
+/// # Errors
+///
+/// [`Indeterminate`] when the verdict lands in the band.
+pub(crate) fn slides_along<T: SolveScalar>(
+    g: Subgroup<T>,
+    v: UnitVec3<T>,
+    band: Band,
+    arm: Arm,
+) -> Result<bool, Indeterminate> {
+    Ok(match g {
+        Subgroup::Se3 | Subgroup::Parallel { .. } | Subgroup::Translation => true,
+        Subgroup::Planar { normal } | Subgroup::PlaneTranslation { normal } => {
+            perpendicular(v, normal, band, arm)?.is_none()
+        }
+        Subgroup::Cylindrical { direction, .. } | Subgroup::Prismatic { direction } => {
+            parallel(v, direction, band, arm)?.is_none()
+        }
+        Subgroup::Revolute { .. }
+        | Subgroup::Spherical { .. }
+        | Subgroup::Trivial
+        | Subgroup::Empty => false,
+    })
+}
+
+/// **What `g` leaves once a value fixes its turn about its rotations'
+/// direction**: `None` where the rest is no subgroup of the table (a
+/// ball's or a free body's turns, less one).
+pub(crate) fn after_turn<T: Real>(g: Subgroup<T>) -> Option<Subgroup<T>> {
+    match g {
+        Subgroup::Planar { normal } => Some(Subgroup::PlaneTranslation { normal }),
+        Subgroup::Cylindrical { direction, .. } => Some(Subgroup::Prismatic { direction }),
+        Subgroup::Revolute { .. } => Some(Subgroup::Trivial),
+        Subgroup::Parallel { .. } => Some(Subgroup::Translation),
+        Subgroup::Se3
+        | Subgroup::Spherical { .. }
+        | Subgroup::Prismatic { .. }
+        | Subgroup::Translation
+        | Subgroup::PlaneTranslation { .. }
+        | Subgroup::Trivial
+        | Subgroup::Empty => None,
+    }
+}
+
+/// **The line across two directions** — their cross product minted at
+/// `arm`'s lever, as [`parallel`] decides it — or `None` where they are
+/// parallel.
+///
+/// # Errors
+///
+/// [`Indeterminate`] when the verdict lands in the band.
+pub(crate) fn across<T: SolveScalar>(
+    u: UnitVec3<T>,
+    v: UnitVec3<T>,
+    band: Band,
+    arm: Arm,
+) -> Result<Option<UnitVec3<T>>, Indeterminate> {
+    Ok(parallel(u, v, band, arm)?.map(|(line, _)| line))
+}
+
+/// **Whether a translation along `r` moves a measure along `v`**: `v`
+/// is not perpendicular to `r`, decided over `arm` ([`perpendicular`]).
+///
+/// # Errors
+///
+/// [`Indeterminate`] when the verdict lands in the band.
+pub(crate) fn reaches<T: SolveScalar>(
+    v: UnitVec3<T>,
+    r: UnitVec3<T>,
+    band: Band,
+    arm: Arm,
+) -> Result<bool, Indeterminate> {
+    Ok(perpendicular(v, r, band, arm)?.is_some())
+}
+
+/// **Whether two directions are parallel**, decided over `arm`
+/// ([`parallel`]'s verdict as a yes or no).
+///
+/// # Errors
+///
+/// [`Indeterminate`] when the verdict lands in the band.
+pub(crate) fn directions_parallel<T: SolveScalar>(
+    u: UnitVec3<T>,
+    v: UnitVec3<T>,
+    band: Band,
+    arm: Arm,
+) -> Result<bool, Indeterminate> {
+    Ok(parallel(u, v, band, arm)?.is_none())
+}
+
+/// **Whether `p` lies on the line through `origin` along `direction`**
+/// ([`point_on_line`]).
+///
+/// # Errors
+///
+/// [`Indeterminate`] when the verdict lands in the band.
+pub(crate) fn on_the_line<T: SolveScalar>(
+    p: Point3<T>,
+    origin: Point3<T>,
+    direction: UnitVec3<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    point_on_line(p, origin, direction, band)
 }

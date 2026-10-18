@@ -14,9 +14,7 @@ use crate::common;
 use crate::common::{ang, insert_into, len, scl};
 
 use common::asm;
-use pncad::document::{
-    DocEdit, DocumentId, Formula, Mate, Node, PatternKind, ProfileDoc, SideRead,
-};
+use pncad::document::{DocumentId, Formula, Node, PatternKind, ProfileDoc};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
@@ -30,7 +28,7 @@ use viewer::session::{AtRestBadge, DocSession, SessionOp};
 fn read_below_pattern(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
     let mut asm = ProfileDoc::empty(DocumentId::derive("msolve5-viewer"), tol);
     let post = insert_into(&mut asm, crate::fixture::mated_instance(bench.post), tol);
-    let shelf = insert_into(&mut asm, Node::instantiate_part(bench.shelf), tol);
+    let shelf = asm::instance_at(&mut asm, bench.shelf, [0.0; 3], &bench.opts(), tol);
     let lifted = insert_into(
         &mut asm,
         Node::transform(
@@ -67,21 +65,18 @@ fn read_below_pattern(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
             },
             tol,
         );
-        common::edit_into(&mut asm, DocEdit::place_in_world(copy, None), tol);
+        asm = common::placed_read(&asm, copy.into(), &bench.opts(), tol).0;
     }
     let b = asm::in_part(shelf, &bench.shelf_bottom);
-    common::edit_into(
+    common::mate_into(
         &mut asm,
-        DocEdit::AddConstraint {
-            placement: post,
-            mate: Box::new(Mate {
-                a: SideRead::Face(common::head(asm::in_part(post, &bench.post_top)).into()),
-                b: SideRead::Face(common::head_at(lifted, b).into()),
-                class: ContactClass::Rest,
-                alignment: asm::middle_seat_alignment(),
-            }),
-            fresh: Vec::new(),
-        },
+        post,
+        crate::fixture::rest(
+            common::head(asm::in_part(post, &bench.post_top)),
+            common::head_at(lifted, b),
+            ContactClass::Rest,
+        ),
+        asm::middle_seat_values(),
         tol,
     );
     let mut ws = Workspace::open(&bench.dir).expect("the bench's workspace opens");
