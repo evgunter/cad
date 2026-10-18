@@ -32,20 +32,41 @@ on BOXES/CLEAVE/HONE ground (`boolean/boxes.rs`); announce it there.
 ## Closed
 
 `boolean::boxes::edge_rule_box` is the one `EdgeBoxRule → box` map. The
-box lane reads it at `f64` brackets (`edge_box`) and the census reads it
-at its own scalar (`edge_reach_of`). Each lane enters the rule's points,
-directions and lengths itself, as `axial_carrier` does. The conic arm's
-arithmetic is the lane's: the exact door for the box lane, `arc_extent`
-for the census. The spiric arm is `spiric_extent`, written once in
-`Span` arithmetic. The rounding is decided once, in `Span`'s docs: it is
-not directed on either lane, and the reader's pad covers it.
+box lane reads it at `f64` brackets (`edge_box`), and the census reads
+it at its own scalar in its frame (`edge_reach_of`). The conic arm's
+arithmetic is chosen by the lane: the exact door for the box lane,
+`arc_extent` for the census.
 
-The census reach was never rounded outward, on any arm, and every one of
-its readers takes it through a margin of band or pad size. So the census
-never needed a tighter box. It wrote its own copy because it cannot read
-`geom`'s `Bounds`-only door. The box lane's spiric box loses
-`spiric_arc_aabb`'s per-operation outward ulps (measured at 2–27 ulps of
-each end) and keeps its pad, as every face arm already does. The census
-reads `AxialCarrier::Unclaimable` as the enum.
-`the_two_spiric_box_readings_agree_but_for_the_rounding` pins all three
-relations.
+The spiric arm is `geom::spiric_period_box` on both lanes. It is also
+the construction `geom`'s own `spiric_arc_aabb` reads, and so
+`sweep::blend::surgery::boxed_reach` reads it too. One construction
+remains, and the duplicate is gone.
+
+The census's unrounded box was never meant to be tighter: it was a copy
+the census needed because it cannot read a `Bounds`-only door. The
+review of PR 5308 showed that neither unrounded copy was sound near the
+fold. That was true of the census arm already on main, and of the box
+lane in this PR's first pass. `f_min` is the root of a cancelling
+difference, so radicand rounding at the scale of `ρ²` moves it by about
+`ρ²·u/(2·f_min)`, far beyond any pad.
+
+So the rounding is decided once, inside the construction. Each radicand
+is widened by `8·u·W` before its root, each coordinate end by `32·u·S`,
+and the box encloses the period at every scalar by itself, with no pad.
+
+What moved:
+- Both lanes' spiric boxes widen.
+- Off the fold the widening is about `32·u·S`.
+- Near the fold it is up to about `8·u·W / (2·f_min)`: 2.5e-7 m on the
+  review's fixture, which the unrounded box missed by 1.2e-8 m.
+- No public door reaches either lane with a spiric, so no census
+  finding or pruning count moves.
+
+`the_spiric_box_holds_its_exact_extremes_within_its_charge` holds both
+lanes and `geom`'s door to an exact-reference box in both directions,
+over admitted spirics at scales 10 and 100 near the fold.
+`the_spiric_period_boxs_inner_root_clamps_in_its_charge_and_poisons_past_it`
+pins the root's two arms. The census reads `AxialCarrier::Unclaimable`
+as the enum.
+
+Filed: `work/boxes/census-lane-span-extents-are-not-self-enclosing`.

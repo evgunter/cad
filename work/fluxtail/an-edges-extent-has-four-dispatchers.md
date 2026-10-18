@@ -71,7 +71,11 @@ So it is a fifth dispatcher, and a client of the home this row owes.
 
 `topo::boolean::boxes::edge_rule_box` is now the one `EdgeBoxRule → box`
 map inside `topo`'s two box lanes (`edge_box` and the census's
-`edge_reach_in`), and the census's copy of the spiric arm is gone. The
+`edge_reach_in`), and the census's copy of the spiric arm is gone. A
+spiric's box has one construction everywhere: `geom::spiric_period_box`,
+which charges for its own rounding. `topo`'s two lanes read it,
+`geom::curves::boxes::spiric_arc_aabb` reads it, and so
+`sweep::blend::surgery::boxed_reach` reads it through that door. The
 sweep for that change found these other dispatchers for this row's
 question, outside that map:
 

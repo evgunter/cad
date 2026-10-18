@@ -4384,9 +4384,8 @@ fn edge_reach_of<T: Decide>(
     crate::boolean::boxes::edge_rule_box(
         crate::boolean::boxes::edge_box_rule(body.edge_curve_linked(ek, e).certified()),
         (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus")),
-        |p| SpanBox::point(frame.point(p)),
-        |v| SpanBox::vector(frame.vector(v)),
-        Span::exact,
+        frame,
+        SpanBox::point,
         conic,
     )
     .map(span_pts)

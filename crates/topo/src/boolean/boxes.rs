@@ -148,12 +148,13 @@
 //! reach. **Neither re-derives an
 //! extent**: the per-kind arithmetic lives once, in [`slab_extent`],
 //! [`cone_frustum_extent`], [`ball_extent`], [`torus_extent`],
-//! [`torus_window_extent`], [`torus_rect_extent`], [`conic_extent`],
-//! [`spiric_extent`] and [`arc_extent`], written
+//! [`torus_window_extent`], [`torus_rect_extent`], [`conic_extent`]
+//! and [`arc_extent`], written
 //! against [`Span`] so a lane on the [`Bounds`] allowlist and a lane
 //! off it can both enter it — the first with `[lo(), hi()]`
 //! brackets at `f64`, the second with degenerate spans at its own
-//! `T`. The one place the two lanes read two arithmetics of one rule
+//! `T` — and the spiric's in `geom::spiric_period_box`, which both
+//! lanes and `geom`'s own spiric door read at the rule's scalar. The one place the two lanes read two arithmetics of one rule
 //! is the conic EDGE box, and the reason is the scalar: [`edge_box`]
 //! reads `geom`'s exact arc door, which needs an ordering, and the
 //! census reads [`arc_extent`], which needs none ([`EdgeBoxRule`]'s
@@ -236,13 +237,16 @@ pub(crate) const BOX_CYLINDER_AXIS: &str = "bool_box_cylinder_axis";
 /// The arithmetic here is interval arithmetic, so a description whose
 /// coordinates are themselves enclosures (an `Interval` scalar's) is
 /// enclosed rather than sampled at one arbitrary endpoint. Rounding
-/// is NOT directed, on either lane, and that is decided here once: the
-/// `f64` lane's last step is [`Aabb::padded`], whose outward ulp plus
-/// [`sweep_pad`] dominates the arithmetic's own error, and the census
-/// lane's readers take its boxes through a margin of the same size or
-/// larger (the backstop's band-decided gap over [`sweep_pad`]-padded
-/// boxes, the split gate's [`sweep_pad`], the containment probe's
-/// metre of room).
+/// is NOT directed. No extent written here takes the root of a
+/// cancelling difference, so the arithmetic's own error is a few ulps
+/// of the box's scale; the one that would (the spiric's) lives in
+/// `geom::spiric_period_box`, which charges for its rounding and
+/// encloses by itself. The `f64` lane's last step is [`Aabb::padded`],
+/// whose outward ulp plus [`sweep_pad`] dominates those few ulps. The
+/// census lane adds no pad, so at `f64` its boxes may fall short of the
+/// locus by them: that this costs nothing rests on what each census
+/// reader compares the box against, which nothing here can check
+/// (`census-lane-span-extents-are-not-self-enclosing`).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Span<T> {
     /// The enclosure's lower end.
@@ -313,17 +317,6 @@ impl<T: Real> Span<T> {
     /// An UPPER bound on `|x|` over the span.
     fn abs_max(self) -> T {
         self.hi.max(-self.lo)
-    }
-
-    /// The square root of the span's non-negative part: the lower end
-    /// clamps at zero while the upper end is non-negative, and a span
-    /// wholly below zero is poison at both ends (the clamp is
-    /// `min(max(lo, 0), hi)`, which needs no comparison).
-    fn sqrt_nonneg(self) -> Self {
-        Self {
-            lo: self.lo.max(T::zero()).min(self.hi).sqrt(),
-            hi: self.hi.sqrt(),
-        }
     }
 }
 
@@ -2315,7 +2308,7 @@ pub(crate) enum EdgeBoxRule<'c, T: Real> {
     ConicAmplitude(ConicArc<'c, T>),
     /// No cheap superset exists — see the type docs.
     NoSoundBox,
-    /// The spiric's whole-period box ([`spiric_extent`], a C10
+    /// The spiric's whole-period box (`geom::spiric_period_box`, a C10
     /// superset), hulled with the chord. No axial projection is written
     /// for it ([`AxialCarrier::Unclaimable`]); reachable only from its
     /// own rows today, because the operand gate refuses the kind. Past
@@ -2362,24 +2355,25 @@ pub(crate) struct ConicArc<'c, T: Real> {
 }
 
 /// [`EdgeBoxRule`] as a box reads it: **the one map from a rule to an
-/// edge's extent**, each lane entering the rule's points, directions
-/// and lengths into its own spans (`point`, `vector`, `scalar`) and the
-/// edge's two ends already entered (`ends`), exactly as
-/// [`axial_carrier`] does for an axial span. `None` where the rule
-/// claims nothing.
+/// edge's extent**, read in `frame` at the rule's own scalar, each lane
+/// entering the result into its own spans (`enter`: a degenerate span
+/// at the census's scalar, the `[lo(), hi()]` bracket at the bracket
+/// lane's). `ends` are the edge's two ends, already entered. `None`
+/// where the rule claims nothing.
 ///
 /// The conic arm's arithmetic is the lane's (`conic`), because it is
 /// chosen by what the scalar can answer ([`EdgeBoxRule`]'s conic
 /// bullet): [`edge_box`] reads `geom`'s exact door, the census reads
-/// [`arc_extent`]. Every other arm is written here once, in [`Span`]
-/// arithmetic, so its rounding is the module's ([`Span`]'s docs): not
-/// directed, and covered by the pad its reader adds.
+/// [`arc_extent`]. The spiric arm is `geom::spiric_period_box` on both
+/// lanes — the construction `geom`'s own `spiric_arc_aabb` reads —
+/// which encloses the period at every scalar by itself: its root of a
+/// cancelling difference is charged for its rounding, which no reader's
+/// pad would cover near the fold.
 pub(crate) fn edge_rule_box<'c, T: Real, S: Real>(
     rule: EdgeBoxRule<'c, T>,
     ends: (SpanBox<S>, SpanBox<S>),
-    point: impl Fn(Point3<T>) -> SpanBox<S>,
-    vector: impl Fn(Vec3<T>) -> SpanBox<S>,
-    scalar: impl Fn(T) -> Span<S>,
+    frame: &BoxFrame<T>,
+    enter: impl Fn(Point3<T>) -> SpanBox<S>,
     conic: impl FnOnce(&ConicArc<'c, T>) -> SpanBox<S>,
 ) -> Option<SpanBox<S>> {
     let chord = ends.0.hull(ends.1);
@@ -2394,50 +2388,19 @@ pub(crate) fn edge_rule_box<'c, T: Real, S: Real>(
             major_radius,
             minor_radius,
             offset,
-        } => spiric_extent(
-            &point(center + u_ref * offset),
-            &vector(axis.cross(u_ref)),
-            &vector(axis),
-            scalar(major_radius),
-            scalar(minor_radius),
-            scalar(offset),
-        ),
+        } => {
+            let (lo, hi) = geom::spiric_period_box(
+                frame.point(center),
+                frame.vector(axis),
+                frame.vector(u_ref),
+                major_radius,
+                minor_radius,
+                offset,
+            );
+            enter(lo).hull(enter(hi))
+        }
     };
     Some(arc.hull(chord))
-}
-
-/// **A spiric's whole-period box.** Per coordinate `e`:
-/// `base_e + m_e·[f_min, f_max] ± |a_e|·r`, with `base = c + n·d` the
-/// cutting plane's foot, `m = axis × u_ref`, `a = axis`, and
-/// `f_min/f_max = √(ρ_min/max² − d²)` at `ρ_min/max = R ∓ r` — the
-/// range of `f` over a period, since `f` is monotone in `ρ` and
-/// `ρ ∈ [R − r, R + r]`; the `sin v` channel takes its whole range.
-/// The construction `geom::curves::boxes::spiric_arc_aabb` states, in
-/// [`Span`] arithmetic so both box lanes enter it. A radicand whose
-/// span reaches below zero clamps `f_min` at zero (the one-oval
-/// regime, where `f` is zero at the fold — still a superset); one
-/// wholly below zero, and any poison, flow through as NaN ends.
-pub(crate) fn spiric_extent<X: Real>(
-    base: &SpanBox<X>,
-    m: &SpanBox<X>,
-    axis: &SpanBox<X>,
-    major: Span<X>,
-    minor: Span<X>,
-    offset: Span<X>,
-) -> SpanBox<X> {
-    let (rho_min, rho_max) = (major.sub(minor), major.add(minor));
-    let d2 = offset.mul(offset);
-    let f = Span {
-        lo: rho_min.mul(rho_min).sub(d2).sqrt_nonneg().lo,
-        hi: rho_max.mul(rho_max).sub(d2).sqrt_nonneg().hi,
-    };
-    let per =
-        |b: Span<X>, me: Span<X>, ae: Span<X>| b.add(me.mul(f)).widen(ae.mul(minor).abs_max());
-    SpanBox {
-        x: per(base.x, m.x, axis.x),
-        y: per(base.y, m.y, axis.y),
-        z: per(base.z, m.z, axis.z),
-    }
 }
 
 /// The [`EdgeBoxRule`] for an edge's certified curve — the single
@@ -2555,12 +2518,8 @@ pub(crate) fn edge_box<T: Decide + Bounds>(body: &Body<T>, edge: EdgeKey, pad: f
     edge_rule_box(
         edge_box_rule(certified),
         (bracket_point(a), bracket_point(b)),
+        &BoxFrame::World,
         bracket_point,
-        bracket_vector,
-        |x| Span {
-            lo: x.lo(),
-            hi: x.hi(),
-        },
         conic,
     )
     .map_or_else(Aabb::poison, |s| aabb_of(s).padded(pad))
@@ -3860,8 +3819,11 @@ pub(crate) mod tests {
     ///    not a survey, is what carries the claim out of crate.
     /// 2. A door reading a box through a helper defined here: a
     ///    wrapper's own callers are invisible to a textual walk.
-    /// 3. A call spelled through an alias or a re-export, or one a
-    ///    macro assembles.
+    /// 3. A door under another name: a `use … as` rename, or the
+    ///    function used as a value (`.map(edge_box)`, a fn pointer).
+    ///    A module alias or a re-export still spells the name and its
+    ///    `(` or `::<`, so it is counted; a call a macro assembles is
+    ///    not.
     ///
     /// **What it cannot match that is a FINDING rather than a
     /// disclosure: the direction itself.** This pins where the doors
@@ -3880,10 +3842,11 @@ pub(crate) mod tests {
         // (`census::Candidates::build`, the pruning door) and
         // `collinear_overlaps`' `edge_box` read (the same pruning door),
         // three rule reads of its own and the edge reach's
-        // `edge_rule_box` read of the rule it took, and two that are not doors —
-        // two rows in its test module call `face_box` to pin what a
-        // described net carrying poison answers there. The number is stated with that content rather
-        // than filtered, because this pin's protection is that an
+        // `edge_rule_box` read of the rule it took, and two that are
+        // not doors — two rows in its test module call `face_box` to
+        // pin what a described net carrying poison answers there. The
+        // number is stated with that content rather than filtered,
+        // because this pin's protection is that an
         // occurrence cannot arrive, leave or move unnoticed — which it
         // still gives — while the module docs' DOOR list above stays a
         // list of doors and gains nothing from the two.
@@ -5648,26 +5611,48 @@ pub(crate) mod tests {
         (body, face, edge)
     }
 
+    /// A spiric's `f = √(ρ² − d²)` at `ρ = R + r·cos_v`, accurate to a
+    /// few ulps of `f` itself: `ρ` is carried as an unevaluated sum
+    /// (two-product, two-sum) and the radicand factored as
+    /// `(ρ − d)·(ρ + d)`, whose cancelling factor is formed from that
+    /// sum. The reference the spiric rows hold the boxes to, because it
+    /// does not round the radicand the way `Curve3::eval` and the box
+    /// construction both do — near the fold that rounding moves `f` by
+    /// far more than an ulp.
+    fn spiric_f_reference(big_r: f64, r: f64, d: f64, cos_v: f64) -> f64 {
+        let two_sum = |a: f64, b: f64| {
+            let s = a + b;
+            let bb = s - a;
+            (s, (a - (s - bb)) + (b - bb))
+        };
+        let hi = r * cos_v;
+        let lo = r.mul_add(cos_v, -hi);
+        let (s, e) = two_sum(big_r, hi);
+        let e = e + lo;
+        let (p, q) = two_sum(s, -d);
+        ((p + (q + e)) * (s + d + e)).sqrt()
+    }
+
     /// **The spiric arm of `edge_box`, and the census's reach twin,
-    /// contain a dense sample of the arc** — the two readers of
-    /// [`EdgeBoxRule::Spiric`], each executed on the hand-built sector
-    /// (no public door builds a spiric-bearing operand that reaches
-    /// either at this head: the boolean's operand gate refuses the
-    /// kind, and a hollowed partial revolve stops at tier 3 before the
-    /// census). The whole-period box is asserted over the whole
-    /// period, which is what the door claims.
+    /// contain the arc** — the two readers of [`EdgeBoxRule::Spiric`],
+    /// each executed on the hand-built sector (no public door builds a
+    /// spiric-bearing operand that reaches either at this head: the
+    /// boolean's operand gate refuses the kind, and a hollowed partial
+    /// revolve stops at tier 3 before the census). The whole-period box
+    /// is asserted over the whole period, which is what the door claims,
+    /// with no slack on either: each sample is the elbow's point
+    /// `(d, f(v), r·sin v)` with `f` from [`spiric_f_reference`], not
+    /// `Curve3::eval`, whose rounding of the radicand is the box's own.
     #[test]
     fn the_spiric_edge_box_and_reach_contain_a_dense_sample() {
         let (body, face, edge) = spiric_sector();
-        let curve = body
-            .get_curve_geom(body.get_edge(edge).unwrap().curve)
-            .and_then(crate::null::CurveGeom::certified)
-            .unwrap();
+        let (big_r, r, d) = (1.2, 0.225, 0.05);
         let b = edge_box(&body, edge, 0.0);
         let (lo, hi) = crate::census::face_reach(&body, face, witness_band()).unwrap();
         for i in 0..=20_000 {
             let t = f64::from(i) * core::f64::consts::TAU / 20_000.0;
-            let p = curve.carrier().eval(t);
+            let (sin, cos) = t.sin_cos();
+            let p = Point3::new(d, spiric_f_reference(big_r, r, d, cos), r * sin);
             assert!(
                 p.x >= b.min_x
                     && p.x <= b.max_x
@@ -5678,151 +5663,183 @@ pub(crate) mod tests {
                 "the spiric point at v = {t} ({p:?}) left the edge box {b:?}"
             );
             assert!(
-                p.x >= lo.x - 1e-15
-                    && p.x <= hi.x + 1e-15
-                    && p.y >= lo.y - 1e-15
-                    && p.y <= hi.y + 1e-15
-                    && p.z >= lo.z - 1e-15
-                    && p.z <= hi.z + 1e-15,
+                p.x >= lo.x
+                    && p.x <= hi.x
+                    && p.y >= lo.y
+                    && p.y <= hi.y
+                    && p.z >= lo.z
+                    && p.z <= hi.z,
                 "the spiric point at v = {t} ({p:?}) left the face reach {lo:?}..{hi:?}"
             );
         }
     }
 
-    /// **The two spiric boxes are one reading, and differ from `geom`'s
-    /// door only by its rounding.** The census's edge reach and
-    /// [`edge_box`] both read [`edge_rule_box`]'s spiric arm, and at
-    /// `f64` a bracket is a point, so the bracket lane's box is the
-    /// census reach bit for bit, one ulp out ([`Aabb::padded`] at a
-    /// zero pad). That reach is the census's construction as stated in
-    /// the carrier's own fields, bit for bit. `geom`'s outward-rounded
-    /// `spiric_arc_aabb` holds it and is wider by at most a few ulps of
-    /// the box's scale: the rounding [`Span`]'s docs leave to the pad.
-    #[test]
-    fn the_two_spiric_box_readings_agree_but_for_the_rounding() {
-        let tilted = Vec3::new(1.0, 2.0, 3.0).normalize();
-        let fixtures = [
+    /// The admitted spirics the near-fold rows box: the elbow, the
+    /// review's fold, and a grid at scales 10 and 100 m whose inner
+    /// equator stands `k·escalate` inside the cutting plane for `k` from
+    /// just past the deciding door's floor up to far from it. Each as
+    /// `(what, R, r, d)`, on the torus of axis `ẑ` about the origin cut
+    /// along `x̂`, so the exact box is `x = d`, `y ∈ [f_min, f_max]`,
+    /// `z ∈ [−r, r]`. A grid point the door does not admit at this ε is
+    /// left out; the row that reads this asserts how many are left.
+    fn admitted_spirics(band: Band) -> Vec<(String, f64, f64, f64)> {
+        let mut out = vec![
+            ("the elbow".to_string(), 1.2, 0.225, 0.05),
             (
-                "the elbow",
+                "the review's fold".to_string(),
+                788.172_981_855_614_4,
+                5.350_502_372_890_727,
+                782.822_479_472_187_4,
+            ),
+        ];
+        for &scale in &[10.0, 100.0] {
+            for &ratio in &[0.02, 0.3] {
+                for &k in &[1.01, 1.1, 2.0, 1e2, 1e4] {
+                    let (big_r, r) = (scale, scale * ratio);
+                    let d = big_r - r - k * band.escalate();
+                    out.push((format!("R = {scale}, r = {r}, k = {k}"), big_r, r, d));
+                }
+            }
+        }
+        out.into_iter()
+            .filter(|&(_, big_r, r, d)| {
+                Curve3::spiric(
+                    Point3::origin(),
+                    Vec3::unit_z(),
+                    Vec3::unit_x(),
+                    big_r,
+                    r,
+                    d,
+                    band,
+                )
+                .is_ok()
+            })
+            .collect()
+    }
+
+    /// **The spiric box holds its exact extremes at every admitted
+    /// spiric, near the fold included, on both lanes and in `geom`'s
+    /// door, and is wider than them by no more than its charge.** The
+    /// box lane's and the census lane's entries into [`edge_rule_box`]
+    /// and `geom::curves::boxes::spiric_arc_aabb` all read
+    /// `geom::spiric_period_box`; each is held, with no pad, to the
+    /// exact box of [`admitted_spirics`] (`f` from
+    /// [`spiric_f_reference`]) in both directions: it contains it, and
+    /// each end lies within `48·u·S` plus the radicand widening's
+    /// effect on the root (`spiric_period_box`'s docs) of it. A box
+    /// whose root of the cancelling difference is not charged reds the
+    /// first half at the fold; one charged at the scale of `W` rather
+    /// than through the root reds the second.
+    #[test]
+    fn the_spiric_box_holds_its_exact_extremes_within_its_charge() {
+        let band = witness_band();
+        let fixtures = admitted_spirics(band);
+        let near = fixtures
+            .iter()
+            .filter(|(_, big_r, r, d)| big_r - r - d < 3.0 * band.escalate())
+            .count();
+        assert!(
+            near >= 5,
+            "at least five admitted spirics stand within 3·escalate of the fold, got {near}"
+        );
+        let u = f64::EPSILON / 2.0;
+        for (what, big_r, r, d) in fixtures {
+            let carrier = Curve3::spiric(
                 Point3::origin(),
                 Vec3::unit_z(),
                 Vec3::unit_x(),
-                (1.2, 0.225, 0.05),
-            ),
-            (
-                "a tilted, placed torus",
-                Point3::new(3.1, -0.7, 2.3),
-                tilted,
-                tilted.cross(Vec3::unit_x()).normalize(),
-                (40.0, 7.5, 3.0),
-            ),
-        ];
-        for (what, center, axis, u_ref, radii) in fixtures {
-            let (body, _, edge) = spiric_sector_at(center, axis, u_ref, radii);
-            let e = body.get_edge(edge).unwrap();
-            let curve = body
-                .get_curve_geom(e.curve)
-                .and_then(crate::null::CurveGeom::certified)
-                .unwrap();
-            let Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
-                major_radius,
-                minor_radius,
-                offset,
-            } = *curve.carrier()
-            else {
-                panic!("{what}: the sector's arc is a spiric");
+                big_r,
+                r,
+                d,
+                band,
+            )
+            .unwrap();
+            let (t0, t1) = (2.0, 4.2);
+            let ends = (carrier.eval(t0), carrier.eval(t1));
+            let rule = || EdgeBoxRule::Spiric {
+                center: Point3::origin(),
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+                major_radius: big_r,
+                minor_radius: r,
+                offset: d,
             };
-            let (a, b) = (
-                edge_end_point(&body, edge, e.he_plus, "he_plus"),
-                edge_end_point(&body, edge, e.he_minus, "he_minus"),
-            );
-            let (lo, hi) = crate::census::edge_reach_in(&body, edge, &BoxFrame::World).unwrap();
-            let reach = [lo.x, lo.y, lo.z, hi.x, hi.y, hi.z];
-
-            let (f_min, f_max) = geom::spiric_f_range(major_radius, minor_radius, offset);
-            let (m, base) = (axis.cross(u_ref), center + u_ref * offset);
-            let (m, base, ax) = (
-                [m.x, m.y, m.z],
-                [base.x, base.y, base.z],
-                [axis.x, axis.y, axis.z],
-            );
-            let (a, b) = ([a.x, a.y, a.z], [b.x, b.y, b.z]);
-            let stated = |i: usize| {
-                let (bi, mi, ai) = (base[i], m[i], ax[i]);
-                let amp = ai.abs() * minor_radius;
-                (
-                    (bi + (mi * f_min).min(mi * f_max) - amp).min(a[i].min(b[i])),
-                    (bi + (mi * f_min).max(mi * f_max) + amp).max(a[i].max(b[i])),
+            let unreachable = |_: &ConicArc<'_, f64>| unreachable!("a spiric rule");
+            let bracketed = aabb_of(
+                edge_rule_box(
+                    rule(),
+                    (bracket_point(ends.0), bracket_point(ends.1)),
+                    &BoxFrame::World,
+                    bracket_point,
+                    unreachable,
                 )
-            };
-            let ((x0, x1), (y0, y1), (z0, z1)) = (stated(0), stated(1), stated(2));
-            assert_eq!(
-                reach,
-                [x0, y0, z0, x1, y1, z1],
-                "{what}: the census reach is its construction, bit for bit"
+                .unwrap(),
             );
-
-            let boxed = edge_box(&body, edge, 0.0);
-            assert_eq!(
-                [
-                    boxed.min_x,
-                    boxed.min_y,
-                    boxed.min_z,
-                    boxed.max_x,
-                    boxed.max_y,
-                    boxed.max_z
-                ],
-                [
-                    lo.x.next_down(),
-                    lo.y.next_down(),
-                    lo.z.next_down(),
-                    hi.x.next_up(),
-                    hi.y.next_up(),
-                    hi.z.next_up()
-                ],
-                "{what}: the bracket lane's box is the census reach, one ulp out"
+            let census = aabb_of(
+                edge_rule_box(
+                    rule(),
+                    (SpanBox::point(ends.0), SpanBox::point(ends.1)),
+                    &BoxFrame::World,
+                    SpanBox::point,
+                    unreachable,
+                )
+                .unwrap(),
             );
+            let door = geom::curves::boxes::spiric_arc_aabb(&carrier, ends.0, ends.1).unwrap();
 
-            let ends = (Point3::new(a[0], a[1], a[2]), Point3::new(b[0], b[1], b[2]));
-            let door =
-                geom::curves::boxes::spiric_arc_aabb(curve.carrier(), ends.0, ends.1).unwrap();
-            let door = [
-                door.min_x, door.min_y, door.min_z, door.max_x, door.max_y, door.max_z,
+            let (f_min, f_max) = (
+                spiric_f_reference(big_r, r, d, -1.0),
+                spiric_f_reference(big_r, r, d, 1.0),
+            );
+            let exact = [d, f_min, -r, d, f_max, r];
+            let w = (big_r + r + d).powi(2);
+            let s = d + f_max + r;
+            let reference = 4.0 * u;
+            let room = [
+                48.0 * u * s,
+                48.0 * u * s + f_min - (f_min * f_min - 16.0 * u * w).max(0.0).sqrt(),
+                48.0 * u * s,
+                48.0 * u * s,
+                48.0 * u * s + (f_max * f_max + 16.0 * u * w).sqrt() - f_max,
+                48.0 * u * s,
             ];
-            let scale =
-                (center - Point3::origin()).norm() + major_radius + minor_radius + offset.abs();
-            let ulps = 16.0 * f64::EPSILON * scale;
-            for k in 0..6 {
-                let outward = if k < 3 {
-                    reach[k] - door[k]
-                } else {
-                    door[k] - reach[k]
-                };
-                assert!(
-                    (0.0..=ulps).contains(&outward),
-                    "{what}, end {k}: `geom`'s outward door holds the shared box and is wider \
-                     only by its rounding (≤ {ulps:e}), got {outward:e} ({:?} vs {:?})",
-                    door[k],
-                    reach[k]
-                );
+            for (lane, b) in [
+                ("the box lane", bracketed),
+                ("the census lane", census),
+                ("geom's door", door),
+            ] {
+                let got = [b.min_x, b.min_y, b.min_z, b.max_x, b.max_y, b.max_z];
+                for k in 0..6 {
+                    let out = if k < 3 {
+                        exact[k] - got[k]
+                    } else {
+                        got[k] - exact[k]
+                    };
+                    let slop = reference * exact[k].abs();
+                    assert!(
+                        out >= slop && out <= room[k] + slop,
+                        "{what}, {lane}, end {k}: the box holds the exact extreme {:e} and \
+                         stands at most {:e} outside it, got {:e} ({out:e} outside)",
+                        exact[k],
+                        room[k],
+                        got[k]
+                    );
+                }
             }
         }
     }
 
-    /// REVIEW (PR 5308): **the unrounded spiric box, padded by the
-    /// sweep's own pad, misses the arc near the fold.** `f_min =
-    /// √(ρ_min² − d²)` is a square root of a cancelling difference, so
-    /// the radicand's half-ulp rounding at `ρ²` scale reaches `f_min`
-    /// amplified by `ρ²·u / (2·f_min)` — not "a few ulps of the box's
-    /// scale". On a spiric the deciding door admits (`ρ_min − |d|` is
-    /// 1.05·`escalate` at the default ε, far above it at 1e-12; every
-    /// coordinate inside the session box), the arc's inner-equator point
-    /// `center + u_ref·d + m·f_min` (`v = π`, inside the run) lies below
-    /// `edge_box(…, sweep_pad).min_y`. `geom`'s outward-rounded door,
-    /// which the box lane read before this PR, holds it.
+    /// **The box lane's spiric box holds the arc near the fold, and so
+    /// does `geom`'s door.** `f_min = √(ρ_min² − d²)` is a square root
+    /// of a cancelling difference, so the radicand's half-ulp rounding
+    /// at `ρ²` scale reaches `f_min` amplified by `ρ²·u / (2·f_min)` —
+    /// far more than any pad. On a spiric the deciding door admits
+    /// (`ρ_min − |d|` is 1.05·`escalate` at the default ε, far above it
+    /// at 1e-12; every coordinate inside the session box), the arc's
+    /// inner-equator point `center + u_ref·d + m·f_min` (`v = π`,
+    /// inside the run) lies inside `edge_box(…, sweep_pad)` only
+    /// because `geom::spiric_period_box` charges that root for its
+    /// rounding.
     ///
     /// The reference `f_min` is taken with `ρ = R − r` split exactly
     /// (two-sum) and the radicand factored as `(ρ − d)(ρ + d)`, whose
@@ -5863,9 +5880,8 @@ pub(crate) mod tests {
                     offset: d,
                 },
                 (bracket_point(ends.0), bracket_point(ends.1)),
+                &BoxFrame::World,
                 bracket_point,
-                bracket_vector,
-                |x: f64| Span { lo: x, hi: x },
                 |_: &ConicArc<'_, f64>| unreachable!("a spiric rule"),
             )
             .unwrap(),
