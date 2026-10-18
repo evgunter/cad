@@ -826,3 +826,41 @@ fn a_flat_cones_section_images_and_certifies_at_its_own_resolution() {
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
+
+/// delta4 probe: Interval widths of the skew sections' vertex azimuth and
+/// envelope, and of a cylinder/sphere/torus chart image's phase, printed.
+#[test]
+fn delta4_interval_widths() {
+    let lift = <Interval as Real>::from_f64;
+    for (scale, f) in [(0.1, 0.99), (0.1, 0.9999), (0.1, 0.999_999), (1.0, 0.9999), (10.0, 0.99)] {
+        let Ok((c, s, _)) = skew_section(0.5_f64.atan(), scale, f) else {
+            println!("DELTA4W skew {scale} {f}: unreached");
+            continue;
+        };
+        let (lc, ls) = (c.map_scalar(lift), s.map_scalar(lift));
+        match chart_pcurve(&lc, &ls, band()) {
+            Ok(Pcurve::FocalSection(focal)) => {
+                let env = PcurveCache::certify(Pcurve::FocalSection(focal.clone()), lift(-1.0), lift(1.0), &lc, &ls, band())
+                    .map(|c| c.certificate().envelope.hi());
+                println!(
+                    "DELTA4W skew {scale} {f}: u0 [{:e}, {:e}] width {:e} t0 width {:e} envelope {:?}",
+                    focal.u0.lo(), focal.u0.hi(), focal.u0.hi() - focal.u0.lo(), focal.t0.hi() - focal.t0.lo(),
+                    env.map_err(|e| e.to_string())
+                );
+            }
+            other => println!("DELTA4W skew {scale} {f}: {other:?}"),
+        }
+    }
+    // Rims on a cylinder about z at azimuths across the circle.
+    for k in 0..16 {
+        let a = -3.0 + 0.4 * f64::from(k);
+        let (sa, ca) = a.sin_cos();
+        let cyl = Surface::Cylinder { origin: Point3::new(0.0, 0.0, 0.0), axis: Vec3::unit_z(), radius: 2.0, u_ref: Vec3::unit_x() };
+        let rim = Curve3::Circle { center: Point3::new(0.0, 0.0, 0.3), axis: Vec3::unit_z(), radius: 2.0, u_ref: Vec3::new(ca, sa, 0.0) };
+        let (lc, ls) = (rim.map_scalar(lift), cyl.map_scalar(lift));
+        match chart_pcurve(&lc, &ls, band()) {
+            Ok(p) => println!("DELTA4W rim start {a:.2}: {p:?}"),
+            Err(e) => println!("DELTA4W rim start {a:.2}: refused {e}"),
+        }
+    }
+}

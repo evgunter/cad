@@ -786,3 +786,110 @@ fn r2_cone_focal_u() {
     // find ellipse via intersect? build directly: param the section numerically is hard; use geom's plane-cone section if any
     let _ = (cone, n);
 }
+
+/// delta4 probe: a direction moved across the read's cut line (the line
+/// through `ANGLE_WINDOW_START`), with the gap placed somewhere other than
+/// the window's cut (an offset, or the latitude window). Prints, per case,
+/// whether every `pcurve_chart_` decision of the `t0` build re-values at
+/// `t1` to the bits the `t1` build decides.
+#[test]
+#[allow(clippy::expect_used)]
+fn delta4_read_cut_off_the_windows_cut() {
+    use geom_core::sym::revalue::{record, revalue};
+    use geom_core::sym::with_session;
+    use geom_core::{ParamSymbol, Real, Sym, SymBudget};
+
+    use super::{Along, Azimuth, Levers, Placement};
+
+    type S = Sym<f64>;
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    let t_sym = ParamSymbol::new(1);
+    let e = 10.0 * band().escalate();
+    let mut report = Vec::new();
+    for (case, along, off, ang, t0, t1) in [
+        ("azimuth, offset 0, dir at -1 (window cut)", Along::Azimuth, 0.0, ANGLE_WINDOW_START, -e, e),
+        ("azimuth, offset 2.0, dir at -1 (gap at 1.0)", Along::Azimuth, 2.0, ANGLE_WINDOW_START, -e, e),
+        ("azimuth, offset 2.0, dir at pi-1 (gap at pi+1)", Along::Azimuth, 2.0, PI + ANGLE_WINDOW_START, -e, e),
+        ("latitude, offset 0, dir at -1", Along::Latitude, 0.0, ANGLE_WINDOW_START, -e, e),
+        ("latitude, offset 0, dir at pi-1", Along::Latitude, 0.0, PI + ANGLE_WINDOW_START, -e, e),
+        ("tube, offset 0.5, dir at -1", Along::Tube, 0.5, ANGLE_WINDOW_START, -e, e),
+        ("control: azimuth, offset 2.0, dir at 0.3", Along::Azimuth, 2.0, 0.3, -e, e),
+    ] {
+        let (s, c) = ang.sin_cos();
+        let build = |t: f64| {
+            with_session(budget, || {
+                let place = Placement::<S> {
+                    mid: S::from_f64(0.5),
+                    levers: Levers {
+                        azimuth: S::one(),
+                        tube: S::one(),
+                        latitude: S::one(),
+                    },
+                };
+                let tt = S::param(t_sym, t);
+                let dir = Azimuth::of(S::from_f64(s) + tt * S::from_f64(c), S::from_f64(c) - tt * S::from_f64(s));
+                let env = move |p: ParamSymbol| (p == t_sym).then_some(t1);
+                let (placed, decisions) = record(|| {
+                    place
+                        .phase(along, dir, |_| S::from_f64(off), band())
+                        .expect("a unit direction places")
+                });
+                (
+                    geom_core::Bounds::lo(placed),
+                    decisions
+                        .iter()
+                        .filter(|d| d.predicate.starts_with("pcurve_chart_"))
+                        .map(|d| (d.predicate, d.value, revalue(d.node, &env)))
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .0
+        };
+        let ((p0, a0), (p1, a1)) = (build(t0), build(t1));
+        let same_len = a0.len() == a1.len();
+        let mut bad = Vec::new();
+        for (k, ((n0, _, re), (n1, v1, _))) in a0.iter().zip(&a1).enumerate() {
+            if n0 != n1 || re.map(f64::to_bits) != v1.map(f64::to_bits) {
+                bad.push(format!("#{k} {n0}: re-valued {re:?} vs decided {v1:?}"));
+            }
+        }
+        report.push(format!(
+            "{case}: placed {p0:?} -> {p1:?}; decisions {} / {}; mismatches {bad:?}",
+            a0.len(),
+            a1.len()
+        ));
+        let _ = same_len;
+    }
+    for r in &report {
+        eprintln!("DELTA4 {r}");
+    }
+}
+
+/// delta4 probe: a latitude below the read's cut (−1) reads a turn up and
+/// is placed back by a whole turn; is the placed value atan2's own bits?
+#[test]
+fn delta4_latitude_below_the_reads_cut() {
+    use super::{Along, Azimuth, Levers, Placement};
+    let place = Placement::<f64> {
+        mid: 0.0,
+        levers: Levers {
+            azimuth: 1.0,
+            tube: 1.0,
+            latitude: 1.0,
+        },
+    };
+    for lat in [-FRAC_PI_2, -1.3, -1.0000001, -0.9, 0.5] {
+        let (y, x) = (lat.sin(), lat.cos());
+        let read = Azimuth::of(y, x).principal(band());
+        let turns = place.turns(Along::Latitude, read, band()).unwrap();
+        let placed = place.phase(Along::Latitude, Azimuth::of(y, x), |_| 0.0, band()).unwrap();
+        eprintln!(
+            "DELTA4LAT lat {lat:?}: read {read:?} turns {turns} placed {placed:?} atan2 {:?} bit-equal {}",
+            y.atan2(x),
+            placed.to_bits() == y.atan2(x).to_bits()
+        );
+    }
+}
