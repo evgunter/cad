@@ -2,11 +2,12 @@
 id: torus-face-bounded-by-an-oblique-circle-refuses-point-classification
 kind: issue
 title: A torus face that is not a chart rectangle refuses point classification (PartialTorusFace): the torus arm reads only the chart-window box, where the sphere reads a region
-status: open
+status: closed
 opened: 2026-10-04
 priority: P1
 cost: H
 refs: [4046, cone-chart-trim-reads-a-tilted-section-as-its-vertex-window, point-in-solid-refuses-an-l-shaped-torus-face]
+closed: 2026-10-18
 ---
 
 Found by the class sweep of `reach/carved-sphere-classify`, by reading.
@@ -106,3 +107,35 @@ on `work/boxes/chart-window-walk-written-twice.md` when
 `torus_chart_windows` retires, and a check whether
 `contacthold/notched-half-donut-owes-its-notch-and-volume-when-torus-plane-lands`
 fires. Review tier: dual, class H, concurrent.
+
+## Closed (RESTREAD, `restread/torus-region`, 2026-10-18)
+
+`boolean::torus_region` reads a torus face outside a closed group from
+its boundary edges, and is the only torus arm of both point doors
+(`solid_contain`'s `FaceGeo::TorusPatch`, `contain::torus_face_containment`).
+The window class is gone (`torus_chart_trim`, `torus_face_windows`,
+`torus_chart_windows`, `torus_chart_joint`, `torus_chart_meets`,
+`point_on_torus_in_face`); the closed group stays as `FaceGeo::Torus`.
+`chart_polygon_box` stays: the cone trim decides `bool_cone_chart_box`
+through it. `PartialTorusFace` narrows to an edge in no plane, or an
+uncertified edge between two points.
+
+One correction to the decision above, measured: "a first harmonic
+against the edge's plane" cannot cross a parallel on the tube's top or
+bottom circle, whose plane is tangent to the torus along it, so every
+leg meets it at a double root. The dumbbell's fillet waist
+(`germ_torus_doors.rs`) is bounded by one and went `RayExhausted` on that
+reading. Each pair is read against the plane transversal to it: a
+circle on a meridian leg in its own parameter against the leg's plane
+(normal to the torus everywhere); everything else in the leg's
+parameter against the edge's plane. With that, the near-top predicate
+the decision names is not needed: no leg is refused at the top circle.
+
+Measured on main and re-baselined: `contact11_torus_chart_l` asserts
+the notch `Out` and a 400-point lattice; the chord rows' `PARTIAL` ops
+and every `s` of `germ_plane_torus_spiric` build and hold to the truth;
+the section-cert L, U, small-notch and gap rows read the notch. The
+wrong-answer probe (`torus_region_probe.rs`) found none. Its one
+refusal, `VolumeUncertified`, is
+`at-infinity-probe-measures-in-closed-form-only`'s, with evidence there.
+

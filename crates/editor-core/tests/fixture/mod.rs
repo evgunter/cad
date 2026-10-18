@@ -2736,3 +2736,62 @@ fn glued_block(
         },
     )
 }
+
+/// **`name` read at `at`**, of any entity kind: a one-name selection of
+/// `at`'s body.
+pub fn read_at(at: RecipeNodeId, name: StableName) -> editor_core::Operand {
+    editor_core::Operand::select(at, vec![name])
+}
+
+/// [`read_at`] at the node that minted `name`.
+pub fn read_minted(name: StableName) -> editor_core::Operand {
+    let at = name.node;
+    read_at(at, name)
+}
+
+/// **A block's corner frame** (`PoseDef::Through`): `z` along the
+/// lateral edge `edge`, its origin on the edge level with the cap
+/// vertex `corner`, `x` towards it.
+pub fn corner_frame(
+    edge: impl Into<editor_core::Operand>,
+    corner: impl Into<editor_core::Operand>,
+) -> editor_core::Operand {
+    let r = editor_core::pose::RoleRead::plain;
+    editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Through {
+        axis: r(axis(edge)),
+        point: r(point_of(corner)),
+    }))
+}
+
+/// **A frame slid `x` along its own `x`, then `y` along its own `y`.**
+pub fn slid_across(frame: editor_core::Operand, x: f64, y: f64) -> editor_core::Operand {
+    use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+    let slide = |pose: editor_core::Operand, role, by: f64| {
+        if by == 0.0 {
+            return pose;
+        }
+        editor_core::Operand::Pose(Box::new(PoseDef::Slide {
+            pose: RoleRead::plain(pose.clone()),
+            along: RoleRead::through(pose, role),
+            by: len(by),
+        }))
+    };
+    slide(slide(frame, PoseRole::X, x), PoseRole::Y, y)
+}
+
+/// **A block seated on another by one pin** (FORK-S3O): `top`'s corner
+/// frame equated with `base`'s, slid `(x, y)` across it. The seat three
+/// plane mates — a rest and two walls — used to state, which fix one
+/// rotation twice and which the bundle rule refuses.
+pub fn frame_seat(
+    top: editor_core::Operand,
+    base: editor_core::Operand,
+    x: f64,
+    y: f64,
+) -> editor_core::Mate<Formula> {
+    mate(
+        top,
+        slid_across(base, x, y),
+        editor_core::ContactClass::Rest,
+    )
+}

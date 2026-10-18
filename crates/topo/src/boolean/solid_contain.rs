@@ -147,12 +147,9 @@
 //!   counts ([`PointInSolidError::RootCountDisagrees`]).
 //! - **`bool_ray_torus_incidence`**: `d·n̂` at a torus hit, levered by
 //!   the tube radius.
-//! - **`bool_torus_trim`** / **`bool_torus_trim_major_period`** /
-//!   **`bool_torus_trim_minor_period`** / **`bool_torus_chart_affine`**:
-//!   the torus face's two angular windows, the period guard that decides
-//!   whether each one trims the face or the face wraps it, and the check
-//!   that each boundary edge's chart image really is the affine one the
-//!   walk reads endpoints off.
+//! - A torus face outside a closed group is read from its boundary
+//!   edges by [`super::torus_region`], under its own rows
+//!   (`bool_torus_region_*`, `bool_torus_frame_radius`).
 //! - **The cylinder wall's outline** ([`wall_outline`]):
 //!   **`bool_wall_iso_meridian`**, **`bool_wall_iso_rim`**,
 //!   **`bool_wall_section_tilt`** and **`bool_wall_section_seat`**
@@ -166,8 +163,7 @@
 //!   **`bool_wrap_rim`** decides whether an unmated boundary circle is an
 //!   iso-line of the coordinate the face does not wrap — coaxial (the
 //!   sine between the axes levered by the circle's radius; the centre's
-//!   distance off the axis, metres) or, for a torus's minor angle, a
-//!   meridian (the cosine between the axes, levered likewise). Per hit,
+//!   distance off the axis, metres). Per hit,
 //!   **`bool_wall_trim`** is every window and side margin (the cosine
 //!   window levered by the radius; a hit's perpendicular distance to a
 //!   piece's plane, metres), **`bool_wall_trim_period`** the window's
@@ -204,11 +200,13 @@ use geom_brep::quartic::{QuarticRoots, QuarticRows, depressed_quartic_roots, qua
 use geom_brep::recourse::Reading;
 use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
+use super::region::RegionRefusal;
 use super::rim_wedge::Rim;
-use super::sphere_region::{RegionRefusal, SphereFaceRegion, sphere_face_region};
+use super::sphere_region::{SphereFaceRegion, sphere_face_region};
 use super::surface_group::{
     WrapRims, coaxial_margins, off_axis, scope_members, surface_group, wrap_rims, wrap_rims_within,
 };
+use super::torus_region::{TorusFaceRegion, torus_face_region};
 use geom::Surface;
 use geom_core::Tol;
 
@@ -363,20 +361,17 @@ pub enum PointInSolidError {
         /// The cone face neither class expresses.
         face: FaceKey,
     },
-    /// A `Torus` face in neither torus class: its surface group is not
-    /// closed, and its own two chart windows do not express it.
+    /// A `Torus` face outside a closed group with a boundary edge that
+    /// lies in no plane — a spline — or with no certified carrier between
+    /// two points.
     ///
-    /// A ring torus has NO chart singularity — no pole, no apex — so a
-    /// boundary walk over its chart is exact wherever it can be taken at
-    /// all, and a window a period wide is evidence that the face really
-    /// does wrap that coordinate rather than the artefact it is on the
-    /// sphere and the cone. What takes a face out of the class is
-    /// therefore never a junction: it is a ring, an unwalkable boundary,
-    /// a boundary edge with no affine image on the torus chart (a
-    /// Villarceau circle, whose image is a focal section), or a window the
-    /// walk unwound past a full period, which describes no face.
+    /// A torus face is read from its boundary edges
+    /// ([`super::torus_region`]): every edge a torus carries at rest (a
+    /// parallel, a meridian, a Villarceau circle, a spiric oval's arc)
+    /// lies in a plane, and every crossing of a path with it is the root
+    /// of a first harmonic. An edge in no plane has no such crossing here.
     PartialTorusFace {
-        /// The torus face neither class expresses.
+        /// The torus face whose boundary the region cannot read.
         face: FaceKey,
     },
     /// A ray's hit on a `Plane` face could land inside it, and the face
@@ -397,7 +392,8 @@ pub enum PointInSolidError {
     /// census and the shell witness read it with them as a face kind
     /// the door does not serve rather than as a point too close to call.
     EdgeCarrierUnsupported {
-        /// The planar face whose outline the walk cannot cross.
+        /// The face whose outline the walk cannot read: a planar face's
+        /// loop walk, or a torus face's boundary reading of an oval arc.
         face: FaceKey,
         /// The loop, and the edge no ray got past.
         cause: crate::splitting::Uncrossable,
@@ -686,9 +682,9 @@ impl core::fmt::Display for PointInSolidError {
                 f,
                 "cannot tell what is inside the solid: one of its torus faces has an \
                  outline the inside/outside test cannot read. The solid itself is fine. \
-                 Recourse: bound the torus face with circles around and along the tube \
-                 (parallels and meridians), or let its faces together cover the whole \
-                 torus"
+                 Recourse: bound the torus face with plane sections of the tube \
+                 (circles, or the ovals a plane parallel to its axis cuts) rather than \
+                 a spline, or let its faces together cover the whole torus"
             ),
             Self::EdgeCarrierUnsupported { cause, .. } => write!(
                 f,
@@ -902,17 +898,10 @@ enum FaceGeo<T: geom_core::Real> {
         /// near/far crossing pair, as for the closed group.
         sense: bool,
     },
-    /// A torus face with its chart trim: **two angular windows**, either
-    /// of which may be absent because the face wraps that coordinate.
-    ///
-    /// The torus is the one analytic chart in this door with no
-    /// singularity to work around — a ring torus has neither poles nor
-    /// an apex — so the sphere's and cone's "which class is this face
-    /// in" question collapses to reading the two windows off the
-    /// boundary and asking each whether it closes short of a period.
-    /// The whole-chart class survives for one reason only: a face group
-    /// closed against the rest of the body has no boundary to read a
-    /// window FROM, and its members must not each fold the same root.
+    /// A CLOSED torus group: the faces sharing this torus surface
+    /// together cover the whole torus, as [`FaceGeo::Sphere`]'s do the
+    /// sphere, and the arms act for the representative alone so one torus
+    /// contributes one crossing per root ([`torus_closed_group`]).
     Torus {
         /// The torus centre, on the axis in the tube's midplane.
         center: Point3<T>,
@@ -925,19 +914,31 @@ enum FaceGeo<T: geom_core::Real> {
         minor_radius: T,
         /// The chart's seam direction, where the major azimuth is zero.
         u_ref: Vec3<T>,
-        /// The MAJOR azimuth window, or `None` when the face covers
-        /// every major azimuth.
-        u: Option<(T, T)>,
-        /// The MINOR angle window (around the tube, zero on the outer
-        /// equator), or `None` when the face covers every minor angle.
-        v: Option<(T, T)>,
-        /// The face the arms act for: the closed group's first face in
-        /// the selection's order, or the face itself when either window
-        /// trims it. Arms no-op on every other member of a closed group, so
-        /// one torus contributes one crossing per root.
+        /// The group's first face in the selection's order. Arms no-op
+        /// on every other member.
         representative: FaceKey,
-        /// The face's orientation sense (S10), applied to the sign
-        /// derived from the chart normal.
+        /// The representative's orientation sense (S10), applied to the
+        /// sign derived from the chart normal.
+        sense: bool,
+    },
+    /// A torus face outside a closed group: the same ray/torus quartic as
+    /// [`FaceGeo::Torus`], with each root tested against the face's own
+    /// region, read from its boundary edges ([`super::torus_region`]).
+    /// Like [`FaceGeo::SpherePatch`] this arm is per face.
+    TorusPatch {
+        /// The torus centre.
+        center: Point3<T>,
+        /// The unit axis of revolution.
+        axis: Vec3<T>,
+        /// The major radius.
+        major_radius: T,
+        /// The minor radius.
+        minor_radius: T,
+        /// The chart's seam direction.
+        u_ref: Vec3<T>,
+        /// The face's region on the torus.
+        region: TorusFaceRegion<T>,
+        /// The face's orientation sense (S10).
         sense: bool,
     },
     /// A cone face whose chart trim this door cannot state
@@ -1091,22 +1092,32 @@ fn face_geo<T: Decide>(
             minor_radius,
             u_ref,
         }) => {
-            let (u, v, representative) =
-                torus_chart_trim(body, face, charts, major_radius, minor_radius, band)?;
-            Ok(FaceGeo::Torus {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                u_ref,
-                u,
-                v,
-                representative,
-                sense: body
-                    .get_face(representative)
-                    .ok_or(PointInSolidError::CorruptFace { face })?
-                    .sense,
-            })
+            if let Some(representative) = torus_closed_group(body, face, charts)? {
+                return Ok(FaceGeo::Torus {
+                    center,
+                    axis,
+                    major_radius,
+                    minor_radius,
+                    u_ref,
+                    representative,
+                    sense: body
+                        .get_face(representative)
+                        .ok_or(PointInSolidError::CorruptFace { face })?
+                        .sense,
+                });
+            }
+            match torus_face_region(body, face)? {
+                Some(region) => Ok(FaceGeo::TorusPatch {
+                    center,
+                    axis,
+                    major_radius,
+                    minor_radius,
+                    u_ref,
+                    region,
+                    sense: f.sense,
+                }),
+                None => Err(PointInSolidError::PartialTorusFace { face }),
+            }
         }
         Some(s) => Err(PointInSolidError::KindUnsupported {
             face,
@@ -1695,7 +1706,7 @@ pub(super) fn full_turn_outline<T: Decide>(
     band: Band,
 ) -> Result<Option<WallOutline<T>>, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    let Some(rims) = wrap_rims(body, face, WrapRims::Coaxial { origin, axis }, band)? else {
+    let Some(rims) = wrap_rims(body, face, WrapRims { origin, axis }, band)? else {
         return Ok(None);
     };
     let unsupported = Ok(Some(WallOutline::Unsupported { reach: None }));
@@ -1866,7 +1877,7 @@ pub(super) fn cone_face_trim<T: Decide>(
     cone_window_premise(body, face)?;
     let v = cone_slant_window(body, face, apex, axis, half_angle.cos())?;
     let nappe = cone_nappe(face, v, band)?;
-    if wrap_rims(body, face, WrapRims::Coaxial { origin: apex, axis }, band)?.is_some() {
+    if wrap_rims(body, face, WrapRims { origin: apex, axis }, band)?.is_some() {
         return Ok((None, v, nappe));
     }
     Ok((Some(cone_trimmed_window(body, face, v, band)?), v, nappe))
@@ -1878,9 +1889,8 @@ pub(super) fn cone_face_trim<T: Decide>(
 /// once. A face through the apex twice, or once with a ring, has no
 /// single lift. The window trims only when it is definitely narrower
 /// than a period AND the face is the chart rectangle it reports
-/// (`bool_cone_chart_box`, [`chart_polygon_box`], the torus trim's
-/// decision too): a face with a notch has the rectangle's hull, and the
-/// window would cover the notch.
+/// (`bool_cone_chart_box`, [`chart_polygon_box`]): a face with a notch
+/// has the rectangle's hull, and the window would cover the notch.
 ///
 /// # Errors
 ///
@@ -2168,14 +2178,7 @@ fn wrapped_cone_group<T: Decide>(
     let members = scope_members(body, face, charts)
         .map_err(|face| PointInSolidError::CorruptFace { face })?;
     let representative = members[0];
-    if wrap_rims_within(
-        body,
-        members,
-        WrapRims::Coaxial { origin: apex, axis },
-        band,
-    )?
-    .is_none()
-    {
+    if wrap_rims_within(body, members, WrapRims { origin: apex, axis }, band)?.is_none() {
         return Ok(None);
     }
     let reference = cone_slant_window(body, representative, apex, axis, cos_a)?;
@@ -2193,434 +2196,29 @@ fn wrapped_cone_group<T: Decide>(
     Ok(Some(representative))
 }
 
-/// **A torus face's chart trim, and which of the two torus classes it
-/// belongs to.** Answers `(major window, minor window, representative)`,
-/// each window `None` where the face covers that whole coordinate.
-///
-/// # Why the torus needs only two classes
-///
-/// The sphere and the cone each carry a closed-GROUP class beside their
-/// per-face one because their charts have a SINGULAR JUNCTION — a pole,
-/// an apex — that the closed-form boundary walk cannot cross: at such a
-/// junction the walk continues in the direction it was going and reports
-/// a full period for a face covering part of one, so a wrapped window is
-/// an ARTEFACT there and must not be believed.
-///
-/// **A ring torus has no such junction.** Its chart normal is
-/// `radial(u)·cos v + axis·sin v` everywhere and `R + r·cos v > 0` for
-/// `R > r`, so every chart point is regular and every boundary junction
-/// is an ordinary shared point at which the nearest-branch pin is exact.
-/// A window this walk reports as exactly one period is therefore
-/// EVIDENCE that the face wraps that coordinate, not a failure to see
-/// its edge — the opposite reading to the cone's, and the reason the
-/// major and minor windows are each independently optional here.
-///
-/// So the classes are:
-///
-/// - **the closed group** ([`super::surface_group`] with nothing
-///   exempt): every boundary edge shared with another face of the same
-///   torus surface, so the union has no boundary against the rest of the
-///   body and covers the whole (compact, connected) torus. There is no
-///   trim and no window to read — and this class exists for that reason:
-///   such a group has no boundary to read one FROM. The arms act for the
-///   representative alone, or the members would each fold the same root
-///   and tie the closest-hit rule into a permanent graze. This is the
-///   shape a full revolve of a closed profile mints: two faces of one
-///   torus surface meeting along their shared parallels, each wrapping
-///   the major azimuth through a self-mated seam.
-/// - **the windowed face**: the two windows the boundary walk pins,
-///   either of which may be a whole period. This is the shape a full
-///   revolve of an ARC mints (a torus band: the major azimuth wraps, the
-///   minor angle is trimmed by the arc's own ends) and the shape a
-///   partial revolve mints (both trimmed).
-///
-/// A window the walk unwound PAST a period describes no face and is
-/// refused, as is a face the walk cannot take at all.
+/// **A torus face's closed group**: its representative when every edge
+/// of the group's boundary is shared by two faces of the same torus
+/// surface ([`super::surface_group`] with nothing exempt), so the union
+/// has no boundary against the rest of the body and covers the whole
+/// (compact, connected) torus. Such a group has no boundary to read a
+/// region from, and its members must not each fold the same root: the
+/// arms act for the representative alone. This is the shape a full
+/// revolve of a closed profile mints. `None` for every other face, whose
+/// region its own boundary states ([`super::torus_region`]).
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] for a body the scan cannot walk;
-/// [`PointInSolidError::PartialTorusFace`] for a face in neither class;
-/// [`PointInSolidError::Escalated`] for an in-band period guard.
-#[allow(clippy::type_complexity)] // two windows, plus the class it selected
-pub(super) fn torus_chart_trim<T: Decide>(
+/// [`PointInSolidError::CorruptFace`] for a body the scan cannot walk.
+fn torus_closed_group<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     charts: &ChartGroups,
-    major_radius: T,
-    minor_radius: T,
-    band: Band,
-) -> Result<(Option<(T, T)>, Option<(T, T)>, FaceKey), PointInSolidError> {
-    if let Some(representative) =
-        surface_group(body, face, charts).map_err(|face| PointInSolidError::CorruptFace { face })?
-    {
-        return Ok((None, None, representative));
-    }
-    let (u, v) = torus_face_windows(body, face, major_radius, minor_radius, band)?;
-    Ok((u, v, face))
+) -> Result<Option<FaceKey>, PointInSolidError> {
+    surface_group(body, face, charts).map_err(|face| PointInSolidError::CorruptFace { face })
 }
 
-/// **One torus face's own chart windows** — the windowed class of
-/// [`torus_chart_trim`], answered for the face whatever group it sits
-/// in. `(major window, minor window)`, each `None` where the face wraps
-/// that coordinate.
-///
-/// The solid door reads it only for a face OUTSIDE a closed group,
-/// because there the group's union is the question and its
-/// representative answers for every member. A face-scoped caller asks
-/// the other question — which chart points does THIS face hold — and a
-/// closed group's member has windows of its own that answer it (the
-/// donut's two faces each wrap the major azimuth and split the minor
-/// angle between them). Every guard below is a property of the face's
-/// own boundary walk, so nothing in it depends on the group.
-///
-/// # Errors
-///
-/// As [`torus_chart_trim`]: [`PointInSolidError::CorruptFace`],
-/// [`PointInSolidError::PartialTorusFace`] for a face whose own windows
-/// the walk cannot pin, [`PointInSolidError::Escalated`].
-#[allow(clippy::type_complexity)] // the two windows of one face
-pub(super) fn torus_face_windows<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    major_radius: T,
-    minor_radius: T,
-    band: Band,
-) -> Result<(Option<(T, T)>, Option<(T, T)>), PointInSolidError> {
-    let Some((u, v)) = torus_chart_windows(body, face, band)? else {
-        return Err(PointInSolidError::PartialTorusFace { face });
-    };
-    // A coordinate is wrapped when the face ALONE wraps it ([`wrap_rims`],
-    // asked first): every boundary edge is a seam mated to the face itself
-    // or an iso-line of the OTHER coordinate — a parallel for the major
-    // angle, a meridian for the minor one. Otherwise the face trims by
-    // that coordinate's window, which must be definitely narrower than a
-    // period, levered by the displacement one radian buys (the outer
-    // distance from the axis for the major angle, the tube radius for the
-    // minor one; D4's θ·r): a window that reads a whole turn on a face
-    // that does not wrap alone has a gap the window cannot see, and one
-    // wider than a period is a walk that wound past it. Both are no face
-    // this reader can answer for.
-    let corrupt = || PointInSolidError::CorruptFace { face };
-    let (center, axis) = match body
-        .get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
-        .ok_or_else(corrupt)?
-    {
-        &Surface::Torus { center, axis, .. } => (center, axis),
-        _ => return Err(corrupt()),
-    };
-    let window = |name: &'static str,
-                  w: (T, T),
-                  lever: T,
-                  rims: WrapRims<T>|
-     -> Result<Option<(T, T)>, PointInSolidError> {
-        if wrap_rims(body, face, rims, band)?.is_some() {
-            return Ok(None);
-        }
-        match decide(name, Margin::levered(T::tau() - (w.1 - w.0), lever), band)
-            .map_err(|diag| PointInSolidError::Escalated { face, diag })?
-        {
-            Sign::Positive => Ok(Some(w)),
-            Sign::Zero | Sign::Negative => Err(PointInSolidError::PartialTorusFace { face }),
-        }
-    };
-    let u = window(
-        "bool_torus_trim_major_period",
-        u,
-        major_radius + minor_radius,
-        WrapRims::Coaxial {
-            origin: center,
-            axis,
-        },
-    )?;
-    let v = window(
-        "bool_torus_trim_minor_period",
-        v,
-        minor_radius,
-        WrapRims::Meridians { axis },
-    )?;
-    // A face that wraps BOTH coordinates alone has nothing but its own
-    // wrap edges for a boundary (D1): it is the whole torus, one face
-    // cut once each way, and holds every chart point.
-    Ok((u, v))
-}
-
-/// The face's `(major, minor)` chart windows, walked over its outer
-/// cycle. `None` for a face outside the walk's class — a ring, an
-/// unwalkable boundary, or a boundary edge with no closed-form image on
-/// the torus chart.
-///
-/// # The walk, and the other site of it
-///
-/// Each boundary edge's chart image is [`geom_brep::chart_pcurve`]'s
-/// closed form, which on a torus is exact and purely LINEAR in both
-/// channels: the chart's two circle families are the parallels (`u`
-/// affine in the carrier's parameter, `v` constant) and the meridians
-/// (`v` affine, `u` constant); the one other family, the Villarceau
-/// circles, images as a focal section, which takes the face out of the
-/// class rather than being approximated. So an edge's exact
-/// extent in each channel is its two endpoint evaluations, and the
-/// branch of each edge is pinned by nearest-branch continuity against
-/// the previous edge's exit, which is EXACT here because consecutive
-/// edges share a chart point and this chart has no singular junction at
-/// which they could fail to.
-///
-/// # The window is a BOX, and the boundary is checked to be one
-///
-/// A hull of chart images is a BOUNDING BOX, and fitting inside a box is
-/// not being one: an L-shaped face — six iso edges, a notch cut out of a
-/// rectangle — has exactly the same hull as the rectangle it sits in,
-/// and every other guard here would pass it. It would then be served a
-/// window covering the notch it does not occupy, and the door would
-/// answer `In` for points outside the solid.
-///
-/// So the walk carries two more checks, both cheap because the walk
-/// already has what they need. Every boundary edge's chart image is an
-/// axis-aligned segment (the affine guard below), so the boundary is a
-/// rectilinear chart polygon, and:
-///
-/// * `bool_torus_chart_closure` — each entry is the previous exit, and
-///   the last exit is the first entry, on the branch the walk pinned. A
-///   nonzero difference means the chain lost a branch or stepped over an
-///   edge, and the window belongs to a different face;
-/// * `bool_torus_chart_box` — every side lies on a side of the bounding
-///   box ([`chart_polygon_box`]). An L's or a U's inner sides lie inside
-///   it, by the notch's own width or depth.
-///
-/// **This is a class.** [`cone_chart_trim`] decides the same way
-/// (`bool_cone_chart_box`). [`sphere_chart_trim`] builds its window the
-/// same way — a fold over boundary images — and does not check that the
-/// boundary is the rectangle it reports; its premise is stated
-/// (ISO-BOUNDED, with a checked edge-class membership) but the box
-/// itself is not checked there.
-///
-/// **The null-scaffolding skip is not a gap.** An edge with no certified
-/// curve geometry is stepped over as a zero-length coincident copy. The
-/// closure check decides that it is one: a NON-degenerate edge skipped
-/// there leaves the next entry away from the previous exit (or the last
-/// exit away from the first entry), and the face refuses as
-/// `PartialTorusFace` rather than being served the rest of its boundary.
-///
-/// [`crate::chord_join::face_azimuth_images`]' walk is the same
-/// construction for the cylinder, sphere and cone charts. It is not
-/// shared with this one, and the
-/// reason is not tidiness: that walk answers ONE channel (the azimuth)
-/// and carries the sphere chart's pole-junction rule, which is exactly
-/// what the torus does not need and cannot use; this one answers both
-/// channels and no junction rule at all. A change to the branch-pin
-/// argument is a change to both sites.
-///
-/// # Errors
-///
-/// [`PointInSolidError::CorruptFace`] for an unwalkable face;
-/// [`PointInSolidError::Escalated`] when a chart image escalates.
-///
-/// # Panics
-///
-/// Where a boundary edge's curve does not resolve (D2 row 4): a torn
-/// curve is not null scaffolding. The links hold at rest and, on the
-/// reduction's working copies, by [`crate::live::OPERATORS_KEEP_LINKS`].
-#[allow(clippy::type_complexity)] // the two channels of one walk
-fn torus_chart_windows<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    band: Band,
-) -> Result<Option<((T, T), (T, T))>, PointInSolidError> {
-    let corrupt = || PointInSolidError::CorruptFace { face };
-    let f = body.get_face(face).ok_or_else(corrupt)?;
-    if !f.rings.is_empty() {
-        return Ok(None);
-    }
-    let surf = body.get_surface(f.surface).cloned().ok_or_else(corrupt)?;
-    let (lever, minor_radius) = match surf {
-        Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => (major_radius + minor_radius, minor_radius),
-        _ => return Err(corrupt()),
-    };
-    let LoopBoundary::Cycle { first } = body.get_loop(f.outer).ok_or_else(corrupt)?.boundary else {
-        return Ok(None);
-    };
-    // The channels' rates, bounded above: a parallel's radius
-    // `R + r·cos t` is at most `R + r`, and a meridian's is `r`.
-    let arms = (SupSpeed::new(lever), SupSpeed::new(minor_radius));
-    // Each boundary edge's chart image, `(entry, exit)` on the branch the
-    // walk pinned.
-    let mut sides: Vec<((T, T), (T, T))> = Vec::new();
-    // A record miss past `face` answers `CorruptFace` and a torn curve
-    // panics: the walk's `CorruptFace` raises are
-    // `torn-body-refusal-families-beyond-the-six-doors`' to split.
-    for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-        let he_data = body.get_half_edge(he).ok_or_else(corrupt)?;
-        let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
-        let Some(curve) = body.edge_curve_linked(he_data.edge, edge).certified() else {
-            // Null scaffolding: a zero-length coincident copy, carrying
-            // no chart extent and no branch information. Stepped over
-            // without breaking the chain, as the join lane's walk does.
-            continue;
-        };
-        let (t0, t1) = curve.params();
-        let pcurve = match geom_brep::chart_pcurve_over(curve.carrier(), t0, t1, &surf, band) {
-            Ok(p) => p,
-            // An escalation is this door's to report; every other
-            // refusal says the edge is not one the torus chart has a
-            // closed form for, which takes the FACE out of the class.
-            Err(geom_brep::PcurveCertifyError::Escalated { cause, .. }) => {
-                return Err(PointInSolidError::Escalated { face, diag: cause });
-            }
-            Err(_) => return Ok(None),
-        };
-        let geom_brep::Pcurve::Harmonic { p0, pa, pb, pl } = pcurve else {
-            return Ok(None);
-        };
-        // The torus lane's images carry no trigonometric part in either
-        // channel. Checked rather than premised: a harmonic term here
-        // would mean the endpoint evaluations are not the extent, and
-        // the window would understate the face. Angular coefficients
-        // are metered through the chart's own lever arm (D4 ¶1).
-        for coeff in [pa.x, pa.y, pb.x, pb.y] {
-            if decide(
-                "bool_torus_chart_affine",
-                Margin::levered(coeff, lever),
-                band,
-            )
-            .map_err(|diag| PointInSolidError::Escalated { face, diag })?
-                != Sign::Zero
-            {
-                return Ok(None);
-            }
-        }
-        let (entry_t, exit_t) = if edge.he_plus == he {
-            (t0, t1)
-        } else {
-            (t1, t0)
-        };
-        let at = |t: T| (p0.x + pl.x * t, p0.y + pl.y * t);
-        let (mut entry, mut exit) = (at(entry_t), at(exit_t));
-        if let Some(&(_, prev)) = sides.last() {
-            let Some((e, x)) = torus_chart_joint(face, prev, (entry, exit), arms, band)? else {
-                return Ok(None);
-            };
-            (entry, exit) = (e, x);
-        }
-        sides.push((entry, exit));
-    }
-    let (Some(&(start, _)), Some(&(_, end))) = (sides.first(), sides.last()) else {
-        return Ok(None);
-    };
-    // **The walk closes**: the last exit is the first entry on the branch
-    // the walk pinned. A walk that lost a branch, or stepped over its
-    // first or last edge, does not.
-    if !torus_chart_meets(face, end, start, arms, band)? {
-        return Ok(None);
-    }
-    // **The window is a BOX, and this is what checks the face is one**
-    // (header).
-    chart_polygon_box("bool_torus_chart_box", &sides, arms.0, arms.1, band)
-        .map_err(|diag| PointInSolidError::Escalated { face, diag })
-}
-
-/// **One joint of a torus chart walk**: the side `(entry, exit)` moved
-/// onto the branch of `prev`, the exit before it, when the walk meets
-/// there. The branch is decided as structure, per channel
-/// ([`geom_brep::Period::decide`]): sign decisions at the half-period
-/// marks, metered through the channel's rate as the closure is, so the
-/// shift is a whole number of periods `k·τ` with `k` a literal. Where a
-/// mark is undecided, the closure is asked on both branches astride it
-/// (`pcurves::branches_astride`): on neither, the walk does not meet.
-/// `None` where the walk does not meet: the gap sits on a mark (half a
-/// period from either branch), meets on neither branch astride an
-/// undecided mark, or the shifted entry is not the exit.
-///
-/// # Errors
-///
-/// [`PointInSolidError::Escalated`] where a mark is in band and a branch
-/// astride it may meet, or the closure is in band.
-#[allow(clippy::type_complexity)] // a side's two chart points
-fn torus_chart_joint<T: Decide>(
-    face: FaceKey,
-    prev: (T, T),
-    (entry, exit): ((T, T), (T, T)),
-    arms: (SupSpeed<T>, SupSpeed<T>),
-    band: Band,
-) -> Result<Option<((T, T), (T, T))>, PointInSolidError> {
-    use geom_brep::BranchMiss;
-    let tau = T::tau();
-    let name = "bool_torus_chart_branch";
-    let period = geom_brep::Period::new(tau);
-    let whole = |k: i32| period.times(k);
-    let shift = |gap: T, arm: SupSpeed<T>| {
-        let meter = |g| Margin::metered_sup(g, arm);
-        match period
-            .decide(name, gap, meter, band)
-            .map_err(|stop| stop.miss)
-        {
-            Ok(k) => Ok(Some(whole(k))),
-            Err(BranchMiss::Undecided(diag)) => {
-                let meets_on = |k: i32| {
-                    decide("bool_torus_chart_closure", meter(gap - whole(k)), band)
-                        .map(|sign| sign == Sign::Zero)
-                };
-                match crate::pcurves::branches_astride(name, gap, tau, meter, band) {
-                    Ok([lo, hi])
-                        if matches!((meets_on(lo), meets_on(hi)), (Ok(false), Ok(false))) =>
-                    {
-                        Ok(None)
-                    }
-                    _ => Err(PointInSolidError::Escalated { face, diag }),
-                }
-            }
-            Err(BranchMiss::OnMark) => Ok(None),
-        }
-    };
-    let (Some(ku), Some(kv)) = (
-        shift(prev.0 - entry.0, arms.0)?,
-        shift(prev.1 - entry.1, arms.1)?,
-    ) else {
-        return Ok(None);
-    };
-    let entry = (entry.0 + ku, entry.1 + kv);
-    let exit = (exit.0 + ku, exit.1 + kv);
-    // **The walk is continuous**: each entry is the previous exit, so an
-    // edge the walk stepped over leaves a gap here.
-    Ok(torus_chart_meets(face, prev, entry, arms, band)?.then_some((entry, exit)))
-}
-
-/// Do two chart points of one torus walk coincide? Each channel's
-/// difference is crossed to metres by an upper bound on its rate, so
-/// Zero is a coincidence in metres.
-///
-/// # Errors
-///
-/// [`PointInSolidError::Escalated`] in-band.
-fn torus_chart_meets<T: Decide>(
-    face: FaceKey,
-    a: (T, T),
-    b: (T, T),
-    (major, minor): (SupSpeed<T>, SupSpeed<T>),
-    band: Band,
-) -> Result<bool, PointInSolidError> {
-    for (delta, arm) in [(a.0 - b.0, major), (a.1 - b.1, minor)] {
-        if decide(
-            "bool_torus_chart_closure",
-            Margin::metered_sup(delta, arm),
-            band,
-        )
-        .map_err(|diag| PointInSolidError::Escalated { face, diag })?
-            != Sign::Zero
-        {
-            return Ok(false);
-        }
-    }
-    Ok(true)
-}
-
-/// **Is a rectilinear chart polygon its own bounding box?** The one
-/// decision behind `bool_torus_chart_box` and `bool_cone_chart_box`,
-/// decided under `name`.
+/// **Is a rectilinear chart polygon its own bounding box?** The
+/// decision behind `bool_cone_chart_box`, decided under `name`.
 ///
 /// `sides` are the polygon's sides as `(from, to)` chart points `(u, v)`,
 /// in order, and every one is an iso segment (the callers' premise). Such
@@ -2709,96 +2307,6 @@ pub(super) fn torus_elevation<T: Decide>(
     ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius
 }
 
-/// Is the ON-TORUS point `p` within the torus face's chart trim?
-/// `Some(true/false)` definite, `None` a graze the ray schedule retries.
-/// [`point_on_wall_in_face`]'s contract, on the torus chart.
-///
-/// **Both windows are cosine windows, and both are the SAME cosine
-/// window.** The minor angle is an azimuth too — the azimuth of the
-/// point's meridian-plane offset `(ρ − R)·r̂ + h·â` in the right-handed
-/// frame `(r̂, â)` whose normal is `r̂ × â` — so the branch-cut-free
-/// construction [`chart_azimuth_margin`] carries serves it verbatim,
-/// with the tube radius as its lever instead of the distance from the
-/// axis. Nothing about the minor angle needs a fourth spelling of that
-/// algebra.
-///
-/// A face that wraps a coordinate has no window there and nothing to
-/// test; a ring torus is regular everywhere, so unlike the cone's apex
-/// and the sphere's poles there is no singular point to decide first.
-#[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
-pub(super) fn point_on_torus_in_face<T: Decide>(
-    face: FaceKey,
-    center: Point3<T>,
-    axis: Vec3<T>,
-    major_radius: T,
-    minor_radius: T,
-    u_ref: Vec3<T>,
-    u_win: Option<(T, T)>,
-    v_win: Option<(T, T)>,
-    p: Point3<T>,
-    band: Band,
-) -> Result<Option<bool>, PointInSolidError> {
-    let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    // **Both windows lean on the ring convention, so it is CHECKED here
-    // rather than premised** — both halves, the tube first: the minor
-    // window is levered by `r`, the major by `ρ ≥ R − r`. The convention
-    // is enforced at REST by tier-3 check 1, and this door does not run
-    // the validator; three doors mint a torus (revolve, step-import, the
-    // blend lane), and a spindle or a nonpositive tube arriving from any
-    // of them would hand the trim a vanishing lever. It takes the
-    // funnel's escalation instead, read from the convention's one home.
-    geom::require_ring_torus(major_radius, minor_radius, band).map_err(escalate)?;
-    let w = p - center;
-    let h = w.dot(axis);
-    let radial = w - axis * h;
-    let rho = radial.norm();
-    let mut verdict = Some(true);
-    let ask = |margin: Margin<T>, verdict: &mut Option<bool>| -> Result<bool, PointInSolidError> {
-        match decide("bool_torus_trim", margin, band).map_err(escalate)? {
-            Sign::Positive => Ok(true),
-            Sign::Negative => Ok(false),
-            Sign::Zero => {
-                *verdict = None; // boundary graze
-                Ok(true)
-            }
-        }
-    };
-    // **Both windows divide by `ρ`**: the major azimuth's direction is
-    // `radial / ρ` inside [`chart_azimuth_margin`], and the meridian
-    // frame's `r̂` is the same quotient. On a ring torus every SURFACE
-    // point has `ρ ≥ R − r > 0`, so this is not a second statement of
-    // the convention; it guards the division for a point this door does
-    // not certify onto the surface — a query far off the tube can sit on
-    // the axis — and takes the funnel's escalation rather than a poison
-    // direction.
-    if u_win.is_some() || v_win.is_some() {
-        crate::validate::decide_positive("bool_torus_frame_radius", Margin::of(rho), band)
-            .map_err(escalate)?;
-    }
-    if let Some(az) = u_win {
-        // The MAJOR azimuth, levered by the local distance from the
-        // axis: that is what one radian of it displaces the point by.
-        let margin = chart_azimuth_margin(face, axis, u_ref, az, radial, rho, band)?;
-        if !ask(margin, &mut verdict)? {
-            return Ok(Some(false));
-        }
-    }
-    if let Some(mv) = v_win {
-        let r_hat = radial / rho;
-        // The meridian frame: `r̂` is the minor angle's own seam (`v = 0`
-        // on the outer equator) and `â` its quarter-turn, so the frame
-        // normal `r̂ × â` is what makes `chart_azimuth_margin`'s
-        // `axis × u_ref` reproduce `â`.
-        let frame = r_hat.cross(axis);
-        let meridian = r_hat * (rho - major_radius) + axis * h;
-        let margin = chart_azimuth_margin(face, frame, r_hat, mv, meridian, minor_radius, band)?;
-        if !ask(margin, &mut verdict)? {
-            return Ok(Some(false));
-        }
-    }
-    Ok(verdict)
-}
-
 /// Is the ON-WALL point `p` within the wall face's chart trim?
 /// `Some(true/false)` definite, `None` a boundary graze.
 ///
@@ -2848,20 +2356,16 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
 /// - [`wall_outline`] — [`narrower_than_period`] alone, the parity
 ///   argument's premise, checked where the class is resolved (its
 ///   callers have asked it too; the class does not lean on them);
-/// - [`point_on_cone_in_face`] (a cone wall's, same lane);
-/// - [`point_on_torus_in_face`], twice — the major azimuth on the axis
-///   frame, and the minor angle on the meridian frame `(r̂, â)`, which
-///   is an azimuth in exactly this sense and needs no restatement.
+/// - [`point_on_cone_in_face`] (a cone wall's, same lane).
 ///
 /// Restated (the mid direction through [`chart_dir`], the comparison or
 /// the guard written out):
 /// - [`sphere_chart_trim`] — a meridian edge's own span: the period
 ///   guard as a class question, then the comparison run with `r̂ = ±â`
 ///   to find a pole inside the edge;
-/// - [`cone_trimmed_window`] (behind [`cone_chart_trim`]) and
-///   [`torus_face_windows`] — the period guard
-///   as a class question (a window a period wide is the wrapped class,
-///   not an escalation);
+/// - [`cone_trimmed_window`] (behind [`cone_chart_trim`]) — the period
+///   guard as a class question (a window a period wide is the wrapped
+///   class, not an escalation);
 /// - [`super::contain::curved_face_placement`] (the same period guard
 ///   asked, after the full-turn route, as a chart-form question: its
 ///   answer is `None` where this one escalates).
@@ -3642,7 +3146,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     let (az, levels) = match wrap_rims(
         body,
         face,
-        WrapRims::Coaxial {
+        WrapRims {
             origin: center,
             axis,
         },
@@ -4089,6 +3593,12 @@ pub fn point_in_solid_faces<T: Decide + crate::props::AtRestPolicy>(
     point_in_faces(body, sel, q, band, tol)
 }
 
+/// Each face of a selection with its resolved query geometry, built once
+/// per query by the boundary pre-pass, in the selection's order: every
+/// ray of the schedule and every aimed ray read the same list, so a
+/// face's region is read off its boundary once rather than at every ray.
+type FaceGeos<T> = Vec<(FaceKey, FaceGeo<T>)>;
+
 /// The one closest-hit core behind both entries: the boundary
 /// pre-pass and the schedule sweep over exactly `faces` (module docs).
 /// An empty selection answers [`PointInSolidError::ZeroVolumeBody`]
@@ -4109,9 +3619,14 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
     }
 
     // ---- Boundary pre-pass: q on any face ⇒ OnBoundary. ----
+    // Each face's geometry is built as the pass reaches it, so a point on
+    // an earlier face answers before a later face is resolved.
+    let mut geos: FaceGeos<T> = Vec::with_capacity(faces.len());
     for &face in faces {
         let escalate = |diag| PointInSolidError::Escalated { face, diag };
-        match face_geo(body, face, &sel.charts, band)? {
+        geos.push((face, face_geo(body, face, &sel.charts, band)?));
+        let geo = &geos[geos.len() - 1].1;
+        match *geo {
             FaceGeo::Plane(origin, normal) => {
                 // Orientation-free: a residual compared against Zero
                 // answers the same whichever way the normal points,
@@ -4274,26 +3789,22 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
                     }
                 }
             }
-            // The torus wall arm: the residual is the point's EXACT
+            // The torus wall arms: the residual is the point's EXACT
             // signed distance to the tube. A ring torus is the set of
             // points whose meridian-plane offset `(ρ − R, h)` has norm
             // `r`, and that offset is the point's own displacement from
             // the spine circle, so `|(ρ − R, h)| − r` is a signed length
             // outright — like the cone's residual and unlike the
             // cylinder's and sphere's, which are `/2r` linearizations.
-            // It needs no nappe or branch to carry: the tube has one
-            // side, and `ρ ≥ R − r > 0` keeps the meridian frame honest
-            // everywhere on it.
+            // A closed group carries no region, so a Zero residual IS
+            // boundary, as on the full sphere.
             FaceGeo::Torus {
                 center,
                 axis,
                 major_radius,
                 minor_radius,
-                u_ref,
-                u,
-                v,
                 representative,
-                sense: _, // residual-vs-Zero and chart trim: orientation-free
+                ..
             } => {
                 if face != representative {
                     continue;
@@ -4302,18 +3813,24 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
                 if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
                     == Sign::Zero
                 {
-                    match point_on_torus_in_face(
-                        face,
-                        center,
-                        axis,
-                        major_radius,
-                        minor_radius,
-                        u_ref,
-                        u,
-                        v,
-                        q,
-                        band,
-                    )? {
+                    return Ok(SolidContainment::OnBoundary);
+                }
+            }
+            // The face's own region then says whether a point on the
+            // carrier is on THIS face, as on the trimmed sphere.
+            FaceGeo::TorusPatch {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                ref region,
+                ..
+            } => {
+                let elev = torus_elevation(center, axis, major_radius, minor_radius, q);
+                if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
+                    == Sign::Zero
+                {
+                    match region.contains(q, band).map_err(|e| e.of_face(face))? {
                         Some(true) | None => return Ok(SolidContainment::OnBoundary),
                         Some(false) => {}
                     }
@@ -4331,9 +3848,9 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
         &SCHEDULE,
         |r| {
             let d = r.map(T::from_f64).normalize();
-            match cast_ray(body, sel, q, d, reach, band)? {
+            match cast_ray(body, &geos, q, d, reach, band)? {
                 Some(side) => Ok(side),
-                None => missed_side(body, sel, q, d, reach, band, tol, &reads),
+                None => missed_side(body, sel, &geos, q, d, reach, band, tol, &reads),
             }
         },
         || PointInSolidError::RayExhausted,
@@ -4811,13 +4328,12 @@ fn ray_passes_beside<T: Decide>(
 /// meets it tangentially.
 fn cast_ray<T: Decide>(
     body: &Body<T>,
-    sel: &SolidFaces,
+    geos: &[(FaceKey, FaceGeo<T>)],
     q: Point3<T>,
     d: Vec3<T>,
     reach: T,
     band: Band,
 ) -> Result<Option<SolidContainment>, RayFault<PointInSolidError>> {
-    let faces = sel.faces();
     let mut crossings = Crossings::new();
     // A crossing at advance `t` on `face`; behind `q` it is none.
     let mut offer = |face: FaceKey, t: T, outward: Sign, edge: bool| {
@@ -4829,9 +4345,9 @@ fn cast_ray<T: Decide>(
         }
         Ok::<(), RayFault<PointInSolidError>>(())
     };
-    for &face in faces {
+    for &(face, ref geo) in geos {
         let escalate = |diag| RayFault::InBand(PointInSolidError::Escalated { face, diag });
-        match face_geo(body, face, &sel.charts, band).map_err(RayFault::Fatal)? {
+        match *geo {
             FaceGeo::Plane(origin, normal) => {
                 // `normal` is the face's OUTWARD normal (S10, folded in
                 // by `face_geo`), so this sign IS the material-side
@@ -5221,10 +4737,16 @@ fn cast_ray<T: Decide>(
                         Err(e @ RegionRefusal::WoundPastPeriod) => {
                             return Err(RayFault::Fatal(e.of_face(face)));
                         }
+                        // An edge whose reading ran out at this hit: a
+                        // limit of the reader this ray met, which another
+                        // ray may miss.
+                        Err(e @ RegionRefusal::Unreadable(_)) => {
+                            return Err(RayFault::Blocked(e.of_face(face)));
+                        }
                     }
                 }
             }
-            // The torus wall arm (issue 1011, the torus half): the ray
+            // The torus wall arms (issue 1011, the torus half): the ray
             // meets the tube at the real roots of a monic quartic, and
             // this door folds them only on a CERTIFIED count —
             // [`line_torus_roots`] carries the closed form, the count's
@@ -5240,20 +4762,33 @@ fn cast_ray<T: Decide>(
             // A ring torus has no singular point for that direction to
             // fail at, so unlike the cone there is nothing to decide
             // before reading it.
+            //
+            // A closed group folds every root for its representative; a
+            // face outside one, each root its region holds, as the
+            // trimmed sphere does.
             FaceGeo::Torus {
                 center,
                 axis,
                 major_radius,
                 minor_radius,
                 u_ref,
-                u,
-                v,
-                representative,
                 sense,
+                ..
+            }
+            | FaceGeo::TorusPatch {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+                sense,
+                ..
             } => {
-                if face != representative {
-                    continue;
-                }
+                let region = match geo {
+                    FaceGeo::Torus { representative, .. } if face != *representative => continue,
+                    FaceGeo::TorusPatch { region, .. } => Some(region),
+                    _ => None,
+                };
                 let roots =
                     match line_torus_roots(q, d, center, axis, major_radius, minor_radius, band) {
                         Ok(roots) => Ok(roots),
@@ -5265,26 +4800,28 @@ fn cast_ray<T: Decide>(
                 };
                 for &t in found.roots() {
                     let p = q + d * t;
-                    match point_on_torus_in_face(
-                        face,
-                        center,
-                        axis,
-                        major_radius,
-                        minor_radius,
-                        u_ref,
-                        u,
-                        v,
-                        p,
-                        band,
-                    )
-                    .map_err(at_hit)?
-                    {
-                        Some(false) => continue,
-                        None => {
-                            offer(face, t, Sign::Zero, true)?;
-                            continue;
+                    if let Some(region) = region {
+                        match region.contains(p, band) {
+                            Ok(Some(true)) => {}
+                            Ok(Some(false)) => continue,
+                            // On the face's boundary, or a hit its region's
+                            // paths could not place: no side is read there,
+                            // so the fold grazes on it only where it is
+                            // closest.
+                            Ok(None) | Err(RegionRefusal::RayExhausted { .. }) => {
+                                offer(face, t, Sign::Zero, true)?;
+                                continue;
+                            }
+                            Err(e @ RegionRefusal::Escalated(_)) => {
+                                return Err(RayFault::InBand(e.of_face(face)));
+                            }
+                            Err(e @ RegionRefusal::WoundPastPeriod) => {
+                                return Err(RayFault::Fatal(e.of_face(face)));
+                            }
+                            Err(e @ RegionRefusal::Unreadable(_)) => {
+                                return Err(RayFault::Blocked(e.of_face(face)));
+                            }
                         }
-                        Some(true) => {}
                     }
                     // The tube's chart normal, from the one home it has.
                     let n_chart = geom_brep::implicit_gradient(
@@ -5381,6 +4918,7 @@ fn as_ray_fault(e: PointInSolidError) -> RayFault<PointInSolidError> {
 fn missed_side<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     sel: &SolidFaces,
+    geos: &[(FaceKey, FaceGeo<T>)],
     q: Point3<T>,
     d: Vec3<T>,
     reach: T,
@@ -5407,7 +4945,7 @@ fn missed_side<T: Decide + crate::props::AtRestPolicy>(
                 .as_ref()
                 .map_err(|e| RayFault::Fatal(e.clone()))?;
             let from = q + d * (reach * T::from_f64(2.0));
-            let aimed = aimed_side(body, sel, from, aims, band).map_err(RayFault::Fatal)?;
+            let aimed = aimed_side(body, sel, geos, from, aims, band).map_err(RayFault::Fatal)?;
             match aimed {
                 Aimed::Side(side) => side,
                 Aimed::Undecided {
@@ -5503,6 +5041,7 @@ fn genuinely_in_band(e: &PointInSolidError) -> bool {
 fn aimed_side<T: Decide>(
     body: &Body<T>,
     sel: &SolidFaces,
+    geos: &[(FaceKey, FaceGeo<T>)],
     from: Point3<T>,
     aims: &[Point3<T>],
     band: Band,
@@ -5510,7 +5049,7 @@ fn aimed_side<T: Decide>(
     let reach = selection_reach(body, sel.faces(), from)?;
     let (mut in_band, mut limits) = (None, None);
     for &aim in aims {
-        match cast_ray(body, sel, from, (aim - from).normalize(), reach, band) {
+        match cast_ray(body, geos, from, (aim - from).normalize(), reach, band) {
             Ok(Some(side)) => return Ok(Aimed::Side(side)),
             Err(RayFault::InBand(e)) if genuinely_in_band(&e) => {
                 in_band.get_or_insert(e);
@@ -5672,9 +5211,14 @@ mod per_solid_entry_tests {
         let band = Band::linear(tol).unwrap();
         let body = two_cubes();
         let sel = SolidFaces::select(&body, body.faces().map(|(k, _)| k).collect()).unwrap();
+        let geos: Vec<_> = sel
+            .faces()
+            .iter()
+            .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
+            .collect();
         let cast = |q: Point3<f64>, d: Vec3<f64>| {
             let reach = selection_reach(&body, sel.faces(), q).unwrap();
-            cast_ray(&body, &sel, q, d.normalize(), reach, band)
+            cast_ray(&body, &geos, q, d.normalize(), reach, band)
         };
         let inside = Point3::new(0.5, 0.5, 0.5);
         assert!(matches!(
@@ -5890,9 +5434,9 @@ mod wall_root_rows {
     }
 }
 
-/// **The chart walks panic on a torn boundary curve**, where
-/// `torus_chart_windows` stepped over it as null scaffolding and
-/// `wall_outline` read it as a carrier the outline has no piece for.
+/// **The boundary walks panic on a torn boundary curve**, where the torus
+/// region would step over it as null scaffolding and `wall_outline` read
+/// it as a carrier the outline has no piece for.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_hop_rows {
@@ -5918,8 +5462,7 @@ mod torn_hop_rows {
     }
 
     #[test]
-    fn the_torus_window_panics_on_a_torn_curve() {
-        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+    fn the_torus_region_panics_on_a_torn_curve() {
         let (mut body, face) = crate::boolean::boxes::tests::torus_wall(
             Point3::origin(),
             Vec3::unit_z(),
@@ -5930,15 +5473,15 @@ mod torn_hop_rows {
             (-0.7, 0.8),
         );
         assert!(
-            torus_chart_windows(&body, face, band).unwrap().is_some(),
-            "the sound wall windows"
+            torus_face_region(&body, face).unwrap().is_some(),
+            "the sound wall's region"
         );
         let named = drop_first_curve(&mut body, face);
         assert_torn_op_panics(
-            "torus_chart_windows",
+            "torus_face_region",
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| torus_chart_windows(b, face, band).map(|w| w.is_some()),
+            |b| torus_face_region(b, face).map(|r| r.is_some()),
         );
     }
 
@@ -6039,79 +5582,30 @@ mod escalated_ending_rows {
     }
 }
 
-/// **A torus walk's joint lands on a literal branch.** Over a box, a
-/// joint whose entry sits `k` periods from the previous exit in both
-/// channels, as polynomials that are not constants, at `k` either side
-/// of zero: the branch is decided by its marks, so the shifted entry
-/// meets the exit as the zero polynomial in each channel, and the walk
-/// closes as a theorem where the value channel alone is about 0.64 rad
-/// wide. And at `f64`, a gap in the band of a half-period mark meets on
-/// neither branch astride it, so the walk does not meet there: the face
-/// is out of the class, never an escalation.
+/// **A torus wall whose carrier is stated whole periods off reads as its
+/// twin.** The bottom parallel's carrier parameter runs 5 and 10 periods
+/// below the azimuth it covers; the region reads each root against the
+/// span it was stated in, so every point of a lattice over the wall's
+/// chart and past it reads as the principal wall does: in the patch. The
+/// same loop under the chart's own normal runs clockwise, and its face
+/// is the patch's complement.
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
-mod joint_branch_rows {
+mod stated_periods_rows {
     use super::*;
-    use geom_core::{Real, Sym};
 
     #[test]
-    fn a_joint_whole_periods_out_meets_as_a_theorem_over_a_box() {
+    fn a_torus_wall_stated_periods_off_reads_as_its_twin() {
         let band = Band::linear(Tol::witness()).unwrap();
-        for k in [-7.0, -1.0, 0.0, 1.0, 2.0, 5.0] {
-            let (out, counts) =
-                crate::test_support_fixtures::whole_period_gap_over_a_box(k, |a, b| {
-                    let arms = (
-                        SupSpeed::new(Sym::from_f64(2.5)),
-                        SupSpeed::new(Sym::from_f64(0.5)),
-                    );
-                    torus_chart_joint(FaceKey::default(), (a, a), ((b, b), (b, b)), arms, band)
-                        .map(|joint| joint.is_some())
-                });
-            assert!(
-                matches!(out, Ok(true)),
-                "k = {k}: the walk meets across the joint: {out:?}"
-            );
-            assert_eq!(
-                counts.symbolic, 2,
-                "k = {k}: each channel's closure is the zero polynomial"
-            );
-        }
-    }
-
-    #[test]
-    fn a_gap_in_band_of_a_half_period_mark_meets_on_neither_branch() {
-        let band = Band::linear(Tol::witness()).unwrap();
-        let arms = (SupSpeed::new(2.5), SupSpeed::new(0.5));
-        // Midway through the band from the mark at π, metered at the
-        // rate 2.5: the mark is undecided, and a half period from either
-        // branch.
-        let gap = core::f64::consts::PI + 0.5 * (band.zero() + band.escalate()) / 2.5;
-        let joint = torus_chart_joint(
-            FaceKey::default(),
-            (0.3 + gap, 0.2),
-            ((0.3, 0.2), (0.5, 0.2)),
-            arms,
-            band,
-        );
-        assert!(
-            matches!(joint, Ok(None)),
-            "the walk does not meet on either branch: {joint:?}"
-        );
-    }
-
-    /// A torus wall whose bottom parallel's carrier runs 5 and 10
-    /// periods below the azimuth it covers walks to its principal twin's
-    /// windows: the walk reads each joint's element from the marks at
-    /// zero however far out the gap lies, so the point-in-solid windows
-    /// are the twin's, not a refusal.
-    #[test]
-    fn a_torus_wall_stated_periods_off_walks_to_its_twins_windows() {
-        let band = Band::linear(Tol::witness()).unwrap();
-        type Window = (
-            ((f64, f64), (f64, f64)),
-            (Option<(f64, f64)>, Option<(f64, f64)>),
-        );
-        let windows = |periods: f64| -> Window {
+        let (us, vs) = ((0.3, 1.9), (-0.7, 0.8));
+        let on = |u: f64, v: f64| {
+            Point3::new(
+                (2.0 + 0.5 * v.cos()) * u.cos(),
+                (2.0 + 0.5 * v.cos()) * u.sin(),
+                0.5 * v.sin(),
+            )
+        };
+        for periods in [0.0, 5.0, 10.0] {
             let (body, face) = crate::boolean::boxes::tests::torus_wall_below(
                 periods,
                 Point3::origin(),
@@ -6119,31 +5613,94 @@ mod joint_branch_rows {
                 Vec3::unit_x(),
                 2.0,
                 0.5,
-                (0.3, 1.9),
-                (-0.7, 0.8),
+                us,
+                vs,
             );
-            (
-                torus_chart_windows(&body, face, band).unwrap().unwrap(),
-                torus_face_windows(&body, face, 2.0, 0.5, band).unwrap(),
-            )
-        };
-        let flat = |((u, v), (fu, fv)): Window| {
-            let pair = |w: Option<(f64, f64)>| w.map_or([f64::NAN; 2], |(a, b)| [a, b]);
-            [
-                [u.0, u.1, v.0, v.1],
-                [pair(fu)[0], pair(fu)[1], pair(fv)[0], pair(fv)[1]],
-            ]
-        };
-        let twin = flat(windows(0.0));
-        for periods in [5.0, 10.0] {
-            let far = flat(windows(periods));
-            for (x, y) in far.iter().flatten().zip(twin.iter().flatten()) {
-                // A wrapped coordinate reads `None` on both, as NaN.
-                assert!(
-                    (x - y).abs() < 1e-12 || (x.is_nan() && y.is_nan()),
-                    "{periods} periods: {far:?} against {twin:?}"
-                );
+            let region = torus_face_region(&body, face).unwrap().unwrap();
+            for i in 0..9 {
+                for j in 0..9 {
+                    let (u, v) = (-0.4 + 0.33 * f64::from(i), -1.3 + 0.31 * f64::from(j));
+                    let inside = us.0 < u && u < us.1 && vs.0 < v && v < vs.1;
+                    assert_eq!(
+                        region.contains(on(u, v), band),
+                        Ok(Some(inside)),
+                        "{periods} periods: (u, v) = ({u}, {v})"
+                    );
+                }
             }
         }
+        let (body, face) = crate::boolean::boxes::tests::torus_wall_clockwise(
+            Point3::origin(),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            2.0,
+            0.5,
+            us,
+            vs,
+        );
+        let region = torus_face_region(&body, face).unwrap().unwrap();
+        for (u, v) in [(1.1, 0.05), (-0.2, 0.05), (1.1, 1.5), (2.5, -1.0)] {
+            let inside = us.0 < u && u < us.1 && vs.0 < v && v < vs.1;
+            assert_eq!(
+                region.contains(on(u, v), band),
+                Ok(Some(!inside)),
+                "clockwise: (u, v) = ({u}, {v})"
+            );
+        }
+    }
+
+    /// **A wall and its clockwise twin read complementary sides at random
+    /// points** (a counterexample search: the seed varies and is logged,
+    /// the count rides `CAD_FUZZ_EFFORT`). Every point of the torus a
+    /// micron clear of the patch's boundary reads `In` on the wall exactly
+    /// where it is in the patch, and on the clockwise twin exactly where it
+    /// is not.
+    #[test]
+    fn a_wall_and_its_clockwise_twin_read_complementary_sides() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (us, vs) = ((0.3, 1.9), (-0.7, 0.8));
+        let frame = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x(), 2.0, 0.5);
+        let (wall, wf) = crate::boolean::boxes::tests::torus_wall(
+            frame.0, frame.1, frame.2, frame.3, frame.4, us, vs,
+        );
+        let (twin, tf) = crate::boolean::boxes::tests::torus_wall_clockwise(
+            frame.0, frame.1, frame.2, frame.3, frame.4, us, vs,
+        );
+        let (wall, twin) = (
+            torus_face_region(&wall, wf).unwrap().unwrap(),
+            torus_face_region(&twin, tf).unwrap().unwrap(),
+        );
+        let mut rng = test_utils::fuzz::start("torus_wall_clockwise_twin");
+        let tau = core::f64::consts::TAU;
+        let mut read = 0;
+        for _ in 0..test_utils::fuzz::scaled(200) {
+            let (u, v) = (
+                rng.range(0.0, tau),
+                rng.range(-core::f64::consts::PI, core::f64::consts::PI),
+            );
+            let clear = |x: f64, (a, b): (f64, f64)| (x - a).abs().min((x - b).abs()) > 1e-6;
+            if !clear(u, us) || !clear(v, vs) {
+                continue;
+            }
+            let inside = us.0 < u && u < us.1 && vs.0 < v && v < vs.1;
+            let p = Point3::new(
+                (2.0 + 0.5 * v.cos()) * u.cos(),
+                (2.0 + 0.5 * v.cos()) * u.sin(),
+                0.5 * v.sin(),
+            );
+            let replay = test_utils::fuzz::replay();
+            assert_eq!(
+                wall.contains(p, band),
+                Ok(Some(inside)),
+                "({u}, {v}), {replay}"
+            );
+            assert_eq!(
+                twin.contains(p, band),
+                Ok(Some(!inside)),
+                "({u}, {v}), {replay}"
+            );
+            read += 1;
+        }
+        assert!(read > 0, "no point clear of the boundary");
     }
 }

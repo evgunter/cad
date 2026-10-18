@@ -607,7 +607,7 @@ fn a_datums_value_folds_the_subgroup_its_kind_names() {
             .var(doc.output(node, 0).expect("a datum defines its pose"))
             .unwrap()
             .kind();
-        assert_eq!(value.symmetry().family(), kind.symmetry(), "{kind:?}");
+        assert_eq!(Some(value.symmetry().family()), kind.symmetry(), "{kind:?}");
     }
 }
 

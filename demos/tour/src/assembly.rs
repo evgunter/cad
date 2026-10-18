@@ -105,10 +105,10 @@ use std::sync::Arc;
 
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
-    Assembly, AssemblyError, CONTRADICTORY_RECOURSE, CancelToken, Constraint, Coord, Datum,
-    Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
-    FreeVar, InlineError, LoopProgram, Mate, MateFault, MateReach, MateRef, MintRefusal,
-    NO_AT_REST_RECORD_RECOURSE, Node, Operand, PartReach, PartResolver, PartSelect, PatternKind,
+    Assembly, AssemblyError, CancelToken, Constraint, Coord, Datum, Dimension, DocEdit, DocRef,
+    DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, InlineError,
+    LoopProgram, Mate, MateFault, MateReach, MateRef, MintRefusal, NO_AT_REST_RECORD_RECOURSE,
+    Node, OVERCONSTRAINED_RECOURSE, Operand, PartReach, PartResolver, PartSelect, PatternKind,
     ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace, SlideAxis, Space, Target,
     Value, ValuePayload, VarName, WorldRead, apply, assemble, content_pin, evaluate, inline, load,
     mixed_pins, parse_formula, pin_at, place_at, product_named, save, solve_document, split,
@@ -969,10 +969,9 @@ struct Bench {
 /// mate (the stand's two and the crate's), and the viewer's status line
 /// shows them as `checks: 3 finding(s)`. They are expected: each is the
 /// at-rest census's row for its mate's own seat, which D10 makes
-/// structural ("a mate-placed face is"), but no rung proves it yet.
-/// The rung is INTENT stage 4 PR H
-/// (`work/intent/placed-carriers-compare-through-their-frames.md`), and
-/// the three go quiet when it lands.
+/// structural ("a mate-placed face is"), but the door does not prove a
+/// mated seat yet
+/// (`work/intent/a-mate-placed-seat-is-unproven-at-the-doors-budget.md`).
 fn bench(stand: &Stand, parts: &Parts, tol: Tol, reach: &dyn MateReach) -> Bench {
     let mut doc = stand.doc.clone();
     let crate_i = insert(&mut doc, Node::instantiate_part(parts.crate_ref), tol);
@@ -1648,43 +1647,37 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     );
     println!("   (1) under-determined: the shelf is a loose copy, not a refusal — {space:?}");
 
-    // (2) CONTRADICTORY. Two mates in ONE bundle intersect their cosets
-    // exactly; two rests at different standoffs meet nowhere, and the
-    // refusal names both mates, the predicate that decided, and the
-    // measured clash. The first rest leaves the shelf loose, so the
-    // second is no overconstraint: it is a contradiction.
-    let clash = rest(
+    // (2) OVERCONSTRAINED. A second rest in ONE bundle fixes the
+    // seating plane the first already fixes, whatever its standoff: the
+    // door refuses it, measuring nothing, naming both mates and the
+    // freedoms the two would leave. Where two parts meet beyond what
+    // their mates fix, the recourse is an assertion, never a mate that
+    // checks.
+    let again = rest(
         plane(under.shelf_i, &parts.shelf_bottom),
-        // The same pair, seated 10 mm apart: the author has said two
-        // things that cannot both be true.
+        // The same pair, seated 10 mm apart.
         standoff(plane(under.post_a, &parts.post_top), 0.01),
         ContactClass::Rest,
     );
-    let (fault, at) = match apply(
+    let fault = match apply(
         &under.doc,
-        &add_constraint(under.shelf_i, clash),
+        &add_constraint(under.shelf_i, again),
         tol,
         &reach,
     ) {
-        Err(pncad::document::EditError::MateRefused { fault, .. }) => (*fault, "at the door"),
-        Err(other) => panic!("a contradiction refuses as the mate's own fault, got {other:?}"),
-        Ok(applied) => (
-            solve_document(&applied.doc, &opts, tol)
-                .fault(under.shelf_i)
-                .cloned()
-                .expect("two rests at different heights cannot both hold"),
-            "at the solve",
-        ),
+        Err(pncad::document::EditError::MateRefused { fault, .. }) => *fault,
+        Err(other) => panic!("a second rest refuses as the mate's own fault, got {other:?}"),
+        Ok(_) => panic!("the door admitted a second rest beside the first"),
     };
     assert!(
-        matches!(fault, MateFault::Contradictory { .. }),
-        "an empty coset intersection is the CONTRADICTORY refusal, got {fault:?}"
+        matches!(fault, MateFault::Overconstrained { .. }),
+        "a rest beside a rest is the OVERCONSTRAINED refusal, got {fault:?}"
     );
     assert!(
-        fault.to_string().contains(CONTRADICTORY_RECOURSE),
+        fault.to_string().contains(OVERCONSTRAINED_RECOURSE),
         "the refusal carries its recourse verbatim"
     );
-    println!("   (2) contradictory, {at}: {fault}");
+    println!("   (2) overconstrained, at the door: {fault}");
 
     // (3) OUTSIDE v1's VOCABULARY. `Tangent` solves — a tangency pins
     // a coset like any other primitive — and then has nowhere to go

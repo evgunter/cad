@@ -678,10 +678,10 @@ fn the_kind_refusal_no_longer_names_the_torus() {
     );
     assert!(msg.contains("spline"), "{msg}");
 
-    // The arm's OWN refusal, for a torus face in neither class. No
-    // public door mints one today — it wants a ringed torus face, or an
-    // oblique (Villarceau) boundary circle — so what is pinned here is
-    // the claim the message makes, not a body that reaches it.
+    // The arm's OWN refusal, for a torus face with a boundary edge in no
+    // plane. No public door mints one today — it wants a spline edge on
+    // a torus face — so what is pinned here is the claim the message
+    // makes, not a body that reaches it.
     let msg = PointInSolidError::PartialTorusFace {
         face: body.faces().next().unwrap().0,
     }
@@ -689,7 +689,7 @@ fn the_kind_refusal_no_longer_names_the_torus() {
     assert!(msg.contains("The solid itself is fine"), "{msg}");
     assert!(msg.contains("Recourse"), "{msg}");
     assert!(
-        msg.contains("(parallels and meridians)"),
+        msg.contains("plane sections of the tube"),
         "the recourse names the boundary the torus arm can read: {msg}"
     );
 }
@@ -723,10 +723,11 @@ fn the_kind_refusal_no_longer_names_the_torus() {
 ///
 /// Neither is measured here, and neither should be read as covered by
 /// the row below. What IS closed regardless of the door is the concrete
-/// hazard: a spindle reaching the minor-window trim would divide by a
-/// vanishing radial, so `point_on_torus_in_face` decides the ring
-/// convention at entry (`geom::ring_torus`) and takes a typed
-/// refusal instead of a poison frame. On a ring torus it never fires.
+/// hazard: a spindle reaching the torus region's legs would divide by a
+/// vanishing radial, so the region decides the ring convention when it
+/// is read (`geom::require_ring_torus`, in `torus_face_region`) and takes
+/// a typed refusal instead of a poison frame. On a ring torus it never
+/// fires.
 #[test]
 fn a_spindle_torus_is_not_mintable_through_the_public_door() {
     // A shallow bulge on the same chord: sagitta 0.15, arc radius

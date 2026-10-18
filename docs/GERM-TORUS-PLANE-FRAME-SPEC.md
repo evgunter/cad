@@ -172,15 +172,15 @@ every pose:
   one-face torus with its vertex at `π + asin 0.6`, whose wrap parallel
   and vertex lie on the box's face: an edge and a vertex on a face that
   cuts the tube transversally, decided Zero by the crossing layer's
-  margins, as TANG's rim is (§2, not held). Containment refuses
-  `PartialTorusFace` on their ∪ and `T ∖ P` bodies, whose torus walls
-  are no chart rectangle (INSIDE, below).
+  margins, as TANG's rim is (§2, not held). Containment reads their ∪
+  and `T ∖ P` bodies, whose torus walls are no chart rectangle, by the
+  torus region (RESTREAD, `boolean::torus_region`).
 - **A slab across the one-face torus** refuses `JoinDesync` in
   `choose_roles` at some vertex phases (filed on GERM,
   `a-slab-against-a-one-face-torus-desyncs-its-chord-roles`).
-- **Containment on a body the notch mints** refuses `PartialTorusFace`:
-  its torus walls are L-shaped in the chart (filed on INSIDE,
-  `point-in-solid-refuses-an-l-shaped-torus-face`).
+- **Containment on a body the notch mints** reads it: its torus walls
+  are L-shaped in the chart, which the torus region reads (RESTREAD,
+  `point-in-solid-refuses-an-l-shaped-torus-face`, closed).
 
 **The section certificate on the corner bars** (`section_report`, on
 main):
@@ -437,10 +437,9 @@ bodies, measured in §0.1:
     `(1, 0.9)` and `(1, 0.95)`, wind and build.
 
   Past the join, a result's torus face bounded by ovals is no chart
-  rectangle, and three doors behind it stop some ops: `point_in_solid`'s
-  `PartialTorusFace` in the shells' sort
-  (`work/inside/point-in-solid-refuses-an-l-shaped-torus-face.md`); the
-  volume's `RingOnCurvedFace` on a torus face holding a ring
+  rectangle; `point_in_solid` reads it by the torus region (RESTREAD),
+  and two doors behind it stop some ops: the volume's
+  `RingOnCurvedFace` on a torus face holding a ring
   (`work/flux/a-torus-face-with-a-spiric-ring-has-no-volume-lane.md`);
   and the spiric face lane's `QuadratureBudget`
   (`VolumeUnmeasured`), measured at ε `1e-12` on `P ∖ T` of the corner

@@ -106,8 +106,6 @@ fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
 struct Names {
     lateral: Vec<StableName>,
     corner: Vec<StableName>,
-    foot_rim: StableName,
-    top_rim: StableName,
 }
 
 impl Names {
@@ -120,8 +118,6 @@ impl Names {
             corner: (0..4)
                 .map(|k| fixture::cap_vertex(body, CapEnd::End, v(k)))
                 .collect(),
-            foot_rim: fixture::rim_edge(body, CapEnd::Start, fixture::piece(doc, body, 0, 0)),
-            top_rim: fixture::rim_edge(body, CapEnd::End, fixture::piece(doc, body, 0, 0)),
         }
     }
 }
@@ -508,12 +504,20 @@ fn shaft(label: &str, off: (f64, f64)) -> Shaft {
             ContactClass::Rest,
         ),
     ];
-    let mut doc = doc;
-    let mut refs = Vec::new();
-    for mate in mates {
-        let (next, m) = fixture::constrain_at(doc, bolt, mate);
+    // The first bore through the door; the rest beside it past the
+    // door, the state a doctored save leaves, which the fold refuses.
+    let [first, rest @ ..] = mates;
+    let (mut doc, first) = fixture::constrain_at(doc, bolt, first);
+    let mut refs = vec![first];
+    for mate in rest {
+        let (next, id) = editor_core::test_support::beside_past_the_bundle_rule(
+            &doc,
+            bolt,
+            mate,
+            Tol::witness(),
+        );
         doc = next;
-        refs.push(m);
+        refs.push(MateRef::new(bolt, id));
     }
     Shaft {
         doc,
@@ -526,8 +530,10 @@ fn shaft(label: &str, off: (f64, f64)) -> Shaft {
 // ---- The mate corpus ----
 
 /// **The mate corpus the fence is taken over** — one document per shape
-/// the fold has a branch for, each with its resolver. Built through
-/// the ordinary doors, so the documents are what an author makes.
+/// of bundle the fold places or refuses, each with its resolver. Built
+/// through the ordinary doors, so the documents are what an author
+/// makes, but for the two overconstrained bundles, which no door admits
+/// and which are written past it as a doctored save would hold them.
 fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let mut out = Vec::new();
 
@@ -589,9 +595,9 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     );
     out.push(("loose", doc, p.opts()));
 
-    // A rest, then a frame mate the rest is redundant beside: the door
-    // admits the frame (it decides nothing that needs a pose), and the
-    // placement refuses its bundle OVERCONSTRAINED, naming the rest.
+    // A rest, then a frame mate beside it past the door (the state a
+    // doctored save leaves): the placement refuses its bundle
+    // OVERCONSTRAINED, naming both.
     let p = parts("msolve14-c-over");
     let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-over", 1);
     let bolt = bolts[0];
@@ -621,8 +627,8 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
             fixture::point_of(SitedRef::new(at, worn(at, body, &corner))),
         )
     };
-    let (doc, _) = fixture::constrain_at(
-        doc,
+    let (doc, _) = editor_core::test_support::beside_past_the_bundle_rule(
+        &doc,
         bolt,
         fixture::mate(
             frame(
@@ -641,6 +647,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
             ),
             ContactClass::Rest,
         ),
+        Tol::witness(),
     );
     out.push(("overconstrained", doc, p.opts()));
 
@@ -736,66 +743,9 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     );
     out.push(("chain", doc, p.opts()));
 
-    // Two pins on parallel lines and a rest: the fold meets two
-    // rotation constraints about parallel axes, which leave the slide
-    // along them, and the rest cuts that to DETERMINED.
-    let p = parts("msolve14-c-two-pin");
-    let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-two-pin", 1);
-    let bolt = bolts[0];
-    let line = || p.slab_line(slab, 3.0, 2.0);
-    let mut doc = doc;
-    for mate in [
-        fixture::mate(p.bolt_edge(bolt, 0), line(), ContactClass::Rest),
-        fixture::mate(
-            p.bolt_edge(bolt, 1),
-            slid(line(), p.slab_side(slab, 1), len(BOLT_WIDTH)),
-            ContactClass::Rest,
-        ),
-        fixture::rest(
-            head(p.bolt_foot(bolt)),
-            head(p.slab_top(slab)),
-            ContactClass::Rest,
-        ),
-    ] {
-        doc = fixture::constrain_at(doc, bolt, mate).0;
-    }
-    out.push(("two-pin", doc, p.opts()));
-
-    // A pin lying in a rest's plane: two rotation constraints about
-    // DIFFERENT axes, met through the reachability predicate
-    // (`candidate_rotation`'s two-axis arm); the prismatic residual
-    // along the pin leaves the bolt LOOSE.
-    let p = parts("msolve14-c-cross-pin");
-    let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-cross-pin", 1);
-    let bolt = bolts[0];
-    let (doc, _) = fixture::constrain_at(
-        doc,
-        bolt,
-        fixture::rest(
-            head(p.bolt_foot(bolt)),
-            head(p.slab_top(slab)),
-            ContactClass::Rest,
-        ),
-    );
-    let (doc, _) = fixture::constrain_at(
-        doc,
-        bolt,
-        fixture::mate(
-            fixture::axis(SitedRef::new(
-                bolt,
-                worn(bolt, p.bolt_body, &p.bolt_names.foot_rim),
-            )),
-            fixture::axis(SitedRef::new(
-                slab,
-                worn(slab, p.slab_body, &p.slab_names.top_rim),
-            )),
-            ContactClass::Rest,
-        ),
-    );
-    out.push(("cross-pin", doc, p.opts()));
-
-    // A shaft in two coaxial bores on one line, clocked by a third pin:
-    // two constraints the rest fix.
+    // A shaft in two coaxial bores on one line, a rest and a third
+    // pin, beside one another past the door: each fixes what the
+    // others fix.
     let s = shaft("msolve14-c-shaft", (0.0, 0.0));
     out.push(("shaft", s.doc, s.opts));
     out
@@ -948,10 +898,22 @@ fn run_at<T: editor_core::EvalScalar>(
 /// copy the fixtures place where it stands is pinned by a world pin,
 /// which reads nothing, so its pose is the identity exactly rather than
 /// to a pin's rounding, and its placement decides nothing.
+///
+/// And for the bundle rule (FORK-S3O, all three rows): every row that
+/// places a copy measured its own digest equal before and after at all
+/// three ε; the two overconstrained rows are written past the door and
+/// name every constraint the rest fix, and the two-pin and cross-pin
+/// rows, whose fold branches retired, left the corpus.
+///
+/// And again when a pose's frame became the decided shortest turn and
+/// the line across two directions stopped carrying the fold's arm (all
+/// three rows): only the pinned chain's two seats moved, by at most
+/// 8.9e-16 in any entry of their solved maps; every other solved pose is
+/// bit-identical.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x2902_fc93_713f_a236),
-    (1e-6, 0x4dcf_61d5_d169_1930),
-    (1e-12, 0x8276_8f60_1700_e9f9),
+    (1e-9, 0x4eaf_f77c_56e7_76b2),
+    (1e-6, 0x66d0_97aa_791d_aeb5),
+    (1e-12, 0x84a0_e9c4_8e67_0bf2),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
@@ -1623,13 +1585,13 @@ fn overconstrained_or_escalates<T: geom_core::Decide>(
 }
 
 /// **A shaft in two coaxial bores is overconstrained in every lane**
-/// ([`shaft`]): the bundle pins the bolt with two bores either of
-/// which the rest already fix, so the placement refuses it naming both
-/// — at `f64`, at `Dual64` seeded on `rise` and on `idle`, and at
-/// `Interval` over a box on `rise` a fraction of ε wide, save where the
-/// corpus's identically-zero membership margins escalate unboxed
-/// ([`INTERVAL_ESCALATIONS`]), where the bolt's fault is that
-/// escalation instead.
+/// ([`shaft`]): the bundle holds two bores, a rest and a third bore
+/// beside one another (past the door, as a doctored save leaves them),
+/// and the placement refuses it naming both bores — at `f64`, at
+/// `Dual64` seeded on `rise` and on `idle`, and at `Interval` over a
+/// box on `rise` a fraction of ε wide. The rule reads the families,
+/// so no lane measures anything to escalate on ([`INTERVAL_ESCALATIONS`]
+/// holds no shaft row).
 ///
 /// *Breaks if* a lane decides the bundle's overconstraint otherwise
 /// than `f64` does.
@@ -1668,18 +1630,16 @@ fn c2_a_shaft_in_two_coaxial_bores_is_overconstrained_in_every_lane() {
     );
 }
 
-/// **A near-degenerate shaft decides or escalates, and never reads a
-/// NaN**: its second bore's line a rounding off the first's (slid a
+/// **A near-degenerate shaft refuses as any shaft does, measuring
+/// nothing**: its second bore's line a rounding off the first's (slid a
 /// non-dyadic distance along the slab's side and back), or three ε off
-/// it, inside the band. The door decides nothing that needs a pose, so
-/// both enter; in every lane — `f64`, `Dual64` unseeded and seeded on
-/// `rise`, `Interval` unboxed — the bolt's bundle is refused
-/// overconstrained or escalates on its own log, over a point margin or
-/// an enclosure and never a poisoned one, the same way at `f64` and
-/// `Dual64`.
+/// it, inside the band. In every lane — `f64`, `Dual64` unseeded and
+/// seeded on `rise`, `Interval` unboxed — the bolt's bundle is refused
+/// overconstrained by its families, with no escalation: the bores'
+/// nearness is never decided.
 ///
-/// *Breaks if* a lane reads a NaN out of a near-degenerate fold, or
-/// `Dual64` decides where `f64` escalates.
+/// *Breaks if* a lane measures the bores (escalating in the band, or
+/// reading a NaN out of a near-degenerate fold).
 #[test]
 fn c2_a_near_degenerate_shaft_decides_or_escalates_and_never_reads_nan() {
     use geom_core::MarginKind;
@@ -1689,6 +1649,7 @@ fn c2_a_near_degenerate_shaft_decides_or_escalates_and_never_reads_nan() {
         let f = run_at::<f64>(&s.doc, &s.opts, None);
         let escalated =
             overconstrained_or_escalates(&f, &s, MarginKind::Value, &format!("{variant}, f64"));
+        assert!(!escalated, "{variant}: the bundle rule measures nothing");
         for opts in [s.opts.clone(), seeded(&s.doc, &s.opts, rise())] {
             let d = run_at::<Dual64>(&s.doc, &opts, None);
             assert_eq!(

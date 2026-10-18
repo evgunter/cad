@@ -65,9 +65,7 @@ const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 80
 /// these are not): the prose's, not the names'. Filed as
 /// `work/wire/refusals-forwarding-a-name-state-no-marked-recourse.md`.
 const UNMARKED_RECOURSE: &[&str] = &[
-    "ResolveError::Vanished",
     "SelectRefusal::TiedDisagrees",
-    "SelectRefusal::Unreadable",
     "NodeErrorKind::CrossingUnverified",
 ];
 
