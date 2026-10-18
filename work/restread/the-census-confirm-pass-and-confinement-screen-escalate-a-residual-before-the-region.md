@@ -44,11 +44,18 @@ record is stale or the crossing unbacked.
 
 ## The shape to give
 
-Route each site through `census::read_undecided`, the one home of the
-rule. Decide the margin into a scratch vector. When it escalates, run
-the branch (or branches) its other readings would take as
-`read_undecided`'s branches. Push the escalation, with
-`census::held`'s share of what the branches met, only where some branch
-finds something the off reading does not. `pair_vertex_face`,
-`pair_edge_face` and `edge_crossings`' chord-length gate are the three
-callers to copy.
+These sites need a disagreement test, not `census::read_undecided`.
+`read_undecided` escalates where ANY reading finds something. That is
+"the readings differ" only where the margin's off reading finds
+nothing. Here the off reading finds something itself: a stale record,
+or an unbacked crossing. So `read_undecided` would keep every
+escalation.
+
+What is owed: decide the margin, and when it escalates, run each
+reading's branch (the off reading's included). Escalate only where the
+branches refuse differently: say stale under one and confirmed under
+another, or unbacked under one and backed under another. Where every
+reading refuses the same way (stale, or unbacked), push that refusal
+instead of the escalation. A sibling of `read_undecided` comparing the
+branches' answers is the natural home. Carry the escalations the
+branches met as `census::Branch::carries` does.

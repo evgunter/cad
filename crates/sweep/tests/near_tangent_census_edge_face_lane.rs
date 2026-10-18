@@ -40,12 +40,15 @@ const POSES: [(f64, &str, usize, f64, f64); 7] = [
 ];
 
 /// Whether `e` is an escalation of the edge-face or vertex-face lane:
-/// a residual, a cut's gap or span, or the crossing reading.
+/// a residual, the point-on-span reading a vertex cut is made by
+/// (`curve_carrier_*`, `curve_pair_span_*`), or the crossing reading
+/// (`curve_pair_*`).
 fn edge_face_lane(e: &ValidationError) -> bool {
     matches!(e, ValidationError::CensusEscalated { cause }
     if cause.predicate.is_some_and(|p| {
         p.starts_with("pm_census_ef_")
             || p == "pm_census_vf_residual"
+            || p.starts_with("curve_carrier_")
             || p.starts_with("curve_pair_")
     }))
 }

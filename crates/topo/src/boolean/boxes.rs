@@ -531,6 +531,41 @@ pub(crate) enum AxialCarrier<T> {
     },
 }
 
+/// [`EdgeBoxRule`] as an axial span reads it: the one map from a rule
+/// to an [`AxialCarrier`], each lane entering the rule's points and
+/// directions into its own spans (`point`, `vector`), a semi-axis as its
+/// upper end (`semi`) and the arc's span outward (`span`). No axial-span
+/// closed form is written for the spiric, and an edge with no sound box
+/// claims nothing: both are [`AxialCarrier::Unclaimable`].
+pub(crate) fn axial_carrier<T: Real, S>(
+    rule: EdgeBoxRule<'_, T>,
+    point: impl Fn(Point3<T>) -> SpanBox<S>,
+    vector: impl Fn(Vec3<T>) -> SpanBox<S>,
+    semi: impl Fn(T) -> S,
+    span: impl Fn((T, T)) -> (S, S),
+) -> AxialCarrier<S> {
+    match rule {
+        EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric { .. } => AxialCarrier::Unclaimable,
+        EdgeBoxRule::Chord => AxialCarrier::Chord,
+        EdgeBoxRule::ConicAmplitude {
+            center,
+            axis,
+            semi_u,
+            semi_v,
+            u_ref,
+            params,
+            ..
+        } => AxialCarrier::Conic {
+            center: point(center),
+            u_ref: vector(u_ref),
+            v_ref: vector(axis.cross(u_ref)),
+            semi_u: semi(semi_u),
+            semi_v: semi(semi_v),
+            params: span(params),
+        },
+    }
+}
+
 pub(crate) fn edge_axial_span<T: Real>(
     origin: &SpanBox<T>,
     axis: &SpanBox<T>,
@@ -1916,31 +1951,13 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                 }
                 BoundaryMember::Edge { ek, edge: e, .. } => {
                     let end = |h, field| bracket_point(edge_end_point(body, ek, h, field));
-                    let axial = match edge_box_rule(body.edge_curve_linked(ek, e).certified()) {
-                        // No axial-span closed form is written
-                        // for the spiric; a box that cannot
-                        // claim is the honest answer.
-                        EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric { .. } => {
-                            AxialCarrier::Unclaimable
-                        }
-                        EdgeBoxRule::Chord => AxialCarrier::Chord,
-                        EdgeBoxRule::ConicAmplitude {
-                            center,
-                            axis: c_axis,
-                            semi_u,
-                            semi_v,
-                            u_ref,
-                            params: (t0, t1),
-                            ..
-                        } => AxialCarrier::Conic {
-                            center: bracket_point(center),
-                            u_ref: bracket_vector(u_ref),
-                            v_ref: bracket_vector(c_axis.cross(u_ref)),
-                            semi_u: semi_u.hi(),
-                            semi_v: semi_v.hi(),
-                            params: (t0.lo(), t1.hi()),
-                        },
-                    };
+                    let axial = axial_carrier(
+                        edge_box_rule(body.edge_curve_linked(ek, e).certified()),
+                        bracket_point,
+                        bracket_vector,
+                        |x: T| x.hi(),
+                        |(t0, t1): (T, T)| (t0.lo(), t1.hi()),
+                    );
                     grow(edge_axial_span(
                         &origin,
                         &axis,
@@ -3700,6 +3717,13 @@ pub(crate) mod tests {
     ///   pair to the material test instead of clearing it — a case the
     ///   planar-only corpus does not reach (the hull is the box) and a
     ///   curved reach box hands to arm 1 first.
+    /// - `boolean/reduce.rs`'s sliver gate, through
+    ///   `census::boundary_unclaimable` (a helper, so this walk counts it
+    ///   under `census.rs`): it reads whether [`axial_carrier`] claims a
+    ///   cylinder or cone face's boundary at all, to type the refusal of
+    ///   a face with no reach. **Types only**: no extent reaches it, so
+    ///   looseness cannot; a rule that claimed where it should not would
+    ///   give that face a reach, and so a different refusal or none.
     ///
     /// `boolean/boxes.rs` is excluded by path: it is the definition
     /// site, every call in it is this suite's own or one arm calling

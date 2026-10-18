@@ -2342,9 +2342,9 @@ fn pair_vertex_face<T: Decide>(
                 on_plane(None, &mut found);
                 found
             };
-            if let Some(found) = read_undecided([()], on, |found| !found.is_empty()) {
+            if let Some(carried) = read_undecided([()], on) {
                 errors.extend(refused);
-                errors.extend(found.into_iter().flat_map(held));
+                errors.extend(carried);
             }
         }
     }
@@ -2587,52 +2587,98 @@ fn pair_edge_face<T: Decide>(
         );
         return;
     }
-    let readings = read.each_ref().map(|d| match d {
+    let readings = [0, 1].map(|i| match &read[i] {
         Ok(d) => vec![d.sign],
-        Err(_) => vec![Sign::Negative, Sign::Zero, Sign::Positive],
+        Err(_) => undecided_signs(r[i]),
     });
+    // Both ends able to read either side give `[P, N]` and `[N, P]`, one
+    // crossing placed by one lever: read it once.
+    let both_ways = readings[0].contains(&Sign::Positive) && readings[1].contains(&Sign::Negative);
     let signs = readings[0]
         .iter()
-        .flat_map(|&s0| readings[1].iter().map(move |&s1| [s0, s1]));
+        .flat_map(|&s0| readings[1].iter().map(move |&s1| [s0, s1]))
+        .filter(|&s| !(both_ways && s == [Sign::Negative, Sign::Positive]));
     let under = |signs| {
         let mut found = Vec::new();
         pair.hypothetical(signs, &mut found);
         found
     };
-    if let Some(found) = read_undecided(signs, under, |found| !found.is_empty()) {
+    if let Some(carried) = read_undecided(signs, under) {
         errors.extend(read.into_iter().filter_map(|d| {
             d.err()
                 .map(|cause| ValidationError::CensusEscalated { cause })
         }));
-        errors.extend(found.into_iter().flat_map(held));
+        errors.extend(carried);
+    }
+}
+
+/// The signs a residual `r` its band left undecided can read: `Zero`,
+/// and the side `r` itself lies on, read at the least band. Where that
+/// side cannot be read (an enclosure across zero), all three.
+fn undecided_signs<T: Decide>(r: T) -> Vec<Sign> {
+    match decide("pm_census_ef_residual_side", Margin::of(r), Band::least()) {
+        Ok(side @ (Sign::Positive | Sign::Negative)) => vec![Sign::Zero, side],
+        Ok(Sign::Zero) | Err(_) => vec![Sign::Negative, Sign::Zero, Sign::Positive],
     }
 }
 
 /// **A pair read where one of its margins is undecided**: `branch` run
-/// under every reading the margin could take. `None` where no branch
-/// `finds` anything: the pair then holds nothing whichever reading is
-/// right, and the margin's escalation is moot. Otherwise every branch's
-/// answer, for the caller to refuse with beside the margin's own
-/// escalation: all of them, so the refusal carries each cause a reading
-/// met (its `terminal_sliver` included), not the first branch's alone.
-fn read_undecided<R, O>(
+/// under every reading the margin can take. `None` where no branch
+/// [`Branch::finds`] anything, so the pair holds nothing whichever
+/// reading is right and the margin's escalation is moot. Otherwise what
+/// every branch [`Branch::carries`], for the caller to refuse with beside
+/// the margin's own escalation (each branch's, not the first finding
+/// one's alone, so the refusal holds every cause a reading met,
+/// `terminal_sliver` included).
+///
+/// It escalates where ANY reading finds something. That is "the readings
+/// differ" exactly where the margin's off reading finds nothing, which
+/// holds at each caller here: a residual or a chord read off finds no
+/// contact and no cut.
+fn read_undecided<R, B: Branch>(
     readings: impl IntoIterator<Item = R>,
-    branch: impl FnMut(R) -> O,
-    finds: impl Fn(&O) -> bool,
-) -> Option<Vec<O>> {
-    let answers: Vec<O> = readings.into_iter().map(branch).collect();
-    answers.iter().any(finds).then_some(answers)
+    branch: impl FnMut(R) -> B,
+) -> Option<Vec<ValidationError>> {
+    let answers: Vec<B> = readings.into_iter().map(branch).collect();
+    answers
+        .iter()
+        .any(Branch::finds)
+        .then(|| answers.into_iter().flat_map(Branch::carries).collect())
 }
 
-/// What a branch of [`read_undecided`] met that its caller's refusal
-/// carries: every refusal and defect, each of which reads the body's own
-/// cells or can only add to the escalation pushed beside it. An
-/// unrecorded contact holds only under the branch's reading, and is
-/// dropped.
-fn held(found: Vec<ValidationError>) -> impl Iterator<Item = ValidationError> {
-    found
-        .into_iter()
-        .filter(|e| !matches!(e, ValidationError::UnrecordedContact { .. }))
+/// What one branch of [`read_undecided`] answers.
+trait Branch {
+    /// Whether the branch found anything: a finding, a refusal, a cut.
+    fn finds(&self) -> bool;
+    /// What a refusal made beside the undecided margin carries of it:
+    /// every refusal and defect the branch met, each of which reads the
+    /// body's own cells or can only add to that escalation. An unrecorded
+    /// contact, or a cut, holds only under the branch's reading, and is
+    /// dropped.
+    fn carries(self) -> Vec<ValidationError>;
+}
+
+/// A branch that pushes what it found.
+impl Branch for Vec<ValidationError> {
+    fn finds(&self) -> bool {
+        !self.is_empty()
+    }
+    fn carries(self) -> Vec<ValidationError> {
+        self.into_iter()
+            .filter(|e| !matches!(e, ValidationError::UnrecordedContact { .. }))
+            .collect()
+    }
+}
+
+/// A branch that answers cuts (`None` where it refused) beside what it
+/// pushed.
+impl<C> Branch for (Option<Vec<C>>, Vec<ValidationError>) {
+    fn finds(&self) -> bool {
+        !matches!(&self.0, Some(cuts) if cuts.is_empty()) || self.1.finds()
+    }
+    fn carries(self) -> Vec<ValidationError> {
+        self.1.carries()
+    }
 }
 
 /// One edge–face pair of pass 4 and its ends' two plane residuals.
@@ -2648,11 +2694,14 @@ struct EfPair<'a, T: Decide> {
 }
 
 impl<T: Decide> EfPair<'_, T> {
-    /// [`Self::on_signs`] under signs an undecided residual may take.
-    /// Two ends read on opposite sides lie farther apart across the
-    /// plane than twice the band's escalation, so a residual difference
-    /// read `Zero` rules that pair of signs out, and one read definite is
-    /// a divisor the crossing can be placed by.
+    /// [`Self::on_signs`] under signs an undecided residual can take
+    /// ([`undecided_signs`]). An end read strictly on one side lies past
+    /// the band's zero `z` off the plane: past its escalation if decided,
+    /// and past `z` if undecided, whose residual lies between the two. So
+    /// two ends on opposite strict sides differ by more than `2z` (more
+    /// than `esc + z` with one decided). A difference read `Zero`, within
+    /// `z`, rules that pair of signs out, and one read definite is a
+    /// divisor the crossing can be placed by.
     fn hypothetical(&self, signs: [Sign; 2], errors: &mut Vec<ValidationError>) {
         if let [Sign::Positive, Sign::Negative] | [Sign::Negative, Sign::Positive] = signs {
             let [r0, r1] = self.r;
@@ -2868,11 +2917,16 @@ fn ef_overlap_cells<T: Decide>(
     }
     for pair in cuts.windows(2) {
         let (lo, hi) = (pair[0], pair[1]);
-        if !matches!(
-            decide("pm_census_span_gap", Margin::of(hi.s - lo.s), band),
-            Ok(Sign::Positive)
-        ) {
-            continue; // empty/degenerate cell (escalations via sort/gap)
+        // The sort decided each adjacent pair's order on this same
+        // difference, so this reads `Zero` (an empty cell) or `Positive`;
+        // an escalation here is pushed all the same, never passed by.
+        match decide("pm_census_span_gap", Margin::of(hi.s - lo.s), band) {
+            Ok(Sign::Positive) => {}
+            Ok(Sign::Zero | Sign::Negative) => continue,
+            Err(cause) => {
+                errors.push(ValidationError::CensusEscalated { cause });
+                continue;
+            }
         }
         let mid = e.p0 + e.dir * geom::mid_param(lo.s, hi.s);
         if contain(body, f, mid, band, errors) != Some(FaceContainment::In) {
@@ -2899,23 +2953,8 @@ fn boundary_crossings<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Vec<Cut<T>>> {
     use crate::splitting::containment::carrier_loop;
-    let refused = |r: CrossRefusal, errors: &mut Vec<ValidationError>| match r {
-        CrossRefusal::Escalated(causes) => errors.extend(
-            causes
-                .into_iter()
-                .map(|cause| ValidationError::CensusEscalated { cause }),
-        ),
-        CrossRefusal::Unsupported(cause) => errors.push(ValidationError::CensusUnsupported {
-            subject: CensusSubject::Entity(EntityId::Face(f.key)),
-            cause: CensusUnsupportedCause::Containment(cause),
-        }),
-        CrossRefusal::Unread(what) => errors.push(ValidationError::CensusUnsupported {
-            subject: CensusSubject::Entity(EntityId::Face(f.key)),
-            cause: CensusUnsupportedCause::ContactLane(
-                crate::contact::ContactRefusal::NotCertifiable { what },
-            ),
-        }),
-    };
+    let refused =
+        |r: CrossRefusal, errors: &mut Vec<ValidationError>| refuse_crossing(f.key, r, errors);
     let Some(face) = body.get_face(f.key) else {
         refused(
             CrossRefusal::Unsupported(ContainError::StaleFace(f.key)),
@@ -2943,16 +2982,33 @@ fn boundary_crossings<T: Decide>(
                 key: lp.keys[i],
                 ends: (lp.verts[i], lp.verts[(i + 1) % n]),
             };
-            match edge_crossings(body, e, edge, side, band) {
-                Ok(points) => cuts.extend(points.into_iter().map(|(s, at)| Cut { s, at })),
-                Err(r) => {
-                    refused(r, errors);
-                    return None;
-                }
-            }
+            let points = edge_crossings(body, e, f.key, edge, side, band, errors)?;
+            cuts.extend(points.into_iter().map(|(s, at)| Cut { s, at }));
         }
     }
     Some(cuts)
+}
+
+/// `r`, a refusal reading `face`'s boundary for crossings, pushed as
+/// the census reports it.
+fn refuse_crossing(face: FaceKey, r: CrossRefusal, errors: &mut Vec<ValidationError>) {
+    match r {
+        CrossRefusal::Escalated(causes) => errors.extend(
+            causes
+                .into_iter()
+                .map(|cause| ValidationError::CensusEscalated { cause }),
+        ),
+        CrossRefusal::Unsupported(cause) => errors.push(ValidationError::CensusUnsupported {
+            subject: CensusSubject::Entity(EntityId::Face(face)),
+            cause: CensusUnsupportedCause::Containment(cause),
+        }),
+        CrossRefusal::Unread(what) => errors.push(ValidationError::CensusUnsupported {
+            subject: CensusSubject::Entity(EntityId::Face(face)),
+            cause: CensusUnsupportedCause::ContactLane(
+                crate::contact::ContactRefusal::NotCertifiable { what },
+            ),
+        }),
+    }
 }
 
 /// What reading one boundary edge for crossings refused with.
@@ -2981,14 +3037,17 @@ struct BoundarySide<T: Real> {
 /// cut there. A meeting at a boundary edge's end is a boundary vertex,
 /// which the vertex cuts take; one at an end of `e` is that end's own
 /// cut; a shared run is a collinear boundary rest, the edge-edge overlap
-/// pass's finding.
+/// pass's finding. `None` where the reading refused (pushed, about
+/// `face`).
 fn edge_crossings<T: Decide>(
     body: &Body<T>,
     e: &EdgeGeo<T>,
+    face: FaceKey,
     edge: &crate::splitting::containment::LoopEdge<T>,
     side: BoundarySide<T>,
     band: Band,
-) -> Result<Vec<(T, CutAt)>, CrossRefusal> {
+    errors: &mut Vec<ValidationError>,
+) -> Option<Vec<(T, CutAt)>> {
     use crate::splitting::containment::LoopEdge;
     let stored = body
         .get_edge(side.key)
@@ -2998,34 +3057,36 @@ fn edge_crossings<T: Decide>(
     // run together, and a shared run is no cut either.
     let straight = stored.is_none_or(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
     if matches!(edge, LoopEdge::Chord) && straight && shares_an_end(body, e, side.key) {
-        return Ok(Vec::new());
+        return Some(Vec::new());
     }
-    let meets = || meetings(e, edge, side, stored, band);
+    let meets = |errors: &mut Vec<ValidationError>| {
+        meetings(e, edge, side, stored, band)
+            .map_err(|r| refuse_crossing(face, r, errors))
+            .ok()
+    };
     if !matches!(edge, LoopEdge::Chord) {
-        return meets();
+        return meets(errors);
     }
     // A chord of no length is null scaffolding, a coincident copy of its
     // vertex: no crossing of its own, and the vertex cuts read its point.
-    // One whose length is undecided cuts where a chord would.
+    // One whose length is undecided is read as a chord by
+    // [`read_undecided`].
     let (a, b) = side.ends;
     match decide("pm_census_ef_cross_chord", Margin::norm3(b - a), band) {
-        Ok(Sign::Zero) => Ok(Vec::new()),
-        Ok(Sign::Positive | Sign::Negative) => meets(),
+        Ok(Sign::Zero) => Some(Vec::new()),
+        Ok(Sign::Positive | Sign::Negative) => meets(errors),
         Err(cause) => {
-            let cuts =
-                |m: &Result<Vec<(T, CutAt)>, CrossRefusal>| !matches!(m, Ok(c) if c.is_empty());
-            match read_undecided([()], |()| meets(), cuts) {
-                None => Ok(Vec::new()),
-                Some(answers) => {
-                    let mut causes = vec![cause];
-                    for a in answers {
-                        if let Err(CrossRefusal::Escalated(more)) = a {
-                            causes.extend(more);
-                        }
-                    }
-                    Err(CrossRefusal::Escalated(causes))
-                }
-            }
+            let as_chord = |()| {
+                let mut found = Vec::new();
+                (meets(&mut found), found)
+            };
+            let carried = read_undecided([()], as_chord);
+            let Some(carried) = carried else {
+                return Some(Vec::new());
+            };
+            errors.push(ValidationError::CensusEscalated { cause });
+            errors.extend(carried);
+            None
         }
     }
 }
@@ -4089,37 +4150,25 @@ pub(crate) fn boundary_unclaimable<T: Decide>(body: &Body<T>, f: crate::entity::
         })
 }
 
-/// One boundary edge's carrier as an axial span reads it; `None` where
-/// it has no claim (no sound box, or a spiric, for which no axial-span
-/// closed form is written: the boolean lane's own reading).
+/// One boundary edge's carrier as an axial span reads it
+/// ([`crate::boolean::boxes::axial_carrier`], at this lane's scalar);
+/// `None` where it claims nothing.
 fn axial_carrier<T: Decide>(
     body: &Body<T>,
     ek: EdgeKey,
     e: &crate::entity::Edge,
 ) -> Option<crate::boolean::boxes::AxialCarrier<T>> {
-    use crate::boolean::boxes::{AxialCarrier, EdgeBoxRule, SpanBox};
-    Some(
-        match crate::boolean::boxes::edge_box_rule(body.edge_curve_linked(ek, e).certified()) {
-            EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric { .. } => return None,
-            EdgeBoxRule::Chord => AxialCarrier::Chord,
-            EdgeBoxRule::ConicAmplitude {
-                center,
-                axis: c_axis,
-                semi_u,
-                semi_v,
-                u_ref,
-                params,
-                ..
-            } => AxialCarrier::Conic {
-                center: SpanBox::point(center),
-                u_ref: SpanBox::vector(u_ref),
-                v_ref: SpanBox::vector(c_axis.cross(u_ref)),
-                semi_u,
-                semi_v,
-                params,
-            },
-        },
-    )
+    use crate::boolean::boxes::{AxialCarrier, SpanBox, edge_box_rule};
+    match crate::boolean::boxes::axial_carrier(
+        edge_box_rule(body.edge_curve_linked(ek, e).certified()),
+        SpanBox::point,
+        SpanBox::vector,
+        |x| x,
+        |span| span,
+    ) {
+        AxialCarrier::Unclaimable => None,
+        claimed => Some(claimed),
+    }
 }
 
 /// The face boundary's AXIAL range about `(origin, axis)` — the
@@ -10289,7 +10338,7 @@ mod tests {
             let _ = ef_overlap_cells(&body, e, f, &geo, band(), &mut errors);
             escalated(&errors)
                 .into_iter()
-                .filter(|p| p.starts_with("curve_carrier_") || p.starts_with("pm_census_ef_cut"))
+                .filter(|p| p.starts_with("curve_carrier_"))
                 .collect()
         };
         // Two readings in the band's edge: the corner's own on the
@@ -10300,75 +10349,10 @@ mod tests {
         assert!(past.is_empty(), "the corner past the edge's end: {past:?}");
     }
 
-    /// **A residual in the band's edge escalates by every arm a sign it
-    /// could take reaches**, each pair read alone against the unit cube's
-    /// top (`band()`: zero `1e-9`, escalation `1e-8`):
-    ///
-    /// - lying `5e-9` above the top's middle, both ends undecided and
-    ///   alike: only the overlap arm finds the edge on the face;
-    /// - standing up from `5e-9` above it: only the pierce under the
-    ///   lower end's hypothetical other sign finds the face;
-    /// - tilted through it from `+8e-9` to `-8e-9`, the overlap backed by
-    ///   a record of both ends on the face: only the two opposite signs'
-    ///   pierce finds it;
-    /// - lying `5e-9` above the plane a unit off the face: nothing.
-    #[test]
-    fn an_undecided_residual_escalates_by_each_arm_its_signs_reach() {
-        let body = cube_at(Vec3::new(0.0, 0.0, 0.0), Tol::witness());
-        let geo = snapshot(&body);
-        let top = geo
-            .faces
-            .iter()
-            .find(|f| f.normal.z > 0.5)
-            .expect("the top");
-        let reads = |p0: [f64; 3], p1: [f64; 3], backed: bool| -> Vec<&'static str> {
-            let e = segment((
-                Point3::new(p0[0], p0[1], p0[2]),
-                Point3::new(p1[0], p1[1], p1[2]),
-            ));
-            let mut declared = Declared::index(&geo, &ContactRecords::default());
-            if backed {
-                declared.vf.insert((e.v0, top.key));
-            }
-            let mut errors = Vec::new();
-            pair_edge_face(
-                &body,
-                &geo,
-                &declared,
-                band(),
-                Some(RegionLane::certified()),
-                &e,
-                top,
-                &mut errors,
-            );
-            escalated(&errors)
-        };
-        let residual = |what: &str, found: Vec<&'static str>| {
-            assert!(
-                found.contains(&"pm_census_ef_residual"),
-                "{what}: {found:?}"
-            );
-        };
-        let up = 1.0 + 5e-9;
-        residual(
-            "lying over the top",
-            reads([0.25, 0.5, up], [0.75, 0.5, up], false),
-        );
-        residual(
-            "standing on the top",
-            reads([0.5, 0.5, up], [0.5, 0.5, 2.0], false),
-        );
-        residual(
-            "tilted through the top, its overlap backed",
-            reads([0.3, 0.5, 1.0 + 8e-9], [0.7, 0.5, 1.0 - 8e-9], true),
-        );
-        let off = reads([2.25, 0.5, up], [2.75, 0.5, up], false);
-        assert!(off.is_empty(), "lying off the face: {off:?}");
-    }
-
-    /// Review 2 (PR 5261): one edge-face pair read alone against the unit
-    /// cube's top, its escalated predicates.
-    fn review2_pair_reads(p0: [f64; 3], p1: [f64; 3], backed: bool) -> Vec<&'static str> {
+    /// One edge–face pair read alone against the unit cube's top
+    /// (`band()`: zero `1e-9`, escalation `1e-8`): what it pushed.
+    /// `backed` records both ends of the segment on the top.
+    fn top_pair(p0: [f64; 3], p1: [f64; 3], backed: bool) -> Vec<ValidationError> {
         let body = cube_at(Vec3::new(0.0, 0.0, 0.0), Tol::witness());
         let geo = snapshot(&body);
         let top = geo
@@ -10395,7 +10379,178 @@ mod tests {
             top,
             &mut errors,
         );
-        escalated(&errors)
+        errors
+    }
+
+    /// **A residual in the band's edge escalates by every arm a sign it
+    /// can take reaches**, each pair read alone against the unit cube's
+    /// top ([`top_pair`]). An undecided end reads `Zero` or the side its
+    /// residual lies on:
+    ///
+    /// - lying `5e-9` above the top's middle: only the overlap arm finds
+    ///   the edge on the face, and the contact it finds there holds only
+    ///   under that reading, so it does not ship;
+    /// - standing up from `5e-9` below it: only the pierce finds the face;
+    /// - standing up from `5e-9` above it: no reading crosses the plane
+    ///   (its foot on the face is the vertex–face pass's);
+    /// - tilted through it from `+8e-9` to `-8e-9`, the overlap backed by
+    ///   a record of both ends on the face: only the opposite signs'
+    ///   pierce finds it;
+    /// - lying `5e-9` above the plane a unit off the face: nothing.
+    #[test]
+    fn an_undecided_residual_escalates_by_each_arm_its_signs_reach() {
+        let residual = |what: &str, found: Vec<ValidationError>| {
+            assert!(
+                escalated(&found).contains(&"pm_census_ef_residual"),
+                "{what}: {found:?}"
+            );
+            assert!(
+                !found
+                    .iter()
+                    .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
+                "{what}: a contact found under a hypothetical reading ships: {found:?}"
+            );
+        };
+        let nothing = |what: &str, found: Vec<ValidationError>| {
+            assert!(found.is_empty(), "{what}: {found:?}");
+        };
+        let (up, down) = (1.0 + 5e-9, 1.0 - 5e-9);
+        residual(
+            "lying over the top",
+            top_pair([0.25, 0.5, up], [0.75, 0.5, up], false),
+        );
+        residual(
+            "standing up from below the top",
+            top_pair([0.5, 0.5, down], [0.5, 0.5, 2.0], false),
+        );
+        nothing(
+            "standing up from above the top",
+            top_pair([0.5, 0.5, up], [0.5, 0.5, 2.0], false),
+        );
+        residual(
+            "tilted through the top, its overlap backed",
+            top_pair([0.3, 0.5, 1.0 + 8e-9], [0.7, 0.5, 1.0 - 8e-9], true),
+        );
+        nothing(
+            "lying off the face",
+            top_pair([2.25, 0.5, up], [2.75, 0.5, up], false),
+        );
+    }
+
+    /// **A refusal beside an undecided residual carries every branch's
+    /// refusals, and no branch's contact.** Tilted through the top from
+    /// `+4e-9` to `-4e-9`, unbacked: the first reading to find anything
+    /// (both ends on the plane) finds an overlap that holds only under it,
+    /// and the last (the two opposite sides) escalates the crossing's
+    /// lever, whose difference `8e-9` is in the band's edge. The refusal
+    /// holds the residuals and the lever, the lever once, and no contact.
+    #[test]
+    fn a_refusal_beside_an_undecided_residual_carries_every_branch() {
+        let found = top_pair([0.3, 0.5, 1.0 + 4e-9], [0.7, 0.5, 1.0 - 4e-9], false);
+        let rows = escalated(&found);
+        assert_eq!(
+            rows.iter()
+                .filter(|p| **p == "pm_census_ef_residual")
+                .count(),
+            2,
+            "{found:?}"
+        );
+        assert_eq!(
+            rows.iter()
+                .filter(|p| **p == "pm_census_ef_pierce_lever")
+                .count(),
+            1,
+            "{found:?}"
+        );
+        assert_eq!(rows.len(), found.len(), "only escalations: {found:?}");
+    }
+
+    /// **A vertex–face refusal carries what was read at the vertex.** A
+    /// vertex `5e-9` above the top's plane and `5e-9` past its edge
+    /// `x = 1`: on the plane it would lie in the band's edge of the face's
+    /// boundary, so its containment escalates there, read at the vertex
+    /// itself, and the refusal carries it beside the residual.
+    #[test]
+    fn a_vertex_face_refusal_carries_the_containment_read_at_the_vertex() {
+        let body = cube_at(Vec3::new(0.0, 0.0, 0.0), Tol::witness());
+        let geo = snapshot(&body);
+        let top = geo
+            .faces
+            .iter()
+            .find(|f| f.normal.z > 0.5)
+            .expect("the top");
+        let declared = Declared::index(&geo, &ContactRecords::default());
+        let q = Point3::new(1.0 + 5e-9, 0.5, 1.0 + 5e-9);
+        let mut errors = Vec::new();
+        pair_vertex_face(
+            &body,
+            &geo,
+            &declared,
+            band(),
+            (VertexKey::default(), q),
+            top,
+            &mut errors,
+        );
+        let rows = escalated(&errors);
+        assert!(rows.contains(&"pm_census_vf_residual"), "{errors:?}");
+        assert!(
+            rows.iter().any(|p| *p != "pm_census_vf_residual"),
+            "the containment read at the vertex: {errors:?}"
+        );
+    }
+
+    /// **A chord whose length is undecided cuts where a chord would**:
+    /// read at unit level against the top's edge-free middle line. A
+    /// chord `9e-9` long across the line meets it, so its length
+    /// escalates, carrying what the meeting read; the same chord a unit
+    /// off the line meets nothing, and pushes nothing.
+    #[test]
+    fn an_undecided_chord_cuts_where_a_chord_would() {
+        use crate::splitting::containment::LoopEdge;
+        let body = cube_at(Vec3::new(0.0, 0.0, 0.0), Tol::witness());
+        let geo = snapshot(&body);
+        let top = geo
+            .faces
+            .iter()
+            .find(|f| f.normal.z > 0.5)
+            .expect("the top");
+        let e = segment((Point3::new(0.0, 0.5, 1.0), Point3::new(1.0, 0.5, 1.0)));
+        let crossings = |x: f64, y: f64| {
+            let side = BoundarySide {
+                r#loop: LoopKey::default(),
+                key: EdgeKey::default(),
+                ends: (
+                    Point3::new(x, y - 4.5e-9, 1.0),
+                    Point3::new(x, y + 4.5e-9, 1.0),
+                ),
+            };
+            let mut errors = Vec::new();
+            let cuts = edge_crossings(
+                &body,
+                &e,
+                top.key,
+                &LoopEdge::Chord,
+                side,
+                band(),
+                &mut errors,
+            );
+            (cuts, errors)
+        };
+        let (cuts, errors) = crossings(0.5, 0.5);
+        assert!(cuts.is_none(), "across the line: {cuts:?}");
+        assert!(
+            escalated(&errors).contains(&"pm_census_ef_cross_chord"),
+            "across the line: {errors:?}"
+        );
+        let (cuts, errors) = crossings(0.5, 1.5);
+        assert_eq!(cuts.map(|c| c.len()), Some(0), "off the line");
+        assert!(errors.is_empty(), "off the line: {errors:?}");
+    }
+
+    /// Review 2 (PR 5261): one edge-face pair read alone against the unit
+    /// cube's top, its escalated predicates.
+    fn review2_pair_reads(p0: [f64; 3], p1: [f64; 3], backed: bool) -> Vec<&'static str> {
+        escalated(&top_pair(p0, p1, backed))
     }
 
     /// Review 2: tilted through the top from `+4e-9` to `-4e-9`, the

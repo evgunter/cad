@@ -44,18 +44,24 @@ by more than K·ε cannot make a pierce or an overlap there.
 
 ## Closed
 
-`census::pair_edge_face` and `pair_vertex_face` now escalate a residual
-in the band's edge only where the readings it could take disagree. For
-an edge, each sign an undecided end could read is run through the
-lane: the pierce test, the overlap lane, or nothing. For a vertex, the
-on-plane branch (containment, then the declared rungs) is run. The
-residual is pushed, with any escalation the branch itself met, only if
-some branch finds something. Where no branch finds anything, the pair
-is a miss whichever reading is right. Decided residuals take exactly
-the path they did before. The rule lives in one helper, `census::read_undecided`. Under
-opposite hypothetical signs, the residuals' difference is decided first
-(`pm_census_ef_pierce_lever`): read `Zero` rules the signs out, and read
-definite it places the crossing.
+`census::pair_edge_face` and `pair_vertex_face` now read a residual
+left undecided by the band through `census::read_undecided`. It runs the
+lane under each reading the residual can take, and escalates only where
+one of them finds something. An undecided edge end reads `Zero` or the
+side its residual lies on (`undecided_signs`, read at the least band),
+and all three only where that side cannot be read. Each such reading is
+run through the lane: the pierce test, the overlap lane, or nothing.
+For a vertex, the on-plane branch is run (containment, then the
+declared rungs). The off reading finds nothing, so "some reading finds
+something" is exactly "the readings differ". The refusal carries every
+branch's refusals and defects, but no contact found under a
+hypothetical reading.
+
+Under opposite signs, the residuals' difference is decided first
+(`pm_census_ef_pierce_lever`). An end on a strict side lies past the
+band's zero, so a difference read `Zero` rules the signs out, and one
+read definite places the crossing. Decided residuals take the path they
+did before.
 
 Measured on the probe's default grid, `pm_census_ef_residual` falls
 from 266 to 3 at ε = 1e-9 and from 562 to 4 at 1e-6. The few that

@@ -48,7 +48,10 @@ end is that end's own cut, or no cut, whatever its gap. Pass 2's
 `on_edge_interior` already read the same way, through
 `Span::contact` (PR 5227). Measured on the probe's default grid: at
 ε = 1e-9, `pm_census_ef_cut_gap` drops from 411 to 0; at 1e-12, from
-21 to 0; at 1e-6, from 854 to 0. Pinned by `sweep`'s
+21 to 0; at 1e-6, from 854 to 0. That row no longer exists. The cut's
+reading now escalates under `curve_carrier_*` / `curve_pair_span_*`, and
+those read 0 on main and 0 on the branch at all three rows, from pass 4
+or anywhere else on the grid. Pinned by `sweep`'s
 `near_tangent_census_edge_face_lane` on per-row poses (`Ltop nt e2 a8
 d1e-9` among them).
 
