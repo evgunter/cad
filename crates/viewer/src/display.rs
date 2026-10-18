@@ -58,10 +58,11 @@
 //!
 //! # Supersession: the frame goes when its root stops naming a loose space
 //!
-//! When an edit pins a free-moved space to the world, or removes its
-//! root, its frame is **discarded** — removed outright, not zeroed and
-//! kept — by [`DisplayState::prune`]. Discard rather than zero because
-//! the value's LEGALITY is derived from the document: a frame for a
+//! When an edit pins a free-moved space to the world, puts its root in
+//! another space, or removes its root, its frame is **discarded** —
+//! removed outright, not zeroed and kept — by [`DisplayState::prune`].
+//! Discard rather than zero because the value's LEGALITY is derived
+//! from the document and the evaluation that answers it: a frame for a
 //! space that no longer exists is unrepresentable state, not a
 //! transform that happens to be identity. Its copies are thereafter
 //! drawn at their solved placements, undistinguished, which is exactly
@@ -96,8 +97,8 @@
 //! drag — but the commit replaces this state's entry and enters NO
 //! history: the plan's undo note governs document state only, and no
 //! layer-3 history exists in v1. Undo/redo therefore never change what is hidden or probed;
-//! they can only DISCARD a probe by pinning its space or removing its
-//! root.
+//! they can only DISCARD a probe by pinning its space, joining it to
+//! another, or removing its root.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -131,7 +132,7 @@ const RIGID_SLACK: f64 = 1e-9;
 /// The rule over the whole enum, not a property of one arm: an arm
 /// whose subject IS a part instance says **"instance N"**
 /// ([`AdmissionFault::InTheWorld`], [`AdmissionFault::NotEvaluated`],
-/// [`AdmissionFault::NoSpace`], [`AdmissionFault::JoinedSpace`],
+/// [`AdmissionFault::NoSpace`], [`AdmissionFault::MovedSpace`],
 /// [`AdmissionFault::FusedGeometry`])
 /// — the word the properties panel and the feature tree use for the
 /// thing a user hides or probes. An arm whose whole content is that
@@ -230,21 +231,25 @@ pub enum AdmissionFault {
         /// The instance, as the document held it.
         instance: SpokenNode,
     },
-    /// The evaluation gave the instance's placement no space: it refused
-    /// to place the copy, so there is no picture of it to move.
+    /// The evaluation gave the instance's placement no space: its value
+    /// did not evaluate (the placement refused, or an input it reads
+    /// failed), so there is no picture of it to move.
     NoSpace {
         /// The instance, as the document held it.
         instance: SpokenNode,
     },
-    /// The loose space a frame was drawn for joined another: a mate put
-    /// its root's copy in the loose space `into` is the root of, so the
-    /// root no longer names a loose space of its own (DI5) and the frame
-    /// goes. Raised by [`space_check`] alone; the probe still admits the
-    /// copy, to the joined space.
-    JoinedSpace {
-        /// The root the frame was keyed by, as the document held it.
+    /// The copy now lives in another loose space than the one a frame or
+    /// a gesture was drawn for: a mate put a frame's root in the space
+    /// `into` roots, or an edit split a gesture's instance off into a
+    /// space of its own (`into` is then the instance itself). The frame
+    /// or gesture goes (DI5); the probe still admits the copy, to the
+    /// space it lives in now. Raised by the prune's tests alone.
+    MovedSpace {
+        /// The root a frame was keyed by, or the instance a gesture was
+        /// opened on, as the document held it.
         instance: SpokenNode,
-        /// The root of the space it joined, as the document held it.
+        /// The root of the space it lives in now, as the document held
+        /// it.
         into: SpokenNode,
     },
     /// The instance's geometry is FUSED into a drawn product together
@@ -288,14 +293,20 @@ impl core::fmt::Display for AdmissionFault {
             ),
             Self::NoSpace { instance } => write!(
                 f,
-                "{instance} is in no space: the evaluation refused its placement, so there is \
-                 no picture of it to move"
+                "{instance} is in no space: its placement did not evaluate, so there is no \
+                 picture of it to move"
             ),
-            Self::JoinedSpace { instance, into } => write!(
+            Self::MovedSpace { instance, into } if instance.id() == into.id() => write!(
                 f,
-                "{instance}'s loose space joined {into}'s: a mate put it in that space, so the \
-                 frame drawn for {instance}'s own space is gone. A free-move of either copy \
-                 moves the joined space"
+                "{instance} left the loose space the free-move was drawn for and is a loose \
+                 space of its own now, so that free-move is gone. A free-move of {instance} \
+                 moves its own space"
+            ),
+            Self::MovedSpace { instance, into } => write!(
+                f,
+                "{instance} now lives in {into}'s loose space, not the one the free-move was \
+                 drawn for, so that free-move is gone. A free-move of {instance} moves the \
+                 space it lives in now"
             ),
             Self::FusedGeometry {
                 instance,
@@ -337,7 +348,7 @@ impl AdmissionFault {
             Self::NoSpace { instance } => Self::NoSpace {
                 instance: again(instance),
             },
-            Self::JoinedSpace { instance, into } => Self::JoinedSpace {
+            Self::MovedSpace { instance, into } => Self::MovedSpace {
                 instance: again(instance),
                 into: again(into),
             },
@@ -717,7 +728,7 @@ pub fn free_move_check(
 ///
 /// [`AdmissionFault::NoSuchNode`], and with an evaluation
 /// [`AdmissionFault::NoSpace`], [`AdmissionFault::InTheWorld`] and
-/// [`AdmissionFault::JoinedSpace`].
+/// [`AdmissionFault::MovedSpace`].
 pub fn space_check(
     doc: &Doc<ProfileProgram>,
     eval: Option<&Evaluation<f64>>,
@@ -731,7 +742,7 @@ pub fn space_check(
     let Some(eval) = eval else { return Ok(()) };
     match loose_root(eval, root) {
         Ok(found) if found == root => Ok(()),
-        Ok(found) => Err(AdmissionFault::JoinedSpace {
+        Ok(found) => Err(AdmissionFault::MovedSpace {
             instance: doc.spoken(root),
             into: doc.spoken(found),
         }),
@@ -740,6 +751,42 @@ pub fn space_check(
         }),
         Err(Unplaced::Refused) => Err(AdmissionFault::NoSpace {
             instance: doc.spoken(root),
+        }),
+    }
+}
+
+/// **Whether a held gesture still moves the space its instance lives
+/// in** — the in-flight half of [`DisplayState::prune`]. The gesture
+/// names its instance and moves its root's space, so both are asked:
+/// the instance is still in the document, and, with an evaluation, it
+/// still lives in that space. A frame keyed by a root is asked about
+/// the root alone ([`space_check`]); a gesture opened on another copy
+/// of the space would otherwise go on steering the space after its own
+/// copy was deleted or split off.
+fn gesture_check(
+    doc: &Doc<ProfileProgram>,
+    eval: Option<&Evaluation<f64>>,
+    probe: Probe,
+) -> Result<(), AdmissionFault> {
+    let Probe { root, instance } = probe;
+    if doc.node(instance).is_none() {
+        return Err(AdmissionFault::NoSuchNode {
+            node: doc.spoken(instance),
+        });
+    }
+    space_check(doc, None, root)?;
+    let Some(eval) = eval else { return Ok(()) };
+    match loose_root(eval, instance) {
+        Ok(found) if found == root => Ok(()),
+        Ok(found) => Err(AdmissionFault::MovedSpace {
+            instance: doc.spoken(instance),
+            into: doc.spoken(found),
+        }),
+        Err(Unplaced::World) => Err(AdmissionFault::InTheWorld {
+            instance: doc.spoken(instance),
+        }),
+        Err(Unplaced::Refused) => Err(AdmissionFault::NoSpace {
+            instance: doc.spoken(instance),
         }),
     }
 }
@@ -902,8 +949,8 @@ pub struct Withdrawn {
 pub struct PruneReport {
     /// Loose spaces whose COMMITTED free-move frame was discarded, each
     /// by its root, with the [`space_check`] fault that discarded it — a
-    /// pin to the world landing, the space's placement refused, or the
-    /// root being gone.
+    /// pin to the world landing, the space's placement refused, the
+    /// root's copy joining another space, or the root being gone.
     ///
     /// **Only committed probes.** A gesture in flight when the
     /// transition lands dies too; it is `killed_gesture`, because it
@@ -916,8 +963,9 @@ pub struct PruneReport {
     /// fault says.
     pub dropped_hides: Vec<Withdrawn>,
     /// The in-flight free-move gesture this prune killed, by the
-    /// instance it was opened on, with the [`space_check`] fault that
-    /// killed it — or `None`, which is
+    /// instance it was opened on, with the fault that killed it — the
+    /// instance gone, or no longer in the space the gesture moves — or
+    /// `None`, which is
     /// both "no gesture was in flight" and "the one in flight still
     /// holds". The two are the same news to a reader: nothing was
     /// taken.
@@ -1205,9 +1253,10 @@ impl DisplayState {
 
     /// Reconcile this state with a document: DISCARD every committed
     /// frame whose root no longer names a loose space (a placement pins
-    /// the copy, or the root is gone; DI5), drop hidden entries whose
-    /// instance the picture can no longer address, and kill an
-    /// in-flight gesture whose space stopped being loose.
+    /// the copy, it joins another space, or the root is gone; DI5),
+    /// drop hidden entries whose instance the picture can no longer
+    /// address, and kill an in-flight gesture whose instance is gone or
+    /// no longer lives in the space it moves.
     ///
     /// `eval` is an evaluation of `doc` itself, or `None`. Spaces exist
     /// only after the solve, so the session prunes twice: when the
@@ -1260,7 +1309,7 @@ impl DisplayState {
         // throw away the one value that says why the drag under the
         // user's hand stopped, at the instant it is computed.
         let killed_gesture = self.free_move.held().and_then(|probe| {
-            space_check(doc, eval, probe.root)
+            gesture_check(doc, eval, *probe)
                 .err()
                 .map(|cause| Withdrawn {
                     instance: probe.instance,
@@ -1320,9 +1369,9 @@ impl DisplayState {
     /// — where these ids mean something else. A [`RecipeNodeId`] is
     /// minted from a counter the `Doc` owns, so the outgoing
     /// document's id 3 and the incoming document's id 3 are unrelated
-    /// nodes. Asking [`free_move_check`] about them would answer
-    /// `Ok(())` wherever the incoming document happens to hold a free
-    /// instance at that id — a report that says nothing was withdrawn
+    /// nodes. Asking [`space_check`] about them would answer `Ok(())`
+    /// wherever the incoming document happens to hold a loose space at
+    /// that root — a report that says nothing was withdrawn
     /// while everything was — and [`AdmissionFault::NoSuchNode`]
     /// otherwise, which is a true sentence about the incoming document
     /// and a false explanation of where the placement went.

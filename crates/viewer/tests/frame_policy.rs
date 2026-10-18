@@ -362,7 +362,7 @@ fn cause_ordinal(cause: &AdmissionFault) -> usize {
         AdmissionFault::InTheWorld { .. } => 2,
         AdmissionFault::NotEvaluated { .. } => 3,
         AdmissionFault::NoSpace { .. } => 4,
-        AdmissionFault::JoinedSpace { .. } => 5,
+        AdmissionFault::MovedSpace { .. } => 5,
         AdmissionFault::FusedGeometry { .. } => 6,
     }
 }
@@ -386,7 +386,7 @@ fn every_cause() -> Vec<AdmissionFault> {
         AdmissionFault::NoSpace {
             instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(8))),
         },
-        AdmissionFault::JoinedSpace {
+        AdmissionFault::MovedSpace {
             instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
             into: SpokenNode::absent(RecipeNodeId::new(0, tagged(10))),
         },

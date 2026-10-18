@@ -101,9 +101,15 @@ also drops the frame when a world pin goes back on, and
 `asm::unpin`, with `asm::where_b_stood` frames.
 
 A frame whose space joins another loose space, because its root's copy was mated
-onto another loose copy, goes at the landing with `JoinedSpace`, which names
-the space it joined. The probe still admits the copy to that joined space
-(`a_frame_whose_space_joins_another_goes_saying_so`). Review findings not
+onto another loose copy, goes at the landing with `MovedSpace`, which names
+the space it now lives in. The probe still admits the copy to that space
+(`a_frame_whose_space_joins_another_goes_saying_so`). An in-flight gesture is
+re-asked by the copy it was opened on as well as by its root
+(`gesture_check`): a delete kills it at the edit, and a split kills it at the
+landing (`deleting_a_gestures_copy_kills_it_at_the_edit`,
+`a_gesture_whose_copy_leaves_the_space_dies_at_the_landing`). The landing prune
+runs only on a landing of the committed document, so a value gesture's preview
+cannot discard committed display state. Review findings not
 taken in this PR have items of their own:
 `a-fused-instances-held-frame-has-no-reset`,
 `sync-scene-landing-notices-have-no-row`,

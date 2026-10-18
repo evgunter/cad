@@ -1576,7 +1576,7 @@ impl core::fmt::Display for Withdrawal<'_> {
             | AdmissionFault::InTheWorld { .. }
             | AdmissionFault::NotEvaluated { .. }
             | AdmissionFault::NoSpace { .. }
-            | AdmissionFault::JoinedSpace { .. } => false,
+            | AdmissionFault::MovedSpace { .. } => false,
         };
         // The two kinds that are over a SET word themselves by
         // counting it. The third is over the one gesture that can be

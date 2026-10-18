@@ -1084,7 +1084,7 @@ impl DocSession {
     /// which copies, and which name the world — so a landing of either
     /// answers both.
     pub fn space_evaluation(&self) -> Option<&Evaluation<f64>> {
-        space_evaluation(self.derived.landed.as_ref(), self.history.doc(), self.doc())
+        space_evaluation(&self.derived, &self.history)
     }
 
     /// The part files the landed run's resolver could name
@@ -1557,15 +1557,22 @@ impl DocSession {
         // **The second prune** (DI5): spaces exist only after the solve,
         // so whether a free-move's root still names a loose space is
         // asked here, of the evaluation and the document it answers,
-        // rather than when the edit committed.
-        let eval = self
-            .derived
-            .landed
-            .as_ref()
-            .map(|run| run.evaluation.as_ref());
-        let report = self.display.prune(&self.requested_doc, eval);
-        if !report.is_empty() {
-            self.landed_withdrawals.push(report);
+        // rather than when the edit committed. Only of a COMMITTED
+        // document: a value gesture's scratch shares the committed
+        // graph, so all its landing could newly answer is a placement
+        // a previewed value refuses, and a preview the user may still
+        // cancel does not discard committed display state. The
+        // gesture's commit lands the committed document, which prunes.
+        if *self.requested_doc == *self.history.doc() {
+            let eval = self
+                .derived
+                .landed
+                .as_ref()
+                .map(|run| run.evaluation.as_ref());
+            let report = self.display.prune(&self.requested_doc, eval);
+            if !report.is_empty() {
+                self.landed_withdrawals.push(report);
+            }
         }
         Landing::Landed
     }
@@ -1724,16 +1731,9 @@ impl DocSession {
                 }
             }
             SessionOp::BeginFreeMove { instance } => {
-                // `space_evaluation`, borrowed field by field: the
-                // display state beside it is borrowed mutably.
-                let eval = space_evaluation(
-                    self.derived.landed.as_ref(),
-                    self.history.doc(),
-                    self.derived
-                        .scratch
-                        .as_ref()
-                        .unwrap_or_else(|| self.history.doc()),
-                );
+                // `space_evaluation` over the two fields it reads: the
+                // display state beside them is borrowed mutably.
+                let eval = space_evaluation(&self.derived, &self.history);
                 match self
                     .display
                     .begin_free_move(self.history.doc(), eval, instance)
@@ -3729,13 +3729,13 @@ fn add_values(
     Ok(())
 }
 
-/// [`DocSession::space_evaluation`], over the session's fields.
-fn space_evaluation<'a>(
-    landed: Option<&'a LandedRun>,
-    committed: &Doc<ProfileProgram>,
-    shown: &Doc<ProfileProgram>,
-) -> Option<&'a Evaluation<f64>> {
-    let run = landed?;
+/// [`DocSession::space_evaluation`], over the two session fields it
+/// reads: the shown document is the scratch while a value gesture
+/// previews, the committed one otherwise ([`DocSession::doc`]).
+fn space_evaluation<'a>(derived: &'a Derived, history: &History) -> Option<&'a Evaluation<f64>> {
+    let run = derived.landed.as_ref()?;
+    let committed = history.doc();
+    let shown = derived.scratch.as_ref().unwrap_or(committed);
     (*run.doc == *committed || *run.doc == *shown).then(|| run.evaluation.as_ref())
 }
 

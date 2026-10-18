@@ -810,7 +810,12 @@ fn two_copies_mated_to_each_other_free_move_as_one() {
     assert!(outcome.withdrawn.superseded.is_empty());
     assert!(
         session.display().free_move_of(root).is_some(),
-        "between the edit and its landing the frame draws over the last-known copies"
+        "between the edit and its landing the frame is held"
+    );
+    assert_eq!(
+        session.display_view().moved_placements.get(&bench.post_b),
+        Some(&again),
+        "and draws over the last-known copies"
     );
     session.pump();
     let superseded: Vec<_> = session
@@ -889,7 +894,7 @@ fn a_frame_whose_space_joins_another_goes_saying_so() {
     assert!(
         matches!(
             &withdrawn.cause,
-            AdmissionFault::JoinedSpace { instance, into }
+            AdmissionFault::MovedSpace { instance, into }
                 if instance.id() == bench.post_b && into.id() == joined
         ),
         "the cause is the join, naming the space it joined: {}",
@@ -897,6 +902,149 @@ fn a_frame_whose_space_joins_another_goes_saying_so() {
     );
     assert!(session.display().free_move_of(bench.post_b).is_none());
     assert!(session.display().free_move_of(joined).is_none());
+}
+
+/// The bench with post_b mated onto the loose shelf, one loose space
+/// rooted away from post_b, and a free-move gesture in flight opened
+/// on post_b — the copy that is not the root.
+fn gesture_on_a_non_root_copy(name: &str, tol: Tol) -> (asm::Bench, DocSession, RecipeNodeId) {
+    let bench = asm::bench(name, tol);
+    let mut session = asm::open_bench(&bench, tol);
+    asm::unpin(&mut session, bench.post_b);
+    asm::unpin(&mut session, bench.shelf_i);
+    common::commit_mate(
+        &mut session,
+        asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Rest,
+            asm::middle_seat_values(),
+        ),
+    );
+    session.pump();
+    let root = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
+        .expect("the mated post is in a loose space");
+    assert_ne!(root, bench.post_b, "the space is rooted away from the post");
+    let outcome = session.perform(SessionOp::BeginFreeMove {
+        instance: bench.post_b,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    (bench, session, root)
+}
+
+/// **A gesture is re-asked by the copy it was opened on, not only by
+/// its space's root.** The mate that put post_b in the shelf's space
+/// comes off mid-drag: the root still names a loose space, but post_b
+/// no longer lives in it, so the landing kills the gesture, saying the
+/// post left — rather than letting the post's drag steer the shelf.
+#[test]
+fn a_gesture_whose_copy_leaves_the_space_dies_at_the_landing() {
+    let tol = Tol::witness();
+    let (bench, mut session, _) = gesture_on_a_non_root_copy("fmsplit", tol);
+    let mate = *common::mates_in(session.committed_doc())
+        .last()
+        .expect("the seat mate");
+    let outcome = session.perform(SessionOp::RemoveConstraint { mate });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        outcome.withdrawn.killed_gesture.is_none(),
+        "the edit alone does not know the spaces"
+    );
+    session.pump();
+    let killed: Vec<_> = session
+        .take_landed_withdrawals()
+        .into_iter()
+        .filter_map(|report| report.killed_gesture)
+        .collect();
+    let [killed] = &killed[..] else {
+        panic!("the landing kills the gesture: {killed:?}")
+    };
+    assert_eq!(killed.instance, bench.post_b);
+    assert!(
+        matches!(
+            &killed.cause,
+            AdmissionFault::MovedSpace { instance, into }
+                if instance.id() == bench.post_b && into.id() == bench.post_b
+        ),
+        "{}",
+        killed.cause
+    );
+    assert!(session.display().probing().is_none());
+    assert!(matches!(
+        session
+            .perform(SessionOp::PreviewFreeMove {
+                instance: bench.post_b,
+                frame: Frame::translation([0.0, 0.0, 0.01]),
+            })
+            .refusal,
+        Some(Refusal::Display(DisplayFault::NoFreeMove))
+    ));
+}
+
+/// **Deleting the copy a gesture was opened on kills it at the edit**,
+/// typed, though the space's root survives.
+#[test]
+fn deleting_a_gestures_copy_kills_it_at_the_edit() {
+    let tol = Tol::witness();
+    let (bench, mut session, _) = gesture_on_a_non_root_copy("fmdelete", tol);
+    let outcome = session.perform(SessionOp::DeleteNode { node: bench.post_b });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let killed = outcome
+        .withdrawn
+        .killed_gesture
+        .as_ref()
+        .expect("the delete kills the gesture");
+    assert_eq!(killed.instance, bench.post_b);
+    assert!(
+        matches!(&killed.cause, AdmissionFault::NoSuchNode { node } if node.id() == bench.post_b),
+        "{}",
+        killed.cause
+    );
+    assert!(session.display().probing().is_none());
+}
+
+/// **A landing's report goes with the document it is about**: a
+/// replacement before the chrome takes it leaves nothing to take, since
+/// its ids name the outgoing document's nodes.
+#[test]
+fn a_replacement_takes_the_landings_untaken_report() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fmreplace", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    // Probe the loose post_b, then put its pin back: the landing
+    // withdraws the frame, and its report waits for the chrome.
+    let probe_then_repin = |session: &mut DocSession| {
+        asm::unpin(session, bench.post_b);
+        for op in [
+            SessionOp::BeginFreeMove {
+                instance: bench.post_b,
+            },
+            SessionOp::PreviewFreeMove {
+                instance: bench.post_b,
+                frame: Frame::translation([0.0, 0.0, 0.05]),
+            },
+            SessionOp::CommitFreeMove {
+                instance: bench.post_b,
+            },
+            SessionOp::Undo,
+        ] {
+            let outcome = session.perform(op.clone());
+            assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
+        }
+        session.pump();
+    };
+    probe_then_repin(&mut session);
+    assert!(
+        !session.take_landed_withdrawals().is_empty(),
+        "the control: the landing does leave a report"
+    );
+    probe_then_repin(&mut session);
+    let outcome = session.perform(SessionOp::Open(bench.asm_path.clone()));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        session.take_landed_withdrawals().is_empty(),
+        "the outgoing document's report is not the incoming one's"
+    );
 }
 
 #[test]
