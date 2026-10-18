@@ -309,7 +309,7 @@ impl CarrierDomainRefusal {
             | SplineError::ControlCountMismatch { .. }
             | SplineError::WeightCountMismatch { .. }
             | SplineError::WeightNotAPoint { .. }
-            | SplineError::KnotNotAPoint { .. }
+            | SplineError::KnotIsPoison { .. }
             | SplineError::KnotRunsUndecided { .. }
             | SplineError::CarrierKnotNotAPoint { .. } => unreachable!(
                 "the domain door re-expresses a validated f64 image's knots, so it cannot \

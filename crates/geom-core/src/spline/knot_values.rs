@@ -23,7 +23,8 @@ use crate::real::Real;
 ///
 /// Its structure is certified at construction ([`Knots::new`]):
 /// `From<KnotVector>` takes the vector's own values at `f64`, and
-/// [`Knots::map`] carries the structure onto the mapped values.
+/// [`Knots::map`] carries the structure over where it keeps every point
+/// and certifies the mapped runs anew where it does not.
 #[derive(Clone, Debug)]
 pub struct Knots<T> {
     structure: KnotStructure,
@@ -151,8 +152,11 @@ impl<T: SpanLocate> Knots<T> {
     ///
     /// # Errors
     ///
-    /// - [`SplineError::KnotNotAPoint`] for the first run whose value
+    /// - [`SplineError::KnotIsPoison`] for the first run whose value
     ///   is poison;
+    /// - [`SplineError::KnotVectorInvalid`] (`NonFinite`, at the run's
+    ///   first knot) for one that reaches past the finite numbers, as
+    ///   [`KnotVector::clamped`] refuses a non-finite knot;
     /// - [`SplineError::KnotRunsNotIncreasing`] for the first run that
     ///   is not above its predecessor for any value they stand for: two
     ///   breakpoints that read as one number would merge into one run,
@@ -168,11 +172,18 @@ impl<T: SpanLocate> Knots<T> {
         let mut values: Vec<T> = Vec::new();
         let mut multiplicities = Vec::with_capacity(runs.len());
         let mut last: Option<T> = None;
+        let mut at = 0;
         for (index, (value, multiplicity)) in runs.into_iter().enumerate() {
             let multiplicity = multiplicity.get();
             if value.structure_bracket().is_none() {
-                return Err(SplineError::KnotNotAPoint { index });
+                return Err(SplineError::KnotIsPoison { index });
             }
+            if !value.is_bounded() {
+                return Err(SplineError::KnotVectorInvalid {
+                    reason: super::knots::KnotVectorIssue::NonFinite { index: at },
+                });
+            }
+            at += multiplicity;
             if let Some(prev) = last {
                 runs_ascend(prev, value, index)?;
             }
@@ -211,39 +222,48 @@ impl<T: SpanLocate> Knots<T> {
     }
 
     /// The same knots at another scalar: `f` applied once per
-    /// breakpoint, the structure carried over. Where both sides are
-    /// points, `f` must keep each breakpoint's point (a lift,
-    /// `Real::from_computed`): the `f64` vector is the values' value
-    /// channel. A breakpoint mapped wider than a point drops the `f64`
-    /// vector, and the structure stands as before.
+    /// breakpoint. Where `f` keeps every breakpoint's point (a lift,
+    /// `Real::from_computed`), the structure and the `f64` vector carry
+    /// over as they are. Otherwise the mapped runs are certified anew,
+    /// as [`Self::new`] certifies them, so mapped knots are held knots
+    /// like any other: their order holds for every member, a poison one
+    /// refuses, and they carry an `f64` vector exactly when every mapped
+    /// breakpoint is a point.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::new`]'s, on the mapped runs.
     ///
     /// # Panics
     ///
-    /// When `f` moves a point breakpoint to another point.
-    #[must_use]
-    pub fn map<U: SpanLocate>(&self, f: impl Fn(T) -> U) -> Knots<U> {
-        let mut values = Vec::with_capacity(self.values.len());
-        let mut all_points = true;
-        let mut at = 0;
-        for &m in self.structure.multiplicities() {
-            let before = self.values[at];
+    /// When `f` moves a point breakpoint to another point: the caller's
+    /// lift contract, broken.
+    pub fn map<U: SpanLocate>(&self, f: impl Fn(T) -> U) -> Result<Knots<U>, SplineError> {
+        let mut runs = Vec::with_capacity(self.structure.multiplicities().len());
+        let mut kept = self.point.is_some();
+        for (before, m) in self.runs() {
             let mapped = f(before);
-            if let (Some(was), Some(now)) = (before.point_value(), mapped.point_value()) {
-                assert!(
+            match (before.point_value(), mapped.point_value()) {
+                (Some(was), Some(now)) => assert!(
                     was.to_bits() == now.to_bits(),
                     "Knots::map moved breakpoint {was} to {now:?}"
-                );
-            } else {
-                all_points = false;
+                ),
+                _ => kept = false,
             }
-            values.extend(core::iter::repeat_n(mapped, m));
-            at += m;
+            runs.push((mapped, NonZeroUsize::new(m).unwrap_or(NonZeroUsize::MIN)));
         }
-        Knots {
+        if !kept {
+            return Knots::new(runs, self.structure.degree());
+        }
+        let values = runs
+            .iter()
+            .flat_map(|&(v, m)| core::iter::repeat_n(v, m.get()))
+            .collect();
+        Ok(Knots {
             structure: self.structure.clone(),
-            point: if all_points { self.point.clone() } else { None },
+            point: self.point.clone(),
             values,
-        }
+        })
     }
 }
 
@@ -315,7 +335,11 @@ impl<T: Real> Knots<T> {
     /// The structure (C6): degree, runs and multiplicities, and no
     /// position.
     pub fn structure(&self) -> &KnotStructure {
-        &self.structure
+        // The vector's own, where there is one: the spans of `span` and
+        // `locate` borrow it, and a span compares by its structure.
+        self.point
+            .as_ref()
+            .map_or(&self.structure, KnotVector::structure)
     }
 
     /// **C6's interim**: the `f64` vector read off these knots, where
@@ -464,17 +488,17 @@ mod tests {
 
     /// **Poison names no place (C6): it refuses by run.** A NaN
     /// breakpoint at `f64` and an empty enclosure at `Interval` both
-    /// refuse `KnotNotAPoint` at their run.
+    /// refuse `KnotIsPoison` at their run.
     #[test]
     fn a_poison_breakpoint_refuses_by_run() {
         match Knots::new(vec![(0.0, m(2)), (f64::NAN, m(1)), (1.0, m(2))], 1) {
-            Err(SplineError::KnotNotAPoint { index }) => assert_eq!(index, 1),
+            Err(SplineError::KnotIsPoison { index }) => assert_eq!(index, 1),
             other => panic!("a NaN knot built a vector: {other:?}"),
         }
         let pt = |x: f64| Interval::from_bounds(x, x);
         let nai = Interval::from_f64(f64::NAN);
         match Knots::new(vec![(pt(0.0), m(2)), (nai, m(1)), (pt(1.0), m(2))], 1) {
-            Err(SplineError::KnotNotAPoint { index }) => assert_eq!(index, 1),
+            Err(SplineError::KnotIsPoison { index }) => assert_eq!(index, 1),
             other => panic!("a NaI knot built a vector: {other:?}"),
         }
     }
@@ -502,6 +526,14 @@ mod tests {
         assert_eq!(spans(0.5), (1, 2), "either side of the wide knot");
         assert_eq!(spans(0.1), (1, 1), "below every member's knot");
         assert_eq!(spans(0.9), (2, 2), "above every member's knot");
+        // The boundaries. At the knot's low end, the member whose knot is
+        // there puts `t` in span 2 (`k ≤ t`); at its high end no member
+        // puts `t` below its knot, so span 1 is impossible; at the
+        // domain's end the last span holds `t` though nothing lies above.
+        assert_eq!(spans(0.25), (1, 2), "at the knot's low end");
+        assert_eq!(spans(0.75), (2, 2), "at the knot's high end");
+        assert_eq!(spans(1.0), (2, 2), "at the domain's end");
+        assert_eq!(spans(0.0), (1, 1), "at the domain's start");
     }
 
     /// **An order some members break refuses undecided, with its
@@ -543,6 +575,79 @@ mod tests {
         match build(iv(0.6, 0.7), iv(0.3, 0.4)) {
             Err(SplineError::KnotRunsNotIncreasing { index }) => assert_eq!(index, 2),
             other => panic!("a crossing order built a vector: {other:?}"),
+        }
+        // A step whose top is exactly zero: the two meet at 0.5 and cross
+        // everywhere else, so no member ascends, and no narrower box
+        // lifts it. Not increasing, not undecided.
+        match build(iv(0.5, 0.6), iv(0.4, 0.5)) {
+            Err(SplineError::KnotRunsNotIncreasing { index }) => assert_eq!(index, 2),
+            other => panic!("an order that ascends for no member: {other:?}"),
+        }
+    }
+
+    /// **Mapped knots are held knots (C6)**: `map` certifies what it
+    /// does not keep, as [`Knots::new`] does. Point knots `0, 0.4, 0.5,
+    /// 1` widened by `±0.3` overlap at run 1, and refuse undecided; a
+    /// breakpoint mapped to poison refuses at its run; wide knots mapped
+    /// to their midpoints are points, with their `f64` vector. Red where
+    /// `map` carries the structure over unchecked.
+    #[test]
+    fn a_map_certifies_what_it_does_not_keep() {
+        let k = Knots::new(vec![(0.0, m(2)), (0.4, m(1)), (0.5, m(1)), (1.0, m(2))], 1).unwrap();
+        match k.map(|x| Interval::from_bounds(x - 0.3, x + 0.3)) {
+            Err(SplineError::KnotRunsUndecided { index, .. }) => assert_eq!(index, 1),
+            other => panic!("overlapping mapped runs: {other:?}"),
+        }
+        match k.map(|x| {
+            if x == 0.4 {
+                Interval::from_bounds(f64::NAN, f64::NAN)
+            } else {
+                Interval::from_f64(x)
+            }
+        }) {
+            Err(SplineError::KnotIsPoison { index }) => assert_eq!(index, 1),
+            other => panic!("a poison mapped breakpoint: {other:?}"),
+        }
+        let pt = |x: f64| Interval::from_bounds(x, x);
+        let wide = Knots::new(
+            vec![
+                (pt(0.0), m(2)),
+                (Interval::from_bounds(0.25, 0.75), m(1)),
+                (pt(1.0), m(2)),
+            ],
+            1,
+        )
+        .unwrap();
+        let mid = wide
+            .map(|x| 0.5 * (crate::real::Bounds::lo(x) + crate::real::Bounds::hi(x)))
+            .expect("midpoints ascend");
+        assert!(mid.is_point(), "point knots hold their vector");
+        assert_eq!(mid.values(), &[0.0, 0.0, 0.5, 1.0, 1.0]);
+    }
+
+    /// **A breakpoint past the finite numbers refuses on every path**:
+    /// `[1, +∞]` as the end run refuses `NonFinite` at its first knot,
+    /// as the `f64` point `+∞` does. Red where the held path admits it.
+    #[test]
+    fn an_unbounded_breakpoint_refuses_as_a_point_one_does() {
+        use super::super::knots::KnotVectorIssue;
+        let pt = |x: f64| Interval::from_bounds(x, x);
+        let wide = Knots::new(
+            vec![
+                (pt(0.0), m(2)),
+                (pt(0.5), m(1)),
+                (Interval::from_bounds(1.0, f64::INFINITY), m(2)),
+            ],
+            1,
+        );
+        let point = Knots::new(vec![(0.0, m(2)), (0.5, m(1)), (f64::INFINITY, m(2))], 1);
+        for (what, got) in [("wide", wide.map(|_| ())), ("point", point.map(|_| ()))] {
+            match got {
+                Err(SplineError::KnotVectorInvalid {
+                    reason: KnotVectorIssue::NonFinite { index },
+                }) => assert_eq!(index, 3, "{what}"),
+                other => panic!("{what}: an unbounded breakpoint: {other:?}"),
+            }
         }
     }
 
@@ -633,10 +738,12 @@ mod tests {
             KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.3, 0.3, 1.0, 1.0, 1.0], 2).unwrap(),
         );
         let calls = core::cell::Cell::new(0);
-        let lifted = k.map(|x| {
-            calls.set(calls.get() + 1);
-            Interval::from_bounds(x, x)
-        });
+        let lifted = k
+            .map(|x| {
+                calls.set(calls.get() + 1);
+                Interval::from_bounds(x, x)
+            })
+            .unwrap();
         assert_eq!(calls.get(), 3, "one call per breakpoint");
         assert_eq!(
             lifted.structure_f64_interim().knots(),

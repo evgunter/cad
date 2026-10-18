@@ -83,7 +83,7 @@ pub enum SplineError {
     /// value, so it names no place in the structure. (An enclosure wider
     /// than a point is a breakpoint, C6: it is held, and its runs'
     /// order is certified for every member.)
-    KnotNotAPoint {
+    KnotIsPoison {
         /// Index of the offending run.
         index: usize,
     },
@@ -167,7 +167,7 @@ impl core::fmt::Display for SplineError {
                 Readable(*lo),
                 Readable(*hi)
             ),
-            SplineError::KnotNotAPoint { index } => write!(
+            SplineError::KnotIsPoison { index } => write!(
                 f,
                 "breakpoint {index} is poison, so it names no place for the spans to be \
                  located in. Recourse: supply a breakpoint that is a number there"
@@ -182,15 +182,18 @@ impl core::fmt::Display for SplineError {
             SplineError::KnotRunsUndecided { index, margin } => write!(
                 f,
                 "whether breakpoint {index} lies above the one before it is undecided over \
-                 the values they stand for: the step between them is {margin}, which \
-                 straddles zero, so some members' runs would merge or cross. Recourse: \
+                 the values they stand for: the step between them is {margin}, which does \
+                 not clear zero, so some members' runs would merge or cross. Recourse: \
                  supply those breakpoints from inputs narrow enough that the step clears zero"
             ),
             SplineError::CarrierKnotNotAPoint { index } => write!(
                 f,
                 "breakpoint {index} is an enclosure wider than a point, and a curve or \
-                 surface reads its knots as single numbers. Recourse: supply that breakpoint \
-                 from inputs narrow enough that it is a single number there"
+                 surface reads its knots as single numbers. The width may be rounding alone \
+                 (a re-expressed or averaged breakpoint at an enclosure scalar), so narrower \
+                 inputs need not lift it. Recourse: supply the carrier built at a point \
+                 scalar (`f64`) and lifted, so its breakpoints stay the numbers it was \
+                 built on"
             ),
             SplineError::WeightNotAPoint { index } => write!(
                 f,
@@ -414,9 +417,10 @@ impl core::fmt::Display for KnotMirrorError {
 impl core::error::Error for KnotMirrorError {}
 
 /// A validated **clamped** knot vector with its degree — the structural
-/// half of every B-spline/NURBS entity: `f64`/`usize` structure per C6,
-/// the value channel of the knots a carrier holds in its scalar
-/// ([`super::Knots`]); generic scalar types never appear here.
+/// half of every B-spline/NURBS entity whose knots are points: the `f64`
+/// vector of the knots a carrier holds in its scalar ([`super::Knots`]),
+/// with its combinatorial [`KnotStructure`]. C6's interim reads it as
+/// the knots' positions; generic scalar types never appear here.
 ///
 /// # Invariants (established at construction, relied on by indexing)
 ///
@@ -461,14 +465,15 @@ pub struct KnotStructure {
 
 impl KnotStructure {
     /// The structure of runs of `multiplicities` at degree `degree`,
-    /// validated against the clamped contract.
+    /// validated against the clamped contract. Each multiplicity is a
+    /// run's, so nonzero: the callers hold them as `NonZeroUsize`.
     ///
     /// # Errors
     ///
     /// [`SplineError::KnotVectorInvalid`] naming the violated clause
     /// (the knot index of an interior run's first knot, as
     /// [`KnotVector::clamped`] names it).
-    pub fn clamped(multiplicities: Vec<usize>, degree: usize) -> Result<Self, SplineError> {
+    pub(crate) fn clamped(multiplicities: Vec<usize>, degree: usize) -> Result<Self, SplineError> {
         let issue = |reason| Err(SplineError::KnotVectorInvalid { reason });
         if degree == 0 {
             return issue(KnotVectorIssue::DegreeZero);
@@ -485,7 +490,7 @@ impl KnotStructure {
         }
         let mut index = degree + 1;
         for &m in &multiplicities[1..multiplicities.len() - 1] {
-            if m == 0 || m > degree {
+            if m > degree {
                 return issue(KnotVectorIssue::InteriorMultiplicityTooHigh { index });
             }
             index += m;
@@ -560,7 +565,9 @@ impl KnotStructure {
 
     /// The validated [`Span`] at `index`, as [`KnotVector::span`], over
     /// this structure alone: its [`Span::knots_f64_interim`] refuses.
-    pub fn span(&self, index: usize) -> Option<Span<'_>> {
+    /// Crate-internal: [`super::Knots::span`] is the door, and it takes
+    /// the vector's span where there is one.
+    pub(crate) fn span(&self, index: usize) -> Option<Span<'_>> {
         self.span_over(None, index)
     }
 
@@ -629,15 +636,21 @@ impl InteriorKnot {
 /// at construction, so `span − degree` never appears at a use site and
 /// cannot underflow there.
 ///
-/// **Branded to its knot vector by the borrow.** The fields are
+/// **Branded to its knot structure by the borrow.** The fields are
 /// private and the only constructors are [`KnotVector::span`]
-/// (checked) and [`KnotVector::span_of`] (total over a [`Param`]), so an index invalid
-/// for the vector it names is not a representable state — and neither
-/// is a span held beside a *different* vector: every door that
-/// consumes a `Span` reads its knots through the span
-/// ([`Span::knots_f64_interim`]) and takes no second [`KnotVector`] parameter to
-/// disagree with it. [`super::basis`] and [`super::hull`] therefore
+/// (checked), [`KnotVector::span_of`] (total over a [`Param`]) and
+/// [`KnotStructure::span`] (checked, over a structure with no `f64`
+/// vector, whose [`Span::knots_f64_interim`] refuses), so an index
+/// invalid for the structure it names is not a representable state —
+/// and neither is a span held beside a *different* vector: every door
+/// that consumes a `Span` reads its knots through the span
+/// ([`Span::knots_f64_interim`], or the held values the same
+/// [`super::KnotSpan`] pairs with it) and takes no second
+/// [`KnotVector`] parameter to disagree with it. [`super::basis`] and [`super::hull`] therefore
 /// index without a pairing guard and without a poison route for one.
+/// (A span over knots wider than a point has no `f64` vector: its
+/// [`Span::knots_f64_interim`] refuses loud, the reader's kernel bug,
+/// and the held entry points read its values instead.)
 /// `geom` carries the shape one level further: `CurveWindow{2,3}`
 /// borrows the curve and `SurfaceWindow` the surface, so the doors
 /// that read a control net get the net and the knots from one borrow
@@ -652,8 +665,8 @@ impl InteriorKnot {
 /// minted — a `Span` of ITS vector beside the pair. `InteriorKnot` is
 /// the third member of the family and stays crate-private for it.
 ///
-/// **Equality is address equality on the vector**, plus the indices:
-/// a `Span` is a proof about *that* vector, and two bit-equal vectors
+/// **Equality is address equality on the structure**, plus the indices:
+/// a `Span` is a proof about *that* structure, and two bit-equal vectors
 /// at different addresses are two structures a proof does not
 /// transfer between. (`KnotVector` is not [`Eq`] — its knots are
 /// `f64` — so a by-value derive is not available here in any case.)
@@ -2256,7 +2269,7 @@ mod tests {
                 control: 4,
             },
             SplineError::DomainInvalid { lo: 1.0, hi: 1.0 },
-            SplineError::KnotNotAPoint { index: 1 },
+            SplineError::KnotIsPoison { index: 1 },
             SplineError::KnotRunsNotIncreasing { index: 2 },
             SplineError::KnotRunsUndecided {
                 index: 2,
@@ -2275,7 +2288,7 @@ mod tests {
                 | SplineError::ControlCountMismatch { .. }
                 | SplineError::WeightCountMismatch { .. }
                 | SplineError::DomainInvalid { .. }
-                | SplineError::KnotNotAPoint { .. }
+                | SplineError::KnotIsPoison { .. }
                 | SplineError::KnotRunsNotIncreasing { .. }
                 | SplineError::KnotRunsUndecided { .. }
                 | SplineError::CarrierKnotNotAPoint { .. }

@@ -217,20 +217,26 @@ pub(crate) fn weight_channel<T: SpanLocate>(weights: &[T]) -> Result<Vec<f64>, S
         .collect()
 }
 
-/// A carrier's knots are all points: its evaluation, span reads and
-/// knot algebra read them through their `f64` vector
-/// ([`Knots::structure_f64_interim`]), which knots wider than a point
-/// do not have.
+/// A carrier's knots have their `f64` vector: its evaluation, span
+/// reads and knot algebra read them through it
+/// ([`Knots::structure_f64_interim`]). The test is the vector itself
+/// ([`Knots::is_point`]), the very thing those readers take.
 ///
 /// # Errors
 ///
-/// [`SplineError::CarrierKnotNotAPoint`] for the first run whose value
+/// [`SplineError::CarrierKnotNotAPoint`] at the first run whose value
 /// is an enclosure wider than a point.
 pub(crate) fn carrier_knots<T: SpanLocate>(knots: &Knots<T>) -> Result<(), SplineError> {
-    match knots.runs().position(|(v, _)| v.point_value().is_none()) {
-        Some(index) => Err(SplineError::CarrierKnotNotAPoint { index }),
-        None => Ok(()),
+    if knots.is_point() {
+        return Ok(());
     }
+    // Knots hold their vector exactly when every run's value is a point
+    // (`Knots::new`), so a run that is not one exists.
+    let index = knots
+        .runs()
+        .position(|(v, _)| v.point_value().is_none())
+        .unwrap_or(0);
+    Err(SplineError::CarrierKnotNotAPoint { index })
 }
 
 /// The weights at another scalar under a LIFT `f`, one that keeps

@@ -119,3 +119,32 @@ Option A, framed as a correction rather than a permission (fork-log row
 - PR 85's signed sentence (a fit's structure is the f64 pipeline's) is
   unchanged: a loft is not a fitted cache.
 
+
+## Build (the INLANE orchestrator's slices)
+
+- **S1, knots (PR 5277):**
+  - `KnotStructure` is combinatorial: it holds degree and runs, and no positions.
+  - `Knots` holds wide breakpoints, certified for every member (`KnotRunsUndecided` with its margin).
+  - `map` certifies what it does not keep, and the span read hulls.
+  - The interim: `*_f64_interim` accessors and the ratchet gate `scripts/gates/knots-f64-interim.sh`.
+  - A carrier and the fit refuse a wide breakpoint typed (`CarrierKnotNotAPoint`) until their readers move.
+- **S2, weights:** held weights, `WeightNotAPoint` retired.
+- **S3, arcs:** the η sub-arc rule and `T::pi()` (Q1, Q2).
+- **S4, the homogeneous knot algebra:** `apply_certified`'s elevation and removal.
+- **S5, fit and skin:** the collocation's typed refusal. S5 deletes the interim accessors and their gate.
+- **S6:** the two fold-ins, `held-value-equalities-decided-on-the-value-channel` and `an-edges-parameter-ends-enter-a-carrier-piece-as-constants`.
+
+### Left for S2–S5 (S1's review, PR 5277)
+
+- **`f64` knot vectors copied out at an interim read, uncounted by the gate:**
+  - `SplineCoeffs::knots`;
+  - `TensorNet::knots_u/v`;
+  - `Collocation`;
+  - `projected::breaks`;
+  - the ssi refinement's `ku/kv`.
+
+  Deleting the accessors forces them out.
+- **`Knots::value_at` answers `None` on wide knots.** Its callers fall back to `from_computed(v)` (`curves/nurbs.rs`, `surfaces/nurbs.rs`, `replace_face.rs`, `projected.rs`). This is unreachable while carriers' knots are points.
+- **`Knots::lift` trusts its caller's lift contract.** It is defined at `Real`, which has no point reading.
+- **The fit's collocation reads one span of the hull.** It refuses a wide averaged knot before forming rows, and S5 owns the enclosure.
+- **The curve macro's interim reads report the macro invocation as their location.**

@@ -418,11 +418,11 @@ pub fn interpolate_columns(
 /// does not ascend ([`geom_core::spline::structure_ascends`]), and in the
 /// banded solve a pivot that is not certainly nonzero
 /// (`curves/banded.rs`). So at an enclosure scalar a datum or an
-/// interior parameter may be wider than a point, and so may the
-/// averaged knots: they are held, and their order is certified for
-/// every member ([`Knots::new`]). A carrier built on them refuses a
-/// breakpoint wider than a point ([`SplineError::CarrierKnotNotAPoint`]).
-/// The arithmetic is [`interpolate_columns`]'s
+/// interior parameter may be wider than a point. The averaged knots are
+/// a carrier's, and one wider than a point refuses
+/// ([`SplineError::CarrierKnotNotAPoint`]) before the collocation rows
+/// are formed: a row is one span's basis, and over a wide knot the
+/// members' spans differ. The arithmetic is [`interpolate_columns`]'s
 /// operation for operation (a unit weight's product `n · 1` is `n`,
 /// bit for bit), so at `f64` the two answer the same bits.
 ///
@@ -499,7 +499,13 @@ fn averaged_knots_in<T: SpanLocate>(params: &[T], degree: usize) -> Result<Knots
         Some((held, m)) if held.value_channel() == 1.0 => *m = m.saturating_add(degree + 1),
         _ => runs.push((T::one(), end)),
     }
-    Knots::new(runs, degree).map_err(FitError::Structure)
+    let knots = Knots::new(runs, degree).map_err(FitError::Structure)?;
+    if let Some(index) = knots.runs().position(|(v, _)| v.point_value().is_none()) {
+        return Err(FitError::Structure(SplineError::CarrierKnotNotAPoint {
+            index,
+        }));
+    }
+    Ok(knots)
 }
 
 /// [`rational_row`] at unit weights, in `T`: the basis values alive at

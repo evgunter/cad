@@ -530,8 +530,12 @@ macro_rules! nurbs_curve {
             /// **C6's interim**: the `f64` knot vector, where every held
             /// knot is a point ([`Knots::structure_f64_interim`], which
             /// refuses loud, by the reader's location, on a carrier with
-            /// a knot wider than a point). Counted by
-            /// `scripts/gates/knots-f64-interim.sh`; it goes in C6's S5.
+            /// a knot wider than a point). A reader inside this macro is
+            /// named by the macro's invocation, the location `rustc`
+            /// gives every line it expands. Unreachable from a built
+            /// carrier, whose knots are points (`net::carrier_knots`).
+            /// Counted by `scripts/gates/knots-f64-interim.sh`; it goes
+            /// in C6's S5.
             #[track_caller]
             pub fn knots_f64_interim(&self) -> &KnotVector {
                 self.knots.structure_f64_interim()

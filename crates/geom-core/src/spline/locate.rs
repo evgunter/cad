@@ -101,12 +101,13 @@ pub(crate) mod sealed {
 ///
 /// Both ends are [`Span`]s rather than bare indices: span validity
 /// originates *here*, in the locator, and every locator route is
-/// [`KnotVector::span_at`] or [`KnotVector::span_range`]. Carrying the proof out
-/// means no consumer re-derives *nonemptiness* or the window base — an
-/// evaluator taking a `usize` would have to. The set borrows the
-/// `knots` it was located in, through both of its spans, so a consumer
-/// has nothing to re-pair either: the vector each end is a proof about
-/// travels with it. Iterate the interior with
+/// [`KnotVector::span_at`] or [`KnotVector::span_range`] over point
+/// knots, or [`SpanLocate::locate_held`] over held knots wider than a
+/// point. Carrying the proof out means no consumer re-derives
+/// *nonemptiness* or the window base — an evaluator taking a `usize`
+/// would have to. The set borrows the structure it was located in,
+/// through both of its spans, so a consumer has nothing to re-pair
+/// either: the structure each end is a proof about travels with it. Iterate the interior with
 /// `first.index() + 1 ..= last.index()` and [`KnotVector::span`],
 /// which refuses the empty spans in between.
 /// `Debug` comes from [`Span`]'s, which prints the borrow as an
@@ -164,8 +165,9 @@ pub trait SpanLocate: sealed::Sealed + Real {
     ///
     /// Per scalar, as the locator is. At `Interval` it is the window's
     /// certified restriction ([`super::SpanRow::restrict`]), whose every
-    /// coefficient encloses the true one; a held knot there is the point
-    /// of its `f64` structure, so the restriction reads the structure.
+    /// coefficient encloses the true one. It reads the knots' `f64`
+    /// vector (C6's interim), so it runs on point knots, which every
+    /// carrier's are.
     /// At every other scalar it is de Boor's recurrence over the held
     /// knots and ends, the ratio `α` formed in the scalar and the fixed
     /// association `x·(1 − α) + y·α` (D9).

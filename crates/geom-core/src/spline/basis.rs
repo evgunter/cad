@@ -9,11 +9,13 @@
 //!
 //! # The span contract (binding, shared by every consumer)
 //!
-//! **Structural.** A [`Span`] borrows the knot vector it is a proof
+//! **Structural.** A [`Span`] borrows the knot structure it is a proof
 //! about, and every entry point below reads its knots from that
-//! borrow — [`Span::knots_f64_interim`] — and takes no second vector. So there is
-//! no pairing to check and no refusal to answer: the span's own
-//! invariants are invariants of the very knots being read.
+//! borrow: the `f64` entry points through [`Span::knots_f64_interim`],
+//! the held (`_in`) ones through the values the same
+//! [`super::KnotSpan`] pairs with it. None takes a second vector. So
+//! there is no pairing to check and no refusal to answer: the span's
+//! own invariants are invariants of the very knots being read.
 //!
 //! What they give, exactly. `span.index() >= kv.first_span()` (the
 //! window base is `index − degree`, subtracted at construction) keeps
@@ -378,7 +380,9 @@ mod tests {
         for k in vectors() {
             let p = k.degree();
             let held = crate::spline::Knots::from(k.clone());
-            let lifted_d = held.map(Dual64::constant);
+            let lifted_d = held
+                .map(Dual64::constant)
+                .expect("a lift keeps every point");
             let (lo, hi) = k.domain();
             let mut ts: Vec<f64> = k.knots().to_vec();
             ts.extend((0..=8).map(|i| lo + (hi - lo) * f64::from(i) / 8.0));

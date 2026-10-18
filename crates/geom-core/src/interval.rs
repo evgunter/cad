@@ -877,9 +877,9 @@ impl crate::spline::SpanLocate for Interval {
         ends: (f64, f64),
         _held_ends: (Self, Self),
     ) -> Vec<Self> {
-        // A held knot at `Interval` is the point of its `f64` structure,
-        // so the certified restriction reads the structure; the held
-        // values are checked for length only, as at every scalar.
+        // The certified restriction reads the knots' `f64` vector (C6's
+        // interim), which a carrier's point knots have; the held values
+        // are checked for length only, as at every scalar.
         if held.len() != span.structure().len() {
             return vec![Self::from_f64(f64::NAN); span.degree() + 1];
         }
