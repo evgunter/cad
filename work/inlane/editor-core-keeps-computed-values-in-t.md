@@ -2,10 +2,12 @@
 id: editor-core-keeps-computed-values-in-t
 kind: issue
 title: The mate fold's two step arms take the lever arm as a constant and do not cancel the levered sine's arm
-status: open
+status: closed
 opened: 2026-10-10
 priority: P2
 cost: E
+pr: 5292
+closed: 2026-10-18
 refs: [the-from-f64-gate-reads-every-generic-crate]
 ---
 
@@ -47,3 +49,13 @@ Keeping the arm in `T` from the start (rather than as a bound read out
 to `f64`) is not owed. The arm is a lever length, an upper bound by
 construction, and an upper bound read off an enclosure is
 `from_computed`'s own case (`geom-core/src/real.rs:324-330`).
+
+**Closed by #5292.**
+- `Arm::lever` mints the arm in `T` (`from_computed`).
+  - `intersect` mints it once and hands that one value to `table`, `parallel`, `perpendicular`, `candidate_rotation` and the anchor step.
+  - Each one-decision helper (`turn_line`, `slides_along`, `across`, `reaches`, `directions_parallel`) mints its own.
+  - The `f64` `Arm` stays for `decides_over` and the lever's refusals.
+- The row `the_steps_arm_cancels_the_levered_sines_own_at_sym` (`mate/coset.rs`) intersects two plane translations and two lines at `Sym`, at two arms each, and proves `t(2) − t(5) = 0` symbolically in every component.
+  - It is red under a literal arm in the step, and red under a second mint for the step.
+  - It uses `PlaneTranslation`, not `Planar`, because two `Planar` sides meet in a rotation solved through `solve_atan2`. That angle is not a function of the arm, but `Sym`'s `atan2` is opaque per call, so two calls do not compare symbolically.
+- `from-f64-sites.tsv`'s row is gone.
