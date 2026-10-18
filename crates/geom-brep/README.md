@@ -465,7 +465,13 @@ coordinate is a coordinate in the chart's cover and never wraps. An
 angle read off the geometry becomes one only through a stated
 reference; an azimuth's is the side of the principal window's cut line
 its direction lies on, decided in metres (`pcurve_chart_cut_side`), so
-the read's one cut is the window's own. Every whole-period question uses the channel's own
+the read jumps only where the direction's angle is the window's start.
+For an arm whose phase is the direction's angle that is the window's own
+cut. For an arm whose offset moves the angle along the edge (a parallel,
+a rim, a focal section, a torus tube's `σ·m`, a Villarceau `t0`) it is a
+generic angle no corpus direction is on, and placement's marks name the
+copy either way. A sphere's latitude is read as `atan2`, whose cut is its
+window's. Every whole-period question uses the channel's own
 period, which the chart owns: by renaming where no reader tells the
 copies apart, through the marks where one does. No whole-period
 integer is read off a value.

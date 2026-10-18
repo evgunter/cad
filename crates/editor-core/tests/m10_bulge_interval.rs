@@ -16,7 +16,9 @@
 //! (`CAD_M10_10_DOC=r1_segment_boss|r2_d_tab_literal|r2_d_tab_parameter`,
 //! and the dyadic controls `r2_d_tab_literal_dyadic|r2_d_tab_parameter_dyadic`);
 //! `m10_bulge_renders.txt` beside this file is the record of those
-//! renders at this tree: per document the whole split, then every
+//! renders at the tree that shipped rule G. It is stale: it has not been
+//! re-rendered since PCERT B1 renamed the frame row to
+//! `pcurve_chart_cut_side`. Per document the whole split, then every
 //! decision the tier was asked and left numeric on an arc-family
 //! predicate with its freeze causes and its attributed cause — every
 //! form attributed to the sign of `b` or of the apothem UNCUT, so the

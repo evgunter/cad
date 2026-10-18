@@ -32,8 +32,10 @@ Placed or stored (a):
 - `topo/src/shell.rs:3606` `chart_read`'s unwrapped steps;
 - `topo/src/chart_region.rs:1532` the frame rotation `δ` between two
   cylinder charts;
-- `topo/src/chord_join.rs:1196` `SectionConic::param`, and
-  `stable_azimuth`'s one caller, ring re-homing (`:5359`);
+- `topo/src/chord_join.rs:1196` `SectionConic::param`, and ring
+  re-homing (`:5359`), which since PCERT B1 reads through
+  `geom_brep::Azimuth::principal` (topo's `stable_azimuth` is gone) and
+  still lifts the read by hand with `periodic_branch`;
 - `topo/src/boolean/rim_wedge.rs:531` `locus_param`;
 - `topo/src/offset_axial.rs:2443` `param_on`, `:2687` `reauthor`,
   `:2857` `azimuth_turn`.

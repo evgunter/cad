@@ -5343,8 +5343,8 @@ fn chart_ring_side<T: Decide>(
     let read = |v: VertexKey| -> Result<Result<Option<RingSide>, Indeterminate>, SplitJoinError> {
         let decide_r = |name, margin| decide(name, margin, band);
         let w = vertex_point(body, v) - centre;
-        // The chart's one azimuth read (`geom_brep::Azimuth::principal`,
-        // the window's one cut), lifted onto the run's window below.
+        // The chart's one azimuth read (`geom_brep::Azimuth::principal`),
+        // lifted onto the run's window below by `periodic_branch`.
         let raw = geom_brep::Azimuth::of(w.dot(axis.cross(u_ref)), w.dot(u_ref)).principal(band);
         // The vertex on the branch of the window's middle, in
         // `(mid − τ/2, mid + τ/2]`. A vertex inside the window lands on its

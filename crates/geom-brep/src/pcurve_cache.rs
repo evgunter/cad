@@ -4940,10 +4940,12 @@ impl<T: Real> Azimuth<T> {
 impl<T: Decide> Azimuth<T> {
     /// The principal angle: `atan2`'s, read on whichever side of the
     /// window's cut line the direction lies (`stable_azimuth`): a choice
-    /// between two formulas equal modulo a turn, each keeping its own cut
-    /// on the far side of the line, so the angle is one of the direction's
-    /// names, in the principal window `(−1, τ − 1]`, with a direction on
-    /// the window's cut at its closed end. A direction of no length (or, at `Interval`,
+    /// between two formulas equal modulo a turn, so the angle is one of
+    /// the direction's names. A direction decided on either side reads in
+    /// `(−1, τ − 1]`, and one on the cut reads the closed end `τ − 1`. One
+    /// in band just inside the open end, at angle `−1 + δ`, reads
+    /// `τ − 1 + δ`: the turned formula, a hair past the window, which
+    /// placement's marks take back. A direction of no length (or, at `Interval`,
     /// one whose enclosure reaches zero length: no bounded reciprocal)
     /// names no angle, and every angle names its zero-length vector alike:
     /// it reads `0`, the chart's `u_ref`, at every scalar, as `atan2(0, 0)`
@@ -7893,28 +7895,17 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
     }
 }
 
-/// The azimuth of `(x, y)`, read on the side of the window's cut line
-/// it lies on (M5 S13, shared by every chart's derivation since M6-3).
-/// `atan2`'s own cut sits on the negative-`x` axis, where an interval `y`
-/// touching zero (a seam meridian's angle-π copy, a rim starting on the
-/// seam) explodes the enclosure to a full period. The same angle is
-/// `atan2(−y, −x) + π` with its cut on the positive-`x` axis, so one of
-/// the two formulas keeps its cut off any direction.
+/// The azimuth of `(x, y)` (M5 S13, shared by every chart's derivation
+/// since M6-3), by one of two formulas equal modulo a turn:
+/// `atan2(y, x)`, its cut on the negative-`x` axis, or
+/// `atan2(−y, −x) + π`, its cut on the positive-`x` axis.
 ///
-/// Which one is decided across the line through the principal window's
-/// cut, the angles `ANGLE_WINDOW_START` and `ANGLE_WINDOW_START + π`
-/// (`pcurve_chart_cut_side`, the direction's signed distance across that
-/// line in metres): on the side that holds angle `0`, `atan2(y, x)`; on
-/// the other, in band or undecided, `atan2(−y, −x) + π`. Either formula
-/// keeps its own cut on the far side of the line, so the read's only cut
-/// is the window's, and its range is the window `(−1, τ − 1]`: a
-/// direction on the cut line reads the closed end, as placement's
-/// tie-break does. One cut, at a generic angle no landmark direction
-/// lands on, so no landmark direction flips between the formulas as a
-/// document moves, and a margin built on the read is one expression on
-/// each side. The read itself is not rotated: each formula is `atan2` of
-/// the direction's own components, so a direction with a zero component
-/// folds as it did.
+/// Which one is decided across the line through the angles
+/// `ANGLE_WINDOW_START` and `ANGLE_WINDOW_START + π`
+/// (`pcurve_chart_cut_side`): on the side that holds angle `0`, the
+/// first; on the other, in band or undecided, the second. So the read
+/// jumps only where the direction's angle is `−1`, a generic angle no
+/// landmark direction lands on (the geom-brep README's C4 says why).
 fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
     let (s, c) = T::from_f64(ANGLE_WINDOW_START).sin_cos();
     match decide("pcurve_chart_cut_side", Margin::of(c * y - s * x), band) {
