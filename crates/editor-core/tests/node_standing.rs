@@ -332,7 +332,7 @@ fn the_checks_placement_refusal_names_the_node_the_repair_is_at() {
     );
     assert!(
         refusal.to_string().contains(&format!(
-            "Recourse: repair the failure upstream, at node {}",
+            "the repair is upstream, at node {}",
             test_utils::refusal::tag(s.failed.0.digest())
         )),
         "{refusal}"

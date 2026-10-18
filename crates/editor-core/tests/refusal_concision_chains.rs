@@ -210,6 +210,11 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MeasureClearanceRefused",
     "MeasureNotParallel",
     "MeasureRefUnreadable/Readback",
+    // `NodeStanding`'s failed and poisoned repairs, which a mate
+    // cluster's refusal makes false:
+    // work/wirehold/kernel-standing-names-a-cluster-refused-node-as-its-own-failure.md
+    "MeasureRefUnreadable/NodeFailed",
+    "MeasureRefUnreadable/NodePoisoned",
     "MeasureUnsupported",
     "MissingInput",
     "ParamBox/AxisUnrepresentable",
@@ -222,7 +227,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ShellLaneUnsupported",
     "ToleranceConflict",
     "UnschedulableCycle",
-    "WitnessBifurcation",
     "WrongOperand",
     // work/paths/paths-refusals-short-of-the-shape-guard.md
     "Profile/DegenerateSegment",
@@ -395,6 +399,37 @@ fn the_bare_recourses_are_geom_cores_constants() {
             geom_core::COINCIDENCE_RECOURSE,
         ]
     );
+}
+
+/// A vanished name's sentence ends as its diagnosis says: a cascade
+/// sends the reader to the name upstream, and a diagnosis that states
+/// its own repair (the sketch's branch selection) is not followed by a
+/// second one.
+#[test]
+fn a_vanished_names_ending_is_its_diagnosiss() {
+    let rows: std::collections::BTreeMap<String, String> = editor_payloads()
+        .into_iter()
+        .map(|(name, kind)| (name, as_the_viewer_shows_it(kind)))
+        .collect();
+    let cascade = &rows["SelectResolve/Vanished(Cascade)"];
+    assert!(
+        cascade.ends_with(
+            "a face it derives from vanished upstream first, and that is the root cause. \
+             Recourse: repair the face it derives from first"
+        ),
+        "{cascade}"
+    );
+    let witness = &rows["SelectResolve/Vanished(WitnessBifurcation)"];
+    assert!(
+        witness.ends_with(
+            "Recourse: move the sketch off the near-singular configuration, or re-solve to \
+             record a fresh witness"
+        ),
+        "{witness}"
+    );
+    for text in [cascade, witness] {
+        assert_eq!(text.matches("Recourse:").count(), 1, "{text}");
+    }
 }
 
 /// `test_utils::refusal::GENERIC_SUBJECTS` restates the doors' shared
@@ -3596,6 +3631,36 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     ];
     let resolve = || {
         [
+            (
+                "Vanished(Cascade)",
+                ResolveError::Vanished {
+                    name: name(),
+                    diagnosis: Diagnosis::Cascade { through: name() },
+                    last_good: None,
+                },
+            ),
+            (
+                "Vanished(WitnessBifurcation)",
+                ResolveError::Vanished {
+                    name: name(),
+                    diagnosis: Diagnosis::WitnessBifurcation(Box::new(
+                        editor_core::WitnessBifurcation {
+                            kind: editor_core::BifurcationKind::AmbiguousBasin,
+                            margin: editor_core::BranchMarginEvidence {
+                                margin: 3.0e-10,
+                                band_zero: 1.0e-9,
+                                band_escalate: 1.0e-8,
+                            },
+                            implicated: vec![editor_core::Implicated::Constraint(2)],
+                            witness_age: editor_core::WitnessAge {
+                                solved_under: Vec::new(),
+                                at_solve: Vec::new(),
+                            },
+                        },
+                    )),
+                    last_good: None,
+                },
+            ),
             (
                 "Vanished",
                 ResolveError::Vanished {

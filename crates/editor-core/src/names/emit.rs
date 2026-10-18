@@ -589,25 +589,55 @@ impl crate::spoken::Say for NamingError {
                 )
             }
         }?;
-        match self.ending() {
-            Some(ending) => write!(f, ". {ending}"),
+        match self.category() {
+            Some(category) => write!(f, ". {}", category.ending()),
             None => Ok(()),
         }
     }
 }
 
+/// **Whose a naming refusal's failure is**: the kernel's, or a missing
+/// rule's. Each category opens with its own framing and ends with its
+/// own ending.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Category {
+    /// An invariant the emitter relies on was found broken.
+    Emission,
+    /// A well-formed recipe reached a construction no rule names.
+    Unruled,
+}
+
+impl Category {
+    /// The sentence a refusal of this category opens with.
+    pub(crate) fn framing(self) -> &'static str {
+        match self {
+            Self::Emission => EMISSION_FRAMING,
+            Self::Unruled => UNRULED_FRAMING,
+        }
+    }
+
+    /// The sentence a refusal of this category ends with.
+    pub(crate) fn ending(self) -> &'static str {
+        match self {
+            Self::Emission => geom_core::KERNEL_DEFECT_ENDING,
+            Self::Unruled => geom_core::NOT_YET_ENDING,
+        }
+    }
+}
+
 impl NamingError {
-    /// How the sentence ends, by whose the failure is: an emission bug
-    /// is the kernel's, a missing rule is a construction no rule names
-    /// yet, and the band and an escalation state their own recourse.
-    fn ending(&self) -> Option<&'static str> {
+    /// **The one place a variant's category is written down**, and it is
+    /// a match, so a variant added without choosing one does not
+    /// compile. `None` is a variant that speaks its own sentence and
+    /// states its own recourse (the band, an escalation).
+    pub(crate) fn category(&self) -> Option<Category> {
         match self {
             Self::Duplicate { .. }
             | Self::Unnamed { .. }
             | Self::MissingUpstream { .. }
             | Self::Emission { .. }
             | Self::SplitLineage(_)
-            | Self::Settle(_) => Some(geom_core::KERNEL_DEFECT_ENDING),
+            | Self::Settle(_) => Some(Category::Emission),
             Self::SeamVertexParentage { .. }
             | Self::SeamVertexPartners { .. }
             | Self::SharedRim { .. }
@@ -618,7 +648,7 @@ impl NamingError {
             | Self::ClosedCarrierUnread { .. }
             | Self::CarrierUnplaced { .. }
             | Self::PartnerUnread { .. }
-            | Self::MemberEdgeTied { .. } => Some(geom_core::NOT_YET_ENDING),
+            | Self::MemberEdgeTied { .. } => Some(Category::Unruled),
             Self::Band(_) | Self::Escalated { .. } => None,
         }
     }
@@ -1960,41 +1990,17 @@ mod display_tests {
                 vec!["5e-324"],
             ),
         ];
-        // **The one place a variant's CATEGORY is written down**, and
-        // it is a match, so a variant added without choosing one does
-        // not compile. Category membership is otherwise held by hand at
-        // three places — which variant a site constructs, which framing
-        // its `Display` interpolates, which word `naming_error_tag`
-        // returns — with nothing tying them; this ties the second to
-        // the first, and leaves the third — which is across a crate
-        // boundary — still hand-held.
+        // The category is `NamingError::category`'s, which also chooses
+        // the ending. Which framing each arm's `Display` interpolates is
+        // written by hand per arm, so this ties the second to the first;
+        // which word `naming_error_tag` returns is across a crate
+        // boundary and still hand-held.
         //
         // `None` is a variant that speaks its OWN sentence, and it is
         // not a free pass: the loop below asserts such a variant
-        // contains NEITHER framing, so a bespoke sentence that drifted
-        // into one of them reds.
-        let expected_framing = |err: &NamingError| -> Option<&'static str> {
-            match err {
-                NamingError::Duplicate { .. }
-                | NamingError::Unnamed { .. }
-                | NamingError::MissingUpstream { .. }
-                | NamingError::Emission { .. }
-                | NamingError::SplitLineage(_)
-                | NamingError::Settle(_) => Some(EMISSION_FRAMING),
-                NamingError::SeamVertexParentage { .. }
-                | NamingError::SeamVertexPartners { .. }
-                | NamingError::SharedRim { .. }
-                | NamingError::MergedChord { .. }
-                | NamingError::MergedChordOffRim { .. }
-                | NamingError::MergedChordConstituents { .. }
-                | NamingError::MemberEdgeTied { .. }
-                | NamingError::ConventionalVertex { .. }
-                | NamingError::ClosedCarrierUnread { .. }
-                | NamingError::CarrierUnplaced { .. }
-                | NamingError::PartnerUnread { .. } => Some(UNRULED_FRAMING),
-                NamingError::Band(_) | NamingError::Escalated { .. } => None,
-            }
-        };
+        // contains NEITHER framing nor either ending, so a bespoke
+        // sentence that drifted into one of them reds.
+        let expected_framing = |err: &NamingError| err.category().map(Category::framing);
         let sampled = |err: &NamingError| -> usize {
             match err {
                 NamingError::Duplicate { .. } => 0,
@@ -2063,6 +2069,30 @@ mod display_tests {
                     );
                 }
             }
+            // A missing rule is not a kernel bug, so its sentence ends
+            // in "not yet" and never in the defect report; an emission
+            // bug ends in the report.
+            let (ends, never) = match err.category() {
+                Some(Category::Emission) => (
+                    Some(geom_core::KERNEL_DEFECT_ENDING),
+                    geom_core::NOT_YET_ENDING,
+                ),
+                Some(Category::Unruled) => (
+                    Some(geom_core::NOT_YET_ENDING),
+                    geom_core::KERNEL_DEFECT_ENDING,
+                ),
+                None => (None, geom_core::KERNEL_DEFECT_ENDING),
+            };
+            if let Some(ending) = ends {
+                assert!(
+                    shown.ends_with(ending),
+                    "{err:?} does not end in its category's ending: {shown}"
+                );
+            }
+            assert!(
+                !shown.contains(never),
+                "{err:?} ends in the other category's ending: {shown}"
+            );
             // `crate::py::typed_err` (pncad-py) asserts `reads_as_prose`
             // on every raise, live under release, and its fingerprint is
             // the field brace. A payload rendered through a derived

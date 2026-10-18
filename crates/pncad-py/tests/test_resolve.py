@@ -523,7 +523,7 @@ class TestAnIndeterminateVerdict(unittest.TestCase):
                 # The frame holding the document speaks the ancestor
                 # by its kind.
                 self.assertIn("poisoned by the failure at Fillet ", verdict.detail)
-                self.assertIn("Recourse: repair the failure upstream", verdict.detail)
+                self.assertIn("the repair is upstream", verdict.detail)
 
     def test_a_run_that_never_reached_the_node_is_the_third_arm(self):
         """The state's third way in, and the only one where nothing at

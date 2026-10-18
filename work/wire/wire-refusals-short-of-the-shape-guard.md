@@ -24,7 +24,7 @@ These rows, raised through `NodeErrorKind`'s own arms (`crates/editor-core/src/e
 by exact id, under the comment naming this file:
 
 - `crates/editor-core/tests/refusal_concision_chains.rs`, `FILED_NO_RECOURSE`:
-  94 feature-tree rows.
+  31 feature-tree rows (2026-10-18; the families list below is the one the row opened with).
 
 Families: `AssertionDimension`, `AxisInDifferentPlane`, `BlendSelectionEmpty`, `CrossingUnverified`, `CurvedSolidFrontier`, `DeclareResolve`, `DeclareSiteNotAnOperand`, `DeclareUnsupportedPair`, `DegenerateDirection`, `EmptyHalf`, `EmptyOperand`, `Expr`, `FaceFrameNotPlanar`, `FaceFrameReadback`, `FrameDirection`, `InstanceOutOfRange`, `MeasureClearanceRefused`, `MeasureMalformed`, `MeasureNonFinite`, `MeasureNotParallel`, `MeasureRefUnreadable`, `MeasureSelectionKind`, `MeasureUnsupported`, `MissingInput`, `MissingSlot`, `Naming`, `NonPositiveCount`, `ParamBox`, `ParamSourceAttach`, `PayloadExpr`, `PlacementRule`, `PlacementsUncertified`, `ProfileAnchor`, `ProfileLaneReplay(Flipped)`, `ProfileLaneReplay(None)`, `ProfilePieces`, `Seed`, `SelectResolve`, `ShellLaneUnsupported`, `ToleranceConflict`, `UnschedulableCycle`, `VerbArity`, `WitnessBifurcation`, `WrongOperand`.
 
@@ -109,3 +109,12 @@ and the admission went red for being unused — which is
 ## Triage (2026-10-17, WIRE orchestrator)
 
 WIRE's block of `FILED_NO_RECOURSE` is down to 79 entries; the `Declare*`, `AxisInDifferentPlane` and `ParamSourceAttach` families are gone. The `PlacementRule/*`, `PlacementsUncertified`, `InstanceOutOfRange`, `FaceFrame*` and `FrameDirection` entries stand on stage 3 ground and are NOT this row's to write now; the rest (`Select*`, `Expr/*`, `MeasureRefUnreadable/*`, `Naming/*`, `Seed/*`, `Profile*`) can start. The escalation-menu section predates the declare door's deletion: re-read `COINCIDENCE_RECOURSE` before acting on it.
+
+## The unheld families written (WIRE, PR 5298, 2026-10-18)
+
+The `Select*`, `Expr/*`, `MeasureRefUnreadable/*`, `Naming/*`, `Seed/*` and `ProfileLaneReplay` entries now state a recourse or end in the kernel-defect or not-yet ending, so their entries are gone. `WitnessBifurcation`, `MeasureNonFinite` and `PayloadExpr` went with them, because their payloads now carry one. Three entries stay, each under its comment:
+
+- `MeasureRefUnreadable/Readback`: its sentence is `topo::ReadbackError`'s, which the held `FaceFrameReadback/*` rows render too;
+- `MeasureRefUnreadable/NodeFailed` and `/NodePoisoned`: `NodeStanding`'s repair is false for a node a mate cluster refused (`work/wirehold/kernel-standing-names-a-cluster-refused-node-as-its-own-failure.md`).
+
+**The escalation-menu section is answered.** `geom_core::COINCIDENCE_RECOURSE` is `coincidence_move_arm!()`, "move the geometry", and offers no declaration, so none of the three doors it names (`NodeErrorKind::Escalated`, `NamingError::Escalated`, `SelectRefusal::InBand`) offers one any more. The section's question went away when the declare door was deleted.

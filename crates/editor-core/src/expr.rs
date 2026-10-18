@@ -1903,10 +1903,7 @@ impl core::fmt::Display for EvalError {
             Self::VarKindMismatch { var, bound, read } => write!(
                 f,
                 "variable {var} is read as {read} but bound as {bound}. {}",
-                Recourse(format_args!(
-                    "read it as {bound}, or read {} {read} variable",
-                    read.article()
-                ))
+                Recourse(format_args!("read {} {read} variable here", read.article()))
             ),
             Self::CountExprInContinuousEval => write!(
                 f,

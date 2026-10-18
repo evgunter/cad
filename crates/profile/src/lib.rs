@@ -173,8 +173,9 @@ pub use path::{
 };
 pub use structure::{
     CIRCLE_PIECES, CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision,
-    LoopCanonical, Piece, PieceRole, ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure,
-    RoleList, SegmentShape, StepSpan, StructureRefusal, StructureRefusalKind, carrier_pieces,
+    LoopCanonical, NARROW_THE_BOX, Piece, PieceRole, ProfileStructure, RadiusEmission, RadiusRole,
+    ReplayStructure, RoleList, SegmentShape, StepSpan, StructureRefusal, StructureRefusalKind,
+    carrier_pieces,
 };
 pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
 /// The fillet recourse sentences and the map that selects one, under

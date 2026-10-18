@@ -665,7 +665,7 @@ impl core::fmt::Display for SeedError {
             Self::UnknownVar { var } => write!(
                 f,
                 "the seed names {var}, which is not a variable of this document. {}",
-                Recourse("seed a variable the document holds")
+                Recourse("seed a free length, angle or scalar variable the document holds")
             ),
             Self::CountVar { var } => write!(
                 f,
@@ -678,7 +678,7 @@ impl core::fmt::Display for SeedError {
                 "the seed names {var}, which is not a free variable and so is no axis of its \
                  own: a defined variable's derivative is its inputs' pushforward, and an \
                  operation's output is a value its operation gives. {}",
-                Recourse("seed a free variable it is a function of")
+                Recourse(format_args!("seed a free variable {var} is a function of"))
             ),
             Self::TangentUnrepresentable { var } => write!(
                 f,

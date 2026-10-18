@@ -567,17 +567,16 @@ impl crate::spoken::Say for NodeStanding {
             ),
             Self::Failed { node } => write!(
                 f,
-                "{} failed, so it has no value. {}",
-                by.node(node),
-                Recourse("fix the node's own failure")
+                "{} failed, so it has no value — fix the node's own failure",
+                by.node(node)
             ),
             Self::Poisoned { node, through } => {
                 let through = by.node(through);
                 write!(
                     f,
-                    "{} is poisoned by the failure at {through}, so it has no value. {}",
-                    by.node(node),
-                    Recourse(format_args!("repair the failure upstream, at {through}"))
+                    "{} is poisoned by the failure at {through}, so it has no value — the \
+                     repair is upstream, at {through}",
+                    by.node(node)
                 )
             }
         }
@@ -2264,9 +2263,11 @@ impl crate::spoken::Say for NodeErrorKind {
                     "profile loop {loop_}'s lane elaboration refused at step {step} on its \
                      own geometry under this binding (the f64 pass is the one whose \
                      refusals carry numbers). {}",
-                    crate::sentence::Recourse(
-                        "narrow the parameter box until the profile builds across it"
-                    )
+                    crate::sentence::Recourse(format_args!(
+                        "{} until the profile builds across it, or move the nominal off this \
+                         binding",
+                        profile::NARROW_THE_BOX
+                    ))
                 ),
             },
             Self::ProfileReplay { loop_, error } => {

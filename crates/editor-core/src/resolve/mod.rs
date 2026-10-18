@@ -215,10 +215,10 @@ impl ResolveError {
                 lead(f, name)?;
                 write!(
                     f,
-                    " no longer resolves in this evaluation: {}. {}",
-                    Said(diagnosis, by),
-                    crate::sentence::Recourse("rebind it")
-                )
+                    " no longer resolves in this evaluation: {}",
+                    Said(diagnosis, by)
+                )?;
+                diagnosis.end(f)
             }
             Self::Ambiguous { name, tie, .. } => {
                 lead(f, name)?;
@@ -796,6 +796,33 @@ impl crate::spoken::Say for Diagnosis {
                 Said(cause, by),
                 by.node(*node)
             ),
+        }
+    }
+}
+
+impl Diagnosis {
+    /// How a vanished name's sentence ends after this diagnosis: a
+    /// diagnosis that states its own repair has already ended it, a
+    /// cascade's repair is the name upstream it derives from, and any
+    /// other change to the derivation is repaired by rebinding the name.
+    fn end(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use crate::sentence::Recourse;
+        match self {
+            Self::WitnessBifurcation(_) => Ok(()),
+            Self::Cascade { through } => write!(
+                f,
+                ". {}",
+                Recourse(format_args!(
+                    "repair the {} it derives from first",
+                    through.kind.noun()
+                ))
+            ),
+            Self::PredicateFlip { .. }
+            | Self::BorderDelta { .. }
+            | Self::GroupResized { .. }
+            | Self::StructuralParam { .. }
+            | Self::RecipeEdit { .. }
+            | Self::Upstream { .. } => write!(f, ". {}", Recourse("rebind it")),
         }
     }
 }
