@@ -74,9 +74,10 @@ The sweep found two siblings in `wire_combine`, both a
 `used.binary_search(&k)` miss that defaulted to no citation (the step
 re-cite's `.into_iter().collect()` and the node re-cite's
 `.unwrap_or_default()`). Those now refuse `UNION_STEP_UNDECIDED_CITE`.
-`recited` takes an infallible map, so a miss is caught inside the map
-and refused after it, before the uncited check. Before this, a row that
-lost only one of several citations was not caught at all.
+Both fold re-cites now go through a new
+`topo::ContactRecords::try_recited`, whose map can refuse, so a miss
+refuses inside the map. Before this, a row that lost only one of
+several citations was not caught at all.
 
 No test drives these refusals: each is unreachable while the value and
 the fold keep their shapes. The union and split suites stay green over

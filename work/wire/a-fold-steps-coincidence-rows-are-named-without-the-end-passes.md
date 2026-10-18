@@ -2,12 +2,11 @@
 id: a-fold-steps-coincidence-rows-are-named-without-the-end-passes
 kind: issue
 title: A union fold step's coincidence rows are named against collapse_table(acc_table) and published without the end passes, so a row citing an intermediate entity can keep fold qualifiers
-status: closed
+status: open
 opened: 2026-10-17
 priority: P2
 cost: M
 refs: [a-union-fold-publishes-no-pinch-row]
-closed: 2026-10-18
 ---
 
 
@@ -44,15 +43,35 @@ tail. The `Crossing` cells the fold minted are still read off
 names the node's table holds:
 `a-fold-row-names-a-vertex-the-fold-minted-by-the-step-that-minted-it`.
 
-## Resolution (2026-10-18)
+## Guarded, and measured still open (2026-10-18, `wire-small`)
 
-The guard is now in place. `union_member_orders_decide_alike`'s `decide`
-checks every published row of every order that builds
-(`cells_are_held`). Each `Entity` cell must be a name held by the table
-of the read it names: a member cell's member table, or the union's own
-published table for a cell the fold minted. Every fixture that `decide`
-runs is covered: the corpus, the emit corpus and the vertex-row fixtures,
-including `union_pinch_member_order::pinch`. The mutant that publishes a
-member cell under its collapsed fold-table name in `in_member_space`
-turns `a_vertex_row_is_the_unions_once_in_every_member_order` red at this
-check.
+The guard is `union_member_orders_decide_alike::cells_are_held`. Every
+published row's `Entity` cell must be a strict row of the table of the
+read it names, of the cell's kind, and its key must be a live entity of
+that read's body. For a member cell that is the member's table; for a
+cell the fold minted, it is the union's own published table. It runs on
+every order that builds through `decide` (the corpus, the emit corpus
+and the vertex-row fixtures).
+`published_row_cells_denote_entities_of_their_reads` runs it over the
+plate `pinch` (member cells) and a flush pair on an edge
+(`flush_onto_an_edge`, fold-minted `Merged` edge cells), and requires
+each fixture to reach cells of its kind. Two mutants in
+`in_member_space` turn it red: one publishes a member cell under its
+collapsed fold-table name, and one publishes a minted cell with a
+fragment tail the published table does not carry.
+
+**The finding is live.** A probe over the editor tests matching `union`,
+`seam`, `merged` and `junction` saw 44 fold-minted published cells:
+- 32 `Merged` edges and 10 `Seam` edges, all held;
+- 2 `Crossing` vertices that are **not** held.
+
+Both are in
+`union_pinch_member_order::a_prism_crossing_one_wedge_about_the_line_publishes_one_table_in_every_member_order`
+("with the plate"). Each is a `Crossing { edge: Seam { a: <prism a
+lateral>, b: <prism c lateral> }, face: <plate Cap(End)>, sense: Enters }`
+vertex: a crossing of an edge the fold minted, named by the step that
+minted it. The union's table holds the plate-top crossings only under
+member edges (`Crossing { edge: From { .. LateralEdge .. } }`). This is
+the row's case: the cell keeps the fold's spelling, and the end passes
+never re-spell it. That fixture is therefore not in the guard's test,
+and adding it is this row's acceptance.
