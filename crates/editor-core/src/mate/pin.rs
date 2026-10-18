@@ -319,8 +319,10 @@ pub enum PlacedBy {
     /// A plane mate on the copy's first planar face and its three
     /// values.
     PlanarFace,
-    /// The copy has no planar face: pinned over a frame read off its
-    /// geometry ([`pin_at`]), which leaves no freedom to set.
+    /// The copy has no planar face, or its first one stands at the pose
+    /// within the band about the chart's one pole (no value could be
+    /// charted on it): pinned over a frame read off its geometry
+    /// ([`pin_at`]), which leaves no freedom to set and reads no chart.
     Pin,
 }
 
@@ -350,7 +352,8 @@ pub struct Placed {
 /// The world plane is the world's frame swung onto the face's normal at
 /// `pose` by the shortest turn ([`super::reference_about`]) and slid to
 /// the face's point, read through its `xy` plane. A copy with no planar
-/// face falls back to [`pin_at`] ([`PlacedBy::Pin`]).
+/// face, or whose face's chart the band cannot swing at `pose`, falls
+/// back to [`pin_at`] ([`PlacedBy::Pin`]).
 ///
 /// # Errors
 ///
@@ -379,12 +382,15 @@ pub fn place_at(
         })?;
         Some((name.clone(), at.origin, normal))
     });
-    let Some((face, origin, normal)) = planar else {
-        return Ok(Placed {
+    let pinned = || {
+        Ok(Placed {
             mate: pin_at(doc, body, pose, opts, tol)?,
             values: Vec::new(),
             by: PlacedBy::Pin,
-        });
+        })
+    };
+    let Some((face, origin, normal)) = planar else {
+        return pinned();
     };
     let at = pose.affine();
     let on = crate::pose::PoseValue::Plane { origin, normal };
@@ -403,12 +409,12 @@ pub fn place_at(
     let reach = super::part_reach(&solid).map_err(|_| PinRefusal::NoFrame { node })?;
     let datum = (origin - Point3::origin()).norm() + (world_origin - Point3::origin()).norm();
     let arm = super::coset::Arm::of(reach, datum).map_err(|_| PinRefusal::Band)?;
-    let swung = |n: UnitVec3<f64>| {
-        super::reference_about(n, arm.get(), band).map_err(|_| PinRefusal::NoFrame { node })
-    };
     // The world plane: the world's frame swung onto the normal, slid to
-    // the face's point, read through its `xy` plane.
-    let x = swung(world_normal)?;
+    // the face's point, read through its `xy` plane. A normal within the
+    // band about the swing's pole has no chart: the gesture pins instead.
+    let Ok(x) = super::reference_about(world_normal, arm.get(), band) else {
+        return pinned();
+    };
     let n = world_normal.get();
     let frame = geom_core::linalg::Mat3::from_cols(x, n.cross(x), n);
     let world = super::WorldRead::Role {
@@ -419,10 +425,12 @@ pub fn place_at(
         )),
         role: PoseRole::Xy,
     };
-    let chart =
+    let Ok(chart) =
         super::value::Chart::of(&on, &to, false, &geom_core::Affine3::identity(), arm, band)
-            .map_err(|_| PinRefusal::NoFrame { node })?
-            .unwrap_or_else(|| unreachable!("a plane mate has a chart"));
+    else {
+        return pinned();
+    };
+    let chart = chart.unwrap_or_else(|| unreachable!("a plane mate has a chart"));
     let values = vec![
         (
             super::Coord::Slide(super::SlideAxis::X),

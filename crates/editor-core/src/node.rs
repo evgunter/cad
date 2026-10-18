@@ -2557,8 +2557,8 @@ macro_rules! node_rows {
                 placement,
             } => $out.extend(placement.$rows()),
             // A placement's slots are its shapes' indices, then each
-            // constraint's two frame offsets' rigid steps, addressed by
-            // the constraint and its side.
+            // constraint's: a world read's scalars and a value's number,
+            // addressed by the constraint.
             Node::Place {
                 shapes,
                 constraints,
@@ -4344,7 +4344,7 @@ where
         // A literal FRAME is float payload no slot addresses, and the
         // `PartialEq` above compares its coordinates by value: a
         // transform's literal steps, an explicit rule's listed frames,
-        // and each constraint's alignment datum compare here, by bits.
+        // and each constraint's own scalars compare here, by bits.
         match (self, other) {
             (Node::Transform { placement: a, .. }, Node::Transform { placement: b, .. }) => {
                 if !a.bit_eq(b) {

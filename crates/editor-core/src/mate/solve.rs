@@ -227,10 +227,6 @@ pub struct SolvedPoses<T: Decide = f64> {
     /// Each placement's answer: its space and its motion in that
     /// space's coordinates (`None` the identity), or its refusal.
     placed: BTreeMap<RecipeNodeId, Result<Placed<T>, MateFault>>,
-    /// Each placed copy's reach about its space's origin, an `f64`
-    /// upper bound ([`super::part_reach`]): the arm a turn of it is
-    /// measured over ([`SolvedPoses::at_identity`]).
-    reach: BTreeMap<RecipeNodeId, f64>,
 }
 
 /// **Why the nominal world-pose door has no pose** for a placement
@@ -304,7 +300,6 @@ impl<T: SolveScalar> SolvedPoses<T> {
         T: crate::eval::EvalScalar,
     {
         let mut placed = BTreeMap::new();
-        let mut reach = BTreeMap::new();
         for id in doc.ids() {
             if doc.node(id).and_then(bundle_of).is_none() {
                 continue;
@@ -313,19 +308,6 @@ impl<T: SolveScalar> SolvedPoses<T> {
                 Some(crate::eval::NodeResult::Ok(value)) => {
                     let space = value.space.unwrap_or(Space::World);
                     placed.insert(id, Ok((space, value.motion.map(|m| m.to_affine()))));
-                    let bodies: Vec<&topo::Body<T>> = match &value.payload {
-                        crate::eval::ValuePayload::Body(body) => vec![body],
-                        crate::eval::ValuePayload::Copies(copies) => {
-                            copies.bodies.iter().map(|b| &**b).collect()
-                        }
-                        _ => Vec::new(),
-                    };
-                    let farthest = bodies
-                        .into_iter()
-                        .filter_map(|body| super::part_reach(body).ok())
-                        .map(SolveScalar::upper)
-                        .fold(0.0_f64, f64::max);
-                    reach.insert(id, farthest);
                 }
                 Some(crate::eval::NodeResult::Failed(error)) => {
                     if let crate::eval::NodeErrorKind::Mate(fault) = &error.kind {
@@ -338,7 +320,6 @@ impl<T: SolveScalar> SolvedPoses<T> {
         Self {
             document: doc.id(),
             placed,
-            reach,
         }
     }
 
@@ -371,18 +352,17 @@ impl<T: SolveScalar> SolvedPoses<T> {
 /// stores.
 impl SolvedPoses {
     /// **Whether `placement`'s copy stands at the identity of the
-    /// world's coordinates**, decided at `band`: no point of it moves
-    /// further than the band's zero — its translation's length plus its
-    /// turn's departure from the identity levered over the copy's reach
-    /// (D4 ¶1), the predicate the fold's own snap reads ([`at_rest`]),
-    /// so a copy it decides at rest was placed by no map. A copy that is
-    /// loose, refused or unplaced does not stand there.
-    pub fn at_identity(&self, placement: RecipeNodeId, band: Band) -> bool {
+    /// world's coordinates**: the fold's own verdict, read off its
+    /// answer — a copy the fold decided at rest ([`at_rest`], at the
+    /// evaluation's band and the unplaced copy's reach) was placed by no
+    /// map, and one pinned straight to the world's coordinates by the
+    /// stored identity. A copy that is loose, refused or unplaced does
+    /// not stand there.
+    pub fn at_identity(&self, placement: RecipeNodeId) -> bool {
         let Some(Ok((Space::World, motion))) = self.placed.get(&placement) else {
             return false;
         };
-        let reach = self.reach.get(&placement).copied().unwrap_or(0.0);
-        motion.is_none_or(|m| at_rest(&m, reach, band))
+        motion.is_none_or(|m| f64::is_stored_identity(&m))
     }
 
     /// **A copy's pose in its space**: where it sits in the world's

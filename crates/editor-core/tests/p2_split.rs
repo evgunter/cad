@@ -115,7 +115,7 @@ pub(crate) fn repin(
 
 /// Whether `placement` solves to the identity of `doc`'s world.
 pub(crate) fn at_identity(doc: &ProfileDoc, placement: RecipeNodeId, o: &EvalOptions) -> bool {
-    fixture::solve(doc, o, Tol::witness()).at_identity(placement, fixture::band())
+    fixture::solve(doc, o, Tol::witness()).at_identity(placement)
 }
 
 // ---- substrate ----

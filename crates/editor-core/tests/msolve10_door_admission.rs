@@ -447,6 +447,66 @@ fn a1_a_values_own_admission_refuses_at_insert() {
     );
 }
 
+/// **A mate re-written re-asks the values naming it**: an axis mate
+/// read off one copy's cap, with a spin value, is admitted; re-pointing
+/// its target onto the line two copies' caps meet in (a read off two
+/// bodies) refuses at the slot door as the value's `NoChart {
+/// TwoBodies }`, as `AddValue` refuses it on that target — whichever
+/// was written last, the door's verdict on the value is the load
+/// door's, and no document it admits fails to save.
+///
+/// *Breaks if* a mate re-pointed is admitted alone (the document saves
+/// no more: the save walk asks every value).
+#[test]
+fn a1_a_mate_re_pointed_re_asks_the_values_naming_it() {
+    let (doc, lines, _, body) = instances("msolve10-a1-re-pointed", 3);
+    let (doc, coaxial) = fixture::constrain_at(
+        doc,
+        lines[2],
+        fixture::mate(
+            fixture::axis(cap(lines[2], body, CapEnd::Start)),
+            fixture::axis(cap(lines[0], body, CapEnd::End)),
+            ContactClass::Rest,
+        ),
+    );
+    let (doc, _) = through_door(
+        &doc,
+        lines[2],
+        &add_value(lines[2], coaxial.id, Coord::Spin, ang(0.1)),
+    )
+    .expect("a spin on a one-body target is admitted");
+    let meet = editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Meet {
+        a: editor_core::pose::RoleRead::plain(fixture::plane(cap(lines[0], body, CapEnd::End))),
+        b: editor_core::pose::RoleRead::plain(fixture::plane(cap(lines[1], body, CapEnd::End))),
+    }));
+    let refused = doc.apply(
+        &DocEdit::SetParam {
+            node: lines[2],
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Side {
+                constraint: coaxial.id,
+                side: editor_core::MateSide::To,
+            }),
+            value: editor_core::SlotValue::Read(meet),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &RefusingReach,
+    );
+    assert!(
+        matches!(
+            &refused,
+            Err(EditError::MateRefused { fault, .. }) if matches!(
+                **fault,
+                MateFault::NoChart {
+                    why: editor_core::NoChartWhy::TwoBodies,
+                    ..
+                }
+            )
+        ),
+        "{refused:?}"
+    );
+}
+
 // ---- A4: the door reads nothing of the parts ----
 
 /// **The door asks no reach and reads no face**: an admitted rest and

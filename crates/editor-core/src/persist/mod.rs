@@ -374,14 +374,11 @@ pub enum PersistError {
     /// An edit in the log refused through the [`crate::edit::apply`] door — on
     /// LOAD replay, or at SAVE by the symmetric log-verification pass
     /// (a log that cannot replay would make an unloadable file; save
-    /// refuses first). A logged mate insert the solve's per-mate
-    /// admission refuses on the datum alone refuses here as
-    /// [`EditError::MateRefused`], naming the entry; a rider on a
-    /// coincidence, which the recording door decided over the parts'
-    /// reach, is not re-decided ([`crate::edit::apply_replayed`]).
-    /// The SNAPSHOT is a state, not an edit: its walk asks only that a
-    /// mate's alignment be finite, and a mate it holds that the solve
-    /// refuses is the solve's at evaluation.
+    /// refuses first). A logged constraint the edit door refuses on the
+    /// recipe alone refuses here as [`EditError::MateRefused`], naming
+    /// the entry. The SNAPSHOT is a state, not an edit: its walk asks
+    /// each constraint the door's own admission, and a bundle the fold
+    /// refuses is the placement's refusal at evaluation.
     EditReplay {
         /// The refusing edit's index in the log.
         index: usize,

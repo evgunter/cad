@@ -5683,7 +5683,7 @@ enum Writes {
 /// - its payload's names and read sites live ([`check_payload_refs`]),
 ///   where the door writes the payload (`writes`);
 /// - DM5 and the list floor ([`check_node_inputs`]);
-/// - a decidable alignment, and a mate's frame offsets;
+/// - a transform's literal steps ([`Node::placement_frame_fault`]);
 /// - the variable every slot and payload expression reads, a measure's
 ///   reference indices, and an assertion's bound against the dimension
 ///   of the measure it reads ([`check_node_slots`]);
@@ -5707,14 +5707,6 @@ fn check_written_node<P: crate::ProfilePayload>(
     // one.
     if matches!(node, Node::World) {
         return Err(EditError::WorldIsUndeletable { node: spoken() });
-    }
-    // A constraint's admission composes its frame offsets, so their
-    // literal steps meet the frame rule first, by the predicate the
-    // whole-document pass asks of every placement.
-    if crate::mate::solve::bundle_of(node).is_some()
-        && let Some((at, fault)) = node.placement_frame_fault(tol)
-    {
-        return Err(EditError::placement_frame(spoken(), at, fault));
     }
     check_node_slots(new, doc, id, node)?;
     // The VQ9 authoring-time door (LIB-SWITCH §4d): a profile
@@ -6255,8 +6247,8 @@ fn door<P: Clone + crate::ProfilePayload, T>(
                 });
             }
         }
-        // Literal placement steps — a transform's, and a constraint's
-        // frame offsets — meet the same bar, by the same predicate.
+        // A transform's literal placement steps meet the same bar, by
+        // the same predicate.
         if let Some((at, fault)) = n.placement_frame_fault(tol) {
             return Err(EditError::placement_frame(written(doc, node, n), at, fault));
         }
@@ -6507,7 +6499,29 @@ fn admit_written_constraint<P: Clone + crate::ProfilePayload>(
     };
     let at = crate::mate::MateRef::new(placement, constraint);
     let admitted = match &added.kind {
-        crate::mate::ConstraintKind::Mate(mate) => crate::mate::solve::admit_mate(new, at, mate),
+        // A mate re-written re-asks every value naming it: a value's
+        // chart is read off its mate's poses (a target re-pointed onto
+        // two bodies has none), so the door's verdict on a value holds
+        // whichever was written last — as the load door asks it of
+        // every value.
+        crate::mate::ConstraintKind::Mate(mate) => crate::mate::solve::admit_mate(new, at, mate)
+            .and_then(|()| {
+                bundle
+                    .iter()
+                    .filter_map(|c| {
+                        c.value()
+                            .filter(|v| v.mate == constraint)
+                            .map(|v| (c.id, v))
+                    })
+                    .try_for_each(|(id, value)| {
+                        crate::mate::solve::admit_value(
+                            new,
+                            crate::mate::MateRef::new(placement, id),
+                            bundle,
+                            value,
+                        )
+                    })
+            }),
         crate::mate::ConstraintKind::Value(value) => {
             crate::mate::solve::admit_value(new, at, bundle, value)
         }

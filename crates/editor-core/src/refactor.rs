@@ -2780,10 +2780,8 @@ pub fn split(
             && evaluation.space(placement) == crate::mate::Space::World
     };
     // Whether a copy stands where its body did: its placement solved to
-    // the identity of the world's coordinates, decided at the band.
-    let band = geom_core::predicate::Band::linear(tol).ok();
-    let places_at_identity =
-        |placement: RecipeNodeId| band.is_some_and(|band| poses.at_identity(placement, band));
+    // the identity of the world's coordinates, the fold's own verdict.
+    let places_at_identity = |placement: RecipeNodeId| poses.at_identity(placement);
     // A cut name re-anchors as the part's product spells it: a name a
     // cut world placement mints (its copy's own, or an instance's) as
     // it is, and a name of a body a cut world `Place` copies under that
@@ -3946,12 +3944,10 @@ pub fn inline(
         resolver: Some(std::sync::Arc::clone(resolver)),
         ..crate::eval::EvalOptions::default()
     };
-    let band = geom_core::predicate::Band::linear(tol).ok();
     let part_poses = crate::mate::solve_document(&part, &opts, tol);
     // Whether a part copy stands where its body did: its placement
     // solved to the identity of the part's world, decided at the band.
-    let places_at_identity =
-        |placement: RecipeNodeId| band.is_some_and(|band| part_poses.at_identity(placement, band));
+    let places_at_identity = |placement: RecipeNodeId| part_poses.at_identity(placement);
     let part_world: Vec<RecipeNodeId> = part
         .placements()
         .into_iter()
@@ -3986,7 +3982,7 @@ pub fn inline(
                 debug_assert!(names.is_empty(), "a stored formula reads by id");
             }
             let host = crate::mate::solve_document(doc, &opts, tol);
-            if band.is_some_and(|band| host.at_identity(instance, band)) {
+            if host.at_identity(instance) {
                 Landing::Pinned(None)
             } else if host.space(instance) == Some(crate::mate::Space::World)
                 && let Some(motion) = host.relative_map(instance)

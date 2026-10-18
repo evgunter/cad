@@ -452,7 +452,7 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
     assert_eq!(offset_of(&doc, top), None);
     let poses = solve(&doc, &o, Tol::witness());
     assert!(
-        poses.at_identity(base, fixture::band()),
+        poses.at_identity(base),
         "a copy pinned at the identity sits at the world's origin"
     );
     assert_eq!(
@@ -834,8 +834,7 @@ pub(crate) fn cut(doc: &ProfileDoc, ids: &[RecipeNodeId]) -> BTreeSet<RecipeNode
 fn left_at_identity(p: &Parts, out: &editor_core::SplitOutcome) -> bool {
     let mut store = p.store.clone();
     store.insert(out.part.clone(), Tol::witness());
-    solve(&out.remainder, &with_resolver(store), Tol::witness())
-        .at_identity(out.instance, fixture::band())
+    solve(&out.remainder, &with_resolver(store), Tol::witness()).at_identity(out.instance)
 }
 
 /// **A cut of one placed pair moves as selected** (A4). The instance

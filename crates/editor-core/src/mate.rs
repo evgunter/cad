@@ -865,9 +865,8 @@ pub const OVERCONSTRAINED_RECOURSE: &str = "delete one of the named constraints;
 /// author does about two declarations that admit no common pose.
 ///
 /// One sentence for both shapes the arm renders — a PAIR of mates and
-/// a mate contradicting itself through its own rider — because the
-/// repair is the same in both and a sentence naming "one of the two"
-/// is false of the second. The rung is the solve door: cosets are
+/// one mate named on both sides — because the repair is the same in
+/// both and a sentence naming "one of the two" is false of the second. The rung is the solve door: cosets are
 /// intersected exactly, so nothing here is a tolerance to widen and no
 /// pose is averaged out of the two.
 pub const CONTRADICTORY_RECOURSE: &str = "delete the mate that was not meant, or re-author the \
@@ -1210,8 +1209,8 @@ pub enum MateFault {
     /// and the measured clash.
     Contradictory {
         /// The mate already folded. **Equal to `added` when one mate
-        /// contradicts ITSELF**: a mate whose own datum and rider admit
-        /// no common pose dies by the same rule, and naming it on both
+        /// contradicts ITSELF**: a mate whose own two poses admit no
+        /// common pose dies by the same rule, and naming it on both
         /// sides is how that shape reaches this variant.
         held: MateRef,
         /// The mate whose intersection died against it.

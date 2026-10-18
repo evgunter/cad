@@ -286,11 +286,6 @@ fn mate_fault(ev: &Evaluation<f64>, node: RecipeNodeId) -> MateFault {
     }
 }
 
-/// The band a copy's standing at the identity is decided at.
-fn band() -> geom_core::predicate::Band {
-    geom_core::predicate::Band::linear(Tol::witness()).expect("a band")
-}
-
 // ---- Row 1: a determined pair, evaluated, deterministic ----
 
 /// The A11 rule-1 exemplar: **coaxial plus flush plus clocking** is
@@ -701,7 +696,7 @@ fn row4e_a_whole_pair_cut_moves_as_selected() {
     let mut store = kit.store.clone();
     store.insert(out.part.clone(), Tol::witness());
     assert!(
-        solve(&out.remainder, &with_resolver(store), Tol::witness()).at_identity(instance, band()),
+        solve(&out.remainder, &with_resolver(store), Tol::witness()).at_identity(instance),
         "the remainder instance stands on the world at the identity"
     );
     assert!(

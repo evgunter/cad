@@ -167,9 +167,8 @@ fn a_body_with_no_planar_face_is_pinned_and_the_gesture_says_so() {
             if pin.mate().is_some_and(|m| matches!(m.to, pncad::document::Target::World(_)))),
         "one mate to the world and no values: {bundle:?}"
     );
-    let band = pncad::geom_core::predicate::Band::linear(tol).expect("a band");
     assert!(
-        common::solve(&session, doc, tol).at_identity(placement, band),
+        common::solve(&session, doc, tol).at_identity(placement),
         "the ring stands where it was made"
     );
 }
@@ -282,9 +281,8 @@ fn a_creation_gesture_places_what_it_made_in_one_action() {
         }],
         "the outcome says how the copy was placed"
     );
-    let band = pncad::geom_core::predicate::Band::linear(tol).expect("a band");
     assert!(
-        common::solve(&session, doc, tol).at_identity(placement, band),
+        common::solve(&session, doc, tol).at_identity(placement),
         "the copy stands where it was made"
     );
     assert_eq!(common::world(doc), [extrude], "what was made is the world");

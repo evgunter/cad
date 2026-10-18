@@ -117,7 +117,7 @@ fn a_whole_pair_cut_moves_as_selected_and_reports_nothing() {
     );
     assert!(
         fixture::solve(&out.remainder, &with_resolver(parts), Tol::witness())
-            .at_identity(out.instance, fixture::band()),
+            .at_identity(out.instance),
         "the instance stands at the identity"
     );
     assert!(

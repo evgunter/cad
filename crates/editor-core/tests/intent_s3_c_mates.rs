@@ -1097,6 +1097,43 @@ fn the_place_gesture_reproduces_its_pose() {
     );
 }
 
+/// **The gesture pins where its face's chart has no swing.** A box
+/// placed at a turn of `π − 1e-9` about `x`: its first planar face's
+/// normal stands within the band about the chart's one pole, where no
+/// value can be charted, so `place_at` falls back to the pin
+/// (`PlacedBy::Pin`) and the copy stands at `P`; a turn well clear of
+/// the pole writes the plane mate and its values.
+///
+/// *Breaks if* the gesture refuses at that band of poses (with a reason
+/// that names no chart) instead of pinning.
+#[test]
+fn the_place_gesture_pins_where_its_chart_has_no_swing() {
+    let (doc, body) = a_box("s3c_place_pole", 1.0);
+    let (doc, placement) = placed(doc, body);
+    let shape = match doc.node(placement) {
+        Some(Node::Place { shapes, .. }) => Operand::Var(shapes[0].read),
+        _ => unreachable!("a placement was inserted"),
+    };
+    let gesture = |angle: f64| {
+        let turn = Mat3::rotation_about(Vec3::new(1.0, 0.0, 0.0), angle);
+        let pose = editor_core::Frame::from_affine(Affine3::from_parts(turn, Vec3::zero()));
+        let placed =
+            editor_core::place_at(&doc, &shape, &pose, &EvalOptions::default(), Tol::witness())
+                .unwrap_or_else(|refusal| panic!("the gesture places at {angle}: {refusal}"));
+        (turn, placed)
+    };
+    let (_, clear) = gesture(std::f64::consts::PI - 0.5);
+    assert_eq!(clear.by, editor_core::PlacedBy::PlanarFace);
+    let (turn, near) = gesture(std::f64::consts::PI - 1e-9);
+    assert_eq!(near.by, editor_core::PlacedBy::Pin, "{near:?}");
+    let (doc, _) = fixture::constrain_at(doc, placement, near.mate);
+    let at = solved(&doc, placement);
+    assert!(
+        turn_between(at.linear, turn) < 1e-12 && at.translation.norm() < 1e-12,
+        "the copy stands at P: {at:?}"
+    );
+}
+
 /// **The migration's pin reproduces its pose.** `pin_at` reads a frame
 /// off the copy's first axis-bearing edge and a vertex off it, and
 /// equates it with the world's frame moved to where that frame sits at

@@ -61,8 +61,7 @@ fn at_origin(session: &DocSession, node: RecipeNodeId) -> bool {
         if mate.mate().is_some_and(|m| matches!(m.to, pncad::document::Target::World(_)))
             && values.len() == 3
             && values.iter().all(|v| v.value().is_some_and(|v| v.mate == mate.id)));
-    let band = pncad::geom_core::predicate::Band::linear(Tol::witness()).expect("a band");
-    placed_by_gesture && common::solve(session, doc, Tol::witness()).at_identity(node, band)
+    placed_by_gesture && common::solve(session, doc, Tol::witness()).at_identity(node)
 }
 
 // --- the acceptance ------------------------------------------------
