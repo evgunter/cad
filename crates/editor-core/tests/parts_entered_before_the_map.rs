@@ -17,8 +17,8 @@
 use crate::fixture;
 use editor_core::{
     Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocRef, DocumentId, EvalOptions,
-    Evaluation, ExtrudeSide, Formula, MateFrame, MatePrimitive, Node, NodeResult, ProfileDoc,
-    RecipeNodeId, evaluate, mate_reach,
+    Evaluation, ExtrudeSide, MateFrame, MatePrimitive, Node, NodeResult, ProfileDoc, RecipeNodeId,
+    evaluate, mate_reach,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{at_the_door, insert, len, on_frame, on_pool, square};
