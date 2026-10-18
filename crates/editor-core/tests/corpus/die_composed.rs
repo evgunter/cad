@@ -46,6 +46,7 @@
 //! (`sweep/tests/m6_surgery.rs`) meters the composed volume against
 //! its derived closed form at a stated relative tolerance.
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::Formula;
 use editor_core::{
@@ -309,7 +310,7 @@ pub fn document() -> CorpusDoc {
         editor_core::select(&ev, pipped, &selector()),
     ));
 
-    r.place(composed);
+    r.place_part(composed);
 
     CorpusDoc {
         name: "die_composed",

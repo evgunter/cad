@@ -142,7 +142,11 @@ this rule, and so do profile pieces:
     arc is its `RunIn`, `fillet_arc`'s arrival arc its `RunOut`, and
     `arc_fillet_arc` has both;
   - a `circle_split` has `Piece(k)` for each `k < n` (the `n` is
-    structural);
+    structural). `Piece(k)` is the arc from the split's vertex `k`, at
+    `phase + 2πk/n`, to vertex `k + 1`. The phase is a value, so a phase
+    edit moves every piece along the carrier, and whatever hangs on it,
+    and renames none: a shift by a whole number of arcs draws the same
+    circle with each piece some places along it;
   - a `circle` has `Piece(0)` and `Piece(1)`. It is drawn as the
     `circle_split` with `n = 2` and phase 0: two semicircles, split at the
     circle's `±x` points.

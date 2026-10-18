@@ -321,8 +321,8 @@ pub(crate) fn unit_scaled_weights(n: &NurbsSurface<f64>) -> Cow<'_, NurbsSurface
         return Cow::Borrowed(n);
     };
     match NurbsSurface::new(
-        n.knots_u().clone(),
-        n.knots_v().clone(),
+        n.knots_u_f64_interim().clone(),
+        n.knots_v_f64_interim().clone(),
         n.control().to_vec(),
         scaled,
     ) {
@@ -348,8 +348,8 @@ pub(crate) fn unit_scaled_weights(n: &NurbsSurface<f64>) -> Cow<'_, NurbsSurface
 /// 18 ([`PatchBoundError::DegreeAboveCeiling`], module docs "Refusal"),
 /// or a derived-knot construction that fails to materialise.
 pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundError> {
-    check_direction(n.knots_u())?;
-    check_direction(n.knots_v())?;
+    check_direction(n.knots_u_f64_interim())?;
+    check_direction(n.knots_v_f64_interim())?;
     if is_rational(n) {
         rational_cells(n, RATIONAL_CERT_SPLITS)
     } else {
@@ -387,8 +387,8 @@ pub fn patch_cells_refined(
     n: &NurbsSurface<f64>,
     splits: usize,
 ) -> Result<Vec<PatchCell>, PatchBoundError> {
-    check_direction(n.knots_u())?;
-    check_direction(n.knots_v())?;
+    check_direction(n.knots_u_f64_interim())?;
+    check_direction(n.knots_v_f64_interim())?;
     if is_rational(n) {
         rational_cells(n, splits)
     } else {
@@ -476,8 +476,8 @@ fn span_extent(kv: &KnotVector, span: usize) -> (f64, f64) {
 /// cell's first active point. What the two still share is the ORDER
 /// (`weight · coordinate`), and a change to THAT is a change to both.
 fn comp_nets(n: &NurbsSurface<f64>) -> TensorChannels<'_, 3> {
-    let nv = n.knots_v().control_count();
-    TensorChannels::from_fn(n.knots_u(), n.knots_v(), |i, j| {
+    let nv = n.knots_v_f64_interim().control_count();
+    TensorChannels::from_fn(n.knots_u_f64_interim(), n.knots_v_f64_interim(), |i, j| {
         // Row-major layout: control[iu·nv + iv] — the net's own.
         let p = n.control()[i * nv + j];
         [p.x, p.y, p.z].map(Interval::point)
@@ -799,7 +799,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     // weight powers (`W³` here) at either end of the `f64` range.
     let scaled = unit_scaled_weights(n);
     let n = &*scaled;
-    let (kv_u, kv_v) = (n.knots_u(), n.knots_v());
+    let (kv_u, kv_v) = (n.knots_u_f64_interim(), n.knots_v_f64_interim());
     // The second order is read at three times each degree.
     if 3 * kv_u.degree().max(kv_v.degree()) > QUOTIENT_MAX_DEGREE {
         return Err(PatchBoundError::DegreeAboveCeiling);
@@ -1043,8 +1043,8 @@ pub(crate) mod tests {
     /// `n` with every weight multiplied by `2^k`.
     pub(crate) fn weights_times_pow2(n: &NurbsSurface<f64>, k: i32) -> NurbsSurface<f64> {
         NurbsSurface::new(
-            n.knots_u().clone(),
-            n.knots_v().clone(),
+            n.knots_u_f64_interim().clone(),
+            n.knots_v_f64_interim().clone(),
             n.control().to_vec(),
             n.weights().iter().map(|&w| pow2_scaled(w, k)).collect(),
         )
@@ -1078,8 +1078,8 @@ pub(crate) mod tests {
     fn a_uniform_weight_scale_moves_no_cell() {
         let cylinder = quarter_cylinder();
         let dyadic = NurbsSurface::new(
-            cylinder.knots_u().clone(),
-            cylinder.knots_v().clone(),
+            cylinder.knots_u_f64_interim().clone(),
+            cylinder.knots_v_f64_interim().clone(),
             cylinder.control().to_vec(),
             vec![1.0, 1.0, 0.75, 0.75, 1.0, 1.0],
         )

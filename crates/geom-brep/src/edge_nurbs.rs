@@ -308,10 +308,14 @@ impl CarrierDomainRefusal {
             | SplineError::NonFiniteWeight { .. }
             | SplineError::ControlCountMismatch { .. }
             | SplineError::WeightCountMismatch { .. }
-            | SplineError::WeightNotAPoint { .. }
-            | SplineError::KnotNotAPoint { .. } => unreachable!(
+            | SplineError::CarrierWeightNotAPoint { .. }
+            | SplineError::WeightSignUndecided { .. }
+            | SplineError::KnotIsPoison { .. }
+            | SplineError::KnotRunsUndecided { .. }
+            | SplineError::CarrierKnotNotAPoint { .. } => unreachable!(
                 "the domain door re-expresses a validated f64 image's knots, so it cannot \
-                 refuse a weight, a count, a breakpoint that is no point or a clamp clause: {e:?}"
+                 refuse a weight, a count, a poison or undecided breakpoint or a clamp \
+                 clause: {e:?}"
             ),
             // Two breakpoints the re-expression rounds onto one value:
             // the held knots refuse to merge them (the `f64` vector's
@@ -748,7 +752,7 @@ pub struct PlaneNurbsIncidence<T: Real> {
 /// no candidate.
 #[must_use]
 pub fn arc_rim_candidates<T: Real>(chart: &NurbsSurface<T>, t0: T, span: T) -> Vec<Pcurve<T>> {
-    let ku = chart.knots_u();
+    let ku = chart.knots_u_f64_interim();
     let (d0, d1) = ku.domain();
     let spans = ku.knots().iter().filter(|k| **k > d0 && **k < d1).count() / 2 + 1;
     let Some(breaks) = uniform_breaks(spans) else {
@@ -1367,12 +1371,12 @@ fn edge_piece<T: SpanLocate>(
             "the edge's interval is empty on the carrier's domain",
         ));
     }
-    let channel = carrier.weight_channel();
+    let channel = carrier.weights_f64_interim();
     let constant = channel.iter().all(|w| w.to_bits() == channel[0].to_bits());
     if (a <= d0 && b >= d1) || !constant {
         return Ok(carrier.clone());
     }
-    let kv = carrier.knots();
+    let kv = carrier.knots_f64_interim();
     let p = kv.degree();
     let malformed = || refuse("the carrier's piece over the edge's interval is malformed");
     let stretches = geom_core::spline::ParamRange::new(a, b)
@@ -1915,7 +1919,10 @@ fn wall_breaks(kv: &KnotVector) -> Vec<f64> {
 /// the certificate harder to pass, never unsound. Limb 2's hull and the
 /// evaluations read the wall itself.
 fn wall_grid<T: geom_core::CertifiedBounds>(wall: &NurbsSurface<T>) -> Option<CellGrid> {
-    let (bu, bv) = (wall_breaks(wall.knots_u()), wall_breaks(wall.knots_v()));
+    let (bu, bv) = (
+        wall_breaks(wall.knots_u_f64_interim()),
+        wall_breaks(wall.knots_v_f64_interim()),
+    );
     if bu.is_empty() && bv.is_empty() {
         return None;
     }
@@ -2223,7 +2230,10 @@ mod tests {
         let lifted = on_carrier_domain::<f64>(&image, t0, t1).unwrap();
         let (lo, hi) = lifted.domain();
         assert_eq!((lo.to_bits(), hi.to_bits()), (t0.to_bits(), t1.to_bits()));
-        assert_eq!(lifted.knots(), &image.knots().on_domain(t0, t1).unwrap());
+        assert_eq!(
+            lifted.knots_f64_interim(),
+            &image.knots_f64_interim().on_domain(t0, t1).unwrap()
+        );
         let net = |c: &[Point2<f64>]| {
             c.iter()
                 .map(|p| (p.x.to_bits(), p.y.to_bits()))
@@ -2291,7 +2301,7 @@ mod tests {
             let (t0, t1) = CARRIER;
             let lifted = on_carrier_domain::<Interval>(&image, t0, t1).unwrap();
             let want = image.on_domain(t0, t1).unwrap();
-            assert_eq!(lifted.knots(), want.knots());
+            assert_eq!(lifted.knots_f64_interim(), want.knots_f64_interim());
             for t in samples() {
                 let p = lifted.eval(Interval::from_f64(t));
                 let q = want.eval(t);
@@ -2569,7 +2579,7 @@ mod tests {
         assert_eq!(piece.domain(), (a, b));
         assert!(
             piece
-                .weight_channel()
+                .weights_f64_interim()
                 .iter()
                 .all(|&x| x.to_bits() == w.to_bits())
         );

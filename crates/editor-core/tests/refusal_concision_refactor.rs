@@ -10,7 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    CapEnd, ConstraintId, DocumentId, EditError, EntityKind, InlineError, MateSide, PersistError,
+    CapEnd, ConstraintId, DocumentId, EditError, EntityKind, InlineError, PersistError,
     RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SplitError, SpokenName, SpokenNode,
     StableName, StepId, Uncarried, VarName,
 };
@@ -85,7 +85,7 @@ fn var() -> editor_core::SpokenVar {
 test_utils::f6_variants! {
     const SPLIT: SplitError = [
         EmptyCut, UnknownCutNode, CutsTheWorld, PartIdCollides, RemainderReadUncarried,
-        SeveredEdge, NoMaterial, MateFrameCrosses, UncutVarReference, DefinitionStraddlesCut,
+        SeveredEdge, NoMaterial, UncutVarReference, DefinitionStraddlesCut,
         UnresolvedVarCrossesCut, PartNameReachesRemainder, NameStraddlesCut, NameOnDroppedStep, RankedRunReordered,
         BodyNameCrossesCut, NameOutsidePartWorld, Pin, PartEdit, RemainderEdit,
     ];
@@ -95,9 +95,8 @@ test_utils::f6_variants! {
     const INLINE: InlineError = [
         UnknownNode, NotAnInstance, UnplaceablePart, InstanceReadUncarried, Unresolved,
         EpsilonSeam, PartCarriesMetadata, VarNameConflict, InstanceOutputUncarried,
-        UnresolvedVarCrossesCut, ConstructionReadsCopy, CopyPinnedToConstruction, MateFrameCrosses,
-        SideLeavesAnInstance,
-        InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep, RankedRunReordered,
+        UnresolvedVarCrossesCut, ConstructionReadsCopy, CopyPinnedToConstruction, PinReadsVariable,
+        ValueOnAMovedWorld, WorldPinOnAMovedWorld, InstanceUnsolved, InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep, RankedRunReordered,
         StrandedPartName,
         StrandedPartRead, Edit,
     ];
@@ -163,12 +162,6 @@ fn split_refusals() -> Vec<SplitError> {
     out.extend([
         SplitError::NoMaterial {
             node: s(1, "Profile"),
-        },
-        SplitError::MateFrameCrosses {
-            placement: s(7, "InstantiatePart"),
-            constraint: constraint(),
-            position: 2,
-            side: MateSide::B,
         },
         SplitError::UncutVarReference {
             var: Box::new(var()),
@@ -296,16 +289,19 @@ fn inline_refusals() -> Vec<InlineError> {
             placement: s(8, "Place"),
             construction: s(3, "Union"),
         },
-        InlineError::MateFrameCrosses {
-            placement: s(7, "InstantiatePart"),
-            constraint: constraint(),
-            position: 2,
-            side: MateSide::A,
+        InlineError::PinReadsVariable {
+            instance: s(7, "InstantiatePart"),
+            var: Box::new(var()),
         },
-        InlineError::SideLeavesAnInstance {
-            placement: s(7, "InstantiatePart"),
-            constraint: constraint(),
-            side: MateSide::B,
+        InlineError::ValueOnAMovedWorld {
+            placement: s(8, "Place"),
+            value: constraint(),
+        },
+        InlineError::WorldPinOnAMovedWorld {
+            placement: s(8, "Place"),
+        },
+        InlineError::InstanceUnsolved {
+            instance: s(7, "InstantiatePart"),
         },
         InlineError::InstanceBodyNameReferenced { name: name() },
         InlineError::ForeignInstanceName { name: name() },

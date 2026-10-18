@@ -526,6 +526,8 @@ mod parallel_node_map_interval;
 mod parallel_node_map_probe;
 #[path = "part_depth_bound.rs"]
 mod part_depth_bound;
+#[path = "parts_entered_before_the_map.rs"]
+mod parts_entered_before_the_map;
 #[path = "pattern_spacing_and_step.rs"]
 mod pattern_spacing_and_step;
 #[path = "perf12_census_bvh_diff.rs"]
@@ -607,6 +609,8 @@ mod seat4_verb_lowering;
 mod seat7_sweep_lowering;
 #[path = "seat8_split_lowering.rs"]
 mod seat8_split_lowering;
+#[path = "split_pinch_keeps.rs"]
+mod split_pinch_keeps;
 #[path = "step_handle_binding.rs"]
 mod step_handle_binding;
 #[path = "switch_display_units.rs"]
@@ -794,6 +798,8 @@ mod intent_s3_a_poses;
 mod intent_s3_a_prime_moves;
 #[path = "intent_s3_b_placements.rs"]
 mod intent_s3_b_placements;
+#[path = "intent_s3_c_mates.rs"]
+mod intent_s3_c_mates;
 #[path = "intent_s5_a_relation.rs"]
 mod intent_s5_a_relation;
 #[path = "intent_s5_b_interference.rs"]

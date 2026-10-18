@@ -18,8 +18,8 @@ use editor_core::Formula;
 use std::collections::BTreeSet;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocumentId, Frame, MateFrame, MatePrimitive, Node,
-    Placement, ProfileDoc, RecipeNodeId, StableName, inline,
+    CapEnd, ContactClass, Coord, DocEdit, DocumentId, Frame, MateRef, Node, ProfileDoc,
+    RecipeNodeId, SlideAxis, StableName, Value, WorldRead, inline,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, offset_of, on_frame_keeping, square};
@@ -45,37 +45,42 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-fn z_up() -> MateFrame<Formula> {
-    MateFrame::authored(
-        [0.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        geom_core::Tol::witness(),
-    )
-    .expect("a definite frame")
-}
-
-/// A frame-coincidence rest mate between two references, each read
-/// at its own mint.
-fn mate(a: StableName, b: StableName) -> editor_core::Mate<Formula> {
-    fixture::mate(
-        fixture::head(a),
-        fixture::head(b),
-        ContactClass::Rest,
-        Alignment {
-            a: z_up(),
-            b: z_up(),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Aligned,
-            clocking: None,
-        },
-    )
+/// `b`'s face rested on `a`'s with the three freedoms a plane mate
+/// leaves each set to zero, so the copy `b` reads is pinned: the mate
+/// and its values, by the mate's address.
+fn stacked(doc: ProfileDoc, a: StableName, b: StableName) -> (ProfileDoc, MateRef) {
+    let (doc, joint) = fixture::constrain(
+        doc,
+        fixture::rest(fixture::head(b), fixture::head(a), ContactClass::Rest),
+    );
+    let doc = [
+        (Coord::Slide(SlideAxis::X), len(0.0)),
+        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Spin, fixture::ang(0.0)),
+    ]
+    .into_iter()
+    .fold(doc, |doc, (coord, by)| {
+        fixture::step(
+            doc,
+            DocEdit::AddValue {
+                placement: joint.placement,
+                value: Box::new(Value {
+                    mate: joint.id,
+                    coord,
+                    by,
+                }),
+                fresh: Vec::new(),
+            },
+        )
+        .0
+    });
+    (doc, joint)
 }
 
 /// Row 2 — a mated pair cut whole moves as selected (A4): the pinned
 /// instance keeps its world pin in the part, the mate-placed one its
-/// mate, and the instance left behind is pinned at the identity;
-/// neither side reports anything: no edit records a frame.
+/// mate, and the instance left behind is pinned where it stands, at the
+/// identity; neither side reports anything: no edit records a frame.
 #[test]
 fn a_whole_pair_cut_moves_as_selected_and_reports_nothing() {
     let (doc, store, [a, b], offset) = placed_pair("eval4-r2");
@@ -84,7 +89,9 @@ fn a_whole_pair_cut_moves_as_selected_and_reports_nothing() {
         &BTreeSet::from([a, b]),
         DocumentId::derive("eval4-r2-cell"),
         Tol::witness(),
-        Some(&store),
+        Some(
+            &(std::sync::Arc::new(store.clone()) as std::sync::Arc<dyn editor_core::PartResolver>),
+        ),
     )
     .expect("a whole group and its mate cut");
     let (pa, pb) = (out.node_map[&a], out.node_map[&b]);
@@ -94,7 +101,7 @@ fn a_whole_pair_cut_moves_as_selected_and_reports_nothing() {
         "the mate re-forms in the part, in the mate-placed instance's bundle"
     );
     assert!(
-        offset_of(&out.part, pa).is_some_and(|o| o.bit_eq(&offset)),
+        offset_of(&out.part, pa) == Some(offset),
         "the pinned instance keeps its pose"
     );
     assert_eq!(
@@ -102,10 +109,16 @@ fn a_whole_pair_cut_moves_as_selected_and_reports_nothing() {
         None,
         "the member stays mate-placed"
     );
-    assert_eq!(
-        offset_of(&out.remainder, out.instance),
-        Some(Placement::IDENTITY),
-        "the instance is pinned at the identity"
+    let mut parts = store;
+    parts.insert(out.part.clone(), Tol::witness());
+    assert!(
+        offset_of(&out.remainder, out.instance).is_some(),
+        "the instance is pinned to the world"
+    );
+    assert!(
+        fixture::solve(&out.remainder, &with_resolver(parts), Tol::witness())
+            .at_identity(out.instance),
+        "the instance stands at the identity"
     );
     assert!(
         out.part_maintenance.is_empty(),
@@ -130,10 +143,12 @@ fn inline_of_a_whole_pair_split_restores_the_pinned_pose_and_reports_nothing() {
         &BTreeSet::from([a, b]),
         DocumentId::derive("eval4-r3-cell"),
         Tol::witness(),
-        Some(&store),
+        Some(
+            &(std::sync::Arc::new(store.clone()) as std::sync::Arc<dyn editor_core::PartResolver>),
+        ),
     )
     .expect("cuts");
-    let mut parts = PartStore::new();
+    let mut parts = store;
     parts.insert(out.part.clone(), Tol::witness());
     let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(parts);
     let back = inline(&out.remainder, out.instance, &resolver, Tol::witness())
@@ -143,47 +158,33 @@ fn inline_of_a_whole_pair_split_restores_the_pinned_pose_and_reports_nothing() {
         back.node_map[&out.node_map[&b]],
     );
     assert_eq!(fixture::constrained(&back.doc), vec![ib]);
-    assert!(offset_of(&back.doc, ia).is_some_and(|o| o.bit_eq(&offset)));
+    assert_eq!(offset_of(&back.doc, ia), Some(offset));
     assert_eq!(offset_of(&back.doc, ib), None);
-    assert!(back.maintenance.is_empty(), "{:?}", back.maintenance);
+    assert!(
+        fixture::without_anonymous(&back.maintenance).is_empty(),
+        "{:?}",
+        back.maintenance
+    );
 }
 
 /// Two instances of one block, the first pinned to the world at an
-/// offset, the second placed by a mate onto the first: the document,
-/// its part store, `[a, b]` and `a`'s pose as stored.
-fn placed_pair(
-    label: &str,
-) -> (
-    ProfileDoc,
-    std::sync::Arc<dyn editor_core::PartResolver>,
-    [RecipeNodeId; 2],
-    Placement,
-) {
+/// offset, the second stacked by a mate and its values onto the first:
+/// the document, its part store, `[a, b]` and `a`'s world read as
+/// written.
+fn placed_pair(label: &str) -> (ProfileDoc, PartStore, [RecipeNodeId; 2], WorldRead<Formula>) {
     let mut store = PartStore::new();
     let (doc_ref, part_body) = store.insert_part(part(&format!("{label}-part")), Tol::witness());
-    let offset = Placement::literal(&Frame::translation([0.0, 0.0, 4.0]));
+    let opts = with_resolver(store.clone());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, a) = insert(doc, fixture::mated_instance(doc_ref));
-    let (doc, _) = fixture::constrain_at(doc, a, editor_core::Mate::world_pin(offset.clone()));
+    let doc = fixture::pin(doc, a, &Frame::translation([0.0, 0.0, 4.0]), &opts);
     let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
-    let opts = with_resolver(store.clone());
-    let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
-    let (doc, joint) = fixture::constrain_with(
+    let (doc, joint) = stacked(
         doc,
-        &reach,
-        mate(
-            in_part(a, part_body, CapEnd::End),
-            in_part(b, part_body, CapEnd::Start),
-        ),
+        in_part(a, part_body, CapEnd::End),
+        in_part(b, part_body, CapEnd::Start),
     );
     assert_eq!(joint.placement, b, "the mate places the second instance");
-    (
-        doc,
-        std::sync::Arc::new(store),
-        [a, b],
-        editor_core::test_support::stored_placement(
-            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
-            &offset,
-        ),
-    )
+    let offset = offset_of(&doc, a).expect("a is pinned by one world read");
+    (doc, store, [a, b], offset)
 }

@@ -6,8 +6,9 @@
 //! here pin the three display-layer claims — the open path wires a
 //! resolver under the directory rule; a hidden instance leaves the
 //! picture and the pick index but never the document or the tree; a
-//! free-move probe accepts only completely-unconstrained instances,
-//! draws visibly distinct, and is DISCARDED when a mate lands.
+//! free-move probe admits only a loose space (DI5), moves every copy
+//! in it as one, draws visibly distinct, and is DISCARDED when the
+//! landing of a pin to the world says the space is gone.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -29,24 +30,6 @@ use viewer::session::{
     DocSession, FaceFrameFault, Refusal, Selection, SessionOp, face_frame_seat_drawn,
 };
 use viewer::tree::RowStatus;
-
-/// Every mate the session's document holds — each constraint between
-/// two faces, by its address, in placement order — read off the recipe
-/// rather than off `display::mates_naming`, so a row asserting a fault's
-/// `mates` payload is not checking that function against itself.
-fn mate_nodes(session: &DocSession) -> Vec<pncad::document::MateRef> {
-    common::mates_in(session.doc())
-}
-
-/// A `MateConstrained` payload's constraints, by their addresses.
-fn addresses(
-    mates: &[(pncad::document::SpokenNode, pncad::document::ConstraintId)],
-) -> Vec<pncad::document::MateRef> {
-    mates
-        .iter()
-        .map(|(placement, id)| pncad::document::MateRef::new(placement.id(), *id))
-        .collect()
-}
 
 // --- the resolver (deliverable 1) ---------------------------------
 
@@ -296,16 +279,8 @@ fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, R
         pncad::document::DocumentId::derive(&format!("gui4-{tag}")),
         tol,
     );
-    let a = common::insert_into(
-        &mut doc,
-        pncad::document::Node::instantiate_part(bench.post),
-        tol,
-    );
-    let b = common::insert_into(
-        &mut doc,
-        pncad::document::Node::instantiate_part(bench.post),
-        tol,
-    );
+    let a = asm::instance_at(&mut doc, bench.post, [0.0; 3], &bench.opts(), tol);
+    let b = asm::instance_at(&mut doc, bench.post, [0.0; 3], &bench.opts(), tol);
     let members = vec![asm::copy(&bench, &doc, a), asm::copy(&bench, &doc, b)];
     let weld = common::insert_into(
         &mut doc,
@@ -314,11 +289,7 @@ fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, R
         },
         tol,
     );
-    common::edit_into(
-        &mut doc,
-        pncad::document::DocEdit::place_in_world(weld, None),
-        tol,
-    );
+    let doc = common::placed_read(&doc, weld.into(), &bench.opts(), tol).0;
     let path = ws.create(&doc, tol).expect("the fused assembly stores");
     let mut session = DocSession::inline(
         pncad::document::Doc::empty_derived(&format!("gui4-{tag}-boot"), tol),
@@ -381,13 +352,7 @@ fn a_fused_instances_refusal_lists_the_others_in_document_order() {
             tol,
         );
         let members: Vec<RecipeNodeId> = (0..n)
-            .map(|_| {
-                common::insert_into(
-                    &mut doc,
-                    pncad::document::Node::instantiate_part(bench.post),
-                    tol,
-                )
-            })
+            .map(|_| asm::instance_at(&mut doc, bench.post, [0.0; 3], &bench.opts(), tol))
             .collect();
         let reads = members
             .iter()
@@ -400,11 +365,7 @@ fn a_fused_instances_refusal_lists_the_others_in_document_order() {
             },
             tol,
         );
-        common::edit_into(
-            &mut doc,
-            pncad::document::DocEdit::place_in_world(union, None),
-            tol,
-        );
+        let doc = common::placed_read(&doc, union.into(), &bench.opts(), tol).0;
         (doc, members, union)
     };
     let (doc, members, union) = fused(4);
@@ -490,7 +451,7 @@ fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
     // — `free_move_check` runs the display test first — which is why
     // the section says it once rather than under the probe's heading.
     assert_eq!(
-        display::free_move_check(session.doc(), a)
+        display::free_move_check(session.doc(), session.space_evaluation(), a)
             .expect_err("the probe refuses it too")
             .to_string(),
         fault.to_string()
@@ -522,7 +483,7 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
             &bench,
             bench.post_b,
             ContactClass::Tangent,
-            asm::middle_seat_alignment(),
+            asm::middle_seat_values(),
         ),
     );
     match session.at_rest() {
@@ -654,8 +615,13 @@ fn hide_is_never_persisted() {
 
 // --- free-move (deliverable 3) ------------------------------------
 
+/// **Free-move admits a loose space and nothing the world pins** (DI5).
+/// A copy pinned to the world refuses typed, and so does one mated onto
+/// a copy in the world, as does the world copy it is mated onto: all
+/// three live in the world's space. The same post, its pin taken off,
+/// is a loose space and is admitted.
 #[test]
-fn free_move_accepts_only_completely_unconstrained_instances() {
+fn free_move_accepts_only_a_loose_space() {
     let tol = Tol::witness();
     let bench = asm::bench("fmeligible", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -667,26 +633,26 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
             &bench,
             bench.post_a,
             ContactClass::Rest,
-            asm::middle_seat_alignment(),
+            asm::middle_seat_values(),
         ),
     );
-    // Both mate participants refuse, naming the mate.
-    for constrained in [bench.post_a, bench.shelf_i] {
-        let outcome = session.perform(SessionOp::BeginFreeMove {
-            instance: constrained,
-        });
+    session.pump();
+    // The mated post, the shelf it is mated onto, and the post the
+    // world still pins all live in the world's space and refuse,
+    // naming the instance.
+    for pinned in [bench.post_a, bench.shelf_i, bench.post_b] {
+        let outcome = session.perform(SessionOp::BeginFreeMove { instance: pinned });
         match outcome.refusal {
-            Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::MateConstrained {
+            Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::InTheWorld {
                 instance,
-                mates,
             }))) => {
-                assert_eq!(instance.id(), constrained);
-                assert_eq!(mates.len(), 1, "the refusal lists the constraining mate");
+                assert_eq!(instance.id(), pinned);
             }
-            other => panic!("a mate-constrained instance must refuse typed, got {other:?}"),
+            other => panic!("a copy in the world must refuse typed, got {other:?}"),
         }
     }
-    // The uninvolved post is still eligible.
+    // Its pin off, the second post is a loose space and is admitted.
+    asm::unpin(&mut session, bench.post_b);
     let outcome = session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });
@@ -726,11 +692,369 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
     );
 }
 
+/// **Two copies mated to each other free-move as one** (DI5): a loose
+/// space holds every copy pinned to it, so either copy admits the probe
+/// to the one space, by its root, and the frame moves both pictures.
+/// Then a placement pins the space — the shelf's world pin put back —
+/// and the landing that knows it drops the frame, saying why.
+#[test]
+fn two_copies_mated_to_each_other_free_move_as_one() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fmspace", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    // post_b and the shelf, their world pins off, the post mated onto
+    // the shelf: one loose space.
+    asm::unpin(&mut session, bench.post_b);
+    asm::unpin(&mut session, bench.shelf_i);
+    common::commit_mate(
+        &mut session,
+        asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Rest,
+            asm::middle_seat_values(),
+        ),
+    );
+    session.pump();
+    let root = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
+        .expect("the mated post is in a loose space");
+    assert_eq!(
+        display::free_move_check(session.doc(), session.space_evaluation(), bench.shelf_i),
+        Ok(root),
+        "the shelf it is mated onto is in the same space"
+    );
+
+    let probe = Frame::translation([0.0, 0.0, 0.05]);
+    for op in [
+        SessionOp::BeginFreeMove {
+            instance: bench.post_b,
+        },
+        SessionOp::PreviewFreeMove {
+            instance: bench.post_b,
+            frame: probe,
+        },
+        SessionOp::CommitFreeMove {
+            instance: bench.post_b,
+        },
+    ] {
+        let outcome = session.perform(op.clone());
+        assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
+        assert!(outcome.committed.is_empty(), "a probe commits no edit");
+    }
+    assert_eq!(
+        session.display().free_move_of(root),
+        Some(&probe),
+        "the frame is the space's, keyed by its root"
+    );
+    let view = session.display_view();
+    for copy in [bench.post_b, bench.shelf_i] {
+        assert_eq!(
+            view.moved_placements.get(&copy),
+            Some(&probe),
+            "the one frame moves every copy in the space"
+        );
+    }
+    assert!(
+        !view.moved_placements.contains_key(&bench.post_a),
+        "and nothing the world pins"
+    );
+
+    // Driven from the other copy, the probe is the same space's: its
+    // commit replaces the frame rather than adding a second.
+    let again = Frame::translation([0.0, 0.0, 0.07]);
+    for op in [
+        SessionOp::BeginFreeMove {
+            instance: bench.shelf_i,
+        },
+        SessionOp::PreviewFreeMove {
+            instance: bench.shelf_i,
+            frame: again,
+        },
+        SessionOp::CommitFreeMove {
+            instance: bench.shelf_i,
+        },
+    ] {
+        let outcome = session.perform(op.clone());
+        assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
+    }
+    assert_eq!(session.display().free_move_of(root), Some(&again));
+    assert_eq!(
+        session.display_view().moved_placements.get(&bench.post_b),
+        Some(&again),
+        "one space, one frame"
+    );
+
+    // A placement pins the space: the shelf's world pin, put back where
+    // it stood. The edit alone does not know the space; its landing
+    // does, and drops the frame.
+    let shelf_copy = pncad::document::Operand::Var(
+        session
+            .doc()
+            .output(bench.shelf_i, 0)
+            .expect("an instance defines its copies"),
+    );
+    let pin = editor_core::pin_at(
+        session.doc(),
+        &shelf_copy,
+        &Frame::translation(asm::SHELF_AT),
+        &bench.opts(),
+        tol,
+    )
+    .expect("the shelf's copy offers a frame");
+    let outcome = session.perform(SessionOp::AddMate {
+        placement: bench.shelf_i,
+        mate: Box::new(pin),
+        values: Vec::new(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(outcome.withdrawn.superseded.is_empty());
+    assert!(
+        session.display().free_move_of(root).is_some(),
+        "between the edit and its landing the frame is held"
+    );
+    assert_eq!(
+        session.display_view().moved_placements.get(&bench.post_b),
+        Some(&again),
+        "and draws over the last-known copies"
+    );
+    session.pump();
+    let superseded: Vec<_> = session
+        .take_landed_withdrawals()
+        .into_iter()
+        .flat_map(|report| report.superseded)
+        .collect();
+    let [withdrawn] = &superseded[..] else {
+        panic!("the landing drops the one frame: {superseded:?}")
+    };
+    assert_eq!(withdrawn.instance, root, "named by the space's root");
+    assert!(
+        matches!(
+            &withdrawn.cause,
+            AdmissionFault::InTheWorld { instance } if instance.id() == root
+        ),
+        "{}",
+        withdrawn.cause
+    );
+    assert!(session.display().free_move_of(root).is_none());
+    assert!(session.display_view().moved_placements.is_empty());
+}
+
+/// **A frame whose space joins another goes, and says so** (DI5): the
+/// probed post's own loose space is keyed by its root; a mate onto
+/// another LOOSE copy puts the post in that copy's space, so the root
+/// no longer names a loose space and the landing drops the frame —
+/// reporting the join, not a world pin, because the joined space is
+/// still loose and the probe still admits the post to it.
+#[test]
+fn a_frame_whose_space_joins_another_goes_saying_so() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fmjoin", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    asm::unpin(&mut session, bench.post_b);
+    asm::unpin(&mut session, bench.shelf_i);
+    for op in [
+        SessionOp::BeginFreeMove {
+            instance: bench.post_b,
+        },
+        SessionOp::PreviewFreeMove {
+            instance: bench.post_b,
+            frame: Frame::translation([0.0, 0.0, 0.05]),
+        },
+        SessionOp::CommitFreeMove {
+            instance: bench.post_b,
+        },
+    ] {
+        let outcome = session.perform(op.clone());
+        assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
+    }
+    assert!(session.display().free_move_of(bench.post_b).is_some());
+
+    common::commit_mate(
+        &mut session,
+        asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Rest,
+            asm::middle_seat_values(),
+        ),
+    );
+    session.pump();
+    let joined = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
+        .expect("the mated post is in the shelf's loose space");
+    assert_ne!(joined, bench.post_b, "the post's space joined another");
+    let superseded: Vec<_> = session
+        .take_landed_withdrawals()
+        .into_iter()
+        .flat_map(|report| report.superseded)
+        .collect();
+    let [withdrawn] = &superseded[..] else {
+        panic!("the landing drops the post's frame: {superseded:?}")
+    };
+    assert_eq!(withdrawn.instance, bench.post_b);
+    assert!(
+        matches!(
+            &withdrawn.cause,
+            AdmissionFault::MovedSpace { instance, into }
+                if instance.id() == bench.post_b && into.id() == joined
+        ),
+        "the cause is the join, naming the space it joined: {}",
+        withdrawn.cause
+    );
+    assert!(session.display().free_move_of(bench.post_b).is_none());
+    assert!(session.display().free_move_of(joined).is_none());
+}
+
+/// The bench with post_b mated onto the loose shelf, one loose space
+/// rooted away from post_b, and a free-move gesture in flight opened
+/// on post_b — the copy that is not the root.
+fn gesture_on_a_non_root_copy(name: &str, tol: Tol) -> (asm::Bench, DocSession, RecipeNodeId) {
+    let bench = asm::bench(name, tol);
+    let mut session = asm::open_bench(&bench, tol);
+    asm::unpin(&mut session, bench.post_b);
+    asm::unpin(&mut session, bench.shelf_i);
+    common::commit_mate(
+        &mut session,
+        asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Rest,
+            asm::middle_seat_values(),
+        ),
+    );
+    session.pump();
+    let root = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
+        .expect("the mated post is in a loose space");
+    assert_ne!(root, bench.post_b, "the space is rooted away from the post");
+    let outcome = session.perform(SessionOp::BeginFreeMove {
+        instance: bench.post_b,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    (bench, session, root)
+}
+
+/// **A gesture is re-asked by the copy it was opened on, not only by
+/// its space's root.** The mate that put post_b in the shelf's space
+/// comes off mid-drag: the root still names a loose space, but post_b
+/// no longer lives in it, so the landing kills the gesture, saying the
+/// post left — rather than letting the post's drag steer the shelf.
+#[test]
+fn a_gesture_whose_copy_leaves_the_space_dies_at_the_landing() {
+    let tol = Tol::witness();
+    let (bench, mut session, _) = gesture_on_a_non_root_copy("fmsplit", tol);
+    let mate = *common::mates_in(session.committed_doc())
+        .last()
+        .expect("the seat mate");
+    let outcome = session.perform(SessionOp::RemoveConstraint { mate });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        outcome.withdrawn.killed_gesture.is_none(),
+        "the edit alone does not know the spaces"
+    );
+    session.pump();
+    let killed: Vec<_> = session
+        .take_landed_withdrawals()
+        .into_iter()
+        .filter_map(|report| report.killed_gesture)
+        .collect();
+    let [killed] = &killed[..] else {
+        panic!("the landing kills the gesture: {killed:?}")
+    };
+    assert_eq!(killed.instance, bench.post_b);
+    assert!(
+        matches!(
+            &killed.cause,
+            AdmissionFault::MovedSpace { instance, into }
+                if instance.id() == bench.post_b && into.id() == bench.post_b
+        ),
+        "{}",
+        killed.cause
+    );
+    assert!(session.display().probing().is_none());
+    assert!(matches!(
+        session
+            .perform(SessionOp::PreviewFreeMove {
+                instance: bench.post_b,
+                frame: Frame::translation([0.0, 0.0, 0.01]),
+            })
+            .refusal,
+        Some(Refusal::Display(DisplayFault::NoFreeMove))
+    ));
+}
+
+/// **Deleting the copy a gesture was opened on kills it at the edit**,
+/// typed, though the space's root survives.
+#[test]
+fn deleting_a_gestures_copy_kills_it_at_the_edit() {
+    let tol = Tol::witness();
+    let (bench, mut session, _) = gesture_on_a_non_root_copy("fmdelete", tol);
+    let outcome = session.perform(SessionOp::DeleteNode { node: bench.post_b });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let killed = outcome
+        .withdrawn
+        .killed_gesture
+        .as_ref()
+        .expect("the delete kills the gesture");
+    assert_eq!(killed.instance, bench.post_b);
+    assert!(
+        matches!(&killed.cause, AdmissionFault::NoSuchNode { node } if node.id() == bench.post_b),
+        "{}",
+        killed.cause
+    );
+    assert!(session.display().probing().is_none());
+}
+
+/// **A landing's report goes with the document it is about**: a
+/// replacement before the chrome takes it leaves nothing to take, since
+/// its ids name the outgoing document's nodes.
+#[test]
+fn a_replacement_takes_the_landings_untaken_report() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fmreplace", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    // Probe the loose post_b, then put its pin back: the landing
+    // withdraws the frame, and its report waits for the chrome.
+    let probe_then_repin = |session: &mut DocSession| {
+        asm::unpin(session, bench.post_b);
+        for op in [
+            SessionOp::BeginFreeMove {
+                instance: bench.post_b,
+            },
+            SessionOp::PreviewFreeMove {
+                instance: bench.post_b,
+                frame: Frame::translation([0.0, 0.0, 0.05]),
+            },
+            SessionOp::CommitFreeMove {
+                instance: bench.post_b,
+            },
+            SessionOp::Undo,
+        ] {
+            let outcome = session.perform(op.clone());
+            assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
+        }
+        session.pump();
+    };
+    probe_then_repin(&mut session);
+    assert!(
+        !session.take_landed_withdrawals().is_empty(),
+        "the control: the landing does leave a report"
+    );
+    probe_then_repin(&mut session);
+    let outcome = session.perform(SessionOp::Open(bench.asm_path.clone()));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        session.take_landed_withdrawals().is_empty(),
+        "the outgoing document's report is not the incoming one's"
+    );
+}
+
 #[test]
 fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
     let tol = Tol::witness();
     let bench = asm::bench("fmgesture", tol);
     let mut session = asm::open_bench(&bench, tol);
+    // post_b's world pin off: a loose space of its own, which the probe
+    // moves, each frame composed so it is drawn where its pin stood it.
+    asm::unpin(&mut session, bench.post_b);
     let index = asm::index_of(&session);
     let baseline = index.scene_for(&session.display_view()).expect("a scene");
     assert_eq!(baseline.stats().probe_parts, 0);
@@ -743,7 +1067,7 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
     for dx in [0.02, 0.05] {
         let outcome = session.perform(SessionOp::PreviewFreeMove {
             instance: bench.post_b,
-            frame: Frame::translation([dx, 0.0, 0.0]),
+            frame: asm::where_b_stood(Frame::translation([dx, 0.0, 0.0])),
         });
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     }
@@ -756,8 +1080,8 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
         .free_move_of(bench.post_b)
         .expect("the probe committed");
     assert_eq!(
-        committed.translation,
-        [0.05, 0.0, 0.0],
+        *committed,
+        asm::where_b_stood(Frame::translation([0.05, 0.0, 0.0])),
         "the commit lands the LAST previewed frame"
     );
 
@@ -832,7 +1156,7 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
             .free_move_of(bench.post_b)
             .expect("still committed")
             .translation,
-        [0.05, 0.0, 0.0]
+        asm::where_b_stood(Frame::translation([0.05, 0.0, 0.0])).translation
     );
 
     // Never persisted: save over the file, reopen, probe gone.
@@ -846,6 +1170,7 @@ fn a_non_rigid_preview_refuses_typed() {
     let tol = Tol::witness();
     let bench = asm::bench("fmrigid", tol);
     let mut session = asm::open_bench(&bench, tol);
+    asm::unpin(&mut session, bench.post_b);
     session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });
@@ -885,55 +1210,77 @@ fn a_non_rigid_preview_refuses_typed() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
 }
 
+/// **A placement that pins the space discards its frame when its solve
+/// lands** (DI5: the frame is dropped once its root stops naming a loose
+/// space). The mate's edit alone withdraws nothing, since spaces exist
+/// only after the solve; the landing answering it does.
 #[test]
 fn a_landing_mate_discards_the_probe_value() {
     let tol = Tol::witness();
     let bench = asm::bench("fmsupersede", tol);
     let mut session = asm::open_bench(&bench, tol);
     let index = asm::index_of(&session);
-    // Probe post_b somewhere.
-    session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
-    session.perform(SessionOp::PreviewFreeMove {
-        instance: bench.post_b,
-        frame: Frame::translation([0.04, 0.0, 0.0]),
-    });
-    session.perform(SessionOp::CommitFreeMove {
-        instance: bench.post_b,
-    });
-    assert!(session.display().free_move_of(bench.post_b).is_some());
-    // Its world pin off: a copy no constraint names is still free to
-    // probe, so the probe value survives.
+    // Its world pin off, post_b is a loose space.
     asm::unpin(&mut session, bench.post_b);
+    // Probe post_b somewhere.
+    for op in [
+        SessionOp::BeginFreeMove {
+            instance: bench.post_b,
+        },
+        SessionOp::PreviewFreeMove {
+            instance: bench.post_b,
+            frame: Frame::translation([0.04, 0.0, 0.0]),
+        },
+        SessionOp::CommitFreeMove {
+            instance: bench.post_b,
+        },
+    ] {
+        let outcome = session.perform(op);
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    }
     assert!(session.display().free_move_of(bench.post_b).is_some());
 
-    // The mate lands on post_b: ONE committed edit, and the probe is
-    // superseded IN THE SAME OUTCOME.
+    // The mate lands on post_b: ONE committed edit, which says nothing
+    // yet about the post's space.
     let outcome = session.perform(asm::seat_op(
         &bench,
         bench.post_b,
         ContactClass::Rest,
-        asm::middle_seat_alignment(),
+        asm::middle_seat_values(),
     ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1);
-    let [superseded] = &outcome.withdrawn.superseded[..] else {
+    assert_eq!(outcome.committed.len(), 4, "the mate and its three values");
+    assert!(
+        outcome.withdrawn.superseded.is_empty(),
+        "the edit withdraws nothing: {:?}",
+        outcome.withdrawn
+    );
+    assert!(
+        session.display().free_move_of(bench.post_b).is_some(),
+        "until the solve lands, the frame draws over the space's last known copies"
+    );
+    // The evaluation answering the mate lands, and its prune supersedes
+    // the probe.
+    session.pump();
+    let landed = session.take_landed_withdrawals();
+    let [report] = &landed[..] else {
+        panic!("one landing withdrew something: {landed:?}")
+    };
+    let [superseded] = &report.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.withdrawn.superseded
+            report.superseded
         )
     };
     assert_eq!(
         superseded.instance, bench.post_b,
         "the supersession is reported, not inferred"
     );
-    // The PAYLOAD, not the variant: the variant is what the op this row
-    // just performed already implies, and what would go red if `prune`
-    // paired the right fault with the wrong instance is this.
-    let AdmissionFault::MateConstrained { instance, mates } = &superseded.cause else {
+    // The PAYLOAD, not the variant: what would go red if `prune` paired
+    // the right fault with the wrong root is this.
+    let AdmissionFault::InTheWorld { instance } = &superseded.cause else {
         panic!(
-            "a mate landing supersedes with its own fault: {}",
+            "a mate pinning the space supersedes with its own fault: {}",
             superseded.cause
         )
     };
@@ -942,15 +1289,9 @@ fn a_landing_mate_discards_the_probe_value() {
         bench.post_b,
         "the fault names the same instance"
     );
-    assert_eq!(
-        addresses(mates),
-        mate_nodes(&session),
-        "and names the mate that landed, read off the recipe"
-    );
     // DISCARDED, not zeroed: the value is gone, and the map holds no
     // identity entry standing in for it.
     assert!(session.display().free_move_of(bench.post_b).is_none());
-    session.pump();
     // The instance is drawn at its SOLVED placement, undistinguished.
     let index_after = asm::index_of(&session);
     let scene = index_after
@@ -1052,6 +1393,9 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
     let tol = Tol::witness();
     let bench = asm::bench("replacequiet", tol);
     let mut session = asm::open_bench(&bench, tol);
+    // post_b and the shelf loose, each a space the free-move moves.
+    asm::unpin(&mut session, bench.post_b);
+    asm::unpin(&mut session, bench.shelf_i);
 
     // One of each kind of display state the door can take: a hide, a
     // COMMITTED free-move placement, and a drag still in flight.

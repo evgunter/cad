@@ -77,6 +77,32 @@ pub mod vessel;
 
 pub use super::fixture::Recorder;
 
+/// **A body placed in the world where it stands, recorded**: the
+/// loose placement, then the named interim's world pin
+/// ([`DocEdit::PinWhereItStands`], stage 3 C), which the Python
+/// bindings' `Doc.place(shapes)` writes too, so a corpus document and
+/// its bound re-authoring are one log. The pin reads nothing, so the
+/// copy follows every variable its body reads.
+pub trait PlacePart {
+    /// **One copy of `body` in the world** (A10), placed where it
+    /// stands. Returns the placement.
+    fn place_part(&mut self, body: impl Into<editor_core::Operand>) -> RecipeNodeId;
+}
+
+impl PlacePart for Recorder {
+    fn place_part(&mut self, body: impl Into<editor_core::Operand>) -> RecipeNodeId {
+        let read = super::fixture::body_read(&self.doc, body.into());
+        let placement = self
+            .push(DocEdit::InsertNode {
+                node: Box::new(Node::place(vec![editor_core::BodyRead::plain(read)])),
+                fresh: Vec::new(),
+            })
+            .expect("a placement mints its node");
+        self.push(DocEdit::PinWhereItStands { placement });
+        placement
+    }
+}
+
 /// **Each of a pattern's `count` copies placed in the world**, in
 /// instance order: a `Part` per instance, each placed at the identity.
 pub fn place_instances(r: &mut Recorder, pattern: RecipeNodeId, count: i64) {
@@ -85,7 +111,7 @@ pub fn place_instances(r: &mut Recorder, pattern: RecipeNodeId, count: i64) {
             of: pattern.into(),
             select: PartSelect::Instance(editor_core::Formula::count(i)),
         });
-        r.place(copy);
+        r.place_part(copy);
     }
 }
 
@@ -130,8 +156,8 @@ pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
 /// **A split's two halves placed in the world**, above then below:
 /// each half is its port.
 pub fn place_halves(r: &mut Recorder, split: RecipeNodeId) {
-    r.place(editor_core::Operand::output(split, 0));
-    r.place(editor_core::Operand::output(split, 1));
+    r.place_part(editor_core::Operand::output(split, 0));
+    r.place_part(editor_core::Operand::output(split, 1));
 }
 
 /// An exact mass-property oracle (dyadic dimensions only — see each
@@ -526,11 +552,15 @@ pub const NODE_KINDS: [&str; 23] = [
 /// tally's DOMAIN, not the `DocEdit` vocabulary.
 ///
 /// It is a SUBSET, deliberately and visibly: `SetMembers`,
-/// `AddConstraint`, `RemoveConstraint`, `RenameVar`, `DeleteVar` and
-/// `UpdateReference` are arms of `DocEdit` that no corpus document
-/// authors (a corpus placement holds its constraints from its insert),
-/// and listing them here would report six permanent misses rather
-/// than covering anything. `SetProgram` is
+/// `RemoveConstraint`, `RenameVar`, `DeleteVar` and `UpdateReference`
+/// are arms of `DocEdit` that no corpus document authors, and listing
+/// them here would report five permanent misses rather than covering
+/// anything. `PinWhereItStands` is listed: every placement the recorder
+/// authors at the identity writes the named interim's world pin.
+/// `AddConstraint` and `AddValue` are listed: the documents that mate
+/// copies to each other write mates and the values that set their
+/// freedoms.
+/// `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
 /// vocabulary itself is not this list but [`edit_kind`]'s match, which
@@ -541,7 +571,7 @@ pub const NODE_KINDS: [&str; 23] = [
 /// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
 /// the tally in both directions, so a kind listed and never exercised
 /// is as red as a kind exercised and never listed.
-pub const EDIT_KINDS: [&str; 21] = [
+pub const EDIT_KINDS: [&str; 24] = [
     "InsertNode",
     "DeleteNode",
     "SetProgram",
@@ -563,6 +593,9 @@ pub const EDIT_KINDS: [&str; 21] = [
     "SetAppearanceMeta",
     "ClearAppearanceMeta",
     "SetLabel",
+    "AddConstraint",
+    "AddValue",
+    "PinWhereItStands",
 ];
 
 /// The node SUB-kinds the corpus must also cover in full: every datum
@@ -730,6 +763,8 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::ClearAppearanceMeta { .. } => "ClearAppearanceMeta",
         DocEdit::AddConstraint { .. } => "AddConstraint",
         DocEdit::RemoveConstraint { .. } => "RemoveConstraint",
+        DocEdit::AddValue { .. } => "AddValue",
+        DocEdit::PinWhereItStands { .. } => "PinWhereItStands",
         DocEdit::UpdateReference { .. } => "UpdateReference",
         DocEdit::SetLabel { .. } => "SetLabel",
     }

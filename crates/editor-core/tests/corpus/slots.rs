@@ -23,6 +23,7 @@
 //! D2 bump: slot 1's `Distance` (mid-DAG — its cone is that extrude
 //! plus both subtracts).
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::{CapEnd, DocEdit, EntityKind, Node, RecipeNodeId, RoleSeg, SlotId, StableName};
 
@@ -91,7 +92,7 @@ pub fn document() -> CorpusDoc {
         tool: slot2.into(),
     });
 
-    r.place(sub2);
+    r.place_part(sub2);
 
     CorpusDoc {
         name: "crossing_slots",

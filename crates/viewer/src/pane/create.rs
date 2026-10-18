@@ -7,8 +7,7 @@ use std::collections::BTreeMap;
 
 use eframe::egui;
 use pncad::document::{
-    AxisSense, Doc, DocumentId, MatePrimitive, ProfileProgram, RecipeNodeId, Said, Speaker,
-    SpokenNode,
+    Coord, Doc, DocumentId, ProfileProgram, RecipeNodeId, Said, Speaker, SpokenNode, VarKind,
 };
 use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
@@ -18,11 +17,11 @@ use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::combine::{BooleanTool, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
-    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKindChoice, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
-    PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
+    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKindChoice, FIELD_DRAG_SPEED, PatternKindChoice,
+    ShapeKind, UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
 };
 use crate::frame::{self, Tone};
-use crate::matetool::{MateChoice, MateToolState, admitted_classes};
+use crate::matetool::{MATE_KINDS, MateChoice, MateFreedom, MateToolState, admitted_classes};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
@@ -673,36 +672,67 @@ impl ViewerBehavior<'_> {
             );
         }
         ui.horizontal(|ui| {
-            for (ix, (_, label)) in MATE_PRIMITIVES.iter().enumerate() {
-                ui.radio_value(&mut self.drafts.mate_primitive, ix, *label);
+            for (ix, (_, label)) in MATE_KINDS.iter().enumerate() {
+                ui.radio_value(&mut self.drafts.mate_kind, ix, *label);
             }
         });
-        ui.checkbox(&mut self.drafts.mate_opposed, "axes opposed");
+        let kind = MATE_KINDS
+            .get(self.drafts.mate_kind)
+            .map_or(VarKind::Plane, |(kind, _)| *kind);
+        ui.checkbox(&mut self.drafts.mate_flip, "faces rest against each other");
+        // The freedoms this kind leaves, each set only when ticked: an
+        // unset freedom is free.
+        for (freedom, (set, value)) in MateFreedom::ALL.iter().zip(&mut self.drafts.mate_values) {
+            let coord = freedom.coord();
+            if coord.admitted_by(kind).is_err() {
+                continue;
+            }
+            ui.horizontal(|ui| {
+                ui.checkbox(set, coord.name());
+                let (unit, speed) = match coord {
+                    Coord::Slide(_) => (self.notation.length.def(), FIELD_DRAG_SPEED),
+                    Coord::Spin => (self.notation.angle.def(), ANGLE_DRAG_SPEED),
+                };
+                unit_field(ui, unit, speed, value);
+            });
+        }
         self.creation_label_row(ui, MATE_NOUN);
         let mut close = false;
         ui.horizontal(|ui| {
             if ui.button(ToolKind::Mate.commit()).clicked() {
+                let values: Result<Vec<_>, _> = MateFreedom::ALL
+                    .iter()
+                    .map(|freedom| freedom.coord())
+                    .zip(self.drafts.mate_values)
+                    .filter(|(coord, (set, _))| *set && coord.admitted_by(kind).is_ok())
+                    .map(|(coord, (_, value))| {
+                        match coord {
+                            Coord::Slide(_) => self.notation.length_literal(value),
+                            Coord::Spin => self.notation.angle_literal(value),
+                        }
+                        .map(|by| (coord, by))
+                    })
+                    .collect();
                 match (
                     classes.get(self.drafts.mate_class),
+                    values,
                     self.session.landed_pair(),
                 ) {
-                    (Some(entry), Some((doc, eval))) => {
+                    (_, Err(error), _) => {
+                        self.notices
+                            .push(frame::tool_news(&ToolKind::Mate.refuses(&error)));
+                    }
+                    (Some(entry), Ok(values), Some((doc, _))) => {
                         let choice = MateChoice {
                             class: entry.class,
-                            primitive: MATE_PRIMITIVES
-                                .get(self.drafts.mate_primitive)
-                                .map_or(MatePrimitive::FrameCoincidence, |(p, _)| *p),
-                            sense: if self.drafts.mate_opposed {
-                                AxisSense::Opposed
-                            } else {
-                                AxisSense::Aligned
-                            },
-                            clocking: None,
+                            kind,
+                            flip: self.drafts.mate_flip,
+                            values,
                         };
-                        match tool.proposal(doc, eval, choice) {
+                        match tool.proposal(doc, choice) {
                             Ok(proposal) => {
-                                // Exactly one committed DocEdit (and
-                                // its label); the tool closes with it.
+                                // One committed action (and its
+                                // label); the tool closes with it.
                                 self.push_labelled(MATE_NOUN, proposal.op());
                                 close = true;
                             }
@@ -718,7 +748,7 @@ impl ViewerBehavior<'_> {
                     }
                     _ => {
                         self.notices.push(frame::tool_news(
-                            &ToolKind::Mate.refuses(&"no landed evaluation to derive frames from"),
+                            &ToolKind::Mate.refuses(&"no landed document to read the picks on"),
                         ));
                     }
                 }
@@ -1970,14 +2000,14 @@ mod tests {
         assert_eq!(painted(&MateToolState::Idle), "no picks yet");
         assert_eq!(
             painted(&MateToolState::One(face_on(3))),
-            "pick a: face of node 000000000003; pick b: —"
+            "on: face of node 000000000003; to: —"
         );
         assert_eq!(
             painted(&MateToolState::Two {
-                a: face_on(3),
-                b: face_on(5),
+                on: face_on(3),
+                to: face_on(5),
             }),
-            "pick a: face of node 000000000003; pick b: face of node 000000000005"
+            "on: face of node 000000000003; to: face of node 000000000005"
         );
     }
 
@@ -2970,7 +3000,7 @@ mod tools_respeak {
             .into_iter()
             .filter_map(|notice| match notice {
                 ToolNotice::Mate(crate::matetool::MateToolEvent::PickLost {
-                    side: MateSide::A,
+                    side: MateSide::On,
                     node,
                     ..
                 }) => Some(node.to_string()),
@@ -2981,7 +3011,7 @@ mod tools_respeak {
         assert_eq!(
             said,
             [last],
-            "pick a's drop names the block by its last label"
+            "the on pick's drop names the block by its last label"
         );
     }
 }

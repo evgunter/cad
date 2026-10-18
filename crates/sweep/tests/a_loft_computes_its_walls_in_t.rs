@@ -333,9 +333,10 @@ fn an_enclosure_reaching_an_infinity_refuses_as_not_finite() {
 /// weights and knots are points at every scalar
 /// (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`):
 /// - an arc's weight `cos(Δ/2)` is an enclosure at `Interval`, from a
-///   wide bulge or from rounding alone, so an arc section refuses;
+///   wide bulge or from rounding alone, so an arc section refuses at the
+///   carrier's door (`CarrierWeightNotAPoint`, until C6's S4/S5);
 /// - three sections at v-degree 1 put their middle parameter in the
-///   knot vector, where a wide one is no knot.
+///   knot vector, and the fit refuses a wide one as a carrier's knot.
 #[test]
 fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
     use geom_core::Interval;
@@ -353,7 +354,9 @@ fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
         ),
     ] {
         match loft_body::<Interval>(&[section(b), section(b)], &places, 1, Tol::witness()) {
-            Err(LoftError::Skin(SkinError::ArcWeightNotAPoint { section: 0 })) => {}
+            Err(LoftError::Skin(SkinError::Structure(SplineError::CarrierWeightNotAPoint {
+                ..
+            }))) => {}
             other => panic!(
                 "{what}: expected section 0's arc refusal, got {:?}",
                 other.map(|_| ())
@@ -369,7 +372,7 @@ fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
         Tol::witness(),
     ) {
         Err(LoftError::Skin(SkinError::Fit(geom::curves::fit::FitError::Structure(
-            SplineError::KnotNotAPoint { index: 1 },
+            SplineError::CarrierKnotNotAPoint { index: 1 },
         )))) => {}
         other => panic!(
             "expected the wide interior knot's refusal, got {:?}",
@@ -467,8 +470,8 @@ fn make_compatible_at_interval_refuses_what_needs_the_knot_algebra() {
     let same = make_compatible(&[line.clone(), line.clone()]).expect("two lines are compatible");
     for c in &same {
         assert_eq!(
-            (c.knots().knots(), c.control().len()),
-            (line.knots().knots(), 2),
+            (c.knots_f64_interim().knots(), c.control().len()),
+            (line.knots_f64_interim().knots(), 2),
             "a compatible line comes back as itself"
         );
     }

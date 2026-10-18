@@ -273,7 +273,7 @@ fn determinism_bitwise() {
     }
     let r1 = n.insert_knot(0.4, 2).unwrap().remove_knot(0.4, 1).unwrap();
     let r2 = n.insert_knot(0.4, 2).unwrap().remove_knot(0.4, 1).unwrap();
-    assert_eq!(r1.0.knots(), r2.0.knots());
+    assert_eq!(r1.0.knots_f64_interim(), r2.0.knots_f64_interim());
     let bits = |v: &[f64]| v.iter().map(|f| f.to_bits()).collect::<Vec<_>>();
     assert_eq!(bits(r1.0.weights()), bits(r2.0.weights()));
     let pbits = |c: &NurbsCurve3<f64>| {
@@ -426,7 +426,12 @@ fn removal_bound_is_honest_under_planted_perturbation() {
     let mut ctrl = base.control().to_vec();
     let mid = ctrl.len() / 2;
     ctrl[mid] = ctrl[mid] + Vec3::new(8e-4, -5e-4, 6e-4);
-    let pert = NurbsCurve3::new(base.knots().clone(), ctrl, base.weights().to_vec()).unwrap();
+    let pert = NurbsCurve3::new(
+        base.knots_f64_interim().clone(),
+        ctrl,
+        base.weights().to_vec(),
+    )
+    .unwrap();
     let (removed, bound) = pert.remove_knot(0.6, 1).unwrap();
     assert!(
         bound > 1e-5,

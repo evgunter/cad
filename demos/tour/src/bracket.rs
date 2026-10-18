@@ -170,14 +170,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let (doc, body) = document(tol);
     let trimmed = trimmed_and_broken(&doc, body, tol);
-    apply(
-        &trimmed.doc,
-        &DocEdit::place_in_world(trimmed.chamfer, None),
-        tol,
-        &RefusingReach,
-    )
-    .expect("the chamfered corner places")
-    .doc
+    crate::world::place_in_world(&trimmed.doc, trimmed.chamfer, tol).doc
 }
 
 /// The trim and the break, as nodes over the bracket's extrude.

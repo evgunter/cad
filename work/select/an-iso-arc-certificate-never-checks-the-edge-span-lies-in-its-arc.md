@@ -3,6 +3,7 @@ id: an-iso-arc-certificate-never-checks-the-edge-span-lies-in-its-arc
 kind: issue
 title: The IsoArc certificate never checks that the edge's span lies in the image's arc
 status: open
+priority: P3
 opened: 2026-10-15
 ---
 

@@ -58,7 +58,8 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
     fixture::place(doc, body).0
 }
 
-/// An assembly instantiating `refs` in order, each pinned to the world.
+/// An assembly instantiating `refs` in order, each a loose copy until
+/// [`placed`] pins it.
 fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
@@ -68,28 +69,6 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
         ids.push(id);
     }
     (doc, ids)
-}
-
-/// `placement` pinned to the world at `pose`: its bundle replaced by
-/// one world pin.
-fn pinned_at(
-    doc: ProfileDoc,
-    placement: RecipeNodeId,
-    pose: editor_core::Placement<Formula>,
-) -> ProfileDoc {
-    let doc = fixture::bundle(&doc, placement)
-        .into_iter()
-        .fold(doc, |doc, c| {
-            step(
-                doc,
-                DocEdit::RemoveConstraint {
-                    placement,
-                    constraint: c.id,
-                },
-            )
-            .0
-        });
-    fixture::constrain_at(doc, placement, editor_core::Mate::world_pin(pose)).0
 }
 
 /// The part's one Profile node.
@@ -133,19 +112,18 @@ const PRE_PASS: usize = 69;
 const FRAME_LOG: usize = 4;
 const PROFILE_LOG: usize = PRE_PASS;
 const EXTRUDE_LOG: usize = 655;
+/// A placement pinned where its body stands by the named interim's world
+/// pin ([`fixture::pin`] at the identity): it reads nothing, so its fold
+/// decides nothing. (An instance pinned off the identity carries its own
+/// pin fold on top of its op's log: three decisions — the two datum
+/// normals, and the at-rest predicate decided once by the fold's snap.)
+const WORLD_PIN_LOG: usize = 0;
 
-/// Two instances, both placed, so both ops do the same work.
-fn placed(doc: ProfileDoc, ids: &[RecipeNodeId]) -> ProfileDoc {
-    let doc = pinned_at(
-        doc,
-        ids[0],
-        editor_core::Placement::literal(&Frame::translation([0.0, 9.0, 0.0])),
-    );
-    pinned_at(
-        doc,
-        ids[1],
-        editor_core::Placement::literal(&Frame::translation([9.0, 0.0, 0.0])),
-    )
+/// Two instances, both pinned to the world, so both ops do the same
+/// work. `o` reaches the part they copy.
+fn placed(doc: ProfileDoc, ids: &[RecipeNodeId], o: &EvalOptions) -> ProfileDoc {
+    let doc = fixture::pin(doc, ids[0], &Frame::translation([0.0, 9.0, 0.0]), o);
+    fixture::pin(doc, ids[1], &Frame::translation([9.0, 0.0, 0.0]), o)
 }
 
 fn logs(ev: &Evaluation<f64>, ids: &[RecipeNodeId]) -> Vec<usize> {
@@ -164,21 +142,21 @@ fn two_instances(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions) {
     let mut store = PartStore::default();
     let doc_ref = store.insert(part(&format!("{label}-part"), 0.0, 1.0), Tol::witness());
     let (doc, ids) = assembly(&format!("{label}-asm"), &[doc_ref, doc_ref]);
-    let doc = placed(doc, &ids);
     let opts = with_resolver(store);
+    let doc = placed(doc, &ids, &opts);
     (doc, ids, opts)
 }
 
-/// **The parallel schedule.** Two instances racing for the part cache
-/// under rayon: whichever wins the miss, the instantiate node's log is
-/// the same — the same as the other instance's and the same as the
-/// sequential schedule's — over eight runs. The shield on the cache's
-/// miss path is what this row exists for.
+/// **The parallel schedule.** Two instances of one part under rayon:
+/// the instantiate node's log is the same — the same as the other
+/// instance's and the same as the sequential schedule's — over eight
+/// runs. The shield on the part's evaluation is what this row exists
+/// for.
 #[test]
 fn the_instantiate_log_is_schedule_independent() {
     let (doc, ids, seq_opts) = two_instances("kstats-sched");
     let seq = logs(&run(&doc, &seq_opts), &ids);
-    assert_eq!(seq, [463, 463]);
+    assert_eq!(seq, [466, 466]);
     let par_opts = EvalOptions {
         parallel: true,
         ..seq_opts.clone()
@@ -189,7 +167,7 @@ fn the_instantiate_log_is_schedule_independent() {
     }
 }
 
-/// **A part inside a part**: two nested miss paths, each shielded. The
+/// **A part inside a part**: two nested part evaluations, shielded. The
 /// outer instantiate nodes' logs are their own op's — equal to each
 /// other and to the same document under the parallel schedule — and
 /// larger than a leaf's instantiate log, because the placed body is
@@ -199,14 +177,17 @@ fn a_part_inside_a_part_keeps_the_outer_log_its_own_under_both_schedules() {
     let mut store = PartStore::default();
     let leaf = store.insert(part("kstats-nest-leaf", 0.0, 1.0), Tol::witness());
     let (mid, mid_ids) = assembly("kstats-nest-mid", &[leaf, leaf]);
-    let mid = placed(mid, &mid_ids);
+    let mid = placed(mid, &mid_ids, &with_resolver(store.clone()));
     let mid_ref = store.insert(mid, Tol::witness());
     let (top, top_ids) = assembly("kstats-nest-top", &[mid_ref, mid_ref]);
-    let top = placed(top, &top_ids);
     let opts = with_resolver(store);
+    let top = placed(top, &top_ids, &opts);
     let seq = logs(&run(&top, &opts), &top_ids);
     assert_eq!(seq[0], seq[1], "the two outer instances differ: {seq:?}");
-    assert_eq!(seq[0], 919, "the outer op's own log over a two-solid part");
+    assert_eq!(
+        seq[0], 922,
+        "the outer op's own log over a two-solid part, and its pin's"
+    );
     let par = logs(
         &run(
             &top,
@@ -236,7 +217,7 @@ fn a_node_memo_hit_carries_the_priors_log() {
     );
     assert_eq!(again.recomputed, 0, "every node was a memo hit");
     assert_eq!(logs(&again, &ids), logs(&first, &ids));
-    assert_eq!(logs(&again, &ids), [463, 463]);
+    assert_eq!(logs(&again, &ids), [466, 466]);
 }
 
 /// **A cancelled prefix leaves no frame behind**: the run after a
@@ -300,9 +281,9 @@ fn every_decision_the_part_makes_lands_on_one_of_its_nodes_brackets() {
             (order[0], FRAME_LOG),
             (order[1], PROFILE_LOG),
             (order[2], EXTRUDE_LOG),
-            // The world placement at the identity places by doing
-            // nothing, so it decides nothing.
-            (order[3], 0),
+            // The world placement's pin reads nothing and decides
+            // nothing.
+            (order[3], WORLD_PIN_LOG),
         ]),
         "one log per node, the Profile node's carrying its precompute: {counts:?}"
     );
@@ -330,15 +311,15 @@ fn a_lone_frame_decides_its_placement_with_no_one_to_read_it() {
 }
 
 /// **The assembly decides nothing outside its instances' brackets**:
-/// the part's decisions are shielded on the cache's miss path, and
-/// each instance's log is its own op's.
+/// the part's decisions are shielded where the census evaluates it,
+/// and each instance's log is its own op's.
 #[test]
 fn the_assembly_decides_nothing_outside_its_instances_brackets() {
     let (doc, ids, opts) = two_instances("kstats-outside");
     let outer = Bracket::open();
     let ev = run(&doc, &opts);
     let outside = outer.finish();
-    assert_eq!(logs(&ev, &ids), [463, 463]);
+    assert_eq!(logs(&ev, &ids), [466, 466]);
     assert!(
         outside.verdicts.is_empty() && outside.escalations.is_empty(),
         "{outside:?}"

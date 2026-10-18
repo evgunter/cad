@@ -42,10 +42,10 @@ impl Box4 {
     /// space of their section.
     pub(crate) fn of_charts<T: CertifiedBounds>(a: &NurbsSurface<T>, b: &NurbsSurface<T>) -> Self {
         Self([
-            a.knots_u().domain(),
-            a.knots_v().domain(),
-            b.knots_u().domain(),
-            b.knots_v().domain(),
+            a.knots_u_f64_interim().domain(),
+            a.knots_v_f64_interim().domain(),
+            b.knots_u_f64_interim().domain(),
+            b.knots_v_f64_interim().domain(),
         ])
     }
 
