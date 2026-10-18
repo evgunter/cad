@@ -4931,10 +4931,19 @@ impl VolumeReads {
             Measure::ClosedForm => &self.closed_form,
             Measure::Quadrature => &self.quadrature,
         };
-        match cell.get() {
-            Some((at, got)) if *at == (band, tol) => got.clone(),
-            Some(_) => read(),
-            None => cell.get_or_init(|| ((band, tol), read())).1.clone(),
+        let key = (band, tol);
+        let mut read = Some(read);
+        let (at, got) = cell.get_or_init(|| {
+            let fresh = read
+                .take()
+                .unwrap_or_else(|| unreachable!("the cell runs one init"));
+            (key, fresh())
+        });
+        // Another thread's reading, at its own band, may have filled the
+        // cell first.
+        match read {
+            Some(read) if *at != key => read(),
+            _ => got.clone(),
         }
     }
 }
@@ -5179,7 +5188,16 @@ fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
         Measure::ClosedForm => None,
         Measure::Quadrature => T::quad_lane(),
     };
-    let refused = |e| volume_refusal(e, faces[0], measure);
+    let degenerate = |face| {
+        matches!(
+            crate::props::mass_properties_closed_form_of(body, &[face], band, tol),
+            Err(crate::props::MassPropsError::Face {
+                source: geom_brep::props::PropsError::DegenerateFace,
+                ..
+            })
+        )
+    };
+    let refused = |e| volume_refusal(e, faces[0], measure, degenerate);
     let (role, _) = crate::props::role_walk(
         body,
         faces,
@@ -5210,16 +5228,18 @@ fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
 /// false. An escalation is an ill-conditioned operand at this ε (with a
 /// predicate name and a band the caller can act on). The corruption arms
 /// are arena claims about a BROKEN body: a key the walk could not
-/// resolve, null scaffolding at rest, or, read in closed form, a face
-/// whose exact area will not certify a positive extent. Read through the
-/// quadrature, that last is a limit of the quadrature's enclosure of a
-/// face the closed form had no value for, not a structural verdict on
-/// it, so it refuses this reading and the walk goes on. The rest is the
+/// resolve, null scaffolding at rest, or a face whose exact area will
+/// not certify a positive extent. Read through the quadrature, a face
+/// refused as degenerate is corrupt only where its closed form says so
+/// too (`degenerate_in_closed_form`); otherwise it is a limit of the
+/// quadrature's enclosure of a face the closed form had no value for,
+/// so it refuses this reading and the walk goes on. The rest is the
 /// capability gap the variant describes.
 fn volume_refusal(
     e: crate::props::MassPropsError,
     first: FaceKey,
     measure: Measure,
+    degenerate_in_closed_form: impl Fn(FaceKey) -> bool,
 ) -> PointInSolidError {
     use crate::props::MassPropsError as M;
     use geom_brep::props::PropsError as P;
@@ -5231,7 +5251,9 @@ fn volume_refusal(
         M::Face {
             face,
             source: P::DegenerateFace,
-        } if measure == Measure::ClosedForm => PointInSolidError::CorruptFace { face },
+        } if measure == Measure::ClosedForm || degenerate_in_closed_form(face) => {
+            PointInSolidError::CorruptFace { face }
+        }
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
             PointInSolidError::CorruptFace { face: first }
         }
@@ -5289,18 +5311,23 @@ mod volume_refusal_rows {
     }
 
     #[test]
-    fn a_degenerate_face_is_corrupt_in_closed_form_and_a_limit_of_the_quadrature() {
+    fn a_degenerate_face_is_corrupt_by_its_closed_form_and_else_a_limit_of_the_quadrature() {
         let face = FaceKey::default();
         let degenerate = || MassPropsError::Face {
             face,
             source: PropsError::DegenerateFace,
         };
         assert_eq!(
-            volume_refusal(degenerate(), face, Measure::ClosedForm),
+            volume_refusal(degenerate(), face, Measure::ClosedForm, |_| false),
             PointInSolidError::CorruptFace { face },
             "in closed form"
         );
-        let measured = volume_refusal(degenerate(), face, Measure::Quadrature);
+        assert_eq!(
+            volume_refusal(degenerate(), face, Measure::Quadrature, |_| true),
+            PointInSolidError::CorruptFace { face },
+            "through the quadrature, on a face whose closed form is degenerate too"
+        );
+        let measured = volume_refusal(degenerate(), face, Measure::Quadrature, |_| false);
         assert_eq!(
             measured,
             PointInSolidError::VolumeUncertified,
@@ -5310,6 +5337,64 @@ mod volume_refusal_rows {
             matches!(as_ray_fault(measured), RayFault::Blocked(_)),
             "the quadrature's refusal blocks the ray and the walk goes on"
         );
+    }
+}
+
+#[cfg(test)]
+mod volume_read_key_rows {
+    //! A selection's volume reading serves only the band and tolerance
+    //! it was read at, whichever thread read it first.
+
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    fn bands() -> (Band, Band) {
+        (
+            Band::new(1e-9, 1e-6).unwrap(),
+            Band::new(1e-8, 1e-5).unwrap(),
+        )
+    }
+
+    #[test]
+    fn a_second_band_is_read_afresh() {
+        let (b1, b2) = bands();
+        let tol = Tol::witness();
+        let r = VolumeReads::default();
+        assert_eq!(
+            r.get(Measure::ClosedForm, (b1, tol), || Ok(SolidContainment::Out)),
+            Ok(SolidContainment::Out)
+        );
+        assert_eq!(
+            r.get(Measure::ClosedForm, (b2, tol), || Err(
+                PointInSolidError::VolumeUncertified
+            )),
+            Err(PointInSolidError::VolumeUncertified),
+            "band 2 served band 1's reading"
+        );
+    }
+
+    #[test]
+    fn a_second_band_racing_the_first_is_read_afresh() {
+        let (b1, b2) = bands();
+        let tol = Tol::witness();
+        let r = VolumeReads::default();
+        std::thread::scope(|s| {
+            s.spawn(|| {
+                r.get(Measure::ClosedForm, (b1, tol), || {
+                    std::thread::sleep(std::time::Duration::from_millis(300));
+                    Ok(SolidContainment::Out)
+                })
+            });
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            let got = r.get(Measure::ClosedForm, (b2, tol), || {
+                Err(PointInSolidError::VolumeUncertified)
+            });
+            assert_eq!(
+                got,
+                Err(PointInSolidError::VolumeUncertified),
+                "band 2 served band 1's reading under a race"
+            );
+        });
     }
 }
 

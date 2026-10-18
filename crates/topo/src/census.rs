@@ -7133,10 +7133,23 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         /// `inner` has no vertex to probe.
         NoVertex,
     }
+    // One selection per container, shared by every pair it outers, so
+    // its side at infinity is read once.
+    let selections: std::collections::BTreeMap<
+        SolidKey,
+        std::sync::OnceLock<Result<crate::boolean::SolidFaces, crate::boolean::PointInSolidError>>,
+    > = body
+        .solids()
+        .map(|(s, _)| (s, std::sync::OnceLock::new()))
+        .collect();
     let probe = |outer: SolidKey, inner: SolidKey| -> Probe {
-        let sel = match crate::boolean::SolidFaces::of(body, outer) {
+        let selected = match selections.get(&outer) {
+            Some(cell) => cell.get_or_init(|| crate::boolean::SolidFaces::of(body, outer)),
+            None => &Err(crate::boolean::PointInSolidError::NoSuchSolid { solid: outer }),
+        };
+        let sel = match selected {
             Ok(sel) => sel,
-            Err(e) => return Probe::Refused(Undecided::of_point_in_solid(&e).what()),
+            Err(e) => return Probe::Refused(Undecided::of_point_in_solid(e).what()),
         };
         let (mut refused, mut out_seen, mut any) = (None, false, false);
         for &(v, p) in geo
@@ -7145,7 +7158,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             .filter(|(v, _)| vertex_solid(*v) == Some(inner))
         {
             any = true;
-            match crate::boolean::point_in_solid_faces(body, &sel, p, band, tol) {
+            match crate::boolean::point_in_solid_faces(body, sel, p, band, tol) {
                 Ok(SolidContainment::In) => return Probe::In(v),
                 Ok(SolidContainment::Out) => out_seen = true,
                 Ok(SolidContainment::OnBoundary) => {}
