@@ -210,7 +210,30 @@ fn decide(
             Decided::FoldStep(kind)
         }
         Some(other) => Decided::Refused(format!("{other:?}")),
-        None => built(&ev, union),
+        None => {
+            cells_are_held(&ev, union, order);
+            built(&ev, union)
+        }
+    }
+}
+
+/// **Every cell of a union's published row is a name the table of the
+/// read it names holds**: a member cell its member's table, a cell the
+/// fold minted the union's own published table. A fold row is named
+/// against the fold's intermediate tables, and a cell left in their
+/// terms would name nothing the document can resolve.
+fn cells_are_held(ev: &Evaluation<f64>, union: RecipeNodeId, order: &[usize]) {
+    let value = ev.value(union).expect("the union evaluated");
+    for r in value.coincidences.iter() {
+        for cell in &r.cells {
+            if let editor_core::NamedCell::Entity { input, name } = cell {
+                assert!(
+                    ev.table(*input).and_then(|t| t.lookup(name)).is_some(),
+                    "{order:?}: a published row's cell {name:?} is no name the table of \
+                     {input:?} holds: {r:?}"
+                );
+            }
+        }
     }
 }
 
