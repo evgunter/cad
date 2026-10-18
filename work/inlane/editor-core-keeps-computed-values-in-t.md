@@ -1,40 +1,49 @@
 ---
 id: editor-core-keeps-computed-values-in-t
 kind: issue
-title: The mate lever arm is computed from the resolved origins' reach and re-enters every levered margin as a constant
+title: The mate fold's two step arms take the lever arm as a constant and do not cancel the levered sine's arm
 status: open
 opened: 2026-10-10
 priority: P2
-cost: M
+cost: E
 refs: [the-from-f64-gate-reads-every-generic-crate]
 ---
 
+`editor-core/src/mate/coset.rs`'s `Arm::of(parts, datum)` sums two
+inputs: the copy's reach, and the farthest a mate's poses sit from
+their origins (`mate/solve.rs`'s `bundle_arm`). Both are upper bounds
+read out of resolved enclosures, in `f64`.
 
-`editor-core/src/mate/coset.rs`'s `Arm::of(parts, datum)` sums two inputs:
-- the mated parts' reach `R_a + R_b`;
-- `Alignment::lever_terms(a.origin_reach(), b.origin_reach())`, the
-  `SolveScalar::upper` bounds read out of the resolved origins
-  (`mate/solve.rs`'s `lever`).
+**Re-read against stage 3 C (#5267, `683f44c3c0`), 2026-10-18.** C
+moved four of the six sites this item named onto
+`Real::from_computed`, so at `Sym` each is its own unknown and no
+identity is proved over a constant arm:
+- `mate.rs`'s `Lever::margin` and the chart's antipode chord
+  (`mate.rs:908`, `:1176`);
+- `coset.rs`'s `parallel` and `perpendicular` (`coset.rs:607`, `:634`).
 
-Both are functions of the document's variables, read out to `f64`. The
-arm then re-enters the scalar through `from_f64` at six sites, each
-listed `launders(editor-core-keeps-computed-values-in-t)` in
-`scripts/gates/from-f64-sites.tsv`:
-- `mate.rs`'s `Lever::margin` (two sites);
-- `coset.rs`'s `parallel` and `perpendicular`;
-- the two step arms that divide by a levered sine.
+The gate's row narrowed with it: `scripts/gates/from-f64-sites.tsv:13`
+lists the two left.
 
-A symbolic identity `Zero` of `x · arm` is one of `x`, since the arm is
-positive. But:
-- the band reading of `Margin::levered` reads the arm's value;
-- the step arms' `arm / sine` cancels the levered sine's arm only to
-  rounding;
-- the re-valuation row would flag every levered decision it reached,
-  because `p0`'s `Lit(arm)` does not move to `p1`'s.
+**What is owed.** Two step arms in `coset.rs`'s anchor step
+(`coset.rs:1615`, the two-plane arm, and `coset.rs:1655`, the two-line
+arm) still re-enter the arm through `T::from_f64(arm.get())`, a
+literal. They divide by the `sine` that `parallel` minted. That sine
+holds its own arm, a `from_computed` opaque. So `arm / sine` cancels the
+arm only to rounding: the step's literal and the verdict's opaque are
+two different nodes. The same `Arm` reaches both (`intersect` passes one
+arm to `table` and to the step, `coset.rs:1237-1260`), so the fix is
+local to `coset.rs`:
+- mint the arm in `T` once per `intersect`, through `from_computed`;
+- thread that one value through `table`, `parallel`, `perpendicular`
+  and the step;
+- keep the `f64` `Arm` for `decides_over` and the refusals.
 
-Owed: keep the arm in `T`, or enter it through `Real::from_computed`.
-Keep the two `arm / sine` arms cancelling: one `T` value threaded
-through both, not one opaque minted per call. Pin it per site; the
-corpus reaches no levered mate.
+Pin it with a row at `Sym` in which a step's `arm / sine` leaves
+no arm node standing; the corpus reaches no levered mate.
+`from-f64-sites.tsv`'s row then goes.
 
-**Partly paid by PR 5267 (s3 C).** Its corpus places every part through the place-part gesture, so `revalue_corpus` reaches levered mates, and it flagged `mate_axes_parallel` and `mate_axis_normal_perpendicular` as laundered on every placed document. Those two decisions (`coset.rs`'s `parallel` and `perpendicular`) and `Lever::margin` now take the arm through `Real::from_computed`: opaque, so no identity is proved over it and the row counts it rather than comparing it. What remains owed is the two step arms that divide by a levered sine (`candidate_translation`, the `coset.rs` row of `scripts/gates/from-f64-sites.tsv`): one `T` arm threaded through `parallel`'s sine and both steps, so they cancel.
+Keeping the arm in `T` from the start (rather than as a bound read out
+to `f64`) is not owed. The arm is a lever length, an upper bound by
+construction, and an upper bound read off an enclosure is
+`from_computed`'s own case (`geom-core/src/real.rs:324-330`).
