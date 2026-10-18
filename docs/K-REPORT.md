@@ -3131,3 +3131,26 @@ with `symbolic_zero` read as `symbolic` (37,420 of them; 19,620
 positive, 52 negative and 32 zero classified on both sides). The
 decision read, which now declines at a point scalar such as the
 replay's `Sym<Probe>`, answered none of them.
+
+## RESTREAD addendum (2026-10-18): the crossing lane's two-bound readings
+
+The census crossing lane decides each reach and the lines' gap off an
+enclosure, so a pair sharing no point key records two decides where it
+recorded one (`census::enclosure_reading`). Measured at ε = 1e-12 with
+the Band 4 corpus and the tour scenes, main against the branch:
+`pm_census_ee_span` 2 361 → 4 722 samples and `pm_census_ee_gap` 14 → 28,
+nothing else moving. `pm_census_ee_span`'s largest zero-classified |m|
+rose from 4.44089e-16 to 3.06422e-15 (both on demo/az), the upper bound
+carrying its rounding charge; that is under M7's 5.32907e-15 and 3.3×
+under `band_zero/100`. Rule 1's rows are the same on both sides (41
+`chart_bound_outer_span` invalid, 2 `props_quad_converged` in band), and
+the population's zero-side ceiling, on both, is
+`bool_circle_torus_root_slack` at 3.14912e-13 (demo/lily_walls), which
+no census name approaches
+(`work/germ/circle-torus-root-slack-crowds-the-zero-band-at-1e-12.md`;
+the invalid rows are `work/chart/chart-bound-outer-span-decides-a-poisoned-margin.md`).
+The full lint fails at the branch on definite-arm flags, none a census
+name and so the same at main (`curve_pair_pose_parallel`, `curve_pair_pose_clear`,
+`curve_pair_pose_travel` on demo/projectbox_cutaway, `bool_pair_gap` on
+demo/tiltedcut), and the nightly's sweep stops before it in the
+plain-suite prelude, so these figures are a local reading.

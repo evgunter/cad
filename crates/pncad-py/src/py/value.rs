@@ -1392,6 +1392,7 @@ impl Evaluation {
         let Ok(proofs) = d::coincide::prove(
             &self.doc,
             &[(node.0, &*value.coincidences)],
+            self.inner.resolver(),
             Tol::witness(),
             &d::CancelToken::new(),
         ) else {

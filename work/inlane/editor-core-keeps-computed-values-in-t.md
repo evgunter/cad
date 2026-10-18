@@ -59,3 +59,5 @@ construction, and an upper bound read off an enclosure is
   - It is red under a literal arm in the step, and red under a second mint for the step.
   - It uses `PlaneTranslation`, not `Planar`, because two `Planar` sides meet in a rotation solved through `solve_atan2`. That angle is not a function of the arm, but `Sym`'s `atan2` is opaque per call, so two calls do not compare symbolically.
 - `from-f64-sites.tsv`'s row is gone.
+
+**Since INTENT stage 4 H** (`placed-carriers-compare-through-their-frames`) and stage 3 F, which retired the anchor steps: nothing the fold builds carries the arm at all. `parallel` decides `|u × v|·lever` and hands out only the unlevered line (`UnitVec3::new_scaled`). The door's replay at `Sym` read the lever's atom in every placed carrier through the line's direction. The gate is `mate/coset.rs` `tests::the_line_across_two_directions_carries_no_lever_arm`.

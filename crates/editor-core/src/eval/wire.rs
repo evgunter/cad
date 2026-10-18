@@ -3251,24 +3251,175 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     }
 }
 
+/// **Where a row was read from**, beside its member-space cells.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum RowOrigin {
+    /// A judged row, from the pair of members `pair` (operands A, B).
+    Judged {
+        /// The judged pair.
+        pair: (usize, usize),
+    },
+    /// A fold row, with the fold-minted names [`names::fold_cell`]
+    /// read as member cells (a crossing read as its edge), sorted. Two
+    /// crossings of one member edge spell alike, and the names they were
+    /// minted under are what keep their two points apart.
+    Fold(Vec<names::StableName>),
+}
+
 /// Where `rows` holds the statement `row` makes, pushing it where none
-/// does. A statement is the unordered pair of cells and the relation
-/// between them: which cell a decision read first follows operand order
-/// and sweep order, and says nothing about the coincidence.
+/// does; `origins` is `rows`' [`RowOrigin`]s, kept beside it. A
+/// statement is the unordered pair of cells and the relation between
+/// them: which cell a decision read first follows operand order and
+/// sweep order, and says nothing about the coincidence. Beyond that:
+///
+/// - two judged rows are one statement only when two different pairs
+///   made them and they agree exactly, site, margin and discharge too:
+///   that is a member read twice, whose pairs are bit-identical runs.
+///   One pair's two rows are two decisions (an edge touching a curved
+///   face at two isolated points), and both publish;
+/// - two fold rows read from different minted names are two
+///   statements, since each sites another point;
+/// - a judged row states its fact for every fold row spelled as it.
 fn stated_at(
     rows: &mut Vec<crate::coincide::NamedCoincidence>,
+    origins: &mut Vec<RowOrigin>,
     row: crate::coincide::NamedCoincidence,
+    origin: RowOrigin,
 ) -> usize {
     let [a, b] = &row.cells;
-    let same = |r: &crate::coincide::NamedCoincidence| {
+    let same = |(r, o): (&crate::coincide::NamedCoincidence, &RowOrigin)| {
         let [c, d] = &r.cells;
-        r.relation == row.relation && ((a == c && b == d) || (a == d && b == c))
+        let alike = r.relation == row.relation && ((a == c && b == d) || (a == d && b == c));
+        alike
+            && match (o, &origin) {
+                (RowOrigin::Judged { pair: p }, RowOrigin::Judged { pair: q }) => {
+                    p != q
+                        && r.site == row.site
+                        && r.margin == row.margin
+                        && r.discharge == row.discharge
+                }
+                (RowOrigin::Fold(x), RowOrigin::Fold(y)) => x == y,
+                _ => true,
+            }
     };
-    rows.iter().position(same).unwrap_or_else(|| {
-        rows.push(row);
-        rows.len() - 1
+    rows.iter()
+        .zip(origins.iter())
+        .position(same)
+        .unwrap_or_else(|| {
+            rows.push(row);
+            origins.push(origin);
+            rows.len() - 1
+        })
+}
+
+/// **The judged rows a fold row restates** (DM4, "A row names member
+/// cells"): a fold row putting a point of one member's straight edge on
+/// another member's straight edge (`VertexFusion`, `OnCarrier`, both
+/// cells member edges, as [`names::fold_cell`] reads a vertex the fold
+/// minted on an edge) states that the two lines are one there. Their
+/// pair's judgement already holds that as the rows putting an end of
+/// either edge on the other edge itself: two such rows are two distinct
+/// points on both lines, so the lines are one, and they back the
+/// judgement's own record of the edges' overlap. Those rows, by their
+/// place in `judged`; empty where the row is not of that shape, an edge
+/// is not straight, or the judgement holds fewer than two such rows,
+/// and the fold row is its own.
+///
+/// # Errors
+///
+/// [`UNION_ROW_CELL_UNRESOLVED`] where a cell of a judged row or of the
+/// fold row is a name its member's table does not hold uniquely.
+fn restated_overlap<T: Decide>(
+    row: &crate::coincide::NamedCoincidence,
+    judged: &[crate::coincide::NamedCoincidence],
+    members: &[Member<T>],
+) -> Result<Vec<usize>, names::NamingError> {
+    use crate::coincide::NamedCell;
+    use names::{EntityKey, Entry};
+    fn edge_of(cell: &NamedCell) -> Option<(crate::VarId, &names::StableName)> {
+        match cell {
+            NamedCell::Entity { input, name } if name.kind == names::EntityKind::Edge => {
+                Some((*input, name))
+            }
+            _ => None,
+        }
+    }
+    let on_edge = |r: &crate::coincide::NamedCoincidence| {
+        r.relation == topo::Relation::OnCarrier && r.site == topo::DecisionSite::VertexFusion
+    };
+    let [Some(e), Some(f)] = row.cells.each_ref().map(edge_of) else {
+        return Ok(Vec::new());
+    };
+    if !on_edge(row) || e.0 == f.0 {
+        return Ok(Vec::new());
+    }
+    let unresolved = || names::NamingError::Emission {
+        what: UNION_ROW_CELL_UNRESOLVED,
+    };
+    let key = |input: crate::VarId, name: &names::StableName| {
+        let member = members
+            .iter()
+            .find(|m| m.read == input)
+            .ok_or_else(unresolved)?;
+        match member.table.lookup(name) {
+            Some(Entry::Unique(r)) => Ok((member, r.key)),
+            Some(Entry::Tied(_)) | None => Err(unresolved()),
+        }
+    };
+    let straight = |(input, edge): (crate::VarId, &names::StableName)| {
+        Ok::<_, names::NamingError>(match key(input, edge)? {
+            (m, EntityKey::Edge(k)) => m
+                .body
+                .get_edge(k)
+                .and_then(|g| m.body.get_curve_geom(g.curve))
+                .and_then(|g| g.certified())
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. })),
+            _ => false,
+        })
+    };
+    if !(straight(e)? && straight(f)?) {
+        return Ok(Vec::new());
+    }
+    type Edge<'n> = (crate::VarId, &'n names::StableName);
+    // `vertex` is an end of `of`, in its member, and `cell` is `on`
+    // itself.
+    let end_on = |vertex: &NamedCell, cell: &NamedCell, of: Edge<'_>, on: Edge<'_>| {
+        let NamedCell::Entity { input, name } = vertex else {
+            return Ok::<_, names::NamingError>(false);
+        };
+        if edge_of(cell) != Some(on) || *input != of.0 || name.kind != names::EntityKind::Vertex {
+            return Ok(false);
+        }
+        Ok(match (key(*input, name)?, key(of.0, of.1)?) {
+            ((m, EntityKey::Vertex(v)), (_, EntityKey::Edge(k))) => m
+                .body
+                .edges_of_vertex(v)
+                .is_some_and(|edges| edges.contains(&k)),
+            _ => false,
+        })
+    };
+    let mut restated = Vec::new();
+    for (i, r) in judged.iter().enumerate() {
+        if !on_edge(r) {
+            continue;
+        }
+        let [c, d] = &r.cells;
+        if end_on(c, d, e, f)? || end_on(c, d, f, e)? || end_on(d, c, e, f)? || end_on(d, c, f, e)?
+        {
+            restated.push(i);
+        }
+    }
+    Ok(if restated.len() >= 2 {
+        restated
+    } else {
+        Vec::new()
     })
 }
+
+/// A cell of a union's row names nothing its member's table holds
+/// uniquely.
+const UNION_ROW_CELL_UNRESOLVED: &str =
+    "a union row's cell is no name its member's table holds uniquely";
 
 /// A fold row in member space (DM4, "A row names member cells"): each
 /// cell named in the node's own space, `own_read`, by its collapsed fold
@@ -3277,12 +3428,21 @@ fn stated_at(
 fn in_member_space(
     row: crate::coincide::NamedCoincidence,
     own_read: crate::VarId,
-) -> Result<crate::coincide::NamedCoincidence, names::NamingError> {
+) -> Result<(crate::coincide::NamedCoincidence, Vec<names::StableName>), names::NamingError> {
     use crate::coincide::NamedCell;
-    let cell = |cell: NamedCell| match cell {
+    let mut minted = Vec::new();
+    let mut cell = |cell: NamedCell| match cell {
         NamedCell::Entity { input, name } if input == own_read => {
             Ok(match names::fold_cell(&name)? {
-                names::FoldCell::Member { read, name } => NamedCell::Entity { input: read, name },
+                names::FoldCell::Member { read, name: of } => {
+                    if !matches!(name.path.first(), Some(names::RoleSeg::From { .. })) {
+                        minted.push(name);
+                    }
+                    NamedCell::Entity {
+                        input: read,
+                        name: of,
+                    }
+                }
                 names::FoldCell::Minted(name) => NamedCell::Entity {
                     input: own_read,
                     name,
@@ -3294,10 +3454,9 @@ fn in_member_space(
         }),
     };
     let [a, b] = row.cells;
-    Ok(crate::coincide::NamedCoincidence {
-        cells: [cell(a)?, cell(b)?],
-        ..row
-    })
+    let cells = [cell(a)?, cell(b)?];
+    minted.sort();
+    Ok((crate::coincide::NamedCoincidence { cells, ..row }, minted))
 }
 
 /// **The union's and the intersect's lowering** (DM4): the SAME pair
@@ -3321,10 +3480,11 @@ fn in_member_space(
 /// meet as its own two-member union or intersect, so its verdicts and refusals are the same in every member
 /// order, and the face pairs each judgement consumed are the node's face
 /// links (N2, [`names::UnionLinks`]). **One verdict per carrier pair**:
-/// each pair a judgement glued ([`PairVerdict`]) is given to every fold
-/// step between the accumulation's faces that descend from its first
-/// face (the fold's lineage, [`names::UnionFold`]) and its second face,
-/// and the step decides no carrier pair of its own
+/// each pair a judgement glued ([`PairVerdict`]) is given to the fold
+/// step that joins the later-listed of its two members, between that
+/// member's face and every accumulation face that descends from the
+/// other member's (the fold's lineage, [`names::UnionFold`]), whichever
+/// of the two was the judgement's operand A; and the step decides no carrier pair of its own
 /// (`topo::Verdicts::Given`). A refusal only a step raises names the
 /// member that step folds in ([`NodeErrorKind::UnionFoldStep`]). Two
 /// members are one pair: their one step is the judgement, run and
@@ -3465,9 +3625,10 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let judged = if !pairwise {
         Some((names::UnionLinks::default(), Vec::new(), Vec::new()))
     } else {
-        judge_pairwise_contact(&hulls, |p, q| {
+        let reads: Vec<crate::VarId> = members.iter().map(|m| m.read).collect();
+        judge_pairwise_contact(&hulls, &reads, |a, b| {
             let out = (verb.build)(op, BooleanInputs::default())
-                .run_pair(&members[p].body, &members[q].body, boolean_sweep, tol)
+                .run_pair(&members[a].body, &members[b].body, boolean_sweep, tol)
                 .map_err(verb_refused)?;
             let verbs::PairOut::Out(out) = out else {
                 return match op {
@@ -3479,12 +3640,12 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             };
             // The judgement's rows, whole, named in the two members' own
             // tables: the node's coincidences are its member pairs' (DM4),
-            // each pair's in the author's list order.
+            // each pair's in the order the pass visits it.
             let rows = crate::coincide::name_rows(
                 &out.coincidences,
                 &crate::coincide::RowInputs {
-                    a: own[p],
-                    b: Some(own[q]),
+                    a: own[a],
+                    b: Some(own[b]),
                     tool: None,
                 },
             )
@@ -3495,7 +3656,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 } => Ok(Some((
                     (naming, out.body),
                     rows,
-                    pair_verdicts(p, q, &verdicts),
+                    pair_verdicts(a, b, &verdicts),
                 ))),
                 _ => Err(NodeErrorKind::Naming(names::NamingError::Emission {
                     what: verb.foreign_record,
@@ -3509,9 +3670,16 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // One row per statement: two pairs that state one thing (a member
     // read twice, beside a third) publish it once.
     let mut coincidences = Vec::with_capacity(judged.len());
-    for row in judged {
-        stated_at(&mut coincidences, row);
+    let mut origins = Vec::with_capacity(judged.len());
+    for (row, pair) in judged {
+        stated_at(
+            &mut coincidences,
+            &mut origins,
+            row,
+            RowOrigin::Judged { pair },
+        );
     }
+    let judged_rows = coincidences.len();
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
     // What the end pass reads of every step: each face's member faces
     // and each step's discards.
@@ -3521,7 +3689,8 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // member list. Each step carries them in, as it carries the joining
     // member's.
     let mut acc_records = Arc::new(first.records.carried_from(0));
-    let mut fold_rows: Vec<crate::coincide::NamedCoincidence> = Vec::new();
+    let mut fold_rows: Vec<(crate::coincide::NamedCoincidence, Vec<names::StableName>)> =
+        Vec::new();
     // Each step's fragment groups, in fold order (`FragmentGroups::folded`).
     let mut step_groups = Vec::with_capacity(rest.len());
     for step in 0..rest.len() {
@@ -3714,9 +3883,10 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     };
     // A fold row the node's records cite is the published row stating
     // the same thing where there is one (DM4: a judged row, or a fold
-    // row an earlier citation published), and is published after the
-    // judgement's otherwise; the records are renumbered onto the rows
-    // they cite.
+    // row an earlier citation published), the judged rows it restates
+    // where those state it ([`restated_overlap`]), and is published
+    // after the judgement's otherwise; the records are recited onto the
+    // rows they cite.
     let contacts = if pairwise {
         let used = contacts.decided();
         let mut at = Vec::with_capacity(used.len());
@@ -3727,15 +3897,36 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
                     what: UNION_STEP_UNDECIDED_CITE,
                 }))?;
-            at.push(stated_at(&mut coincidences, row));
+            let (row, minted) = row;
+            let restated = restated_overlap(&row, &coincidences[..judged_rows], members)
+                .map_err(NodeErrorKind::Naming)?;
+            at.push(if restated.is_empty() {
+                vec![stated_at(
+                    &mut coincidences,
+                    &mut origins,
+                    row,
+                    RowOrigin::Fold(minted),
+                )]
+            } else {
+                restated
+            });
         }
         Arc::new(
             (*contacts)
                 .clone()
-                .renumbered(|k| {
-                    used.binary_search(&k)
-                        .ok()
-                        .map(|rank| u32::try_from(at[rank]).unwrap_or(u32::MAX))
+                .recited(|b| match b {
+                    topo::Backing::Decided(k) => used
+                        .binary_search(&k)
+                        .map(|rank| {
+                            at[rank]
+                                .iter()
+                                .map(|&i| {
+                                    topo::Backing::Decided(u32::try_from(i).unwrap_or(u32::MAX))
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                    carried @ topo::Backing::Carried { .. } => vec![carried],
                 })
                 .map_err(|_| {
                     NodeErrorKind::Naming(names::NamingError::Emission {
@@ -3818,22 +4009,27 @@ const UNION_NO_STEP: &str = "a union fold of two members or more ran no step";
 /// **Whether it refuses depends on the members, never on their
 /// order**: every pair whose boxes meet is judged, in the author's list
 /// order (#4323: the list is the author's stated order, and nothing
-/// here sorts it away), the listed-first member as operand A. So the rows come out in that order, and where two pairs
-/// would refuse, the one the list reaches first is the one named.
+/// here sorts it away). So the rows come out in that order, and where
+/// two pairs would refuse, the one the list reaches first is the one
+/// named. Within a pair, operand A is the member whose read `reads`
+/// holds as the lesser (the earlier minted), the listed-first on a
+/// read spelled twice: so one pair is one run of the pair verb in
+/// every member order, and publishes one margin.
 ///
-/// `judge(p, q)` runs the pair verb on members `p` (operand A) and `q`
+/// `judge(a, b)` runs the pair verb on members `a` (operand A) and `b`
 /// (operand B) and hands back its record; this function decides which
-/// pairs are judged, and nothing about geometry.
+/// pairs are judged and which member is A, and nothing about geometry.
 ///
 /// Returns the member faces the judgements consumed
 /// ([`names::UnionLinks`]): the one place a union's faces are linked
 /// (N2), so the links are member order's no more than the verdict is;
-/// the judgements' rows; and the carrier pairs they glued, the fold's
+/// the judgements' rows, each beside the pair that made it; and the carrier pairs they glued, the fold's
 /// one verdict per pair ([`PairVerdict`]). `None` where a judged
 /// intersection is empty.
 #[allow(clippy::type_complexity)] // the judge's one record, or none for an empty intersection
 fn judge_pairwise_contact<T: Decide>(
     hulls: &[bvh::Aabb],
+    reads: &[crate::VarId],
     mut judge: impl FnMut(
         usize,
         usize,
@@ -3848,7 +4044,7 @@ fn judge_pairwise_contact<T: Decide>(
 ) -> Result<
     Option<(
         names::UnionLinks<T>,
-        Vec<crate::coincide::NamedCoincidence>,
+        Vec<(crate::coincide::NamedCoincidence, (usize, usize))>,
         Vec<PairVerdict>,
     )>,
     NodeErrorKind,
@@ -3863,13 +4059,14 @@ fn judge_pairwise_contact<T: Decide>(
             if !hulls[p].overlaps(&hulls[q]) {
                 continue;
             }
-            let Some(((naming, body), judged, glued)) = judge(p, q)? else {
+            let (a, b) = if reads[q] < reads[p] { (q, p) } else { (p, q) };
+            let Some(((naming, body), judged, glued)) = judge(a, b)? else {
                 return Ok(None);
             };
             links
-                .judged(p, q, &naming, &body)
+                .judged(a, b, &naming, &body)
                 .map_err(NodeErrorKind::Naming)?;
-            rows.extend(judged);
+            rows.extend(judged.into_iter().map(|r| (r, (a, b))));
             verdicts.extend(glued);
         }
     }
@@ -3882,28 +4079,29 @@ fn judge_pairwise_contact<T: Decide>(
 /// the pair nowhere else.
 #[derive(Clone, Copy, Debug)]
 struct PairVerdict {
-    /// The listed-first member, the judgement's operand A.
-    p: usize,
-    /// The other member, its operand B.
-    q: usize,
+    /// The judgement's operand A.
+    a: usize,
+    /// Its operand B.
+    b: usize,
     /// The verdict, in the two members' keys.
     verdict: topo::GlueVerdict,
 }
 
-/// The carrier pairs the judgement of members `p` (operand A) and `q`
+/// The carrier pairs the judgement of members `a` (operand A) and `b`
 /// (operand B) glued: the kernel's verdicts ([`topo::GlueVerdict`]).
-fn pair_verdicts(p: usize, q: usize, verdicts: &[topo::GlueVerdict]) -> Vec<PairVerdict> {
+fn pair_verdicts(a: usize, b: usize, verdicts: &[topo::GlueVerdict]) -> Vec<PairVerdict> {
     verdicts
         .iter()
-        .map(|&verdict| PairVerdict { p, q, verdict })
+        .map(|&verdict| PairVerdict { a, b, verdict })
         .collect()
 }
 
 /// **The pass's verdicts for the fold step that folds in member
 /// `member`**, the step's given pairs ([`BooleanInputs::given`]): each
-/// verdict whose second face is `member`'s, between that face and
-/// every accumulation face whose lineage holds the verdict's first
-/// face.
+/// verdict one of whose faces is `member`'s, between that face and
+/// every accumulation face whose lineage holds the verdict's other
+/// face. The judgement's operand A may be either member, so either face
+/// may be `member`'s.
 ///
 /// # Errors
 ///
@@ -3916,21 +4114,36 @@ fn given_pairs<T: Decide>(
     fold: &names::UnionFold,
     acc: &topo::Body<T>,
 ) -> Result<Vec<topo::GluedPair>, NodeErrorKind> {
+    use topo::Operand;
     let bug = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
-    let mut given: std::collections::BTreeMap<(topo::FaceKey, topo::FaceKey), topo::GlueVerdict> =
-        std::collections::BTreeMap::new();
+    let mut given: std::collections::BTreeMap<
+        (topo::FaceKey, topo::FaceKey),
+        (Operand, topo::GlueVerdict),
+    > = std::collections::BTreeMap::new();
     for (f, _) in acc.faces() {
         let parents = fold.member_faces(f).ok_or(bug(UNION_FACE_NO_LINEAGE))?;
-        for v in verdicts.iter().filter(|v| v.q == member) {
-            if !parents.contains(&(v.p, v.verdict.a())) {
+        for v in verdicts {
+            // The accumulation's side of the verdict, and `member`'s face.
+            let (held, at) = if v.b == member {
+                (Operand::A, (v.a, v.verdict.a()))
+            } else if v.a == member {
+                (Operand::B, (v.b, v.verdict.b()))
+            } else {
+                continue;
+            };
+            if !parents.contains(&at) {
                 continue;
             }
-            match given.entry((f, v.verdict.b())) {
+            let joining = match held {
+                Operand::A => v.verdict.b(),
+                Operand::B => v.verdict.a(),
+            };
+            match given.entry((f, joining)) {
                 std::collections::btree_map::Entry::Vacant(slot) => {
-                    slot.insert(v.verdict);
+                    slot.insert((held, v.verdict));
                 }
-                std::collections::btree_map::Entry::Occupied(held) => {
-                    if held.get().relation() != v.verdict.relation() {
+                std::collections::btree_map::Entry::Occupied(prior) => {
+                    if prior.get().1.relation() != v.verdict.relation() {
                         return Err(bug(UNION_VERDICTS_DISAGREE));
                     }
                 }
@@ -3939,7 +4152,7 @@ fn given_pairs<T: Decide>(
     }
     Ok(given
         .into_iter()
-        .map(|((a, _), verdict)| verdict.given_at(a))
+        .map(|((f, _), (held, verdict))| verdict.given_at(held, f))
         .collect())
 }
 
@@ -4745,6 +4958,260 @@ mod stepped_operand_tests {
                     "copy {i} of {reversed:?} lands where the negative spacing put it"
                 );
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod union_row_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{RowOrigin, in_member_space, judge_pairwise_contact, stated_at};
+    use crate::coincide::{NamedCell, NamedCoincidence};
+    use crate::names::{CapEnd, EntityKind, RoleSeg, Sense, StableName};
+    use crate::{RecipeNodeId, VarId};
+
+    fn name(kind: EntityKind, node: RecipeNodeId, path: Vec<RoleSeg>) -> StableName {
+        StableName { kind, node, path }
+    }
+
+    /// Member `m`'s entity `of`, as the union `union` keys it.
+    fn from(union: RecipeNodeId, m: u64, of: StableName) -> StableName {
+        name(
+            of.kind,
+            union,
+            vec![RoleSeg::From {
+                read: VarId::new(1, m),
+                of: of.into(),
+            }],
+        )
+    }
+
+    fn row(a: NamedCell, b: NamedCell) -> NamedCoincidence {
+        let margin = geom_core::MarginDiag::value(0.0);
+        NamedCoincidence {
+            cells: [a, b],
+            relation: topo::Relation::OnCarrier,
+            site: topo::DecisionSite::VertexFusion,
+            margin,
+            discharge: topo::Discharge::of(margin),
+        }
+    }
+
+    /// **Two crossings of one member edge are two statements** (DM4, "A
+    /// row names member cells"): member 1's edge `e` crossed by member
+    /// 2's two caps, each crossing on member 3's edge `c`, spell alike as
+    /// `(e, c)`, and both publish. A judged row stating `(e, c)` states
+    /// it for both, and a fold row read from no minted name collapses
+    /// into the judged row as it always did.
+    #[test]
+    fn two_crossings_of_one_member_edge_publish_two_rows() {
+        let union = RecipeNodeId::new(0, 9);
+        let own = VarId::new(1, 9);
+        let edge = |m| {
+            name(
+                EntityKind::Edge,
+                RecipeNodeId::new(0, m),
+                vec![RoleSeg::Cap(CapEnd::Start)],
+            )
+        };
+        let e = from(union, 1, edge(1));
+        let c = NamedCell::Entity {
+            input: VarId::new(1, 3),
+            name: edge(3),
+        };
+        let crossing = |end| {
+            let cap = name(
+                EntityKind::Face,
+                RecipeNodeId::new(0, 2),
+                vec![RoleSeg::Cap(end)],
+            );
+            NamedCell::Entity {
+                input: own,
+                name: name(
+                    EntityKind::Vertex,
+                    union,
+                    vec![RoleSeg::Crossing {
+                        edge: e.clone().into(),
+                        face: from(union, 2, cap).into(),
+                        sense: Sense::Leaves,
+                    }],
+                ),
+            }
+        };
+        let own_c = |cell: &NamedCell| match cell {
+            NamedCell::Entity { input, name } => NamedCell::Entity {
+                input: if *input == VarId::new(1, 3) {
+                    own
+                } else {
+                    *input
+                },
+                name: if *input == VarId::new(1, 3) {
+                    from(union, 3, name.clone())
+                } else {
+                    name.clone()
+                },
+            },
+            other => other.clone(),
+        };
+        let folded: Vec<(NamedCoincidence, Vec<StableName>)> = [CapEnd::Start, CapEnd::End]
+            .into_iter()
+            .map(|end| in_member_space(row(crossing(end), own_c(&c)), own).unwrap())
+            .collect();
+        let member_e = NamedCell::Entity {
+            input: VarId::new(1, 1),
+            name: edge(1),
+        };
+        for (r, minted) in &folded {
+            assert_eq!(
+                r.cells,
+                [member_e.clone(), c.clone()],
+                "a crossing reads as its edge"
+            );
+            assert_eq!(minted.len(), 1, "and keeps the name it was minted under");
+        }
+        let publish = |judged: &[NamedCoincidence]| {
+            let mut rows = Vec::new();
+            let mut origins: Vec<RowOrigin> = Vec::new();
+            for j in judged {
+                stated_at(
+                    &mut rows,
+                    &mut origins,
+                    j.clone(),
+                    RowOrigin::Judged { pair: (0, 1) },
+                );
+            }
+            let at: Vec<usize> = folded
+                .iter()
+                .map(|(r, m)| {
+                    stated_at(
+                        &mut rows,
+                        &mut origins,
+                        r.clone(),
+                        RowOrigin::Fold(m.clone()),
+                    )
+                })
+                .collect();
+            (rows.len(), at)
+        };
+        assert_eq!(publish(&[]), (2, vec![0, 1]), "two crossings, two rows");
+        let judged = row(member_e.clone(), c.clone());
+        assert_eq!(
+            publish(std::slice::from_ref(&judged)),
+            (1, vec![0, 0]),
+            "a judged row states the fact for each crossing spelled as it"
+        );
+        let mut rows = vec![judged];
+        let mut origins: Vec<RowOrigin> = vec![RowOrigin::Judged { pair: (0, 1) }];
+        let plain = row(c.clone(), member_e.clone());
+        assert_eq!(
+            stated_at(&mut rows, &mut origins, plain, RowOrigin::Fold(Vec::new())),
+            0,
+            "a fold row read from member cells alone is the judged row"
+        );
+    }
+
+    /// **One pair's two rows are two statements** (DM4: a coincidence
+    /// row is a decision): an edge touching a curved face at two
+    /// isolated points is two rows with one cell pair and one relation,
+    /// and both publish. Two pairs stating one row exactly, a member
+    /// read twice, publish it once; two pairs whose rows differ in their
+    /// margin are two rows.
+    #[test]
+    fn one_pairs_two_rows_publish_and_a_repeated_read_collapses() {
+        let cell = |m: u64, kind| NamedCell::Entity {
+            input: VarId::new(1, m),
+            name: name(
+                kind,
+                RecipeNodeId::new(0, m),
+                vec![RoleSeg::Cap(CapEnd::Start)],
+            ),
+        };
+        let at = |margin: f64| {
+            let margin = geom_core::MarginDiag::value(margin);
+            NamedCoincidence {
+                cells: [cell(1, EntityKind::Edge), cell(2, EntityKind::Face)],
+                relation: topo::Relation::SurfaceTangent,
+                site: topo::DecisionSite::TangentWitness,
+                margin,
+                discharge: topo::Discharge::of(margin),
+            }
+        };
+        let publish = |judged: &[(NamedCoincidence, (usize, usize))]| {
+            let mut rows = Vec::new();
+            let mut origins = Vec::new();
+            judged
+                .iter()
+                .map(|(r, pair)| {
+                    stated_at(
+                        &mut rows,
+                        &mut origins,
+                        r.clone(),
+                        RowOrigin::Judged { pair: *pair },
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            publish(&[(at(0.0), (0, 1)), (at(0.0), (0, 1))]),
+            [0, 1],
+            "one pair's two touches, both published"
+        );
+        assert_eq!(
+            publish(&[(at(1e-9), (0, 2)), (at(1e-9), (1, 2))]),
+            [0, 0],
+            "a member read twice states one row"
+        );
+        assert_eq!(
+            publish(&[(at(0.0), (0, 2)), (at(1e-9), (1, 2))]),
+            [0, 1],
+            "two pairs at two margins are two rows"
+        );
+    }
+
+    /// **A judged pair's operand A is its lesser read**, whatever the
+    /// list order, and the listed-first on a read spelled twice; the
+    /// pairs are visited in list order.
+    #[test]
+    fn a_judged_pairs_operand_a_is_its_lesser_read() {
+        let at = |x: f64| {
+            bvh::Aabb::from_points([geom_core::Point3::new(x, 0.0, 0.0)]).expect("a point's box")
+        };
+        let hull = at(0.0);
+        let hulls = vec![hull; 4];
+        let reads = [
+            VarId::new(7, 7),
+            VarId::new(3, 3),
+            VarId::new(5, 5),
+            VarId::new(3, 3),
+        ];
+        let mut seen = Vec::new();
+        let out = judge_pairwise_contact::<f64>(&hulls, &reads, |a, b| {
+            seen.push((a, b));
+            Ok(None)
+        })
+        .unwrap();
+        assert!(out.is_none(), "an empty judgement ends the pass");
+        assert_eq!(seen, [(1, 0)], "the first pair, its lesser read as A");
+        for (p, q) in [(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (0, 3)] {
+            let mut seen = Vec::new();
+            let mut sub = vec![hull; 4];
+            for (i, h) in sub.iter_mut().enumerate() {
+                if i != p && i != q {
+                    *h = at(100.0 * (i as f64 + 1.0));
+                }
+            }
+            let _ = judge_pairwise_contact::<f64>(&sub, &reads, |a, b| {
+                seen.push((a, b));
+                Ok(None)
+            });
+            let [(a, b)] = seen[..] else {
+                panic!("the pair ({p}, {q}) judged once: {seen:?}");
+            };
+            assert!(
+                reads[a] < reads[b] || (reads[a] == reads[b] && a < b),
+                "the pair ({p}, {q}) runs with {a} as A"
+            );
         }
     }
 }
