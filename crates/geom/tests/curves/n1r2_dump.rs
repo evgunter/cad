@@ -23,7 +23,7 @@ fn n1r2_dump_curve_evaluators() {
     let mut n = 0usize;
     for (name, c) in curves3() {
         let cd: NurbsCurve3<Dual64> = c.map_scalar(Dual::constant);
-        let kv = c.knots();
+        let kv = c.knots_f64_interim();
         for t in params(kv) {
             let p = c.eval(t);
             let d1 = c.deriv(t);

@@ -26,7 +26,7 @@
 //! Free-move accepts only a **completely-unconstrained** instance: one
 //! that appears in NO constraint ([`mates_naming`] scans the recipe's
 //! own bundles — the authored data, not the solver's state — and passes
-//! the world pin an instance stands on). An instance any mate names refuses typed
+//! the world mate an instance stands on). An instance any mate names refuses typed
 //! ([`AdmissionFault::MateConstrained`], listing the mates), because its
 //! pose is mate-derived and a display value contradicting it would
 //! draw a relation the document does not have.
@@ -89,7 +89,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use pncad::document::{
     Constraint, ConstraintId, Doc, Frame, MateRef, Node, OperandSlot, ProfileProgram, RecipeNodeId,
-    SideRead, SpokenNode, VarId,
+    SpokenNode, Target, VarDef, VarId,
 };
 use pncad::geom_core::Vec3;
 
@@ -394,22 +394,22 @@ impl core::fmt::Display for DisplayFault {
 
 impl core::error::Error for DisplayFault {}
 
-/// Every constraint naming `instance`, document order of the placements
+/// Every mate naming `instance`, document order of the placements
 /// holding them and bundle order within one — the
 /// completely-unconstrained test's evidence, read from the AUTHORED
-/// bundles (a dangling or misdirected face read still names its head
-/// node; participation is about what the document says, not about what
-/// currently resolves).
+/// bundles (a dangling face read still names its node; participation is
+/// about what the document says, not about what currently resolves).
 ///
-/// A constraint names the instance when either side's face read selects
-/// one of its faces, wherever the constraint sits, and when it sits in
-/// the instance's own bundle and is not a world pin. A world pin (the
-/// world against the copy's own frame) is where the document stands the
-/// instance, not a relation to another copy, so it leaves the instance
-/// free to probe, the way an instance standing on the world always was.
+/// A mate between two copies names the instance when it sits in the
+/// instance's own bundle or a face its poses read is one of the
+/// instance's, wherever it sits. A mate to the world, and the values
+/// naming it, are where the document stands a copy, not a relation to
+/// another copy, so they leave the instance free to probe, the way an
+/// instance standing on the world always was. A value is a freedom of
+/// its mate, so the mate is what names the instance.
 pub fn mates_naming(doc: &Doc<ProfileProgram>, instance: RecipeNodeId) -> Vec<MateRef> {
-    let names_instance = |side: &SideRead<VarId>| {
-        side.face().is_some_and(|&read| {
+    let names_instance = |pose: VarId| {
+        pose_selections(doc, pose).into_iter().any(|read| {
             doc.selection(read)
                 .is_some_and(|select| select.names.iter().any(|name| name.node == instance))
         })
@@ -419,15 +419,37 @@ pub fn mates_naming(doc: &Doc<ProfileProgram>, instance: RecipeNodeId) -> Vec<Ma
         .flat_map(|placement| {
             bundle_of(doc, placement)
                 .iter()
-                .filter(|constraint| {
-                    let mate = &constraint.mate;
-                    let own = placement == instance && !mate.is_world_pin();
-                    own || names_instance(&mate.a) || names_instance(&mate.b)
-                })
+                .filter(
+                    |constraint| match constraint.mate().map(|mate| (mate.on, &mate.to)) {
+                        Some((on, Target::Pose(to))) => {
+                            placement == instance || names_instance(on) || names_instance(*to)
+                        }
+                        Some((_, Target::World(_))) | None => false,
+                    },
+                )
                 .map(|constraint| MateRef::new(placement, constraint.id))
                 .collect::<Vec<_>>()
         })
         .collect()
+}
+
+/// **The selections a pose variable reads**, through every construction
+/// its definition makes, in read order.
+pub(crate) fn pose_selections(doc: &Doc<ProfileProgram>, pose: VarId) -> Vec<VarId> {
+    fn walk(doc: &Doc<ProfileProgram>, var: VarId, out: &mut Vec<VarId>) {
+        if doc.selection(var).is_some() {
+            out.push(var);
+            return;
+        }
+        if let Some(VarDef::Pose(def)) = doc.var(var).map(pncad::document::Var::def) {
+            for (_, &read, _, _) in def.reads() {
+                walk(doc, read, out);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(doc, pose, &mut out);
+    out
 }
 
 /// `placement`'s bundle: a `Place`'s or an instance's constraints, empty

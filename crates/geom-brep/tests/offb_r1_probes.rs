@@ -67,8 +67,8 @@ fn r1_certify_offset_on_a_rational_fit_never_under_reports() {
     let mut weights = fit.weights().to_vec();
     weights[(cu / 2) * cv + cv / 2] = 2.0;
     let warped = NurbsSurface::new(
-        fit.knots_u().clone(),
-        fit.knots_v().clone(),
+        fit.knots_u_f64_interim().clone(),
+        fit.knots_v_f64_interim().clone(),
         fit.control().to_vec(),
         weights,
     )
@@ -162,8 +162,8 @@ fn r1_a_slid_fit_s_tau_limb_never_under_reports() {
         .map(|p| Point3::new(p.x, p.y, p.z + 5e-4))
         .collect();
     let slid = NurbsSurface::new(
-        fit.knots_u().clone(),
-        fit.knots_v().clone(),
+        fit.knots_u_f64_interim().clone(),
+        fit.knots_v_f64_interim().clone(),
         slid_control,
         fit.weights().to_vec(),
     )

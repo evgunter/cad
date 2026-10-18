@@ -663,8 +663,8 @@ impl Tools {
     ///
     /// A selection is the only op a tool consumes, and the two
     /// vocabularies are the ones the tools were written against: the
-    /// mate tool takes the FACE (its alignment frames are derived from
-    /// face geometry, so an edge pick is not one of its picks), the
+    /// mate tool takes the FACE (its poses are read off the picked
+    /// faces, so an edge pick is not one of its picks), the
     /// blend tool takes the EDGE (it blends edges, and its target is
     /// the drawn body the edge was picked on rather than the feature
     /// that minted it), and every seated tool takes

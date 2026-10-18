@@ -808,7 +808,11 @@ fn split_and_inline_carry_readers_by_id() {
     let mut store = PartStore::default();
     let doc_ref = store.insert(part.clone(), Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("intent-vars-3-host"), Tol::witness());
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, instance) = crate::fixture::insert_pinned(
+        host,
+        Node::instantiate_part(doc_ref),
+        &crate::fixture::resolver::with_resolver(store.clone()),
+    );
     let inlined = inline(
         &host,
         instance,
@@ -1270,7 +1274,14 @@ fn inline_repoints_readers_at_the_hosts_ids() {
         Tol::witness(),
     );
     let host = declare(&host, "pad", 1.0);
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, instance) = crate::fixture::insert_pinned(
+        host,
+        Node::instantiate_part(doc_ref),
+        &editor_core::EvalOptions {
+            resolver: Some(store.clone()),
+            ..editor_core::EvalOptions::default()
+        },
+    );
     let out = inline(&host, instance, &store, Tol::witness()).expect("the part inlines");
     let (host_d, host_e) = (id(&out.doc, "d"), id(&out.doc, "e"));
     assert_ne!(host_d, id(&part, "d"), "the host mints its own d");
@@ -1309,7 +1320,14 @@ fn an_equal_valued_name_the_host_holds_refuses() {
             .bit_eq(part.var(id(&part, "d")).expect("held")),
         "the premise: the two d are bit-equal"
     );
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, instance) = crate::fixture::insert_pinned(
+        host,
+        Node::instantiate_part(doc_ref),
+        &editor_core::EvalOptions {
+            resolver: Some(store.clone()),
+            ..editor_core::EvalOptions::default()
+        },
+    );
     match inline(&host, instance, &store, Tol::witness()) {
         Err(InlineError::VarNameConflict { name }) => assert_eq!(name, n("d")),
         other => panic!("expected VarNameConflict on d, got {other:?}"),
@@ -1355,7 +1373,14 @@ fn inline_carries_an_anonymous_variable_whole() {
         DocumentId::derive("intent-vars-3-inline-anon-host"),
         Tol::witness(),
     );
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, instance) = crate::fixture::insert_pinned(
+        host,
+        Node::instantiate_part(doc_ref),
+        &editor_core::EvalOptions {
+            resolver: Some(store.clone()),
+            ..editor_core::EvalOptions::default()
+        },
+    );
     let out = inline(&host, instance, &store, Tol::witness()).expect("the part inlines");
     let carried = |old: RecipeNodeId| match out.doc.node(out.node_map[&old]) {
         Some(Node::Extrude { distance, .. }) => *distance,
@@ -1439,7 +1464,11 @@ fn split_and_inline_declare_in_declaration_order() {
         DocumentId::derive("intent-vars-3-order-host"),
         Tol::witness(),
     );
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, instance) = crate::fixture::insert_pinned(
+        host,
+        Node::instantiate_part(doc_ref),
+        &crate::fixture::resolver::with_resolver(store.clone()),
+    );
     let inlined = inline(
         &host,
         instance,
@@ -1495,7 +1524,11 @@ fn a_reader_of_a_deleted_variable_does_not_cross_a_cut() {
         DocumentId::derive("intent-vars-3-dead-host"),
         Tol::witness(),
     );
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref_dead));
+    let (host, instance) = crate::fixture::insert_pinned(
+        host,
+        Node::instantiate_part(doc_ref_dead),
+        &crate::fixture::resolver::with_resolver(store.clone()),
+    );
     match inline(
         &host,
         instance,

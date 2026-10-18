@@ -378,7 +378,7 @@ fn normal_in_plane_along<T: Decide>(
         return false;
     };
     let row = |r: usize| r * nv..(r + 1) * nv;
-    let (ctl, w) = (net.control(), net.weight_channel());
+    let (ctl, w) = (net.control(), net.weights_f64_interim());
     let mut sense = None;
     ctl[row(first)]
         .iter()
@@ -411,7 +411,7 @@ fn normal_in_plane_along<T: Decide>(
 fn translates_along<T: Decide>(wall: &NurbsSurface<T>, n: Vec3<T>, reach: T, band: Band) -> bool {
     let zero = |name, value| held_zero(name, value, band);
     let (nu, nv) = wall.control_counts();
-    let (ctl, w) = (wall.control(), wall.weight_channel());
+    let (ctl, w) = (wall.control(), wall.weights_f64_interim());
     // `at(i, j)` reads the net with `j` the axis the translation runs.
     let along = |at: &dyn Fn(usize, usize) -> usize, (ni, nj): (usize, usize)| -> bool {
         for i in 0..ni {
@@ -798,8 +798,8 @@ fn plane_wall_section(
                 Ok(SectionReading::Branch(branch)) => branch_carrier(branch),
                 Ok(SectionReading::Region(SsiBoundaryContact::Side { side, .. })) => {
                     let (lo, hi) = match side.fixed {
-                        ChartAxis::U => wall.knots_u().domain(),
-                        ChartAxis::V => wall.knots_v().domain(),
+                        ChartAxis::U => wall.knots_u_f64_interim().domain(),
+                        ChartAxis::V => wall.knots_v_f64_interim().domain(),
                     };
                     let at = if side.end == ChartEnd::High { hi } else { lo };
                     match wall_row(wall, side.fixed, at) {
@@ -953,7 +953,7 @@ fn level_row(
         }
         // `net`'s height depends on its `v` alone, so the plane's root
         // along one of its columns is the row the plane holds.
-        let (u0, _) = net.knots_u().domain();
+        let (u0, _) = net.knots_u_f64_interim().domain();
         let column = match geom_brep::interior_iso_u(&net, u0) {
             Ok(c) => c,
             Err(_) => continue,

@@ -2,11 +2,11 @@
 //! reads them, and the admission table that says how far a class gets.
 //!
 //! A mate is ONE value carrying both halves — the placement constraint
-//! (which frames coincide, at which axis senses, at which clocking)
-//! and the contact declaration (`Rest`, `Tangent`) — so there is no
-//! second vocabulary to keep synced. It is a constraint of the
-//! placement that holds it, addressed by a [`MateRef`], never a node;
-//! everything the solve and the gate then say about it is here.
+//! (two poses of one kind equated) and the contact declaration
+//! (`Rest`, `Tangent`) — so there is no second vocabulary to keep
+//! synced. A value sets one freedom a mate leaves. Each is a constraint
+//! of the placement that holds it, addressed by a [`MateRef`], never a
+//! node; everything the solve and the gate then say about it is here.
 //!
 //! # The solve is TOTAL, so its faults are VALUES
 //!
@@ -33,7 +33,8 @@ use pyo3::types::PyString;
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
 use crate::tags::{
-    class_admission_tag, maintenance_tag, mate_fault_tag, mate_primitive_tag, subgroup_tag,
+    class_admission_tag, coord_tag, maintenance_tag, mate_fault_tag, no_chart_why_tag,
+    placed_by_tag, subgroup_tag,
 };
 use std::sync::Arc;
 
@@ -41,13 +42,8 @@ use pncad::document as d;
 use pncad::tolerance::Tol;
 
 use super::doc::NodeId;
-use super::place::{Frame, Placement};
-use super::quantity::{Angle, Length};
-
-/// Metres in, as the `Frame` family spells a position.
-fn meters(v: (Length, Length, Length)) -> [f64; 3] {
-    [v.0.0.meters(), v.1.0.meters(), v.2.0.meters()]
-}
+use super::place::Frame;
+use super::quantity::Length;
 
 /// One bare metre figure as the length it is.
 fn length(m: f64) -> Length {
@@ -70,175 +66,8 @@ fn direction(v: pncad::geom_core::Vec3<f64>) -> (f64, f64, f64) {
     (v.x, v.y, v.z)
 }
 
-// ---- The authored payload ----
-
-/// One side's **mate frame**: a base composed with an offset, a
-/// `Placement` written in the base's frame (`ASSEMBLY.md` A3).
-///
-/// **Part base** (`MateFrame.on_part(offset)`): the side's part frame.
-/// Three authored vectors — `MateFrame(origin, axis, reference)` —
-/// are the part base with one literal step: local +Z is `axis`, the
-/// local origin `origin`, the roll fixed by `reference`. `axis` need
-/// not be unit and `reference` need not be perpendicular to it: only
-/// the axis's direction and the reference's perpendicular part are
-/// read.
-///
-/// **Face base** (`MateFrame.from_face()`, or `MateFrame.on_face(offset)`):
-/// no name. The side's frame is its own HEAD's face — the face the
-/// mate's reference on that side names, read in the mated part —
-/// whose canonical pose the solve reads off the part's own evaluation
-/// at every evaluation (`ASSEMBLY.md` A11 rule 5): the carrier's
-/// origin, its CHART axis as local +Z, and its own in-frame reference
-/// direction as local +Y (the `point_at` convention: local +X is the
-/// reference crossed with the axis). The offset is written in that
-/// frame, so it slides
-/// along the face, turns about its normal, or sets back from it, and
-/// it follows the face through any edit of the part. The face's
-/// orientation sense is not folded into the axis; the mate's
-/// `AxisSense` says which way the sides point. A face with no
-/// canonical frame (a NURBS carrier) refuses at the solve, typed.
-///
-/// The offset is any rigid motion; the mate's contact class says which
-/// offsets are legal — a `Rest` side set back from its face declares a
-/// contact that is not there, and the at-rest gate refutes it. A rigid
-/// step's expressions can read a document parameter, so a parameter
-/// can drive where a side sits; a literal step is held to the
-/// placement frame's bar (finite, proper, rigid) at the edit door.
-///
-/// A face base resolves on every lane: a seed run reads the pose with
-/// its tangent, a box run an enclosure of it, and so does a parameter
-/// an offset step reads.
-#[pyclass(frozen, module = "pncad", from_py_object)]
-#[derive(Clone)]
-pub(crate) struct MateFrame(pub(crate) d::MateFrame<d::Formula>);
-
-#[pymethods]
-impl MateFrame {
-    /// Three authored vectors: the part base with the one literal step
-    /// they denote.
-    ///
-    /// Raises `FrameError` when the axis has no definite direction,
-    /// when the reference has no definite perpendicular offset from
-    /// it, or — asked before either sign — when the axis's length or
-    /// that perpendicular offset is not a finite number, whose
-    /// `variant` reads `non_finite_aim` or `non_finite_roll_reference`.
-    ///
-    /// The frame is decided at the process tolerance, the one ε this
-    /// session holds: every door here — `Doc.insert`, `Doc.apply` —
-    /// decides at it, and a document recording another ε is refused
-    /// before any of its geometry is read (D4). The literal step it
-    /// stores is judged again where it lands, by the placement frame
-    /// rule (finite, proper, rigid) at the insert door and at load.
-    #[new]
-    fn new(
-        py: Python<'_>,
-        origin: (Length, Length, Length),
-        axis: (f64, f64, f64),
-        reference: (f64, f64, f64),
-    ) -> PyResult<Self> {
-        d::MateFrame::authored(
-            meters(origin),
-            [axis.0, axis.1, axis.2],
-            [reference.0, reference.1, reference.2],
-            Tol::witness(),
-        )
-        .map(Self)
-        .map_err(|err| super::place::frame_err(py, &err))
-    }
-
-    /// The part base composed with `offset`, written in the part's own
-    /// coordinates.
-    #[staticmethod]
-    fn on_part(offset: &Placement) -> Self {
-        Self(d::MateFrame::on_part(offset.0.clone()))
-    }
-
-    /// The side's own head face, with no offset: the face's pose
-    /// itself (the class docs say how it is read).
-    #[staticmethod]
-    fn from_face() -> Self {
-        Self(d::MateFrame::from_face())
-    }
-
-    /// The side's own head face composed with `offset`, written in the
-    /// face's frame: origin on the face, +Z along its chart axis, +Y
-    /// along its reference direction.
-    #[staticmethod]
-    fn on_face(offset: &Placement) -> Self {
-        Self(d::MateFrame::on_face(offset.0.clone()))
-    }
-
-    /// The world's frame composed with `offset`, written in world
-    /// coordinates: the frame of a side that reads the world
-    /// (`Mate.world_pin`'s `a` side).
-    #[staticmethod]
-    fn on_world(offset: &Placement) -> Self {
-        Self(d::MateFrame {
-            base: d::FrameBase::World,
-            offset: offset.0.clone(),
-        })
-    }
-
-    /// What the offset is written in: `"part"`, `"face"` or `"world"`.
-    #[getter]
-    fn base(&self) -> &'static str {
-        self.0.base.name()
-    }
-
-    /// The offset, in the base's frame.
-    #[getter]
-    fn offset(&self) -> Placement {
-        Placement(self.0.offset.clone())
-    }
-
-    /// BIT-exact equality: the same base, and offsets equal by
-    /// `Placement.__eq__`'s rule.
-    fn __eq__(&self, other: &Self) -> bool {
-        self.0.bit_eq(&other.0)
-    }
-
-    fn __repr__(&self) -> String {
-        let offset = Placement(self.0.offset.clone()).__repr__();
-        match self.0.base {
-            d::FrameBase::Part => format!("MateFrame.on_part({offset})"),
-            d::FrameBase::Face => format!("MateFrame.on_face({offset})"),
-            d::FrameBase::World => format!("MateFrame.on_world({offset})"),
-        }
-    }
-}
-
-/// Which way the two sides' axes point at each other.
-///
-/// `Opposed` is what kills every π-flip ambiguity: the senses are
-/// AUTHORED, never inferred.
-#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-#[allow(
-    missing_docs,
-    reason = "each variant mirrors the documented `editor_core::AxisSense` variant of the same name"
-)]
-pub(crate) enum AxisSense {
-    Aligned,
-    Opposed,
-}
-
-impl AxisSense {
-    fn to_kernel(self) -> d::AxisSense {
-        match self {
-            Self::Aligned => d::AxisSense::Aligned,
-            Self::Opposed => d::AxisSense::Opposed,
-        }
-    }
-
-    pub(crate) fn from_kernel(sense: d::AxisSense) -> Self {
-        match sense {
-            d::AxisSense::Aligned => Self::Aligned,
-            d::AxisSense::Opposed => Self::Opposed,
-        }
-    }
-}
-
-/// Which side of a mate a diagnostic is about.
+/// Which pose of a mate a diagnostic is about: `On`, the copy's, or
+/// `To`, the pose it is equated with.
 #[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
@@ -246,175 +75,445 @@ impl AxisSense {
     reason = "each variant mirrors the documented `editor_core::MateSide` variant of the same name"
 )]
 pub(crate) enum MateSide {
-    A,
-    B,
+    On,
+    To,
 }
 
 impl MateSide {
     pub(crate) fn from_kernel(side: d::MateSide) -> Self {
         match side {
-            d::MateSide::A => Self::A,
-            d::MateSide::B => Self::B,
+            d::MateSide::On => Self::On,
+            d::MateSide::To => Self::To,
         }
     }
 }
 
-/// The **mate primitive**: which coset of rigid motions this mate pins
-/// the pair's relative pose to.
+// ---- The authored payload ----
+
+/// **A pose of the world, read inside a mate**: the world defines no
+/// pose variable, so a mate's `to` reads it here — its frame, a role
+/// of it, and the moves a target may make: a slide along a direction
+/// or an axis, a spin about an axis, a flip.
 ///
-/// Four constructors and no bare enum, because one of them carries a
-/// length: `planar_rest` takes the signed standoff along `a`'s axis
-/// (zero is the flush rest; nonzero is an authored standoff, never a
-/// designed clearance). `clocking` is representable precisely so it
-/// can be REFUSED — the coset table has no entry for a bare angular
-/// relation, and an unrepresentable refusal is an untestable one.
+/// `WorldRead.frame()` is the world's frame, `WorldRead.through(role)`
+/// the frame read through a role (`"x"`, `"y"` or `"z"` its axes,
+/// `"origin"`, `"xy"`, `"yz"` or `"zx"` its planes). Each move answers
+/// a new read: `read.role("normal")` a role of a plane read,
+/// `read.slide(along, by)` slid along `along` (a direction or an axis
+/// read) by the length `by`, `read.spin(about, by)` spun about `about`
+/// (an axis read) by the angle `by`, right-handed, `read.flip()` the
+/// opposite sense. A lone `0` is the constant zero of the slot's
+/// dimension.
+///
+/// A read whose kinds do not compose (a slide of a direction, a spin
+/// about a plane, a role its pose's kind does not offer, a flipped
+/// point) is built here and refused where its mate is added
+/// (`mate_world_read`); `kind` answers `None` for it.
 #[pyclass(frozen, module = "pncad", from_py_object)]
-#[derive(Clone, Copy)]
-pub(crate) struct MatePrimitive(pub(crate) d::MatePrimitive);
+#[derive(Clone)]
+pub(crate) struct WorldRead(pub(crate) d::WorldRead<d::Formula>);
+
+/// A move's number, at its dimension.
+fn move_by(
+    py: Python<'_>,
+    by: &super::expr::SlotArg,
+    dim: d::Dimension,
+    what: &str,
+) -> PyResult<d::Formula> {
+    super::pose::scalar_at(py, dim, by, what)
+}
 
 #[pymethods]
-impl MatePrimitive {
-    /// The two mate frames coincide outright — residual trivial.
+impl WorldRead {
+    /// The world's own frame.
     #[staticmethod]
-    fn frame_coincidence() -> Self {
-        Self(d::MatePrimitive::FrameCoincidence)
+    fn frame() -> Self {
+        Self(d::WorldRead::Frame)
     }
 
-    /// The two axes coincide as a LINE — residual cylindrical.
+    /// The world's frame read through `role`: `"x"`, `"y"`, `"z"`,
+    /// `"origin"`, `"xy"`, `"yz"` or `"zx"`.
     #[staticmethod]
-    fn coaxial() -> Self {
-        Self(d::MatePrimitive::Coaxial)
+    fn through(role: &str) -> PyResult<Self> {
+        Ok(Self(d::WorldRead::through(super::pose::role_of(role)?)))
     }
 
-    /// `b`'s plane rests on `a`'s, displaced by `offset` along `a`'s
-    /// axis — residual planar.
-    #[staticmethod]
-    fn planar_rest(offset: &Length) -> Self {
-        Self(d::MatePrimitive::PlanarRest {
-            offset: offset.0.meters(),
+    /// This read through `role` (a plane's `"normal"`, an axis's
+    /// `"direction"`, a frame's axes, origin and planes).
+    fn role(&self, role: &str) -> PyResult<Self> {
+        Ok(Self(d::WorldRead::Role {
+            pose: Box::new(self.0.clone()),
+            role: super::pose::role_of(role)?,
+        }))
+    }
+
+    /// This read slid along `along` by the length `by`.
+    fn slide(&self, py: Python<'_>, along: &Self, by: super::expr::SlotArg) -> PyResult<Self> {
+        let by = move_by(py, &by, d::Dimension::Length, "slide")?;
+        Ok(Self(self.0.clone().slide(along.0.clone(), by)))
+    }
+
+    /// This read spun about `about` by the angle `by`, right-handed.
+    fn spin(&self, py: Python<'_>, about: &Self, by: super::expr::SlotArg) -> PyResult<Self> {
+        let by = move_by(py, &by, d::Dimension::Angle, "spin")?;
+        Ok(Self(self.0.clone().spin(about.0.clone(), by)))
+    }
+
+    /// This read's opposite sense.
+    fn flip(&self) -> Self {
+        Self(self.0.clone().flip())
+    }
+
+    /// The kind of pose this read is (`"point"`, `"direction"`,
+    /// `"axis"`, `"plane"` or `"frame"`), `None` where its moves do not
+    /// compose.
+    #[getter]
+    fn kind(&self) -> Option<&'static str> {
+        self.0.kind().ok().map(crate::errors::var_kind_tag)
+    }
+
+    /// Bit-exact equality: the same moves, each number equal.
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    fn __repr__(&self) -> String {
+        world_text(&self.0)
+    }
+}
+
+/// A world read as the Python that builds it.
+fn world_text(read: &d::WorldRead<d::Formula>) -> String {
+    match read {
+        d::WorldRead::Frame => "WorldRead.frame()".to_owned(),
+        d::WorldRead::Role { pose, role } => {
+            format!(
+                "{}.role({:?})",
+                world_text(pose),
+                super::pose::role_word(*role)
+            )
+        }
+        d::WorldRead::Slide { pose, along, by } => {
+            format!("{}.slide({}, {by})", world_text(pose), world_text(along))
+        }
+        d::WorldRead::Spin { pose, about, by } => {
+            format!("{}.spin({}, {by})", world_text(pose), world_text(about))
+        }
+        d::WorldRead::Flip { pose } => format!("{}.flip()", world_text(pose)),
+    }
+}
+
+/// **What a mate's `to` reads**: a world read, or a pose of the space
+/// the copy joins.
+#[derive(FromPyObject)]
+pub(crate) enum TargetArg {
+    /// The world.
+    World(WorldRead),
+    /// A pose operand.
+    Pose(super::doc::OperandArg),
+}
+
+/// **A mate**: two poses of one kind equated, with the contact class it
+/// declares. A mate is a constraint of the placement that holds it
+/// (`Doc.constrain`, `Doc.place(shapes, constraints)`), never a node:
+/// this is its payload as a value.
+///
+/// `on` is a pose read off the copied shapes' geometry (a `PoseDef`
+/// over one of the placement's shapes, or over the instance itself);
+/// `to` is a pose of the space the copy joins, or a `WorldRead`. The
+/// kind is the primitive: plane to plane rests, axis to axis is
+/// coaxial, frame to frame coincides, point to point is a ball, and
+/// direction to direction is parallel. A plain plane mate equates
+/// outward normals, so two faces resting against each other carry a
+/// flip on the target (`PoseDef.flip`). A mate holds no number: what
+/// it leaves free is set by a `MateValue`, and a standoff is a slide of the
+/// target plane along its own normal.
+///
+/// `class_` is the declared contact class (trailing underscore:
+/// `class` is a Python keyword); `class_admission` says how far each
+/// class gets.
+///
+/// Where it is added, the door refuses an `on` that does not read the
+/// copy (`mate_not_on_the_copy`), poses of two kinds
+/// (`mate_kinds_differ`) and a world read whose moves do not compose
+/// (`mate_world_read`). A pose that does not evaluate — a face gone,
+/// a curved face read as a plane — is the placement's own refusal
+/// where it evaluates (`mate_side_unevaluated`).
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct Mate(pub(crate) d::Mate<d::Formula>);
+
+#[pymethods]
+impl Mate {
+    #[new]
+    fn new(
+        py: Python<'_>,
+        on: super::doc::OperandArg,
+        to: TargetArg,
+        class_: super::contact::ContactClass,
+    ) -> PyResult<Self> {
+        Ok(Self(d::Mate {
+            on: on.read(),
+            to: match to {
+                TargetArg::World(world) => d::Target::World(world.0),
+                TargetArg::Pose(pose) => d::Target::Pose(pose.read()),
+            },
+            class: class_.to_kernel(py)?,
+        }))
+    }
+
+    /// The copy's pose, as written.
+    #[getter]
+    fn on(&self) -> super::pose::PoseDef {
+        super::pose::PoseDef {
+            inner: self.0.on.clone(),
+        }
+    }
+
+    /// The pose the copy's is equated with: a `PoseDef` or a
+    /// `WorldRead`.
+    #[getter]
+    fn to(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        Ok(match &self.0.to {
+            d::Target::Pose(read) => Py::new(
+                py,
+                super::pose::PoseDef {
+                    inner: read.clone(),
+                },
+            )?
+            .into_any(),
+            d::Target::World(world) => Py::new(py, WorldRead(world.clone()))?.into_any(),
         })
     }
 
-    /// Clocking with NO carrying primitive: the table lacks the entry
-    /// by design, so a mate authored with this refuses at the solve.
-    #[staticmethod]
-    fn clocking() -> Self {
-        Self(d::MatePrimitive::Clocking)
+    /// The declared contact class.
+    #[getter]
+    fn class_(&self, py: Python<'_>) -> PyResult<super::contact::ContactClass> {
+        super::contact::contact_class(py, self.0.class)
     }
 
-    /// The primitive's stable tag: `frame_coincidence`, `coaxial`,
-    /// `planar_rest` or `clocking` — one word per constructor on this
-    /// class, spelled the same way, so the vocabulary is the class's
-    /// own staticmethods.
-    // The map is `crate::tags::mate_primitive_tag`, whose words
-    // `TAG_INVENTORY` pins.
+    /// BIT-exact equality: the same poses, the same world moves, the
+    /// same class.
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0.bit_eq(&other.0)
+    }
+
+    fn __repr__(&self) -> String {
+        let to = match &self.0.to {
+            d::Target::Pose(read) => read.to_string(),
+            d::Target::World(world) => world_text(world),
+        };
+        format!("Mate(on={}, to={to}, class_={:?})", self.0.on, self.0.class)
+    }
+}
+
+/// **Which freedom of its mate a value sets**: `Coord.slide("x")`,
+/// `"y"` or `"z"` — a slide along the chart's axis, `z` the mated
+/// direction — or `Coord.spin()`, the turn about the mated direction.
+///
+/// A plane mate leaves the slides along `x` and `y` and the spin; an
+/// axis mate the slide along `z` (its axis) and the spin; a direction
+/// mate all four; a point mate's rotation has no chart; a frame mate
+/// leaves nothing.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct Coord(pub(crate) d::Coord);
+
+#[pymethods]
+impl Coord {
+    /// The slide along the chart's `axis`: `"x"`, `"y"` or `"z"`.
+    #[staticmethod]
+    fn slide(axis: &str) -> PyResult<Self> {
+        Ok(Self(d::Coord::Slide(match axis {
+            "x" => d::SlideAxis::X,
+            "y" => d::SlideAxis::Y,
+            "z" => d::SlideAxis::Z,
+            other => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "not a slide axis: {other:?} — one of \"x\", \"y\" or \"z\""
+                )));
+            }
+        })))
+    }
+
+    /// The spin about the mated direction.
+    #[staticmethod]
+    fn spin() -> Self {
+        Self(d::Coord::Spin)
+    }
+
+    /// The stable word: `slide_x`, `slide_y`, `slide_z` or `spin`.
     #[getter]
     fn variant(&self) -> &'static str {
-        mate_primitive_tag(self.0)
-    }
-
-    /// The planar rest's signed standoff, `None` for every other
-    /// primitive — the attribute is present on all four (the payload
-    /// posture the typed refusals use), so reading it never needs a
-    /// branch on `variant` first.
-    #[getter]
-    fn offset(&self) -> Option<Length> {
-        use d::MatePrimitive as P;
-        match self.0 {
-            P::PlanarRest { offset } => Some(Length(pncad::quantity::Length::from_meters(offset))),
-            P::FrameCoincidence | P::Coaxial | P::Clocking => None,
-        }
+        coord_tag(self.0)
     }
 
     fn __eq__(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        self.0.hash(&mut h);
+        h.finish()
+    }
+
     fn __repr__(&self) -> String {
         match self.0 {
-            d::MatePrimitive::PlanarRest { offset } => {
-                format!("MatePrimitive.planar_rest({offset} m)")
-            }
-            other => format!("MatePrimitive.{}()", mate_primitive_tag(other)),
+            d::Coord::Slide(d::SlideAxis::X) => "Coord.slide(\"x\")".to_owned(),
+            d::Coord::Slide(d::SlideAxis::Y) => "Coord.slide(\"y\")".to_owned(),
+            d::Coord::Slide(d::SlideAxis::Z) => "Coord.slide(\"z\")".to_owned(),
+            d::Coord::Spin => "Coord.spin()".to_owned(),
         }
     }
 }
 
-/// The **alignment datum**: which frames coincide, at which axis
-/// sense, with which clocking rider.
+/// **A mate's value**: one freedom a mate of the same bundle leaves, set to a
+/// number — a `Length` for a slide, an `Angle` for a spin (a lone `0`
+/// is the constant zero).
 ///
-/// `clocking` is a RIDER, never a primitive: on `coaxial` it cuts the
-/// residual to prismatic along the axis; on `frame_coincidence` it is
-/// redundant-or-contradictory and gets decided; on a planar rest the
-/// table has no entry and the solve refuses typed.
+/// It is charted on the two bodies' own frames, each swung onto the
+/// mated direction by the shortest turn: a slide is the copy's origin
+/// measured from the target's along the chart's axis, a spin the angle
+/// about the mated direction from the target's reference to the
+/// copy's. Zero says the two bodies' own coordinates agree as far as
+/// the mate allows.
+///
+/// `mate` names the mate by its id (a `MateRef`'s `constraint`, or the
+/// `MateRef` itself). `Doc.add_value` adds one; the door refuses an id
+/// that is no mate of the bundle (`mate_value_names_no_mate`), a
+/// freedom the mate's kind does not leave (`mate_not_a_freedom`) and a
+/// point mate's rotation (`mate_no_chart`).
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct Alignment(pub(crate) d::Alignment<d::Formula>);
+pub(crate) struct MateValue(pub(crate) d::Value<d::Formula>);
+
+/// **The mate a value names**: its id, or its address.
+#[derive(FromPyObject)]
+pub(crate) enum MateIdArg {
+    /// An address: its id is read.
+    Ref(MateRef),
+    /// An id.
+    Id(ConstraintId),
+}
+
+impl MateIdArg {
+    fn id(&self) -> d::ConstraintId {
+        match self {
+            Self::Ref(r) => r.0.id,
+            Self::Id(id) => id.0,
+        }
+    }
+}
+
+impl MateValue {
+    /// The value `by` on `coord` of `mate`, `by` read at the
+    /// freedom's dimension.
+    pub(crate) fn of(
+        py: Python<'_>,
+        mate: d::ConstraintId,
+        coord: d::Coord,
+        by: &super::expr::SlotArg,
+    ) -> PyResult<Self> {
+        let by = super::pose::scalar_at(py, coord.dimension(), by, coord.name())?;
+        Ok(Self(d::Value { mate, coord, by }))
+    }
+}
 
 #[pymethods]
-impl Alignment {
+impl MateValue {
     #[new]
-    #[pyo3(signature = (a, b, primitive, sense, clocking=None))]
     fn new(
-        a: &MateFrame,
-        b: &MateFrame,
-        primitive: &MatePrimitive,
-        sense: AxisSense,
-        clocking: Option<Angle>,
-    ) -> Self {
-        Self(d::Alignment {
-            a: a.0.clone(),
-            b: b.0.clone(),
-            primitive: primitive.0,
-            sense: sense.to_kernel(),
-            clocking: clocking.map(|angle| angle.0.radians()),
-        })
+        py: Python<'_>,
+        mate: MateIdArg,
+        coord: &Coord,
+        by: super::expr::SlotArg,
+    ) -> PyResult<Self> {
+        Self::of(py, mate.id(), coord.0, &by)
     }
 
-    /// The `a` side's mate frame, in `a`'s part coordinates.
+    /// The id of the mate whose freedom it sets.
     #[getter]
-    fn a(&self) -> MateFrame {
-        MateFrame(self.0.a.clone())
+    fn mate(&self) -> ConstraintId {
+        ConstraintId(self.0.mate)
     }
 
-    /// The `b` side's mate frame, in `b`'s part coordinates.
+    /// Which freedom.
     #[getter]
-    fn b(&self) -> MateFrame {
-        MateFrame(self.0.b.clone())
+    fn coord(&self) -> Coord {
+        Coord(self.0.coord)
     }
 
-    /// Which coset this mate pins.
+    /// The number, as written.
     #[getter]
-    fn primitive(&self) -> MatePrimitive {
-        MatePrimitive(self.0.primitive)
+    fn by(&self) -> super::expr::Formula {
+        super::expr::Formula(self.0.by.clone())
     }
 
-    /// Which way the axes point at each other.
-    #[getter]
-    fn sense(&self) -> AxisSense {
-        AxisSense::from_kernel(self.0.sense)
-    }
-
-    /// The clocking rider, `None` when unclocked.
-    #[getter]
-    fn clocking(&self) -> Option<Angle> {
-        self.0
-            .clocking
-            .map(|r| Angle(pncad::quantity::Angle::from_radians(r)))
-    }
-
-    /// BIT-exact equality, `MateFrame.__eq__`'s rule over both frames,
-    /// with the primitive's lengths and the rider compared by bits.
+    /// Bit-exact equality.
     fn __eq__(&self, other: &Self) -> bool {
-        self.0.bit_eq(&other.0)
+        self.0 == other.0
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "Alignment(primitive={}, sense={:?}, clocking={:?})",
-            mate_primitive_tag(self.0.primitive),
-            self.0.sense,
-            self.0.clocking
+            "MateValue({}, {}, {})",
+            self.0.mate,
+            Coord(self.0.coord).__repr__(),
+            self.0.by
+        )
+    }
+}
+
+/// **What the "place part" gesture wrote** (`Doc.place_at`): the
+/// placement, its mate and its values, and how the copy was placed —
+/// `by == "planar_face"`, a plane mate on the copy's first planar face
+/// to the world plane it lies in at the pose, and the three values
+/// (slides along `x` and `y`, and the spin) that put it there; or
+/// `by == "pin"`, a copy with no planar face pinned over a frame read
+/// off its geometry, with no freedom left to set.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct Placed {
+    pub(crate) placement: NodeId,
+    pub(crate) mate: MateRef,
+    pub(crate) values: Vec<MateRef>,
+    pub(crate) by: d::PlacedBy,
+}
+
+#[pymethods]
+impl Placed {
+    /// The placement.
+    #[getter]
+    fn placement(&self) -> NodeId {
+        self.placement
+    }
+
+    /// The mate's address.
+    #[getter]
+    fn mate(&self) -> MateRef {
+        self.mate
+    }
+
+    /// The values' addresses: slide `x`, slide `y`, spin; empty for a
+    /// pin.
+    #[getter]
+    fn values(&self) -> Vec<MateRef> {
+        self.values.clone()
+    }
+
+    /// `"planar_face"` or `"pin"`.
+    #[getter]
+    fn by(&self) -> &'static str {
+        placed_by_tag(self.by)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Placed(placement={}, by={:?})",
+            self.placement.0.full(),
+            placed_by_tag(self.by)
         )
     }
 }
@@ -495,7 +594,7 @@ pub(crate) fn class_admission(
 /// **A constraint's id**: minted by the edit that adds it to a
 /// placement, never reused and never positional. Opaque: it is read
 /// off a `MateRef` and handed back, compared and hashed, never built.
-#[pyclass(eq, ord, hash, frozen, module = "pncad", skip_from_py_object)]
+#[pyclass(eq, ord, hash, frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) struct ConstraintId(pub(crate) d::ConstraintId);
 
@@ -567,133 +666,6 @@ impl MateRef {
             self.0.placement.full(),
             self.0.id
         )
-    }
-}
-
-/// **A mate**: two sides and the alignment datum relating them, with
-/// the contact class it declares. A mate is a constraint of the
-/// placement that holds it (`Doc.constrain`, `Doc.place(shapes,
-/// constraints)`), never a node: this is its payload as a value.
-///
-/// Each face side is TWO things: `a_at` / `b_at` is the node the face
-/// is read at — the node whose geometry the mate speaks about — and
-/// `a` / `b` the name text of a face of that node's output. One side
-/// must be on the placement's own copy: a face of one of its shapes,
-/// or of the instance itself. The other reads a pose outside the copy.
-///
-/// `class_` is the declared contact class (trailing underscore:
-/// `class` is a Python keyword); `class_admission` says how far each
-/// class gets. `alignment` is the datum: which frames coincide, at
-/// which axis sense, with which clocking.
-///
-/// **A head must name a FACE, and that is refused here**: `a`/`b`
-/// naming an edge raises `EditError` with `variant ==
-/// "mate_head_not_a_face"` at this call. A dangling reference is not
-/// refused here: the solve refuses typed naming its head
-/// (`mate_dangling_head`), or the side's read when it is no face of a
-/// live body (`mate_side_unresolved`).
-#[pyclass(frozen, module = "pncad", from_py_object)]
-#[derive(Clone)]
-pub(crate) struct Mate(pub(crate) d::Mate<d::Formula>);
-
-#[pymethods]
-impl Mate {
-    #[new]
-    fn new(
-        py: Python<'_>,
-        a_at: &NodeId,
-        a: &str,
-        b_at: &NodeId,
-        b: &str,
-        class_: super::contact::ContactClass,
-        alignment: &Alignment,
-    ) -> PyResult<Self> {
-        let face = |at: &NodeId, text: &str| -> PyResult<d::Operand> {
-            Ok(d::SitedFace::new(at.0, super::doc::face_name_from_text(py, text)?).into())
-        };
-        Ok(Self(d::Mate {
-            a: d::SideRead::Face(face(a_at, a)?),
-            b: d::SideRead::Face(face(b_at, b)?),
-            class: class_.to_kernel(py)?,
-            alignment: alignment.0.clone(),
-        }))
-    }
-
-    /// **A copy pinned to the world at `pose`**, the identity when
-    /// `None`: one coincidence of the world's frame, moved by `pose`,
-    /// with the placement's own copy's frame. The world is the `a`
-    /// side, so the copy sits at `pose` bit for bit.
-    ///
-    /// The pose is a `Placement` chain, `Node.transform_by`'s, and each
-    /// rigid step's components are checked against the slot they land
-    /// in, as there.
-    #[staticmethod]
-    #[pyo3(signature = (pose=None))]
-    fn world_pin(py: Python<'_>, pose: Option<&Placement>) -> PyResult<Self> {
-        let mate = d::Mate::world_pin(pose.map_or(d::Placement::IDENTITY, |p| p.0.clone()));
-        let placeholder = d::ConstraintId(d::MintId::new(0, 0));
-        super::doc::Node::check_slots(
-            py,
-            &d::Node::Place {
-                shapes: Vec::new(),
-                constraints: vec![d::Constraint {
-                    id: placeholder,
-                    mate: mate.clone(),
-                }],
-            },
-        )?;
-        Ok(Self(mate))
-    }
-
-    /// The declared contact class.
-    #[getter]
-    fn class_(&self, py: Python<'_>) -> PyResult<super::contact::ContactClass> {
-        super::contact::contact_class(py, self.0.class)
-    }
-
-    /// The alignment datum.
-    #[getter]
-    fn alignment(&self) -> Alignment {
-        Alignment(self.0.alignment.clone())
-    }
-
-    /// What the `a` side reads: `"face"` (a face, its frame read off
-    /// it), `"copy"` (the placement's own copy, by its part frame) or
-    /// `"world"`.
-    #[getter]
-    fn a(&self) -> &'static str {
-        side_word(&self.0.a)
-    }
-
-    /// What the `b` side reads, in `a`'s words.
-    #[getter]
-    fn b(&self) -> &'static str {
-        side_word(&self.0.b)
-    }
-
-    /// BIT-exact equality: the same sides and class, and alignments
-    /// equal by `Alignment.__eq__`'s rule.
-    fn __eq__(&self, other: &Self) -> bool {
-        self.0.bit_eq(&other.0)
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "Mate(a={:?}, b={:?}, class_={:?}, primitive={})",
-            side_word(&self.0.a),
-            side_word(&self.0.b),
-            self.0.class,
-            mate_primitive_tag(self.0.alignment.primitive)
-        )
-    }
-}
-
-/// The word for what a side reads.
-fn side_word<R>(side: &d::SideRead<R>) -> &'static str {
-    match side {
-        d::SideRead::Face(_) => "face",
-        d::SideRead::Copy => "copy",
-        d::SideRead::World => "world",
     }
 }
 
@@ -798,19 +770,18 @@ impl Subgroup {
 /// document.
 ///
 /// Every payload attribute is present on every arm, `None` where the
-/// arm does not carry it: `mate`, `side`, `head`, `placer`, `error`,
-/// `instance`, `placement`, `constraints`, `base`, `residual`, `held`,
-/// `added`,
-/// `predicate`, `clash`, `part`, `named`, `selected`, `what`,
-/// `expected_document`, `found_document`, `inner_variant`, `margin`,
-/// `margin_low`, `margin_high`, `zero`, `escalate`, `field`, `value`,
-/// `lever_tilt`, `lever_residual`, `lever_arm`, `cause`. The human
+/// arm does not carry it: `mate`, `side`, `error`, `instance`,
+/// `shape`, `placement`, `constraints`, `residual`, `held`, `added`,
+/// `predicate`, `clash`, `what`, `expected_document`,
+/// `found_document`, `inner_variant`, `margin`, `margin_low`,
+/// `margin_high`, `zero`, `escalate`, `lever_residual`, `lever_arm`, `on_kind`, `to_kind`, `value_ref`,
+/// `named`, `coord`, `mate_kind`, `why`, `cause`. The human
 /// message is the kernel's own prose, available as `str(fault)`; the
 /// refusal it carries and does not quote is `cause`.
 ///
 /// **The classifier's words are the frame door's words.** `margin` /
-/// `margin_low` / `margin_high`, `zero` / `escalate`, `field` /
-/// `value` and `predicate` are spelled here exactly as
+/// `margin_low` / `margin_high`, `zero` / `escalate` and `predicate`
+/// are spelled here exactly as
 /// [`super::place::frame_err`] spells them, because an escalation a
 /// mate reports and one a frame constructor reports are the same
 /// value; the fork itself is `crate::escalation`, which both doors
@@ -863,11 +834,10 @@ impl MateFault {
         mate_fault_tag(&self.0)
     }
 
-    /// The mate the fault is about, `None` for the three arms whose
-    /// subject is not one mate (`mate_band`; `mate_contradictory`,
-    /// which names `held` and `added` instead; and
-    /// `mate_poses_of_another_document`, whose subject is two
-    /// documents).
+    /// The mate the fault is about, `None` for an arm whose subject is
+    /// not one mate (`mate_contradictory`, which names `held` and
+    /// `added` instead; `mate_poses_of_another_document`, whose
+    /// subject is two documents).
     #[getter]
     fn mate(&self) -> Option<MateRef> {
         self.payload().mate.map(MateRef)
@@ -879,47 +849,40 @@ impl MateFault {
         self.payload().side.map(MateSide::from_kernel)
     }
 
-    /// The instantiate node a dangling reference head claims.
-    #[getter]
-    fn head(&self) -> Option<NodeId> {
-        self.payload().head.map(NodeId)
-    }
-
-    /// The placer whose pose could not be derived — the pattern or
-    /// the transform on the reference's chain that refused.
-    #[getter]
-    fn placer(&self) -> Option<NodeId> {
-        self.payload().placer.map(NodeId)
-    }
-
-    /// **The evaluation's own refusal for that placer**, as the tag
-    /// every node failure crosses with (`EvaluationError.kind`) — the
-    /// same vocabulary, so a caller branches on one set of words
-    /// whether the refusal reached them from the node or from the
-    /// mate that placed it. [`MateFault::cause`] carries its prose.
+    /// **The evaluation's own refusal for a pose that did not
+    /// evaluate** (`mate_side_unevaluated`), as the tag every node
+    /// failure crosses with (`EvaluationError.kind`) — the same
+    /// vocabulary, so a caller branches on one set of words whether
+    /// the refusal reached them from the node or from the mate that
+    /// read it. [`MateFault::cause`] carries its prose.
     #[getter]
     fn error(&self) -> Option<&'static str> {
         self.payload().error
     }
 
-    /// **The refusal this fault carries, typed** — the placer's own,
-    /// on `mate_placer_refused` where the placer is poisoned and cannot
-    /// state it: the `EvaluationError` the placer's own evaluation
-    /// raises, which `str(fault)` points at and never quotes. The same
-    /// value a raised `MateError` carries as its `__cause__`. `None` on
-    /// every other arm, and where the placer fails in its own right and
-    /// its own failure states it.
+    /// **The refusal this fault carries, typed** — the pose's own on
+    /// `mate_side_unevaluated`: the `EvaluationError` its evaluation
+    /// raises, which `str(fault)` points at. The same value a raised
+    /// `MateError` carries as its `__cause__`. `None` on every other
+    /// arm.
     #[getter]
     fn cause(&self, py: Python<'_>) -> Option<Py<PyAny>> {
         super::value::carried_cause(py, self.0.carried_chain(), self.1.doc())
             .map(|cause| cause.into_value(py).into_any())
     }
 
-    /// The instance a self-mate names twice, or the instance whose
-    /// part a lever or a face frame was asked of.
+    /// The instance whose part a lever's reach was asked of
+    /// (`mate_unleverable`).
     #[getter]
     fn instance(&self) -> Option<NodeId> {
         self.payload().instance.map(NodeId)
+    }
+
+    /// The node whose copied body a lever's reach was asked of
+    /// (`mate_unleverable`).
+    #[getter]
+    fn shape(&self) -> Option<NodeId> {
+        self.payload().shape.map(NodeId)
     }
 
     /// The placement a bundle's fault is about: the one a constraint
@@ -943,27 +906,6 @@ impl MateFault {
                 .map(|&id| MateRef(d::MateRef::new(placement, id)))
                 .collect()
         })
-    }
-
-    /// The frame base a side carries that its read does not admit
-    /// (`mate_side_base`): `"part"`, `"face"` or `"world"`.
-    #[getter]
-    fn base(&self) -> Option<&'static str> {
-        self.payload().base.map(d::FrameBase::name)
-    }
-
-    /// The face a `from_face` side read — its head's face, as its name
-    /// text in the PART's own spelling, or the head itself where it
-    /// names no face of the part — where the refusal is about one
-    /// (`mate_face_unresolved`, whose `inner_variant` names why: the
-    /// part not in hand, the face's own row, tie or carrier, or
-    /// `no_part_face`).
-    #[getter]
-    fn face(&self, py: Python<'_>) -> PyResult<Option<String>> {
-        self.payload()
-            .face
-            .map(|face| super::doc::name_text(py, face))
-            .transpose()
     }
 
     /// What the rest of an over-constrained bundle already holds the
@@ -1000,28 +942,57 @@ impl MateFault {
         self.payload().clash.map(length)
     }
 
-    /// The `Part` node whose index expression disagrees with the copy
-    /// the reference's name names.
+    /// The kind of pose the mate's `on` reads, where the two kinds
+    /// differ (`mate_kinds_differ`).
     #[getter]
-    fn part(&self) -> Option<NodeId> {
-        self.payload().part.map(NodeId)
+    fn on_kind(&self) -> Option<&'static str> {
+        self.payload().on_kind.map(crate::errors::var_kind_tag)
     }
 
-    /// The copy that reference's NAME names — the authority on which
-    /// copy a mate is about.
+    /// The kind of pose its `to` reads (`mate_kinds_differ`).
     #[getter]
-    fn named(&self) -> Option<u32> {
-        self.payload().named
+    fn to_kind(&self) -> Option<&'static str> {
+        self.payload().to_kind.map(crate::errors::var_kind_tag)
     }
 
-    /// What the `Part`'s index expression evaluates to instead, at the
-    /// document's own parameter bindings.
+    /// **The value a value's fault is about**, by its address
+    /// (`mate_value_names_no_mate`, `mate_not_a_freedom`,
+    /// `mate_no_chart`).
     #[getter]
-    fn selected(&self) -> Option<i64> {
-        self.payload().selected
+    fn value_ref(&self) -> Option<MateRef> {
+        self.payload().value_ref.map(MateRef)
     }
 
-    /// What the coset table was asked for, in its own words.
+    /// The id a value names that is no mate of its bundle
+    /// (`mate_value_names_no_mate`).
+    #[getter]
+    fn named(&self) -> Option<ConstraintId> {
+        self.payload().named.map(ConstraintId)
+    }
+
+    /// The freedom a value sets that its mate does not leave
+    /// (`mate_not_a_freedom`).
+    #[getter]
+    fn coord(&self) -> Option<Coord> {
+        self.payload().coord.map(Coord)
+    }
+
+    /// The kind of the mate whose kind alone fixes that freedom, `None`
+    /// where the bundle's other constraints fix it
+    /// (`mate_not_a_freedom`).
+    #[getter]
+    fn mate_kind(&self) -> Option<&'static str> {
+        self.payload().mate_kind.map(crate::errors::var_kind_tag)
+    }
+
+    /// Why a value's freedom has no chart (`mate_no_chart`):
+    /// `"point_rotation"` or `"two_bodies"`.
+    #[getter]
+    fn why(&self) -> Option<&'static str> {
+        self.payload().why.map(no_chart_why_tag)
+    }
+
+    /// What a lever's unbounded face is, in its own words.
     #[getter]
     fn what(&self) -> Option<&'static str> {
         self.payload().what
@@ -1041,9 +1012,8 @@ impl MateFault {
         self.payload().found_document.map(|id| id.hex())
     }
 
-    /// **The nested refusal's own word**: the frame ladder's
-    /// (`FrameError.variant`'s vocabulary), the band constructor's, or
-    /// the lever refusal's. `None` on an arm whose payload is a struct
+    /// **The nested refusal's own word**: the lever refusal's, or the
+    /// world read's (`mate_world_read`). `None` on an arm whose payload is a struct
     /// rather than an enum — an escalation has no inner word, and its
     /// shape is which margin attribute is set.
     #[getter]
@@ -1076,7 +1046,7 @@ impl MateFault {
     }
 
     /// The coincidence threshold of the band a margin was classified
-    /// against, or of the band a constructor could not form.
+    /// against.
     ///
     /// A plain real, as the frame door answers it: a `Band`'s
     /// thresholds are whatever its predicate measures in, and the
@@ -1092,36 +1062,10 @@ impl MateFault {
         self.payload().escalate
     }
 
-    /// WHICH band threshold a rejected value was — `zero` or
-    /// `escalate`.
-    #[getter]
-    fn field(&self) -> Option<&'static str> {
-        self.payload().field
-    }
-
-    /// The rejected number: a threshold, or a lever arm handed to the
-    /// band constructor.
-    #[getter]
-    fn value(&self) -> Option<f64> {
-        self.payload().value
-    }
-
-    /// The lever's TILT, when a contradictory clash levered an
-    /// authored roll (the clocking rider's `mate_clocking_redundant`).
-    /// One of this and `lever_residual` is set on a levered clash,
-    /// never both: which one says what kind of number the predicate
-    /// measured.
-    #[getter]
-    fn lever_tilt(&self) -> Option<Angle> {
-        self.payload()
-            .lever_tilt
-            .map(|r| Angle(pncad::quantity::Angle::from_radians(r)))
-    }
-
     /// The lever's RESIDUAL — a pure number, named by `predicate`: a
     /// sine, a cosine, a Frobenius departure from the identity, a
-    /// reachability defect — when a contradictory clash levered one
-    /// rather than an authored roll. Dimensionless, so a bare float
+    /// reachability defect — when a contradictory clash levered one.
+    /// Dimensionless, so a bare float
     /// and not a quantity.
     #[getter]
     fn lever_residual(&self) -> Option<f64> {
@@ -1135,8 +1079,7 @@ impl MateFault {
     /// nothing else in the model.
     ///
     /// `clash` is the PRODUCT of the two halves: a levered refusal
-    /// reports `lever_tilt * lever_arm` or `lever_residual *
-    /// lever_arm` as its deviation. An arm that measured its margin
+    /// reports `lever_residual * lever_arm` as its deviation. An arm that measured its margin
     /// without a lever carries none of the three.
     #[getter]
     fn lever_arm(&self) -> Option<Length> {
@@ -1198,37 +1141,44 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault, voice: &Voice) -> P
 
 /// [`d::SolvedPoses::placement`]'s refusal, raised: the solve's own
 /// fault as `MateError`, spoken from `solved`, the document the solve
-/// recorded it over; and a loose copy as the `EvaluationError` a node
-/// reading its space beside the world's carries (`space_mismatch`),
-/// spoken from `doc`, the document the placement door read it off.
+/// recorded it over; a placement that did not evaluate for a reason
+/// not its bundle's as its own standing in `evaluation`; and a loose
+/// copy as the `EvaluationError` a node reading its space beside the
+/// world's carries (`space_mismatch`), spoken from `doc`, the document
+/// the placement door read it off.
 fn pose_err(
     py: Python<'_>,
     placement: NodeId,
     refusal: &d::PoseRefusal,
     solved: &Arc<d::ProfileDoc>,
+    evaluation: &d::Evaluation<f64>,
     doc: &d::ProfileDoc,
 ) -> PyErr {
     let kind = match refusal {
         d::PoseRefusal::Mate(fault) => {
             return mate_err(py, fault, &Voice::Doc(Arc::clone(solved)));
         }
+        d::PoseRefusal::Unevaluated { .. } => {
+            return super::value::standing_err(py, solved, evaluation, placement);
+        }
         d::PoseRefusal::Loose { root, .. } => d::NodeErrorKind::SpaceMismatch {
             a: d::Space::Loose { root: *root },
             b: d::Space::World,
         },
     };
-    let err = super::value::refused(py, placement, &kind, refusal.spoken(doc), None);
+    let said = d::Said(refusal, d::Speaker::of(doc)).to_string();
+    let err = super::value::refused(py, placement, &kind, said, None);
     super::value::with_carried(py, err, kind.carried_chain(), Some(doc))
 }
 
-/// The document's solved poses: each placement's pose in its target's
-/// space, and the per-placement refusals.
+/// The document's solved poses: each placement's pose in its space,
+/// and the per-placement refusals.
 ///
 /// It keeps a copy of the document as it solved it: a fault is the
 /// solve's, recorded over that version, so its words are spoken from it
 /// even after the document is edited.
 #[pyclass(frozen, module = "pncad")]
-pub(crate) struct SolvedPoses(d::SolvedPoses, Arc<d::ProfileDoc>);
+pub(crate) struct SolvedPoses(d::SolvedPoses, Arc<d::ProfileDoc>, Arc<d::Evaluation<f64>>);
 
 #[pymethods]
 impl SolvedPoses {
@@ -1246,22 +1196,21 @@ impl SolvedPoses {
             .map(|fault| MateFault(fault, Voice::Doc(Arc::clone(&self.1))))
     }
 
-    /// **The placement's solved pose in its target's space**: where its
-    /// bundle puts its copy relative to the copy it is pinned to (the
-    /// world, or another placement's copy), and in a loose copy's own
-    /// space the pose it is evaluated at. `None` when the solve placed
-    /// nothing there: a node that is no placement, or a placement whose
-    /// bundle refused.
+    /// **The placement's solved pose in its space**: where its copy
+    /// sits in the world's coordinates for a copy pinned, transitively,
+    /// against the world, and in a loose copy's own coordinates for one
+    /// pinned to it. `None` when the solve placed nothing there: a node
+    /// that is no placement, or a placement whose bundle refused.
     fn pose(&self, placement: &NodeId) -> Option<Frame> {
         self.0.relative(placement.0).map(Frame)
     }
 
     /// **The placement's world pose, at the document's own
-    /// parameters**: its solved pose composed into the world pose of
-    /// the copy it is pinned to.
+    /// parameters**: its pose in its space, for a copy pinned,
+    /// transitively, against the world.
     ///
-    /// A copy pinned to the world at `pose` returns that pose's frame,
-    /// bit for bit, and at the identity the identity.
+    /// A copy pinned to the world at a pose returns that pose, to the
+    /// rounding of the values its pin is computed in.
     ///
     /// `doc` must be the document this solve is OF: passing a different
     /// one would compose this document's poses onto that one's
@@ -1283,7 +1232,7 @@ impl SolvedPoses {
         self.0
             .placement(&doc.inner, placement.0)
             .map(Frame)
-            .map_err(|refusal| pose_err(py, *placement, &refusal, &self.1, &doc.inner))
+            .map_err(|refusal| pose_err(py, *placement, &refusal, &self.1, &self.2, &doc.inner))
     }
 
     fn __repr__(&self) -> String {
@@ -1299,20 +1248,13 @@ impl SolvedPoses {
 /// unrelated one, so refusals are recorded per placement and read back
 /// through `SolvedPoses.fault`.
 ///
-/// The solve reads no geometry except what each mated part's own
-/// evaluation answers: its extent — an upper bound taken from its
-/// evaluated body, entering only as the lever a parallelism verdict
-/// is decided over — and, for a `MateFrame.from_face` side, that
-/// face's canonical pose. So `resolver` is the same document seam
-/// `evaluate(doc, resolver=)` crosses: a `Workspace`, or `None`, under
-/// which every mate on a part refuses in the resolver's own voice
-/// (`part_no_resolver`) rather than reading nothing — a face side as
-/// `mate_face_unresolved` (read first), an authored one as
-/// `mate_unleverable`. A face frame IS its face, so it cannot drift
-/// from the part; the solve does NOT check that AUTHORED vectors
-/// match the faces the mate's references name, which is why a
-/// document authored so can solve cleanly and still refuse at the
-/// at-rest gate.
+/// A bundle folds where its placement evaluates: each mate's poses are
+/// read off the evaluated geometry, and a parallelism verdict is
+/// levered over the mated bodies' own extent. So `resolver` is the
+/// document seam `evaluate(doc, resolver=)` crosses: a `Workspace`, or
+/// `None`, under which a placement over a part's instance refuses in
+/// the resolver's own voice (`part_no_resolver`) rather than reading
+/// nothing.
 #[pyfunction]
 #[pyo3(signature = (doc, *, resolver=None))]
 pub(crate) fn solve_document(
@@ -1320,11 +1262,16 @@ pub(crate) fn solve_document(
     resolver: Option<&super::store::Workspace>,
 ) -> SolvedPoses {
     let tol = Tol::witness();
-    let seam = super::doc::seam(resolver);
-    let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
+    let opts = d::EvalOptions {
+        resolver: super::doc::seam(resolver),
+        ..d::EvalOptions::default()
+    };
+    let evaluation: d::Evaluation<f64> =
+        d::evaluate(&doc.inner, None, &d::CancelToken::new(), &opts, tol);
     SolvedPoses(
-        d::solve_document(&doc.inner, &reach, tol),
+        d::SolvedPoses::of(&doc.inner, &evaluation),
         Arc::new(doc.inner.clone()),
+        Arc::new(evaluation),
     )
 }
 
@@ -1423,13 +1370,30 @@ impl Maintenance {
     }
 }
 
+/// **A world pin** (stage 3 C's named interim): the copy placed where
+/// its body stands, the identity of the world's coordinates, with no
+/// read and no number. It stands alone in its bundle.
+/// `DocEdit.pin_where_it_stands` writes one; `Doc.place(shapes)` with
+/// neither `constraints` nor `pose` places by one.
+#[pyclass(frozen, module = "pncad", eq, hash, skip_from_py_object)]
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub(crate) struct WorldPin;
+
+#[pymethods]
+impl WorldPin {
+    fn __repr__(&self) -> &'static str {
+        "WorldPin()"
+    }
+}
+
 /// Register the mate surface on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<MateFrame>()?;
-    m.add_class::<MatePrimitive>()?;
-    m.add_class::<Alignment>()?;
-    m.add_class::<AxisSense>()?;
     m.add_class::<MateSide>()?;
+    m.add_class::<WorldRead>()?;
+    m.add_class::<Coord>()?;
+    m.add_class::<MateValue>()?;
+    m.add_class::<WorldPin>()?;
+    m.add_class::<Placed>()?;
     m.add_class::<ConstraintId>()?;
     m.add_class::<MateRef>()?;
     m.add_class::<Mate>()?;

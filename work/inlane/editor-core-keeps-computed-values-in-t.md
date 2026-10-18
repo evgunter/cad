@@ -36,3 +36,5 @@ Owed: keep the arm in `T`, or enter it through `Real::from_computed`.
 Keep the two `arm / sine` arms cancelling: one `T` value threaded
 through both, not one opaque minted per call. Pin it per site; the
 corpus reaches no levered mate.
+
+**Partly paid by PR 5267 (s3 C).** Its corpus places every part through the place-part gesture, so `revalue_corpus` reaches levered mates, and it flagged `mate_axes_parallel` and `mate_axis_normal_perpendicular` as laundered on every placed document. Those two decisions (`coset.rs`'s `parallel` and `perpendicular`) and `Lever::margin` now take the arm through `Real::from_computed`: opaque, so no identity is proved over it and the row counts it rather than comparing it. What remains owed is the two step arms that divide by a levered sine (`candidate_translation`, the `coset.rs` row of `scripts/gates/from-f64-sites.tsv`): one `T` arm threaded through `parallel`'s sine and both steps, so they cancel.

@@ -112,14 +112,9 @@ pub struct EditPayload<'a> {
     pub offered: Option<FreeValue>,
     /// A placement frame's linear determinant.
     pub determinant: Option<f64>,
-    /// Which of a node's placement frames: a step of a transform's or
-    /// a constraint side's frame offset's chain, or an explicit rule's
-    /// listed placement.
+    /// Which of a node's placement frames: a step of a transform's
+    /// chain, or an explicit rule's listed placement.
     pub index: Option<usize>,
-    /// Which side of a mate a placement frame sits on — `"a"` or
-    /// `"b"`, beside [`Self::index`], for a step of a mate side's frame
-    /// offset.
-    pub side: Option<&'static str>,
     /// The constraint of the placement [`Self::node`] the refusal is
     /// about: with the node, the constraint's address (`MateRef`).
     pub constraint: Option<ConstraintId>,
@@ -147,7 +142,7 @@ impl EditPayload<'_> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over `EditError` is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 26] {
+    pub fn presence(&self) -> [(&'static str, bool); 25] {
         let Self {
             node,
             input,
@@ -169,7 +164,6 @@ impl EditPayload<'_> {
             offered,
             determinant,
             index,
-            side,
             constraint,
             path,
             value_path,
@@ -197,7 +191,6 @@ impl EditPayload<'_> {
             ("offered", offered.is_some()),
             ("determinant", determinant.is_some()),
             ("index", index.is_some()),
-            ("side", side.is_some()),
             ("constraint", constraint.is_some()),
             ("path", path.is_some()),
             ("value_path", value_path.is_some()),
@@ -237,7 +230,6 @@ impl EditPayload<'_> {
         offered: None,
         determinant: None,
         index: None,
-        side: None,
         constraint: None,
         path: None,
         value_path: None,
@@ -247,31 +239,10 @@ impl EditPayload<'_> {
 }
 
 /// The position a placement frame's site names — a step of a
-/// transform's or a constraint side's frame offset's chain, or an
-/// explicit rule's listed placement.
+/// transform's chain, or an explicit rule's listed placement.
 fn frame_index(at: FrameSite) -> Option<usize> {
     match at {
-        FrameSite::Listed { index }
-        | FrameSite::Step { index }
-        | FrameSite::MateStep { index, .. } => Some(index),
-    }
-}
-
-/// The mate side a placement frame's site names, for a step of a
-/// constraint side's frame offset.
-fn frame_side(at: FrameSite) -> Option<&'static str> {
-    match at {
-        FrameSite::MateStep { side, .. } => Some(side.name()),
-        FrameSite::Listed { .. } | FrameSite::Step { .. } => None,
-    }
-}
-
-/// The constraint a placement frame's site names, for a step of a
-/// constraint side's frame offset.
-fn frame_constraint(at: FrameSite) -> Option<ConstraintId> {
-    match at {
-        FrameSite::MateStep { constraint, .. } => Some(constraint),
-        FrameSite::Listed { .. } | FrameSite::Step { .. } => None,
+        FrameSite::Listed { index } | FrameSite::Step { index } => Some(index),
     }
 }
 
@@ -332,8 +303,10 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // A constraint's address: the placement is the subject, and the
         // id beside it names the constraint.
         EditError::UnknownConstraint { node, constraint }
-        | EditError::NonFiniteAlignment {
-            node, constraint, ..
+        | EditError::MateNamedByValue {
+            node,
+            mate: constraint,
+            ..
         } => EditPayload {
             node: Some(node.id()),
             constraint: Some(*constraint),
@@ -701,16 +674,12 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             node: Some(node.id()),
             determinant: Some(*determinant),
             index: frame_index(*at),
-            side: frame_side(*at),
-            constraint: frame_constraint(*at),
             ..none
         },
         EditError::NonFinitePlacement { node, at }
         | EditError::NonRigidPlacement { node, at, .. } => EditPayload {
             node: Some(node.id()),
             index: frame_index(*at),
-            side: frame_side(*at),
-            constraint: frame_constraint(*at),
             ..none
         },
         EditError::PlacementAxis { error: _ } => none,

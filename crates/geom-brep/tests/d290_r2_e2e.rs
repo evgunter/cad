@@ -92,10 +92,10 @@ fn reexpress_a_fitted_curve_on_a_carrier_interval() {
     let back = moved.on_domain(0.0, 1.0).unwrap();
     assert_eq!(back.domain(), (0.0, 1.0));
     let drifted = back
-        .knots()
+        .knots_f64_interim()
         .knots()
         .iter()
-        .zip(fitted.knots().knots())
+        .zip(fitted.knots_f64_interim().knots())
         .filter(|(a, b)| a.to_bits() != b.to_bits())
         .count();
     assert_eq!(
@@ -160,7 +160,7 @@ fn plane_nurbs_limbs_image_lands_on_the_carriers_own_domain() {
     // applied to EVERY knot, ends included.
     let span = t1 - t0;
     let old: Vec<f64> = image
-        .knots()
+        .knots_f64_interim()
         .knots()
         .iter()
         .map(|k| t0 + span * k)
@@ -172,7 +172,10 @@ fn plane_nurbs_limbs_image_lands_on_the_carriers_own_domain() {
         "the old spelling put the image's last knot one ulp past t1"
     );
     // …and every interior knot is unchanged by the fix.
-    for (a, b) in old[3..4].iter().zip(&moved.knots().knots()[3..4]) {
+    for (a, b) in old[3..4]
+        .iter()
+        .zip(&moved.knots_f64_interim().knots()[3..4])
+    {
         assert_eq!(a.to_bits(), b.to_bits(), "interior knots are untouched");
     }
 }

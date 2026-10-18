@@ -31,10 +31,9 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind,
-    FaceName, Formula, InterfaceCrossing, InterfaceRecord, Maintenance, Mate, MateFrame,
-    MatePrimitive, Node, Placement, ProfileDoc, RecipeNodeId, RoleSeg, SideRead, SplitError,
-    StableName, apply, inline, split,
+    CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions,
+    FaceName, Formula, InterfaceCrossing, InterfaceRecord, Maintenance, Mate, Node, ProfileDoc,
+    RecipeNodeId, RoleSeg, SplitError, StableName, apply, inline, split,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, on_frame, step, step_with};
@@ -103,53 +102,40 @@ fn crossing(outer: StableName, inner: FaceName) -> InterfaceCrossing {
     }
 }
 
-/// A constraint whose two heads are the named faces, read at their own
-/// mints.
-fn mate(a: StableName, b: StableName) -> Mate<Formula> {
-    fixture::mate(
-        fixture::head(a),
-        fixture::head(b),
+/// A rest of `placed`'s face against `target`'s, each read at its own
+/// mint: `placed` is the face of the copy the constraint places.
+fn mate(target: StableName, placed: StableName) -> Mate<Formula> {
+    fixture::rest(
+        fixture::head(placed),
+        fixture::head(target),
         ContactClass::Rest,
-        Alignment {
-            a: MateFrame::authored(
-                [0.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0],
-                [1.0, 0.0, 0.0],
-                geom_core::Tol::witness(),
-            )
-            .expect("a definite frame"),
-            b: MateFrame::authored(
-                [0.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0],
-                [1.0, 0.0, 0.0],
-                geom_core::Tol::witness(),
-            )
-            .expect("a definite frame"),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Aligned,
-            clocking: None,
-        },
     )
 }
 
-/// An instance carrying `record`, pinned to the world at the identity —
-/// the shape a split leaves behind.
+/// An instance carrying `record` — pinned to the world at the identity
+/// through `pin`'s parts where a row evaluates it (the shape a split
+/// leaves behind), and otherwise a loose copy, since the doors under
+/// test read the record as data.
 fn with_record(
     doc: ProfileDoc,
     doc_ref: DocRef,
     record: InterfaceRecord,
+    pin: Option<&EvalOptions>,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
-    let (doc, _) = fixture::constrain_at(doc, instance, Mate::world_pin(Placement::IDENTITY));
-    (doc, instance)
+    match pin {
+        Some(o) => (fixture::pinned(doc, instance, o), instance),
+        None => (doc, instance),
+    }
 }
 
-/// The one name a stored constraint's face side selects.
-fn side_name(doc: &ProfileDoc, side: &SideRead<editor_core::VarId>) -> StableName {
-    let SideRead::Face(var) = side else {
-        panic!("a face side, got {side:?}")
+/// The one name a stored constraint's target pose selects.
+fn target_name(doc: &ProfileDoc, mate: &Mate) -> StableName {
+    let pose = *mate.to.pose().expect("a target read off geometry");
+    let [face] = fixture::face_reads(doc, pose)[..] else {
+        panic!("a rest's target reads one face")
     };
-    fixture::side_name(doc, *var)
+    fixture::side_name(doc, face)
 }
 
 /// The record of the instance at `id`, cloned — the subject of every
@@ -187,7 +173,7 @@ fn an_instances_payload_names_are_its_crossing_outers_in_record_order() {
             crossing(outers[1].clone(), part_side(body, CapEnd::End)),
         ],
     };
-    let (doc, instance) = with_record(doc, doc_ref, record);
+    let (doc, instance) = with_record(doc, doc_ref, record, None);
 
     let node = doc.node(instance).expect("the instance is live");
     // EQUALITY, not containment: the two `inner`s are faces of a node
@@ -236,7 +222,7 @@ fn the_insert_door_refuses_a_record_whose_outer_is_not_live() {
 
     // The control: live, so the door accepts the same record — and
     // the record it accepted is the one the fixture wrote.
-    let (live, live_instance) = with_record(doc.clone(), doc_ref, record());
+    let (live, live_instance) = with_record(doc.clone(), doc_ref, record(), None);
     assert_eq!(
         record_of(&live, live_instance),
         record(),
@@ -282,7 +268,7 @@ fn a_rebind_of_an_outer_rewrites_the_record_and_its_mate_together() {
     let record = InterfaceRecord {
         crossings: vec![crossing(from.clone(), part_side(body, CapEnd::Start))],
     };
-    let (doc, instance) = with_record(doc, doc_ref, record);
+    let (doc, instance) = with_record(doc, doc_ref, record, None);
 
     let a_body = doc.output(a, 0).expect("the instance's body");
     let (rebound, _) = step(
@@ -307,7 +293,7 @@ fn a_rebind_of_an_outer_rewrites_the_record_and_its_mate_together() {
         "the record's `outer` followed the rebind"
     );
     assert_eq!(
-        side_name(&rebound, &fixture::constraint(&rebound, crossing_mate).a),
+        target_name(&rebound, &fixture::constraint(&rebound, crossing_mate)),
         to,
         "the constraint's selection of the same face followed its own repair"
     );
@@ -330,7 +316,7 @@ fn a_rebind_of_an_unrelated_name_leaves_the_record_untouched() {
     let record = InterfaceRecord {
         crossings: vec![crossing(outer.clone(), part_side(body, CapEnd::Start))],
     };
-    let (doc, instance) = with_record(doc, doc_ref, record);
+    let (doc, instance) = with_record(doc, doc_ref, record, None);
     let before = record_of(&doc, instance);
     let b_body = doc.output(b, 0).expect("the instance's body");
 
@@ -375,7 +361,7 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
     let record = InterfaceRecord {
         crossings: vec![crossing(outer.clone(), part_side(body, CapEnd::Start))],
     };
-    let (doc, instance) = with_record(doc, doc_ref, record);
+    let (doc, instance) = with_record(doc, doc_ref, record, None);
 
     let opts = fixture::resolver::with_resolver(store);
     let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
@@ -448,7 +434,7 @@ fn a_rebind_of_a_name_equal_to_an_inner_leaves_the_inner_alone() {
     let record = InterfaceRecord {
         crossings: vec![crossing(in_part(zero, body, CapEnd::End), inner.clone())],
     };
-    let (doc, instance) = with_record(doc, doc_ref, record);
+    let (doc, instance) = with_record(doc, doc_ref, record, None);
     let before = record_of(&doc, instance);
     let collide_body = doc.output(collide, 0).expect("the instance's body");
 
@@ -499,7 +485,7 @@ fn an_instances_record_answers_no_read_site() {
             ),
         ],
     };
-    let (doc, instance) = with_record(doc, doc_ref, record);
+    let (doc, instance) = with_record(doc, doc_ref, record, None);
 
     let node = doc.node(instance).expect("the instance is live");
     assert!(
@@ -542,7 +528,12 @@ fn a_split_that_takes_an_instance_naming_a_kept_node_is_refused() {
     let record = InterfaceRecord {
         crossings: vec![crossing(outer.clone(), part_side(body, CapEnd::End))],
     };
-    let (doc, carrier) = with_record(doc, doc_ref, record);
+    let (doc, carrier) = with_record(
+        doc,
+        doc_ref,
+        record,
+        Some(&fixture::resolver::with_resolver(store.clone())),
+    );
 
     let cut: std::collections::BTreeSet<RecipeNodeId> = [carrier].into_iter().collect();
     let refused = split(
@@ -598,7 +589,12 @@ fn inlining_an_instance_with_a_record_splices_the_parts_own_nodes() {
     let record = InterfaceRecord {
         crossings: vec![crossing(outer, part_side(body, CapEnd::End))],
     };
-    let (doc, instance) = with_record(doc, doc_ref, record);
+    let (doc, instance) = with_record(
+        doc,
+        doc_ref,
+        record,
+        Some(&fixture::resolver::with_resolver(store.clone())),
+    );
     let before = doc.len();
 
     let back = inline(

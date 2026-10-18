@@ -56,16 +56,17 @@ fn part_of(id: DocumentId, side: f64) -> ProfileDoc {
 }
 
 /// An assembly-shaped document under `id`: two instances of `part_ref`,
-/// the second translated, both pinned to the world.
-fn assembly_of(id: DocumentId, part_ref: DocRef) -> (ProfileDoc, Vec<RecipeNodeId>) {
+/// the second translated, both pinned to the world. `o` reaches the
+/// part.
+fn assembly_of(
+    id: DocumentId,
+    part_ref: DocRef,
+    o: &EvalOptions,
+) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let doc = ProfileDoc::empty(id, Tol::witness());
-    let (doc, a) = insert(doc, Node::instantiate_part(part_ref));
+    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(part_ref), o);
     let (doc, b) = insert(doc, Node::instantiate_part(part_ref));
-    let doc = pinned_at(
-        doc,
-        b,
-        editor_core::Placement::literal(&Frame::translation([4.0, 0.0, 0.0])),
-    );
+    let doc = fixture::pin(doc, b, &Frame::translation([4.0, 0.0, 0.0]), o);
     (doc, vec![a, b])
 }
 
@@ -74,7 +75,8 @@ fn assembly_of(id: DocumentId, part_ref: DocRef) -> (ProfileDoc, Vec<RecipeNodeI
 fn pinned_at(
     doc: ProfileDoc,
     placement: RecipeNodeId,
-    pose: editor_core::Placement<editor_core::Formula>,
+    pose: &Frame,
+    o: &EvalOptions,
 ) -> ProfileDoc {
     let doc = fixture::bundle(&doc, placement)
         .into_iter()
@@ -88,7 +90,7 @@ fn pinned_at(
             )
             .0
         });
-    fixture::constrain_at(doc, placement, editor_core::Mate::world_pin(pose)).0
+    fixture::pin(doc, placement, pose, o)
 }
 
 fn run(
@@ -384,8 +386,8 @@ fn assemble_refuses_an_evaluation_of_another_document() {
     let mut store = PartStore::default();
     let part_ref = store.insert(part("docm4-a3-asm-part", 1.0), Tol::witness());
     let opts = with_resolver(store);
-    let (a, _) = assembly_of(DocumentId::derive("docm4-a3-asm-a"), part_ref);
-    let (b, _) = assembly_of(DocumentId::derive("docm4-a3-asm-b"), part_ref);
+    let (a, _) = assembly_of(DocumentId::derive("docm4-a3-asm-a"), part_ref, &opts);
+    let (b, _) = assembly_of(DocumentId::derive("docm4-a3-asm-b"), part_ref, &opts);
     let ev_a = run(&a, None, &opts);
 
     match assemble(&b, &ev_a, Tol::witness()).expect_err("refuses") {
@@ -405,10 +407,10 @@ fn assemble_refuses_an_evaluation_of_another_document() {
 fn solved_poses_placement_refuses_another_document() {
     let mut store = PartStore::default();
     let part_ref = store.insert(part("docm4-a3-poses-part", 1.0), Tol::witness());
-    let (a, ids_a) = assembly_of(DocumentId::derive("docm4-a3-poses-a"), part_ref);
-    let (b, _) = assembly_of(DocumentId::derive("docm4-a3-poses-b"), part_ref);
-
     let o = with_resolver(store);
+    let (a, ids_a) = assembly_of(DocumentId::derive("docm4-a3-poses-a"), part_ref, &o);
+    let (b, _) = assembly_of(DocumentId::derive("docm4-a3-poses-b"), part_ref, &o);
+
     let poses = solve(&a, &o, Tol::witness());
     assert_eq!(poses.document(), a.id());
     poses
@@ -451,7 +453,7 @@ fn a_matched_pair_gathers_bit_identically() {
     let mut store = PartStore::default();
     let part_ref = store.insert(part("docm4-a3-match-part", 1.0), Tol::witness());
     let opts = with_resolver(store);
-    let (asm, _) = assembly_of(DocumentId::derive("docm4-a3-match-asm"), part_ref);
+    let (asm, _) = assembly_of(DocumentId::derive("docm4-a3-match-asm"), part_ref, &opts);
     let cold = run(&asm, None, &opts);
     let warm = run(&asm, Some(&cold), &opts);
     let p1 = product(&asm, &cold, Tol::witness()).expect("gathers");
@@ -476,7 +478,7 @@ fn the_memo_still_serves_a_same_document_re_evaluation() {
     let mut store = PartStore::default();
     let part_ref = store.insert(part("docm4-a4-part", 1.0), Tol::witness());
     let opts = with_resolver(store);
-    let (asm, ids) = assembly_of(DocumentId::derive("docm4-a4-asm"), part_ref);
+    let (asm, ids) = assembly_of(DocumentId::derive("docm4-a4-asm"), part_ref, &opts);
 
     let cold = run(&asm, None, &opts);
     assert_eq!(cold.reused, 0, "a cold run has nothing to reuse");
@@ -489,7 +491,8 @@ fn the_memo_still_serves_a_same_document_re_evaluation() {
     let moved = pinned_at(
         asm.clone(),
         ids[1],
-        editor_core::Placement::literal(&Frame::translation([9.0, 0.0, 0.0])),
+        &Frame::translation([9.0, 0.0, 0.0]),
+        &opts,
     );
     let after = run(&moved, Some(&warm), &opts);
     assert_eq!(

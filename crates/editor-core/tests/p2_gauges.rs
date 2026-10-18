@@ -1,21 +1,19 @@
-//! **EDIT-PLACEMENT P2 over placements — world pins, mate-placed
-//! copies and loose copies** (ASSEMBLY.md A4, A9, A11; D10, Spaces).
+//! **EDIT-PLACEMENT P2 over placements — world pins, seated copies
+//! and loose copies** (ASSEMBLY.md A4, A9, A11; D10, Spaces).
 //!
-//! An instance is a placement: its bundle pins its copy. One world pin
-//! puts it in the world at the pin's pose, which may read a document
-//! parameter; a mate puts it where its target's copy says; a bundle
-//! that pins less leaves it a loose copy, in a space of its own. No edit
-//! records a solved frame, so removing what pins a copy is never refused
-//! and a log replays without a solve; the product is exactly the copies
-//! whose space reaches the world, and nothing outside a loose copy's
-//! space is compared with it. The world pose an evaluation composes is
-//! `A ∘ F ∘ B` — the placers' offsets, the anchor's world pin, the
-//! solved representatives — and every lane composes the same. Split and
-//! inline carry every bundle verbatim.
+//! An instance is a placement: its bundle pins its copy, and an empty
+//! bundle leaves it loose, in a space of its own. One world pin puts it
+//! in the world at the pin's pose, which may read a document parameter;
+//! a seat puts it where its target's copy says. No edit records a
+//! solved frame, so removing what pins a copy is never refused and a
+//! log replays without a solve; the product is exactly the copies whose
+//! space reaches the world, and nothing outside a loose copy's space is
+//! compared with it. Every lane poses alike. Split and inline carry
+//! every bundle verbatim.
 //!
 //! The rows build their scenes from two literal block parts: a wide
 //! base slab and a tall top block, the top seated on the base by one
-//! `Rest` frame coincidence, as `msolve1_transform_aware` seats them.
+//! `Rest` and the values that square it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -26,15 +24,16 @@ use std::sync::Arc;
 use crate::fixture;
 use crate::wire::doctored;
 
+use editor_core::pose::PoseRole;
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocRef, DocumentId,
-    EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, Maintenance, Mate, MateFrame,
-    MatePrimitive, MateRef, MeasurePrimitive, Node, NodeErrorKind, PartResolver, PersistError,
-    Placement, PoseRefusal, ProfileDoc, RecipeNodeId, RefusingReach, SitedFace, SitedRef, Space,
-    StableName, Step, ValuePayload, VarName, apply, apply_replayed, evaluate, load, product, save,
+    CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation,
+    Formula, Frame, FreeValue, FreeVar, Maintenance, MateRef, MeasurePrimitive, Node,
+    NodeErrorKind, Operand, PartResolver, PersistError, PoseRefusal, ProfileDoc, ProfileProgram,
+    RecipeNodeId, RefusingReach, SitedFace, SitedRef, SlideAxis, Space, StableName, Target, Value,
+    ValuePayload, VarName, WorldRead, apply, apply_replayed, evaluate, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, head, head_at, insert, len, offset_of, on_frame, run, scl, solve, step, xform};
+use fixture::{ang, head, insert, len, offset_of, on_frame, run, solve, step, xform};
 use geom_core::linalg::Affine3;
 use geom_core::{Bounds, Interval, Tol};
 use topo::Body;
@@ -165,55 +164,81 @@ fn seat_map(
     )
 }
 
-pub(crate) fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
-        .expect("a definite frame")
+/// **"Mate the top to the base"**: the top block's bottom cap seated on
+/// the base's top cap with the top's origin at `(1, 1)` of the base's
+/// ([`seat_on`]).
+pub(crate) fn seat(
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    top: SitedFace,
+    base: SitedFace,
+) -> (ProfileDoc, MateRef) {
+    seat_on(doc, placement, top, base, [1.0, 1.0])
 }
 
-/// **"Mate the top to the base"**: the top block's bottom cap (the
-/// FIRST operand, the copy the constraint places) seated on the base's
-/// top cap at `(1, 1)`, outward normals opposed.
-pub(crate) fn seat(top: SitedFace, base: SitedFace) -> Mate<Formula> {
-    seat_on(top, base, [1.0, 1.0, BASE_HEIGHT])
+/// **`mover`'s face seated on `onto`'s at `at`**: the two planes resting
+/// against each other, outward normals opposed, and a value on each
+/// freedom the rest leaves — the mover's origin `at` from the target's
+/// along the plane, and no spin.
+pub(crate) fn seat_on(
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    mover: SitedFace,
+    onto: SitedFace,
+    at: [f64; 2],
+) -> (ProfileDoc, MateRef) {
+    let (doc, mate, _) = seat_edits(doc, placement, mover, onto, at);
+    (doc, mate)
 }
 
-/// [`seat`] onto a cap whose seat point is `at`, in its own part's
-/// coordinates.
-pub(crate) fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Mate<Formula> {
-    fixture::mate(
-        mover,
-        onto,
-        ContactClass::Rest,
-        Alignment {
-            a: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
-            b: frame(at, [0.0, 0.0, 1.0]),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Opposed,
-            clocking: None,
-        },
-    )
+/// [`seat_on`], with the edits that wrote it, in order: the rest, then
+/// its three values.
+pub(crate) fn seat_edits(
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    mover: SitedFace,
+    onto: SitedFace,
+    at: [f64; 2],
+) -> (ProfileDoc, MateRef, Vec<DocEdit<ProfileProgram>>) {
+    let rest = DocEdit::AddConstraint {
+        placement,
+        mate: Box::new(fixture::rest(mover, onto, ContactClass::Rest)),
+        fresh: Vec::new(),
+    };
+    let applied = apply(&doc, &rest, Tol::witness(), &RefusingReach)
+        .unwrap_or_else(|e| panic!("the rest is admitted: {e}"));
+    let mate = MateRef::new(placement, applied.record.minted_constraints[0]);
+    let mut edits = vec![rest];
+    let doc = [
+        (Coord::Slide(SlideAxis::X), len(at[0])),
+        (Coord::Slide(SlideAxis::Y), len(at[1])),
+        (Coord::Spin, ang(0.0)),
+    ]
+    .into_iter()
+    .fold(applied.doc, |doc, (coord, by)| {
+        let edit = DocEdit::AddValue {
+            placement,
+            value: Box::new(Value {
+                mate: mate.id,
+                coord,
+                by,
+            }),
+            fresh: Vec::new(),
+        };
+        let doc = step(doc, edit.clone()).0;
+        edits.push(edit);
+        doc
+    });
+    (doc, mate, edits)
 }
 
 pub(crate) fn lift() -> VarName {
     VarName::from_static("lift")
 }
 
-/// A world pose at `[0, 0, lift]`, turned `angle` about z — a pose the
-/// document's `lift` drives.
-pub(crate) fn lifting_pose(angle: f64) -> Placement<Formula> {
-    Placement::from(Step::Rigid {
-        translation: [
-            len(0.0),
-            len(0.0),
-            Formula::named(lift(), Dimension::Length),
-        ],
-        axis: [0.0, 0.0, 1.0].map(scl),
-        angle: ang(angle),
-    })
-}
-
-pub(crate) fn literal<S: Clone>(t: [f64; 3]) -> Placement<S> {
-    Placement::literal(&Frame::translation(t))
+/// The pose a translation by `t` is.
+pub(crate) fn literal(t: [f64; 3]) -> Frame {
+    Frame::translation(t)
 }
 
 pub(crate) fn set_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
@@ -238,26 +263,54 @@ pub(crate) fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
     .0
 }
 
-/// **An instance of `part` pinned to the world at `pose`**: a bundle of
-/// one world pin.
+/// **An instance of `part` pinned to the world at `pose`** over its own
+/// geometry ([`fixture::pin`]), `o` resolving the part.
 pub(crate) fn pinned(
     doc: ProfileDoc,
     part: DocRef,
-    pose: Placement<Formula>,
+    pose: Frame,
+    o: &EvalOptions,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, id) = insert(doc, fixture::mated_instance(part));
-    (fixture::constrain_at(doc, id, Mate::world_pin(pose)).0, id)
+    (fixture::pin(doc, id, &pose, o), id)
+}
+
+/// **An instance of `part` pinned to the world at `pose` lifted by the
+/// document's `lift`**: the pin at `pose` over its geometry, its world
+/// read slid along the world's z by `lift`, so one document parameter
+/// moves it.
+pub(crate) fn pinned_lifting(
+    doc: ProfileDoc,
+    part: DocRef,
+    pose: Frame,
+    o: &EvalOptions,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, id) = insert(doc, fixture::mated_instance(part));
+    let copy = Operand::Var(doc.output(id, 0).expect("an instance defines its copies"));
+    let mut pin = editor_core::pin_at(&doc, &copy, &pose, o, Tol::witness())
+        .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
+    let Target::World(world) = pin.to else {
+        unreachable!("a pin reads the world")
+    };
+    pin.to = Target::World(world.slide(
+        WorldRead::through(PoseRole::Z),
+        Formula::named(lift(), Dimension::Length),
+    ));
+    (fixture::constrain_at(doc, id, pin).0, id)
 }
 
 /// **`placement`'s bundle replaced** by one world pin at `pose`, or
-/// emptied (a loose copy) for `None`.
+/// emptied (a loose copy) for `None`; `o` resolves its part.
 pub(crate) fn set_pin(
     doc: ProfileDoc,
     placement: RecipeNodeId,
-    pose: Option<Placement<Formula>>,
+    pose: Option<Frame>,
+    o: &EvalOptions,
 ) -> ProfileDoc {
+    // Values first: a mate goes once no value names it.
     let doc = fixture::bundle(&doc, placement)
         .into_iter()
+        .rev()
         .fold(doc, |doc, c| {
             step(
                 doc,
@@ -269,8 +322,43 @@ pub(crate) fn set_pin(
             .0
         });
     match pose {
-        Some(pose) => fixture::constrain_at(doc, placement, Mate::world_pin(pose)).0,
+        Some(pose) => fixture::pin(doc, placement, &pose, o),
         None => doc,
+    }
+}
+
+/// **Whether the interval lane may escalate where a Transform reads a
+/// copy pinned over its geometry** (`pin_at` at a pose off the
+/// identity): at ε = 1e-12 the copy carries its geometry's enclosure, a
+/// few ε wide, into the map, and certifying the Transform's moved edges
+/// escalates at some values of the pin's parameters
+/// (`work/intent/a-pin-read-off-a-copys-geometry-carries-its-width-into-the-copy.md`).
+pub(crate) fn a_pinned_copy_escalates_its_transform() -> bool {
+    geom_core::Tol::witness().eps().to_bits() == 1e-12f64.to_bits()
+}
+
+/// **`check` where `id` evaluates, else the run's escalation**: at the
+/// ε where a copy pinned over its geometry may escalate
+/// ([`a_pinned_copy_escalates_its_transform`]), a node that holds no
+/// value is held to an escalation the run made (a refusal of its own
+/// or of a node it is poisoned through), never another refusal; at
+/// every other ε, and wherever it evaluates, `check` runs.
+pub(crate) fn encloses_or_escalates<T: geom_core::Decide>(
+    ev: &Evaluation<T>,
+    id: RecipeNodeId,
+    check: impl FnOnce(),
+) {
+    if a_pinned_copy_escalates_its_transform() && ev.value(id).is_none() {
+        assert!(
+            ev.order
+                .iter()
+                .filter_map(|&at| ev.node_error(at))
+                .any(|error| !error.escalations.is_empty()),
+            "{id:?} holds no value, and the run escalated nowhere: {:?}",
+            ev.node_error(id)
+        );
+    } else {
+        check();
     }
 }
 
@@ -322,8 +410,8 @@ pub(crate) fn resolver(store: PartStore) -> Arc<dyn PartResolver> {
 
 /// **An instance pinned to the world at a composed parametric pose sits
 /// there, and one document parameter moves every pose reading it.** One
-/// instance is pinned at `[0, 0, lift]`, another at that pose composed
-/// with `[5, 0, 0]` and `[0, 1, 0]`. The world pose door and the
+/// instance is pinned at `[0, 0, lift]`, another at `[5, 0, 0]` composed
+/// with `[0, 1, 0]` and lifted the same. The world pose door and the
 /// evaluated bodies agree, and a value edit to `lift` moves both
 /// instances by the same amount.
 #[test]
@@ -331,15 +419,14 @@ fn a_world_pin_at_a_composed_parametric_pose_places_its_instance_and_a_parameter
     let p = parts("p2-chain");
     let doc = ProfileDoc::empty(DocumentId::derive("p2-chain"), Tol::witness());
     let doc = declare_lift(doc, 2.0);
-    let (doc, outer) = pinned(doc, p.base, lifting_pose(0.0));
-    let (doc, inner) = pinned(
+    let o = p.opts();
+    let (doc, outer) = pinned_lifting(doc, p.base, Frame::IDENTITY, &o);
+    let (doc, inner) = pinned_lifting(
         doc,
         p.base,
-        lifting_pose(0.0)
-            .compose(&literal([5.0, 0.0, 0.0]))
-            .compose(&literal([0.0, 1.0, 0.0])),
+        literal([5.0, 0.0, 0.0]).compose(&literal([0.0, 1.0, 0.0])),
+        &o,
     );
-    let o = p.opts();
     let check = |doc: &ProfileDoc, z: f64| {
         let poses = solve(doc, &o, Tol::witness());
         let at = |id| poses.placement(doc, id).expect("placed").translation;
@@ -362,76 +449,104 @@ fn a_world_pin_at_a_composed_parametric_pose_places_its_instance_and_a_parameter
     check(&doc, 7.0);
 }
 
-// ---- Row 2: insert at the origin; the constraint door ----
+// ---- Row 2: insert loose; pin; the constraint door ----
 
-/// **An inserted instance stands on the world at the identity, a bundle
-/// left empty is a loose copy, and a constraint added to it places it
-/// in an edit that replays without solving.** The edit records no
-/// frame, a replay with no reach produces the same document and report,
-/// and the whole log saved from empty loads with no store; the mate
-/// then places the top in the world.
+/// **An inserted instance is loose until a constraint pins it, and a
+/// constraint added to it places it in an edit that replays without
+/// solving.** Pinned at the identity it sits at the world's origin. The
+/// seat's edits record no frame, a replay with no reach produces the
+/// same document and report, and the whole log saved from empty loads
+/// with no store; the seat then places the top in the world.
 #[test]
 fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_replayably() {
     let p = parts("p2-door");
+    let o = p.opts();
     let empty = ProfileDoc::empty(DocumentId::derive("p2-door"), Tol::witness());
     let (doc, base) = insert(empty.clone(), Node::instantiate_part(p.base));
+    assert!(
+        fixture::bundle(&doc, base).is_empty(),
+        "an inserted instance is loose"
+    );
+    let pin = DocEdit::AddConstraint {
+        placement: base,
+        mate: Box::new(
+            editor_core::pin_at(
+                &doc,
+                &Operand::Var(doc.output(base, 0).expect("an instance defines its copies")),
+                &Frame::IDENTITY,
+                &o,
+                Tol::witness(),
+            )
+            .expect("the copy pins over its geometry"),
+        ),
+        fresh: Vec::new(),
+    };
+    let doc = step(doc, pin.clone()).0;
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
-    assert_eq!(offset_of(&doc, base), Some(Placement::IDENTITY));
+    assert!(offset_of(&doc, base).is_some(), "the base is pinned");
     assert_eq!(offset_of(&doc, top), None);
-    let o = p.opts();
     let poses = solve(&doc, &o, Tol::witness());
     assert!(
-        poses
-            .placement(&doc, base)
-            .expect("a pinned instance is placed")
-            .bit_eq(&Frame::IDENTITY),
-        "an inserted instance sits at the world's origin"
+        poses.at_identity(base),
+        "a copy pinned at the identity sits at the world's origin"
     );
     assert_eq!(
         poses.space(top),
         Some(Space::Loose { root: top }),
         "an empty bundle is a loose copy"
     );
-    let mate = DocEdit::AddConstraint {
-        placement: top,
-        mate: Box::new(seat(head(p.top_cap(top)), head(p.base_cap(base)))),
-        fresh: Vec::new(),
-    };
-    let applied = apply(&doc, &mate, Tol::witness(), &RefusingReach)
-        .expect("a constraint with no rider asks no store");
-    assert_eq!(
-        applied.maintenance,
-        Vec::<Maintenance>::new(),
-        "the edit records no frame"
+    let (seated, _, seat) = seat_edits(
+        doc.clone(),
+        top,
+        head(p.top_cap(top)),
+        head(p.base_cap(base)),
+        [1.0, 1.0],
     );
-    assert_eq!(offset_of(&applied.doc, base), Some(Placement::IDENTITY));
-    let replayed = apply_replayed(&doc, &mate, Tol::witness()).expect("replay needs no reach");
-    assert!(replayed.doc.bit_eq(&applied.doc), "the replay is the edit");
-    assert_eq!(replayed.maintenance, applied.maintenance);
-    let log = vec![
+    let applied = seat.iter().fold(doc.clone(), |doc, edit| {
+        let applied =
+            apply(&doc, edit, Tol::witness(), &RefusingReach).expect("a constraint asks no store");
+        assert_eq!(
+            applied.maintenance,
+            Vec::<Maintenance>::new(),
+            "the edit records no frame"
+        );
+        applied.doc
+    });
+    assert!(applied.bit_eq(&seated));
+    assert!(fixture::same_offset(&applied, base, &doc, base));
+    let replayed = seat.iter().fold(doc.clone(), |doc, edit| {
+        apply_replayed(&doc, edit, Tol::witness())
+            .expect("replay needs no reach")
+            .doc
+    });
+    assert!(replayed.bit_eq(&applied), "the replay is the edit");
+    let log: Vec<DocEdit<ProfileProgram>> = [
         DocEdit::InsertNode {
             node: Box::new(Node::instantiate_part(p.base)),
             fresh: Vec::new(),
         },
+        pin,
         DocEdit::InsertNode {
             node: Box::new(fixture::mated_instance(p.top)),
             fresh: Vec::new(),
         },
-        mate,
-    ];
+    ]
+    .into_iter()
+    .chain(seat)
+    .collect();
     let text = save(&empty, &log, Tol::witness()).expect("the log saves");
     let loaded = load(&text, Tol::witness()).expect("the log loads with no store");
     assert!(
-        loaded.doc.bit_eq(&applied.doc),
+        loaded.doc.bit_eq(&applied),
         "and replays to the same document"
     );
-    // The mate places: the top seats on the base, in the world.
+    // The seat places: the top on the base, in the world.
     let poses = solve(&loaded.doc, &o, Tol::witness());
     assert_eq!(poses.fault(top), None);
     assert_eq!(
         poses.space(top),
         Some(Space::World),
-        "the mate placed the top"
+        "the seat placed the top"
     );
     close(
         poses
@@ -445,20 +560,25 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
 
 // ---- Row 3: what is never refused, and the loose copy ----
 
-/// **Removing a world pin or a placing mate is not refused, and what
-/// stays placed is recomputed.** Removing the base's world pin leaves
-/// the base loose and the top, pinned to it, in the base's space;
-/// removing the mate leaves the top loose by itself. Each loose copy
-/// still evaluates, in its own space, and has no world pose.
+/// **Removing a world pin or a value of a placing seat is not refused,
+/// and what stays placed is recomputed.** Removing the base's world pin
+/// leaves the base loose and the top, pinned to it, in the base's
+/// space; removing the seat's spin leaves the top loose by itself. Each
+/// loose copy still evaluates, in its own space, and has no world pose.
 #[test]
 fn removing_what_pins_a_copy_is_never_refused_and_leaves_it_loose() {
     let p = parts("p2-delete");
-    let doc = ProfileDoc::empty(DocumentId::derive("p2-delete"), Tol::witness());
-    let (doc, base) = pinned(doc, p.base, literal([0.0, 5.0, 0.0]));
-    let (doc, top) = insert(doc, fixture::mated_instance(p.top));
-    let (doc, mate) = fixture::constrain(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
-    let pin = fixture::bundle(&doc, base)[0].id;
     let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("p2-delete"), Tol::witness());
+    let (doc, base) = pinned(doc, p.base, literal([0.0, 5.0, 0.0]), &o);
+    let (doc, top) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, _) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
+    let pin = fixture::bundle(&doc, base)[0].id;
+    let spin = fixture::bundle(&doc, top)
+        .iter()
+        .find(|c| c.value().is_some_and(|v| v.coord == Coord::Spin))
+        .expect("the seat's spin")
+        .id;
     for (what, edit, loose) in [
         (
             "the world pin",
@@ -469,10 +589,10 @@ fn removing_what_pins_a_copy_is_never_refused_and_leaves_it_loose() {
             vec![(base, base), (top, base)],
         ),
         (
-            "the placing mate",
+            "the seat's spin",
             DocEdit::RemoveConstraint {
                 placement: top,
-                constraint: mate.id,
+                constraint: spin,
             },
             vec![(top, top)],
         ),
@@ -480,7 +600,7 @@ fn removing_what_pins_a_copy_is_never_refused_and_leaves_it_loose() {
         let applied = apply(&doc, &edit, Tol::witness(), &RefusingReach)
             .unwrap_or_else(|e| panic!("removing {what} is never refused: {e}"));
         // The only maintenance is the silent retirement of the
-        // anonymous variables the removed constraint's frames read.
+        // anonymous variables the removed constraint's numbers read.
         assert!(
             applied
                 .maintenance
@@ -521,21 +641,21 @@ fn removing_what_pins_a_copy_is_never_refused_and_leaves_it_loose() {
 fn a_loose_copy_is_gathered_and_measured_against_nothing_outside_it() {
     let p = parts("p2-space");
     let doc = ProfileDoc::empty(DocumentId::derive("p2-space"), Tol::witness());
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
-    let (doc, top) = pinned(doc, p.top, literal([0.0, 0.0, BASE_HEIGHT]));
+    let o = p.opts();
+    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(p.base), &o);
+    let (doc, top) = pinned(doc, p.top, literal([0.0, 0.0, BASE_HEIGHT]), &o);
     let measure = || Node::Measure {
         primitive: MeasurePrimitive::Distance {
             a: SitedRef::at_mint(p.base_cap(base)).into(),
             b: SitedRef::at_mint(p.top_cap(top)).into(),
         },
     };
-    let o = p.opts();
     // Both in the world: the measure answers.
     let (measured, at) = insert(doc.clone(), measure());
     let placed = run(&measured, &o);
     assert!(placed.value(at).is_some(), "{:?}", placed.node_error(at));
 
-    let doc = set_pin(doc, top, None);
+    let doc = set_pin(doc, top, None, &o);
     let ev = run(&doc, &o);
     let world = |id| {
         topo::mass_properties(body_of(&ev, id).as_ref(), Tol::witness())
@@ -579,8 +699,9 @@ fn a_loose_copy_is_gathered_and_measured_against_nothing_outside_it() {
 #[test]
 fn an_old_file_refuses_and_a_loose_instance_saves_and_loads() {
     let p = parts("p2-file");
+    let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("p2-file"), Tol::witness());
-    let (doc, base) = pinned(doc, p.base, literal([0.0, 5.0, 0.0]));
+    let (doc, base) = pinned(doc, p.base, literal([0.0, 5.0, 0.0]), &o);
     let pin = fixture::bundle(&doc, base)[0].id;
     let text = save(&doc, &[], Tol::witness()).expect("saves");
 
@@ -614,44 +735,38 @@ fn an_old_file_refuses_and_a_loose_instance_saves_and_loads() {
         "a maintenance-carrying log entry refuses"
     );
 
-    let loose = set_pin(doc, base, None);
+    let loose = set_pin(doc, base, None, &o);
     let text = save(&loose, &[], Tol::witness()).expect("a loose instance saves");
     let loaded = load(&text, Tol::witness()).expect("and loads");
     assert!(loaded.doc.bit_eq(&loose));
     assert_eq!(
-        solve(&loaded.doc, &p.opts(), Tol::witness()).space(base),
+        solve(&loaded.doc, &o, Tol::witness()).space(base),
         Some(Space::Loose { root: base })
     );
 }
 
-// ---- Row 5: A ∘ F ∘ B, in every lane ----
+// ---- Row 5: a parametric pin, in every lane ----
 
-/// **A transform between a mate's operand and its instance, under a
-/// parametric world pin, poses alike in every lane.** The base is
-/// pinned at a pose turned a quarter of a radian about z and lifted by
-/// `lift`; the top's mate reads it through a `+10 z` transform, whose
-/// output is placed in the world. The evaluated pose is `A ∘ F ∘ B` —
-/// the transform's inverse offset `A`, the base's pin `F`, the solved
-/// seat `B`:
+/// **A seat under a parametric world pin poses alike in every lane.**
+/// The base is pinned at a pose turned a quarter of a radian about z and
+/// lifted by `lift`; the top is seated on it, and a `+10 z` transform
+/// reads the seated top:
 ///
-/// - the mated faces seat in the product exactly as on a document with
-///   no pin pose and no transform (dropping `A` lifts the transform's
-///   copy 10 off it);
-/// - a value edit to `lift` moves every copy by the same amount
-///   (dropping `F` moves none);
+/// - the mated faces seat in the product exactly as on a document whose
+///   base is pinned at the identity;
+/// - a value edit to `lift` moves every copy by the same amount;
 /// - the `Interval` lane encloses every point of each body the `f64`
-///   lane computes (dropping `F` in one lane parts the two).
+///   lane computes.
 #[test]
-fn a_placer_between_a_mates_operand_and_its_instance_under_a_parametric_pin_poses_alike_in_every_lane()
- {
+fn a_seat_under_a_parametric_pin_poses_alike_in_every_lane() {
     let p = parts("p2-afb");
     let o = p.opts();
 
-    // The control: the base at the identity, no transform.
+    // The control: the base at the identity.
     let control = ProfileDoc::empty(DocumentId::derive("p2-afb-control"), Tol::witness());
-    let (control, cb) = insert(control, Node::instantiate_part(p.base));
+    let (control, cb) = fixture::insert_pinned(control, Node::instantiate_part(p.base), &o);
     let (control, ct) = insert(control, fixture::mated_instance(p.top));
-    let (control, _) = fixture::constrain(control, seat(head(p.top_cap(ct)), head(p.base_cap(cb))));
+    let (control, _) = seat(control, ct, head(p.top_cap(ct)), head(p.base_cap(cb)));
     let seat_control = seat_map(
         &control,
         &run(&control, &o),
@@ -661,15 +776,12 @@ fn a_placer_between_a_mates_operand_and_its_instance_under_a_parametric_pin_pose
 
     let doc = ProfileDoc::empty(DocumentId::derive("p2-afb"), Tol::witness());
     let doc = declare_lift(doc, 2.0);
-    let (doc, base) = pinned(doc, p.base, lifting_pose(0.25));
+    let turned = Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.25, [0.0; 3], fixture::band())
+        .expect("a literal axis");
+    let (doc, base) = pinned_lifting(doc, p.base, turned, &o);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, mate) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
     let (doc, lifted) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
-    let (doc, lifted_copy) = fixture::place(doc, lifted);
-    let (doc, mate) = fixture::constrain_at(
-        doc,
-        top,
-        seat(head_at(lifted, p.top_cap(top)), head(p.base_cap(base))),
-    );
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate.placement), None);
     assert_eq!(poses.space(top), Some(Space::World));
@@ -679,15 +791,15 @@ fn a_placer_between_a_mates_operand_and_its_instance_under_a_parametric_pin_pose
         &doc,
         &ev,
         (&p.base_cap(base), base),
-        (&p.top_cap(top), lifted_copy),
+        (&p.top_cap(top), top),
         &seat_control,
-        "A ∘ F ∘ B",
+        "the seat under the pin",
     );
 
-    // F: the pin's parameter moves every copy.
+    // The pin's parameter moves every copy.
     let moved = set_lift(doc.clone(), 7.0);
     let ev_moved = run(&moved, &o);
-    for id in [base, top, lifted_copy] {
+    for id in [base, top, lifted] {
         let (before, after) = (points(&body_of(&ev, id)), points(&body_of(&ev_moved, id)));
         assert_eq!(before.len(), after.len());
         for (b, a) in before.iter().zip(&after) {
@@ -703,7 +815,7 @@ fn a_placer_between_a_mates_operand_and_its_instance_under_a_parametric_pin_pose
         &o,
         Tol::witness(),
     );
-    for id in [base, top, lifted_copy] {
+    for id in [base, top, lifted] {
         let (exact, enclosed) = (body_of(&ev, id), body_of(&lane, id));
         let lanes: Vec<_> = enclosed.points().map(|(_, p)| [p.x, p.y, p.z]).collect();
         let exact = points(&exact);
@@ -721,48 +833,17 @@ fn a_placer_between_a_mates_operand_and_its_instance_under_a_parametric_pin_pose
     }
 }
 
-/// **`A` is the identity, bit for bit, where no placer stands on the
-/// path.** With no transform and no pattern between the mate and the
-/// instance, the world pose is the anchor's pin composed onto the
-/// solved pose and nothing else: `F ∘ B`, bits equal — so no
-/// pre-existing pose moves (`msolve1_transform_aware::a7` pins `B`'s
-/// own bits).
-#[test]
-fn with_no_placer_on_the_path_the_world_pose_is_the_pin_onto_the_solve_bit_for_bit() {
-    let p = parts("p2-identity");
-    let doc = ProfileDoc::empty(DocumentId::derive("p2-identity"), Tol::witness());
-    let root =
-        Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.5, [2.0, -3.0, 0.25], fixture::band())
-            .expect("a literal axis");
-    let (doc, base) = pinned(doc, p.base, Placement::literal(&root));
-    let (doc, top) = insert(doc, fixture::mated_instance(p.top));
-    let (doc, _) = fixture::constrain(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
-    let poses = solve(&doc, &p.opts(), Tol::witness());
-    let relative = poses.relative(top).expect("the top solves");
-    assert!(
-        poses
-            .placement(&doc, top)
-            .expect("placed")
-            .bit_eq(&root.compose(&relative)),
-        "F ∘ B, nothing composed beside it"
-    );
-    assert!(
-        poses.placement(&doc, base).expect("placed").bit_eq(&root),
-        "the anchor's own pose is its pin's frame"
-    );
-}
-
 // ---- Row 6: split and inline ----
 
 /// A placed pair — the base pinned to the world at `[4, 0, 0]`, the top
-/// mated onto it — the store holding its parts, `[base, top]` and the
-/// mate.
+/// seated onto it — the store holding its parts, `[base, top]` and the
+/// seat's rest.
 pub(crate) fn placed_pair(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 2], MateRef) {
     let p = parts(label);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, base) = pinned(doc, p.base, literal([4.0, 0.0, 0.0]));
+    let (doc, base) = pinned(doc, p.base, literal([4.0, 0.0, 0.0]), &p.opts());
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
-    let (doc, mate) = fixture::constrain(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
+    let (doc, mate) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
     (p, doc, [base, top], mate)
 }
 
@@ -783,24 +864,17 @@ pub(crate) fn cut(doc: &ProfileDoc, ids: &[RecipeNodeId]) -> BTreeSet<RecipeNode
     fixture::with_placements(doc, &out)
 }
 
-/// **Each of `pattern`'s `count` copies placed in the world**, in
-/// instance order: a `Part` per copy, each placed at the identity (A10).
-pub(crate) fn place_copies(doc: ProfileDoc, pattern: RecipeNodeId, count: i64) -> ProfileDoc {
-    (0..count).fold(doc, |doc, i| {
-        let (doc, copy) = insert(
-            doc,
-            Node::Part {
-                of: pattern.into(),
-                select: editor_core::PartSelect::Instance(Formula::count(i)),
-            },
-        );
-        fixture::place(doc, copy).0
-    })
+/// **Whether the instance `out` leaves behind sits on the world at the
+/// identity**, its part resolved beside `p`'s.
+fn left_at_identity(p: &Parts, out: &editor_core::SplitOutcome) -> bool {
+    let mut store = p.store.clone();
+    store.insert(out.part.clone(), Tol::witness());
+    solve(&out.remainder, &with_resolver(store), Tol::witness()).at_identity(out.instance)
 }
 
 /// **A cut of one placed pair moves as selected** (A4). The instance
 /// left behind sits on the world at the identity, the base keeps its
-/// world pin in the part, and the top keeps its mate.
+/// world pin in the part, and the top keeps its seat.
 #[test]
 fn a_cut_of_one_placed_pair_moves_its_bundles_as_they_are() {
     let (p, doc, [base, top], _) = placed_pair("p2-one-group");
@@ -813,25 +887,28 @@ fn a_cut_of_one_placed_pair_moves_its_bundles_as_they_are() {
         o.resolver.as_ref(),
     )
     .expect("one placed pair");
-    assert_eq!(
-        offset_of(&out.remainder, out.instance),
-        Some(Placement::IDENTITY),
+    assert!(
+        left_at_identity(&p, &out),
         "the instance sits on the world at the identity"
     );
-    assert_eq!(
-        offset_of(&out.part, out.node_map[&base]),
-        Some(literal([4.0, 0.0, 0.0])),
+    assert!(
+        offset_of(&doc, base).is_some()
+            && fixture::same_offset(&out.part, out.node_map[&base], &doc, base),
         "and the base keeps its world pin in the part"
     );
     let top_bundle = fixture::bundle(&out.part, out.node_map[&top]);
-    assert_eq!(top_bundle.len(), 1, "the top keeps its one mate");
+    assert_eq!(
+        top_bundle.len(),
+        fixture::bundle(&doc, top).len(),
+        "the top keeps its seat"
+    );
     assert_eq!(offset_of(&out.part, out.node_map[&top]), None);
 }
 
 /// **Inline at the identity, and at any other pose** (A4): at the
 /// identity the content lands verbatim, so the round trip of a cut
-/// returns the pair with the base's pin; at another pose the pose
-/// composes into the world pin of the part's anchor and nothing in the
+/// returns the pair with the base's pin; at another pose the part's
+/// world pins move by the instance's solved motion and nothing in the
 /// part moves relative to it. An instance with an empty bundle, over a
 /// part that is not one instance at the identity, has no placement to
 /// hand its bundle to and refuses typed.
@@ -856,9 +933,9 @@ fn inline_lands_verbatim_at_the_identity_and_composes_the_pin_at_any_other_pose(
     // The identity: the round trip.
     let back = editor_core::inline(&out.remainder, out.instance, &r, Tol::witness())
         .expect("the identity inlines");
-    assert_eq!(
-        offset_of(&back.doc, through(&back, base)),
-        Some(literal([4.0, 0.0, 0.0]))
+    assert!(
+        fixture::same_offset(&back.doc, through(&back, base), &doc, base),
+        "the base's pin comes back as it was"
     );
     let volume = |d: &ProfileDoc| {
         topo::mass_properties(
@@ -871,10 +948,12 @@ fn inline_lands_verbatim_at_the_identity_and_composes_the_pin_at_any_other_pose(
     assert_eq!(volume(&back.doc).to_bits(), volume(&doc).to_bits());
 
     // Another pose: the instance's pin composes into the base's.
+    let store_opts = with_resolver(store.clone());
     let shifted = set_pin(
         out.remainder.clone(),
         out.instance,
         Some(literal([0.0, 5.0, 0.0])),
+        &store_opts,
     );
     let moved = editor_core::inline(&shifted, out.instance, &r, Tol::witness())
         .expect("a pinned instance inlines at any pose");
@@ -894,7 +973,7 @@ fn inline_lands_verbatim_at_the_identity_and_composes_the_pin_at_any_other_pose(
     );
 
     // The refusal: a loose instance over a pair.
-    let loose = set_pin(out.remainder.clone(), out.instance, None);
+    let loose = set_pin(out.remainder.clone(), out.instance, None, &store_opts);
     let err = editor_core::inline(&loose, out.instance, &r, Tol::witness())
         .expect_err("a loose instance over a pair");
     assert!(
@@ -904,24 +983,20 @@ fn inline_lands_verbatim_at_the_identity_and_composes_the_pin_at_any_other_pose(
     assert!(err.to_string().contains("Recourse:"), "{err}");
 }
 
-/// **A face-based side crosses the seam with its head**: a kept top
-/// mated onto a cut base, its side reading the base framed on its head
-/// face, crosses split as its authored twin does — the head re-anchors
-/// through the instance qualifier, and the face it names in the new
-/// part is the same face — and inline carries it back, the head
-/// unwrapped onto the inner instance. The constraint solves on each
-/// document with no fault.
+/// **A face a seat reads crosses the seam with its head**: a kept top
+/// seated on a cut base, its target reading the base's top face, crosses
+/// split — the head re-anchors through the instance qualifier, and the
+/// face it names in the new part is the same face — and inline carries
+/// it back, the head unwrapped onto the inner instance. The seat solves
+/// on each document with no fault.
 #[test]
-fn a_from_face_side_crosses_split_and_inline_with_its_head() {
+fn a_face_target_crosses_split_and_inline_with_its_head() {
     let p = parts("p2-face-crossing");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("p2-face-crossing"), Tol::witness());
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(p.base), &o);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
-    let mut faced = seat(head(p.top_cap(top)), head(p.base_cap(base)));
-    faced.alignment.b = MateFrame::from_face();
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let (doc, mate) = fixture::constrain_with(doc, &reach, faced);
+    let (doc, mate) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
     assert_eq!(mate.placement, top, "the kept top holds the constraint");
     assert_eq!(solve(&doc, &o, Tol::witness()).fault(top), None);
     let out = editor_core::split(
@@ -931,14 +1006,16 @@ fn a_from_face_side_crosses_split_and_inline_with_its_head() {
         Tol::witness(),
         o.resolver.as_ref(),
     )
-    .expect("the face side crosses with its head");
+    .expect("the face crosses with its head");
     let mut store = p.store.clone();
     store.insert(out.part.clone(), Tol::witness());
     let store_opts = with_resolver(store.clone());
     let crossed = fixture::constraint(&out.remainder, mate);
-    assert_eq!(crossed.alignment.b.base, editor_core::FrameBase::Face);
-    let editor_core::SideRead::Face(side) = crossed.b else {
-        panic!("the crossed side reads a face: {crossed:?}");
+    let Target::Pose(target) = crossed.to else {
+        panic!("the crossed seat reads a pose: {crossed:?}");
+    };
+    let [side] = fixture::face_reads(&out.remainder, target)[..] else {
+        panic!("the crossed target reads one face: {crossed:?}");
     };
     assert_eq!(
         fixture::side_head(&out.remainder, side).name.node,
@@ -959,7 +1036,17 @@ fn a_from_face_side_crosses_split_and_inline_with_its_head() {
     )
     .expect("and inlines back with its head");
     let host = fixture::constraint(&back.doc, mate);
-    assert_eq!(host.alignment.b.base, editor_core::FrameBase::Face);
+    let Target::Pose(target) = host.to else {
+        panic!("the host seat reads a pose: {host:?}");
+    };
+    let [side] = fixture::face_reads(&back.doc, target)[..] else {
+        panic!("the host target reads one face: {host:?}");
+    };
+    assert_eq!(
+        fixture::side_head(&back.doc, side).name.node,
+        back.node_map[&out.node_map[&base]],
+        "the head unwraps onto the inner instance"
+    );
     let ev = run(&back.doc, &o);
     assert!(
         ev.node_error(top).is_none(),
@@ -974,10 +1061,10 @@ fn a_from_face_side_crosses_split_and_inline_with_its_head() {
 #[test]
 fn a_cut_of_two_pinned_instances_moves_verbatim() {
     let p = parts("p2-two-groups");
-    let doc = ProfileDoc::empty(DocumentId::derive("p2-two-groups"), Tol::witness());
-    let (doc, first) = pinned(doc, p.base, literal([4.0, 0.0, 0.0]));
-    let (doc, second) = pinned(doc, p.base, literal([0.0, 9.0, 0.0]));
     let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("p2-two-groups"), Tol::witness());
+    let (doc, first) = pinned(doc, p.base, literal([4.0, 0.0, 0.0]), &o);
+    let (doc, second) = pinned(doc, p.base, literal([0.0, 9.0, 0.0]), &o);
     let out = editor_core::split(
         &doc,
         &cut(&doc, &[first, second]),
@@ -986,19 +1073,17 @@ fn a_cut_of_two_pinned_instances_moves_verbatim() {
         o.resolver.as_ref(),
     )
     .expect("two pinned instances");
-    assert_eq!(
-        offset_of(&out.remainder, out.instance),
-        Some(Placement::IDENTITY),
+    assert!(
+        left_at_identity(&p, &out),
         "the instance on the world at the identity"
     );
-    assert_eq!(
-        offset_of(&out.part, out.node_map[&first]),
-        Some(literal([4.0, 0.0, 0.0]))
-    );
-    assert_eq!(
-        offset_of(&out.part, out.node_map[&second]),
-        Some(literal([0.0, 9.0, 0.0]))
-    );
+    for id in [first, second] {
+        assert!(
+            offset_of(&doc, id).is_some()
+                && fixture::same_offset(&out.part, out.node_map[&id], &doc, id),
+            "each keeps its own world pin"
+        );
+    }
 }
 
 // ---- P2-carry: the carry keeps every bundle ----
@@ -1008,9 +1093,12 @@ fn a_cut_of_two_pinned_instances_moves_verbatim() {
 /// `[base, top, second]`.
 fn pair_beside_a_base(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3]) {
     let (p, doc, [base, top], _) = placed_pair(label);
-    let (doc, second) = pinned(doc, p.base, literal([0.0, 9.0, 0.0]));
+    let (doc, second) = pinned(doc, p.base, literal([0.0, 9.0, 0.0]), &p.opts());
     (p, doc, [base, top, second])
 }
+
+/// One instance's world pin beside its image's.
+type PinPair = (Option<WorldRead<Formula>>, Option<WorldRead<Formula>>);
 
 /// Every instance's world pin in `doc` beside the one `onto` holds at
 /// its image under `map`.
@@ -1018,7 +1106,7 @@ fn pins_through(
     doc: &ProfileDoc,
     map: impl Fn(RecipeNodeId) -> RecipeNodeId,
     onto: &ProfileDoc,
-) -> Vec<(Option<Placement>, Option<Placement>)> {
+) -> Vec<PinPair> {
     doc.ids()
         .iter()
         .filter(|id| matches!(doc.node(**id), Some(Node::InstantiatePart { .. })))
@@ -1066,11 +1154,7 @@ fn a_verbatim_split_keeps_every_bundle() {
         p.opts().resolver.as_ref(),
     )
     .expect("the placements move verbatim");
-    assert_eq!(
-        offset_of(&out.remainder, out.instance),
-        Some(Placement::IDENTITY),
-        "the move is verbatim"
-    );
+    assert!(left_at_identity(&p, &out), "the move is verbatim");
     for (source, part) in pins_through(&doc, |id| out.node_map[&id], &out.part) {
         assert_eq!(part, source, "the part holds exactly the source's pins");
     }
@@ -1089,8 +1173,11 @@ fn an_inline_at_the_identity_keeps_every_bundle() {
     let mut store = p.store.clone();
     let part_ref = store.insert(part.clone(), Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("p2-carry-inline-host"), Tol::witness());
-    let (host, instance) = insert(host, Node::instantiate_part(part_ref));
-    assert_eq!(offset_of(&host, instance), Some(Placement::IDENTITY));
+    let (host, instance) = fixture::insert_pinned(
+        host,
+        Node::instantiate_part(part_ref),
+        &with_resolver(store.clone()),
+    );
     let back = editor_core::inline(&host, instance, &resolver(store), Tol::witness())
         .expect("the identity lands the content verbatim");
     let through = |id: RecipeNodeId| back.node_map[&id];
@@ -1100,6 +1187,9 @@ fn an_inline_at_the_identity_keeps_every_bundle() {
     for (source, spliced) in bundles_through(&part, through, &back.doc) {
         assert_eq!(spliced, source, "and each placement's constraints");
     }
+    // The instance stands where its body stands by a world pin, which
+    // reads no variable, so its going retires none; nothing carried
+    // from the part is reported.
     assert_eq!(back.maintenance, Vec::<Maintenance>::new());
 }
 
@@ -1126,11 +1216,7 @@ fn a_carry_replays_without_a_solve() {
         p.opts().resolver.as_ref(),
     )
     .expect("a cut of every placement moves verbatim");
-    assert_eq!(
-        offset_of(&out.remainder, out.instance),
-        Some(Placement::IDENTITY),
-        "the move is verbatim"
-    );
+    assert!(left_at_identity(&p, &out), "the move is verbatim");
     let part = replay(&ProfileDoc::empty(part_id, Tol::witness()), &out.part_edits);
     assert!(part.bit_eq(&out.part), "the part's edit list is the part");
 
@@ -1149,75 +1235,4 @@ fn a_carry_replays_without_a_solve() {
     }
     let host = replay(&out.remainder, &back.edits);
     assert!(host.bit_eq(&back.doc), "the inline's edit list is the host");
-}
-
-/// **The content key's own-copy exemption keeps a memo honest**: a
-/// placement whose constraint reads its own copy through a pattern of
-/// that copy keys nothing on that read (`Doc::upstream_of`'s one
-/// exemption), so an edit of the pattern's spacing must still move the
-/// copy under a prior: the placement's key folds the solve's own share
-/// of the read.
-#[test]
-fn an_own_copy_side_through_a_pattern_moves_its_copy_under_a_memo() {
-    use editor_core::{
-        Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, Formula,
-        MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, SlotId, SlotValue,
-    };
-    let p = parts("p2-own-copy-memo");
-    let o = p.opts();
-    let doc = ProfileDoc::empty(DocumentId::derive("p2-own-copy-memo"), Tol::witness());
-    let (doc, leg) = insert(doc, Node::instantiate_part(p.top));
-    let (doc, mover) = insert(doc, fixture::mated_instance(p.base));
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: mover.into(),
-            count: Formula::count(3),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
-    let mate = fixture::mate(
-        head(fixture::in_copy(
-            pattern,
-            1,
-            in_part(mover, p.base_body, CapEnd::Start),
-        )),
-        head(p.top_upper_cap(leg)),
-        ContactClass::Rest,
-        Alignment {
-            a: MateFrame::authored([0.0; 3], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], Tol::witness())
-                .expect("an authored frame"),
-            b: MateFrame::from_face(),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Opposed,
-            clocking: None,
-        },
-    );
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let (doc, _) = fixture::at_the_door_of(&doc, &reach, mover, mate)
-        .unwrap_or_else(|(_, fault)| panic!("the seat is admitted: {fault}"));
-    let ev = |d: &ProfileDoc, prior| {
-        editor_core::evaluate::<f64>(d, prior, &CancelToken::new(), &o, Tol::witness())
-    };
-    let first = ev(&doc, None);
-    let before = min_corner(&body_of(&first, mover));
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetParam {
-            node: pattern,
-            slot: SlotId::Spacing,
-            value: SlotValue::Formula(len(3.0)),
-            fresh: Vec::new(),
-        },
-    );
-    let fresh = min_corner(&body_of(&ev(&doc, None), mover));
-    let memo = min_corner(&body_of(&ev(&doc, Some(&first)), mover));
-    assert_ne!(before, fresh, "the spacing edit moves the copy");
-    assert_eq!(
-        memo, fresh,
-        "a memo run serves the copy where a fresh run puts it"
-    );
 }

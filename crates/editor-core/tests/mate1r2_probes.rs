@@ -1,21 +1,17 @@
 //! MATE-1 R2 review probes (blinded adversarial review lane R2).
 //!
 //! These rows attack the PR #1400 claims by execution:
-//! - P1: the frame conjugation `F⁻¹·O_c⁻¹·O_p·F` at a NON-IDENTITY
-//!   world frame `F` (the target's world pin), against a pose composed
+//! - P1: a seat on a pattern copy at a NON-IDENTITY world frame `F`
+//!   (the target's world pin), against the plane the seat pins composed
 //!   by hand (Rodrigues written in this file, never read back from the
 //!   solver);
-//! - P1b: the same conjugation with the GATE as the independent oracle
-//!   (a seat under a rotated+translated world frame must still verify
-//!   against the evaluated geometry);
-//! - P2: a constraint whose two sides are copies of TWO different
-//!   patterns — the `(Some, Some)` arm of the pair's left factor;
-//! - P3: the reversed direction — the patterned member as the copy the
-//!   constraint places (the `oc.inverse()` arm);
+//! - P1b: the same seat with the GATE as the independent oracle (a seat
+//!   under a rotated+translated world frame must still verify against
+//!   the evaluated geometry);
+//! - P3: the reversed direction — a mate whose `on` reads a pattern
+//!   copy of the placed instance rather than the instance itself;
 //! - P4: an out-of-range copy index on a SIBLING mate — one placing a
 //!   second copy off the same pattern — so what refuses, and where?
-//! - P5: a nested pattern head (pattern of a pattern) is a member,
-//!   its copy chain carrying both levels.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -23,14 +19,12 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, Formula, Frame,
-    Mate, MateFrame, MatePrimitive, MateRef, Node, PatternKind, Placement, ProfileDoc,
-    RecipeNodeId, Space, StableName, assemble,
+    AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Formula, Frame,
+    MateRef, MateSide, Node, NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, SlideAxis,
+    Space, StableName, Value, assemble,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{
-    ang, constrain, constrain_at, in_copy, insert, len, on_frame, run, scl, solve, step,
-};
+use fixture::{ang, constrain, in_copy, insert, len, on_frame, run, scl, solve, step};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
@@ -68,8 +62,13 @@ fn leg_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// copy, each placed at the identity — the world a pattern's copies are
 /// in the product by (A10). Copy 0 of a pattern over an instance is the
 /// instance itself, already in the product, so a caller places it only
-/// to have it twice.
-fn place_copies(doc: ProfileDoc, pattern: RecipeNodeId, copies: &[i64]) -> ProfileDoc {
+/// to have it twice. `o` reaches the parts the pins evaluate.
+fn place_copies(
+    doc: ProfileDoc,
+    pattern: RecipeNodeId,
+    copies: &[i64],
+    o: &EvalOptions,
+) -> ProfileDoc {
     copies.iter().fold(doc, |doc, &i| {
         let (doc, copy) = insert(
             doc,
@@ -78,49 +77,71 @@ fn place_copies(doc: ProfileDoc, pattern: RecipeNodeId, copies: &[i64]) -> Profi
                 select: editor_core::PartSelect::Instance(Formula::count(i)),
             },
         );
-        fixture::place(doc, copy).0
+        fixture::insert_pinned(
+            doc,
+            Node::place(vec![editor_core::BodyRead::plain(copy)]),
+            o,
+        )
+        .0
     })
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
-        .expect("a definite frame")
-}
-
-fn seat_mate(a: StableName, b: StableName, origin: [f64; 3], sense: AxisSense) -> Mate<Formula> {
-    fixture::mate(
-        fixture::head(a),
-        fixture::head(b),
-        ContactClass::Rest,
-        Alignment {
-            a: frame(origin, [0.0, 0.0, 1.0]),
-            b: frame([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense,
-            clocking: None,
-        },
-    )
+/// **`placed`'s face seated on `target`'s**: a plane mate — the faces
+/// facing each other (`facing`, a rest), or their outward normals
+/// equated — with the three freedoms it leaves set: `placed`'s origin
+/// slid `slide` from `target`'s in the plane, and no spin. Added to the
+/// placement `placed` reads.
+fn seat(
+    doc: ProfileDoc,
+    target: StableName,
+    placed: StableName,
+    slide: [f64; 2],
+    facing: bool,
+) -> (ProfileDoc, MateRef) {
+    let to = fixture::plane(fixture::head(target));
+    let to = if facing { fixture::flip(to) } else { to };
+    let (doc, mate) = constrain(
+        doc,
+        fixture::mate(
+            fixture::plane(fixture::head(placed)),
+            to,
+            ContactClass::Rest,
+        ),
+    );
+    let doc = [
+        (Coord::Slide(SlideAxis::X), len(slide[0])),
+        (Coord::Slide(SlideAxis::Y), len(slide[1])),
+        (Coord::Spin, ang(0.0)),
+    ]
+    .into_iter()
+    .fold(doc, |doc, (coord, by)| {
+        step(
+            doc,
+            DocEdit::AddValue {
+                placement: mate.placement,
+                value: Box::new(Value {
+                    mate: mate.id,
+                    coord,
+                    by,
+                }),
+                fresh: Vec::new(),
+            },
+        )
+        .0
+    });
+    (doc, mate)
 }
 
 /// **An instance pinned to the world at `pose`**: a bundle of one world
-/// pin.
+/// pin, read off its geometry through `o`.
 fn instance_at(
     doc: ProfileDoc,
     part: editor_core::DocRef,
     pose: Frame,
+    o: &EvalOptions,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, inst) = insert(doc, fixture::mated_instance(part));
-    let (doc, _) = constrain_at(doc, inst, Mate::world_pin(Placement::literal(&pose)));
-    (doc, inst)
-}
-
-fn near(a: Frame, b: Frame, tol: f64) -> bool {
-    a.columns
-        .iter()
-        .flatten()
-        .chain(a.translation.iter())
-        .zip(b.columns.iter().flatten().chain(b.translation.iter()))
-        .all(|(x, y)| (x - y).abs() <= tol)
+    (fixture::pin(doc, inst, &pose, o), inst)
 }
 
 // ---- Tiny hand algebra (this file's own, never the solver's) ----
@@ -234,23 +255,25 @@ fn leg_frame() -> Frame {
     .as_frame()
 }
 
-// ---- P1: hand-derived conjugation at F ≠ identity, oblique axis ----
+// ---- P1: hand-derived seat at F ≠ identity, oblique axis ----
 
 /// PROBE (claim 1): a CIRCULAR pattern about an OBLIQUE axis (direction
 /// (1,1,1), origin (1,0,0), step 2π/5), with the leg pinned to the
-/// world at a rotation+translation. Expected world pose composed by hand
-/// in this file: `O₁ ∘ F ∘ A` with `O₁` this file's own Rodrigues and
-/// `A` the seat translation — the copy's offset acts in document
-/// coordinates, outside the leg's world frame — and the pose relative
-/// to that frame `O₁ ∘ A`. The solver's output is never read into
-/// the expectation.
+/// world at a rotation+translation, and the top seated on copy 1. The
+/// plane the seat pins is composed by hand in this file: copy 1's end
+/// cap is the leg's `z = 1` plane under `O₁ ∘ F`, with `O₁` this file's
+/// own Rodrigues — the copy's offset acts in document coordinates,
+/// outside the leg's world frame. The top's own `z` axis is that cap's
+/// normal and its start cap (through its own origin) lies in that
+/// plane. The solver's output is never read into the expectation.
 #[test]
-fn r2_oblique_circular_conjugation_at_a_pinned_world_frame() {
+fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
     let mut store = PartStore::default();
     let (leg_ref, leg_body) = store.insert_part(leg_part("r2-obl-leg"), Tol::witness());
     let (top_ref, top_body) = store.insert_part(leg_part("r2-obl-top"), Tol::witness());
+    let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("r2-obl"), Tol::witness());
-    let (doc, leg) = instance_at(doc, leg_ref, leg_frame());
+    let (doc, leg) = instance_at(doc, leg_ref, leg_frame(), &o);
     let (doc, axis) = insert(
         doc,
         Node::Datum(editor_core::Datum::Axis {
@@ -271,18 +294,15 @@ fn r2_oblique_circular_conjugation_at_a_pinned_world_frame() {
         },
     );
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let (doc, mate) = constrain(
+    let (doc, mate) = seat(
         doc,
-        seat_mate(
-            in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
-            in_part(top, top_body, CapEnd::Start),
-            [0.0, 0.0, 1.0],
-            AxisSense::Aligned,
-        ),
+        in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
+        in_part(top, top_body, CapEnd::Start),
+        [0.0, 0.0],
+        true,
     );
     assert_eq!(mate.placement, top, "the mate places the top");
 
-    let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(
         poses.fault(top),
@@ -294,20 +314,21 @@ fn r2_oblique_circular_conjugation_at_a_pinned_world_frame() {
 
     let f = Rigid::from_frame(leg_frame());
     let o1 = Rigid::rotation_about_axis([1.0, 0.0, 0.0], [1.0, 1.0, 1.0], theta);
-    let a = Rigid::translation([0.0, 0.0, 1.0]);
-    let expected = o1.compose(f).compose(a).as_frame();
-    let got = poses.placement(&doc, top).expect("the top places");
+    let cap = o1.compose(f).compose(Rigid::translation([0.0, 0.0, 1.0]));
+    let normal = [cap.r[0][2], cap.r[1][2], cap.r[2][2]];
+    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let got = Rigid::from_frame(poses.placement(&doc, top).expect("the top places"));
+    let z = [got.r[0][2], got.r[1][2], got.r[2][2]];
     assert!(
-        near(got, expected, 1e-12),
-        "the copy's offset composes outside the leg's world frame, hand-derived:\n got      {got:?}\n expected {expected:?}"
+        z.iter().zip(normal).all(|(a, b)| (a - b).abs() <= 1e-12),
+        "the top's z is copy 1's cap normal, hand-derived:\n got      {z:?}\n expected {normal:?}"
     );
-    let own = o1.compose(a).as_frame();
-    let got = poses.relative(top).expect("the top has a pose");
     assert!(
-        near(got, own, 1e-12),
-        "and the pose relative to the leg's frame leaves it out:\n got      {got:?}\n expected {own:?}"
+        (dot(normal, got.t) - dot(normal, cap.t)).abs() <= 1e-12,
+        "the top's start cap lies in copy 1's end cap plane: {:?} against {:?}",
+        got.t,
+        cap.t
     );
-    let _ = store;
 }
 
 // ---- P1b: the gate as the oracle at F ≠ identity ----
@@ -315,20 +336,17 @@ fn r2_oblique_circular_conjugation_at_a_pinned_world_frame() {
 /// PROBE (claims 1+3): the top seated on pattern copy 1, with the leg's
 /// world pose rotated AND translated; the top is as wide as one leg, so
 /// it touches no other copy. The seat is verified by the gate
-/// against the EVALUATION's geometry, so a solve-side conjugation error
-/// (either direction, or a skipped conjugation) would put the top in
-/// the wrong place and the gate would refute — an oracle independent of
-/// this reviewer's own algebra. A second seat on the sibling copy
-/// relates the top to a second target copy, which the door refuses
-/// (`TargetsDiffer`, the stage's named interim: a bundle reads one
-/// target copy).
+/// against the EVALUATION's geometry, so a solve that puts the top in
+/// the wrong place makes the gate refute — an oracle independent of
+/// this reviewer's own algebra.
 #[test]
 fn r2_a_seat_still_verifies_under_a_pinned_world_frame() {
     let mut store = PartStore::default();
     let (leg_ref, leg_body) = store.insert_part(leg_part("r2-loopf-leg"), Tol::witness());
     let (top_ref, top_body) = store.insert_part(leg_part("r2-loopf-top"), Tol::witness());
+    let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("r2-loopf"), Tol::witness());
-    let (doc, leg) = instance_at(doc, leg_ref, leg_frame());
+    let (doc, leg) = instance_at(doc, leg_ref, leg_frame(), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -343,36 +361,20 @@ fn r2_a_seat_still_verifies_under_a_pinned_world_frame() {
         },
     );
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let doc = place_copies(doc, pattern, &[1]);
-    let (doc, m0) = constrain(
+    let doc = place_copies(doc, pattern, &[1], &o);
+    // A value on a pattern copy's target is charted on its space's
+    // frame — the world's here — so the top's slides are where copy 1's
+    // footprint lies in the world: the leg's unit square turned a
+    // quarter about z and moved by (1, 2), then 1.5 along ŷ.
+    let (doc, m0) = seat(
         doc,
-        seat_mate(
-            in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
-            in_part(top, top_body, CapEnd::Start),
-            [0.0, 0.0, 1.0],
-            AxisSense::Aligned,
-        ),
+        in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
+        in_part(top, top_body, CapEnd::Start),
+        [0.0, 3.5],
+        true,
     );
     assert_eq!(m0.placement, top, "the seat places the top");
-    let sibling = fixture::door_refusal(
-        &doc,
-        seat_mate(
-            in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
-            in_part(top, top_body, CapEnd::Start),
-            [0.0, 0.0, 1.0],
-            AxisSense::Aligned,
-        ),
-    );
-    assert!(
-        matches!(
-            &sibling,
-            editor_core::MateFault::TargetsDiffer { placement, constraints }
-                if *placement == top && constraints.contains(&m0.id)
-        ),
-        "the sibling seat relates the top to a second target copy: {sibling:?}"
-    );
 
-    let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(top), None);
     assert_eq!(poses.space(top), Some(Space::World));
@@ -397,94 +399,20 @@ fn r2_a_seat_still_verifies_under_a_pinned_world_frame() {
     }
 }
 
-// ---- P2: both sides patterned (two patterns) ----
+// ---- P3: a pattern copy of the placed instance as `on` ----
 
-/// PROBE (claims 1+8): a constraint whose BOTH sides are pattern
-/// copies — of two different patterns — exercises the
-/// `O_c⁻¹ ∘ O_p` arm, which no committed row reaches. Expected pose
-/// composed by hand: `T(s1·x̂ − s2·ŷ) ∘ T([0,0,1])`.
+/// PROBE (claims 1+8): the leg is the copy the mate places, and the
+/// mate's `on` reads copy 1 of a pattern over the leg rather than the
+/// leg itself. A pattern copy is other geometry than the instance's own
+/// output, so the mate pins nothing of the leg: the door refuses it
+/// `NotOnTheCopy`, naming the mate it would have added.
 #[test]
-fn r2_two_patterns_constraint_composes_both_offsets() {
-    let mut store = PartStore::default();
-    let (l1, l1_body) = store.insert_part(leg_part("r2-twop-l1"), Tol::witness());
-    let (l2, l2_body) = store.insert_part(leg_part("r2-twop-l2"), Tol::witness());
-    let doc = ProfileDoc::empty(DocumentId::derive("r2-twop"), Tol::witness());
-    let (doc, leg1) = insert(doc, Node::instantiate_part(l1));
-    let (doc, p1) = insert(
-        doc,
-        Node::Pattern {
-            input: leg1.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(3.0),
-            },
-        },
-    );
-    let (doc, leg2) = insert(doc, fixture::mated_instance(l2));
-    let (doc, p2) = insert(
-        doc,
-        Node::Pattern {
-            input: leg2.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [scl(0.0), scl(1.0), scl(0.0)],
-                spacing: len(5.0),
-            },
-        },
-    );
-    // Both sides read pattern copies, so the placement the mate places
-    // is named: leg2, whose bundle is empty.
-    let (doc, _) = constrain_at(
-        doc,
-        leg2,
-        seat_mate(
-            in_copy(p1, 1, in_part(leg1, l1_body, CapEnd::End)),
-            in_copy(p2, 1, in_part(leg2, l2_body, CapEnd::Start)),
-            [0.0, 0.0, 1.0],
-            AxisSense::Aligned,
-        ),
-    );
-
-    let o = with_resolver(store);
-    let poses = solve(&doc, &o, Tol::witness());
-    assert_eq!(poses.fault(leg2), None, "{:?}", poses.fault(leg2));
-    assert_eq!(
-        poses.space(leg2),
-        Some(Space::World),
-        "leg2 is pinned through leg1, which is on the world"
-    );
-
-    // O_p = T(3·x̂) (parent = leg1's copy 1), O_c = T(5·ŷ) (child =
-    // leg2's copy 1); F = identity. rel(leg2) = O_c⁻¹∘O_p∘T([0,0,1]).
-    let expected = Frame {
-        columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-        translation: [3.0, -5.0, 1.0],
-    };
-    let got = poses.relative(leg2).expect("leg2 has a pose");
-    assert!(
-        near(got, expected, 1e-12),
-        "both offsets compose:\n got      {got:?}\n expected {expected:?}"
-    );
-    let _ = store;
-}
-
-// ---- P3: the patterned member as the copy placed ----
-
-/// PROBE (claims 1+8): the top is a loose copy, the space the leg is
-/// pinned in, and the patterned member is the copy the mate places —
-/// the `O_c⁻¹` arm alone.
-/// Hand-derived: rep = B∘A⁻¹ = T([0,0,−1]) (the mate reads a = copy,
-/// b = top, and the child member's frame must land on the parent's),
-/// rel(leg) = O_c⁻¹ ∘ rep = T([−2, 0, −1]).
-#[test]
-fn r2_patterned_member_as_the_placed_copy_uses_the_inverse_offset() {
+fn r2_a_pattern_copy_of_the_placed_instance_is_not_its_copy() {
     let mut store = PartStore::default();
     let (top_ref, top_body) = store.insert_part(leg_part("r2-rev-top"), Tol::witness());
     let (leg_ref, leg_body) = store.insert_part(leg_part("r2-rev-leg"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r2-rev"), Tol::witness());
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    // The leg sits where its mate puts it: its bundle starts empty.
     let (doc, leg) = insert(doc, fixture::mated_instance(leg_ref));
     let (doc, pattern) = insert(
         doc,
@@ -497,57 +425,47 @@ fn r2_patterned_member_as_the_placed_copy_uses_the_inverse_offset() {
             },
         },
     );
-    let (doc, _) = constrain_at(
-        doc,
+    let refused = fixture::at_the_door_of(
+        &doc,
+        &editor_core::RefusingReach,
         leg,
-        seat_mate(
-            in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
-            in_part(top, top_body, CapEnd::Start),
-            [0.0, 0.0, 1.0],
-            AxisSense::Aligned,
+        fixture::rest(
+            fixture::head(in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End))),
+            fixture::head(in_part(top, top_body, CapEnd::Start)),
+            ContactClass::Rest,
         ),
     );
-
-    let o = with_resolver(store);
-    let poses = solve(&doc, &o, Tol::witness());
-    assert_eq!(poses.fault(leg), None, "{:?}", poses.fault(leg));
-    assert_eq!(
-        poses.space(leg),
-        Some(Space::Loose { root: top }),
-        "the leg is pinned to the top, a loose copy"
-    );
-
-    let expected = Frame {
-        columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-        translation: [-2.0, 0.0, -1.0],
-    };
-    let got = poses.relative(leg).expect("the leg has a pose");
-    assert!(
-        near(got, expected, 1e-12),
-        "the child member's offset enters inverted:\n got      {got:?}\n expected {expected:?}"
-    );
-    let _ = store;
+    match refused {
+        Err((at, editor_core::MateFault::NotOnTheCopy { mate })) => {
+            assert_eq!(
+                (at, mate.placement),
+                (leg, leg),
+                "the refusal names the leg's mate"
+            );
+        }
+        Err((at, fault)) => panic!("expected NotOnTheCopy at the leg, got {at:?}: {fault}"),
+        Ok(_) => panic!("a mate whose `on` reads a pattern copy pins nothing of the leg"),
+    }
 }
 
 // ---- P4: an out-of-range copy on a SIBLING mate ----
 
 /// PROBE (claims 5+7+8): a copy past the pattern's count, read by the
 /// SECOND of two mates that each place a top on a copy of one pattern
-/// — the pattern shrunk under a mate that named copy 1, since a head
-/// past the count at insert is the edit door's to refuse.
+/// — the pattern shrunk under a mate that named copy 1.
 ///
-/// It refuses at the SOLVE, naming the pattern — not "somewhere" and
-/// not at the gate. The index-against-the-count check is a fact about
-/// a REFERENCE, so it runs where the solve reads each reference, once
-/// per side of every live constraint, and the sibling on copy 0 is
-/// unaffected.
+/// It refuses where the second top's placement EVALUATES, naming the
+/// mate and its target pose, whose selection no longer resolves — not
+/// "somewhere" and not at the gate. A pose is read once per mate, where
+/// its placement folds, and the sibling on copy 0 is unaffected.
 #[test]
-fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_the_solve() {
+fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_its_placement() {
     let mut store = PartStore::default();
     let (leg_ref, leg_body) = store.insert_part(leg_part("r2-oor-leg"), Tol::witness());
     let (top_ref, top_body) = store.insert_part(leg_part("r2-oor-top"), Tol::witness());
+    let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("r2-oor"), Tol::witness());
-    let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
+    let (doc, leg) = fixture::insert_pinned(doc, Node::instantiate_part(leg_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -561,27 +479,22 @@ fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_the_solve() {
     );
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, top2) = insert(doc, fixture::mated_instance(top_ref));
-    let (doc, m0) = constrain(
+    let (doc, m0) = seat(
         doc,
-        seat_mate(
-            in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
-            in_part(top, top_body, CapEnd::Start),
-            [0.0, 0.0, 1.0],
-            AxisSense::Aligned,
-        ),
+        in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
+        in_part(top, top_body, CapEnd::Start),
+        [0.0, 0.0],
+        true,
     );
-    // The second mate names copy 1, well formed at insert (the edit
-    // door refuses a head that resolves to no member where it is
-    // authored); the pattern then shrinks to one copy under it, which
-    // is how a head stops resolving after insert (N5).
-    let (doc, m1) = constrain(
+    // The second mate names copy 1, live when it is authored; the
+    // pattern then shrinks to one copy under it, which is how a read
+    // stops resolving after insert (N5).
+    let (doc, m1) = seat(
         doc,
-        seat_mate(
-            in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
-            in_part(top2, top_body, CapEnd::Start),
-            [0.0, 0.0, 1.0],
-            AxisSense::Aligned,
-        ),
+        in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
+        in_part(top2, top_body, CapEnd::Start),
+        [0.0, 0.0],
+        true,
     );
     let (m0, m1): (MateRef, MateRef) = (m0, m1);
     assert_eq!((m0.placement, m1.placement), (top, top2));
@@ -595,18 +508,18 @@ fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_the_solve() {
         },
     );
 
-    let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
     let fault = poses
         .fault(top2)
         .cloned()
-        .expect("an out-of-range copy refuses at the solve");
+        .expect("an out-of-range copy refuses where its placement evaluates");
     assert!(
         matches!(
-            fault,
-            editor_core::MateFault::DanglingHead { head, .. } if head == pattern
+            &fault,
+            editor_core::MateFault::SideUnevaluated { mate, side: MateSide::To, refusal }
+                if *mate == m1 && matches!(refusal.kind(), NodeErrorKind::SelectResolve { .. })
         ),
-        "the refusal names the pattern whose count the index is past: {fault:?}"
+        "the refusal names the mate whose target's selection the count left: {fault:?}"
     );
     assert_eq!(
         poses.space(top2),
@@ -617,79 +530,6 @@ fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_the_solve() {
     // is not its sibling's, and not the document's.
     assert_eq!(poses.space(top), Some(Space::World));
     assert!(poses.fault(top).is_none());
-}
-
-// ---- P5: a nested pattern head ----
-
-/// PROBE (claim 7): a pattern of a pattern — the head resolves through
-/// the OUTER pattern whose input is the inner pattern, and on down
-/// through the inner one to the instance that mints the name. Both
-/// `Instance(i)` qualifiers are in the name and the walk consumes
-/// both, so the reference is a MEMBER and the solve places it.
-///
-/// (The document does not GATHER: `Node::Pattern` takes one body and
-/// a pattern's value is many, so the outer pattern refuses
-/// `WrongOperand` at the evaluation. That fence is the node
-/// vocabulary's, not the member vocabulary's, and the shape a user
-/// builds a nested copy through is `Part { Instance(i) }` between the
-/// two patterns — `msolve2_member_chain`'s ground.)
-#[test]
-fn r2_nested_pattern_head_is_a_member() {
-    let mut store = PartStore::default();
-    let (leg_ref, leg_body) = store.insert_part(leg_part("r2-nest-leg"), Tol::witness());
-    let (top_ref, top_body) = store.insert_part(leg_part("r2-nest-top"), Tol::witness());
-    let doc = ProfileDoc::empty(DocumentId::derive("r2-nest"), Tol::witness());
-    let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
-    let (doc, inner) = insert(
-        doc,
-        Node::Pattern {
-            input: leg.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
-    let (doc, outer) = insert(
-        doc,
-        Node::Pattern {
-            input: inner.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [scl(0.0), scl(1.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
-    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let (doc, mate) = constrain(
-        doc,
-        seat_mate(
-            in_copy(
-                outer,
-                1,
-                in_copy(inner, 1, in_part(leg, leg_body, CapEnd::End)),
-            ),
-            in_part(top, top_body, CapEnd::Start),
-            [0.0, 0.0, 1.0],
-            AxisSense::Aligned,
-        ),
-    );
-    assert_eq!(mate.placement, top);
-    let o = with_resolver(store);
-    let poses = solve(&doc, &o, Tol::witness());
-    assert!(
-        poses.fault(top).is_none(),
-        "a nested pattern head resolves through both levels: {:?}",
-        poses.fault(top)
-    );
-    assert_eq!(
-        poses.space(top),
-        Some(Space::World),
-        "the nested copy's reference places the top"
-    );
-    let _ = inner;
 }
 
 // ---- P6: plain-document pose bits (cross-revision instrument) ----
@@ -704,30 +544,26 @@ fn r2_plain_document_pose_bits() {
     let (a_ref, a_body) = store.insert_part(leg_part("r2-bits-a"), Tol::witness());
     let (b_ref, b_body) = store.insert_part(leg_part("r2-bits-b"), Tol::witness());
     let (c_ref, c_body) = store.insert_part(leg_part("r2-bits-c"), Tol::witness());
+    let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("r2-bits"), Tol::witness());
-    let (doc, ia) = insert(doc, Node::instantiate_part(a_ref));
+    let (doc, ia) = fixture::insert_pinned(doc, Node::instantiate_part(a_ref), &o);
     let (doc, ib) = insert(doc, fixture::mated_instance(b_ref));
     let (doc, ic) = insert(doc, fixture::mated_instance(c_ref));
-    let (doc, m0) = constrain(
+    let (doc, m0) = seat(
         doc,
-        seat_mate(
-            in_part(ia, a_body, CapEnd::End),
-            in_part(ib, b_body, CapEnd::Start),
-            [0.25, 0.5, 1.0],
-            AxisSense::Opposed,
-        ),
+        in_part(ia, a_body, CapEnd::End),
+        in_part(ib, b_body, CapEnd::Start),
+        [0.25, 0.5],
+        false,
     );
-    let (doc, m1) = constrain(
+    let (doc, m1) = seat(
         doc,
-        seat_mate(
-            in_part(ib, b_body, CapEnd::End),
-            in_part(ic, c_body, CapEnd::Start),
-            [0.75, 0.125, 1.0],
-            AxisSense::Aligned,
-        ),
+        in_part(ib, b_body, CapEnd::End),
+        in_part(ic, c_body, CapEnd::Start),
+        [0.75, 0.125],
+        true,
     );
     assert_eq!((m0.placement, m1.placement), (ib, ic));
-    let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
     for id in [ia, ib, ic] {
         let f = poses.relative(id).expect("a pose");
@@ -740,5 +576,4 @@ fn r2_plain_document_pose_bits() {
             .collect();
         eprintln!("P6 bits {}: {bits:x?}", id.0);
     }
-    let _ = store;
 }

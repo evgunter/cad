@@ -905,6 +905,7 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
     let text = common::gallery_ring_at(tol);
     let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
     let doc = loaded.snapshot;
+    let opened = doc.clone();
     let (node, slot, expr) = ring_bump(&doc);
     let bump = Edit { node, slot, expr };
     let mut session = crate::common::inline_without_door(doc, tol);
@@ -916,6 +917,9 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
         outcome.refusal
     );
     session.pump();
+    // The bump stops the revolve short of a turn, so the seam the
+    // ring's pin read goes: the ring is re-placed where it stood.
+    common::repin_stranded(&mut session, &opened, tol);
     let index =
         common::index_at(&session, common::corpus_delta()).expect("the bumped ring indexes");
     // Its y is the rounding of the ring's quarter-turn axis heading.
@@ -1033,6 +1037,7 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     let text = common::gallery_ring_at(tol);
     let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
     let doc = loaded.snapshot;
+    let opened = doc.clone();
     let (node, slot, expr) = ring_bump(&doc);
     let bump = Edit { node, slot, expr };
     let mut session = crate::common::inline_without_door(doc, tol);
@@ -1044,6 +1049,9 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
         outcome.refusal
     );
     session.pump();
+    // The bump stops the revolve short of a turn, so the seam the
+    // ring's pin read goes: the ring is re-placed where it stood.
+    common::repin_stranded(&mut session, &opened, tol);
     let index =
         common::index_at(&session, common::corpus_delta()).expect("the bumped ring indexes");
     // Its y is the rounding of the ring's quarter-turn axis heading.

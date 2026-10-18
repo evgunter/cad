@@ -1034,6 +1034,10 @@ pub enum PoseConstruction {
     Through,
     /// [`PoseDef::Meet`]: the planes are parallel.
     Meet,
+    /// A value's chart ([`crate::mate::reference_about`]): a mated
+    /// direction the band cannot tell from the body's own `−z`, where
+    /// no turn onto it is shortest.
+    Chart,
 }
 
 impl core::fmt::Display for PoseConstruction {
@@ -1046,6 +1050,11 @@ impl core::fmt::Display for PoseConstruction {
             Self::Meet => {
                 "the planes are parallel, so they meet in no line. Recourse: read two planes \
                  that cross"
+            }
+            Self::Chart => {
+                "a value's chart cannot swing the body's frame onto the mated direction: the \
+                 direction lies too near the body's own −z to tell whether it is that axis. \
+                 Recourse: mate the opposite sense (a flip) or write the value on a frame mate"
             }
         })
     }

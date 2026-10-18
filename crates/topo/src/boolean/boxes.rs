@@ -1381,7 +1381,7 @@ pub(crate) fn circle_box<T: Bounds>(
 ///   control hull by any amount. Nothing in the type system enforces
 ///   trim ⊆ domain today — `pcurves.rs`'s chart window is built from
 ///   the boundary's own chart boxes and is never compared against
-///   `knots_u().domain()`. What holds it up is construction: every
+///   `knot_values_u().domain()`. What holds it up is construction: every
 ///   kernel-minted NURBS wall is iso-parameter bounded at the domain
 ///   edges. State the premise when you add a constructor that is not.
 /// - [`TorusWindow`](Self::TorusWindow) — **Torus.** The sampled
