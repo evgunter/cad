@@ -96,6 +96,20 @@ fn start_cap(box_: RecipeNodeId) -> Operand {
     }))
 }
 
+/// Every point of `want` has one of `got` within rounding, and the two
+/// hold as many: a placed copy's vertices, read where the motion's
+/// rounding puts them.
+fn assert_near(got: &[[f64; 3]], want: &[[f64; 3]]) {
+    assert_eq!(got.len(), want.len(), "{got:?} vs {want:?}");
+    for q in want {
+        assert!(
+            got.iter()
+                .any(|p| (0..3).all(|k| (p[k] - q[k]).abs() < 1e-12)),
+            "{q:?} is not among {got:?}"
+        );
+    }
+}
+
 fn shifted(points: &[[f64; 3]], by: [f64; 3]) -> Vec<[f64; 3]> {
     points
         .iter()
@@ -465,11 +479,7 @@ fn a_copy_stands_against_a_plane_less_target() {
     let (doc, b) = unit_box(doc);
     let own = vertices(&doc, b);
     let (doc, placed) = fixture::slid(doc, Operand::output(rev, 0), b, [2.0, 0.5, -0.25]);
-    for (p, q) in vertices(&doc, placed).iter().zip(shifted(&own, [2.0, 0.5, -0.25])) {
-        for k in 0..3 {
-            assert!((p[k] - q[k]).abs() < 1e-12, "{p:?} vs {q:?}");
-        }
-    }
+    assert_near(&vertices(&doc, placed), &shifted(&own, [2.0, 0.5, -0.25]));
 }
 
 /// **A copy with neither a plane nor an axis of its own** (an arc tube:
@@ -492,9 +502,5 @@ fn an_arc_tube_stands_against_its_target_by_frames() {
     );
     let own = vertices(&doc, bend);
     let (doc, placed) = fixture::slid(doc, b, bend, [0.5, 0.5, 3.0]);
-    for (p, q) in vertices(&doc, placed).iter().zip(shifted(&own, [0.5, 0.5, 3.0])) {
-        for k in 0..3 {
-            assert!((p[k] - q[k]).abs() < 1e-12, "{p:?} vs {q:?}");
-        }
-    }
+    assert_near(&vertices(&doc, placed), &shifted(&own, [0.5, 0.5, 3.0]));
 }
