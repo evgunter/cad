@@ -6,3 +6,5 @@
 | FORK-ENTITYDOOR | the-entity-doors-key-comes-from-its-caller, the-designation-road-resolves-before-it-asks-the-kind | 146 | even: Opus is A, Fable is B |
 | FORK-FOLDPINCH | a-union-fold-publishes-no-pinch-row | 207 | odd: Fable is A, Opus is B |
 | FORK-PARTCACHE | part-cache-lock-held-across-a-nested-rayon-join (with wiretail part-cache-miss-samples-…) | 245 | odd: Fable is A, Opus is B |
+| FORK-CIRCLEPHASE | a-split-circles-phase-edit-re-aims-its-piece-names-silently | 40 | even: Opus is A, Fable is B |
+| FORK-SPANCHORD | a-chord-spanning-two-merged-constituents-has-no-name | 197 | odd: Fable is A, Opus is B |
