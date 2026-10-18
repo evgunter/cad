@@ -3259,6 +3259,77 @@ fn stated_at(
     })
 }
 
+/// **The judged rows a fold row restates** (DM4, "A row names member
+/// cells"): a fold row putting a point of one member's edge on another
+/// member's edge (`VertexFusion`, `OnCarrier`, both cells member edges,
+/// as [`names::fold_cell`] reads a vertex the fold minted on an edge)
+/// states that the two edges run on one carrier there. Their pair's
+/// judgement already holds that as the rows putting an end of either
+/// edge on the other, which back the judgement's own record of the two
+/// edges' overlap: those rows, by their place in `judged`. Empty where
+/// the row is not of that shape or the judgement holds no such row, and
+/// the fold row is its own.
+fn restated_overlap<T: Decide>(
+    row: &crate::coincide::NamedCoincidence,
+    judged: &[crate::coincide::NamedCoincidence],
+    members: &[Member<T>],
+) -> Vec<usize> {
+    use crate::coincide::NamedCell;
+    use names::{EntityKey, Entry};
+    let on_edge = |r: &crate::coincide::NamedCoincidence| {
+        r.relation == topo::Relation::OnCarrier && r.site == topo::DecisionSite::VertexFusion
+    };
+    fn edge_of(cell: &NamedCell) -> Option<(crate::VarId, &names::StableName)> {
+        match cell {
+            NamedCell::Entity { input, name } if name.kind == names::EntityKind::Edge => {
+                Some((*input, name))
+            }
+            _ => None,
+        }
+    }
+    let [Some(e), Some(f)] = row.cells.each_ref().map(edge_of) else {
+        return Vec::new();
+    };
+    if !on_edge(row) || e.0 == f.0 {
+        return Vec::new();
+    }
+    let key = |input: crate::VarId, name: &names::StableName| {
+        let member = members.iter().find(|m| m.read == input)?;
+        match member.table.lookup(name)? {
+            Entry::Unique(r) => Some((member, r.key)),
+            Entry::Tied(_) => None,
+        }
+    };
+    // `cell` is `edge` itself or a vertex bounding it, in its member.
+    let ends = |cell: &NamedCell, (input, edge): (crate::VarId, &names::StableName)| {
+        let NamedCell::Entity { input: at, name } = cell else {
+            return false;
+        };
+        if *at != input {
+            return false;
+        }
+        if name == edge {
+            return true;
+        }
+        match (key(input, name), key(input, edge)) {
+            (Some((m, EntityKey::Vertex(v))), Some((_, EntityKey::Edge(k)))) => m
+                .body
+                .edges_of_vertex(v)
+                .is_some_and(|edges| edges.contains(&k)),
+            _ => false,
+        }
+    };
+    judged
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| {
+            let [c, d] = &r.cells;
+            on_edge(r) && ((ends(c, e) && ends(d, f)) || (ends(c, f) && ends(d, e)))
+        })
+        .map(|(i, _)| i)
+        .collect()
+}
+
 /// A fold row in member space (DM4, "A row names member cells"): each
 /// cell named in the node's own space, `own_read`, by its collapsed fold
 /// name, is the member cell that name lies in, or stays the node's where
@@ -3454,9 +3525,10 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let judged = if !pairwise {
         Some((names::UnionLinks::default(), Vec::new(), Vec::new()))
     } else {
-        judge_pairwise_contact(&hulls, |p, q| {
+        let reads: Vec<crate::VarId> = members.iter().map(|m| m.read).collect();
+        judge_pairwise_contact(&hulls, &reads, |a, b| {
             let out = (verb.build)(op, BooleanInputs::default())
-                .run_pair(&members[p].body, &members[q].body, boolean_sweep, tol)
+                .run_pair(&members[a].body, &members[b].body, boolean_sweep, tol)
                 .map_err(verb_refused)?;
             let verbs::PairOut::Out(out) = out else {
                 return match op {
@@ -3468,12 +3540,12 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             };
             // The judgement's rows, whole, named in the two members' own
             // tables: the node's coincidences are its member pairs' (DM4),
-            // each pair's in the author's list order.
+            // each pair's in the order the pass visits it.
             let rows = crate::coincide::name_rows(
                 &out.coincidences,
                 &crate::coincide::RowInputs {
-                    a: own[p],
-                    b: Some(own[q]),
+                    a: own[a],
+                    b: Some(own[b]),
                     tool: None,
                 },
             )
@@ -3484,7 +3556,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 } => Ok(Some((
                     (naming, out.body),
                     rows,
-                    pair_verdicts(p, q, &verdicts),
+                    pair_verdicts(a, b, &verdicts),
                 ))),
                 _ => Err(NodeErrorKind::Naming(names::NamingError::Emission {
                     what: verb.foreign_record,
@@ -3501,6 +3573,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     for row in judged {
         stated_at(&mut coincidences, row);
     }
+    let judged_rows = coincidences.len();
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
     // What the end pass reads of every step: each face's member faces
     // and each step's discards.
@@ -3703,9 +3776,10 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     };
     // A fold row the node's records cite is the published row stating
     // the same thing where there is one (DM4: a judged row, or a fold
-    // row an earlier citation published), and is published after the
-    // judgement's otherwise; the records are renumbered onto the rows
-    // they cite.
+    // row an earlier citation published), the judged rows it restates
+    // where those state it ([`restated_overlap`]), and is published
+    // after the judgement's otherwise; the records are recited onto the
+    // rows they cite.
     let contacts = if pairwise {
         let used = contacts.decided();
         let mut at = Vec::with_capacity(used.len());
@@ -3716,15 +3790,29 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
                     what: UNION_STEP_UNDECIDED_CITE,
                 }))?;
-            at.push(stated_at(&mut coincidences, row));
+            let restated = restated_overlap(&row, &coincidences[..judged_rows], members);
+            at.push(if restated.is_empty() {
+                vec![stated_at(&mut coincidences, row)]
+            } else {
+                restated
+            });
         }
         Arc::new(
             (*contacts)
                 .clone()
-                .renumbered(|k| {
-                    used.binary_search(&k)
-                        .ok()
-                        .map(|rank| u32::try_from(at[rank]).unwrap_or(u32::MAX))
+                .recited(|b| match b {
+                    topo::Backing::Decided(k) => used
+                        .binary_search(&k)
+                        .map(|rank| {
+                            at[rank]
+                                .iter()
+                                .map(|&i| {
+                                    topo::Backing::Decided(u32::try_from(i).unwrap_or(u32::MAX))
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                    carried @ topo::Backing::Carried { .. } => vec![carried],
                 })
                 .map_err(|_| {
                     NodeErrorKind::Naming(names::NamingError::Emission {
@@ -3807,12 +3895,16 @@ const UNION_NO_STEP: &str = "a union fold of two members or more ran no step";
 /// **Whether it refuses depends on the members, never on their
 /// order**: every pair whose boxes meet is judged, in the author's list
 /// order (#4323: the list is the author's stated order, and nothing
-/// here sorts it away), the listed-first member as operand A. So the rows come out in that order, and where two pairs
-/// would refuse, the one the list reaches first is the one named.
+/// here sorts it away). So the rows come out in that order, and where
+/// two pairs would refuse, the one the list reaches first is the one
+/// named. Within a pair, operand A is the member whose read `reads`
+/// holds as the lesser (the earlier minted), the listed-first on a
+/// read spelled twice: so one pair is one run of the pair verb in
+/// every member order, and publishes one margin.
 ///
-/// `judge(p, q)` runs the pair verb on members `p` (operand A) and `q`
+/// `judge(a, b)` runs the pair verb on members `a` (operand A) and `b`
 /// (operand B) and hands back its record; this function decides which
-/// pairs are judged, and nothing about geometry.
+/// pairs are judged and which member is A, and nothing about geometry.
 ///
 /// Returns the member faces the judgements consumed
 /// ([`names::UnionLinks`]): the one place a union's faces are linked
@@ -3823,6 +3915,7 @@ const UNION_NO_STEP: &str = "a union fold of two members or more ran no step";
 #[allow(clippy::type_complexity)] // the judge's one record, or none for an empty intersection
 fn judge_pairwise_contact<T: Decide>(
     hulls: &[bvh::Aabb],
+    reads: &[crate::VarId],
     mut judge: impl FnMut(
         usize,
         usize,
@@ -3852,11 +3945,12 @@ fn judge_pairwise_contact<T: Decide>(
             if !hulls[p].overlaps(&hulls[q]) {
                 continue;
             }
-            let Some(((naming, body), judged, glued)) = judge(p, q)? else {
+            let (a, b) = if reads[q] < reads[p] { (q, p) } else { (p, q) };
+            let Some(((naming, body), judged, glued)) = judge(a, b)? else {
                 return Ok(None);
             };
             links
-                .judged(p, q, &naming, &body)
+                .judged(a, b, &naming, &body)
                 .map_err(NodeErrorKind::Naming)?;
             rows.extend(judged);
             verdicts.extend(glued);
@@ -3871,20 +3965,35 @@ fn judge_pairwise_contact<T: Decide>(
 /// the pair nowhere else.
 #[derive(Clone, Copy, Debug)]
 struct PairVerdict {
-    /// The listed-first member, the judgement's operand A.
+    /// The listed-first member, which the fold holds when it joins `q`.
     p: usize,
-    /// The other member, its operand B.
+    /// The other member.
     q: usize,
-    /// The verdict, in the two members' keys.
+    /// The verdict, `p`'s face as its A face.
     verdict: topo::GlueVerdict,
 }
 
-/// The carrier pairs the judgement of members `p` (operand A) and `q`
-/// (operand B) glued: the kernel's verdicts ([`topo::GlueVerdict`]).
-fn pair_verdicts(p: usize, q: usize, verdicts: &[topo::GlueVerdict]) -> Vec<PairVerdict> {
+/// The carrier pairs the judgement of members `a` (operand A) and `b`
+/// (operand B) glued: the kernel's verdicts ([`topo::GlueVerdict`]),
+/// each held listed-first member first.
+fn pair_verdicts(a: usize, b: usize, verdicts: &[topo::GlueVerdict]) -> Vec<PairVerdict> {
     verdicts
         .iter()
-        .map(|&verdict| PairVerdict { p, q, verdict })
+        .map(|&verdict| {
+            if a < b {
+                PairVerdict {
+                    p: a,
+                    q: b,
+                    verdict,
+                }
+            } else {
+                PairVerdict {
+                    p: b,
+                    q: a,
+                    verdict: verdict.swapped(),
+                }
+            }
+        })
         .collect()
 }
 

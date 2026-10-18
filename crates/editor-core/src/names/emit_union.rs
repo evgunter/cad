@@ -2567,12 +2567,16 @@ pub(crate) enum FoldCell {
 /// ([`collapse_table`]), a head and the `Fragment`s the fold accumulated
 /// ([`member_piece`]). Under a member's `From` head its entity is a
 /// piece of the member entity the head names, and the cell is that
-/// entity. Under a head the fold minted (a seam, a crossing, a merge) the
-/// cell is that head in the node's own space, its pieces' qualifiers
-/// dropped, and a seam junction's run is kept whole. That spelling is
-/// the step's that minted the cell, which the published table need not
-/// hold
-/// (`work/wire/a-fold-row-names-a-vertex-the-fold-minted-by-the-step-that-minted-it.md`).
+/// entity. A `Crossing` vertex lies inside its crossed edge, and where
+/// that edge is a member's the cell is that member edge, as the pair
+/// verb reads a vertex it minted on an edge (`topo`'s `input_cell`).
+///
+/// Every other head the fold minted lies in no one member cell: a seam
+/// lies in a face of each of its two members, a junction's run
+/// (`EdgeCrossing`) in several member edges and seams, a `Merged` edge
+/// along several member edges, and a `Crossing` of a seam in two
+/// members' faces. Such a cell is that head in the node's own space,
+/// its pieces' qualifiers dropped, and a junction's run kept whole.
 ///
 /// # Errors
 ///
@@ -2592,6 +2596,12 @@ pub(crate) fn fold_cell(name: &StableName) -> Result<FoldCell, NamingError> {
     }
     if is_junction(name) {
         return Ok(FoldCell::Minted(name.clone()));
+    }
+    if let Some((RoleSeg::Crossing { edge, .. }, tail)) = name.path.split_first()
+        && tail.iter().all(|s| matches!(s, RoleSeg::Fragment(_)))
+        && let Ok(FoldCell::Member { read, name }) = fold_cell(edge.name())
+    {
+        return Ok(FoldCell::Member { read, name });
     }
     match name.path.split_first() {
         Some((

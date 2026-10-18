@@ -523,7 +523,9 @@ fn statements(fixture: Members, order: &[usize]) -> Vec<String> {
 /// corner, alone, with a far third member, and with a third member
 /// filling the pinch, whose pair still decided it; two blocks kissing at
 /// a corner, whose touch a record cites, with a far third member and
-/// with one block read twice. Every order that builds decides alike,
+/// with one block read twice; two blocks pinching on a plate
+/// (`union_pinch_member_order`), where a fold step meets a vertex an
+/// earlier step minted. Every order that builds decides alike,
 /// and the first that builds publishes exactly the statements listed, so a row
 /// published twice or not at all is red. The orders that fold the far
 /// member last after the pinch refuse [`CARRIED_PINCH`] and are
@@ -559,8 +561,25 @@ fn a_vertex_row_is_the_unions_once_in_every_member_order() {
         "PlaneLadder SameOriented Face@m0 Face@m0",
         "VertexFusion OnCarrier Vertex@m0 Vertex@m2",
     ];
-    let rows: [Row; 5] = [
+    // Two blocks on a plate, touching along the line through the
+    // plate's corner: their two walls on that line, and each block's end
+    // of the line on the other's edge. Folded after the plate, the
+    // second block meets the point the first one's edge made on the
+    // plate's top, which those two rows already put on its edge.
+    const PLATE: &[&str] = &[
+        "PlaneLadder SameOpposite Face@m1 Face@m2",
+        "PlaneLadder SameOpposite Face@m1 Face@m2",
+        "VertexFusion OnCarrier Edge@m1 Vertex@m2",
+        "VertexFusion OnCarrier Edge@m2 Vertex@m1",
+    ];
+    let rows: [Row; 6] = [
         ("prism and cube", prism_and_cube, |_| false, PINCH),
+        (
+            "two blocks pinching on a plate",
+            crate::union_pinch_member_order::pinch,
+            |_| false,
+            PLATE,
+        ),
         (
             "the pinch with a far member",
             pinch_and_far,

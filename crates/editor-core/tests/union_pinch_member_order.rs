@@ -68,7 +68,7 @@ fn pair_node(op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::Au
 use topo::{Body, ContactRecords};
 
 /// The plate and the two blocks, in a document of their own.
-fn pinch(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn pinch(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, p1) = block(doc, (1.0, 1.5), (-1.0, 1.0), 0.5, 1.5);
     let (doc, p2) = block(doc, (1.5, 2.0), (1.0, 3.0), 0.47, 1.23);

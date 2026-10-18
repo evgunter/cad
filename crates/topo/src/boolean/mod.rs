@@ -960,6 +960,18 @@ impl GlueVerdict {
         self.class.relation()
     }
 
+    /// This verdict with its operands exchanged, as the boolean of B
+    /// with A decides it: every glue class is symmetric in its two
+    /// faces.
+    #[must_use]
+    pub fn swapped(self) -> Self {
+        Self {
+            a: self.b,
+            b: self.a,
+            class: self.class,
+        }
+    }
+
     /// **This verdict, given to a fold step**: the pair of `a` and the
     /// judged B face, under the judged class. The fold passes each
     /// accumulation face whose lineage holds the judged A face, over
