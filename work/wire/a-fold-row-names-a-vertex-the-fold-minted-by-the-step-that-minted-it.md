@@ -2,7 +2,8 @@
 id: a-fold-row-names-a-vertex-the-fold-minted-by-the-step-that-minted-it
 kind: issue
 title: A union's fold row citing a vertex the fold minted spells it by the step that minted it, so the plate pinch's rows differ by member order
-status: open
+status: dispatched
+branch: wire/fold-minted-cells
 opened: 2026-10-18
 priority: P2
 cost: M
