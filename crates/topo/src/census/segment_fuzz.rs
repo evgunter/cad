@@ -329,7 +329,11 @@ fn the_closed_forms_enclosures_hold_the_exact_values() {
         let phi = r.log_uniform(1e-12, 10f64.powf(0.2));
         let b = turned(&mut r, a, phi);
         let off = cross(a, b);
-        let g = if r.unit() < 0.5 { 0.0 } else { r.log_uniform(1e-15, 1.0) };
+        let g = if r.unit() < 0.5 {
+            0.0
+        } else {
+            r.log_uniform(1e-15, 1.0)
+        };
         let x_b = add(x, off, g / norm(off));
         let la = r.log_uniform(1e-9, 10f64.powf(0.5));
         let lb = r.log_uniform(1e-9, 10f64.powf(0.5));

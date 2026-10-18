@@ -3586,7 +3586,12 @@ fn ee_lines_closest<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> LinesClosest<T
         let charge = geom_brep::rounding_charge(e.norm() * (T::one() + s)) / s;
         [g - charge, g + charge]
     };
-    let ends = [(ea.p0, eb.p0), (ea.p0, eb.p1), (ea.p1, eb.p0), (ea.p1, eb.p1)];
+    let ends = [
+        (ea.p0, eb.p0),
+        (ea.p0, eb.p1),
+        (ea.p1, eb.p0),
+        (ea.p1, eb.p1),
+    ];
     let [lo, hi] = ends
         .into_iter()
         .map(|(p, q)| gap(q - p))
@@ -3599,8 +3604,7 @@ fn ee_lines_closest<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> LinesClosest<T
             let read = |q: Point3<T>| {
                 let e = q - p;
                 let r = if flip { -e.dot(w) } else { e.dot(w) };
-                let charge =
-                    geom_brep::rounding_charge(e.norm() + r.abs() + hi / s) / s;
+                let charge = geom_brep::rounding_charge(e.norm() + r.abs() + hi / s) / s;
                 [r - charge, r + charge]
             };
             both_enclose(read(y.p0), read(y.p1))
@@ -15032,7 +15036,11 @@ mod edge_pairs_as_segments {
                 ),
                 (
                     [1.0604926322270467, 1.668625203918349, -0.014398894659049784],
-                    [0.09459421682116398, 0.6337604301239435, -0.09991245475486416],
+                    [
+                        0.09459421682116398,
+                        0.6337604301239435,
+                        -0.09991245475486416,
+                    ],
                 ),
             ),
         ];

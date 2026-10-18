@@ -2,10 +2,11 @@
 id: the-census-crossing-lane-reads-a-pair-sharing-no-point-key-from-their-starts
 kind: issue
 title: The census's crossing lane reads the closest point of two edges sharing no point key through the closed form from their starts, whose f64 rounding is |d|·u/sin φ: at ε = 1e-12, 646 of 60 000 true crossings read a definite no
-status: open
+status: closed
 opened: 2026-10-18
 priority: P0
 cost: M
+closed: 2026-10-18
 ---
 
 
@@ -49,3 +50,21 @@ into the division: the pair of ends nearest each other, chosen without
 branching on a value the generic scalar cannot order. Or bound the
 closed form's rounding and escalate a span margin within it. Then lift
 the fuzzer's rounding excuse; it is this row's test.
+
+## Closed
+
+`ee_lines_closest` now reads, for a pair sharing no point key, every
+reach and the gap as an enclosure `[lower, upper]`. Each is read from
+every pair of ends it allows (a reach from both ends of the other edge,
+the gap from all four), charged `geom_brep::rounding_charge` of
+`|e|·(1 + s)/s` (gap) or `(|e| + |reach| + gap_hi/s)/s` (reach), and the
+enclosures are intersected. `crossing_reading` decides both bounds
+(`span_reading`, `gap_reading`): a definite answer only off the bound
+that proves it, and a straddle escalated through `k_stats::straddle`
+(`pm_census_ee_span_straddle`, `pm_census_ee_gap_straddle`).
+`census::segment_fuzz` has no excuse left: f64 and Interval are both
+asserted everywhere, each crossing measured exactly first, with a
+past-an-end family (no definite yes) and an exact check that the closed
+form's enclosures hold the real values. Measured on main at effort 100
+(seed `0x1234`): 1 456 false f64 noes at 1e-12; none here. Pinned by
+`census::edge_pairs_as_segments::nearly_parallel_crossings_sharing_no_point_key_are_never_read_apart`.
