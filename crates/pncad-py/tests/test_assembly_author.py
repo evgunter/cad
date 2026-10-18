@@ -119,6 +119,7 @@ from pncad import (
     SegTag,
     VarName,
     Workspace,
+    WorldPin,
     WorldRead,
     assemble,
     content_pin,
@@ -561,8 +562,8 @@ class TestBenchStand(BenchWorkspace):
         reads that refactoring's own record.
 
         The cut moves as selected: the near post keeps its world pin in
-        the part, and the instance left behind is pinned to the world
-        over its own geometry. No edit records a frame, so the part
+        the part, and the instance left behind is pinned where it
+        stands by the world pin. No edit records a frame, so the part
         reports nothing, and the remainder and an inline back report
         only the anonymous variables their edits retire — the cut
         mates' reads, and the part's world reads the inline re-writes
@@ -585,10 +586,10 @@ class TestBenchStand(BenchWorkspace):
             outcome.remainder.last_maintenance,
         )
         # The cut moves as selected: the instance left behind is pinned
-        # to the world by one mate over its own geometry, and the near
-        # post keeps its pin.
+        # where it stands by the world pin, which reads nothing, and the
+        # near post keeps its pin.
         [(_, left_behind)] = outcome.remainder.bundle(outcome.instance)
-        self.assertIsInstance(left_behind.to, WorldRead)
+        self.assertIsInstance(left_behind, WorldPin)
 
         def pinned(part):
             return [

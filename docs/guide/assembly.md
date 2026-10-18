@@ -1048,8 +1048,8 @@ sub-assembly refuse even where the world beside them certifies.
 ## 6. Moving a part in or out: `split`, `inline`, and the pin door
 
 `split(doc, cut, part_id, resolver=)` cuts a closed node set out into
-a new document and leaves **one instance** of it behind, pinned to the
-world over its own geometry where the part's world stands. `inline(doc,
+a new document and leaves **one instance** of it behind, pinned where
+the part's world stands by the world pin, which reads nothing. `inline(doc,
 instance, resolver)` is its inverse: splice the referenced document's
 nodes back in.
 
