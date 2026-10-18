@@ -563,25 +563,31 @@ fn numbers_and_shape(printed: &str) -> (Vec<f64>, String) {
 /// point it is built about; its coordinates may differ at the rounding
 /// level, and nowhere more.
 ///
-/// Along a world axis the rotation's pivot only slides along that axis
-/// and the arithmetic is exact, so the ring is bit-identical. Off the
-/// axes each coordinate of a copy is `R·(p − c) + c` for the pivot `c`:
+/// The planes are read off a block by a frame (`frame_at`) whose spins
+/// are written as angles that round (`cos(π/2)` is about 6e-17), so even
+/// the untilted line is a world axis only to rounding, and the ring
+/// moves at the rounding level there too. Each coordinate of a copy is `R·(p − c) + c` for the pivot `c`:
 /// the two shifts each round at half an ulp of the larger of `|p|` and
 /// `|c|`, and the rotation's three-term dot products add about three
 /// ulps of `|p − c|`, so a coordinate moves by at most about 8 ulps of
 /// the scale `S = max(|p|, |c|)`. The row allows 16 ulps of `S`, with
-/// `S` the largest coordinate or pivot in play (here 6).
+/// `S` the largest coordinate or pivot in play (6 tilted, 8 untilted).
 #[test]
 fn a_meets_representative_moves_no_readers_outcome() {
     // Planes x = 0 and y = 0 meet in the z axis; `a`'s origin slides
     // within x = 0, so the line's point slides along z.
-    let at_origin = ring_about_a_meet([0.0, 0.0, 0.0], 0.0);
+    let bound = 16.0 * f64::EPSILON * 8.0;
+    let (base, shape) = numbers_and_shape(&ring_about_a_meet([0.0; 3], 0.0));
     for moved in [[0.0, 4.0, 8.0], [0.0, -0.75, 3.0], [0.0, 0.1, 0.3]] {
-        assert_eq!(
-            ring_about_a_meet(moved, 0.0),
-            at_origin,
-            "a's origin at {moved:?}"
-        );
+        let (numbers, other) = numbers_and_shape(&ring_about_a_meet(moved, 0.0));
+        assert_eq!(other, shape, "a's origin at {moved:?}: the outcome moved");
+        assert_eq!(numbers.len(), base.len());
+        for (x, y) in numbers.iter().zip(&base) {
+            assert!(
+                (x - y).abs() <= bound,
+                "a's origin at {moved:?}: {x} against {y}"
+            );
+        }
     }
     // Tilted: `a` is spun to the normal (0.6, 0, 0.8), up to the
     // rounding of its angle, and meets `y = 0` along (−0.8, 0, 0.6); its

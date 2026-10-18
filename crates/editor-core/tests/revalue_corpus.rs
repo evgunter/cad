@@ -388,8 +388,10 @@ fn holds(
 
 // The corpus documents this row runs: those a debug build replays twice
 // at `Sym<f64>` in seconds. The others (`die`, `cup`, `tube_ring`, …) run
-// through `revalue_census`; `kiss_carry` changes branch under both moves
-// and is not compared.
+// through `revalue_census`; `kiss_carry` and `face_sketch` change branch
+// under both moves and are not compared (`face_sketch`'s union of a box and
+// the boss resting on its top decides `volume_backstop_violation` exactly
+// zero at the nominal: `work/inlane/a-rest-contacts-volume-backstop-decides-its-equality-by-rounding.md`).
 // Each row's move is pinned, and its floor is half the margins it moved
 // and re-valued when it was pinned, so a change that makes a row opaque or
 // static, or sends it to the weaker move, goes red.
@@ -432,7 +434,6 @@ rows! {
     // only the in-step move compares the whole document.
     revalue_cut_cylinder: "cut_cylinder", InStep, 1051, [];
     revalue_die_chamfer: "die_chamfer", Apart, 1690, [];
-    revalue_face_sketch: "face_sketch", Apart, 582, [];
     revalue_heat_sink_fins: "heat_sink_fins", Apart, 1353, [];
     revalue_loft_prism: "loft_prism", Apart, 259, [];
     revalue_measured_web: "measured_web", Apart, 716, [];

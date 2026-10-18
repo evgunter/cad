@@ -261,9 +261,12 @@ fn leg_frame() -> Frame {
 /// plane the seat pins is composed by hand in this file: copy 1's end
 /// cap is the leg's `z = 1` plane under `O₁ ∘ F`, with `O₁` this file's
 /// own Rodrigues — the copy's offset acts in document coordinates,
-/// outside the leg's world frame. The top's own `z` axis is that cap's
-/// normal and its start cap (through its own origin) lies in that
-/// plane. The solver's output is never read into the expectation.
+/// outside the leg's world frame. The axis is read off the placed leg,
+/// so it is authored in the leg's own coordinates (the document's line
+/// carried back through `F`), and the line it reads is the document's.
+/// The top's own `z` axis is that cap's normal and its start cap
+/// (through its own origin) lies in that plane. The solver's output is
+/// never read into the expectation.
 #[test]
 fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
     let mut store = PartStore::default();
@@ -272,8 +275,11 @@ fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("r2-obl"), Tol::witness());
     let (doc, leg) = instance_at(doc, leg_ref, leg_frame(), &o);
+    let f = Rigid::from_frame(leg_frame());
+    let unturn = |v: [f64; 3]| mv(transpose(f.r), v);
+    let own_origin = unturn([1.0 - f.t[0], 0.0 - f.t[1], 0.0 - f.t[2]]);
     let axis =
-        crate::mate1_member_vocab::axis_with(&doc, leg, [1.0, 0.0, 0.0], [1.0, 1.0, 1.0], &o);
+        crate::mate1_member_vocab::axis_with(&doc, leg, own_origin, unturn([1.0, 1.0, 1.0]), &o);
     let theta = 2.0 * core::f64::consts::PI / 5.0;
     let (doc, pattern) = insert(
         doc,
@@ -305,7 +311,6 @@ fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
     );
     assert_eq!(poses.space(top), Some(Space::World));
 
-    let f = Rigid::from_frame(leg_frame());
     let o1 = Rigid::rotation_about_axis([1.0, 0.0, 0.0], [1.0, 1.0, 1.0], theta);
     let cap = o1.compose(f).compose(Rigid::translation([0.0, 0.0, 1.0]));
     let normal = [cap.r[0][2], cap.r[1][2], cap.r[2][2]];

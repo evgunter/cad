@@ -111,7 +111,10 @@ pub struct Renamed {
 
 impl Renamed {
     /// Each of `copies` re-pointed to `place`.
-    pub(crate) fn through(copies: impl IntoIterator<Item = RecipeNodeId>, place: RecipeNodeId) -> Self {
+    pub(crate) fn through(
+        copies: impl IntoIterator<Item = RecipeNodeId>,
+        place: RecipeNodeId,
+    ) -> Self {
         Self {
             deeper: copies.into_iter().map(|copy| (copy, place)).collect(),
         }

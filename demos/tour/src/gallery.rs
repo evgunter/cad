@@ -311,20 +311,22 @@ mod tests {
             Shape {
                 name: "chain",
                 doc: crate::chain::gallery_document(tol),
-                placements: 9,
-                separation: 11,
+                placements: 10,
+                separation: 13,
                 // Each bar a six-face box; each pin a cylinder wall in
                 // two halves and its two caps.
                 product: Some(Product {
-                    solids: 9,
-                    faces: 4 * 6 + 5 * 4,
+                    solids: 10,
+                    faces: 4 * 6 + 6 * 4,
                 }),
                 why: concat!(
-                    "NINE placements — four bars, five pins — and NINE copies: one bar ",
-                    "extrude, placed by each link's joint stack, is four copies, each ",
-                    "its own output with its own names. ELEVEN findings, all ",
-                    "separation: each pin stands in the bar ends it joins and the bars ",
-                    "meet at the joints, and no mate declares a joint",
+                    "TEN placements — four bars, five pins, and the target pin — and TEN ",
+                    "copies: one bar extrude, each link placed against its parent, is ",
+                    "four copies, each its own output with its own names; the target ",
+                    "stands in the world because the tip measure reads it beside the ",
+                    "tip pin's copy. THIRTEEN findings, all separation: each pin stands ",
+                    "in the bar ends it joins, the bars meet at the joints, the target ",
+                    "stands on the tip pin at nominal, and no mate declares a joint",
                 ),
             },
         ];
@@ -337,9 +339,6 @@ mod tests {
                 &EvalOptions::default(),
                 tol,
             );
-            eprintln!("ZZ {} world {} all {}", shape.name, world_placements(&shape.doc, &evaluation).len(), shape.doc.placements().len());
-            if let Ok(product) = pncad::document::product(&shape.doc, &evaluation, tol) { eprintln!("ZZ {} product {} {}", shape.name, product.solids().count(), product.faces().count()); }
-            if let Ok(report) = run_checks(&shape.doc, &evaluation, &ChecksConfig::default(), tol) { eprintln!("ZZ {} separation {}", shape.name, report.findings.iter().filter(|f| f.check == CheckId::Separation).count()); }
             assert_eq!(
                 world_placements(&shape.doc, &evaluation).len(),
                 shape.placements,

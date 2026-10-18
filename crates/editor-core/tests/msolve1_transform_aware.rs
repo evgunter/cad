@@ -523,20 +523,17 @@ fn a2_a_rotated_target_seats_and_keeps_the_whole_frame() {
 /// The copy of the base's pattern the seat reads.
 const COPY: u32 = 1;
 
-/// **A3.** A pattern of the target's placed copy, and a placed copy of
-/// the target's pattern: both solve, and the top seats on the named
-/// copy in the product.
+/// **A3(a).** A PATTERN over a PLACED COPY of the target, the seat
+/// read at the pattern: it solves, and the top seats on the named copy
+/// in the product, which stands at `M(1) ∘ T`. The seat is a constant
+/// of the mates and the two part documents, so the plain control's
+/// relative frame is the one a pattern copy must give too.
 ///
 /// *Breaks if* a pattern copy's face is read at the master's pose, or
 /// the placement's motion and the pattern's compose in the wrong order.
 #[test]
-fn a3_pattern_of_a_placed_copy_seats_and_a_placed_pattern_resolves() {
-    // The seat is a constant of the mates and the two part documents,
-    // so the plain control's relative frame is the one a pattern copy
-    // must give too.
-    let seat_frame = control_seat("msolve1-a3");
-    // (a) A PATTERN over a PLACED COPY of the base. The seat is read at
-    // the pattern; the copy stands at M(1) ∘ T.
+fn a3a_a_pattern_of_a_placed_copy_seats() {
+    let seat_frame = control_seat("msolve1-a3a");
     {
         let (base_part, top_part, opts) = parts("msolve1-a3a");
         let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a3a"), Tol::witness());
@@ -592,13 +589,21 @@ fn a3_pattern_of_a_placed_copy_seats_and_a_placed_pattern_resolves() {
             gate(&doc, &ev).err()
         );
     }
+}
 
-    const PROBE_COPY: u32 = 1;
-// (b) A PLACED PROBE_COPY of a PATTERN over the base. The seat names a
-    // pattern copy under the placement's layer and is read at the
-    // placement: the copy stands at T ∘ M(1), the seat pins the top,
-    // and the document GATHERS — a placement copies every body of its
-    // shape under its one motion.
+/// **A3(b).** A PLACED COPY of a PATTERN over the target. The seat
+/// names a pattern copy under the placement's layer and is read at the
+/// placement: the copy stands at `T ∘ M(1)`, the seat pins the top,
+/// and the document GATHERS and gates — a placement copies every body
+/// of its shape under its one motion, and a declaration on any of them
+/// is checked on that body.
+///
+/// *Breaks if* the placement's motion and the pattern's compose in the
+/// wrong order, or the gate checks the seat on another body of the
+/// placement than the one its name reads.
+#[test]
+fn a3b_a_placed_copy_of_a_pattern_seats_and_gates() {
+    let seat_frame = control_seat("msolve1-a3b");
     {
         let (base_part, top_part, opts) = parts("msolve1-a3b");
         let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a3b"), Tol::witness());
@@ -623,13 +628,13 @@ fn a3_pattern_of_a_placed_copy_seats_and_a_placed_pattern_resolves() {
             std::f64::consts::FRAC_PI_2,
             &opts,
         );
-        let a = in_copy(pattern, PROBE_COPY, base_part.cap(base, CapEnd::End));
+        let a = in_copy(pattern, COPY, base_part.cap(base, CapEnd::End));
         let b = top_part.cap(top, CapEnd::Start);
         let (doc, _) = seat(
             doc,
             top,
             &top_part,
-            &|n| head_at(xf, placed(xf, in_copy(pattern, PROBE_COPY, n))),
+            &|n| head_at(xf, placed(xf, in_copy(pattern, COPY, n))),
             &base_part,
             base,
         );
@@ -1239,8 +1244,11 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     // constraint's operand moved with it and still names the placed
     // copy of its instance.
     let [moved] = fixture::constrained(&out.remainder)
+        .into_iter()
+        .filter(|&p| matches!(out.remainder.node(p), Some(Node::InstantiatePart { .. })))
+        .collect::<Vec<_>>()
         .try_into()
-        .expect("one constrained placement stayed in the remainder");
+        .expect("one constrained instance stayed in the remainder");
     let [c] = fixture::bundle(&out.remainder, moved)
         .try_into()
         .expect("its bundle holds the rest");
@@ -1367,13 +1375,12 @@ fn severed_operand_scene(label: &str) -> (ProfileDoc, MateRef, RecipeNodeId, Rec
     let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
     let (doc, xf) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
-    let to = read_at(&doc, xf)(base_part.cap(base, CapEnd::End));
     let (doc, mate) = constrain_at(
         doc,
         top,
         rest(
             head(top_part.cap(top, CapEnd::Start)),
-            to,
+            head_at(xf, base_part.cap(base, CapEnd::End)),
             ContactClass::Rest,
         ),
     );
