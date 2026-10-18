@@ -6106,3 +6106,14 @@ Signed (WIRE orchestrator).
   note: a unit that adds a category-keyed ending can mint a second
   hand-written category map beside the test's (`NamingError::ending` vs
   `expected_framing`); the fix is one map. (WIRE orchestrator)
+
+- 2026-10-18 — Ev approved PR 5279 ("that recommendation sounds good!").
+  N3's seam sentence was widened and merged (da3f0bf530). The fork-log
+  row was renumbered from 159 to 160: INTENT's row 159 landed first. It
+  is filled with byte 197 (odd): A = Fable, B = Opus. The build unit
+  (spanning chord rebuild; delete chord descent, `constituent_holding`
+  and `MergedChordConstituents`) is held until PR 5298 merges. That
+  fix pass is rewriting the naming category map that lists the variant
+  (`emit.rs`, `wire_legal_union_refusals.rs`). Sequencing call;
+  the alternative was dispatching now and rebasing the map twice.
+  (WIRE orchestrator)
