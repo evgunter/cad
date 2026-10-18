@@ -2,11 +2,12 @@
 id: a-mirrored-split-through-a-pinch-refuses-emission-at-an-on-plane-vertex
 kind: issue
 title: A split through a pinch whose two runs lie in the LOWER half refuses Naming(Emission) for an on-plane vertex with neither a SplitEdge record nor an operand identity
-status: open
+status: closed
 opened: 2026-10-17
 priority: P1
 cost: M
 rides_with: a-split-through-a-pinch-names-both-tip-copies-alike
+closed: 2026-10-18
 ---
 
 
@@ -32,3 +33,10 @@ the `NOTCHED` and `MIRRORED` fixtures, or the qualifier lands on one side
 only.
 
 Signed (WIRE orchestrator).
+
+## Resolution (2026-10-18)
+
+Closed by PR 5275 with its companion row: the `MIRRORED` fixture now
+names, pinned by `a_mirrored_split_through_a_notch_tip_tells_its_copies_apart_by_keeps`.
+The flipped-normal revolved refusal is a separate row,
+`a-revolved-pinch-split-refuses-with-its-normal-flipped`.
