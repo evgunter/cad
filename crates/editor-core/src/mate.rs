@@ -923,8 +923,9 @@ pub fn reference_about<T: SolveScalar>(
 
 /// **The recourse a [`MateFault::Overconstrained`] ends on**: what an
 /// author does about a mate the rest of its bundle already fixes.
-pub const OVERCONSTRAINED_RECOURSE: &str = "delete one of the named constraints; where the two \
-     copies also meet, an assertion says so";
+pub const OVERCONSTRAINED_RECOURSE: &str = "delete one of the named constraints, and write what \
+     it held that the rest leave as a value (an axis mate with a spin is a prismatic joint); where \
+     the two copies also meet, an assertion says so";
 
 /// **The v1 class restriction, named.** `Fit` is specified and not
 /// built; a mate cannot declare a designed clearance until the kernel
