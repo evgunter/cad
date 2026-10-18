@@ -337,10 +337,16 @@ readings that decides (`boolean::solid_contain::missed_side`):
 
 The third reading runs only where the closed form had no value for a
 face, and it does not run at all at a dual. Every query main answered
-is answered by the same reading. An undecided bracket is typed
-`ZeroVolumeBody` only where both of its ends read zero
-(`props::RoleUnread::zero_at_both_ends`). With an end off zero it is
-`VolumeUncertified`.
+is answered by the same reading. Both volume readings belong to the
+selection (`SolidFaces`' `VolumeReads`) and are read once per selection
+at a band. The census arm, the boolean's witness ladder
+(`operand_faces`), and any caller that holds `SolidFaces::of_body`
+therefore pay for them once and not once per point.
+
+An undecided read is typed `ZeroVolumeBody` only where the reading that
+decides it, the certified one where it was taken, reads zero at both
+ends, or certifies a sliver (`props::RoleUnread::reads_zero`,
+`unread_refusal`). With an end off zero it is `VolumeUncertified`.
 
 Measured at ε 1e-9:
 
@@ -350,8 +356,10 @@ Measured at ε 1e-9:
   bodies on main, 0 on the branch. The `probe_gap` escape is gone, and
   `every_point_of_the_spiric_box_on_the_one_face_torus_reads_its_side`
   pins the fast subset.
-- The wall pieces of `a_plane_across_a_one_face_wall` and every result
-  in `continuation_pose` are now legal operands, and both are asserted.
+- The wall pieces of `a_plane_across_a_one_face_wall` are now legal
+  operands. Every result in `continuation_pose` was already one on main,
+  through the aimed rays. Both suites now assert the far-brick union's
+  volume.
 
 The shell-role refusal shares the zero-at-one-end typing. It is filed on
 TALLY as `a-shell-role-left-open-at-the-target-is-typed-zero-volume`.

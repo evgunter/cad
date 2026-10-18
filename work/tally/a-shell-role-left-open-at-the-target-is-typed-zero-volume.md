@@ -39,3 +39,19 @@ zero. Otherwise use `Straddles` or a new unmeasured arm. Or have
 budget-exhausted read refuses as uncomputable. No reachable witness has
 been measured. Building one needs a quadrature face whose budget runs out
 short of the shell's sign.
+
+## One classification, two readers (RESTREAD fix pass, PR 5311)
+
+The probe's typing is now `RoleUnread::reads_zero`. It reads the
+certified reading's ends where a certificate was taken
+(`certified_by` records them as `certified_zero`), and the walk's ends
+only where none was taken. `CertifiedSliver` stays a zero volume. So
+`RoleUnread` now has two classifications of the same ends that disagree:
+`reads_zero` for the at-infinity probe
+(`boolean::solid_contain::unread_refusal`), and `shell_role_refusal` for
+check 10 and the shell classification. The fix here is to route
+`shell_role_refusal`'s `ZeroVolume` arm through `reads_zero` as well, and
+to give the remaining non-zero, non-straddle case its own arm or fold it
+into `Straddles`. That changes check 10's refusal words and the sliver
+interplay `RoleRefusal` carries, which is TALLY's ground, so RESTREAD
+left it here.
