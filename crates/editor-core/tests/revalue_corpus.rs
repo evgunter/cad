@@ -317,11 +317,11 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
 /// that names none owes none.
 ///
 /// `after` names the predicates that may re-value away from the `p1`
-/// build after an owed flip, and the row reds on any it does not name.
-/// It is a bound, not a list held exactly: past a flip `p1` builds on the
-/// other branch, so a rounding-level margin there (a map residual of a
-/// few ulps) re-values to `p1`'s bits or not by chance, and the chance
-/// moves with the step, which moves with ε ([`step`]).
+/// build after an owed flip. It is an upper bound: a named after-flip
+/// predicate may be absent, because its re-valued bits depend on the step
+/// (past a flip `p1` builds on the other branch, and a rounding-level
+/// margin there matches `p1`'s bits or not as [`step`], and so ε, moves);
+/// an unnamed one fails.
 fn holds(
     name: &str,
     mode: Move,
