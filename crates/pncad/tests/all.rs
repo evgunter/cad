@@ -2158,83 +2158,36 @@ fn box_doc(
         doc,
         Node::place(vec![pncad::document::BodyRead::plain(body)]),
     );
-    let shape = match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => shapes[0].read,
-        other => panic!("a placement was inserted, got {other:?}"),
-    };
-    let pin = pncad::document::pin_at(
-        &doc,
-        &pncad::document::Operand::Var(shape),
-        &pncad::document::Frame::IDENTITY,
-        &pncad::document::EvalOptions::default(),
-        pncad::tolerance::Tol::witness(),
-    )
-    .expect("the box pins over its geometry");
     let doc = pncad::document::apply(
         &doc,
-        &pncad::document::DocEdit::AddConstraint {
-            placement,
-            mate: Box::new(pin),
-            fresh: Vec::new(),
-        },
+        &pncad::document::DocEdit::PinWhereItStands { placement },
         pncad::tolerance::Tol::witness(),
         &pncad::document::RefusingReach,
     )
-    .expect("the pin is admitted")
+    .expect("the world pin is admitted")
     .doc;
     (doc, profile, body)
 }
 // END box-document fixture twin
 
-/// Place one copy of `body` in the world at the identity — a loose
-/// placement, then the "place part" gesture's constraints
-/// (`place_at`): a plane mate on its first planar face and the values
-/// that put it at the identity — returning the placement's id.
+/// Place one copy of `body` in the world where it stands — a loose
+/// placement, then the named interim's world pin
+/// (`DocEdit::PinWhereItStands`), which reads nothing — returning the
+/// placement's id.
 fn place(
     doc: pncad::document::ProfileDoc,
     body: impl Into<pncad::document::BodyRead<pncad::document::Formula>>,
 ) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
-    use pncad::document::{DocEdit, Node, Value};
+    use pncad::document::{DocEdit, Node};
     let (doc, placement) = insert(doc, Node::place(vec![body.into()]));
-    let shape = match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => shapes[0].read,
-        other => panic!("a placement was inserted, got {other:?}"),
-    };
-    let placed = pncad::document::place_at(
+    let doc = pncad::document::apply(
         &doc,
-        &pncad::document::Operand::Var(shape),
-        &pncad::document::Frame::IDENTITY,
-        &pncad::document::EvalOptions::default(),
+        &DocEdit::PinWhereItStands { placement },
         Tol::witness(),
+        &pncad::document::RefusingReach,
     )
-    .expect("the copy places over its geometry");
-    let step = |doc: &pncad::document::ProfileDoc, edit| {
-        pncad::document::apply(doc, &edit, Tol::witness(), &pncad::document::RefusingReach)
-            .unwrap_or_else(|e| panic!("the gesture's constraint is admitted: {e}"))
-    };
-    let applied = step(
-        &doc,
-        DocEdit::AddConstraint {
-            placement,
-            mate: Box::new(placed.mate),
-            fresh: Vec::new(),
-        },
-    );
-    let mate = applied.record.minted_constraints[0];
-    let doc = placed
-        .values
-        .into_iter()
-        .fold(applied.doc, |doc, (coord, by)| {
-            step(
-                &doc,
-                DocEdit::AddValue {
-                    placement,
-                    value: Box::new(Value { mate, coord, by }),
-                    fresh: Vec::new(),
-                },
-            )
-            .doc
-        });
+    .unwrap_or_else(|e| panic!("the world pin is admitted: {e}"))
+    .doc;
     (doc, placement)
 }
 

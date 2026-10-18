@@ -358,9 +358,6 @@ fn p6_rebinding_the_designation_moves_the_rim() {
     )
     .unwrap()
     .doc;
-    // The cup is placed over its rim, which the rebind re-designates:
-    // it is placed again where it stands.
-    let doc = crate::corpus::replaced(doc);
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let t = ev.table_at(shell).unwrap();

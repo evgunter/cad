@@ -355,8 +355,10 @@ pub fn pinned_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
     doc
 }
 
-/// **The copy `placement` defines, pinned to the world at `pose`**
-/// through the one migration helper ([`editor_core::pin_at`]): a frame
+/// **The copy `placement` defines, pinned to the world at `pose`**:
+/// at the identity by the named interim's world pin
+/// ([`DocEdit::PinWhereItStands`]), which reads nothing; elsewhere
+/// through the one migration helper ([`editor_core::pin_at`]), a frame
 /// read off the copy's geometry equated with the world's frame moved to
 /// where that frame sits at `pose`. A `Place` is read through its first
 /// shape, an instance through its own copies; `o` evaluates them.
@@ -366,6 +368,11 @@ pub fn pin(
     pose: &editor_core::Frame,
     o: &EvalOptions,
 ) -> ProfileDoc {
+    // At the identity, where it stands: the named interim's world pin
+    // (stage 3 C), which reads nothing, so the copy follows its body.
+    if *pose == editor_core::Frame::IDENTITY {
+        return step(doc, DocEdit::PinWhereItStands { placement }).0;
+    }
     let mate = pin_mate(&doc, placement, pose, o);
     constrain_at(doc, placement, mate).0
 }
@@ -1475,19 +1482,10 @@ impl Recorder {
                 fresh: Vec::new(),
             })
             .expect("a placement mints its node");
-        // The pin [`pin`] writes, so a copy that does not evaluate is
-        // placed by its fallback too.
-        let mate = pin_mate(
-            &self.doc,
-            placement,
-            &editor_core::Frame::IDENTITY,
-            &EvalOptions::default(),
-        );
-        self.push(DocEdit::AddConstraint {
-            placement,
-            mate: Box::new(mate),
-            fresh: Vec::new(),
-        });
+        // Where it stands: the named interim's world pin, as [`pin`]
+        // writes at the identity.
+        self.push(DocEdit::PinWhereItStands { placement })
+            .expect("a world pin stands alone in a fresh bundle");
         placement
     }
 

@@ -257,14 +257,23 @@ pub fn placed_read(
     (pinned(&doc, placement, opts, tol), placement)
 }
 
-/// [`pin`] at the identity.
+/// The copy `placement` defines, pinned where its body stands: the
+/// named interim's world pin ([`DocEdit::PinWhereItStands`], stage 3
+/// C), which reads nothing, so the copy follows its body's variables.
 pub fn pinned(
     doc: &Doc<ProfileProgram>,
     placement: RecipeNodeId,
-    opts: &EvalOptions,
+    _opts: &EvalOptions,
     tol: Tol,
 ) -> Doc<ProfileProgram> {
-    pin(doc, placement, &pncad::document::Frame::IDENTITY, opts, tol)
+    apply(
+        doc,
+        &DocEdit::PinWhereItStands { placement },
+        tol,
+        &RefusingReach,
+    )
+    .expect("a world pin stands alone in its bundle")
+    .doc
 }
 
 /// **The copy `placement` defines, pinned to the world at `pose`**

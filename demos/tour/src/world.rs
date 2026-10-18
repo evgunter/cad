@@ -1,23 +1,18 @@
-//! **One copy of a body placed in the world** — the "place part"
-//! gesture, spelled through the façade's own doors: a loose
-//! `Node::place` of the body, then `place_at`'s constraints added to
-//! its bundle — a plane mate on the copy's first planar face to the
-//! world plane that face lies in at the pose, and the three values
-//! that put the copy at the pose in that mate's chart (or, for a copy
-//! with no planar face, the pin `place_at` falls back to).
+//! **One copy of a body placed in the world where it stands**
+//! ([`place_in_world`]): a loose `Node::place` of the body pinned by
+//! the named interim's world pin (stage 3 C), which reads nothing, so
+//! the copy follows every variable its body reads.
 //!
-//! A mate's values name it by the id its own edit mints, so the
-//! gesture is four edits applied in order, each against the document
-//! the one before it left; [`Placed::edits`] is that sequence, so a
-//! scene that exports its edit log replays exactly what it applied.
+//! The placement is two edits applied in order, the insert and the
+//! pin; [`Placed::edits`] is that sequence, so a scene that exports its
+//! edit log replays exactly what it applied.
 
 use pncad::document::{
-    BodyRead, Doc, DocEdit, EvalOptions, Formula, Frame, Node, Operand, ProfileProgram,
-    RecipeNodeId, RefusingReach, Value, apply, place_at,
+    BodyRead, Doc, DocEdit, Formula, Node, ProfileProgram, RecipeNodeId, RefusingReach, apply,
 };
 use pncad::geom_core::Tol;
 
-/// What the gesture left: the document, the placement it minted, and
+/// What the placement left: the document, the placement it minted, and
 /// the edits it applied, in order.
 pub struct Placed {
     pub doc: Doc<ProfileProgram>,
@@ -25,29 +20,18 @@ pub struct Placed {
     pub edits: Vec<DocEdit<ProfileProgram>>,
 }
 
-/// One copy of `body` placed in the world where it stands (the
-/// identity), its copy evaluated under the default options.
-pub fn place_in_world(
-    doc: &Doc<ProfileProgram>,
-    body: impl Into<BodyRead<Formula>>,
-    tol: Tol,
-) -> Placed {
-    place_at_pose(doc, body, &Frame::IDENTITY, &EvalOptions::default(), tol)
-}
-
-/// One copy of `body` placed in the world at `pose`, its copy
-/// evaluated under `opts` (an instance's copy needs the store's
-/// resolver).
+/// One copy of `body` placed in the world where it stands: a loose
+/// `Node::place` of the body pinned by a world pin
+/// (`DocEdit::PinWhereItStands`, stage 3 C's named interim), which
+/// reads nothing and holds no number, so the copy follows every
+/// variable its body reads.
 ///
 /// # Panics
 ///
-/// On any refusal of the gesture or its edits, naming it: a demo whose
-/// copy does not place is a demo with a bug in it.
-pub fn place_at_pose(
+/// On any refusal of its two edits, naming it.
+pub fn place_in_world(
     doc: &Doc<ProfileProgram>,
     body: impl Into<BodyRead<Formula>>,
-    pose: &Frame,
-    opts: &EvalOptions,
     tol: Tol,
 ) -> Placed {
     let mut edits = Vec::new();
@@ -65,33 +49,7 @@ pub fn place_at_pose(
         },
     );
     let placement = inserted.record.minted.expect("an insert mints an id");
-    let shape = match inserted.doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => shapes[0].read,
-        other => panic!("a placement was inserted, got {other:?}"),
-    };
-    let placed = place_at(&inserted.doc, &Operand::Var(shape), pose, opts, tol)
-        .unwrap_or_else(|refusal| panic!("the copy places over its geometry: {refusal}"));
-    let mated = step(
-        &inserted.doc,
-        DocEdit::AddConstraint {
-            placement,
-            mate: Box::new(placed.mate),
-            fresh: Vec::new(),
-        },
-    );
-    let mate = mated.record.minted_constraints[0];
-    let mut doc = mated.doc;
-    for (coord, by) in placed.values {
-        doc = step(
-            &doc,
-            DocEdit::AddValue {
-                placement,
-                value: Box::new(Value { mate, coord, by }),
-                fresh: Vec::new(),
-            },
-        )
-        .doc;
-    }
+    let doc = step(&inserted.doc, DocEdit::PinWhereItStands { placement }).doc;
     Placed {
         doc,
         placement,

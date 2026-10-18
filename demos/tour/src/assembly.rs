@@ -396,16 +396,16 @@ fn place_in_world(
     set_values(doc, mate, placed.values, tol, &RefusingReach);
 }
 
-/// Places one copy of `body` in the world where it stands, and returns
-/// the placement's id.
+/// Places one copy of `body` in the world where it stands — pinned by
+/// the named interim's world pin, which reads nothing — and returns the
+/// placement's id.
 fn place(doc: &mut ProfileDoc, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
     let placement = insert(doc, Node::place(vec![body.into()]), tol);
-    place_in_world(
+    edit(
         doc,
-        placement,
-        &Frame::IDENTITY,
-        &EvalOptions::default(),
+        &DocEdit::PinWhereItStands { placement },
         tol,
+        &RefusingReach,
     );
     placement
 }

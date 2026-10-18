@@ -194,9 +194,6 @@ fn the_rim_follows_a_rebound_designation() {
     )
     .expect("rebind")
     .doc;
-    // The cup is placed over its rim, which the rebind re-designates:
-    // it is placed again where it stands.
-    let out = crate::corpus::replaced(out);
     let ev = eval::<f64>(&out);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let table = ev.table_at(shell).unwrap();

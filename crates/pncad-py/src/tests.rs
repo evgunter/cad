@@ -124,29 +124,13 @@ fn box_doc(
         doc,
         Node::place(vec![pncad::document::BodyRead::plain(body)]),
     );
-    let shape = match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => shapes[0].read,
-        other => panic!("a placement was inserted, got {other:?}"),
-    };
-    let pin = pncad::document::pin_at(
-        &doc,
-        &pncad::document::Operand::Var(shape),
-        &pncad::document::Frame::IDENTITY,
-        &pncad::document::EvalOptions::default(),
-        pncad::tolerance::Tol::witness(),
-    )
-    .expect("the box pins over its geometry");
     let doc = pncad::document::apply(
         &doc,
-        &pncad::document::DocEdit::AddConstraint {
-            placement,
-            mate: Box::new(pin),
-            fresh: Vec::new(),
-        },
+        &pncad::document::DocEdit::PinWhereItStands { placement },
         pncad::tolerance::Tol::witness(),
         &pncad::document::RefusingReach,
     )
-    .expect("the pin is admitted")
+    .expect("the world pin is admitted")
     .doc;
     (doc, profile, body)
 }

@@ -1350,7 +1350,15 @@ fn box_slid_by_a_parameter(nominal: f64) -> (ProfileDoc, RecipeNodeId, EvalOptio
 fn a_copy_pinned_at_the_identity_is_placed_by_no_map_in_every_lane() {
     let (doc, body) = a_box("s3c_at_rest", 1.0);
     let (doc, placement) = placed(doc, body);
-    let doc = fixture::pinned(doc, placement, &EvalOptions::default());
+    // `pin_at`'s mate itself, not the world pin `fixture::pinned`
+    // writes at the identity: the snap is this row's subject.
+    let mate = fixture::pin_mate(
+        &doc,
+        placement,
+        &editor_core::Frame::IDENTITY,
+        &EvalOptions::default(),
+    );
+    let (doc, _) = fixture::constrain_at(doc, placement, mate);
     let (doc, _) = fixture::step(
         doc,
         DocEdit::DeclareVar {
@@ -1605,4 +1613,184 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
             }
         }
     }
+}
+
+// ---- The named interim's world pin ----
+
+/// A box whose height is the length `h`, declared at `nominal`, and one
+/// copy of it pinned where it stands by the world pin.
+fn a_box_of_height_pinned_where_it_stands(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, _) = fixture::step(
+        ProfileDoc::empty_derived("s3c_world_pin", Tol::witness()),
+        DocEdit::DeclareVar {
+            name: editor_core::VarName::new("h").expect("a name"),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                editor_core::Dimension::Length,
+                nominal,
+            )),
+        },
+    );
+    let (doc, profile) = fixture::on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    let (doc, body) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: Formula::named(
+                editor_core::VarName::new("h").expect("a name"),
+                editor_core::Dimension::Length,
+            ),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (doc, placement) = placed(doc, body);
+    let (doc, _) = fixture::step(doc, DocEdit::PinWhereItStands { placement });
+    (doc, placement)
+}
+
+/// **A world pin places its copy where its body stands, at every
+/// value** (stage 3 C's named interim). A box whose height is a
+/// variable, its copy pinned by the world pin: the copy is in the world
+/// and placed by no map at the nominal, at another value, and under an
+/// interval box over the height, where a pin read off the copy's
+/// geometry would carry the height's width into the copy.
+///
+/// *Breaks if* the world pin reads the copy's geometry or a number (a
+/// map would appear under the box), or places the copy anywhere but the
+/// world.
+#[test]
+fn a_world_pin_places_its_copy_where_its_body_stands_at_every_value() {
+    for nominal in [1.0, 2.5] {
+        let (doc, placement) = a_box_of_height_pinned_where_it_stands(nominal);
+        let ev = evaluated::<f64>(&doc, &EvalOptions::default());
+        assert!(motion_of(&ev, placement).is_none(), "at h = {nominal}");
+        match ev.result(placement) {
+            Some(NodeResult::Ok(value)) => {
+                assert_eq!(value.space, Some(editor_core::Space::World));
+            }
+            other => panic!("the placement evaluates: {other:?}"),
+        }
+    }
+    let (doc, placement) = a_box_of_height_pinned_where_it_stands(1.0);
+    let h = doc.var_named("h").expect("declared");
+    let boxed = EvalOptions {
+        param_box: Some(std::sync::Arc::new(
+            editor_core::analysis::ParamBox::from_axes(std::collections::BTreeMap::from([(
+                h,
+                editor_core::analysis::BoxAxis::Varying { lo: -0.1, hi: 0.1 },
+            )])),
+        )),
+        ..EvalOptions::default()
+    };
+    let ev = evaluated::<geom_core::Interval>(&doc, &boxed);
+    assert!(motion_of(&ev, placement).is_none(), "no width under the box");
+}
+
+/// **A world pin stands alone in its bundle.** A mate added beside it,
+/// and a world pin added beside a mate, each refuse at the edit door as
+/// a constraint the bundle already fixes (`Overconstrained`, naming the
+/// constraint added).
+///
+/// *Breaks if* a bundle holds a world pin and anything else (the fold
+/// would have to choose between them).
+#[test]
+fn a_world_pin_stands_alone_in_its_bundle() {
+    let (doc, placement) = a_box_of_height_pinned_where_it_stands(1.0);
+    let mate = fixture::pin_mate(
+        &doc,
+        placement,
+        &editor_core::Frame::translation([1.0, 0.0, 0.0]),
+        &EvalOptions::default(),
+    );
+    let beside = doc.apply(
+        &DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(mate.clone()),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &RefusingReach,
+    );
+    let overconstrained = |result: Result<_, EditError>| match result {
+        Err(EditError::MateRefused { fault, .. }) => {
+            assert!(
+                matches!(*fault, MateFault::Overconstrained { .. }),
+                "{fault:?}"
+            );
+        }
+        other => panic!("refused as overconstrained: {other:?}"),
+    };
+    overconstrained(beside.map(|_| ()));
+    let (doc, body) = a_box("s3c_world_pin_after", 1.0);
+    let (doc, placement) = placed(doc, body);
+    let (doc, _) = fixture::constrain_at(doc, placement, mate);
+    overconstrained(
+        doc.apply(
+            &DocEdit::PinWhereItStands { placement },
+            Tol::witness(),
+            &RefusingReach,
+        )
+        .map(|_| ()),
+    );
+}
+
+/// **Inline refuses a moved landing under a world pin.** A part whose
+/// copy is pinned where it stands, instanced in a host and pinned off
+/// the identity: the world pin holds no pose to move with the instance,
+/// so inline refuses `WorldPinOnAMovedWorld` naming the part placement.
+/// At the identity the same instance inlines, and its copy stays pinned
+/// where it stands.
+///
+/// *Breaks if* the inline drops the world pin or carries it under a
+/// moved landing (the copy would stay at the part's identity).
+#[test]
+fn inline_refuses_a_moved_landing_under_a_world_pin() {
+    let (part, p) = a_box_of_height_pinned_where_it_stands(1.0);
+    let mut store = fixture::resolver::PartStore::new();
+    let part_ref = store.insert(part, Tol::witness());
+    let o = fixture::resolver::with_resolver(store.clone());
+    let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
+    let host = ProfileDoc::empty_derived("s3c_world_pin_host", Tol::witness());
+    let (host, instance) = fixture::insert(host, Node::instantiate_part(part_ref));
+    let moved = fixture::pin(
+        host.clone(),
+        instance,
+        &editor_core::Frame::translation([3.0, 0.0, 0.0]),
+        &o,
+    );
+    match editor_core::inline(&moved, instance, &resolver, Tol::witness()) {
+        Err(editor_core::InlineError::WorldPinOnAMovedWorld { placement }) => {
+            assert_eq!(placement.id(), p, "the part placement is named");
+        }
+        other => panic!("a moving landing under a world pin refuses: {other:?}"),
+    }
+    let still = fixture::pinned(host, instance, &o);
+    let inlined = editor_core::inline(&still, instance, &resolver, Tol::witness())
+        .expect("at the identity the part's world is the host's");
+    let pins = inlined
+        .doc
+        .placements()
+        .into_iter()
+        .flat_map(|at| fixture::bundle(&inlined.doc, at))
+        .filter(|c| c.world_pin().is_some())
+        .count();
+    assert_eq!(pins, 1, "the part's copy stays pinned where it stands");
+}
+
+/// **A world pin crosses save and load.** The document saves, loads,
+/// and is bit-equal to the one saved.
+///
+/// *Breaks if* the wire spells the world pin otherwise than it reads
+/// it.
+#[test]
+fn a_world_pin_crosses_save_and_load() {
+    let (doc, _) = a_box_of_height_pinned_where_it_stands(1.0);
+    let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
+    let loaded = editor_core::load(&text, Tol::witness()).expect("loads");
+    assert!(loaded.snapshot.bit_eq(&doc), "the snapshot round-trips");
 }
