@@ -174,7 +174,7 @@ class WorldPins(unittest.TestCase):
         # so nothing goes with it.
         value = held[1][0]
         self.assertEqual(doc.remove_mate(value), [])
-        self.assertEqual(doc.bundle(post), [held[0]] + held[2:])
+        self.assertEqual(doc.bundle(post), [held[0], *held[2:]])
         # The world is no placement.
         with self.assertRaises(EditError) as caught:
             doc.remove_mate(MateRef(doc.world, pin.constraint))
