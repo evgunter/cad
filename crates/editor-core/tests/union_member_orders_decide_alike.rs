@@ -32,7 +32,9 @@
 //! bits.
 //!
 //! **Scope.** The corpus is planar blocks: rests, continuations, a
-//! transverse union and an in-band sliver. Unions known to decide by
+//! transverse union and an in-band sliver; vertex rows are pinned
+//! beside it on an L-prism and a tilted cube that pinch, and on blocks
+//! that kiss at a corner. Unions known to decide by
 //! member order are pinned where their issues own them, not here: the
 //! capsule's rod ending on its joint
 //! (`work/tang/the-capsule-rod-ending-on-the-joint-parts-by-member-order.md`).
@@ -447,23 +449,140 @@ fn pinch_and_cap(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 /// refuses naming the corner's copies.
 const CARRIED_PINCH: &str = "work/refs/a-pinch-carried-through-a-later-fold-step-refuses-naming.md";
 
-/// **A pinch's row is one row of the union in every member order**
-/// (DM4: the union's rows are its member pairs'): the L-prism and the
-/// cube alone, with a far third member, and with a third member filling
-/// the pinch, whose pair still decided it. Every order that builds
-/// decides alike and publishes the pinch's `VertexFusion` row; the
-/// orders that fold the far member last refuse [`CARRIED_PINCH`] and
-/// are excluded, each checked to refuse that way.
+/// Two unit blocks kissing at the corner (1, 1, 1): one vertex-vertex
+/// record, citing its `VertexFusion` row.
+fn kiss(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 2]) {
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 1.0);
+    (doc, [a, b])
+}
+
+/// [`kiss`] and a block far from both: the touch is a fold step's, its
+/// record the union's in the orders that fold it last.
+fn kiss_and_far(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, [a, b]) = kiss(doc);
+    let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
+    (doc, vec![a, b, far])
+}
+
+/// [`kiss`] with its first block read twice: the pairs of `b` with
+/// each read of `a` state one touch. A read repeated keys its cells
+/// alike, so the statements name it `m0` both times.
+fn kiss_read_twice(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, [a, b]) = kiss(doc);
+    (doc, vec![a, a, b])
+}
+
+/// The union of `fixture`'s members in `order`, each row as the
+/// statement it makes: its site and relation, and its two cells as the
+/// entity kind and the fixture's index of the member they are read
+/// from, the cells sorted, as [`row`] sorts them (which cell a
+/// decision read first follows operand order, and a statement is the
+/// same either way).
+fn statements(fixture: Members, order: &[usize]) -> Vec<String> {
+    let doc = ProfileDoc::empty_derived("union-member-orders", Tol::witness());
+    let (doc, members) = fixture(doc);
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(
+                order.iter().map(|&i| members[i].into()).collect(),
+            ),
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, union).is_none(), "{order:?} builds");
+    let cell = |c: &editor_core::NamedCell| match c {
+        editor_core::NamedCell::Entity { input, name } => {
+            let member = members
+                .iter()
+                .position(|&m| doc.output(m, 0) == Some(*input))
+                .map_or("the union".to_string(), |i| format!("m{i}"));
+            format!("{:?}@{member}", name.kind)
+        }
+        other => format!("{other:?}"),
+    };
+    let mut out: Vec<String> = ev
+        .value(union)
+        .expect("the union evaluated")
+        .coincidences
+        .iter()
+        .map(|r| {
+            let mut cells = r.cells.each_ref().map(cell);
+            cells.sort();
+            format!("{:?} {:?} {} {}", r.site, r.relation, cells[0], cells[1])
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+/// **A vertex row is one row of the union in every member order, once**
+/// (DM4: the union's rows are its member pairs', and a fold row a judged
+/// row states cites it): the L-prism and the cube pinching at its
+/// corner, alone, with a far third member, and with a third member
+/// filling the pinch, whose pair still decided it; two blocks kissing at
+/// a corner, whose touch a record cites, with a far third member and
+/// with one block read twice. Every order that builds decides alike,
+/// and the first that builds publishes exactly the statements listed, so a row
+/// published twice or not at all is red. The orders that fold the far
+/// member last after the pinch refuse [`CARRIED_PINCH`] and are
+/// excluded, each checked to refuse that way.
 #[test]
-fn a_pinchs_row_is_the_unions_in_every_member_order() {
-    type Row = (&'static str, Members, fn(&[usize]) -> bool);
-    let rows: [Row; 3] = [
-        ("prism and cube", prism_and_cube, |_| false),
-        ("with a far member", pinch_and_far, |o| o[2] == 2),
-        ("with a cap over the corner", pinch_and_cap, |_| false),
+fn a_vertex_row_is_the_unions_once_in_every_member_order() {
+    type Row = (
+        &'static str,
+        Members,
+        fn(&[usize]) -> bool,
+        &'static [&'static str],
+    );
+    const PINCH: &[&str] = &["VertexFusion OnCarrier Face@m1 Vertex@m0"];
+    // The kiss: the three walls through the corner, each against the
+    // other block's, and the corner itself.
+    const KISS: &[&str] = &[
+        "PlaneLadder SameOpposite Face@m0 Face@m1",
+        "PlaneLadder SameOpposite Face@m0 Face@m1",
+        "PlaneLadder SameOpposite Face@m0 Face@m1",
+        "VertexFusion OnCarrier Vertex@m0 Vertex@m1",
+    ];
+    // Read twice: each of the block's six faces against its twin (DM5),
+    // and the kiss once, though two pairs state it.
+    const TWICE: &[&str] = &[
+        "PlaneLadder SameOpposite Face@m0 Face@m2",
+        "PlaneLadder SameOpposite Face@m0 Face@m2",
+        "PlaneLadder SameOpposite Face@m0 Face@m2",
+        "PlaneLadder SameOriented Face@m0 Face@m0",
+        "PlaneLadder SameOriented Face@m0 Face@m0",
+        "PlaneLadder SameOriented Face@m0 Face@m0",
+        "PlaneLadder SameOriented Face@m0 Face@m0",
+        "PlaneLadder SameOriented Face@m0 Face@m0",
+        "PlaneLadder SameOriented Face@m0 Face@m0",
+        "VertexFusion OnCarrier Vertex@m0 Vertex@m2",
+    ];
+    let rows: [Row; 5] = [
+        ("prism and cube", prism_and_cube, |_| false, PINCH),
+        (
+            "the pinch with a far member",
+            pinch_and_far,
+            |o| o[2] == 2,
+            PINCH,
+        ),
+        (
+            "the pinch with a cap over the corner",
+            pinch_and_cap,
+            |_| false,
+            PINCH,
+        ),
+        ("the kiss with a far member", kiss_and_far, |_| false, KISS),
+        (
+            "the kiss with a block read twice",
+            kiss_read_twice,
+            |_| false,
+            TWICE,
+        ),
     ];
     let mut failures = Vec::new();
-    for (what, fixture, carried) in rows {
+    for (what, fixture, carried, expected) in rows {
         let n = fixture(ProfileDoc::empty_derived("count", Tol::witness()))
             .1
             .len();
@@ -478,12 +597,9 @@ fn a_pinchs_row_is_the_unions_in_every_member_order() {
                 );
                 continue;
             }
-            let Decided::Built { rows, .. } = &got else {
-                panic!("{what}, {order:?}: built: {got:?}");
-            };
             assert!(
-                rows.iter().any(|r| r.contains("VertexFusion")),
-                "{what}, {order:?}: the pinch's row: {rows:#?}"
+                matches!(got, Decided::Built { .. }),
+                "{what}, {order:?}: built: {got:?}"
             );
             match &first {
                 None => first = Some((order, got)),
@@ -493,6 +609,13 @@ fn a_pinchs_row_is_the_unions_in_every_member_order() {
                     }
                 }
             }
+        }
+        let Some((order, _)) = &first else {
+            panic!("{what}: no order builds");
+        };
+        let said = statements(fixture, order);
+        if said != *expected {
+            failures.push(format!("{what}: the statements {said:#?}"));
         }
     }
     assert!(failures.is_empty(), "{failures:#?}");

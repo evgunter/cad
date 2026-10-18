@@ -40,7 +40,11 @@ publishes rows that are not one multiset. Two causes, both measured:
   (`CapVertex(Start)` of `p1` `OnCarrier` `LateralEdge(Leg)` of `p2`,
   `VertexFusion`), its margin `Value(0.0)` in one order and
   `Value(2.22e-16)` in the other. This row was not published before the
-  judgement published its `VertexFusion` rows.
+  judgement published its `VertexFusion` rows. Read by PR 5276's
+  review: the margin is reproducible and decides Zero either way; the
+  difference is the diagnostic's rounding under the operand assignment.
+  That is not a determinism defect, but the published value breaks
+  DM4's "one row in every order".
 
 ## What it needs
 

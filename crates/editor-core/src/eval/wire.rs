@@ -3106,6 +3106,25 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     }
 }
 
+/// Where `rows` holds the statement `row` makes, pushing it where none
+/// does. A statement is the unordered pair of cells and the relation
+/// between them: which cell a decision read first follows operand order
+/// and sweep order, and says nothing about the coincidence.
+fn stated_at(
+    rows: &mut Vec<crate::coincide::NamedCoincidence>,
+    row: crate::coincide::NamedCoincidence,
+) -> usize {
+    let [a, b] = &row.cells;
+    let same = |r: &crate::coincide::NamedCoincidence| {
+        let [c, d] = &r.cells;
+        r.relation == row.relation && ((a == c && b == d) || (a == d && b == c))
+    };
+    rows.iter().position(same).unwrap_or_else(|| {
+        rows.push(row);
+        rows.len() - 1
+    })
+}
+
 /// A fold row in member space (DM4, "A row names member cells"): each
 /// cell named in the node's own space, `own_read`, by its collapsed fold
 /// name, is the member cell that name lies in, or stays the node's where
@@ -3339,9 +3358,15 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             }
         })?
     };
-    let Some((mut links, mut coincidences, verdicts)) = judged else {
+    let Some((mut links, judged, verdicts)) = judged else {
         return empty();
     };
+    // One row per statement: two pairs that state one thing (a member
+    // read twice, beside a third) publish it once.
+    let mut coincidences = Vec::with_capacity(judged.len());
+    for row in judged {
+        stated_at(&mut coincidences, row);
+    }
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
     // What the end pass reads of every step: each face's member faces
     // and each step's discards.
@@ -3542,13 +3567,13 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             what: UNION_NO_STEP,
         }));
     };
-    // A fold row the node's records cite is the judged row stating the
-    // same two member cells and relation where there is one (DM4), and
-    // is published after the judgement's otherwise; the records are
-    // renumbered onto the rows they cite.
+    // A fold row the node's records cite is the published row stating
+    // the same thing where there is one (DM4: a judged row, or a fold
+    // row an earlier citation published), and is published after the
+    // judgement's otherwise; the records are renumbered onto the rows
+    // they cite.
     let contacts = if pairwise {
         let used = contacts.decided();
-        let judged = coincidences.len();
         let mut at = Vec::with_capacity(used.len());
         for &k in &used {
             let row = fold_rows
@@ -3557,14 +3582,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
                     what: UNION_STEP_UNDECIDED_CITE,
                 }))?;
-            let stated = coincidences
-                .iter()
-                .take(judged)
-                .position(|j| j.cells == row.cells && j.relation == row.relation);
-            at.push(stated.unwrap_or_else(|| {
-                coincidences.push(row);
-                coincidences.len() - 1
-            }));
+            at.push(stated_at(&mut coincidences, row));
         }
         Arc::new(
             (*contacts)
