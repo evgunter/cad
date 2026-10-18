@@ -130,8 +130,8 @@ pub use drive::{
 };
 pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, MeasureOutcome, Measured, Recorded, Recording, SlotValue, Took, apply,
-    apply_replayed, cascade_delete_order, measure,
+    MaintenanceNet, MeasureOutcome, Measured, Recorded, Recording, SketchOutcome, SketchedOnFace,
+    SlotValue, Took, apply, apply_replayed, cascade_delete_order, measure, sketch_on_face,
 };
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{

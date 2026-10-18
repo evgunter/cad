@@ -388,3 +388,46 @@ fn a_construction_is_no_loose_copy() {
     assert_eq!(ev.space(b), editor_core::Space::Loose { root: b });
     assert_eq!(ev.loose_roots(), vec![loose]);
 }
+
+/// **"Sketch on this face" is one action** (spec §5, DM1): a boss drawn
+/// on its own plane, extruded, placed on the box's top face by a mate
+/// that names the face, and fused with the box. The boss stands on the
+/// face, and raising the box raises it.
+#[test]
+fn a_sketch_on_a_face_stands_on_the_face_it_names() {
+    let doc = ProfileDoc::empty_derived("d", Tol::witness());
+    let (doc, b) = unit_box(doc);
+    let top = fixture::fname(b, editor_core::RoleSeg::Cap(editor_core::CapEnd::End));
+    let boss = fixture::desc(vec![fixture::square(0.5, 0.5, 0.25)]);
+    let sketched = editor_core::sketch_on_face(
+        &doc,
+        Operand::from(b),
+        top,
+        boss,
+        len(0.5),
+        Formula::zero(editor_core::Dimension::Angle),
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the gesture lands");
+    let doc = sketched.doc;
+    let union = sketched.sketched.union;
+    let top_z = |doc: &ProfileDoc| {
+        vertices(doc, union)
+            .into_iter()
+            .map(|p| p[2])
+            .fold(f64::NEG_INFINITY, f64::max)
+    };
+    assert_eq!(top_z(&doc), 1.5, "the boss stands on the top face");
+    let raised = fixture::step(
+        doc,
+        editor_core::DocEdit::SetParam {
+            node: b,
+            slot: editor_core::SlotId::Distance,
+            value: len(2.0).into(),
+            fresh: Vec::new(),
+        },
+    )
+    .0;
+    assert_eq!(top_z(&raised), 2.5, "the boss rides up with the face it names");
+}

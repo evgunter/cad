@@ -6117,6 +6117,155 @@ pub struct Measured {
     pub outputs: Vec<VarId>,
 }
 
+/// **What "sketch on this face" inserted** ([`fn@sketch_on_face`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SketchedOnFace {
+    /// The profile, drawn on its own plane.
+    pub profile: RecipeNodeId,
+    /// The construction: the profile extruded up its own `z`.
+    pub extrude: RecipeNodeId,
+    /// The construction's copy, placed on the face.
+    pub placement: RecipeNodeId,
+    /// The face's body and the copy, fused.
+    pub union: RecipeNodeId,
+}
+
+impl Recording<'_, crate::ProfileProgram> {
+    /// **"Sketch on this face"** (D10; `REFERENCES.md` DM1): `profile`
+    /// drawn on its own plane and extruded `distance` up its own `z`,
+    /// the extrude's copy placed against `face` of `body` — a `Plane`
+    /// mate from its start cap, flipped to look up its own `z`, to the
+    /// face's plane, with the copy's origin over the face body's own
+    /// (the two slides the constant `0`) and turned `spin` about the
+    /// face's normal — and the face's body and the copy fused.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::apply`]'s: the first door that refuses ends the action.
+    pub fn sketch_on_face(
+        &mut self,
+        body: crate::Operand,
+        face: crate::StableName,
+        profile: crate::ProfileProgram<Formula>,
+        distance: Formula,
+        spin: Formula,
+    ) -> Result<SketchedOnFace, EditError> {
+        use crate::pose::{PoseDef, RoleRead};
+        let profile = self.insert(Node::Profile(profile))?;
+        let extrude = self.insert(Node::Extrude {
+            profile: profile.into(),
+            distance,
+        })?;
+        let placement = self.insert(Node::place(vec![crate::BodyRead::plain(
+            crate::Operand::Output {
+                node: extrude,
+                port: 0,
+            },
+        )]))?;
+        let cap = crate::StableName {
+            kind: crate::EntityKind::Face,
+            node: extrude,
+            path: vec![crate::RoleSeg::Cap(crate::CapEnd::Start)],
+        };
+        let plane = |of: crate::Operand, name: crate::StableName| {
+            crate::Operand::Pose(Box::new(PoseDef::Plane {
+                face: crate::Operand::select(of, vec![name]),
+            }))
+        };
+        let on = crate::Operand::Pose(Box::new(PoseDef::Flip {
+            pose: RoleRead::plain(plane(crate::Operand::Node(extrude), cap)),
+        }));
+        let record = self.apply_recorded(DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(crate::Mate {
+                on,
+                to: crate::Target::Pose(plane(body.clone(), face)),
+                class: crate::ContactClass::Rest,
+            }),
+            fresh: Vec::new(),
+        })?;
+        let mate = record.minted_constraints[0];
+        for (coord, by) in [
+            (
+                crate::Coord::Slide(crate::SlideAxis::X),
+                Formula::zero(crate::expr::Dimension::Length),
+            ),
+            (
+                crate::Coord::Slide(crate::SlideAxis::Y),
+                Formula::zero(crate::expr::Dimension::Length),
+            ),
+            (crate::Coord::Spin, spin),
+        ] {
+            self.apply(DocEdit::AddValue {
+                placement,
+                value: Box::new(crate::Value { mate, coord, by }),
+                fresh: Vec::new(),
+            })?;
+        }
+        let union = self.insert(Node::Union {
+            members: crate::Bodies::Spelled(vec![
+                crate::BodyRead::plain(body),
+                crate::BodyRead::plain(crate::Operand::Output {
+                    node: placement,
+                    port: 0,
+                }),
+            ]),
+        })?;
+        Ok(SketchedOnFace {
+            profile,
+            extrude,
+            placement,
+            union,
+        })
+    }
+}
+
+/// [`fn@sketch_on_face`]'s outcome: the action applied, and what it
+/// inserted.
+#[derive(Debug)]
+pub struct SketchOutcome {
+    /// The document the action produced.
+    pub doc: Doc<crate::ProfileProgram>,
+    /// The edits that produce `doc` from the start.
+    pub edits: Vec<DocEdit<crate::ProfileProgram>>,
+    /// The maintenance they reported.
+    pub maintenance: Vec<Maintenance>,
+    /// What the gesture inserted.
+    pub sketched: SketchedOnFace,
+}
+
+/// **"Sketch on this face", as one action** ([`Recording::sketch_on_face`]).
+///
+/// # Errors
+///
+/// The first door's refusal; the document is untouched.
+#[allow(clippy::too_many_arguments)] // the gesture's own inputs, and the door's two
+pub fn sketch_on_face(
+    doc: &Doc<crate::ProfileProgram>,
+    body: crate::Operand,
+    face: crate::StableName,
+    profile: crate::ProfileProgram<Formula>,
+    distance: Formula,
+    spin: Formula,
+    tol: Tol,
+    reach: &dyn MateReach,
+) -> Result<SketchOutcome, EditError> {
+    let mut action = Recording::start(doc, tol, reach);
+    let sketched = action.sketch_on_face(body, face, profile, distance, spin)?;
+    let Recorded {
+        doc,
+        edits,
+        maintenance,
+        ..
+    } = action.finish()?;
+    Ok(SketchOutcome {
+        doc,
+        edits,
+        maintenance,
+        sketched,
+    })
+}
+
 /// [`fn@measure`]'s outcome: the action applied, and what it inserted.
 #[derive(Debug)]
 pub struct MeasureOutcome<P: crate::ProfilePayload> {

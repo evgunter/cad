@@ -99,6 +99,10 @@ pub use editor_core::{
 // must take with it, in an order the door accepts. A GUI both states
 // the cost of the button and builds the sequence behind it from this.
 pub use editor_core::cascade_delete_order;
+// "Sketch on this face" (DM1): the profile, its extrude, the copy placed
+// on the face and the union, as one action (`Recording::sketch_on_face`
+// composes it into a longer one).
+pub use editor_core::{SketchOutcome, SketchedOnFace, sketch_on_face};
 
 // Node vocabulary. A union or intersect takes one `Bodies` argument (a
 // family read, or spelled reads); a subtract is binary. `CountMismatch`
