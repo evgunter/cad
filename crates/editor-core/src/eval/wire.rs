@@ -596,6 +596,24 @@ where
 {
     use crate::mate::{MateFault, MateRef, MateSide, Space, Target};
     let fault = |f: MateFault| NodeErrorKind::Mate(Box::new(f));
+    // The named interim's world pin places its copy where its body
+    // stands, by no map, in every lane: it reads nothing and holds no
+    // number. It stands alone, so anything beside it is already fixed.
+    if constraints.iter().any(|c| c.world_pin().is_some()) {
+        let beside: Vec<_> = constraints
+            .iter()
+            .filter(|c| c.world_pin().is_none())
+            .map(|c| c.id)
+            .collect();
+        if !beside.is_empty() {
+            return Err(fault(MateFault::Overconstrained {
+                placement: id,
+                constraints: beside,
+                held: crate::mate::Subgroup::Trivial,
+            }));
+        }
+        return Ok((None, Space::World));
+    }
     let b = band(tol)?;
     let params = env.lane.params;
     let mut mates = Vec::with_capacity(constraints.len());
@@ -608,6 +626,9 @@ where
         let mate = MateRef::new(id, c.id);
         let m = match &c.kind {
             crate::mate::ConstraintKind::Mate(m) => m,
+            crate::mate::ConstraintKind::WorldPin(_) => {
+                unreachable!("a bundle holding a world pin is folded above")
+            }
             crate::mate::ConstraintKind::Value(v) => {
                 let slot = match v.coord {
                     crate::mate::Coord::Slide(_) => SlotId::ValueSlide { constraint: c.id },

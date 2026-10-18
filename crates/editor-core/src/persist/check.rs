@@ -1181,6 +1181,8 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         // door lowers.
         | DocEdit::AddConstraint { .. }
         | DocEdit::AddValue { .. }
+        // A world pin holds no number.
+        | DocEdit::PinWhereItStands { .. }
         // A constraint's id is minted, not a float.
         | DocEdit::RemoveConstraint { .. }
         // A label is text.
@@ -2086,14 +2088,17 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         let bundle = crate::mate::solve::bundle_of(node).unwrap_or_default();
         for c in bundle {
             let at = crate::mate::MateRef::new(id, c.id);
-            let admitted = match &c.kind {
-                crate::mate::ConstraintKind::Mate(mate) => {
-                    crate::mate::solve::admit_mate(doc, at, mate)
+            let admitted = crate::mate::solve::admit_beside_world_pin(at, bundle).and_then(|()| {
+                match &c.kind {
+                    crate::mate::ConstraintKind::Mate(mate) => {
+                        crate::mate::solve::admit_mate(doc, at, mate)
+                    }
+                    crate::mate::ConstraintKind::Value(value) => {
+                        crate::mate::solve::admit_value(doc, at, bundle, value)
+                    }
+                    crate::mate::ConstraintKind::WorldPin(_) => Ok(()),
                 }
-                crate::mate::ConstraintKind::Value(value) => {
-                    crate::mate::solve::admit_value(doc, at, bundle, value)
-                }
-            };
+            });
             if let Err(fault) = admitted {
                 return Err(SnapshotError::MateRefused {
                     node: doc.spoken(id),

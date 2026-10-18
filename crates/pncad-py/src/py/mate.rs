@@ -1370,12 +1370,29 @@ impl Maintenance {
     }
 }
 
+/// **A world pin** (stage 3 C's named interim): the copy placed where
+/// its body stands, the identity of the world's coordinates, with no
+/// read and no number. It stands alone in its bundle.
+/// `DocEdit.pin_where_it_stands` writes one; `Doc.place(shapes)` with
+/// neither `constraints` nor `pose` places by one.
+#[pyclass(frozen, module = "pncad", eq, skip_from_py_object)]
+#[derive(Clone, PartialEq)]
+pub(crate) struct WorldPin;
+
+#[pymethods]
+impl WorldPin {
+    fn __repr__(&self) -> &'static str {
+        "WorldPin()"
+    }
+}
+
 /// Register the mate surface on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MateSide>()?;
     m.add_class::<WorldRead>()?;
     m.add_class::<Coord>()?;
     m.add_class::<MateValue>()?;
+    m.add_class::<WorldPin>()?;
     m.add_class::<Placed>()?;
     m.add_class::<ConstraintId>()?;
     m.add_class::<MateRef>()?;

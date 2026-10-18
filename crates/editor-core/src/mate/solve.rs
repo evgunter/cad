@@ -476,12 +476,13 @@ pub fn relative_freedom_components<P: crate::ProfilePayload>(
         for input in doc.upstream_of(id, node) {
             couple(id, input);
         }
-        // A world read is inside the mate and reads no variable, so the
-        // world is coupled here.
+        // A world read is inside the mate and reads no variable, and a
+        // world pin reads nothing, so the world is coupled here.
         let pinned = bundle_of(node).is_some_and(|bundle| {
-            bundle
-                .iter()
-                .any(|c| c.mate().is_some_and(|m| matches!(m.to, Target::World(_))))
+            bundle.iter().any(|c| {
+                c.world_pin().is_some()
+                    || c.mate().is_some_and(|m| matches!(m.to, Target::World(_)))
+            })
         });
         if pinned {
             couple(id, RecipeNodeId::WORLD);
@@ -876,6 +877,29 @@ pub(crate) fn admit_mate<P>(
         return Err(Box::new(MateFault::KindsDiffer { mate, on, to }));
     }
     admit_class(mate, data.class)
+}
+
+/// **The named interim's world pin stands alone** ([`super::WorldPin`]):
+/// a bundle holding one holds nothing else, so the constraint `at` is
+/// refused where its bundle holds a world pin and another constraint
+/// ([`MateFault::Overconstrained`]: the pin already fixes the copy).
+/// Asked of every constraint by the edit door and the load door alike.
+///
+/// # Errors
+///
+/// [`MateFault::Overconstrained`] naming `at`.
+pub(crate) fn admit_beside_world_pin(
+    at: MateRef,
+    bundle: &[super::Constraint],
+) -> Result<(), Box<MateFault>> {
+    if bundle.len() > 1 && bundle.iter().any(|c| c.world_pin().is_some()) {
+        return Err(Box::new(MateFault::Overconstrained {
+            placement: at.placement,
+            constraints: vec![at.id],
+            held: Subgroup::Trivial,
+        }));
+    }
+    Ok(())
 }
 
 /// **The body a mate's target pose is charted on** (ruling C-1): the

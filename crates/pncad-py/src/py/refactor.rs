@@ -555,7 +555,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         ),
         // The part placement is the subject, and the value rides `mate`
         // (below).
-        E::ValueOnAMovedWorld { placement, .. } => (
+        E::ValueOnAMovedWorld { placement, .. } | E::WorldPinOnAMovedWorld { placement } => (
             id(placement),
             none(),
             none(),

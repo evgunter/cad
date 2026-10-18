@@ -2614,6 +2614,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::CopyPinnedToConstruction { .. } => "copy_pinned_to_construction",
         InlineError::PinReadsVariable { .. } => "pin_reads_variable",
         InlineError::ValueOnAMovedWorld { .. } => "value_on_a_moved_world",
+        InlineError::WorldPinOnAMovedWorld { .. } => "world_pin_on_a_moved_world",
         InlineError::InstanceUnsolved { .. } => "instance_unsolved",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::ForeignInstanceName { .. } => "foreign_instance_name",

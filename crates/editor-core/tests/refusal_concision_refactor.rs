@@ -96,7 +96,7 @@ test_utils::f6_variants! {
         UnknownNode, NotAnInstance, UnplaceablePart, InstanceReadUncarried, Unresolved,
         EpsilonSeam, PartCarriesMetadata, VarNameConflict, InstanceOutputUncarried,
         UnresolvedVarCrossesCut, ConstructionReadsCopy, CopyPinnedToConstruction, PinReadsVariable,
-        ValueOnAMovedWorld, InstanceUnsolved, InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep, RankedRunReordered,
+        ValueOnAMovedWorld, WorldPinOnAMovedWorld, InstanceUnsolved, InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep, RankedRunReordered,
         StrandedPartName,
         StrandedPartRead, Edit,
     ];
@@ -308,6 +308,9 @@ fn inline_refusals() -> Vec<InlineError> {
         InlineError::ValueOnAMovedWorld {
             placement: s(8, "Place"),
             value: constraint(),
+        },
+        InlineError::WorldPinOnAMovedWorld {
+            placement: s(8, "Place"),
         },
         InlineError::InstanceUnsolved {
             instance: s(7, "InstantiatePart"),

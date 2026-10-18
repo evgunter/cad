@@ -382,9 +382,10 @@ fn in_id_order(old: &[Vec<StepId>], minted: &[Vec<StepId>]) -> Vec<Vec<StepId>> 
 /// its placement, so it waits for both. A constraint changes no output,
 /// so no node inserted meanwhile reads it. Each constraint, authored,
 /// passes `settle` with its
-/// placement's old id, which may rewrite it or drop it (`false`): the
-/// one rewrite inline makes, a world pin moved by the instance's pose,
-/// or the part's root taking the instance's bundle in place of its own.
+/// placement's old id (a world pin, [`crate::WorldPin`], as `None`),
+/// which may rewrite it or drop it (`false`): the one rewrite inline
+/// makes, a mate to the world moved by the instance's pose, or the
+/// part's root taking the instance's bundle in place of its own.
 ///
 /// A name the maps lack whose missing id belongs to a node still to
 /// come is a FORWARD reference (a blend selection or a frame's face rebound
@@ -401,7 +402,7 @@ fn carry<E>(
     olds: &[RecipeNodeId],
     target: &mut Recording<'_, ProfileProgram>,
     vars: &mut VarCarry<'_>,
-    settle: impl Fn(RecipeNodeId, &mut crate::mate::Mate<Formula>) -> bool,
+    settle: impl Fn(RecipeNodeId, Option<&mut crate::mate::Mate<Formula>>) -> bool,
     edit: impl Fn(EditError) -> E,
     miss: impl Fn(RecipeNodeId, RemapMiss) -> E,
 ) -> Result<(NodeMap, StepMap, ReadMap), E> {
@@ -561,6 +562,20 @@ fn carry<E>(
             };
             let mut mate = match authored.kind {
                 crate::mate::ConstraintKind::Mate(mate) => mate,
+                // A world pin reads nothing to rewrite; `settle` decides
+                // whether it stays (inline's root takes the instance's
+                // bundle in its place, and refuses a moved landing above).
+                crate::mate::ConstraintKind::WorldPin(_) => {
+                    if settle(old, None) {
+                        let record = target
+                            .apply_recorded(DocEdit::PinWhereItStands { placement: new })
+                            .map_err(&edit)?;
+                        if let Some(&id) = record.minted_constraints.first() {
+                            ids.insert(constraint.id, id);
+                        }
+                    }
+                    continue;
+                }
                 crate::mate::ConstraintKind::Value(mut value) => {
                     let Some(&mate) = ids.get(&value.mate) else {
                         continue;
@@ -577,7 +592,7 @@ fn carry<E>(
                     continue;
                 }
             };
-            if !settle(old, &mut mate) {
+            if !settle(old, Some(&mut mate)) {
                 continue;
             }
             let record = target
@@ -1422,6 +1437,14 @@ pub enum InlineError {
         /// The value.
         value: crate::node::ConstraintId,
     },
+    /// **A part copy is pinned where its body stands, on the world the
+    /// inline moves** ([`crate::WorldPin::Identity`], stage 3 C's named
+    /// interim): the pin holds no pose to move with the instance, so
+    /// the copy would stay at the part's identity in the host's world.
+    WorldPinOnAMovedWorld {
+        /// The part placement, spoken from the referenced document.
+        placement: SpokenNode,
+    },
     /// **The instance's pin to the world did not solve**: the motion
     /// the part's world would move by has no value.
     InstanceUnsolved {
@@ -1612,6 +1635,12 @@ impl core::fmt::Display for InlineError {
                 "inline: {placement}'s value {value} is charted on its part's world frame, \
                  which stays where it is when the part's world moves with the instance, so \
                  the copy would not move with the rest. {}",
+                Recourse("inline the instance where it stands at the identity, or keep it")
+            ),
+            Self::WorldPinOnAMovedWorld { placement } => write!(
+                f,
+                "inline: {placement} is pinned where its body stands, which holds no pose to \
+                 move with the instance, so the copy would not move with the rest. {}",
                 Recourse("inline the instance where it stands at the identity, or keep it")
             ),
             Self::InstanceUnsolved { instance } => write!(
@@ -2691,6 +2720,10 @@ fn world_pin_of<P>(doc: &Doc<P>, placement: RecipeNodeId) -> Option<Vec<(crate::
     use crate::mate::BundleRows;
     let node = doc.node(placement)?;
     let bundle = crate::mate::solve::bundle_of(node)?;
+    // A world pin pins to the world with no number.
+    if bundle.iter().any(|c| c.world_pin().is_some()) {
+        return Some(Vec::new());
+    }
     let mut mates = bundle
         .iter()
         .filter_map(crate::mate::Constraint::mate)
@@ -4057,6 +4090,12 @@ pub fn inline(
                     value: value.id,
                 });
             }
+            // A world pin holds no pose the move could append to.
+            if bundle.iter().any(|c| c.world_pin().is_some()) {
+                return Err(InlineError::WorldPinOnAMovedWorld {
+                    placement: part.spoken(placement),
+                });
+            }
         }
         for id in part.ids() {
             let Some(node) = part.node(id) else { continue };
@@ -4288,7 +4327,9 @@ pub fn inline(
             // A constraint on the part's world is one on the host's
             // world, moved by the instance's pose.
             Landing::Pinned(motion) => {
-                if let (Some(motion), crate::mate::Target::World(world)) = (motion, &mut mate.to) {
+                if let (Some(motion), Some(crate::mate::Target::World(world))) =
+                    (motion, mate.map(|mate| &mut mate.to))
+                {
                     *world = crate::mate::pin::moved_by(
                         world.clone(),
                         motion.linear,
@@ -4579,6 +4620,9 @@ pub fn inline(
                         fresh: fresh.fresh,
                     }
                 }
+                crate::mate::ConstraintKind::WorldPin(_) => DocEdit::PinWhereItStands {
+                    placement: carried_root,
+                },
             };
             let record = current.apply_recorded(edit).map_err(refused)?;
             if let Some(&id) = record.minted_constraints.first() {

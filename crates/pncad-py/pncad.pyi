@@ -3565,6 +3565,15 @@ class DocEdit:
         `mate_no_chart`."""
 
     @staticmethod
+    def pin_where_it_stands(placement: NodeId) -> DocEdit:
+        """Pin `placement`'s copy where its body stands (stage 3 C's
+        named interim): a world pin with no read and no number, placing
+        the copy at the identity of the world's coordinates. It stands
+        alone: refuses typed on `EditError`, `constraint_on_non_placement`
+        and `mate_refused` (`mate_overconstrained`) on a bundle holding
+        anything else."""
+
+    @staticmethod
     def remove_constraint(mate: MateRef) -> DocEdit:
         """Remove the constraint `mate` addresses from its placement's
         bundle. What it pinned is recomputed from what remains: a copy
@@ -3853,9 +3862,10 @@ class Doc:
         to it; it is not among the document's nodes (`order`,
         `node_count`)."""
 
-    def bundle(self, placement: NodeId) -> list[tuple[MateRef, Mate | MateValue]]:
+    def bundle(self, placement: NodeId) -> list[tuple[MateRef, Mate | MateValue | WorldPin]]:
         """A placement's bundle: each constraint by its address, with
-        its mate or its value as written, in the bundle's order. Raises `EditError`
+        its mate, its value or its world pin as written, in the
+        bundle's order. Raises `EditError`
         (`constraint_on_non_placement`) for a node that holds no bundle,
         and (`unknown_node`) for one this document does not hold."""
 
@@ -3991,10 +4001,12 @@ class Doc:
         `shapes` is one body argument or a sequence of them; over
         several the copy is a keyed enumeration. `constraints` is the
         bundle, a sequence of `Mate`s; `[]` is a loose copy, in a space
-        of its own until a constraint pins it. `None` is the "place
-        part" gesture, `place_at(shapes, pose)` at `pose` (the identity
-        when `None`), answering the placement alone; `pose` beside
-        `constraints` raises ValueError.
+        of its own until a constraint pins it. `None` with a `pose` is
+        the "place part" gesture, `place_at(shapes, pose)`, answering the
+        placement alone; `pose` beside `constraints` raises ValueError.
+        Neither: the copy stands where its body stands, pinned by a
+        world pin (`WorldPin`, stage 3 C's named interim), which reads
+        nothing and so follows the body's variables.
 
         The one door that puts a body in the product: nothing places as
         a side effect, so a boolean of two placed bodies leaves both
@@ -5817,6 +5829,15 @@ class Coord:
     def variant(self) -> Literal["slide_x", "slide_y", "slide_z", "spin"]: ...
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
+
+class WorldPin:
+    """A world pin (stage 3 C's named interim): the copy placed where its
+    body stands, the identity of the world's coordinates, with no read
+    and no number. It stands alone in its bundle.
+    `DocEdit.pin_where_it_stands` writes one; `Doc.place(shapes)` with
+    neither `constraints` nor `pose` places by one."""
+
+    def __eq__(self, other: object) -> bool: ...
 
 class MateValue:
     """A mate's value: one freedom a mate of the same bundle leaves, set to a

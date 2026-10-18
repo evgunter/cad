@@ -514,7 +514,7 @@ impl<S: crate::Slot> BundleRows<S> for Vec<Constraint<S>> {
                         out.push((world_slot(c.id, step, spin), e));
                     }
                 }
-                ConstraintKind::Mate(_) => {}
+                ConstraintKind::Mate(_) | ConstraintKind::WorldPin(_) => {}
                 ConstraintKind::Value(v) => out.push((value_slot(c.id, v.coord), &v.by)),
             }
         }
@@ -534,7 +534,7 @@ impl<S: crate::Slot> BundleRows<S> for Vec<Constraint<S>> {
                         out.push((world_slot(id, step, spin), e));
                     }
                 }
-                ConstraintKind::Mate(_) => {}
+                ConstraintKind::Mate(_) | ConstraintKind::WorldPin(_) => {}
                 ConstraintKind::Value(v) => {
                     let coord = v.coord;
                     out.push((value_slot(id, coord), &mut v.by));
@@ -592,8 +592,8 @@ pub struct Constraint<S: crate::Slot = crate::VarId> {
     pub kind: ConstraintKind<S>,
 }
 
-/// **What a constraint states**: two poses equated, or one freedom a
-/// mate leaves set to a number.
+/// **What a constraint states**: two poses equated, one freedom a
+/// mate leaves set to a number, or the named interim's world pin.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case", bound = "")]
 pub enum ConstraintKind<S: crate::Slot = crate::VarId> {
@@ -601,6 +601,26 @@ pub enum ConstraintKind<S: crate::Slot = crate::VarId> {
     Mate(Mate<S>),
     /// A value.
     Value(Value<S>),
+    /// A world pin ([`WorldPin`]): the named interim until a copy
+    /// standing where its body stands has a D10 spelling.
+    WorldPin(WorldPin),
+}
+
+/// **A world pin** (stage 3 C's named interim, the orchestrator's
+/// ruling; `work/intent/a-copy-standing-where-its-body-stands-has-no-d10-spelling.md`):
+/// a copy placed in the world with no read and no number. A mate reads
+/// a pose off the copy's geometry against numbers from one evaluation,
+/// so a copy whose body is built in world coordinates through a
+/// variable is pulled back toward that variable's nominal and widened
+/// by its width; a world pin reads nothing and places the copy where
+/// its body stands, in every lane, at every value. It stands alone in
+/// its bundle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorldPin {
+    /// The copy stands where its body stands: the identity of the
+    /// world's coordinates.
+    Identity,
 }
 
 impl<S: crate::Slot> Constraint<S> {
@@ -622,12 +642,21 @@ impl<S: crate::Slot> Constraint<S> {
         }
     }
 
-    /// The mate it states, `None` for a value.
+    /// A world pin, under `id`.
+    #[must_use]
+    pub fn of_world_pin(id: crate::node::ConstraintId, pin: WorldPin) -> Self {
+        Self {
+            id,
+            kind: ConstraintKind::WorldPin(pin),
+        }
+    }
+
+    /// The mate it states, `None` for a value or a world pin.
     #[must_use]
     pub fn mate(&self) -> Option<&Mate<S>> {
         match &self.kind {
             ConstraintKind::Mate(mate) => Some(mate),
-            ConstraintKind::Value(_) => None,
+            ConstraintKind::Value(_) | ConstraintKind::WorldPin(_) => None,
         }
     }
 
@@ -635,16 +664,25 @@ impl<S: crate::Slot> Constraint<S> {
     pub fn mate_mut(&mut self) -> Option<&mut Mate<S>> {
         match &mut self.kind {
             ConstraintKind::Mate(mate) => Some(mate),
-            ConstraintKind::Value(_) => None,
+            ConstraintKind::Value(_) | ConstraintKind::WorldPin(_) => None,
         }
     }
 
-    /// The value it states, `None` for a mate.
+    /// The value it states, `None` for a mate or a world pin.
     #[must_use]
     pub fn value(&self) -> Option<&Value<S>> {
         match &self.kind {
             ConstraintKind::Value(value) => Some(value),
-            ConstraintKind::Mate(_) => None,
+            ConstraintKind::Mate(_) | ConstraintKind::WorldPin(_) => None,
+        }
+    }
+
+    /// The world pin it states, `None` for a mate or a value.
+    #[must_use]
+    pub fn world_pin(&self) -> Option<WorldPin> {
+        match &self.kind {
+            ConstraintKind::WorldPin(pin) => Some(*pin),
+            ConstraintKind::Mate(_) | ConstraintKind::Value(_) => None,
         }
     }
 
@@ -657,6 +695,7 @@ impl<S: crate::Slot> Constraint<S> {
                 (ConstraintKind::Value(a), ConstraintKind::Value(b)) => {
                     a.mate == b.mate && a.coord == b.coord && a.by.bit_eq(&b.by)
                 }
+                (ConstraintKind::WorldPin(a), ConstraintKind::WorldPin(b)) => a == b,
                 _ => false,
             }
     }
@@ -682,6 +721,7 @@ impl<S: crate::Slot> Constraint<S> {
                     coord: value.coord,
                     by: slot(&value.by)?,
                 }),
+                ConstraintKind::WorldPin(pin) => ConstraintKind::WorldPin(*pin),
             },
         })
     }

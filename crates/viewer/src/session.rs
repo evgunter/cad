@@ -3309,6 +3309,7 @@ impl DocSession {
             // structure: where a copy stands, not a panel field's value.
             | DocEdit::AddConstraint { .. }
             | DocEdit::AddValue { .. }
+            | DocEdit::PinWhereItStands { .. }
             | DocEdit::RemoveConstraint { .. }
             // The variable doors that are not the value or the
             // notation half. A declare mints a variable and a

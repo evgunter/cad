@@ -1410,6 +1410,9 @@ impl Doc {
                             d::ConstraintKind::Value(value) => {
                                 Py::new(py, super::mate::MateValue(value))?.into_any()
                             }
+                            d::ConstraintKind::WorldPin(_) => {
+                                Py::new(py, super::mate::WorldPin)?.into_any()
+                            }
                         };
                         Ok((at, held))
                     })
@@ -1626,12 +1629,14 @@ impl Doc {
     /// constraint's id minted by the insert in order; `[]` is a loose
     /// copy, in a space of its own until a constraint pins it.
     ///
-    /// `None` is the "place part" gesture, `Doc.place_at(shapes, pose)`
-    /// at `pose` (the identity when `None`): the copy pinned to the
-    /// world where `pose` puts it, by constraints its author can then
-    /// move by their numbers. `pose` is refused beside `constraints`.
-    /// `place_at` answers how the copy was placed; this door answers
-    /// the placement alone.
+    /// `None` with a `pose` is the "place part" gesture,
+    /// `Doc.place_at(shapes, pose)`: the copy pinned to the world where
+    /// `pose` puts it, by constraints its author can then move by their
+    /// numbers. `pose` is refused beside `constraints`. `place_at`
+    /// answers how the copy was placed; this door answers the placement
+    /// alone. Neither: the copy stands where its body stands, pinned by
+    /// a world pin (`WorldPin`, stage 3 C's named interim), which reads
+    /// nothing and so follows the body's variables.
     ///
     /// The one door that puts a body in the product: nothing places as
     /// a side effect, so a boolean of two placed bodies leaves both
@@ -1652,6 +1657,33 @@ impl Doc {
         label: Option<&str>,
     ) -> PyResult<NodeId> {
         let Some(mates) = constraints else {
+            // Neither: the copy stands where its body stands, pinned by
+            // the named interim's world pin.
+            if pose.is_none() {
+                let label = label.map(|text| label_from_text(py, text)).transpose()?;
+                let tol = Tol::witness();
+                let seam = seam(resolver);
+                let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
+                let mut action = d::Recording::start(&self.inner, tol, &reach);
+                let edit_failed = |err: d::EditError| edit_err(py, &err);
+                let placement = action
+                    .insert(d::Node::place(shapes.reads()))
+                    .map_err(edit_failed)?;
+                if let Some(label) = label {
+                    action
+                        .apply(d::DocEdit::SetLabel {
+                            node: placement,
+                            label: Some(label),
+                        })
+                        .map_err(edit_failed)?;
+                }
+                action
+                    .apply(d::DocEdit::PinWhereItStands { placement })
+                    .map_err(edit_failed)?;
+                let done = action.finish().map_err(edit_failed)?;
+                self.take_up(done.doc, done.maintenance);
+                return Ok(NodeId(placement));
+            }
             return self
                 .place_at(py, shapes, pose, resolver, label)
                 .map(|placed| placed.placement);
@@ -4834,6 +4866,21 @@ impl DocEdit {
                 placement: placement.0,
                 value: Box::new(value.0.clone()),
                 fresh: Vec::new(),
+            },
+        }
+    }
+
+    /// **Pin `placement`'s copy where its body stands** (stage 3 C's
+    /// named interim): a world pin with no read and no number, placing
+    /// the copy at the identity of the world's coordinates. It stands
+    /// alone: refuses typed on `EditError`, `constraint_on_non_placement`
+    /// and `mate_refused` (`mate_overconstrained`) on a bundle holding
+    /// anything else.
+    #[staticmethod]
+    fn pin_where_it_stands(placement: &NodeId) -> Self {
+        Self {
+            inner: d::DocEdit::PinWhereItStands {
+                placement: placement.0,
             },
         }
     }

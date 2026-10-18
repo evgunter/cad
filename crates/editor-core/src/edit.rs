@@ -586,6 +586,19 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         fresh: Vec<FreshEntry>,
     },
+    /// **Pin a copy where its body stands** (stage 3 C's named interim,
+    /// [`crate::WorldPin::Identity`]): a world pin with no read and no
+    /// number, placing the copy at the identity of the world's
+    /// coordinates in every lane. Its id is minted as
+    /// [`DocEdit::AddConstraint`]'s is.
+    ///
+    /// Refuses what [`DocEdit::AddConstraint`] refuses of its
+    /// placement, and a bundle holding anything else
+    /// ([`crate::MateFault::Overconstrained`]): the pin stands alone.
+    PinWhereItStands {
+        /// The placement.
+        placement: RecipeNodeId,
+    },
     /// **Remove a constraint from a placement**: the bundle without it.
     /// What it pinned is recomputed from what remains — a copy whose
     /// bundle no longer pins it is a loose copy, never a refusal.
@@ -690,7 +703,9 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             Self::InsertNode { node, .. } => {
                 crate::mate::solve::bundle_of(&**node).is_some_and(|bundle| !bundle.is_empty())
             }
-            Self::AddConstraint { .. } | Self::AddValue { .. } => true,
+            Self::AddConstraint { .. } | Self::AddValue { .. } | Self::PinWhereItStands { .. } => {
+                true
+            }
             Self::SetParam { slot, .. } => {
                 matches!(slot, SlotId::Operand(crate::OperandSlot::Side { .. }))
             }
@@ -6498,7 +6513,8 @@ fn admit_written_constraint<P: Clone + crate::ProfilePayload>(
         unreachable!("the edit wrote constraint {constraint} into the bundle")
     };
     let at = crate::mate::MateRef::new(placement, constraint);
-    let admitted = match &added.kind {
+    let beside = crate::mate::solve::admit_beside_world_pin(at, bundle);
+    let admitted = beside.and_then(|()| match &added.kind {
         // A mate re-written re-asks every value naming it: a value's
         // chart is read off its mate's poses (a target re-pointed onto
         // two bodies has none), so the door's verdict on a value holds
@@ -6525,7 +6541,8 @@ fn admit_written_constraint<P: Clone + crate::ProfilePayload>(
         crate::mate::ConstraintKind::Value(value) => {
             crate::mate::solve::admit_value(new, at, bundle, value)
         }
-    };
+        crate::mate::ConstraintKind::WorldPin(_) => Ok(()),
+    });
     admitted.map_err(|fault| EditError::MateRefused {
         node: new.spoken(placement),
         held: crate::spoken::held_by(&*fault, new),
@@ -7389,6 +7406,18 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
         } => {
             let kind = crate::mate::ConstraintKind::Value((**value).clone());
             let (id, fresh) = add_constraint(doc, new, *placement, kind, fresh, tol, reach)?;
+            EditRecord {
+                minted: None,
+                minted_constraints: vec![id],
+                minted_var: None,
+                structural: true,
+                fresh,
+                outputs: Vec::new(),
+            }
+        }
+        DocEdit::PinWhereItStands { placement } => {
+            let kind = crate::mate::ConstraintKind::WorldPin(crate::mate::WorldPin::Identity);
+            let (id, fresh) = add_constraint(doc, new, *placement, kind, &[], tol, reach)?;
             EditRecord {
                 minted: None,
                 minted_constraints: vec![id],
