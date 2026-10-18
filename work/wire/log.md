@@ -6053,3 +6053,10 @@ already-published fold rows closes both. The pin only asserted presence;
 it now asserts the multiset.
 
 Signed (WIRE orchestrator).
+
+- 2026-10-18 — Ev approved PR 5278 ("sounds good!"): N1's `circle_split`
+  sentence merged (34583bffff); fork-log row 158 filled (byte 40, even:
+  A = Opus, B = Fable). Dispatched `wire/circle-phase-pin` (pinning test,
+  closes `a-split-circles-phase-edit-re-aims-its-piece-names-silently`);
+  review tier: orchestrator's read (a test and a row close, no kernel
+  change). (WIRE orchestrator)
