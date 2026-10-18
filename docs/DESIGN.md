@@ -1211,10 +1211,9 @@ one placement and never moved after, and an operation that would move
 one (today's `Transform`) is a placement. A pattern is a placement
 whose reads reach an index (FORK-PAT, [repetition]): one copy per
 value, the index entering as a value or through a mate's target. A
-placement is pinned when its mates and values together leave nothing
-free, and loose otherwise; a loose placement's copies are solved
-among themselves, read at a pose by nothing outside them, and drawn
-from display state no logic reads. A body's symmetry pins nothing (a
+placement's mates and values together set every freedom: a bundle
+that leaves one unset is refused at the door, so every placement is
+pinned and an unwritten freedom cannot be represented. A body's symmetry pins nothing (a
 written value it makes unobservable, a placement's or a pose move's,
 is reported, never refused). A placed copy's frame is not a variable:
 it is the construction its bundle states, which the coincidence door
@@ -1265,7 +1264,7 @@ axis; turns do not commute, so the author writes the order and the
 kernel chooses none. A slide is the copy's origin measured from the
 target's along one of the target's (swung) axes, a function of the
 relative pose alone, so no slide is ordered. Every freedom is set
-explicitly: zero is always a valid value and says the two spaces agree
+explicitly, as a written value: zero is always a valid value and says the two spaces agree
 as far as the mates allow, a placement whose values are all zero and
 which has no mate is the identity, and the façade writes the constant
 `0` for each freedom a gesture leaves unnamed. A placement is the only
