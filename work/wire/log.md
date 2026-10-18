@@ -5924,3 +5924,13 @@ a spanning chord is named, and whether N2 should state the chord-descent
 rule at all (new ratified text, so Ev's if so).
 
 Signed (WIRE orchestrator).
+
+## 2026-10-18 — dispatched `wire-pinch` (`wire/union-fold-pinch-row`)
+
+`a-union-fold-publishes-no-pinch-row` with the union pin that closes
+`a-pinch-vertexs-name-depends-on-the-unions-member-order`. Review tier:
+FULL single (which rows a fold publishes is a confident-wrong-record
+failure mode). Told to stop on held ground or a fork over which pinch rows
+a fold publishes.
+
+Signed (WIRE orchestrator).
