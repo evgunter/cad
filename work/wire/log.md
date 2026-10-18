@@ -6200,3 +6200,16 @@ Signed (WIRE orchestrator).
     breach, and no switch happens in this PR.
   - PR 5316 (small breaks) opened green and a STYLE review is dispatched.
   (WIRE orchestrator)
+
+- 2026-10-18 — PR 5316 STYLE review adjudicated; no MAJOR. Fix pass:
+  - The fold-row guard checked only member cells. No order published a
+    fold-minted cell, so the case the fold-steps row was about went
+    unexercised. The fix needs a fixture that publishes one, or an
+    honest Resolution; the check also has to read the entity a name
+    denotes, not merely that it exists.
+  - One spelling for the `lost` flag, through a `try_recited` if that
+    is small.
+  - Kind checked before collision at every seating door.
+  - The cancel test asserts its premise.
+  Class note: a guard over a corpus can be vacuous on the half it was
+  written for; measure that it fires. (WIRE orchestrator)
