@@ -44,8 +44,9 @@ no node runs and `loose` comes out empty. No guard was needed, and
 `mate/*` is untouched. Pinned by
 `asm2a_instantiate::a_run_canceled_in_the_census_has_no_loose_copies`.
 In that test a resolver fires the token while the census enters the
-first of two parts, and the test asserts a canceled outcome, no node
-results and an empty `loose`. Uncanceled, the same document has both
+first of two parts. The test asserts one resolve (the census stopped
+before its second part), a canceled outcome, no node results and an
+empty `loose`. Uncanceled, the same document has both
 instances as loose copies. The test goes red under a mutant that gives
 an unrun placement its recipe space. `enter_census`'s doc, which still
 said the census runs "before the evaluation's mate solve", is
