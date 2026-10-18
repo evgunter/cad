@@ -223,7 +223,7 @@ impl<T> Copy for LaneEnv<'_, T> {}
 /// run, as opposed to the op's inputs and slots.
 pub(crate) struct OpEnv<'a, T: Decide> {
     pub boolean_sweep: topo::SweepStrategy,
-    pub parts: &'a super::parts::PartCache<'a, T>,
+    pub parts: &'a super::parts::Reached<T>,
     /// The document's solve, run once per evaluation at its scalar:
     /// every placement's pose around its anchor's frame.
     pub poses: &'a crate::mate::SolvedPoses<T>,

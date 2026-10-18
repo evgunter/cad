@@ -526,6 +526,8 @@ mod parallel_node_map_interval;
 mod parallel_node_map_probe;
 #[path = "part_depth_bound.rs"]
 mod part_depth_bound;
+#[path = "parts_entered_before_the_map.rs"]
+mod parts_entered_before_the_map;
 #[path = "pattern_spacing_and_step.rs"]
 mod pattern_spacing_and_step;
 #[path = "perf12_census_bvh_diff.rs"]
