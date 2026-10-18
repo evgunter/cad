@@ -36,9 +36,12 @@ type Spans = ((f64, f64), (f64, f64), f64, f64);
 /// two-member union, minus the union of `tool`'s blocks (or the one
 /// block). The boss joins the plate; the cut must refuse
 /// `MergedChordConstituents` with both boss pieces glued on the side its
-/// chord reads through to, and the refusal, rendered at the node
-/// boundary, must not read as a kernel bug.
-fn assert_sunk_boss_cut_refuses_as_a_missing_rule(tool: &[Spans]) {
+/// chord reads through to, at the chord whose ends are `chord` (either
+/// way round), and the refusal, rendered at the node boundary, must not
+/// read as a kernel bug. The refused edge is a key of the cut's body,
+/// which a refused node does not keep, so it is read off the same
+/// subtract run on the two operand bodies.
+fn assert_sunk_boss_cut_refuses_as_a_missing_rule(tool: &[Spans], chord: [[f64; 3]; 2]) {
     let doc = ProfileDoc::empty_derived("wire_merged_chord", Tol::witness());
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, boss) = crate::emit_union_borders::cylinder(
@@ -80,15 +83,35 @@ fn assert_sunk_boss_cut_refuses_as_a_missing_rule(tool: &[Spans]) {
     let ev = run(&doc);
     assert!(failure(&ev, joined).is_none(), "the boss joins the plate");
     assert!(failure(&ev, tool).is_none(), "the tool builds");
-    let shown = match failure(&ev, cut) {
+    let (shown, edge) = match failure(&ev, cut) {
         Some(
-            e @ NodeErrorKind::Naming(NamingError::MergedChordConstituents { several: 2, .. }),
-        ) => e.to_string(),
+            e @ NodeErrorKind::Naming(NamingError::MergedChordConstituents {
+                several: 2, edge, ..
+            }),
+        ) => (e.to_string(), *edge),
         other => panic!("wanted the merged-chord refusal, got {other:?}"),
     };
     assert!(
         !shown.contains(BUG_FRAMING),
         "a legal document was told the kernel is broken: {shown}"
+    );
+    let at_rest = |n| topo::AtRestBody::validate(body_of(&ev, n).clone(), Tol::witness()).unwrap();
+    let topo::BooleanResult::Body(cut_body) =
+        topo::subtract(&at_rest(joined), &at_rest(tool), Tol::witness()).expect("the cut builds")
+    else {
+        panic!("the cut is not empty");
+    };
+    let got = crate::fixture::ends(&cut_body.body, edge)
+        .map(|v| crate::fixture::point(&cut_body.body, v));
+    let near = |p: geom_core::Point3<f64>, q: [f64; 3]| {
+        (p.x - q[0]).abs() < 1e-3 && (p.y - q[1]).abs() < 1e-3 && (p.z - q[2]).abs() < 1e-3
+    };
+    assert!(
+        (near(got[0], chord[0]) && near(got[1], chord[1]))
+            || (near(got[0], chord[1]) && near(got[1], chord[0])),
+        "the refused chord is {edge:?} from {:?} to {:?}, not {chord:?}",
+        got[0],
+        got[1]
     );
 }
 
@@ -102,10 +125,13 @@ fn assert_sunk_boss_cut_refuses_as_a_missing_rule(tool: &[Spans]) {
 /// it, and its middle alone would pick the upper piece.
 #[test]
 fn a_chord_across_the_glued_pieces_rim_refuses_as_a_missing_rule() {
-    assert_sunk_boss_cut_refuses_as_a_missing_rule(&[
-        ((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2),
-        ((0.9, 1.4), (1.4, 4.0), 1.3, 0.7),
-    ]);
+    assert_sunk_boss_cut_refuses_as_a_missing_rule(
+        &[
+            ((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2),
+            ((0.9, 1.4), (1.4, 4.0), 1.3, 0.7),
+        ],
+        [[1.2172, 1.4, 1.3], [1.4, 1.7828, 1.3]],
+    );
 }
 
 /// **The same chord, its middle on the lower piece.** The box runs the
@@ -113,10 +139,13 @@ fn a_chord_across_the_glued_pieces_rim_refuses_as_a_missing_rule() {
 /// y = 1.5 from above; its middle alone would pick the lower piece.
 #[test]
 fn a_chord_across_the_glued_pieces_rim_the_other_way_refuses_as_a_missing_rule() {
-    assert_sunk_boss_cut_refuses_as_a_missing_rule(&[
-        ((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2),
-        ((0.9, 1.4), (-1.0, 1.7), 1.3, 0.7),
-    ]);
+    assert_sunk_boss_cut_refuses_as_a_missing_rule(
+        &[
+            ((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2),
+            ((0.9, 1.4), (-1.0, 1.7), 1.3, 0.7),
+        ],
+        [[1.2764, 1.7, 1.3], [1.4, 1.2172, 1.3]],
+    );
 }
 
 /// **A chord along the glued pieces' common rim refuses as the missing
@@ -125,7 +154,10 @@ fn a_chord_across_the_glued_pieces_rim_the_other_way_refuses_as_a_missing_rule()
 /// on: both hold it on their boundary, and neither inside.
 #[test]
 fn a_chord_along_the_glued_pieces_rim_refuses_as_a_missing_rule() {
-    assert_sunk_boss_cut_refuses_as_a_missing_rule(&[((1.4, 2.0), (1.5, 4.0), 0.8, 1.2)]);
+    assert_sunk_boss_cut_refuses_as_a_missing_rule(
+        &[((1.4, 2.0), (1.5, 4.0), 0.8, 1.2)],
+        [[1.8, 1.5, 1.0], [1.8, 1.5, 1.5]],
+    );
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {

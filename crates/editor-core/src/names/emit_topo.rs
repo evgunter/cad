@@ -3626,22 +3626,53 @@ fn constituent_holding<T: Decide>(
             holding.push(d);
         }
     }
-    match holding.as_slice() {
-        [] => Ok(None),
-        [one] => Ok(Some(*one)),
-        _ => Err(NamingError::Emission {
-            what: "two faces of one operand body both hold a point strictly inside them",
-        }),
+    let one = match holding.as_slice() {
+        [] => return Ok(None),
+        [one] => *one,
+        _ => {
+            return Err(NamingError::Emission {
+                what: "two faces of one operand body both hold a point strictly inside them",
+            });
+        }
+    };
+    // The pick is sound only because an unjoined chord is one edge of
+    // the body before the merge: that holds while every vertex the
+    // output stage removes is an `EdgeJoin`'s (maximal edges, tier 3's
+    // no-joinable-vertex check). A stage that removed one without a
+    // join row would leave a chord running out of the face its middle
+    // lies in; its ends then read outside that face, and that refuses
+    // here rather than naming by the middle.
+    let (op, f) = one.of(a, b);
+    let (c0, c1) = edge_ends(body, chord)?;
+    for v in [c0, c1] {
+        if face_containment(op.body, f, vertex_point(body, v)?, bnd)?
+            == Some(topo::FaceContainment::Out)
+        {
+            return Err(NamingError::Emission {
+                what: "an unjoined chord's end lies outside the face that holds its middle",
+            });
+        }
     }
+    Ok(Some(one))
 }
 
-/// Whether `face` of `body` holds `p` strictly inside it, by the in-face
-/// door for its kind: [`topo::contfp`] on a plane,
-/// [`topo::curved_face_containment`] on a curved carrier. `false` on
-/// its boundary, off it, and where the door has no verdict for it
-/// (a curved trim's remainder, no ray settling, a loop edge in every
-/// ray's way, a chart read refused, an arc end's band): the caller
-/// refuses that typed, as it does a boundary point.
+/// Whether `face` of `body` holds `p` strictly inside it
+/// ([`face_containment`]'s `In`).
+fn face_holds_inside<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    p: Point3<T>,
+    bnd: geom_core::Band,
+) -> Result<bool, NamingError> {
+    Ok(face_containment(body, face, p, bnd)? == Some(topo::FaceContainment::In))
+}
+
+/// Where `face` of `body` holds `p`, by the in-face door for its kind:
+/// [`topo::contfp`] on a plane, [`topo::curved_face_containment`] on a
+/// curved carrier. `None` where the door has no verdict for it (a
+/// curved trim's remainder, no ray settling, a loop edge in every ray's
+/// way, a chart read refused, an arc end's band): the caller refuses
+/// that typed, as it does a boundary point.
 ///
 /// topo's own dispatch of the two doors (`boolean::face_placement`,
 /// which the census's `face_holds` and the rim wedges read) is
@@ -3652,45 +3683,58 @@ fn constituent_holding<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`NamingError::Escalated`] where a door's margin escalated, and an
-/// [`NamingError::Emission`] where the face or a loop of it does not
-/// read as one: a constituent the merge record names is a face of its
-/// operand.
-fn face_holds_inside<T: Decide>(
+/// [`NamingError::Escalated`] where a door's margin escalated, under
+/// the door's own predicate name where the diagnostic carries one and
+/// the door's name where it does not; an [`NamingError::Emission`]
+/// where the face, a loop of it or the face's chart does not read as
+/// one: a constituent the merge record names is a face of its operand.
+fn face_containment<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     p: Point3<T>,
     bnd: geom_core::Band,
-) -> Result<bool, NamingError> {
+) -> Result<Option<topo::FaceContainment>, NamingError> {
     let surface = body
         .get_face(face)
         .and_then(|f| body.get_surface(f.surface))
         .ok_or(NamingError::Emission {
             what: "a merged face's constituent is not a face of its operand",
         })?;
-    let read = match *surface {
-        geom::Surface::Plane { normal, .. } => topo::contfp(body, face, normal, p, bnd).map(Some),
-        _ => topo::curved_face_containment(body, face, p, bnd),
+    let (door, read) = match *surface {
+        geom::Surface::Plane { normal, .. } => (
+            "topo::contfp",
+            topo::contfp(body, face, normal, p, bnd).map(Some),
+        ),
+        _ => (
+            "topo::curved_face_containment",
+            topo::curved_face_containment(body, face, p, bnd),
+        ),
+    };
+    let broken = NamingError::Emission {
+        what: "a merged face's constituent does not read as a face of its operand",
     };
     match read {
-        Ok(at) => Ok(at == Some(topo::FaceContainment::In)),
+        Ok(at) => Ok(at),
         Err(topo::ContainError::Escalated { diag, .. }) => Err(NamingError::Escalated {
-            predicate: diag.predicate.unwrap_or("contfp"),
+            predicate: diag.predicate.unwrap_or(door),
             source: diag,
         }),
         Err(
             topo::ContainError::StaleFace(_)
             | topo::ContainError::EmptyLoop(_)
-            | topo::ContainError::LoopUnreadable(_),
-        ) => Err(NamingError::Emission {
-            what: "a merged face's constituent does not read as a face of its operand",
-        }),
+            | topo::ContainError::LoopUnreadable(_)
+            | topo::ContainError::Curved(
+                topo::PointInSolidError::CorruptFace { .. }
+                | topo::PointInSolidError::Loop(topo::PointInLoopError::CorruptLoop { .. }),
+            ),
+        ) => Err(broken),
+        // An arc end's band is no verdict, as `rim_wedge.rs` reads it.
+        Err(topo::ContainError::ArcEndClearOfCorners(_)) => Ok(None),
         Err(
             topo::ContainError::RayExhausted
             | topo::ContainError::Uncrossable(_)
-            | topo::ContainError::Curved(_)
-            | topo::ContainError::ArcEndClearOfCorners(_),
-        ) => Ok(false),
+            | topo::ContainError::Curved(_),
+        ) => Ok(None),
     }
 }
 
