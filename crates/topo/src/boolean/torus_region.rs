@@ -1086,4 +1086,160 @@ mod tests {
             }
         }
     }
+    /// R1 review probe: a strip between two Villarceau circles of one
+    /// family, against a numeric oracle for the family parameter.
+    #[test]
+    fn r1_villarceau_strip_reads_consistently() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        let sa = MINOR / R;
+        let ca = (1.0 - sa * sa).sqrt();
+        let rot = |phi: f64, v: Vec3<f64>| {
+            let (s, c) = phi.sin_cos();
+            Vec3::new(c * v.x - s * v.y, s * v.x + c * v.y, v.z)
+        };
+        let c0 = Vec3::new(0.0, MINOR, 0.0);
+        let n0 = Vec3::new(-sa, 0.0, ca);
+        let e0 = Vec3::new(ca, 0.0, sa);
+        let circle = |phi: f64, forward: bool, key: u64| RegionEdge {
+            edge: EdgeKey::from(KeyData::from_ffi(key)),
+            carrier: Carrier::Circle {
+                center: Point3::origin() + rot(phi, c0),
+                axis: rot(phi, n0),
+                radius: R,
+                u_ref: rot(phi, e0),
+            },
+            t0: 0.0,
+            t1: TAU,
+            forward,
+        };
+        for phi1 in [0.7, 2.5, 4.0] {
+            let region = TorusFaceRegion {
+                center: Point3::origin(),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                major: R,
+                minor: MINOR,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                sense: true,
+                outer: LoopKey::default(),
+                edges: vec![circle(0.0, true, 1), circle(phi1, false, 2)],
+            };
+            // the family parameter of p: the phi whose circle holds p
+            let fam = |p: Point3<f64>| -> f64 {
+                let w = p - Point3::origin();
+                let g = |phi: f64| rot(phi, n0).dot(w);
+                let on = |phi: f64| ((w - rot(phi, c0)).norm() - R).abs();
+                let n = 20000;
+                let mut best = (f64::INFINITY, 0.0);
+                for i in 0..n {
+                    let (a, bb) = (TAU * i as f64 / n as f64, TAU * (i + 1) as f64 / n as f64);
+                    if g(a) * g(bb) <= 0.0 {
+                        let (mut lo, mut hi) = (a, bb);
+                        for _ in 0..60 {
+                            let m = 0.5 * (lo + hi);
+                            if g(lo) * g(m) <= 0.0 { hi = m } else { lo = m }
+                        }
+                        let r = 0.5 * (lo + hi);
+                        if on(r) < best.0 {
+                            best = (on(r), r);
+                        }
+                    }
+                }
+                assert!(best.0 < 1e-9, "oracle {best:?}");
+                best.1
+            };
+            let (mut agree, mut disagree, mut refused) = (0, 0, 0);
+            let mut x: u64 = 0x9e3779b97f4a7c15;
+            let mut rnd = || {
+                x ^= x << 13;
+                x ^= x >> 7;
+                x ^= x << 17;
+                (x >> 11) as f64 / (1u64 << 53) as f64
+            };
+            for _ in 0..400 {
+                let (u, v) = (rnd() * TAU, rnd() * TAU);
+                let p = at(u, v);
+                let f = fam(p);
+                if f.min(TAU - f) < 1e-4 || (f - phi1).abs() < 1e-4 {
+                    continue;
+                }
+                let inside = f < phi1;
+                match region.contains(p, b) {
+                    Ok(Some(got)) if got == inside => agree += 1,
+                    Ok(Some(_)) => disagree += 1,
+                    _ => refused += 1,
+                }
+            }
+            eprintln!(
+                "R1 villarceau phi1 {phi1}: agree {agree} disagree {disagree} refused {refused}"
+            );
+            assert!(agree == 0 || disagree == 0, "mixed: {agree} vs {disagree}");
+        }
+    }
+    #[test]
+    fn r1_villarceau_strip_near_its_edges() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        for (big, small) in [(2.0_f64, 0.5_f64), (2.0, 1.9), (100.0, 1.0), (1.0, 0.05)] {
+            let sa = small / big;
+            let ca = (1.0 - sa * sa).sqrt();
+            let rot = |phi: f64, v: Vec3<f64>| {
+                let (s, c) = phi.sin_cos();
+                Vec3::new(c * v.x - s * v.y, s * v.x + c * v.y, v.z)
+            };
+            let c0 = Vec3::new(0.0, small, 0.0);
+            let n0 = Vec3::new(-sa, 0.0, ca);
+            let e0 = Vec3::new(ca, 0.0, sa);
+            let circle = |phi: f64, forward: bool, key: u64| RegionEdge {
+                edge: EdgeKey::from(KeyData::from_ffi(key)),
+                carrier: Carrier::Circle {
+                    center: Point3::origin() + rot(phi, c0),
+                    axis: rot(phi, n0),
+                    radius: big,
+                    u_ref: rot(phi, e0),
+                },
+                t0: 0.0,
+                t1: TAU,
+                forward,
+            };
+            let point = |phi: f64, t: f64| {
+                let (s, c) = t.sin_cos();
+                let y = n0.cross(e0);
+                Point3::origin() + rot(phi, c0 + (e0 * c + y * s) * big)
+            };
+            for phi1 in [0.7, 4.0] {
+                let region = TorusFaceRegion {
+                    center: Point3::origin(),
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    major: big,
+                    minor: small,
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                    sense: true,
+                    outer: LoopKey::default(),
+                    edges: vec![circle(0.0, true, 1), circle(phi1, false, 2)],
+                };
+                let (mut a, mut d, mut r, mut wrong) = (0, 0, 0, vec![]);
+                for k in 0..40 {
+                    let t = 0.05 + TAU * f64::from(k) / 40.0;
+                    for delta in [1e-7, 1e-5, 1e-3, 0.1] {
+                        for phi in [delta, -delta, phi1 - delta, phi1 + delta, phi1 * 0.5] {
+                            let p = point(phi, t);
+                            let inside = phi > 0.0 && phi < phi1;
+                            match region.contains(p, b) {
+                                Ok(Some(got)) if got == inside => a += 1,
+                                Ok(Some(got)) => {
+                                    d += 1;
+                                    wrong.push((phi, t, got));
+                                }
+                                _ => r += 1,
+                            }
+                        }
+                    }
+                }
+                eprintln!(
+                    "R1 vnear ({big},{small}) phi1 {phi1}: agree {a} disagree {d} refused {r} {:?}",
+                    wrong.iter().take(3).collect::<Vec<_>>()
+                );
+                assert!(a == 0 || d == 0, "mixed");
+            }
+        }
+    }
 }
