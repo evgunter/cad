@@ -131,16 +131,18 @@ const RIGID_SLACK: f64 = 1e-9;
 /// # Each arm names its subject through the spoken node
 ///
 /// The rule over the whole enum, not a property of one arm: an arm
-/// says its subject as [`SpokenNode`] says it — the node's kind as the
-/// document holds it, or its label (`InstantiatePart N`, `Place N`) —
-/// and never writes the subject's kind in its own words. A frame's
-/// withdrawal asks about its space's root, which is a placement and
-/// may be a `Place` rather than an instance, so a sentence that wrote
-/// "instance" would be false there. An id the document does not hold
-/// has no kind and reads **"node N"** ([`AdmissionFault::NoSuchNode`]).
-/// [`AdmissionFault::NotAnInstance`] is the one arm whose own words say
-/// "instance", because its whole content is that the node is not one.
-/// The census in `crates/viewer/tests/frame_policy.rs` holds the rule.
+/// says its subject as [`SpokenNode`] says it — always the node's kind
+/// as the document holds it, with its label beside it when it has one
+/// (`InstantiatePart N`, `Place "shelf" (N)`) — and never writes the
+/// subject's kind in its own words. A frame's withdrawal asks about its
+/// space's root, which is a placement and may be a `Place` rather than
+/// an instance, so a sentence that wrote "instance" would be false there.
+/// An id the document does not hold has no kind and reads **"node N"**
+/// ([`AdmissionFault::NoSuchNode`]). [`AdmissionFault::NotAnInstance`]
+/// is the one arm whose own words say "instance", because its whole
+/// content is that the node is not one. The census in
+/// `crates/viewer/tests/frame_policy.rs` holds the "instance" half of
+/// the rule; the other kind words are held by review.
 ///
 /// A caller rendering these must therefore not promise its reader one
 /// vocabulary across all of them.
