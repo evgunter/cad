@@ -5983,6 +5983,14 @@ kind. Merged over CLEAVE's `review_pick_r2` red, commented on the PR.
 
 Signed (WIRE orchestrator).
 
+- 2026-10-18 — PR 5275 fix pass adjudicated by the orchestrator's delta
+  read (the closed in-plane edge is credited; restoring the guard reds
+  the revolved-apex pin; Keeps pinned as literal name vectors, two
+  mutants red); merged on green; the tip-copies and mirrored-split rows
+  closed. Filed by the lane: `split-keeps-has-two-builders-that-disagree`,
+  `a-revolved-pinch-split-refuses-with-its-normal-flipped`,
+  `split-and-boolean-copy-chains-are-chased-three-ways` (all P3).
+  (WIRE orchestrator)
 - 2026-10-18 — PR 5276 fix pass adjudicated by the orchestrator's delta
   read (dedup runs before any record cites a row index; `fold_cell`
   refuses an unstripped minted head as it does a member head); merged on

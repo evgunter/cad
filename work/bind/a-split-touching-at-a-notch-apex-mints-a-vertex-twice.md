@@ -57,3 +57,14 @@ is pncad-py's: the prose gate (`crates/pncad-py/src/py/mod.rs`, reached from
 spelling has changed since (`OnToolVertex` has no `side` any more) — and
 whether the emitter's invariant text still renders through `Debug`. The id
 is unchanged; retitled to the half that remains.
+
+## The reproducer no longer reaches the gate (2026-10-18)
+
+The naming half is built (WIRE, the Split vertex `Keeps` rule): the notched
+pentagon split at `y = 1` now names with no refusal
+(`crates/editor-core/tests/split_pinch_keeps.rs`, the same document built
+in Rust; the Python snippet was not re-run), so the prose gate's panic
+needs another refusal whose message carries a `Debug` rendering to
+reproduce.
+
+Signed (wire-keeps lane).
