@@ -6094,3 +6094,15 @@ Signed (WIRE orchestrator).
   `topo::ReadbackError`'s, which held `FaceFrameReadback/*` also
   renders. The lane filed `naming-refusal-census-skips-ten-arms` (P3 E).
   (WIRE orchestrator)
+
+- 2026-10-18 — PR 5298 style review adjudicated: MAJOR upheld. The PR
+  labelled `NodeStanding`'s repair sentences as `Recourse:`, and
+  `wirehold/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`
+  records them as false for a node a mate cluster refused, which is held
+  ground. They go back to unlabelled, and their census entries stay filed
+  against that row. Minors sent too: VarKindMismatch half-recourse;
+  Vanished doubling after a diagnosis with its own repair, and Cascade
+  pointing downstream; the ProfileLaneReplay point-pass premise. Class
+  note: a unit that adds a category-keyed ending can mint a second
+  hand-written category map beside the test's (`NamingError::ending` vs
+  `expected_framing`); the fix is one map. (WIRE orchestrator)
