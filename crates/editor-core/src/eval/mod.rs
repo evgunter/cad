@@ -3627,6 +3627,27 @@ pub fn bound_pose<T: EvalScalar>(
     wire::pose::eval_pose(doc, &ev.nodes, slot, read.into(), &ev.env, tol)
 }
 
+/// **The space a node reading no space is the root of** (D10: a body's
+/// kind is its root): a construction, which reads no body, is a root of
+/// its own; a profile or a pose is in no space until a construction
+/// reads it.
+fn root_space<P, S: crate::Slot>(
+    id: RecipeNodeId,
+    node: &crate::node::Node<P, S>,
+) -> Option<crate::mate::Space> {
+    use crate::node::Node;
+    matches!(
+        node,
+        Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Loft { .. }
+            | Node::Sweep { .. }
+    )
+    .then_some(crate::mate::Space::Loose { root: id })
+}
+
 /// **Every node whose value lives in a loose copy's space**, in
 /// schedule order: a value's own space where it built; for a node that
 /// did not, the space its recipe gives it (D10: kinds are decided from
@@ -3668,7 +3689,8 @@ fn spaces_of<T: Decide>(
                         .upstream_of(id, node)
                         .iter()
                         .find_map(|at| loose.get(at).copied())
-                        .map(|root| Space::Loose { root }),
+                        .map(|root| Space::Loose { root })
+                        .or_else(|| root_space(id, node)),
                 }
             }
             None => None,
@@ -4524,10 +4546,7 @@ where
                     // A measure and an assertion read geometry and
                     // answer a number, which lives in no space.
                     crate::node::Node::Measure { .. } | crate::node::Node::Assertion { .. } => None,
-                    _ => out
-                        .space
-                        .or(inputs_space)
-                        .or(Some(crate::mate::Space::World)),
+                    _ => out.space.or(inputs_space).or_else(|| root_space(id, node)),
                 },
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,

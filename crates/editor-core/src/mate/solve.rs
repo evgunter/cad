@@ -187,12 +187,13 @@ impl SolveScalar for geom_core::Probe {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Space {
     /// The world's kind: the copy is pinned, transitively, against the
-    /// world, or the value is a construction of the document's one kind.
+    /// world.
     World,
-    /// The kind of a loose copy: the placement whose bundle pins less
-    /// than its body needs, which everything pinned to it shares.
+    /// The kind of a root other than the world, which everything pinned
+    /// to it shares: a construction, which reads no body, or a loose
+    /// copy, whose bundle pins less than its body needs.
     Loose {
-        /// The loose copy's placement.
+        /// The root: the construction, or the loose copy's placement.
         root: RecipeNodeId,
     },
 }
