@@ -569,7 +569,8 @@ fn body_reach<T: crate::mate::SolveScalar>(
 
 /// **A placement's bundle, folded where it evaluates** (INTENT stage 3
 /// C), its `on` poses read in `on_results` (an instance's own copy
-/// before placement among them) and its `to` poses in `to_results`: each mate's `on` read off the copied shapes before placement, in
+/// before placement among them) and its `to` poses in `to_results`.
+/// Each mate's `on` is read off the copied shapes before placement, in
 /// their own coordinates, and its `to` off the target space's geometry,
 /// or the world read inside the mate; the bundle folded
 /// ([`crate::mate::solve::solve_bundle`]). Answers the copy's motion in
@@ -598,19 +599,7 @@ where
     // The named interim's world pin places its copy where its body
     // stands, by no map, in every lane: it reads nothing and holds no
     // number. It stands alone, so anything beside it is already fixed.
-    if constraints.iter().any(|c| c.world_pin().is_some()) {
-        let beside: Vec<_> = constraints
-            .iter()
-            .filter(|c| c.world_pin().is_none())
-            .map(|c| c.id)
-            .collect();
-        if !beside.is_empty() {
-            return Err(fault(MateFault::Overconstrained {
-                placement: id,
-                constraints: beside,
-                held: crate::mate::Subgroup::Trivial,
-            }));
-        }
+    if crate::mate::solve::world_pin_stands_alone(id, constraints).map_err(NodeErrorKind::Mate)? {
         return Ok((None, Space::World));
     }
     let b = band(tol)?;

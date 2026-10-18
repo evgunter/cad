@@ -12,6 +12,12 @@
 //! standoff a `Slide` on the target, and a freedom the bundle leaves is
 //! a value's (spec §1). It places and never checks.
 //!
+//! A copy standing where its body stands is pinned by the named
+//! interim's world pin ([`WorldPin`], spec §4), a constraint that reads
+//! nothing and holds no number, and stands alone in its bundle; a pose
+//! off the identity is pinned by a frame mate ([`pin_at`]) or placed by
+//! the gesture ([`place_at`]).
+//!
 //! # What a mate says, geometrically
 //!
 //! Each kind pins the copy's relative pose to a COSET of an SE(3)
@@ -320,13 +326,19 @@ impl<S: crate::Slot> WorldRead<S> {
 }
 
 /// **The deepest world read a mate holds** ([`WorldRead::depth`]):
-/// fifteen. The `place_at` gesture writes at most nine — the world's
-/// xy plane read through its role after three spins and three slides
-/// (`mate::pin`), each about or along an axis read two deep — and
-/// inline at a landing off the identity appends at most six more, the
-/// landing's own spins and slides. A world read is written inside its
-/// mate, never as a variable (spec Q7), so this bound is what holds a
-/// saved mate within the load door's nesting limit
+/// fifteen. The writers stay well inside it: the `place_at` gesture
+/// writes at most nine — the world's xy plane read through its role
+/// after three spins and three slides (`mate::pin`), each about or
+/// along an axis read two deep — and its values refuse a moved landing,
+/// so inline never moves it; `pin_at` writes the world's frame after at
+/// most six such moves, and inline at a landing off the identity folds
+/// a read's run of written moves into the motion it moves it by and
+/// writes one run again, so a pin flattened through any number of
+/// nested parts stays as deep as `pin_at` wrote it. Only a read whose
+/// moves read a variable gains a run per inline, and past this bound
+/// the edit door refuses it. A world read is written inside its mate,
+/// never as a variable (spec Q7), so this bound is what holds a saved
+/// mate within the load door's nesting limit
 /// (`persist::nesting::ENVELOPE`).
 pub const MAX_WORLD_READ_DEPTH: usize = 15;
 
@@ -683,6 +695,17 @@ impl<S: crate::Slot> Constraint<S> {
         match &self.kind {
             ConstraintKind::WorldPin(pin) => Some(*pin),
             ConstraintKind::Mate(_) | ConstraintKind::Value(_) => None,
+        }
+    }
+
+    /// Whether it places its copy on the world: a world pin, or a mate
+    /// whose target is a world read.
+    #[must_use]
+    pub fn reads_world(&self) -> bool {
+        match &self.kind {
+            ConstraintKind::WorldPin(_) => true,
+            ConstraintKind::Mate(mate) => matches!(mate.to, Target::World(_)),
+            ConstraintKind::Value(_) => false,
         }
     }
 

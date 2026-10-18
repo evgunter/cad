@@ -163,14 +163,18 @@ class WorldPins(unittest.TestCase):
         )
         self.assertEqual(doc.remove_mate(bare), [])
         self.assertEqual(doc.bundle(shelf), [])
-        # A value's id is no mate's, and an id the bundle no longer
-        # holds is refused the same way; neither touches the document.
+        # An id the bundle no longer holds is refused, and touches
+        # nothing.
         held = doc.bundle(post)
-        for wrong in (held[1][0], bare):
-            with self.assertRaises(EditError) as caught:
-                doc.remove_mate(wrong)
-            self.assertEqual(caught.exception.variant, "unknown_constraint")
-            self.assertEqual(doc.bundle(post), held)
+        with self.assertRaises(EditError) as caught:
+            doc.remove_mate(bare)
+        self.assertEqual(caught.exception.variant, "unknown_constraint")
+        self.assertEqual(doc.bundle(post), held)
+        # A value's address removes that value alone: it names no mate,
+        # so nothing goes with it.
+        value = held[1][0]
+        self.assertEqual(doc.remove_mate(value), [])
+        self.assertEqual(doc.bundle(post), [held[0]] + held[2:])
         # The world is no placement.
         with self.assertRaises(EditError) as caught:
             doc.remove_mate(MateRef(doc.world, pin.constraint))

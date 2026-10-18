@@ -6203,7 +6203,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cuts_the_world",
             "definition_straddles_cut",
             "empty_cut",
-            "instance_unpinned",
             "name_on_dropped_step",
             "name_outside_part_world",
             "name_straddles_cut",

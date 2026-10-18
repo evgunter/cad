@@ -202,9 +202,6 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         E::RemainderReadUncarried { reader, why: _ } => {
             (none(), id(reader), none(), none(), none(), none())
         }
-        // Why the instance could not be pinned rides `inner_variant`
-        // (below).
-        E::InstanceUnpinned { .. } => (none(), none(), none(), none(), none(), none()),
         E::UncutVarReference {
             var,
             cut_node,
@@ -246,10 +243,6 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             (none(), none(), none(), none(), none(), none())
         }
     };
-    let inner_variant = match err {
-        E::InstanceUnpinned { refusal } => text(crate::tags::pin_refusal_tag(refusal)),
-        _ => none(),
-    };
     // A definition tied across the cut: the variable it reads that
     // moves, and the one that stays (or that the document no longer
     // holds), as `UncutVarReference` carries both of its nodes.
@@ -274,7 +267,6 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             ("param", param),
             ("name", name),
             ("id", doc_id),
-            ("inner_variant", inner_variant),
             ("moving", moving),
             ("staying", staying),
         ],

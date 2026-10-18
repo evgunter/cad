@@ -10,7 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    CapEnd, ConstraintId, DocumentId, EditError, EntityKind, InlineError, PersistError, PinRefusal,
+    CapEnd, ConstraintId, DocumentId, EditError, EntityKind, InlineError, PersistError,
     RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SplitError, SpokenName, SpokenNode,
     StableName, StepId, Uncarried, VarName,
 };
@@ -85,7 +85,7 @@ fn var() -> editor_core::SpokenVar {
 test_utils::f6_variants! {
     const SPLIT: SplitError = [
         EmptyCut, UnknownCutNode, CutsTheWorld, PartIdCollides, RemainderReadUncarried,
-        SeveredEdge, NoMaterial, InstanceUnpinned, UncutVarReference, DefinitionStraddlesCut,
+        SeveredEdge, NoMaterial, UncutVarReference, DefinitionStraddlesCut,
         UnresolvedVarCrossesCut, PartNameReachesRemainder, NameStraddlesCut, NameOnDroppedStep, RankedRunReordered,
         BodyNameCrossesCut, NameOutsidePartWorld, Pin, PartEdit, RemainderEdit,
     ];
@@ -158,18 +158,6 @@ fn split_refusals() -> Vec<SplitError> {
                 reader: s(6, "Union"),
                 why,
             }),
-    );
-    out.extend(
-        [
-            PinRefusal::NoNode,
-            PinRefusal::Unevaluated { node: n(7) },
-            PinRefusal::NotABody { node: n(7) },
-            PinRefusal::AlreadyPlaced { node: n(7) },
-            PinRefusal::NoFrame { node: n(7) },
-            PinRefusal::Band,
-        ]
-        .into_iter()
-        .map(|refusal| SplitError::InstanceUnpinned { refusal }),
     );
     out.extend([
         SplitError::NoMaterial {

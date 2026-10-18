@@ -167,9 +167,8 @@ built at the workspace door (DI4).
 
 *Split.* `refactor::split` cuts a node set closed under the DAG in both
 directions into a new document with a caller-supplied id, leaving one
-`InstantiatePart` behind, pinned to the world at the identity over its
-own geometry (`mate::pin_at`; `SplitError::InstanceUnpinned` when the
-copies offer no frame to read); a severed
+`InstantiatePart` behind, pinned where it stands by the named interim's
+world pin (`WorldPin::Identity`, which reads nothing); a severed
 edge refuses. A cut takes whole placements: a placement's constraints are
 its own, so a cut placement whose bundle reads a kept copy severs that
 read. The part's world is the cut's world placements, so the instance's

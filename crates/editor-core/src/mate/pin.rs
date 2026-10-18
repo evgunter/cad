@@ -14,8 +14,11 @@
 //! offers no such pair refuses ([`PinRefusal::NoFrame`]), never a loose
 //! copy in silence.
 //!
-//! This is a helper for migration, tests and demos, not an authoring
-//! gesture. The authoring gesture is [`place_at`]: "place this copy
+//! A copy standing where its body stands is pinned by the named
+//! interim's world pin ([`crate::WorldPin::Identity`]), which reads
+//! nothing; `pin_at` is the pin of a pose off the identity — inline's
+//! copy at a moved landing, and migration, tests and demos — not an
+//! authoring gesture. The authoring gesture is [`place_at`]: "place this copy
 //! at `P`" writes a plane mate on the copy's first planar face to the
 //! world plane that face lies in at `P`, and the three values that
 //! put the copy at `P` in that mate's chart — so the copy can then be
@@ -351,6 +354,51 @@ pub(crate) fn moved_by(
         }
     }
     world
+}
+
+/// **The run of world-axis moves `world` ends in, taken off**: the read
+/// under the run, and the run as one rigid motion, `(linear,
+/// translation)` (the identity where there is none). A move is in the
+/// run where it turns about or slides along a world axis by a number
+/// `number` answers; a move it answers none for ends the run, and what
+/// lies under it is kept. What inline folds into the motion it moves a
+/// part's world read by, so that [`moved_by`] writes one run where a
+/// read is moved twice, and its depth does not grow with the nesting
+/// it is flattened from.
+pub(crate) fn written_moves<S: crate::Slot>(
+    world: WorldRead<S>,
+    number: impl Fn(&S) -> Option<f64>,
+) -> (WorldRead<S>, Mat3<f64>, geom_core::linalg::Vec3<f64>) {
+    use geom_core::linalg::Vec3;
+    let axis_of = |read: &WorldRead<S>| match read {
+        WorldRead::Role { pose, role } if matches!(**pose, WorldRead::Frame) => match role {
+            PoseRole::X => Some(Vec3::new(1.0, 0.0, 0.0)),
+            PoseRole::Y => Some(Vec3::new(0.0, 1.0, 0.0)),
+            PoseRole::Z => Some(Vec3::new(0.0, 0.0, 1.0)),
+            _ => None,
+        },
+        _ => None,
+    };
+    // Peeled outermost first: the run is `held = M_top ∘ … ∘ M_k`.
+    let (mut linear, mut translation) = (Mat3::identity(), Vec3::new(0.0, 0.0, 0.0));
+    let mut world = world;
+    loop {
+        match world {
+            WorldRead::Spin { pose, about, by }
+                if let (Some(axis), Some(angle)) = (axis_of(&about), number(&by)) =>
+            {
+                linear = linear * Mat3::rotation_about(axis, angle);
+                world = *pose;
+            }
+            WorldRead::Slide { pose, along, by }
+                if let (Some(axis), Some(length)) = (axis_of(&along), number(&by)) =>
+            {
+                translation = translation + linear * (axis * length);
+                world = *pose;
+            }
+            other => return (other, linear, translation),
+        }
+    }
 }
 
 /// **How [`place_at`] placed a copy.**

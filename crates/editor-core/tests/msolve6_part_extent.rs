@@ -24,9 +24,8 @@ use editor_core::pose::{PoseRole, RoleRead};
 use editor_core::{
     CapEnd, Clash, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate,
     MateFault, MateReach, MateRef, MateSide, Node, NodeErrorKind, NodeResult, OperandSlot,
-    PartFault, PartReach, PinRefusal, PoseValue, ProfileDoc, ReachRefusal, RecipeNodeId,
-    ResolveFault, SlideAxis, SplitError, Target, Value, WorldRead, content_pin, mate_reach,
-    product,
+    PartFault, PartReach, PoseValue, ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFault,
+    SlideAxis, Target, Value, WorldRead, content_pin, mate_reach, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, insert, len, on_frame, revolve_about, run, solve, step};
@@ -1492,47 +1491,43 @@ fn a6_a_mate_chained_to_an_indeterminate_one_removes_like_any_other() {
     }
 }
 
-/// **A whole-assembly split pins its instance through the caller's
-/// resolver**: the cut's instances move into the new part, and the
-/// instance left behind is pinned over the geometry that part serves,
-/// which reaches the cut's own parts only through the caller's
-/// resolver — so with no resolver the split refuses typed, the pin's
-/// copies unevaluated, and never leaves an instance nothing pins. The
-/// remainder asks no store.
+/// **A whole-assembly split pins its instance where it stands**: the
+/// cut's instances move into the new part, and the instance left
+/// behind is pinned by the named interim's world pin, which reads
+/// nothing, so the split asks no geometry of the part it mints and
+/// pins alike whether or not the caller holds a resolver.
 ///
-/// *Breaks if* a split leaves an unpinned instance, or pins it without
-/// evaluating what it reads.
+/// *Breaks if* a split leaves an unpinned instance, or pins it by a
+/// mate read off geometry it must evaluate.
 #[test]
-fn a6_a_split_pins_its_instance_through_the_callers_resolver() {
+fn a6_a_split_pins_its_instance_where_it_stands_with_or_without_a_resolver() {
     let (doc, ids, opts, body) = instances("msolve6-p6", box_part("msolve6-p6-part", 0.5, 1.0), 2);
     let [a, b] = [ids[0], ids[1]];
     let (doc, _) = seat(doc, (a, body), (b, body));
     // Both instances, the second's bundle holding the seat.
     let cut = fixture::with_placements(&doc, &[a, b].into_iter().collect());
-    editor_core::split(
-        &doc,
-        &cut,
-        DocumentId::derive("msolve6-p6-new-part"),
-        Tol::witness(),
-        opts.resolver.as_ref(),
-    )
-    .expect("a whole-assembly cut splits through the caller's resolver");
-    let none = editor_core::split(
-        &doc,
-        &cut,
-        DocumentId::derive("msolve6-p6-new-part-none"),
-        Tol::witness(),
-        None,
-    );
-    assert!(
-        matches!(
-            none,
-            Err(SplitError::InstanceUnpinned {
-                refusal: PinRefusal::Unevaluated { .. }
-            })
-        ),
-        "a no-resolver split refuses to leave its instance unpinned, got {none:?}"
-    );
+    for (label, resolver) in [("held", opts.resolver.as_ref()), ("none", None)] {
+        let out = editor_core::split(
+            &doc,
+            &cut,
+            DocumentId::derive(&format!("msolve6-p6-new-part-{label}")),
+            Tol::witness(),
+            resolver,
+        )
+        .unwrap_or_else(|e| panic!("a whole-assembly cut splits ({label}): {e}"));
+        let remainder = &out.remainder;
+        let pinned: Vec<_> = remainder
+            .placements()
+            .into_iter()
+            .map(|at| fixture::bundle(remainder, at))
+            .collect();
+        assert_eq!(pinned.len(), 1, "one instance is left behind ({label})");
+        assert!(
+            matches!(pinned[0].as_slice(), [c] if c.world_pin().is_some()),
+            "the instance is pinned where it stands by the world pin alone ({label}): {:?}",
+            pinned[0]
+        );
+    }
 }
 
 /// **Two mated parts evaluate once each**: a chain over two distinct

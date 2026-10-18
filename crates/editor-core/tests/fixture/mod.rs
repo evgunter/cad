@@ -337,18 +337,14 @@ pub fn pinned_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
         .collect();
     let mut doc = doc;
     for (placement, frame) in placed {
-        // Values first: a mate goes only once no value names it.
-        let mut constraints = bundle(&doc, placement);
-        constraints.sort_by_key(|c| c.mate().is_some());
-        for c in constraints {
-            doc = step(
-                doc,
-                DocEdit::RemoveConstraint {
-                    placement,
-                    constraint: c.id,
-                },
-            )
-            .0;
+        // Each mate with the values naming it, as the façades remove one.
+        for c in bundle(&doc, placement) {
+            if c.value().is_some() {
+                continue;
+            }
+            for edit in DocEdit::removing(&doc, editor_core::MateRef::new(placement, c.id)) {
+                doc = step(doc, edit).0;
+            }
         }
         doc = pin(doc, placement, &frame, o);
     }

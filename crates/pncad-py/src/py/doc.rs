@@ -1790,75 +1790,52 @@ impl Doc {
         Ok(placed)
     }
 
-    /// **Remove `mate` and every value that names it**, as one action
-    /// (ruling C-2): each value's `DocEdit.remove_constraint`, in bundle
-    /// order, then the mate's, all applied or none. A mate no value
-    /// names is removed alone. Answers the values' addresses that went
-    /// with it. `DocEdit.remove_constraint` stays the raw edit, which
+    /// **Remove the constraint `mate` addresses, a mate with every value
+    /// that names it**, as one action (ruling C-2): for a mate, each
+    /// value's `DocEdit.remove_constraint` in bundle order, then the
+    /// mate's; for a value or a world pin, its own; all applied or none
+    /// (`DocEdit::removing`). Answers the values' addresses that went
+    /// with a mate. `DocEdit.remove_constraint` stays the raw edit, which
     /// refuses a mate a value names (`mate_named_by_value`).
     ///
     /// Refuses typed on `EditError`: `unknown_node`,
     /// `constraint_on_non_placement`, `unknown_constraint` (the bundle
-    /// holds no such id, or holds it as a value rather than a mate).
+    /// holds no such id).
     fn remove_mate(
         &mut self,
         py: Python<'_>,
         mate: &super::mate::MateRef,
     ) -> PyResult<Vec<super::mate::MateRef>> {
-        let placement = mate.0.placement;
-        let unknown = |doc: &d::ProfileDoc| d::EditError::UnknownConstraint {
-            node: doc.spoken(placement),
-            constraint: mate.0.id,
-        };
-        let constraints = match self.inner.node(placement) {
-            None => {
-                return Err(edit_err(
-                    py,
-                    &d::EditError::UnknownNode {
-                        id: d::SpokenNode::absent(placement),
-                    },
-                ));
-            }
-            Some(node) => match node.authored(&self.inner) {
-                d::Node::Place { constraints, .. }
-                | d::Node::InstantiatePart { constraints, .. } => constraints,
-                _ => {
-                    return Err(edit_err(
-                        py,
-                        &d::EditError::ConstraintOnNonPlacement {
-                            node: self.inner.spoken(placement),
-                        },
-                    ));
-                }
-            },
-        };
-        if !constraints
-            .iter()
-            .any(|c| c.id == mate.0.id && c.mate().is_some())
-        {
-            return Err(edit_err(py, &unknown(&self.inner)));
+        let at = mate.0;
+        let mut edits = d::DocEdit::removing(&self.inner, at);
+        if edits.is_empty() {
+            // No such constraint: the raw edit refuses it in its words.
+            edits.push(d::DocEdit::RemoveConstraint {
+                placement: at.placement,
+                constraint: at.id,
+            });
         }
-        let values: Vec<d::ConstraintId> = constraints
+        let values: Vec<super::mate::MateRef> = edits[..edits.len() - 1]
             .iter()
-            .filter(|c| c.value().is_some_and(|v| v.mate == mate.0.id))
-            .map(|c| c.id)
+            .filter_map(|edit| match edit {
+                d::DocEdit::RemoveConstraint {
+                    placement,
+                    constraint,
+                } => Some(super::mate::MateRef(d::MateRef::new(
+                    *placement,
+                    *constraint,
+                ))),
+                _ => None,
+            })
             .collect();
         let tol = Tol::witness();
         let mut action = d::Recording::start(&self.inner, tol, &d::RefusingReach);
-        for &constraint in values.iter().chain(std::iter::once(&mate.0.id)) {
-            action
-                .apply(d::DocEdit::RemoveConstraint {
-                    placement,
-                    constraint,
-                })
-                .map_err(|err| edit_err(py, &err))?;
+        for edit in edits {
+            action.apply(edit).map_err(|err| edit_err(py, &err))?;
         }
         let done = action.finish().map_err(|err| edit_err(py, &err))?;
         self.take_up(done.doc, done.maintenance);
-        Ok(values
-            .into_iter()
-            .map(|id| super::mate::MateRef(d::MateRef::new(placement, id)))
-            .collect())
+        Ok(values)
     }
 
     /// **Set one freedom `mate` leaves to `by`**, and return the

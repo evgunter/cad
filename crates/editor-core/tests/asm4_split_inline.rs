@@ -771,14 +771,22 @@ fn row3_further_typed_refusals() {
     );
     let landed = fixture::solve(&inlined2.doc, &EvalOptions::default(), Tol::witness())
         .placement(&inlined2.doc, spliced)
-        .expect("the spliced placement solves")
-        .translation;
+        .expect("the spliced placement solves");
+    // The whole placement, rotation and translation, within the pin's
+    // re-composition: measured 6.1e-17 (a quarter-turn's cosine, from
+    // the spins `pin_at` writes the pose as).
+    let want = editor_core::Frame::translation([3.0, 0.0, 0.0]);
+    let off = landed
+        .columns
+        .iter()
+        .flatten()
+        .zip(want.columns.iter().flatten())
+        .chain(landed.translation.iter().zip(&want.translation))
+        .map(|(x, y)| (x - y).abs())
+        .fold(0.0_f64, f64::max);
     assert!(
-        landed
-            .iter()
-            .zip([3.0, 0.0, 0.0])
-            .all(|(x, y)| (x - y).abs() <= 1e-12),
-        "the plain extrude's placement takes the instance's pose: {landed:?}"
+        off <= 1e-16,
+        "the plain extrude's placement takes the instance's pose, {off:e} off: {landed:?}"
     );
     // The same instance at IDENTITY inlines too.
     let host3 = ProfileDoc::empty(DocumentId::derive("asm4-r3f-host3"), Tol::witness());

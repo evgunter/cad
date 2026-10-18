@@ -42,8 +42,9 @@
 //! instance (FORK-S3M: a constraint reads its target across the cut):
 //! its pose is written afresh over the instance's copies, each selection
 //! in it re-authored as a crossing selection is. The instance is pinned
-//! to the world at the identity over its own geometry
-//! ([`crate::mate::pin_at`]). Neither door computes a frame.
+//! where it stands by the named interim's world pin
+//! ([`crate::WorldPin::Identity`]), which reads nothing. Neither door
+//! computes a frame.
 //!
 //! [`inline`] is the inverse. An instance whose mates all target the
 //! world splices its part's placements with every mate on the part's
@@ -406,7 +407,8 @@ fn carry<E>(
     olds: &[RecipeNodeId],
     target: &mut Recording<'_, ProfileProgram>,
     vars: &mut VarCarry<'_>,
-    settle: impl Fn(RecipeNodeId, &mut crate::mate::Mate<Formula>) -> bool,
+    fold: bool,
+    settle: impl Fn(RecipeNodeId, &mut crate::mate::Mate<Formula>, Option<&Run>) -> bool,
     world_pin: impl Fn(
         RecipeNodeId,
         RecipeNodeId,
@@ -550,7 +552,13 @@ fn carry<E>(
     for (old, new, bundle) in bundles {
         let mut ids: BTreeMap<crate::node::ConstraintId, crate::node::ConstraintId> =
             BTreeMap::new();
-        for constraint in bundle {
+        for mut constraint in bundle {
+            // A world read's run of written moves, folded off the
+            // source mate before it is carried (`fold`): its numbers
+            // are not carried, and `settle` moves the read by them.
+            let run = fold
+                .then(|| fold_world_run(source, &mut constraint))
+                .flatten();
             let one = Node::Place {
                 shapes: Vec::new(),
                 constraints: vec![constraint.clone()],
@@ -600,7 +608,7 @@ fn carry<E>(
                     continue;
                 }
             };
-            if !settle(old, &mut mate) {
+            if !settle(old, &mut mate, run.as_ref()) {
                 continue;
             }
             let record = target
@@ -875,13 +883,6 @@ pub enum SplitError {
         /// The cut's first node, in document order.
         node: SpokenNode,
     },
-    /// **The instance the split leaves behind could not be pinned over
-    /// its geometry** ([`crate::mate::pin_at`]): its copies offer no
-    /// frame to read, or did not evaluate.
-    InstanceUnpinned {
-        /// Why.
-        refusal: crate::mate::PinRefusal,
-    },
     /// A cut node reads a variable that a kept node also reads. The
     /// variable can move or stay, but it cannot silently become two
     /// variables (D-2's "no silent sharing") — refused naming one
@@ -1041,12 +1042,6 @@ impl core::fmt::Display for SplitError {
                  delivers only its world, so the instance the split leaves behind would \
                  evaluate to nothing. {}",
                 Recourse("add to the cut the placements of the bodies it moves")
-            ),
-            Self::InstanceUnpinned { refusal } => write!(
-                f,
-                "split: the instance left behind cannot be pinned to the world over its own \
-                 geometry: {refusal}. {}",
-                Recourse("add to the cut a copy with an edge on an axis and a vertex off it")
             ),
             Self::PartIdCollides { id } => write!(
                 f,
@@ -2441,6 +2436,39 @@ struct VarCarry<'s> {
     map: BTreeMap<VarId, VarId>,
 }
 
+/// **A run of world-axis moves, as one rigid motion**: what
+/// [`fold_world_run`] takes off a part's world read.
+type Run = (geom_core::linalg::Mat3<f64>, geom_core::linalg::Vec3<f64>);
+
+/// **The run of written moves a carried world mate's read ends in,
+/// taken off it** ([`crate::mate::pin::written_moves`]): each a turn
+/// about or slide along a world axis by a number the part holds as an
+/// anonymous, untoleranced free value (`pin_at`'s and inline's own
+/// writing). `None` for a constraint that is no world mate, or whose
+/// read ends in no such move.
+fn fold_world_run(source: &ProfileDoc, constraint: &mut crate::mate::Constraint) -> Option<Run> {
+    let crate::mate::ConstraintKind::Mate(mate) = &mut constraint.kind else {
+        return None;
+    };
+    let crate::mate::Target::World(world) = &mut mate.to else {
+        return None;
+    };
+    let number = |&var: &VarId| match source.var(var).map(crate::Var::def) {
+        Some(VarDef::Free(crate::doc::FreeVar::Continuous {
+            value,
+            distribution: None,
+            ..
+        })) if source.var_name(var).is_none() => Some(*value),
+        _ => None,
+    };
+    let before = world.depth();
+    let (base, linear, translation) =
+        crate::mate::pin::written_moves(std::mem::replace(world, crate::WorldRead::Frame), number);
+    let peeled = base.depth() < before;
+    *world = base;
+    peeled.then_some((linear, translation))
+}
+
 /// One carried edit's variables: the fresh table it carries and the
 /// source variable each entry stands for.
 struct Carried {
@@ -3334,7 +3362,8 @@ pub fn split(
         &in_order,
         &mut part,
         &mut vars,
-        |_, _| true,
+        false,
+        |_, _, _| true,
         |_, new, _| Ok(Some(DocEdit::PinWhereItStands { placement: new })),
         part_refused,
         |old, miss| match miss {
@@ -3521,11 +3550,10 @@ pub fn split(
      -> Result<(), SplitError> {
         remainder.apply(edit).map(|_| ()).map_err(rem_refused)
     };
-    // The instance is a placement (D10), pinned to the world at the
-    // identity over its own geometry ([`crate::mate::pin_at`]), so the
-    // part's world copies stand where the cut's did. The pin is read
-    // off the instance's copies, so the remainder evaluates it with the
-    // new part served beside the caller's.
+    // The instance is a placement (D10), pinned where it stands by the
+    // named interim's world pin ([`crate::WorldPin::Identity`]), so the
+    // part's world copies stand where the cut's did. The pin reads
+    // nothing, so the remainder evaluates nothing to write it.
     let doc_ref = DocRef { id: part_id, pin };
     let instance = remainder
         .insert(Node::instantiate_part_with(
@@ -3533,34 +3561,16 @@ pub fn split(
             InterfaceRecord { crossings },
         ))
         .map_err(rem_refused)?;
+    rem_apply(
+        &mut remainder,
+        DocEdit::PinWhereItStands {
+            placement: instance,
+        },
+    )?;
     let copies = remainder
         .doc()
         .output(instance, 0)
         .unwrap_or_else(|| unreachable!("an instance defines its copies"));
-    let served = crate::eval::EvalOptions {
-        resolver: Some(std::sync::Arc::new(WithPart {
-            doc_ref,
-            part: part.doc().clone(),
-            behind: resolver.cloned(),
-        })),
-        ..crate::eval::EvalOptions::default()
-    };
-    let mate = crate::mate::pin_at(
-        remainder.doc(),
-        &crate::Operand::Var(copies),
-        &crate::placement::Frame::IDENTITY,
-        &served,
-        tol,
-    )
-    .map_err(|refusal| SplitError::InstanceUnpinned { refusal })?;
-    rem_apply(
-        &mut remainder,
-        DocEdit::AddConstraint {
-            placement: instance,
-            mate: Box::new(mate),
-            fresh: Vec::new(),
-        },
-    )?;
     let in_part =
         |from: &StableName, body: Option<RecipeNodeId>| -> Result<StableName, SplitError> {
             Ok(StableName {
@@ -3846,31 +3856,6 @@ fn rewritten_pose_with<P, E>(
     }
 }
 
-/// **A resolver serving one more part**: `part` at `doc_ref`, any
-/// other reference through the caller's resolver (none refuses). What
-/// split evaluates its remainder through before the part is anyone's.
-#[derive(Debug)]
-struct WithPart {
-    doc_ref: DocRef,
-    part: ProfileDoc,
-    behind: Option<std::sync::Arc<dyn PartResolver>>,
-}
-
-impl PartResolver for WithPart {
-    fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, crate::ResolveFailure> {
-        if *doc_ref == self.doc_ref {
-            return Ok(self.part.clone());
-        }
-        match &self.behind {
-            Some(behind) => behind.resolve(doc_ref, tol),
-            None => Err(crate::ResolveFailure {
-                fault: crate::ResolveFault::Unresolved,
-                message: "no resolver is configured".to_string(),
-            }),
-        }
-    }
-}
-
 fn selection_kind<P>(doc: &Doc<P>, var: VarId) -> crate::VarKind {
     let Some(held) = doc.var(var) else {
         unreachable!("a selection the document holds is a variable it holds")
@@ -4003,13 +3988,7 @@ pub fn inline(
     let reads_world = |p: RecipeNodeId| {
         part.node(p)
             .and_then(crate::mate::solve::bundle_of)
-            .is_some_and(|bundle| {
-                bundle.iter().any(|c| {
-                    c.world_pin().is_some()
-                        || c.mate()
-                            .is_some_and(|m| matches!(m.to, crate::mate::Target::World(_)))
-                })
-            })
+            .is_some_and(|bundle| bundle.iter().any(crate::mate::Constraint::reads_world))
     };
     // Where the part's placements land (A4). A pin's numbers are the
     // motion it solved to: one that reads a variable would lose it once
@@ -4090,11 +4069,9 @@ pub fn inline(
                 continue;
             };
             let on_world = |id: crate::node::ConstraintId| {
-                bundle.iter().any(|c| {
-                    c.id == id
-                        && c.mate()
-                            .is_some_and(|m| matches!(m.to, crate::mate::Target::World(_)))
-                })
+                bundle
+                    .iter()
+                    .any(|c| c.id == id && c.mate().is_some() && c.reads_world())
             };
             if let Some(value) = bundle
                 .iter()
@@ -4329,19 +4306,27 @@ pub fn inline(
         &carried,
         &mut current,
         &mut vars,
-        |old, mate| match &landing {
+        // Under a moved landing a world read's run of written moves is
+        // folded into the motion, so a part inlined into a part inlined
+        // in turn holds one run, not one per level.
+        matches!(landing, Landing::Pinned(Some(_))),
+        |old, mate, run| match &landing {
             // The root's own pin goes: the instance's bundle takes its
             // place below.
             Landing::Root(root) => old != *root,
             // A constraint on the part's world is one on the host's
-            // world, moved by the instance's pose.
+            // world, moved by the instance's pose, composed after the
+            // run its read was folded off.
             Landing::Pinned(motion) => {
                 if let (Some(motion), crate::mate::Target::World(world)) = (motion, &mut mate.to) {
-                    *world = crate::mate::pin::moved_by(
-                        world.clone(),
-                        motion.linear,
-                        motion.translation,
-                    );
+                    let (linear, translation) = match run {
+                        Some((held, at)) => (
+                            motion.linear * *held,
+                            motion.linear * *at + motion.translation,
+                        ),
+                        None => (motion.linear, motion.translation),
+                    };
+                    *world = crate::mate::pin::moved_by(world.clone(), linear, translation);
                 }
                 true
             }

@@ -3951,7 +3951,6 @@ MEMBERS_BOUND_AS = {
     "SplitError::SeveredEdge": "SplitError.variant",
     "SplitError::RemainderReadUncarried": "SplitError.variant",
     "SplitError::NoMaterial": "SplitError.variant",
-    "SplitError::InstanceUnpinned": "SplitError.variant",
     "SplitError::UncutVarReference": "SplitError.variant",
     "SplitError::DefinitionStraddlesCut": "SplitError.variant",
     "SplitError::UnresolvedVarCrossesCut": "SplitError.variant",

@@ -2096,8 +2096,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                     crate::mate::solve::admit_value(doc, at, bundle, value)
                 }
                 crate::mate::ConstraintKind::WorldPin(_) => Ok(()),
-            }
-            .and_then(|()| crate::mate::solve::admit_beside_world_pin(at, bundle));
+            };
             if let Err(fault) = admitted {
                 return Err(SnapshotError::MateRefused {
                     node: doc.spoken(id),
@@ -2105,6 +2104,16 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                     fault,
                 });
             }
+        }
+        if let Err(fault) = crate::mate::solve::world_pin_stands_alone(id, bundle) {
+            let crate::MateFault::Overconstrained { constraints, .. } = &*fault else {
+                unreachable!("a bundle beside a world pin is overconstrained")
+            };
+            return Err(SnapshotError::MateRefused {
+                node: doc.spoken(id),
+                constraint: constraints[0],
+                fault,
+            });
         }
     }
     // Every `StableName` the document holds, in ONE pass over the

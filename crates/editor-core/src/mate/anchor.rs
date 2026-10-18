@@ -90,7 +90,9 @@ impl<'a> Anchors<'a> {
     /// Every operation the copied body is built through after `minted`
     /// keeps a surviving entity where `minted` put it: a boolean, a
     /// blend, a split or a shell trims and adds, and moves nothing it
-    /// keeps.
+    /// keeps. A vertex such an operation trims (a blend's corner) is a
+    /// new entity under the operation's own name, minted by it, and so
+    /// is asked of that operation's reads, never of `minted`'s.
     fn carried_unmoved(&self, minted: RecipeNodeId) -> bool {
         if !self.built_through.contains(&minted) {
             return false;

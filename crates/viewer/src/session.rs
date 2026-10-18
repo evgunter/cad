@@ -3471,23 +3471,17 @@ impl DocSession {
     /// for a mate, each value naming it first, then the mate, as one
     /// action.
     fn remove_constraint(&mut self, mate: pncad::document::MateRef) -> OpOutcome {
-        let named: Vec<pncad::document::ConstraintId> =
-            match self.committed_doc().node(mate.placement) {
-                Some(
-                    Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. },
-                ) => constraints
-                    .iter()
-                    .filter(|c| c.value().is_some_and(|value| value.mate == mate.id))
-                    .map(|c| c.id)
-                    .collect(),
-                _ => Vec::new(),
-            };
+        let mut edits = DocEdit::removing(self.committed_doc(), mate);
+        if edits.is_empty() {
+            // No such constraint: the raw edit refuses it in its words.
+            edits.push(DocEdit::RemoveConstraint {
+                placement: mate.placement,
+                constraint: mate.id,
+            });
+        }
         self.commit_run(|run| {
-            for constraint in named.into_iter().chain([mate.id]) {
-                run.apply(DocEdit::RemoveConstraint {
-                    placement: mate.placement,
-                    constraint,
-                })?;
+            for edit in edits {
+                run.apply(edit)?;
             }
             Ok(())
         })

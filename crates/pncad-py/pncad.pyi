@@ -747,11 +747,7 @@ class SplitError(PncadError):
     param: Optional[str]
     name: Optional[str]
     id: Optional[str]
-    inner_variant: Optional[str]
-    """`instance_unpinned`: why the instance the split leaves behind
-    could not be pinned over its geometry, the pin refusal's word
-    (`pin_no_frame`, `pin_unevaluated`, ...). `no_material`: `node` is
-    the cut's first node."""
+    """`no_material`: `node` is the cut's first node."""
     moving: Optional[str]
     staying: Optional[str]
     """`definition_straddles_cut`: `param` is the tied variable, `moving`
@@ -3895,14 +3891,15 @@ class Doc:
         `apply`'s."""
 
     def remove_mate(self, mate: MateRef) -> list[MateRef]:
-        """Remove `mate` and every value that names it as one action:
-        each value's removal in bundle order, then the mate's, all
-        applied or none; answers the removed values' addresses. A mate
-        no value names is removed alone. `DocEdit.remove_constraint`
-        stays the raw edit, which refuses a mate a value names
-        (`mate_named_by_value`). Raises `EditError`: `unknown_node`,
-        `constraint_on_non_placement`, `unknown_constraint` (no such
-        id, or the id is a value's)."""
+        """Remove the constraint `mate` addresses as one action, a mate
+        with every value that names it: each value's removal in bundle
+        order, then the mate's, all applied or none; answers the removed
+        values' addresses. A value, a world pin, or a mate no value
+        names is removed alone (answering `[]`).
+        `DocEdit.remove_constraint` stays the raw edit, which refuses a
+        mate a value names (`mate_named_by_value`). Raises `EditError`:
+        `unknown_node`, `constraint_on_non_placement`,
+        `unknown_constraint` (no such id)."""
 
     def add_value(self, mate: MateRef, coord: Coord, by: _SlotArg) -> MateRef:
         """Set one freedom `mate` leaves to `by`, and answer the value's
@@ -4018,7 +4015,11 @@ class Doc:
         placement alone; `pose` beside `constraints` raises ValueError.
         Neither: the copy stands where its body stands, pinned by a
         world pin (`WorldPin`, stage 3 C's named interim), which reads
-        nothing and so follows the body's variables.
+        nothing and so follows the body's variables. The two differ at
+        the identity too, on purpose: `pose=Frame.identity()` is the
+        gesture, a plane mate and three values the copy can then be slid
+        and spun by, read off the copy's geometry at its nominal; no
+        `pose` is the pin, which holds no freedom and reads nothing.
 
         The one door that puts a body in the product: nothing places as
         a side effect, so a boolean of two placed bodies leaves both
@@ -6658,8 +6659,8 @@ def split(
     placement whose bundle reads a kept copy severs that read
     (`severed_edge`). A part delivers only its world: the cut's world
     placements are the part's, and the remainder holds ONE instance of
-    the part pinned to the world at the identity, so its copies stand
-    where the cut's did. A remainder read of the cut crosses only where
+    the part pinned where it stands by the world pin, so its copies
+    stand where the cut's did. A remainder read of the cut crosses only where
     the instance's copies carry what it reads, re-pointed to that copy
     of the instance; any other is severed (`severed_edge`,
     `remainder_read_uncarried`), as is a name reaching material the
@@ -6667,12 +6668,9 @@ def split(
     `doc` is untouched. Raises SplitError, typed, naming the offending
     edge, constraint, parameter or name.
 
-    `resolver` is the document seam the instance the split leaves
-    behind is evaluated through: it is pinned to the world over its own
-    geometry, and an instance that offers no frame to read refuses
-    `instance_unpinned` (`inner_variant` the pin refusal's word). The
-    part being minted answers its own reference; `resolver` answers
-    every other.
+    `resolver` is the document seam the split evaluates `doc` through,
+    to decide which of the cut's copies are the world's: it answers the
+    parts the document's instances reference.
 
     A kept constraint whose pose reads a cut copy's geometry reads it
     in the instance: its pose is re-written over the instance's copies.

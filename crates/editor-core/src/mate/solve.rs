@@ -478,12 +478,8 @@ pub fn relative_freedom_components<P: crate::ProfilePayload>(
         }
         // A world read is inside the mate and reads no variable, and a
         // world pin reads nothing, so the world is coupled here.
-        let pinned = bundle_of(node).is_some_and(|bundle| {
-            bundle.iter().any(|c| {
-                c.world_pin().is_some()
-                    || c.mate().is_some_and(|m| matches!(m.to, Target::World(_)))
-            })
-        });
+        let pinned =
+            bundle_of(node).is_some_and(|bundle| bundle.iter().any(super::Constraint::reads_world));
         if pinned {
             couple(id, RecipeNodeId::WORLD);
         }
@@ -880,28 +876,39 @@ pub(crate) fn admit_mate<P>(
 }
 
 /// **The named interim's world pin stands alone** ([`super::WorldPin`]):
-/// a bundle holding one holds no mate or value, so the constraint `at`
-/// is refused where its bundle holds a world pin and a constraint that
-/// is none ([`MateFault::Overconstrained`]: the pin already fixes the
-/// copy). Two world pins say one thing, as a replayed log may write.
-/// Asked of every constraint by the edit door and the load door alike.
+/// a bundle holding one holds no mate or value. Answers whether
+/// `bundle` holds a world pin, and refuses a bundle holding one beside
+/// any other constraint ([`MateFault::Overconstrained`], naming every
+/// constraint beside the pin: the pin already fixes the copy). Two
+/// world pins say one thing, as a replayed log may write. The one
+/// reading of the rule: the edit doors (`AddConstraint`, an inserted
+/// placement), the load door and the fold each ask it of the whole
+/// bundle.
 ///
 /// # Errors
 ///
-/// [`MateFault::Overconstrained`] naming `at`.
-pub(crate) fn admit_beside_world_pin(
-    at: MateRef,
+/// [`MateFault::Overconstrained`] naming the constraints beside the pin.
+pub(crate) fn world_pin_stands_alone(
+    placement: RecipeNodeId,
     bundle: &[super::Constraint],
-) -> Result<(), Box<MateFault>> {
-    let pinned = bundle.iter().any(|c| c.world_pin().is_some());
-    if pinned && bundle.iter().any(|c| c.world_pin().is_none()) {
-        return Err(Box::new(MateFault::Overconstrained {
-            placement: at.placement,
-            constraints: vec![at.id],
-            held: Subgroup::Trivial,
-        }));
+) -> Result<bool, Box<MateFault>> {
+    if !bundle.iter().any(|c| c.world_pin().is_some()) {
+        return Ok(false);
     }
-    Ok(())
+    let beside: Vec<_> = bundle
+        .iter()
+        .filter(|c| c.world_pin().is_none())
+        .map(|c| c.id)
+        .collect();
+    if beside.is_empty() {
+        Ok(true)
+    } else {
+        Err(Box::new(MateFault::Overconstrained {
+            placement,
+            constraints: beside,
+            held: Subgroup::Trivial,
+        }))
+    }
 }
 
 /// **The body a mate's target pose is charted on** (ruling C-1): the

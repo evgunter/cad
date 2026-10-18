@@ -200,7 +200,9 @@ pub(crate) fn settle<T: SolveScalar>(
         })),
     };
     // One order whatever order the values are listed in: spins, then
-    // slides along x, y and z, each by its mate's id.
+    // slides along x, y and z, each by its mate's id, then by its own
+    // (two values of one freedom on one mate: the second, which the
+    // fold refuses, is the same value whichever is listed first).
     let mut ordered: Vec<&ReadValue<T>> = values.iter().collect();
     ordered.sort_by_key(|v| {
         let rank = match v.coord {
@@ -209,7 +211,7 @@ pub(crate) fn settle<T: SolveScalar>(
             Coord::Slide(SlideAxis::Y) => 2,
             Coord::Slide(SlideAxis::Z) => 3,
         };
-        (rank, v.mate)
+        (rank, v.mate, v.value.id)
     });
     let (spins, slides): (Vec<_>, Vec<_>) =
         ordered.into_iter().partition(|v| v.coord == Coord::Spin);

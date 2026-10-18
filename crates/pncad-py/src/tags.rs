@@ -1904,9 +1904,8 @@ pub fn world_read_fault_tag(fault: &WorldReadFault) -> &'static str {
 }
 
 /// The stable tag for why a copy could not be pinned over its
-/// geometry (`pin_at`, `place_at`): the inner arm of a split's
-/// `instance_unpinned`, and the `EditError.variant` the "place part"
-/// gesture (`Doc.place_at`) raises under.
+/// geometry (`pin_at`, `place_at`): the `EditError.variant` the
+/// "place part" gesture (`Doc.place_at`) raises under.
 pub fn pin_refusal_tag(refusal: &PinRefusal) -> &'static str {
     match refusal {
         PinRefusal::NoNode => "pin_no_node",
@@ -2574,7 +2573,6 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::RemainderReadUncarried { .. } => "remainder_read_uncarried",
         SplitError::CutsTheWorld => "cuts_the_world",
         SplitError::NoMaterial { .. } => "no_material",
-        SplitError::InstanceUnpinned { .. } => "instance_unpinned",
         SplitError::UncutVarReference { .. } => "uncut_var_reference",
         SplitError::DefinitionStraddlesCut { .. } => "definition_straddles_cut",
         SplitError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
