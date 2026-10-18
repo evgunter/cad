@@ -7,7 +7,6 @@ opened: 2026-10-08
 priority: P0
 cost: H
 blocked_on: [a-mate-relates-two-poses]
-needs_ev: true
 refs: [intent-stage3-is-built]
 ---
 

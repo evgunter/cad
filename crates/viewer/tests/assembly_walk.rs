@@ -18,11 +18,11 @@
 //! # Why this walk runs on a FIXTURE, and where the real gallery is
 //! exercised
 //!
-//! The walk needs, in one document: unconstrained instances (to hide
-//! and probe), two matable faces, and no pre-existing mate. **No
-//! single real gallery document has that shape** — the tour's stand
-//! has all three instances mate-constrained (the free-move stage is
-//! unreachable there), and its flat-pack has no second part to mate
+//! The walk needs, in one document: an instance to hide and one to
+//! probe, loose once its world pin is off, two matable faces, and no
+//! pre-existing mate. **No single real gallery document has that
+//! shape** — the tour's stand has all three instances in the world's
+//! space (the free-move stage is unreachable there), and its flat-pack has no second part to mate
 //! the patterned posts to. So the walk authors a gallery-SHAPED
 //! workspace through the same public doors the tour uses (parts
 //! beside the assembly, id-named files, `Workspace::create`) and
@@ -114,17 +114,20 @@ fn the_exit_demo_walk() {
         "so does the document"
     );
 
-    // ── 5. FREE-MOVE the completely-unconstrained post_b: the G3 fit
-    // probe. Eligibility is derived from the document (no mate names
-    // it); the gesture is preview-stream + one committed value; the
-    // probed part is drawn DISPLACED and MARKED — the honesty
-    // treatment, asserted as a value in the scene rows.
+    // ── 5. FREE-MOVE post_b: the G3 fit probe over a loose space (DI5).
+    // Its world pin comes off first, so it is a loose space, read off
+    // the landed evaluation; the gesture is preview-stream + one
+    // committed value; the probed part is drawn DISPLACED and MARKED —
+    // the honesty treatment, asserted as a value in the scene rows. The
+    // probe draws the loose post where its pin stood it, displaced.
+    asm::unpin(&mut session, bench.post_b);
+    let index = asm::index_of(&session);
     session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });
     session.perform(SessionOp::PreviewFreeMove {
         instance: bench.post_b,
-        frame: Frame::translation([0.03, 0.0, 0.0]),
+        frame: asm::where_b_stood(Frame::translation([0.03, 0.0, 0.0])),
     });
     let outcome = session.perform(SessionOp::CommitFreeMove {
         instance: bench.post_b,
@@ -173,12 +176,10 @@ fn the_exit_demo_walk() {
     // ── 8. ONE COMMITTED MATE ACTION. The proposal reads each picked
     // face as a plane — post_b's top cap `on`, the shelf's underside
     // `to`, flipped — and the seat's values; the session commits the
-    // mate and its three values as one action — and the SAME outcome
-    // reports the free-move superseded: discarded, not zeroed.
-    // post_b's world pin comes off first, so the mate places post_b
-    // rather than refusing beside the pin; a copy no constraint names
-    // keeps its probe.
-    asm::unpin(&mut session, bench.post_b);
+    // mate and its three values as one action — and the evaluation
+    // answering it reports the free-move superseded: discarded, not
+    // zeroed. post_b's world pin came off at step 5, so the mate places
+    // post_b rather than refusing beside the pin.
     assert!(session.display().free_move_of(bench.post_b).is_some());
     let (doc, _) = session.landed_pair().expect("landed");
     let proposal = tool
@@ -191,21 +192,30 @@ fn the_exit_demo_walk() {
         4,
         "one committed mate and its three values"
     );
-    let [superseded] = &outcome.withdrawn.superseded[..] else {
+    assert!(
+        outcome.withdrawn.superseded.is_empty(),
+        "the edit alone does not pin the space: {:?}",
+        outcome.withdrawn
+    );
+    session.pump();
+    let landed = session.take_landed_withdrawals();
+    let [report] = &landed[..] else {
+        panic!("one landing withdrew something: {landed:?}")
+    };
+    let [superseded] = &report.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.withdrawn.superseded
+            report.superseded
         )
     };
     assert_eq!(
         superseded.instance, bench.post_b,
-        "the mate's landing discards the probe, in the same outcome"
+        "the mate's landing discards the probe"
     );
     assert!(
         matches!(
             &superseded.cause,
-            AdmissionFault::MateConstrained { instance, mates }
-                if instance.id() == bench.post_b && !mates.is_empty()
+            AdmissionFault::InTheWorld { instance } if instance.id() == bench.post_b
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \

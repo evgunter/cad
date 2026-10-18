@@ -714,7 +714,14 @@ that was only a shortcut (equal weights, the integral test) takes the
 general route instead. No decision rule breaks where documents sit: the
 sub-arc count allows one sub-arc to reach `(π/2)(1+η)`, η a named
 structure constant, so an arc whose true sweep is a multiple of π/2
-counts the same for every member. A fit's structure (knot vectors,
+counts the same for every member. η is `1/16`: it keeps a sweep of
+`k·π/2` at `k` sub-arcs for every `k ≤ 4`, a full turn included (which
+needs `η < 1/3`), it is exact in binary, and a sub-arc's
+tangent-intersection point stays well conditioned
+(`cos(Δ/2) ≥ cos((π/4)(1+η))`). The arc's other decisions (that its sweep
+is not zero, whether it ends where it starts, and that it is short of a
+turn between two points or one turn back to its start) are certified over
+their brackets the same way. A fit's structure (knot vectors,
 degrees and control counts) is the deterministic `f64` pipeline's, and
 the certificate re-evaluates against it at any `Real`, so the interval
 lane proves what the f64 lane chose. A refinement made inside a
