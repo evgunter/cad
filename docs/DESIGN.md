@@ -1094,7 +1094,7 @@ lift to a 3-D pose is how it leaves.
 A node is an operation: it reads variables and defines the variables
 its signature states, a fixed list of named, typed ports set by its
 variant, possibly none. A split defines two bodies; a revolve its body
-and its axis; an instance is a placement whose source is a frame of another document, its world or any `Frame` node of it, defining a copy of each of that frame's carried bodies, keyed by its identity there. An
+and its axis; an instance is a placement whose source is a space of another document, its world or any other space of it, defining a copy of each of that space's carried bodies, keyed by its identity there. An
 assertion defines none. A mate or a value is a constraint of a
 placement, not an operation.
 
@@ -1176,35 +1176,33 @@ recognised from the program for display only.
 **A part has no location.** No body has coordinates anyone reads
 until a placement relates them to something: a part has no location,
 so how two parts relate is always stated explicitly. Every
-construction is built in coordinates of its own, and frames enter
-only at placement: a feature on a face is a construction placed into
-the frame the face's copy is in, against the face by mates and values,
+construction is built in coordinates of its own, which are its space,
+and spaces are related only at placement: a feature on a face is a
+construction placed into the space the face's copy is in, against the face by mates and values,
 then combined, and which side of the face its material lies on is the
 mates' to say. No construction reads a frame (FORK-S3P), so a feature
 at several positions is one body placed several times, each placement
 a copy.
 
-**Frames.** `[placement.spaces]` A **frame** is a node of the
-document: the world, or a `Frame` node the author makes, which holds
-nothing and whose content is what is placed into it. A construction's
-own coordinates are not a frame: it enters a frame only by a
-placement. Every body is in exactly one frame, decided from what it
-reads: a copy is in the frame its placement goes into, and a body an
-operation builds is in the frame of the bodies it reads, so an
-operation over two frames is a frame mismatch at the door and a
-kernel bug anywhere else. **Only a placement relates two frames**:
-without one, two frames' coordinates say nothing of each other.
-Frames form a DAG: a frame may be placed into several frames, and
-into one frame several times, and never reaches itself. A frame's
-**carried bodies** are the bodies in it that no operation of that
-frame reads to build another, so booleans happen among what is placed
-into one frame. A frame nothing places, transitively, into the world
-is not in the product.
+**Spaces.** `[placement.spaces]` A **space** is a coordinate system:
+the coordinates a construction is written in, or the world. A body is
+in exactly one space, decided from what it reads: a construction is in
+its own, a copy is in the space its placement places it into, and a
+body an operation builds is in the space of the bodies it reads, so an
+operation over two spaces is a space mismatch at the door and a kernel
+bug anywhere else. **Only a placement relates two spaces**: without
+one, two spaces' coordinates say nothing of each other. Spaces form a
+DAG: a space's content may be placed into several spaces, and into one
+space several times, and never reaches itself. A space's **carried
+bodies** are the bodies in it that no operation of that space reads to
+build another, so booleans happen among what is placed into one
+space. A space nothing places, transitively, into the world is not in
+the product.
 
 **A placement** `[placement.placement]` is an operation reading a
-**source** — a frame, a construction, or a frame of another document
-(an instance) — and a bundle of constraints, mates and values, and
-placing the source into a frame under the one rigid motion its
+**source** — a space, or a space of another document (an instance) —
+and a bundle of constraints, mates and values, and placing the
+source's content into a space under the one rigid motion its
 constraints state. It defines a copy of each of the source's carried
 bodies, keyed by that body's identity in the source, and carries
 every pose of the source as the copy carries it. Two placements of a
@@ -1232,8 +1230,8 @@ and linted, and its recourse is an assertion ([assertions]).
 
 **Mates.** `[placement.mates]` Each mate equates two poses of one
 kind, modulo that kind's symmetry: a pose read off the source's
-geometry with a pose read off geometry of the frame the source is
-placed into, or a role of that frame itself (its origin, an axis, a
+geometry with a pose read off geometry of the space the source is
+placed into, or a role of that space itself (its origin, an axis, a
 coordinate plane), never a frame standing for a part's coordinates.
 A mate states a physical relation; a placement whose source touches
 nothing has none, and its values state the whole motion. A mate holds
@@ -1245,9 +1243,9 @@ read as that copy carries it. A mate places and never checks.
 
 **Values.** `[placement.values]` A **value** sets one freedom of a
 placement's motion that its mates leave, a slide or a spin, to a
-`Length` or `Angle` variable, measured in the axes of the frame the
+`Length` or `Angle` variable, measured in the axes of the space the
 source is placed into. Where the mates fix a direction (a plane's
-normal, an axis, a lone direction), each of the two frames is swung
+normal, an axis, a lone direction), each of the two spaces' axes is swung
 onto it by the shortest turn carrying its own z to the mated
 direction, the half-turn about its own x where that direction is its
 own −z, so a mate between axis-aligned poses has an axis-aligned zero
@@ -1258,24 +1256,24 @@ copy's, and a mate's `Flip` is on the copy's side. Inside the sliver
 band about that one pole the chart refuses, typed at evaluation, as a
 construction refuses at its degenerate values. Where no direction is
 fixed (no mate, or a lone point mate), the rotation is a written
-chain of at most three spins, each about the target frame's x, y or z
+chain of at most three spins, each about the target space's x, y or z
 (through the mated point, for a point mate), no two in a row about one
 axis; turns do not commute, so the author writes the order and the
 kernel chooses none. A slide is the copy's origin measured from the
 target's along one of the target's (swung) axes, a function of the
 relative pose alone, so no slide is ordered. Every freedom is set
-explicitly: zero is always a valid value and says the two frames agree
+explicitly: zero is always a valid value and says the two spaces agree
 as far as the mates allow, a placement whose values are all zero and
 which has no mate is the identity, and the façade writes the constant
 `0` for each freedom a gesture leaves unnamed. A placement is the only
 reader of a source's own coordinates, and reads them only through the
 freedoms its mates leave.
 
-**The world** `[placement.world]` is one undeletable frame. It
-defines no pose variable, so only placements (as the frame a source is
+**The world** `[placement.world]` is one undeletable space. It
+defines no pose variable, so only placements (as the space a source is
 placed into, or through a mate's target) and export read it, and
 construction never does. The **product** is the world's carried
-bodies. One document's world, or any other frame of it, enters another
+bodies. One document's world, or any other space of it, enters another
 document as the source of a placement there, which is an instance.
 
 **The computing frame.** `[placement.frame]` An operation computes in

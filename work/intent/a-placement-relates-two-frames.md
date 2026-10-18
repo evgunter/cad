@@ -1,7 +1,7 @@
 ---
 id: a-placement-relates-two-frames
 kind: issue
-title: A placement relates two frames: mates fix what they fix, values set the rest (all six when unmated); frames are nodes; an instance places another document's frame
+title: A placement relates two frames: mates fix what they fix, values set the rest (all six when unmated); a construction's coordinates are its space; an instance places another document's space
 status: open
 opened: 2026-10-18
 priority: P0
@@ -20,6 +20,6 @@ When ratified, the work that follows (each a unit, sequenced after this):
 - spec `docs/INTENT-STAGE3-SPEC.md` §1, §4 and §5 restated to match;
 - stage 3 D pivots `stand` to an unmated placement with values, and `mate::anchor::Anchors`, the variable-free anchor search and the Axis-mate fallback retire;
 - C's world pin (`WorldPin::Identity`, `PinWhereItStands`, `world_pin_stands_alone`, `WorldPinOnAMovedWorld`) retires into the identity placement;
-- a `Frame` node and the unmated six-value chart are built;
+- the unmated six-value chart is built;
 - `Value.mate` becomes optional, and F's subgroup rule counts spins by axis;
 - `[evgunter/cad#4748]` (instance outputs) closes as subsumed.
