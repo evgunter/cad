@@ -2,11 +2,13 @@
 id: a-mirrored-split-through-a-pinch-refuses-emission-at-an-on-plane-vertex
 kind: issue
 title: A split through a pinch whose two runs lie in the LOWER half refuses Naming(Emission) for an on-plane vertex with neither a SplitEdge record nor an operand identity
-status: open
+status: review
 opened: 2026-10-17
 priority: P1
 cost: M
 rides_with: a-split-through-a-pinch-names-both-tip-copies-alike
+pr: 5275
+branch: wire/split-vertex-keeps
 ---
 
 

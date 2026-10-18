@@ -2,10 +2,12 @@
 id: part-cache-lock-held-across-a-nested-rayon-join
 kind: issue
 title: PartCache::get holds a non-reentrant Mutex across a nested evaluation that joins on rayon; a stolen sibling instance can re-lock it on the same thread
-status: open
+status: review
 opened: 2026-09-25
 priority: P1
 cost: M
+pr: 5273
+branch: wire/parts-enter-before-the-map
 ---
 
 

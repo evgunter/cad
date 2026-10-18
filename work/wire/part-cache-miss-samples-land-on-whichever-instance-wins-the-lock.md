@@ -2,11 +2,13 @@
 id: part-cache-miss-samples-land-on-whichever-instance-wins-the-lock
 kind: issue
 title: under the parallel node map, a part-cache miss path's probe samples splice at whichever instance won the lock
-status: open
+status: review
 opened: 2026-09-24
 priority: P4
 cost: M
 rides_with: part-cache-lock-held-across-a-nested-rayon-join
+pr: 5273
+branch: wire/parts-enter-before-the-map
 ---
 
 

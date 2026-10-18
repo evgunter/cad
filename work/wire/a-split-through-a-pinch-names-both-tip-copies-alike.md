@@ -2,10 +2,12 @@
 id: a-split-through-a-pinch-names-both-tip-copies-alike
 kind: issue
 title: A split whose plane passes through a pinch vertex refuses Naming(Duplicate): both copies of the vertex on one side are OnToolVertex of it
-status: open
+status: review
 opened: 2026-10-08
 priority: P1
 cost: M
+pr: 5275
+branch: wire/split-vertex-keeps
 ---
 
 
