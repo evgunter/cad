@@ -908,7 +908,11 @@ pub(crate) fn equations_of<P>(
 /// representative moves by at most `|o_on| + |o_to| ≤ datum`, and the
 /// one transverse meeting ([`super::coset::intersect`], a ball and a
 /// direction) by `p − R·p + R·t`, at most `3·datum`, whose squared
-/// norm stays inside the format. So no range is asked here.
+/// norm stays inside the format. So no range is asked here. The bound
+/// is a point scalar's: an enclosure lane's product of rotation
+/// enclosures can widen past it, and a translation that is then no
+/// bounded number refuses where the placed copy's motion is minted
+/// (`RigidMotion`'s mints ask `Real::is_bounded`), never silently.
 pub(crate) fn fold_bundle<T: SolveScalar>(
     placement: RecipeNodeId,
     mates: &[ReadMate<T>],
@@ -1336,29 +1340,21 @@ mod tests {
         }
     }
 
-    /// **A value counts beside its own mate, and beside another only
-    /// where that one leaves its freedom** (spec §4, C-2): a lone plane
-    /// admits a slide, an axis a slide along it and a spin, a ball and a
-    /// direction a spin about the direction (the ball frees every
-    /// rotation) but no slide (the ball fixes every translation, so the
-    /// slide has no chart: `SlideTurnsABall`), and a
-    /// plane beside an axis fixes, in general position, more than the
-    /// two count apart, so both are named.
-    /// **No bundle the rule admits sets slides on two mates** — the
+    /// **No slide the rule admits sits beside a second mate** — the
     /// premise `value::settle` moves each slide along its own chart's
     /// axis on. A slide is its own only beside mates that free every
-    /// translation, which only a direction mate does, and a direction
-    /// mate beside any mate of any kind is refused: two directions
-    /// repeat a rotation equation, a plane, an axis or a frame beside one
-    /// repeats one too, and beside a ball the slide refuses as having no
-    /// chart. So every slide a bundle sets is on one chart, whose `x`,
-    /// `y` and `d` are perpendicular.
+    /// translation, which only a direction mate does; a direction mate
+    /// beside a mate of any other kind, or another direction, repeats an
+    /// equation, and beside a ball the slide refuses as having no chart.
+    /// So every slide a bundle sets is on one lone mate's chart, whose
+    /// `x`, `y` and `d` lie in its residual and are perpendicular.
     ///
-    /// *Breaks if* a pair of mates comes to admit a slide on each: the
-    /// settle would then move one chart's slide across another's axis,
-    /// where no structural move is right.
+    /// *Breaks if* a pair of mates comes to admit a slide on either: the
+    /// settle would then move a slide's copy across a translation the
+    /// other mate fixes (a ball and a direction with a slide moves the
+    /// copy off the ball), where no structural move is right.
     #[test]
-    fn no_admitted_bundle_sets_slides_on_two_mates() {
+    fn no_admitted_slide_sits_beside_a_second_mate() {
         let kinds = [
             F::Trivial,
             F::Planar,
@@ -1374,34 +1370,28 @@ mod tests {
         };
         for a in kinds {
             for b in kinds {
-                let (Some(sa), Some(sb)) = (slide(a), slide(b)) else {
-                    continue;
-                };
+                let Some(on_b) = slide(b) else { continue };
                 let bundle = [
                     (id(1), Equations::Mate(a)),
                     (id(2), Equations::Mate(b)),
-                    value(1, sa),
-                    value(2, sb),
+                    value(2, on_b),
                 ];
                 assert!(
-                    verdict(&bundle).is_err(),
-                    "{a:?} beside {b:?} admits a slide on each: {:?}",
-                    verdict(&bundle)
+                    overconstrained(RecipeNodeId::WORLD, &bundle).is_err(),
+                    "{a:?} beside {b:?} admits a slide on the {b:?}"
                 );
             }
         }
-        // The two-direction case the settle would have met first, alone:
-        // refused at the door before any value.
-        assert!(
-            verdict(&[
-                (id(1), Equations::Mate(F::Parallel)),
-                (id(2), Equations::Mate(F::Parallel)),
-            ])
-            .is_err(),
-            "two directions repeat a rotation equation"
-        );
     }
 
+    /// **A value counts beside its own mate, and beside another only
+    /// where that one leaves its freedom** (spec §4, C-2): a lone plane
+    /// admits a slide, an axis a slide along it and a spin, a ball and a
+    /// direction a spin about the direction (the ball frees every
+    /// rotation) but no slide (the ball fixes every translation, so the
+    /// slide has no chart: `SlideTurnsABall`), and a
+    /// plane beside an axis fixes, in general position, more than the
+    /// two count apart, so both are named.
     #[test]
     fn the_four_value_availability_rows() {
         // A lone Plane with Slide(X): admitted, loose.

@@ -2,9 +2,8 @@
 id: a-lone-slide-refuses-the-chart-it-never-reads
 kind: issue
 title: A value's chart refuses at the antipode band even for a lone slide that never reads the swung axes
-status: closed
+status: open
 opened: 2026-10-18
-closed: 2026-10-18
 priority: P3
 cost: E
 ---
@@ -18,18 +17,24 @@ Found by the second review pair on PR #5267 (R4, style, `likely`), left unfixed 
 
 **To decide.** Whether a value's chart is built lazily, swinging only what its coordinate reads (`Slide(Z)` neither swing; `Slide(X|Y)` the target's; `Spin` both), so a refusal names only the swing the value depends on. Belongs with F's measure-free door, which re-states when a value's refusal is decided.
 
-## Closed (2026-10-18)
+## Built, then held back for Ev (2026-10-18)
 
-The chart is built lazily, and a value refuses only on the swing it reads.
-`Chart::of` (`crates/editor-core/src/mate/value.rs`) decides both swings and
-keeps an undecided one as `None`, so building a chart refuses nothing:
-- a slide along `d` reads neither swing;
-- a slide across `d` reads the target's;
-- a spin reads both.
+A lazy chart was built in PR 5314: each swing decided and kept as `None` where
+undecided, so a value refuses only on the swing it reads. A slide along `d`
+reads neither, a slide across `d` the target's, and a spin both. It was taken
+out of that PR before merge.
 
-The refusal stays `PoseDegenerate { Chart }`, raised where it is read
-(`spin_at`, `slide_at`, `settle`). `editor_core::mate::pin`'s plane pin reads
-all three of its values, so it pins as before when a swing is undecided. The
-row is `mate::value::tests::a_value_refuses_only_the_swing_it_reads`. The
-`mate_chart_reference_antipode` decision is still taken once per swing, so the
-k-stats did not move.
+**Why.** It narrows a ratified clause. D10 in `docs/DESIGN.md` says "Inside the
+sliver band about that one pole the chart refuses". That was ratified in
+`[ev]` PR ddbc7c4f3b (fork-log row 156), and `docs/INTENT-STAGE3-SPEC.md` §1
+says the same. So which values refuse there is Ev's call.
+
+**Two findings from PR 5314's review to carry into it.** Both swings are
+still *decided* at the chart's build, so an in-band verdict would escalate on
+the node's log even where no value reads it; a lazy chart would have to defer
+the decision itself, not only the refusal. And the k-stats move inside the
+band, because the old `?` stopped before the copy's swing.
+
+**Next.** Ev is restating placement (`a-placement-relates-two-frames`), and the
+value chart may change shape there. Put this question to that restatement,
+not to a separate `[ev]` PR.

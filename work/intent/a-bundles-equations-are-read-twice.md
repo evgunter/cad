@@ -27,4 +27,4 @@ families from the pose values' symmetry.
 `settle`'s `Translations::None => unreachable!` is gone, along with the
 `Translations` machinery (see `the-slide-charts-indeterminate-arm-is-unreachable`).
 What `settle` relies on is now one stated premise, that every slide is on one
-chart, and `no_admitted_bundle_sets_slides_on_two_mates` pins it.
+chart, and `no_admitted_slide_sits_beside_a_second_mate` pins it, and `settle` asserts it.

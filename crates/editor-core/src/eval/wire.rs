@@ -738,7 +738,7 @@ where
         })?;
         charts.insert(
             mate,
-            crate::mate::value::Chart::of(&on, &to, flipped, &body, arm, b),
+            crate::mate::value::Chart::of(&on, &to, flipped, &body, arm, b)?,
         );
     }
     match crate::mate::solve::solve_bundle(

@@ -908,10 +908,10 @@ fn run_at<T: editor_core::EvalScalar>(
 /// And for slides along their chart's own axes (F's follow-ups, all
 /// three rows): a slide moves the copy by `axis · gap` rather than by
 /// the residual's projection of the axis, and the line between two
-/// slides is no longer minted. The axes are perpendicular to the
-/// residual's normal to rounding, so the poses moved at that level and
-/// no further: every pose-asserting row in the crate holds at its own
-/// tolerance, and only the digests changed.
+/// slides is no longer minted. Measured against main at all three ε,
+/// one document moved, `pinned-chain`: its two seats' translations, by
+/// at most 1.55e-15 m at a magnitude near 5. Every rotation, fault and
+/// space, and every other document's digest, is unchanged.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
     (1e-9, 0x4096_0556_5341_7a5a),
     (1e-6, 0x13dd_df97_d118_d715),
@@ -1772,20 +1772,15 @@ const INTERVAL_ESCALATIONS: [(f64, &str, &str); 1] =
     [(1e-12, "pinned-chain", "carrier_endpoint_start")];
 
 /// The escalation `id` fails with in `ev`, if its fault is one: the
-/// first escalation its own log carries where it failed downstream of
-/// the solve (certifying the placed copy's edges). The solve itself
-/// decides nothing a mate fault would escalate: its slides move along
-/// their chart's own axes.
+/// first escalation its own log carries (certifying the placed copy's
+/// edges, downstream of the solve). No mate fault carries one of its
+/// own.
 fn escalation<T: geom_core::Decide>(
     ev: &Evaluation<T>,
     id: RecipeNodeId,
 ) -> Option<geom_core::predicate::Indeterminate> {
-    use editor_core::NodeErrorKind;
     let error = ev.node_error(id)?;
-    match &error.kind {
-        NodeErrorKind::Mate(_) => None,
-        _ => error.escalations.first().map(|e| e.source),
-    }
+    error.escalations.first().map(|e| e.source)
 }
 
 /// **An interval lane's structure is the `f64` one's, or one of the

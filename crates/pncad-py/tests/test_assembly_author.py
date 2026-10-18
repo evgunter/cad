@@ -1197,14 +1197,7 @@ class TestMateFaultPayload(BenchWorkspace):
     attribute, present on every arm and `None` where the arm carries
     none — so each row below reads the attributes its arm CARRIES and
     then reads attributes of other arms off the same value, which must
-    be `None` rather than raise.
-
-    Two attributes have no row that carries them here and that is a
-    fact about the DOORS, not a gap: `margin_low`/`margin_high` are the
-    interval scalar's enclosure, which no f64 solve produces.
-    `crates/pncad-py/src/tests.rs`'s arm table builds them directly;
-    the rows here own the other half, that they are present and `None`
-    on the arms an author can reach."""
+    be `None` rather than raise."""
 
     def two_instances(self):
         """A loose post, which a mate places, and a shelf pinned to the

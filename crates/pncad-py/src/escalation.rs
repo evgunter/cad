@@ -19,8 +19,8 @@
 //!
 //! `crate::py` compiles only under the `python` feature, so a
 //! projection sited there is one the default build cannot test. Sited
-//! here it is reachable under every feature — the
-//! `crate::mate_payload` argument, one rung down.
+//! here it is reachable under every feature, though its one caller,
+//! the frame door (`py::place`), is the `python` feature's.
 
 use pncad::geom_core::{ErrorTextReading, Indeterminate};
 

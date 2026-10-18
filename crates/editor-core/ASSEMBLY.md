@@ -397,7 +397,8 @@ its values' numbers. It reads one more number: the copy's REACH, an
 upper bound taken from the copy's own evaluated geometry. The reach
 enters as the lever a value's chart is decided over,
 `R + max(‖on.origin‖ + ‖to.origin‖)`, with no floor and no constant. The
-arm's one door (`Arm::of`) refuses a lever whose square overflows, so
+arm's one door (`Arm::of`) refuses a lever whose sixteenfold square
+overflows, so
 the bundle's meeting is always a finite length away. The reach is also
 the turn's lever in the placed copy's at-rest verdict (`rest_verdict`).
 Outside the fold, the unobservable report (`mate::unobservable`) reads
