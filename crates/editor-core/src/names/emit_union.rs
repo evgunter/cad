@@ -83,11 +83,11 @@
 //!
 //! A refusal raised mid-fold carries no fold-table name: a step's
 //! refusal is the kernel's own, under the member that step folds in
-//! (`NodeErrorKind::UnionFoldStep`). The coincidence rows a step
-//! decides are named against the collapsed accumulation
-//! ([`collapse_table`]) and published as they are, without the end
-//! passes, so a row citing an intermediate entity keeps the fold's
-//! qualifiers.
+//! (`NodeErrorKind::UnionFoldStep`). A coincidence row a step decides
+//! is read against the collapsed accumulation ([`collapse_table`]) and
+//! spelled by the member cells it lies in ([`fold_cell`]), as the
+//! pairwise judgement's rows are, so no row names an intermediate
+//! entity.
 //!
 //! # How an intermediate row is told from a member's row
 //!
@@ -2529,6 +2529,65 @@ pub(crate) fn collapse_name(
 ) -> Result<StableName, NamingError> {
     collapse(node, name)
 }
+
+/// One cell of a fold row, read off its collapsed name ([`fold_cell`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum FoldCell {
+    /// A member's entity: the member's read and its name in that read's
+    /// table.
+    Member {
+        /// The member's read.
+        read: VarId,
+        /// The entity's name in the member's table.
+        name: StableName,
+    },
+    /// A cell the fold minted, in the node's own space.
+    Minted(StableName),
+}
+
+/// **A fold row's cell, by the member cell it lies in** (DM4, "A row
+/// names member cells"): `name` is a collapsed fold name
+/// ([`collapse_table`]), a `From` head and the `Fragment`s the fold
+/// accumulated, so its entity is a piece of the member entity the head
+/// names, and the cell is that entity. A head the fold minted (a seam,
+/// a crossing, a merge, a seam junction's run) has no member cell, and
+/// stays the node's under that head, its pieces' qualifiers dropped.
+///
+/// # Errors
+///
+/// [`NamingError::Emission`] for a member head followed by anything but
+/// `Fragment`s, or a head no fold step mints.
+pub(crate) fn fold_cell(name: &StableName) -> Result<FoldCell, NamingError> {
+    let bug = |what| NamingError::Emission { what };
+    match name.path.split_first() {
+        Some((RoleSeg::From { read, of }, tail)) if !is_fold_side(*read) => {
+            if tail.iter().all(|seg| matches!(seg, RoleSeg::Fragment(_))) {
+                Ok(FoldCell::Member {
+                    read: *read,
+                    name: of.name().clone(),
+                })
+            } else {
+                Err(bug(FOLD_CELL_UNSTRIPPED))
+            }
+        }
+        Some((
+            RoleSeg::Seam { .. }
+            | RoleSeg::Crossing { .. }
+            | RoleSeg::EdgeCrossing(_)
+            | RoleSeg::Merged(_),
+            _,
+        )) => Ok(FoldCell::Minted(without_tail(name, |_| true))),
+        _ => Err(bug(FOLD_CELL_FOREIGN)),
+    }
+}
+
+/// A fold row's member-headed cell carries a segment past its head that
+/// is not a piece's qualifier.
+const FOLD_CELL_UNSTRIPPED: &str =
+    "a union fold row's cell names a member entity through a segment that is not a fragment";
+
+/// A fold row's cell is headed by a segment a fold step does not mint.
+const FOLD_CELL_FOREIGN: &str = "a union fold row's cell has a head no fold step mints";
 
 /// The emission bug this module can raise: a fold table carrying a
 /// segment the pair emitter does not mint.

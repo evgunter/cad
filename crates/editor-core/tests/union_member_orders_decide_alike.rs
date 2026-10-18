@@ -43,8 +43,8 @@ use std::collections::BTreeMap;
 use crate::blocks::{block, failure, run};
 use crate::corpus::body_of;
 use crate::emit_boolean_vertex_keys::named_geometry;
-use crate::fixture::insert;
-use editor_core::{Evaluation, Node, NodeErrorKind, ProfileDoc, RecipeNodeId};
+use crate::fixture::{insert, len, on_frame};
+use editor_core::{Evaluation, ExtrudeSide, Node, NodeErrorKind, ProfileDoc, RecipeNodeId};
 use geom_core::Tol;
 
 /// The orders sampled where a union's members have more than this
@@ -375,5 +375,125 @@ fn every_union_of_the_emit_corpus_decides_alike_in_every_member_order() {
         }
     }
     assert!(compared > 0, "the emit corpus holds unions to compare");
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+/// The L-prism and the tilted cube of `topo`'s
+/// `records_cite_their_decision::a_pinch_records_the_vertex_identity_that_made_it`:
+/// the cube's bottom face passes through the L's reflex corner
+/// (1, 1, 1), and their union pinches there.
+fn prism_and_cube(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let ell = vec![
+        (0.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 1.0),
+        (1.0, 1.0),
+        (1.0, 2.0),
+        (0.0, 2.0),
+    ];
+    let (doc, profile) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![ell]);
+    let (doc, prism) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    // The frame through the corner whose normal is (1, 1.3, 0.7),
+    // normalised: `u` its tilt of +z, `v` = normal × `u`.
+    let unit = |m: [f64; 3]| {
+        let n = m.iter().map(|c| c * c).sum::<f64>().sqrt();
+        m.map(|c| c / n)
+    };
+    let m = unit([1.0, 1.3, 0.7]);
+    let u = unit([-m[2] * m[0], -m[2] * m[1], 1.0 - m[2] * m[2]]);
+    let v = [
+        m[1] * u[2] - m[2] * u[1],
+        m[2] * u[0] - m[0] * u[2],
+        m[0] * u[1] - m[1] * u[0],
+    ];
+    let square = vec![(-2.0, -2.0), (2.0, -2.0), (2.0, 2.0), (-2.0, 2.0)];
+    let (doc, profile) = on_frame(doc, [1.0, 1.0, 1.0], u, v, vec![square]);
+    let (doc, cube) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(4.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    (doc, vec![prism, cube])
+}
+
+/// [`prism_and_cube`] and a block far from both.
+fn pinch_and_far(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, mut m) = prism_and_cube(doc);
+    let (doc, far) = block(doc, (6.0, 7.0), (6.0, 7.0), 0.0, 1.0);
+    m.push(far);
+    (doc, m)
+}
+
+/// [`prism_and_cube`] and a block over the corner, which fills the
+/// pinch.
+fn pinch_and_cap(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, mut m) = prism_and_cube(doc);
+    let (doc, cap) = block(doc, (0.8, 1.2), (0.8, 1.2), 0.8, 0.4);
+    m.push(cap);
+    (doc, m)
+}
+
+/// Where a union holds a pinch an earlier fold step made, its end pass
+/// refuses naming the corner's copies.
+const CARRIED_PINCH: &str = "work/refs/a-pinch-carried-through-a-later-fold-step-refuses-naming.md";
+
+/// **A pinch's row is one row of the union in every member order**
+/// (DM4: the union's rows are its member pairs'): the L-prism and the
+/// cube alone, with a far third member, and with a third member filling
+/// the pinch, whose pair still decided it. Every order that builds
+/// decides alike and publishes the pinch's `VertexFusion` row; the
+/// orders that fold the far member last refuse [`CARRIED_PINCH`] and
+/// are excluded, each checked to refuse that way.
+#[test]
+fn a_pinchs_row_is_the_unions_in_every_member_order() {
+    type Row = (&'static str, Members, fn(&[usize]) -> bool);
+    let rows: [Row; 3] = [
+        ("prism and cube", prism_and_cube, |_| false),
+        ("with a far member", pinch_and_far, |o| o[2] == 2),
+        ("with a cap over the corner", pinch_and_cap, |_| false),
+    ];
+    let mut failures = Vec::new();
+    for (what, fixture, carried) in rows {
+        let n = fixture(ProfileDoc::empty_derived("count", Tol::witness()))
+            .1
+            .len();
+        let mut first: Option<(Vec<usize>, Decided)> = None;
+        for order in orders(n) {
+            let got = decide(&fixture, &order);
+            if carried(&order) {
+                assert!(
+                    matches!(&got, Decided::Refused(e)
+                        if e.contains("a copy of a corner held as several meets no recorded discard")),
+                    "{what}, {order:?}: refused other than {CARRIED_PINCH}: {got:?}"
+                );
+                continue;
+            }
+            let Decided::Built { rows, .. } = &got else {
+                panic!("{what}, {order:?}: built: {got:?}");
+            };
+            assert!(
+                rows.iter().any(|r| r.contains("VertexFusion")),
+                "{what}, {order:?}: the pinch's row: {rows:#?}"
+            );
+            match &first {
+                None => first = Some((order, got)),
+                Some((o, f)) => {
+                    if let Err(why) = compare(f, &got) {
+                        failures.push(format!("{what}, {o:?} vs {order:?}: {why}"));
+                    }
+                }
+            }
+        }
+    }
     assert!(failures.is_empty(), "{failures:#?}");
 }
