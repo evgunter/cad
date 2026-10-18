@@ -61,7 +61,6 @@ pub mod seat;
 pub mod value_channel;
 
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 use editor_core::{
     AssemblyError, CancelToken, CapEnd, Dimension, DocEdit, EntityKey, EntityKind, Entry,
     EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MateReach, NameTable, Node, ProfileDoc,
@@ -352,25 +351,67 @@ pub fn pinned_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
 }
 
 /// **The copy `placement` defines, pinned to the world at `pose`**:
-/// at the identity by the named interim's world pin
-/// ([`DocEdit::PinWhereItStands`]), which reads nothing; elsewhere
-/// through the one migration helper ([`editor_core::pin_at`]), a frame
-/// read off the copy's geometry equated with the world's frame moved to
-/// where that frame sits at `pose`. A `Place` is read through its first
-/// shape, an instance through its own copies; `o` evaluates them.
+/// at the identity standing where its body stands
+/// ([`editor_core::stand`]: a plane mate on a face no variable reaches
+/// and the constant `0` on its freedoms); elsewhere through the one
+/// migration helper ([`editor_core::pin_at`]), a frame read off the
+/// copy's geometry equated with the world's frame moved to where that
+/// frame sits at `pose`. A `Place` is read through its first shape, an
+/// instance through its own copies; `o` evaluates them.
 pub fn pin(
     doc: ProfileDoc,
     placement: RecipeNodeId,
     pose: &editor_core::Frame,
     o: &EvalOptions,
 ) -> ProfileDoc {
-    // At the identity, where it stands: the named interim's world pin
-    // (stage 3 C), which reads nothing, so the copy follows its body.
     if *pose == editor_core::Frame::IDENTITY {
-        return step(doc, DocEdit::PinWhereItStands { placement }).0;
+        let copy = copy_read(&doc, placement);
+        let stood = editor_core::stand(&doc, &copy, o, Tol::witness())
+            .unwrap_or_else(|refusal| panic!("the copy stands over its geometry: {refusal}"));
+        return with_values(doc, placement, stood.mate, stood.values);
     }
     let mate = pin_mate(&doc, placement, pose, o);
     constrain_at(doc, placement, mate).0
+}
+
+/// **`placement`'s copy as its constraints read it**: a `Place` through
+/// its first shape, an instance through its own copies.
+fn copy_read(doc: &ProfileDoc, placement: RecipeNodeId) -> editor_core::Operand {
+    match doc.node(placement) {
+        Some(Node::Place { shapes, .. }) => {
+            editor_core::Operand::Var(shapes.first().expect("a placement copies a shape").read)
+        }
+        Some(Node::InstantiatePart { .. }) => editor_core::Operand::Var(
+            doc.output(placement, 0)
+                .expect("an instance defines its copies"),
+        ),
+        other => panic!("node {} is a placement, got {other:?}", placement.0),
+    }
+}
+
+/// **`mate` and the `values` naming it, added to `placement`**.
+pub fn with_values(
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    mate: editor_core::Mate<Formula>,
+    values: Vec<(editor_core::Coord, Formula)>,
+) -> ProfileDoc {
+    let (doc, id) = constrain_at(doc, placement, mate);
+    values.into_iter().fold(doc, |doc, (coord, by)| {
+        step(
+            doc,
+            DocEdit::AddValue {
+                placement,
+                value: Box::new(editor_core::Value {
+                    mate: id.constraint,
+                    coord,
+                    by,
+                }),
+                fresh: Vec::new(),
+            },
+        )
+        .0
+    })
 }
 
 /// **The mate [`pin`] adds**, authored and not yet added.
@@ -380,16 +421,7 @@ pub fn pin_mate(
     pose: &editor_core::Frame,
     o: &EvalOptions,
 ) -> editor_core::Mate<Formula> {
-    let copy = match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => {
-            editor_core::Operand::Var(shapes.first().expect("a placement copies a shape").read)
-        }
-        Some(Node::InstantiatePart { .. }) => editor_core::Operand::Var(
-            doc.output(placement, 0)
-                .expect("an instance defines its copies"),
-        ),
-        other => panic!("node {} is a placement, got {other:?}", placement.0),
-    };
+    let copy = copy_read(doc, placement);
     match editor_core::pin_at(doc, &copy, pose, o, Tol::witness()) {
         Ok(mate) => mate,
         // A copy that does not evaluate has no geometry to read a frame
@@ -588,26 +620,26 @@ pub fn in_copy(pattern: RecipeNodeId, i: u32, of: StableName) -> StableName {
     }
 }
 
-/// A `Transform` over `input`: a translation, and `angle` about
-/// `axis`.
+/// **A copy of `input` moved within its own space**: rotated by
+/// `angle` about `axis` through its own origin, then translated — a
+/// placement of `input` against its own geometry
+/// ([`editor_core::test_support::against`]), since nothing moves a
+/// body. Returns the document and the placement, whose output is the
+/// copy.
 ///
 /// # Panics
 ///
-/// If `angle` is not a finite angle literal.
+/// If the copy offers no geometry to place by.
 pub fn xform(
+    doc: ProfileDoc,
     input: RecipeNodeId,
     translation: [f64; 3],
     axis: [f64; 3],
     angle: f64,
-) -> AuthoredNode {
-    Node::transform(
-        input,
-        editor_core::Step::Rigid {
-            translation: translation.map(len),
-            axis: axis.map(scl),
-            angle: ang(angle),
-        },
-    )
+) -> (ProfileDoc, RecipeNodeId) {
+    let at = editor_core::Frame::rotate_then_translate(axis, angle, translation, band())
+        .expect("a rotation axis with a direction");
+    against(doc, input, input, &at)
 }
 
 /// The pip depth the document's `pip_depth` parameter starts at.
@@ -634,7 +666,7 @@ pub fn band() -> geom_core::Band {
 /// frame a sketch is drawn on — `editor_core::test_support`'s, which the
 /// crate's own unit-test modules read too, re-exported so a suite
 /// imports them from here beside the rest of its authoring doors.
-pub use editor_core::test_support::{ang, frame, len, len2, scl, xy_frame};
+pub use editor_core::test_support::{against, ang, frame_at, in_world, len, len2, plane_on, scl};
 
 /// Whether two placements are pinned to the world by the same world
 /// read, bit for bit as written (or neither is one world pin).
@@ -649,8 +681,8 @@ pub fn mated_instance(doc_ref: editor_core::DocRef) -> AuthoredNode {
 }
 
 /// **The world read a placement is pinned at**, as written, where its
-/// bundle is one mate to the world ([`pin`]), or the world's own frame
-/// where it is one world pin; `None` for any other bundle. Panics on a node that is no placement.
+/// bundle's one mate is to the world ([`pin`]); `None` for any other
+/// bundle. Panics on a node that is no placement.
 pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<editor_core::WorldRead<Formula>> {
     let constraints = match doc.node(id) {
         Some(Node::InstantiatePart { constraints, .. } | Node::Place { constraints, .. }) => {
@@ -658,14 +690,11 @@ pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<editor_core::Worl
         }
         other => panic!("node {} is a placement, got {other:?}", id.0),
     };
-    let [only] = constraints.as_slice() else {
+    let mut mates = constraints.iter().filter_map(editor_core::Constraint::mate);
+    let (Some(only), None) = (mates.next(), mates.next()) else {
         return None;
     };
-    // A world pin is the world's own frame, moved by nothing.
-    if only.world_pin().is_some() {
-        return Some(editor_core::WorldRead::Frame);
-    }
-    let editor_core::Target::World(world) = &only.mate()?.to else {
+    let editor_core::Target::World(world) = &only.to else {
         return None;
     };
     let dims: Vec<(bool, Dimension)> = world
@@ -1119,44 +1148,6 @@ pub fn door_refusal(
     }
 }
 
-/// **The `SketchPlane` a frame NODE denotes**, read out of a document.
-///
-/// A test that builds a `profile::Profile` by hand needs the plane the
-/// profile's `plane` id names, and the id alone is not it. Reads the
-/// frame's written values and mints the SAME frame witness the
-/// evaluator mints from them — Gram–Schmidt under the datum
-/// boundary's own funnel name — so the plane here is the evaluator's
-/// bit for bit whether or not the fixture authored an orthonormal
-/// pair.
-///
-/// # Panics
-///
-/// If `plane` is not a `Datum::Frame`, if its components do not read
-/// free variables, or if `u` and `v` span no plane.
-pub fn plane_of(doc: &editor_core::ProfileDoc, plane: RecipeNodeId) -> profile::SketchPlane<f64> {
-    let Some(Node::Datum(editor_core::Datum::Frame { origin, u, v })) = doc.node(plane) else {
-        panic!("node {} is not a Datum::Frame", plane.0)
-    };
-    let read = |xs: &[editor_core::VarId; 3]| {
-        let c = |var: &editor_core::VarId| match doc.free(*var) {
-            Some(editor_core::FreeVar::Continuous { value, .. }) => *value,
-            _ => panic!("a fixture frame's components are written values"),
-        };
-        geom_core::Vec3::new(c(&xs[0]), c(&xs[1]), c(&xs[2]))
-    };
-    let (o, u, v) = (read(origin), read(u), read(v));
-    profile::SketchPlane::from_frame(
-        geom_core::RigidMotion::gram_schmidt(
-            geom_core::Point3::new(o.x, o.y, o.z),
-            u,
-            v,
-            topo::DATUM_UNIT_NORM,
-            geom_core::Band::linear(geom_core::Tol::witness()).expect("the witness band"),
-        )
-        .expect("a fixture frame's two axes span a plane"),
-    )
-}
-
 /// **A profile program on the xy frame, extruded a unit, evaluated**
 /// — the preamble a row that measures a profile door's answer against
 /// the solid the profile swept opens with, written once.
@@ -1171,10 +1162,8 @@ pub fn plane_of(doc: &editor_core::ProfileDoc, plane: RecipeNodeId) -> profile::
 /// It wears no door's name: a row asks it for the DOCUMENT it
 /// measures, and asks the kernel for the answer it is measuring.
 pub struct Swept {
-    /// The document, with the frame, the profile and the extrude on it.
+    /// The document, with the profile and the extrude on it.
     pub doc: ProfileDoc,
-    /// The frame datum the profile is drawn on.
-    pub plane: RecipeNodeId,
     /// The profile node.
     pub profile: RecipeNodeId,
     /// The extrude over it.
@@ -1191,7 +1180,6 @@ pub struct Swept {
 /// a test failure, not a value to hand back.
 pub fn wall_row(id: &str, loops: Vec<LoopProgram<Formula>>) -> Swept {
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
-    let (doc, plane) = insert(doc, xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -1209,7 +1197,6 @@ pub fn wall_row(id: &str, loops: Vec<LoopProgram<Formula>>) -> Swept {
     let ev = run(&doc, &EvalOptions::default());
     Swept {
         doc,
-        plane,
         profile,
         ext,
         ev,
@@ -1248,17 +1235,11 @@ impl Swept {
     }
 }
 
-/// A profile program on `plane`, from polygon corner lists
-/// (LIB-SWITCH §4i: the corpus's polygon choke point — under v4 each
-/// loop is a chain program, `At(p0), LineTo(p1), …, LineTo(Start)`,
-/// the VQ5 expansion at literal points).
-///
-/// It takes the frame's NODE rather than an origin and two vectors: a
-/// profile's plane is a document node, so the caller inserts the frame
-/// (with [`frame`]) and hands this the id. Two nodes where there was
-/// one, which is the shape of the document now — a sketch names the
-/// frame it is drawn on.
-pub fn desc(plane: RecipeNodeId, loops: Vec<Vec<(f64, f64)>>) -> ProfileProgram<Formula> {
+/// A profile program from polygon corner lists (LIB-SWITCH §4i: the
+/// corpus's polygon choke point — under v4 each loop is a chain
+/// program, `At(p0), LineTo(p1), …, LineTo(Start)`, the VQ5 expansion
+/// at literal points), in the profile's own 2-D coordinates.
+pub fn desc(loops: Vec<Vec<(f64, f64)>>) -> ProfileProgram<Formula> {
     let loops = loops
         .into_iter()
         .map(|pts| LoopProgram::polygon(pts).expect("finite corners"))
@@ -1269,13 +1250,16 @@ pub fn desc(plane: RecipeNodeId, loops: Vec<Vec<(f64, f64)>>) -> ProfileProgram<
     }
 }
 
-/// **A frame and a profile on it, inserted in that order** — the whole
-/// of what a `desc(origin, u, v, loops)` call used to be, so a call
-/// site that only wants "a square on the xy plane" stays one line.
+/// **A profile, inserted** — what a call site that wants "a square in
+/// its own plane" writes in one line. The frame is the profile's own
+/// `xy` and nothing else: a profile reads no plane (D10), so one that
+/// stood elsewhere is a construction PLACED there ([`against`],
+/// [`in_world`]).
 ///
-/// Returns the doc and the PROFILE's id: the frame is scaffolding at
-/// almost every call site, and one that needs its id has both nodes'
-/// doors ([`frame`] and [`desc`]) to reach for instead.
+/// # Panics
+///
+/// If the frame is not the identity: such a site is restated as a
+/// placement.
 pub fn on_frame(
     doc: ProfileDoc,
     origin: [f64; 3],
@@ -1283,23 +1267,22 @@ pub fn on_frame(
     v: [f64; 3],
     loops: Vec<Vec<(f64, f64)>>,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane) = insert(doc, frame(origin, u, v));
-    insert(doc, Node::Profile(desc(plane, loops)))
+    own_frame(origin, u, v);
+    insert(doc, Node::Profile(desc(loops)))
 }
 
-/// [`on_frame`], keeping the FRAME's id too — what a revolve needs,
-/// because its axis has to be written in the same frame the profile
-/// is drawn on and the axis's door names that frame.
-pub fn on_frame_keeping(
-    doc: ProfileDoc,
-    origin: [f64; 3],
-    u: [f64; 3],
-    v: [f64; 3],
-    loops: Vec<Vec<(f64, f64)>>,
-) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, plane) = insert(doc, frame(origin, u, v));
-    let (doc, profile) = insert(doc, Node::Profile(desc(plane, loops)));
-    (doc, plane, profile)
+/// **That `(origin, u, v)` is a profile's own `xy`** — the one frame a
+/// profile is drawn on.
+///
+/// # Panics
+///
+/// If it is any other: the construction is placed there instead.
+pub fn own_frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) {
+    assert!(
+        frame_at(origin, u, v) == editor_core::Frame::IDENTITY,
+        "a profile reads no plane: a construction drawn on {origin:?}, {u:?}, {v:?} is \
+         placed there"
+    );
 }
 
 /// A revolve of `profile` by `angle` about the axis line through
@@ -1424,18 +1407,34 @@ impl Recorder {
             profile: profile.into(),
             distance: len(1.0),
         });
-        let copy = self.insert(Node::transform(
-            cube,
-            editor_core::Step::Rigid {
-                translation: [
-                    Formula::named(name, editor_core::Dimension::Length),
-                    len(0.0),
-                    len(0.0),
-                ],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
+        // The copy slid `param` along the cube's own x: a plane mate of
+        // its start cap to the cube's, the slide a value.
+        let cap = || {
+            plane(editor_core::Operand::select(
+                cube,
+                vec![fname(cube, RoleSeg::Cap(CapEnd::Start))],
+            ))
+        };
+        let copy = self.insert(Node::place(vec![editor_core::BodyRead::plain(cube.into())]));
+        self.constrain(
+            copy,
+            editor_core::Mate {
+                on: cap(),
+                to: editor_core::Target::Pose(cap()),
+                class: editor_core::ContactClass::Rest,
             },
-        ));
+            vec![
+                (
+                    editor_core::Coord::Slide(editor_core::SlideAxis::X),
+                    Formula::named(name, editor_core::Dimension::Length),
+                ),
+                (
+                    editor_core::Coord::Slide(editor_core::SlideAxis::Y),
+                    Formula::zero(Dimension::Length),
+                ),
+                (editor_core::Coord::Spin, Formula::zero(Dimension::Angle)),
+            ],
+        );
         let ev = editor_core::evaluate::<f64>(
             &self.doc,
             None,
@@ -1467,28 +1466,76 @@ impl Recorder {
         .expect("minted id")
     }
 
-    /// **One copy of `body` in the world** (A10), at the identity,
-    /// returning the placement.
+    /// **`mate` and the `values` naming it, added to `placement`**,
+    /// recorded.
+    pub fn constrain(
+        &mut self,
+        placement: RecipeNodeId,
+        mate: editor_core::Mate<Formula>,
+        values: Vec<(editor_core::Coord, Formula)>,
+    ) {
+        let edit = DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(mate),
+            fresh: Vec::new(),
+        };
+        let applied = editor_core::apply(&self.doc, &edit, Tol::witness(), &RefusingReach)
+            .expect("recorded edit must apply");
+        let mate = applied.record.minted_constraints[0];
+        self.edits.push(edit);
+        self.doc = applied.doc;
+        for (coord, by) in values {
+            self.push(DocEdit::AddValue {
+                placement,
+                value: Box::new(editor_core::Value { mate, coord, by }),
+                fresh: Vec::new(),
+            });
+        }
+    }
+
+    /// **One copy of `body` in the world** (A10), standing where its
+    /// body stands ([`editor_core::stand`]), returning the placement.
     pub fn place(&mut self, body: impl Into<editor_core::Operand>) -> RecipeNodeId {
         let read = body_read(&self.doc, body.into());
-        let placement = self
-            .push(DocEdit::InsertNode {
-                node: Box::new(Node::place(vec![editor_core::BodyRead::plain(read)])),
-                fresh: Vec::new(),
-            })
-            .expect("a placement mints its node");
-        // Where it stands: the named interim's world pin, as [`pin`]
-        // writes at the identity.
-        self.push(DocEdit::PinWhereItStands { placement });
+        let stood = editor_core::stand(&self.doc, &read, &EvalOptions::default(), Tol::witness())
+            .unwrap_or_else(|refusal| panic!("the copy stands over its geometry: {refusal}"));
+        let placement = self.insert(Node::place(vec![editor_core::BodyRead::plain(read)]));
+        self.constrain(placement, stood.mate, stood.values);
         placement
     }
 
-    /// **A frame and a profile drawn on it**, returning the PROFILE's
-    /// id — [`on_frame`]'s shape for a recorder.
+    /// **A copy of `body` placed against `target`'s geometry at `at`**
+    /// (`at` the copy's own frame in `target`'s own coordinates,
+    /// [`editor_core::place_against`]), returning the placement, whose
+    /// output is the copy.
+    pub fn against(
+        &mut self,
+        target: impl Into<editor_core::Operand>,
+        body: impl Into<editor_core::Operand>,
+        at: &editor_core::Frame,
+    ) -> RecipeNodeId {
+        let target = body_read(&self.doc, target.into());
+        let read = body_read(&self.doc, body.into());
+        let placed = editor_core::place_against(
+            &self.doc,
+            &target,
+            &read,
+            at,
+            &EvalOptions::default(),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|refusal| panic!("the copy places against its target: {refusal}"));
+        let placement = self.insert(Node::place(vec![editor_core::BodyRead::plain(read)]));
+        self.constrain(placement, placed.mate, placed.values);
+        placement
+    }
+
+    /// **A profile**, returning its id — [`on_frame`]'s shape for a
+    /// recorder: the frame is the profile's own `xy`.
     ///
-    /// It exists so a call site that wants "a square on this plane"
-    /// stays one line now that saying so takes two nodes. A site that
-    /// needs the frame's own id inserts the two itself.
+    /// # Panics
+    ///
+    /// If the frame is not the identity ([`own_frame`]).
     pub fn profile(
         &mut self,
         origin: [f64; 3],
@@ -1496,20 +1543,8 @@ impl Recorder {
         v: [f64; 3],
         loops: Vec<Vec<(f64, f64)>>,
     ) -> RecipeNodeId {
-        self.profile_keeping(origin, u, v, loops).1
-    }
-
-    /// [`Self::profile`], keeping the FRAME's id — what a revolve
-    /// needs, because its axis is written in that frame.
-    pub fn profile_keeping(
-        &mut self,
-        origin: [f64; 3],
-        u: [f64; 3],
-        v: [f64; 3],
-        loops: Vec<Vec<(f64, f64)>>,
-    ) -> (RecipeNodeId, RecipeNodeId) {
-        let plane = self.insert(frame(origin, u, v));
-        (plane, self.insert(Node::Profile(desc(plane, loops))))
+        own_frame(origin, u, v);
+        self.insert(Node::Profile(desc(loops)))
     }
 }
 
