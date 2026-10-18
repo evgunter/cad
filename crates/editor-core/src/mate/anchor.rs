@@ -9,10 +9,15 @@
 //! did before it was pinned, and under a parameter box the map is the
 //! identity, which the snap places by no map.
 //!
-//! A variable here is one an analysis moves: a free variable with a
-//! tolerance ([`crate::analysis::is_axis`]). A typed number with none
-//! is a constant of every analysis (`analyzed_box`), so geometry that
-//! reads only such numbers stands still under every box.
+//! [`Anchor::Fixed`] is relative to the variables an analysis moves:
+//! a free variable with a tolerance ([`crate::analysis::is_axis`]). A
+//! typed number with none is a free variable too (Q1), but a constant
+//! of every analysis (`analyzed_box`), so geometry that reads only
+//! such numbers stands still under every box. The revalue instrument
+//! moves untoleranced variables as well, so a `Fixed` anchor can still
+//! move under it. The gap is the interim's alone: until D a
+//! construction sits on a datum written in such numbers, and after D a
+//! root extrude's start cap reads nothing at all.
 //!
 //! Decided from the recipe, never by measuring: what a name's geometry
 //! reads is the node that minted it, read as narrowly as its role

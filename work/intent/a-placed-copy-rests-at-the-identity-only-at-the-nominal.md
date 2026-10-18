@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-18
 priority: P3
 cost: M
+parent: transform-retires-into-a-placement
 ---
 
 Found by PR 5267 (s3 C) when main's revalue contract (every flip is named, #5268's merge) met C's corpus, which places every part through the gesture.
@@ -20,3 +21,5 @@ Found by PR 5267 (s3 C) when main's revalue contract (every flip is named, #5268
 What remains to decide: whether a part placed where it was authored (the identity) should be placed by a read of the part's own frame rather than by literals off its geometry, so it rests at every value of its variables; or whether the snap is right to flip and the rows owe it for good.
 
 **Pinned.** Each row owes its flips here through its `flips` entry, so the row reds when they go, and when any other decision flips.
+
+**Re-homed to D** (the orchestrator, after the follow-the-body fork). Under D10 a body has no location. Before D, constructions sit on world datums written in typed numbers, so no anchor is free of every variable. After D, a root extrude's start cap reads nothing, and a plane mate on it with three constant zeros states "own coordinates agree". C pins a copy at the identity by the named interim's world pin (`a-copy-standing-where-its-body-stands-has-no-d10-spelling`), so the corpus, the tour and the fixtures no longer anchor a copy at the identity off its geometry. This item stays open for what the gesture and `pin_at` still do at any other pose, until D gives them an anchor that reads nothing.

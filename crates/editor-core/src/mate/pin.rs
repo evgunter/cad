@@ -296,13 +296,15 @@ fn world_at(linear: Mat3<f64>, translation: geom_core::linalg::Vec3<f64>) -> Wor
     moved_by(WorldRead::Frame, linear, translation)
 }
 
-/// **A number read back from a pose, as a literal**, written without a
-/// sign on its zero: `-0.0` and `0.0` are one value, and a held
-/// variable binds them alike, so the written literal is the one both
-/// read. The one writer of `pin_at`'s and `place_at`'s numbers.
+/// **A number read back from a pose, as a literal**: a zero, of either
+/// sign, is the constant `0` (VR6), which mints no variable and so
+/// moves under no analysis; any other number a typed value. The one
+/// writer of `pin_at`'s and `place_at`'s numbers.
 fn written(value: f64, dim: Dimension) -> Formula {
-    Formula::literal(value + 0.0, dim)
-        .unwrap_or_else(|_| unreachable!("a finite literal of {dim:?}"))
+    if value == 0.0 {
+        return Formula::zero(dim);
+    }
+    Formula::literal(value, dim).unwrap_or_else(|_| unreachable!("a finite literal of {dim:?}"))
 }
 
 /// **`world` moved by the rigid motion `(linear, translation)`**: spun
