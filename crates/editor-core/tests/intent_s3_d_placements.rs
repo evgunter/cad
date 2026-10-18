@@ -1,5 +1,5 @@
 //! **INTENT stage 3 PR D — a construction is a root, placed by a mate**
-//! (`docs/INTENT-STAGE3-SPEC.md` §5, fork-log rows 159 and 160).
+//! (`docs/INTENT-STAGE3-SPEC.md` §5, fork-log rows 159 and 161).
 //!
 //! A construction computes in its own coordinates and reads no frame.
 //! These rows pin the placements §5's migration writes: a copy standing
@@ -103,7 +103,7 @@ fn shifted(points: &[[f64; 3]], by: [f64; 3]) -> Vec<[f64; 3]> {
         .collect()
 }
 
-/// **A datum's in-plane offset rides on the values** (§5, row 160's
+/// **A datum's in-plane offset rides on the values** (§5, row 161's
 /// finding): a world mate's values are charted from the world's own
 /// frame, not from the target read's moved one. A construction that
 /// sat on a datum at (3, 4, 0), normal z, is placed by a plane mate to
@@ -187,7 +187,7 @@ fn an_extrude_stands_on_its_start_cap() {
     assert_eq!(vertices(&doc, p), own);
 }
 
-/// **A full revolve stands on its own axis** (row 160, Q1): no face of
+/// **A full revolve stands on its own axis** (row 161, Q1): no face of
 /// it lies on its own `xy`, so [`editor_core::stand`] writes an `Axis`
 /// mate from the revolve's `axis` output to the world's `x` axis (the
 /// heading the constant `0`, the axis through the constant zero), and
@@ -258,7 +258,7 @@ fn a_full_ring_stands_on_its_carrier_axis() {
     assert_eq!(vertices(&doc, p), own);
 }
 
-/// **A loft's later section stands at its station** (row 160, Q2): a
+/// **A loft's later section stands at its station** (row 161, Q2): a
 /// `Slide(Z)` of 1 carries the second square one up the first's own
 /// `z`, and a spin a quarter turn about it turns it.
 #[test]
