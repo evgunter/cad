@@ -904,10 +904,18 @@ fn run_at<T: editor_core::EvalScalar>(
 /// three ε; the two overconstrained rows are written past the door and
 /// name every constraint the rest fix, and the two-pin and cross-pin
 /// rows, whose fold branches retired, left the corpus.
+///
+/// And for slides along their chart's own axes (F's follow-ups, all
+/// three rows): a slide moves the copy by `axis · gap` rather than by
+/// the residual's projection of the axis, and the line between two
+/// slides is no longer minted. The axes are perpendicular to the
+/// residual's normal to rounding, so the poses moved at that level and
+/// no further: every pose-asserting row in the crate holds at its own
+/// tolerance, and only the digests changed.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x637e_6536_d455_43b2),
-    (1e-6, 0x2a27_7f5b_9679_2692),
-    (1e-12, 0x0fa3_39ca_bb42_6aca),
+    (1e-9, 0x4096_0556_5341_7a5a),
+    (1e-6, 0x13dd_df97_d118_d715),
+    (1e-12, 0x36dd_4194_48e8_c0d4),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and

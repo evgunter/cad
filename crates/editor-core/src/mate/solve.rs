@@ -1359,7 +1359,13 @@ mod tests {
     /// where no structural move is right.
     #[test]
     fn no_admitted_bundle_sets_slides_on_two_mates() {
-        let kinds = [F::Trivial, F::Planar, F::Cylindrical, F::Parallel, F::Spherical];
+        let kinds = [
+            F::Trivial,
+            F::Planar,
+            F::Cylindrical,
+            F::Parallel,
+            F::Spherical,
+        ];
         // A slide each kind's chart leaves, where it leaves one.
         let slide = |f: F| match f {
             F::Planar | F::Parallel => Some(Coord::Slide(SlideAxis::X)),

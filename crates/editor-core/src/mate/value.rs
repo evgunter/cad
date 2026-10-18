@@ -281,6 +281,7 @@ fn residual_turn_point<T: geom_core::Real>(g: Subgroup<T>) -> Option<Point3<T>> 
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use geom_core::linalg::{Affine3, UnitVec3, Vec3};
     use geom_core::predicate::Band;

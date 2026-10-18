@@ -296,9 +296,9 @@ const PATTERN_RULE: [&str; 2] = ["eval_direction_norm", "pattern_spacing"];
 ///
 /// - Each placement's chart (`mate_chart_reference_antipode`) is on its
 ///   own log.
-/// - The other block's two slides run in its rest's plane, and the line
-///   the first leaves is minted there (`mate_axes_parallel`): on its
-///   log, and not on the cap's, whose one slide runs along its axis.
+/// - Neither placement's slides decide anything: each moves along its
+///   chart's own axis (`value::settle`), so no line between two slides
+///   is minted (`mate_axes_parallel`) on either log.
 /// - The pattern's rule — its direction and the sign of its spacing —
 ///   is decided where the pattern evaluates, on its own log, and on
 ///   neither placement's though the cap reads its copy through it.
@@ -322,8 +322,8 @@ fn each_decision_is_on_the_log_of_the_node_that_made_it() {
         );
     }
     assert!(
-        on(&other_log, "mate_axes_parallel") && !on(&cap_log, "mate_axes_parallel"),
-        "the plane slide's line is the other block's: {other_log:?}, cap {cap_log:?}"
+        !on(&other_log, "mate_axes_parallel") && !on(&cap_log, "mate_axes_parallel"),
+        "no slide mints a line: {other_log:?}, cap {cap_log:?}"
     );
     for p in PATTERN_RULE {
         assert!(
