@@ -1,0 +1,3 @@
+fork: a-placement-relates-two-frames (Ev 2026-10-18: a placement relates a copy's frame to its target frame; mates fix what they fix, values give the rest, all six when unmated, in the target frame's axes)
+byte: 129
+mapping: even -> A = Opus, B = Fable; odd -> A = Fable, B = Opus
