@@ -431,6 +431,23 @@ pub enum SlotId {
         /// The scalar's place in the read.
         step: usize,
     },
+    /// A slide of a loft section's station ([`StationMove::Slide`]):
+    /// the `step`th move of section `section`'s station, sections
+    /// counted in skin order from the first, which has none.
+    StationSlide {
+        /// Which section, in skin order.
+        section: usize,
+        /// The move's place in the station.
+        step: usize,
+    },
+    /// A spin of a loft section's station ([`StationMove::Spin`]),
+    /// addressed as [`SlotId::StationSlide`] is.
+    StationSpin {
+        /// Which section, in skin order.
+        section: usize,
+        /// The move's place in the station.
+        step: usize,
+    },
     /// A slide value's length ([`crate::mate::Value`]).
     ValueSlide {
         /// Which constraint of the placement: the value.
@@ -609,8 +626,8 @@ impl SlotId {
             Self::Count | Self::VDegree | Self::Stations | Self::Instance | Self::Index { .. } => {
                 Dimension::Count
             }
-            Self::WorldSlide { .. } => Dimension::Length,
-            Self::WorldSpin { .. } => Dimension::Angle,
+            Self::WorldSlide { .. } | Self::StationSlide { .. } => Dimension::Length,
+            Self::WorldSpin { .. } | Self::StationSpin { .. } => Dimension::Angle,
             Self::ValueSlide { .. } => Dimension::Length,
             Self::ValueSpin { .. } => Dimension::Angle,
             // Profile-program roles carry V2's per-role table; none is
@@ -701,6 +718,12 @@ impl SlotId {
             }
             Self::WorldSlide { step, .. } => format!("world read slide {}", step + 1),
             Self::WorldSpin { step, .. } => format!("world read spin {}", step + 1),
+            Self::StationSlide { section, step } => {
+                format!("section {} station slide {}", section + 1, step + 1)
+            }
+            Self::StationSpin { section, step } => {
+                format!("section {} station spin {}", section + 1, step + 1)
+            }
             Self::ValueSlide { .. } => String::from("slide value"),
             Self::ValueSpin { .. } => String::from("spin value"),
             // Every component variant answered above.
@@ -743,6 +766,8 @@ impl SlotId {
             | Self::Profile { .. }
             | Self::WorldSlide { .. }
             | Self::WorldSpin { .. }
+            | Self::StationSlide { .. }
+            | Self::StationSpin { .. }
             | Self::ValueSlide { .. }
             | Self::ValueSpin { .. } => None,
         }
@@ -938,6 +963,109 @@ pub enum TubeWindow<S = crate::VarId> {
         /// The window's end angle ([`SlotId::TubeWindowEnd`]).
         t1: S,
     },
+}
+
+/// **One move of a loft section's station**: a slide along, or a spin
+/// about, one of the first section's own axes through its origin, by one
+/// `Length` or one `Angle` (FORK-MOVE: no slot holds a component).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum StationMove<S = crate::VarId> {
+    /// Slid along the axis by a length ([`SlotId::StationSlide`]).
+    Slide {
+        /// The first section's axis it slides along.
+        along: Axis3,
+        /// How far (Length).
+        by: S,
+    },
+    /// Spun about the axis by an angle, right-handed
+    /// ([`SlotId::StationSpin`]).
+    Spin {
+        /// The first section's axis it spins about.
+        about: Axis3,
+        /// How far (Angle).
+        by: S,
+    },
+}
+
+/// **A loft section after the first**: its profile, drawn in its own
+/// plane, and its station, the moves that carry that plane from the
+/// first section's, applied in the order written.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+#[serde(bound(
+    serialize = "R: serde::Serialize, S: serde::Serialize",
+    deserialize = "R: serde::Deserialize<'de>, S: serde::Deserialize<'de>"
+))]
+pub struct LoftSection<R = crate::VarId, S = crate::VarId> {
+    /// The section's profile node.
+    pub profile: R,
+    /// The moves from the first section's plane to this one's.
+    pub station: Vec<StationMove<S>>,
+}
+
+macro_rules! station_rows {
+    ($section:expr, $station:expr, $out:expr) => {{
+        for (step, m) in $station.into_iter().enumerate() {
+            match m {
+                StationMove::Slide { along: _, by } => {
+                    $out.push((SlotId::StationSlide { section: $section, step }, by));
+                }
+                StationMove::Spin { about: _, by } => {
+                    $out.push((SlotId::StationSpin { section: $section, step }, by));
+                }
+            }
+        }
+    }};
+}
+
+impl<R, S> LoftSection<R, S> {
+    /// The rows of this section's station, as section `section` of its
+    /// loft, shared.
+    pub(crate) fn rows(&self, section: usize) -> Vec<(SlotId, &S)> {
+        let mut out = Vec::new();
+        station_rows!(section, &self.station, out);
+        out
+    }
+
+    /// The rows of this section's station, exclusive.
+    pub(crate) fn rows_mut(&mut self, section: usize) -> Vec<(SlotId, &mut S)> {
+        let mut out = Vec::new();
+        station_rows!(section, &mut self.station, out);
+        out
+    }
+
+    /// **This section in another read and slot form**
+    /// ([`Node::try_map_slots`]'s rule).
+    ///
+    /// # Errors
+    ///
+    /// The first refusal of `read` or `f`.
+    pub fn try_map<R2, S2, E>(
+        &self,
+        read: impl FnOnce(&R) -> Result<R2, E>,
+        f: &mut impl FnMut(&S) -> Result<S2, E>,
+    ) -> Result<LoftSection<R2, S2>, E> {
+        Ok(LoftSection {
+            profile: read(&self.profile)?,
+            station: self
+                .station
+                .iter()
+                .map(|m| {
+                    Ok(match m {
+                        StationMove::Slide { along, by } => StationMove::Slide {
+                            along: *along,
+                            by: f(by)?,
+                        },
+                        StationMove::Spin { about, by } => StationMove::Spin {
+                            about: *about,
+                            by: f(by)?,
+                        },
+                    })
+                })
+                .collect::<Result<_, E>>()?,
+        })
+    }
 }
 
 /// **THE slot table of a tube window: which [`SlotId`] each of its
@@ -1675,13 +1803,21 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// downstream. Only DERIVED items — intersections with these walls,
     /// pcurves of non-iso edges — carry certificates, because only they
     /// claim something about a locus other than themselves.
+    ///
+    /// Every section is a 2-D profile. The first is the loft's own
+    /// plane; each after it stands at its station, slides and spins in
+    /// the first section's own axes (D10 `[variables.kinds]`), so the
+    /// loft computes in the first section's coordinates and reads no
+    /// frame.
     Loft {
-        /// The section profile nodes, in skin order (≥ 2). Order is
+        /// The first section's profile node.
+        first: S::Read,
+        /// The sections after the first, in skin order (≥ 1). Order is
         /// data: reversing it reverses the produced surface's
         /// v-direction.
-        profiles: Vec<S::Read>,
+        then: Vec<LoftSection<S::Read, S>>,
         /// The v-direction interpolation degree ([`SlotId::VDegree`]);
-        /// must satisfy `1 ≤ degree ≤ profiles.len() − 1`, checked at
+        /// must satisfy `1 ≤ degree ≤ sections − 1`, checked at
         /// evaluation against the resolved value.
         v_degree: S,
     },
@@ -2208,9 +2344,15 @@ macro_rules! node_rows {
                 $out.push((S::TubeWall, wall));
             }
             Node::Loft {
-                profiles: _,
+                first: _,
+                then,
                 v_degree,
-            } => $out.push((S::VDegree, v_degree)),
+            } => {
+                for (k, section) in then.into_iter().enumerate() {
+                    $out.extend(section.$rows(k + 1));
+                }
+                $out.push((S::VDegree, v_degree));
+            }
             Node::Sweep {
                 profile: _,
                 path: _,
@@ -2356,12 +2498,6 @@ impl<P> Node<P> {
         P: crate::ProfilePayload,
     {
         use crate::OperandSlot as O;
-        let listed = |at: fn(u32) -> O, list: &[VarId]| -> Vec<(O, VarId)> {
-            list.iter()
-                .enumerate()
-                .map(|(i, &r)| (at(u32::try_from(i).unwrap_or(u32::MAX)), r))
-                .collect()
-        };
         match self {
             // Each constraint's pose reads, in bundle order, `on` before
             // a pose `to`; a world read reads no variable.
@@ -2400,9 +2536,14 @@ impl<P> Node<P> {
             } => vec![(O::Profile, *profile)],
             Node::Tube { .. } | Node::HollowTube { .. } => Vec::new(),
             Node::Loft {
-                profiles,
+                first,
+                then,
                 v_degree: _,
-            } => listed(O::Section, profiles),
+            } => core::iter::once(*first)
+                .chain(then.iter().map(|section| section.profile))
+                .enumerate()
+                .map(|(i, r)| (O::Section(u32::try_from(i).unwrap_or(u32::MAX)), r))
+                .collect(),
             Node::Sweep {
                 profile,
                 path,
@@ -2462,12 +2603,6 @@ impl<P> Node<P> {
         P: crate::ProfilePayload,
     {
         use crate::OperandSlot as O;
-        fn listed(at: fn(u32) -> O, list: &mut [VarId]) -> Vec<(O, &mut VarId)> {
-            list.iter_mut()
-                .enumerate()
-                .map(|(i, r)| (at(u32::try_from(i).unwrap_or(u32::MAX)), r))
-                .collect()
-        }
         // Every field named, as `operand_rows` names it: a field added
         // to a node does not compile until it is stated here too, so
         // the writable twin cannot fall behind the reading one.
@@ -2508,9 +2643,14 @@ impl<P> Node<P> {
             } => vec![(O::Profile, profile)],
             Node::Tube { .. } | Node::HollowTube { .. } => Vec::new(),
             Node::Loft {
-                profiles,
+                first,
+                then,
                 v_degree: _,
-            } => listed(O::Section, profiles),
+            } => core::iter::once(first)
+                .chain(then.iter_mut().map(|section| &mut section.profile))
+                .enumerate()
+                .map(|(i, r)| (O::Section(u32::try_from(i).unwrap_or(u32::MAX)), r))
+                .collect(),
             Node::Sweep {
                 profile,
                 path,
@@ -2910,15 +3050,6 @@ impl<P, S: Slot> Node<P, S> {
         read: &mut impl FnMut(crate::OperandSlot, &S::Read) -> Result<S2::Read, E>,
     ) -> Result<Node<P2, S2>, E> {
         use crate::OperandSlot as O;
-        let list = |at: fn(u32) -> O,
-                    list: &[S::Read],
-                    read: &mut dyn FnMut(O, &S::Read) -> Result<S2::Read, E>|
-         -> Result<Vec<S2::Read>, E> {
-            list.iter()
-                .enumerate()
-                .map(|(i, r)| read(at(u32::try_from(i).unwrap_or(u32::MAX)), r))
-                .collect()
-        };
         Ok(match self {
             Node::Profile(p) => Node::Profile(payload(p, f)?),
             Node::Extrude {
@@ -2959,8 +3090,22 @@ impl<P, S: Slot> Node<P, S> {
                 minor_radius: f(minor_radius)?,
                 wall: f(wall)?,
             },
-            Node::Loft { profiles, v_degree } => Node::Loft {
-                profiles: list(O::Section, profiles, read)?,
+            Node::Loft {
+                first,
+                then,
+                v_degree,
+            } => Node::Loft {
+                first: read(O::Section(0), first)?,
+                then: then
+                    .iter()
+                    .enumerate()
+                    .map(|(k, section)| {
+                        section.try_map(
+                            |r| read(O::Section(u32::try_from(k + 1).unwrap_or(u32::MAX)), r),
+                            f,
+                        )
+                    })
+                    .collect::<Result<_, E>>()?,
                 v_degree: f(v_degree)?,
             },
             Node::Sweep {

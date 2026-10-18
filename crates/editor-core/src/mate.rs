@@ -58,11 +58,10 @@ pub mod solve;
 pub mod unobservable;
 pub(crate) mod value;
 
-pub use anchor::Anchor;
 pub use coset::{Coset, PoseSymmetry, Subgroup, SubgroupFamily};
 pub use member::{Member, Placing, head_face, head_of, member_of, member_reading};
 pub use pin::{
-    PinRefusal, Placed, PlacedBy, frame_at, pin_at, pinned_at, place_against, place_at, stand,
+    PinRefusal, Placed, PlacedBy, frame_at, pin_at, place_against, place_at, stand,
 };
 pub use reach::{MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach};
 pub use solve::{

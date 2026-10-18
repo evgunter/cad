@@ -6,8 +6,8 @@
 //! copy back. An anchor whose definition reaches none stands where the
 //! copy's variable-free geometry stands at every value: the copy
 //! follows its variables, and under a parameter box the map is the
-//! identity, which the snap places by no map. A root extrude's start
-//! cap lies on its profile's plane and reads nothing.
+//! identity, which the snap places by no map. A root extrude's or
+//! loft's start cap lies on its first profile's plane and reads nothing.
 //!
 //! A typed number with no tolerance is a document variable too (Q1,
 //! VR6): the revalue instrument moves it, so an anchor reading one is
@@ -28,19 +28,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{CapEnd, RoleSeg, StableName};
 use crate::{Node, ProfileDoc, RecipeNodeId, VarId};
-
-/// **What a pin's anchor reads.**
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Anchor {
-    /// Geometry whose definition reaches no document variable: the
-    /// copy is pinned where it stands at every value.
-    Fixed,
-    /// Every anchor the copy offers reads a variable: the pin holds the
-    /// nominal's numbers, and a variable that moves the anchor moves
-    /// the copy back toward them
-    /// (`work/intent/a-placed-copy-rests-at-the-identity-only-at-the-nominal.md`).
-    Varying,
-}
 
 /// **The recipe's answer to which names read no variable**, over one
 /// document and the node whose body is copied, memoized per variable
@@ -91,6 +78,17 @@ impl<'a> Anchors<'a> {
         }
     }
 
+    /// **The nodes the copied body is built through that every later
+    /// operation carries unmoved** ([`Self::carried_unmoved`]), in id
+    /// order: where a construction's own pose (a revolve's axis, a
+    /// ring's carrier axis) is still the copied body's.
+    pub(crate) fn unmoved(&self) -> impl Iterator<Item = RecipeNodeId> + '_ {
+        self.built_through
+            .iter()
+            .copied()
+            .filter(|&at| self.carried_unmoved(at))
+    }
+
     /// Every operation the copied body is built through after `minted`
     /// keeps a surviving entity where `minted` put it: a boolean, a
     /// blend, a split or a shell trims and adds, and moves nothing it
@@ -135,13 +133,21 @@ impl<'a> Anchors<'a> {
     }
 
     /// Whether the node that minted `name` reads a variable that moves
-    /// it. An extrude's names but its start cap read the profile's own
-    /// numbers; those its path names the end of read its distance. Any
-    /// other node's names read everything the node reads.
+    /// it. An extrude's and a loft's start cap read nothing; an
+    /// extrude's other names read the profile's own numbers, and those
+    /// its path names the end of read its distance. Any other node's
+    /// names read everything the node reads.
     fn minted_reads(&self, name: &StableName) -> bool {
         let Some(node) = self.doc.node(name.node) else {
             return true;
         };
+        // A loft's start cap lies on its first section's plane, its own
+        // `xy`, whatever its sections and stations read.
+        if matches!(node, Node::Loft { .. })
+            && matches!(name.path.as_slice(), [RoleSeg::Cap(CapEnd::Start)])
+        {
+            return false;
+        }
         let Node::Extrude {
             profile, distance, ..
         } = node

@@ -2251,6 +2251,17 @@ pub enum EditError {
         /// The loft.
         node: SpokenNode,
     },
+    /// `SetMembers` handed a loft a different number of sections: each
+    /// section after the first holds its station, which a re-pointed
+    /// read keeps and a new one has none of.
+    LoftSectionCount {
+        /// The loft.
+        node: SpokenNode,
+        /// The sections it has.
+        sections: usize,
+        /// The sections handed.
+        given: usize,
+    },
     /// `SetProgram` aimed at a node that holds no profile program: a
     /// node of another kind, or a `Node::Profile` over a payload that
     /// carries no program ([`crate::ProfilePayload::loops`] answers
@@ -3266,6 +3277,11 @@ impl EditError {
             | Self::IndexedRead { node, fault: _ }
             | Self::SetMembersOnNonList { node }
             | Self::LoftSectionsSpelled { node }
+            | Self::LoftSectionCount {
+                node,
+                sections: _,
+                given: _,
+            }
             | Self::SetProgramOnNonProfile { node }
             | Self::StepIdsRefused { node, fault: _ }
             | Self::SlotUnknownVarName {
@@ -3523,6 +3539,24 @@ impl EditError {
                     "{node} is a loft, whose sections are spelled one read each"
                 )?;
                 tail.recourse(f, format_args!("list the sections the loft passes through"))
+            }
+            Self::LoftSectionCount {
+                node,
+                sections,
+                given,
+            } => {
+                write!(
+                    f,
+                    "{node} is a loft of {sections} sections, each after the first at its own \
+                     station, and {given} were handed"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "re-point the {sections} sections, or insert a loft whose sections carry \
+                         their stations"
+                    ),
+                )
             }
             Self::SetMembersOnNonList { node } => {
                 write!(
@@ -6679,11 +6713,18 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         Ok::<_, EditError>(crate::BodyRead { read, key, at })
                     })?;
                 }
-                Node::Loft { profiles, .. } => {
+                Node::Loft { first, then, .. } => {
                     let crate::Bodies::Spelled(sections) = members else {
                         return Err(EditError::LoftSectionsSpelled { node: spoken() });
                     };
-                    *profiles = sections
+                    if sections.len() != then.len() + 1 {
+                        return Err(EditError::LoftSectionCount {
+                            node: spoken(),
+                            sections: then.len() + 1,
+                            given: sections.len(),
+                        });
+                    }
+                    let mut reads = sections
                         .iter()
                         .enumerate()
                         .map(|(i, section)| {
@@ -6697,7 +6738,13 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                             }
                             lower(new, slot, section)
                         })
-                        .collect::<Result<_, _>>()?;
+                        .collect::<Result<Vec<_>, _>>()?
+                        .into_iter();
+                    for read in core::iter::once(first).chain(then.iter_mut().map(|s| &mut s.profile)) {
+                        *read = reads.next().unwrap_or_else(|| {
+                            unreachable!("one read per section: the count was checked")
+                        });
+                    }
                 }
                 _ => {
                     return Err(EditError::SetMembersOnNonList { node: spoken() });

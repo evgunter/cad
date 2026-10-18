@@ -238,7 +238,7 @@ fn wired() -> (
         Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Profile)),
         Node::Revolve {
             profile: plane.into(),
-            axis_through: [len(0.0), len(0.0)],
+            axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(1.0),
         },

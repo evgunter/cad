@@ -157,13 +157,13 @@ pub use formula::{Formula, FreshFault, LowerFault, NameFault};
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
-    Anchor, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission, Constraint,
+    CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission, Constraint,
     ConstraintKind, Coord, Coset, FreedomRefusal, Lever, LeverRefusal, MAX_WORLD_READ_DEPTH, Mate,
     MateFault, MateReach, MateRef, MateSide, Member, NO_AT_REST_RECORD_RECOURSE, NoChartWhy,
     OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, PlacedBy, Placing, PoseRefusal, PoseSymmetry,
     ReachRefusal, RefusingReach, SlideAxis, SolvedPoses, Space, Subgroup, SubgroupFamily, Target,
     Unobservable, Value, WorldRead, WorldReadFault, class_admission, head_face, head_of,
-    frame_at, member_of, member_reading, pin_at, pinned_at, place_against, place_at, reference_about,
+    frame_at, member_of, member_reading, pin_at, place_against, place_at, reference_about,
     stand,
     relative_freedom_components, solve_document, unobservable,
 };

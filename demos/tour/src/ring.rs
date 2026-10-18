@@ -235,7 +235,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
             // (0, 0), a quarter turn from its x. Two lengths and an
             // angle in the sketch's coordinates, with no way to write
             // one that leaves its plane.
-            axis_through: [mm(0.0), mm(0.0)],
+            axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             // A full turn, written as one: the half-turn row is a
             // NOTATION carried as a unit, so the recipe says `2 pi rad`

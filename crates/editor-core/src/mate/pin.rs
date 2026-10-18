@@ -29,7 +29,6 @@ use geom_core::linalg::Mat3;
 use geom_core::predicate::Band;
 use geom_core::{RigidMotion, Tol, UnitVec3};
 
-use super::anchor::Anchor;
 use super::{Mate, Target, WorldRead};
 use crate::eval::{EvalOptions, Evaluation, NodeResult, ValuePayload};
 use crate::expr::Dimension;
@@ -186,34 +185,13 @@ pub fn pin_at(
     opts: &EvalOptions,
     tol: Tol,
 ) -> Result<Mate<Formula>, PinRefusal> {
-    pinned_at(doc, body, pose, opts, tol).map(|(mate, _)| mate)
-}
-
-/// [`pin_at`], with what its anchor reads ([`Anchor`]): the first edge
-/// by id with an axis and the first vertex by id off its line among
-/// those whose definition reaches no document variable
-/// ([`super::anchor`]), else among all of them.
-///
-/// # Errors
-///
-/// As [`pin_at`]'s.
-pub fn pinned_at(
-    doc: &crate::ProfileDoc,
-    body: &Operand,
-    pose: &Frame,
-    opts: &EvalOptions,
-    tol: Tol,
-) -> Result<(Mate<Formula>, Anchor), PinRefusal> {
     let band = Band::linear(tol).map_err(|_| PinRefusal::Band)?;
     let (node, solid, table) = copy_of(doc, body, opts, tol)?;
     let name = |key| table.name_of(&EntityRef { body: 0, key }).cloned();
     let no_frame = PinRefusal::NoFrame { node };
     let anchors = super::anchor::Anchors::of(doc, node);
-    let fixed = picked_frame(&solid, band, &|key| name(key).filter(|n| anchors.fixed(n)));
-    let (picked, anchor) = match fixed {
-        Some(picked) => (Some(picked), Anchor::Fixed),
-        None => (picked_frame(&solid, band, &name), Anchor::Varying),
-    };
+    let picked = picked_frame(&solid, band, &|key| name(key).filter(|n| anchors.fixed(n)))
+        .or_else(|| picked_frame(&solid, band, &name));
     let (edge_name, vertex_name, frame) = picked.ok_or(no_frame)?;
     let read = |def: PoseDef<Operand, Formula>| RoleRead::plain(Operand::Pose(Box::new(def)));
     let on = Operand::Pose(Box::new(PoseDef::Through {
@@ -225,14 +203,11 @@ pub fn pinned_at(
         }),
     }));
     let at = pose.affine() * frame.to_affine();
-    Ok((
-        Mate {
-            on,
-            to: Target::World(world_at(at.linear, at.translation)),
-            class: super::ContactClass::Rest,
-        },
-        anchor,
-    ))
+    Ok(Mate {
+        on,
+        to: Target::World(world_at(at.linear, at.translation)),
+        class: super::ContactClass::Rest,
+    })
 }
 
 /// **The frame [`pin_at`] reads**: the first edge by id with an axis
@@ -407,6 +382,9 @@ pub enum PlacedBy {
     /// A plane mate on the copy's first planar face and its three
     /// values.
     PlanarFace,
+    /// An axis mate on a revolve's or a full ring's own axis and its
+    /// two values ([`stand`]).
+    Axis,
     /// The copy has no planar face, or its first one stands at the pose
     /// within the band about the chart's one pole (no value could be
     /// charted on it): pinned over a frame read off its geometry
@@ -425,9 +403,6 @@ pub struct Placed {
     /// How the copy was placed: a gesture whose copy has no planar face
     /// says so in its report.
     pub by: PlacedBy,
-    /// What the anchor reads: a copy anchored on geometry that reads a
-    /// variable is named in the migration's report.
-    pub anchor: Anchor,
 }
 
 /// **The "place part" gesture** (ruling, scope): the copy read through
@@ -482,19 +457,13 @@ pub fn place_at(
         })
     };
     let pinned = || {
-        let (mate, anchor) = pinned_at(doc, body, pose, opts, tol)?;
         Ok(Placed {
-            mate,
+            mate: pin_at(doc, body, pose, opts, tol)?,
             values: Vec::new(),
             by: PlacedBy::Pin,
-            anchor,
         })
     };
-    let (planar, anchor) = match planar(true) {
-        Some(fixed) => (Some(fixed), Anchor::Fixed),
-        None => (planar(false), Anchor::Varying),
-    };
-    let Some((face, origin, normal)) = planar else {
+    let Some((face, origin, normal)) = planar(true).or_else(|| planar(false)) else {
         return pinned();
     };
     let at = pose.affine();
@@ -561,7 +530,6 @@ pub fn place_at(
         },
         values,
         by: PlacedBy::PlanarFace,
-        anchor,
     })
 }
 
@@ -575,9 +543,10 @@ pub fn place_at(
 /// down its own `z`, so the mate's direction is the world's `+z` and no
 /// move is written on the world side.
 ///
-/// A copy whose every planar face reads a variable is placed by the
-/// gesture at the identity ([`place_at`], [`Anchor::Varying`]): its
-/// numbers are its anchor's nominal, which the report names.
+/// A copy with no such face stands on its own axis where it is a
+/// revolve or a full ring ([`on_its_axis`]), and is placed by the
+/// gesture at the identity otherwise ([`place_at`]): its numbers are
+/// then its anchor's nominal.
 ///
 /// # Errors
 ///
@@ -613,6 +582,9 @@ pub fn stand(
         on_xy.then(|| (name.clone(), normal.z < 0.0))
     });
     let Some((face, down)) = on_its_plane else {
+        if let Some(placed) = on_its_axis(doc, body, &solid, &table, &anchors) {
+            return Ok(placed);
+        }
         return place_at(doc, body, &Frame::IDENTITY, opts, tol);
     };
     let plane = Operand::Pose(Box::new(PoseDef::Plane {
@@ -638,8 +610,102 @@ pub fn stand(
             zero(super::Coord::Spin, Dimension::Angle),
         ],
         by: PlacedBy::PlanarFace,
-        anchor: Anchor::Fixed,
     })
+}
+
+/// **A construction with no plane of its own, standing on its own
+/// axis** (spec §5): an `Axis` mate from a revolve's `axis` output, or
+/// from a full ring's torus carrier axis, which reads nothing, to the
+/// world's axis that line is in the construction's own coordinates,
+/// and the constant `0` on the slide along it and the spin about it.
+/// A revolve's axis slots are moves of the target reading what the
+/// slots read, so the copy stands where the revolve put it at every
+/// value; a constant `0` slot writes no move. `None` where no revolve
+/// or full ring is carried unmoved into the copied body.
+fn on_its_axis(
+    doc: &crate::ProfileDoc,
+    body: &Operand,
+    solid: &topo::Body<f64>,
+    table: &crate::names::NameTable,
+    anchors: &super::anchor::Anchors<'_>,
+) -> Option<Placed> {
+    use crate::node::{Node, TubeWindow};
+    let (on, to) = anchors.unmoved().find_map(|at| match doc.node(at)? {
+        Node::Revolve {
+            axis_through,
+            axis_heading,
+            ..
+        } => {
+            let on = Operand::Output { node: at, port: 1 };
+            Some((on, revolve_axis(doc, *axis_through, *axis_heading)))
+        }
+        Node::Tube {
+            window: TubeWindow::Full,
+            ..
+        }
+        | Node::HollowTube {
+            window: TubeWindow::Full,
+            ..
+        } => {
+            // The outer torus: the first torus face by id the ring
+            // minted. Its axis is the ring's own `z`, whatever its radii.
+            let face = solid.faces().find_map(|(face, _)| {
+                let kind = topo::readback::face_carrier_kind(solid, face).ok()?;
+                (kind == geom::SurfaceKind::Torus).then_some(())?;
+                let name = table.name_of(&EntityRef {
+                    body: 0,
+                    key: EntityKey::Face(face),
+                })?;
+                (name.node == at).then(|| name.clone())
+            })?;
+            let on = Operand::Pose(Box::new(PoseDef::Axis {
+                of: Operand::select(body.clone(), vec![face]),
+            }));
+            Some((on, WorldRead::through(PoseRole::Z)))
+        }
+        _ => None,
+    })?;
+    let zero = |coord, dim| (coord, Formula::zero(dim));
+    Some(Placed {
+        mate: Mate {
+            on,
+            to: Target::World(to),
+            class: super::ContactClass::Rest,
+        },
+        values: vec![
+            zero(super::Coord::Slide(super::SlideAxis::Z), Dimension::Length),
+            zero(super::Coord::Spin, Dimension::Angle),
+        ],
+        by: PlacedBy::Axis,
+    })
+}
+
+/// **A revolve's axis line as a world read**: the world's x axis spun
+/// about its z by the heading, then slid along its x and y to the axis
+/// point, each move reading what its slot reads. A slot that is the
+/// constant `0` writes no move.
+fn revolve_axis(
+    doc: &crate::ProfileDoc,
+    through: [crate::VarId; 2],
+    heading: crate::VarId,
+) -> WorldRead<Formula> {
+    let slot = |var: crate::VarId, dim: Dimension| {
+        let formula = match doc.var(var).map(crate::Var::def) {
+            Some(crate::var::VarDef::Defined(expr)) => Formula::from(expr),
+            _ => Formula::var(var, dim),
+        };
+        (!formula.is_zero()).then_some(formula)
+    };
+    let mut axis = WorldRead::through(PoseRole::X);
+    if let Some(by) = slot(heading, Dimension::Angle) {
+        axis = axis.spin(WorldRead::through(PoseRole::Z), by);
+    }
+    for (role, var) in [(PoseRole::X, through[0]), (PoseRole::Y, through[1])] {
+        if let Some(by) = slot(var, Dimension::Length) {
+            axis = axis.slide(WorldRead::through(role), by);
+        }
+    }
+    axis
 }
 
 /// **A frame read off `body`'s own geometry, standing at `at` in its
@@ -882,6 +948,5 @@ pub fn place_against(
             ),
         ],
         by: PlacedBy::PlanarFace,
-        anchor: Anchor::Fixed,
     })
 }

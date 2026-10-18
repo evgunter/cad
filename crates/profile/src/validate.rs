@@ -1813,6 +1813,16 @@ impl<T: Real> ValidatedProfile<T> {
         &self.plane
     }
 
+    /// The same canonical form on another plane: validation is 2-D, so
+    /// the loops are kept and only the conventional plane changes.
+    #[must_use]
+    pub fn on(&self, plane: crate::SketchPlane<T>) -> Self {
+        Self {
+            plane,
+            loops: self.loops.clone(),
+        }
+    }
+
     /// The canonicalized loops (outer first, then holes in input
     /// order).
     pub fn loops(&self) -> &[ValidatedLoop<T>] {

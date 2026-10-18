@@ -347,7 +347,7 @@ fn tilted_revolve(width: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         doc,
         Node::Revolve {
             profile: profile.into(),
-            axis_through: [len(0.0), len(0.0)],
+            axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
             axis_heading: Formula::named(VarName::from_static("h"), Dimension::Angle),
             angle: ang(std::f64::consts::TAU),
         },

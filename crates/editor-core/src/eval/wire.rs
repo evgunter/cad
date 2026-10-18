@@ -291,12 +291,6 @@ where
     // Every read resolves here: an unresolved one refused the node
     // before its op was reached (`eval::read_at`).
     let at = |slot, var| super::read_at(doc, slot, var);
-    let all = |slot: fn(u32) -> O, list: &[crate::VarId]| {
-        list.iter()
-            .enumerate()
-            .map(|(i, &var)| at(slot(u32::try_from(i).unwrap_or(u32::MAX)), var))
-            .collect::<Result<Vec<_>, _>>()
-    };
     match node {
         Node::Profile(program) => {
             let payload = wire_profile(program, profile_pre, env.lane, tol)?;
@@ -315,8 +309,15 @@ where
         Node::Revolve { profile, .. } => {
             wire_revolve(id, at(O::Profile, *profile)?, results, vals, tol)
         }
-        Node::Loft { profiles, .. } => {
-            wire_loft(id, &all(O::Section, profiles)?, results, vals, tol)
+        Node::Loft { first, then, .. } => {
+            let sections = core::iter::once(*first)
+                .chain(then.iter().map(|section| section.profile))
+                .enumerate()
+                .map(|(i, var)| at(O::Section(u32::try_from(i).unwrap_or(u32::MAX)), var))
+                .collect::<Result<Vec<_>, _>>()?;
+            let stations: Vec<&[crate::node::StationMove]> =
+                then.iter().map(|section| section.station.as_slice()).collect();
+            wire_loft(id, &sections, &stations, results, vals, tol)
         }
         Node::Sweep { profile, path, .. } => {
             let (profile, path) = (at(O::Profile, *profile)?, at(O::Path, *path)?);
@@ -4058,6 +4059,7 @@ fn need_count(
 fn wire_loft<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
+    stations: &[&[crate::node::StationMove]],
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -4076,8 +4078,16 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
         }));
     }
     let v_degree = need_count(vals, SlotId::VDegree, 1, profiles.len() - 1)?;
-    let sections: Vec<profile::ValidatedProfile<T>> =
-        values.iter().map(|v| v.validated.clone()).collect();
+    // The first section is the loft's own plane; each after it stands
+    // where its station carries that plane.
+    let mut sections: Vec<profile::ValidatedProfile<T>> = Vec::with_capacity(values.len());
+    for (k, value) in values.iter().enumerate() {
+        let plane = match k.checked_sub(1) {
+            None => profile::SketchPlane::xy(),
+            Some(after) => station_plane(k, stations[after], vals)?,
+        };
+        sections.push(value.validated.on(plane));
+    }
     let pieces: Vec<super::ProfilePieces> = values.iter().map(|v| v.pieces.clone()).collect();
     // Skin refusals keep their own node-error shape (the §2
     // compatibility contract); assembly refusals arrive as `Loft`.
@@ -4093,6 +4103,39 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
         ValuePayload::Body(Arc::new(built.body)),
         table,
     ))
+}
+
+/// **Section `section`'s plane**: the first section's, carried by the
+/// station's moves in order, each a slide along or a spin about one of
+/// the first section's own axes through its origin.
+fn station_plane<T: Decide>(
+    section: usize,
+    station: &[crate::node::StationMove],
+    vals: &SlotValues<T>,
+) -> Result<profile::SketchPlane<T>, NodeErrorKind> {
+    use crate::node::StationMove as M;
+    let axis = |a: Axis3| match a {
+        Axis3::X => UnitVec3::exact_x(),
+        Axis3::Y => UnitVec3::exact_y(),
+        Axis3::Z => UnitVec3::exact_z(),
+    };
+    let mut frame = PoseValue::Frame(RigidMotion::axes_xy(Point3::origin()));
+    for (step, m) in station.iter().enumerate() {
+        frame = match m {
+            M::Slide { along, by: _ } => {
+                let by = need_scalar(vals, SlotId::StationSlide { section, step })?;
+                pose::slide(frame, axis(*along), by)?
+            }
+            M::Spin { about, by: _ } => {
+                let by = need_scalar(vals, SlotId::StationSpin { section, step })?;
+                pose::spin(frame, Point3::origin(), axis(*about), by)?
+            }
+        };
+    }
+    let PoseValue::Frame(frame) = frame else {
+        unreachable!("a frame slid and spun is a frame")
+    };
+    Ok(profile::SketchPlane::from_frame(frame))
 }
 
 /// The Sweep node: ONE honest arm.

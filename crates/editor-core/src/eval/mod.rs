@@ -5099,7 +5099,8 @@ where
         // New node kinds take fresh words — keys are process-internal
         // (never persisted), so growth is free, but an EXISTING tag
         // must never be reused for a new meaning.
-        Node::Loft { .. } => 15,
+        // 15 is retired (`RETIRED_NODE_KIND_TAGS`).
+        Node::Loft { .. } => 41,
         Node::Sweep { .. } => 16,
         // The number is not written here: a migrated verb's tag is a
         // function of the KERNEL's name for it, so it comes out of
@@ -5528,6 +5529,30 @@ where
                 crate::node::TubeWindow::Arc { t0: _, t1: _ } => 1,
             });
         }
+        // A station's moves are slots, fed below; what each one moves
+        // along or about is not, so it is written here.
+        Node::Loft {
+            first: _,
+            then,
+            v_degree: _,
+        } => {
+            h.write_u64(then.len() as u64);
+            for section in then {
+                h.write_u64(section.station.len() as u64);
+                for m in &section.station {
+                    let (tag, axis) = match m {
+                        crate::node::StationMove::Slide { along, by: _ } => (0, along),
+                        crate::node::StationMove::Spin { about, by: _ } => (1, about),
+                    };
+                    h.write_tag(tag);
+                    h.write_tag(match axis {
+                        crate::Axis3::X => 0,
+                        crate::Axis3::Y => 1,
+                        crate::Axis3::Z => 2,
+                    });
+                }
+            }
+        }
         // Fully expressed by tag plus slots: their whole recipe payload
         // is either an input edge (excluded from the key by design — the
         // inputs' own keys carry it) or a slot expression, fed below.
@@ -5540,10 +5565,6 @@ where
             axis_through: _,
             axis_heading: _,
             angle: _,
-        }
-        | Node::Loft {
-            profiles: _,
-            v_degree: _,
         }
         | Node::Sweep {
             profile: _,
@@ -5789,6 +5810,7 @@ const RETIRED_NODE_KIND_TAGS: &[(u8, &str)] = &[
     (3, "Datum point"),
     (11, "Transform"),
     (14, "Declare"),
+    (15, "Loft over sections on datum frames"),
     (23, "Mate"),
     (27, "Datum frame"),
     (32, "Datum face frame"),

@@ -1296,7 +1296,13 @@ pub fn revolve_about(
 ) -> AuthoredNode {
     Node::Revolve {
         profile: profile.into(),
-        axis_through: [len(origin.0), len(origin.1)],
+        axis_through: [origin.0, origin.1].map(|at| {
+            if at == 0.0 {
+                Formula::zero(Dimension::Length)
+            } else {
+                len(at)
+            }
+        }),
         axis_heading: heading,
         angle,
     }

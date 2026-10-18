@@ -1595,7 +1595,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
         let op = match seat {
             Seat::RevolveProfile => SessionOp::AddRevolve {
                 profile: filled(Seat::RevolveProfile),
-                axis_through: len2([0.0, 0.0]),
+                axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
                 axis_heading: Formula::turn_over(4).expect("a quarter turn"),
                 angle: ang(core::f64::consts::TAU),
             },
@@ -1966,7 +1966,7 @@ fn a_tool_closes_on_its_own_committed_edit() {
             ToolKind::Revolve,
             SessionOp::AddRevolve {
                 profile: RecipeNodeId::new(0, tagged(1)),
-                axis_through: len2([0.0, 0.0]),
+                axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
                 axis_heading: Formula::turn_over(4).expect("a quarter turn"),
                 angle: ang(1.0),
             },
@@ -2178,7 +2178,7 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
                 profile: ring.into(),
                 // The revolve's axis is its own: a line in the ring's
                 // plane, its +y through (0, 0).
-                axis_through: [common::len(0.0), common::len(0.0)],
+                axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
                 axis_heading: Formula::turn_over(4).expect("a quarter turn"),
                 angle: common::ang(core::f64::consts::TAU),
             },

@@ -103,7 +103,7 @@ fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
             profile,
             // The revolve's axis, in the sketch it turns: the frame's
             // v is world +Y, so this is its own +y through (0, 0).
-            axis_through: len2([0.0, 0.0]),
+            axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
@@ -136,7 +136,7 @@ fn a_body_with_no_planar_face_is_pinned_and_the_gesture_says_so() {
     );
     let outcome = session.perform(SessionOp::AddRevolve {
         profile,
-        axis_through: len2([0.0, 0.0]),
+        axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
         axis_heading: Formula::turn_over(4).expect("a quarter turn"),
         angle: ang(TAU),
     });
@@ -571,7 +571,7 @@ fn new_document_refuses_a_blank_name_and_a_gesture_in_flight() {
         },
         SessionOp::AddRevolve {
             profile,
-            axis_through: len2([0.0, 0.0]),
+            axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
@@ -823,7 +823,7 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
         },
         SessionOp::AddRevolve {
             profile: plane,
-            axis_through: len2([0.0, 0.0]),
+            axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
@@ -882,7 +882,7 @@ fn extrude_and_revolve_require_their_node_kinds() {
     for wrong in [extrude, plane] {
         let refused = session.perform(SessionOp::AddRevolve {
             profile: wrong,
-            axis_through: len2([0.0, 0.0]),
+            axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         });
@@ -904,7 +904,7 @@ fn extrude_and_revolve_require_their_node_kinds() {
             profile,
             // The frame's v is world +Y, so this is its own +y
             // through (0, 0).
-            axis_through: len2([0.0, 0.0]),
+            axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
@@ -1153,7 +1153,7 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
             profile,
             // The circle is drawn on `plane`, so the revolve's axis is
             // written there too — its +y through (0, 0).
-            axis_through: len2([0.0, 0.0]),
+            axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: Formula::written_angle(WrittenAngle::canonical_in(
                 core::f64::consts::FRAC_PI_2,

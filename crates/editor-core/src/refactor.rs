@@ -1780,6 +1780,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::SetProgramOnNonProfile { .. }
             | EditError::StepIdsRefused { .. }
             | EditError::LoftSectionsSpelled { .. }
+            | EditError::LoftSectionCount { .. }
             | EditError::OperandUnresolved { .. }
             | EditError::AmbiguousOutput { .. }
             | EditError::DefinesNothing { .. }
@@ -2203,10 +2204,19 @@ fn remap_node(
         },
         // A tube reads nothing: every field is carried.
         Node::Tube { .. } | Node::HollowTube { .. } => node.clone(),
-        Node::Loft { profiles, v_degree } => Node::Loft {
-            profiles: (0u32..)
-                .zip(profiles)
-                .map(|(i, &p)| rd(crate::OperandSlot::Section(i), p))
+        Node::Loft {
+            first,
+            then,
+            v_degree,
+        } => Node::Loft {
+            first: rd(crate::OperandSlot::Section(0), *first)?,
+            then: (1u32..)
+                .zip(then)
+                .map(|(i, section)| {
+                    section.try_map(|&p| rd(crate::OperandSlot::Section(i), p), &mut |&v| {
+                        Ok(v)
+                    })
+                })
                 .collect::<Result<_, _>>()?,
             v_degree: *v_degree,
         },

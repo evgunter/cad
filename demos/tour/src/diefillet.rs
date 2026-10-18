@@ -270,7 +270,7 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
             // The pole axis, in the meridian frame's own coordinates:
             // that frame's v IS world +Z, so the axis is its +y through
             // (0, 0).
-            axis_through: [len(0.0), len(0.0)],
+            axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             // A full turn, in the degrees this document is written in.
             angle: ang(360.0),
