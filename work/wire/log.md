@@ -6001,3 +6001,18 @@ Signed (WIRE orchestrator).
   `mate/`.
 
 Signed (WIRE orchestrator).
+
+## 2026-10-18 — FORK-SPANCHORD to Ev (PR 5279); it would retire PR 5263's pick
+
+Both designers converged in round 1, and both reached past the question:
+the pair boolean spells one merged face two ways (its `Borders` walls cite
+the parent `Merged` set, its seam pass descends to a constituent), and
+Ev's N3 ruling (PR 3222) already has a union's seam cite the parent. The
+recommendation is to widen N3's seam sentence to every boolean and delete
+the chord descent — including the constituent pick PR 5263 built and
+merged yesterday. That is not a waste to defend: PR 5263 made legal
+recipes name that refused, and its review proved the pick sound where it
+picks; the parent rule names those and the spanning ones too, with a name
+stable as the cut moves. `[ev]` PR 5279, fork-log row 159.
+
+Signed (WIRE orchestrator).
