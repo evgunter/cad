@@ -4081,8 +4081,7 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
 
 fn mate() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
-        Clash, Coord, DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, SlideAxis,
-        Subgroup, VarKind,
+        Coord, DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, SlideAxis, VarKind,
     };
     use payloads::*;
     let n = |id| RecipeNodeId::new(0, tagged(id));
@@ -4113,20 +4112,11 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "Contradictory",
-            M::Contradictory {
-                held: r(8),
-                added: r(9),
-                predicate: "mate_coaxial",
-                clash: Clash::Length { metres: 0.002 },
-            },
-        ),
-        (
             "Overconstrained",
             M::Overconstrained {
                 placement: n(7),
                 constraints: vec![c(8), c(9)],
-                held: Subgroup::Trivial,
+                free: 0,
             },
         ),
         (
@@ -4167,15 +4157,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
             M::NotAFreedom {
                 value: r(9),
                 coord: Coord::Slide(SlideAxis::Z),
-                kind: Some(VarKind::Plane),
-            },
-        ),
-        (
-            "NotAFreedom/FixedByTheBundle",
-            M::NotAFreedom {
-                value: r(9),
-                coord: Coord::Spin,
-                kind: None,
+                kind: VarKind::Plane,
             },
         ),
         (

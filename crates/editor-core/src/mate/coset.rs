@@ -31,10 +31,10 @@
 //! never checked: each side's equation holds by construction, so
 //! nothing is re-measured.
 
+use geom_core::Real;
 use geom_core::k_stats::decide;
 use geom_core::linalg::{Affine3, Point3, UnitVec3, UnitVec3Error, Vec3};
 use geom_core::predicate::{Band, Indeterminate, Margin, Sign};
-use geom_core::Real;
 
 use super::LeverRefusal;
 use super::solve::SolveScalar;
@@ -695,9 +695,7 @@ pub(crate) fn slides_along<T: SolveScalar>(
         Subgroup::Cylindrical { direction, .. } | Subgroup::Prismatic { direction } => {
             parallel(v, direction, band, arm)?.is_none()
         }
-        Subgroup::Revolute { .. }
-        | Subgroup::Spherical { .. }
-        | Subgroup::Trivial => false,
+        Subgroup::Revolute { .. } | Subgroup::Spherical { .. } | Subgroup::Trivial => false,
     })
 }
 

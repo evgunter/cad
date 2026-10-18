@@ -1000,7 +1000,7 @@ mod tests {
             C::MateNotAFreedom => mate(crate::MateFault::NotAFreedom {
                 value: m(9),
                 coord: crate::mate::Coord::Slide(crate::mate::SlideAxis::Z),
-                kind: Some(crate::VarKind::Plane),
+                kind: crate::VarKind::Plane,
             }),
             C::MateNoChart => mate(crate::MateFault::NoChart {
                 value: m(9),

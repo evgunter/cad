@@ -165,19 +165,6 @@ impl Scene {
         fixture::head_at(self.base, in_part(self.base, self.base_body, CapEnd::End))
     }
 
-    /// Copy 1 of the patterned block's top cap, read at the `Part`
-    /// that projects it.
-    fn copy_top(&self) -> SitedFace {
-        fixture::head_at(
-            self.copy1,
-            in_copy(
-                self.pattern,
-                1,
-                in_part(self.block, self.block_body, CapEnd::End),
-            ),
-        )
-    }
-
     /// Copy 1's lateral edge, as an axis read at the `Part` that
     /// projects it.
     fn copy_edge(&self) -> Operand {
@@ -236,25 +223,6 @@ impl Scene {
         )
         .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
         .doc;
-    }
-
-    /// The cap folded onto copy 1: its bottom cap resting on the
-    /// copy's top cap and its lateral edge on the copy's (a coaxial
-    /// mate, which the fold intersects with the rest). The spin about
-    /// the edge is left free.
-    fn fold_cap(&mut self) {
-        self.add(
-            self.cap,
-            fixture::rest(self.bottom(self.cap), self.copy_top(), ContactClass::Rest),
-        );
-        self.add(
-            self.cap,
-            fixture::mate(
-                self.block_edge(self.cap),
-                self.copy_edge(),
-                ContactClass::Rest,
-            ),
-        );
     }
 
     /// The cap seated on copy 1: its lateral edge on the copy's (one
@@ -322,39 +290,40 @@ fn mate_fault(ev: &Evaluation<f64>, placement: RecipeNodeId) -> editor_core::Mat
 const PATTERN_RULE: [&str; 2] = ["eval_direction_norm", "pattern_spacing"];
 
 /// **Each decision is on the node that made it.** Two placements: the
-/// cap, held by a rest and a coaxial mate against copy 1 of a pattern
-/// (read at a `Part` that projects it), and the other block, held by a
-/// rest and three values against the base.
+/// cap, held by a coaxial mate against copy 1 of a pattern (read at a
+/// `Part` that projects it) and its slide and spin, and the other
+/// block, held by a rest and three values against the base.
 ///
-/// - The fold's intersection — the table's split adding the coaxial
-///   mate to what the rest left (`mate_axes_parallel`), then the
-///   membership checks (`mate_member_*`) — is the cap's, and on no
-///   other log.
-/// - The other block's bundle is one mate, so its fold intersects
-///   nothing: its log holds no membership check.
+/// - Each placement's chart (`mate_chart_reference_antipode`) is on its
+///   own log.
+/// - The other block's two slides run in its rest's plane, and the line
+///   the first leaves is minted there (`mate_axes_parallel`): on its
+///   log, and not on the cap's, whose one slide runs along its axis.
 /// - The pattern's rule — its direction and the sign of its spacing —
 ///   is decided where the pattern evaluates, on its own log, and on
 ///   neither placement's though the cap reads its copy through it.
 ///
-/// *Breaks if* a fold's decision lands on another node's row, or a
+/// *Breaks if* a placement's decision lands on another node's row, or a
 /// placement re-decides what the copy it reads decided.
 #[test]
 fn each_decision_is_on_the_log_of_the_node_that_made_it() {
     let mut s = scene("msolve11-home");
-    s.fold_cap();
+    s.seat_cap();
     s.seat_other(6.0, 6.0);
     let ev = fixture::run(&s.doc, &s.opts);
     let names =
         |node| -> Vec<&'static str> { log(&ev, node).iter().map(|v| v.predicate).collect() };
     let (cap_log, other_log, pattern_log) = (names(s.cap), names(s.other), names(s.pattern));
     let on = |got: &[&str], p: &str| got.contains(&p);
+    for (what, got) in [("cap", &cap_log), ("other block", &other_log)] {
+        assert!(
+            on(got, "mate_chart_reference_antipode"),
+            "the {what} charts its values on its own log: {got:?}"
+        );
+    }
     assert!(
-        on(&cap_log, "mate_axes_parallel") && cap_log.iter().any(|p| p.starts_with("mate_member_")),
-        "the intersection is the cap's: {cap_log:?}"
-    );
-    assert!(
-        !other_log.iter().any(|p| p.starts_with("mate_member_")),
-        "the other block's one mate intersects nothing: {other_log:?}"
+        on(&other_log, "mate_axes_parallel") && !on(&cap_log, "mate_axes_parallel"),
+        "the plane slide's line is the other block's: {other_log:?}, cap {cap_log:?}"
     );
     for p in PATTERN_RULE {
         assert!(
@@ -675,110 +644,44 @@ fn a_parts_index_outside_its_value_is_refused_at_the_part() {
     );
 }
 
-// ---- the contradiction's words ----
-
-/// **Every predicate the solve refuses a contradiction on reads in
-/// words**, each row pinned, and the predicate's name is left to the
-/// payload. The list is every variant: the match below is exhaustive,
-/// and `ALL` must hold each variant exactly once.
-#[test]
-fn every_refuted_predicate_reads_in_words() {
-    use editor_core::mate::Refuted;
-    let words = |r: Refuted| match r {
-        Refuted::RotationIdentity => "the relative rotation is not the identity",
-        Refuted::TranslationZero => "the relative translation is not zero",
-        Refuted::TranslationAlong => "the translation leaves the shared direction",
-        Refuted::AxisFixed => "the rotation moves the shared axis",
-        Refuted::TranslationInPlane => "the translation leaves the shared plane",
-        Refuted::PointOnAxis => "the axis point leaves the shared axis",
-        Refuted::PointFixed => "the shared point moves",
-        Refuted::TwoAxisReachable => "no one rotation aligns both axes",
-    };
-    let mut names: Vec<&str> = Refuted::ALL.iter().map(|r| r.name()).collect();
-    names.sort_unstable();
-    names.dedup();
-    assert_eq!(names.len(), Refuted::ALL.len(), "each predicate once");
-    for refuted in Refuted::ALL {
-        assert_eq!(Refuted::of(refuted.name()), Some(refuted));
-        let said = editor_core::MateFault::Contradictory {
-            held: MateRef::new(
-                RecipeNodeId::new(0, 3),
-                editor_core::ConstraintId(editor_core::MintId::new(1, 0)),
-            ),
-            added: MateRef::new(
-                RecipeNodeId::new(0, 3),
-                editor_core::ConstraintId(editor_core::MintId::new(2, 0)),
-            ),
-            predicate: refuted.name(),
-            clash: editor_core::Clash::Length { metres: 0.5 },
-        }
-        .to_string();
-        assert!(
-            said.contains(words(refuted)) && !said.contains(refuted.name()),
-            "{}: {said}",
-            refuted.name()
-        );
-    }
-}
-
 // ---- the box driver ----
 
-/// **What a box run meets on a document whose bundle escalates, as the
-/// driver stands today.** The escalation is on its placement's log, so
-/// `drive::classify_replay` would meet it at read (2), the log, rather
-/// than at read (3)'s `_ => Bisect`. The driver never gets there: its
-/// evaluations carry no resolver (`drive::lane_opts`), so at the
-/// nominal witness every instance's part is out of hand, the instances
-/// refuse before any fold decides anything, and the run refuses up
-/// front with `WitnessDoesNotBuild`. The same document under a
-/// resolver escalates, on the placement's log.
+/// **What a box run meets on a document whose bundle is
+/// overconstrained, as the driver stands today.** The bundle's refusal
+/// is box-independent (FORK-S3O: decided by its families, measuring
+/// nothing), so `drive::classify_replay` would meet it at every leaf.
+/// The driver never gets there: its evaluations carry no resolver
+/// (`drive::lane_opts`), so at the nominal witness every instance's
+/// part is out of hand, the instances refuse before any bundle is
+/// folded, and the run refuses up front with `WitnessDoesNotBuild`. The
+/// same document under a resolver refuses `Overconstrained`, with no
+/// escalation on its log.
 ///
 /// The bundle rests the other block on the base and on a plane of the
-/// world tilted by `t` about the world's `x`: the table's parallel split
-/// decides `|n₁ × n₂|` over the bundle's lever, which is the copy's
-/// reach and the poses' distances from their origins. The tilt that
-/// lands inside the band is found by stepping `t` by a fraction of the
-/// band's own width, so some step falls in it whatever the lever.
-/// Measured for
+/// world, the second beside the first past the door (the state a
+/// doctored save leaves). Measured for
 /// `work/msolve/a-box-independent-mate-fault-bisects-the-whole-leaf-budget.md`.
 ///
-/// *Breaks if* the escalation leaves the placement's log, or the
+/// *Breaks if* the refusal escalates (it measured something), or the
 /// driver's witness builds without a resolver.
 #[test]
-fn a_box_run_over_an_escalating_mate_refuses_at_its_witness() {
+fn a_box_run_over_an_overconstrained_bundle_refuses_at_its_witness() {
     use editor_core::analysis::{AnalysisPolicy, analyzed_box};
     use editor_core::drive::{DriveConfig, DriveRefusal};
     use editor_core::range::{RangeField, RangeSeed, derive};
     use editor_core::{Dimension, FreeVar, VarName};
-    let band = geom_core::predicate::Band::linear(Tol::witness()).expect("the band");
-    let step = (band.escalate() / band.zero()).powf(0.25);
-    let tilted = |t: f64| {
-        let mut s = scene("msolve11-drive");
-        s.add(
-            s.other,
-            fixture::rest(s.bottom(s.other), s.base_top(), ContactClass::Rest),
-        );
-        let mut tilted = on_the_world(&s, BASE_HEIGHT);
-        if let Target::World(world) = tilted.to {
-            tilted.to = Target::World(world.spin(WorldRead::through(PoseRole::X), ang(t)));
-        }
-        s.add(s.other, tilted);
-        s
-    };
-    let escalates = |s: &Scene| {
-        matches!(
-            s.eval(None).result(s.other),
-            Some(NodeResult::Failed(e)) if matches!(
-                &e.kind,
-                NodeErrorKind::Mate(f) if matches!(**f, editor_core::MateFault::Indeterminate { .. })
-            )
-        )
-    };
-    let s = (0..48)
-        .map(|j| band.zero() * 1e-3 * step.powi(j))
-        .map(tilted)
-        .find(escalates)
-        .expect("some tilt lands its levered sine inside the band");
+    let mut s = scene("msolve11-drive");
+    s.add(
+        s.other,
+        fixture::rest(s.bottom(s.other), s.base_top(), ContactClass::Rest),
+    );
+    let (doc, _) = editor_core::test_support::beside_past_the_bundle_rule(
+        &s.doc,
+        s.other,
+        on_the_world(&s, BASE_HEIGHT),
+        Tol::witness(),
+    );
+    s.doc = doc;
     let w = VarName::from_static("w");
     let (doc, _) = fixture::step(
         s.doc.clone(),
@@ -802,9 +705,9 @@ fn a_box_run_over_an_escalating_mate_refuses_at_its_witness() {
         matches!(
             &added.kind,
             NodeErrorKind::Mate(fault)
-                if matches!(**fault, editor_core::MateFault::Indeterminate { .. })
-        ) && !added.escalations.is_empty(),
-        "under a resolver the bundle escalates, on its placement's log: {:?}",
+                if matches!(**fault, editor_core::MateFault::Overconstrained { .. })
+        ) && added.escalations.is_empty(),
+        "under a resolver the bundle refuses, measuring nothing: {:?}",
         added.kind
     );
     let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());

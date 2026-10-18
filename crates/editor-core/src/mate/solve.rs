@@ -660,12 +660,14 @@ fn codimension(bundle: &[(crate::node::ConstraintId, Equations)]) -> u8 {
             continue;
         };
         let charted = kind_of(own).is_some_and(|kind| coord.admitted_by(kind).is_ok());
-        let left_by_the_rest = mates.iter().filter(|&&(id, _)| id != mate).all(|&(_, f)| {
-            match coord {
-                super::Coord::Slide(_) => f.frees_every_translation(),
-                super::Coord::Spin => f.frees_every_rotation(),
-            }
-        });
+        let left_by_the_rest =
+            mates
+                .iter()
+                .filter(|&&(id, _)| id != mate)
+                .all(|&(_, f)| match coord {
+                    super::Coord::Slide(_) => f.frees_every_translation(),
+                    super::Coord::Spin => f.frees_every_rotation(),
+                });
         if charted && left_by_the_rest && !set.contains(&(mate, coord)) {
             set.push((mate, coord));
         }
@@ -834,8 +836,7 @@ pub(crate) fn solve_bundle<T: SolveScalar>(
         .map(|m| (m.mate.id, Equations::Mate(m.to.symmetry().family())))
         .collect();
     for v in values {
-        let Some(&(_, Equations::Mate(family))) =
-            equations.iter().find(|&&(id, _)| id == v.mate)
+        let Some(&(_, Equations::Mate(family))) = equations.iter().find(|&&(id, _)| id == v.mate)
         else {
             return Err(fault(MateFault::ValueNamesNoMate {
                 value: v.value,

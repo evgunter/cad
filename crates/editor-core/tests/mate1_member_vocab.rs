@@ -416,20 +416,18 @@ fn mates_never_solve_pattern_parameters() {
     );
 }
 
-/// INVARIANT: the literal CONTRADICTORY refusal is reachable through a
-/// pattern-member pair — two mates on the SAME copy whose cosets
-/// cannot meet (the top's start cap resting on the copy's end cap,
-/// then the top's own end cap flush with that same cap: parallel
-/// planes a unit apart) die in the bundle's fold with the measured
-/// clash, exactly as a plain pair's would. The door admits each — it
-/// decides structure alone — and the solve folds the bundle and
-/// refuses it. The derived offset is a static left factor OUTSIDE the
-/// fold, so it cannot absorb the clash.
+/// INVARIANT: a second mate on one pattern-member copy that fixes an
+/// equation the first already fixes refuses at the door, measured or
+/// not (FORK-S3O): the top's start cap resting on the copy's end cap,
+/// then its own end cap flush with that same cap, parallel planes a
+/// unit apart. Two plane mates fix a normal twice whatever their
+/// planes' positions, so the door names both, and the freedoms it
+/// reports are the families' in general position.
 ///
-/// *Breaks if* the fold admits two parallel planes at different
-/// heights, or names the mates the other way round.
+/// *Breaks if* the door admits the second plane mate (it measures
+/// the planes, or defers to the fold), or names only the later one.
 #[test]
-fn conflicting_mates_on_one_copy_refuse_contradictory() {
+fn a_second_plane_mate_on_one_copy_refuses_overconstrained_at_the_door() {
     let mut store = PartStore::default();
     let leg_part = cube(&mut store, "mate1-contra-leg");
     let top_part = cube(&mut store, "mate1-contra-top");
@@ -457,27 +455,28 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
             ContactClass::Rest,
         ),
     );
-    let (doc, _) = constrain(
-        doc,
+    let fault = fixture::door_refusal(
+        &doc,
         fixture::mate(
             plane(head(top_part.cap(top, CapEnd::End))),
             plane(copy_end),
             ContactClass::Rest,
         ),
     );
-    let poses = solve(&doc, &o, Tol::witness());
-    let fault = poses
-        .fault(top)
-        .cloned()
-        .expect("the bundle's fold refuses");
+    let editor_core::MateFault::Overconstrained {
+        placement,
+        constraints,
+        free,
+    } = fault
+    else {
+        panic!("a second plane mate on one copy fixes what the first does: {fault:?}");
+    };
+    assert_eq!(placement, top, "the copy's placement is named");
     assert!(
-        matches!(
-            fault,
-            editor_core::MateFault::Contradictory { held, added, .. }
-                if held == m0 && added.placement == top && added != m0
-        ),
-        "two mates on one copy that cannot both hold die in the fold: {fault:?}"
+        constraints.contains(&m0.id) && constraints.len() == 2,
+        "each mate is named, neither the later one: {constraints:?}"
     );
+    assert_eq!(free, 1, "two planes in general position leave a slide");
 }
 
 // ---- The fence: what the vocabulary refuses ----

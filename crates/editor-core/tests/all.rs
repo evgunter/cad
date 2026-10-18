@@ -309,8 +309,6 @@ mod maintenance_net;
 mod msolve10_door_admission;
 #[path = "msolve11_mate_log.rs"]
 mod msolve11_mate_log;
-#[path = "msolve12_honest_translation.rs"]
-mod msolve12_honest_translation;
 #[path = "msolve13_read_at_operand.rs"]
 mod msolve13_read_at_operand;
 #[path = "msolve14_run_scalar.rs"]

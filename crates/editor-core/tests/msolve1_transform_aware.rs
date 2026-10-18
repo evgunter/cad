@@ -772,15 +772,13 @@ fn two_operands(
 
 /// **A5.** A seat read through one transform of the target pins the
 /// top, and a second rest through another transform of the same
-/// target is a mate beyond the pin. The door decides structure alone
-/// and admits it; the placement refuses where it evaluates — as
-/// overconstrained where the second rest agrees with the seat (it and
-/// the seat's own rest are each fixed by the others), and as a
-/// contradiction where it does not (parallel planes apart). Before the
-/// second rest, the seat alone solves and the product gathers.
+/// target is a mate beyond the pin: the door refuses it as
+/// overconstrained, naming the seat's own mate and the rest, whether
+/// the rest agrees with the seat or not (parallel planes apart). Before
+/// the second rest, the seat alone solves and the product gathers.
 ///
-/// *Breaks if* a mate beyond the pin is folded silently, or an
-/// inconsistent one is taken for a redundant one.
+/// *Breaks if* the door admits a mate beyond the pin, or tells a rest
+/// that agrees from one that does not (it measured them).
 #[test]
 fn a5_a_second_seat_through_another_operand_is_refused() {
     for (what, label, extra_lift) in [
@@ -799,29 +797,21 @@ fn a5_a_second_seat_through_another_operand_is_refused() {
             product(&doc, &ev, Tol::witness()).is_ok(),
             "A5 {what}: the product gathers"
         );
-        let (doc, added) = constrain_at(doc, top, second);
-        let refused = solve(&doc, &opts, Tol::witness())
-            .fault(top)
-            .cloned()
-            .unwrap_or_else(|| panic!("A5 {what}: a second rest beyond the pin was folded"));
-        if extra_lift == 0.0 {
-            assert!(
-                matches!(
-                    &refused,
-                    MateFault::Overconstrained { placement, constraints, .. }
-                        if *placement == top && *constraints == vec![held.id, added.id]
-                ),
-                "A5 {what}: the second rest is beyond the pin: {refused:?}"
-            );
-        } else {
-            assert!(
-                matches!(
-                    &refused,
-                    MateFault::Contradictory { added: a, .. } if *a == added
-                ),
-                "A5 {what}: the second rest contradicts the seat: {refused:?}"
-            );
-        }
+        let refused = match fixture::at_the_door_of(&doc, &editor_core::RefusingReach, top, second)
+        {
+            Err((_, fault)) => fault,
+            Ok(_) => panic!("A5 {what}: the door admitted a second rest beyond the pin"),
+        };
+        assert!(
+            matches!(
+                &refused,
+                MateFault::Overconstrained { placement, constraints, free: 0 }
+                    if *placement == top
+                        && constraints.len() == 2
+                        && constraints.contains(&held.id)
+            ),
+            "A5 {what}: the second rest is beyond the pin: {refused:?}"
+        );
     }
 }
 

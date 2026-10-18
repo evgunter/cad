@@ -6278,9 +6278,8 @@ pub(crate) fn apply_insert<P: Clone + crate::ProfilePayload>(
     reach: &dyn MateReach,
 ) -> Result<(Applied<P>, RecipeNodeId), EditError> {
     let _ = reach;
-    let (doc, minted, maintenance) = door(doc, tol, |new, _| {
-        insert_into(doc, new, node, &[], tol)
-    })?;
+    let (doc, minted, maintenance) =
+        door(doc, tol, |new, _| insert_into(doc, new, node, &[], tol))?;
     let id = minted.0;
     let applied = Applied {
         doc,
@@ -6703,9 +6702,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
     tol: Tol,
 ) -> Result<EditRecord, EditError> {
     Ok(match edit {
-        DocEdit::InsertNode { node, fresh } => {
-            inserted(insert_into(doc, new, node, fresh, tol)?)
-        }
+        DocEdit::InsertNode { node, fresh } => inserted(insert_into(doc, new, node, fresh, tol)?),
         DocEdit::DeleteNode { id } => {
             if !new.nodes.contains_key(id) {
                 return Err(EditError::UnknownNode {
