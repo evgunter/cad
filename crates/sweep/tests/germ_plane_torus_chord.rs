@@ -235,7 +235,8 @@ pub(crate) fn body_holds(
 /// a point is `VolumeUncertified` where `probe_gap` (the at-infinity
 /// probe measures in closed form only, and a spiric-trimmed torus wall
 /// has none: `work/restread/at-infinity-probe-measures-in-closed-form-only.md`),
-/// and reads nothing; any other refusal fails. The points read.
+/// and reads nothing, at no more points than it reads; any other refusal
+/// fails. The points read.
 pub(crate) fn volume_and_points(
     what: &str,
     (op, swap): (BooleanOp, bool),
@@ -263,19 +264,23 @@ pub(crate) fn volume_and_points(
         (v - want).abs() <= volume_tol(want),
         "{what}: volume {v} against the truth {want}"
     );
-    let mut read = 0usize;
+    let (mut read, mut gaps) = (0usize, 0usize);
     for q in points(lo, hi, 48) {
         let (Some(a), Some(c)) = ((x.inside)(q), (y.inside)(q)) else {
             continue;
         };
         match contains(b, q) {
-            Err(topo::PointInSolidError::VolumeUncertified) if probe_gap => {}
+            Err(topo::PointInSolidError::VolumeUncertified) if probe_gap => gaps += 1,
             got => {
                 assert_eq!(got, Ok(kept(op, a, c)), "{what}: point_in_solid at {q:?}");
                 read += 1;
             }
         }
     }
+    assert!(
+        gaps <= read,
+        "{what}: the at-infinity probe refuses {gaps} points, more than the {read} read"
+    );
     read
 }
 

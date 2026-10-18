@@ -198,7 +198,8 @@ pub(crate) fn stops_past_the_join(e: &BooleanError) -> bool {
 /// **Each of the six ops of `t` against `p` answers as `want` says**,
 /// one letter per op in [`SIX`]'s order: `B` a body, held to the truth
 /// (its volume and tier 3, and `point_in_solid` wherever it answers:
-/// [`volume_and_points`]), and `v` the volume's stop ([`Stop`]); where `tie`, any op may instead escalate the matcher's
+/// [`volume_and_points`], at one sampled point at least), and `v` the
+/// volume's stop ([`Stop`]); where `tie`, any op may instead escalate the matcher's
 /// ranking (`bool_join_nearest`, [`tie_in_band`]). `meet` is first held
 /// to the Monte Carlo. Each op's body, and the sampled points
 /// `point_in_solid` read over them all.
@@ -228,7 +229,12 @@ fn answers(
                     .unwrap_or_else(|| panic!("{what}: empty"))
                     .body
                     .clone();
-                read += volume_and_points(&what, (op, swap), (t, p), meet, &b, within, true);
+                let n = volume_and_points(&what, (op, swap), (t, p), meet, &b, within, true);
+                assert!(
+                    n > 0,
+                    "{what}: point_in_solid reads no sampled point of the body"
+                );
+                read += n;
                 bodies.push(Some(b));
             }
             ('v', Err(e)) => {
@@ -294,16 +300,12 @@ fn donut_poses_answer(name: &str, t: AtRestBody<f64>, want: &[(&str, &str)]) {
         assert_eq!(*pose, named, "{name}: the poses in order");
         let what = format!("{name}, {pose}");
         let tie = *pose == "the tie bar" && tie_in_band();
-        let (bodies, read) = answers(
+        answers(
             &what,
             (&t, p),
             *meet,
             about_the_tube(2.0, 0.5),
             (answer, tie),
-        );
-        assert!(
-            read > 0 || bodies.iter().all(Option::is_none),
-            "{what}: point_in_solid reads no sampled point of a built body"
         );
     }
 }
