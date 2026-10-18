@@ -2599,7 +2599,7 @@ pub(crate) fn fold_cell(name: &StableName) -> Result<FoldCell, NamingError> {
     }
     if let Some((RoleSeg::Crossing { edge, .. }, tail)) = name.path.split_first()
         && tail.iter().all(|s| matches!(s, RoleSeg::Fragment(_)))
-        && let Ok(FoldCell::Member { read, name }) = fold_cell(edge.name())
+        && let FoldCell::Member { read, name } = fold_cell(edge.name())?
     {
         return Ok(FoldCell::Member { read, name });
     }

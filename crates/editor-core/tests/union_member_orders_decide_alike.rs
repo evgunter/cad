@@ -639,3 +639,90 @@ fn a_vertex_row_is_the_unions_once_in_every_member_order() {
     }
     assert!(failures.is_empty(), "{failures:#?}");
 }
+
+/// **A record the fold re-cites cites the judged rows that state its
+/// contact** (DM4, "A row names member cells"): in every order of
+/// [`crate::union_pinch_member_order::pinch`], the blocks' touching legs
+/// are one edge-edge record citing the two judged rows that put an end of
+/// each leg on the other, and the end below the plate's top one
+/// vertex-edge record citing the row that puts it there. Folded after
+/// the plate, a block's leg meets the point the other's made on the
+/// plate's top, and that step's decision is cited as those rows.
+#[test]
+fn a_re_cited_record_cites_the_judged_rows_in_every_member_order() {
+    let fixture = crate::union_pinch_member_order::pinch;
+    let mut failures = Vec::new();
+    for order in orders(3) {
+        let doc = ProfileDoc::empty_derived("union-member-orders", Tol::witness());
+        let (doc, members) = fixture(doc);
+        let (doc, union) = insert(
+            doc,
+            Node::Union {
+                members: editor_core::Bodies::Spelled(
+                    order.iter().map(|&i| members[i].into()).collect(),
+                ),
+            },
+        );
+        let ev = run(&doc);
+        assert!(failure(&ev, union).is_none(), "{order:?} builds");
+        let value = ev.value(union).expect("the union evaluated");
+        let cell = |c: &editor_core::NamedCell| match c {
+            editor_core::NamedCell::Entity { input, name } => {
+                let member = members
+                    .iter()
+                    .position(|&m| doc.output(m, 0) == Some(*input))
+                    .map_or("the union".to_string(), |i| format!("m{i}"));
+                format!("{:?}@{member}", name.kind)
+            }
+            other => format!("{other:?}"),
+        };
+        let statement = |k: u32| {
+            let r = &value.coincidences[k as usize];
+            let mut cells = r.cells.each_ref().map(cell);
+            cells.sort();
+            format!("{:?} {:?} {} {}", r.site, r.relation, cells[0], cells[1])
+        };
+        let editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body {
+            contacts, ..
+        }) = &value.payload
+        else {
+            panic!("{order:?}: a union of three blocks is a boolean body");
+        };
+        let mut cited: Vec<(String, Vec<String>)> = contacts
+            .rows()
+            .iter()
+            .map(|c| {
+                let kind = format!("{:?}", c.record.kind());
+                let kind = kind.split('(').next().unwrap_or_default().to_string();
+                let mut rows: Vec<String> = c
+                    .cites
+                    .iter()
+                    .map(|b| match b {
+                        topo::Backing::Decided(k) => statement(k),
+                        other => format!("{other:?}"),
+                    })
+                    .collect();
+                rows.sort();
+                (kind, rows)
+            })
+            .collect();
+        cited.sort();
+        let want = vec![
+            (
+                "EdgeEdge".to_string(),
+                vec![
+                    "VertexFusion OnCarrier Edge@m1 Vertex@m2".to_string(),
+                    "VertexFusion OnCarrier Edge@m2 Vertex@m1".to_string(),
+                ],
+            ),
+            (
+                "VertexEdge".to_string(),
+                vec!["VertexFusion OnCarrier Edge@m1 Vertex@m2".to_string()],
+            ),
+        ];
+        if cited != want {
+            failures.push(format!("{order:?}: the records cite {cited:#?}"));
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
