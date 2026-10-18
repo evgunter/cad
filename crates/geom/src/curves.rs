@@ -1145,10 +1145,11 @@ impl<T: Real> Curve3<T> {
 
 /// The range of a spiric's `f = √(ρ² − offset²)` over one period, as
 /// `(f_min, f_max)` at `ρ = R ∓ r` — `f` is monotone in `ρ` and
-/// `ρ ∈ [R − r, R + r]`. The one spelling the amplitude boxes read
-/// (`topo`'s census reach, `mesh`'s chord sizing); `curves::boxes`
-/// spells the same two numbers in its outward-bracket arithmetic, which
-/// no plain-scalar helper can supply. Off-regime data (`ρ_min² <
+/// `ρ ∈ [R − r, R + r]`. The one plain-scalar spelling (`topo`'s
+/// chord join, `geom-brep`'s pcurve cache); `curves::boxes` spells the
+/// same two numbers in its outward-bracket arithmetic and `topo`'s box
+/// lanes in their span arithmetic (`boolean::boxes::spiric_extent`),
+/// which no plain-scalar helper can supply. Off-regime data (`ρ_min² <
 /// offset²`) yields poison in `f_min`, as every evaluator does.
 pub fn spiric_f_range<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
     let d2 = offset.powi(2);
