@@ -960,6 +960,12 @@ impl ViewerApp {
     /// nothing.
     fn sync_scene(&mut self) {
         self.session.pump();
+        // What the landings' prunes withdrew (DI5: a placement that pins
+        // a free-moved space takes effect when its solve lands), said as
+        // an operation's withdrawals are.
+        let withdrawn = self.session.take_landed_withdrawals();
+        self.notices
+            .extend(withdrawn.iter().flat_map(frame::withdrawal_notices));
         // **The survival step, once per frame, for whichever tool is
         // open** — the obligation every tool's module docs put on its
         // consumer, discharged in the one place that holds them all.

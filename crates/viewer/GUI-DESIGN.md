@@ -78,8 +78,8 @@ sketcher is not implemented.
 ## What v1 is (G3)
 
 The v1 GUI is click-to-select for editing (selection feeds the
-existing edit doors), pan/rotate/zoom, free-moving completely
-unconstrained instances of an assembly relative to each other
+existing edit doors), pan/rotate/zoom, free-moving the loose spaces
+of an assembly (DI5: copies nothing pins to the world) relative to each other
 (fit-probing before a mate exists: a display transform, no solver),
 hiding instances, and defining a mate between previously unmated
 parts. Live dragging of partly constrained geometry is not on the
