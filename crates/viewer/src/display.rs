@@ -12,9 +12,14 @@
 //! never persisted: `save` writes the document, and a reopened session
 //! starts with this state empty. That is not an accident of the code
 //! path; it is G3's boundary, and the round-trip row pins it. DI5
-//! (`crates/editor-core/IDENTITY.md`) reverses it: a free-moved
-//! placement may be recorded persistently, and until that is built
-//! the tree keeps G3's.
+//! (`crates/editor-core/IDENTITY.md`) states the rule over loose spaces:
+//! a free-move moves the picture of a loose space, its release writes
+//! nothing to the document, and the frame is keyed by the space's root
+//! and dropped by [`DisplayState::prune`] once that root stops naming a
+//! loose space. Keeping a position means stating it, as a placement's
+//! mates and typed values. (This module still admits and keys by
+//! instance, under the eligibility rule below;
+//! `work/intent/free-move-admits-a-loose-space.md`.)
 //!
 //! # Eligibility is derived from the document
 //!
@@ -866,8 +871,9 @@ pub struct DisplayState {
     /// a `gesture` of its own — the VALUE drag a slot or parameter
     /// field opens — and the two are independent drags that can be
     /// open at once, so one field name must not stand for both. Why
-    /// that overlap is sound, the identity it rests on and the
-    /// ratified change (DI5) that ends the argument are stated at
+    /// that overlap is sound, the identity it rests on, and why DI5
+    /// keeps it so (a release writes nothing to the document) are
+    /// stated at
     /// [`crate::session::SessionOp::permitted_during_value_gesture`].
     free_move: g1::Slot<RecipeNodeId, Frame>,
     /// Bumped on every visible change — the chrome's cheap "does the

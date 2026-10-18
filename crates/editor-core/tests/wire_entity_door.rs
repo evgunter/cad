@@ -282,20 +282,6 @@ fn a_measure_reference_of_another_kind_refuses_at_the_door() {
 /// find the ones that already comply.** This row keys on
 /// `found: …Found`, so:
 ///
-/// - **`DeclareUnsupportedPair`**, in the very enum walked below and
-///   built in the very file scanned below (`resolve_declarations`),
-///   carries `kinds: (EntityKind, EntityKind)` rather than a `found:`
-///   — and reads them off the authored `StableName`s. That is the
-///   DECIDED answer there, not a residue: the refusal is raised
-///   before either name is resolved, because a pair the vocabulary
-///   has no step for is unsupported however many entities answer to
-///   either name, so no key exists yet to read the word off. The name
-///   table makes the two sources agree (every `NameTable` door that
-///   seats a row refuses one whose name's kind is not its key's); the
-///   one place they could
-///   differ is a broken table, which that door answers off the KEYS
-///   under a `debug_assert!`. What this row still cannot see is the
-///   site at all.
 /// - **A kind refusal on another error type**: `names::interrogate`'s
 ///   `kind_mismatch`, `clearance.rs`'s `SelectionRefusal::NotAFace`,
 ///   `names::role`'s `NotAFaceName`, `mate/member.rs`'s recipe road.

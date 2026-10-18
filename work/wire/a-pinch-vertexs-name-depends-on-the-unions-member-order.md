@@ -4,6 +4,8 @@ kind: issue
 title: A pinch vertex's name depends on the union's member order: it is named by whichever block's corner reached it last
 status: open
 opened: 2026-10-02
+priority: P1
+cost: E
 ---
 
 
@@ -33,3 +35,17 @@ spelling. The face, edge and vertex count is 101 names in every order;
 only this vertex's spelling moves.
 A name that is the same in every order needs one rule for the pinch: the
 junction of its seam lines, or both legs.
+
+## Measured order-free (2026-10-17, FORK-PINCHNAME)
+
+Both designers measured this row against today's main, independently, and
+found it overtaken by PR 4881's vertex-run rule (built in
+`emit_union::Flush::meeting`) and TANG's PR 5178. The row's own fixture
+(`union_pinch_member_order::pinch`) publishes one table, 99 rows, in all six
+member orders; `through` (6/6), `two_pinches` and `corner_holes` agree at the
+pinch, as does a variant where the blocks' corners meet on the plate. What is
+left is the pin: assert one name table over `orders(3)` in
+`tests/union_pinch_member_order.rs` (and the three-block fixture over
+`orders(4)`), then close. Re-priced `E`, design cleared.
+
+Signed (WIRE orchestrator).

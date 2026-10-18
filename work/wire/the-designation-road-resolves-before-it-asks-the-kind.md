@@ -5,7 +5,8 @@ title: a selection resolves a name before asking what it denotes, so a tied name
 status: open
 opened: 2026-09-15
 priority: P1
-cost: D
+cost: E
+rides_with: the-entity-doors-key-comes-from-its-caller
 ---
 
 
@@ -97,3 +98,44 @@ the two rows agree in direction; what a taker owes is deciding whether
 `Found`'s guarantee becomes "a door minted this" rather than "a
 resolved key produced this", and saying so where the token is defined.
 Both doors then state one rule instead of two.
+
+## Triage (2026-10-17, WIRE orchestrator)
+
+Narrowed: the measure half is gone (`MeasureSelectionKind` no longer exists; `wire_measure` goes through `select`, and the seat's kind is enforced at edit). What is left is `resolve_selection` calling `ladder::resolve_in`, whose `Landing::Tied` refuses `Ambiguous`, before `entity_door` asks the kind. The mate-member `resolve_in` call is stage 3 ground and stays as it is. Re-priced `E`; it shares `entity_door::Found` with `the-entity-doors-key-comes-from-its-caller`, so the two go as one unit.
+
+## Decided (2026-10-17, FORK-ENTITYDOOR, designers converged)
+
+One Opus and one Fable designer, briefed with the problem only, reached
+the same final state independently in round 1. The two rows are one
+symptom: `NameTable`'s seating doors (`insert_ref`, `insert_tied_ref`)
+refuse a row whose name's kind differs from its key's, so the kind a
+resolved key answers is always `name.kind` — authored data, readable
+with no resolution. The question belongs at the doors that read what
+the author wrote, not at evaluation.
+
+**The build:** `Select::fault` gains a per-name kind arm (the name at
+`at` is not of the selection's kind), so the edit door, the load door
+(`persist/check.rs` `first_selection_fault`) and `Rebind` hold "a
+selection of kind K holds only names of kind K"; `SlotKind::selection_kind`'s
+`Is(kind)` arm stops ignoring the names' kind, and the measure/pose
+lowering checks against the minted `VarKind` rather than `names.first()`.
+Evaluation resolves into typed keys through `names::interrogate::key_in::<K>`
+(`Selected<K: Denoted>`); `eval::entity_door`, `Found` (and its `lib.rs`
+re-export), `NodeErrorKind::SelectKind`, `class.rs` `found_body`, the
+`Found` census in `tests/wire_entity_door.rs`, and the blend/shell
+`filter_map(EntityKey::edge/face)` silent drops all go. A wrong-kind key
+out of resolution is the table's broken invariant: loud, never an
+author-facing refusal. The Python `select_kind` tag folds into
+`selection_shape`.
+
+Not Ev's: the text it contradicts is agent-written (`Select::fault`'s
+doc, `eval::entity_door`'s module doc, `docs/INTENT-STAGE2-SPEC.md`
+§Select, kept with reasons by the stage 2 E implementer per DR-141);
+no ratified page states the evaluation-time kind check. Stage 3 reach,
+not designed here: a saved mate side naming a non-face would refuse at
+load rather than resolve to `MateFault::SideUnresolved`
+(`tests/edit_one_predicate.rs`), and `mate::member::head_of`'s kind
+check becomes a backstop; announced on INTENT's log. One unit carries
+both rows.
+
+Signed (WIRE orchestrator).
