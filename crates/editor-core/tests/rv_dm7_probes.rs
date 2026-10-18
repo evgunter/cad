@@ -29,13 +29,7 @@ fn delete(
     doc: &editor_core::ProfileDoc,
     id: RecipeNodeId,
 ) -> editor_core::Applied<editor_core::ProfileProgram> {
-    apply(
-        doc,
-        &DocEdit::DeleteNode { id },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("the delete is legal")
+    apply(doc, &DocEdit::DeleteNode { id }, Tol::witness()).expect("the delete is legal")
 }
 
 /// **A carrier that names ITS OWN space reports nothing when it is
@@ -67,7 +61,6 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
             to: crate::fixture::end_rim(&doc, fillet, 2),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the rebind target is live");
     let doc = applied.doc;
@@ -123,7 +116,6 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
     // The delete moves the pair's root and the evaluation reads the
     // parts, so both go through the store.
     let opts = fixture::resolver::with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
 
     let doc = ProfileDoc::empty(DocumentId::derive("rv_operand"), Tol::witness());
     // `ia`'s bundle is empty: the mate places it.
@@ -153,13 +145,8 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
         ),
     );
 
-    let applied = apply(
-        &doc,
-        &DocEdit::DeleteNode { id: placed },
-        Tol::witness(),
-        &reach,
-    )
-    .expect("the delete is legal");
+    let applied = apply(&doc, &DocEdit::DeleteNode { id: placed }, Tol::witness())
+        .expect("the delete is legal");
     assert!(
         !applied
             .maintenance
@@ -205,7 +192,6 @@ fn rv_a_stranded_appearance_key_round_trips_after_the_delete() {
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the name's node is live")
     .doc;
@@ -249,7 +235,6 @@ fn rv_a_reported_appearance_strand_is_reattachable() {
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the name's node is live")
     .doc;
@@ -274,7 +259,6 @@ fn rv_a_reported_appearance_strand_is_reattachable() {
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a live read takes the record")
     .doc;
@@ -286,7 +270,6 @@ fn rv_a_reported_appearance_strand_is_reattachable() {
             kind: editor_core::AttrKind::Color,
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the stranded key clears")
     .doc;

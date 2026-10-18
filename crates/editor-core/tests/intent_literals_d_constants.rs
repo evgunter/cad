@@ -23,7 +23,7 @@ fn n(name: &'static str) -> VarName {
 }
 
 fn step(doc: &ProfileDoc, edit: DocEdit<ProfileProgram>) -> editor_core::Applied<ProfileProgram> {
-    apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach).expect("the edit applies")
+    apply(doc, &edit, Tol::witness()).expect("the edit applies")
 }
 
 fn declare(doc: &ProfileDoc, name: &'static str, def: VarDecl) -> ProfileDoc {

@@ -36,7 +36,7 @@ fn try_step(
     doc: &ProfileDoc,
     edit: DocEdit<ProfileProgram>,
 ) -> Result<editor_core::Applied<ProfileProgram>, EditError> {
-    apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach)
+    apply(doc, &edit, Tol::witness())
 }
 
 fn step(doc: &ProfileDoc, edit: DocEdit<ProfileProgram>) -> editor_core::Applied<ProfileProgram> {

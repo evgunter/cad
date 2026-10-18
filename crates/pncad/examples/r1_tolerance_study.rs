@@ -79,7 +79,6 @@ fn main() {
                 def: pncad::document::VarDecl::Free(value.clone()),
             },
             tol,
-            &pncad::document::RefusingReach,
         )
         .expect("declaration applies")
         .doc;

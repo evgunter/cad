@@ -2787,7 +2787,6 @@ mod tests {
                         fresh: Vec::new(),
                     },
                     tol,
-                    &crate::RefusingReach,
                 )
                 .expect("the node inserts")
                 .doc;
@@ -2813,7 +2812,6 @@ mod tests {
                     label: Some(crate::Label::new("outline").expect("a label")),
                 },
                 tol,
-                &crate::RefusingReach,
             )
             .expect("the label sets")
             .doc;

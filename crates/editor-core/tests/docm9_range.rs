@@ -270,7 +270,6 @@ fn no_new_failure(doc: &editor_core::ProfileDoc, p: &'static str, value: f64) ->
             value: editor_core::FreeValue::Continuous(value),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .expect("a value edit applies")
     .doc;

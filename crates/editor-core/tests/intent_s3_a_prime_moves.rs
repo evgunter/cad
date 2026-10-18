@@ -280,7 +280,6 @@ fn a_self_read_through_a_role_is_one_reader() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a definition reading its pose twice is one reader");
     let doc = applied.doc;
@@ -412,7 +411,6 @@ fn a_lone_zero_is_the_constant_of_its_slots_dimension() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("a lone zero is written")
         .doc;
@@ -624,7 +622,6 @@ fn a_reads_role_is_in_the_content_key() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("re-tools")
     .doc;
@@ -678,7 +675,6 @@ fn a_repoint_replaces_the_read_and_its_role() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
     };
     let moved = repoint(&doc, Operand::output(plane, 0))

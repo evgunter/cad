@@ -421,8 +421,8 @@ pub use editor_core::{
 /// [`MateFault::Unleverable`] carries — by the payload rule this list
 /// states at `VerbKind`.
 ///
-/// A parallelism verdict is levered over the mated parts' own extent
-/// (`MateReach`): a part's reach that is not in hand is carried in the
+/// A parallelism verdict is levered over the mated copies' own
+/// extent: a part's reach that is not in hand is carried in the
 /// reach's own words ([`ReachRefusal`]) beside the instance and the
 /// part it is about — the part does not resolve (the resolver's own
 /// fault, unaltered), a face of its body cannot be bounded (which
@@ -438,12 +438,11 @@ pub use editor_core::{
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
     Anchor, Constraint, ConstraintKind, Coord, FreedomRefusal, MAX_WORLD_READ_DEPTH, Mate,
-    MateFault, MateReach, MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE,
-    PartReach, PinRefusal, PlacedBy, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
-    RefusingReach, SlideAxis, SolvedPoses, Space, Subgroup, SubgroupFamily, Target, Unobservable,
-    Value, WorldPin, WorldRead, WorldReadFault, head_face, head_of, mate_reach, member_of,
-    member_reading, pin_at, pinned_at, place_at, reference_about, relative_freedom_components,
-    solve_document, unobservable,
+    MateFault, MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal,
+    PlacedBy, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SlideAxis, SolvedPoses, Space,
+    Subgroup, SubgroupFamily, Target, Unobservable, Value, WorldPin, WorldRead, WorldReadFault,
+    head_face, head_of, member_of, member_reading, pin_at, pinned_at, place_at, reference_about,
+    relative_freedom_components, solve_document, unobservable,
 };
 
 // The class-admission table (`ClassAdmission`, read through
