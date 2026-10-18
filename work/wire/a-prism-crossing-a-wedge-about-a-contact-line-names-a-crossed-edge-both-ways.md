@@ -2,10 +2,11 @@
 id: a-prism-crossing-a-wedge-about-a-contact-line-names-a-crossed-edge-both-ways
 kind: issue
 title: A prism crossing one wedge about a contact line refuses Naming(Emission): a crossed edge's pieces read both sides of the other operand
-status: open
+status: closed
 opened: 2026-10-08
 priority: P2
 cost: M
+closed: 2026-10-18
 ---
 
 ## What
@@ -63,3 +64,10 @@ start-cap vertex in every order; and on main no vertex of this fixture
 carries a mixed side at all (1806 vertex reads instrumented, none with
 two classes on one side), so `side_in_body`'s rule (one side reads one
 class, else refuse loud) is the boolean's contract, not the defect.
+
+## Resolution (2026-10-18)
+
+Overtaken: fixed on main by PR 4816 (`emit/touch-crossing`, merge
+23de7f9acf), which reads a vertex's identity at every operand key at its
+point (bisected by the `wire-prism` lane, PR 5302). Pinned by PR 5302's
+`union_pinch_member_order::a_prism_crossing_one_wedge_about_the_line_publishes_one_table_in_every_member_order`.

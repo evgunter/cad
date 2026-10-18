@@ -6065,3 +6065,9 @@ already-published fold rows closes both. The pin only asserted presence;
 it now asserts the multiset.
 
 Signed (WIRE orchestrator).
+
+- 2026-10-18 — PR 5302 (prism crossing): already fixed on main by PR
+  4816, as bisected, so the row's reading was refuted. The PR is the
+  order test alone, so its review tier dropped from FULL to the
+  orchestrator's read: no naming change is left to review. Merged on
+  green and the row closed as overtaken. (WIRE orchestrator)
