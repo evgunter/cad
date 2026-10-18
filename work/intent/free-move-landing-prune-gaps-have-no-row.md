@@ -2,8 +2,9 @@
 id: free-move-landing-prune-gaps-have-no-row
 kind: issue
 title: viewer: the scratch-landing prune gate and two gesture_check arms have no row
-status: open
+status: closed
 opened: 2026-10-18
+closed: 2026-10-18
 priority: P3
 cost: E
 ---
@@ -39,3 +40,20 @@ landing keeps a refused frame, and the committed landing drops it. Still open:
 the root half of `gesture_check`, and a gesture whose root is refused while
 its copy is not. A frame's deleted root is pinned by
 `deleting_a_frames_root_drops_it_at_the_edit`.
+
+## Closed (2026-10-18)
+
+- **The gate:** pinned in the PR that closed
+  `an-overtaken-pin-landing-is-never-pruned`.
+- **M7, the gesture side under a scratch landing:**
+  `a_refused_gestures_copy_waits_for_the_committed_landing`. It goes red when
+  `gesture_check` is given `Answers::All`.
+- **The root half of `gesture_check`:** argued away and removed. A root is a
+  placement with no mate, and every copy in its space reads it (D10,
+  `spaces_of`). So deleting the root takes the gesture's copy with it, which
+  the copy check catches; `deleting_a_gestures_root_takes_its_copy_and_kills_it`
+  pins that. A root that gains a mate is `MovedSpace`.
+- **A refused root under a copy that is not refused:** by reading, not by a
+  row. A copy that reads a refused root should refuse too, because its mate
+  reads the root's pose, so the copy check answers `NoSpace` first. If a shape
+  ever shows otherwise, that is a new item.

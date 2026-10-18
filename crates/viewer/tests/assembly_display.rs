@@ -1277,6 +1277,89 @@ fn deleting_a_frames_root_drops_it_at_the_edit() {
     assert!(session.display().free_move_of(bench.post_b).is_none());
 }
 
+/// **A gesture whose copy a refusal takes waits for the committed
+/// landing too**, as a frame does: two seats over-constrain post_b
+/// under a free-move in flight on it, a value drag's scratch landing
+/// keeps the gesture, and the committed landing after the cancel kills
+/// it, saying the post is in no space.
+#[test]
+fn a_refused_gestures_copy_waits_for_the_committed_landing() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fmgesturerefused", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let pattern = drag_slot(&mut session, &bench);
+    asm::unpin(&mut session, bench.post_b);
+    asm::unpin(&mut session, bench.shelf_i);
+    let outcome = session.perform(SessionOp::BeginFreeMove {
+        instance: bench.post_b,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    for _ in 0..2 {
+        let seat = session.perform(asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Rest,
+            asm::middle_seat_values(),
+        ));
+        assert!(seat.refusal.is_none(), "{:?}", seat.refusal);
+    }
+    drag_and_land(&mut session, pattern);
+    assert!(
+        session
+            .take_landed_withdrawals()
+            .iter()
+            .all(|report| report.killed_gesture.is_none()),
+        "the scratch landing kills nothing over a refusal"
+    );
+    assert_eq!(session.display().probing(), Some(bench.post_b));
+
+    assert!(session.perform(SessionOp::CancelGesture).refusal.is_none());
+    session.pump();
+    let killed: Vec<_> = session
+        .take_landed_withdrawals()
+        .into_iter()
+        .filter_map(|report| report.killed_gesture)
+        .collect();
+    let [killed] = &killed[..] else {
+        panic!("the committed landing kills the gesture: {killed:?}")
+    };
+    assert!(
+        matches!(
+            &killed.cause,
+            AdmissionFault::NoSpace { instance } if instance.id() == bench.post_b
+        ),
+        "{}",
+        killed.cause
+    );
+    assert!(session.display().probing().is_none());
+}
+
+/// **Deleting a gesture's root takes the gesture's copy with it**, so
+/// the gesture dies at the edit naming the copy: every copy in a space
+/// reads its root, which is why `gesture_check` asks the copy and not
+/// the root.
+#[test]
+fn deleting_a_gestures_root_takes_its_copy_and_kills_it() {
+    let tol = Tol::witness();
+    let (bench, mut session, root) = gesture_on_a_non_root_copy("fmdeletegestureroot", tol);
+    let outcome = session.perform(SessionOp::DeleteNode { node: root });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        session.doc().node(bench.post_b).is_none(),
+        "the copy mated onto the root goes with it"
+    );
+    let killed = outcome
+        .withdrawn
+        .killed_gesture
+        .as_ref()
+        .expect("the delete kills the gesture");
+    assert!(
+        matches!(&killed.cause, AdmissionFault::NoSuchNode { node } if node.id() == bench.post_b),
+        "{}",
+        killed.cause
+    );
+}
+
 #[test]
 fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
     let tol = Tol::witness();

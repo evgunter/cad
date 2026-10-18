@@ -768,6 +768,15 @@ fn frame_check(
 /// the root alone ([`space_check`]); a gesture opened on another copy
 /// of the space would otherwise go on steering the space after its own
 /// copy was deleted or split off.
+///
+/// The root is not asked whether it is still in the document. A root is
+/// a placement with no mate, and every copy in its space reads it
+/// through a mate or an input (D10, `spaces_of` in
+/// `crates/editor-core/src/eval/mod.rs`), so a
+/// delete that takes the root takes the gesture's copy with it, and an
+/// undo removes the copy before the root it was mated onto. The copy
+/// being gone is asked first. A root that gains a mate is no longer a
+/// root, and the evaluation says so ([`AdmissionFault::MovedSpace`]).
 fn gesture_check(
     doc: &Doc<ProfileProgram>,
     eval: Option<&Evaluation<f64>>,
@@ -780,7 +789,6 @@ fn gesture_check(
             node: doc.spoken(instance),
         });
     }
-    space_check(doc, None, root)?;
     eval.map_or(Ok(()), |eval| in_space(doc, eval, instance, root, answers))
 }
 
