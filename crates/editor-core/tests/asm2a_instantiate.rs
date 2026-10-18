@@ -1716,10 +1716,13 @@ fn a_canceled_door_stops_in_its_replay() {
 struct CancelingStore {
     store: StubStore,
     cancel: CancelToken,
+    resolved: std::sync::atomic::AtomicUsize,
 }
 
 impl PartResolver for CancelingStore {
     fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
+        self.resolved
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         self.cancel.cancel();
         self.store.resolve(doc_ref, tol)
     }
@@ -1751,14 +1754,21 @@ fn a_run_canceled_in_the_census_has_no_loose_copies() {
     );
 
     let cancel = CancelToken::new();
+    let resolver = Arc::new(CancelingStore {
+        store,
+        cancel: cancel.clone(),
+        resolved: std::sync::atomic::AtomicUsize::new(0),
+    });
     let opts = EvalOptions {
-        resolver: Some(Arc::new(CancelingStore {
-            store,
-            cancel: cancel.clone(),
-        })),
+        resolver: Some(resolver.clone()),
         ..EvalOptions::default()
     };
     let canceled = evaluate::<f64>(&doc, None, &cancel, &opts, Tol::witness());
+    assert_eq!(
+        resolver.resolved.load(std::sync::atomic::Ordering::Relaxed),
+        1,
+        "the census stopped before its second part"
+    );
     assert_eq!(
         canceled.outcome,
         editor_core::EvalOutcome::Canceled,
