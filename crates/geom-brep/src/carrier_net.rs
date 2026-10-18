@@ -340,7 +340,7 @@ pub(crate) fn carrier_net<T: CertifiedBounds>(
     if let Curve3::Nurbs(net) = carrier {
         return Ok(CarrierNet {
             knots: net.knots_f64_interim().clone(),
-            weights: net.weight_channel().to_vec(),
+            weights: net.weights_f64_interim().to_vec(),
             coords: net.certified_coords(),
             cuts: breaks.to_vec(),
         });
@@ -674,7 +674,7 @@ mod tests {
             spline.knots_f64_interim(),
             "a spline's knots are its own"
         );
-        assert_eq!(weights, spline.weight_channel(), "and its weights");
+        assert_eq!(weights, spline.weights_f64_interim(), "and its weights");
         let bits = |c: &[Vec<Interval>]| -> Vec<(f64, f64)> {
             c.iter().flatten().map(|i| (i.lo(), i.hi())).collect()
         };

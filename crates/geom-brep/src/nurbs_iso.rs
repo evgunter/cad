@@ -159,7 +159,7 @@ pub fn interior_iso_u<T: SpanLocate>(
     // The separability tests read the weights' value channel, bitwise
     // (structure decisions); the factors and the row's weights are the
     // held weights.
-    let c = s.weight_channel();
+    let c = s.weights_f64_interim();
     let w = s.weights();
     let along_u_constant = (0..nu).all(|i| (0..nv).all(|j| c[i * nv + j] == c[j]));
     let along_v_constant = (0..nu).all(|i| (0..nv).all(|j| c[i * nv + j] == c[i * nv]));

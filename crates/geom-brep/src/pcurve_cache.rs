@@ -2663,7 +2663,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     let coords = twin_net.certified_coords();
     let data = CurveCertData::new(
         twin_net.knots_f64_interim(),
-        twin_net.weight_channel(),
+        twin_net.weights_f64_interim(),
         &coords,
     )
     .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
@@ -2831,13 +2831,13 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     let (pcoords, scoords) = (image.certified_coords(), chart.certified_coords());
     let pimage = (
         image.knots_f64_interim(),
-        image.weight_channel(),
+        image.weights_f64_interim(),
         &pcoords[..],
     );
     let schart = (
         chart.knots_u_f64_interim(),
         chart.knots_v_f64_interim(),
-        chart.weight_channel(),
+        chart.weights_f64_interim(),
         &scoords[..],
     );
     let grid = chart_grid(carrier, image.knots_f64_interim());
@@ -6834,7 +6834,7 @@ fn run_iso_arc_checks<T: Decide>(
         }
     }
     let slack_knots = stretch_u.to_meters(knot_dev);
-    let bw = b.weight_channel();
+    let bw = b.weights_f64_interim();
     if bw.len() != 2 * spans + 1 || bw.first() != Some(&1.0) || bw.last() != Some(&1.0) {
         return Err(bad(
             "an arc rim whose chart column weights are not the arc pattern",
@@ -7291,7 +7291,7 @@ fn seam_envelope<T: Decide>(
     if let Curve3::Line { origin, dir } = carrier {
         let u_start = p0.x + pl.x * t0;
         let (b, slack_u) = traversed_column(payload, u_start, stretch_u, du_drift, band, esc)?;
-        if b.weight_channel().iter().any(|w| *w != 1.0) {
+        if b.weights_f64_interim().iter().any(|w| *w != 1.0) {
             return Err(PcurveCertifyError::IsoUnsupported {
                 what: "a LINE seam on a RATIONAL chart column: the Greville hull \
                            is a linear-precision fact and the rational basis has none \
@@ -7363,7 +7363,7 @@ fn seam_envelope<T: Decide>(
     // this class used to carry was over-broad: what is
     // load-bearing is the shared spline space, not the
     // weights being 1.
-    if c.weight_channel()
+    if c.weights_f64_interim()
         .iter()
         .any(|w| !w.is_finite() || *w <= 0.0)
     {
@@ -7411,12 +7411,12 @@ fn seam_envelope<T: Decide>(
     // constant (a collapsed row wrapped polynomial, whose carrier's
     // constant cancels the same way).
     let row_weights: Vec<f64> = if backward {
-        b.weight_channel().iter().rev().copied().collect()
+        b.weights_f64_interim().iter().rev().copied().collect()
     } else {
-        b.weight_channel().to_vec()
+        b.weights_f64_interim().to_vec()
     };
-    let shared_weights = row_weights == c.weight_channel()
-        || (constant_weights(b.weight_channel()) && constant_weights(c.weight_channel()));
+    let shared_weights = row_weights == c.weights_f64_interim()
+        || (constant_weights(b.weights_f64_interim()) && constant_weights(c.weights_f64_interim()));
     let shared_knots = if backward {
         b.knots_f64_interim()
             .is_reflection_of(c.knots_f64_interim())
@@ -10586,7 +10586,7 @@ mod tests {
             let frozen = NurbsCurve3::new(
                 arc.knots.clone(),
                 control,
-                held.weight_channel()
+                held.weights_f64_interim()
                     .iter()
                     .map(|w| S::from_f64(*w))
                     .collect(),

@@ -2796,8 +2796,8 @@ mod tests {
             "knots must be carried verbatim"
         );
         assert_eq!(
-            lifted.weight_channel(),
-            source.weight_channel(),
+            lifted.weights_f64_interim(),
+            source.weights_f64_interim(),
             "the weights\' value channel must be carried verbatim"
         );
         for t in knot_and_span_params(&c) {
@@ -3147,8 +3147,8 @@ mod tests {
                 "knots must be carried verbatim"
             );
             assert_eq!(
-                lifted.weight_channel(),
-                source.weight_channel(),
+                lifted.weights_f64_interim(),
+                source.weights_f64_interim(),
                 "the weights\' value channel must be carried verbatim"
             );
             for t in super::knot_and_span_params(&c) {

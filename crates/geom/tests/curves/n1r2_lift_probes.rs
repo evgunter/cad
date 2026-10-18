@@ -124,7 +124,7 @@ fn n1r2_curve2_dual_lift_evaluates_to_source() {
                 d.y
             );
         }
-        assert_eq!(cd.weight_channel(), c.weight_channel());
+        assert_eq!(cd.weights_f64_interim(), c.weights_f64_interim());
         assert_eq!(
             cd.knots_f64_interim().knots(),
             c.knots_f64_interim().knots()
@@ -241,7 +241,7 @@ fn n1r2_approx_lift_carries_record_and_evaluates_to_source() {
     assert_eq!(format!("{:?}", l.certificate()), format!("{certificate:?}"));
     let SurfaceDescription::Offset { base, d } = l.description();
     assert_eq!(d.value.to_bits(), 0.5f64.to_bits());
-    assert_eq!(base.weight_channel(), fit.weight_channel());
+    assert_eq!(base.weights_f64_interim(), fit.weights_f64_interim());
     for u in params(fit.knots_u_f64_interim()) {
         for v in params(fit.knots_v_f64_interim()) {
             let p = sd.eval(Dual::constant(u), Dual::constant(v));

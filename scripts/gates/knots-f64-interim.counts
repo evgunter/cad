@@ -1,12 +1,18 @@
 # C6's interim f64 knot vector: callers per crate (scripts/gates/knots-f64-interim.sh).
 # A ratchet: lower a count when a slice moves readers; S5 deletes this file.
-crates/editor-core 4
-crates/geom 197
-crates/geom-brep 198
-crates/geom-core 14
+crates/editor-core 6
+crates/geom 222
+crates/geom-brep 222
+crates/geom-core 16
 crates/mesh 37
 crates/step-export 9
 crates/step-import 45
-crates/sweep 138
-crates/topo 31
+crates/sweep 141
+crates/topo 36
 demos/tour 2
+# Fields holding f64 knots or weights, by crate (src/ outside test modules):
+# the copies an interim read leaves behind. A ratchet too; S5 states where
+# it ends.
+holders:crates/geom 2
+holders:crates/geom-brep 15
+holders:crates/geom-core 27

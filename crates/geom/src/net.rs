@@ -12,7 +12,7 @@
 
 use core::ops::{Mul, Sub};
 
-use geom_core::spline::{Knots, SpanLocate, SplineError};
+use geom_core::spline::{Knots, SpanLocate, SplineError, Weights};
 use geom_core::{CertifiedBounds, Interval, Point2, Point3, Real, Vec2, Vec3};
 
 /// A control point as the rank-blind net helpers see it: coordinates
@@ -197,24 +197,43 @@ pub(crate) fn certified_coords<T: CertifiedBounds, P: ControlPoint<T>>(
 
 /// The weights' value channel: each weight's one `f64`
 /// ([`SpanLocate::point_value`]), what every structure decision on the
-/// weights reads. A poison weight reads as NaN, so the positivity check
+/// weights reads (C6's interim: the knot algebra's plans, the
+/// certificates). A poison weight reads as NaN, so the positivity check
 /// beside this refuses it as it refuses a NaN `f64` weight
 /// ([`SplineError::NonPositiveWeight`]).
 ///
+/// A weight wider than a point is held weights' business ([`Weights`]):
+/// its sign is certified for every member there first, so a weight
+/// some members take non-positive refuses as that
+/// ([`SplineError::WeightSignUndecided`], with its margin), and only a
+/// wide weight that is certified fine reaches the carrier's own refusal.
+///
+/// The order of refusals differs by regime. With every weight a point,
+/// the door's count check runs first and the positivity check after it
+/// (`validate_counts`). With a weight wider than a point, every weight
+/// is certified here first, so a non-positive point weight elsewhere
+/// refuses before a count mismatch would.
+///
 /// # Errors
 ///
-/// [`SplineError::WeightNotAPoint`] for the first weight that is an
-/// enclosure wider than a point.
+/// [`Weights::new`]'s, where some weight is wider than a point; then
+/// [`SplineError::CarrierWeightNotAPoint`] for the first such weight.
 pub(crate) fn weight_channel<T: SpanLocate>(weights: &[T]) -> Result<Vec<f64>, SplineError> {
-    weights
+    let channel: Option<Vec<f64>> = weights
         .iter()
-        .enumerate()
-        .map(|(index, w)| match w.point_value() {
-            Some(v) => Ok(v),
-            None if w.is_poison() => Ok(f64::NAN),
-            None => Err(SplineError::WeightNotAPoint { index }),
+        .map(|w| {
+            w.point_value()
+                .or_else(|| w.is_poison().then_some(f64::NAN))
         })
-        .collect()
+        .collect();
+    if let Some(channel) = channel {
+        return Ok(channel);
+    }
+    let held = Weights::new(weights.to_vec())?;
+    // Certified, so no weight is poison: the wide one is the one that
+    // has no point.
+    let index = held.first_wide().unwrap_or(0);
+    Err(SplineError::CarrierWeightNotAPoint { index })
 }
 
 /// A carrier's knots have their `f64` vector: its evaluation, span
@@ -232,18 +251,8 @@ pub(crate) fn carrier_knots<T: SpanLocate>(knots: &Knots<T>) -> Result<(), Splin
     }
     // Knots hold their vector exactly when every run's value is a point
     // (`Knots::new`), so a run that is not one exists.
-    let index = knots
-        .runs()
-        .position(|(v, _)| v.point_value().is_none())
-        .unwrap_or(0);
+    let index = knots.first_wide_run().unwrap_or(0);
     Err(SplineError::CarrierKnotNotAPoint { index })
-}
-
-/// The weights at another scalar under a LIFT `f`, one that keeps
-/// each weight's point, so the value channel beside them carries over
-/// (the `map_scalar` contract, `crate::scalar_lift`'s module docs).
-pub(crate) fn map_weights<T: Real, U: Real>(weights: &[T], f: impl Fn(T) -> U) -> Vec<U> {
-    weights.iter().map(|w| f(*w)).collect()
 }
 
 /// One knot-removal pass's projected perturbation bound: `orig` and
