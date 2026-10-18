@@ -49,13 +49,13 @@ intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
   mate's `ContactClass`, C6's `Fit` as a class); the
   undeclared-coincidence, undeclared-contact and undeclared-tangency
   refusals, which become `unproven-coincidence` findings, with
-  ASSEMBLY A5's hard error on an unattributed contact; DISCIPLINES
-  DS2's identification grade; the axis declaration channel;
+  ASSEMBLY A5's hard error on an unattributed contact; the axis
+  declaration channel;
   `ParamSource`; NAMES N6's recipe-source stamps (`GeomSource`, with
   `AxisSource`); PARAM-LINT's declared-distinct record; the profiles'
   stored tangent-joint flags; ASSEMBLY A3, A10's sink rule and A12's
   reading edges; and A5's at-rest gate (`assemble` and its refusal), whose
-  census becomes a check, with DISCIPLINES DS6's product-separation
+  census becomes a check, with CHECKS DS6's product-separation
   resident (`Separation`).
 
 The program's exit walk checks that list against the code
@@ -2027,10 +2027,19 @@ framing because that is what they still cost.
 
 The checks that report findings (the `unproven-coincidence` lint, the
 at-rest census's interference and could-not-look findings, and checks
-from outside the tree, DISCIPLINES DS9) are meant to be pluggable. How
-their findings relate to [pure-model]'s function is open: the central
-pipeline should not know which checks are in place, and findings
-should not travel through a side channel.
+from outside the tree, CHECKS DS9) are meant to be pluggable: the
+central pipeline should not know which checks are in place, and
+findings should not travel through a side channel. Today a report is a
+second pure function, `run_checks(document, evaluation, config)`, over
+an evaluation that knows nothing of which checks exist; reports are
+never persisted and enter no content keys (DS9). What keeps this open is
+what the evaluation carries for the checks: each node's value holds the
+coincidences its op decided from values (`NodeValue::coincidences`).
+Those a contact record cites are part of the body's own validity, but
+some (a merge's glue, a split's ON verdict) back no record, and the
+`unproven-coincidence` lint is their only reader. Whether that record is
+part of the model's output, or lint evidence the pipeline should not be
+producing, is the question.
 
 ### The sketch constraint solver: build or bind `[open.sketch-solver]`
 
@@ -2118,7 +2127,7 @@ is the board and `work/README.md` its contract.
 | `docs/DUAL-DESIGN.md` | Ratified (#1146) | The Dual contract DL1–DL6: a Dual is tangent transport and never certifies; ContentBits feeds both channels; the delegation rule; poison-vs-widen in certified lanes |
 | `docs/PATHS-DESIGN.md` | Ratified (#124) | The PartialPath authoring algebra |
 | `docs/LIBRARY-DESIGN.md` | Ratified (#229); program open | Usable-as-a-library L1–L8: façade, Python bindings via the document layer, v2-fronted PATHS, the authoring-ergonomics unit ladder |
-| `docs/DISCIPLINES-DESIGN.md` | WIP, provisionally accepted | Disciplines/checks registry DS1–DS9: identification criterion, severity invariant, the four grades, the recording dial, out-of-tree checks; residents live in `editor_core::checks` |
+| `crates/editor-core/CHECKS.md` | Ratified (DS3, DS6, DS8, DS9; the declared-coincidence disciplines retired 2026-10-18, `docs/doc-ledger/disciplines-design.md`) | Checks, DISCIPLINES-DESIGN DS3, DS6, DS8, DS9: the severity invariant (no knob changes a body), checks and the certified/heuristic split, error only where a finding can be quieted, no speculative registry, out-of-tree checks (first-class, producer provenance in the funnel) |
 | `docs/PCURVE-UNIFY-DESIGN.md` | Ratified (#514); executed | Pcurve unification: the conventional edge variants collapse to ONE (surface, `Pcurve`) form, the exact variants kept as certification lanes; `MappedCurve` demotes to an authority record. P-2 residue stays open |
 | `docs/RECIPE-DOORS-DESIGN.md` | Ratified (D2–D5) | Recipe doors for the surgery verbs: `Node::Chamfer` is `Node::Fillet`'s twin; `Node::Tube` and `Node::HollowTube` (wall REQUIRED on the hollow kind, `Option` nowhere in the recipe vocabulary); `Node::Shell { target, thickness, open }` (D5) with `open` ORDERED — the first designated face carries its chart's rim — resolved through the N5 ladder to the seat's `Verb::Shell` |
 | `docs/MIRROR-DESIGN.md` | Ratified (#909); unbuilt | Patterns & mirror P1–P6: the chart-handedness convention (u ↦ −u), mirror's own door beside rigid transform, the boundary of A6's equivariance audit |
