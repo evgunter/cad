@@ -1845,3 +1845,45 @@ fn two_segments_on_one_line_far_apart_read_apart_at_interval() {
     );
     assert!(matches!(got, Ok(Pose::Apart)), "{got:?}");
 }
+
+/// **The gap is charged with the rounding its coordinates carry.** At
+/// `ε = 10⁻¹²` a span along `x̂` from `(10⁴, 0, 0)` over `(0, 1)` and one
+/// on the same line over `(1 + g, 2)`: a gap `g = 4·10⁻¹¹`, past the
+/// escalation but within the rounding of coordinates ten kilometres out
+/// (about `9·10⁻¹¹` charged), is not read apart, and `g = 2·10⁻¹⁰` is. Two spans on one carrier
+/// through the origin, large by their parameter near 1586 m and
+/// `9.8·10⁻¹²` apart, below the escalation, are not read apart either.
+#[test]
+fn the_gap_is_charged_with_the_rounding_of_far_coordinates() {
+    let band = Band::new(1e-12, 1e-11).unwrap();
+    let x = line([1e4, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let read = |g: f64| {
+        pose(
+            &Span::new(&x, (0.0, 1.0)),
+            &Span::new(&x, (1.0 + g, 2.0)),
+            band,
+        )
+    };
+    assert!(
+        !matches!(read(4e-11), Ok(Pose::Apart | Pose::Parallel)),
+        "4e-11: {:?}",
+        read(4e-11)
+    );
+    assert!(
+        matches!(read(2e-10), Ok(Pose::Apart)),
+        "2e-10: {:?}",
+        read(2e-10)
+    );
+    let far = line([0.0, 0.0, 0.0], [-0.42383, -0.24814, 0.21293]);
+    let t1 = 1_586.431_778_335_844_2;
+    let s = 1_586.431_778_335_854;
+    let got = pose(
+        &Span::new(&far, (t1 - 1.0, t1)),
+        &Span::new(&far, (s, s + 1.0)),
+        band,
+    );
+    assert!(
+        !matches!(got, Ok(Pose::Apart | Pose::Parallel)),
+        "far by the parameter: {got:?}"
+    );
+}

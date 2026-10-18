@@ -31,7 +31,7 @@ whole carrier, not its arc:
   `(π, π + ½)`: the projections overlap, so the gap does not decide,
   and `line_conic`'s in-plane first harmonic is read over the whole
   circle, escalating `curve_pair_pose_extreme` at `−3.0·10⁻⁹` at the
-  circle's top, two metres from the arc.
+  circle's top, about 1.4 to 1.7 m from the arc.
 
 Both measured with a scratch row in `meet_rows` on that branch; its
 review re-measured them with this row, the fix's red-on-main witness

@@ -45,7 +45,10 @@
 //!   reads, and the pair is [`Pose::Apart`]. A piece's gap is at least
 //!   the whole's, so a pair read Apart whole is read Parallel or Apart in
 //!   every split. A gap read zero or in the escalation gap says nothing,
-//!   and the reading goes on.
+//!   and the reading goes on. Both screens' margins are charged with the
+//!   rounding the projections and the offset carry, sized by the
+//!   carriers' origins and the spans' ends as evaluated, so a coordinate
+//!   large by its parameter is charged as one large by its origin.
 //!   Only where neither decides does the tilt route: levered
 //!   by the longer span (`curve_pair_pose_tilt`), definite is a crossing;
 //!   read zero over the overlap `s·(L + 2e)`, or zero over the longer
@@ -208,14 +211,16 @@
 //!
 //! # The band
 //!
-//! Every decision above that falls in the band's gap escalates
-//! ([`MeetFault::Escalated`]), but for two kinds. The router's screens,
-//! the parallel margin (`curve_pair_pose_parallel`) and the projections'
-//! gap (`curve_pair_pose_gap`), are read only for a definite positive:
-//! any other reading, an escalation included, passes the pair on to the
-//! readings after them, which decide it or escalate on their own. A
-//! meter's escalation refuses [`Unsettled::Meter`]. No escalation prunes
-//! a candidate.
+//! A decision the reading rests on escalates in the band's gap
+//! ([`MeetFault::Escalated`]). A decision read as a screen, for the one
+//! verdict that lets the reading stop or take a shorter road, passes any
+//! other reading on, an escalation included, to the readings after it,
+//! which decide the pair or escalate on their own: the router's parallel
+//! margin (`curve_pair_pose_parallel`), its gap (`curve_pair_pose_gap`)
+//! and its tilt over the overlap (`curve_pair_pose_tilt`), the polish's
+//! clearance (`curve_pair_pose_clear`), and the like in the window's
+//! readings and the branch compares. A meter's escalation refuses
+//! [`Unsettled::Meter`]. No escalation prunes a candidate.
 
 mod window;
 
@@ -705,6 +710,13 @@ fn overlap<T: Decide>(a: (T, T), b: (T, T)) -> Overlap<T> {
     }
 }
 
+/// The metres `s`'s two ends lie from the origin, as evaluated.
+fn ends<T: Decide>(s: &Span<'_, T>) -> T {
+    let (t0, t1) = s.params();
+    let from = |t: T| (s.carrier().eval(t) - Point3::origin()).norm();
+    from(t0) + from(t1)
+}
+
 /// The projection of `s`'s ends on the line `(o, u)`, `u` a unit: their
 /// distances along it from `o`.
 fn on_line<T: Decide>((o, u): (Point3<T>, Vec3<T>), s: &Span<'_, T>) -> (T, T) {
@@ -824,7 +836,9 @@ fn line_line<T: Decide>(
     let off = (w - u2 * w.dot(u2)).norm();
     let lever = reach(a).max(reach(b));
     let origin = Point3::origin();
-    let noise = crate::rounding_charge((o1 - origin).norm() + (o2 - origin).norm() + lever + lever);
+    let noise = crate::rounding_charge(
+        (o1 - origin).norm() + (o2 - origin).norm() + ends(a) + ends(b) + lever + lever,
+    );
     let crossing = || {
         let along = (o2 - o1).cross(u2).dot(n) / s.powi(2);
         let point = o1 + u1 * along;
@@ -873,7 +887,8 @@ fn line_conic<T: Decide>(
         (o - origin).norm() + (k.center - origin).norm() + lever + k.speed_hi(),
     );
     let height = (o + u * at.mid - k.center).dot(n);
-    match route(den, den.abs(), height.abs(), at, (lever, noise), band)? {
+    let screened = noise + crate::rounding_charge(ends(a));
+    match route(den, den.abs(), height.abs(), at, (lever, screened), band)? {
         Route::Apart => return Ok(Pose::Apart),
         Route::Parallel => return Ok(Pose::Parallel),
         Route::Crossing => {
