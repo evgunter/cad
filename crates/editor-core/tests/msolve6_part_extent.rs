@@ -623,7 +623,6 @@ fn a4_a_face_whose_reach_cannot_be_bounded_refuses_typed() {
 /// the instantiate nodes read the one table the run entered before
 /// either — one crossing for two instances and one mate, the same
 /// count as with no mate at all.
-
 #[test]
 fn a5_a_mated_part_is_evaluated_exactly_once() {
     let (doc, ids, opts, body) = instances(

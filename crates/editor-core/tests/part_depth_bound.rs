@@ -625,7 +625,6 @@ fn a_part_no_instance_asks_for_is_evaluated_and_its_failure_reaches_nothing() {
             evaluated - 1,
             "at the top the holder's census evaluates the whole unasked subtree"
         );
-
         let ev = run(&top, &opts);
         assert_eq!(
             ev.part_evaluations, evaluated,

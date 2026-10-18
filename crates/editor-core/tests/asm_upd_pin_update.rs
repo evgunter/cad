@@ -706,7 +706,6 @@ fn row5c_a_warm_prior_never_serves_the_old_content_after_an_update() {
         warm_done.part_evaluations, 0,
         "the moved reference names the version the staged prior carried"
     );
-
     let vol_done = volume(&product(&done, &warm_done, Tol::witness()).expect("gathers"));
     assert!((vol_done - 8.0).abs() < 1e-9, "two v2 solids: {vol_done}");
 }

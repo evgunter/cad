@@ -381,7 +381,6 @@ fn row2_one_part_two_instances_one_evaluation() {
 ///
 /// A log that is LARGER at the first instance is the part's own
 /// decisions landing on the instance that came first.
-
 #[test]
 fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_part() {
     let mut store = StubStore::default();

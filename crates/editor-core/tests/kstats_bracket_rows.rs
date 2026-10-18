@@ -190,7 +190,6 @@ fn the_instantiate_log_is_schedule_independent() {
 }
 
 /// **A part inside a part**: two nested part evaluations, shielded. The
-
 /// outer instantiate nodes' logs are their own op's — equal to each
 /// other and to the same document under the parallel schedule — and
 /// larger than a leaf's instantiate log, because the placed body is
