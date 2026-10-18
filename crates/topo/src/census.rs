@@ -3558,8 +3558,9 @@ struct LinesClosest<T: Real> {
 /// gap, and `(|e| + |reach| + gap/s)·u/s` in a reach: `n`'s tilt leaks
 /// the off-plane part of every `e`, the lines' real distance, into it
 /// over `s` once more, so a reach is charged the gap's upper bound.
-/// Counted to first order, the error is about `8.5u·|e|/s + 5.5u·|reach|
-/// + 5.5u·gap/s` in a reach and `(5.5/s + 4)u·|e|` in the gap, under the
+/// Counted to first order, the error is about
+/// `8.5u·|e|/s + 5.5u·|reach| + 5.5u·gap/s` in a reach and
+/// `(5.5/s + 4)u·|e|` in the gap, under the
 /// `16u` of [`geom_brep::rounding_charge`] by about 2×; measured, the
 /// worst error is under a fifth of its charge, at coordinates to `1e4`
 /// and ends to a thousand lengths off the crossing
