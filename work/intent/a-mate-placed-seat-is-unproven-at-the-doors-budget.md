@@ -65,3 +65,11 @@ and the renormalisation at every hop. It is not the fold's structure.
 `mates-declare-no-contact` (stage 4 I) waits on this. Retiring
 `ContactClass` before the door proves a mated seat would turn every
 resting mate into a finding.
+
+## Other sites on the fold's path that build a map in a form the tier reads poorly (H's sweep, 2026-10-18)
+
+These were not measured. They sit on multi-mate bundles; the measured case was one plane mate and its values:
+
+- `mate/coset.rs` `ball_pair`: `chord.orthonormal_basis()` (min/max/select atoms) in the antipode arm.
+- `mate/coset.rs` `candidate_rotation`, `clocking_about`, `ball_on_line`, `ball_pair`: `Mat3::rotation_about`, which renormalises a unit axis, over a `solve_atan2` angle.
+- `mate/coset.rs` `clocking_about`, `ball_on_line`, `ball_pair`: a representative inverted by `Affine3::inverse` (the adjugate over the determinant) where the map is rigid by construction.
