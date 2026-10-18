@@ -3143,6 +3143,7 @@ area `kernel`; prefix `walks/`; tag `(WALKS orchestrator)`; ab_band `6600-6699`.
 | `the-in-solid-walk-reads-no-outside-of-a-body-with-a-ringed-cylinder-wall` | 2026-10-15 | point_in_solid leaves every outside probe of a body with a ringed cylinder wall unread (VolumeUncertified) |
 | `a-mean-width-or-thickness-is-not-a-distance-margin` | 2026-10-16 | Margins metered as a mean width (2A/P) or mean thickness (V/A) are not distances within which a point is right to ε |
 | `a-face-holds-a-point-has-no-public-door` | 2026-10-18 | topo's 'does this face hold this point' dispatch (plane -> contfp, curved -> curved_face_containment) is pub(crate) face_placement, so editor-core's emit_topo and topo's rim_wedge and census each keep a copy with its own error policy |
+| `a-review-lane-runs-another-lanes-binary` | 2026-10-18 | Two review lanes sharing one CARGO_TARGET_DIR run each other's test binaries, and the review dispatch instructions do not forbid it |
 
 ## Blocked
 
