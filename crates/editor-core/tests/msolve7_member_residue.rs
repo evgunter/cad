@@ -20,7 +20,6 @@
 
 use crate::fixture;
 use crate::wire;
-use editor_core::ExtrudeSide;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     CapEnd, ContactClass, ContentPin, Coord, Dimension, Distribution, DocEdit, DocRef, DocumentId,

@@ -34,7 +34,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use editor_core::ExtrudeSide;
 
 use crate::corpus;
 use crate::fixture;
@@ -865,7 +864,7 @@ fn raw_cylinder(r: f64, h: f64) -> Body<f64> {
         &sketch,
         sweep::Extrusion::Distance {
             depth: 2.0 * h,
-            side: ExtrudeSide::Along,
+            side: sweep::ExtrudeSide::Along,
         },
         tol(),
     )

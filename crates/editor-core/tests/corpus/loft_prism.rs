@@ -35,20 +35,17 @@
 //! is asserted against the certified enclosure.
 
 use super::PlacePart;
-use editor_core::{DocEdit, Formula, LoopProgram, Node, ProfileProgram, RecipeNodeId, SlotId};
+use editor_core::{
+    Axis3, DocEdit, Formula, LoftSection, LoopProgram, Node, ProfileProgram, RecipeNodeId, SlotId,
+    StationMove,
+};
 use sweep::test_support::{PRISM_SQUARE, PRISM_TRAPEZOID};
 
-use super::super::fixture::frame;
+use super::super::fixture::len;
 use super::{CorpusDoc, Recorder};
 
-/// One quad section at height `z` from its four corners: the frame
-/// the section is drawn on, then the profile that names it.
-///
-/// The three sections sit at three DIFFERENT heights, so each gets its
-/// own frame — a shared one would be a shared plane, which is exactly
-/// what a loft's sections are not.
-fn section(r: &mut Recorder, z: f64, pts: [(f64, f64); 4]) -> RecipeNodeId {
-    // D-FRAME: let plane = r.insert(frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+/// One quad section from its four corners, drawn on its own plane.
+fn section(r: &mut Recorder, pts: [(f64, f64); 4]) -> RecipeNodeId {
     r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::polygon(pts).unwrap()],
         ids: Vec::new(),
@@ -58,11 +55,22 @@ fn section(r: &mut Recorder, z: f64, pts: [(f64, f64); 4]) -> RecipeNodeId {
 /// The loft-prism corpus document.
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
-    let bottom = section(&mut r, 0.0, PRISM_SQUARE);
-    let middle = section(&mut r, 1.0, PRISM_TRAPEZOID);
-    let top = section(&mut r, 2.0, PRISM_SQUARE);
+    let bottom = section(&mut r, PRISM_SQUARE);
+    let middle = section(&mut r, PRISM_TRAPEZOID);
+    let top = section(&mut r, PRISM_SQUARE);
+    // The three sections stand at three DIFFERENT heights up the
+    // first's own z — a shared plane is exactly what a loft's sections
+    // are not.
+    let up = |profile: RecipeNodeId, z: f64| LoftSection {
+        profile: profile.into(),
+        station: vec![StationMove::Slide {
+            along: Axis3::Z,
+            by: len(z),
+        }],
+    };
     let loft = r.insert(Node::Loft {
-        profiles: vec![bottom.into(), middle.into(), top.into()],
+        first: bottom.into(),
+        then: vec![up(middle, 1.0), up(top, 2.0)],
         v_degree: Formula::count(2),
     });
 

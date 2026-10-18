@@ -24,10 +24,9 @@
 //! `die_fillet` disposition, for the same reason.
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
 
-use crate::fixture::{len, prism_edges, xy_frame};
+use crate::fixture::{len, prism_edges};
 
 use super::{CorpusDoc, Recorder};
 

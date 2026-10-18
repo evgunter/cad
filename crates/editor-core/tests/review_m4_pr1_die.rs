@@ -12,7 +12,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{ang, len, scl};
-use editor_core::ExtrudeSide;
 use editor_core::{
     Dimension, Doc, DocEdit, Formula, FreeVar, Node, NodeChange, RecipeNodeId, VarName, eval,
 };

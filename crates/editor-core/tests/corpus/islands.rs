@@ -42,17 +42,16 @@
 //!   `[0.75,2.75]`, so the cross section is constant through it)
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, Node, RecipeNodeId, SlotId};
 
 use crate::fixture::len;
 
 use super::{CorpusDoc, MassPin, Recorder};
 
-/// A rectangle in the xy plane at height `z`, extruded `h`.
-fn block(r: &mut Recorder, x: (f64, f64), y: (f64, f64), z: f64, h: f64) -> RecipeNodeId {
+/// A rectangle on its own xy plane, extruded `h`.
+fn block(r: &mut Recorder, x: (f64, f64), y: (f64, f64), h: f64) -> RecipeNodeId {
     let p = r.profile(
-        [0.0, 0.0, z],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
@@ -63,28 +62,40 @@ fn block(r: &mut Recorder, x: (f64, f64), y: (f64, f64), z: f64, h: f64) -> Reci
     })
 }
 
-/// Plate ∪ (outer − hole): the depth-1 chain, exact 22.0. Returns the
-/// union node.
-fn plate_with_tube(r: &mut Recorder) -> RecipeNodeId {
-    let plate = block(r, (0.0, 4.0), (0.0, 4.0), 0.0, 1.0);
-    let outer = block(r, (1.0, 3.0), (1.0, 3.0), 0.5, 2.5);
-    let hole = block(r, (1.5, 2.5), (1.5, 2.5), 0.25, 3.0);
+/// `body` placed against `target`, `z` up its own z: the operand a
+/// combine with `target` reads.
+fn on(r: &mut Recorder, target: RecipeNodeId, body: RecipeNodeId, z: f64) -> RecipeNodeId {
+    r.against(target, body, &editor_core::Frame::translation([0.0, 0.0, z]))
+}
+
+/// Plate ∪ (outer − hole): the depth-1 chain, exact 22.0, in the
+/// plate's space. Returns the union node and the plate, the root every
+/// later member is placed against.
+fn plate_with_tube(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
+    let plate = block(r, (0.0, 4.0), (0.0, 4.0), 1.0);
+    let outer = block(r, (1.0, 3.0), (1.0, 3.0), 2.5);
+    let hole = block(r, (1.5, 2.5), (1.5, 2.5), 3.0);
+    // The hole's foot 0.25 up the plate, so 0.25 below the outer's.
+    let hole = on(r, outer, hole, -0.25);
     let tube = r.insert(Node::Subtract {
         from: outer.into(),
         tool: hole.into(),
     });
-    r.insert(Node::Union {
+    let tube = on(r, plate, tube, 0.5);
+    let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![plate.into(), tube.into()]),
-    })
+    });
+    (union, plate)
 }
 
 /// The #105 exactness document: the doubly-nested union chain.
 pub fn document_105() -> CorpusDoc {
     let mut r = Recorder::new();
-    let u1 = plate_with_tube(&mut r);
-    let pillar = block(&mut r, (1.75, 2.25), (1.75, 2.25), 0.75, 2.0);
+    let (u1, plate) = plate_with_tube(&mut r);
+    let pillar = block(&mut r, (1.75, 2.25), (1.75, 2.25), 2.0);
+    let placed = on(&mut r, plate, pillar, 0.75);
     let u2 = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![u1.into(), pillar.into()]),
+        members: editor_core::Bodies::Spelled(vec![u1.into(), placed.into()]),
     });
     r.place_part(u2);
 
@@ -112,10 +123,11 @@ pub fn document_105() -> CorpusDoc {
 /// a slab across the tube's midriff.
 pub fn document_106_depth1() -> CorpusDoc {
     let mut r = Recorder::new();
-    let u1 = plate_with_tube(&mut r);
-    let slab = block(&mut r, (-1.0, 5.0), (-1.0, 5.0), 1.375, 1.0);
+    let (u1, plate) = plate_with_tube(&mut r);
+    let slab = block(&mut r, (-1.0, 5.0), (-1.0, 5.0), 1.0);
+    let placed = on(&mut r, plate, slab, 1.375);
     let cut = r.insert(Node::Intersect {
-        members: editor_core::Bodies::Spelled(vec![u1.into(), slab.into()]),
+        members: editor_core::Bodies::Spelled(vec![u1.into(), placed.into()]),
     });
     r.place_part(cut);
 
@@ -144,14 +156,16 @@ pub fn document_106_depth1() -> CorpusDoc {
 /// refusal pin to a green exactness pin by #113 (module docs).
 pub fn document_106_depth2() -> CorpusDoc {
     let mut r = Recorder::new();
-    let u1 = plate_with_tube(&mut r);
-    let pillar = block(&mut r, (1.75, 2.25), (1.75, 2.25), 0.75, 2.0);
+    let (u1, plate) = plate_with_tube(&mut r);
+    let pillar = block(&mut r, (1.75, 2.25), (1.75, 2.25), 2.0);
+    let placed = on(&mut r, plate, pillar, 0.75);
     let u2 = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![u1.into(), pillar.into()]),
+        members: editor_core::Bodies::Spelled(vec![u1.into(), placed.into()]),
     });
-    let slab = block(&mut r, (-1.0, 5.0), (-1.0, 5.0), 1.375, 1.0);
+    let slab = block(&mut r, (-1.0, 5.0), (-1.0, 5.0), 1.0);
+    let placed = on(&mut r, plate, slab, 1.375);
     let cut = r.insert(Node::Intersect {
-        members: editor_core::Bodies::Spelled(vec![u2.into(), slab.into()]),
+        members: editor_core::Bodies::Spelled(vec![u2.into(), placed.into()]),
     });
     r.place_part(cut);
 

@@ -25,7 +25,6 @@
 
 use crate::fixture;
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 
 use editor_core::{CancelToken, EvalOptions, Node, NodeResult, ProfileDoc, RecipeNodeId, evaluate};
 use geom_core::Tol;

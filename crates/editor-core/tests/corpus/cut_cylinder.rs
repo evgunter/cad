@@ -1,5 +1,5 @@
 //! Corpus document **cut_cylinder** — M5 PR 5's acceptance shape (i):
-//! an extruded disc split by a TILTED datum plane, the first curved
+//! an extruded disc split by a TILTED plane, the first curved
 //! cut in the corpus. The split's section edges carry the exact
 //! `Ellipse` carrier (rung 2 of the C1 ladder), pinned by
 //! `m5_pr5_corpus.rs`; joining the corpus registry gives the document
@@ -10,10 +10,14 @@
 //! pieces sit behind props' curved-quadrature frontier (M5 PR 11) —
 //! validity + the ellipse pins are the oracles.
 
-use editor_core::ExtrudeSide;
-use editor_core::{Datum, DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
+use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+use editor_core::{
+    Dimension, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram, Node, Operand, ProfileProgram,
+    VarName,
+};
+use geom_core::Tol;
 
-use crate::fixture::{len, scl, xy_frame};
+use crate::fixture::{ang, len};
 
 use super::{CorpusDoc, Recorder};
 
@@ -22,9 +26,16 @@ use super::{CorpusDoc, Recorder};
 /// the ruling degeneracies.
 pub const TILT: f64 = 0.3;
 
+/// The document parameter the tool plane's height reads.
+pub const CUT: &str = "cut";
+
 /// The cut-cylinder corpus document.
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static(CUT),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.5)),
+    });
 
     // The disc profile: two half-circle arcs (bulge 1), radius 0.5 —
     // extrudes to a cylinder (two wall faces sharing one cylinder
@@ -34,7 +45,6 @@ pub fn document() -> CorpusDoc {
     // bit-identical — the lowering starts the loop at the same pole
     // with the same two arcs).
     let disc = LoopProgram::circle(0.0, 0.0, 0.5).unwrap();
-    let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![disc],
         ids: Vec::new(),
@@ -44,15 +54,32 @@ pub fn document() -> CorpusDoc {
         distance: len(1.0),
     });
 
-    // The tilted tool plane through mid-height: normal at TILT off the
-    // axis, crossing both wall seams strictly between the caps.
-    let tool = r.insert(Node::Datum(Datum::Plane {
-        origin: [len(0.0), len(0.0), len(0.5)],
-        normal: [scl(TILT.sin()), scl(0.0), scl(TILT.cos())],
-    }));
+    // The tilted tool plane through mid-height: the cylinder's own
+    // frame read off its geometry, slid `cut` up its z and spun TILT
+    // about its y, read through its xy — normal at TILT off the axis,
+    // crossing both wall seams strictly between the caps.
+    let own = editor_core::frame_at(
+        &r.doc,
+        &Operand::from(cylinder),
+        &editor_core::Frame::IDENTITY,
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
+    .expect("the cylinder offers a frame");
+    let pose = |def| Operand::Pose(Box::new(def));
+    let slid = pose(PoseDef::Slide {
+        pose: RoleRead::plain(own.clone()),
+        along: RoleRead::through(own, PoseRole::Z),
+        by: Formula::named(VarName::from_static(CUT), Dimension::Length),
+    });
+    let tilted = pose(PoseDef::Spin {
+        pose: RoleRead::plain(slid.clone()),
+        about: RoleRead::through(slid, PoseRole::Y),
+        by: ang(TILT),
+    });
     let split = r.insert(Node::Split {
         target: cylinder.into(),
-        tool: tool.into(),
+        tool: RoleRead::through(tilted, PoseRole::Xy),
     });
     super::place_halves(&mut r, split);
 
@@ -63,12 +90,10 @@ pub fn document() -> CorpusDoc {
         doc: r.doc,
         result: None, // the head is the Split's two sides, not one body
         pin: None,    // not dyadic; props' curved lane is PR 11
-        bump: DocEdit::SetParam {
-            node: tool,
-            slot: SlotId::Origin(editor_core::Axis3::Z),
-            value: len(0.4375).into(),
-            fresh: Vec::new(),
+        bump: DocEdit::SetVarValue {
+            var: VarName::from_static(CUT).into(),
+            value: editor_core::FreeValue::Continuous(0.4375),
         },
-        bump_root: tool,
+        bump_root: split,
     }
 }

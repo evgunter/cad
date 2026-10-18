@@ -463,7 +463,18 @@ pub fn place_at(
             by: PlacedBy::Pin,
         })
     };
-    let Some((face, origin, normal)) = planar(true).or_else(|| planar(false)) else {
+    // A face no variable reaches, else a plane-less construction's own
+    // axis, else any planar face, else the pin.
+    let planar = match planar(true) {
+        Some(fixed) => Some(fixed),
+        None => {
+            if own_axis(doc, body, &solid, &table, &anchors).is_some() {
+                return axis_in_world(doc, body, pose, opts, tol);
+            }
+            planar(false)
+        }
+    };
+    let Some((face, origin, normal)) = planar else {
         return pinned();
     };
     let at = pose.affine();
@@ -574,9 +585,9 @@ pub fn stand(
         let at = topo::readback::face_pose(&solid, face).ok()?;
         let normal = geom_brep::OutwardNormal::from_chart(at.axis, at.sense).vec();
         // A face no variable reaches is built from constants alone, so
-        // it lies on its body's own `xy` exactly or not at all.
-        let origin = at.origin - geom_core::linalg::Point3::origin();
-        let on_xy = [origin.x, origin.y, origin.z, normal.x, normal.y]
+        // it lies on its body's own `xy` exactly or not at all: normal
+        // ±z, through a point at z = 0.
+        let on_xy = [at.origin.z, normal.x, normal.y]
             .into_iter()
             .all(|c| c == 0.0);
         on_xy.then(|| (name.clone(), normal.z < 0.0))
@@ -629,15 +640,66 @@ fn on_its_axis(
     table: &crate::names::NameTable,
     anchors: &super::anchor::Anchors<'_>,
 ) -> Option<Placed> {
+    let (_, on, to) = own_axis(doc, body, solid, table, anchors)?;
+    let zero = |coord, dim| (coord, Formula::zero(dim));
+    Some(Placed {
+        mate: Mate {
+            on,
+            to: Target::World(to),
+            class: super::ContactClass::Rest,
+        },
+        values: vec![
+            zero(super::Coord::Slide(super::SlideAxis::Z), Dimension::Length),
+            zero(super::Coord::Spin, Dimension::Angle),
+        ],
+        by: PlacedBy::Axis,
+    })
+}
+
+/// **A plane-less construction's own axis** ([`on_its_axis`]): the
+/// construction carried unmoved into the copy, the axis read off it,
+/// and the world's axis that line is in the construction's own
+/// coordinates.
+fn own_axis(
+    doc: &crate::ProfileDoc,
+    body: &Operand,
+    solid: &topo::Body<f64>,
+    table: &crate::names::NameTable,
+    anchors: &super::anchor::Anchors<'_>,
+) -> Option<(RecipeNodeId, Operand, WorldRead<Formula>)> {
     use crate::node::{Node, TubeWindow};
-    let (on, to) = anchors.unmoved().find_map(|at| match doc.node(at)? {
+    anchors.unmoved().find_map(|at| match doc.node(at)? {
         Node::Revolve {
             axis_through,
             axis_heading,
             ..
         } => {
-            let on = Operand::Output { node: at, port: 1 };
-            Some((on, revolve_axis(doc, *axis_through, *axis_heading)))
+            // The revolve's `axis` output where the copy is the revolve's
+            // own body; else the axis of the copy's first circular edge
+            // the revolve minted (a revolved vertex's circle turns about
+            // the revolve's axis), since a mate reads only its copy.
+            let own = match body {
+                Operand::Output { node, .. } | Operand::Node(node) => *node == at,
+                Operand::Var(var) => doc.operation_of(*var) == Some(at),
+                _ => false,
+            };
+            let on = if own {
+                Operand::Output { node: at, port: 1 }
+            } else {
+                let edge = solid.edges().find_map(|(edge, _)| {
+                    let kind = topo::readback::edge_carrier_kind(solid, edge).ok()?;
+                    (kind == geom::CurveKind::Circle).then_some(())?;
+                    let name = table.name_of(&EntityRef {
+                        body: 0,
+                        key: EntityKey::Edge(edge),
+                    })?;
+                    minted_by(name, at).then(|| name.clone())
+                })?;
+                Operand::Pose(Box::new(PoseDef::Axis {
+                    of: Operand::select(body.clone(), vec![edge]),
+                }))
+            };
+            Some((at, on, revolve_axis(doc, *axis_through, *axis_heading)))
         }
         Node::Tube {
             window: TubeWindow::Full,
@@ -661,23 +723,147 @@ fn on_its_axis(
             let on = Operand::Pose(Box::new(PoseDef::Axis {
                 of: Operand::select(body.clone(), vec![face]),
             }));
-            Some((on, WorldRead::through(PoseRole::Z)))
+            Some((at, on, WorldRead::through(PoseRole::Z)))
         }
         _ => None,
-    })?;
-    let zero = |coord, dim| (coord, Formula::zero(dim));
-    Some(Placed {
+    })
+}
+
+/// **The copy read through `body`, a plane-less construction, placed
+/// against `target` at `at`** ([`place_against`]'s second form): an
+/// `Axis` mate from the construction's own axis ([`own_axis`]) to the
+/// axis a frame read off the target ([`frame_at`]) stands on where `at`
+/// puts that axis, and the two values (the slide along it, the spin
+/// about it) that put the copy at `at` in the mate's chart.
+fn axis_against(
+    doc: &crate::ProfileDoc,
+    target: &Operand,
+    body: &Operand,
+    at: &Frame,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Result<Placed, PinRefusal> {
+    axis_placed(doc, body, at, opts, tol, &|line: &Frame| {
+        let frame = frame_at(doc, target, line, opts, tol)?;
+        Ok(Target::Pose(Operand::Pose(Box::new(PoseDef::Slide {
+            pose: RoleRead::through(frame.clone(), PoseRole::Z),
+            along: RoleRead::through(frame, PoseRole::Z),
+            by: Formula::zero(Dimension::Length),
+        }))))
+    })
+}
+
+/// **The copy read through `body`, a plane-less construction, placed
+/// in the world at `at`** ([`place_at`]'s axis form): an `Axis` mate
+/// from its own axis to the world's frame moved onto the line `at` puts
+/// that axis on ([`moved_by`]), read through its `z`.
+fn axis_in_world(
+    doc: &crate::ProfileDoc,
+    body: &Operand,
+    at: &Frame,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Result<Placed, PinRefusal> {
+    axis_placed(doc, body, at, opts, tol, &|line: &Frame| {
+        let line = line.affine::<f64>();
+        Ok(Target::World(WorldRead::Role {
+            pose: Box::new(world_at(line.linear, line.translation)),
+            role: PoseRole::Z,
+        }))
+    })
+}
+
+/// [`axis_against`] and [`axis_in_world`]: `target` is handed the frame,
+/// in the target's coordinates, whose `z` is the line the copy's own
+/// axis stands on at `at`.
+fn axis_placed(
+    doc: &crate::ProfileDoc,
+    body: &Operand,
+    at: &Frame,
+    opts: &EvalOptions,
+    tol: Tol,
+    target: &dyn Fn(&Frame) -> Result<Target<Formula>, PinRefusal>,
+) -> Result<Placed, PinRefusal> {
+    use geom_core::linalg::{Point3, Vec3};
+    let band = Band::linear(tol).map_err(|_| PinRefusal::Band)?;
+    let (node, solid, table) = copy_of(doc, body, opts, tol)?;
+    let anchors = super::anchor::Anchors::of(doc, node);
+    let no_frame = PinRefusal::NoFrame { node };
+    let (construction, on, _) =
+        own_axis(doc, body, &solid, &table, &anchors).ok_or(no_frame.clone())?;
+    // The axis in the copy's own coordinates: a revolve's `axis`
+    // output as the evaluation reads it, a ring's own `z`.
+    let (origin, dir) = match doc.output(construction, 1) {
+        Some(axis) => {
+            let evaluation: Evaluation<f64> =
+                crate::eval::evaluate(doc, None, &CancelToken::new(), opts, tol);
+            match crate::eval::read_pose_in(doc, &evaluation, RoleRead::plain(axis), tol) {
+                Ok(crate::pose::PoseValue::Axis { origin, dir }) => (origin, dir),
+                _ => return Err(no_frame),
+            }
+        }
+        None => (Point3::origin(), UnitVec3::exact_z()),
+    };
+    let seed = if dir.get().x.abs() < 0.5 {
+        Vec3::new(1.0, 0.0, 0.0)
+    } else {
+        Vec3::new(0.0, 1.0, 0.0)
+    };
+    let own = RigidMotion::from_aim_and_reference(origin, dir, seed, "axis_against", band)
+        .map_err(|_| no_frame.clone())?;
+    let own = Frame::from_affine(own.to_affine());
+    let to = target(&at.compose(&own))?;
+    let placed = at.affine::<f64>();
+    let unit = |v| UnitVec3::new(v, topo::query::DATUM_UNIT_NORM, band).map_err(|_| PinRefusal::Band);
+    let on_value = crate::pose::PoseValue::Axis { origin, dir };
+    let to_value = crate::pose::PoseValue::Axis {
+        origin: placed.transform_point(origin),
+        dir: unit(placed.linear * dir.get())?,
+    };
+    let reach = super::part_reach(&solid).map_err(|_| no_frame.clone())?;
+    let arm = super::coset::Arm::of(reach, placed.translation.norm()).map_err(|_| PinRefusal::Band)?;
+    let chart = super::value::Chart::of(
+        &on_value,
+        &to_value,
+        false,
+        &geom_core::Affine3::identity(),
+        arm,
+        band,
+    )
+    .map_err(|_| PinRefusal::Band)?
+    .ok_or(no_frame)?;
+    Ok(Placed {
         mate: Mate {
             on,
-            to: Target::World(to),
+            to,
             class: super::ContactClass::Rest,
         },
         values: vec![
-            zero(super::Coord::Slide(super::SlideAxis::Z), Dimension::Length),
-            zero(super::Coord::Spin, Dimension::Angle),
+            (
+                super::Coord::Slide(super::SlideAxis::Z),
+                written(chart.slide_at(&placed, super::SlideAxis::Z), Dimension::Length),
+            ),
+            (
+                super::Coord::Spin,
+                written(chart.spin_at(&placed), Dimension::Angle),
+            ),
         ],
         by: PlacedBy::Axis,
     })
+}
+
+/// **Whether `name` is an entity `node` minted**, carried through the
+/// operations that keep an entity where it was (a boolean's `From`, a
+/// split's fragment, a merge of coplanar faces).
+fn minted_by(name: &crate::StableName, node: RecipeNodeId) -> bool {
+    use crate::RoleSeg;
+    let whole = &name.path[..crate::names::role::fragment_tail_start(&name.path)];
+    match whole {
+        [RoleSeg::From { of, .. }] | [RoleSeg::SplitFragment { parent: of }] => minted_by(of, node),
+        [RoleSeg::Merged(merged)] => merged.iter().any(|n| minted_by(n, node)),
+        [RoleSeg::Placed { .. } | RoleSeg::Instance { .. } | RoleSeg::InPart { .. }, ..] => false,
+        _ => name.node == node,
+    }
 }
 
 /// **A revolve's axis line as a world read**: the world's x axis spun
@@ -809,7 +995,8 @@ fn moved_pose(
 /// face stands at `at` — or, where `at` tilts the face off the target's
 /// normal, a frame read off the target ([`frame_at`]) through its `xy`
 /// — and the three values that put the copy at `at` in the mate's
-/// chart, computed once.
+/// chart, computed once. A copy with no such face that is a revolve or
+/// a full ring is placed by its own axis instead ([`axis_against`]).
 ///
 /// # Errors
 ///
@@ -845,15 +1032,19 @@ pub fn place_against(
                 }
                 let at = topo::readback::face_pose(&solid, face).ok()?;
                 let n = geom_brep::OutwardNormal::from_chart(at.axis, at.sense).vec();
-                let o = at.origin - Point3::origin();
-                [o.x, o.y, o.z, n.x, n.y]
+                [at.origin.z, n.x, n.y]
                     .into_iter()
                     .all(|c| c == 0.0)
                     .then(|| (name.clone(), n.z.signum(), reach))
             })
             .ok_or(PinRefusal::NoFrame { node })
     };
-    let (copy_face, copy_z, copy_reach) = own_plane(body)?;
+    let (copy_face, copy_z, copy_reach) = match own_plane(body) {
+        Ok(plane) => plane,
+        Err(refusal) => {
+            return axis_against(doc, target, body, at, opts, tol).map_err(|_| refusal);
+        }
+    };
     let (target_face, target_z, _) = own_plane(target)?;
     let plane = |shape: &Operand, face: crate::StableName| {
         Operand::Pose(Box::new(PoseDef::Plane {

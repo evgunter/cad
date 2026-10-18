@@ -19,10 +19,9 @@
 //! `==`, so it would pin `f64` rounding of an irrational rather than
 //! the geometry — the `die_chamfer` disposition.
 
-use super::PlacePart;
-use editor_core::{Datum, DocEdit, Node, SlotId, TubeWindow};
+use editor_core::{DocEdit, Node, SlotId, TubeWindow};
 
-use super::super::fixture::{ang, len, scl};
+use super::super::fixture::{ang, len};
 use super::{CorpusDoc, Recorder};
 
 /// The spine circle's radius, meters (dyadic).
@@ -50,11 +49,6 @@ pub fn inner(wall: f64) -> f64 {
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
 
-    let spine = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(0.0), scl(-1.0)],
-    }));
     let elbow = r.insert(Node::HollowTube {
         major_radius: len(R),
         window: TubeWindow::Arc {
@@ -65,7 +59,14 @@ pub fn document() -> CorpusDoc {
         wall: len(WALL),
     });
 
-    r.place_part(elbow);
+    // A different spine axis in the world from `tube_ring`'s
+    // deliberately: that document's ring turns about +z and this
+    // elbow is placed to turn about +y, so a placement that assumed
+    // one world axis has two documents to disagree with.
+    r.in_world(
+        elbow,
+        &crate::fixture::frame_at([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
+    );
 
     CorpusDoc {
         name: "hollow_tube_elbow",

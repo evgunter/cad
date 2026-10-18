@@ -15,7 +15,6 @@
 use crate::fixture;
 use crate::wire::doctored;
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{

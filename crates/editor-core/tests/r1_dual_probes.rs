@@ -66,7 +66,6 @@ test_utils::gated_to![
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use test_utils::fuzz;
 

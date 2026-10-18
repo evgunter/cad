@@ -31,7 +31,6 @@
 //! and the fillet; the frame and the profile are reused).
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::Formula;
 use editor_core::{
     DocEdit, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
@@ -39,7 +38,7 @@ use editor_core::{
 };
 use sweep::test_support::{ROD_FILLET, ROD_FLAT, ROD_L, rod_chord_at};
 
-use crate::fixture::{ename, len, len2, scl, xy_frame};
+use crate::fixture::{ename, len, len2, scl};
 
 use super::{CorpusDoc, Recorder};
 

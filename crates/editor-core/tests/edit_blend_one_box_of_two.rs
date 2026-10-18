@@ -8,7 +8,6 @@
 
 use core::f64::consts::PI;
 
-use editor_core::ExtrudeSide;
 use editor_core::{
     EntityKey, Entry, EvalOptions, NameRef, NameTable, Node, NodeResult, ProfileDoc, RecipeNodeId,
     RoleSeg, StableName,

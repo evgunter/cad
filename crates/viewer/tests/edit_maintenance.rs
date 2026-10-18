@@ -20,7 +20,6 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use editor_core::ExtrudeSide;
 use pncad::document::Formula;
 use test_utils::refusal::tagged;
 

@@ -10,7 +10,6 @@
 )]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, CapEnd, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc, Qualifier,

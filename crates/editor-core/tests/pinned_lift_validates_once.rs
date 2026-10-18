@@ -18,7 +18,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::documents;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, Datum, EvalOptions, EvalScalar, Node, PoseValue, ValuePayload, evaluate,

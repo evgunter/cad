@@ -23,7 +23,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{self, insert, len, minted, on_frame, step};
-use editor_core::ExtrudeSide;
 use editor_core::analysis::ParamBox;
 use editor_core::clearance::{
     ClearanceRefusal, ClearanceVerdict, Selection, SelectionRefusal, clearance,

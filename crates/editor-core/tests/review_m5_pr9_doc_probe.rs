@@ -16,7 +16,6 @@
 
 use crate::fixture::{frame, len, len2, xy_frame};
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanValue, CancelToken, DocEdit, EvalOptions, LoopProgram, Node, ProfileDoc, ProfileProgram,
     ProgramStep, ProgramTarget, RecipeNodeId, ValuePayload, apply, evaluate, load, save,

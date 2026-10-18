@@ -4,7 +4,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{len, scl};
-use editor_core::ExtrudeSide;
 use editor_core::{
     Datum, Dimension, Doc, DocEdit, EditError, ExprPath, Formula, Node, RecipeNodeId, SlotId,
 };

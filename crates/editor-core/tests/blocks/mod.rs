@@ -2,9 +2,9 @@
 //! refusal and census helpers the boolean suites share.
 #![allow(clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{insert, len, on_frame};
+use crate::fixture::{insert, len, slid};
 use editor_core::{
-    BooleanValue, CancelToken, EvalOptions, Evaluation, ExtrudeSide, Node, NodeErrorKind,
+    BooleanValue, CancelToken, EvalOptions, Evaluation, Node, NodeErrorKind,
     NodeResult, ProfileDoc, RecipeNodeId, ValuePayload, evaluate,
 };
 use geom_core::Tol;
@@ -34,20 +34,22 @@ pub(crate) fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<&NodeErr
     }
 }
 
-/// An axis-aligned block on the xy plane at height `z0`, extruded `dz`.
+/// An axis-aligned block on its own xy plane, extruded `dz`: a
+/// construction, the root of its own space.
 pub(crate) fn block(
     doc: ProfileDoc,
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
-    z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = on_frame(
+    let (doc, p) = insert(
         doc,
-        [0.0, 0.0, z0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
+        Node::Profile(crate::fixture::desc(vec![vec![
+            (x0, y0),
+            (x1, y0),
+            (x1, y1),
+            (x0, y1),
+        ]])),
     );
     insert(
         doc,
@@ -56,6 +58,22 @@ pub(crate) fn block(
             distance: len(dz),
         },
     )
+}
+
+/// **[`block`] at height `z0` in `target`'s space**: the block placed
+/// against `target`'s geometry, slid `z0` up its own `z`
+/// ([`crate::fixture::slid`]). Returns the placement, whose output is
+/// the block's copy, as the operand a combine with `target` reads.
+pub(crate) fn block_on(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    xs: (f64, f64),
+    ys: (f64, f64),
+    z0: f64,
+    dz: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, b) = block(doc, xs, ys, dz);
+    slid(doc, target, b, [0.0, 0.0, z0])
 }
 
 /// The tier-3′ verdict on a boolean node's value, over its own records.

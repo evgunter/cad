@@ -28,7 +28,6 @@
 
 use crate::fixture;
 use crate::wire;
-use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
 use editor_core::{

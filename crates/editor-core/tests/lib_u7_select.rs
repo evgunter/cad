@@ -24,7 +24,6 @@
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use crate::fixture::len;
 use corpus::die_composed;

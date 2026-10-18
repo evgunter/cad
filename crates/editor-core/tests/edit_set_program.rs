@@ -42,7 +42,6 @@ test_utils::gated_to![
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     Attr, CapEnd, Datum, Dimension, DocEdit, EditError, EntityKind, EvalOptions, Formula, FreeVar,

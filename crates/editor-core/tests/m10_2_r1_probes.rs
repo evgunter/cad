@@ -14,7 +14,6 @@
 
 use crate::fixture;
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{

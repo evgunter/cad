@@ -25,14 +25,13 @@
 //! 0.10546875`; five fins ⇒ `0.75 + 0.52734375` = **1.27734375**.
 //!
 //! D2 bump: the fin master's `Distance` (mid-DAG — its cone is the
-//! master extrude, the pattern, and all five Transform+Union pairs;
+//! master extrude, the pattern, and all five placement+Union pairs;
 //! the base half of the DAG is reused).
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::{Dimension, DocEdit, Formula, FreeVar, Node, PatternKind, SlotId, VarName};
 
-use crate::fixture::{ang, len, scl};
+use crate::fixture::{len, scl};
 
 use super::{CorpusDoc, MassPin, Recorder};
 
@@ -40,6 +39,8 @@ use super::{CorpusDoc, MassPin, Recorder};
 const FINS: i64 = 5;
 /// The fin pitch.
 const PITCH: f64 = 0.3125;
+/// The height of a fin's foot over the base's.
+const FOOT: f64 = 0.1875;
 
 /// The heat-sink corpus document.
 pub fn document() -> CorpusDoc {
@@ -59,7 +60,7 @@ pub fn document() -> CorpusDoc {
         distance: len(0.25),
     });
     let fin_p = r.profile(
-        [0.0, 0.0, 0.1875],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![
@@ -91,25 +92,28 @@ pub fn document() -> CorpusDoc {
         fresh: Vec::new(),
     });
 
-    // The explicit one-solid chain. Fin i sits at x = i·PITCH; every
-    // fin overlaps the base by 1/16, so no union has a coincidence.
+    // The explicit one-solid chain. Fin i is placed against the base
+    // at x = i·PITCH, its foot 0.1875 up; every fin overlaps the base
+    // by 1/16, so no union has a coincidence.
     let mut acc = base;
     for i in 0..FINS {
-        let tr = r.insert(Node::transform(
+        let tr = r.against(
+            base,
             fin,
-            editor_core::Step::Rigid {
-                translation: [len(i as f64 * PITCH), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ));
+            &editor_core::Frame::translation([i as f64 * PITCH, 0.0, FOOT]),
+        );
         acc = r.insert(Node::Union {
             members: editor_core::Bodies::Spelled(vec![acc.into(), tr.into()]),
         });
     }
 
     r.place_part(acc);
-    super::place_instances(&mut r, pattern, FINS);
+    super::place_instances_at(
+        &mut r,
+        pattern,
+        FINS,
+        &editor_core::Frame::translation([0.0, 0.0, FOOT]),
+    );
 
     CorpusDoc {
         name: "heat_sink",

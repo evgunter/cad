@@ -11,7 +11,6 @@
 
 use crate::fixture;
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     AssertionRelation, CancelToken, CapEnd, ContactClass, ContentPin, Datum, Dimension, DocEdit,

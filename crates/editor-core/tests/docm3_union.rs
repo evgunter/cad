@@ -5,7 +5,6 @@
 
 use crate::fixture;
 use crate::fixture::member_of;
-use editor_core::ExtrudeSide;
 
 use crate::corpus::body_of;
 use editor_core::{

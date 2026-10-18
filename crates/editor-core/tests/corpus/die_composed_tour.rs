@@ -85,12 +85,12 @@
 use std::path::Path;
 
 use editor_core::{
-    Axis3, DocEdit, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, load, save,
+    Coord, DocEdit, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SlideAxis, load, save,
 };
 use geom_core::Tol;
 
 use super::CorpusDoc;
-use crate::fixture::len;
+use crate::fixture::value_bump;
 
 /// The committed document, relative to the crate manifest. Read at
 /// run time rather than `include_str!`d: the file is the tour's
@@ -104,10 +104,10 @@ const FILE: &str = "tests/corpus/tour/die_composed_tour.pncad";
 /// label is a different document with the same nodes.
 const DOC_LABEL: &str = "die";
 
-/// The bumped Y coordinate of the top face's single pip, meters
-/// (dyadic; a 1/32 slide, which keeps the whole cavity on its face and
-/// clear of the box-edge blend bands).
-pub const PIP_Y_BUMPED: f64 = 0.53125;
+/// How far the top face's single pip slides along its pole axis,
+/// meters (dyadic; a 1/64 slide, which keeps the whole cavity a cap on
+/// its face and clear of the box-edge blend bands).
+pub const PIP_SLIDE: f64 = 0.015625;
 
 /// The tour's edit log, parsed out of the committed save file.
 ///
@@ -170,7 +170,7 @@ fn restamped_at_process_epsilon(text: &str) -> String {
     out
 }
 
-/// The first `Transform` in the log — the +Z face's single pip, which
+/// The first placement in the log — the +Z face's single pip, which
 /// is the first placement the tour emits. Derived from the document
 /// rather than transcribed as an id, so the bump follows the scene
 /// instead of pinning a number that would go quietly wrong.
@@ -181,10 +181,10 @@ fn first_pip(doc: &ProfileDoc) -> RecipeNodeId {
         .find(|id| {
             matches!(
                 doc.node(*id).expect("an ordered node exists"),
-                Node::Transform { .. }
+                Node::Place { .. }
             )
         })
-        .expect("the die places its pips with Transform nodes")
+        .expect("the die places its pips against its faces")
 }
 
 /// The tour's composed-die corpus document.
@@ -214,6 +214,7 @@ pub fn document() -> CorpusDoc {
          this document's `result` names the wrong node"
     );
     let pip = first_pip(&doc);
+    let bump = value_bump(&doc, pip, Coord::Slide(SlideAxis::Z), PIP_SLIDE);
 
     CorpusDoc {
         name: "die_composed_tour",
@@ -226,7 +227,8 @@ pub fn document() -> CorpusDoc {
         // π-valued closed forms are not dyadic — module docs.
         pin: None,
         // D2's incremental probe, `die_composed`'s bump at this
-        // document's scale: slide the top face's pip. The cube chain,
+        // document's scale: slide the top face's pip along its pole
+        // axis. The cube chain,
         // the master ball and the twenty other placements are reused;
         // the union tool, the cut and both surgeries recompute. The
         // slide mints and retires no edge, so both frozen selections
@@ -237,12 +239,7 @@ pub fn document() -> CorpusDoc {
         // that one node rather than every pairwise union standing
         // above it in a chain. The flat operator is what buys that —
         // the same fact the naming gets, counted in recompute.
-        bump: DocEdit::SetParam {
-            node: pip,
-            slot: SlotId::Translation(Axis3::Y),
-            value: len(PIP_Y_BUMPED).into(),
-            fresh: Vec::new(),
-        },
+        bump,
         bump_root: pip,
     }
 }

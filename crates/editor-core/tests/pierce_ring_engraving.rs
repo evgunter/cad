@@ -20,7 +20,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
 use crate::corpus::{body_of, eval};

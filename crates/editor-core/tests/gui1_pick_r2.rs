@@ -39,7 +39,6 @@ test_utils::gated_to![
 ];
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use bvh::test_support::ray;
 use editor_core::{

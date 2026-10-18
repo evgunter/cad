@@ -10,7 +10,6 @@
 
 use crate::corpus::eval;
 use crate::fixture::{Recorder, ang, frame, len, revolve_about};
-use editor_core::ExtrudeSide;
 
 use editor_core::{LoopProgram, Node, NodeResult, ProfileProgram};
 

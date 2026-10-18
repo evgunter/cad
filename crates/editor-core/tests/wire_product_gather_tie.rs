@@ -10,7 +10,6 @@
 )]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     Entry, EvalOptions, Evaluation, Formula, Node, PatternKind, ProfileDoc, RecipeNodeId,

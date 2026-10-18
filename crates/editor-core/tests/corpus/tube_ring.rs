@@ -27,9 +27,9 @@
 //! `Surface::Torus`, not by anything in this file.
 
 use super::PlacePart;
-use editor_core::{Datum, DocEdit, Node, SlotId, TubeWindow};
+use editor_core::{DocEdit, Node, SlotId, TubeWindow};
 
-use super::super::fixture::{len, scl};
+use super::super::fixture::len;
 use super::{CorpusDoc, Recorder};
 
 /// The spine circle's radius, meters (dyadic).
@@ -44,11 +44,6 @@ pub const R_BUMPED: f64 = 2.5;
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
 
-    let spine = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
     let ring = r.insert(Node::Tube {
         major_radius: len(R),
         window: TubeWindow::Full,

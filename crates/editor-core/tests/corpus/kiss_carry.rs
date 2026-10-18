@@ -30,7 +30,6 @@
 //! extrude plus the second union; the kiss chain is reused).
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, Node, SlotId};
 
 use crate::fixture::len;
@@ -52,10 +51,10 @@ pub fn document() -> CorpusDoc {
         profile: a_p.into(),
         distance: len(1.0),
     });
-    // Block b: [1,2]² × [1,2]. Profile (1,1)(2,1)(2,2)(1,2) → vertex 0
+    // Block b: [1,2]² × [1,2], placed against a 1 up. Profile (1,1)(2,1)(2,2)(1,2) → vertex 0
     // is (1,1), the kiss corner on the BOTTOM cap.
     let b_p = r.profile(
-        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(1.0, 1.0), (2.0, 1.0), (2.0, 2.0), (1.0, 2.0)]],
@@ -64,15 +63,17 @@ pub fn document() -> CorpusDoc {
         profile: b_p.into(),
         distance: len(1.0),
     });
+    let b_on_a = r.against(a, b, &editor_core::Frame::translation([0.0, 0.0, 1.0]));
     // The kiss union: the v-v kiss at (1,1,1) is DISCOVERED by the op
     // and recorded in the result's contacts.
     let u1 = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+        members: editor_core::Bodies::Spelled(vec![a.into(), b_on_a.into()]),
     });
 
-    // The mover: [1.5,2.5]² × [1.5,2.5], a transversal crossing of b.
+    // The mover: [1.5,2.5]² × [1.5,2.5], placed against a 1.5 up, a
+    // transversal crossing of b.
     let c_p = r.profile(
-        [0.0, 0.0, 1.5],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(1.5, 1.5), (2.5, 1.5), (2.5, 2.5), (1.5, 2.5)]],
@@ -82,8 +83,9 @@ pub fn document() -> CorpusDoc {
         distance: len(1.0),
     });
 
+    let c_on_a = r.against(a, c, &editor_core::Frame::translation([0.0, 0.0, 1.5]));
     let u2 = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![u1.into(), c.into()]),
+        members: editor_core::Bodies::Spelled(vec![u1.into(), c_on_a.into()]),
     });
 
     r.place_part(u2);

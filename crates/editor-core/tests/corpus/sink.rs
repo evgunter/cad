@@ -6,10 +6,10 @@
 //! fixture, which now consumes it from here so the persistence rows
 //! and the corpus rows can never drift apart.
 //!
-//! Node kinds: Datum (Point/Axis/Plane), Profile (plain, arc-bearing
-//! by fillet construction, hand-declared tangent), Extrude, Revolve,
-//! Split, Boolean (Union), Transform, Pattern (Linear and
-//! Circular).
+//! Node kinds: Profile (plain, arc-bearing by fillet construction,
+//! hand-declared tangent), Extrude, Revolve, Split, Boolean (Union),
+//! Place (a copy against a body, and in the world), Pattern (Linear
+//! and Circular).
 //!
 //! Edit kinds — the `EDIT_KINDS` names, which is every arm the corpus
 //! is required to cover and NOT every arm `DocEdit` has (that list's
@@ -32,17 +32,17 @@
 //! one — the golden fixture in `m4_pr6_golden.rs` is where a pinned ε
 //! belongs, deliberately.
 
-use super::PlacePart;
-use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    Attr, AttrKind, Axis3, BranchCertification, Datum, Dimension, Distribution, DocEdit,
-    EntityKind, ExprPath, Formula, FreeValue, FreeVar, MetaValue, Node, PatternKind, Rgba8,
-    RoleSeg, SlotId, StableName, UnitSym, VarName, WitnessDatum,
+    Attr, AttrKind, BranchCertification, Coord, Dimension, Distribution, DocEdit, EntityKind,
+    ExprPath, Formula, Frame, FreeValue, FreeVar, MetaValue, Node, PatternKind, Rgba8, RoleSeg,
+    SlideAxis, SlotId, StableName, UnitSym, VarName, WitnessDatum,
 };
+use geom_core::Tol;
+use geom_core::predicate::Band;
 
-use crate::fixture::{ang, len, revolve_about, scl};
+use crate::fixture::{ang, axis_on, frame_at, len, plane_on, revolve_about, scl, value_slot};
 
 use super::{CorpusDoc, Recorder};
 
@@ -97,19 +97,10 @@ pub fn document() -> CorpusDoc {
         fresh: Vec::new(),
     });
 
-    // Datums: an inert point (deleted below — the DeleteNode arm),
-    // and an axis for the circular pattern. The REVOLVE's axis is no
-    // longer this one: a pattern turns a body about a world line and a
-    // revolve turns a sketch about a line in its own plane, and those
-    // are two node kinds now. The revolve mints its own, below, in the
-    // frame its profile is drawn on.
-    let inert = r.insert(Node::Datum(Datum::Point {
-        position: [len(0.5), len(-0.25), len(0.0)],
-    }));
-    let axis = r.insert(Node::Datum(Datum::Axis {
-        origin: [len(-2.0), len(0.0), len(0.0)],
-        direction: [scl(0.0), scl(0.0), scl(1.0)],
-    }));
+    // An inert profile, deleted below (the DeleteNode arm).
+    let inert = r.insert(Node::Profile(crate::fixture::desc(vec![
+        crate::fixture::square(0.5, -0.25, 0.125),
+    ])));
 
     // A profile extruded by h · sin(π/2) — param + trig coverage, and
     // the SetExpression target (the `sin` subtree is child 1).
@@ -130,11 +121,12 @@ pub fn document() -> CorpusDoc {
         distance: dist,
     });
 
-    // A flush neighbour and its union (F5). The offset is HALF the
-    // width, so the blocks OVERLAP along x while their y-walls and
-    // both caps stay flush — the sliding-overlap shape.
+    // A flush neighbour, placed against the first block, and their
+    // union (F5). The offset is HALF the width, so the blocks OVERLAP
+    // along x while their y-walls and both caps stay flush — the
+    // sliding-overlap shape.
     let profile_b = r.profile(
-        [0.5, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
@@ -143,30 +135,30 @@ pub fn document() -> CorpusDoc {
         profile: profile_b.into(),
         distance: len(1.25),
     });
+    let placed_b = r.against(block_a, block_b, &Frame::translation([0.5, 0.0, 0.0]));
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![block_a.into(), block_b.into()]),
+        members: editor_core::Bodies::Spelled(vec![block_a.into(), placed_b.into()]),
     });
 
-    // Split the union with a plane tool.
-    let tool = r.insert(Node::Datum(Datum::Plane {
-        origin: [len(0.0), len(0.0), len(0.625)],
-        normal: [scl(0.0), scl(0.0), scl(1.0)],
-    }));
+    // Split the union with a plane read off its own geometry.
+    let tool = plane_on(&r.doc, union, [0.0, 0.0, 0.625], [0.0, 0.0, 1.0]);
     let split = r.insert(Node::Split {
         target: union.into(),
-        tool: tool.into(),
+        tool,
     });
 
-    // A transformed copy, patterned linearly; a lone block patterned
-    // circularly about the shared axis.
-    let moved = r.insert(Node::transform(
-        union,
-        editor_core::Step::Rigid {
-            translation: [len(0.0), len(4.0), len(0.0)],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(std::f64::consts::FRAC_PI_3),
-        },
-    ));
+    // A moved copy of the union in its own space, patterned linearly;
+    // a lone block patterned circularly about an axis read off its own
+    // geometry.
+    let band = Band::linear(Tol::witness()).expect("a band");
+    let turned = Frame::rotate_then_translate(
+        [0.0, 0.0, 1.0],
+        std::f64::consts::FRAC_PI_3,
+        [0.0, 4.0, 0.0],
+        band,
+    )
+    .expect("a turn about z");
+    let moved = r.against(union, union, &turned);
     let linear = r.insert(Node::Pattern {
         input: moved.into(),
         count: Formula::count(2),
@@ -179,23 +171,23 @@ pub fn document() -> CorpusDoc {
         profile: profile.into(),
         distance: len(0.5),
     });
+    let axis = axis_on(&r.doc, lone, [-2.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
     let circular = r.insert(Node::Pattern {
         input: lone.into(),
         count: Formula::count(2),
         kind: PatternKind::Circular {
-            axis: axis.into(),
+            axis,
             step: ang(std::f64::consts::PI),
         },
     });
 
-    // A revolve about an axis in its own sketch. The frame sits at
-    // (-2, 0, 0) with v = world +Z, so the line the pattern turns about
-    // is this frame's +y through (0, 0) — the same line in space, said
-    // in the coordinates the revolve reads.
-    let (_, rev_profile) = r.profile_keeping(
-        [-2.0, 0.0, 0.0],
+    // A revolve about an axis in its own sketch, its own +y, placed in
+    // the world at (-2, 0, 0) with its own y along the world's +z: the
+    // line the pattern turns about.
+    let rev_profile = r.profile(
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
+        [0.0, 1.0, 0.0],
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     );
     let revolve = r.insert(revolve_about(
@@ -230,12 +222,8 @@ pub fn document() -> CorpusDoc {
         value: len(0.375).into(),
         fresh: Vec::new(),
     });
-    // The extrude's structural side: the same block, below its plane.
-    r.push(DocEdit::SetExtrudeSide {
-        node: lone,
-        side: ExtrudeSide::Against,
-    });
-    // The inert datum has no dependents: delete it (ids never reused).
+    // The inert profile has no dependents: delete it (ids never
+    // reused).
     r.push(DocEdit::DeleteNode { id: inert });
     // Witnesses: one explicit, one certified bulk adoption.
     r.push(DocEdit::ReWitness {
@@ -338,8 +326,12 @@ pub fn document() -> CorpusDoc {
     super::place_instances(&mut r, circular, 2);
     super::place_halves(&mut r, split);
     super::place_instances(&mut r, linear, 3);
-    r.place_part(revolve);
+    r.in_world(
+        revolve,
+        &frame_at([-2.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+    );
 
+    let bump = value_slot(&r.doc, moved, Coord::Slide(SlideAxis::Y));
     CorpusDoc {
         name: "kitchen_sink",
         about: "every v1 node kind and every DocEdit kind in one document",
@@ -349,7 +341,7 @@ pub fn document() -> CorpusDoc {
         pin: None,
         bump: DocEdit::SetParam {
             node: moved,
-            slot: SlotId::Translation(Axis3::Y),
+            slot: bump,
             value: len(5.0).into(),
             fresh: Vec::new(),
         },

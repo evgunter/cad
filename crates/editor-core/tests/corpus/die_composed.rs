@@ -47,15 +47,14 @@
 //! its derived closed form at a stated relative tolerance.
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::Formula;
 use editor_core::{
-    Axis3, CapEnd, DocEdit, EntityKind, LoopProgram, MeridianEnd, NamePat, NameRef, Node,
+    CapEnd, Coord, EntityKind, LoopProgram, MeridianEnd, NamePat, NameRef, Node,
     ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SegPat,
-    SegTag, Selector, SlotId, StableName,
+    SegTag, Selector, SlideAxis, StableName,
 };
 
-use crate::fixture::{ang, frame, len, len2, prism_edges, revolve_about, scl, xy_frame};
+use crate::fixture::{ang, frame_at, len, len2, prism_edges, revolve_about, scl, value_bump};
 
 use super::{CorpusDoc, Recorder};
 
@@ -198,9 +197,9 @@ pub fn selector() -> Selector {
 /// checks the exclusion reads the same list the docs above describe.
 /// The cube's face cuts each, so the target publishes each as its one
 /// piece, named by its ends (N2): read off `ev`'s table at `pipped`.
-/// `ball` is the revolve whose names the pip's Transform carries
-/// through unchanged; the carry is keyed by the subtract's TOOL read
-/// (the pip's output), not by the ball's own.
+/// `ball` is the revolve whose names the pip's placement carries,
+/// each under the placement (`Placed`); the carry is keyed by the
+/// subtract's TOOL read (the pip's output), not by the ball's own.
 pub fn excluded_meridians(
     doc: &editor_core::ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
@@ -211,18 +210,28 @@ pub fn excluded_meridians(
         Some(Node::Subtract { tool, .. }) => tool.read,
         other => panic!("{pipped} is the die's subtract, got {other:?}"),
     };
+    let pip = doc
+        .operation_of(tool)
+        .unwrap_or_else(|| panic!("{pipped}'s tool reads the pip's placement"));
     [MeridianEnd::Seam, MeridianEnd::Pi]
         .into_iter()
         .map(|end| {
+            let meridian = StableName {
+                kind: EntityKind::Edge,
+                node: ball,
+                path: vec![RoleSeg::Meridian(
+                    end,
+                    crate::fixture::piece(doc, ball, 0, 0).into(),
+                )],
+            };
             let head = RoleSeg::From {
                 read: tool,
                 of: NameRef::new(StableName {
                     kind: EntityKind::Edge,
-                    node: ball,
-                    path: vec![RoleSeg::Meridian(
-                        end,
-                        crate::fixture::piece(doc, ball, 0, 0).into(),
-                    )],
+                    node: pip,
+                    path: vec![RoleSeg::Placed {
+                        of: NameRef::new(meridian),
+                    }],
                 }),
             };
             let pieces: Vec<StableName> = crate::fixture::table(ev, pipped)
@@ -259,10 +268,7 @@ pub fn document() -> CorpusDoc {
     // ---- the master ball, poled along the +Z face normal ----
     // die_pips' half-disc: the bulge-1 semicircle closed on-axis.
     let half_disc = half_disc_program();
-    // D-FRAME: let ball_plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
-    // The axis, written in the meridian frame it turns: that frame's
-    // v is world +Z, so the pole axis is its own +y through (0, 0).
-    // It is minted AFTER the frame because it names it.
+    // The pole axis is the meridian's own +y through (0, 0).
     let ball_p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![half_disc],
         ids: Vec::new(),
@@ -275,14 +281,13 @@ pub fn document() -> CorpusDoc {
     ));
 
     // ---- the pip, then the SURGERY on the pipped cube ----
-    let pip = r.insert(Node::transform(
+    // Placed against the cube on its own pole axis, the meridian's +y
+    // along the cube's +Z.
+    let pip = r.against(
+        cube,
         editor_core::Operand::output(ball, 0),
-        editor_core::Step::Rigid {
-            translation: [len(h), len(h), len(PIP_C)],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
+        &frame_at([h, h, PIP_C], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+    );
     let pipped = r.insert(Node::Subtract {
         from: cube.into(),
         tool: pip.into(),
@@ -308,6 +313,7 @@ pub fn document() -> CorpusDoc {
 
     r.place_part(composed);
 
+    let bump = value_bump(&r.doc, pip, Coord::Slide(SlideAxis::Z), 0.015625);
     CorpusDoc {
         name: "die_composed",
         about: "M6 unit 1: the pipped cube filleted in place — box blends, octants, and the \
@@ -317,7 +323,8 @@ pub fn document() -> CorpusDoc {
         result: Some(composed),
         // π-valued closed forms are not dyadic — module docs.
         pin: None,
-        // D2's incremental probe: slide the pip (die_pips' bump). The
+        // D2's incremental probe: slide the pip along its pole axis
+        // (die_pips' bump). The
         // cube chain and the master ball are reused; the placement,
         // the cut and the whole surgery recompute. The bump mints no
         // edge and retires none, so the FROZEN selection still
@@ -325,12 +332,7 @@ pub fn document() -> CorpusDoc {
         // function of the target's names and those do not move. That
         // is the covariance claim, and `m6_composed_node.rs` executes
         // it.
-        bump: DocEdit::SetParam {
-            node: pip,
-            slot: SlotId::Translation(Axis3::Y),
-            value: len(0.53125).into(),
-            fresh: Vec::new(),
-        },
+        bump,
         bump_root: pip,
     }
 }

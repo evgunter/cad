@@ -8,7 +8,6 @@
 use crate::fixture;
 use crate::wire::doctored;
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     Axis3, CancelToken, Dimension, DocEdit, EditError, EvalOptions, Formula, Frame, FrameSite,

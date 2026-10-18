@@ -12,7 +12,6 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use editor_core::ExtrudeSide;
 
 use pncad::document::{Dimension, Distribution, DocEdit, EditError, FreeVar, SlotId, VarName};
 use pncad::geom_core::Tol;

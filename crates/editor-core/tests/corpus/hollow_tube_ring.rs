@@ -34,9 +34,9 @@
 //! The `die_chamfer` disposition, and every sibling's in this family.
 
 use super::PlacePart;
-use editor_core::{Datum, DocEdit, Node, SlotId, TubeWindow};
+use editor_core::{DocEdit, Node, SlotId, TubeWindow};
 
-use super::super::fixture::{len, scl};
+use super::super::fixture::len;
 use super::{CorpusDoc, Recorder};
 
 /// The spine circle's radius, meters (dyadic).
@@ -62,11 +62,6 @@ pub fn inner(wall: f64) -> f64 {
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
 
-    let spine = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
     let ring = r.insert(Node::HollowTube {
         major_radius: len(R),
         window: TubeWindow::Full,

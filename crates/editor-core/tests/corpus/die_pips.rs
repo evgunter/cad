@@ -75,14 +75,13 @@
 //! Interval, and through BOTH sweep strategies.
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::Formula;
 use editor_core::{
-    Axis3, DocEdit, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    SlotId,
+    Coord, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    SlideAxis,
 };
 
-use crate::fixture::{ang, frame, len, len2, revolve_about, scl, xy_frame};
+use crate::fixture::{ang, frame_at, len, len2, revolve_about, scl, value_bump};
 
 use super::{CorpusDoc, Recorder};
 
@@ -123,12 +122,7 @@ pub fn document() -> CorpusDoc {
     // to pole, closed by the on-axis chord. Both vertices are ON the
     // axis; the revolve names them from the sweep's pole export.
     let half_disc = half_disc_program();
-    // u = +X, v = +Z: the sketch's revolve axis lands on the world
-    // +Z axis, which is the face normal.
-    // D-FRAME: let ball_plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
-    // The axis, written in the meridian frame it turns: that frame's
-    // v is world +Z, so the pole axis is its own +y through (0, 0).
-    // It is minted AFTER the frame because it names it.
+    // The pole axis is the meridian's own +y through (0, 0).
     let ball_p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![half_disc],
         ids: Vec::new(),
@@ -141,16 +135,14 @@ pub fn document() -> CorpusDoc {
     ));
 
     // ---- the pip: the face-1 ball, at the +Z face centre ----
-    // Translation-only: the chart is already poled (deviation (a)), so
-    // the rotation is the exact identity.
-    let pip = r.insert(Node::transform(
+    // Placed against the cube on its own pole axis, the meridian's +y
+    // along the cube's +Z (deviation (a): the chart is polar to the
+    // plane that cuts it).
+    let pip = r.against(
+        cube,
         editor_core::Operand::output(ball, 0),
-        editor_core::Step::Rigid {
-            translation: [len(h), len(h), len(PIP_C)],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
+        &frame_at([h, h, PIP_C], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+    );
     let pipped = r.insert(Node::Subtract {
         from: cube.into(),
         tool: pip.into(),
@@ -158,6 +150,7 @@ pub fn document() -> CorpusDoc {
 
     r.place_part(pipped);
 
+    let bump = value_bump(&r.doc, pip, Coord::Slide(SlideAxis::Z), 0.015625);
     CorpusDoc {
         name: "die_pips",
         about: "M5 shape (v) stage 2: a spherical pip cut into a cube face (the corpus's first sphere)",
@@ -166,16 +159,11 @@ pub fn document() -> CorpusDoc {
         result: Some(pipped),
         // π-valued spherical caps are not dyadic — see the module docs.
         pin: None,
-        // D2's incremental probe: slide the pip across its face. The
+        // D2's incremental probe: slide the pip along its pole axis. The
         // cube chain and the master ball are reused; the placement and
         // the cut recompute. The pip stays a cap-cutting ball — same
-        // face, clear of the rim.
-        bump: DocEdit::SetParam {
-            node: pip,
-            slot: SlotId::Translation(Axis3::Y),
-            value: len(0.53125).into(),
-            fresh: Vec::new(),
-        },
+        // face, its cap a little deeper or shallower.
+        bump,
         bump_root: pip,
     }
 }

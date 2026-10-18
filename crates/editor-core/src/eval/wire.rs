@@ -513,19 +513,36 @@ fn copy_reach<T: crate::mate::SolveScalar>(
 }
 
 /// [`copy_reach`] of a value's payload: its body's, or the farthest of
-/// its copies'. A value that is no body reaches nowhere.
+/// its bodies' (copies, instances, a split's halves). A value that is no
+/// body, or an empty boolean, reaches nowhere.
 fn payload_reach<T: crate::mate::SolveScalar>(
     payload: &ValuePayload<T>,
     at: RecipeNodeId,
 ) -> Result<f64, crate::mate::LeverRefusal> {
-    match payload {
-        ValuePayload::Body(body) => body_reach(body, at),
-        ValuePayload::Copies(copies) => copies
-            .bodies
-            .iter()
+    let farthest = |bodies: &mut dyn Iterator<Item = &topo::Body<T>>| {
+        bodies
             .map(|body| body_reach(body, at))
-            .try_fold(0.0_f64, |held, r| r.map(|r| held.max(r))),
-        _ => Ok(0.0),
+            .try_fold(0.0_f64, |held, r| r.map(|r| held.max(r)))
+    };
+    match payload {
+        ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
+            body_reach(body, at)
+        }
+        ValuePayload::Copies(copies) => farthest(&mut copies.bodies.iter().map(|b| &**b)),
+        ValuePayload::Instances(bodies) => farthest(&mut bodies.iter().map(|b| &**b)),
+        ValuePayload::Split { above, below } => farthest(
+            &mut [above, below]
+                .into_iter()
+                .filter_map(|side| match side {
+                    SplitSide::Body(b) => Some(&**b),
+                    SplitSide::Empty => None,
+                }),
+        ),
+        ValuePayload::Boolean(BooleanValue::Empty)
+        | ValuePayload::Profile(_)
+        | ValuePayload::Measure { .. }
+        | ValuePayload::MeasureUnavailable { .. }
+        | ValuePayload::Assertion(_) => Ok(0.0),
     }
 }
 

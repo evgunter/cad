@@ -16,7 +16,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::expr::DimensionError;
 use editor_core::{Dimension, Formula, Node, PersistError, ProfileDoc, SlotId, load, save};

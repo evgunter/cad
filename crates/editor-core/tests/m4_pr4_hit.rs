@@ -7,7 +7,6 @@
 
 use crate::display_contract::assert_f6_every_variant;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use editor_core::NodeStanding;

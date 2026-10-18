@@ -28,13 +28,12 @@
 //!   design — is not.
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::{
     Dimension, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileProgram, ProgramStep,
     ProgramTarget, RecipeNodeId, SlotId, VarName,
 };
 
-use crate::fixture::{frame, len, xy_frame};
+use crate::fixture::len;
 
 use super::{CorpusDoc, Recorder};
 
@@ -81,9 +80,8 @@ pub fn outline() -> LoopProgram<Formula> {
     ])
 }
 
-/// The parametric plate profile on `plane`: outline first, then the
-/// two holes.
-pub fn plate_profile(plane: RecipeNodeId) -> ProfileProgram<Formula> {
+/// The parametric plate profile: outline first, then the two holes.
+pub fn plate_profile() -> ProfileProgram<Formula> {
     ProfileProgram {
         loops: vec![
             outline(),
@@ -101,19 +99,17 @@ pub fn document() -> CorpusDoc {
         def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, HOLE_R_VALUE)),
     });
 
-    let plate_plane = r.insert(xy_frame());
-    let plate_p = r.insert(Node::Profile(plate_profile(plate_plane)));
+    let plate_p = r.insert(Node::Profile(plate_profile()));
     let plate = r.insert(Node::Extrude {
         profile: plate_p.into(),
         distance: len(PLATE_DEPTH),
     });
 
     // A plain tab on its own branch: the incremental probe bumps this
-    // side, so the parametric side is what gets REUSED. Its sketch
-    // plane sits strictly INSIDE the plate's slab and its footprint
-    // crosses the plate's +x/+y walls transversally, so the union has
-    // no coincident faces to refuse.
-    // D-FRAME: let tab_plane = r.insert(frame([0.0, 0.0, 0.125], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    // side, so the parametric side is what gets REUSED. It is placed
+    // against the plate with its foot strictly INSIDE the plate's slab
+    // and its footprint crossing the plate's +x/+y walls transversally,
+    // so the union has no coincident faces to refuse.
     let tab_p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![
             LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
@@ -126,8 +122,9 @@ pub fn document() -> CorpusDoc {
         distance: len(0.25),
     });
 
+    let placed_tab = r.against(plate, tab, &editor_core::Frame::translation([0.0, 0.0, 0.125]));
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![plate.into(), tab.into()]),
+        members: editor_core::Bodies::Spelled(vec![plate.into(), placed_tab.into()]),
     });
 
     r.place_part(union);

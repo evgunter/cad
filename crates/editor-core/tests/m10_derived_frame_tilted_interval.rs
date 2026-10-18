@@ -30,7 +30,6 @@
 //! `work/sym/interval-test-preamble-is-copied-across-the-m10-files`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use crate::fixture::{self, Recorder, ang, len, scl};

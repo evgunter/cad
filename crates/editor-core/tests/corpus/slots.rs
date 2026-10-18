@@ -24,7 +24,6 @@
 //! plus both subtracts).
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::{CapEnd, DocEdit, EntityKind, Node, RecipeNodeId, RoleSeg, SlotId, StableName};
 
 use crate::fixture::len;
@@ -54,9 +53,10 @@ pub fn document() -> CorpusDoc {
         distance: len(1.0),
     });
 
-    // Slot 1: runs in y, floor at z = 0.5.
+    // Slot 1: runs in y, placed against the plate with its floor at
+    // z = 0.5.
     let slot1_p = r.profile(
-        [0.0, 0.0, 0.5],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(1.0, -1.0), (2.0, -1.0), (2.0, 4.0), (1.0, 4.0)]],
@@ -67,15 +67,16 @@ pub fn document() -> CorpusDoc {
     });
     // Nothing is coincident yet (the tool pierces the plate top and
     // overhangs both ends).
+    let placed1 = r.against(plate, slot1, &editor_core::Frame::translation([0.0, 0.0, 0.5]));
     let sub1 = r.insert(Node::Subtract {
         from: plate.into(),
-        tool: slot1.into(),
+        tool: placed1.into(),
     });
 
     // Slot 2: runs in x, SAME floor plane z = 0.5 — the coincident
     // floors, and the reason the second operand is a boolean result.
     let slot2_p = r.profile(
-        [0.0, 0.0, 0.5],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(-1.0, 1.0), (4.0, 1.0), (4.0, 2.0), (-1.0, 2.0)]],
@@ -84,9 +85,10 @@ pub fn document() -> CorpusDoc {
         profile: slot2_p.into(),
         distance: len(1.0),
     });
+    let placed2 = r.against(plate, slot2, &editor_core::Frame::translation([0.0, 0.0, 0.5]));
     let sub2 = r.insert(Node::Subtract {
         from: sub1.into(),
-        tool: slot2.into(),
+        tool: placed2.into(),
     });
 
     r.place_part(sub2);

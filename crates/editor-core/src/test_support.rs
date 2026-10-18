@@ -406,6 +406,25 @@ pub fn plane_on(
     crate::pose::RoleRead::through(frame, crate::pose::PoseRole::Xy)
 }
 
+/// **The axis through `origin` along `dir`, read off `body`'s own
+/// geometry** ([`crate::frame_at`] through its `z`): a pattern's axis or
+/// an axis target where a test writes one in the body's own
+/// coordinates.
+///
+/// # Panics
+///
+/// If `dir` is zero or `body` offers no frame to read.
+#[must_use]
+pub fn axis_on(
+    doc: &ProfileDoc,
+    body: impl Into<crate::Operand>,
+    origin: [f64; 3],
+    dir: [f64; 3],
+) -> crate::pose::RoleRead<crate::Operand> {
+    let plane = plane_on(doc, body, origin, dir);
+    crate::pose::RoleRead::through(plane.read, crate::pose::PoseRole::Z)
+}
+
 // --- recipes ---------------------------------------------------------
 
 /// **A cylinder split through a rim arc twice**: `circle(0, 0, 0.5)`

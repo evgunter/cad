@@ -8,7 +8,6 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use crate::common;
-use editor_core::ExtrudeSide;
 use pncad::document::{
     Dimension, Doc, DocEdit, EditError, FreeVar, Node, ProfileProgram, RecipeNodeId, SlotId, VarId,
     VarName,

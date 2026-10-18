@@ -6,7 +6,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{Recorder, ang, len, scl};
-use editor_core::ExtrudeSide;
 use topo::BooleanOp;
 
 use editor_core::{

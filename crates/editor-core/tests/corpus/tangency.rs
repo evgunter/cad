@@ -24,10 +24,9 @@
 //! D2 bump: the hand-declared bracket's extrude `Distance`.
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget, SlotId};
 
-use crate::fixture::{frame, len, len2, scl, xy_frame};
+use crate::fixture::{len, len2, scl};
 
 use super::{CorpusDoc, Recorder};
 
@@ -89,8 +88,6 @@ pub fn document() -> CorpusDoc {
         ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 3.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    // A parallel plane, so the two bodies never interact.
-    // D-FRAME: let tangent_plane = r.insert(frame([0.0, 0.0, 4.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let tangent_p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![bracket],
         ids: Vec::new(),
@@ -100,7 +97,12 @@ pub fn document() -> CorpusDoc {
         distance: len(0.25),
     });
     r.place_part(fillet_body);
-    r.place_part(tangent_body);
+    // Placed on a parallel plane 4 up, so the two bodies never
+    // interact.
+    r.in_world(
+        tangent_body,
+        &editor_core::Frame::translation([0.0, 0.0, 4.0]),
+    );
 
     CorpusDoc {
         name: "declared_tangency",

@@ -29,7 +29,6 @@
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     Advisory, Assembly, AssemblyError, CheckId, ChecksConfig, ChecksError, ChecksReport,

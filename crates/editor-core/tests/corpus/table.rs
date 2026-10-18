@@ -31,8 +31,6 @@
 //! D2 bump: the first leg's `Distance` (mid-DAG — its cone is that
 //! extrude plus all four unions, everything else reused).
 
-use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, Node, SlotId};
 
 use crate::fixture::len;
@@ -53,8 +51,10 @@ fn legs() -> [[(f64, f64); 4]; 4] {
 /// The corner-table corpus document.
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
+    // The top, the root: its own coordinates are the table's, one up
+    // from the floor its legs stand on.
     let top_profile = r.profile(
-        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (0.0, 3.0)]],
@@ -80,12 +80,13 @@ pub fn document() -> CorpusDoc {
         if i == 0 {
             first_leg = ext;
         }
+        let leg = r.against(top, ext, &editor_core::Frame::translation([0.0, 0.0, -1.0]));
         let uni = r.insert(Node::Union {
-            members: editor_core::Bodies::Spelled(vec![acc.into(), ext.into()]),
+            members: editor_core::Bodies::Spelled(vec![acc.into(), leg.into()]),
         });
         acc = uni;
     }
-    r.place_part(acc);
+    r.in_world(acc, &editor_core::Frame::translation([0.0, 0.0, 1.0]));
 
     CorpusDoc {
         name: "corner_table",

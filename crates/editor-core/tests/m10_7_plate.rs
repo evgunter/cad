@@ -16,7 +16,6 @@
 #![allow(dead_code)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,

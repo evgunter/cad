@@ -137,6 +137,30 @@ pub fn plane(face: impl Into<editor_core::Operand>) -> editor_core::Operand {
     }))
 }
 
+/// **The plane `by` up an extrude's own `z`**: its start cap's plane,
+/// flipped to face up its `z`, slid along that normal by `by` — a
+/// split's tool at a height the document can drive (`by` a named
+/// variable) where a datum plane stood at that height.
+pub fn start_cap_at(
+    extrude: RecipeNodeId,
+    by: Formula,
+) -> editor_core::pose::RoleRead<editor_core::Operand> {
+    use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+    let up = || {
+        editor_core::Operand::Pose(Box::new(PoseDef::Flip {
+            pose: RoleRead::plain(plane(editor_core::Operand::select(
+                extrude,
+                vec![fname(extrude, RoleSeg::Cap(CapEnd::Start))],
+            ))),
+        }))
+    };
+    RoleRead::plain(editor_core::Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(up()),
+        along: RoleRead::through(up(), PoseRole::Normal),
+        by,
+    })))
+}
+
 /// **An axis read off a face or an edge** (a carrier's axis, an edge's
 /// line).
 pub fn axis(of: impl Into<editor_core::Operand>) -> editor_core::Operand {
@@ -666,7 +690,9 @@ pub fn band() -> geom_core::Band {
 /// frame a sketch is drawn on — `editor_core::test_support`'s, which the
 /// crate's own unit-test modules read too, re-exported so a suite
 /// imports them from here beside the rest of its authoring doors.
-pub use editor_core::test_support::{against, ang, frame_at, in_world, len, len2, plane_on, scl};
+pub use editor_core::test_support::{
+    against, ang, axis_on, frame_at, in_world, len, len2, plane_on, scl,
+};
 
 /// Whether two placements are pinned to the world by the same world
 /// read, bit for bit as written (or neither is one world pin).
@@ -791,6 +817,43 @@ pub fn value_slot(
     match coord {
         editor_core::Coord::Slide(_) => editor_core::SlotId::ValueSlide { constraint: c.id },
         editor_core::Coord::Spin => editor_core::SlotId::ValueSpin { constraint: c.id },
+    }
+}
+
+/// **An edit moving `placement`'s value on `coord` by `delta`**: the
+/// value is a typed number, read back from its variable, and written
+/// again `delta` further — a revaluation a row bumps a placed copy by.
+///
+/// # Panics
+///
+/// If the value is no typed number ([`value_slot`]'s panics besides).
+pub fn value_bump(
+    doc: &ProfileDoc,
+    placement: RecipeNodeId,
+    coord: editor_core::Coord,
+    delta: f64,
+) -> DocEdit<ProfileProgram> {
+    let slot = value_slot(doc, placement, coord);
+    let Some(Node::Place { constraints, .. }) = doc.node(placement) else {
+        unreachable!("value_slot found a placement")
+    };
+    let by = constraints
+        .iter()
+        .find_map(|c| c.value().filter(|v| v.coord == coord).map(|v| v.by))
+        .unwrap_or_else(|| unreachable!("value_slot found the value"));
+    let held = match doc.free(by) {
+        Some(editor_core::FreeVar::Continuous { value, .. }) => *value,
+        other => panic!("{placement}'s value on {coord:?} is a typed number, not {other:?}"),
+    };
+    let value = match coord {
+        editor_core::Coord::Slide(_) => len(held + delta),
+        editor_core::Coord::Spin => ang(held + delta),
+    };
+    DocEdit::SetParam {
+        node: placement,
+        slot,
+        value: value.into(),
+        fresh: Vec::new(),
     }
 }
 
@@ -1544,6 +1607,27 @@ impl Recorder {
             .unwrap_or_else(|refusal| panic!("the copy stands over its geometry: {refusal}"));
         let placement = self.insert(Node::place(vec![editor_core::BodyRead::plain(read)]));
         self.constrain(placement, stood.mate, stood.values);
+        placement
+    }
+
+    /// **One copy of `body` in the world at `at`**
+    /// ([`editor_core::place_at`], [`Self::place`] at the identity):
+    /// how a construction that sat on a literal datum frame stands where
+    /// that frame put it. Returns the placement.
+    pub fn in_world(
+        &mut self,
+        body: impl Into<editor_core::Operand>,
+        at: &editor_core::Frame,
+    ) -> RecipeNodeId {
+        if *at == editor_core::Frame::IDENTITY {
+            return self.place(body);
+        }
+        let read = body_read(&self.doc, body.into());
+        let placed =
+            editor_core::place_at(&self.doc, &read, at, &EvalOptions::default(), Tol::witness())
+                .unwrap_or_else(|refusal| panic!("the copy places at its frame: {refusal}"));
+        let placement = self.insert(Node::place(vec![editor_core::BodyRead::plain(read)]));
+        self.constrain(placement, placed.mate, placed.values);
         placement
     }
 

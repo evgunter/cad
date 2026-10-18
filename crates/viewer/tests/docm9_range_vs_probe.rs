@@ -8,7 +8,6 @@
 //! reproduce the probe's QUESTION. This one runs the probe.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use crate::common;

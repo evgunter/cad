@@ -22,7 +22,6 @@
 //! not a single solid.
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::UnitSym;
 use editor_core::{
     AssertionRelation, Dimension, DocEdit, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node,
@@ -30,7 +29,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use crate::fixture::{len, xy_frame};
+use crate::fixture::len;
 
 use super::{CorpusDoc, Recorder};
 

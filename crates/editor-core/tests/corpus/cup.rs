@@ -50,10 +50,9 @@
 //! item that schedules the resolution is on LIB's slate.
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::{CapEnd, DocEdit, LoopProgram, Node, ProfileProgram, RoleSeg, SlotId};
 
-use crate::fixture::{fname, len, xy_frame};
+use crate::fixture::{fname, len};
 
 use super::{CorpusDoc, MassPin, Recorder};
 

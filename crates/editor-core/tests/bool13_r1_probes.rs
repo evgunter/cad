@@ -12,7 +12,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     Node, PersistError, ProfileDoc, REGENERATE_RECOURSE, header_document_id, load, save,

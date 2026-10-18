@@ -10,7 +10,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 use editor_core::{
     AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, Formula, Mate, MateRef,
     MintRefusal, Node, OperandSlot, ProfileDoc, RecipeNodeId, RefusedRef, SlideAxis, SplitError,

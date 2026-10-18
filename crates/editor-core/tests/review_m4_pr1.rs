@@ -5,7 +5,6 @@
 #![allow(clippy::float_cmp)]
 
 use crate::fixture::{ang, len, scl};
-use editor_core::ExtrudeSide;
 use editor_core::{
     Dimension, DocEdit, EditError, Formula, FreeVar, RecipeNodeId, SlotId, VarEnv, VarName, eval,
     eval_count,

@@ -38,7 +38,6 @@
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use corpus::{documents, eval, failures};
 use editor_core::{

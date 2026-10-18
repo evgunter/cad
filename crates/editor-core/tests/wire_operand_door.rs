@@ -40,7 +40,6 @@
 
 use crate::fixture;
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     Datum, DocEdit, EditError, EvalOptions, Formula, Node, NodeErrorKind, PartSelect, PatternKind,

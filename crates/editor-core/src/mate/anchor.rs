@@ -74,6 +74,11 @@ impl<'a> Anchors<'a> {
             // the coplanar faces it merged.
             [RoleSeg::From { of, .. }] | [RoleSeg::SplitFragment { parent: of }] => self.fixed(of),
             [RoleSeg::Merged(merged)] => merged.iter().any(|n| self.fixed(n)),
+            // A copy's entity stands where its placement moved it, and a
+            // pattern's or an instance's where its rule did.
+            [RoleSeg::Placed { .. } | RoleSeg::Instance { .. } | RoleSeg::InPart { .. }, ..] => {
+                false
+            }
             _ => self.carried_unmoved(name.node) && !self.minted_reads(name),
         }
     }
@@ -101,7 +106,7 @@ impl<'a> Anchors<'a> {
         }
         self.built_through
             .iter()
-            .filter(|&&at| at != minted && self.upstream_of(at).contains(&minted))
+            .filter(|&&at| at != minted && self.carries(at, minted))
             .all(|&at| {
                 matches!(
                     self.doc.node(at),
@@ -116,6 +121,20 @@ impl<'a> Anchors<'a> {
                     )
                 )
             })
+    }
+
+    /// Whether `at` is built through `minted`'s geometry: a placement
+    /// through its shapes (a mate's target is read, never carried), any
+    /// other node through everything upstream of it.
+    fn carries(&self, at: RecipeNodeId, minted: RecipeNodeId) -> bool {
+        match self.doc.node(at) {
+            Some(Node::Place { shapes, .. }) => shapes.iter().any(|shape| {
+                self.doc.operation_of(shape.read).is_some_and(|of| {
+                    of == minted || self.upstream_of(of).contains(&minted)
+                })
+            }),
+            _ => self.upstream_of(at).contains(&minted),
+        }
     }
 
     /// The nodes `at` is built through, `at` excluded.

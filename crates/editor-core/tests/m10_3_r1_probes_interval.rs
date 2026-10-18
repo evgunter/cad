@@ -37,7 +37,6 @@ test_utils::gated_to![
 ];
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

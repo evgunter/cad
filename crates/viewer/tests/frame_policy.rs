@@ -16,7 +16,6 @@
 
 use crate::common;
 use crate::common::plate_index;
-use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use std::sync::Arc;

@@ -20,7 +20,6 @@
 
 use crate::fixture;
 use crate::wire;
-use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use std::sync::Arc;

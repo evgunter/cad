@@ -35,7 +35,6 @@
 use crate::corpus;
 use crate::fixture;
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 
 use corpus::{body_of, die_chamfer, eval, failures};
 use editor_core::{

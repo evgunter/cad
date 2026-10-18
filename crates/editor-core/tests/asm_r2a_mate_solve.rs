@@ -21,7 +21,6 @@
 
 use crate::fixture;
 use crate::wire::doctored;
-use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
 use editor_core::CapEnd;

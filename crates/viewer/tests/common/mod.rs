@@ -37,7 +37,6 @@ pub mod asm;
 pub mod corpus_pick;
 
 use bvh::Aabb;
-use editor_core::ExtrudeSide;
 use pncad::document::{SolvedPoses, solve_document};
 use pncad::geom_core::Point3;
 use viewer::camera::Camera;

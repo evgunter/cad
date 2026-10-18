@@ -55,10 +55,9 @@
 //! against the pairwise Transform + Union chain it replaces.
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, Frame, LoopProgram, Node, ProfileProgram, SlotId};
 
-use crate::fixture::{ang, frame, len, revolve_about, xy_frame};
+use crate::fixture::{ang, len, revolve_about};
 
 use super::die_pips::{DIE_L, PIP_H, PIP_R, half_disc_program};
 use super::{CorpusDoc, Recorder};
@@ -117,13 +116,11 @@ pub fn document() -> CorpusDoc {
     });
 
     // ---- the master ball, poled along +Z (`die_pips`' construction) ----
-    // D-FRAME: let ball_plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
     let ball_p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![half_disc_program()],
         ids: Vec::new(),
     }));
-    // The pole axis, written in the meridian frame it turns: that
-    // frame's v is world +Z, so the axis is its own +y through (0, 0).
+    // The pole axis is the meridian's own +y through (0, 0).
     let ball = r.insert(revolve_about(
         ball_p,
         (0.0, 0.0),
@@ -131,11 +128,15 @@ pub fn document() -> CorpusDoc {
         ang(std::f64::consts::TAU),
     ));
 
-    // ---- the whole cutting tool, in ONE node ----
-    let tool = r.insert(Node::placed_union_at(
+    // ---- the master in the cube's space, its pole along +Z ----
+    let master = r.against(
+        cube,
         editor_core::Operand::output(ball, 0),
-        placements(),
-    ));
+        &crate::fixture::frame_at([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+    );
+
+    // ---- the whole cutting tool, in ONE node ----
+    let tool = r.insert(Node::placed_union_at(master, placements()));
     let pipped = r.insert(Node::Subtract {
         from: cube.into(),
         tool: tool.into(),
@@ -153,8 +154,8 @@ pub fn document() -> CorpusDoc {
         pin: None,
         // D2's incremental probe: the cube's extrude distance, which
         // moves ONLY the +Z face (every pip frame is absolute). The
-        // ball and the whole tool are reused; the cube and the cut
-        // recompute — the memoization claim the group must not break.
+        // ball is reused; the cube, the master's placement (it reads
+        // the cube), the tool and the cut recompute.
         // At 1.03125 the +Z pip still cuts a proper cap (the plane
         // sits 0.00875 below the ball's centre, leaving cap height
         // 0.08125 < 2R); every other pip is untouched.

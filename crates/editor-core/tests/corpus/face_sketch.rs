@@ -1,28 +1,28 @@
 //! Corpus document **face_sketch** — DOCM-1's register payoff: a
 //! sketch drawn ON A FACE, spelled the way a user spells it.
 //!
-//! A box; a frame DERIVED from the box's top face
-//! (`Datum::FaceFrame`, `crates/editor-core/REFERENCES.md` DM1) named
-//! through the
-//! naming vocabulary rather than transcribed as nine numbers; a
-//! profile on that frame; an extrude of it. The boss therefore sits
-//! on the box's top face BECAUSE it names that face: raise the box
-//! and the boss rides up with it, which is the document's own
-//! incremental-recompute probe (`bump`, below) and acceptance row A1.
+//! A box; a boss drawn in its own coordinates and placed ON the box's
+//! top face by a plane mate that NAMES that face through the naming
+//! vocabulary, rather than transcribing nine numbers; the two unioned.
+//! The boss therefore sits on the box's top face BECAUSE it names that
+//! face: raise the box and the boss rides up with it, which is the
+//! document's own incremental-recompute probe (`bump`, below) and
+//! acceptance row A1.
 //!
 //! Joining the corpus registry gives the document the standard rows
-//! for free — evaluation at every CI ε row and under `interval`
-//! (DM1c: the profile on the derived frame is placed at the lane
-//! scalar), persistence round-trip (D6.1, acceptance row A8), and the
-//! latency table.
+//! for free — evaluation at every CI ε row and under `interval` (the
+//! placement solves at the lane scalar), persistence round-trip (D6.1,
+//! acceptance row A8), and the latency table.
 //!
-//! Dyadic mass pin: 2 × 2 × 1 box plus a 1 × 1 × 0.5 boss on top.
+//! Dyadic mass pin: the 2 × 2 × 1 box plus the 1 × 1 × 0.5 boss on top.
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
-use editor_core::{CapEnd, DocEdit, Node, RoleSeg, SlotId};
+use editor_core::{
+    CapEnd, ContactClass, Coord, Dimension, DocEdit, Formula, Mate, Node, Operand, RoleSeg,
+    SlideAxis, SlotId, Target,
+};
 
-use crate::fixture::{ang, desc, fname, len, xy_frame};
+use crate::fixture::{ang, desc, fname, len, plane};
 
 use super::{CorpusDoc, MassPin, Recorder};
 
@@ -42,68 +42,84 @@ pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
 
     // ---- the box, [-1, 1]² × [0, 1] ----
-    let box_plane = r.insert(xy_frame());
-    let box_p = r.insert(Node::Profile(desc(
-        box_plane,
-        vec![vec![
-            (-BOX_HALF, -BOX_HALF),
-            (BOX_HALF, -BOX_HALF),
-            (BOX_HALF, BOX_HALF),
-            (-BOX_HALF, BOX_HALF),
-        ]],
-    )));
+    let box_p = r.insert(Node::Profile(desc(vec![vec![
+        (-BOX_HALF, -BOX_HALF),
+        (BOX_HALF, -BOX_HALF),
+        (BOX_HALF, BOX_HALF),
+        (-BOX_HALF, BOX_HALF),
+    ]])));
     let cube = r.insert(Node::Extrude {
         profile: box_p.into(),
         distance: len(BOX_H),
     });
 
-    // ---- "sketch on this face": the frame derived from the top cap ----
-    // The face is NAMED, not measured: the extrude's top cap, in the
-    // vocabulary every selection uses. The sketch is TURNED on the
-    // face (a non-zero spin), so the corpus rows walk the rotation
-    // about the outward normal rather than the identity.
-    let top = r.insert(Node::Datum(editor_core::Datum::FaceFrame {
-        face: editor_core::Operand::select(cube, vec![fname(cube, RoleSeg::Cap(CapEnd::End))]),
-        spin: ang(SPIN),
-    }));
-    // The boss profile, centred on the frame's origin (the carrier's
-    // own distinguished point, which for an extrude cap is the
-    // sketch origin lifted to the cap). A square about its centre, so
-    // the turn moves its corners and not its mass.
-    let boss_p = r.insert(Node::Profile(desc(
-        top,
-        vec![vec![
-            (-BOSS_HALF, -BOSS_HALF),
-            (BOSS_HALF, -BOSS_HALF),
-            (BOSS_HALF, BOSS_HALF),
-            (-BOSS_HALF, BOSS_HALF),
-        ]],
-    )));
+    // ---- "sketch on this face" ----
+    // The boss profile, centred on its own origin: a square about its
+    // centre, so the turn below moves its corners and not its mass.
+    let boss_p = r.insert(Node::Profile(desc(vec![vec![
+        (-BOSS_HALF, -BOSS_HALF),
+        (BOSS_HALF, -BOSS_HALF),
+        (BOSS_HALF, BOSS_HALF),
+        (-BOSS_HALF, BOSS_HALF),
+    ]])));
     let boss = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: len(BOSS_H),
     });
+    // The face is NAMED, not measured: the extrude's top cap, in the
+    // vocabulary every selection uses. The boss's start cap, flipped to
+    // look up its own `z`, lies on it, centred on the box's axis and
+    // TURNED about the face's outward normal (a non-zero spin), so the
+    // corpus rows walk the rotation rather than the identity.
+    let cap = |node, end| Operand::select(node, vec![fname(node, RoleSeg::Cap(end))]);
+    let on = Operand::Pose(Box::new(editor_core::pose::PoseDef::Flip {
+        pose: editor_core::pose::RoleRead::plain(plane(cap(boss, CapEnd::Start))),
+    }));
+    let placed = r.insert(Node::place(vec![editor_core::BodyRead::plain(
+        crate::fixture::body_read(&r.doc, boss.into()),
+    )]));
+    r.constrain(
+        placed,
+        Mate {
+            on,
+            to: Target::Pose(plane(cap(cube, CapEnd::End))),
+            class: ContactClass::Rest,
+        },
+        vec![
+            (Coord::Slide(SlideAxis::X), Formula::zero(Dimension::Length)),
+            (Coord::Slide(SlideAxis::Y), Formula::zero(Dimension::Length)),
+            (Coord::Spin, ang(SPIN)),
+        ],
+    );
+    let whole = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![cube.into(), placed.into()]),
+    });
 
-    r.place_part(boss);
+    r.place_part(whole);
 
     CorpusDoc {
         name: "face_sketch",
-        about: "DOCM-1: a boss sketched ON a box's top face through a derived frame (Datum::FaceFrame)",
+        about: "DOCM-1: a boss sketched ON a box's top face, placed by a mate that names the face",
         edits: r.edits,
         doc: r.doc,
-        // The boss alone is the headline solid: it is what the derived
-        // frame places, and its pin is what moves when the box does.
-        result: Some(boss),
+        // The box with its boss is the headline solid: the boss's pin
+        // rides on the box's top face.
+        result: Some(whole),
         pin: Some(MassPin {
-            volume: (2.0 * BOSS_HALF) * (2.0 * BOSS_HALF) * BOSS_H,
+            volume: (2.0 * BOX_HALF) * (2.0 * BOX_HALF) * BOX_H
+                + (2.0 * BOSS_HALF) * (2.0 * BOSS_HALF) * BOSS_H,
+            // The box's surface, less the boss's footprint on its top,
+            // plus the boss's top and four walls.
             area: Some(
-                2.0 * (2.0 * BOSS_HALF) * (2.0 * BOSS_HALF) + 4.0 * (2.0 * BOSS_HALF) * BOSS_H,
+                2.0 * (2.0 * BOX_HALF) * (2.0 * BOX_HALF)
+                    + 4.0 * (2.0 * BOX_HALF) * BOX_H
+                    + 4.0 * (2.0 * BOSS_HALF) * BOSS_H,
             ),
         }),
         // D2's incremental probe, and acceptance row A1: raise the box.
-        // The box's own frame and profile are reused; the box, the
-        // derived frame, the boss profile and the boss recompute — the
-        // frame is IN the cone because the face it names moved.
+        // The box's profile and the boss's construction are reused; the
+        // box, the placement, the union and its world copy recompute —
+        // the placement is IN the cone because the face it names moved.
         bump: DocEdit::SetParam {
             node: cube,
             slot: SlotId::Distance,
