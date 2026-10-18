@@ -943,10 +943,15 @@ fn run_at<T: editor_core::EvalScalar>(
 /// own digest measured equal on the tree before and on this one at all
 /// three ε but for that one; its seats' values are listed in the one
 /// order the solve takes them, so no reordering moved it.
+///
+/// And again for the named interim's world pin (all three rows): every
+/// copy the fixtures place where it stands is pinned by a world pin,
+/// which reads nothing, so its pose is the identity exactly rather than
+/// to a pin's rounding, and its placement decides nothing.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
     (1e-9, 0x2902_fc93_713f_a236),
-    (1e-6, 0x529d_f2e3_617f_70ea),
-    (1e-12, 0x64be_0e25_5803_fbc5),
+    (1e-6, 0x4dcf_61d5_d169_1930),
+    (1e-12, 0x8276_8f60_1700_e9f9),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and

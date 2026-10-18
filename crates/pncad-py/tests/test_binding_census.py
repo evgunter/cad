@@ -3091,6 +3091,11 @@ NOT_BOUND = {
     # for a copy with no planar face, which Python reaches as
     # `Doc.place_at` / `Doc.pin` answering `Placed.by == "pin"`.
     "pin_at": INTERIOR,
+    # `pin_at` with what its anchor reads, and that answer: the
+    # migration's and the fixtures' report, which Python's gesture does
+    # not surface.
+    "pinned_at": INTERIOR,
+    "Anchor": INTERIOR,
     # A body's frame swung onto a mate's direction: the chart every
     # value is measured on, behind `MateValue`.
     "reference_about": INTERIOR,
@@ -3829,6 +3834,9 @@ MEMBERS_BOUND_AS = {
     "InlineError::UnresolvedVarCrossesCut": "InlineError.variant",
     "InlineError::PinReadsVariable": "InlineError.variant",
     "InlineError::ValueOnAMovedWorld": "InlineError.variant",
+    "InlineError::WorldPinOnAMovedWorld": "InlineError.variant",
+    # The named interim's one world pin: the class is its one arm.
+    "WorldPin::Identity": "WorldPin",
     "InlineError::InstanceUnsolved": "InlineError.variant",
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
     "InlineError::ForeignInstanceName": "InlineError.variant",

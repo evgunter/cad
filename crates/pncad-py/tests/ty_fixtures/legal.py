@@ -115,6 +115,7 @@ from pncad import (
     StepId,
     SurfaceKind,
     Workspace,
+    WorldPin,
     assemble,
     canonical_bytes,
     circle,
@@ -603,7 +604,7 @@ placed_at: Placed = doc.place_at(sideways, here)
 twice: NodeId = doc.place([sideways, sideways])
 world: list[NodeId] = doc.placements()
 the_world: NodeId = doc.world
-held: list[tuple[MateRef, Mate | MateValue]] = doc.bundle(placed)
+held: list[tuple[MateRef, Mate | MateValue | WorldPin]] = doc.bundle(placed)
 pin_ref: MateRef = held[0][0]
 pin_id: ConstraintId = pin_ref.constraint
 pin_holder: NodeId = pin_ref.placement

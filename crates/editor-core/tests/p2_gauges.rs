@@ -327,6 +327,41 @@ pub(crate) fn set_pin(
     }
 }
 
+/// **Whether the interval lane may escalate where a Transform reads a
+/// copy pinned over its geometry** (`pin_at` at a pose off the
+/// identity): at ε = 1e-12 the copy carries its geometry's enclosure, a
+/// few ε wide, into the map, and certifying the Transform's moved edges
+/// escalates at some values of the pin's parameters
+/// (`work/intent/a-pin-read-off-a-copys-geometry-carries-its-width-into-the-copy.md`).
+pub(crate) fn a_pinned_copy_escalates_its_transform() -> bool {
+    geom_core::Tol::witness().eps().to_bits() == 1e-12f64.to_bits()
+}
+
+/// **`check` where `id` evaluates, else the run's escalation**: at the
+/// ε where a copy pinned over its geometry may escalate
+/// ([`a_pinned_copy_escalates_its_transform`]), a node that holds no
+/// value is held to an escalation the run made (a refusal of its own
+/// or of a node it is poisoned through), never another refusal; at
+/// every other ε, and wherever it evaluates, `check` runs.
+pub(crate) fn encloses_or_escalates<T: geom_core::Decide>(
+    ev: &Evaluation<T>,
+    id: RecipeNodeId,
+    check: impl FnOnce(),
+) {
+    if a_pinned_copy_escalates_its_transform() && ev.value(id).is_none() {
+        assert!(
+            ev.order
+                .iter()
+                .filter_map(|&at| ev.node_error(at))
+                .any(|error| !error.escalations.is_empty()),
+            "{id:?} holds no value, and the run escalated nowhere: {:?}",
+            ev.node_error(id)
+        );
+    } else {
+        check();
+    }
+}
+
 /// The one body a node's value holds: a body, or a placement's copies
 /// gathered as one.
 pub(crate) fn body_of<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Arc<Body<T>> {

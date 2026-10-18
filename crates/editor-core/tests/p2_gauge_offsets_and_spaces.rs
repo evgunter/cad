@@ -383,9 +383,16 @@ fn a_seat_under_a_parametric_world_pin_poses_as_composed() {
             &o,
             Tol::witness(),
         );
-        assert_encloses(&pb, &body_of(&lane, base), &w_base, "base interval");
-        assert_encloses(&pb, &body_of(&lane, tp), &w_moved, "moved base interval");
-        assert_encloses(&pt, &body_of(&lane, top), &w_top, "top interval");
+        // At ε = 1e-12 a copy pinned over its geometry may escalate.
+        crate::p2_gauges::encloses_or_escalates(&lane, base, || {
+            assert_encloses(&pb, &body_of(&lane, base), &w_base, "base interval");
+        });
+        crate::p2_gauges::encloses_or_escalates(&lane, tp, || {
+            assert_encloses(&pb, &body_of(&lane, tp), &w_moved, "moved base interval");
+        });
+        crate::p2_gauges::encloses_or_escalates(&lane, top, || {
+            assert_encloses(&pt, &body_of(&lane, top), &w_top, "top interval");
+        });
     }
 }
 

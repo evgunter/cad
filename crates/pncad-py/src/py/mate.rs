@@ -1375,8 +1375,8 @@ impl Maintenance {
 /// read and no number. It stands alone in its bundle.
 /// `DocEdit.pin_where_it_stands` writes one; `Doc.place(shapes)` with
 /// neither `constraints` nor `pose` places by one.
-#[pyclass(frozen, module = "pncad", eq, skip_from_py_object)]
-#[derive(Clone, PartialEq)]
+#[pyclass(frozen, module = "pncad", eq, hash, skip_from_py_object)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) struct WorldPin;
 
 #[pymethods]

@@ -400,6 +400,7 @@ fn in_id_order(old: &[Vec<StepId>], minted: &[Vec<StepId>]) -> Vec<Vec<StepId>> 
 /// # Errors
 ///
 /// `edit` over the insert door's refusal; `miss` over a remap miss.
+#[allow(clippy::too_many_arguments)]
 fn carry<E>(
     source: &ProfileDoc,
     olds: &[RecipeNodeId],

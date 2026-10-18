@@ -243,7 +243,7 @@ fn picked_frame(
 ) -> Option<(crate::StableName, crate::StableName, RigidMotion<f64>)> {
     let mut picked = None;
     'edges: for (edge, _) in solid.edges() {
-        let Ok(kind) = topo::readback::edge_carrier_kind(&solid, edge) else {
+        let Ok(kind) = topo::readback::edge_carrier_kind(solid, edge) else {
             continue;
         };
         if !matches!(
@@ -252,7 +252,7 @@ fn picked_frame(
         ) {
             continue;
         }
-        let Ok(line) = topo::readback::edge_pose(&solid, edge) else {
+        let Ok(line) = topo::readback::edge_pose(solid, edge) else {
             continue;
         };
         let Ok(dir) = UnitVec3::new(line.axis, topo::query::DATUM_UNIT_NORM, band) else {
@@ -262,7 +262,7 @@ fn picked_frame(
             continue;
         };
         for (vertex, _) in solid.vertices() {
-            let Ok(point) = topo::readback::vertex_point(&solid, vertex) else {
+            let Ok(point) = topo::readback::vertex_point(solid, vertex) else {
                 continue;
             };
             let off = point - line.origin;

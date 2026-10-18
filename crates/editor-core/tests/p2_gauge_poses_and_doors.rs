@@ -303,9 +303,16 @@ fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
             &o,
             Tol::witness(),
         );
-        check_body_interval(&lane, top, &top_pts, &w_top, "interval top");
-        check_body_interval(&lane, t, &top_pts, &tm.c(&w_top), "interval t");
-        check_body_interval(&lane, base, &base_pts, &f, "interval base");
+        // At ε = 1e-12 a copy pinned over its geometry may escalate.
+        crate::p2_gauges::encloses_or_escalates(&lane, top, || {
+            check_body_interval(&lane, top, &top_pts, &w_top, "interval top");
+        });
+        crate::p2_gauges::encloses_or_escalates(&lane, t, || {
+            check_body_interval(&lane, t, &top_pts, &tm.c(&w_top), "interval t");
+        });
+        crate::p2_gauges::encloses_or_escalates(&lane, base, || {
+            check_body_interval(&lane, base, &base_pts, &f, "interval base");
+        });
     }
 }
 

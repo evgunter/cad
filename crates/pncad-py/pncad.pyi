@@ -5838,6 +5838,7 @@ class WorldPin:
     neither `constraints` nor `pose` places by one."""
 
     def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
 
 class MateValue:
     """A mate's value: one freedom a mate of the same bundle leaves, set to a
