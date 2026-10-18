@@ -208,6 +208,12 @@ pub(crate) fn certified_coords<T: CertifiedBounds, P: ControlPoint<T>>(
 /// ([`SplineError::WeightSignUndecided`], with its margin), and only a
 /// wide weight that is certified fine reaches the carrier's own refusal.
 ///
+/// The order of refusals differs by regime. With every weight a point,
+/// the door's count check runs first and the positivity check after it
+/// (`validate_counts`). With a weight wider than a point, every weight
+/// is certified here first, so a non-positive point weight elsewhere
+/// refuses before a count mismatch would.
+///
 /// # Errors
 ///
 /// [`Weights::new`]'s, where some weight is wider than a point; then
@@ -223,11 +229,10 @@ pub(crate) fn weight_channel<T: SpanLocate>(weights: &[T]) -> Result<Vec<f64>, S
     if let Some(channel) = channel {
         return Ok(channel);
     }
-    Weights::new(weights.to_vec())?;
-    let index = weights
-        .iter()
-        .position(|w| w.point_value().is_none() && !w.is_poison())
-        .unwrap_or(0);
+    let held = Weights::new(weights.to_vec())?;
+    // Certified, so no weight is poison: the wide one is the one that
+    // has no point.
+    let index = held.first_wide().unwrap_or(0);
     Err(SplineError::CarrierWeightNotAPoint { index })
 }
 
@@ -246,18 +251,8 @@ pub(crate) fn carrier_knots<T: SpanLocate>(knots: &Knots<T>) -> Result<(), Splin
     }
     // Knots hold their vector exactly when every run's value is a point
     // (`Knots::new`), so a run that is not one exists.
-    let index = knots
-        .runs()
-        .position(|(v, _)| v.point_value().is_none())
-        .unwrap_or(0);
+    let index = knots.first_wide_run().unwrap_or(0);
     Err(SplineError::CarrierKnotNotAPoint { index })
-}
-
-/// The weights at another scalar under a LIFT `f`, one that keeps
-/// each weight's point, so the value channel beside them carries over
-/// (the `map_scalar` contract, `crate::scalar_lift`'s module docs).
-pub(crate) fn map_weights<T: Real, U: Real>(weights: &[T], f: impl Fn(T) -> U) -> Vec<U> {
-    weights.iter().map(|w| f(*w)).collect()
 }
 
 /// One knot-removal pass's projected perturbation bound: `orig` and

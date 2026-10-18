@@ -218,7 +218,8 @@ impl core::fmt::Display for SplineError {
                 "whether weight {index} is strictly positive is undecided over the values it \
                  stands for: it is {margin}, which does not clear zero, so some members' \
                  weights are not positive. Recourse: supply that weight from inputs narrow \
-                 enough that it clears zero"
+                 enough that it clears zero, and, for a curve or surface, narrow enough that \
+                 it is a single number, which is all a carrier admits for now"
             ),
         }
     }
@@ -246,17 +247,30 @@ pub fn weight_in_regime(w: f64) -> bool {
 /// As above, at the offending index.
 pub fn check_weight_values(weights: &[f64]) -> Result<(), SplineError> {
     for (index, &weight) in weights.iter().enumerate() {
-        if weight_in_regime(weight) {
-            continue;
-        }
-        // Outside the regime and still `> 0` is `+∞`.
-        return Err(if weight > 0.0 {
-            SplineError::NonFiniteWeight { index, weight }
-        } else {
-            SplineError::NonPositiveWeight { index, weight }
-        });
+        check_weight_value(index, weight)?;
     }
     Ok(())
+}
+
+/// One weight in [`weight_in_regime`], or its refusal at `index`:
+/// [`SplineError::NonPositiveWeight`] for zero, negative and NaN,
+/// [`SplineError::NonFiniteWeight`] for `+∞`. The one spelling of a
+/// point weight's positivity, which [`check_weight_values`] and
+/// [`super::Weights::new`] share.
+///
+/// # Errors
+///
+/// As above.
+pub fn check_weight_value(index: usize, weight: f64) -> Result<(), SplineError> {
+    if weight_in_regime(weight) {
+        return Ok(());
+    }
+    // Outside the regime and still `> 0` is `+∞`.
+    Err(if weight > 0.0 {
+        SplineError::NonFiniteWeight { index, weight }
+    } else {
+        SplineError::NonPositiveWeight { index, weight }
+    })
 }
 
 /// The exact structural violation behind

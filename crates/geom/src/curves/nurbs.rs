@@ -166,7 +166,7 @@
 use core::num::NonZeroUsize;
 use geom_core::spline::ProjectiveScalar;
 use geom_core::spline::{
-    self, KnotAlgebraError, KnotSpan, KnotVector, Knots, Span, SpanLocate, SplineError,
+    self, KnotAlgebraError, KnotSpan, KnotVector, Knots, Span, SpanLocate, SplineError, Weights,
     derivative_net,
 };
 use geom_core::{Interval, Point2, Point3, Real, Vec2, Vec3};
@@ -311,11 +311,10 @@ macro_rules! nurbs_curve {
         pub struct $Curve<T: Real> {
             knots: Knots<T>,
             control: Vec<$Point<T>>,
-            weights: Vec<T>,
-            /// The weights' value channel, read off `weights` at
-            /// construction ([`SpanLocate::point_value`]): what every
-            /// structure decision on the weights reads.
-            weight_channel: Vec<f64>,
+            /// The weights, held in `T` with their value channel
+            /// ([`Weights`]): a built carrier's are points
+            /// (`net::weight_channel`), so the channel is always there.
+            weights: Weights<T>,
             /// [`Self::speed_lower_bound`], filled on first read outside
             /// a symbolic session. It is a function of the four fields
             /// above, which nothing mutates after construction, so it
@@ -332,12 +331,11 @@ macro_rules! nurbs_curve {
         /// been read yet is not part of what the curve is.
         impl<T: Real> core::fmt::Debug for $Curve<T> {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                let Self { knots, control, weights, weight_channel, speed: _, speed_sup: _ } = self;
+                let Self { knots, control, weights, speed: _, speed_sup: _ } = self;
                 f.debug_struct(stringify!($Curve))
                     .field("knots", knots)
                     .field("control", control)
                     .field("weights", weights)
-                    .field("weight_channel", weight_channel)
                     .finish()
             }
         }
@@ -367,7 +365,7 @@ macro_rules! nurbs_curve {
                 let mut w_acc = T::zero();
                 for (j, nj) in basis.iter().enumerate() {
                     let i = base + j;
-                    let cw = *nj * self.curve.weights[i];
+                    let cw = *nj * self.curve.weights.values()[i];
                     let pt = self.curve.control[i];
                     $($c = $c + cw * pt.$c;)+
                     w_acc = w_acc + cw;
@@ -400,7 +398,7 @@ macro_rules! nurbs_curve {
                 for (k, row) in ders.iter().enumerate() {
                     for (j, nkj) in row.iter().enumerate() {
                         let i = base + j;
-                        let cw = *nkj * self.curve.weights[i];
+                        let cw = *nkj * self.curve.weights.values()[i];
                         let pt = self.curve.control[i];
                         $($c[k] = $c[k] + cw * pt.$c;)+
                         w_hom[k] = w_hom[k] + cw;
@@ -491,7 +489,8 @@ macro_rules! nurbs_curve {
                 net::carrier_knots(&knots)?;
                 let weight_channel = net::weight_channel(&weights)?;
                 net::validate_counts(knots.structure().control_count(), control.len(), &weight_channel)?;
-                Ok(Self { knots, control, weights, weight_channel, speed: OnceLock::new(), speed_sup: OnceLock::new() })
+                let weights = Weights::from_point_parts(weights, weight_channel);
+                Ok(Self { knots, control, weights, speed: OnceLock::new(), speed_sup: OnceLock::new() })
             }
 
             /// The same curve on another parameter domain: the knots
@@ -522,7 +521,6 @@ macro_rules! nurbs_curve {
                     knots,
                     self.control.clone(),
                     self.weights.clone(),
-                    self.weight_channel.clone(),
                 ))
             }
         }
@@ -555,7 +553,7 @@ macro_rules! nurbs_curve {
             /// The weights, held in `T` (strictly positive on their
             /// value channel).
             pub fn weights(&self) -> &[T] {
-                &self.weights
+                self.weights.values()
             }
 
             /// **C6's interim**: the weights' value channel, the `f64`
@@ -568,7 +566,7 @@ macro_rules! nurbs_curve {
             /// `scripts/gates/knots-f64-interim.sh`; it goes in C6's S5.
             #[track_caller]
             pub fn weights_f64_interim(&self) -> &[f64] {
-                &self.weight_channel
+                self.weights.weights_f64_interim()
             }
 
             /// The degree `p` (carried by the knot vector).
@@ -592,7 +590,7 @@ macro_rules! nurbs_curve {
             /// `crate::scalar_lift`'s module docs: what a structural
             /// map is, why no shape of it changes a count or a weight
             /// value, and which part of it the `debug_assert` below
-            /// cannot check. `knots`, `weights` and `weight_channel`
+            /// cannot check. `knots` and `weights`
             /// here are a validated curve's own (or its knots on
             /// another domain, or all three under a lift that keeps
             /// every point) and `control` is that curve's net under
@@ -602,21 +600,18 @@ macro_rules! nurbs_curve {
             fn from_validated_parts(
                 knots: Knots<T>,
                 control: Vec<$Point<T>>,
-                weights: Vec<T>,
-                weight_channel: Vec<f64>,
+                weights: Weights<T>,
             ) -> Self {
                 debug_assert!(
                     control.len() == knots.structure().control_count()
-                        && weights.len() == control.len()
-                        && weight_channel.len() == control.len(),
+                        && weights.len() == control.len(),
                     "from_validated_parts: a structural map changed a count \
-                     (control {}, knots want {}, weights {}, channel {})",
+                     (control {}, knots want {}, weights {})",
                     control.len(),
                     knots.structure().control_count(),
-                    weights.len(),
-                    weight_channel.len()
+                    weights.len()
                 );
-                Self { knots, control, weights, weight_channel, speed: OnceLock::new(), speed_sup: OnceLock::new() }
+                Self { knots, control, weights, speed: OnceLock::new(), speed_sup: OnceLock::new() }
             }
 
             /// The same curve read at another scalar: `f` applied to
@@ -638,8 +633,7 @@ macro_rules! nurbs_curve {
                 $Curve::from_validated_parts(
                     self.knots.lift(&f),
                     self.control.iter().map(|p| p.map(&f)).collect(),
-                    net::map_weights(&self.weights, &f),
-                    self.weight_channel.clone(),
+                    self.weights.lift(&f),
                 )
             }
 
@@ -677,7 +671,6 @@ macro_rules! nurbs_curve {
                     self.knots.clone(),
                     self.control.iter().map(|p| f(*p)).collect(),
                     self.weights.clone(),
-                    self.weight_channel.clone(),
                 )
             }
 
@@ -737,7 +730,7 @@ macro_rules! nurbs_curve {
                     return self.clone();
                 };
                 let mut knots = self.knots.clone();
-                let (mut control, mut weights) = (self.control.clone(), self.weights.clone());
+                let (mut control, mut weights) = (self.control.clone(), self.weights.values().to_vec());
                 for plan in plans {
                     (control, weights) = plan.apply_rational(
                         knots.values(),
@@ -748,7 +741,7 @@ macro_rules! nurbs_curve {
                     );
                     knots = knots.restructure(plan.knots().clone(), fresh);
                 }
-                Self::from_validated_parts(knots, control, weights, last.weights().to_vec())
+                Self::from_validated_parts(knots, control, Weights::from_point_parts(weights, last.weights().to_vec()))
             }
 
             /// Knot insertion (§5.2), single value `times`-fold — the
@@ -762,7 +755,7 @@ macro_rules! nurbs_curve {
             /// inserted weight rounds out of the positive regime (both
             /// blend terms underflowing, on subnormal weights).
             pub fn insert_knot(&self, u: f64, times: usize) -> Result<Self, KnotAlgebraError> {
-                let plans = spline::algebra::insert_knot_plan(self.knots_f64_interim(), &self.weight_channel, u, times)?;
+                let plans = spline::algebra::insert_knot_plan(self.knots_f64_interim(), self.weights.weights_f64_interim(), u, times)?;
                 Ok(self.apply_plans(&plans, &Self::inserted))
             }
 
@@ -816,7 +809,7 @@ macro_rules! nurbs_curve {
                 let c1 = Self::new(
                     full.knots.restructure(k1, Self::inserted),
                     full.control[..f].to_vec(),
-                    full.weights[..f].to_vec(),
+                    full.weights.values()[..f].to_vec(),
                 )
                 .map_err(KnotAlgebraError::Structure)?;
                 // Child 2: one extra copy of `u`, then every knot from
@@ -827,7 +820,7 @@ macro_rules! nurbs_curve {
                 let c2 = Self::new(
                     full.knots.restructure(k2, Self::inserted),
                     full.control[f - 1..].to_vec(),
-                    full.weights[f - 1..].to_vec(),
+                    full.weights.values()[f - 1..].to_vec(),
                 )
                 .map_err(KnotAlgebraError::Structure)?;
                 Ok((c1, c2))
@@ -841,7 +834,7 @@ macro_rules! nurbs_curve {
             /// As [`Self::insert_knot`], against the cumulative
             /// structure, [`KnotAlgebraError::WeightCollapse`] included.
             pub fn refine_knots(&self, add: &[f64]) -> Result<Self, KnotAlgebraError> {
-                let plans = spline::algebra::refine_plan(self.knots_f64_interim(), &self.weight_channel, add)?;
+                let plans = spline::algebra::refine_plan(self.knots_f64_interim(), self.weights.weights_f64_interim(), add)?;
                 Ok(self.apply_plans(&plans, &Self::inserted))
             }
 
@@ -902,7 +895,7 @@ macro_rules! nurbs_curve {
             /// removal chain writes, or one its reinsertion writes,
             /// out of the positive regime.
             pub fn remove_knot(&self, u: f64, times: usize) -> Result<(Self, T), KnotAlgebraError> {
-                let steps = spline::algebra::remove_knot_plan(self.knots_f64_interim(), &self.weight_channel, u, times)?;
+                let steps = spline::algebra::remove_knot_plan(self.knots_f64_interim(), self.weights.weights_f64_interim(), u, times)?;
                 let mut cur = self.clone();
                 let mut bound = T::zero();
                 for step in &steps {
@@ -917,8 +910,8 @@ macro_rules! nurbs_curve {
                     let reinserted =
                         removed.apply_plans(core::slice::from_ref(&step.reinsert), &held);
                     bound = bound + net::removal_pass_bound(
-                        (&cur.control, &cur.weights),
-                        (&reinserted.control, &reinserted.weights),
+                        (&cur.control, cur.weights.values()),
+                        (&reinserted.control, reinserted.weights.values()),
                     );
                     cur = removed;
                 }
@@ -1160,7 +1153,7 @@ macro_rules! nurbs_curve {
             /// docs' practical ceiling).
             pub fn accel_upper_bound(&self) -> T {
                 let points: Vec<[T; $dim]> = self.control.iter().map(|p| [$(p.$c),+]).collect();
-                spline::accel_pieces(&self.knots, &points, &self.weights, SPEED_PIECE_SPLITS)
+                spline::accel_pieces(&self.knots, &points, self.weights.values(), SPEED_PIECE_SPLITS)
                     .and_then(|ps| ps.iter().map(spline::QuotientPiece::sup_norm).reduce(Real::max))
                     .unwrap_or_else(|| T::from_f64(f64::NAN))
             }
@@ -1169,7 +1162,7 @@ macro_rules! nurbs_curve {
             /// arm choice of [`Self::speed_lower_bound`] (its docs).
             fn is_rational(&self) -> bool {
                 let constants: Option<Vec<f64>> =
-                    self.weights.iter().map(|w| w.plain_constant()).collect();
+                    self.weights.values().iter().map(|w| w.plain_constant()).collect();
                 !constants.is_some_and(|c| c.windows(2).all(|w| w[0] == w[1]))
             }
 
@@ -1298,7 +1291,7 @@ macro_rules! nurbs_curve {
                 spline::speed_pieces(
                     &self.knots,
                     &points,
-                    rational.then_some(self.weights.as_slice()),
+                    rational.then_some(self.weights.values()),
                     SPEED_PIECE_SPLITS,
                 )
             }
@@ -1379,7 +1372,7 @@ macro_rules! nurbs_curve {
                 if p == 0 || self.control.len() < 2 {
                     return poison;
                 }
-                if !self.weight_channel.iter().all(|w| spline::weight_in_regime(*w)) {
+                if !self.weights.weights_f64_interim().iter().all(|w| spline::weight_in_regime(*w)) {
                     return poison;
                 }
                 self.piece_floor(true)
@@ -1402,8 +1395,8 @@ macro_rules! nurbs_curve {
                     return T::from_f64(f64::NAN);
                 }
                 net::removal_pass_bound(
-                    (&self.control, &self.weights),
-                    (&other.control, &other.weights),
+                    (&self.control, self.weights.values()),
+                    (&other.control, other.weights.values()),
                 )
             }
 
@@ -1425,7 +1418,7 @@ macro_rules! nurbs_curve {
             pub fn elevate_degree(&self, raise: usize) -> Result<Self, KnotAlgebraError> {
                 let mut cur = self.clone();
                 for _ in 0..raise {
-                    let plans = spline::algebra::elevate_plan(cur.knots_f64_interim(), &cur.weight_channel)?;
+                    let plans = spline::algebra::elevate_plan(cur.knots_f64_interim(), cur.weights.weights_f64_interim())?;
                     cur = cur.apply_plans(&plans, &Self::inserted);
                 }
                 Ok(cur)
@@ -1678,8 +1671,7 @@ impl<T: Real> NurbsCurve3<T> {
                 T::from_f64,
             ),
             control: vec![p, p],
-            weights: vec![T::one(), T::one()],
-            weight_channel: vec![1.0, 1.0],
+            weights: Weights::from_point_parts(vec![T::one(), T::one()], vec![1.0, 1.0]),
             speed: OnceLock::new(),
             speed_sup: OnceLock::new(),
         }

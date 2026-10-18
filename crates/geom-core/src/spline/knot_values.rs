@@ -208,6 +208,13 @@ impl<T: SpanLocate> Knots<T> {
         })
     }
 
+    /// The first run whose value is wider than a point, where there is
+    /// one: knots without an `f64` vector have one ([`Self::new`]).
+    pub fn first_wide_run(&self) -> Option<usize> {
+        self.runs()
+            .position(|(value, _)| value.point_value().is_none())
+    }
+
     /// The held value of the breakpoint whose value channel is `v`
     /// (bit-equal), or `None` when no breakpoint reads as `v`.
     ///
@@ -219,10 +226,7 @@ impl<T: SpanLocate> Knots<T> {
     /// a fresh value beside a breakpoint it may name.
     pub fn value_at(&self, v: f64) -> Result<Option<T>, SplineError> {
         let Some(point) = self.point.as_ref() else {
-            let index = self
-                .runs()
-                .position(|(value, _)| value.point_value().is_none())
-                .unwrap_or(0);
+            let index = self.first_wide_run().unwrap_or(0);
             return Err(SplineError::CarrierKnotNotAPoint { index });
         };
         Ok(self

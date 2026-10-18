@@ -16,8 +16,9 @@
 //! ([`SplineError::CarrierWeightNotAPoint`]): its knot algebra and
 //! certificates read that vector.
 
-use super::knots::{SplineError, weight_in_regime};
+use super::knots::{SplineError, check_weight_value};
 use super::locate::SpanLocate;
+use crate::Real;
 
 /// A carrier's weights, held in `T`, each certified strictly positive
 /// and finite for every value it stands for (module docs).
@@ -36,60 +37,76 @@ impl<T: SpanLocate> Weights<T> {
     ///
     /// # Errors
     ///
-    /// At the first weight that is not certified:
+    /// At the first weight that is not certified. A point weight
+    /// refuses as [`check_weight_value`] does. A weight wider than a
+    /// point has its sign decided first:
     /// - [`SplineError::NonPositiveWeight`] where it is positive for no
-    ///   member (zero, negative, NaN, or poison, which reads as NaN), or
-    ///   an enclosure whose top is not above zero;
-    /// - [`SplineError::NonFiniteWeight`] where it reaches past the
-    ///   finite numbers;
+    ///   member (poison reads as NaN; an enclosure whose top is not above
+    ///   zero reports that top);
     /// - [`SplineError::WeightSignUndecided`] where it is positive for
-    ///   some members and not others, carrying its enclosure.
+    ///   some members and not others, carrying its enclosure, which may
+    ///   reach `−∞`;
+    /// - then [`SplineError::NonFiniteWeight`] where it is positive for
+    ///   every member and reaches `+∞`.
     pub fn new(values: Vec<T>) -> Result<Self, SplineError> {
         let mut point: Option<Vec<f64>> = Some(Vec::with_capacity(values.len()));
         for (index, &w) in values.iter().enumerate() {
-            match w.point_value() {
-                Some(v) => {
-                    if !weight_in_regime(v) {
-                        return Err(if v > 0.0 {
-                            SplineError::NonFiniteWeight { index, weight: v }
-                        } else {
-                            SplineError::NonPositiveWeight { index, weight: v }
-                        });
-                    }
-                    if let Some(p) = point.as_mut() {
-                        p.push(v);
-                    }
+            if let Some(v) = w.point_value() {
+                check_weight_value(index, v)?;
+                if let Some(p) = point.as_mut() {
+                    p.push(v);
                 }
-                None => {
-                    point = None;
-                    let Some((lo, hi)) = w.structure_bracket() else {
-                        return Err(SplineError::NonPositiveWeight {
-                            index,
-                            weight: f64::NAN,
-                        });
-                    };
-                    if !w.is_bounded() {
-                        return Err(SplineError::NonFiniteWeight { index, weight: hi });
+                continue;
+            }
+            point = None;
+            let Some((lo, hi)) = w.structure_bracket() else {
+                return Err(SplineError::NonPositiveWeight {
+                    index,
+                    weight: f64::NAN,
+                });
+            };
+            if !w.structure_positive() {
+                return Err(if hi > 0.0 {
+                    SplineError::WeightSignUndecided {
+                        index,
+                        margin: crate::MarginDiag::enclosure(lo, hi),
                     }
-                    if w.structure_positive() {
-                        continue;
-                    }
-                    return Err(if hi > 0.0 {
-                        SplineError::WeightSignUndecided {
-                            index,
-                            margin: crate::MarginDiag::enclosure(lo, hi),
-                        }
-                    } else {
-                        SplineError::NonPositiveWeight { index, weight: hi }
-                    });
-                }
+                } else {
+                    SplineError::NonPositiveWeight { index, weight: hi }
+                });
+            }
+            if !w.is_bounded() {
+                return Err(SplineError::NonFiniteWeight { index, weight: hi });
             }
         }
         Ok(Self { values, point })
     }
+
+    /// The first weight wider than a point, where there is one.
+    pub fn first_wide(&self) -> Option<usize> {
+        self.values.iter().position(|w| w.point_value().is_none())
+    }
 }
 
 impl<T> Weights<T> {
+    /// Weights whose certification is ALREADY established: a carrier's
+    /// structural door (its `from_validated_parts`), carrying a
+    /// validated carrier's point weights under a map that keeps them,
+    /// or a knot-algebra plan's weights, every one of which the plan
+    /// admitted. `channel` is `values`' value channel, one per weight.
+    #[must_use]
+    pub fn from_point_parts(values: Vec<T>, channel: Vec<f64>) -> Self {
+        debug_assert_eq!(
+            values.len(),
+            channel.len(),
+            "Weights::from_point_parts: one channel value per weight"
+        );
+        Self {
+            values,
+            point: Some(channel),
+        }
+    }
+
     /// The weights as held.
     pub fn values(&self) -> &[T] {
         &self.values
@@ -127,8 +144,8 @@ impl<T> Weights<T> {
         match &self.point {
             Some(p) => p,
             None => panic!(
-                "a reader at {} took the f64 weights of a carrier whose weights are not \
-                 all points (C6: its weights are its held values)",
+                "a reader at {} took the f64 vector of weights that are not all points \
+                 (C6: weights are their held values)",
                 core::panic::Location::caller()
             ),
         }
@@ -138,6 +155,20 @@ impl<T> Weights<T> {
     /// their `f64` vector.
     pub fn into_parts(self) -> (Vec<T>, Option<Vec<f64>>) {
         (self.values, self.point)
+    }
+}
+
+impl<T: Real> Weights<T> {
+    /// The same weights at another scalar under a LIFT `f`, one that
+    /// keeps each weight's point (the `map_scalar` contract,
+    /// `geom`'s `scalar_lift` module docs): `f` applied to each, the
+    /// `f64` vector carried over.
+    #[must_use]
+    pub fn lift<U: Real>(&self, f: impl Fn(T) -> U) -> Weights<U> {
+        Weights {
+            values: self.values.iter().map(|w| f(*w)).collect(),
+            point: self.point.clone(),
+        }
     }
 }
 
@@ -183,12 +214,32 @@ mod tests {
             }
             other => panic!("a weight positive for no member: {other:?}"),
         }
+        // The boundaries: a member at exactly zero is not positive, from
+        // either zero; a weight reaching `−∞` is decided by its sign
+        // first, and `+∞` past a positive bottom is not finite.
+        for (lo, hi) in [(0.0, 0.5), (-0.0, 0.5), (f64::NEG_INFINITY, 5.0)] {
+            match Weights::new(vec![pt(1.0), iv(lo, hi), pt(1.0)]) {
+                Err(SplineError::WeightSignUndecided { index: 1, .. }) => {}
+                other => panic!("[{lo}, {hi}]: a member not positive: {other:?}"),
+            }
+        }
+        match Weights::new(vec![pt(1.0), iv(f64::NEG_INFINITY, -1.0), pt(1.0)]) {
+            Err(SplineError::NonPositiveWeight { index, weight }) => {
+                assert_eq!((index, weight), (1, -1.0));
+            }
+            other => panic!("[-inf, -1]: positive for no member: {other:?}"),
+        }
+        match Weights::new(vec![pt(1.0), iv(1.0, f64::INFINITY), pt(1.0)]) {
+            Err(SplineError::NonFiniteWeight { index: 1, .. }) => {}
+            other => panic!("[1, inf]: not finite: {other:?}"),
+        }
     }
 
-    /// **Point weights keep the `f64` rules, and their vector**: zero,
-    /// negative and NaN refuse as not positive, `+∞` as not finite, at
-    /// every scalar; a wide weight reaching past the finite numbers
-    /// refuses as not finite. Point weights read through their `f64`
+    /// **Point weights keep the `f64` rules, and their vector**: at `f64`,
+    /// zero, negative and NaN refuse as not positive and `+∞` as not
+    /// finite (at `Interval` a point `+∞` is poison, which refuses as not
+    /// positive); a wide weight positive for every member and reaching
+    /// `+∞` refuses as not finite. Point weights read through their `f64`
     /// vector; wide ones refuse the read loud, naming the reader.
     #[test]
     fn point_weights_keep_the_f64_rules_and_wide_ones_refuse_the_f64_read() {

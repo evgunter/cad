@@ -2,8 +2,10 @@
 id: carried-debug-in-eval-parts-is-an-unrecorded-census-arrival
 kind: issue
 title: editor-core's eval/parts.rs gained a hand-written Debug (Carried<T>) that IMPL_FILES_TODAY does not record; the slow-set census row is red on main
-status: open
+status: closed
 opened: 2026-10-18
+closed: 2026-10-18
+refs: [5289]
 priority: P2
 cost: E
 ---
@@ -18,3 +20,5 @@ cost: E
 - **Reproduce:** `cargo nextest run -p test-utils --profile ci --ignore-default-filter -E 'test(=hand_written_impl_census::the_walk_still_sees_every_file_holding_one)'`.
 
 **Fix.** This is the census's arrival check doing its job. The owner of `Carried` reads what its hand-written `Debug` prints and omits (the row above the assertion says what an arrival owes), then adds the file to `IMPL_FILES_TODAY`.
+
+**Closed by PR 5289** (the INLANE orchestrator's). It read the arrival: `Carried<T>`'s `Debug` reads `self.0`, a newtype index the census answers itself. It recorded `crates/editor-core/src/eval/parts.rs` in `IMPL_FILES_TODAY`.

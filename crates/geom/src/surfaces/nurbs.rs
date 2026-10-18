@@ -42,7 +42,7 @@ use core::num::NonZeroUsize;
 use geom_core::spline::ProjectiveScalar;
 use geom_core::spline::{
     self, KnotAlgebraError, KnotMirrorError, KnotSpan, KnotVector, Knots, Span, SpanLocate,
-    SplineError,
+    SplineError, Weights,
 };
 use geom_core::{Point3, Real, Vec3};
 use std::sync::OnceLock;
@@ -324,7 +324,7 @@ impl<T: Real> SurfaceWindow<'_, T> {
             let row = self.row(i);
             for (j, bvj) in bv.iter().enumerate() {
                 let idx = row + j;
-                let cw = (*bui * *bvj) * self.surface.weights[idx];
+                let cw = (*bui * *bvj) * self.surface.weights.values()[idx];
                 let pt = self.surface.control[idx];
                 x = x + cw * pt.x;
                 y = y + cw * pt.y;
@@ -360,7 +360,7 @@ impl<T: Real> SurfaceWindow<'_, T> {
             let row = self.row(i);
             for (j, _) in dv[0].iter().enumerate() {
                 let idx = row + j;
-                let wf = self.surface.weights[idx];
+                let wf = self.surface.weights.values()[idx];
                 let pt = self.surface.control[idx];
                 for k in 0..3usize {
                     for l in 0..3usize {
@@ -436,7 +436,7 @@ impl<T: Real> SurfaceWindow<'_, T> {
             let row = self.row(i);
             for (j, _) in dv[0].iter().enumerate() {
                 let idx = row + j;
-                let wf = self.surface.weights[idx];
+                let wf = self.surface.weights.values()[idx];
                 let pt = self.surface.control[idx];
                 for k in 0..4usize {
                     for l in 0..4usize {
@@ -562,10 +562,9 @@ pub struct NurbsSurface<T: Real> {
     knots_u: Knots<T>,
     knots_v: Knots<T>,
     control: Vec<Point3<T>>,
-    weights: Vec<T>,
-    /// The weights' value channel, read off `weights` at construction
-    /// (the curve's field of the same name says what reads it).
-    weight_channel: Vec<f64>,
+    /// The weights, held in `T` with their value channel
+    /// ([`Weights`]; the curve's field of the same name says more).
+    weights: Weights<T>,
     /// [`NurbsSurface::stretch_sup`], filled on first read outside a
     /// symbolic session; on the same terms as the curve's speed memos
     /// (nothing mutates the fields above after construction).
@@ -586,7 +585,6 @@ impl<T: Real> core::fmt::Debug for NurbsSurface<T> {
             knots_v,
             control,
             weights,
-            weight_channel,
             stretch: _,
             axis_floors: _,
             area_floor: _,
@@ -596,7 +594,6 @@ impl<T: Real> core::fmt::Debug for NurbsSurface<T> {
             .field("knots_v", knots_v)
             .field("control", control)
             .field("weights", weights)
-            .field("weight_channel", weight_channel)
             .finish()
     }
 }
@@ -630,8 +627,7 @@ impl<T: SpanLocate> NurbsSurface<T> {
             knots_u,
             knots_v,
             control,
-            weights,
-            weight_channel,
+            weights: Weights::from_point_parts(weights, weight_channel),
             stretch: OnceLock::new(),
             axis_floors: OnceLock::new(),
             area_floor: OnceLock::new(),
@@ -706,7 +702,7 @@ impl<T: Real> NurbsSurface<T> {
         geom_core::spline::stretch_pieces(
             (&self.knots_u, &self.knots_v),
             &self.point_rows(),
-            &self.weights,
+            self.weights.values(),
             (STRETCH_PIECE_SPLITS, STRETCH_PIECE_SPLITS),
             area,
         )
@@ -729,8 +725,7 @@ impl<T: Real> NurbsSurface<T> {
             knots_u: unit(),
             knots_v: unit(),
             control: vec![p; 4],
-            weights: vec![T::one(); 4],
-            weight_channel: vec![1.0; 4],
+            weights: Weights::from_point_parts(vec![T::one(); 4], vec![1.0; 4]),
             stretch: OnceLock::new(),
             axis_floors: OnceLock::new(),
             area_floor: OnceLock::new(),
@@ -805,7 +800,7 @@ impl<T: Real> NurbsSurface<T> {
     /// The weights held in `T`, same layout as
     /// [`NurbsSurface::control`].
     pub fn weights(&self) -> &[T] {
-        &self.weights
+        self.weights.values()
     }
 
     /// **C6's interim**: the weights' value channel, same layout, the
@@ -816,7 +811,7 @@ impl<T: Real> NurbsSurface<T> {
     /// it goes in C6's S5.
     #[track_caller]
     pub fn weights_f64_interim(&self) -> &[f64] {
-        &self.weight_channel
+        self.weights.weights_f64_interim()
     }
 
     /// `(nu, nv)` — control counts per direction.
@@ -842,27 +837,22 @@ impl<T: Real> NurbsSurface<T> {
         knots_u: Knots<T>,
         knots_v: Knots<T>,
         control: Vec<Point3<T>>,
-        weights: Vec<T>,
-        weight_channel: Vec<f64>,
+        weights: Weights<T>,
     ) -> Self {
         let expected = knots_u.structure().control_count() * knots_v.structure().control_count();
         debug_assert!(
-            control.len() == expected
-                && weights.len() == control.len()
-                && weight_channel.len() == control.len(),
+            control.len() == expected && weights.len() == control.len(),
             "from_validated_parts: a structural map changed a count \
-             (control {}, knots want {}, weights {}, channel {})",
+             (control {}, knots want {}, weights {})",
             control.len(),
             expected,
-            weights.len(),
-            weight_channel.len()
+            weights.len()
         );
         Self {
             knots_u,
             knots_v,
             control,
             weights,
-            weight_channel,
             stretch: OnceLock::new(),
             axis_floors: OnceLock::new(),
             area_floor: OnceLock::new(),
@@ -887,8 +877,7 @@ impl<T: Real> NurbsSurface<T> {
             self.knots_u.lift(&f),
             self.knots_v.lift(&f),
             self.control.iter().map(|p| p.map(&f)).collect(),
-            net::map_weights(&self.weights, &f),
-            self.weight_channel.clone(),
+            self.weights.lift(&f),
         )
     }
 
@@ -923,7 +912,6 @@ impl<T: Real> NurbsSurface<T> {
             self.knots_v.clone(),
             self.control.iter().map(|p| f(*p)).collect(),
             self.weights.clone(),
-            self.weight_channel.clone(),
         )
     }
 
@@ -996,16 +984,15 @@ impl<T: Real> NurbsSurface<T> {
             for iu in 0..nu {
                 // Indexing justified: iu < nu, iv < nv (construction).
                 control.push(self.control[iu * nv + iv]);
-                weights.push(self.weights[iu * nv + iv]);
-                channel.push(self.weight_channel[iu * nv + iv]);
+                weights.push(self.weights.values()[iu * nv + iv]);
+                channel.push(self.weights.weights_f64_interim()[iu * nv + iv]);
             }
         }
         Self::from_validated_parts(
             self.knots_v.clone(),
             self.knots_u.clone(),
             control,
-            weights,
-            channel,
+            Weights::from_point_parts(weights, channel),
         )
     }
 
@@ -1042,16 +1029,15 @@ impl<T: Real> NurbsSurface<T> {
             for iv in 0..nv {
                 // Indexing justified: iu < nu, iv < nv (construction).
                 control.push(self.control[iu * nv + iv]);
-                weights.push(self.weights[iu * nv + iv]);
-                channel.push(self.weight_channel[iu * nv + iv]);
+                weights.push(self.weights.values()[iu * nv + iv]);
+                channel.push(self.weights.weights_f64_interim()[iu * nv + iv]);
             }
         }
         Ok(Self::from_validated_parts(
             self.knots_u.clone(),
             self.knots_v.clone(),
             control,
-            weights,
-            channel,
+            Weights::from_point_parts(weights, channel),
         ))
     }
 
@@ -1132,8 +1118,9 @@ impl<T: Real> NurbsSurface<T> {
         };
         for iu in 0..nu {
             col.points.push(self.control[iu * nv + iv]);
-            col.weights.push(self.weights[iu * nv + iv]);
-            col.channel.push(self.weight_channel[iu * nv + iv]);
+            col.weights.push(self.weights.values()[iu * nv + iv]);
+            col.channel
+                .push(self.weights.weights_f64_interim()[iu * nv + iv]);
         }
         col
     }
@@ -1155,7 +1142,12 @@ impl<T: Real> NurbsSurface<T> {
                 channel.push(col.channel[iu]);
             }
         }
-        Self::from_validated_parts(knots_u, knots_v, control, weights, channel)
+        Self::from_validated_parts(
+            knots_u,
+            knots_v,
+            control,
+            Weights::from_point_parts(weights, channel),
+        )
     }
 }
 
@@ -1389,8 +1381,8 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
                 Self::from_u_columns(cur.knots_u.clone(), cur.knots_v.clone(), reinserted_cols);
             bound = bound
                 + net::removal_pass_bound(
-                    (&cur.control, &cur.weights),
-                    (&reinserted.control, &reinserted.weights),
+                    (&cur.control, cur.weights.values()),
+                    (&reinserted.control, reinserted.weights.values()),
                 );
             cur = Self::from_u_columns(new_knots_u, cur.knots_v.clone(), removed_cols);
         }
