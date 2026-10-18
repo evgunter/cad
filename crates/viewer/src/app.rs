@@ -5322,6 +5322,89 @@ mod properties_pane_tests {
         );
     }
 
+    /// **A landing's withdrawal reaches the status line** (DI5): a
+    /// free-move's space is known only once its solve lands, so the
+    /// frame an undo pins goes at the LANDING, which `sync_scene` takes
+    /// and the next frame says — the path an operation's own
+    /// withdrawals never cross. Drawn through the real app, frame by
+    /// frame, so the landing arrives on the worker's schedule.
+    #[test]
+    fn a_landings_withdrawal_reaches_the_status_line() {
+        let tol = pncad::tolerance::witness();
+        let dir = std::env::temp_dir().join(format!("landing notice {}", std::process::id()));
+        if dir.exists() {
+            std::fs::remove_dir_all(&dir).expect("clear the fixture directory");
+        }
+        std::fs::create_dir_all(&dir).expect("create the fixture directory");
+        let (part, _, _) = crate::test_support::boss_on_block("landing-notice-part", tol);
+        pncad::workspace::Workspace::open(&dir)
+            .expect("the empty workspace opens")
+            .create(&part, tol)
+            .expect("the part stores");
+        let mut driven = Driven::with(vec![
+            SessionOp::NewDocument {
+                name: "landing-notice".to_owned(),
+            },
+            SessionOp::Save(dir.join("assembly.pncad")),
+            SessionOp::AddInstance { id: part.id() },
+        ]);
+        driven.settle();
+        let doc = driven.app.session.committed_doc();
+        let instance = doc
+            .ids()
+            .iter()
+            .copied()
+            .find(|id| matches!(doc.node(*id), Some(pncad::document::Node::InstantiatePart { .. })))
+            .expect("the instance went in");
+        // Its placement off, the copy is a loose space the probe moves.
+        let mate = match doc.node(instance) {
+            Some(pncad::document::Node::InstantiatePart { constraints, .. }) => {
+                let [placed] = constraints.as_slice() else {
+                    panic!("the instance is placed by one constraint: {constraints:?}")
+                };
+                pncad::document::MateRef::new(instance, placed.id)
+            }
+            other => panic!("not an instance: {other:?}"),
+        };
+        driven
+            .app
+            .perform_batch(vec![SessionOp::RemoveConstraint { mate }]);
+        driven.settle();
+        driven.app.perform_batch(vec![
+            SessionOp::BeginFreeMove { instance },
+            SessionOp::PreviewFreeMove {
+                instance,
+                frame: pncad::document::Frame::translation([0.0, 0.0, 0.05]),
+            },
+            SessionOp::CommitFreeMove { instance },
+        ]);
+        assert!(
+            driven.app.session.display().free_move_of(instance).is_some(),
+            "the probe committed: {:?}",
+            status(&driven)
+        );
+
+        // The undo puts the placement back. The edit alone does not know
+        // the space; its landing does, in a later frame.
+        driven.app.perform_batch(vec![SessionOp::Undo]);
+        assert!(
+            driven.app.session.display().free_move_of(instance).is_some(),
+            "the edit's own prune keeps the frame"
+        );
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(
+            driven.app.session.display().free_move_of(instance).is_none(),
+            "the landing dropped the frame"
+        );
+        let said = status(&driven).unwrap_or_default();
+        assert!(
+            said.contains("lives in the world's space"),
+            "the landing's withdrawal is on the status line: {said:?}"
+        );
+        std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+    }
+
     /// **An instance from the part chooser takes the label its field
     /// holds**: the chooser proposes `InstantiatePart N` above its
     /// listing, a text typed over the proposal is kept in the field, and
