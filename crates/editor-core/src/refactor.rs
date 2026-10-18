@@ -1386,18 +1386,18 @@ pub enum InlineError {
         /// A node of the referenced document reading it.
         node: SpokenNode,
     },
-    /// **The instance sits at a pose of its own and a construction of
-    /// the part reads a copy** (D's interim: a construction is of the
-    /// document's one kind): the part's copies would move with the pose
-    /// and its constructions would not, so the construction would read
-    /// the copy moved.
+    /// **The instance sits at a pose of its own and an operation of the
+    /// part reads a copy**: the part's copies would move with the pose
+    /// and its constructions, each the root of its own space (D10), would
+    /// not, so the operation would read the copy moved against them.
     ConstructionReadsCopy {
         /// The construction, spoken from the referenced document.
         node: SpokenNode,
     },
     /// **The part's world moves under the inline and one of its copies
-    /// is pinned against a construction** (D's interim: a construction
-    /// is of the document's one kind): at a pose of the instance's own,
+    /// is pinned against a construction**, the root of its own space
+    /// (D10), which the move leaves where it is: at a pose of the
+    /// instance's own,
     /// or as the root that takes the instance's bundle, the part's
     /// copies move and its constructions do not, so the copy would land
     /// where the construction stays rather than where the instance put
@@ -1427,6 +1427,15 @@ pub enum InlineError {
         placement: SpokenNode,
         /// The value.
         value: crate::node::ConstraintId,
+    },
+    /// **A part copy re-pinned at its moved pose offers no frame**: its
+    /// world bundle holds numbers alone, so the landing re-pins it over
+    /// its own geometry ([`crate::mate::pin_at`]), which refused.
+    RepinRefused {
+        /// The part placement, spoken from the referenced document.
+        placement: SpokenNode,
+        /// The pin's refusal.
+        refusal: crate::mate::PinRefusal,
     },
     /// **The instance's pin to the world did not solve**: the motion
     /// the part's world would move by has no value.
@@ -1618,6 +1627,12 @@ impl core::fmt::Display for InlineError {
                 "inline: {placement}'s value {value} is charted on its part's world frame, \
                  which stays where it is when the part's world moves with the instance, so \
                  the copy would not move with the rest. {}",
+                Recourse("inline the instance where it stands at the identity, or keep it")
+            ),
+            Self::RepinRefused { placement, refusal } => write!(
+                f,
+                "inline: {placement}'s copy lands moved with the instance, and pinning it there \
+                 over its own geometry refused: {refusal}. {}",
                 Recourse("inline the instance where it stands at the identity, or keep it")
             ),
             Self::InstanceUnsolved { instance } => write!(
@@ -2358,6 +2373,20 @@ fn node_var_reads(doc: &ProfileDoc, node: &Node<ProfileProgram>) -> BTreeSet<Var
 struct VarCarry<'s> {
     source: &'s ProfileDoc,
     map: BTreeMap<VarId, VarId>,
+}
+
+/// **Whether `var` is a number**: a constant, or an anonymous,
+/// untoleranced free value (`stand`'s, `place_at`'s and `pin_at`'s own
+/// writing) — what a re-pin may compose into a motion and write again.
+fn reads_a_number(source: &ProfileDoc, var: VarId) -> bool {
+    match source.var(var).map(crate::Var::def) {
+        Some(VarDef::Free(crate::doc::FreeVar::Continuous {
+            distribution: None,
+            ..
+        })) => source.var_name(var).is_none(),
+        Some(VarDef::Defined(_)) => source.definition_reads(var).is_empty(),
+        _ => false,
+    }
 }
 
 /// **A run of world-axis moves, as one rigid motion**: what
@@ -4028,15 +4057,19 @@ pub fn inline(
             }
         }
     };
-    // At a pose of its own, the part's world moves and its constructions
-    // do not (D's interim: a construction is of the document's one
-    // kind), so a construction reading a copy would read it moved.
-    if let Landing::Pinned(Some(_)) = &landing {
+    // The part placements re-pinned where the landing moves them: their
+    // world bundle holds numbers alone, so the copy's pose is one rigid
+    // motion the pin writes again, composed after the landing's.
+    let mut repinned: BTreeMap<RecipeNodeId, geom_core::linalg::Affine3<f64>> = BTreeMap::new();
+    if let Landing::Pinned(Some(motion)) = &landing {
         // A value is charted on the world's own frame, which the move
         // leaves where it is: the copy would land where its numbers say
-        // in the host's world, not moved with the rest.
+        // in the host's world, not moved with the rest. A bundle of
+        // numbers is pinned again at its copy's moved pose; one reading
+        // a variable cannot be, and refuses.
         for placement in part.placements() {
-            let Some(bundle) = part.node(placement).and_then(crate::mate::solve::bundle_of) else {
+            let Some(node) = part.node(placement) else { continue };
+            let Some(bundle) = crate::mate::solve::bundle_of(node) else {
                 continue;
             };
             let on_world = |id: crate::node::ConstraintId| {
@@ -4044,16 +4077,32 @@ pub fn inline(
                     .iter()
                     .any(|c| c.id == id && c.mate().is_some() && c.reads_world())
             };
-            if let Some(value) = bundle
+            let Some(value) = bundle
                 .iter()
                 .find(|c| c.value().is_some_and(|v| on_world(v.mate)))
-            {
-                return Err(InlineError::ValueOnAMovedWorld {
-                    placement: part.spoken(placement),
-                    value: value.id,
-                });
+            else {
+                continue;
+            };
+            let numbers_only = node
+                .rows()
+                .into_iter()
+                .filter(|(slot, _)| slot.is_value() || slot.is_world_read_step())
+                .all(|(_, &var)| reads_a_number(&part, var));
+            match part_poses.relative_map(placement) {
+                Some(at) if numbers_only => {
+                    repinned.insert(placement, *motion * at);
+                }
+                _ => {
+                    return Err(InlineError::ValueOnAMovedWorld {
+                        placement: part.spoken(placement),
+                        value: value.id,
+                    });
+                }
             }
         }
+        // The part's world moves and its constructions, each the root of
+        // its own space, do not: an operation reading a copy would read
+        // it moved against them.
         for id in part.ids() {
             let Some(node) = part.node(id) else { continue };
             if matches!(
@@ -4285,6 +4334,9 @@ pub fn inline(
             // The root's own pin goes: the instance's bundle takes its
             // place below.
             Landing::Root(root) => old != *root,
+            // A re-pinned placement's bundle goes: its pin is written
+            // again below.
+            Landing::Pinned(Some(_)) if repinned.contains_key(&old) => false,
             // A constraint on the part's world is one on the host's
             // world, moved by the instance's pose, composed after the
             // run its read was folded off.
@@ -4325,6 +4377,33 @@ pub fn inline(
             RemapMiss::Name { name, missing } => InlineError::stranded(&part, &name, missing),
         },
     )?;
+    for (old, at) in &repinned {
+        let placement = node_map[old];
+        let Some(Node::Place { shapes, .. }) = current.doc().node(placement) else {
+            unreachable!("a re-pinned part placement is carried as a placement")
+        };
+        let copy = crate::Operand::Var(shapes[0].read);
+        let mate = crate::mate::pin_at(
+            current.doc(),
+            &copy,
+            &crate::placement::Frame::from_affine(*at),
+            &opts,
+            tol,
+        )
+        .map_err(|refusal| InlineError::RepinRefused {
+            placement: part.spoken(*old),
+            refusal,
+        })?;
+        current
+            .apply_recorded(DocEdit::AddConstraint {
+                placement,
+                mate: Box::new(mate),
+                fresh: Vec::new(),
+            })
+            .map_err(|error| InlineError::Edit {
+                error: Box::new(error),
+            })?;
+    }
     // A name of the part's product (a copy's name, under its placement)
     // as the host spells it once the instance is gone: the body's own
     // name where the copy stands where its body did, else the carried

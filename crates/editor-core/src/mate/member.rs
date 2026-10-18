@@ -248,10 +248,9 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                 name = of;
                 at = doc.operation_of(*read).ok_or(at)?;
             }
-            // A construction of the document's one kind (the named
-            // interim of INTENT stage 3 B): the world's kind, at the
-            // identity, so a mate reads it as a body of the space its
-            // copy joins.
+            // A construction, the root of its own space (D10): at its
+            // own identity, so a mate reads it as a body of the space
+            // its copy joins.
             Some(node)
                 if !matches!(
                     node,

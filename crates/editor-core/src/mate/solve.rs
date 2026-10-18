@@ -176,14 +176,12 @@ impl SolveScalar for geom_core::Probe {
 }
 
 /// **Which space a value lives in** (D10, Spaces): the world's kind, or
-/// the kind of a loose copy, the one spelling of that fact every reader
-/// of it is handed. Decided from the recipe: a placement's copy takes
-/// its target's space once its bundle pins it, and a copy whose bundle
-/// pins less than its body needs is a root of its own.
-///
-/// Until constructions are placed, every construction that reads no
-/// body is of the world's kind, the one kind every such construction
-/// shares today (the named interim of INTENT stage 3 B).
+/// the kind of a root other than the world, the one spelling of that
+/// fact every reader of it is handed. Decided from the recipe: a
+/// construction, which reads no body, is a root of its own; a
+/// placement's copy takes its target's space once its bundle pins it;
+/// and a copy whose bundle pins less than its body needs is a root of
+/// its own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Space {
     /// The world's kind: the copy is pinned, transitively, against the
