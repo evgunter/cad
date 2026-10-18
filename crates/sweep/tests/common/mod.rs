@@ -353,9 +353,8 @@ pub fn chain(s: f64) -> Section {
 /// whose lofted wall is RATIONAL (weights `1, cos 45°, 1` over one 90°
 /// sub-arc: its sweep `4·atan(tan(π/8))` rounds just past π/2, which
 /// the sub-arc rule's η keeps at one; C6), and so the cheapest profile
-/// in this corpus that puts
-/// a body's enclosure on the QUADRATURE lane rather than a closed
-/// form.
+/// in this corpus that puts a body's enclosure on the QUADRATURE lane
+/// rather than a closed form.
 ///
 /// One copy for the crate. It was four — `m8_3_rational_volume`,
 /// `cert5_offgrid_knot_rational` and the certificate suite each held a

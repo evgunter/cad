@@ -217,9 +217,8 @@ pub fn freecad_fixture(name: &str) -> String {
 /// whose lofted wall is RATIONAL (weights `1, cos 45°, 1` over one 90°
 /// sub-arc: its sweep `4·atan(tan(π/8))` rounds just past π/2, which
 /// the sub-arc rule's η keeps at one; C6), and so the cheapest profile
-/// these suites have that
-/// puts an imported body's enclosure on the QUADRATURE lane rather
-/// than on a closed form.
+/// these suites have that puts an imported body's enclosure on the
+/// QUADRATURE lane rather than on a closed form.
 ///
 /// One copy for this crate's suites. `sweep`'s own copy lives in
 /// `crates/sweep/tests/common/`; the two are not folded together
