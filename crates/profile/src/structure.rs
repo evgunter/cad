@@ -970,7 +970,8 @@ impl core::fmt::Display for StructureRefusal {
                 f,
                 "{} is decided differently at this scalar: the elaboration selected \
                  {recorded}, this binding gives {found} — the binding leaves the \
-                 elaborated structure, which no lane may silently re-select",
+                 elaborated structure, which no lane may silently re-select. Recourse: \
+                 narrow the parameter box until the structure holds across it",
                 self.decision
             ),
         }

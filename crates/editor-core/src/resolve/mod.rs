@@ -215,8 +215,9 @@ impl ResolveError {
                 lead(f, name)?;
                 write!(
                     f,
-                    " no longer resolves in this evaluation: {}",
-                    Said(diagnosis, by)
+                    " no longer resolves in this evaluation: {}. {}",
+                    Said(diagnosis, by),
+                    crate::sentence::Recourse("rebind it")
                 )
             }
             Self::Ambiguous { name, tie, .. } => {
@@ -224,9 +225,11 @@ impl ResolveError {
                 write!(
                     f,
                     " is tie-marked: {} equally-admissible candidates at its recorded site — a \
-                     tie is never broken by picking; refine the reference until one candidate \
-                     remains",
-                    tie.width
+                     tie is never broken by picking. {}",
+                    tie.width,
+                    crate::sentence::Recourse(
+                        "refine the reference until one candidate remains"
+                    )
                 )
             }
             Self::ReadGone { name, read, edit } => {

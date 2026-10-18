@@ -1053,8 +1053,8 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         poisoned.spoken(&doc),
         format!(
             "Extrude \"base plate\" ({e}) is poisoned by the failure at Datum frame \"sketch \
-             plane\" ({f}), so it has no value — the repair is upstream, at Datum frame \
-             \"sketch plane\" ({f})"
+             plane\" ({f}), so it has no value. Recourse: repair the failure upstream, at \
+             Datum frame \"sketch plane\" ({f})"
         )
     );
     assert!(
@@ -1075,16 +1075,17 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     let failed = NodeStanding::Failed { node: extrude };
     assert_eq!(
         HitTestError::Standing(failed).spoken(&doc, &ev),
-        format!("hit test: {plate} failed, so it has no value — fix the node's own failure")
+        format!("hit test: {plate} failed, so it has no value. Recourse: fix the node's own failure")
     );
     assert_eq!(
         InterrogateError::Standing(failed).spoken(&doc),
-        format!("{plate} failed, so it has no value — fix the node's own failure")
+        format!("{plate} failed, so it has no value. Recourse: fix the node's own failure")
     );
     assert_eq!(
         ChecksError::Root(failed).spoken(&doc),
         format!(
-            "checks: placement {plate} failed, so it has no value — fix the node's own failure"
+            "checks: placement {plate} failed, so it has no value. Recourse: fix the node's own \
+             failure"
         )
     );
     let changed = Diagnosis::StructuralParam {

@@ -996,7 +996,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     assert_eq!(
         badge.label(),
         "pick index: placement 000000000063 could not be indexed: pick: this node has no result in \
-         this evaluation: the run was canceled before it reached the node — \
+         this evaluation: the run was canceled before it reached the node. Recourse: \
          re-evaluate the document to completion"
     );
 }
