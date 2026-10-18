@@ -6512,7 +6512,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("edge_along_edge", 2),
     // One fact, as `circle_circle`.
     ("edge_edge_point", 2),
-    ("empty", 3),
+    ("empty", 2),
     ("empty_boolean", 2),
     // Coincidence, not one fact: a profile loop authored with no vertex,
     // refused at validation, and a body face's empty (scaffolding) loop,
