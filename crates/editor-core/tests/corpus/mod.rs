@@ -130,6 +130,7 @@ fn gesture(r: &mut Recorder, placement: RecipeNodeId, shape: editor_core::VarId)
             ),
             values: Vec::new(),
             by: editor_core::PlacedBy::Pin,
+            anchor: editor_core::Anchor::Varying,
         },
         Err(refusal) => panic!("the copy is placed over its geometry: {refusal}"),
     };

@@ -26,6 +26,7 @@ use geom_core::linalg::Mat3;
 use geom_core::predicate::Band;
 use geom_core::{RigidMotion, Tol, UnitVec3};
 
+use super::anchor::Anchor;
 use super::{Mate, Target, WorldRead};
 use crate::eval::{EvalOptions, Evaluation, NodeResult, ValuePayload};
 use crate::expr::Dimension;
@@ -182,12 +183,64 @@ pub fn pin_at(
     opts: &EvalOptions,
     tol: Tol,
 ) -> Result<Mate<Formula>, PinRefusal> {
+    pinned_at(doc, body, pose, opts, tol).map(|(mate, _)| mate)
+}
+
+/// [`pin_at`], with what its anchor reads ([`Anchor`]): the first edge
+/// by id with an axis and the first vertex by id off its line among
+/// those whose definition reaches no document variable
+/// ([`super::anchor`]), else among all of them.
+///
+/// # Errors
+///
+/// As [`pin_at`]'s.
+pub fn pinned_at(
+    doc: &crate::ProfileDoc,
+    body: &Operand,
+    pose: &Frame,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Result<(Mate<Formula>, Anchor), PinRefusal> {
     let band = Band::linear(tol).map_err(|_| PinRefusal::Band)?;
     let (node, solid, table) = copy_of(doc, body, opts, tol)?;
     let name = |key| table.name_of(&EntityRef { body: 0, key }).cloned();
     let no_frame = PinRefusal::NoFrame { node };
-    // The first edge by id with an axis, and the first vertex by id off
-    // its line, as the evaluation reads them.
+    let anchors = super::anchor::Anchors::of(doc, node);
+    let fixed = picked_frame(&solid, band, &|key| name(key).filter(|n| anchors.fixed(n)));
+    let (picked, anchor) = match fixed {
+        Some(picked) => (Some(picked), Anchor::Fixed),
+        None => (picked_frame(&solid, band, &name), Anchor::Varying),
+    };
+    let (edge_name, vertex_name, frame) = picked.ok_or(no_frame)?;
+    let read = |def: PoseDef<Operand, Formula>| RoleRead::plain(Operand::Pose(Box::new(def)));
+    let on = Operand::Pose(Box::new(PoseDef::Through {
+        axis: read(PoseDef::Axis {
+            of: Operand::select(body.clone(), vec![edge_name]),
+        }),
+        point: read(PoseDef::Point {
+            of: Operand::select(body.clone(), vec![vertex_name]),
+        }),
+    }));
+    let at = pose.affine() * frame.to_affine();
+    Ok((
+        Mate {
+            on,
+            to: Target::World(world_at(at.linear, at.translation)),
+            class: super::ContactClass::Rest,
+        },
+        anchor,
+    ))
+}
+
+/// **The frame [`pin_at`] reads**: the first edge by id with an axis
+/// and the first vertex by id off its line, as the evaluation reads
+/// them, among the entities `name` names (an entity it names `None` is
+/// passed over).
+fn picked_frame(
+    solid: &topo::Body<f64>,
+    band: Band,
+    name: &dyn Fn(EntityKey) -> Option<crate::StableName>,
+) -> Option<(crate::StableName, crate::StableName, RigidMotion<f64>)> {
     let mut picked = None;
     'edges: for (edge, _) in solid.edges() {
         let Ok(kind) = topo::readback::edge_carrier_kind(&solid, edge) else {
@@ -234,22 +287,7 @@ pub fn pin_at(
             break 'edges;
         }
     }
-    let (edge_name, vertex_name, frame) = picked.ok_or(no_frame)?;
-    let read = |def: PoseDef<Operand, Formula>| RoleRead::plain(Operand::Pose(Box::new(def)));
-    let on = Operand::Pose(Box::new(PoseDef::Through {
-        axis: read(PoseDef::Axis {
-            of: Operand::select(body.clone(), vec![edge_name]),
-        }),
-        point: read(PoseDef::Point {
-            of: Operand::select(body.clone(), vec![vertex_name]),
-        }),
-    }));
-    let at = pose.affine() * frame.to_affine();
-    Ok(Mate {
-        on,
-        to: Target::World(world_at(at.linear, at.translation)),
-        class: super::ContactClass::Rest,
-    })
+    picked
 }
 
 /// **The world's frame moved to `(linear, translation)`**
@@ -337,6 +375,9 @@ pub struct Placed {
     /// How the copy was placed: a gesture whose copy has no planar face
     /// says so in its report.
     pub by: PlacedBy,
+    /// What the anchor reads: a copy anchored on geometry that reads a
+    /// variable is named in the migration's report.
+    pub anchor: Anchor,
 }
 
 /// **The "place part" gesture** (ruling, scope): the copy read through
@@ -368,26 +409,40 @@ pub fn place_at(
     use geom_core::linalg::Point3;
     let band = Band::linear(tol).map_err(|_| PinRefusal::Band)?;
     let (node, solid, table) = copy_of(doc, body, opts, tol)?;
-    let planar = solid.faces().find_map(|(face, _)| {
-        let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
-        if kind != geom::SurfaceKind::Plane {
-            return None;
-        }
-        let at = topo::readback::face_pose(&solid, face).ok()?;
-        let normal = geom_brep::OutwardNormal::from_chart(at.axis, at.sense).vec();
-        let normal = UnitVec3::new(normal, topo::query::DATUM_UNIT_NORM, band).ok()?;
-        let name = table.name_of(&EntityRef {
-            body: 0,
-            key: EntityKey::Face(face),
-        })?;
-        Some((name.clone(), at.origin, normal))
-    });
+    let anchors = super::anchor::Anchors::of(doc, node);
+    // The first planar face by id whose definition reaches no document
+    // variable, else the first planar face by id.
+    let planar = |fixed_only: bool| {
+        solid.faces().find_map(|(face, _)| {
+            let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
+            if kind != geom::SurfaceKind::Plane {
+                return None;
+            }
+            let name = table.name_of(&EntityRef {
+                body: 0,
+                key: EntityKey::Face(face),
+            })?;
+            if fixed_only && !anchors.fixed(name) {
+                return None;
+            }
+            let at = topo::readback::face_pose(&solid, face).ok()?;
+            let normal = geom_brep::OutwardNormal::from_chart(at.axis, at.sense).vec();
+            let normal = UnitVec3::new(normal, topo::query::DATUM_UNIT_NORM, band).ok()?;
+            Some((name.clone(), at.origin, normal))
+        })
+    };
     let pinned = || {
+        let (mate, anchor) = pinned_at(doc, body, pose, opts, tol)?;
         Ok(Placed {
-            mate: pin_at(doc, body, pose, opts, tol)?,
+            mate,
             values: Vec::new(),
             by: PlacedBy::Pin,
+            anchor,
         })
+    };
+    let (planar, anchor) = match planar(true) {
+        Some(fixed) => (Some(fixed), Anchor::Fixed),
+        None => (planar(false), Anchor::Varying),
     };
     let Some((face, origin, normal)) = planar else {
         return pinned();
@@ -456,5 +511,6 @@ pub fn place_at(
         },
         values,
         by: PlacedBy::PlanarFace,
+        anchor,
     })
 }
