@@ -28,7 +28,7 @@ other scalar reaches it:
 - **`ShellError::OperandOuterShells`**: its `outer: 0` arm (a solid of
   only cavities) is check 7's `NegativeVolume`; its `outer ≥ 2` arm is
   check 10's `SolidOuterShells`, except where the two shell-role readers
-  part in band (`work/fuse/one-home-for-where-a-shell-stands.md`), which
+  part in band (`one-home-for-where-a-shell-stands` (closed, PR 4108)), which
   is the one way it may still be reachable.
 - **`ShellError::ChartSenseMixed`**: the only row that reached it built a
   body tier 3 refuses (`verbs_shell::a_mixed_sense_chart_built_from_outside_is_refused_at_the_gate`,

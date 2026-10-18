@@ -397,7 +397,7 @@ enum Joined {
 /// [`NamingError::Emission`] where a cover has no input-cell reading:
 /// a section chord joined to a piece of an operand edge, or pieces of
 /// several operand edges not one of which it holds whole. No `ci` row
-/// reaches either (`work/fuse/a-finished-body-holds-no-joinable-vertex.md`,
+/// reaches either (`a-finished-body-holds-no-joinable-vertex` (a closed FUSE row; `docs/doc-ledger/fuse-leaves-the-tracker.md`),
 /// PR B); each is the ruling's stop case, refused rather than named.
 fn split_joined_readings<T: Decide>(
     node: RecipeNodeId,

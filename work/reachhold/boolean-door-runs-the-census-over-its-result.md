@@ -103,7 +103,7 @@ door does not see:
 `crates/sweep/tests/near_tangent_pierce_poses.rs` pins them at exactly
 those findings (`SHIPS_A_FINDING`), so a door census that refuses them
 turns that pin red, to be re-pinned at the refusal. The findings are
-FUSE's (`work/fuse/a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms.md`,
+FUSE's (`a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms` (closed, PR 4820),
 where the full list is).
 
 ## Evidence: needles the door ships with an in-band pair since thinness is judged by pairs (FLUSH, PR 4783, 2026-10-12)
