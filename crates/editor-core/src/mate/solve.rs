@@ -550,24 +550,53 @@ pub(crate) struct ReadMate<T: Real> {
 /// normal along `z`, the identity frame) onto it. Which map is a
 /// representative: two differ by an element of the kind's own
 /// symmetry, so a coset built through either is the same coset.
-fn frame_of<T: Real>(pose: &PoseValue<T>) -> Affine3<T> {
-    let aimed = |origin: geom_core::linalg::Point3<T>, d: geom_core::UnitVec3<T>| {
-        let (b1, b2) = d.orthonormal_basis();
-        Affine3::from_parts(
-            Mat3::from_cols(b1, b2, d.get()),
-            origin - geom_core::linalg::Point3::origin(),
-        )
+///
+/// A direction `d = (a, b, c)` is aimed by the shortest turn carrying
+/// `z` onto it, whose columns are rational in `d`'s components with the
+/// one divisor `1 + c`; where `c < 0` it is aimed from `−z` instead
+/// (divisor `1 − c`), after the half-turn about `x`. Which of the two
+/// is a choice of arithmetic, not a verdict: both carry `z` to `d`, and
+/// neither divisor falls below one where it is taken. So at `Sym` a
+/// frame is a rational function of the pose, with no guard the
+/// symbolic tier cannot see through.
+fn frame_of<T: SolveScalar>(pose: &PoseValue<T>) -> Affine3<T> {
+    use geom_core::linalg::{Point3, Vec3};
+    let aimed = |origin: Point3<T>, d: geom_core::UnitVec3<T>| {
+        let d = d.get();
+        let (a, b, c) = (d.x, d.y, d.z);
+        let one = T::one();
+        let (x, y) = if c.quoted() < 0.0 {
+            let k = one - c;
+            (
+                Vec3::new(one - a * a / k, T::zero() - a * b / k, a),
+                Vec3::new(a * b / k, b * b / k - one, T::zero() - b),
+            )
+        } else {
+            let k = one + c;
+            (
+                Vec3::new(one - a * a / k, T::zero() - a * b / k, T::zero() - a),
+                Vec3::new(T::zero() - a * b / k, one - b * b / k, T::zero() - b),
+            )
+        };
+        Affine3::from_parts(Mat3::from_cols(x, y, d), origin - Point3::origin())
     };
     match *pose {
-        PoseValue::Point { position } => Affine3::from_parts(
-            Mat3::identity(),
-            position - geom_core::linalg::Point3::origin(),
-        ),
-        PoseValue::Direction { dir } => aimed(geom_core::linalg::Point3::origin(), dir),
+        PoseValue::Point { position } => {
+            Affine3::from_parts(Mat3::identity(), position - Point3::origin())
+        }
+        PoseValue::Direction { dir } => aimed(Point3::origin(), dir),
         PoseValue::Axis { origin, dir } => aimed(origin, dir),
         PoseValue::Plane { origin, normal } => aimed(origin, normal),
         PoseValue::Frame(f) => f.to_affine(),
     }
+}
+
+/// The inverse of a rigid map, its linear part transposed: a frame's
+/// columns are orthonormal by construction, so no determinant is
+/// divided by.
+fn rigid_inverse<T: Real>(map: Affine3<T>) -> Affine3<T> {
+    let linear = map.linear.transpose();
+    Affine3::from_parts(linear, -(linear * map.translation))
 }
 
 /// **One mate's coset** (A11 (1), FORK-S3M): the copy's relative poses
@@ -582,7 +611,7 @@ fn frame_of<T: Real>(pose: &PoseValue<T>) -> Affine3<T> {
 pub fn mate_coset<T: SolveScalar>(on: &PoseValue<T>, to: &PoseValue<T>) -> Coset<T> {
     Coset {
         subgroup: to.symmetry(),
-        representative: frame_of(to) * frame_of(on).inverse(),
+        representative: frame_of(to) * rigid_inverse(frame_of(on)),
     }
 }
 

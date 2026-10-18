@@ -1249,6 +1249,7 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
     evaluation: &Evaluation<T>,
     copies: &dyn Fn(RecipeNodeId) -> Option<&'k topo::GraftKeys>,
     body: &topo::Body<T>,
+    cell_of: &dyn Fn(FaceKey) -> crate::coincide::NamedCell,
     at_rest: &mut AtRestRows,
     space: crate::mate::Space,
     band: Result<geom_core::Band, geom_core::BandError>,
@@ -1353,20 +1354,7 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
                     "a live mate's two references resolved to one face: \
                      the solve door's `SelfMate` refusal was bypassed"
                 );
-                // Each side's cell is named at the read the side selects
-                // in: its selection's body (D10).
-                let read = |side: &crate::VarId| {
-                    doc.selection(*side)
-                        .map(|select| select.body)
-                        .unwrap_or_else(|| unreachable!("a live mate's side is a selection"))
-                };
-                at_rest.decide(
-                    id,
-                    body,
-                    (&head_a, face_a, read(a)),
-                    (&head_b, face_b, read(b)),
-                    band,
-                );
+                at_rest.decide(id, body, (face_a, face_b), cell_of, band);
             }
             other => {
                 unminted.push(MintRefusal::NoAtRestRecord {
@@ -1395,8 +1383,8 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
 pub struct AtRestRow {
     /// Whose pair the census decided.
     pub by: AtRestBy,
-    /// The decision, each cell named as the read it entered through
-    /// reads it: a mate's reference, or a copy's placement.
+    /// The decision, each cell named as the copy the census read it in
+    /// reads it: the copy's placement output, and its name there.
     pub row: crate::coincide::NamedCoincidence,
 }
 
@@ -1433,8 +1421,8 @@ impl AtRestRows {
         &mut self,
         mate: crate::mate::MateRef,
         body: &topo::Body<T>,
-        (a, face_a, read_a): (&SitedFace, FaceKey, crate::VarId),
-        (b, face_b, read_b): (&SitedFace, FaceKey, crate::VarId),
+        (face_a, face_b): (FaceKey, FaceKey),
+        cell_of: &dyn Fn(FaceKey) -> crate::coincide::NamedCell,
         band: Result<geom_core::Band, geom_core::BandError>,
     ) {
         let decided = match band {
@@ -1443,15 +1431,11 @@ impl AtRestRows {
         };
         match decided {
             Ok(row) => {
-                let cell = |r: &SitedFace, input| crate::coincide::NamedCell::Entity {
-                    input,
-                    name: (*r.name).clone(),
-                };
                 let k = u32::try_from(self.coincidences.len()).unwrap_or(u32::MAX);
                 self.coincidences.push(AtRestRow {
                     by: AtRestBy::Mate(mate),
                     row: crate::coincide::NamedCoincidence {
-                        cells: [cell(a, read_a), cell(b, read_b)],
+                        cells: [cell_of(face_a), cell_of(face_b)],
                         relation: row.relation,
                         site: row.site,
                         margin: row.margin,

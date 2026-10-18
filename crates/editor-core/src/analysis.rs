@@ -449,6 +449,16 @@ pub trait AxisScalar: geom_core::Real {
         Self::axis(lo, hi)
     }
 
+    /// [`AxisScalar::axis_of`] for a variable of the document `doc`:
+    /// a parameter symbol keyed by the document as well as the
+    /// variable, since two documents mint the same ids, so a run that
+    /// binds a part's variables beside its own never makes two of them
+    /// one symbol.
+    fn axis_of_in(doc: crate::ident::DocumentId, var: VarId, lo: f64, hi: f64) -> Option<Self> {
+        let _ = doc;
+        Self::axis_of(var, lo, hi)
+    }
+
     /// Whether [`AxisScalar::axis_of`] binds the variable as a PARAMETER
     /// SYMBOL (its identity), rather than as a number: true for
     /// `geom_core::Sym<T>` alone, whose door does exactly that. Read by
@@ -529,6 +539,19 @@ where
         T::axis(lo, hi).map(|v| {
             geom_core::Sym::param_over(geom_core::ParamSymbol::new(var.0.digest()), v, lo, hi)
         })
+    }
+
+    fn axis_of_in(doc: crate::ident::DocumentId, var: VarId, lo: f64, hi: f64) -> Option<Self> {
+        // The document's two halves folded into the variable's digest,
+        // each through its own odd multiplier, so neither half cancels
+        // the other.
+        #[allow(clippy::cast_possible_truncation)]
+        let (lo_half, hi_half) = (doc.0 as u64, (doc.0 >> 64) as u64);
+        let key = var.0.digest()
+            ^ lo_half.wrapping_mul(0x9e37_79b9_7f4a_7c15)
+            ^ hi_half.wrapping_mul(0xc2b2_ae3d_27d4_eb4f).rotate_left(31);
+        T::axis(lo, hi)
+            .map(|v| geom_core::Sym::param_over(geom_core::ParamSymbol::new(key), v, lo, hi))
     }
 }
 
@@ -841,11 +864,6 @@ pub enum ParamBoxError {
     /// The evaluation was asked to bind every variable a symbol and to
     /// widen some over a box: two environments, and a run has one.
     SymbolsOverABox,
-    /// The evaluation was asked to bind every variable a symbol and
-    /// carries a resolver: a part's variables are keyed by their ids in
-    /// its own document, and two documents mint the same ids, so two
-    /// parts' symbols could cancel. A symbolic run crosses no part seam.
-    SymbolsAcrossAPartSeam,
 }
 
 impl core::fmt::Display for ParamBoxError {
@@ -864,10 +882,6 @@ impl core::fmt::Display for ParamBoxError {
             Self::SymbolsOverABox => f.write_str(
                 "the evaluation was asked to bind every variable a symbol and to widen some over \
                  a box, and a run has one environment",
-            ),
-            Self::SymbolsAcrossAPartSeam => f.write_str(
-                "the evaluation was asked to bind every variable a symbol and to resolve parts, \
-                 and two documents' variables are not told apart as symbols",
             ),
         }
     }
@@ -1188,8 +1202,8 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
 
 /// **Every continuous free variable a symbol of its own** (D10; the
 /// `unproven-coincidence` door's environment): each binds `nominal +
-/// offset`, the offset a symbol keyed by the variable's id
-/// ([`AxisScalar::axis_of`] over the zero span), whatever tolerance it
+/// offset`, the offset a symbol keyed by the document and the
+/// variable's id ([`AxisScalar::axis_of_in`] over the zero span), whatever tolerance it
 /// carries or lacks. Two variables typed to one value are two symbols,
 /// so their difference is not zero as a polynomial: the question here
 /// is structure, not number, which is why this is not
@@ -1208,12 +1222,13 @@ pub fn var_env_symbolic<T: AxisScalar + geom_core::predicate::Decide, P>(
     for (id, p) in doc.free_vars() {
         let v = match *p {
             FreeVar::Continuous { dim, value, .. } => {
-                let offset =
-                    T::axis_of(id, 0.0, 0.0).ok_or_else(|| ParamBoxError::AxisUnrepresentable {
+                let offset = T::axis_of_in(doc.id(), id, 0.0, 0.0).ok_or_else(|| {
+                    ParamBoxError::AxisUnrepresentable {
                         param: doc.spoken_var(id),
                         lo: 0.0,
                         hi: 0.0,
-                    })?;
+                    }
+                })?;
                 binds_symbols |= T::BINDS_IDENTITIES;
                 crate::expr::ParamValue::Continuous {
                     dim,

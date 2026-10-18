@@ -580,16 +580,15 @@ impl Arm {
 /// ONE mint. The margin is the sine of the angle between them — which
 /// the cross product's length IS because both are witnesses — levered
 /// by `arm` into the displacement it induces there, spelled as the
-/// length of the levered vector `(u × v) · arm` so that the direction
-/// the non-parallel verdict hands out is minted by the very decision
-/// that made it: `None` when parallel, `Some((line, sine))` when not
-/// — `line` the unit direction of `u × v`, the line two planes with
-/// these normals meet in, and `sine` the levered vector's length, in
-/// metres, which the door decided at least `K·ε`. A second decision
-/// of the same number at a mint would be spelled a rounding apart and
-/// could land in the band where this one did not; the length handed
-/// out is the door's own measure of that vector (`Vec3::norm`, which
-/// is deterministic).
+/// length of the levered vector `(u × v) · arm` and decided by the door
+/// that mints the direction the non-parallel verdict hands out
+/// ([`UnitVec3::new_scaled`]): `None` when parallel, `Some((line,
+/// sine))` when not — `line` the unit direction of `u × v`, the line
+/// two planes with these normals meet in, and `sine` its length
+/// `|u × v|`, which the door decided at least `K·ε / arm`. Neither
+/// carries the arm, so a fold's map is a function of its poses alone
+/// at every scalar, and the arm stays opaque to the decisions it
+/// levers.
 ///
 /// The direction door's arms in this predicate's vocabulary: a
 /// decided-zero length is the parallel verdict, and so is a levered
@@ -604,9 +603,14 @@ fn parallel<T: SolveScalar>(
     band: Band,
     arm: Arm,
 ) -> Result<Option<(UnitVec3<T>, T)>, Indeterminate> {
-    let levered = u.get().cross(v.get()) * T::from_computed(arm.get());
-    match UnitVec3::new(levered, "mate_axes_parallel", band) {
-        Ok(line) => Ok(Some((line, levered.norm()))),
+    let sine = u.get().cross(v.get());
+    match UnitVec3::new_scaled(
+        sine,
+        T::from_computed(arm.get()),
+        "mate_axes_parallel",
+        band,
+    ) {
+        Ok(line) => Ok(Some((line, sine.norm()))),
         Err(UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength) => Ok(None),
         Err(UnitVec3Error::Escalated(diag)) => Err(diag),
         Err(UnitVec3Error::NonFiniteLength) => unreachable!(
@@ -649,8 +653,8 @@ enum Separated<T: Real> {
     /// freedom the pair shares, or the verdict was the parallel or
     /// perpendicular one.
     Not,
-    /// Two directions called non-parallel: the levered sine
-    /// `|u × v| · arm`, in metres, at least `K·ε` ([`parallel`]).
+    /// Two directions called non-parallel: the sine `|u × v|`, at
+    /// least `K·ε` once levered over the fold's arm ([`parallel`]).
     Sine(T),
     /// A direction and a normal called non-perpendicular: their
     /// cosine, out of the zero band once levered ([`perpendicular`]).
@@ -1259,7 +1263,7 @@ pub fn intersect<T: SolveScalar>(
         .map_err(|refusal| FoldStop::Unleverable(Box::new(refusal)))?;
     let (residual, separated) = table(held.subgroup, added.subgroup, band, arm)?;
     let rotation = candidate_rotation(held, added, residual, band, arm)?;
-    let translation = candidate_translation(held, added, residual, separated, rotation, arm);
+    let translation = candidate_translation(held, added, residual, separated, rotation);
     if !is_finite_length(translation.norm()) {
         return Err(FoldStop::OutOfRange);
     }
@@ -1560,8 +1564,8 @@ fn axis_point<T: Real>(g: Subgroup<T>) -> Option<Point3<T>> {
 /// its own frame, by least squares where the added side over-asks.
 ///
 /// **Its only divisor is the number the table's verdict decided away
-/// from zero** ([`Separated`]): the levered sine of a non-parallel
-/// verdict, at least `K·ε`, or the cosine of a non-perpendicular one,
+/// from zero** ([`Separated`]): the sine of a non-parallel verdict,
+/// at least `K·ε` once levered, or the cosine of a non-perpendicular one,
 /// out of the zero band — exactly where the held freedom and the
 /// added constraint nearly align, so the conditioning is that number
 /// and not its square. Where a verdict called two directions parallel
@@ -1576,7 +1580,6 @@ fn candidate_translation<T: SolveScalar>(
     residual: Subgroup<T>,
     separated: Separated<T>,
     rotation: Mat3<T>,
-    arm: Arm,
 ) -> Vec3<T> {
     use Subgroup::{
         Cylindrical, Parallel, Planar, PlaneTranslation, Prismatic, Revolute, Spherical,
@@ -1602,7 +1605,7 @@ fn candidate_translation<T: SolveScalar>(
         (Parallel { .. } | Translation, _, _) => delta,
         // Two planes meeting in the residual's line `d`: cross it
         // within the held plane, along `e = d × n`, to the added
-        // plane. `m·e = d·(n × m)` is the sine the verdict levered.
+        // plane. `m·e = d·(n × m)` is the verdict's sine.
         (
             Planar { normal: n } | PlaneTranslation { normal: n },
             Planar { normal: m } | PlaneTranslation { normal: m },
@@ -1612,7 +1615,7 @@ fn candidate_translation<T: SolveScalar>(
                 unreachable!("two planes the table separates meet in its prismatic line")
             };
             let e = d.get().cross(n.get());
-            e * (m.get().dot(delta) * (T::from_f64(arm.get()) / sine))
+            e * (m.get().dot(delta) / sine)
         }
         // A line crossing the plane at the cosine the verdict decided:
         // the point where it does, either side held.
@@ -1644,17 +1647,15 @@ fn candidate_translation<T: SolveScalar>(
         ) => u.get() * (u.get().dot(n.get()) * n.get().dot(delta)),
         // Two lines the table called non-parallel: the point of the
         // held line nearest the added one. Along `u` the added side's
-        // projector has length `|u × v|`, the sine the verdict
-        // levered into `sine`, so the step is `((v × w)·Δ) · arm / sine²`
-        // with `w = (u × v)·arm`, whose length is `sine`.
+        // projector has length `|u × v|`, the verdict's `sine`, so the
+        // step is `((v × w)·Δ) / sine²` with `w = u × v`.
         (
             Cylindrical { direction: u, .. } | Prismatic { direction: u },
             Cylindrical { direction: v, .. } | Prismatic { direction: v },
             Separated::Sine(sine),
         ) => {
-            let arm = T::from_f64(arm.get());
-            let w = u.get().cross(v.get()) * arm;
-            u.get() * (v.get().cross(w).dot(delta) * (arm / sine / sine))
+            let w = u.get().cross(v.get());
+            u.get() * (v.get().cross(w).dot(delta) / (sine * sine))
         }
         // An added side that pins the translation outright: the point
         // of the held line nearest it.

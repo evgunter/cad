@@ -106,11 +106,13 @@ type Left = (Unreplayed, Recourse);
 pub(super) fn rungs(
     doc: &crate::doc::Doc<ProfileProgram>,
     nodes: &[(RecipeNodeId, &[NamedCoincidence])],
+    resolver: Option<&std::sync::Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
     cancel: &crate::CancelToken,
 ) -> Result<Vec<Vec<Result<Rung, Left>>>, Canceled> {
     let symbols = EvalOptions {
         symbols: true,
+        resolver: resolver.cloned(),
         ..EvalOptions::default()
     };
     let (out, _) = with_replay_session(symbols, |opts| {
@@ -151,7 +153,15 @@ fn prove_row(
     // could read, so the recourse is the assertion.
     let left = |why| Ok(Err((why, Recourse::Assert)));
     if row.site == topo::DecisionSite::CensusAtRest {
-        return left(Unreplayed::NotReplayed);
+        // The census is not re-run: its row is read off the copies.
+        if cancel.is_canceled() {
+            return Err(Canceled);
+        }
+        return Ok(match band.map(|band| carrier_verdict(ev, row, band)) {
+            Some(Some(Ok(()))) => Ok(Rung::CarrierVerdict),
+            Some(Some(Err(why))) => Err(numeric(why)),
+            Some(None) | None => Err((at_rest_unread(ev, node, row), Recourse::Assert)),
+        });
     }
     let Some(value) = ev.value(node) else {
         return left(why_no_value(ev, node));
@@ -169,22 +179,44 @@ fn prove_row(
         return Err(Canceled);
     }
     if let Some(band) = band
-        && carrier_verdict(ev, row, band)
+        && let Some(Ok(())) = carrier_verdict(ev, row, band)
     {
         return Ok(Ok(Rung::CarrierVerdict));
     }
     if cancel.is_canceled() {
         return Err(Canceled);
     }
-    Ok(match deferred::discharge_or_why(replayed.margin) {
-        Ok(()) => Ok(Rung::MarginIdentity),
-        Err(deferred::Undischarged::KeepsAnOpaqueAtom) => {
-            Err((Unreplayed::Numeric, Recourse::Assert))
-        }
-        Err(deferred::Undischarged::Otherwise) => {
-            Err((Unreplayed::Numeric, Recourse::OneConstruction))
-        }
-    })
+    Ok(deferred::discharge_or_why(replayed.margin)
+        .map(|()| Rung::MarginIdentity)
+        .map_err(numeric))
+}
+
+/// A form the tier read and did not discharge: a coincidence of values
+/// as far as the door can tell, its recourse one construction unless
+/// the form keeps a value computed apart from the variables.
+fn numeric(why: deferred::Undischarged) -> Left {
+    match why {
+        deferred::Undischarged::KeepsAnOpaqueAtom => (Unreplayed::Numeric, Recourse::Assert),
+        deferred::Undischarged::Otherwise => (Unreplayed::Numeric, Recourse::OneConstruction),
+    }
+}
+
+/// Why the replay offers no carrier verdict on an at-rest row: a copy
+/// it could not build (its placement or what it reads refused, or a
+/// part it resolves none for), else a pair of cells that is not two
+/// faces.
+fn at_rest_unread(ev: &Evaluation<Lane>, node: RecipeNodeId, row: &NamedCoincidence) -> Unreplayed {
+    let unbuilt = row.cells.iter().find_map(|cell| match cell {
+        NamedCell::Entity { input, .. } => ev
+            .table(*input)
+            .is_none()
+            .then(|| ev.read_port(*input).map_or(node, |(at, _)| at)),
+        NamedCell::Tool { .. } | NamedCell::Piece { .. } => None,
+    });
+    match unbuilt {
+        Some(at) => why_no_value(ev, at),
+        None => Unreplayed::NotReplayed,
+    }
 }
 
 /// Why the replay holds no value at `node`: a part it does not resolve
@@ -201,20 +233,26 @@ fn why_no_value(ev: &Evaluation<Lane>, node: RecipeNodeId) -> Unreplayed {
 
 /// **The kernel's carrier-pair verdict on the row's two cells**, where
 /// the row decided two faces one carrier: whether every Zero it stands
-/// on is proven.
-fn carrier_verdict(ev: &Evaluation<Lane>, row: &NamedCoincidence, band: Band) -> bool {
+/// on is proven, or why the first that is not keeps; `None` where the
+/// replay reads no such verdict (not two faces, a face it did not
+/// build, or another relation decided).
+fn carrier_verdict(
+    ev: &Evaluation<Lane>,
+    row: &NamedCoincidence,
+    band: Band,
+) -> Option<Result<(), deferred::Undischarged>> {
     let wanted = match row.relation {
         topo::Relation::SameOriented => CarrierRelation::SameOriented,
         topo::Relation::SameOpposite => CarrierRelation::SameOpposite,
-        _ => return false,
+        _ => return None,
     };
     let [a, b] = row.cells.each_ref().map(|cell| face_of(ev, cell));
-    let (Some((a, fa)), Some((b, fb))) = (a, b) else {
-        return false;
-    };
+    let ((a, fa), (b, fb)) = (a?, b?);
     match topo::boolean::carrier_pair_decided(a, fa, b, fb, band) {
-        Ok(Ok((relation, Some(margin)))) if relation == wanted => deferred::discharge(margin),
-        _ => false,
+        Ok(Ok((relation, Some(margin)))) if relation == wanted => {
+            Some(deferred::discharge_or_why(margin))
+        }
+        _ => None,
     }
 }
 

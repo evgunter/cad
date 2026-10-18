@@ -843,6 +843,7 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-cites-cube"), Tol::witness());
     let (stand, _, mate) = stand("mate6-cites-stand", part, body, 0.0, &store);
+    let store_dbg = store.clone();
     let ev = run(&stand, &with_resolver(store));
     let product = product_recorded(&stand, &ev, Tol::witness()).expect("the stand gathers");
     assert_eq!(
@@ -865,6 +866,7 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
     );
     assert_eq!(row.row.site, topo::DecisionSite::CensusAtRest);
     assert_eq!(row.row.relation, topo::Relation::SameOpposite);
+    crate::intent_s4_h_placed::render_row(&stand, with_resolver(store_dbg.clone()).resolver, &row.row);
     assert!(
         product.refused_at_rest.is_empty(),
         "{:?}",

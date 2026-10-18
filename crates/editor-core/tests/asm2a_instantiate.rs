@@ -1611,7 +1611,12 @@ fn r1_the_placement_frame_matches_the_transform_node_bit_for_bit() {
 
 /// Two instances of a unit cube, the second a unit along `x`, glued on
 /// their touching walls: the document, the union, and its rows.
-fn two_cubes_glued_on_a_wall() -> (ProfileDoc, RecipeNodeId, Vec<editor_core::NamedCoincidence>) {
+fn two_cubes_glued_on_a_wall() -> (
+    ProfileDoc,
+    RecipeNodeId,
+    Vec<editor_core::NamedCoincidence>,
+    EvalOptions,
+) {
     let mut store = StubStore::default();
     let part_doc = part("asm2a-door-part", 0.0, 1.0);
     let doc_ref = store.insert(part_doc.clone(), Tol::witness());
@@ -1634,33 +1639,51 @@ fn two_cubes_glued_on_a_wall() -> (ProfileDoc, RecipeNodeId, Vec<editor_core::Na
         .coincidences
         .to_vec();
     assert!(!rows.is_empty(), "the touching walls are a row");
-    (doc, union, rows)
+    (doc, union, rows, opts)
 }
 
-/// **The coincidence door says when a row stands on a part.** The
-/// door's replay with every variable a symbol resolves no part (a
-/// symbolic run crosses no part seam), so each row says that, rather
-/// than that the replay refused, and names an assertion as its recourse.
+/// **The coincidence door replays a row on a part through the
+/// evaluation's resolver.** Handed no resolver, the replay builds no
+/// part, and each row says so and names an assertion as its recourse.
+/// Handed the evaluation's own, it builds both cubes, each part's
+/// variables symbols of the part's document, and reads the two walls:
+/// one cube's far wall stands at the part's width and the other's near
+/// wall at the pin's slide, two symbols, so the row is a coincidence of
+/// values whose recourse is one construction.
 #[test]
-fn the_doors_replay_names_a_row_on_a_part() {
-    let (doc, union, rows) = two_cubes_glued_on_a_wall();
-    let proofs = editor_core::coincide::prove(
-        &doc,
-        &[(union, &rows[..])],
-        Tol::witness(),
-        &CancelToken::new(),
-    )
-    .expect("an uncanceled door");
-    for proof in proofs.into_iter().flatten() {
-        assert!(
-            matches!(
-                &proof,
-                editor_core::Proof::Unproven { residual, recourse }
-                    if residual.replay == editor_core::Unreplayed::ThroughAPart
-                        && *recourse == editor_core::coincide::Recourse::Assert
-            ),
-            "{proof:?}"
-        );
+fn the_doors_replay_reads_a_row_on_a_part_through_the_evaluations_resolver() {
+    let (doc, union, rows, opts) = two_cubes_glued_on_a_wall();
+    for (resolver, replay, recourse) in [
+        (
+            None,
+            editor_core::Unreplayed::ThroughAPart,
+            editor_core::coincide::Recourse::Assert,
+        ),
+        (
+            opts.resolver.as_ref(),
+            editor_core::Unreplayed::Numeric,
+            editor_core::coincide::Recourse::OneConstruction,
+        ),
+    ] {
+        let proofs = editor_core::coincide::prove(
+            &doc,
+            &[(union, &rows[..])],
+            resolver,
+            Tol::witness(),
+            &CancelToken::new(),
+        )
+        .expect("an uncanceled door");
+        for proof in proofs.into_iter().flatten() {
+            assert!(
+                matches!(
+                    &proof,
+                    editor_core::Proof::Unproven { residual, recourse: r }
+                        if residual.replay == replay && *r == recourse
+                ),
+                "with a resolver {}: {proof:?}",
+                resolver.is_some()
+            );
+        }
     }
 }
 
@@ -1672,11 +1695,11 @@ fn the_doors_replay_names_a_row_on_a_part() {
 /// unproven instead.
 #[test]
 fn a_canceled_door_stops_in_its_replay() {
-    let (doc, union, rows) = two_cubes_glued_on_a_wall();
+    let (doc, union, rows, _) = two_cubes_glued_on_a_wall();
     let cancel = CancelToken::new();
     cancel.cancel();
     assert_eq!(
-        editor_core::coincide::prove(&doc, &[(union, &rows[..])], Tol::witness(), &cancel),
+        editor_core::coincide::prove(&doc, &[(union, &rows[..])], None, Tol::witness(), &cancel),
         Err(editor_core::coincide::Canceled)
     );
 }

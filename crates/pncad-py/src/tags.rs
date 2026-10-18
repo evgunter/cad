@@ -1844,7 +1844,6 @@ pub fn param_box_error_tag(err: &ParamBoxError) -> &'static str {
         ParamBoxError::UnknownParam { .. } => "unknown_param",
         ParamBoxError::AxisUnrepresentable { .. } => "axis_unrepresentable",
         ParamBoxError::SymbolsOverABox => "symbols_over_a_box",
-        ParamBoxError::SymbolsAcrossAPartSeam => "symbols_across_a_part_seam",
     }
 }
 

@@ -154,9 +154,23 @@ pub struct Evaluation<T: Decide> {
     /// The parts this run entered and evaluated, carried for the run
     /// that names it as its prior.
     parts: parts::Carried<T>,
+    /// The resolver this run crossed the document seam with: what a
+    /// replay of the same document at another scalar resolves its parts
+    /// through ([`Self::resolver`]). Asserted unwind-safe: a resolver is
+    /// `Sync`, so whatever it mutates it guards, and an evaluation is
+    /// read across a `catch_unwind` as every other field allows.
+    resolver: Option<std::panic::AssertUnwindSafe<Arc<dyn crate::part::PartResolver>>>,
 }
 
 impl<T: Decide> Evaluation<T> {
+    /// **The resolver this run crossed the document seam with**
+    /// ([`EvalOptions::resolver`]), `None` for a run that resolved no
+    /// part.
+    #[must_use]
+    pub fn resolver(&self) -> Option<&Arc<dyn crate::part::PartResolver>> {
+        self.resolver.as_ref().map(|r| &r.0)
+    }
+
     /// **The name table of the variable `var`** (NAMES N1, the scope):
     /// the names of the bodies that variable holds, a split's half its
     /// own. The one door to a table: a name is scoped by the variable
@@ -985,6 +999,7 @@ impl Evaluation<f64> {
             env: crate::expr::VarEnv::default(),
             reads: Arc::new(reads),
             parts: parts::Carried::none(),
+            resolver: None,
         }
     }
 
@@ -3291,8 +3306,8 @@ pub struct EvalOptions {
     /// coincidence door replays a document in. `false` — the default —
     /// is every other evaluation. Exclusive with `param_box`, which
     /// widens named variables over a box instead: an evaluation asked
-    /// for both refuses every node. So does one that also carries a
-    /// `resolver` ([`crate::analysis::ParamBoxError::SymbolsAcrossAPartSeam`]).
+    /// for both refuses every node. A part it resolves binds its own
+    /// variables as symbols of its own document.
     pub symbols: bool,
 }
 
@@ -3915,9 +3930,6 @@ where
     // each call site.
     let env = match (opts.param_box.as_deref(), opts.symbols) {
         (None, false) => Ok(doc.var_env::<T>()),
-        (None, true) if opts.resolver.is_some() => {
-            Err(crate::analysis::ParamBoxError::SymbolsAcrossAPartSeam)
-        }
         (None, true) => crate::analysis::var_env_symbolic::<T, _>(doc),
         (Some(b), false) => crate::analysis::var_env_over::<T, _>(doc, b),
         (Some(_), true) => Err(crate::analysis::ParamBoxError::SymbolsOverABox),
@@ -4063,6 +4075,7 @@ where
         env,
         reads: Arc::new(doc.output_ports()),
         parts: entry.carried,
+        resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
     }
 }
 
@@ -4186,6 +4199,7 @@ where
         env: doc.var_env::<T>(),
         reads: Arc::new(doc.output_ports()),
         parts: parts::Carried::none(),
+        resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
     }
 }
 

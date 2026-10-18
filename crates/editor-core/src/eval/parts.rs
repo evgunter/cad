@@ -738,9 +738,11 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             // arguments), which the unseeded nested run states exactly:
             // every tangent it carries is zero.
             seed: None,
-            // Never true here: a symbolic run carries no resolver
-            // (`ParamBoxError::SymbolsAcrossAPartSeam`), because a
-            // part's variable ids collide with another document's.
+            // Inherited, unlike the box and the seed: a symbolic run
+            // binds EVERY variable a symbol (D10), a part's too, each
+            // keyed by its own document as well as its id
+            // (`analysis::var_env_symbolic`), so two documents' ids never
+            // name one symbol.
             symbols: self.symbols,
         };
         // No profile lift is set here, because none is inherited: it is
