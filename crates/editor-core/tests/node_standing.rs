@@ -535,14 +535,16 @@ fn reads(code: &str) -> usize {
 /// [`reads`]'s hits in the file's code; a hit added anywhere reds, and
 /// the answer is to read through `Evaluation::usable` or to give the
 /// file its line here.
-const READERS: [(&str, usize, &str); 14] = [
+const READERS: [(&str, usize, &str); 13] = [
     (
         "crates/editor-core/src/eval/mod.rs",
-        28,
+        31,
         "the home: the evaluator writes every result, and `usable_in` is the one ladder; the \
          test-support hand-built evaluation takes its result map whole; a node's space is \
          read off its inputs' values as they are written (`input_space`), and the loose \
-         spaces off every value",
+         spaces off every value; the solve reads each placement's answer off the evaluation \
+         (`SolvedPoses::of`): its value's space and motion, or the mate fault a FAILED \
+         placement carries, a standing and not a value",
     ),
     (
         "crates/editor-core/src/eval/wire.rs",
@@ -576,12 +578,6 @@ const READERS: [(&str, usize, &str); 14] = [
         23,
         "the pairing compares two runs arm by arm — values, failure kinds, poison sources \
          — and labels each arm in its prose",
-    ),
-    (
-        "crates/editor-core/src/mate/solve.rs",
-        3,
-        "the solve reads each placement's answer off the evaluation: its value's space and \
-         motion, or the mate fault a FAILED placement carries, a standing and not a value",
     ),
     (
         "crates/editor-core/src/mate/pin.rs",
