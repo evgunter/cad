@@ -1421,16 +1421,9 @@ pub(crate) fn collinear_overlaps<T: Decide + Bounds>(
         for j in class.later(i) {
             let eb = candidate(&edges, j);
             let mut errors = Vec::new();
-            let overlap = parallel_overlap(ea, eb, band, &mut errors).flatten();
-            if let Some(error) = errors.into_iter().next() {
-                let ValidationError::CensusEscalated { cause } = error else {
-                    unreachable!(
-                        "the parallel screen and the overlap push only their escalations: \
-                         {error:?}"
-                    )
-                };
-                return Err(([ea.key, eb.key], cause));
-            }
+            let Some(overlap) = parallel_overlap(ea, eb, band, &mut errors) else {
+                return Err(([ea.key, eb.key], escalation_pushed(errors)));
+            };
             if let Some(((lo, hi), _)) = overlap {
                 found.push(CollinearOverlap {
                     edges: [ea.key, eb.key],
@@ -1440,6 +1433,15 @@ pub(crate) fn collinear_overlaps<T: Decide + Bounds>(
         }
     }
     Ok(found)
+}
+
+/// The escalation a reading pushed where it returned escalated: the
+/// parallel screen and the overlap push only their escalations.
+fn escalation_pushed(errors: Vec<ValidationError>) -> Indeterminate {
+    match errors.into_iter().next() {
+        Some(ValidationError::CensusEscalated { cause }) => cause,
+        other => unreachable!("an escalated reading pushes its escalation, got {other:?}"),
+    }
 }
 
 /// **Every pair of line edges `body` holds on one segment by structure**:
@@ -1552,36 +1554,24 @@ pub(crate) fn line_wedges<T: Decide>(
     line: [Point3<T>; 2],
     band: Band,
 ) -> Result<LineWedges, WedgeRefusal> {
-    let escalated = |errors: Vec<ValidationError>| {
-        errors.into_iter().find_map(|e| match e {
-            ValidationError::CensusEscalated { cause } => Some(WedgeRefusal::Undecided(cause)),
-            _ => None,
-        })
-    };
     let segment = Span::between(line[0], line[1]);
     let mut wedges = Vec::new();
     for e in line_edges(body) {
         let mut errors = Vec::new();
-        let on = parallel_overlap(&segment, &e, band, &mut errors)
-            .flatten()
-            .is_some();
-        if let Some(refusal) = escalated(errors) {
-            return Err(refusal);
-        }
-        if on {
+        let Some(on) = parallel_overlap(&segment, &e, band, &mut errors) else {
+            return Err(WedgeRefusal::Undecided(escalation_pushed(errors)));
+        };
+        if on.is_some() {
             wedges.push(wedge(body, &e, band)?);
         }
     }
     for (i, a) in wedges.iter().enumerate() {
         for b in &wedges[i + 1..] {
             let mut errors = Vec::new();
-            let along = parallel_overlap(&a.span, &b.span, band, &mut errors)
-                .flatten()
-                .is_some();
-            if let Some(refusal) = escalated(errors) {
-                return Err(refusal);
-            }
-            if !along {
+            let Some(along) = parallel_overlap(&a.span, &b.span, band, &mut errors) else {
+                return Err(WedgeRefusal::Undecided(escalation_pushed(errors)));
+            };
+            if along.is_none() {
                 continue;
             }
             for (w, probes) in [(a, b), (b, a)] {

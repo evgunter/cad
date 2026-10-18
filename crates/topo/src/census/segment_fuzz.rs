@@ -12,15 +12,18 @@
 //!   A definite no is a missed overlap.
 //!
 //! An escalation is never wrong here; a definite no always is. Interval
-//! is checked at every ε. `f64` is checked where its rounding holds,
-//! which excludes the crossings at ε = 1e-12: for two edges that share
-//! no point key, the closest point of their lines is read through the
-//! closed form from their starts ([`ee_lines_closest`]), whose `f64`
-//! rounding is about `|d|·u / sin φ`. At 1e-12 that exceeds `Kε` for
-//! the nearly parallel crossings, which then read a definite span
-//! outside an edge, while Interval escalates the same pairs
+//! is checked everywhere, and `f64` everywhere but one regime. For two
+//! edges that share no point key, the closest point of their lines is
+//! read through the closed form from their starts, `d` apart
+//! ([`ee_lines_closest`]). Its `f64` rounding in each reach is about
+//! `|d|·u / sin φ` times the few roundings of its cross, dot and
+//! division, which [`ROUNDINGS`] bounds. A crossing here stands at least
+//! `3Kε` inside both spans, so `f64` reads a definite span outside one
+//! only where that rounding reaches `4Kε`. An `f64` no is excused only
+//! there, nearly parallel crossings at the tightest band, which Interval
+//! escalates
 //! (`work/restread/the-census-crossing-lane-reads-a-pair-sharing-no-point-key-from-their-starts.md`).
-//! Those are counted and logged, never asserted.
+//! Excused noes are counted and logged; any other `f64` no fails.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -37,6 +40,16 @@ use geom_core::Interval;
 use test_utils::fuzz::Rng;
 
 const K: f64 = 10.0;
+
+/// A bound on the closed form's roundings, over `|d|·u / sin φ`.
+const ROUNDINGS: f64 = 16.0;
+
+/// Whether the closed form's `f64` rounding, read from two starts `d`
+/// apart at an angle `φ`, can carry a reach `4Kε` (a crossing `3Kε`
+/// inside a span read `Kε` outside it).
+fn rounding_reaches(d: f64, phi: f64, eps: f64) -> bool {
+    ROUNDINGS * d * (f64::EPSILON / 2.0) / phi.sin() >= 4.0 * K * eps
+}
 const EPS: [f64; 3] = [1e-6, 1e-9, 1e-12];
 
 type V = [f64; 3];
@@ -90,12 +103,12 @@ fn meets<T: Decide>((a0, a1): (V, V), (b0, b1): (V, V), band: Band) -> Option<bo
 
 /// Each pair built by `pair` at every ε, read in both orders: the
 /// readings that said a definite no, at Interval and at `f64` (the
-/// latter only where `f64_holds`), and the `f64` noes excused.
+/// latter except where `pair` says its rounding may reach a no), and
+/// the `f64` noes excused.
 fn falsify(
     label: &str,
     count: usize,
-    f64_holds: fn(f64) -> bool,
-    mut pair: impl FnMut(&mut Rng, f64) -> Option<((V, V), (V, V), String)>,
+    mut pair: impl FnMut(&mut Rng, f64) -> Option<((V, V), (V, V), bool, String)>,
 ) {
     let mut r = test_utils::fuzz::start(label);
     let mut bad = Vec::new();
@@ -103,14 +116,14 @@ fn falsify(
         let band = Band::new(eps, K * eps).unwrap();
         let mut excused = 0usize;
         for _ in 0..test_utils::fuzz::scaled(count) {
-            let Some((a, b, what)) = pair(&mut r, eps) else {
+            let Some((a, b, excusable, what)) = pair(&mut r, eps) else {
                 continue;
             };
             for (p, q) in [(a, b), (b, a)] {
                 let iv = meets::<Interval>(p, q, band);
                 let f = meets::<f64>(p, q, band);
                 let f64_no = f == Some(false);
-                if iv == Some(false) || (f64_no && f64_holds(eps)) {
+                if iv == Some(false) || (f64_no && !excusable) {
                     bad.push(format!(
                         "ε {eps:e} {what}: f64 {f:?}, Interval {iv:?}, a {p:?}, b {q:?}"
                     ));
@@ -134,58 +147,52 @@ fn falsify(
 /// apart.**
 #[test]
 fn crossings_strictly_inside_both_spans_never_read_apart() {
-    falsify(
-        "census_segment_crossings",
-        500,
-        |eps| eps > 1e-12,
-        |r, eps| {
-            let x = [r.range(-2.0, 2.0), r.range(-2.0, 2.0), r.range(-2.0, 2.0)];
-            let a = unit(r);
-            let phi = r.log_uniform(1e-14, 10f64.powf(0.2));
-            let b = turned(r, a, phi);
-            let m = 3.0 * K * eps;
-            let la = r.log_uniform(7.0 * m, 10f64.powf(0.5));
-            let lb = r.log_uniform(7.0 * m, 10f64.powf(0.5));
-            let sa = r.range(m, la - m);
-            let sb = r.range(m, lb - m);
-            Some((
-                (add(x, a, -sa), add(x, a, la - sa)),
-                (add(x, b, -sb), add(x, b, lb - sb)),
-                format!("φ {phi:e} la {la:e} lb {lb:e} sa {sa:e} sb {sb:e}"),
-            ))
-        },
-    );
+    falsify("census_segment_crossings", 500, |r, eps| {
+        let x = [r.range(-2.0, 2.0), r.range(-2.0, 2.0), r.range(-2.0, 2.0)];
+        let a = unit(r);
+        let phi = r.log_uniform(1e-14, 10f64.powf(0.2));
+        let b = turned(r, a, phi);
+        let m = 3.0 * K * eps;
+        let la = r.log_uniform(7.0 * m, 10f64.powf(0.5));
+        let lb = r.log_uniform(7.0 * m, 10f64.powf(0.5));
+        let sa = r.range(m, la - m);
+        let sb = r.range(m, lb - m);
+        let (a0, b0) = (add(x, a, -sa), add(x, b, -sb));
+        let d = norm(add(b0, a0, -1.0));
+        Some((
+            (a0, add(x, a, la - sa)),
+            (b0, add(x, b, lb - sb)),
+            rounding_reaches(d, phi, eps),
+            format!("φ {phi:e} la {la:e} lb {lb:e} sa {sa:e} sb {sb:e}"),
+        ))
+    });
 }
 
 /// **Two segments overlapping within the zero never read apart.**
 #[test]
 fn overlaps_within_the_zero_never_read_apart() {
-    falsify(
-        "census_segment_overlaps",
-        500,
-        |_| true,
-        |r, eps| {
-            let x = [r.range(-2.0, 2.0), r.range(-2.0, 2.0), r.range(-2.0, 2.0)];
-            let a = unit(r);
-            let m = 3.0 * K * eps;
-            let la = r.log_uniform(3.0 * m, 10f64.powf(0.5));
-            let lb = r.log_uniform(3.0 * m, 10f64.powf(0.5));
-            // `b` starts before `a`'s far end by at least `m`.
-            let s = r.range(-lb + m, la - m);
-            if la.min(s + lb) - s.max(0.0) < m {
-                return None;
-            }
-            // Its turn and offset keep the overlap within ε/3 of `a`.
-            let psi = r.unit() * (eps / 6.0) / la.max(lb);
-            let b = turned(r, a, psi);
-            let off = cross(a, unit(r));
-            let off = off.map(|v| v / norm(off) * (r.unit() * eps / 6.0));
-            let b0 = add(add(x, a, s), off, 1.0);
-            Some((
-                (x, add(x, a, la)),
-                (b0, add(b0, b, lb)),
-                format!("ψ {psi:e} la {la:e} lb {lb:e} s {s:e}"),
-            ))
-        },
-    );
+    falsify("census_segment_overlaps", 500, |r, eps| {
+        let x = [r.range(-2.0, 2.0), r.range(-2.0, 2.0), r.range(-2.0, 2.0)];
+        let a = unit(r);
+        let m = 3.0 * K * eps;
+        let la = r.log_uniform(3.0 * m, 10f64.powf(0.5));
+        let lb = r.log_uniform(3.0 * m, 10f64.powf(0.5));
+        // `b` starts before `a`'s far end by at least `m`.
+        let s = r.range(-lb + m, la - m);
+        if la.min(s + lb) - s.max(0.0) < m {
+            return None;
+        }
+        // Its turn and offset keep the overlap within ε/3 of `a`.
+        let psi = r.unit() * (eps / 6.0) / la.max(lb);
+        let b = turned(r, a, psi);
+        let off = cross(a, unit(r));
+        let off = off.map(|v| v / norm(off) * (r.unit() * eps / 6.0));
+        let b0 = add(add(x, a, s), off, 1.0);
+        Some((
+            (x, add(x, a, la)),
+            (b0, add(b0, b, lb)),
+            false,
+            format!("ψ {psi:e} la {la:e} lb {lb:e} s {s:e}"),
+        ))
+    });
 }

@@ -18,7 +18,7 @@ predates PR 5259; the same family as
 `the-census-crossing-lane-misplaces-a-shared-points-crossing-on-a-near-collinear-pair`,
 which that PR closed for pairs sharing a point key.
 
-`crates/topo/src/census.rs` `ee_lines_closest` reads the lines' closest
+`crates/topo/src/census.rs` `ee_lines_closest` (census.rs:3308) reads the lines' closest
 point from the ends the two edges share on one point key, else from
 their starts. From two starts `d = eb.p0 − ea.p0` apart, the closed
 form's `f64` rounding in each reach is about `|d|·u / sin φ`. Where that
@@ -36,9 +36,11 @@ says a definite no: a missed crossing, not an escalation.
   same batteries, most of them PR 5259's rows).
 
 The census's own fuzzer, `census::segment_fuzz`
-`crossings_strictly_inside_both_spans_never_read_apart`, excuses `f64`
-crossings at 1e-12 for this row and logs how many it excused (12 of
-1 000 readings at 1e-12 in one effort-1 run).
+`crossings_strictly_inside_both_spans_never_read_apart`, excuses an
+`f64` no only where `16·|d|·u / sin φ` reaches `4Kε` (`rounding_reaches`:
+a crossing `3Kε` inside a span read `Kε` outside it), and logs how many
+it excused: 564 of 40 000 readings at 1e-12 in one effort-40 run, none
+at 1e-9 or 1e-6. Any other `f64` no fails it.
 
 ## Owed
 
@@ -46,4 +48,4 @@ Read the reach from an origin that does not carry the starts' distance
 into the division: the pair of ends nearest each other, chosen without
 branching on a value the generic scalar cannot order. Or bound the
 closed form's rounding and escalate a span margin within it. Then lift
-the fuzzer's 1e-12 exclusion; it is this row's test.
+the fuzzer's rounding excuse; it is this row's test.
