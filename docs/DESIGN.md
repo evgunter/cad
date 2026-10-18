@@ -1094,7 +1094,7 @@ lift to a 3-D pose is how it leaves.
 A node is an operation: it reads variables and defines the variables
 its signature states, a fixed list of named, typed ports set by its
 variant, possibly none. A split defines two bodies; a revolve its body
-and its axis; an instance is a placement whose source is a space of another document, its world or any other space of it, defining a copy of each of that space's carried bodies, keyed by its identity there. An
+and its axis; an instance is a placement whose source is a space of another document, its world or any other space of it, placing a copy of each of that space's carried bodies. An
 assertion defines none. A mate or a value is a constraint of a
 placement, not an operation.
 
@@ -1203,9 +1203,12 @@ the product.
 **source** — a space, or a space of another document (an instance) —
 and a bundle of constraints, mates and values, and placing the
 source's content into a space under the one rigid motion its
-constraints state. It defines a copy of each of the source's carried
-bodies, keyed by that body's identity in the source, and carries
-every pose of the source as the copy carries it. Two placements of a
+constraints state. It places a copy of each of the source's carried
+bodies into that space, and carries every pose of the source as the
+copy carries it. A space is defined by what is built and placed in it,
+and what reads it downstream reads the space's bodies, never a
+placement: a body of a space is the same to its readers whether it
+was built there, placed there, or placed through other spaces. Two placements of a
 part are two copies. Nothing moves a body: a copy is defined by its
 one placement and never moved after, and an operation that would move
 one (today's `Transform`) is a placement. A pattern is a placement
