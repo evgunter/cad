@@ -5853,7 +5853,10 @@ pub(crate) mod tests {
             782.822_479_472_187_4,
         );
         let band = witness_band();
-        let carrier = Curve3::spiric(
+        // Its fold margin is 1.054·escalate at the default ε: at a
+        // coarser ε (the 1e-6 row) the deciding door refuses it as not
+        // two ovals, and there is no spiric to box.
+        let carrier = match Curve3::spiric(
             Point3::origin(),
             Vec3::unit_z(),
             Vec3::unit_x(),
@@ -5861,8 +5864,22 @@ pub(crate) mod tests {
             r,
             d,
             band,
-        )
-        .expect("the deciding door admits it");
+        ) {
+            Ok(carrier) => carrier,
+            Err(refusal) => {
+                assert!(
+                    matches!(refusal, geom::SpiricInvalid::NotTwoOvals)
+                        && big_r - r - d < 1.1 * band.escalate(),
+                    "only the fold margin may refuse the review's spiric, got {refusal:?}"
+                );
+                test_utils::vacuity::stood_down(
+                    "review fold refused at this ε",
+                    "the near-fold box at this ε (the_spiric_box_holds_its_exact_extremes_\
+                     within_its_charge grids its folds from this ε's escalate)",
+                );
+                return;
+            }
+        };
         // A hand-built sector body near the fold fails `mev`'s witness
         // certification, so the row enters `edge_box`'s own spiric path
         // directly: the rule, the `f64` bracket closures and the pad, as
