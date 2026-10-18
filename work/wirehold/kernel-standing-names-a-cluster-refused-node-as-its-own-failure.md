@@ -79,3 +79,5 @@ live in the kernel, and the viewer's `blamed_mates` /
 Read against the tree at `fd218851f9`. Mate-cluster blame is stage 3 C's ground. Read together with INTENT's `a-mate-is-poisoned-through-a-member-its-own-solve-faulted`, the same standing-versus-mate-blame question from the mate side. Parked on `a-mate-relates-two-poses`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
 
 Signed (WIRE orchestrator).
+
+**Census entries that wait on it (WIRE, PR 5298, 2026-10-18).** `crates/editor-core/tests/refusal_concision_chains.rs` `FILED_NO_RECOURSE` keeps `MeasureRefUnreadable/NodeFailed` and `MeasureRefUnreadable/NodePoisoned` unlabelled under a comment citing this row. Their only recourse is `NodeStanding`'s "fix the node's own failure" / "the repair is upstream", which is false for a node a cluster refused, so it is not certified as a `Recourse:` until this lands.
