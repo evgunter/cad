@@ -8,6 +8,7 @@ priority: P0
 cost: H
 closed: 2026-10-18
 branch: intent/s4-h-placed-carriers-compare-through-their-frames
+pr: 5300
 ---
 
 INTENT stage 4, PR H. Spec: `docs/INTENT-STAGE4-SPEC.md` §9. FORK-S4-5 is settled by FORK-S3O (fork log row 96, PR 4325), below.
