@@ -25,8 +25,8 @@ The tour wrote its gallery (`cargo run --release -- gallery <dir>` in
 `demos/tour`: 9 standalone documents, plus 7 assembly documents from 3 stops)
 on main after PR 5296. `cargo run --release -p viewer --example r1_gallery_probe
 -- <dir>` exits `gallery probe: OK`, and the probe check does run. Two assembly
-documents (the flat-pack layout and the document one of its refactorings
-writes) each admit a free-move on the layout's patterned instance, node
+documents (`3888f1c0…` and `88b4110c…`, both of which carry the flat-pack
+layout's instance) each admit a free-move on the layout's patterned instance, node
 `5bc49e2dcc54`: `free-move committed, scene probe_parts=Some(1)`. Every other
 instance refuses typed.
 
