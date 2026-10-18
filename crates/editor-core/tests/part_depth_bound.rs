@@ -572,15 +572,16 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
 }
 
 /// **A part no instance asks for is evaluated, and its failure reaches
-/// nothing.** Below the top, `holder` pins an instance of a part the
-/// store cannot resolve to the world, and places a second instance, of
-/// `asked`, by a constraint from a face of the first to its own copy. A
-/// copy side reads no face, so the solve forms no lever for `asked`,
-/// and the face side's part refuses: the constraint faults and nothing
-/// at the top asks for `asked`. The descent evaluates it anyway, with
-/// the two documents under it. Whether that subtree is healthy or ends
-/// in a missing document, the top's refusal is drawn the same, and it is
-/// the one `holder`'s own evaluation, which evaluates no part, draws.
+/// nothing.** `holder` pins an instance of a part the store cannot
+/// resolve to the world, and places a second instance, of `asked`, by
+/// a constraint from a face of the first to its own copy. A copy side
+/// reads no face, so the solve forms no lever for `asked`, and the face
+/// side's part refuses: the constraint faults and nothing asks for
+/// `asked`. Its census evaluates it anyway, with the two documents
+/// under it, whether `holder` is evaluated at the top or below it.
+/// Whether that subtree is healthy or ends in a missing document, the
+/// top's refusal is drawn the same, and it is the one `holder`'s own
+/// evaluation draws.
 #[test]
 fn a_part_no_instance_asks_for_is_evaluated_and_its_failure_reaches_nothing() {
     let mut authoring = PartStore::new();
@@ -620,8 +621,9 @@ fn a_part_no_instance_asks_for_is_evaluated_and_its_failure_reaches_nothing() {
 
         let own = run(&holder, &opts);
         assert_eq!(
-            own.part_evaluations, 0,
-            "at the top the holder evaluates no part: the constraint faults first"
+            own.part_evaluations,
+            evaluated - 1,
+            "at the top the holder's census evaluates the whole unasked subtree"
         );
         let ev = run(&top, &opts);
         assert_eq!(
