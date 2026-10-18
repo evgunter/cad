@@ -5937,6 +5937,21 @@ fn write_reads<P: crate::ProfilePayload>(
 /// there could. Payload rows in document order, within a node in
 /// [`Node::payload_names`]' order; then selection rows; then the
 /// appearance keys read in such a body, in key order.
+/// **Whether a re-point took `name` out of reach**: a node its
+/// derivation names (its own head, or the head of a name it embeds — a
+/// copy's `Placed { of }`, a boolean's `From`) was reached before and is
+/// not after. Every embedded name is minted upstream of the name that
+/// embeds it, so a head still reached is no strand.
+fn taken_out_of_reach(
+    was: &std::collections::BTreeSet<RecipeNodeId>,
+    after: &std::collections::BTreeSet<RecipeNodeId>,
+    name: &StableName,
+) -> bool {
+    crate::resolve::derivation_nodes(name)
+        .iter()
+        .any(|node| was.contains(node) && !after.contains(node))
+}
+
 fn stranded_by_repoint<P: crate::ProfilePayload>(
     before: &Doc<P>,
     new: &Doc<P>,
@@ -5961,7 +5976,7 @@ fn stranded_by_repoint<P: crate::ProfilePayload>(
         }
         let was = crate::doc::strict_ancestors(before, carrier);
         for name in names {
-            if was.contains(&name.node) && !after.contains(&name.node) {
+            if taken_out_of_reach(&was, &after, name) {
                 rows.push(Maintenance::Strand {
                     node: before.spoken(carrier),
                     name: before.spoken_name(name),
@@ -6024,7 +6039,7 @@ fn stranded_by_repoint<P: crate::ProfilePayload>(
             continue;
         };
         for name in &select.names {
-            if was.contains(&name.node) && !after.contains(&name.node) {
+            if taken_out_of_reach(&was, &after, name) {
                 rows.push(Maintenance::StrandedSelection {
                     var: new.spoken_var(var),
                     readers: selection_readers(before, new, var),
@@ -6046,8 +6061,7 @@ fn stranded_by_repoint<P: crate::ProfilePayload>(
             continue;
         };
         if (at == id || crate::doc::strict_ancestors(new, at).contains(&id))
-            && was.contains(&key.name.node)
-            && !after.contains(&key.name.node)
+            && taken_out_of_reach(&was, &after, &key.name)
         {
             rows.push(Maintenance::StrandedAppearance {
                 body: new.spoken_var(key.at),

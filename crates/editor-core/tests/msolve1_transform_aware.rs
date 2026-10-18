@@ -1,14 +1,14 @@
-//! **A mate reads the body its target names** — the transform-aware
+//! **A mate reads the body its target names** — the placement-aware
 //! seat.
 //!
 //! A mate's `to` pose is read off a face of the space the copy joins:
 //! a FACE name, selected in the body it is read at (the read's
-//! operand), which may be a transform, a pattern or a `Part` over the
-//! instance that minted the name. The face is read where that body
-//! stands, so a mate on a TRANSFORMED target seats the copy on the
-//! transformed geometry and a mate on the instance seats it on the
-//! instance. The `on` pose reads the copy's own geometry, never a body
-//! downstream of it.
+//! operand), which may be a placed copy of the instance that minted
+//! the name, a pattern or a `Part` over it. The face is read where that
+//! body stands, so a mate on a target's PLACED COPY seats the copy on
+//! the placed copy's geometry and a mate on the instance seats it on
+//! the instance. The `on` pose reads the copy's own geometry, never a
+//! body downstream of it.
 //!
 //! Every row here goes through ordinary doors — `DocEdit::AddConstraint`,
 //! `solve_document`, `evaluate`, `product` — and measures the
@@ -121,7 +121,7 @@ fn standoff(face: impl Into<Operand>, by: f64) -> Operand {
 /// wall's outward normal), so the `1x1` block stands on the `3x3`
 /// slab's middle square, `[1, 2]²`. `base_face` reads a part name of
 /// the base where the row reads it — at the instance, through a
-/// transform, a pattern or a `Part`. Only the rest declares a contact.
+/// placed copy, a pattern or a `Part`. Only the rest declares a contact.
 /// Answers the rest.
 fn seat(
     doc: ProfileDoc,
@@ -165,9 +165,9 @@ const BASE_HEIGHT: f64 = 1.0;
 const BASE_WIDTH: f64 = 3.0;
 const TOP_HEIGHT: f64 = 3.0;
 
-/// `base` (a wide slab, pinned in the world) optionally wrapped in a
-/// chain of transforms, and `top` (a tall block) seated on the LAST
-/// node of the base's chain.
+/// `base` (a wide slab, pinned in the world), optionally a copy of it
+/// placed against it by one rigid motion, and `top` (a tall block)
+/// seated on that copy — or on the base, where there is none.
 struct Scene {
     doc: ProfileDoc,
     opts: EvalOptions,
@@ -175,32 +175,40 @@ struct Scene {
     top: RecipeNodeId,
     base_part: Part,
     top_part: Part,
-    /// The last node of `base`'s chain, where the seat reads the base.
+    /// Where the seat reads the base: its placed copy, or the base.
     a_at: RecipeNodeId,
     /// The seat's rest, a constraint of `top`'s bundle.
     mate: MateRef,
 }
 
 /// **The world the product is** (A10): each of `bodies` that is not
-/// already a placement placed, then each `(pattern, count)`'s copies
-/// placed through a `Part` per copy. An instance is a placement already
-/// in the product, so it is never placed a second time. Each copy is
-/// pinned at the identity over its geometry, which `o` reaches.
+/// already a placement placed, then each `(pattern, copies)`'s copies
+/// placed through a `Part` per copy. An instance or a `Place` is a
+/// placement already in the product, so it is never placed a second
+/// time — and a pattern's copy 0 standing where such a placement does
+/// is left out of `copies`. Each copy is pinned at the identity over
+/// its geometry, which `o` reaches.
 fn world(
     doc: ProfileDoc,
     o: &EvalOptions,
     bodies: &[RecipeNodeId],
-    patterns: &[(RecipeNodeId, i64)],
+    patterns: &[(RecipeNodeId, std::ops::Range<i64>)],
 ) -> ProfileDoc {
     let doc = bodies
         .iter()
         .copied()
-        .filter(|&b| !matches!(doc.node(b), Some(Node::InstantiatePart { .. })))
+        .filter(|&b| {
+            !matches!(
+                doc.node(b),
+                Some(Node::InstantiatePart { .. } | Node::Place { .. })
+            )
+        })
         .collect::<Vec<_>>()
         .into_iter()
         .fold(doc, |doc, body| place(doc, o, body));
-    patterns.iter().fold(doc, |doc, &(pattern, count)| {
-        (0..count).fold(doc, |doc, i| {
+    patterns.iter().fold(doc, |doc, (pattern, copies)| {
+        let pattern = *pattern;
+        copies.clone().fold(doc, |doc, i| {
             let (doc, copy) = insert(
                 doc,
                 Node::Part {
@@ -223,8 +231,8 @@ fn place(doc: ProfileDoc, o: &EvalOptions, body: RecipeNodeId) -> ProfileDoc {
 
 /// **`name`'s world copy**: the one name in the gathered product's
 /// table that is a copy of `name` ([`StableName::copy_of`]) — what the
-/// product names a face by under the `Place` that put a transformed or
-/// patterned body in the world — or, where no `Place` copies it, `name`
+/// product names a face by under the `Place` that put a body in the
+/// world — or, where no `Place` copies it, `name`
 /// itself, which is how the product names a face of an instance (an
 /// instance is a placement, its face names already its copy's).
 fn copy_name(doc: &ProfileDoc, ev: &Evaluation<f64>, name: &StableName) -> StableName {
@@ -240,6 +248,24 @@ fn copy_name(doc: &ProfileDoc, ev: &Evaluation<f64>, name: &StableName) -> Stabl
         [] if names.iter().any(|(n, _)| n == name) => name.clone(),
         _ => panic!("{name:?} has one world copy, not {copies:?}"),
     }
+}
+
+/// `name`, as the placement `p` names its copy of the entity.
+fn placed(p: RecipeNodeId, name: StableName) -> StableName {
+    StableName {
+        kind: name.kind,
+        node: p,
+        path: vec![RoleSeg::Placed {
+            of: NameRef::new(name),
+        }],
+    }
+}
+
+/// **A name read at `at`**: under `at`'s own layer where `at` is a
+/// `Place` (a copy's names are its placement's), as it is otherwise.
+fn read_at(doc: &ProfileDoc, at: RecipeNodeId) -> impl Fn(StableName) -> SitedFace + use<> {
+    let copy = matches!(doc.node(at), Some(Node::Place { .. }));
+    move |name| head_at(at, if copy { placed(at, name) } else { name })
 }
 
 /// [`fixture::seat::assert_seated`] over the world copies of `a` and
@@ -271,8 +297,7 @@ fn product_face_frame(doc: &ProfileDoc, ev: &Evaluation<f64>, name: &StableName)
     fixture::seat::product_face_frame(doc, ev, &copy_name(doc, ev, name))
 }
 
-/// One link of a transform chain: `(translation, rotation axis,
-/// angle)`.
+/// A rigid motion: `(translation, rotation axis, angle)`.
 type Step = ([f64; 3], [f64; 3], f64);
 
 /// The two parts every scene stores, and the options reaching them.
@@ -286,22 +311,25 @@ fn parts(label: &str) -> (Part, Part, EvalOptions) {
     (base, top, with_resolver(store))
 }
 
-/// Builds that scene. `on_base` is the base's transform chain,
-/// innermost first.
-fn scene(label: &str, on_base: &[Step]) -> Scene {
-    scene_at(label, on_base, &editor_core::Frame::IDENTITY)
+/// Builds that scene. `moved` places a copy of the base against it by
+/// that motion, where the seat then reads the base.
+fn scene(label: &str, moved: Option<Step>) -> Scene {
+    scene_at(label, moved, &editor_core::Frame::IDENTITY)
 }
 
 /// [`scene`] with the base pinned to the world at `at`.
-fn scene_at(label: &str, on_base: &[Step], at: &editor_core::Frame) -> Scene {
+fn scene_at(label: &str, moved: Option<Step>, at: &editor_core::Frame) -> Scene {
     let (base_part, top_part, opts) = parts(label);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, fixture::mated_instance(base_part.doc_ref));
     let doc = fixture::pin(doc, base, at, &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
-    let (doc, a_at) = chain(doc, base, on_base, &opts);
-    let doc = world(doc, &opts, &[a_at], &[]);
-    let (doc, mate) = seat(doc, top, &top_part, &|n| head_at(a_at, n), &base_part, base);
+    let (doc, a_at) = match moved {
+        Some((t, axis, angle)) => place_moved(doc, base, t, axis, angle, &opts),
+        None => (doc, base),
+    };
+    let read = read_at(&doc, a_at);
+    let (doc, mate) = seat(doc, top, &top_part, &read, &base_part, base);
     Scene {
         doc,
         opts,
@@ -330,33 +358,17 @@ fn place_moved(
     crate::mate1_member_vocab::against_with(doc, input, input, &at, o)
 }
 
-/// Wraps `at` in each step of a placement chain, innermost first,
-/// answering the last node.
-fn chain(
-    mut doc: ProfileDoc,
-    mut at: RecipeNodeId,
-    steps: &[Step],
-    o: &EvalOptions,
-) -> (ProfileDoc, RecipeNodeId) {
-    for &(t, ax, ang) in steps {
-        let (d, id) = place_moved(doc, at, t, ax, ang, o);
-        doc = d;
-        at = id;
-    }
-    (doc, at)
-}
-
 const LIFT: Step = ([0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0);
 
 /// **The seat this fixture's mates ask for**, measured on the document
-/// that has no transform and no pattern anywhere: the relative frame
+/// that has no placed copy and no pattern anywhere: the relative frame
 /// every other row must reproduce.
 ///
 /// It is derived, not written down — a constant transcribed here
 /// would be a second statement of what the mates say, and the two
 /// could drift apart.
 fn control_seat(label: &str) -> Affine3<f64> {
-    let s = scene(&format!("{label}-control"), &[]);
+    let s = scene(&format!("{label}-control"), None);
     let ev = s.eval();
     seat_map(&s.doc, &ev, &s.face_a(), &s.face_b())
 }
@@ -418,26 +430,27 @@ impl Scene {
 
 // ---- A1: the finding's own document, on the target ----
 
-/// **A1.** The two-block document with a +z translation over the
-/// target instance (angle 0): the solve records no fault, the product
-/// gathers, the mated faces MEET in the product, and the copy's solved
-/// pose differs from the control's by exactly the transform's map.
+/// **A1.** The two-block document with a copy of the target instance
+/// placed against it `+10` up `z` (angle 0), the seat read at the copy:
+/// the solve records no fault, the product gathers, the mated faces
+/// MEET in the product, and the top's solved pose differs from the
+/// control's by exactly the copy's motion.
 ///
 /// *Breaks if* the seat reads the base where its instance stands
-/// rather than where the transform puts it (the top stays at `z = 1`),
-/// or a translation turns the top.
+/// rather than where its copy's placement puts it (the top stays at
+/// `z = 1`), or a translation turns the top.
 #[test]
 fn a1_a_translated_target_seats_in_the_product() {
     let seat = control_seat("msolve1-a1");
-    let control = scene("msolve1-a1-control", &[]);
+    let control = scene("msolve1-a1-control", None);
     control.assert_green_and_seated(&seat, "A1 control");
 
-    let test = scene("msolve1-a1-lifted", &[LIFT]);
+    let test = scene("msolve1-a1-lifted", Some(LIFT));
     test.assert_green_and_seated(&seat, "A1 lifted");
 
     // The mechanism, stated as arithmetic rather than as a string
-    // comparison: the top rose by exactly the transform's lift, so it
-    // stands on the lifted base where it stood on the plain one.
+    // comparison: the top rose by exactly the copy's lift, so it
+    // stands on the lifted copy where it stood on the plain base.
     let c = solve(&control.doc, &control.opts, Tol::witness())
         .relative(control.top)
         .expect("the control solves");
@@ -447,21 +460,21 @@ fn a1_a_translated_target_seats_in_the_product() {
     assert_eq!(
         (t.translation[2] - c.translation[2]).to_bits(),
         10.0_f64.to_bits(),
-        "the seat followed exactly the transform's +10 lift \
+        "the seat followed exactly the copy's +10 lift \
          (control {:?} vs test {:?})",
         c.translation,
         t.translation
     );
     // ...and the rotation part is untouched by a translation-only
-    // transform, bit for bit.
+    // motion, bit for bit.
     assert_eq!(c.columns, t.columns, "a translation moves no axis");
 }
 
 // ---- A2: rotation ----
 
-/// **A2.** A transform over the target with a non-zero angle about z,
-/// and ones about non-axis directions: the mated faces still seat in
-/// the product, their outward normals opposed and their whole relative
+/// **A2.** A copy of the target placed against it by a non-zero turn
+/// about z, and by ones about non-axis directions, the seat read at the
+/// copy: the mated faces still seat in the product, their outward normals opposed and their whole relative
 /// frame the control's — and the at-rest gate still passes.
 ///
 /// The about-z rows are the case a normal-and-gap oracle cannot reach:
@@ -469,8 +482,8 @@ fn a1_a_translated_target_seats_in_the_product() {
 /// normals opposed while turning the block. The relative frame is what
 /// sees it.
 ///
-/// *Breaks if* any of the target's turn is lost from the faces the
-/// seat reads.
+/// *Breaks if* any of the copy's turn is lost from the faces the seat
+/// reads.
 #[test]
 fn a2_a_rotated_target_seats_and_keeps_the_whole_frame() {
     let seat = control_seat("msolve1-a2");
@@ -499,30 +512,31 @@ fn a2_a_rotated_target_seats_and_keeps_the_whole_frame() {
     ] {
         let s = scene(
             &format!("msolve1-a2-{what}"),
-            &[([0.0, 0.0, 10.0], axis, angle)],
+            Some(([0.0, 0.0, 10.0], axis, angle)),
         );
         s.assert_green_and_seated(&seat, &format!("A2 {what}"));
     }
 }
 
-// ---- A3: patterns over transforms, and transforms over patterns ----
+// ---- A3: patterns over placed copies, and placed copies of patterns ----
 
 /// The copy of the base's pattern the seat reads.
 const COPY: u32 = 1;
 
-/// **A3.** Pattern-of-transform and transform-of-pattern of the target:
-/// both solve, and the top seats on the named copy in the product.
+/// **A3.** A pattern of the target's placed copy, and a placed copy of
+/// the target's pattern: both solve, and the top seats on the named
+/// copy in the product.
 ///
 /// *Breaks if* a pattern copy's face is read at the master's pose, or
-/// the transform and the pattern compose in the wrong order.
+/// the placement's motion and the pattern's compose in the wrong order.
 #[test]
-fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
+fn a3_pattern_of_a_placed_copy_seats_and_a_placed_pattern_resolves() {
     // The seat is a constant of the mates and the two part documents,
     // so the plain control's relative frame is the one a pattern copy
     // must give too.
     let seat_frame = control_seat("msolve1-a3");
-    // (a) PATTERN over TRANSFORM over the base. The seat is read at the
-    // pattern; the copy stands at M(1) ∘ T.
+    // (a) A PATTERN over a PLACED COPY of the base. The seat is read at
+    // the pattern; the copy stands at M(1) ∘ T.
     {
         let (base_part, top_part, opts) = parts("msolve1-a3a");
         let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a3a"), Tol::witness());
@@ -544,37 +558,46 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
                 },
             },
         );
-        let doc = world(doc, &opts, &[], &[(pattern, 3)]);
-        let a = in_copy(pattern, COPY, base_part.cap(base, CapEnd::End));
+        // The placed copy is in the product already, standing where
+        // the pattern's copy 0 does.
+        let doc = world(doc, &opts, &[], &[(pattern, 1..3)]);
+        let a = in_copy(pattern, COPY, placed(xf, base_part.cap(base, CapEnd::End)));
         let b = top_part.cap(top, CapEnd::Start);
         let (doc, _) = seat(
             doc,
             top,
             &top_part,
-            &|n| head(in_copy(pattern, COPY, n)),
+            &|n| head(in_copy(pattern, COPY, placed(xf, n))),
             &base_part,
             base,
         );
         let poses = solve(&doc, &opts, Tol::witness());
         assert!(
             poses.fault(top).is_none(),
-            "A3 pattern-of-transform refused: {:?}",
+            "A3 pattern of a placed copy refused: {:?}",
             poses.fault(top)
         );
         let ev = run(&doc, &opts);
-        assert_seated(&doc, &ev, &a, &b, &seat_frame, "A3 pattern-of-transform");
+        assert_seated(
+            &doc,
+            &ev,
+            &a,
+            &b,
+            &seat_frame,
+            "A3 pattern of a placed copy",
+        );
         assert!(
             gate(&doc, &ev).is_ok(),
-            "A3 pattern-of-transform: the gate refused: {:?}",
+            "A3 pattern of a placed copy: the gate refused: {:?}",
             gate(&doc, &ev).err()
         );
     }
 
-    // (b) TRANSFORM over PATTERN over the base. The seat names a copy
-    // and is read at the transform: the copy stands at T ∘ M(1), the
-    // seat pins the top, and the document GATHERS — a transform is
-    // shape-preserving over its input's value, so the transform of the
-    // pattern is the pattern's copies under one map.
+    // (b) A PLACED COPY of a PATTERN over the base. The seat names a
+    // pattern copy under the placement's layer and is read at the
+    // placement: the copy stands at T ∘ M(1), the seat pins the top,
+    // and the document GATHERS — a placement copies every body of its
+    // shape under its one motion.
     {
         let (base_part, top_part, opts) = parts("msolve1-a3b");
         let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a3b"), Tol::witness());
@@ -599,139 +622,53 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
             std::f64::consts::FRAC_PI_2,
             &opts,
         );
-        let doc = world(doc, &opts, &[], &[(xf, 3)]);
         let a = in_copy(pattern, COPY, base_part.cap(base, CapEnd::End));
         let b = top_part.cap(top, CapEnd::Start);
         let (doc, _) = seat(
             doc,
             top,
             &top_part,
-            &|n| head_at(xf, in_copy(pattern, COPY, n)),
+            &|n| head_at(xf, placed(xf, in_copy(pattern, COPY, n))),
             &base_part,
             base,
         );
         let poses = solve(&doc, &opts, Tol::witness());
         assert!(
             poses.fault(top).is_none(),
-            "A3 transform-of-pattern refused at the solve: {:?}",
+            "A3 placed pattern refused at the solve: {:?}",
             poses.fault(top)
         );
         assert_eq!(
             poses.space(top),
             Some(Space::World),
-            "the transform-of-pattern read places the top"
+            "the placed pattern's read places the top"
         );
         let ev = run(&doc, &opts);
         assert!(
             ev.value(xf).is_some(),
-            "the transform of the pattern evaluates: {:?}",
+            "the placed copy of the pattern evaluates: {:?}",
             ev.node_error(xf)
         );
-        assert_seated(&doc, &ev, &a, &b, &seat_frame, "A3 transform-of-pattern");
+        assert_seated(&doc, &ev, &a, &b, &seat_frame, "A3 placed pattern");
         assert!(
             gate(&doc, &ev).is_ok(),
-            "A3 transform-of-pattern: the gate refused: {:?}",
+            "A3 placed pattern: the gate refused: {:?}",
             gate(&doc, &ev).err()
         );
     }
 }
 
-// ---- A4: chains ----
+// ---- A4: a target pinned off the identity ----
 
-/// **A4.** Chains of one and two transforms over the target, and —
-/// the row the rest do not reach — chains whose two maps DO NOT
-/// COMMUTE. A lift along z and a spin about z commute, so every such
-/// chain composes to the same map whichever way round it is read, and
-/// a composition written backwards would pass. A rotation about x and
-/// a translation along z do not.
-///
-/// *Breaks if* the chain's maps compose in the wrong order, or one
-/// link is dropped.
-#[test]
-fn a4_the_seat_holds_through_a_chain_on_the_target() {
-    let seat = control_seat("msolve1-a4");
-    let lift = |z: f64| ([0.0, 0.0, z], [0.0, 0.0, 1.0], 0.0);
-    let spin = |a: f64| ([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], a);
-    let tip = |a: f64| ([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], a);
-    for (what, on_base) in [
-        ("one lift", vec![lift(4.0)]),
-        (
-            "a chain of two, lift first",
-            vec![lift(10.0), spin(std::f64::consts::FRAC_PI_3)],
-        ),
-        (
-            "a chain of two, rotation first",
-            vec![spin(std::f64::consts::FRAC_PI_3), lift(10.0)],
-        ),
-        (
-            "a spin and a short lift",
-            vec![spin(std::f64::consts::FRAC_PI_6), lift(2.0)],
-        ),
-        // NON-COMMUTING: `tip` then `lift` is not `lift` then `tip` —
-        // the x-rotation turns the z-translation.
-        (
-            "a non-commuting chain, tip then lift",
-            vec![tip(std::f64::consts::FRAC_PI_3), lift(10.0)],
-        ),
-        (
-            "a non-commuting chain, lift then tip",
-            vec![lift(10.0), tip(std::f64::consts::FRAC_PI_3)],
-        ),
-        (
-            "a non-commuting chain, tipped back",
-            vec![tip(-std::f64::consts::FRAC_PI_4), lift(5.0)],
-        ),
-    ] {
-        let s = scene(&format!("msolve1-a4-{what}"), &on_base);
-        s.assert_green_and_seated(&seat, &format!("A4 {what}"));
-    }
-}
-
-/// **A4′ — the two orders really are different maps.** The row above
-/// asserts both non-commuting chains seat; this one asserts they are
-/// not the same document dressed twice, by measuring that the two
-/// place the block somewhere different. Without it "both seat" could
-/// be true of a pair the composition happened to see as one.
-///
-/// *Breaks if* the two chain orders place the top in the same place.
-#[test]
-fn a4_the_two_non_commuting_orders_place_different_geometry() {
-    let tip = std::f64::consts::FRAC_PI_3;
-    let one = scene(
-        "msolve1-a4-order-1",
-        &[([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], tip), LIFT],
-    );
-    let two = scene(
-        "msolve1-a4-order-2",
-        &[LIFT, ([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], tip)],
-    );
-    // Measured on where the top was placed, not on the seat: the seat
-    // is the same by construction — that is the point of the row above
-    // — so the two chains being different maps has to be read off the
-    // copy's pose.
-    let placed = |s: &Scene| {
-        solve(&s.doc, &s.opts, Tol::witness())
-            .relative(s.top)
-            .expect("the mated instance solves")
-    };
-    let (p1, p2) = (placed(&one), placed(&two));
-    let moved = map_gap(&p1.affine::<f64>(), &p2.affine::<f64>());
-    assert!(
-        moved > 1.0,
-        "the two chain orders compose to the same map ({p1:?} vs {p2:?}) — \
-         the row above would then prove nothing about composition order"
-    );
-}
-
-/// **A4″ — the target pinned to the world at a non-identity pose**,
-/// with a transform over it: the face the seat reads stands at the
-/// transform over the pinned pose, so a target that carries an
-/// authored pose is the case where that composition has to be right.
+/// **A4.** The target pinned to the world at a non-identity pose,
+/// turned off every axis and slid: the face the seat reads stands where
+/// the pin puts it, so a target that carries an authored pose seats
+/// the top as the control's does.
 ///
 /// *Breaks if* the target's pin is dropped from the face the seat
-/// reads, or composed on the wrong side of the transform.
+/// reads.
 #[test]
-fn a4_a_placed_target_seats_through_its_chain() {
+fn a4_a_target_pinned_off_the_identity_seats() {
     let seat = control_seat("msolve1-a4-placed");
     let at = editor_core::Frame::rotate_then_translate(
         [0.3, -0.2, 0.9],
@@ -740,19 +677,15 @@ fn a4_a_placed_target_seats_through_its_chain() {
         fixture::band(),
     )
     .expect("a literal axis has a definite direction");
-    let placed = scene_at(
-        "msolve1-a4-placed-frame",
-        &[([1.0, 2.0, 3.0], [1.0, 1.0, 0.0], -0.6)],
-        &at,
-    );
+    let placed = scene_at("msolve1-a4-placed-frame", None, &at);
     placed.assert_green_and_seated(&seat, "A4 placed target");
 }
 
 // ---- A5: two seats through two operands ----
 
-/// One seat of `top` on `base` read at a transform `x1` of the base,
-/// and a second rest of the top read at a DIFFERENT transform `x2` of
-/// the base, each transform placed so both copies reach the product.
+/// One seat of `top` on `base` read at a placed copy `x1` of the base,
+/// and a second rest of the top read at a DIFFERENT placed copy `x2` of
+/// the base; both copies are in the product.
 /// Answers the document with the seat in `top`'s bundle, the seat's
 /// rest, the second rest (not added), and `top`.
 ///
@@ -782,18 +715,18 @@ fn two_operands(
         0.0,
         &opts,
     );
-    let doc = world(doc, &opts, &[x1, x2], &[]);
-    let (doc, m1) = seat(doc, top, &top_part, &|n| head_at(x1, n), &base_part, base);
+    let (at1, at2) = (read_at(&doc, x1), read_at(&doc, x2));
+    let (doc, m1) = seat(doc, top, &top_part, &at1, &base_part, base);
     let second = rest(
         head(top_part.cap(top, CapEnd::Start)),
-        head_at(x2, base_part.cap(base, CapEnd::End)),
+        at2(base_part.cap(base, CapEnd::End)),
         ContactClass::Rest,
     );
     (doc, opts, m1, second, top)
 }
 
-/// **A5.** A seat read through one transform of the target pins the
-/// top, and a second rest through another transform of the same
+/// **A5.** A seat read through one placed copy of the target pins the
+/// top, and a second rest through another placed copy of the same
 /// target is a mate beyond the pin. The door decides structure alone
 /// and admits it; the placement refuses where it evaluates — as
 /// overconstrained where the second rest agrees with the seat (it and
@@ -852,11 +785,11 @@ fn a5_a_second_seat_through_another_operand_is_refused() {
 /// **A6.** A bundle that leaves a residual pins less than the copy
 /// needs: a lone rest leaves the top free to slide and spin on the
 /// base, so the copy is LOOSE, its own space's root, with no refusal —
-/// with and without a transform over the target, identically.
+/// read at the target or at a placed copy of it, identically.
 ///
 /// *Breaks if* a residual is refused, or the copy is taken as pinned.
 #[test]
-fn a6_a_residual_bundle_leaves_the_copy_loose_with_or_without_the_transform() {
+fn a6_a_residual_bundle_leaves_the_copy_loose_on_the_target_or_its_copy() {
     let residual = |label: &str, lift: bool| -> (Option<Space>, Option<MateFault>, RecipeNodeId) {
         let (base_part, top_part, opts) = parts(label);
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -867,12 +800,13 @@ fn a6_a_residual_bundle_leaves_the_copy_loose_with_or_without_the_transform() {
         } else {
             (doc, base)
         };
+        let to = read_at(&doc, at)(base_part.cap(base, CapEnd::End));
         let (doc, _) = constrain_at(
             doc,
             top,
             rest(
                 head(top_part.cap(top, CapEnd::Start)),
-                head_at(at, base_part.cap(base, CapEnd::End)),
+                to,
                 ContactClass::Rest,
             ),
         );
@@ -898,7 +832,7 @@ fn a6_a_residual_bundle_leaves_the_copy_loose_with_or_without_the_transform() {
 /// *Breaks if* a read at a node the document never held is admitted.
 #[test]
 fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
-    let s = scene("msolve1-a8a", &[]);
+    let s = scene("msolve1-a8a", None);
     let ghost = RecipeNodeId::new(0, 9_999);
     let err = s
         .doc
@@ -922,7 +856,7 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
     );
 }
 
-/// **A8(b).** Deleting the transform a seat reads the target at
+/// **A8(b).** Deleting the placed copy a seat reads the target at
 /// strands its `to` pose: D10's unresolved reader, which the placement
 /// refuses where it evaluates, naming the constraint and the pose, until
 /// the read is re-authored — and the copy it would place has no pose.
@@ -931,7 +865,7 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
 /// laid on the `on` pose.
 #[test]
 fn a8b_deleting_the_operand_leaves_the_pose_unresolved() {
-    let s = scene("msolve1-a8b", &[LIFT]);
+    let s = scene("msolve1-a8b", Some(LIFT));
     let reach = editor_core::mate_reach::<f64>(&s.opts, Tol::witness());
     let (doc, _) = step_with(s.doc, DocEdit::DeleteNode { id: s.a_at }, &reach);
     let ev = run(&doc, &s.opts);
@@ -970,27 +904,46 @@ fn a8b_deleting_the_operand_leaves_the_pose_unresolved() {
 }
 
 /// **A8(c).** Two placements whose constraints differ only in the
-/// operand their target is read at are different content keys — the
-/// memo cannot serve one's answer for the other. Measured on the
-/// evaluated values, which is where a key is read.
+/// operand their target is read at — one name, copy 1's cap, read at a
+/// pattern and at the `Part` picking that copy out of it — are
+/// different content keys: the memo cannot serve one's answer for the
+/// other. Measured on the evaluated values, which is where a key is
+/// read.
 ///
 /// *Breaks if* the operand a face is read at drops out of the key.
 #[test]
 fn a8c_the_content_key_separates_two_operands() {
-    let key_of = |label: &str, at_transform: bool| -> editor_core::ContentKey {
+    let key_of = |label: &str, at_part: bool| -> editor_core::ContentKey {
         let (base_part, top_part, opts) = parts("msolve1-a8c");
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
         let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
         let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
-        let (doc, xf) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts);
+        let (doc, pattern) = insert(
+            doc,
+            Node::Pattern {
+                input: base.into(),
+                count: editor_core::Formula::count(2),
+                kind: PatternKind::Linear {
+                    direction: [scl(1.0), scl(0.0), scl(0.0)],
+                    spacing: len(5.0),
+                },
+            },
+        );
+        let (doc, part) = insert(
+            doc,
+            Node::Part {
+                of: pattern.into(),
+                select: editor_core::PartSelect::Instance(editor_core::Formula::count(1)),
+            },
+        );
         let (doc, mate) = constrain_at(
             doc,
             top,
             rest(
                 head(top_part.cap(top, CapEnd::Start)),
                 head_at(
-                    if at_transform { xf } else { base },
-                    base_part.cap(base, CapEnd::End),
+                    if at_part { part } else { pattern },
+                    in_copy(pattern, 1, base_part.cap(base, CapEnd::End)),
                 ),
                 ContactClass::Rest,
             ),
@@ -1001,21 +954,21 @@ fn a8c_the_content_key_separates_two_operands() {
             .content_key
     };
     assert_ne!(
-        key_of("msolve1-a8c-at-mint", false),
-        key_of("msolve1-a8c-at-xform", true),
+        key_of("msolve1-a8c-at-pattern", false),
+        key_of("msolve1-a8c-at-part", true),
         "the operand is part of what a mate says"
     );
 }
 
-/// **A8(d).** A mate whose target is read at a transform round-trips
+/// **A8(d).** A mate whose target is read at a placed copy round-trips
 /// through persistence: the same document, byte for byte, and the same
 /// solve.
 ///
 /// *Breaks if* the operand a pose's face is read at is lost on the
 /// wire.
 #[test]
-fn a8d_a_transform_operand_round_trips_through_persistence() {
-    let s = scene("msolve1-a8d", &[LIFT]);
+fn a8d_a_placed_copy_operand_round_trips_through_persistence() {
+    let s = scene("msolve1-a8d", Some(LIFT));
     let bytes = save(&s.doc, &[], Tol::witness()).expect("the document saves");
     let back = load(&bytes, Tol::witness()).expect("it loads").doc;
     assert_eq!(
@@ -1187,7 +1140,7 @@ fn a10_a_nested_pattern_head_is_read_at_its_copy() {
 /// *Breaks if* the cut is accepted, or the refusal names another read.
 #[test]
 fn a8e_a_cut_that_would_sever_the_target_refuses() {
-    let s = scene("msolve1-a8e", &[]);
+    let s = scene("msolve1-a8e", None);
     let cut = fixture::with_placements(
         &s.doc,
         &[s.top]
@@ -1222,7 +1175,7 @@ fn a8e_a_cut_that_would_sever_the_target_refuses() {
 /// the remap: the same id door the measure's `at` goes through, applied
 /// to the half of a face read that is a node rather than a name. Both
 /// poses come out pointing at the same nodes' images — the `to` face
-/// still read at the transform over its instance, the `on` face still
+/// still read at the placed copy of its instance, the `on` face still
 /// read at its own mint.
 ///
 /// *Breaks if* the remap drops the operand a face is read at, or points
@@ -1253,12 +1206,13 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &o);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, xf) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &o);
+    let to = read_at(&doc, xf)(base_part.cap(base, CapEnd::End));
     let (doc, _) = constrain_at(
         doc,
         top,
         rest(
             head(top_part.cap(top, CapEnd::Start)),
-            head_at(xf, base_part.cap(base, CapEnd::End)),
+            to,
             ContactClass::Rest,
         ),
     );
@@ -1281,8 +1235,8 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     )
     .expect("a cut of untouched local geometry is accepted");
     // The placement moved in the remainder's numbering; its
-    // constraint's operand moved with it and still names the transform
-    // over its instance.
+    // constraint's operand moved with it and still names the placed
+    // copy of its instance.
     let [moved] = fixture::constrained(&out.remainder)
         .try_into()
         .expect("one constrained placement stayed in the remainder");
@@ -1328,8 +1282,8 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
 
 /// **A8(g) — a KEPT placement whose constraint reads a body inside
 /// the cut refuses.** The rest in `top`'s bundle reads the base through
-/// a transform at its `to` pose; the cut takes the base and that
-/// transform, and keeps `top`. A face is a read, so this is D-2's
+/// a placed copy at its `to` pose; the cut takes the base and that
+/// copy, and keeps `top`. A face is a read, so this is D-2's
 /// ordinary severed read.
 ///
 /// *Breaks if* the cut is accepted, or its refusal speaks a node id in
@@ -1404,38 +1358,39 @@ fn a8h_a_cut_constraint_whose_operand_is_kept_refuses_with_the_same_variant() {
 }
 
 /// A document whose rest, in `top`'s bundle, reads `top`'s own face at
-/// its `on` pose and the base through a transform over it at its `to`
-/// pose; answers the rest, the base and the transform.
+/// its `on` pose and the base through a placed copy of it at its `to`
+/// pose; answers the rest, the base and the copy.
 fn severed_operand_scene(label: &str) -> (ProfileDoc, MateRef, RecipeNodeId, RecipeNodeId) {
     let (base_part, top_part, opts) = parts(label);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
     let (doc, xf) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
+    let to = read_at(&doc, xf)(base_part.cap(base, CapEnd::End));
     let (doc, mate) = constrain_at(
         doc,
         top,
         rest(
             head(top_part.cap(top, CapEnd::Start)),
-            head_at(xf, base_part.cap(base, CapEnd::End)),
+            to,
             ContactClass::Rest,
         ),
     );
     (doc, mate, base, xf)
 }
 
-// ---- A11: a transform BETWEEN two patterns ----
+// ---- A11: a placement BETWEEN two patterns ----
 
-/// **A11.** A transform between the two patterns: the copy's chain is
-/// `[outer(j), T, inner(i)]` and the evaluator's body is
-/// `M_o(j) ∘ T ∘ M_i(i)` — asserted on the product with a ROTATION, so
-/// the other order is a different map and the row can tell them apart.
-/// `T` lifts as well as turns, so no copy touches the base instance
-/// the patterns start from.
+/// **A11.** A placed copy `T` of the inner pattern, patterned again:
+/// the copy's chain is `[outer(j), T, inner(i)]` and the evaluator's
+/// body is `M_o(j) ∘ T ∘ M_i(i)` — asserted on the product with a
+/// ROTATION, so the other order is a different map and the row can
+/// tell them apart. `T` lifts as well as turns, so no copy touches the
+/// base instance the patterns start from.
 ///
 /// *Breaks if* the three maps compose in another order.
 #[test]
-fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
+fn a11_a_placement_between_two_patterns_composes_outer_t_inner() {
     let (base_part, top_part, opts) = parts("msolve1-a11");
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a11"), Tol::witness());
     let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
@@ -1462,8 +1417,10 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
             kind: rule([0.0, 1.0, 0.0], 20.0),
         },
     );
-    let doc = world(doc, &opts, &[], &[(outer, 6)]);
-    let nest = |n: StableName| in_copy(outer, 1, in_copy(inner, 1, n));
+    // `T` is in the product already, standing where the outer
+    // pattern's copies `(0, i)` do.
+    let doc = world(doc, &opts, &[], &[(outer, 3..6)]);
+    let nest = |n: StableName| in_copy(outer, 1, placed(t, in_copy(inner, 1, n)));
     let a = nest(base_part.cap(base, CapEnd::End));
     let b = top_part.cap(top, CapEnd::Start);
     let (doc, _) = seat(doc, top, &top_part, &|n| head(nest(n)), &base_part, base);
@@ -1519,10 +1476,10 @@ enum PartCase {
 }
 
 /// The nested document of A10 with a `Part(k)` over the outer pattern
-/// — through a transform when `via_transform` — and the seat read AT
+/// — over a placed copy of it when `via_placed` — and the seat read AT
 /// that part, naming copy `(j, i)`.
-fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCase) {
-    let label = format!("msolve1-a12-{k}-{j}-{i}-{via_transform}");
+fn part_over_nested(k: i64, j: u32, i: u32, via_placed: bool, expect: PartCase) {
+    let label = format!("msolve1-a12-{k}-{j}-{i}-{via_placed}");
     let (base_part, top_part, opts) = parts(&label);
     let doc = ProfileDoc::empty(DocumentId::derive(&label), Tol::witness());
     let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
@@ -1547,7 +1504,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
             kind: rule([0.0, 1.0, 0.0]),
         },
     );
-    let (doc, of) = if via_transform {
+    let (doc, of) = if via_placed {
         place_moved(doc, outer, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts)
     } else {
         (doc, outer)
@@ -1560,21 +1517,35 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
         },
     );
     let nest = |n: StableName| in_copy(outer, j, in_copy(inner, i, n));
+    // The name the `Part` carries: the placed copy's, where it reads one.
+    let carried = |n: StableName| {
+        if via_placed {
+            placed(of, nest(n))
+        } else {
+            nest(n)
+        }
+    };
     let a = nest(base_part.cap(base, CapEnd::End));
     let b = top_part.cap(top, CapEnd::Start);
-    let what = format!("Part({k}) naming ({j}, {i}), via transform: {via_transform}");
+    let what = format!("Part({k}) naming ({j}, {i}), via a placed copy: {via_placed}");
     // The door decides structure alone, so either seat enters.
     let (doc, mate) = seat(
         doc,
         top,
         &top_part,
-        &|n| head_at(part, nest(n)),
+        &|n| head_at(part, carried(n)),
         &base_part,
         base,
     );
     match expect {
         PartCase::Seats => {
-            let doc = world(doc, &opts, &[part], &[]);
+            // A placed copy is in the product already; a bare `Part`
+            // is placed here.
+            let doc = if via_placed {
+                doc
+            } else {
+                world(doc, &opts, &[part], &[])
+            };
             let poses = solve(&doc, &opts, Tol::witness());
             let ev = run(&doc, &opts);
             assert!(poses.fault(top).is_none(), "{what}: {:?}", poses.fault(top));
@@ -1617,7 +1588,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
 /// `j·3 + i`: the name is a face of the `Part`'s body only where the
 /// two agree, so `k == j` with `i ≠ 0` is a disagreement (the `Part`
 /// gathers copy `(0, k)`, five units from the copy the name reads), not
-/// an agreement — and the same through a transform above the outer
+/// an agreement — and the same through a placed copy of the outer
 /// pattern, which preserves the value's indices.
 ///
 /// *Breaks if* a `Part`'s index is read as the outer copy's rather

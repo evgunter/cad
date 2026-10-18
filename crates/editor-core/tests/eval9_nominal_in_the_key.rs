@@ -142,6 +142,17 @@ fn boxed(box_: &Arc<ParamBox>) -> EvalOptions {
 mod over_a_param_box {
     use super::{box_of, boxed, doc_at, extrude, p, profile};
 
+    /// **The scale of every value and box below**, a power of two so
+    /// each `nominal + offset` is exact and the two boxes of the first
+    /// row bind one interval by bits. `p` slides the square's vertices,
+    /// and each vertex reads it on its own at `Interval`, so a
+    /// square edge — exactly axis-aligned at the nominal — reads an
+    /// enclosure about zero twice the box's half-width wide (the
+    /// shared vertex's `chord_side` against the next edge's chord): the
+    /// box stays inside the zero band so the profile certifies, and
+    /// what these rows hold is the key.
+    const S: f64 = 1.0 / (1u64 << 31) as f64;
+
     use std::sync::Arc;
 
     use editor_core::analysis::ParamBox;
@@ -215,10 +226,11 @@ mod over_a_param_box {
 
     /// **The hole, closed.**
     ///
-    /// `p = 0` over `[-0.25, 0.25]`, then `p = 0.5` over `[-0.75, -0.25]`:
+    /// `p = 0` over `[-0.25, 0.25]·S`, then `p = 0.5·S` over
+    /// `[-0.75, -0.25]·S` ([`S`]):
     /// the two boxes bind the SAME interval for `p`, so every bit the lane
     /// feed writes is equal, while the nominal — the value the pre-pass
-    /// resolves at — moved from `0` to `0.5`. The prior must not be
+    /// resolves at — moved from `0` to `0.5·S`. The prior must not be
     /// served: the profile's key moves, the extrude's moves with it, and
     /// the second run recomputes both. (Under the guided lift every
     /// boxed run resolves the profile at the lane, the two runs report
@@ -227,10 +239,10 @@ mod over_a_param_box {
     #[test]
     fn a_nominal_edit_under_a_compensating_box_does_not_hit() {
         let first = doc_at(0.0);
-        let prior = run(&first, None, &box_of(&first, -0.25, 0.25));
+        let prior = run(&first, None, &box_of(&first, -0.25 * S, 0.25 * S));
 
-        let edited = set_p(&first, 0.5);
-        let narrow = box_of(&first, -0.75, -0.25);
+        let edited = set_p(&first, 0.5 * S);
+        let narrow = box_of(&first, -0.75 * S, -0.25 * S);
         let hit = run(&edited, Some(&prior), &narrow);
         let cold = run(&edited, None, &narrow);
 
@@ -262,12 +274,12 @@ mod over_a_param_box {
     /// refused) across a real edit rather than a re-run of one document.
     #[test]
     fn the_box_still_decides_a_hit_at_one_nominal() {
-        let doc = doc_at(0.25);
-        let narrow = box_of(&doc, -0.1, 0.1);
+        let doc = doc_at(0.25 * S);
+        let narrow = box_of(&doc, -0.1 * S, 0.1 * S);
         let prior = run(&doc, None, &narrow);
-        let edited = set_p(&doc, 0.25);
+        let edited = set_p(&doc, 0.25 * S);
 
-        let widened = run(&edited, Some(&prior), &box_of(&doc, -0.2, 0.2));
+        let widened = run(&edited, Some(&prior), &box_of(&doc, -0.2 * S, 0.2 * S));
         assert_ne!(
             keys(&doc, &prior),
             keys(&doc, &widened),

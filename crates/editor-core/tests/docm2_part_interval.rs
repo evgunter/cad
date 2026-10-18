@@ -151,10 +151,12 @@ enum Rung {
     /// Every node green.
     Green,
     /// Exactly this node fails, escalating on this predicate (the
-    /// rest poisoned through it or green).
+    /// rest poisoned through it or green), and with it the placements
+    /// listed, each escalating on its own predicate.
     Escalates {
         node: RecipeNodeId,
         predicate: &'static str,
+        placements: Vec<(RecipeNodeId, &'static str)>,
     },
 }
 
@@ -173,18 +175,33 @@ enum Rung {
 /// width clears: ε/32 and every narrower rung certify. Each
 /// rung is asserted, so a floor that moves — up or down — reds this
 /// row naming the rung.
+///
+/// At ε/10 the middle copy's placement escalates beside the split
+/// (`carrier_endpoint_start`). It stands on the end cap of its pattern
+/// instance, the face the widened height moves: `stand` calls a
+/// pattern instance's every face unfixed, so it takes the first planar
+/// one. Under the placement pivot it is placed by six written values
+/// and reads no face
+/// (`work/intent/a-placement-pins-by-written-values-without-a-mate.md`).
 #[test]
 fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
     let e = Tol::witness().eps();
     let doc = widened_document(e);
     let split = node_where(&doc, |n| matches!(n, Node::Split { .. }));
     let union = node_where(&doc, |n| matches!(n, Node::Union { .. }));
+    // The world placement of the middle copy (`part_select`'s `middle`).
+    let middle = node_where(&doc, |n| matches!(n, Node::Part { .. }));
+    let middle_placement = node_where(&doc, |n| {
+        matches!(n, Node::Place { shapes, .. }
+            if shapes.iter().any(|s| doc.operation_of(s.read) == Some(middle)))
+    });
     let ladder: [(u32, Rung); 8] = [
         (
             10,
             Rung::Escalates {
                 node: split,
                 predicate: "carrier_matches_mapped_source",
+                placements: vec![(middle_placement, "carrier_endpoint_start")],
             },
         ),
         (
@@ -192,6 +209,7 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
             Rung::Escalates {
                 node: union,
                 predicate: "bool_plane_offset",
+                placements: Vec::new(),
             },
         ),
         (32, Rung::Green),
@@ -215,21 +233,26 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
         );
         match want {
             Rung::Green => assert!(bad.is_empty(), "eps/{divisor} certifies: {bad:?}"),
-            Rung::Escalates { node, predicate } => {
+            Rung::Escalates {
+                node,
+                predicate,
+                placements,
+            } => {
                 let failed: Vec<&String> = bad.iter().filter(|s| s.contains("FAILED")).collect();
                 assert_eq!(
                     failed.len(),
-                    1,
-                    "eps/{divisor}: exactly one node fails, the rest poisoned: {bad:?}"
+                    1 + placements.len(),
+                    "eps/{divisor}: exactly these nodes fail, the rest poisoned: {bad:?}"
                 );
-                assert!(
-                    failed[0].starts_with(&format!("{node:?} FAILED"))
-                        && failed[0].contains("Escalated")
-                        && failed[0].contains(predicate),
-                    "eps/{divisor}: node {} escalates on {predicate}: {}",
-                    node.0,
-                    failed[0]
-                );
+                for (node, predicate) in std::iter::once((node, predicate)).chain(placements) {
+                    assert!(
+                        failed.iter().any(|f| f.starts_with(&format!("{node:?} FAILED"))
+                            && f.contains("Escalated")
+                            && f.contains(predicate)),
+                        "eps/{divisor}: node {} escalates on {predicate}: {failed:?}",
+                        node.0,
+                    );
+                }
             }
         }
     }

@@ -29,6 +29,7 @@
 //! `f64` rounding of an irrational rather than the geometry. The
 //! `die_chamfer` disposition, and both siblings'.
 
+use super::PlacePart;
 use editor_core::{DocEdit, Node, SlotId, TubeWindow};
 
 use super::super::fixture::{ang, len};
@@ -60,14 +61,12 @@ pub fn document() -> CorpusDoc {
         minor_radius: len(MINOR),
     });
 
-    // A different spine axis in the world from `tube_ring`'s
-    // deliberately: that document's ring turns about +z and this
-    // tube is placed to turn about +y, so a placement that assumed
-    // one world axis has two documents to disagree with.
-    r.in_world(
-        bend,
-        &crate::fixture::frame_at([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
-    );
+    // Placed where it is built. The tube turns about its own z, so
+    // there is no world spine axis for a lowering to assume. The quarter
+    // turn that stood it about +y (the retired spine frame's) is solved
+    // inexactly at Interval, and the start cap at t0 = 0 lies on the
+    // torus seam, so its pcurve's branch escalated there.
+    r.place_part(bend);
 
     CorpusDoc {
         name: "tube_arc",
