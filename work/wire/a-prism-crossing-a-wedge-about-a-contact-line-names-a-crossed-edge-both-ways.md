@@ -2,7 +2,8 @@
 id: a-prism-crossing-a-wedge-about-a-contact-line-names-a-crossed-edge-both-ways
 kind: issue
 title: A prism crossing one wedge about a contact line refuses Naming(Emission): a crossed edge's pieces read both sides of the other operand
-status: open
+status: dispatched
+branch: wire/prism-crossing
 opened: 2026-10-08
 priority: P2
 cost: M

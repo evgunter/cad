@@ -6078,3 +6078,10 @@ Signed (WIRE orchestrator).
   closed. The fillet-on-a-seam row was skipped: a split circle's seams
   join one cylinder to itself with no crease, so a blend has nothing to
   carve. (WIRE orchestrator)
+
+- 2026-10-18 — Merged PR 5276 (fold rows in member space) and PR 5275
+  (split vertex Keeps) on green after main merges. Dispatched
+  `wire/prism-crossing` (now unblocked: 5275 merged in the same file)
+  and `wire/fold-minted-cells` (DM4's member-cell spelling for
+  fold-minted cells, plus one margin per unordered pair); both FULL
+  single reviews (naming units). (WIRE orchestrator)
