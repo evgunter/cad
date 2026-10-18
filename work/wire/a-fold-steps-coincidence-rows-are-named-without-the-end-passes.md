@@ -2,11 +2,12 @@
 id: a-fold-steps-coincidence-rows-are-named-without-the-end-passes
 kind: issue
 title: A union fold step's coincidence rows are named against collapse_table(acc_table) and published without the end passes, so a row citing an intermediate entity can keep fold qualifiers
-status: open
+status: closed
 opened: 2026-10-17
 priority: P2
 cost: M
 refs: [a-union-fold-publishes-no-pinch-row]
+closed: 2026-10-18
 ---
 
 
@@ -42,3 +43,16 @@ tail. The `Crossing` cells the fold minted are still read off
 `collapse_table(acc_table)`, and 236 of 354 published ones are not
 names the node's table holds:
 `a-fold-row-names-a-vertex-the-fold-minted-by-the-step-that-minted-it`.
+
+## Resolution (2026-10-18)
+
+The guard is now in place. `union_member_orders_decide_alike`'s `decide`
+checks every published row of every order that builds
+(`cells_are_held`). Each `Entity` cell must be a name held by the table
+of the read it names: a member cell's member table, or the union's own
+published table for a cell the fold minted. Every fixture that `decide`
+runs is covered: the corpus, the emit corpus and the vertex-row fixtures,
+including `union_pinch_member_order::pinch`. The mutant that publishes a
+member cell under its collapsed fold-table name in `in_member_space`
+turns `a_vertex_row_is_the_unions_once_in_every_member_order` red at this
+check.
