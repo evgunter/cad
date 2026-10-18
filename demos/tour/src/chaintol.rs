@@ -488,7 +488,7 @@ fn assert_row(row: &Row) {
             );
         }
         (Lane::Symbolic, _) => {
-            let predicate = if links == 2 {
+            let predicate = if links <= 3 {
                 "dihedral_wedge"
             } else {
                 "dihedral_arm"
