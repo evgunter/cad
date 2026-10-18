@@ -458,19 +458,8 @@ pub struct ProfileValue<T: geom_core::Real> {
 #[derive(Debug, Clone)]
 pub(crate) struct ProfilePre {
     /// The replayed profile's canonical form at f64, minted by the
-    /// pre-pass's one validation. Its plane is the 2-D record's
-    /// assembly frame: [`ProfilePre::placement_f64`] where there is
-    /// one, the conventional `SketchPlane::xy()` where there is not —
-    /// validation is 2-D and the naming anchor is loop-derived, so no
-    /// decision reads it. A consumer places with `placement_f64` (or
-    /// the lane's derived frame), never with this plane.
+    /// pre-pass's one validation, on the profile's own `xy` plane.
     pub validated_f64: ValidatedProfile<f64>,
-    /// The profile's `f64` placement, where the profile HAS one: an
-    /// authored frame's document read. `None` for a profile on a derived frame (DM1c), whose
-    /// only placement is the lane's — the invariant carried in the
-    /// type rather than by a placeholder a reader could mistake for a
-    /// placement.
-    pub placement_f64: Option<profile::SketchPlane<f64>>,
     /// The canonical ↔ program naming anchor.
     pub naming: ProfileNaming,
     /// The piece every canonical position is ([`ProfilePieces::publish`]).

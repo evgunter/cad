@@ -33,9 +33,7 @@ pub(crate) use wire::{
     DECISION_WORDS, EVAL_DIRECTION_NORM, PATTERN_SPACING, PATTERN_STEP, PATTERN_STEP_TURN,
 };
 
-pub(crate) use wire::{
-    TRANSFORM_AXIS_ROLE, need_scalar, need_vec3, transform_map, unit as unit_direction,
-};
+pub(crate) use wire::unit as unit_direction;
 
 pub(crate) use anchor::derive_naming;
 pub use anchor::{
@@ -43,7 +41,7 @@ pub use anchor::{
 };
 pub use class::NodeErrorClass;
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
-pub use wire::{DirectionRefusal, FramePlacement};
+pub use wire::DirectionRefusal;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -842,26 +840,6 @@ pub struct NodeValue<T: Decide> {
     /// **Not persisted**, like the verdicts and unlike their summary:
     /// an escalation is a fact about one run at one box, read in hand.
     pub escalations: Arc<EscalationLog>,
-    /// **What a FRAME node's placement is** ([`FramePlacement`], minted
-    /// by `wire::mint_frame_placement`): for an authored frame its nine
-    /// slots at the document's nominal, orthonormalized — the frame's
-    /// own `PoseValue::Frame` answers the same question at the LANE
-    /// scalar, and the two ride side by side because they have
-    /// different readers (`wire::profile_plane_f64` and
-    /// `wire::frame_plane_lane`).
-    ///
-    /// `None` means the node is NOT A FRAME, and only that. The three
-    /// answers a frame can give are the enum's three arms, so no reader
-    /// infers one of them from the absence of another, and a reference
-    /// to a non-frame gets the loud `WrongOperand` every by-value
-    /// reader of a frame raises.
-    ///
-    /// Rides the value, so memo reuse transfers the placement with the
-    /// geometry: it is a pure function of the node's nominal slots and
-    /// the tolerance, both of which the content key fixes, so a hit's
-    /// placement equals a recompute's bit for bit (the D9 argument the
-    /// verdicts above ride on).
-    pub placement: Option<FramePlacement>,
     /// RESERVED empty slot: the solved witness assignment, filled by
     /// the sketch solver `docs/DESIGN.md` `[open.sketch-solver]` adopts
     /// when constraint-driven sketches have a consumer.
@@ -900,7 +878,6 @@ impl<T: Decide> NodeValue<T> {
             parts: out.parts,
             verdicts: Arc::new(Vec::new()),
             escalations: Arc::new(Vec::new()),
-            placement: None,
             motion: None,
             space: None,
             witness: WitnessSlot::default(),
@@ -1859,7 +1836,7 @@ pub enum NodeErrorKind {
     },
     /// **A pose's or datum's direction escalated** (D10's pose ground):
     /// a datum's axis, normal or frame axis, or a pose construction's
-    /// direction, in the sentence [`Self::FrameDirection`] also carries,
+    /// direction, in its own sentence,
     /// which [`Self::Escalated`]'s does not speak for. Its class is
     /// [`NodeErrorClass::Escalated`].
     PoseDirectionEscalated {
@@ -2047,33 +2024,6 @@ pub enum NodeErrorKind {
     FaceFrameReadback {
         /// The kernel-side refusal, unaltered.
         error: topo::readback::ReadbackError,
-    },
-    /// A profile needed an AUTHORED frame's `f64` placement and the
-    /// frame's own direction slots refused, so the refusal is raised
-    /// on the reader (`wire::profile_plane_f64`) and names BOTH nodes.
-    ///
-    /// **Both ids.** `profile_plane_f64` is read from the profile
-    /// node's own evaluation, where the error lands on the profile and
-    /// its id is confirmation, and the frame's id says which frame
-    /// refused.
-    ///
-    /// **The carried refusal is the fact, not a second one.** A frame
-    /// slot that refuses reaches a human two ways — raised at the
-    /// frame by [`crate::Datum::Frame`]'s own evaluation, or carried
-    /// to the reader that needed the nominal
-    /// ([`crate::FramePlacement::Unreadable`]) — and both spell it
-    /// through [`DirectionRefusal::node_error`], so the sentence and
-    /// the tag are the same on both roads. What this arm adds is the
-    /// ids, which the role word alone cannot supply: "the datum frame
-    /// x axis has zero length" names no frame in a document with two.
-    FrameDirection {
-        /// The profile that needed the placement.
-        profile: RecipeNodeId,
-        /// The frame node whose direction slot refused.
-        frame: RecipeNodeId,
-        /// The frame's own refusal, unaltered — which vector, and
-        /// which of the direction door's four facts.
-        refusal: DirectionRefusal,
     },
     /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
     /// M4 PR 4 pins the document semantics — a per-node failure
@@ -2658,22 +2608,6 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::FaceFrameReadback { error } => write!(
                 f,
                 "the derived frame's face resolved to a key its body could not read back: {error}"
-            ),
-            // Both ids FIRST, then the fact. Three of the four facts
-            // end in a remedy clause and the escalation's runs to
-            // hundreds of characters, so a locator appended after one
-            // of those is a locator nobody reaches.
-            Self::FrameDirection {
-                profile,
-                frame,
-                refusal,
-            } => write!(
-                f,
-                "{} is drawn on {}, and the frame refused \
-                 its own direction: {}",
-                by.node_as(*profile, "profile node"),
-                by.node_as(*frame, "datum frame node"),
-                refusal.node_error()
             ),
             Self::MeasureRefUnreadable {
                 slot,
@@ -4259,14 +4193,9 @@ where
     // so the node's log is every decision made evaluating THIS node,
     // pre-key and op alike, in the order made, through the one
     // `k_stats` funnel. Before the key, only a Profile node decides,
-    // and only in its replay and f64 validation (`prepare_profile`) —
-    // its plane read decides nothing, because the frame it reads
-    // decided the placement on its own behalf and logged it there;
+    // and only in its replay and f64 validation (`prepare_profile`);
     // slot and program-expression evaluation reach the funnel through
-    // `check_unlogged`, which lands in no frame. A FRAME node decides
-    // after its op as well as in it: its nominal placement
-    // (`wire::mint_frame_placement`) is the last thing in its frame.
-    // The guard is `!Send`, so the
+    // `check_unlogged`, which lands in no frame. The guard is `!Send`, so the
     // frame closes on the worker that opened it (idiom-1 parallelism
     // runs whole nodes on one worker each); an op that evaluates
     // another document (an instantiated part) has that document's
@@ -4418,17 +4347,7 @@ where
     // under the guided lift.
     let profile_pre = match (node, &resolved_program) {
         (crate::node::Node::Profile(program), Some(resolved)) => {
-            // The frame the profile is drawn on, at f64 — READ off
-            // the frame node's own result, where its evaluation
-            // minted it from the same nominal slots
-            // (`wire::mint_frame_placement`). The frame is a DAG input
-            // of this node, so its value is in hand and a failed
-            // frame poisoned this node before the read.
-            let placement = match wire::profile_plane_f64(doc, results, id, program.frame) {
-                Ok(placement) => placement,
-                Err(kind) => return fail(bracket, kind),
-            };
-            match wire::prepare_profile(placement, resolved, &program.ids, tol) {
+            match wire::prepare_profile(resolved, &program.ids, tol) {
                 Ok(pre) => Some(pre),
                 Err(kind) => return fail(bracket, kind),
             }
@@ -4592,29 +4511,10 @@ where
         op_env,
         tol,
     );
-    // A FRAME node's placement, minted ONCE for the frame from the
-    // nominal slots already in hand and carried on its value — where
-    // every profile drawn on the frame reads it
-    // (`wire::profile_plane_f64`) instead of evaluating those nine
-    // expressions again. `None` for every node that is not a frame. It
-    // is a component of the VALUE, so it is minted only where there is
-    // a value to put it on: the op's own refusal at the lane scalar
-    // still answers first, and its decisions still precede these in
-    // the frame opened above, which closes below.
-    //
-    // It is minted for EVERY frame, including one no profile is drawn
-    // on, and that costs such a frame two direction decisions it did
-    // not make before. The alternative is a lookahead — mint only if
-    // some later node will ask — which makes a node's value depend on
-    // its consumers, and a node's value is the node's.
-    let placement = match &op {
-        Ok(_) => wire::mint_frame_placement(node, &nominal_values, tol),
-        Err(_) => Ok(None),
-    };
     let recorded = bracket.finish();
     let escalations = Arc::new(recorded.escalations);
-    match (op, placement) {
-        (Ok(out), Ok(placement)) => NodeStep {
+    match op {
+        Ok(out) => NodeStep {
             result: NodeResult::Ok(NodeValue {
                 payload: out.payload,
                 outputs: out.outputs.into(),
@@ -4636,23 +4536,14 @@ where
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
                 witness: WitnessSlot {},
-                placement,
                 content_key,
                 naming_key,
             }),
             reused: false,
         },
         // The failure carries what the op escalated on its way to it:
-        // the frame is the node's whether or not the op built. The
-        // mint's `Err` arm is the node's too, and it is deliberately
-        // narrow — a missing slot or a refused band, faults of the NODE
-        // that no environment could read around, the same shape the
-        // nominal SLOT evaluation above already fails on. A frame whose
-        // nominal AXES refuse is not one of them: that value lands, and
-        // the refusal is carried to the reader that wanted the nominal
-        // placement (`wire::FramePlacement::Unreadable`) rather than
-        // poisoning readers that only ever wanted the landed frame.
-        (Err(kind), _) | (Ok(_), Err(kind)) => NodeStep {
+        // the frame is the node's whether or not the op built.
+        Err(kind) => NodeStep {
             result: NodeResult::Failed(NodeError {
                 node: id,
                 kind,
@@ -4691,7 +4582,7 @@ where
 /// - a function of a closed enum — [`verb_content_tag`] over
 ///   `VerbKind::ALL`, [`verb_tag`] over `profile::Verb::ALL`,
 ///   [`arc_mode_tag`] over `ArcMode::ALL`, [`seg_content_tag`] over
-///   `SegTag::ALL`, [`extrude_side_tag`] over `ExtrudeSide::ALL`,
+///   `SegTag::ALL`,
 ///   `ContactClass::content_tag` over `ContactClass::ALL`, and
 ///   [`winding_tag`], [`side_tag`], [`target_tag`] over a local closed
 ///   list that an exhaustive match forces to name every variant (their
@@ -4763,10 +4654,11 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v14: a mate writes its class and its target's word, a
+            /// v15: an extrude no longer writes a side, and a tube
+            /// reads no frame. (v14: a mate writes its class and its target's word, a
             /// world read its arms and roles; the solved pose and the
             /// parts a face frame resolves against are no longer keyed,
-            /// the fold being a function of the keyed reads. (v13: a
+            /// the fold being a function of the keyed reads. v13: a
             /// pose read writes the role it reads through, a node's
             /// read of an output through one included. v12: a
             /// blend, a shell, a face frame and a measure write
@@ -4781,7 +4673,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 14,
+            VERSION = 15,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -5111,31 +5003,6 @@ fn document_verb_tag(kind: verbs::VerbKind) -> u8 {
     verb_content_tag(kind).expect("a verb a Node builds declares a content tag")
 }
 
-/// **A placement's STEP STRUCTURE and its literal frames** — recipe
-/// payload outside the slots: the slot values are fed by position, so
-/// a chain's kinds and order must feed too, or `[rigid, literal]` and
-/// `[literal, rigid]` over the same numbers would share a key. Frames
-/// by bits, as an explicit rule's are.
-fn feed_placement_shape(h: &mut KeyHasher, placement: &crate::placement::Placement) {
-    h.write_u64(placement.steps.len() as u64);
-    for step in &placement.steps {
-        match step {
-            crate::placement::Step::Rigid { .. } => h.write_tag(0),
-            crate::placement::Step::Literal(frame) => {
-                h.write_tag(1);
-                for x in frame
-                    .columns
-                    .iter()
-                    .flatten()
-                    .chain(frame.translation.iter())
-                {
-                    h.write_f64_bits(*x);
-                }
-            }
-        }
-    }
-}
-
 /// The content key (spec D4): op kind, structural params, evaluated
 /// expression values AS BITS **and each of them again at the
 /// document's nominal f64** (the rule at [`tag::slot`]), upstream keys
@@ -5172,7 +5039,7 @@ fn content_key<'d, T>(
 where
     T: Decide + ContentBits,
 {
-    use crate::node::{Datum, Node, PatternKind};
+    use crate::node::{Node, PatternKind};
     let mut h = KeyHasher::new();
     // The format version first — the rule for bumping it is at
     // `tag::format::VERSION`. It is written before the node
@@ -5192,9 +5059,7 @@ where
     // a different vocabulary, not a gap. Do not move a node-kind tag out
     // of these lines without teaching that test where it went.
     let kind = match node {
-        Node::Datum(Datum::Plane { .. }) => 1,
-        Node::Datum(Datum::Axis { .. }) => 2,
-        Node::Datum(Datum::Point { .. }) => 3,
+        // 1, 2 and 3 are retired (`RETIRED_NODE_KIND_TAGS`).
         Node::Profile(_) => 4,
         // The numbers are not written here either, and they are the
         // ones that were: a migrated verb's tag is a function of the
@@ -5212,7 +5077,7 @@ where
         Node::Subtract { .. } => {
             document_verb_tag(verbs::VerbKind::Boolean(topo::BooleanOp::Subtract))
         }
-        Node::Transform { .. } => 11,
+        // 11 is retired (`RETIRED_NODE_KIND_TAGS`).
         Node::Pattern { kind, .. } => match kind {
             PatternKind::Linear { .. } => 12,
             PatternKind::Circular { .. } => 13,
@@ -5246,12 +5111,7 @@ where
         // new meaning, and 24 is the chamfer's.
         Node::Measure { .. } => 25,
         Node::Assertion { .. } => 26,
-        // The sketch frame does NOT share the plane's tag 1 even though
-        // it is the same surface plus a
-        // spin: two data whose keys collide serve each other's
-        // geometry out of the memo, and a frame and a plane evaluate
-        // to different payloads.
-        Node::Datum(Datum::Frame { .. }) => 27,
+        // 27 is retired (`RETIRED_NODE_KIND_TAGS`).
         // Two tags, not one: a solid tube and a hollow tube of the same
         // radii are different artifacts, and sharing a tag would let
         // one's memo serve the other.
@@ -5266,12 +5126,7 @@ where
         // the argument is a family or spelled is payload, fed below.
         Node::Union { .. } => 31,
         Node::Intersect { .. } => 38,
-        // The derived sketch frame. It does NOT share the authored
-        // frame's 27 even though it evaluates to the same value kind:
-        // the two carry different payloads (a body edge, a face name
-        // and one spin slot against nine slots), and a shared tag
-        // would let a memo entry for one serve the other's geometry.
-        Node::Datum(Datum::FaceFrame { .. }) => 32,
+        // 32 is retired (`RETIRED_NODE_KIND_TAGS`).
         // The projection node. 33 is retired with the split-half
         // selection it tagged, and not reused.
         Node::Part { .. } => 34,
@@ -5648,13 +5503,11 @@ where
         // tag for both kinds — the two share this payload exactly as
         // they share the slots it governs.
         Node::Tube {
-            frame: _,
             major_radius: _,
             window,
             minor_radius: _,
         }
         | Node::HollowTube {
-            frame: _,
             major_radius: _,
             window,
             minor_radius: _,
@@ -5665,45 +5518,13 @@ where
                 crate::node::TubeWindow::Arc { t0: _, t1: _ } => 1,
             });
         }
-        // The derived frame's FACE is hashed the way a blend's
-        // selection is: two frames on two faces of one body share a
-        // tag, an upstream key and (possibly) a spin, and differ in
-        // exactly this name. The body is carried by the upstream keys.
-        Node::Datum(Datum::FaceFrame { face, spin: _ }) => {
-            for name in selected(selections, *face) {
-                feed_stable_name(&mut h, name);
-            }
-        }
-        // An extrude's SIDE is recipe payload outside its slots: two
-        // extrudes of one profile by one depth share a tag, an upstream
-        // key and every slot value, and differ in exactly which side of
-        // the sketch plane they build toward — so it feeds as a tag, or
-        // a memo hit after `SetExtrudeSide` would serve the other
-        // side's body.
-        Node::Extrude {
-            profile: _,
-            distance: _,
-            side,
-        } => h.write_tag(extrude_side_tag(*side)),
         // Fully expressed by tag plus slots: their whole recipe payload
         // is either an input edge (excluded from the key by design — the
         // inputs' own keys carry it) or a slot expression, fed below.
-        Node::Datum(
-            Datum::Plane {
-                origin: _,
-                normal: _,
-            }
-            | Datum::Axis {
-                origin: _,
-                direction: _,
-            }
-            | Datum::Point { position: _ }
-            | Datum::Frame {
-                origin: _,
-                u: _,
-                v: _,
-            },
-        )
+        Node::Extrude {
+            profile: _,
+            distance: _,
+        }
         | Node::Revolve {
             profile: _,
             axis_through: _,
@@ -5726,13 +5547,6 @@ where
             of: _,
             select: PartSelect::Instance(_),
         } => {}
-        // The chain's shape (`feed_placement_shape` says why).
-        Node::Transform {
-            input: _,
-            placement,
-        } => {
-            feed_placement_shape(&mut h, placement);
-        }
     }
     let indexed: Vec<(usize, usize)> = node
         .body_reads()
@@ -5960,8 +5774,14 @@ const RETIRED_VERB_TAGS: &[(u8, &str)] = &[
 /// retired with the node kinds that held them, and dead for good.
 #[cfg(test)]
 const RETIRED_NODE_KIND_TAGS: &[(u8, &str)] = &[
+    (1, "Datum plane"),
+    (2, "Datum axis"),
+    (3, "Datum point"),
+    (11, "Transform"),
     (14, "Declare"),
     (23, "Mate"),
+    (27, "Datum frame"),
+    (32, "Datum face frame"),
     (36, "Gauge"),
     (37, "PlaceInWorld"),
 ];
@@ -6436,18 +6256,6 @@ impl<'a> SegFeed<'a> {
     }
 }
 
-/// The content-key tag of an extrude's side — the ONE place its key
-/// identity is chosen, checked injective over [`ExtrudeSide::ALL`] by
-/// `extrude_side_tags_are_injective`.
-///
-/// [`ExtrudeSide::ALL`]: crate::node::ExtrudeSide::ALL
-fn extrude_side_tag(side: crate::node::ExtrudeSide) -> u8 {
-    use crate::node::ExtrudeSide;
-    match side {
-        ExtrudeSide::Along => 1,
-        ExtrudeSide::Against => 2,
-    }
-}
 
 /// A crossing sense's key tag: a run line with no sense (a seam) is 0.
 fn sense_tag(sense: Option<crate::names::Sense>) -> u8 {
@@ -6805,7 +6613,7 @@ mod tag_vocabulary_tests {
     //! a swapped arm would otherwise stay green.
 
     use super::{
-        KeyHasher, RETIRED_NODE_KIND_TAGS, RETIRED_VERB_TAGS, arc_mode_tag, extrude_side_tag,
+        KeyHasher, RETIRED_NODE_KIND_TAGS, RETIRED_VERB_TAGS, arc_mode_tag,
         feed_lane_step, feed_step, seg_content_tag, side_tag, tag, target_tag, verb_content_tag,
         verb_tag, winding_tag,
     };
@@ -7261,20 +7069,6 @@ mod tag_vocabulary_tests {
                     .all(|kind| target_tag(&witness(*kind)) != *retired)
             );
         }
-    }
-
-    /// An extrude side's tag, injective and pinned over
-    /// [`crate::node::ExtrudeSide::ALL`].
-    #[test]
-    fn extrude_side_tags_are_injective() {
-        use crate::node::ExtrudeSide;
-        injective_and_pinned(
-            "extrude side",
-            &ExtrudeSide::ALL,
-            extrude_side_tag,
-            &[(ExtrudeSide::Along, 1), (ExtrudeSide::Against, 2)],
-            |a, b| a == b,
-        );
     }
 
     /// A contact class's tag — `topo::ContactClass::content_tag`, the

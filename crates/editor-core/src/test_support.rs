@@ -151,7 +151,7 @@ pub fn stored_reading(
     }
     let doc = core::cell::RefCell::new(doc);
     node.try_map_slots(
-        |p, f, r| ProfileProgram::lower(p, f, r),
+        |p, f| ProfileProgram::lower(p, f),
         &mut |f| crate::edit::lower_slot_into(&mut doc.borrow_mut(), f),
         &mut |slot, operand| Ok(given(&doc, slot, operand, &read)),
     )

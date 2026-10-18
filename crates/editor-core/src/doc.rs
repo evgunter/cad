@@ -2097,10 +2097,6 @@ impl<P> Doc<P> {
                     // A placer has the shape of what it reads: `Bodies`
                     // over a `Bodies`, `Body` otherwise.
                     crate::PortKind::Placed => match node {
-                        Node::Transform { input, .. } => match self.vars.get(input)?.kind() {
-                            crate::VarKind::Bodies => crate::VarKind::Bodies,
-                            _ => crate::VarKind::Body,
-                        },
                         // One shape's shape: a member read is a body.
                         Node::Place { shapes, .. } => match shapes.as_slice() {
                             [one] if !one.is_member() => match self.vars.get(&one.read)?.kind() {

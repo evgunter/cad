@@ -1168,8 +1168,6 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::DeleteNode { .. }
         | DocEdit::SetParam { .. }
         | DocEdit::SetStructuralParam { .. }
-        // A side is one of two words.
-        | DocEdit::SetExtrudeSide { .. }
         | DocEdit::SetExpression { .. }
         | DocEdit::Rebind { .. }
         | DocEdit::ReWitness { .. }
@@ -1645,19 +1643,6 @@ pub enum SnapshotError {
 }
 
 impl SnapshotError {
-    /// The arm a frame the admission rule refused is reported under,
-    /// at `at` on `node`.
-    fn placement_frame(node: SpokenNode, at: FrameSite, fault: FrameFault) -> Self {
-        match fault {
-            FrameFault::NonFinite => Self::PlacementNonFinite { node, at },
-            FrameFault::Improper { determinant } => Self::PlacementImproper {
-                node,
-                at,
-                determinant,
-            },
-            FrameFault::NotRigid { check } => Self::PlacementNonRigid { node, at, check },
-        }
-    }
 }
 
 /// **A placement frame's refusal at load**: the frame's subject at its
@@ -2050,13 +2035,6 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 node: doc.spoken(id),
                 fault,
             });
-        }
-        // Literal placement frames — a transform's, a constraint's
-        // frame offsets — held by the predicate the edit door asks,
-        // for the rule's reason: the snapshot is the one road
-        // to a document that does not pass `apply`.
-        if let Some((at, fault)) = node.placement_frame_fault(tol) {
-            return Err(SnapshotError::placement_frame(doc.spoken(id), at, fault));
         }
         // DM5's third caller, for the reason the placement rule above
         // has one: a saved file is DATA, and a SNAPSHOT is the one way

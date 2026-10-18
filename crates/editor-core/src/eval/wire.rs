@@ -34,7 +34,6 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use geom_brep::OutwardNormal;
 use geom_core::{
     Affine3, Band, Decide, OrthoAxis, Point2, Point3, RigidMotion, Sign, Tol, UnitVec3,
     UnitVec3Error, Vec2, Vec3,
@@ -49,7 +48,7 @@ use super::slots::{self, SlotValues};
 use super::{BooleanValue, NodeErrorKind, NodeResult, PoseValue, SplitSide, ValuePayload};
 use crate::decision::Decision;
 use crate::names::{self, NameTable, SplitHalf};
-use crate::node::{Axis3, Datum, Node, PatternKind, RecipeNodeId, SlotId};
+use crate::node::{Axis3, Node, PatternKind, RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
 use topo::BooleanOp;
 
@@ -299,20 +298,8 @@ where
             .collect::<Result<Vec<_>, _>>()
     };
     match node {
-        Node::Datum(d) => Ok(OpOut::plain(
-            wire_datum(d, doc, results, vals, tol)?,
-            names::empty(),
-        )),
         Node::Profile(program) => {
-            let payload = wire_profile(
-                doc,
-                program,
-                program.frame,
-                results,
-                profile_pre,
-                env.lane,
-                tol,
-            )?;
+            let payload = wire_profile(program, profile_pre, env.lane, tol)?;
             let rows = match &payload {
                 ValuePayload::Profile(value) => {
                     crate::coincide::name_junctions(id, &value.validated, &value.pieces)
@@ -322,8 +309,8 @@ where
             };
             Ok(OpOut::plain(payload, names::empty()).with_coincidences(rows))
         }
-        Node::Extrude { profile, side, .. } => {
-            wire_extrude(id, at(O::Profile, *profile)?, *side, results, vals, tol)
+        Node::Extrude { profile, .. } => {
+            wire_extrude(id, at(O::Profile, *profile)?, results, vals, tol)
         }
         Node::Revolve { profile, .. } => {
             wire_revolve(id, at(O::Profile, *profile)?, results, vals, tol)
@@ -335,14 +322,8 @@ where
             let (profile, path) = (at(O::Profile, *profile)?, at(O::Path, *path)?);
             wire_sweep(profile, path, results, vals)
         }
-        Node::Tube { frame, window, .. } => {
-            let frame = frame_pose(doc, unprojected, *frame, env.lane.params, tol)?;
-            wire_tube(id, frame, window, vals, tol)
-        }
-        Node::HollowTube { frame, window, .. } => {
-            let frame = frame_pose(doc, unprojected, *frame, env.lane.params, tol)?;
-            wire_hollow_tube(id, frame, window, vals, tol)
-        }
+        Node::Tube { window, .. } => wire_tube(id, window, vals, tol),
+        Node::HollowTube { window, .. } => wire_hollow_tube(id, window, vals, tol),
         Node::Fillet { selection, .. } => wire_blend(
             &crate::verbs::blend::fillet(),
             id,
@@ -405,9 +386,6 @@ where
                 env.boolean_sweep,
                 tol,
             )
-        }
-        Node::Transform { input, placement } => {
-            wire_transform(at(O::Input, *input)?, placement, results, vals, tol)
         }
         Node::Place {
             shapes,
@@ -1145,53 +1123,6 @@ impl<T: Decide> Placeable<T> {
             Self::Copies(copies) => &copies.bodies,
         }
     }
-
-    /// **The shape-preserving map**: `f` over every body with its
-    /// index in the value, yielding the SAME shape as a payload. A
-    /// placer decides only what `f` does to one body.
-    fn map(
-        &self,
-        mut f: impl FnMut(&Body<T>, usize) -> Result<Body<T>, NodeErrorKind>,
-        tol: Tol,
-    ) -> Result<ValuePayload<T>, NodeErrorKind>
-    where
-        T: topo::AtRestPolicy,
-    {
-        Ok(match self {
-            Self::Body(b) => ValuePayload::Body(Arc::new(f(b, 0)?)),
-            Self::Instances(bs) => ValuePayload::Instances(
-                bs.iter()
-                    .enumerate()
-                    .map(|(i, b)| f(b, i).map(Arc::new))
-                    .collect::<Result<_, _>>()?,
-            ),
-            Self::Copies(copies) => {
-                let bodies = copies
-                    .bodies
-                    .iter()
-                    .enumerate()
-                    .map(|(i, b)| f(b, i).map(Arc::new))
-                    .collect::<Result<_, _>>()?;
-                // Each copy where it stands, then moved by `f`.
-                let members = copies
-                    .members
-                    .iter()
-                    .map(|member| {
-                        Ok(super::KeyedCopy {
-                            bodies: member_bodies(member, tol)?
-                                .iter()
-                                .enumerate()
-                                .map(|(i, b)| f(b, i).map(Arc::new))
-                                .collect::<Result<_, _>>()?,
-                            motion: None,
-                            ..member.clone()
-                        })
-                    })
-                    .collect::<Result<_, NodeErrorKind>>()?;
-                ValuePayload::Copies(Arc::new(super::Copies { bodies, members }))
-            }
-        })
-    }
 }
 
 /// The operand of a placer, read off its evaluated value: one body
@@ -1311,11 +1242,6 @@ fn pose_direction_escalated(source: geom_core::Indeterminate) -> NodeErrorKind {
     }
 }
 
-/// A Length-valued `[Expr; 3]` triple as a point.
-fn point3<T: Decide>(vals: &SlotValues<T>, f: fn(Axis3) -> SlotId) -> Option<Point3<T>> {
-    let v = slots::vec3(vals, f)?;
-    Some(Point3::new(v.x, v.y, v.z))
-}
 
 /// A named scalar slot of an evaluated node, with the typed backstop
 /// for a slot the node does not carry. Shared with the mate solve's
@@ -1338,12 +1264,6 @@ pub(crate) fn need_vec3<T: Decide>(
     slots::vec3(vals, f).ok_or(NodeErrorKind::MissingSlot { slot })
 }
 
-fn need_point3<T: Decide>(
-    vals: &SlotValues<T>,
-    f: fn(Axis3) -> SlotId,
-) -> Result<Point3<T>, NodeErrorKind> {
-    point3(vals, f).ok_or(NodeErrorKind::MissingSlot { slot: f(Axis3::X) })
-}
 
 fn need_vec2<T: Decide>(
     vals: &SlotValues<T>,
@@ -1410,233 +1330,12 @@ fn datum_unit<T: Decide>(
     UnitVec3::new(v, DATUM_UNIT_NORM, band).map_err(|error| DirectionRefusal { role, error })
 }
 
-/// **What reading an authored frame's slots produced** — the frame, or
-/// the direction door's refusal of `u` or of `v`'s residual.
-///
-/// `NoDirection` is whichever of [`UnitVec3Error`]'s facts the door
-/// reported, not only "these two are parallel": an underflowed length,
-/// or an undecided margin inside the band, which `f64` reaches too.
-///
-/// The refusal is an ANSWER rather than an `Err` so the read is not a
-/// `Result<Result<_, _>, _>`: slot faults are the node's and stay in
-/// the `Err`, while this one is the READ's, and its two callers dispose
-/// of it differently — [`wire_datum`] raises it, the `f64` placement
-/// carries it ([`FramePlacement::Unreadable`]).
-enum FrameRead<T: geom_core::Real> {
-    /// The orthonormal frame.
-    Frame(RigidMotion<T>),
-    /// The direction door refused `u`, or `v`'s residual.
-    NoDirection(DirectionRefusal),
-}
 
-/// **An authored frame from its evaluated slots** — the one spelling
-/// of the read, shared by the frame's own evaluation at the lane
-/// scalar ([`wire_datum`]) and by its f64 placement
-/// ([`mint_frame_placement`]). `u` and `v` are orthonormalized through
-/// [`frame_axes`] with `u` kept: keeping `v` would silently rotate
-/// every profile drawn on the frame when only `v` was edited.
-///
-/// # Errors
-///
-/// [`NodeErrorKind::MissingSlot`] for a slot the values do not carry
-/// (unreachable while `Node::slots` and the wire agree). A refused
-/// DIRECTION is [`FrameRead::NoDirection`], not an error.
-fn frame_from_slots<T: Decide>(
-    vals: &SlotValues<T>,
-    band: Band,
-) -> Result<FrameRead<T>, NodeErrorKind> {
-    let origin = need_point3(vals, SlotId::Origin)?;
-    Ok(
-        match frame_axes(
-            origin,
-            need_vec3(vals, SlotId::U)?,
-            need_vec3(vals, SlotId::V)?,
-            band,
-        ) {
-            Ok(frame) => FrameRead::Frame(frame),
-            Err(refusal) => FrameRead::NoDirection(refusal),
-        },
-    )
-}
 
-/// **Where a frame's profiles take their placement from** — the DM1c
-/// fork, decided ONCE on the frame's own behalf and carried on its
-/// value ([`super::NodeValue::placement`]), so a profile drawn on the
-/// frame READS this instead of evaluating the frame's expressions
-/// again.
-#[derive(Debug, Clone, Copy)]
-#[non_exhaustive]
-pub enum FramePlacement {
-    /// An AUTHORED frame ([`Datum::Frame`]): its nine expressions at
-    /// the document's nominal, resolved and orthonormalized. Its
-    /// profiles place with THIS.
-    Authored(profile::SketchPlane<f64>),
-    /// An AUTHORED frame whose nominal read REFUSED a direction (`u`,
-    /// or `v`'s residual; see [`FrameRead::NoDirection`]).
-    ///
-    /// Carried rather than raised, because the frame's own evaluation
-    /// succeeded at the lane scalar and every reader of that value
-    /// ([`frame_plane_lane`], the mate solve, a measure, the viewer)
-    /// reads it correctly. The refusal belongs to the reader that
-    /// needed the nominal placement: [`profile_plane_f64`] raises it.
-    Unreadable(DirectionRefusal),
-    /// A DERIVED frame ([`Datum::FaceFrame`], DM1c): nothing to mint.
-    /// Its profiles are placed at the lane under every lift
-    /// ([`frame_plane_lane`]); their 2-D structure record is assembled
-    /// in the conventional `SketchPlane::xy()` ([`prepare_profile`]),
-    /// which no decision reads.
-    Derived,
-}
 
-/// **A frame node's placement, minted once** — [`FramePlacement`] for
-/// a frame node, `None` for every node that is not one.
-///
-/// The match on the RECIPE node's kind is closed, so a new [`Datum`]
-/// variant is a compile error here rather than a node whose profiles
-/// silently place at the lane. `None` means "not a frame" and nothing
-/// else; [`profile_plane_f64`] turns it into a
-/// [`NodeErrorKind::WrongOperand`].
-///
-/// # Why an authored frame is read at `f64`
-///
-/// The placement feeds STRUCTURE selection, which must be
-/// lane-identical (C6): the same document has to select the same
-/// structure at `f64` and at the interval scalar. The frame's LANDED
-/// value answers a different question (what a reader sees, what a
-/// measure measures), so an authored frame is read at two scalars —
-/// `Pinned` places with THIS read, `Guided` with [`frame_plane_lane`]'s.
-///
-/// `nominal` is the node's slots already evaluated at
-/// [`LaneEnv::nominal`], so this evaluates no expression.
-///
-/// # Errors
-///
-/// [`NodeErrorKind::MissingSlot`] for a slot the values do not carry,
-/// and the band's own refusal: faults of the NODE, unreadable at every
-/// environment, where a direction refusal is carried as
-/// [`FramePlacement::Unreadable`] instead.
-pub(crate) fn mint_frame_placement(
-    node: &Node<ProfileProgram>,
-    nominal: &SlotValues<f64>,
-    tol: Tol,
-) -> Result<Option<FramePlacement>, NodeErrorKind> {
-    let Node::Datum(datum) = node else {
-        return Ok(None);
-    };
-    match datum {
-        Datum::Frame { .. } => Ok(Some(match frame_from_slots(nominal, band(tol)?)? {
-            FrameRead::Frame(f) => FramePlacement::Authored(profile::SketchPlane::from_frame(f)),
-            FrameRead::NoDirection(refusal) => FramePlacement::Unreadable(refusal),
-        })),
-        Datum::FaceFrame { .. } => Ok(Some(FramePlacement::Derived)),
-        Datum::Plane { .. } | Datum::Axis { .. } | Datum::Point { .. } => Ok(None),
-    }
-}
 
-/// **A profile's `f64` placement — a READ of the frame's result**, not
-/// a second evaluation of the frame's slots: the answer
-/// [`mint_frame_placement`] minted on the frame node. The frame's
-/// content key fixes everything the placement is a function of, so a
-/// memo hit carries the same bits a recompute would mint.
-///
-/// `None` is a DERIVED frame and only that: "not a frame" and
-/// "unreadable" have already been discharged into refusals.
-///
-/// The profile reads the frame's output ([`crate::Doc::upstream`]), so
-/// it precedes every reader in the schedule and a failed frame poisons
-/// them.
-///
-/// # Errors
-///
-/// [`NodeErrorKind::WrongOperand`] when the reference does not name a
-/// frame; [`NodeErrorKind::FrameDirection`] where the frame carried a
-/// direction refusal ([`FramePlacement::Unreadable`]), naming BOTH
-/// `profile` and the frame; and [`NodeErrorKind::MissingInput`] for a reference with no
-/// value.
-pub(crate) fn profile_plane_f64<T: Decide>(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
-    profile: RecipeNodeId,
-    frame: crate::VarId,
-) -> Result<Option<profile::SketchPlane<f64>>, NodeErrorKind> {
-    // A pose definition is bound at its reader, so it has no minted
-    // placement: it places as a derived frame does, at the lane.
-    if doc
-        .var(frame)
-        .is_some_and(|held| held.def().pose().is_some())
-    {
-        return Ok(None);
-    }
-    let plane = super::read_at(doc, crate::OperandSlot::Frame, frame)?;
-    // A node that is not a frame carries no placement: that `None` is
-    // the kind refusal.
-    match operand(results, plane, super::phrase::DATUM_FRAME, |v| v.placement)? {
-        FramePlacement::Authored(placement) => Ok(Some(placement)),
-        FramePlacement::Derived => Ok(None),
-        // Raised here, not at the frame, so a frame nobody draws on
-        // does not poison the document; it names the frame because the
-        // role word alone says which AXIS refused, not whose.
-        FramePlacement::Unreadable(refusal) => Err(NodeErrorKind::FrameDirection {
-            profile,
-            frame: plane,
-            refusal,
-        }),
-    }
-}
 
-/// **The sketch plane at the LANE scalar** — the frame's landed value,
-/// which is where a parameter driving the frame is still carried.
-///
-/// The f64 read above is for STRUCTURE. A document parameter can drive
-/// a frame's origin, and under an interval or dual run it has a
-/// non-degenerate value; embedding the f64 placement into `T` would
-/// drop that width from the plane — an enclosure that does not
-/// enclose. So structure stays f64-pinned and lane-identical, and
-/// magnitudes stay lane-live.
-///
-/// A DERIVED frame is read here under EVERY lift (DM1c): this by-value
-/// read is the only placement it has.
-///
-/// # Errors
-///
-/// [`NodeErrorKind::WrongOperand`] when the landed value is not a
-/// frame, through `frame_value`.
-pub(crate) fn frame_plane_lane<T: Decide>(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
-    frame: crate::VarId,
-    env: &crate::expr::VarEnv<T>,
-    tol: Tol,
-) -> Result<profile::SketchPlane<T>, NodeErrorKind> {
-    Ok(profile::SketchPlane::from_frame(frame_pose(
-        doc, results, frame, env, tol,
-    )?))
-}
 
-/// **The frame a node reads**, through the pose evaluator: a frame
-/// datum's value or a frame pose definition bound here.
-fn frame_pose<T: Decide>(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
-    frame: crate::VarId,
-    env: &crate::expr::VarEnv<T>,
-    tol: Tol,
-) -> Result<RigidMotion<T>, NodeErrorKind> {
-    match pose::eval_pose(
-        doc,
-        results,
-        crate::OperandSlot::Frame,
-        frame.into(),
-        env,
-        tol,
-    )? {
-        PoseValue::Frame(f) => Ok(f),
-        other => unreachable!(
-            "the door admits a frame alone at a frame seat: {}",
-            other.kind()
-        ),
-    }
-}
 
 /// **A frame's authored pair, made orthonormal** — the one spelling of
 /// it.
@@ -1664,85 +1363,6 @@ pub(crate) fn frame_axes<T: Decide>(
     })
 }
 
-fn wire_datum<T: Decide>(
-    d: &Datum,
-    doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
-    vals: &SlotValues<T>,
-    tol: Tol,
-) -> PayloadResult<T> {
-    Ok(ValuePayload::Datum(match d {
-        Datum::Plane { .. } => PoseValue::Plane {
-            origin: need_point3(vals, SlotId::Origin)?,
-            normal: datum_unit(
-                need_vec3(vals, SlotId::Normal)?,
-                PLANE_NORMAL_ROLE,
-                band(tol)?,
-            )
-            .map_err(DirectionRefusal::node_error)?,
-        },
-        Datum::Axis { .. } => PoseValue::Axis {
-            origin: need_point3(vals, SlotId::Origin)?,
-            dir: datum_unit(
-                need_vec3(vals, SlotId::Direction)?,
-                DATUM_AXIS_ROLE,
-                band(tol)?,
-            )
-            .map_err(DirectionRefusal::node_error)?,
-        },
-        Datum::Point { .. } => PoseValue::Point {
-            position: need_point3(vals, SlotId::Origin)?,
-        },
-        // u and v must span a plane; `frame_axes` decides that as a
-        // length at the same door as every other direction.
-        Datum::Frame { .. } => match frame_from_slots(vals, band(tol)?)? {
-            FrameRead::Frame(frame) => PoseValue::Frame(frame),
-            FrameRead::NoDirection(refusal) => return Err(refusal.node_error()),
-        },
-        // **The frame read off a face** (DM1): an authored frame's
-        // value through the same `frame_axes` door. Every step is a
-        // stored fact copied out or an N5 resolution; nothing here
-        // decides a number.
-        Datum::FaceFrame { face, .. } => {
-            let face = select::<T, topo::FaceKey>(doc, results, crate::OperandSlot::Face, *face)?;
-            let body = read_body(results, face.at)?;
-            let [(_, key)] = face.ents.as_slice() else {
-                unreachable!("a face selection holds one face")
-            };
-            let key = *key;
-            // DM1b / DM2: the carrier's KIND is a stored tag; a
-            // comparison of tags, not a predicate.
-            let carrier = topo::readback::face_carrier_kind(&body, key)
-                .map_err(|error| NodeErrorKind::FaceFrameReadback { error })?;
-            if carrier != geom::SurfaceKind::Plane {
-                return Err(NodeErrorKind::FaceFrameNotPlanar { carrier });
-            }
-            let pose = topo::readback::face_pose(&body, key)
-                .map_err(|error| NodeErrorKind::FaceFrameReadback { error })?;
-            // DM1a: the outward normal is the chart axis folded through
-            // the sense beside the pose — the bit selects, nothing is
-            // computed.
-            let n = OutwardNormal::from_chart(pose.axis, pose.sense).vec();
-            // A plane carrier always fixes its u-reference (readback's
-            // rule 3), so the kind check above makes this unreachable.
-            let u_ref = pose.u_ref.ok_or(NodeErrorKind::FaceFrameReadback {
-                error: topo::readback::ReadbackError::NoCanonicalFrame {
-                    carrier: "planar carrier without a u-reference",
-                },
-            })?;
-            // The spin: sketch +x is the u-reference turned about the
-            // outward normal. `u_ref` lies in the plane, so the rotation
-            // is the two-term form; `v` is the right-handed third leg.
-            let (sin, cos) = need_scalar(vals, SlotId::Spin)?.sin_cos();
-            let u_raw = u_ref * cos + n.cross(u_ref) * sin;
-            let v_raw = n.cross(u_raw);
-            PoseValue::Frame(
-                frame_axes(pose.origin, u_raw, v_raw, band(tol)?)
-                    .map_err(DirectionRefusal::node_error)?,
-            )
-        }
-    }))
-}
 
 /// The program-order coordinates of a profile's `n` loops, as the
 /// `u32` a program loop is addressed by (a program edit's `loop_`, a
@@ -1769,15 +1389,11 @@ fn loop_coordinates(n: usize) -> Result<core::ops::Range<u32>, NodeErrorKind> {
 /// decides each structure question once. VQ6: replay and validation run
 /// under the same tolerance the evaluation pins.
 pub(crate) fn prepare_profile(
-    placement: Option<profile::SketchPlane<f64>>,
     resolved: &[Vec<profile::Step<f64>>],
     ids: &[Vec<crate::node::StepId>],
     tol: Tol,
 ) -> Result<ProfilePre, NodeErrorKind> {
-    // The 2-D record's assembly frame; the conventional frame for a
-    // derived frame's profile (DM1c). No decision below reads it: what
-    // places the profile is `placement_f64`.
-    let plane = placement.unwrap_or_else(profile::SketchPlane::xy);
+    let plane = profile::SketchPlane::xy();
     let mut loops = Vec::with_capacity(resolved.len());
     let mut replay_records = Vec::with_capacity(resolved.len());
     for (li, steps) in loop_coordinates(resolved.len())?.zip(resolved) {
@@ -1801,7 +1417,6 @@ pub(crate) fn prepare_profile(
         .map_err(|fault| NodeErrorKind::ProfilePieces { fault })?;
     Ok(ProfilePre {
         validated_f64,
-        placement_f64: placement,
         naming,
         pieces,
         structure: profile::ProfileStructure {
@@ -1858,10 +1473,7 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
 }
 
 fn wire_profile<T: Decide + geom_core::Bounds>(
-    doc: &crate::doc::Doc<ProfileProgram>,
     program: &ProfileProgram,
-    frame: crate::VarId,
-    results: &Results<T>,
     pre: Option<&ProfilePre>,
     lane: LaneEnv<'_, T>,
     tol: Tol,
@@ -1871,27 +1483,16 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
         // The build path: the precompute's VALIDATED form embedded
         // through `from_f64`, every decision carried as the f64 one and
         // none remade (`ProfileLift`); the guided lift is where a
-        // margin escalates. A DERIVED frame has no `f64` placement
-        // (DM1c), so it is placed at the lane's own value. The op
-        // decides nothing: the node's log under this lift is the
-        // precompute's.
-        super::ProfileLift::Pinned => {
-            let plane = match &pre.placement_f64 {
-                Some(placement) => placement.map(T::from_f64),
-                None => frame_plane_lane(doc, results, frame, lane.params, tol)?,
-            };
-            pre.validated_f64
-                .clone()
-                .lift_onto(plane)
-                .map_err(NodeErrorKind::Profile)?
+        // margin escalates. The op decides nothing: the node's log
+        // under this lift is the precompute's.
+        super::ProfileLift::Pinned => pre
+            .validated_f64
+            .clone()
+            .lift_onto(profile::SketchPlane::xy())
+            .map_err(NodeErrorKind::Profile)?,
+        super::ProfileLift::Guided => {
+            lane_profile::<T>(program, profile::SketchPlane::xy(), lane, pre, tol)?
         }
-        super::ProfileLift::Guided => lane_profile::<T>(
-            program,
-            frame_plane_lane(doc, results, frame, lane.params, tol)?,
-            lane,
-            pre,
-            tol,
-        )?,
     };
     Ok(ValuePayload::Profile(Arc::new(ProfileValue {
         validated,
@@ -1993,12 +1594,11 @@ fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
     ))
 }
 
-/// **Extrudes a profile along its sketch normal** — the distance slot
+/// **Extrudes a profile along its own normal** — the distance slot
 /// read, and the generic lowering from there.
 fn wire_extrude<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
-    side: crate::node::ExtrudeSide,
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -2006,7 +1606,7 @@ fn wire_extrude<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let distance = need_scalar(vals, SlotId::Distance)?;
     wire_swept(
         &crate::verbs::sweep::extrude(),
-        (distance, side),
+        (distance, sweep::ExtrudeSide::Along),
         id,
         profile,
         results,
@@ -2052,13 +1652,13 @@ fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     )
 }
 
-/// The spine frame and window a tube door takes, resolved from the
-/// frame the node reads and its slots.
+/// The spine frame and window a tube door takes: the tube's own
+/// coordinates, and its slots.
 ///
 /// The RESOLUTION is shared by the two tube arms; each then calls its
-/// own public door. This layer decides nothing: the frame is the
-/// frame datum's, and the window and wall verdicts stay the door's
-/// own; a check here would be a weaker second opinion.
+/// own public door. This layer decides nothing: the window and wall
+/// verdicts stay the door's own; a check here would be a weaker second
+/// opinion.
 struct TubeArgs<T: geom_core::Real> {
     frame: geom_core::RigidMotion<T>,
     major_radius: T,
@@ -2067,16 +1667,11 @@ struct TubeArgs<T: geom_core::Real> {
 }
 
 fn tube_args<T: Decide>(
-    frame: RigidMotion<T>,
     window: &crate::node::TubeWindow,
     vals: &SlotValues<T>,
 ) -> Result<TubeArgs<T>, NodeErrorKind> {
-    // The frame is read WHOLE — its origin the spine centre, its
-    // normal the spine axis, its `u` the reference the window's angles
-    // are measured from — as the frame's own door orthonormalized it,
-    // so nothing is decided here.
     Ok(TubeArgs {
-        frame,
+        frame: RigidMotion::identity(),
         major_radius: need_scalar(vals, SlotId::TubeMajorRadius)?,
         window: match window {
             crate::node::TubeWindow::Full => sweep::TubeWindow::Full,
@@ -2101,12 +1696,11 @@ fn tube_args<T: Decide>(
 /// section's structural locators ([`tube_pieces`]).
 fn wire_tube<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    frame: RigidMotion<T>,
     window: &crate::node::TubeWindow,
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let a = tube_args(frame, window, vals)?;
+    let a = tube_args(window, vals)?;
     let built = sweep::tube_along_arc(a.frame, a.major_radius, a.window, a.minor_radius, tol)
         .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
     let table =
@@ -2140,12 +1734,11 @@ fn tube_pieces<T: Decide>(
 /// hole-loop vocabulary.
 fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    frame: RigidMotion<T>,
     window: &crate::node::TubeWindow,
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let a = tube_args(frame, window, vals)?;
+    let a = tube_args(window, vals)?;
     let wall = need_scalar(vals, SlotId::TubeWall)?;
     let built =
         sweep::tube_along_arc_hollow(a.frame, a.major_radius, a.window, a.minor_radius, wall, tol)
@@ -3917,9 +3510,6 @@ const UNION_PAIR_EMPTY: &str =
 /// A union fold step returned the typed empty from two real bodies.
 const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-empty operands";
 
-/// The role word a transform's rotation axis is normalized under,
-/// shared by the evaluation and the mate solve.
-pub(crate) const TRANSFORM_AXIS_ROLE: &str = "transform rotation axis";
 
 /// The role word a stepped rule's LINEAR direction is normalized
 /// under, inside [`SteppedOperands::linear`].
@@ -3941,55 +3531,6 @@ pub(crate) const PLANE_NORMAL_ROLE: &str = "datum plane normal";
 /// [`unit()`]).
 pub(crate) const DATUM_AXIS_ROLE: &str = "datum axis direction";
 
-/// **The rigid map of a placement's rigid step** — the one home of
-/// that construction, read only by [`crate::Placement::motion`], which
-/// the evaluation and the mate solve's derived offset both read, so a
-/// transform under a mate and a transform under the gather move a body
-/// by the same arithmetic.
-///
-/// Rotate about the axis THROUGH THE WORLD ORIGIN by `angle`, then
-/// translate: a rigid motion by construction
-/// ([`RigidMotion::rotation_then_translation`]), so an angle widened to
-/// a box is carried rather than re-decided from the entries.
-///
-/// # Errors
-///
-/// [`NodeErrorKind::Motion`] naming an angle or translation that is
-/// not a finite number.
-pub(crate) fn transform_map<T: Decide>(
-    translation: Vec3<T>,
-    axis: UnitVec3<T>,
-    angle: T,
-) -> Result<RigidMotion<T>, NodeErrorKind> {
-    RigidMotion::rotation_then_translation(axis, angle, translation).map_err(NodeErrorKind::Motion)
-}
-
-/// **The transform node**: ONE rigid map, its placement's motion
-/// ([`crate::Placement::motion`]), shape-preserving over its input's
-/// value ([`Placeable`]), so body `i` of a transform of instances is
-/// bit for bit what the same map does to that body alone.
-///
-/// Identity-preserving pass-through (spec D2): the transform
-/// contributes NO `RolePath` segment. `transform_rigid` is key-stable,
-/// so the input's table holds verbatim — a name still points at the
-/// MINTING node (N1), and output-body indices are instance indices.
-fn wire_transform<T: Decide + topo::AtRestPolicy>(
-    input: RecipeNodeId,
-    placement: &crate::placement::Placement,
-    results: &Results<T>,
-    vals: &SlotValues<T>,
-    tol: Tol,
-) -> OpResult<T> {
-    let value = value_of(results, input)?;
-    let placeable = placeable_operand(value, input)?;
-    let band = band(tol)?;
-    let map = placement
-        .motion_kept(vals, band)?
-        .rigid(band)?
-        .unwrap_or_else(RigidMotion::identity);
-    let payload = placeable.map(|body, _| place(body, Some(&map), tol), tol)?;
-    Ok(OpOut::plain(payload, read_table(value)).carrying(value.parts))
-}
 
 /// **A placement's copies** (D10): each shape read, projected to the
 /// value it reads (a split's half, one copy of a placement's copies, a

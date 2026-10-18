@@ -1808,7 +1808,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::IndexedRead { .. }
             | EditError::SetMembersOnNonList { .. }
             | EditError::SetProgramOnNonProfile { .. }
-            | EditError::SetExtrudeSideOnNonExtrude { .. }
             | EditError::StepIdsRefused { .. }
             | EditError::LoftSectionsSpelled { .. }
             | EditError::OperandUnresolved { .. }
@@ -2210,41 +2209,16 @@ fn remap_node(
             .collect::<Result<Vec<_>, _>>()
     };
     Ok(match node {
-        // A derived frame is not a leaf either: its face is a read,
-        // which crosses the cut or the remap misses loudly.
-        Node::Datum(crate::Datum::FaceFrame { face, spin }) => {
-            Node::Datum(crate::Datum::FaceFrame {
-                face: rd(crate::OperandSlot::Face, *face)?,
-                spin: *spin,
-            })
-        }
-        Node::Datum(
-            crate::Datum::Plane { .. }
-            | crate::Datum::Axis { .. }
-            | crate::Datum::Point { .. }
-            | crate::Datum::Frame { .. },
-        ) => node.clone(),
-        // A profile's PLANE is an input like any other: it crosses the
-        // cut with the profile or the remap misses loudly. (Before the
-        // sketch frame became a node this arm cloned, because a
-        // profile referenced nothing.)
-        //
-        // Its step ids do NOT cross: the other document's insert door
+        // A profile reads nothing. Its step ids do NOT cross: the other document's insert door
         // mints its own, and the names that spell them cross through
         // the step map read off that minting ([`carry`]).
         Node::Profile(p) => Node::Profile(ProfileProgram {
-            frame: rd(crate::OperandSlot::Frame, p.frame)?,
             loops: p.loops.clone(),
             ids: Vec::new(),
         }),
-        Node::Extrude {
-            profile,
-            distance,
-            side,
-        } => Node::Extrude {
+        Node::Extrude { profile, distance } => Node::Extrude {
             profile: rd(crate::OperandSlot::Profile, *profile)?,
             distance: *distance,
-            side: *side,
         },
         Node::Revolve {
             profile,
@@ -2257,34 +2231,8 @@ fn remap_node(
             axis_heading: *axis_heading,
             angle: *angle,
         },
-        // The two tube kinds remap the same way — one frame read, every
-        // other field carried — and are written apart rather than
-        // through a helper, so which fields each kind has stays
-        // readable at the site that has to name them all.
-        Node::Tube {
-            frame,
-            major_radius,
-            window,
-            minor_radius,
-        } => Node::Tube {
-            frame: rd(crate::OperandSlot::Frame, *frame)?,
-            major_radius: *major_radius,
-            window: window.clone(),
-            minor_radius: *minor_radius,
-        },
-        Node::HollowTube {
-            frame,
-            major_radius,
-            window,
-            minor_radius,
-            wall,
-        } => Node::HollowTube {
-            frame: rd(crate::OperandSlot::Frame, *frame)?,
-            major_radius: *major_radius,
-            window: window.clone(),
-            minor_radius: *minor_radius,
-            wall: *wall,
-        },
+        // A tube reads nothing: every field is carried.
+        Node::Tube { .. } | Node::HollowTube { .. } => node.clone(),
         Node::Loft { profiles, v_degree } => Node::Loft {
             profiles: (0u32..)
                 .zip(profiles)
@@ -2331,10 +2279,6 @@ fn remap_node(
         },
         Node::Intersect { members } => Node::Intersect {
             members: members.try_map(&br)?,
-        },
-        Node::Transform { input, placement } => Node::Transform {
-            input: rd(crate::OperandSlot::Input, *input)?,
-            placement: placement.clone(),
         },
         Node::Place {
             shapes,

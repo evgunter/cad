@@ -32,7 +32,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{CapEnd, RoleSeg, StableName};
-use crate::{Node, ProfileDoc, ProfilePayload, RecipeNodeId, VarId};
+use crate::{Node, ProfileDoc, RecipeNodeId, VarId};
 
 /// **What a pin's anchor reads.**
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -151,7 +151,6 @@ impl<'a> Anchors<'a> {
         let Some(Node::Profile(program)) = self.doc.node(sketch) else {
             return self.node_reads(name.node);
         };
-        let frame = program.frame_read().is_some_and(|f| self.var_reads(f));
         let segs = name.path.as_slice();
         let start_cap = matches!(segs, [RoleSeg::Cap(CapEnd::Start)]);
         let shape = !start_cap
@@ -168,7 +167,7 @@ impl<'a> Anchors<'a> {
             )
         });
         let depth = names_end && self.var_reads(*distance);
-        frame || shape || depth
+        shape || depth
     }
 
     /// Whether `node` reads a toleranced variable, through its slots or

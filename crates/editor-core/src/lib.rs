@@ -137,7 +137,7 @@ pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
     Arity, At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
     ContentBits, ContentKey, Copies, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
-    Evaluation, FramePlacement, KeyedCopy, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
+    Evaluation, KeyedCopy, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
     NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault, PoseValue,
     ProfileLift, ProfilePieces, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate, mate_reach,
 };
@@ -190,9 +190,9 @@ pub use names::{
     leaf_role, meridian_vertex, role_leaf, select, select_where, vertex_position,
 };
 pub use node::{
-    AuthoredNode, Axis3, ConstraintId, CountMismatch, Datum, ExtrudeSide, InputFault,
+    AuthoredNode, Axis3, ConstraintId, CountMismatch, InputFault,
     InterfaceCrossing, InterfaceRecord, ListFault, Node, OutputPort, PartSelect, PatternKind,
-    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg,
+    PlacementRuleFault, PortKind, RecipeNodeId, SitedFace, SitedRef, SlotId, StepArg,
     StepId, TubeWindow, VectorSlot,
 };
 pub use operand::{Bodies, BodyRead, CopyKey, Operand, OperandSlot, SlotKind};
@@ -203,7 +203,7 @@ pub use persist::{
     load, save,
 };
 pub use persist::{NonFiniteSite, OutputFault, ProgramFault, SelectionBodyFault, SnapshotError};
-pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite, Placement, Step};
+pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{

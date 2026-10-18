@@ -51,7 +51,7 @@ use crate::doc::Doc;
 use crate::label::Label;
 use crate::names::words::Detail;
 use crate::names::{NameTable, StableName};
-use crate::node::{Datum, MintId, Node, RecipeNodeId, StepId};
+use crate::node::{MintId, Node, RecipeNodeId, StepId};
 use crate::program::ProfilePayload;
 
 /// How many hex digits a tag shows (`test_utils::refusal::NODE_TAG_DIGITS`
@@ -1391,18 +1391,11 @@ pub(crate) fn assert_taken_of<P>(what: &str, taken_of: crate::DocumentId, doc: &
 
 /// **The kind noun of a recipe node** — the word a sentence, a feature
 /// tree row, a delete confirmation and a kind census all say.
-///
-/// **The datum FLAVOURS are named apart** (`Datum plane`, not
-/// `Datum`): a plane and a frame are the same surface differing only
-/// in whether the spin about the normal is pinned, so a sentence that
-/// called both "Datum" would ask a reader to tell them apart by
-/// looking.
 pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
     match node {
         Node::Profile(_) => "Profile",
         Node::Extrude { .. } => "Extrude",
         Node::Revolve { .. } => "Revolve",
-        Node::Transform { .. } => "Transform",
         Node::Subtract { .. } => "Subtract",
         Node::Place { .. } => "Place",
         Node::World => "World",
@@ -1412,11 +1405,6 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Pattern { .. } => "Pattern",
         Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",
-        Node::Datum(Datum::Plane { .. }) => "Datum plane",
-        Node::Datum(Datum::Frame { .. }) => "Datum frame",
-        Node::Datum(Datum::FaceFrame { .. }) => "Datum frame (on face)",
-        Node::Datum(Datum::Axis { .. }) => "Datum axis",
-        Node::Datum(Datum::Point { .. }) => "Datum point",
         Node::Fillet { .. } => "Fillet",
         Node::Chamfer { .. } => "Chamfer",
         Node::Shell { .. } => "Shell",

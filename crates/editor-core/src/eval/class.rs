@@ -178,18 +178,6 @@ pub enum NodeErrorClass {
     FaceFrameNotPlanar,
     /// [`NodeErrorKind::FaceFrameReadback`].
     FaceFrameReadback,
-    /// [`NodeErrorKind::FrameDirection`] carrying
-    /// [`geom_core::UnitVec3Error::Degenerate`].
-    FrameDirectionDegenerate,
-    /// [`NodeErrorKind::FrameDirection`] carrying
-    /// [`geom_core::UnitVec3Error::NonFiniteLength`].
-    FrameDirectionNonFiniteLength,
-    /// [`NodeErrorKind::FrameDirection`] carrying
-    /// [`geom_core::UnitVec3Error::UnderflowedLength`].
-    FrameDirectionUnderflowedLength,
-    /// [`NodeErrorKind::FrameDirection`] carrying
-    /// [`geom_core::UnitVec3Error::Escalated`].
-    FrameDirectionEscalated,
     /// [`NodeErrorKind::WitnessBifurcation`].
     WitnessBifurcation,
     /// [`NodeErrorKind::Part`] carrying [`PartFault::NoResolver`].
@@ -342,17 +330,6 @@ impl NodeErrorKind {
             Self::ShellLaneUnsupported { .. } => C::ShellLaneUnsupported,
             Self::FaceFrameNotPlanar { .. } => C::FaceFrameNotPlanar,
             Self::FaceFrameReadback { .. } => C::FaceFrameReadback,
-            Self::FrameDirection { refusal, .. } => {
-                let raised = refusal.node_error().class();
-                FRAME_DIRECTION
-                    .into_iter()
-                    .find(|carried| carried.raised() == raised)
-                    .unwrap_or_else(|| {
-                        unreachable!(
-                            "a direction refusal raises one of four classes, not {raised:?}"
-                        )
-                    })
-            }
             Self::WitnessBifurcation(_) => C::WitnessBifurcation,
             Self::Part { fault, .. } => match fault {
                 PartFault::NoResolver => C::PartNoResolver,
@@ -383,14 +360,6 @@ impl NodeErrorKind {
     }
 }
 
-/// The classes of [`NodeErrorKind::FrameDirection`], one per fact the
-/// carried refusal can report.
-const FRAME_DIRECTION: [NodeErrorClass; 4] = [
-    NodeErrorClass::FrameDirectionDegenerate,
-    NodeErrorClass::FrameDirectionNonFiniteLength,
-    NodeErrorClass::FrameDirectionUnderflowedLength,
-    NodeErrorClass::FrameDirectionEscalated,
-];
 
 impl NodeErrorClass {
     /// The class of the node refusal that carries a placement-rule
@@ -431,27 +400,6 @@ impl NodeErrorClass {
         }
     }
 
-    /// The class the same refusal has where the direction door raises
-    /// it. A frame direction refusal carried to a profile is the fact
-    /// the frame raised, so each of its classes answers the raise's
-    /// class; every other class answers itself.
-    ///
-    /// This is the one place the carried classes are paired with the
-    /// raised ones, and the question to ask of a direction: "any
-    /// zero-length direction, raised or carried" is
-    /// `class.raised() == NodeErrorClass::DegenerateDirection`, and
-    /// likewise [`Self::NonFiniteDirection`] and
-    /// [`Self::UnderflowedDirection`].
-    #[must_use]
-    pub fn raised(self) -> Self {
-        match self {
-            Self::FrameDirectionDegenerate => Self::DegenerateDirection,
-            Self::FrameDirectionNonFiniteLength => Self::NonFiniteDirection,
-            Self::FrameDirectionUnderflowedLength => Self::UnderflowedDirection,
-            Self::FrameDirectionEscalated => Self::Escalated,
-            other => other,
-        }
-    }
 }
 
 /// The class a blend verb's refusal is, of the two its arm splits into.
@@ -554,10 +502,6 @@ mod tests {
         ShellLaneUnsupported,
         FaceFrameNotPlanar,
         FaceFrameReadback,
-        FrameDirectionDegenerate,
-        FrameDirectionNonFiniteLength,
-        FrameDirectionUnderflowedLength,
-        FrameDirectionEscalated,
         WitnessBifurcation,
         PartNoResolver,
         PartPinMismatch,
@@ -651,16 +595,6 @@ mod tests {
         K::Mate(Box::new(fault))
     }
 
-    fn frame_direction(error: UnitVec3Error) -> K {
-        K::FrameDirection {
-            profile: RecipeNodeId::new(0, 4),
-            frame: RecipeNodeId::new(0, 2),
-            refusal: crate::DirectionRefusal {
-                role: "frame normal",
-                error,
-            },
-        }
-    }
 
     /// **The census and the phantom visit, in one match.** One witness
     /// per class, keyed by the class it must project to.
@@ -896,10 +830,6 @@ mod tests {
             C::FaceFrameReadback => K::FaceFrameReadback {
                 error: topo::readback::ReadbackError::NoCarrier,
             },
-            C::FrameDirectionDegenerate => frame_direction(UnitVec3Error::Degenerate),
-            C::FrameDirectionNonFiniteLength => frame_direction(UnitVec3Error::NonFiniteLength),
-            C::FrameDirectionUnderflowedLength => frame_direction(UnitVec3Error::UnderflowedLength),
-            C::FrameDirectionEscalated => frame_direction(UnitVec3Error::Escalated(diag())),
             C::WitnessBifurcation => K::WitnessBifurcation(crate::WitnessBifurcation {
                 kind: crate::BifurcationKind::FoldProximity,
                 margin: crate::BranchMarginEvidence {

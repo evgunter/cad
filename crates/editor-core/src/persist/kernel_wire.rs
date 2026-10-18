@@ -71,4 +71,3 @@
 //! every one does it.
 
 pub(crate) mod contact_class;
-pub(crate) mod extrude_side;

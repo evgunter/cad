@@ -69,7 +69,7 @@ impl From<crate::Operand> for SlotValue {
 /// input untouched. The set has three shapes. Structural edits over
 /// nodes, their slots and the bundles that pin placements
 /// (`InsertNode`, `DeleteNode`, `SetMembers`, `SetProgram`,
-/// `SetParam`, `SetStructuralParam`, `SetExtrudeSide`, `SetExpression`,
+/// `SetParam`, `SetStructuralParam`, `SetExpression`,
 /// `AddConstraint`, `RemoveConstraint`, `UpdateReference`). The
 /// variable family: `DeclareVar`, which mints a variable, `DefineVar`,
 /// which replaces its definition, the carry-forward doors, each
@@ -274,17 +274,6 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// carries a name (VR2).
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         fresh: Vec<FreshEntry>,
-    },
-    /// Set which side of its sketch plane an extrude goes toward — the
-    /// one structural choice on a [`Node::Extrude`] that is not an
-    /// expression, so it has its own arm rather than a slot. A node of
-    /// another kind refuses [`EditError::SetExtrudeSideOnNonExtrude`].
-    SetExtrudeSide {
-        /// The extrude node.
-        node: RecipeNodeId,
-        /// The side it goes toward.
-        #[serde(with = "crate::persist::kernel_wire::extrude_side")]
-        side: crate::node::ExtrudeSide,
     },
     /// Replace the expression SUBTREE at an [`ExprPath`] (empty path =
     /// the whole slot), re-running dimension checks on rebuilt
@@ -749,7 +738,6 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             | Self::Rebind { .. }
             | Self::RemoveConstraint { .. }
             | Self::SetStructuralParam { .. }
-            | Self::SetExtrudeSide { .. }
             | Self::DeclareVar { .. }
             | Self::DefineVar { .. }
             | Self::SetVarValue { .. }
@@ -1165,7 +1153,7 @@ fn lower_node<P: crate::ProfilePayload>(
     // operand reads.
     let mut reads = lower_reads(new, node, None, &spoken)?.into_iter();
     lower_value(new, lowering, &rows, |f| {
-        node.try_map_slots(|p, g, r| P::lower(p, g, r), &mut |e| f(e), &mut |_, _| {
+        node.try_map_slots(|p, g| P::lower(p, g), &mut |e| f(e), &mut |_, _| {
             Ok(reads
                 .next()
                 .unwrap_or_else(|| unreachable!("one read per operand, walked in one order")))
@@ -1223,7 +1211,7 @@ fn lower_reads<P: crate::ProfilePayload>(
 ) -> Result<Vec<VarId>, EditError> {
     let mut reads = Vec::new();
     node.try_map_slots(
-        |p, g, r| P::lower(p, g, r),
+        |p, g| P::lower(p, g),
         &mut |_| Ok::<_, EditError>(VarId::new(0, 0)),
         &mut |slot, read| {
             let expected = match (slot, fixed) {
@@ -1782,7 +1770,7 @@ pub fn lower_node_into<P: crate::ProfilePayload>(
     let spoken = || SpokenNode::absent(RecipeNodeId::new(0, 0));
     let mut reads = lower_reads(doc, node, None, &spoken)?.into_iter();
     node.try_map_slots(
-        |p, g, r| P::lower(p, g, r),
+        |p, g| P::lower(p, g),
         &mut |f| lower_slot_into(doc, f),
         &mut |_, _| {
             Ok(reads
@@ -2286,12 +2274,6 @@ pub enum EditError {
     /// version of this edit.
     SetProgramOnNonProfile {
         /// The node that holds no program.
-        node: SpokenNode,
-    },
-    /// A [`DocEdit::SetExtrudeSide`] aimed at a node that is not an
-    /// extrude.
-    SetExtrudeSideOnNonExtrude {
-        /// The node that has no side.
         node: SpokenNode,
     },
     /// A program's step ids were refused (`names/README.md`, "N1, the
@@ -3194,19 +3176,6 @@ fn frame_refusal(
 }
 
 impl EditError {
-    /// The arm a frame the admission rule refused is reported under,
-    /// at `at` on `node`.
-    fn placement_frame(node: SpokenNode, at: FrameSite, fault: FrameFault) -> Self {
-        match fault {
-            FrameFault::NonFinite => Self::NonFinitePlacement { node, at },
-            FrameFault::Improper { determinant } => Self::ImproperPlacement {
-                node,
-                at,
-                determinant,
-            },
-            FrameFault::NotRigid { check } => Self::NonRigidPlacement { node, at, check },
-        }
-    }
 }
 
 /// [`EditError::StepIdsRefused`]'s recourse, by the fault. `InsertNode`
@@ -3313,7 +3282,6 @@ impl EditError {
             | Self::SetMembersOnNonList { node }
             | Self::LoftSectionsSpelled { node }
             | Self::SetProgramOnNonProfile { node }
-            | Self::SetExtrudeSideOnNonExtrude { node }
             | Self::StepIdsRefused { node, fault: _ }
             | Self::SlotUnknownVarName {
                 node,
@@ -3592,10 +3560,6 @@ impl EditError {
                     "{node} holds no profile program, so it has no program to set"
                 )?;
                 tail.recourse(f, format_args!("aim the edit at a profile node"))
-            }
-            Self::SetExtrudeSideOnNonExtrude { node } => {
-                write!(f, "{node} is not an extrude, so it has no side to set")?;
-                tail.recourse(f, format_args!("aim the edit at an extrude node"))
             }
             // The fault owns its sentence, shared with the load door;
             // the door adds which node's program the ids were about,
@@ -4499,9 +4463,8 @@ pub struct EditRecord {
     /// Whether the edit was STRUCTURAL (spec D3/D6): it can change
     /// the result's combinatorial shape — insert/delete, a
     /// Count-slot expression edit, an edit of a Count variable, or an edit
-    /// of recipe payload no slot carries (an extrude's side
-    /// (`SetExtrudeSide`), a member list, a profile program, among
-    /// others; the edit's own arm in `apply` says which).
+    /// of recipe payload no slot carries (a member list, a profile
+    /// program, among others; the edit's own arm in `apply` says which).
     /// Continuous edits (`SetParam`, continuous-slot `SetExpression`,
     /// an edit of a continuous variable) leave recipe structure fixed.
     pub structural: bool,
@@ -5902,10 +5865,7 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
     if let Some(role) = rewritten.seat_role_mut(slot) {
         *role = None;
     }
-    let expected = match (&rewritten, new.output(node, 0).and_then(|v| new.var(v))) {
-        (Node::Transform { .. }, Some(output)) => crate::SlotKind::Is(output.kind()),
-        _ => rewritten.seat_kind(slot),
-    };
+    let expected = rewritten.seat_kind(slot);
     let spoken = || doc.spoken(node);
     let var = lower_operand(new, &spoken, SlotId::Operand(slot), read, expected)?;
     for (at, held) in rewritten.operand_rows_mut() {
@@ -6383,11 +6343,6 @@ fn door<P: Clone + crate::ProfilePayload, T>(
                     check,
                 });
             }
-        }
-        // A transform's literal placement steps meet the same bar, by
-        // the same predicate.
-        if let Some((at, fault)) = n.placement_frame_fault(tol) {
-            return Err(EditError::placement_frame(written(doc, node, n), at, fault));
         }
     }
     Ok((new, wrote, reported))
@@ -6977,29 +6932,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 minted_var: None,
                 structural: true,
                 fresh,
-                outputs: Vec::new(),
-            }
-        }
-        DocEdit::SetExtrudeSide { node, side } => {
-            let Some(target) = new.nodes.get_mut(node) else {
-                return Err(EditError::UnknownNode {
-                    id: SpokenNode::absent(*node),
-                });
-            };
-            let Node::Extrude { side: held, .. } = target else {
-                return Err(EditError::SetExtrudeSideOnNonExtrude {
-                    node: doc.spoken(*node),
-                });
-            };
-            *held = *side;
-            // Structural whether or not the side moved, as
-            // `SetStructuralParam` is whatever count it writes.
-            EditRecord {
-                minted: None,
-                minted_constraints: Vec::new(),
-                minted_var: None,
-                structural: true,
-                fresh: Vec::new(),
                 outputs: Vec::new(),
             }
         }

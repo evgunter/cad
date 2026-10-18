@@ -1793,11 +1793,9 @@ pub(crate) enum VerbatimEdge<'a> {
 pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEdge<'_>> {
     use crate::node::Node;
     match node {
-        Node::Transform { input, .. } => Some(VerbatimEdge::Whole { input: *input }),
         Node::Part { of, select } => Some(VerbatimEdge::Selected { of: *of, select }),
         Node::Split { .. } => Some(VerbatimEdge::Intact),
-        Node::Datum(_)
-        | Node::Profile(_)
+        Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Tube { .. }

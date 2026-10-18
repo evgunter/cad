@@ -2,9 +2,8 @@
 //! the program IS the profile's definition.**
 //!
 //! [`ProfileProgram`] replaces the retired opaque `ProfileDesc` as
-//! `Node::Profile`'s payload: plane placement (stored `f64` in its own
-//! struct — the U4/VQ8 seam stays visible) plus one [`LoopProgram`] per
-//! loop. A loop-program is the constructor-call sequence as data — the
+//! `Node::Profile`'s payload: one [`LoopProgram`] per loop, in 2-D
+//! coordinates of its own. A loop-program is the constructor-call sequence as data — the
 //! chain vocabulary's steps with every CONTINUOUS argument an [`Expr`](crate::expr::Expr)
 //! (V2's dimension table) and every STRUCTURAL argument a literal tag
 //! (verb identity, winding, `Start`, the `circle_split` count).
@@ -403,47 +402,26 @@ pub enum LoopProgram<S = crate::VarId> {
 }
 }
 
-/// The profile node's payload: the sketch frame it is drawn on, named
-/// as a document NODE, plus the loop programs, outer first then holes
-/// in description order.
+/// The profile node's payload: the loop programs, outer first then
+/// holes in description order.
 ///
-/// # The plane is a reference, not a placement
+/// # A profile is 2-D
 ///
-/// This field held a `SketchPlane<f64>` — twelve placement floats
-/// inline, unshared and unnameable. It now names a frame node — a
-/// [`crate::Datum::Frame`], or a [`crate::Datum::FaceFrame`] derived
-/// from a face — which is the whole of what the frame
-/// datum was added for: two profiles on one face are two references to
-/// one frame rather than two copies of a placement that can silently
-/// drift apart, an axis can be declared to lie IN a named frame, and a
-/// plane a person can see in the viewport is the plane they draw on.
-///
-/// The consequence to know when reading the rest of this crate: a
-/// profile is no longer a DAG leaf. It reads the frame's output
-/// ([`crate::Doc::upstream`]), so evaluation orders it first, poison
-/// propagates through it, and the content key takes it as an upstream
-/// key rather than as inline bits.
+/// A profile reads no plane: its numbers are read only against each
+/// other, in coordinates of its own (D10, `[placement]`). A
+/// construction that reads it is built in its own coordinates, the
+/// profile's plane its `xy`, and a placement says where it stands.
 ///
 /// # Equality is BIT equality
 ///
-/// `PartialEq` compares the frame by NODE IDENTITY and expressions by
-/// `Expr::bit_eq` — the canonical payload's equality IS the D7
-/// replay-identity comparator. Comparing the id rather than the
-/// placement it resolves to is the same claim the rest of the DAG
-/// makes about its edges: two profiles on two frames that happen to
-/// coincide today are two different documents, because editing one
-/// frame moves only one of them. Display units are invisible to it
-/// (they are invisible to `bit_eq` itself, D7).
+/// `PartialEq` compares expressions by `Expr::bit_eq` — the canonical
+/// payload's equality IS the D7 replay-identity comparator. Display
+/// units are invisible to it (they are invisible to `bit_eq` itself,
+/// D7).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 #[serde(bound = "")]
 pub struct ProfileProgram<S: crate::expr::Slot = crate::VarId> {
-    /// The frame this profile is drawn on
-    /// ([`crate::OperandSlot::Frame`]): a [`crate::Datum::Frame`]'s or
-    /// a [`crate::Datum::FaceFrame`]'s, either of which lands the same
-    /// frame value: sketch (0, 0) and the directions sketch +x and +y
-    /// point.
-    pub frame: S::Read,
     /// The loop programs.
     pub loops: Vec<LoopProgram<S>>,
     /// **Every authored step's minted id**, per loop and per step in
@@ -520,7 +498,6 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
     fn lower<E>(
         authored: &Self::Authored,
         f: &mut dyn FnMut(&crate::Formula) -> Result<VarId, E>,
-        read: &mut dyn FnMut(crate::OperandSlot, &crate::Operand) -> Result<VarId, E>,
     ) -> Result<Self, E>
     where
         Self: Sized;
@@ -573,7 +550,7 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
         None
     }
     /// **This payload with its loops and their step ids replaced
-    /// whole** and everything else it holds — the plane — kept: the
+    /// whole**: the
     /// value the whole-program edit door writes. `None` where there is
     /// no program to replace, which is the same payloads
     /// [`ProfilePayload::loops`] answers `None` for.
@@ -594,26 +571,6 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
     /// ids; the mint's own refusals.
     fn mint_step_ids(&mut self, _mint: &mut crate::Mint) -> Result<(), StepIdFault> {
         Ok(())
-    }
-    /// **The frame this payload is drawn ON**, if it reads one — the
-    /// profile's one operand read ([`crate::OperandSlot::Frame`]).
-    ///
-    /// It rides the payload trait rather than [`crate::Node::Profile`]
-    /// because that is where the plane lives: the variant stays a
-    /// one-field tuple, and the payload answers for its own content.
-    /// [`crate::Node::operand_rows`] reads this, so a payload that reads
-    /// a frame and does not report it here would be a read the
-    /// evaluator never waits for.
-    ///
-    /// `None` by default, which is the honest answer for `Doc<P>`'s
-    /// slot-free test payloads: they carry no plane at all.
-    fn frame_read(&self) -> Option<VarId> {
-        None
-    }
-    /// `ProfilePayload::plane_read`, writable: the read a re-point
-    /// rewrites.
-    fn frame_read_mut(&mut self) -> Option<&mut VarId> {
-        None
     }
     /// **Every authored step's piece this program draws** under `env`
     /// — [`ProfileProgram::pieces`], the one answer to which pieces a
@@ -1714,11 +1671,8 @@ impl LoopProgram {
 /// Free of [`ProfileProgram`] on purpose: resolution reads the LOOPS
 /// and nothing else, and a caller that has loops in hand and no
 /// document — a form previewing what it is about to author, a lattice
-/// question about which verbs a chain admits — should not have to
-/// invent a plane node to ask. Before the plane became a reference
-/// those callers built a throwaway program around a world-XY constant;
-/// that shortcut would now be a fabricated node id in a value nobody
-/// commits.
+/// question about which verbs a chain admits — needs no program to
+/// ask.
 ///
 /// # Errors
 ///
@@ -2101,16 +2055,9 @@ impl ProfileProgram {
         tol: Tol,
     ) -> Result<(profile::ValidatedProfile<f64>, Replayed), ProgramRefusal> {
         let (replayed, records) = self.replay_records(env, tol)?;
-        // **The identity plane, and the check is honest about why.**
-        // Validation is 2-D — `profile::validate` says so itself, and
-        // the plane rides through it as conventional data — so what
-        // this door checks is the LOOPS: closure, orientation, no
-        // self-intersection. It could not read the real frame anyway:
-        // this runs at the insert door with a payload in hand and no
-        // document, and the frame is a node in one. A profile whose
-        // frame reference does not denote a frame is refused where
-        // every other operand's kind is, at evaluation.
-        // The loops are the replay's own construction, so validation
+        // A profile is 2-D, its plane its own `xy`: what this door
+        // checks is the LOOPS — closure, orientation, no
+        // self-intersection. The loops are the replay's own construction, so validation
         // decides no arc's consistency checks (D1).
         let replayed = profile::ConstructedProfile::new(profile::SketchPlane::xy(), replayed);
         let validated = replayed.validate(tol).map_err(ProgramRefusal::Validate)?;
@@ -2238,15 +2185,11 @@ impl ProfileProgram {
 }
 
 impl PartialEq for ProfileProgram {
-    /// The frame by node identity, the slots by variable, structure
-    /// structurally: a stored program holds no float of its own.
+    /// The slots by variable, structure structurally: a stored program
+    /// holds no float of its own.
     fn eq(&self, other: &Self) -> bool {
-        let Self {
-            frame: plane,
-            loops,
-            ids,
-        } = self;
-        plane == &other.frame && loops == &other.loops && ids == &other.ids
+        let Self { loops, ids } = self;
+        loops == &other.loops && ids == &other.ids
     }
 }
 
@@ -2254,8 +2197,8 @@ impl<L: crate::expr::LeafSet> PartialEq for ProfileProgram<crate::expr::ExprTree
 where
     crate::expr::ExprTree<L>: crate::expr::Slot,
 {
-    /// BIT equality (struct docs): the frame by node identity,
-    /// expressions by `Expr::bit_eq`, structure structurally.
+    /// BIT equality (struct docs): expressions by `Expr::bit_eq`,
+    /// structure structurally.
     fn eq(&self, other: &Self) -> bool {
         // A field added to `ProfileProgram` is an E0027 at the two
         // patterns below. The vocabulary underneath is held the same
@@ -2263,18 +2206,12 @@ where
         // functions below it match every variant by name and bind
         // every field of each, so a new loop shape is an E0004 and a
         // new field on an existing one an E0027, at each of them.
+        let Self { loops, ids } = self;
         let Self {
-            frame: plane,
-            loops,
-            ids,
-        } = self;
-        let Self {
-            frame: other_plane,
             loops: other_loops,
             ids: other_ids,
         } = other;
-        plane == other_plane
-            && ids == other_ids
+        ids == other_ids
             && loops.len() == other_loops.len()
             && loops
                 .iter()
@@ -2512,16 +2449,14 @@ impl ProfilePayload for ProfileProgram {
     fn lower<E>(
         authored: &Self::Authored,
         f: &mut dyn FnMut(&crate::Formula) -> Result<VarId, E>,
-        read: &mut dyn FnMut(crate::OperandSlot, &crate::Operand) -> Result<VarId, E>,
     ) -> Result<Self, E> {
-        authored.try_map_slots(&mut |slot| f(slot), &mut |at, plane| read(at, plane))
+        authored.try_map_slots(&mut |slot| f(slot))
     }
     fn authored_with(
         &self,
         reader: &mut dyn FnMut(VarId, Dimension) -> crate::Formula,
     ) -> Self::Authored {
         ProfileProgram {
-            frame: crate::Operand::Var(self.frame),
             loops: self
                 .loops
                 .iter()
@@ -2541,12 +2476,6 @@ impl ProfilePayload for ProfileProgram {
     ) -> Result<std::collections::BTreeSet<crate::ProfileEdgeRef>, ProgramRefusal> {
         Ok(self.pieces(env, tol)?.edges.into_iter().flatten().collect())
     }
-    fn frame_read(&self) -> Option<VarId> {
-        Some(self.frame)
-    }
-    fn frame_read_mut(&mut self) -> Option<&mut VarId> {
-        Some(&mut self.frame)
-    }
     fn loops(&self) -> Option<&[LoopProgram]> {
         Some(&self.loops)
     }
@@ -2554,11 +2483,7 @@ impl ProfilePayload for ProfileProgram {
         Some(&self.ids)
     }
     fn with_program(&self, loops: Vec<LoopProgram>, ids: Vec<Vec<StepId>>) -> Option<Self> {
-        Some(Self {
-            frame: self.frame,
-            loops,
-            ids,
-        })
+        Some(Self { loops, ids })
     }
     fn mint_step_ids(&mut self, mint: &mut crate::Mint) -> Result<(), StepIdFault> {
         if self.carries_step_ids() {
@@ -2740,19 +2665,17 @@ impl<S: crate::expr::Slot> ProfileProgram<S> {
             .collect()
     }
 
-    /// **This program in another slot form**: its plane through `read`,
-    /// its loops through `f` loop by loop, its step ids kept.
+    /// **This program in another slot form**: its loops through `f`
+    /// loop by loop, its step ids kept.
     ///
     /// # Errors
     ///
-    /// The first refusal of `read` or `f`.
+    /// The first refusal of `f`.
     pub fn try_map_slots<S2: crate::expr::Slot, E>(
         &self,
         f: &mut impl FnMut(&S) -> Result<S2, E>,
-        read: &mut impl FnMut(crate::OperandSlot, &S::Read) -> Result<S2::Read, E>,
     ) -> Result<ProfileProgram<S2>, E> {
         Ok(ProfileProgram {
-            frame: read(crate::OperandSlot::Frame, &self.frame)?,
             loops: self
                 .loops
                 .iter()

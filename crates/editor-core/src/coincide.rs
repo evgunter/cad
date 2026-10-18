@@ -216,10 +216,10 @@ pub enum Origin {
     /// piece qualifiers dropped, since every piece of an entity lies on
     /// its one carrier.
     Minted(StableName),
-    /// A datum node's plane, read through the role the split's tool
-    /// reads it through (`None` for its own plane): a split's tool, and
-    /// every section face the split mints on it.
-    Datum(RecipeNodeId, Option<crate::pose::PoseRole>),
+    /// The pose a split's tool reads, through the role it reads it
+    /// through (`None` for the pose itself): a split's tool, and every
+    /// section face the split mints on it.
+    Tool(crate::VarId, Option<crate::pose::PoseRole>),
     /// A profile's piece: the step of that profile that drew it, and
     /// its role there.
     Piece(RecipeNodeId, ProfileEdgeRef),
@@ -279,8 +279,6 @@ impl fmt::Display for Unwalked {
 /// One placement a cell's read passes on the way to its minting node.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Placed {
-    /// A `Transform`'s one map.
-    Transform(RecipeNodeId),
     /// A pattern's (or a placed union's) instance `i`.
     Instance(RecipeNodeId, u32),
     /// A placement's copy (a [`crate::Node::Place`]'s).
@@ -469,10 +467,10 @@ fn constructions<P>(
 ) -> [Result<Construction, Unwalked>; 2] {
     row.cells.each_ref().map(|cell| match cell {
         NamedCell::Entity { input, name } => construction(doc, *input, name),
-        NamedCell::Tool { input, role } => doc
-            .operation_of(*input)
-            .ok_or(Unwalked::Unread(*input))
-            .and_then(|at| datum(doc, at, *role, Vec::new())),
+        NamedCell::Tool { input, role } => Ok(Construction {
+            origin: Origin::Tool(*input, *role),
+            placed: Vec::new(),
+        }),
         NamedCell::Piece { profile, piece } => Ok(Construction {
             origin: Origin::Piece(*profile, *piece),
             placed: Vec::new(),
@@ -488,12 +486,11 @@ fn one_construction(constructions: &[Result<Construction, Unwalked>; 2]) -> bool
 /// **The construction of the entity `name` names in `read`'s value**:
 /// the walk down from the read to the node that minted it.
 ///
-/// At each node the walk either passes through whole (a `Transform`,
-/// which places, or a `Part` or a split that leaves the entity intact,
-/// neither of which adds a name segment, N1) or reads the name's
-/// outermost segment there. A minted role ends the walk, except a
-/// split's section face, which lies on the split's tool and continues
-/// there ([`Origin::Datum`]). A carried segment names the entity in the
+/// At each node the walk either passes through whole (a `Part` or a
+/// split that leaves the entity intact, neither of which adds a name
+/// segment, N1) or reads the name's outermost segment there. A minted
+/// role ends the walk, except a split's section face, which lies on
+/// the split's tool ([`Origin::Tool`]). A carried segment names the entity in the
 /// read that segment says — a `From`'s own read, an `Instance`'s
 /// pattern input, a one-body operation's target — where the walk
 /// continues.
@@ -514,10 +511,6 @@ pub fn construction<P>(
     loop {
         while at != name.node {
             read = match node(at)? {
-                Node::Transform { input, .. } => {
-                    placed.push(Placed::Transform(at));
-                    *input
-                }
                 Node::Part { of, .. } => *of,
                 Node::Split { target, .. } => target.read,
                 _ => return Err(Unwalked::Through(at)),
@@ -528,9 +521,10 @@ pub fn construction<P>(
         let of = match origin(seg) {
             SegOrigin::Minted => {
                 return match (seg, node(at)?) {
-                    (RoleSeg::SectionFace { .. }, Node::Split { tool, .. }) => {
-                        datum(doc, operation(doc, at, tool.read)?, tool.role, placed)
-                    }
+                    (RoleSeg::SectionFace { .. }, Node::Split { tool, .. }) => Ok(Construction {
+                        origin: Origin::Tool(tool.read, tool.role),
+                        placed,
+                    }),
                     (RoleSeg::SectionFace { .. }, _) => Err(Unwalked::Misplaced(at)),
                     _ => {
                         let mut minted = name;
@@ -605,30 +599,6 @@ fn carried_read<P>(
         // target.
         (_, Node::Split { target, .. }) => Ok(target.read),
         _ => Err(misplaced),
-    }
-}
-
-/// **The construction of the datum `at` defines**: the walk through
-/// the transforms that place it, to the node that defines the plane.
-fn datum<P>(
-    doc: &crate::doc::Doc<P>,
-    mut at: RecipeNodeId,
-    role: Option<crate::pose::PoseRole>,
-    mut placed: Vec<Placed>,
-) -> Result<Construction, Unwalked> {
-    loop {
-        match doc.node(at).ok_or(Unwalked::Absent(at))? {
-            Node::Transform { input, .. } => {
-                placed.push(Placed::Transform(at));
-                at = operation(doc, at, *input)?;
-            }
-            _ => {
-                return Ok(Construction {
-                    origin: Origin::Datum(at, role),
-                    placed,
-                });
-            }
-        }
     }
 }
 
