@@ -33,7 +33,17 @@ whole carrier, not its arc:
   circle, escalating `curve_pair_pose_extreme` at `−3.0·10⁻⁹` at the
   circle's top, two metres from the arc.
 
-Both measured with a scratch row in `meet_rows` on that branch.
+Both measured with a scratch row in `meet_rows` on that branch; its
+review re-measured them with this row, the fix's red-on-main witness
+(both `meet` calls refuse `MeetFault::Escalated` on that branch):
+
+```rust
+let unit = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
+let big = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0 + 3.0 * ZERO);
+let arcs = meets((&unit, (0.0, 0.5)), (&big, (PI, PI + 0.5)));
+let l = line([0.0, 1.0 + 3.0 * ZERO, 0.0], [1.0, 0.0, 0.0]);
+let beside = meets((&l, (-0.5, 0.5)), (&unit, (PI, PI + 0.5)));
+```
 Neither is seen on the near-tangent probe's grid, so the weight is the
 shape, not a count. Each refuses typed; none misanswers.
 

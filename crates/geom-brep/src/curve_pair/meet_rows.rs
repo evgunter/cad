@@ -1803,3 +1803,45 @@ fn a_touch_at_a_harmonics_lowest_point_is_read_clear_of_the_cut() {
         );
     }
 }
+
+/// **A conic's extent on a line is its larger semi-axis.** A line along
+/// an ellipse's major axis over `(1.5, 3)`, past its minor semi-axis,
+/// crosses it at `x = 2` (the ellipse read over `(−π, π)`, so the
+/// crossing is interior to both), in either order; so does a line across its
+/// plane through that point. An extent read from the smaller semi-axis
+/// would put the span a metre past it and read the pair apart.
+#[test]
+fn a_line_crossing_an_ellipse_past_its_minor_semi_axis_meets_it() {
+    let e = ellipse([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], 2.0, 0.5);
+    let l = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let m = meets((&l, (1.5, 3.0)), (&e, (-PI, PI))).unwrap();
+    assert!(interiors_meet(&m), "in plane: {m:?}");
+    let m = meets((&e, (-PI, PI)), (&l, (1.5, 3.0))).unwrap();
+    assert!(interiors_meet(&m), "in plane, ellipse first: {m:?}");
+    let p = line([1.0, 0.0, -1.0], [1.0, 0.0, 1.0]);
+    let m = meets((&p, (0.5, 2.5)), (&e, (-PI, PI))).unwrap();
+    assert!(interiors_meet(&m), "across: {m:?}");
+}
+
+/// **The gap reads Apart in interval arithmetic too**: the leaning pair of
+/// [`a_gap_along_one_line_past_the_band_meets_nowhere`], two metres
+/// apart, each coordinate an interval a few ulps wide.
+#[test]
+fn two_segments_on_one_line_far_apart_read_apart_at_interval() {
+    use geom_core::Interval;
+    let i = |x: f64| Interval::from_bounds(x - 1e-15, x + 1e-15);
+    let a = Curve3::Line {
+        origin: Point3::new(i(0.0), i(0.0), i(0.0)),
+        dir: Vec3::new(i(1.0), i(0.0), i(0.0)),
+    };
+    let b = Curve3::Line {
+        origin: Point3::new(i(0.0), i(2.0 * ZERO), i(0.0)),
+        dir: Vec3::new(i(1.0), i(ZERO), i(0.0)),
+    };
+    let got = pose(
+        &Span::new(&a, (i(0.0), i(1.0))),
+        &Span::new(&b, (i(3.0), i(4.0))),
+        band(),
+    );
+    assert!(matches!(got, Ok(Pose::Apart)), "{got:?}");
+}

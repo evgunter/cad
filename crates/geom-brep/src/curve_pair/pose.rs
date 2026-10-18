@@ -209,7 +209,13 @@
 //! # The band
 //!
 //! Every decision above that falls in the band's gap escalates
-//! ([`MeetFault::Escalated`]); none prunes a candidate.
+//! ([`MeetFault::Escalated`]), but for two kinds. The router's screens,
+//! the parallel margin (`curve_pair_pose_parallel`) and the projections'
+//! gap (`curve_pair_pose_gap`), are read only for a definite positive:
+//! any other reading, an escalation included, passes the pair on to the
+//! readings after them, which decide it or escalate on their own. A
+//! meter's escalation refuses [`Unsettled::Meter`]. No escalation prunes
+//! a candidate.
 
 mod window;
 
@@ -677,14 +683,26 @@ impl<T: Decide> Polish<'_, T> {
     }
 }
 
-/// The overlap, along the unit `u` from `o`, of the projections `a` and
-/// `b` (each a pair of ends, either order): its middle and its signed
-/// length, the gap between them negated where they are disjoint (module
+/// The overlap, along a unit from a point, of two projections (module
 /// docs, "The router").
-fn overlap<T: Decide>(a: (T, T), b: (T, T)) -> (T, T) {
+#[derive(Clone, Copy, Debug)]
+struct Overlap<T> {
+    /// Its middle.
+    mid: T,
+    /// Its signed length: the gap between the projections, negated,
+    /// where they are disjoint.
+    extent: T,
+}
+
+/// The [`Overlap`] of the projections `a` and `b`, each a pair of ends in
+/// either order.
+fn overlap<T: Decide>(a: (T, T), b: (T, T)) -> Overlap<T> {
     let lo = a.0.min(a.1).max(b.0.min(b.1));
     let hi = a.0.max(a.1).min(b.0.max(b.1));
-    ((lo + hi) * T::from_f64(0.5), hi - lo)
+    Overlap {
+        mid: (lo + hi) * T::from_f64(0.5),
+        extent: hi - lo,
+    }
 }
 
 /// The projection of `s`'s ends on the line `(o, u)`, `u` a unit: their
@@ -714,8 +732,9 @@ enum Route {
 /// docs, "The router"): `tilt` the sine of the pair's angle, `rate` the
 /// most metres the offset moves per metre along the first line, `offset`
 /// the second's distance (or the plane's height) at the overlap's middle,
-/// `extent` the overlap's signed length ([`overlap`]) and `lever` the
-/// longer span's metres.
+/// `at` the overlap, `lever` the longer span's metres and `noise` the
+/// rounding the offset and the projections carry, charged against both
+/// screens' margins.
 ///
 /// The parallel argument runs first: where the offset less its most
 /// variation over the overlap and the escalation either side decides
@@ -735,16 +754,18 @@ fn route<T: Decide>(
     tilt: T,
     rate: T,
     offset: T,
-    (extent, lever): (T, T),
+    at: Overlap<T>,
+    (lever, noise): (T, T),
     band: Band,
 ) -> Result<Route, MeetFault> {
-    let length = extent.max(T::zero());
+    let length = at.extent.max(T::zero());
     let e = T::from_f64(band.escalate());
     let half = length * T::from_f64(0.5) + e;
-    if decide(row::PARALLEL, Margin::of(offset - rate * half), band) == Ok(Sign::Positive) {
+    let parallel = Margin::of(offset - rate * half - noise);
+    if decide(row::PARALLEL, parallel, band) == Ok(Sign::Positive) {
         return Ok(Route::Parallel);
     }
-    if decide(row::GAP, Margin::of(-extent), band) == Ok(Sign::Positive) {
+    if decide(row::GAP, Margin::of(-at.extent - noise), band) == Ok(Sign::Positive) {
         return Ok(Route::Apart);
     }
     let level = decide(row::TILT, Margin::levered(tilt, length + e + e), band) == Ok(Sign::Zero)
@@ -798,10 +819,12 @@ fn line_line<T: Decide>(
     let n = u1.cross(u2);
     let s = n.norm();
     let first = (o1, u1);
-    let (mid, extent) = overlap(on_line(first, a), on_line(first, b));
-    let w = o1 + u1 * mid - o2;
+    let at = overlap(on_line(first, a), on_line(first, b));
+    let w = o1 + u1 * at.mid - o2;
     let off = (w - u2 * w.dot(u2)).norm();
     let lever = reach(a).max(reach(b));
+    let origin = Point3::origin();
+    let noise = crate::rounding_charge((o1 - origin).norm() + (o2 - origin).norm() + lever + lever);
     let crossing = || {
         let along = (o2 - o1).cross(u2).dot(n) / s.powi(2);
         let point = o1 + u1 * along;
@@ -811,7 +834,7 @@ fn line_line<T: Decide>(
             tb: line_foot(lb, point),
         }])
     };
-    match route(s, s / u1.dot(u2).abs(), off, (extent, lever), band)? {
+    match route(s, s / u1.dot(u2).abs(), off, at, (lever, noise), band)? {
         Route::Apart => Ok(Pose::Apart),
         Route::Parallel => Ok(Pose::Parallel),
         Route::Crossing => Ok(crossing()),
@@ -843,14 +866,14 @@ fn line_conic<T: Decide>(
     // Where they can meet (module docs): the line's span and the conic's
     // extent, both projected on the line.
     let c = (k.center - o).dot(u);
-    let (mid, extent) = overlap(on_line((o, u), a), (c - k.speed_hi(), c + k.speed_hi()));
+    let at = overlap(on_line((o, u), a), (c - k.speed_hi(), c + k.speed_hi()));
     let lever = reach(a).max(k.speed_hi());
     let origin = Point3::origin();
     let noise = crate::rounding_charge(
         (o - origin).norm() + (k.center - origin).norm() + lever + k.speed_hi(),
     );
-    let height = (o + u * mid - k.center).dot(n);
-    match route(den, den.abs(), height.abs(), (extent, lever), band)? {
+    let height = (o + u * at.mid - k.center).dot(n);
+    match route(den, den.abs(), height.abs(), at, (lever, noise), band)? {
         Route::Apart => return Ok(Pose::Apart),
         Route::Parallel => return Ok(Pose::Parallel),
         Route::Crossing => {

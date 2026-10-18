@@ -24,11 +24,15 @@ Branch `restread/meet-apart-on-one-line` fixed that, so the exact
 sweep now decides those cubes as well. The row was re-baselined to
 `separated_cubes_on_in_band_edge_lines_read_apart_in_both_sweeps`.
 
-A scratch sweep of six more axis-aligned separated-cube poses on that
-branch (offsets in band along y, z, and both, at faces' planes and at
-edge lines) found no pose where the exact sweep escalates. The
-difference is real, but no row now shows the filter answering a
-question that the exact sweep cannot.
+A scratch sweep on that branch found no pose where the exact sweep
+escalates. It tried only six axis-aligned separated-cube poses
+(offsets in band along y, z, and both, at faces' planes and at edge
+lines). It did not try the members `Trees`'s doc names: `contfp`'s
+`RayExhausted` refusal and ray-walk escalations on a vertex coplanar
+with a far face, and its `Uncrossable` refusal within the reach of a
+spline edge. Those are the first places to look for a witness. Until
+one is found, no row shows the filter answering a question that the
+exact sweep cannot.
 
 ## The shape to give
 
