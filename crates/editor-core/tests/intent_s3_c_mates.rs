@@ -135,8 +135,9 @@ fn generic(d: &mut Draw) -> Vec<Subgroup<f64>> {
 /// transversally, and nowhere else**, in either order: each coset is
 /// `g·h⁻¹·x*` for a drawn element `h` of `g`, so `x*` lies in both.
 /// Where the families meet transversally (SE(3) with anything, a ball
-/// with a direction) the coset is constructed, its family the meet's,
-/// and it holds `x*`; every other pair the bundle rule refuses, and
+/// with a direction or the translations) the coset is constructed, its
+/// family the meet's, and it holds `x*`; every other pair the bundle
+/// rule refuses, and
 /// [`intersect`] answers none.
 ///
 /// *Breaks if* a transverse pair has no representative, or one that
@@ -176,16 +177,27 @@ fn every_pair_of_families_sharing_a_pose_meets_only_where_transverse() {
         };
         assert_eq!(Some(met.subgroup.family()), transverse, "{at}");
         // `x*` lies in the met coset: `x*·rep⁻¹` is an element of its
-        // subgroup, which for the ball and direction's revolute fixes
-        // its point and its direction.
+        // subgroup — for a ball and a direction's revolute one fixing
+        // its point and its direction, for a ball and the translations'
+        // trivial group the identity.
         let h = x * met.representative.inverse();
-        if let Subgroup::Revolute { point, direction } = met.subgroup {
-            assert!(
-                (h.transform_point(point) - point).norm() < 1e-9
-                    && (h.linear * direction.get() - direction.get()).norm() < 1e-9,
-                "{at}: the coset leaves the shared pose out"
-            );
-            met_any += 1;
+        match met.subgroup {
+            Subgroup::Revolute { point, direction } => {
+                assert!(
+                    (h.transform_point(point) - point).norm() < 1e-9
+                        && (h.linear * direction.get() - direction.get()).norm() < 1e-9,
+                    "{at}: the coset leaves the shared pose out"
+                );
+                met_any += 1;
+            }
+            Subgroup::Trivial if g1.family() != g2.family() => {
+                let p = Point3::new(1.0, 2.0, 3.0);
+                assert!(
+                    (h.transform_point(p) - p).norm() < 1e-9,
+                    "{at}: the coset leaves the shared pose out"
+                );
+            }
+            _ => {}
         }
     }
     assert!(

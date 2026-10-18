@@ -404,8 +404,9 @@ pub use editor_core::{
 // the copy's geometry, `to` a `Target`: a pose of the space the copy
 // joins, or the world read inside the mate (`WorldRead`) — or a
 // `Value` setting one freedom (`Coord`, a `SlideAxis` or the spin) its
-// mate leaves. The solve's outcome (`SolvedPoses`, the residual
-// `Subgroup`, each copy's `Space`), and `MateFault` — the typed refusal
+// mate leaves. The solve's outcome (`SolvedPoses`, each copy's
+// `Space`; a pose kind's symmetry `Subgroup` and its `SubgroupFamily`,
+// whose meeting decides a bundle), and `MateFault` — the typed refusal
 // every door carries. `pin_at` pins a copy to the world at a pose over
 // its own geometry; `place_at` is the "place part" gesture's
 // constraints (`PlacedBy` saying whether the copy had a planar face to
@@ -414,9 +415,8 @@ pub use editor_core::{
 // a spin value about a line its copy is round about. `member_of` is A11's member vocabulary itself
 // (`Member` is its answer); `member_reading` is the same walk with the
 // name it reached at the member's instance, and `head_face` the face
-// of the member's part a head names. `OVERCONSTRAINED_RECOURSE` and
-// `CONTRADICTORY_RECOURSE` are the two recourse sentences the solve's
-// own refusals end on.
+// of the member's part a head names. `OVERCONSTRAINED_RECOURSE` is the
+// recourse sentence a bundle's refusal ends on.
 /// Why a mate could not form its lever, which
 /// [`MateFault::Unleverable`] carries — by the payload rule this list
 /// states at `VerbKind`.
@@ -437,8 +437,7 @@ pub use editor_core::{
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Anchor, CONTRADICTORY_RECOURSE, Clash, Constraint, ConstraintKind, Coord, FreedomRefusal,
-    Lever, MAX_WORLD_READ_DEPTH, Mate, MateFault, MateReach, MateRef, MateSide, Member, NoChartWhy,
+    Anchor, Constraint, ConstraintKind, Coord, FreedomRefusal, MAX_WORLD_READ_DEPTH, Mate, MateFault, MateReach, MateRef, MateSide, Member, NoChartWhy,
     OVERCONSTRAINED_RECOURSE, PartReach, PinRefusal, PlacedBy, Placing, PoseRefusal, PoseSymmetry,
     ReachRefusal, RefusingReach, SlideAxis, SolvedPoses, Space, Subgroup, SubgroupFamily, Target,
     Unobservable, Value, WorldPin, WorldRead, WorldReadFault, head_face, head_of, mate_reach,

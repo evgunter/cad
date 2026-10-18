@@ -603,41 +603,51 @@ fn point_on_line<T: SolveScalar>(
 /// **Two cosets met where their families meet transversally**
 /// ([`SubgroupFamily::transverse`]), `None` where they do not. The
 /// coset is constructed, never checked: SE(3) meets anything as that
-/// thing, and a ball meets a direction in the turns about the line
-/// through its point along the direction, the representative taking
-/// the direction's rotation and carrying the ball's point home. Each
-/// side's equation holds by construction, so nothing is measured, and
-/// the answer is the same in either order.
+/// thing, and a ball meets a group whose rotations are fixed but for
+/// at most a turn about one direction — a direction's, or the
+/// translations' — in that group's rotation, its representative
+/// carrying the ball's point home. Each side's equation holds by
+/// construction, so nothing is measured, and the answer is the same in
+/// either order.
 pub fn intersect<T: Real>(held: Coset<T>, added: Coset<T>) -> Option<Coset<T>> {
     match (held.subgroup, added.subgroup) {
         (Subgroup::Se3, _) => Some(added),
         (_, Subgroup::Se3) => Some(held),
-        (Subgroup::Spherical { point }, Subgroup::Parallel { direction }) => {
-            Some(ball_along(point, held, direction, added))
-        }
-        (Subgroup::Parallel { direction }, Subgroup::Spherical { point }) => {
-            Some(ball_along(point, added, direction, held))
-        }
+        (
+            Subgroup::Spherical { point },
+            turning @ (Subgroup::Parallel { .. } | Subgroup::Translation),
+        ) => Some(ball_meets(point, held, turning, added)),
+        (
+            turning @ (Subgroup::Parallel { .. } | Subgroup::Translation),
+            Subgroup::Spherical { point },
+        ) => Some(ball_meets(point, added, turning, held)),
         _ => None,
     }
 }
 
-/// [`intersect`]'s one constructed meeting: a ball's coset `ball`
-/// about `point`, and a direction's `along` about `direction`.
-fn ball_along<T: Real>(
+/// [`intersect`]'s constructed meeting of a ball's coset `ball` about
+/// `point` with `other`'s, whose subgroup `turning` frees every
+/// translation: the other's rotation, translated so `point` stays where
+/// the ball puts it. What is left is the other's turns about the line
+/// through `point` (a direction's), or nothing (the translations').
+fn ball_meets<T: Real>(
     point: Point3<T>,
     ball: Coset<T>,
-    direction: UnitVec3<T>,
-    along: Coset<T>,
+    turning: Subgroup<T>,
+    other: Coset<T>,
 ) -> Coset<T> {
-    let rotation = along.representative.linear;
+    let rotation = other.representative.linear;
     // The turn about `point` that carries the ball's representative to
-    // `rotation`, applied to it: `point` stays where the ball puts it.
+    // `rotation`, applied to it.
     let turn = rotation * ball.representative.linear.transpose();
     let p = point - Point3::origin();
     let translation = p - turn * p + turn * ball.representative.translation;
+    let subgroup = match turning {
+        Subgroup::Parallel { direction } => Subgroup::Revolute { point, direction },
+        _ => Subgroup::Trivial,
+    };
     Coset {
-        subgroup: Subgroup::Revolute { point, direction },
+        subgroup,
         representative: Affine3::from_parts(rotation, translation),
     }
 }

@@ -88,43 +88,17 @@ fn rest_on(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId) -> editor_core:
     )
 }
 
-/// `b`'s wall `seg` flush with `a`'s: the two planes equated, outward
-/// normals agreeing.
-fn flush(
-    body: RecipeNodeId,
-    a: RecipeNodeId,
-    b: RecipeNodeId,
-    seg: RoleSeg,
-) -> editor_core::Mate<Formula> {
-    fixture::mate(
-        fixture::plane(fixture::head(face_in(b, body, seg.clone()))),
-        fixture::plane(fixture::head(face_in(a, body, seg))),
-        ContactClass::Rest,
-    )
-}
-
-/// **The two walls of the part's block a stack makes flush**: two
-/// adjacent sides, whose planes with the rest pin the copy.
-fn walls(label: &str) -> [RoleSeg; 2] {
-    let (doc, body) = block(&format!("{label}-part"));
-    [fixture::wall(&doc, body, 0), fixture::wall(&doc, body, 1)]
-}
-
-/// **`b` stacked on `a`**, square: `b` resting on `a`'s top and its two
-/// walls flush with `a`'s — three plane mates that pin `b`, each
-/// admitted to `b`'s bundle; their addresses, the rest first.
+/// **`b` stacked on `a`**, square: `b` resting on `a`'s top, with a
+/// zero on each freedom the rest leaves, so `b`'s own coordinates agree
+/// with `a`'s as far as the rest allows — the rest's address.
 fn stack(
     doc: ProfileDoc,
-    label: &str,
     body: RecipeNodeId,
     a: RecipeNodeId,
     b: RecipeNodeId,
-) -> (ProfileDoc, [MateRef; 3]) {
-    let [x, y] = walls(label);
+) -> (ProfileDoc, MateRef) {
     let (doc, rest) = fixture::constrain_at(doc, b, rest_on(body, a, b));
-    let (doc, wx) = fixture::constrain_at(doc, b, flush(body, a, b, x));
-    let (doc, wy) = fixture::constrain_at(doc, b, flush(body, a, b, y));
-    (doc, [rest, wx, wy])
+    (zero_values(doc, rest), rest)
 }
 
 /// **One copy of `body` in the world at `pose`**: a placement of it,
@@ -233,7 +207,7 @@ fn a_copy_pinned_against_a_pinned_copy_is_in_the_product() {
     let o = with_resolver(store);
     let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
     let (doc, b) = insert(doc, mated_instance(doc_ref));
-    let (doc, _) = stack(doc, "s3b-chain", body, a, b);
+    let (doc, _) = stack(doc, body, a, b);
     let ev = run(&doc, &o);
     assert_eq!(ev.space(b), Space::World);
     assert_eq!(product_solids(&doc, &ev), 2);
@@ -248,7 +222,7 @@ fn copies_pinned_only_against_each_other_are_one_loose_space() {
     let (doc, a) = insert(doc, mated_instance(doc_ref));
     let (doc, b) = insert(doc, mated_instance(doc_ref));
     let o = with_resolver(store);
-    let (doc, _) = stack(doc, "s3b-loose-pair", body, a, b);
+    let (doc, _) = stack(doc, body, a, b);
     let ev = run(&doc, &o);
     assert_eq!(ev.space(a), Space::Loose { root: a });
     assert_eq!(ev.space(b), Space::Loose { root: a });
@@ -497,35 +471,41 @@ fn an_instance_reads_its_own_copy_on_the_copy_side_alone() {
 
 // ---- Overconstraint ----
 
-/// **A mate beyond the pin refuses where its placement evaluates**: the
-/// second instance is pinned by its stack, and a second rest beyond it
-/// is named with the rest it repeats.
+/// **A mate beyond the pin refuses at the door**: the second instance
+/// is pinned by its stack (a rest and its three values), and a second
+/// rest beyond it fixes what they fix. Measuring nothing, the door names
+/// every constraint whose equations the others already fix: both rests,
+/// and the values the second takes the freedoms of.
 #[test]
-fn a_mate_beyond_the_pin_refuses_where_it_evaluates() {
+fn a_mate_beyond_the_pin_refuses_at_the_door() {
     let (doc, store, doc_ref, body) = host("s3b-beyond");
     let o = with_resolver(store);
     let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
     let (doc, b) = insert(doc, mated_instance(doc_ref));
-    let (doc, [rest, ..]) = stack(doc, "s3b-beyond", body, a, b);
-    let (doc, beyond) = fixture::constrain_at(doc, b, rest_on(body, a, b));
-    let ev = run(&doc, &o);
-    match mate_fault(&ev, b) {
+    let (doc, rest) = stack(doc, body, a, b);
+    match fixture::door_refusal(&doc, rest_on(body, a, b)) {
         MateFault::Overconstrained {
             placement,
             constraints,
-            ..
+            free,
         } => {
             assert_eq!(placement, b);
-            assert_eq!(constraints, vec![rest.id, beyond.id]);
+            assert!(constraints.contains(&rest.id), "{constraints:?}");
+            assert_eq!(
+                constraints.len(),
+                fixture::bundle(&doc, b).len() + 1,
+                "the rests and the values: {constraints:?}"
+            );
+            assert_eq!(free, 1, "two planes in general position leave a slide");
         }
         other => panic!("a mate beyond the pin refuses, not {other:?}"),
     }
 }
 
-/// **The solve names every constraint whose removal leaves the fold
-/// unchanged, never "the later one"**: two identical rests, then the
-/// two flush walls that pin: the bundle is pinned, and either rest
-/// alone would have done.
+/// **The solve names every constraint any of whose equations the rest
+/// already fix, never "the later one"**: two identical rests beside
+/// each other past the door (the state a doctored save leaves) refuse
+/// where the placement evaluates, naming both.
 #[test]
 fn the_solve_names_every_redundant_constraint() {
     let (doc, store, doc_ref, body) = host("s3b-redundant");
@@ -533,10 +513,12 @@ fn the_solve_names_every_redundant_constraint() {
     let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
     let (doc, b) = insert(doc, mated_instance(doc_ref));
     let (doc, first) = fixture::constrain_at(doc, b, rest_on(body, a, b));
-    let (doc, second) = fixture::constrain_at(doc, b, rest_on(body, a, b));
-    let [x, y] = walls("s3b-redundant");
-    let (doc, wx) = fixture::constrain_at(doc, b, flush(body, a, b, x));
-    let (doc, wy) = fixture::constrain_at(doc, b, flush(body, a, b, y));
+    let (doc, second) = editor_core::test_support::beside_past_the_bundle_rule(
+        &doc,
+        b,
+        rest_on(body, a, b),
+        Tol::witness(),
+    );
     let ev = run(&doc, &o);
     match mate_fault(&ev, b) {
         MateFault::Overconstrained {
@@ -545,8 +527,7 @@ fn the_solve_names_every_redundant_constraint() {
             ..
         } => {
             assert_eq!(placement, b);
-            assert_eq!(constraints, vec![first.id, second.id]);
-            assert!(!constraints.contains(&wx.id) && !constraints.contains(&wy.id));
+            assert_eq!(constraints, vec![first.id, second]);
         }
         other => panic!("overconstrained, not {other:?}"),
     }
@@ -556,17 +537,45 @@ fn the_solve_names_every_redundant_constraint() {
 
 /// **One bundle targets one space** (the stage's named interim,
 /// `work/intent/a-bundle-folds-in-the-joined-space.md`): a bundle with
-/// a rest on a copy in the world and one on a loose copy refuses
+/// a ball on a copy in the world and a direction on a loose copy — the
+/// one pair of mates the bundle rule admits beside each other — refuses
 /// `TargetsDiffer` naming the bundle where it evaluates.
 #[test]
 fn a_bundle_of_two_targets_refuses() {
-    let (doc, store, doc_ref, body) = host("s3b-two-targets");
+    let label = "s3b-two-targets";
+    let (doc, store, doc_ref, body) = host(label);
+    let (part, part_body) = block(&format!("{label}-part"));
+    let corner = fixture::vpiece(&part, part_body, 0, 0);
     let o = with_resolver(store);
     let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
     let (doc, b) = insert(doc, mated_instance(doc_ref));
     let (doc, c) = insert(doc, mated_instance(doc_ref));
-    let (doc, held) = fixture::constrain_at(doc, c, rest_on(body, a, c));
-    let (doc, _) = fixture::constrain_at(doc, c, rest_on(body, b, c));
+    let point = |at| {
+        fixture::point_of(fixture::read_minted(fixture::resolver::in_part_of(
+            editor_core::EntityKind::Vertex,
+            at,
+            body,
+            RoleSeg::CapVertex(CapEnd::Start, corner),
+        )))
+    };
+    let normal = |at| {
+        editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Flip {
+            pose: editor_core::pose::RoleRead::through(
+                fixture::plane(fixture::head(face_in(at, body, RoleSeg::Cap(CapEnd::End)))),
+                editor_core::pose::PoseRole::Normal,
+            ),
+        }))
+    };
+    let (doc, held) = fixture::constrain_at(
+        doc,
+        c,
+        fixture::mate(point(c), point(a), ContactClass::Rest),
+    );
+    let (doc, _) = fixture::constrain_at(
+        doc,
+        c,
+        fixture::mate(normal(c), normal(b), ContactClass::Rest),
+    );
     let ev = run(&doc, &o);
     match mate_fault(&ev, c) {
         MateFault::TargetsDiffer {
@@ -582,8 +591,8 @@ fn a_bundle_of_two_targets_refuses() {
 
 /// **A mate on a pinned copy is overconstrained**: on a copy its world
 /// pin already pins, a rest on another copy in the world that holds
-/// where the pin puts it is a mate the pin already fixes, named where
-/// the copy evaluates.
+/// where the pin puts it is a mate the pin already fixes, refused at
+/// the door, naming both — the case `(Trivial, _)`.
 #[test]
 fn a_mate_on_a_pinned_copy_is_overconstrained() {
     let (doc, store, doc_ref, body) = host("s3b-pin-first");
@@ -592,16 +601,19 @@ fn a_mate_on_a_pinned_copy_is_overconstrained() {
     // `b` pinned where the rest puts it, on `a`'s top.
     let (doc, b) = insert(doc, Node::instantiate_part(doc_ref));
     let doc = fixture::pin(doc, b, &Frame::translation([0.0, 0.0, 1.0]), &o);
-    let (doc, rest) = fixture::constrain_at(doc, b, rest_on(body, a, b));
-    let ev = run(&doc, &o);
-    match mate_fault(&ev, b) {
+    let pin = fixture::bundle(&doc, b)[0].id;
+    match fixture::door_refusal(&doc, rest_on(body, a, b)) {
         MateFault::Overconstrained {
             placement,
             constraints,
-            ..
+            free,
         } => {
             assert_eq!(placement, b);
-            assert_eq!(constraints, vec![rest.id]);
+            assert!(
+                constraints.len() == 2 && constraints.contains(&pin),
+                "{constraints:?}"
+            );
+            assert_eq!(free, 0, "the pin leaves nothing");
         }
         other => panic!("a mate on a pinned copy is overconstrained, not {other:?}"),
     }

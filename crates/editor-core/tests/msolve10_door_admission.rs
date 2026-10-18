@@ -621,7 +621,8 @@ fn a3_replay_round_trips_an_admitted_mate_and_refuses_a_door_refusal_at_load() {
 /// one copy — its bottom cap and its top cap each resting on the same
 /// face — fix the normal twice, which the door reads off the two
 /// mates' kinds, measuring nothing (FORK-S3O). A log carrying the
-/// second refuses on replay in the same words, naming the entry.
+/// second refuses to save, its replay refusing in the same words,
+/// naming the entry.
 #[test]
 fn a3_a_second_rest_refuses_at_the_door_and_on_replay() {
     let (doc, ids, _, body) = instances("msolve10-a3-overconstrained", 2);
@@ -654,8 +655,8 @@ fn a3_a_second_rest_refuses_at_the_door_and_on_replay() {
         ),
         "{fault:?}"
     );
-    let text = save(&snapshot, &[bottom, top], Tol::witness()).expect("saves");
-    let err = load(&text, Tol::witness()).expect_err("replay refuses the second rest");
+    let err = save(&snapshot, &[bottom, top], Tol::witness())
+        .expect_err("a log carrying the second rest does not replay");
     let PersistError::EditReplay { index, error } = &err else {
         panic!("expected EditReplay, got {err:?}");
     };

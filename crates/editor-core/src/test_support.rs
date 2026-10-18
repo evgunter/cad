@@ -580,6 +580,11 @@ pub fn beside_past_the_bundle_rule(
     .unwrap_or_else(|e| panic!("the door admits the mate alone: {e}"));
     let mut out = applied.doc;
     let id = applied.record.minted_constraints[0];
+    // The door dropped the variables only the taken-out constraints
+    // read; they go back with them.
+    for (var, def) in &doc.vars {
+        out.vars.entry(*var).or_insert_with(|| def.clone());
+    }
     let added = bundle(&mut out);
     match out.nodes.get_mut(&placement) {
         Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) => {

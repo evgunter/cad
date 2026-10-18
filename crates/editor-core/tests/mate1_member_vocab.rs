@@ -14,10 +14,10 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, Formula, Frame, MateRef, MateSide,
-    NameRef, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, Space, StableName,
+    CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, Formula, Frame, MateRef, MateSide, Node,
+    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, Space, StableName,
 };
-use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
     ang, at_the_door_of, constrain, head, in_copy, insert, insert_pinned, len, on_frame, plane,
     rest, run, scl, solve, step,
@@ -64,17 +64,18 @@ fn leg_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 struct Cube {
     doc_ref: editor_core::DocRef,
     body: RecipeNodeId,
-    walls: [RoleSeg; 2],
+    /// The profile's corners 0 and 1, the ends of wall 0 (`y = 0`).
+    corners: [editor_core::ProfileVertexRef; 2],
 }
 
 fn cube(store: &mut PartStore, label: &str) -> Cube {
     let (doc, body) = leg_part(label);
-    let walls = [fixture::wall(&doc, body, 0), fixture::wall(&doc, body, 1)];
+    let corners = [0, 1].map(|v| fixture::vpiece(&doc, body, 0, v));
     let (doc_ref, body) = store.insert_part((doc, body), Tol::witness());
     Cube {
         doc_ref,
         body,
-        walls,
+        corners,
     }
 }
 
@@ -84,42 +85,33 @@ impl Cube {
         in_part(instance, self.body, end)
     }
 
-    /// Wall `k` of this part as `instance` places it — the part's own
-    /// name under its placement's copy, worn inside the instance's
-    /// `InPart`.
-    fn wall(&self, instance: RecipeNodeId, k: usize) -> StableName {
-        let placed = StableName {
-            kind: EntityKind::Face,
-            node: placement_of(self.body),
-            path: vec![RoleSeg::Placed {
-                of: NameRef::new(StableName {
-                    kind: EntityKind::Face,
-                    node: self.body,
-                    path: vec![self.walls[k].clone()],
-                }),
-            }],
+    /// The frame at corner 0 of cap `end` as `instance` places it,
+    /// each name spelled by `wrap` ([`fixture::corner_frame`]): `z` up
+    /// its lateral edge, `x` along wall 0.
+    fn frame(
+        &self,
+        instance: RecipeNodeId,
+        end: CapEnd,
+        wrap: &dyn Fn(StableName) -> StableName,
+    ) -> editor_core::Operand {
+        let name = |kind, seg| {
+            fixture::read_minted(wrap(fixture::resolver::in_part_of(
+                kind, instance, self.body, seg,
+            )))
         };
-        fixture::face(placed).in_part(instance).into_name()
+        fixture::corner_frame(
+            name(EntityKind::Edge, RoleSeg::LateralEdge(self.corners[0])),
+            name(EntityKind::Vertex, RoleSeg::CapVertex(end, self.corners[1])),
+        )
     }
 }
 
-/// **`face`'s plane slid `by` along its own normal**: a standoff, which
-/// places and declares no contact — what a flush wall is mated to.
-fn standoff(face: impl Into<editor_core::Operand>, by: f64) -> editor_core::Operand {
-    let p = plane(face);
-    editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Slide {
-        pose: editor_core::pose::RoleRead::plain(p.clone()),
-        along: editor_core::pose::RoleRead::through(p, editor_core::pose::PoseRole::Normal),
-        by: len(by),
-    }))
-}
-
-/// **The seat**: the top's start cap resting on `copy`'s end cap, and
-/// its walls 0 and 1 flush with the copy's (a standoff of zero, so
-/// only the rest declares a contact) — three plane mates whose normals
-/// span space, so together they pin the top with no value: it stands on
-/// the copy exactly as the copy's own coordinates lifted by one,
-/// whatever pose the copy has.
+/// **The seat**: one pin (FORK-S3O) equating the top's corner frame
+/// at its start cap with the copy's at its end cap (`copy` wraps the
+/// copy's part names), so the top stands on the copy flush, one unit up
+/// the copy's own coordinates, whatever the copy's pose. Three plane
+/// mates (a rest and two walls) said it before the bundle rule, which
+/// refuses them.
 fn seat(
     doc: ProfileDoc,
     top: RecipeNodeId,
@@ -128,26 +120,15 @@ fn seat(
     copy_part: &Cube,
     copy_at: RecipeNodeId,
 ) -> (ProfileDoc, MateRef) {
-    let (doc, m) = constrain(
+    constrain(
         doc,
-        rest(
-            head(top_part.cap(top, CapEnd::Start)),
-            head(copy(copy_part.cap(copy_at, CapEnd::End))),
-            ContactClass::Rest,
+        fixture::frame_seat(
+            top_part.frame(top, CapEnd::Start, &|n| n),
+            copy_part.frame(copy_at, CapEnd::End, &copy),
+            0.0,
+            0.0,
         ),
-    );
-    let doc = (0..2).fold(doc, |doc, k| {
-        constrain(
-            doc,
-            fixture::mate(
-                plane(head(top_part.wall(top, k))),
-                standoff(head(copy(copy_part.wall(copy_at, k))), 0.0),
-                ContactClass::Rest,
-            ),
-        )
-        .0
-    });
-    (doc, m)
+    )
 }
 
 /// The four-legs-one-top document, the issue's own shape: ONE leg
@@ -212,16 +193,9 @@ fn four_legs(
 #[test]
 fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
     let spacing = 2.0;
-    let (doc, leg, _pattern, top, mate, o) = four_legs("mate1-red-first", spacing, 2);
+    let (doc, _leg, _pattern, top, mate, o) = four_legs("mate1-red-first", spacing, 2);
 
-    // The mate's poses: the pattern-member pose reads through the
-    // pattern's INPUT instance, the copy the top is placed against.
     assert_eq!(mate.placement, top, "the mate is in the top's bundle");
-    assert!(
-        fixture::mate_members(&doc).contains(&(mate, leg)),
-        "a pattern-placed pose lands on the pattern's input instance: {:?}",
-        fixture::mate_members(&doc)
-    );
 
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(top), None, "the mates solve — no fault");

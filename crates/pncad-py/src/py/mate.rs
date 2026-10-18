@@ -34,7 +34,7 @@ use crate::errors::ErrorClass;
 use crate::py::typed_err;
 use crate::tags::{
     class_admission_tag, coord_tag, maintenance_tag, mate_fault_tag, no_chart_why_tag,
-    placed_by_tag, subgroup_tag,
+    placed_by_tag,
 };
 use std::sync::Arc;
 
@@ -669,113 +669,17 @@ impl MateRef {
     }
 }
 
-/// A residual subgroup: what a fold left free.
-///
-/// The payload attributes — `normal`, `point`, `direction` — are
-/// present on every arm and `None` where that arm does not carry one,
-/// so reading `residual.direction` never needs a branch on `variant`
-/// first. `point` is three LENGTHS (a point on a line); `normal` and
-/// `direction` are plain unit numbers.
-///
-/// **Point-free arms are point-free on purpose.** `planar` and
-/// `prismatic` carry no base point because rotations about any
-/// parallel axis, and translations along any parallel line, are in the
-/// group — a base point would suggest a distinction the algebra does
-/// not make.
-#[pyclass(frozen, module = "pncad", skip_from_py_object)]
-#[derive(Clone)]
-pub(crate) struct Subgroup(d::Subgroup);
-
-#[pymethods]
-impl Subgroup {
-    /// The stable tag: `se3`, `planar`, `cylindrical`, `prismatic`,
-    /// `revolute`, `trivial` or `empty`, the seven the stub lists for
-    /// this attribute. `empty` is the contradictory answer and
-    /// `trivial` the fully located one.
-    // The map is `crate::tags::subgroup_tag`, whose words
-    // `TAG_INVENTORY` pins.
-    #[getter]
-    fn variant(&self) -> &'static str {
-        subgroup_tag(&self.0)
-    }
-
-    /// The plane's unit normal, for `planar` and `plane_translation`.
-    #[getter]
-    fn normal(&self) -> Option<(f64, f64, f64)> {
-        use d::Subgroup as S;
-        match self.0 {
-            S::Planar { normal } | S::PlaneTranslation { normal } => Some(direction(normal.get())),
-            S::Se3
-            | S::Cylindrical { .. }
-            | S::Prismatic { .. }
-            | S::Revolute { .. }
-            | S::Spherical { .. }
-            | S::Parallel { .. }
-            | S::Translation
-            | S::Trivial
-            | S::Empty => None,
-        }
-    }
-
-    /// A point on the axis, for `cylindrical` and `revolute`; the fixed
-    /// point, for `spherical`.
-    #[getter]
-    fn point(&self) -> Option<(Length, Length, Length)> {
-        use d::Subgroup as S;
-        match self.0 {
-            S::Cylindrical { point: p, .. }
-            | S::Revolute { point: p, .. }
-            | S::Spherical { point: p } => Some(point(p)),
-            // `planar`, `prismatic`, `parallel` and `plane_translation`
-            // are point-free on purpose, as the class doc says; the
-            // remaining arms have no geometry to be based at.
-            S::Planar { .. }
-            | S::Prismatic { .. }
-            | S::Parallel { .. }
-            | S::PlaneTranslation { .. }
-            | S::Translation
-            | S::Se3
-            | S::Trivial
-            | S::Empty => None,
-        }
-    }
-
-    /// The unit direction, for `cylindrical`, `prismatic`, `revolute`
-    /// and `parallel`.
-    #[getter]
-    fn direction(&self) -> Option<(f64, f64, f64)> {
-        use d::Subgroup as S;
-        match self.0 {
-            S::Cylindrical { direction: v, .. }
-            | S::Prismatic { direction: v }
-            | S::Revolute { direction: v, .. }
-            | S::Parallel { direction: v } => Some(direction(v.get())),
-            S::Se3
-            | S::Planar { .. }
-            | S::PlaneTranslation { .. }
-            | S::Spherical { .. }
-            | S::Translation
-            | S::Trivial
-            | S::Empty => None,
-        }
-    }
-
-    fn __repr__(&self) -> String {
-        format!("Subgroup({:?})", self.variant())
-    }
-}
-
 /// Why the solve refused for one node — a VALUE, because the solve is
 /// total and records a refusal per node rather than failing the
 /// document.
 ///
 /// Every payload attribute is present on every arm, `None` where the
 /// arm does not carry it: `mate`, `side`, `error`, `instance`,
-/// `shape`, `placement`, `constraints`, `residual`, `held`, `added`,
-/// `predicate`, `clash`, `what`, `expected_document`,
-/// `found_document`, `inner_variant`, `margin`, `margin_low`,
-/// `margin_high`, `zero`, `escalate`, `lever_residual`, `lever_arm`, `on_kind`, `to_kind`, `value_ref`,
-/// `named`, `coord`, `mate_kind`, `why`, `cause`. The human
+/// `shape`, `placement`, `constraints`, `free`, `held`, `added`,
+/// `predicate`, `what`, `expected_document`, `found_document`,
+/// `inner_variant`, `margin`, `margin_low`, `margin_high`, `zero`,
+/// `escalate`, `on_kind`, `to_kind`, `value_ref`, `named`, `coord`,
+/// `mate_kind`, `why`, `cause`. The human
 /// message is the kernel's own prose, available as `str(fault)`; the
 /// refusal it carries and does not quote is `cause`.
 ///
@@ -835,7 +739,7 @@ impl MateFault {
     }
 
     /// The mate the fault is about, `None` for an arm whose subject is
-    /// not one mate (`mate_contradictory`, which names `held` and
+    /// not one mate (`mate_pose_out_of_range`, which names `held` and
     /// `added` instead; `mate_poses_of_another_document`, whose
     /// subject is two documents).
     #[getter]
@@ -908,38 +812,33 @@ impl MateFault {
         })
     }
 
-    /// What the rest of an over-constrained bundle already holds the
-    /// copy to (`mate_overconstrained`).
+    /// How many of the copy's six freedoms an over-constrained bundle
+    /// leaves (`mate_overconstrained`): `0` where the rest already pins
+    /// it.
     #[getter]
-    fn residual(&self) -> Option<Subgroup> {
-        self.payload().residual.map(Subgroup)
+    fn free(&self) -> Option<u8> {
+        self.payload().free
     }
 
-    /// The mate already folded, for a contradictory pair.
+    /// The mate already folded, for a pair meeting out of range
+    /// (`mate_pose_out_of_range`).
     #[getter]
     fn held(&self) -> Option<MateRef> {
         self.payload().held.map(MateRef)
     }
 
-    /// The mate whose intersection died against it.
+    /// The mate whose meeting named the point
+    /// (`mate_pose_out_of_range`).
     #[getter]
     fn added(&self) -> Option<MateRef> {
         self.payload().added.map(MateRef)
     }
 
-    /// The predicate that decided against a contradictory pair.
+    /// The predicate an escalation could not decide
+    /// (`mate_indeterminate`).
     #[getter]
     fn predicate(&self) -> Option<&'static str> {
         self.payload().predicate
-    }
-
-    /// The measured clash: the margin that should have been zero and
-    /// was not — a length verbatim, or a lever's product. `None` for
-    /// the structural refusal (`mate_member_empty`), which measures
-    /// nothing.
-    #[getter]
-    fn clash(&self) -> Option<Length> {
-        self.payload().clash.map(length)
     }
 
     /// The kind of pose the mate's `on` reads, where the two kinds
@@ -977,8 +876,7 @@ impl MateFault {
         self.payload().coord.map(Coord)
     }
 
-    /// The kind of the mate whose kind alone fixes that freedom, `None`
-    /// where the bundle's other constraints fix it
+    /// The kind of the mate whose kind fixes that freedom
     /// (`mate_not_a_freedom`).
     #[getter]
     fn mate_kind(&self) -> Option<&'static str> {
@@ -1060,30 +958,6 @@ impl MateFault {
     #[getter]
     fn escalate(&self) -> Option<f64> {
         self.payload().escalate
-    }
-
-    /// The lever's RESIDUAL — a pure number, named by `predicate`: a
-    /// sine, a cosine, a Frobenius departure from the identity, a
-    /// reachability defect — when a contradictory clash levered one.
-    /// Dimensionless, so a bare float
-    /// and not a quantity.
-    #[getter]
-    fn lever_residual(&self) -> Option<f64> {
-        self.payload().lever_residual
-    }
-
-    /// The lever's ARM — an upper bound on the two mated parts'
-    /// extent together from the datum: each part's reach from its own
-    /// origin plus its frame's distance, plus the authored lengths. It
-    /// is NOT a contact feature, so it names the parts' scale and
-    /// nothing else in the model.
-    ///
-    /// `clash` is the PRODUCT of the two halves: a levered refusal
-    /// reports `lever_residual * lever_arm` as its deviation. An arm that measured its margin
-    /// without a lever carries none of the three.
-    #[getter]
-    fn lever_arm(&self) -> Option<Length> {
-        self.payload().lever_arm.map(length)
     }
 
     /// The fault's words, each node it names spoken from the document
@@ -1397,7 +1271,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ConstraintId>()?;
     m.add_class::<MateRef>()?;
     m.add_class::<Mate>()?;
-    m.add_class::<Subgroup>()?;
     m.add_class::<MateFault>()?;
     m.add_class::<SolvedPoses>()?;
     m.add_class::<ClassAdmission>()?;
@@ -1407,7 +1280,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(class_admission, m)?)?;
     m.add("CLASS_DEFERRAL", d::CLASS_DEFERRAL)?;
     m.add("OVERCONSTRAINED_RECOURSE", d::OVERCONSTRAINED_RECOURSE)?;
-    m.add("CONTRADICTORY_RECOURSE", d::CONTRADICTORY_RECOURSE)?;
     m.add("NO_AT_REST_RECORD_RECOURSE", d::NO_AT_REST_RECORD_RECOURSE)?;
     Ok(())
 }

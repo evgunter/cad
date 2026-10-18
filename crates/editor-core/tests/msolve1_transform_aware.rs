@@ -23,14 +23,14 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions,
-    Evaluation, MateFault, MateRef, MateSide, NameRef, Node, Operand, PatternKind, ProfileDoc,
-    RecipeNodeId, RoleSeg, SitedFace, Space, StableName, load, product, save,
+    Evaluation, MateFault, MateRef, MateSide, Node, Operand, PatternKind, ProfileDoc, RecipeNodeId,
+    RoleSeg, Space, StableName, load, product, save,
 };
-use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
+use fixture::resolver::{PartStore, in_part, in_part_of, with_resolver};
 use fixture::seat::map_gap;
 use fixture::{
-    constrain_at, gate, head, head_at, in_copy, insert, insert_pinned, len, on_frame, plane, rest,
-    run, scl, solve, step_with, xform,
+    constrain_at, gate, head, head_at, in_copy, insert, insert_pinned, len, on_frame, rest, run,
+    scl, solve, step_with, xform,
 };
 use geom_core::Tol;
 use geom_core::linalg::Affine3;
@@ -62,99 +62,79 @@ fn block(label: &str, h: f64) -> (ProfileDoc, RecipeNodeId) {
     slab(label, 1.0, h)
 }
 
-/// **A stored part**: its reference, its body, and the part's own
-/// names for two adjacent walls of its square profile (segments 0 and
-/// 1), as its placement carries them.
+/// **A stored part**: its reference, its body, and its square
+/// profile's first two corners, which its corner frame reads.
 struct Part {
     doc_ref: DocRef,
     body: RecipeNodeId,
-    walls: [RoleSeg; 2],
+    /// The profile's corners 0 and 1, the ends of wall 0.
+    corners: [editor_core::ProfileVertexRef; 2],
 }
 
 fn stored(store: &mut PartStore, (doc, body): (ProfileDoc, RecipeNodeId)) -> Part {
-    let walls = [fixture::wall(&doc, body, 0), fixture::wall(&doc, body, 1)];
+    let corners = [0, 1].map(|v| fixture::vpiece(&doc, body, 0, v));
     let (doc_ref, body) = store.insert_part((doc, body), Tol::witness());
     Part {
         doc_ref,
         body,
-        walls,
+        corners,
     }
 }
 
 impl Part {
+    /// The frame at corner 0 of cap `end` as `instance` places it, read
+    /// through `at` ([`fixture::corner_frame`]): `z` up its lateral
+    /// edge, `x` along wall 0.
+    fn frame(
+        &self,
+        instance: RecipeNodeId,
+        end: CapEnd,
+        at: &dyn Fn(StableName) -> Operand,
+    ) -> Operand {
+        let name = |kind, seg| in_part_of(kind, instance, self.body, seg);
+        fixture::corner_frame(
+            at(name(
+                EntityKind::Edge,
+                RoleSeg::LateralEdge(self.corners[0]),
+            )),
+            at(name(
+                EntityKind::Vertex,
+                RoleSeg::CapVertex(end, self.corners[1]),
+            )),
+        )
+    }
+
     /// The cap `end` of this part as `instance` places it.
     fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> StableName {
         in_part(instance, self.body, end)
     }
-
-    /// Wall `k` of this part as `instance` places it — the part's own
-    /// name under its placement's copy, worn inside the instance's
-    /// `InPart`.
-    fn wall(&self, instance: RecipeNodeId, k: usize) -> StableName {
-        let placed = StableName {
-            kind: EntityKind::Face,
-            node: placement_of(self.body),
-            path: vec![RoleSeg::Placed {
-                of: NameRef::new(StableName {
-                    kind: EntityKind::Face,
-                    node: self.body,
-                    path: vec![self.walls[k].clone()],
-                }),
-            }],
-        };
-        fixture::face(placed).in_part(instance).into_name()
-    }
 }
 
-/// **`face`'s plane slid `by` along its own normal**: a standoff, which
-/// places and declares no contact.
-fn standoff(face: impl Into<Operand>, by: f64) -> Operand {
-    let p = plane(face);
-    Operand::Pose(Box::new(editor_core::pose::PoseDef::Slide {
-        pose: editor_core::pose::RoleRead::plain(p.clone()),
-        along: editor_core::pose::RoleRead::through(p, editor_core::pose::PoseRole::Normal),
-        by: len(by),
-    }))
-}
-
-/// **The seat**, added to `top`'s bundle: the top's bottom cap resting
-/// on the base's top cap, and the top's walls 0 and 1 each standing
-/// one unit inside the base's own (a standoff of −1 along the base
-/// wall's outward normal), so the `1x1` block stands on the `3x3`
-/// slab's middle square, `[1, 2]²`. `base_face` reads a part name of
-/// the base where the row reads it — at the instance, through a
-/// transform, a pattern or a `Part`. Only the rest declares a contact.
-/// Answers the rest.
+/// **The seat**, added to `top`'s bundle: one pin (FORK-S3O) equating
+/// the top's corner frame at its bottom cap with the base's at its top
+/// cap, slid one unit along each of the base's walls 0 and 1, so the
+/// `1x1` block stands on the `3x3` slab's middle square, `[1, 2]²`.
+/// `base_at` reads a part name of the base where the row reads it — at
+/// the instance, through a transform, a pattern or a `Part`. Answers
+/// the pin.
 fn seat(
     doc: ProfileDoc,
     top: RecipeNodeId,
     top_part: &Part,
-    base_face: &dyn Fn(StableName) -> SitedFace,
+    base_at: &dyn Fn(StableName) -> Operand,
     base_part: &Part,
     base: RecipeNodeId,
 ) -> (ProfileDoc, MateRef) {
-    let (doc, m) = constrain_at(
+    constrain_at(
         doc,
         top,
-        rest(
-            head(top_part.cap(top, CapEnd::Start)),
-            base_face(base_part.cap(base, CapEnd::End)),
-            ContactClass::Rest,
+        fixture::frame_seat(
+            top_part.frame(top, CapEnd::Start, &fixture::read_minted),
+            base_part.frame(base, CapEnd::End, base_at),
+            1.0,
+            1.0,
         ),
-    );
-    let doc = (0..2).fold(doc, |doc, k| {
-        constrain_at(
-            doc,
-            top,
-            fixture::mate(
-                plane(head(top_part.wall(top, k))),
-                standoff(base_face(base_part.wall(base, k)), -1.0),
-                ContactClass::Rest,
-            ),
-        )
-        .0
-    });
-    (doc, m)
+    )
 }
 
 // ---- the scene ----
@@ -303,7 +283,14 @@ fn scene_at(label: &str, on_base: &[Step], at: &editor_core::Frame) -> Scene {
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, a_at) = chain(doc, base, on_base);
     let doc = world(doc, &opts, &[a_at], &[]);
-    let (doc, mate) = seat(doc, top, &top_part, &|n| head_at(a_at, n), &base_part, base);
+    let (doc, mate) = seat(
+        doc,
+        top,
+        &top_part,
+        &|n| fixture::read_at(a_at, n),
+        &base_part,
+        base,
+    );
     Scene {
         doc,
         opts,
@@ -532,7 +519,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
             doc,
             top,
             &top_part,
-            &|n| head(in_copy(pattern, COPY, n)),
+            &|n| fixture::read_minted(in_copy(pattern, COPY, n)),
             &base_part,
             base,
         );
@@ -588,7 +575,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
             doc,
             top,
             &top_part,
-            &|n| head_at(xf, in_copy(pattern, COPY, n)),
+            &|n| fixture::read_at(xf, in_copy(pattern, COPY, n)),
             &base_part,
             base,
         );
@@ -761,7 +748,14 @@ fn two_operands(
         xform(base, [5.0, 5.0, 10.0 + extra_lift], [0.0, 0.0, 1.0], 0.0),
     );
     let doc = world(doc, &opts, &[x1, x2], &[]);
-    let (doc, m1) = seat(doc, top, &top_part, &|n| head_at(x1, n), &base_part, base);
+    let (doc, m1) = seat(
+        doc,
+        top,
+        &top_part,
+        &|n| fixture::read_at(x1, n),
+        &base_part,
+        base,
+    );
     let second = rest(
         head(top_part.cap(top, CapEnd::Start)),
         head_at(x2, base_part.cap(base, CapEnd::End)),
@@ -923,17 +917,23 @@ fn a8b_deleting_the_operand_leaves_the_pose_unresolved() {
             .is_err(),
         "a copy placed by a stranded constraint has no pose"
     );
-    // The stranded pose lands on no member; the live one still does,
-    // which is what makes the refusal a per-pose one.
-    let edges: Vec<RecipeNodeId> = crate::fixture::mate_members(&doc)
-        .into_iter()
-        .filter(|&(m, _)| m == s.mate)
-        .map(|(_, to)| to)
-        .collect();
-    assert_eq!(
-        edges,
-        vec![s.top],
-        "only the resolving pose lands on a member"
+    // The stranded pose's reads reach no live node; the live pose's
+    // still read the top, which is what makes the refusal a per-pose
+    // one.
+    let m = fixture::constraint(&doc, s.mate);
+    let reached = |pose| -> Vec<RecipeNodeId> {
+        fixture::face_reads(&doc, pose)
+            .into_iter()
+            .flat_map(|read| doc.read_ports(read).into_iter().map(|(at, _)| at))
+            .collect()
+    };
+    assert!(
+        reached(*m.to.pose().expect("the seat's target is a pose")).is_empty(),
+        "the stranded pose reads nothing live"
+    );
+    assert!(
+        reached(m.on).iter().all(|&at| at == s.top) && !reached(m.on).is_empty(),
+        "the live pose still reads the top"
     );
 }
 
@@ -992,20 +992,21 @@ fn a8d_a_transform_operand_round_trips_through_persistence() {
         "the wire form is stable across the round trip"
     );
     let m = fixture::constraint(&back, s.mate);
-    let on = fixture::face_reads(&back, m.on);
-    let to = fixture::face_reads(&back, *m.to.pose().expect("the seat's target is a pose"));
-    let ([on], [to]) = (on.as_slice(), to.as_slice()) else {
-        panic!("the rest survived reading one face on each pose: {on:?} {to:?}");
+    let reached = |pose| -> std::collections::BTreeSet<RecipeNodeId> {
+        fixture::face_reads(&back, pose)
+            .into_iter()
+            .flat_map(|read| back.read_ports(read).into_iter().map(|(at, _)| at))
+            .collect()
     };
     assert_eq!(
-        crate::fixture::side_head(&back, *on).at,
-        s.top,
-        "the `on` pose's body rode the wire"
+        reached(m.on),
+        [s.top].into(),
+        "the `on` pose's edge and corner rode the wire at the top"
     );
     assert_eq!(
-        crate::fixture::side_head(&back, *to).at,
-        s.a_at,
-        "the `to` pose's body rode the wire"
+        reached(*m.to.pose().expect("the seat's target is a pose")),
+        [s.a_at].into(),
+        "the `to` pose's edge and corner rode the wire at the transform"
     );
     let poses = solve(&back, &s.opts, Tol::witness());
     assert!(
@@ -1086,7 +1087,14 @@ fn a10_a_nested_pattern_head_is_read_at_its_copy() {
     let nest = |n: StableName| in_copy(outer, 1, in_copy(inner, 1, n));
     let a = nest(base_part.cap(base, CapEnd::End));
     let b = top_part.cap(top, CapEnd::Start);
-    let (doc, _) = seat(doc, top, &top_part, &|n| head(nest(n)), &base_part, base);
+    let (doc, _) = seat(
+        doc,
+        top,
+        &top_part,
+        &|n| fixture::read_minted(nest(n)),
+        &base_part,
+        base,
+    );
     let poses = solve(&doc, &opts, Tol::witness());
     assert!(
         poses.fault(top).is_none(),
@@ -1441,7 +1449,14 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
     let nest = |n: StableName| in_copy(outer, 1, in_copy(inner, 1, n));
     let a = nest(base_part.cap(base, CapEnd::End));
     let b = top_part.cap(top, CapEnd::Start);
-    let (doc, _) = seat(doc, top, &top_part, &|n| head(nest(n)), &base_part, base);
+    let (doc, _) = seat(
+        doc,
+        top,
+        &top_part,
+        &|n| fixture::read_minted(nest(n)),
+        &base_part,
+        base,
+    );
     let poses = solve(&doc, &opts, Tol::witness());
     assert!(poses.fault(top).is_none(), "{:?}", poses.fault(top));
     let ev = run(&doc, &opts);
@@ -1543,7 +1558,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
         doc,
         top,
         &top_part,
-        &|n| head_at(part, nest(n)),
+        &|n| fixture::read_at(part, nest(n)),
         &base_part,
         base,
     );

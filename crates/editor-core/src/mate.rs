@@ -1389,7 +1389,8 @@ impl crate::spoken::Say for MateFault {
                 };
                 write!(
                     f,
-                    "{}'s {which} {} fixes an equation the rest of its bundle already fixes                      ({left}). Recourse: {OVERCONSTRAINED_RECOURSE}",
+                    "{}'s {which} {} fixes an equation the rest of its bundle already fixes \
+                     ({left}). Recourse: {OVERCONSTRAINED_RECOURSE}",
                     by.node(*placement),
                     ids(*placement, constraints),
                 )
