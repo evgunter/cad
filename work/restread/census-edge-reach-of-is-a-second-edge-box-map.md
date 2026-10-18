@@ -51,14 +51,19 @@ difference, so radicand rounding at the scale of `ρ²` moves it by about
 `ρ²·u/(2·f_min)`, far beyond any pad.
 
 So the rounding is decided once, inside the construction. Each radicand
-is widened by `8·u·W` before its root, each coordinate end by `32·u·S`,
+is widened by `8·u·W` at its own scale (`W = (R ∓ r)² + d²`) before its
+root, and each coordinate end by `32·u·S`,
 and the box encloses the period at every scalar by itself, with no pad.
 
 What moved:
 - Both lanes' spiric boxes widen.
 - Off the fold the widening is about `32·u·S`.
-- Near the fold it is up to about `8·u·W / (2·f_min)`: 2.5e-7 m on the
-  review's fixture, which the unrounded box missed by 1.2e-8 m.
+- Near the fold the root's widening adds at most
+  `f_min − √(max(f_min² − 16·u·W_min, 0))`, where
+  `W_min = (R − r)² + d²`. Measured at both ε over the gate's
+  fixtures (scales 10 to 10⁴, r/R 0.02 to 0.9), the widening is
+  4.7e-12 to 2.0e-7 m. It is 1.1e-7 m on the review's fold, which the
+  unrounded box missed by 1.2e-8 m, and 2.0e-7 m on its fat torus.
 - No public door reaches either lane with a spiric, so no census
   finding or pruning count moves.
 

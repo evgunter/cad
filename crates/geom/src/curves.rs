@@ -1168,37 +1168,46 @@ fn spiric_radicands<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
 /// `m = axis × u_ref` and `a = axis` — `f` ranges over
 /// [`spiric_f_range`]'s two numbers in a period and the `sin v` channel
 /// over its whole range. The one construction: `curves::boxes`'
-/// `spiric_arc_aabb` reads it at its brackets, and `topo`'s two box
-/// lanes at their scalars, in the frame they box in.
+/// `spiric_arc_aabb` runs it in its scalar's own arithmetic and
+/// brackets the result, and `topo`'s two box lanes run it at their
+/// scalars, in the frame they box in.
 ///
 /// **It encloses by itself, because a reader's pad cannot.** `f_min` is
 /// the root of a cancelling difference: a radicand rounded by `u·W` at
-/// the scale `W = (|R| + |r| + |d|)²` moves its root by about
-/// `u·W / (2·f_min)`, which near the fold (`R − r − |d|` a few
-/// `escalate`) is far above any pad. So the construction charges for it:
+/// its scale `W` moves its root by about `u·W / (2·f_min)`, which near
+/// the fold (`R − r − |d|` a few `escalate`) is far above any pad. So
+/// the construction charges for it, `u = ε/2` throughout:
 ///
-/// - **The radicands** are computed as stated by [`spiric_radicands`],
-///   whose error is under `4.1·u·W` (two squares, one difference, each
-///   rounded once, `u = ε/2`); each is widened by `8·u·W` before its
-///   root, which covers that error and the widening's own rounding. A
-///   widened inner radicand whose span reaches below zero roots at zero
-///   (`f ≥ 0` — the arc's least `f` is not below it); one whose UPPER
-///   end is below zero is poison at both ends of `f` (the clamp is
-///   `min(max(lo, 0), hi)`, which needs no comparison), as off-regime
-///   data, which the deciding door refuses, is everywhere else.
+/// - **The radicands** are computed as [`spiric_radicands`] states:
+///   `fl(R ∓ r)` is rounded relative to `R ∓ r` itself, then squared,
+///   less a rounded `d²`, each step rounded once, so each radicand's
+///   error is under `4.1·u·W` at its OWN scale
+///   `W = (R ∓ r)² + d²`. Each is widened by `8·u·W` before its root,
+///   which covers that error and the widening's own rounding; charging
+///   the inner one at the outer one's scale would over-widen a fat
+///   torus's `f_min` a hundredfold. A widened inner radicand whose span
+///   reaches below zero roots at zero (`f ≥ 0` — the arc's least `f` is
+///   not below it); one whose UPPER end is below zero is poison at both
+///   ends of `f` (the clamp is `min(max(lo, 0), hi)`, which needs no
+///   comparison), as off-regime data, which the deciding door refuses,
+///   is everywhere else.
 /// - **The coordinates** carry a few roundings each, every one at most
 ///   `u` of a term whose magnitude the scale
-///   `S = ‖c‖₁ + ‖n‖₁·|d| + ‖a‖₁·‖n‖₁·f_max + ‖a‖₁·|r|` bounds — about
-///   `10·u·S` in all, and as much again for inputs carried a few ulps
-///   off the data they stand for (a point or direction turned into a
-///   frame's rows). Each end is moved out by `32·u·S`.
+///   `S = ‖c‖₁ + ‖n‖₁·|d| + ‖a‖₁·‖n‖₁·f_max + ‖a‖₁·|r|` bounds: the
+///   derivation gives under `10·u·S`, and as much again for inputs
+///   carried a few ulps off the data they stand for (a point or
+///   direction turned into a frame's rows). Each end is moved out by
+///   `32·u·S`. Measured over 11k admitted spirics (world and aimed
+///   frames, `f64` and `Interval`, the bracket door) the error reached
+///   `3·u·S`, so the charge's margin over what was seen is `29·u·S`.
 ///
 /// The box is wider than the exact one by at most `48·u·S` per end (the
 /// charge and the arithmetic it covers), and on the `m` channel by
 /// `‖a‖₁·‖n‖₁` times the radicands' widening at the root:
-/// `f_min − √(max(f_min² − 16·u·W, 0))` below and
-/// `√(f_max² + 16·u·W) − f_max` above. An `Interval` scalar's own enclosure is kept,
-/// and the charges only widen it; poison flows through as NaN ends.
+/// `f_min − √(max(f_min² − 16·u·W_min, 0))` below and
+/// `√(f_max² + 16·u·W_max) − f_max` above. An `Interval` scalar's own
+/// enclosure is kept, and the charges only widen it; poison flows
+/// through as NaN ends.
 pub fn spiric_period_box<T: Real>(
     center: Point3<T>,
     axis: Vec3<T>,
@@ -1207,11 +1216,14 @@ pub fn spiric_period_box<T: Real>(
     minor: T,
     offset: T,
 ) -> (Point3<T>, Point3<T>) {
-    let reach = major.abs() + minor.abs() + offset.abs();
-    let slack = reach.powi(2) * T::from_f64(4.0 * f64::EPSILON);
+    let charge_at = |rho: T| (rho.powi(2) + offset.powi(2)) * T::from_f64(4.0 * f64::EPSILON);
+    let (slack_in, slack_out) = (charge_at(major - minor), charge_at(major + minor));
     let (inner, outer) = spiric_radicands(major, minor, offset);
-    let f_lo = (inner - slack).max(T::zero()).min(inner + slack).sqrt();
-    let f_hi = (outer + slack).sqrt();
+    let f_lo = (inner - slack_in)
+        .max(T::zero())
+        .min(inner + slack_in)
+        .sqrt();
+    let f_hi = (outer + slack_out).sqrt();
     let norm1 = |v: Vec3<T>| v.x.abs() + v.y.abs() + v.z.abs();
     let (na, nn) = (norm1(axis), norm1(u_ref));
     let scale = norm1(Vec3::new(center.x, center.y, center.z))
@@ -2589,7 +2601,7 @@ mod tests {
     /// equator `ρ_min = 99`:
     ///
     /// - `d = 99 − 1e-14`: the inner radicand (about `2e-12`) lies
-    ///   inside its charge (`8·u·W ≈ 3.6e-11`), so its widened span
+    ///   inside its charge (`8·u·W ≈ 1.7e-11`), so its widened span
     ///   reaches below zero and the root clamps at zero: the box's `y`
     ///   (the `m = ẑ × x̂ = ŷ` channel) starts at zero less the coordinate
     ///   charge, finite. A plain root of the widened radicand is poison.

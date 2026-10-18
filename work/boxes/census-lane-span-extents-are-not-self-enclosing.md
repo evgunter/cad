@@ -21,7 +21,15 @@ few ulps of their scale short of the locus. These are the face extents
 `arc_extent`.
 
 None of them takes the root of a cancelling difference, so the shortfall
-stays at a few ulps of scale. The spiric's extent did take such a root,
+stays at a few ulps of scale.
+
+**What carries the claim today** (review 2 of PR 5308): every census
+reader decides a gap through the band, which reads Positive only past
+`K·ε`. And `ε ≥ ε_min`, which is about `20·u` at the session box's scale,
+so `K·ε` exceeds the few-ulp shortfall at the default `K`. Nothing
+guards that: with `CAD_AMBIGUITY_K` near 1 and ε near ε_min the margin
+is gone, and a box short by its rounding could clear a pair that
+touches. The spiric's extent did take such a root,
 and PR 5308 moved it into `geom::spiric_period_box`, which charges for
 its own rounding and encloses by itself.
 

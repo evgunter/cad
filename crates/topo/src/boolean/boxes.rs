@@ -145,17 +145,16 @@
 //! `f64`-bracket instantiation and `census`'s `reach_box` is its
 //! instantiation at the census's own scalar; [`edge_rule_box`] is the
 //! same for [`EdgeBoxRule`], read by [`edge_box`] and the census's edge
-//! reach. **Neither re-derives an
-//! extent**: the per-kind arithmetic lives once, in [`slab_extent`],
-//! [`cone_frustum_extent`], [`ball_extent`], [`torus_extent`],
-//! [`torus_window_extent`], [`torus_rect_extent`], [`conic_extent`]
-//! and [`arc_extent`], written
+//! reach. **Neither re-derives an extent**: the per-kind arithmetic
+//! lives once, in [`slab_extent`], [`cone_frustum_extent`],
+//! [`ball_extent`], [`torus_extent`], [`torus_window_extent`],
+//! [`torus_rect_extent`], [`conic_extent`] and [`arc_extent`], written
 //! against [`Span`] so a lane on the [`Bounds`] allowlist and a lane
-//! off it can both enter it — the first with `[lo(), hi()]`
-//! brackets at `f64`, the second with degenerate spans at its own
-//! `T` — and the spiric's in `geom::spiric_period_box`, which both
-//! lanes and `geom`'s own spiric door read at the rule's scalar. The one place the two lanes read two arithmetics of one rule
-//! is the conic EDGE box, and the reason is the scalar: [`edge_box`]
+//! off it can both enter it — the first with `[lo(), hi()]` brackets at
+//! `f64`, the second with degenerate spans at its own `T` — and the
+//! spiric's in `geom::spiric_period_box`, which both lanes and `geom`'s
+//! own spiric door run at the rule's scalar. The one place the two
+//! lanes read two arithmetics of one rule is the conic EDGE box, and the reason is the scalar: [`edge_box`]
 //! reads `geom`'s exact arc door, which needs an ordering, and the
 //! census reads [`arc_extent`], which needs none ([`EdgeBoxRule`]'s
 //! conic bullet carries the argument, and
@@ -2696,12 +2695,13 @@ pub(crate) mod tests {
     //! list rather than any box.
 
     use super::*;
+    use crate::boolean::conic_oracle::exact::Dd;
     use crate::entity::LoopBoundary;
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use geom::Curve3;
     use geom::Surface;
     use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
-    use geom_core::Tol;
+    use geom_core::{Interval, Tol};
     use geom_core::{Point3, Vec3};
 
     /// The pad every row boxes with — the sweep's own, so a row that
@@ -5611,26 +5611,23 @@ pub(crate) mod tests {
         (body, face, edge)
     }
 
-    /// A spiric's `f = √(ρ² − d²)` at `ρ = R + r·cos_v`, accurate to a
-    /// few ulps of `f` itself: `ρ` is carried as an unevaluated sum
-    /// (two-product, two-sum) and the radicand factored as
-    /// `(ρ − d)·(ρ + d)`, whose cancelling factor is formed from that
-    /// sum. The reference the spiric rows hold the boxes to, because it
-    /// does not round the radicand the way `Curve3::eval` and the box
+    /// A spiric's `f = √(ρ² − d²)` at `ρ = R + r·cos_v`, in
+    /// double-double (the conic oracle's [`Dd`]) with the radicand
+    /// factored as `(ρ − d)·(ρ + d)`: accurate far below an ulp of `f`.
+    /// The reference the spiric rows hold the boxes to, because it does
+    /// not round the radicand the way `Curve3::eval` and the box
     /// construction both do — near the fold that rounding moves `f` by
     /// far more than an ulp.
+    ///
+    /// [`Dd`]: crate::boolean::conic_oracle::exact::Dd
+    fn spiric_f_dd(big_r: f64, r: f64, d: f64, cos_v: f64) -> Dd {
+        let rho = Dd::of(big_r).add(Dd::of(r).mul(Dd::of(cos_v)));
+        rho.sub(Dd::of(d)).mul(rho.add(Dd::of(d))).sqrt()
+    }
+
+    /// [`spiric_f_dd`] rounded to `f64`.
     fn spiric_f_reference(big_r: f64, r: f64, d: f64, cos_v: f64) -> f64 {
-        let two_sum = |a: f64, b: f64| {
-            let s = a + b;
-            let bb = s - a;
-            (s, (a - (s - bb)) + (b - bb))
-        };
-        let hi = r * cos_v;
-        let lo = r.mul_add(cos_v, -hi);
-        let (s, e) = two_sum(big_r, hi);
-        let e = e + lo;
-        let (p, q) = two_sum(s, -d);
-        ((p + (q + e)) * (s + d + e)).sqrt()
+        spiric_f_dd(big_r, r, d, cos_v).to_f64()
     }
 
     /// **The spiric arm of `edge_box`, and the census's reach twin,
@@ -5675,7 +5672,9 @@ pub(crate) mod tests {
     }
 
     /// The admitted spirics the near-fold rows box: the elbow, the
-    /// review's fold, and a grid at scales 10 and 100 m whose inner
+    /// review's fold and its fat torus (`r/R = 0.9` at `R = 10⁴`), and a
+    /// grid at scales 10 and 100 m, `r/R` from 0.02 to the fat 0.5 and
+    /// 0.9, whose inner
     /// equator stands `k·escalate` inside the cutting plane for `k` from
     /// just past the deciding door's floor up to far from it. Each as
     /// `(what, R, r, d)`, on the torus of axis `ẑ` about the origin cut
@@ -5691,9 +5690,10 @@ pub(crate) mod tests {
                 5.350_502_372_890_727,
                 782.822_479_472_187_4,
             ),
+            ("the review's fat torus".to_string(), 1e4, 9e3, 1e3 - 1e-8),
         ];
         for &scale in &[10.0, 100.0] {
-            for &ratio in &[0.02, 0.3] {
+            for &ratio in &[0.02, 0.3, 0.5, 0.9] {
                 for &k in &[1.01, 1.1, 2.0, 1e2, 1e4] {
                     let (big_r, r) = (scale, scale * ratio);
                     let d = big_r - r - k * band.escalate();
@@ -5792,15 +5792,19 @@ pub(crate) mod tests {
                 spiric_f_reference(big_r, r, d, 1.0),
             );
             let exact = [d, f_min, -r, d, f_max, r];
-            let w = (big_r + r + d).powi(2);
+            // Each radicand's rounding scale, from what it is computed
+            // from (`(R ∓ r)²` and `d²`), not from the construction's
+            // own choice: a charge scaled up to the outer radicand's
+            // reds the fat tori, one scaled down reds the containment.
+            let (w_in, w_out) = ((big_r - r).powi(2) + d * d, (big_r + r).powi(2) + d * d);
             let s = d + f_max + r;
             let reference = 4.0 * u;
             let room = [
                 48.0 * u * s,
-                48.0 * u * s + f_min - (f_min * f_min - 16.0 * u * w).max(0.0).sqrt(),
+                48.0 * u * s + f_min - (f_min * f_min - 16.0 * u * w_in).max(0.0).sqrt(),
                 48.0 * u * s,
                 48.0 * u * s,
-                48.0 * u * s + (f_max * f_max + 16.0 * u * w).sqrt() - f_max,
+                48.0 * u * s + (f_max * f_max + 16.0 * u * w_out).sqrt() - f_max,
                 48.0 * u * s,
             ];
             for (lane, b) in [
@@ -5829,6 +5833,150 @@ pub(crate) mod tests {
         }
     }
 
+    /// **In an aimed frame, about a centre far from the origin, the
+    /// spiric box holds the arc at `f64` and at `Interval`.** The census
+    /// lane reads [`edge_rule_box`] in the frame it boxes in, turning the
+    /// rule's centre and directions into the frame's rows before the
+    /// construction runs; this row runs that entry at `f64` and with
+    /// `Interval` rows and data (the frame's turn enclosed rather than
+    /// rounded), on tori placed `|c| ≈ 10³–10⁴` m out, near the fold and
+    /// fat, under two aims that lean off every world axis. Each coordinate
+    /// is held, with no pad, to the arc's own support along that row: the
+    /// point `c + (d, f(v), r·sin v)` (axis `ẑ`, cut along `x̂`) dotted
+    /// with the row in double-double over a dense run of `v` and the
+    /// period's four extremal angles, `f` from [`spiric_f_dd`]. A
+    /// construction fed the world centre rather than the frame's reds
+    /// this row by the centre's whole offset.
+    #[test]
+    fn the_spiric_box_holds_the_arc_in_an_aimed_frame_about_a_placed_centre() {
+        let band = witness_band();
+        let esc = band.escalate();
+        let centres = [
+            Point3::new(1234.5, -2718.25, 3141.0),
+            Point3::new(-9000.125, 4000.5, 7500.75),
+        ];
+        let aims = [Vec3::new(1.0, 2.0, 3.0), Vec3::new(-0.3, 0.8, 0.52)];
+        let tori = [
+            (10.0, 3.0, 7.0 - 1.01 * esc),
+            (100.0, 50.0, 30.0),
+            (1e3, 900.0, 100.0 - 1.1 * esc),
+            (1.2, 0.225, 0.05),
+        ];
+        let iv = |x: f64| Interval::from_bounds(x, x);
+        let ivp = |p: Point3<f64>| Point3::new(iv(p.x), iv(p.y), iv(p.z));
+        let ivv = |v: Vec3<f64>| Vec3::new(iv(v.x), iv(v.y), iv(v.z));
+        let mut boxed = 0;
+        for &c in &centres {
+            for &aim in &aims {
+                let frame = BoxFrame::aimed(UnitVec3::new(aim, "aim", band).unwrap());
+                let BoxFrame::Aimed(rows) = frame else {
+                    unreachable!("an aimed frame has rows")
+                };
+                let iframe: BoxFrame<Interval> =
+                    BoxFrame::Aimed([ivv(rows[0]), ivv(rows[1]), ivv(rows[2])]);
+                for &(big_r, r, d) in &tori {
+                    let Ok(carrier) =
+                        Curve3::spiric(c, Vec3::unit_z(), Vec3::unit_x(), big_r, r, d, band)
+                    else {
+                        continue;
+                    };
+                    boxed += 1;
+                    let ends = (carrier.eval(2.0), carrier.eval(4.2));
+                    let unreachable = |_: &ConicArc<'_, f64>| unreachable!("a spiric rule");
+                    let at_f64 = aabb_of(
+                        edge_rule_box(
+                            EdgeBoxRule::Spiric {
+                                center: c,
+                                axis: Vec3::unit_z(),
+                                u_ref: Vec3::unit_x(),
+                                major_radius: big_r,
+                                minor_radius: r,
+                                offset: d,
+                            },
+                            (
+                                SpanBox::point(frame.point(ends.0)),
+                                SpanBox::point(frame.point(ends.1)),
+                            ),
+                            &frame,
+                            SpanBox::point,
+                            unreachable,
+                        )
+                        .unwrap(),
+                    );
+                    let at_interval = edge_rule_box(
+                        EdgeBoxRule::Spiric {
+                            center: ivp(c),
+                            axis: ivv(Vec3::unit_z()),
+                            u_ref: ivv(Vec3::unit_x()),
+                            major_radius: iv(big_r),
+                            minor_radius: iv(r),
+                            offset: iv(d),
+                        },
+                        (
+                            SpanBox::point(iframe.point(ivp(ends.0))),
+                            SpanBox::point(iframe.point(ivp(ends.1))),
+                        ),
+                        &iframe,
+                        SpanBox::point,
+                        |_: &ConicArc<'_, Interval>| unreachable!("a spiric rule"),
+                    )
+                    .unwrap();
+                    let at_interval = Aabb {
+                        min_x: at_interval.x.lo.lo(),
+                        min_y: at_interval.y.lo.lo(),
+                        min_z: at_interval.z.lo.lo(),
+                        max_x: at_interval.x.hi.hi(),
+                        max_y: at_interval.y.hi.hi(),
+                        max_z: at_interval.z.hi.hi(),
+                    };
+                    let n = 4096;
+                    let angles = (0..n)
+                        .map(|k| {
+                            let (sin, cos) =
+                                (f64::from(k) * core::f64::consts::TAU / f64::from(n)).sin_cos();
+                            (cos, sin)
+                        })
+                        .chain([(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)]);
+                    for (cos, sin) in angles {
+                        let f = spiric_f_dd(big_r, r, d, cos);
+                        let p = [
+                            Dd::of(c.x).add(Dd::of(d)),
+                            Dd::of(c.y).add(f),
+                            Dd::of(c.z).add(Dd::of(r).mul(Dd::of(sin))),
+                        ];
+                        let along = |row: Vec3<f64>| {
+                            Dd::of(row.x)
+                                .mul(p[0])
+                                .add(Dd::of(row.y).mul(p[1]))
+                                .add(Dd::of(row.z).mul(p[2]))
+                                .to_f64()
+                        };
+                        let q = [along(rows[0]), along(rows[1]), along(rows[2])];
+                        for (lane, b) in [("f64", at_f64), ("Interval", at_interval)] {
+                            let (lo, hi) =
+                                ([b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]);
+                            for i in 0..3 {
+                                assert!(
+                                    lo[i] <= q[i] && q[i] <= hi[i],
+                                    "c = {c:?}, aim {aim:?}, torus ({big_r}, {r}, {d}), \
+                                     {lane}: the arc's point at cos v = {cos} reads {:e} along \
+                                     row {i}, outside the box's [{:e}, {:e}]",
+                                    q[i],
+                                    lo[i],
+                                    hi[i]
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            boxed >= 12,
+            "at least 12 placed, aimed spirics are boxed, got {boxed}"
+        );
+    }
+
     /// **The box lane's spiric box holds the arc near the fold, and so
     /// does `geom`'s door.** `f_min = √(ρ_min² − d²)` is a square root
     /// of a cancelling difference, so the radicand's half-ulp rounding
@@ -5841,10 +5989,7 @@ pub(crate) mod tests {
     /// because `geom::spiric_period_box` charges that root for its
     /// rounding.
     ///
-    /// The reference `f_min` is taken with `ρ = R − r` split exactly
-    /// (two-sum) and the radicand factored as `(ρ − d)(ρ + d)`, whose
-    /// first factor is exact (Sterbenz), so it is accurate to a few
-    /// ulps of `f_min` itself (cross-checked at 60 digits: 1.7e-19 off).
+    /// The reference `f_min` is [`spiric_f_reference`]'s.
     #[test]
     fn review_the_unrounded_spiric_box_misses_the_arc_near_the_fold() {
         let (big_r, r, d) = (
@@ -5905,11 +6050,7 @@ pub(crate) mod tests {
         )
         .padded(pad());
 
-        // The true f_min: ρ = s + e exactly, ρ − d = (s − d) + e.
-        let s = big_r - r;
-        let bb = s - big_r;
-        let e = (big_r - (s - bb)) + (-r - bb);
-        let f_min = (((s - d) + e) * (s + d)).sqrt();
+        let f_min = spiric_f_reference(big_r, r, d, -1.0);
 
         let door = geom::curves::boxes::spiric_arc_aabb(&carrier, ends.0, ends.1).unwrap();
         assert!(

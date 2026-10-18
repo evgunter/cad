@@ -1,7 +1,9 @@
 //! Certified-conservative [`Aabb`] constructors for curve carriers
 //! (C10, M5 PR 8): a box is a cache with a **containment contract** —
 //! the carrier's true locus over the stated span lies inside it — and
-//! every computation here errs outward only.
+//! every computation here errs outward only: by directed rounding in
+//! bracket arithmetic, or, for the spiric, by the charge
+//! [`crate::spiric_period_box`] states for its own arithmetic.
 //!
 //! **Outward is the only sound direction; it is not a free one.** A
 //! wider box is a weaker answer, not a cheaper one: a consumer that
@@ -20,7 +22,9 @@
 //!
 //! This is certified-box driver code, a **sole**-bound [`Bounds`] seam
 //! under the 2026-07-29 amendment (geom-core `real.rs`, Bounds scope
-//! rule): every scalar enters as its `[lo(), hi()]` bracket, and
+//! rule): every scalar enters as its `[lo(), hi()]` bracket — save the
+//! spiric's, which [`spiric_arc_aabb`] runs in its scalar's own
+//! arithmetic and brackets once done — and
 //! poison (NaN) flows to the poison box, which overlaps everything —
 //! the honest answer when no cheap superset is known.
 //!
@@ -388,8 +392,9 @@ pub fn ellipse_arc_aabb<T: Bounds>(
 
 /// The certified-conservative box of a SPIRIC arc — the whole
 /// period's ([`crate::spiric_period_box`], the one construction, which
-/// charges for its own rounding), read at the scalar's brackets and
-/// seeded with the endpoint hull exactly as [`ellipse_arc_aabb`] is. A
+/// charges for its own rounding), run in `T`'s own arithmetic, its two
+/// corners then bracketed, and seeded with the endpoint hull exactly as
+/// [`ellipse_arc_aabb`] is. A
 /// C10 superset: the exact per-axis extremes need a transcendental root
 /// and are not owed; a wider box is a weaker answer, never a wrong one.
 /// Off-regime data (`ρ_min² < d²` beyond the construction's charge) is
@@ -436,7 +441,8 @@ pub fn spiric_arc_aabb<T: Bounds>(
 /// `Line` or `Nurbs` carrier: those kinds have their own rule (the
 /// chord; the control hull, [`nurbs_curve_aabb`]) and this door refuses
 /// rather than guesses. Everything else — span restriction, outward
-/// rounding, poison — is the kind door's contract, verbatim.
+/// rounding (for the spiric, its construction's charge), poison — is
+/// the kind door's contract, verbatim.
 pub fn conic_arc_aabb<T: Bounds>(
     carrier: &Curve3<T>,
     theta0: T,
