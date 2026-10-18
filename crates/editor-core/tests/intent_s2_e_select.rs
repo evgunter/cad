@@ -493,6 +493,7 @@ fn inline_rehosts_a_selection_downstream_of_the_instance() {
             .expect("the union keeps an edge of the prism")
     };
     let (doc, fillet) = insert(doc, Node::fillet(union, len(0.05), vec![edge]));
+    { let ev = fixture::run(&doc, &editor_core::EvalOptions::default()); eprintln!("DBG f={:?}", ev.node_error(fillet)); }
     let (doc, _) = fixture::place(doc, fillet);
     let out = editor_core::split(
         &doc,

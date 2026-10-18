@@ -464,7 +464,7 @@ fn a_copy_stands_against_a_plane_less_target() {
     let (doc, rev) = full_revolve(doc);
     let (doc, b) = unit_box(doc);
     let own = vertices(&doc, b);
-    let (doc, placed) = fixture::slid(doc, rev, b, [2.0, 0.5, -0.25]);
+    let (doc, placed) = fixture::slid(doc, Operand::output(rev, 0), b, [2.0, 0.5, -0.25]);
     for (p, q) in vertices(&doc, placed).iter().zip(shifted(&own, [2.0, 0.5, -0.25])) {
         for k in 0..3 {
             assert!((p[k] - q[k]).abs() < 1e-12, "{p:?} vs {q:?}");

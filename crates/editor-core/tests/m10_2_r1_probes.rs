@@ -429,7 +429,12 @@ fn r1_sphere_gap_three_regimes_on_revolved_balls() {
         let (doc, socket) = ball(&doc, 1.0, 0.0);
         let (doc, pin) = ball(&doc, 0.25, c);
         // The ball joins the socket's space on its axis.
-        let (doc, pin) = fixture::against(doc, socket, pin, &editor_core::Frame::IDENTITY);
+        let (doc, pin) = fixture::against(
+            doc,
+            editor_core::Operand::output(socket, 0),
+            editor_core::Operand::output(pin, 0),
+            &editor_core::Frame::IDENTITY,
+        );
         let ev = eval(&doc);
         let socket_face = faces_of_kind(&ev, socket, geom::SurfaceKind::Sphere)
             .first()

@@ -645,10 +645,14 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
     // union's copy placed against itself at that pose does, to the
     // rounding of that one re-composition: every vertex within 4 ulps
     // of the moved copy's.
+    // By position: the gathered body and the copy key their vertices
+    // apart.
     let points = |body: &topo::Body<f64>| {
         let mut points: Vec<_> = body
             .vertex_points()
-            .map(|(k, p)| (k, [p.x, p.y, p.z]))
+            .map(|(_, p)| [p.x, p.y, p.z].map(|c| (c * 1e6).round() / 1e6 + 0.0))
+            .zip(body.vertex_points().map(|(_, p)| [p.x, p.y, p.z]))
+            .map(|(k, p)| (k.map(f64::to_bits), p))
             .collect();
         points.sort_by_key(|(k, _)| *k);
         points
