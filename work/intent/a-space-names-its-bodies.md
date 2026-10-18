@@ -7,7 +7,7 @@ opened: 2026-10-18
 priority: P0
 cost: M
 needs_ev: true
-refs: [a-placement-relates-two-frames, a-placement-pins-by-written-values-without-a-mate]
+refs: [a-placement-relates-two-frames]
 ---
 
 From row 162 (PR 5312). Ev, chat 2026-10-18: "a space is defined by a set of placements, and then provides a nice api to things downstream where the api doesn't say anything about how the geometry got there". The ratified sentence is "what reads it downstream reads the space's bodies, never a placement". But nothing represents a space's body today. A copy is an output of its placement, read by key (`CopyKey`, `BodyRead.key`, `crates/editor-core/src/operand.rs:502`; `copy_of`, `eval/wire.rs:2575`). Its names are re-minted under the placement node (`RoleSeg::Placed`, `names/role.rs:1579`; `name_placed*`, `names/emit.rs:919–1000`; `InPart`, `emit.rs:951`). Line numbers are stage 3 D's branch at bf45076901.
@@ -26,6 +26,6 @@ Weighed by an Opus and a Fable designer (fork-log row 163). The clause is in the
 - (1) A pick's `of` is either strictly a variable of the source (an unpicked body of another document refuses `NoSuchBody`, and the author picks it in the source and re-pins), or a path through the source's placements to the first variable, which is its one spelling.
 - (2) A second pick of one copy is either refused, or two variables, as for a selection.
 
-Built in stage 3 D′ (`a-placement-pins-by-written-values-without-a-mate`), with spec §1.
+Built in stage 3 D′ (`a-placement-pins-by-written-values-without-a-mate`, filed on stage 3 D's branch), with spec §1.
 
 Seen, not taken: `RoleSeg::From`'s doc on D's branch says "a placement adds no name segment", which `name_placed*` contradicts. It becomes true when `Placed` retires. If D′ does not retire it, fix the comment.
