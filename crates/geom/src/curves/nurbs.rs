@@ -786,9 +786,10 @@ macro_rules! nurbs_curve {
                 // A removal's ratio read from knots within rounding of each
                 // other can reach 0 or 1, and its unblend divides by it: an
                 // unbounded enclosure, which the door's poison test does not
-                // see. Refused here, typed.
+                // see. Refused here, typed; a poison value is the door's.
+                let unbounded = |v: &T| !v.is_poison() && !v.is_bounded();
                 if let Some(index) = control.iter().zip(&weights).position(|(p, w)| {
-                    !(w.is_bounded() && $(p.$c.is_bounded())&&+)
+                    unbounded(w) $(|| unbounded(&p.$c))+
                 }) {
                     return Err(KnotAlgebraError::UnboundedAtEnclosure { index });
                 }

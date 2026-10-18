@@ -858,14 +858,19 @@ impl crate::spline::SpanLocate for Interval {
     /// `x`, in `y` and in `t` separately, so its range over the box is
     /// attained at a corner, and each corner, a step of three points,
     /// is enclosed outward; the inputs' widths are met, not multiplied
-    /// (the expression reads `x` twice). Otherwise (an unblend's `t`
-    /// above `1`, an unbounded or poison input) the expression.
+    /// (the expression reads `x` twice). The hull carries the
+    /// expression's decoration, the weakest of its inputs' and steps':
+    /// corners built from fresh points are `Com`, and an input that is
+    /// not certified must not come out certified. Otherwise (an
+    /// unblend's `t` above `1`, an unbounded or poison input) the
+    /// expression.
     fn homogeneous_step(x: Self, y: Self, t: Self) -> Self {
+        let plain = x + (y - x) * t;
         let (xl, xh, yl, yh) = (Bounds::lo(x), Bounds::hi(x), Bounds::lo(y), Bounds::hi(y));
         let (tl, th) = (Bounds::lo(t), Bounds::hi(t));
         let finite = [xl, xh, yl, yh].iter().all(|v| v.is_finite());
         if !(finite && tl >= 0.0 && th <= 1.0) {
-            return x + (y - x) * t;
+            return plain;
         }
         let corner = |a: f64, b: f64, s: f64| {
             let (a, b, s) = (
@@ -887,7 +892,7 @@ impl crate::spline::SpanLocate for Interval {
         ] {
             acc = Self(enclosure_hull_of(acc.0, corner(a, b, s).0));
         }
-        acc
+        Self(cap_decoration(acc.0, plain.0.decoration()))
     }
 
     fn locate_spans<'a>(

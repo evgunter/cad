@@ -234,3 +234,40 @@ fn a_removal_whose_ratio_reaches_one_refuses_typed() {
         other => panic!("a removal whose ratio reaches 1: {:?}", other.map(|_| ())),
     }
 }
+
+/// **An uncertified pole stays uncertified through the knot algebra.**
+/// A pole computed outside its domain (`√[−1, 4]`, decorated below
+/// certified) enters a quadratic at `Interval`; after an insertion and
+/// after an elevation every pole it reaches still reads uncertified, so
+/// the refusal signal (D4) is not laundered into a certified carrier.
+/// Red where the blend step's corner hull carries its fresh corners'
+/// decoration rather than its inputs'.
+#[test]
+fn an_uncertified_pole_stays_uncertified_through_the_knot_algebra() {
+    let i = Interval::from_f64;
+    let bad = <Interval as Real>::sqrt(Interval::from_bounds(-1.0, 4.0));
+    assert!(!bad.is_certified(), "the fixture's pole is uncertified");
+    let knots = Knots::new(vec![(i(0.0), m(3)), (i(1.0), m(3))], 2).unwrap();
+    let c = NurbsCurve3::new(
+        knots,
+        vec![
+            Point3::new(i(0.0), i(0.0), i(0.0)),
+            Point3::new(bad, i(1.0), i(0.0)),
+            Point3::new(i(3.0), i(0.0), i(0.0)),
+        ],
+        vec![i(1.0); 3],
+    )
+    .unwrap();
+    let inserted = c.insert_knot(0.3, 1).unwrap();
+    let elevated = c.elevate_degree(1).unwrap();
+    for (tag, curve) in [("insert", &inserted), ("elevate", &elevated)] {
+        let poles = curve.control();
+        let inner = &poles[1..poles.len() - 1];
+        for (k, p) in inner.iter().enumerate() {
+            assert!(
+                !p.x.is_certified(),
+                "{tag}: inner pole {k}'s x reads certified"
+            );
+        }
+    }
+}

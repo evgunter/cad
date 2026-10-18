@@ -69,7 +69,7 @@ import glob, re, sys
 baseline_path = sys.argv[1]
 NAMES = r"(?:knots_f64_interim|knots_u_f64_interim|knots_v_f64_interim|structure_f64_interim|weights_f64_interim|point_inputs|point_knots)"
 CALL = re.compile(r"\b" + NAMES + r"\s*\(")
-DECL = re.compile(r"\bfn\s+" + NAMES + r"\b")
+DECL = re.compile(r"\bfn\s+" + NAMES + r"\s*\(")
 KV = re.compile(r"^(?:&'[a-z_]+)?(?:(?:Option|Cow|Arc|Rc|Box|Vec)<(?:'[a-z_]+,)?)?(?:&'[a-z_]+)?KnotVector>?$")
 F64 = re.compile(r"^(?:Vec<f64>|&'[a-z_]+\[f64\]|Option<Vec<f64>>|Box<\[f64\]>|\[f64;[^\]]+\]|Cow<'[a-z_]+,\[f64\]>)$")
 HOLD_NAME = re.compile(r"^(?:knots\w*|breaks\w*|ku|kv|weights\w*|weight_channel|channel)$")
