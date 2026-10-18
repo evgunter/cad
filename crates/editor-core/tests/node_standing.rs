@@ -14,7 +14,6 @@
 //! - every standing renders one way through every door that carries
 //!   it, each door's subject in front;
 //! - no door that runs no hit test says "hit test" for a standing;
-//! - a poisoned datum reaching the distance query carries `through`;
 //! - the checks registry's placement refusal names the node the repair is
 //!   at;
 //! - `RunStatus`, the standing's persisted projection, keeps its JSON
@@ -78,9 +77,11 @@ impl Standings {
                 distance: len(1.0),
             },
         );
-        let (doc, poisoned) = insert(
+        // A world copy of the extrude, poisoned through it once it fails.
+        let (doc, poisoned) = fixture::in_world(
             doc,
-            fixture::xform(failed, [2.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0),
+            failed,
+            &editor_core::Frame::translation([2.0, 0.0, 0.0]),
         );
         let good = run(&doc, &CancelToken::new());
         let (doc, _) = step(
@@ -132,7 +133,7 @@ fn speaks(door: &str, prefix: &str, refusal: &dyn core::fmt::Display, standing: 
 /// **Every standing renders one way through every door that carries
 /// it**, each under that door's own subject: the hit test, the
 /// pick-index build, the name lookup, the name read, the resolution
-/// verdict, the distance and flush queries, the checks registry, the
+/// verdict, the flush query, the checks registry, the
 /// product gather and the clearance engine's selection (`pncad`'s suite holds the export door
 /// to the same shape, and `viewer`'s the duplicate and the blend tool).
 /// Each door's payload IS the standing [`Evaluation::usable`] answers,
@@ -172,40 +173,13 @@ fn every_standing_renders_one_way_through_every_door() {
         assert_eq!(read, InterrogateError::Standing(standing));
         speaks("the name read", "", &read, standing);
 
-        // The distance query reads its datum only for a queried node
-        // that has a value, which the canceled run has none of.
-        if eval.usable(s.profile).is_ok() {
-            let query = select_where(
-                eval,
-                s.profile,
-                &Selector::of(NamePat::of_kind(EntityKind::Face)),
-                &[GeomPred::DatumDistance {
-                    datum: node,
-                    cmp: Cmp::Approx,
-                    value: len(0.0),
-                }],
-                &s.doc.var_env::<f64>(),
-                Tol::witness(),
-            )
-            .expect_err("a datum with no value");
-            assert!(
-                matches!(query, SelectRefusal::DatumHasNoValue(carried) if carried == standing),
-                "{query:?}"
-            );
-            speaks(
-                "the distance query",
-                "select: the distance query's datum has no value: ",
-                &query,
-                standing,
-            );
-        }
     }
 
     // The checks registry and the gather read the document's
-    // placements: the poisoned transform placed is a placement poisoned
-    // through the failed extrude in the broken run, and one with no
-    // result in the canceled run.
-    let (placed, placement) = fixture::place(s.doc.clone(), s.poisoned);
+    // placements: the world copy is a placement poisoned through the
+    // failed extrude in the broken run, and one with no result in the
+    // canceled run.
+    let (placed, placement) = (s.doc.clone(), s.poisoned);
     let cancel = CancelToken::new();
     cancel.cancel();
     for (eval, standing) in [
@@ -400,43 +374,6 @@ fn no_standing_refusal_says_hit_test_outside_the_hit_test() {
             "a door that ran no hit test: {text}"
         );
     }
-}
-
-/// **A poisoned datum carries `through`.** The distance query's datum
-/// is poisoned by the failure upstream of it; the refusal says so with
-/// the node the repair is at, where it used to fold "a poisoned node"
-/// into a word and drop which failure did it.
-#[test]
-fn a_poisoned_datum_carries_through_to_the_select_refusal() {
-    let s = Standings::new();
-    let refusal = select_where(
-        &s.broken,
-        s.profile,
-        &Selector::of(NamePat::of_kind(EntityKind::Face)),
-        &[GeomPred::DatumDistance {
-            datum: s.poisoned,
-            cmp: Cmp::Approx,
-            value: len(0.0),
-        }],
-        &s.doc.var_env::<f64>(),
-        Tol::witness(),
-    )
-    .expect_err("a poisoned datum");
-    let SelectRefusal::DatumHasNoValue(standing) = refusal else {
-        panic!("a datum with no value is its own refusal: {refusal:?}");
-    };
-    assert_eq!(
-        standing.through(),
-        Some(s.failed),
-        "the repair's node rides the refusal"
-    );
-    assert!(
-        refusal.to_string().contains(&format!(
-            "at node {}",
-            test_utils::refusal::tag(s.failed.0.digest())
-        )),
-        "{refusal}"
-    );
 }
 
 /// **`RunStatus` keeps its JSON words and its key bytes.** It is the

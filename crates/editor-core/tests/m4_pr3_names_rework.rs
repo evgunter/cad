@@ -8,7 +8,7 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorClass, ProfileDoc, RecipeNodeId,
+    CancelToken, EvalOptions, Evaluation, Node, NodeErrorClass, ProfileDoc, RecipeNodeId,
     RoleSeg, evaluate,
 };
 use fixture::{insert, len, on_frame, scl};
@@ -28,12 +28,11 @@ fn block(
     doc: ProfileDoc,
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
-    z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, z0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
@@ -55,8 +54,9 @@ fn block(
 #[test]
 fn union_cross_bar_names_totally() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_rework", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.25, 0.5);
+    let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, b) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5);
+    let (doc, b) = fixture::slid(doc, a, b, [0.0, 0.0, 0.25]);
     let (doc, u) = insert(
         doc,
         Node::Union {
@@ -76,8 +76,9 @@ fn union_cross_bar_names_totally() {
 #[test]
 fn union_cross_bar_swapped_names_totally() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_rework", Tol::witness());
-    let (doc, a) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.25, 0.5);
-    let (doc, b) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5);
+    let (doc, b) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, b) = fixture::slid(doc, a, b, [0.0, 0.0, -0.25]);
     let (doc, u) = insert(
         doc,
         Node::Union {
@@ -95,8 +96,9 @@ fn union_cross_bar_swapped_names_totally() {
 #[test]
 fn subtract_cross_bar_names_totally() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_rework", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.25, 0.5);
+    let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, b) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5);
+    let (doc, b) = fixture::slid(doc, a, b, [0.0, 0.0, 0.25]);
     let (doc, s) = insert(
         doc,
         Node::Subtract {
@@ -115,8 +117,9 @@ fn subtract_cross_bar_names_totally() {
 #[test]
 fn subtract_block_from_bar_never_fails_in_naming() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_rework", Tol::witness());
-    let (doc, a) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.25, 0.5);
-    let (doc, b) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5);
+    let (doc, b) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, b) = fixture::slid(doc, a, b, [0.0, 0.0, -0.25]);
     let (doc, s) = insert(
         doc,
         Node::Subtract {
@@ -145,20 +148,14 @@ fn subtract_block_from_bar_never_fails_in_naming() {
 #[test]
 fn split_through_operand_edges_names_totally() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_rework", Tol::witness());
-    let (doc, d) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 2.0);
+    let (doc, d) = block(doc, (0.0, 2.0), (0.0, 2.0), 2.0);
     // Plane x + z = 2: contains the cube edges (0,·,2) and (2,·,0).
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(2.0), len(0.0), len(0.0)],
-            normal: [scl(1.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let plane = fixture::plane_on(&doc, d, [2.0, 0.0, 0.0], [1.0, 0.0, 1.0]);
     let (doc, sp) = insert(
         doc,
         Node::Split {
             target: d.into(),
-            tool: plane.into(),
+            tool: plane,
         },
     );
     let ev = run(&doc);
@@ -219,18 +216,12 @@ fn split_through_a_reflex_corner_names_its_copy_where_the_corner_stands() {
             distance: len(1.0),
         },
     );
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.0), len(1.0)],
-            normal: [scl(1.0), scl(0.0), scl(-1.0)],
-        }),
-    );
+    let plane = fixture::plane_on(&doc, prism, [0.0, 0.0, 1.0], [1.0, 0.0, -1.0]);
     let (doc, sp) = insert(
         doc,
         Node::Split {
             target: prism.into(),
-            tool: plane.into(),
+            tool: plane,
         },
     );
     let ev = run(&doc);
@@ -282,19 +273,13 @@ fn split_through_a_reflex_corner_names_its_copy_where_the_corner_stands() {
 #[test]
 fn a_pattern_of_a_split_port_is_the_pattern_of_its_half() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_rework", Tol::witness());
-    let (doc, d) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 2.0);
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.0), len(1.0)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let (doc, d) = block(doc, (0.0, 2.0), (0.0, 2.0), 2.0);
+    let plane = fixture::plane_on(&doc, d, [0.0, 0.0, 1.0], [0.0, 0.0, 1.0]);
     let (doc, sp) = insert(
         doc,
         Node::Split {
             target: d.into(),
-            tool: plane.into(),
+            tool: plane,
         },
     );
     let pattern = |input: editor_core::Operand| Node::Pattern {
@@ -382,18 +367,12 @@ fn graze_split_edge_names(
             distance: len(1.0),
         },
     );
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: origin.map(len),
-            normal: normal.map(scl),
-        }),
-    );
+    let plane = fixture::plane_on(&doc, cylinder, origin, normal);
     let (doc, sp) = insert(
         doc,
         Node::Split {
             target: cylinder.into(),
-            tool: plane.into(),
+            tool: plane,
         },
     );
     let ev = run(&doc);

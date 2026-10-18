@@ -41,10 +41,10 @@ use crate::fixture;
 
 use corpus::{documents, eval, failures};
 use editor_core::{
-    Datum, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram, TubeWindow,
+    DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram, TubeWindow,
     VarName, apply, product_recorded,
 };
-use fixture::{Recorder, band, frame, len, scl, xy_frame};
+use fixture::{Recorder, band, len, scl};
 use geom_core::Tol;
 use sweep::test_support::{PRISM_SQUARE, PRISM_TRAPEZOID};
 use topo::{
@@ -138,18 +138,12 @@ fn pin(name: &str, doc: &ProfileDoc) -> usize {
 /// [-1.5, -0.5]): the torus's lowest circle lies on the planar cap.
 fn torus_on_cylinder() -> ProfileDoc {
     let mut r = Recorder::new();
-    let spine = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
     let body = r.insert(Node::Tube {
         major_radius: len(2.0),
         window: TubeWindow::Full,
         minor_radius: len(0.5),
     });
     r.place(body);
-    // D-FRAME: let plane = r.insert(frame([0.0, 0.0, -1.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let disc = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::circle_split(0.0, 0.0, 3.0, 3, 0.0).unwrap()],
         ids: Vec::new(),
@@ -158,7 +152,7 @@ fn torus_on_cylinder() -> ProfileDoc {
         profile: disc.into(),
         distance: len(1.0),
     });
-    r.place(body);
+    r.in_world(body, &editor_core::Frame::translation([0.0, 0.0, -1.5]));
     r.doc
 }
 
@@ -178,7 +172,6 @@ fn boss_on_plate() -> ProfileDoc {
         distance: len(0.8),
     });
     r.place(body);
-    // D-FRAME: let boss_plane = r.insert(frame([0.0, 0.0, 0.8], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let boss = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::circle_split(1.2, 1.7, 0.35, 3, 0.0).unwrap()],
         ids: Vec::new(),
@@ -187,7 +180,7 @@ fn boss_on_plate() -> ProfileDoc {
         profile: boss.into(),
         distance: len(1.0),
     });
-    r.place(body);
+    r.in_world(body, &editor_core::Frame::translation([0.0, 0.0, 0.8]));
     r.doc
 }
 
@@ -213,22 +206,28 @@ fn tangent_cylinders() -> ProfileDoc {
 /// trapezoid at z = 1) with a brick standing flush on its top cap.
 fn loft_with_brick() -> ProfileDoc {
     let mut r = Recorder::new();
-    let section = |r: &mut Recorder, z: f64, pts: [(f64, f64); 4]| {
-        // D-FRAME: let plane = r.insert(frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let section = |r: &mut Recorder, pts: [(f64, f64); 4]| {
         r.insert(Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::polygon(pts).unwrap()],
             ids: Vec::new(),
         }))
     };
-    let bottom = section(&mut r, 0.0, PRISM_SQUARE);
-    let middle = section(&mut r, 1.0, PRISM_TRAPEZOID);
-    let top = section(&mut r, 2.0, PRISM_SQUARE);
+    let bottom = section(&mut r, PRISM_SQUARE);
+    let middle = section(&mut r, PRISM_TRAPEZOID);
+    let top = section(&mut r, PRISM_SQUARE);
+    let up = |profile: editor_core::RecipeNodeId, z: f64| editor_core::LoftSection {
+        profile: profile.into(),
+        station: vec![editor_core::StationMove::Slide {
+            along: editor_core::Axis3::Z,
+            by: len(z),
+        }],
+    };
     let body = r.insert(Node::Loft {
-        profiles: vec![bottom.into(), middle.into(), top.into()],
+        first: bottom.into(),
+        then: vec![up(middle, 1.0), up(top, 2.0)],
         v_degree: Formula::count(2),
     });
     r.place(body);
-    // D-FRAME: let brick_plane = r.insert(frame([0.0, 0.0, 2.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let brick = r.insert(Node::Profile(ProfileProgram {
         loops: vec![
             LoopProgram::polygon([(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]).unwrap(),
@@ -239,7 +238,7 @@ fn loft_with_brick() -> ProfileDoc {
         profile: brick.into(),
         distance: len(1.0),
     });
-    r.place(body);
+    r.in_world(body, &editor_core::Frame::translation([0.0, 0.0, 2.0]));
     r.doc
 }
 
@@ -268,7 +267,6 @@ fn grazing_notch() -> ProfileDoc {
         distance: len(1.0),
     });
     r.place(body);
-    // D-FRAME: let brick_plane = r.insert(frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let brick = r.insert(Node::Profile(ProfileProgram {
         loops: vec![
             LoopProgram::polygon([(1.25, 1.25), (1.75, 1.25), (1.75, 1.75), (1.25, 1.75)]).unwrap(),
@@ -279,7 +277,7 @@ fn grazing_notch() -> ProfileDoc {
         profile: brick.into(),
         distance: len(1.0),
     });
-    r.place(body);
+    r.in_world(body, &editor_core::Frame::translation([0.0, 0.0, 1.0]));
     r.doc
 }
 

@@ -37,7 +37,7 @@ use std::time::Instant;
 use crate::corpus::{self, Recorder};
 use crate::fixture::{self, len, scl};
 use editor_core::{
-    Diagnosis, EntityKind, EvalOptions, Evaluation, ExtrudeSide, FaceName, Formula, HitTestError,
+    Diagnosis, EntityKind, EvalOptions, Evaluation, FaceName, Formula, HitTestError,
     InterrogateError, NameTable, NameTables, Node, NodeError, NodeErrorKind, PatternKind, PickHit,
     ProfileDoc, RecipeEditRef, RecipeNodeId, ResolveError, RoleSeg, SelectRefusal, Speaker,
     StableName,
@@ -659,8 +659,9 @@ fn extrude(r: &mut Recorder, profile: RecipeNodeId, distance: f64) -> RecipeNode
     })
 }
 
-fn moved(r: &mut Recorder, input: RecipeNodeId, by: [f64; 3]) -> RecipeNodeId {
-    r.insert(fixture::xform(input, by, [0.0, 0.0, 1.0], 0.0))
+/// A copy of `input` slid `by` in `target`'s own coordinates.
+fn moved(r: &mut Recorder, target: RecipeNodeId, input: RecipeNodeId, by: [f64; 3]) -> RecipeNodeId {
+    r.against(target, input, &editor_core::Frame::translation(by))
 }
 
 fn boolean(r: &mut Recorder, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> RecipeNodeId {
@@ -689,11 +690,15 @@ fn square(x: f64, y: f64, h: f64) -> Vec<(f64, f64)> {
 
 const XY: ([f64; 3], [f64; 3]) = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
 
-/// A block and a square pin on it, the pin's master extruded once.
+/// The height a pin's base stands at on its block.
+const PIN_Z: f64 = 0.75;
+
+/// A block and a square pin's master, extruded once on its own xy; its
+/// copies stand `PIN_Z` up the block.
 fn block_and_pin(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
     let block = r.profile([0.0; 3], XY.0, XY.1, vec![square(2.0, 1.0, 2.0)]);
     let block = extrude(r, block, 1.0);
-    let pin = r.profile([0.0, 0.0, 0.75], XY.0, XY.1, vec![square(0.5, 0.5, 0.125)]);
+    let pin = r.profile([0.0; 3], XY.0, XY.1, vec![square(0.5, 0.5, 0.125)]);
     (block, extrude(r, pin, 0.5))
 }
 
@@ -711,20 +716,22 @@ fn documents_outside_the_corpus_read_apart_too() {
 
     let mut r = Recorder::new();
     let (block, pin) = block_and_pin(&mut r);
-    let copies = [0.0, 0.75, 1.5, 2.25].map(|x| moved(&mut r, pin, [x, 0.0, 0.0]));
+    let copies = [0.0, 0.75, 1.5, 2.25].map(|x| moved(&mut r, block, pin, [x, 0.0, PIN_Z]));
     let first = boolean(&mut r, BooleanOp::Subtract, block, copies[0]);
     let second = boolean(&mut r, BooleanOp::Subtract, first, copies[1]);
     let (doc, union) = fixture::union_over(r.doc.clone(), &copies[2..]);
     r.doc = doc;
     let cut = boolean(&mut r, BooleanOp::Subtract, second, union);
     docs.push(("copies".to_owned(), r.doc.clone()));
-    let bosses = [[0.0, 1.0, 0.5], [0.75, 1.0, 0.5]].map(|at| moved(&mut r, pin, at));
+    let bosses = [[0.0, 1.0, PIN_Z + 0.5], [0.75, 1.0, PIN_Z + 0.5]]
+        .map(|at| moved(&mut r, block, pin, at));
     let once = boolean(&mut r, BooleanOp::Union, cut, bosses[0]);
     boolean(&mut r, BooleanOp::Union, once, bosses[1]);
     docs.push(("copies and bosses".to_owned(), r.doc.clone()));
 
     let mut r = Recorder::new();
     let (block, pin) = block_and_pin(&mut r);
+    let pin = moved(&mut r, block, pin, [0.0, 0.0, PIN_Z]);
     let row = r.insert(
         Node::placed_union(
             pin,
@@ -748,13 +755,10 @@ fn documents_outside_the_corpus_read_apart_too() {
         .expect("a linear pattern"),
     );
     let cut = boolean(&mut r, BooleanOp::Subtract, block, grid);
-    let tool = r.insert(Node::Datum(editor_core::Datum::Plane {
-        origin: [len(0.0), len(0.5), len(0.0)],
-        normal: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let tool = fixture::plane_on(&r.doc, block, [0.0, 0.5, 0.0], [0.0, 1.0, 0.0]);
     r.insert(Node::Split {
         target: cut.into(),
-        tool: tool.into(),
+        tool,
     });
     docs.push(("pattern and split".to_owned(), r.doc.clone()));
 
@@ -769,10 +773,11 @@ fn documents_outside_the_corpus_read_apart_too() {
     };
     let lower = r.profile([0.0; 3], XY.0, XY.1, loops(0.0));
     let lower = extrude(&mut r, lower, 0.5);
-    let upper = r.profile([0.0, 0.0, 0.25], XY.0, XY.1, loops(0.1));
+    let upper = r.profile([0.0; 3], XY.0, XY.1, loops(0.1));
     let upper = extrude(&mut r, upper, 0.5);
-    boolean(&mut r, BooleanOp::Union, lower, upper);
-    let apart = [lower, upper].map(|at| moved(&mut r, at, [6.0, 0.0, 0.0]));
+    let raised = moved(&mut r, lower, upper, [0.0, 0.0, 0.25]);
+    boolean(&mut r, BooleanOp::Union, lower, raised);
+    let apart = [(lower, 0.0), (upper, 0.25)].map(|(at, z)| moved(&mut r, lower, at, [6.0, 0.0, z]));
     let (doc, _) = fixture::union_over(r.doc.clone(), &[apart[0], apart[1], lower]);
     docs.push(("loops and two profiles".to_owned(), doc));
 
@@ -780,13 +785,12 @@ fn documents_outside_the_corpus_read_apart_too() {
         let mut r = Recorder::new();
         let block = r.profile([0.0; 3], XY.0, XY.1, vec![square(2.0, 1.0, 2.0)]);
         let block = extrude(&mut r, block, 1.0);
-        let plane = r.insert(fixture::frame([0.0, 0.0, 0.75], XY.0, XY.1));
         let pin = r.insert(Node::Profile(editor_core::ProfileProgram {
             loops: vec![editor_core::LoopProgram::circle(0.5, 0.5, 0.2).expect("a circle")],
             ids: Vec::new(),
         }));
         let pin = extrude(&mut r, pin, 0.5);
-        let copies = [0.0, 1.0, 2.0].map(|x| moved(&mut r, pin, [x, 0.0, 0.0]));
+        let copies = [0.0, 1.0, 2.0].map(|x| moved(&mut r, block, pin, [x, 0.0, PIN_Z]));
         let first = boolean(&mut r, op, block, copies[0]);
         let second = boolean(&mut r, op, first, copies[1]);
         let third = boolean(&mut r, op, second, copies[2]);
@@ -808,7 +812,7 @@ fn documents_outside_the_corpus_read_apart_too() {
             "the second pin's rim is named at the third Boolean"
         );
         let fillet = r.insert(Node::fillet(third, len(0.05), rim));
-        let twice = [[0.0; 3], [0.0, 5.5, 0.0]].map(|at| moved(&mut r, fillet, at));
+        let twice = [[0.0; 3], [0.0, 5.5, 0.0]].map(|at| moved(&mut r, fillet, fillet, at));
         let (doc, _) = fixture::union_over(r.doc.clone(), &twice);
         docs.push((format!("round pins, {op:?}"), doc));
     }
@@ -979,6 +983,7 @@ fn each_boolean_join_says_its_operation() {
     ] {
         let mut r = Recorder::new();
         let (block, pin) = block_and_pin(&mut r);
+        let pin = moved(&mut r, block, pin, [0.0, 0.0, PIN_Z]);
         let at = boolean(&mut r, op, block, pin);
         let ev = fixture::run(&r.doc, &EvalOptions::default());
         let table = ev
@@ -1028,8 +1033,8 @@ fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     let mut r = Recorder::new();
     let block = r.profile([0.0; 3], XY.0, XY.1, vec![square(0.5, 0.5, 0.5)]);
     let block = extrude(&mut r, block, 1.0);
-    let one = moved(&mut r, block, [0.0, 0.0, 0.0]);
-    let two = moved(&mut r, block, [0.5, 0.0, 0.0]);
+    let one = moved(&mut r, block, block, [0.0, 0.0, 0.0]);
+    let two = moved(&mut r, block, block, [0.5, 0.0, 0.0]);
     let doc = r.doc;
     let ev = fixture::run(&doc, &EvalOptions::default());
     // The copies' end caps carry one name: the extrude's.
