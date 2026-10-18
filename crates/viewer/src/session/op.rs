@@ -1264,12 +1264,12 @@ impl SessionOp {
     ///   [`super::DocSession::space_evaluation`]);
     /// - the view the scene draws
     ///   ([`super::DocSession::display_view`]) resolves against the
-    ///   PREVIEWED one, and so does the Properties pane, which runs
-    ///   the SAME admission test the view does
-    ///   ([`crate::display::instance_check`], which
-    ///   [`crate::display::drawn_targets`] runs first) to decide
-    ///   whether to DRAW the control the operation then decides
-    ///   whether to ACCEPT;
+    ///   PREVIEWED one; the Properties pane reads the COMMITTED one and
+    ///   runs the SAME admission test the operation does
+    ///   ([`crate::display::free_move_check`], over the same
+    ///   [`super::DocSession::space_evaluation`]) to decide whether to
+    ///   DRAW the control the operation then decides whether to
+    ///   ACCEPT;
     /// - every committed edit prunes the display state against the new
     ///   document, and again when its evaluation lands — a prune that
     ///   DISCARDS committed frames and kills an in-flight free-move
@@ -1291,10 +1291,15 @@ impl SessionOp {
     /// structural, which mates name which copies and which name the
     /// world, so a landing of either document answers both. The one
     /// space answer a value can move is a placement the evaluation
-    /// refuses ([`crate::display::AdmissionFault::NoSpace`]), and that
-    /// is read off whichever of the two landed last. So the previewed
-    /// document and the committed one agree on every display question,
-    /// at every point of a drag.
+    /// refuses ([`crate::display::AdmissionFault::NoSpace`]): admission
+    /// reads it off whichever of the two landed last, and a scratch
+    /// landing's prune acts on the graph's answers alone
+    /// ([`crate::display::DisplayState::prune_structural`]), so a
+    /// committed pin a preview overtook still lands mid-drag and a
+    /// previewed refusal discards nothing committed. So the previewed
+    /// document and the committed one agree on every display question
+    /// the graph decides, at every point of a drag; a refused placement
+    /// is said when the committed document lands, whatever refused it.
     /// Break that — let a gesture's edit change the graph — and
     /// committing a slider would take an in-flight probe away under
     /// the pointer holding it, saying nothing. The minting half is
