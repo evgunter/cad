@@ -1,0 +1,3 @@
+fork: follow-the-body (s3 C: a copy standing where its body stands under D10)
+byte: 7
+mapping: even -> A = Opus, B = Fable; odd -> A = Fable, B = Opus
