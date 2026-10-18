@@ -144,6 +144,17 @@ Option A, framed as a correction rather than a permission (fork-log row
 - **S3, arcs:** the η sub-arc rule and `T::pi()` (Q1, Q2).
 - **S4, the homogeneous knot algebra:** `apply_certified`'s elevation and removal.
 - **S5, fit and skin:** the collocation's typed refusal. S5 deletes the interim accessors and their gate.
+  - **The end state (the orchestrator's ruling, 2026-10-18).** The door lifts, and a carrier may hold wide knots and weights.
+    - Each panicking interim accessor becomes a typed-refusing one, e.g. `knots_f64() -> Result<&KnotVector, CarrierKnotNotAPoint>`.
+    - A reader with a meaning at a wide carrier moves to the held values or the structure.
+    - A reader that means something only at points propagates the typed refusal (D4) and never swallows it.
+    - A ratchet beside the dying gate counts `.unwrap()`, `.expect(` and panicking `?` uses of the typed accessors, and is driven to 0 by S5z.
+  - **The staging, each slice its own PR:**
+    - **S5a:** the door refuses an unbounded pole (`PoleUnbounded`).
+    - **S5b:** the plan decisions move onto the held values, with certified margins.
+    - **S5c:** the fit's collocation encloses over a wide averaged knot.
+    - **S5d onwards:** the readers migrate crate by crate.
+    - **S5z:** the door lifts, and the interim accessors and their gate go. Its PR cites C6's text and the `git log -S` provenance. Text C6 does not already have goes back to the orchestrator.
 - **S6:** the two fold-ins, `held-value-equalities-decided-on-the-value-channel` and `an-edges-parameter-ends-enter-a-carrier-piece-as-constants`.
 
 ### Left for S2–S5 (S1's review, PR 5277)
