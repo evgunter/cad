@@ -202,7 +202,6 @@ fn every_op(
             Ok(()),
             "{label}: tier 3"
         );
-        sweep::test_support::assert_legal_operand(&label, &out.body, tol);
         let m = topo::mass_properties(&out.body, tol)
             .unwrap_or_else(|e| panic!("{label}: mass properties {e:?}"));
         assert!(
@@ -210,6 +209,24 @@ fn every_op(
             "{label}: volume {} ± {} against the closed form {truth}",
             m.volume,
             m.volume_pad
+        );
+        // A legal operand: its union with a far unit brick builds and
+        // holds the brick beside it.
+        let far = finished(
+            "the far brick",
+            brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
+            tol,
+        );
+        let joined = topo::union(&out.body, &far, tol)
+            .unwrap_or_else(|e| panic!("{label}: ∪ a far brick: {e:?}"));
+        let j = topo::mass_properties(&joined.body().expect("not empty").body, tol)
+            .unwrap_or_else(|e| panic!("{label}: ∪ a far brick: mass properties {e:?}"));
+        assert!(
+            (j.volume - (truth + 1.0)).abs() <= j.volume_pad + 1e-9 * (truth + 1.0),
+            "{label}: ∪ a far brick: volume {} ± {} against {}",
+            j.volume,
+            j.volume_pad,
+            truth + 1.0
         );
         Reading::Body {
             faces: out.body.faces().count(),

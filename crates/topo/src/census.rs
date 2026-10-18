@@ -830,7 +830,7 @@ pub fn census_traces_planted<T: Decide + crate::props::AtRestPolicy + Bounds>(
 }
 
 /// `tol` rides beside `band` for one consumer: the instance-containment
-/// arm's material test, whose at-infinity fold reads a closed-form
+/// arm's material test, whose at-infinity fold reads the sign of a
 /// volume through the props lane (`Tol` is never witnessed here).
 #[allow(clippy::too_many_arguments)] // the census's whole state: the doors' four, the region door, and the trace's three
 fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
@@ -4528,7 +4528,7 @@ pub(crate) enum Undecided {
     /// check passes a volume in band of zero, so the part is the
     /// model's to fix, as tier 3 reads it too.
     ZeroVolume,
-    /// Arm 2: an instance whose closed-form volume is uncertified.
+    /// Arm 2: an instance whose volume's sign is uncertified.
     VolumeUncertified,
     /// Arm 2: an instance with a face kind the door does not serve.
     FaceKindUnsupported,

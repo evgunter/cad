@@ -239,6 +239,49 @@ fn a_tilted_plane_across_a_one_segment_cylinder() {
     );
 }
 
+/// **A far point's side on the tilted plane's wall piece is certified on
+/// the volume's enclosure**: every ray from `(50, 50, 50)` misses the
+/// piece, the closed form has no value for its ellipse-trimmed wall, and
+/// the rays aimed at its planar faces meet the wall's period guard, so
+/// the side is the sign of the volume measured through the quadrature.
+/// That sign is decided on the interval re-derivation of the walk's
+/// enclosures (`bool_point_in_solid_infinity_enclosure`), never on the
+/// walk's own sums alone, which round about the world origin.
+#[test]
+fn a_far_points_side_on_the_wall_piece_is_certified_on_the_enclosure() {
+    let turn = Affine3::rotation_about_axis(
+        Point3::origin(),
+        Vec3::new(1.0, 0.0, 0.0),
+        20f64.to_radians(),
+    );
+    let (a, b) = (
+        fin("A", seam_cylinder(0.0)),
+        fin("B", below(Point3::new(0.0, 0.0, 1.0), turn)),
+    );
+    let piece = topo::intersect(&a, &b, tol()).expect("A ∩ B builds");
+    let piece = &piece.body().expect("not empty").body;
+    let band = geom_core::Band::linear(tol()).expect("the run's band");
+    let bracket = geom_core::k_stats::Bracket::open();
+    let side = topo::point_in_solid(piece, Point3::new(50.0, 50.0, 50.0), band, tol());
+    let recorded = bracket.finish();
+    assert_eq!(
+        side,
+        Ok(topo::SolidContainment::Out),
+        "the far point's side"
+    );
+    let certified = recorded
+        .verdicts
+        .iter()
+        .filter(|v| v.predicate == "bool_point_in_solid_infinity_enclosure")
+        .map(|v| v.sign)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        certified,
+        [geom_core::Sign::Positive],
+        "the side is decided once, on the certified enclosure: {recorded:?}"
+    );
+}
+
 /// **A plane close by the wrap edge's end**: `z = c + m(1 − x)`, turned
 /// about `y`, meets the seam at `z = c`, just above the bottom cap's
 /// one vertex `(1, 0, 0)`, and rises to `c + 2m` across the disc. Below
