@@ -507,3 +507,46 @@ fn a_span_straddle_past_an_end_is_never_a_crossing() {
         }
     }
 }
+
+/// **A crossing beside two near ends is decided from them**: two
+/// segments at φ crossing `t` before both their ends, `a` starting a
+/// metre back and `b` a centimetre back. Read from the starts, the gap
+/// carries `rounding_charge(1 m)/sin φ`, over ε = 1e-12 and under
+/// `Kε`, so it escalates; read from the ends, `t·φ` apart, it carries
+/// next to nothing. Only the intersection of every reading decides it.
+#[test]
+fn a_crossing_beside_two_near_ends_is_decided_from_them() {
+    let eps = 1e-12;
+    let band = Band::new(eps, K * eps).unwrap();
+    let x = [0.3, 0.2, 0.1];
+    let a = [1.0, 0.0, 0.0];
+    let t = 1e-6;
+    for phi in [1e-3, 2e-3, 4e-3] {
+        let b = [phi.cos(), phi.sin(), 0.0];
+        let ea = (add(x, a, -1.0), add(x, a, t));
+        let eb = (add(x, b, -0.01), add(x, b, t));
+        let exact = Exact::of(ea, eb);
+        let lens = [1.0 + t, 0.01 + t];
+        let inside = exact
+            .fractions()
+            .iter()
+            .zip(lens)
+            .all(|([from, to], len)| from.min(*to) * len >= 2.0 * K * eps);
+        assert!(
+            inside && exact.gap() <= eps / 2.0,
+            "φ {phi:e}: the real segments cross inside both spans"
+        );
+        for (p, q) in [(ea, eb), (eb, ea)] {
+            assert_eq!(
+                meets::<f64>(p, q, band),
+                Some(true),
+                "φ {phi:e}: f64 decides the crossing from the near ends"
+            );
+            assert_eq!(
+                meets::<Interval>(p, q, band),
+                Some(true),
+                "φ {phi:e}: Interval decides the crossing from the near ends"
+            );
+        }
+    }
+}

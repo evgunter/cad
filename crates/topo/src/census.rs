@@ -3681,52 +3681,63 @@ fn crossing_reading<T: Decide>(
     }
 }
 
-/// Whether a reach enclosed by `[lo, hi]` stands strictly inside its
-/// span: `Ok(true)` where `lo` reads Positive, so the reach exceeds
-/// `Kε`; `Ok(false)` where `hi` reads Zero or Negative, so the reach is
-/// at most `ε` and the closest point lies at an end or past it; else
-/// the escalation of a bound that did not decide, or of the two
-/// bounds straddling the band.
-fn span_reading<T: Decide>([lo, hi]: [T; 2], band: Band) -> Result<bool, Indeterminate> {
-    let name = "pm_census_ee_span";
-    let below = geom_core::k_stats::decide_reported(name, Margin::of(lo), band);
-    let above = geom_core::k_stats::decide_reported(name, Margin::of(hi), band);
-    match (below, above) {
-        (Ok(b), _) if b.sign == Sign::Positive => Ok(true),
-        (_, Ok(a)) if a.sign != Sign::Positive => Ok(false),
-        (Ok(b), Ok(a)) => Err(geom_core::k_stats::straddle(
-            "pm_census_ee_span_straddle",
-            b,
-            a,
-            band,
-        )),
+/// What an enclosure `[lo, hi]` of a quantity decides.
+enum Enclosed {
+    /// `lo` reads Positive: the quantity exceeds `Kε`.
+    Above,
+    /// `hi` reads Zero or Negative: the quantity is at most `ε`, with
+    /// `hi`'s reading.
+    AtMost(MarginDiag),
+}
+
+/// The one reading of a quantity known only to lie in `[lo, hi]`, each
+/// bound decided by `decide`: [`Enclosed`], else the escalation of a
+/// bound that did not decide, or the bounds' straddle of the band under
+/// `straddle`, the site's own row.
+fn enclosure_reading<T: Decide>(
+    [lo, hi]: [T; 2],
+    straddle: &'static str,
+    band: Band,
+    decide: impl Fn(T) -> Result<geom_core::Decided, Indeterminate>,
+) -> Result<Enclosed, Indeterminate> {
+    match (decide(lo), decide(hi)) {
+        (Ok(b), _) if b.sign == Sign::Positive => Ok(Enclosed::Above),
+        (_, Ok(a)) if a.sign != Sign::Positive => Ok(Enclosed::AtMost(a.margin)),
+        (Ok(b), Ok(a)) => Err(geom_core::k_stats::straddle(straddle, b, a, band)),
         (Err(cause), _) | (_, Err(cause)) => Err(cause),
     }
 }
 
-/// Whether a gap enclosed by `[lo, hi]`, both nonnegative, is zero:
-/// `Ok(Some(margin))` where `hi` reads Zero, so the gap is at most
-/// `ε`, with that reading; `Ok(None)` where `lo` reads Positive, so the
-/// gap exceeds `Kε`; else the escalation of a bound that did not
-/// decide, or of the two bounds straddling the band.
-fn gap_reading<T: Decide>(
-    [lo, hi]: [T; 2],
-    band: Band,
-) -> Result<Option<MarginDiag>, Indeterminate> {
-    let name = "pm_census_ee_gap";
-    let below = geom_core::k_stats::decide_reported(name, Margin::of(lo), band);
-    let above = geom_core::k_stats::decide_reported(name, Margin::of(hi), band);
-    match (below, above) {
-        (Ok(b), _) if b.sign == Sign::Positive => Ok(None),
-        (_, Ok(a)) if a.sign == Sign::Zero => Ok(Some(a.margin)),
-        (Ok(b), Ok(a)) => Err(geom_core::k_stats::straddle(
-            "pm_census_ee_gap_straddle",
-            b,
-            a,
-            band,
-        )),
-        (Err(cause), _) | (_, Err(cause)) => Err(cause),
-    }
+/// Whether a reach enclosed by `[lo, hi]` stands strictly inside its
+/// span: `Ok(true)` above `Kε`; `Ok(false)` at most `ε`, so the closest
+/// point lies at an end or past it ([`enclosure_reading`]).
+fn span_reading<T: Decide>(reach: [T; 2], band: Band) -> Result<bool, Indeterminate> {
+    let decide = |m| geom_core::k_stats::decide_reported("pm_census_ee_span", Margin::of(m), band);
+    enclosure_reading(reach, "pm_census_ee_span_straddle", band, decide)
+        .map(|read| matches!(read, Enclosed::Above))
+}
+
+/// Whether a gap enclosed by `[lo, hi]` is zero: `Ok(Some(margin))` at
+/// most `ε`, with `hi`'s reading; `Ok(None)` above `Kε`
+/// ([`enclosure_reading`]). Both bounds are nonnegative by construction
+/// (`lo` a `max` from zero, `hi` the least `|e·n|/s` plus its charge), the magnitude
+/// door's precondition.
+fn gap_reading<T: Decide>(gap: [T; 2], band: Band) -> Result<Option<MarginDiag>, Indeterminate> {
+    let decide = |m| {
+        geom_core::k_stats::decide_magnitude_reported("pm_census_ee_gap", Margin::of(m), band).map(
+            |(magnitude, margin)| geom_core::Decided {
+                sign: match magnitude {
+                    Magnitude::Zero => Sign::Zero,
+                    Magnitude::Positive => Sign::Positive,
+                },
+                margin,
+            },
+        )
+    };
+    enclosure_reading(gap, "pm_census_ee_gap_straddle", band, decide).map(|read| match read {
+        Enclosed::Above => None,
+        Enclosed::AtMost(margin) => Some(margin),
+    })
 }
 
 /// A crossing strictly inside both spans ([`crossing_reading`];
