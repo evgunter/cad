@@ -6145,3 +6145,16 @@ Signed (WIRE orchestrator).
   merged group is `Merged`. `[ev]` PR 5306 edits N2/N3, fork-log row
   162. Filed `a-section-faces-index-is-its-completion-order-not-its-identity`
   (P3, design). The build unit waits on Ev. (WIRE orchestrator)
+
+- 2026-10-18 — PR 5303 FULL review adjudicated: approve with fixes. The
+  orchestrator upgraded one finding to MAJOR. Spelling a fold-minted
+  crossing as its member edge lets `stated_at` (cells plus relation,
+  site ignored) merge two crossings of one edge into one row. That is
+  latent (0 hits in the probe), but it is the defect class this unit
+  closes. The fix makes the site part of a statement. Minors sent: no
+  test pins re-cited `cites` (a mutant citing row 0 stays green on 288
+  tests); the overlap test is restricted to straight colinear edges;
+  `fold_cell`'s swallowed `Err`; stale docs; mint-ordinal A disclosed.
+  Class note: canonicalising a spelling to make rows order-free can
+  merge distinct facts unless the dedup key keeps what told them apart.
+  (WIRE orchestrator)
