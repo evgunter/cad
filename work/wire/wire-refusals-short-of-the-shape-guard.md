@@ -2,10 +2,11 @@
 id: wire-refusals-short-of-the-shape-guard
 kind: issue
 title: wire: refusals the viewer draws that state no recourse, by the shape guard's census
-status: open
+status: closed
 opened: 2026-09-29
 priority: P2
 cost: M
+closed: 2026-10-18
 ---
 
 (CHROME `refusal-residue`, from the shape guard's zero-recourse check.)
@@ -118,3 +119,14 @@ The `Select*`, `Expr/*`, `MeasureRefUnreadable/*`, `Naming/*`, `Seed/*` and `Pro
 - `MeasureRefUnreadable/NodeFailed` and `/NodePoisoned`: `NodeStanding`'s repair is false for a node a mate cluster refused (`work/wirehold/kernel-standing-names-a-cluster-refused-node-as-its-own-failure.md`).
 
 **The escalation-menu section is answered.** `geom_core::COINCIDENCE_RECOURSE` is `coincidence_move_arm!()`, "move the geometry", and offers no declaration, so none of the three doors it names (`NodeErrorKind::Escalated`, `NamingError::Escalated`, `SelectRefusal::InBand`) offers one any more. The section's question went away when the declare door was deleted.
+
+## Resolution (2026-10-18)
+
+Closed by PR 5298: every refusal in the unheld families ends in one
+labelled `Recourse:`, or in the kernel-defect or not-yet ending. The
+31 entries left on `FILED_NO_RECOURSE` are held ground (D10), parked on
+WIREHOLD. That includes `MeasureRefUnreadable/NodeFailed` and
+`/NodePoisoned`, which wait on
+`wirehold/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`,
+and `MeasureRefUnreadable/Readback`, whose sentence is
+`topo::ReadbackError`'s, shared with held `FaceFrameReadback/*`.
