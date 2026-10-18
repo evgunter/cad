@@ -1233,10 +1233,12 @@ fn verdict<T: crate::checks::at_rest::LocalizeLane>(
 /// reading the selection's body, whose own value holds that entity
 /// under the same key (a placement moves a body and re-mints nothing);
 /// `copies` is the graft bridge from each placement's copy to the
-/// product. A side whose body no placement reads has no world copy, so
-/// the mate mints nothing: such a mate relates, say, a boolean's
-/// operands in the workbench, which is the boolean's coincidence door's
-/// business, not an at-rest fact of the product.
+/// product, and the product comes with how a row names a face of it: in
+/// its copy, as that copy's placement output names it. A side whose
+/// body no placement reads has no world copy, so the mate mints
+/// nothing: such a mate relates, say, a boolean's operands in the
+/// workbench, which is the boolean's coincidence door's business, not
+/// an at-rest fact of the product.
 ///
 /// **Total over the document's live mates**: a mate this cannot mint
 /// yields a [`MintRefusal`] row and the walk CONTINUES, so the record
@@ -1248,8 +1250,10 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     copies: &dyn Fn(RecipeNodeId) -> Option<&'k topo::GraftKeys>,
-    body: &topo::Body<T>,
-    cell_of: &dyn Fn(FaceKey) -> crate::coincide::NamedCell,
+    (body, cell_of): (
+        &topo::Body<T>,
+        &dyn Fn(FaceKey) -> crate::coincide::NamedCell,
+    ),
     at_rest: &mut AtRestRows,
     space: crate::mate::Space,
     band: Result<geom_core::Band, geom_core::BandError>,

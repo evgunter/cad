@@ -948,10 +948,16 @@ fn run_at<T: editor_core::EvalScalar>(
 /// copy the fixtures place where it stands is pinned by a world pin,
 /// which reads nothing, so its pose is the identity exactly rather than
 /// to a pin's rounding, and its placement decides nothing.
+///
+/// And again when a pose's frame became the decided shortest turn and
+/// the line two planes meet in stopped carrying the fold's arm (all
+/// three rows): only the pinned chain's two seats moved, by at most
+/// 8.9e-16 in any entry of their solved maps; every other solved pose is
+/// bit-identical.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x2902_fc93_713f_a236),
-    (1e-6, 0x4dcf_61d5_d169_1930),
-    (1e-12, 0x8276_8f60_1700_e9f9),
+    (1e-9, 0xca59_659f_fe9a_efce),
+    (1e-6, 0x70c8_6733_05e0_2e2d),
+    (1e-12, 0x671a_fe0a_9967_6a95),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
