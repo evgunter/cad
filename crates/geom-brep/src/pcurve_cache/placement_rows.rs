@@ -1440,3 +1440,35 @@ fn delta6_latitude_read_sweep() {
         }
     }
 }
+
+/// delta6: a sphere meridian on a generic axis run past a full turn
+/// (midpoints 4.0, 10.0, 16.0 and the window's cut 1 + π), from several
+/// starts: one image modulo a turn, certifying at f64 and Interval.
+#[test]
+fn delta6_sphere_meridian_past_a_full_turn() {
+    let axis = Vec3::new(0.0, 0.6, 0.8);
+    let sphere = Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 0.0),
+        radius: 1.0,
+        axis,
+        u_ref: Vec3::unit_x(),
+    };
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let c = circle(o, Vec3::new(-1.0, 0.0, 0.0), 1.0, Vec3::new(0.0, 0.8, -0.6));
+    let mut out = vec![];
+    for (mid, half) in [(4.0, 3.5), (10.0, 3.3), (16.0, 3.2), (1.0 + PI, 3.3), (PI, PI), (4.0, 0.3), (1.0 + PI, 0.4)] {
+        for by in [0.0, 0.7, -2.1, PI, 5.5, 1.0] {
+            let r = restarted(&c, by);
+            out.push(d6_cert(
+                &format!("sphere meridian mid {mid} half {half}"),
+                &sphere,
+                &r,
+                (mid - half - by, mid + half - by),
+            ) + &format!(" by {by}"));
+        }
+    }
+    for l in &out {
+        eprintln!("{l}");
+    }
+    assert!(out.iter().all(|l| !l.contains("ERR") && !l.contains("Err")), "a row refused");
+}

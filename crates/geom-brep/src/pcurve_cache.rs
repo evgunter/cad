@@ -7910,7 +7910,8 @@ impl<T: Decide> Placement<T> {
             return Ok(0);
         }
         let centre = window.centre::<T>();
-        match Period::new(T::tau()).decide(
+        let d6_log = (window == Window::Latitude).then(|| format!("{at:?}"));
+        let d6_out = match Period::new(T::tau()).decide(
             "pcurve_chart_placement",
             at - centre,
             |g| Margin::levered(g, lever),
@@ -7932,7 +7933,16 @@ impl<T: Decide> Placement<T> {
                 miss: BranchMiss::OnMark,
                 astride: None,
             }) => Err(PcurveCertifyError::PlacementTurnsExceeded),
+        };
+        if let (Some(at), Ok(path)) = (d6_log, std::env::var("D6_LATLOG")) {
+            use std::io::Write;
+            let name = std::thread::current().name().unwrap_or("?").to_string();
+            let k = d6_out.as_ref().map(|k| k.to_string()).unwrap_or_else(|_| "ERR".into());
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                let _ = writeln!(f, "{name}\t{k}\t{at}");
+            }
         }
+        d6_out
     }
 }
 
