@@ -101,12 +101,13 @@ pub(crate) mod sealed {
 ///
 /// Both ends are [`Span`]s rather than bare indices: span validity
 /// originates *here*, in the locator, and every locator route is
-/// [`KnotVector::span_at`] or [`KnotVector::span_range`]. Carrying the proof out
-/// means no consumer re-derives *nonemptiness* or the window base — an
-/// evaluator taking a `usize` would have to. The set borrows the
-/// `knots` it was located in, through both of its spans, so a consumer
-/// has nothing to re-pair either: the vector each end is a proof about
-/// travels with it. Iterate the interior with
+/// [`KnotVector::span_at`] or [`KnotVector::span_range`] over point
+/// knots, or [`SpanLocate::locate_held`] over held knots wider than a
+/// point. Carrying the proof out means no consumer re-derives
+/// *nonemptiness* or the window base — an evaluator taking a `usize`
+/// would have to. The set borrows the structure it was located in,
+/// through both of its spans, so a consumer has nothing to re-pair
+/// either: the structure each end is a proof about travels with it. Iterate the interior with
 /// `first.index() + 1 ..= last.index()` and [`KnotVector::span`],
 /// which refuses the empty spans in between.
 /// `Debug` comes from [`Span`]'s, which prints the borrow as an
@@ -164,8 +165,9 @@ pub trait SpanLocate: sealed::Sealed + Real {
     ///
     /// Per scalar, as the locator is. At `Interval` it is the window's
     /// certified restriction ([`super::SpanRow::restrict`]), whose every
-    /// coefficient encloses the true one; a held knot there is the point
-    /// of its `f64` structure, so the restriction reads the structure.
+    /// coefficient encloses the true one. It reads the knots' `f64`
+    /// vector (C6's interim), so it runs on point knots, which every
+    /// carrier's are.
     /// At every other scalar it is de Boor's recurrence over the held
     /// knots and ends, the ratio `α` formed in the scalar and the fixed
     /// association `x·(1 − α) + y·α` (D9).
@@ -186,7 +188,7 @@ pub trait SpanLocate: sealed::Sealed + Real {
         held_ends: (Self, Self),
     ) -> Vec<Self> {
         let p = span.degree();
-        let knots = span.knots().knots();
+        let knots = span.knots_f64_interim().knots();
         // Indexing justified: `p ≤ index ≤ last_span() = len − p − 2`.
         let (lo, hi) = (knots[span.index()], knots[span.index() + 1]);
         let inside = |x: f64| lo <= x && x <= hi;
@@ -239,6 +241,55 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// Declared, never defaulted: a wrapper has to say what it carries
     /// beyond its value.
     fn plain_constant(self) -> Option<f64>;
+
+    /// **The closed bracket of every value this scalar stands for**, or
+    /// `None` for poison: `(v, v)` at a point, the enclosure's ends at
+    /// `Interval`, the value part's at the wrappers. A structure
+    /// refusal carries it as its margin (C6), so a refinement of the
+    /// inputs that narrows the bracket can lift the refusal.
+    fn structure_bracket(self) -> Option<(f64, f64)> {
+        self.point_value().map(|v| (v, v))
+    }
+
+    /// **The spans of a carrier whose knots are held in the scalar** and
+    /// may be wider than a point (C6): every nonempty span some member's
+    /// parameter can lie in, for some member's knots, hulled as the
+    /// first and the last. Span `i` can hold the parameter when its
+    /// lower knot's bracket starts at or below the parameter's top and
+    /// the parameter's bottom lies below its upper knot's bracket top;
+    /// the first span is closed below and the last above, as
+    /// [`KnotVector::span_at`] clamps. At point knots and a point
+    /// parameter that is the `f64` tie-break, the span starting at a
+    /// knot. `None` for a poison parameter or a poison knot.
+    ///
+    /// The spans it answers are over `structure` alone, so their
+    /// [`Span::knots_f64_interim`] refuses: their positions are `held`.
+    fn locate_held<'a>(
+        self,
+        structure: &'a super::knots::KnotStructure,
+        held: &[Self],
+    ) -> Option<SpanSet<'a>> {
+        let (t_lo, t_hi) = self.structure_bracket()?;
+        let mut brackets = Vec::with_capacity(held.len());
+        for k in held {
+            brackets.push(k.structure_bracket()?);
+        }
+        let (first_span, last_span) = (structure.first_span(), structure.last_span());
+        let possible = (first_span..=last_span).filter(|&i| {
+            structure.span_is_nonempty(i)
+                && (i == first_span || brackets[i].0 <= t_hi)
+                && (i == last_span || t_lo < brackets[i + 1].1)
+        });
+        let (mut first, mut last) = (None, None);
+        for i in possible {
+            first = first.or(Some(i));
+            last = Some(i);
+        }
+        Some(SpanSet {
+            first: structure.span(first?)?,
+            last: structure.span(last?)?,
+        })
+    }
 
     /// [`SpanLocate::point_value`], or NaN where there is none: the
     /// `f64` a structure decision reads, so that a value with no point

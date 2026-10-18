@@ -149,7 +149,7 @@ fn nurbs_vector_area<T: SpanLocate>(
                    before integrating higher",
         });
     };
-    let kv = curve.knots();
+    let kv = curve.knots_f64_interim();
     let (Some(lo_spans), Some(hi_spans)) = (t0.locate_spans(kv), t1.locate_spans(kv)) else {
         // A poison end locates no span, and the area is poison in every
         // channel the ends carry.

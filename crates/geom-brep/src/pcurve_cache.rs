@@ -2588,7 +2588,10 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         }
     };
     let uncertified = |n: &NurbsCurve3<geom_core::Interval>, (a, b): (f64, f64)| {
-        let (knots, p) = (n.knots().knots(), n.knots().degree());
+        let (knots, p) = (
+            n.knots_f64_interim().knots(),
+            n.knots_f64_interim().degree(),
+        );
         n.control().iter().enumerate().any(|(i, c)| {
             knots[i] < b
                 && knots[i + p + 1] > a
@@ -2658,15 +2661,23 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     // ratios are formed in the scalar).
     let twin_net = lift(twin_net);
     let coords = twin_net.certified_coords();
-    let data = CurveCertData::new(twin_net.knots(), twin_net.weight_channel(), &coords)
-        .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
+    let data = CurveCertData::new(
+        twin_net.knots_f64_interim(),
+        twin_net.weight_channel(),
+        &coords,
+    )
+    .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
     let composite_of = |data: &CurveCertData<'_>| {
         canonical_composite(data, &form)
             .map_err(|_| refuse("the canonical composite refused the re-derived net"))
     };
     let whole = composite_of(&data)?;
     let (whole_breaks, whole_sup) = (whole.num.breaks().to_vec(), whole.span_sup_bounds());
-    let runs: Vec<f64> = twin_net.knots().knot_runs().map(|(k, _)| k).collect();
+    let runs: Vec<f64> = twin_net
+        .knots_f64_interim()
+        .knot_runs()
+        .map(|(k, _)| k)
+        .collect();
     let mut all_cuts: Vec<f64> = runs
         .windows(2)
         .flat_map(|w| {
@@ -2802,7 +2813,7 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     // bracket whose decoration refuses never reaches here: check 2 of
     // `run_fitted_checks`, this gate's only caller, has already decided
     // `t1 − t0` through `decide`, which refuses an uncertified value.
-    let (d0, d1) = image.knots().domain();
+    let (d0, d1) = image.knots_f64_interim().domain();
     let (lo, hi) = crate::carrier_net::outer_ends((t0, t1));
     if !(d0 <= lo && hi <= d1) {
         return Err(PcurveCertifyError::FittedCertificate {
@@ -2818,14 +2829,18 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     // `cuts` besides the round's grid: a halving shrinks a closed form's
     // remainder too.
     let (pcoords, scoords) = (image.certified_coords(), chart.certified_coords());
-    let pimage = (image.knots(), image.weight_channel(), &pcoords[..]);
+    let pimage = (
+        image.knots_f64_interim(),
+        image.weight_channel(),
+        &pcoords[..],
+    );
     let schart = (
-        chart.knots_u(),
-        chart.knots_v(),
+        chart.knots_u_f64_interim(),
+        chart.knots_v_f64_interim(),
         chart.weight_channel(),
         &scoords[..],
     );
-    let grid = chart_grid(carrier, image.knots());
+    let grid = chart_grid(carrier, image.knots_f64_interim());
     let stopped = crate::ssi::certify::subdivide(
         |cuts: &[f64]| carrier_chart_round(carrier, pimage, schart, &grid, cuts),
         band,
@@ -6748,7 +6763,7 @@ fn run_iso_arc_checks<T: Decide>(
         .map_err(|source| PcurveCertifyError::ChartRow { source })?;
     // --- The construction's EXACT structure (C6). ---
     let spans = breaks.control_count().saturating_sub(1);
-    if spans == 0 || b.knots().degree() != 2 {
+    if spans == 0 || b.knots_f64_interim().degree() != 2 {
         return Err(bad(
             "an arc rim whose chart column is not a quadratic — the rational-quadratic \
              arc construction is the only one this class certifies",
@@ -7285,7 +7300,7 @@ fn seam_envelope<T: Decide>(
                            class's construction",
             });
         }
-        let (p, kn) = (b.knots().degree(), b.knot_values().values());
+        let (p, kn) = (b.knots_f64_interim().degree(), b.knot_values().values());
         let mut hull = T::zero();
         // `pl.y ≠ 0` is this class's own classification: the
         // `(false, true)` arm means the v channel MOVES, so
@@ -7403,9 +7418,11 @@ fn seam_envelope<T: Decide>(
     let shared_weights = row_weights == c.weight_channel()
         || (constant_weights(b.weight_channel()) && constant_weights(c.weight_channel()));
     let shared_knots = if backward {
-        b.knots().is_reflection_of(c.knots())
+        b.knots_f64_interim()
+            .is_reflection_of(c.knots_f64_interim())
     } else {
-        b.knots().knots() == c.knots().knots() && b.knots().degree() == c.knots().degree()
+        b.knots_f64_interim().knots() == c.knots_f64_interim().knots()
+            && b.knots_f64_interim().degree() == c.knots_f64_interim().degree()
     };
     if !shared_knots || !shared_weights {
         return Err(PcurveCertifyError::IsoUnsupported {

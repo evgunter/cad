@@ -1190,8 +1190,8 @@ fn transport_curve<T: Decide>(
 /// sample point the read chose, entered as the constant it is (a held
 /// midpoint would only widen the parameter at an enclosure scalar).
 fn mid_domain_normal<T: Decide>(s: &NurbsSurface<T>) -> Option<Vec3<T>> {
-    let (u0, u1) = s.knots_u().domain();
-    let (v0, v1) = s.knots_v().domain();
+    let (u0, u1) = s.knots_u_f64_interim().domain();
+    let (v0, v1) = s.knots_v_f64_interim().domain();
     let jet = s.ders(T::from_f64((u0 + u1) * 0.5), T::from_f64((v0 + v1) * 0.5));
     let n = jet.du.cross(jet.dv).normalize();
     (!n.x.is_poison() && !n.y.is_poison() && !n.z.is_poison()).then_some(n)
@@ -4570,8 +4570,8 @@ mod offset_fit_door_rows {
                 .iter()
                 .flat_map(|p| p.to_array())
                 .chain(n.weights().iter().copied())
-                .chain(n.knots_u().knots().iter().copied())
-                .chain(n.knots_v().knots().iter().copied())
+                .chain(n.knots_u_f64_interim().knots().iter().copied())
+                .chain(n.knots_v_f64_interim().knots().iter().copied())
                 .map(f64::to_bits)
                 .collect()
         };

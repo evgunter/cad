@@ -350,7 +350,7 @@ pub fn iso_boundary_row<T: Decide>(
         ChartAxis::U => fit.knot_values_u(),
         ChartAxis::V => fit.knot_values_v(),
     };
-    let (a0, a1) = held.structure().domain();
+    let (a0, a1) = held.structure_f64_interim().domain();
     let (h0, h1) = held.domain();
     let is_end = |end: T| -> Result<bool, IsoRowError<T>> {
         let margin = Margin::of(at - end);
@@ -408,8 +408,8 @@ mod tests {
     #[test]
     fn a_poison_iso_parameter_collapses_to_a_row_poison_in_every_dual_channel() {
         let s = surface();
-        let ku = s.knots_u().clone();
-        let kv = s.knots_v().clone();
+        let ku = s.knots_u_f64_interim().clone();
+        let kv = s.knots_v_f64_interim().clone();
         let control: Vec<Point3<geom_core::Dual64>> = s
             .control()
             .iter()
@@ -442,8 +442,8 @@ mod tests {
         let c = Dual64::constant;
         let w = Dual64::variable(0.6);
         let dual = NurbsSurface::new(
-            geom_core::spline::Knots::from(s.knots_u().clone()).lift(c),
-            geom_core::spline::Knots::from(s.knots_v().clone()).lift(c),
+            geom_core::spline::Knots::from(s.knots_u_f64_interim().clone()).lift(c),
+            geom_core::spline::Knots::from(s.knots_v_f64_interim().clone()).lift(c),
             s.control().iter().map(|p| p.map(c)).collect(),
             vec![c(1.0), c(1.0), w, w, c(1.0), c(1.0)],
         )
@@ -479,7 +479,7 @@ mod tests {
     fn iso_boundary_row_selects_by_parameter_and_refuses_the_interior() {
         let s = surface();
         let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
-        let (u0, u1) = s.knots_u().domain();
+        let (u0, u1) = s.knots_u_f64_interim().domain();
 
         let (first, at) =
             iso_boundary_row(&s, ChartAxis::U, u0, band).expect("the u0 row extracts");
@@ -487,7 +487,10 @@ mod tests {
             at, u0,
             "the description is re-stated at the chart's own float"
         );
-        assert_eq!(first.knots().knots(), s.knots_v().knots());
+        assert_eq!(
+            first.knots_f64_interim().knots(),
+            s.knots_v_f64_interim().knots()
+        );
         let want = boundary_iso_u(&s, false).unwrap();
         assert!(
             first
@@ -520,12 +523,15 @@ mod tests {
 
         // The `v` axis selects a column the same way: its row runs over
         // `knots_u`, and an interior `v` refuses naming its axis.
-        let (v0, v1) = s.knots_v().domain();
+        let (v0, v1) = s.knots_v_f64_interim().domain();
         for (end, v) in [(false, v0), (true, v1)] {
             let (column, at) =
                 iso_boundary_row(&s, ChartAxis::V, v, band).expect("a boundary column extracts");
             assert_eq!(at, v);
-            assert_eq!(column.knots().knots(), s.knots_u().knots());
+            assert_eq!(
+                column.knots_f64_interim().knots(),
+                s.knots_u_f64_interim().knots()
+            );
             let want = boundary_iso_v(&s, end).unwrap();
             assert!(
                 column
@@ -559,7 +565,10 @@ mod tests {
         let s = surface();
         for u in [0.25, 0.5, 0.8] {
             let c = interior_iso_u(&s, u).unwrap();
-            assert_eq!(c.knots().knots(), s.knots_v().knots());
+            assert_eq!(
+                c.knots_f64_interim().knots(),
+                s.knots_v_f64_interim().knots()
+            );
             for i in 0..=8 {
                 let t = f64::from(i) / 8.0;
                 assert!(

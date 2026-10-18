@@ -332,7 +332,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
                 panic!("a seam's chart image is the wall's boundary iso line: {stored:?}");
             };
             assert_eq!(pl.x, 0.0, "a seam image holds u constant: {pl:?}");
-            let (du0, du1) = wall.knots_u().domain();
+            let (du0, du1) = wall.knots_u_f64_interim().domain();
             assert!(
                 p0.x == du0 || p0.x == du1,
                 "on the chart's OWN boundary column, not a [0, 1] literal: \
@@ -456,7 +456,7 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
                     _ => None,
                 })
                 .expect("the arc wall stays NURBS at every band");
-            let (du0, du1) = wall.knots_u().domain();
+            let (du0, du1) = wall.knots_u_f64_interim().domain();
             let images: Vec<_> = body
                 .edges()
                 .flat_map(|(_, e)| [e.he_plus, e.he_minus])

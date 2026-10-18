@@ -522,7 +522,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // Limb 2's hull: the implicit form composed with the described
     // carrier cut in the ring at its grid and at `cuts`, in metres.
     let grid = match carrier {
-        Curve3::Nurbs(net) => cert_grid(net.knots()),
+        Curve3::Nurbs(net) => cert_grid(net.knots_f64_interim()),
         _ => range_grid_points(t0, t1, SSI_CERT_SPANS, &[]),
     };
     let hull = |cuts: &[f64]| -> Result<Hull, SsiError> {
@@ -607,15 +607,19 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Result<(T, T), SsiError> {
     // Limb 2's hull: `S(P(t)) − C(t)` enclosed as one composite, cut
     // at `cuts` besides the round's grid, in metres.
-    let grid = chart_grid(carrier, pcurve.knots());
+    let grid = chart_grid(carrier, pcurve.knots_f64_interim());
     let (pcoords, scoords) = (pcurve.certified_coords(), surface.certified_coords());
     let hull = |cuts: &[f64]| -> Result<Hull, SsiError> {
         carrier_chart_round(
             carrier,
-            (pcurve.knots(), pcurve.weight_channel(), &pcoords),
             (
-                surface.knots_u(),
-                surface.knots_v(),
+                pcurve.knots_f64_interim(),
+                pcurve.weight_channel(),
+                &pcoords,
+            ),
+            (
+                surface.knots_u_f64_interim(),
+                surface.knots_v_f64_interim(),
                 surface.weight_channel(),
                 &scoords,
             ),
@@ -709,7 +713,7 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
 /// [`SSI_CERT_SPANS`] grid clear of them.
 pub(crate) fn chart_grid<T: Real>(carrier: &Curve3<T>, image: &KnotVector) -> Vec<f64> {
     if let Curve3::Nurbs(net) = carrier {
-        return chart_breaks(net.knots(), image);
+        return chart_breaks(net.knots_f64_interim(), image);
     }
     let (lo, hi) = image.domain();
     let knots: Vec<f64> = image.interior_knots().map(|(k, _)| k).collect();
@@ -1213,7 +1217,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
     // A refused insertion chain returns an EMPTY chain, which limb 3
     // reads as a definite refusal (no box, so nothing banked).
     let Some((kv, coords)) = refined_net(
-        carrier.knots(),
+        carrier.knots_f64_interim(),
         carrier.weight_channel(),
         &carrier.certified_coords(),
     ) else {
@@ -1396,7 +1400,7 @@ pub(crate) fn chart_tube_windows<T: geom_core::CertifiedBounds>(
     pcurve: &NurbsCurve2<T>,
     pad: (f64, f64),
 ) -> Option<Vec<ChartWindow>> {
-    let kv = pcurve.knots();
+    let kv = pcurve.knots_f64_interim();
     let coords = pcurve.certified_coords();
     // One pair per chart channel, minted once: the coordinates and the
     // knots are both the pcurve's, so the count is `NurbsCurve2::new`'s
@@ -1511,8 +1515,8 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
     let one = (worst > 0.0).then(|| {
         let p0 = [origin.x, origin.y, origin.z].map(Interval::from_certified);
         let domain = UvRect {
-            u: surface.knots_u().domain(),
-            v: surface.knots_v().domain(),
+            u: surface.knots_u_f64_interim().domain(),
+            v: surface.knots_v_f64_interim().domain(),
         };
         one_arc(boxes, (n, p0), (domain, band), pcurve, &probed, ends)
     });
@@ -2766,7 +2770,7 @@ mod tests {
         let c = geom_core::spline::algebra::grid_clearance(0.0, 1.0, super::SSI_CERT_SPANS);
         let near = 0.0625 + c;
         let clear = (0.375 + c).next_up();
-        let grid = super::cert_grid(carrier(&[near, clear, 0.5]).knots());
+        let grid = super::cert_grid(carrier(&[near, clear, 0.5]).knots_f64_interim());
         let want: Vec<f64> = (1..32)
             .filter(|&k| k != 2 && k != 16)
             .map(|k| f64::from(k) / 32.0)
@@ -2848,8 +2852,10 @@ mod tests {
         let above = 0.0625 + c;
         let below = 0.375 - c;
         let past = (0.625 - c).next_down();
-        let breaks =
-            super::chart_breaks(carrier(&[above]).knots(), carrier(&[below, past]).knots());
+        let breaks = super::chart_breaks(
+            carrier(&[above]).knots_f64_interim(),
+            carrier(&[below, past]).knots_f64_interim(),
+        );
         let want: Vec<f64> = (1..32)
             .filter(|&k| k != 2 && k != 12)
             .map(|k| f64::from(k) / 32.0)
@@ -3063,11 +3069,14 @@ mod tests {
     fn cert_grid_leaves_a_carrier_at_the_cut_off_alone() {
         let odd = |n: i32| -> Vec<f64> { (0..n).map(|j| f64::from(2 * j + 1) / 128.0).collect() };
         let at = carrier(&odd(31));
-        assert_eq!(at.knots().control_count(), super::SSI_CERT_SPANS + 2);
-        assert!(super::cert_grid(at.knots()).is_empty());
+        assert_eq!(
+            at.knots_f64_interim().control_count(),
+            super::SSI_CERT_SPANS + 2
+        );
+        assert!(super::cert_grid(at.knots_f64_interim()).is_empty());
         let below = carrier(&odd(30));
-        assert_eq!(below.knots().control_count(), 33);
-        assert_eq!(super::cert_grid(below.knots()).len(), 31);
+        assert_eq!(below.knots_f64_interim().control_count(), 33);
+        assert_eq!(super::cert_grid(below.knots_f64_interim()).len(), 31);
     }
 
     /// **Each pad widens its own axis.** A one-span linear pcurve whose
