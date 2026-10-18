@@ -2,7 +2,8 @@
 id: solve-runs-over-a-partly-entered-part-table-after-a-cancel
 kind: issue
 title: after a cancel during the census pass, the mate solve still runs over the partly entered part table and its loose map lands in the canceled Evaluation
-status: open
+status: dispatched
+branch: wire/small-breaks
 opened: 2026-10-18
 priority: P4
 cost: E

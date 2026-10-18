@@ -2,7 +2,8 @@
 id: wire-rs-defaults-two-missed-records-to-empty
 kind: issue
 title: eval/wire.rs: two record reads default a miss to empty, so an internal break reads as an empty table or an uncited row
-status: open
+status: dispatched
+branch: wire/small-breaks
 opened: 2026-10-17
 priority: P4
 cost: E

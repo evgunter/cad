@@ -2,7 +2,8 @@
 id: a-seating-door-refuses-a-kind-mismatch-as-a-duplicate-name
 kind: issue
 title: The name table's seating doors refuse a key/name kind mismatch as DuplicateName
-status: open
+status: dispatched
+branch: wire/small-breaks
 opened: 2026-10-18
 priority: P4
 cost: E

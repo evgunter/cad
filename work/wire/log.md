@@ -6175,3 +6175,16 @@ Signed (WIRE orchestrator).
   sentence, approved on PR 5279, is built, and chord descent with
   `MergedChordConstituents` is deleted. It gets a FULL single review.
   (WIRE orchestrator)
+
+- 2026-10-18 — PR 5303 (fold-minted cells) merged on green with main
+  merged in; its row closed. PR 5313 (seam cites parent) opened green,
+  and a FULL review is dispatched. Dispatched `wire/small-breaks`, one
+  STYLE-reviewed bundle of four rows:
+  - the seating door's kind-mismatch refusal;
+  - `wire.rs`'s two defaulted records;
+  - the cancel check before the mate solve (mate/* untouched, D10);
+  - the fold-row guard, which closes
+    `a-fold-steps-coincidence-rows-are-named-without-the-end-passes`
+    now that 5276 and 5303 removed the unheld cells.
+  `naming-refusal-census-skips-ten-arms` waits for 5313, which deletes
+  one of its arms. (WIRE orchestrator)
