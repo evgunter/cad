@@ -2132,8 +2132,9 @@ fn insert(
 
 /// A one-box document under the id `label` derives: square(2)
 /// extruded 1.5, volume exactly 6.0, the box placed once in the world
-/// at the identity. Returns (doc, profile id, body
-/// id) — the MINTED ids, so no caller couples to mint order.
+/// at the identity, pinned over its own geometry. Returns (doc,
+/// profile id, body id) — the MINTED ids, so no caller couples to mint
+/// order.
 fn box_doc(
     label: &str,
 ) -> (
@@ -2141,7 +2142,7 @@ fn box_doc(
     pncad::document::RecipeNodeId,
     pncad::document::RecipeNodeId,
 ) {
-    use pncad::document::{Node, Placement, ProfileDoc};
+    use pncad::document::{Node, ProfileDoc};
     let doc = ProfileDoc::empty_derived(label, pncad::tolerance::Tol::witness());
     let (doc, plane) = insert(doc, xy_frame());
     let (doc, profile) = insert(doc, square(plane, 2.0));
@@ -2153,36 +2154,41 @@ fn box_doc(
             side: ExtrudeSide::Along,
         },
     );
-    let (doc, _) = insert(
+    let (doc, placement) = insert(
         doc,
-        Node::Place {
-            shapes: vec![body.into()],
-            constraints: vec![pncad::document::Constraint {
-                id: pncad::document::ConstraintId(pncad::document::MintId::new(0, 0)),
-                mate: pncad::document::Mate::world_pin(Placement::IDENTITY),
-            }],
-        },
+        Node::place(vec![pncad::document::BodyRead::plain(body)]),
     );
+    let doc = pncad::document::apply(
+        &doc,
+        &pncad::document::DocEdit::PinWhereItStands { placement },
+        pncad::tolerance::Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("the world pin is admitted")
+    .doc;
     (doc, profile, body)
 }
 // END box-document fixture twin
 
-/// Place one copy of `body` in the world at the identity — the façade's
-/// world-pinning door, `DocEdit::place_in_world` — returning the
+/// Place one copy of `body` in the world where it stands — a loose
+/// placement, then the named interim's world pin
+/// (`DocEdit::PinWhereItStands`), which reads nothing — returning the
 /// placement's id.
 fn place(
     doc: pncad::document::ProfileDoc,
     body: impl Into<pncad::document::BodyRead<pncad::document::Formula>>,
 ) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
-    let applied = pncad::document::apply(
+    use pncad::document::{DocEdit, Node};
+    let (doc, placement) = insert(doc, Node::place(vec![body.into()]));
+    let doc = pncad::document::apply(
         &doc,
-        &pncad::document::DocEdit::place_in_world(body, None),
-        pncad::tolerance::Tol::witness(),
+        &DocEdit::PinWhereItStands { placement },
+        Tol::witness(),
         &pncad::document::RefusingReach,
     )
-    .expect("the placement is accepted");
-    let minted = applied.record.minted.expect("a placement mints an id");
-    (applied.doc, minted)
+    .unwrap_or_else(|e| panic!("the world pin is admitted: {e}"))
+    .doc;
+    (doc, placement)
 }
 
 /// The marker words the box-document twins sit between, less their
@@ -3129,7 +3135,7 @@ fn workspace_resolve_door_refusals_meet_the_standard_and_their_recourses_get_thr
     const HEX: &str = "work/doctail/part-refusals-name-documents-by-hex-id.md";
     let dir = WsDir::new("resolve-door");
     let doc_ref = asm2a_part(&dir, "part.pncad", "ws-resolve-door-part");
-    let (asm, ids) = asm2a_assembly("ws-resolve-door-asm", doc_ref, 1);
+    let (asm, ids) = asm2a_assembly(&dir, "ws-resolve-door-asm", doc_ref, 1);
     let file = dir.0.join("part.pncad");
     let kept = std::fs::read_to_string(&file).expect("the part reads");
     let failure = |ws: &Workspace| {
@@ -3537,9 +3543,11 @@ fn asm2a_constrain(
     (applied.doc, pncad::document::MateRef::new(placement, id))
 }
 
-/// `doc` with one more instance of `doc_ref`, its bundle one world pin
-/// `dx` along +x.
+/// `doc` with one more instance of `doc_ref`, pinned to the world `dx`
+/// along +x over its own geometry, its part read through the
+/// workspace in `dir`.
 fn asm2a_instance_at(
+    dir: &WsDir,
     doc: pncad::document::ProfileDoc,
     doc_ref: pncad::document::DocRef,
     dx: f64,
@@ -3551,10 +3559,30 @@ fn asm2a_instance_at(
             pncad::document::InterfaceRecord::default(),
         ),
     );
-    let pin = pncad::document::Mate::world_pin(pncad::document::Placement::literal(
-        &pncad::document::Frame::translation([dx, 0.0, 0.0]),
-    ));
-    (asm2a_constrain(doc, id, pin).0, id)
+    let at = pncad::document::Frame::translation([dx, 0.0, 0.0]);
+    (asm2a_pin(dir, doc, id, &at), id)
+}
+
+/// `instance` pinned to the world at `at` over its own geometry
+/// (`pin_at`), its part read through the workspace in `dir`.
+fn asm2a_pin(
+    dir: &WsDir,
+    doc: pncad::document::ProfileDoc,
+    instance: pncad::document::RecipeNodeId,
+    at: &pncad::document::Frame,
+) -> pncad::document::ProfileDoc {
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let opts = pncad::document::EvalOptions {
+        resolver: Some(std::sync::Arc::new(ws)),
+        ..pncad::document::EvalOptions::default()
+    };
+    let copy = pncad::document::Operand::Var(
+        doc.output(instance, 0)
+            .expect("an instance defines its copies"),
+    );
+    let pin = pncad::document::pin_at(&doc, &copy, at, &opts, Tol::witness())
+        .unwrap_or_else(|refusal| panic!("the instance pins over its geometry: {refusal}"));
+    asm2a_constrain(doc, instance, pin).0
 }
 
 /// `doc` with every constraint of `placement`'s bundle removed: a loose
@@ -3587,8 +3615,10 @@ fn asm2a_unpin(
 
 /// An assembly document holding `n` instances of one reference, each
 /// pinned to the world, the second onward displaced along +x so the
-/// solids stay disjoint.
+/// solids stay disjoint. The part is read through the workspace in
+/// `dir`.
 fn asm2a_assembly(
+    dir: &WsDir,
     label: &str,
     doc_ref: pncad::document::DocRef,
     n: usize,
@@ -3602,13 +3632,9 @@ fn asm2a_assembly(
     );
     let mut ids = Vec::new();
     for i in 0..n {
-        let (next, id) = if i == 0 {
-            insert(doc, pncad::document::Node::instantiate_part(doc_ref))
-        } else {
-            #[allow(clippy::cast_precision_loss)]
-            let dx = 10.0 * i as f64;
-            asm2a_instance_at(doc, doc_ref, dx)
-        };
+        #[allow(clippy::cast_precision_loss)]
+        let dx = 10.0 * i as f64;
+        let (next, id) = asm2a_instance_at(dir, doc, doc_ref, dx);
         doc = next;
         ids.push(id);
     }
@@ -3642,7 +3668,7 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
     let doc_ref = asm2a_part(&dir, "bracket.pncad", "asm2a-e2e-bracket");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
 
-    let (doc, ids) = asm2a_assembly("asm2a-e2e-asm", doc_ref, 2);
+    let (doc, ids) = asm2a_assembly(&dir, "asm2a-e2e-asm", doc_ref, 2);
     let ev = asm2a_eval(&doc, &ws);
     let body = pncad::document::product(&doc, &ev, Tol::witness()).expect("the product gathers");
     assert_eq!(body.solids().count(), 2);
@@ -3700,7 +3726,7 @@ fn step_export_refuses_a_loose_part_naming_it() {
     let dir = WsDir::new("p2-step-unplaced");
     let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "p2-step-unplaced-part");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
-    let (doc, ids) = asm2a_assembly("p2-step-unplaced", doc_ref, 2);
+    let (doc, ids) = asm2a_assembly(&dir, "p2-step-unplaced", doc_ref, 2);
     let doc = asm2a_unpin(doc, ids[1]);
     let ev = asm2a_eval(&doc, &ws);
     let opts = StepOptions::default();
@@ -3750,9 +3776,17 @@ fn asm2a_row5b_stale_pin_refuses_through_the_real_store() {
     dir.write("part.pncad", &edited);
 
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
-    let (doc, ids) = asm2a_assembly("asm2a-pin-asm", doc_ref, 1);
+    // The instance is loose: its own evaluation is what refuses, before
+    // anything could read its geometry to pin it.
+    let (doc, instance) = insert(
+        pncad::document::ProfileDoc::empty(
+            pncad::document::DocumentId::derive("asm2a-pin-asm"),
+            Tol::witness(),
+        ),
+        pncad::document::Node::instantiate_part(doc_ref),
+    );
     let ev = asm2a_eval(&doc, &ws);
-    match ev.result(ids[0]) {
+    match ev.result(instance) {
         Some(pncad::document::NodeResult::Failed(e)) => match &e.kind {
             pncad::document::NodeErrorKind::Part { doc_ref: r, fault } => {
                 assert_eq!(*r, doc_ref, "the refusal names WHICH reference");
@@ -3799,7 +3833,7 @@ fn asm2a_child_product_probe() {
     let dir = WsDir::new("asm2a-probe");
     let doc_ref = asm2a_part(&dir, "part.pncad", "asm2a-probe-part");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
-    let (doc, _) = asm2a_assembly("asm2a-probe-asm", doc_ref, 2);
+    let (doc, _) = asm2a_assembly(&dir, "asm2a-probe-asm", doc_ref, 2);
     let ev = asm2a_eval(&doc, &ws);
     let body = pncad::document::product(&doc, &ev, Tol::witness()).expect("gathers");
     let v = pncad::topo::mass_properties(&body, Tol::witness())
@@ -3828,15 +3862,18 @@ fn asm2a_spawn_probe(tag: &str) -> String {
 
 // ---- ASM-R2a: mates, end to end and across two processes ----
 
-/// A MATED assembly: two instances of one part, the second placed by a
-/// frame-coincidence mate 30 along +x (the part spans 2, so the pair
-/// stays disjoint and the product is a clean two-solid gather).
+/// A MATED assembly: two instances of one part, the first pinned to
+/// the world, the second placed on it by a plane mate — its start cap's
+/// plane equated with the first's — and three values sliding it 30
+/// along the chart's x (the part spans 2, so the pair stays disjoint
+/// and the product is a clean two-solid gather).
 ///
 /// The instance names are an `InPart`-headed name whose HEAD is the
 /// instantiate node, wearing the part's product name of the face;
-/// `body` is the part's body. The first instance is pinned to the
-/// world; the second's bundle is the one mate.
+/// `body` is the part's body. The second's bundle is the mate and its
+/// values: its pose is solved from the first's, not stored.
 fn asm_r2a_mated_assembly(
+    dir: &WsDir,
     label: &str,
     doc_ref: pncad::document::DocRef,
     body: PartBody,
@@ -3844,7 +3881,9 @@ fn asm_r2a_mated_assembly(
     pncad::document::ProfileDoc,
     Vec<pncad::document::RecipeNodeId>,
 ) {
-    use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive, Node, SideRead};
+    use pncad::document::{
+        Coord, DocEdit, Formula, Mate, Node, Operand, SlideAxis, Target, Value, pose::PoseDef,
+    };
     use pncad::prelude::StableName;
     use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
     let doc = pncad::document::ProfileDoc::empty(
@@ -3852,6 +3891,7 @@ fn asm_r2a_mated_assembly(
         Tol::witness(),
     );
     let (doc, first) = insert(doc, Node::instantiate_part(doc_ref));
+    let doc = asm2a_pin(dir, doc, first, &pncad::document::Frame::IDENTITY);
     let (doc, second) = insert(
         doc,
         Node::instantiate_part_with(doc_ref, pncad::document::InterfaceRecord::default()),
@@ -3864,35 +3904,50 @@ fn asm_r2a_mated_assembly(
             of: body.product_cap(CapEnd::Start).into(),
         }],
     };
-    let axis = |origin: [f64; 3]| {
-        MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], Tol::witness())
-            .expect("a definite frame")
-    };
-    // A mate head is a `SitedFace`: the fixture's claim that the name
-    // it just built is a face is made where the name is built.
-    let face_head = |name: pncad::prelude::StableName| {
-        pncad::document::SitedFace::at_mint(
+    // The fixture's claim that the name it just built is a face is made
+    // where the name is built.
+    let plane = |name: StableName| {
+        let face = pncad::document::SitedFace::at_mint(
             pncad::document::FaceName::new(name).expect("the fixture names a face"),
-        )
+        );
+        Operand::Pose(Box::new(PoseDef::Plane { face: face.into() }))
     };
-    let (doc, _) = asm2a_constrain(
+    let (doc, mate) = asm2a_constrain(
         doc,
-        // The second instance is the mate's first operand: the mate,
-        // in its bundle, places it on the first.
         ids[1],
-        pncad::document::Mate {
-            a: SideRead::Face(face_head(name(ids[1])).into()),
-            b: SideRead::Face(face_head(name(ids[0])).into()),
+        Mate {
+            on: plane(name(ids[1])),
+            to: Target::Pose(plane(name(ids[0]))),
             class: ContactClass::Rest,
-            alignment: Alignment {
-                a: axis([0.0, 0.0, 0.0]),
-                b: axis([30.0, 0.0, 0.0]),
-                primitive: MatePrimitive::FrameCoincidence,
-                sense: AxisSense::Aligned,
-                clocking: None,
-            },
         },
     );
+    let length = |m: f64| Formula::literal(m, pncad::document::Dimension::Length).expect("finite");
+    let values = [
+        (Coord::Slide(SlideAxis::X), length(30.0)),
+        (Coord::Slide(SlideAxis::Y), length(0.0)),
+        (
+            Coord::Spin,
+            Formula::zero(pncad::document::Dimension::Angle),
+        ),
+    ];
+    let doc = values.into_iter().fold(doc, |doc, (coord, by)| {
+        pncad::document::apply(
+            &doc,
+            &DocEdit::AddValue {
+                placement: ids[1],
+                value: Box::new(Value {
+                    mate: mate.id,
+                    coord,
+                    by,
+                }),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+            &pncad::document::RefusingReach,
+        )
+        .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
+        .doc
+    });
     (doc, ids)
 }
 
@@ -3921,16 +3976,17 @@ fn asm_r2a_child_mated_probe() {
     let dir = WsDir::new("asm-r2a-probe");
     let (doc_ref, body) = asm2a_part_and_body(&dir, "part.pncad", "asm-r2a-probe-part");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
-    let (doc, ids) = asm_r2a_mated_assembly("asm-r2a-probe-asm", doc_ref, body);
-    // The mate SOLVES the second instance's pose: its bundle is the one
-    // mate on the first instance, no world pin, so the pose is recipe
+    let (doc, ids) = asm_r2a_mated_assembly(&dir, "asm-r2a-probe-asm", doc_ref, body);
+    // The mate SOLVES the second instance's pose: its bundle's one mate
+    // reads the first instance, not the world, so the pose is recipe
     // data, not a stored frame.
     assert!(
         matches!(
             doc.node(ids[1]),
             Some(pncad::document::Node::InstantiatePart { constraints, .. })
-                if constraints.len() == 1
-                    && !matches!(constraints[0].mate.a, pncad::document::SideRead::World)
+                if constraints.iter().filter_map(|c| c.mate()).all(|m| {
+                    matches!(m.to, pncad::document::Target::Pose(_))
+                }) && constraints.iter().filter(|c| c.mate().is_some()).count() == 1
         ),
         "the pose is solved, not stored"
     );
@@ -3938,8 +3994,7 @@ fn asm_r2a_child_mated_probe() {
         resolver: Some(std::sync::Arc::new(ws.clone())),
         ..pncad::document::EvalOptions::default()
     };
-    let reach = pncad::document::mate_reach::<f64>(&opts, Tol::witness());
-    let poses = pncad::document::solve_document(&doc, &reach, Tol::witness());
+    let poses = pncad::document::solve_document(&doc, &opts, Tol::witness());
     let placed = poses.placement(&doc, ids[1]).expect("the pair determines");
     let ev = asm2a_eval(&doc, &ws);
     let body = pncad::document::product(&doc, &ev, Tol::witness()).expect("gathers");
@@ -4012,7 +4067,7 @@ fn asm_r2b_child_crossing_probe() {
 
     // A mated pair (the minting subject), then a THIRD instance
     // carrying an authored crossing record (the wire subject).
-    let (doc, ids) = asm_r2a_mated_assembly("asm-r2b-probe-asm", doc_ref, body);
+    let (doc, ids) = asm_r2a_mated_assembly(&dir, "asm-r2b-probe-asm", doc_ref, body);
     // The `outer` is this document's name for a face: the first
     // instance's end cap, worn under the instance that placed it.
     let outer = FaceName::new(StableName {
@@ -4031,11 +4086,7 @@ fn asm_r2b_child_crossing_probe() {
         }],
     };
     let (doc, crossing) = insert(doc, Node::instantiate_part_with(doc_ref, record));
-    let (doc, _) = asm2a_constrain(
-        doc,
-        crossing,
-        pncad::document::Mate::world_pin(pncad::document::Placement::IDENTITY),
-    );
+    let doc = asm2a_pin(&dir, doc, crossing, &pncad::document::Frame::IDENTITY);
 
     // The mated pair split out, the mate riding in the second's bundle
     // — accepted, and the remainder is itself a crossing-bearing
@@ -4115,7 +4166,7 @@ fn asm_r2b_crossing_bearing_bits_agree_across_two_fresh_processes() {
 /// other — that it holds instantiate nodes is not a kind of file.
 fn asm2b_workspace(dir: &WsDir) -> (pncad::document::DocRef, pncad::document::DocRef) {
     let p = asm2a_part(dir, "part.pncad", "asm2b-part");
-    let (b_doc, _) = asm2a_assembly("asm2b-sub", p, 2);
+    let (b_doc, _) = asm2a_assembly(dir, "asm2b-sub", p, 2);
     let text = pncad::document::save(&b_doc, &[], Tol::witness()).expect("the sub-assembly saves");
     dir.write("sub.pncad", &text);
     let b = pncad::document::DocRef {
@@ -4132,6 +4183,7 @@ fn asm2b_workspace(dir: &WsDir) -> (pncad::document::DocRef, pncad::document::Do
 /// refuse (inter-solid overlap is outside tier 3's local checks; issue
 /// #382), so the fixture must not lean on the gate for it.
 fn asm2b_outer(
+    dir: &WsDir,
     label: &str,
     doc_ref: pncad::document::DocRef,
 ) -> (
@@ -4144,11 +4196,8 @@ fn asm2b_outer(
     );
     let mut ids = Vec::new();
     for i in 0..2 {
-        let (next, id) = if i == 0 {
-            insert(doc, pncad::document::Node::instantiate_part(doc_ref))
-        } else {
-            asm2a_instance_at(doc, doc_ref, 100.0)
-        };
+        let dx = if i == 0 { 0.0 } else { 100.0 };
+        let (next, id) = asm2a_instance_at(dir, doc, doc_ref, dx);
         doc = next;
         ids.push(id);
     }
@@ -4175,7 +4224,7 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
     let (p, b) = asm2b_workspace(&dir);
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
 
-    let (doc, ids) = asm2b_outer("asm2b-e2e-asm", b);
+    let (doc, ids) = asm2b_outer(&dir, "asm2b-e2e-asm", b);
     let ev = asm2a_eval(&doc, &ws);
     let body = pncad::document::product(&doc, &ev, Tol::witness()).expect("the product gathers");
     assert_eq!(body.solids().count(), 4, "two sub-assemblies of two parts");
@@ -4191,10 +4240,15 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
     let part_ev = asm2a_eval(&part_doc, &ws);
     let part_body =
         pncad::document::product(&part_doc, &part_ev, Tol::witness()).expect("the part's product");
-    assert_eq!(
-        vol(&body).to_bits(),
-        (4.0 * vol(&part_body)).to_bits(),
-        "four copies of the part, bit-exactly"
+    // Each copy stands where its pin puts it to the rounding of the
+    // pin's re-composition — a frame read off the copy, moved by
+    // computed turns and slides — so the four agree with the part to
+    // that rounding, not to the bit.
+    let four = 4.0 * vol(&part_body);
+    assert!(
+        (vol(&body) - four).abs() <= four * 1e-12,
+        "four copies of the part: {} vs {four}",
+        vol(&body)
     );
 
     // Solid order = placement order: instance 0's two solids sit at x = 0
@@ -4245,7 +4299,7 @@ fn asm2b_child_product_probe() {
     let dir = WsDir::new("asm2b-probe");
     let (_, b) = asm2b_workspace(&dir);
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
-    let (doc, _) = asm2b_outer("asm2b-probe-asm", b);
+    let (doc, _) = asm2b_outer(&dir, "asm2b-probe-asm", b);
     let ev = asm2a_eval(&doc, &ws);
     let body = pncad::document::product(&doc, &ev, Tol::witness()).expect("gathers");
     let v = pncad::topo::mass_properties(&body, Tol::witness())
@@ -4350,7 +4404,7 @@ fn asm4_split_and_inline_through_the_real_store() {
     use pncad::document as d;
     let dir = WsDir::new("asm4-e2e");
     let part_ref = asm2a_part(&dir, "part.pncad", "asm4-e2e-part");
-    let (doc, ids) = asm2a_assembly("asm4-e2e-asm", part_ref, 2);
+    let (doc, ids) = asm2a_assembly(&dir, "asm4-e2e-asm", part_ref, 2);
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("scan");
     let mut ws_mut = ws.clone();
     let ev1 = asm2a_eval(&doc, &ws);
@@ -4363,12 +4417,15 @@ fn asm4_split_and_inline_through_the_real_store() {
     };
 
     let cut = std::collections::BTreeSet::from([ids[1]]);
+    // The split reads the cut's copies through the store: it pins the
+    // instance it leaves behind over their geometry.
+    let store: std::sync::Arc<dyn d::PartResolver> = std::sync::Arc::new(ws.clone());
     let out = d::split(
         &doc,
         &cut,
         d::DocumentId::derive("asm4-e2e-new"),
         Tol::witness(),
-        None,
+        Some(&store),
     )
     .expect("legal");
     ws_mut
@@ -4432,14 +4489,16 @@ fn asm4_child_split_probe() {
     };
     let dir = WsDir::new("asm4-probe");
     let part_ref = asm2a_part(&dir, "part.pncad", "asm4-probe-part");
-    let (doc, ids) = asm2a_assembly("asm4-probe-asm", part_ref, 2);
+    let (doc, ids) = asm2a_assembly(&dir, "asm4-probe-asm", part_ref, 2);
     let cut = std::collections::BTreeSet::from([ids[1]]);
+    let store: std::sync::Arc<dyn d::PartResolver> =
+        std::sync::Arc::new(pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean"));
     let split_out = d::split(
         &doc,
         &cut,
         d::DocumentId::derive("asm4-probe-new"),
         Tol::witness(),
-        None,
+        Some(&store),
     )
     .expect("legal");
     let text = format!(
@@ -4470,27 +4529,30 @@ fn asm4_spawn_probe(tag: &str) -> String {
 
 // ---- ASM-UPD: the pin-update door through the real store ----
 
-/// Re-authors the document id `id`'s file with a `side`-wide square
-/// extruded 1.5 tall — the "the part changed on disk" move — and
-/// returns the store's new current pin for it.
+/// The part `label` derives, edited in place to stand `height` tall —
+/// the "the part changed on disk" move — resaved, and the store's new
+/// current pin for it. An edit, not a re-authoring: every node keeps
+/// its id, so every name an instance's pin reads stays the part's own.
 fn asm_upd_resave_part(
     ws: &mut pncad::workspace::Workspace,
-    id: pncad::document::DocumentId,
-    side: f64,
+    label: &str,
+    height: f64,
 ) -> pncad::document::ContentPin {
-    use pncad::document::Node;
-    let doc = pncad::document::ProfileDoc::empty(id, Tol::witness());
-    let (doc, plane) = insert(doc, xy_frame());
-    let (doc, profile) = insert(doc, square(plane, side));
-    let (doc, body) = insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(1.5),
-            side: ExtrudeSide::Along,
+    use pncad::document::{DocEdit, SlotId, SlotValue};
+    let (doc, _, part) = ws_doc_and_body(label);
+    let doc = pncad::document::apply(
+        &doc,
+        &DocEdit::SetParam {
+            node: part.body,
+            slot: SlotId::Distance,
+            value: SlotValue::Formula(len(height)),
+            fresh: Vec::new(),
         },
-    );
-    let (doc, _) = place(doc, body);
+        Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("the height edit is admitted")
+    .doc;
     ws.resave(&doc, Tol::witness()).expect("the part rewrites");
     pncad::document::content_pin(&doc, Tol::witness()).expect("the pin computes")
 }
@@ -4504,7 +4566,7 @@ fn asm_upd_row3_update_to_store_picks_up_the_resaved_part() {
     use pncad::document as d;
     let dir = WsDir::new("asm-upd-e2e");
     let part_ref = asm2a_part(&dir, "part.pncad", "asm-upd-e2e-part");
-    let (doc, ids) = asm2a_assembly("asm-upd-e2e-asm", part_ref, 2);
+    let (doc, ids) = asm2a_assembly(&dir, "asm-upd-e2e-asm", part_ref, 2);
     let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
 
     let vol = |b: &pncad::topo::Body<f64>| {
@@ -4518,7 +4580,7 @@ fn asm_upd_row3_update_to_store_picks_up_the_resaved_part() {
     // The part changes on disk. The assembly is a self-contained
     // reproducible value, so nothing about it moves yet — that is A4,
     // and it is what makes an update an EDIT.
-    let new_pin = asm_upd_resave_part(&mut ws, part_ref.id, 4.0);
+    let new_pin = asm_upd_resave_part(&mut ws, "asm-upd-e2e-part", 6.0);
     assert_ne!(new_pin, part_ref.pin, "the part's content really moved");
     let stale = asm2a_eval(&doc, &ws);
     match stale.result(ids[0]) {
@@ -4555,8 +4617,8 @@ fn asm_upd_row3_update_to_store_picks_up_the_resaved_part() {
         after_ev.part_evaluations, 1,
         "both sites name one version again"
     );
-    // The square door's fixture is `side`-wide; 2.0 → 4.0 at the same
-    // 1.5 height is exactly four times the material, per instance.
+    // The same 2.0 square at 1.5 → 6.0 height is exactly four times the
+    // material, per instance.
     assert!(
         (after - 4.0 * before).abs() < 1e-9,
         "the new geometry is served: {before} → {after}"
@@ -4577,7 +4639,7 @@ fn asm_upd_row3b_store_miss_and_unreferenced_id_refuse_apart() {
     let dir = WsDir::new("asm-upd-refuse");
     let part_ref = asm2a_part(&dir, "part.pncad", "asm-upd-refuse-part");
     let other_ref = asm2a_part(&dir, "other.pncad", "asm-upd-refuse-other");
-    let (doc, _) = asm2a_assembly("asm-upd-refuse-asm", part_ref, 1);
+    let (doc, _) = asm2a_assembly(&dir, "asm-upd-refuse-asm", part_ref, 1);
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
 
     let ghost = pncad::document::DocumentId::derive("asm-upd-refuse-ghost");
@@ -4629,9 +4691,9 @@ fn asm_upd_child_update_probe() {
     };
     let dir = WsDir::new("asm-upd-probe");
     let part_ref = asm2a_part(&dir, "part.pncad", "asm-upd-probe-part");
-    let (doc, _) = asm2a_assembly("asm-upd-probe-asm", part_ref, 2);
+    let (doc, _) = asm2a_assembly(&dir, "asm-upd-probe-asm", part_ref, 2);
     let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
-    asm_upd_resave_part(&mut ws, part_ref.id, 4.0);
+    asm_upd_resave_part(&mut ws, "asm-upd-probe-part", 6.0);
     let edits = pncad::workspace::update_to_store(&doc, part_ref.id, &ws, Tol::witness())
         .expect("the elaboration holds");
     let mut updated = doc;
@@ -4923,10 +4985,9 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-/// - **The solve's per-placement split** (`solve_document_by_placement`):
-///   the solve with each placement's recorded decisions kept apart, for
-///   a check of how an evaluation shares them out. A consumer asks
-///   `solve_document`, carried, and reads each placement's own log.
+/// - **The "place part" gesture's answer** (`Placed`): the mate, its
+///   values and how the copy was placed, which `place_at` (carried)
+///   answers; a consumer reads its fields and never names the type.
 const NOT_CARRIED: [&str; 98] = [
     "AppearanceLoss",
     "AppearanceLossCause",
@@ -4971,6 +5032,7 @@ const NOT_CARRIED: [&str; 98] = [
     "NodeVerdicts",
     "PairingViolation",
     "ParamValue",
+    "Placed",
     "PredicateDivergence",
     "ProfilePayload",
     "Qualifier",
@@ -5023,7 +5085,6 @@ const NOT_CARRIED: [&str; 98] = [
     "resolve_with_prior",
     "seed_env",
     "sensitivities",
-    "solve_document_by_placement",
     "std_deviation",
     "to_value",
     "verdict_summary",
@@ -6734,7 +6795,7 @@ fn step_export_lists_loose_parts_in_document_order() {
     let ascending = |ids: &[RecipeNodeId]| ids.windows(2).all(|w| w[0] < w[1]);
     let dir = WsDir::new("place-step-order");
     let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "place-step-order-part");
-    let (sub, ids) = asm2a_assembly("place-step-order-sub", doc_ref, 4);
+    let (sub, ids) = asm2a_assembly(&dir, "place-step-order-sub", doc_ref, 4);
     assert!(ascending(&ids), "ids run in document order");
     let loose = &ids[1..];
     let sub = loose.iter().fold(sub, |sub, &i| asm2a_unpin(sub, i));
@@ -6764,7 +6825,7 @@ fn the_product_reads_loose_copies_in_document_order() {
     let dir = WsDir::new("place-product-order");
     let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "place-product-order-part");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
-    let (doc, ids) = asm2a_assembly("place-product-order", doc_ref, 4);
+    let (doc, ids) = asm2a_assembly(&dir, "place-product-order", doc_ref, 4);
     assert!(ascending(&ids), "ids run in document order");
     let some_placed = ids[1..].iter().fold(doc, |doc, &i| asm2a_unpin(doc, i));
     let none_placed = asm2a_unpin(some_placed.clone(), ids[0]);

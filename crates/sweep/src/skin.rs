@@ -567,7 +567,8 @@ impl<T: SpanLocate> ProjectiveSplit<T> for Compatible<'_, T> {
     fn enclosure(self) -> Self::Out {
         let first = &self.0[0];
         match self.0.iter().position(|c| {
-            c.degree() != first.degree() || c.knots().knots() != first.knots().knots()
+            c.degree() != first.degree()
+                || c.knots_f64_interim().knots() != first.knots_f64_interim().knots()
         }) {
             Some(section) => Err(SkinError::IncompatibleAtEnclosure { section }),
             None => Ok(self.0.to_vec()),
@@ -732,7 +733,7 @@ fn chord_length_parameters<T: SpanLocate>(
 /// the value it was supposed to have (a silent heal, which would also
 /// leave the control points divided by the pre-snap denominator).
 /// `integral` is decided by `==` on the input's own bits — its weights'
-/// value channel ([`NurbsCurve3::weight_channel`]): C6 structure
+/// value channel ([`NurbsCurve3::weights_f64_interim`]): C6 structure
 /// selection about what the caller handed in, never a predicate, never
 /// a tolerance. The integral lane's output weights are the constant
 /// `1`: every weight it read was exactly `1`, and the lane does not
@@ -788,10 +789,10 @@ pub fn skin<T: SpanLocate>(
             sections: k,
         });
     }
-    let knots_u = sections[0].knots().clone();
+    let knots_u = sections[0].knots_f64_interim().clone();
     let n = sections[0].control().len();
     for (i, c) in sections.iter().enumerate().skip(1) {
-        if c.control().len() != n || c.knots().knots() != knots_u.knots() {
+        if c.control().len() != n || c.knots_f64_interim().knots() != knots_u.knots() {
             return Err(SkinError::SectionShapeMismatch {
                 section: i,
                 expected: n,
@@ -830,7 +831,9 @@ pub fn skin_on<T: SpanLocate>(
     let knots_u = sections[0].knot_values().clone();
     let n = sections[0].control().len();
     for (i, c) in sections.iter().enumerate().skip(1) {
-        if c.control().len() != n || c.knots().knots() != knots_u.structure().knots() {
+        if c.control().len() != n
+            || c.knots_f64_interim().knots() != knots_u.structure_f64_interim().knots()
+        {
             return Err(SkinError::SectionShapeMismatch {
                 section: i,
                 expected: n,
@@ -846,7 +849,7 @@ pub fn skin_on<T: SpanLocate>(
     // predicate.
     let integral = sections
         .iter()
-        .all(|c| c.weight_channel().iter().all(|w| *w == 1.0));
+        .all(|c| c.weights_f64_interim().iter().all(|w| *w == 1.0));
     // Rows of data: one row per section. Homogeneous `(w·x, w·y, w·z,
     // w)` quadruples (`4·n` wide) for a rational input; plain
     // Cartesian triples (`3·n` wide) when the input is integral, where

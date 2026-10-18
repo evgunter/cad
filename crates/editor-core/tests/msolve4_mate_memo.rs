@@ -1,17 +1,18 @@
-//! **A placement's memo key carries the solve's answer.**
+//! **A placement's memo key carries its bundle's answer.**
 //!
-//! A placement's value carries the solve's answer for its bundle: the
+//! A placement folds its bundle where it evaluates, so its value is the
 //! copy at its solved pose in its space, or a typed refusal when the
-//! solve faulted it. The solve runs afresh on every evaluation, so a
-//! key of the placement's recipe payload alone would serve last
+//! fold refused. Its key is its reads' keys: an edit to the bundle, or
+//! to a placement its target reads, moves it; an edit elsewhere does
+//! not. A key of the placement's recipe payload alone would serve last
 //! evaluation's answer into this one — an unedited placement reading
-//! `Ok` in the very evaluation whose fault reaches it, or carrying a
-//! space an edit elsewhere has since changed.
+//! `Ok` in the evaluation whose refusal reaches it, or carrying a space
+//! an edit elsewhere has since changed.
 //!
-//! Every row here goes through ordinary doors — `DocEdit::AddConstraint`,
-//! `DocEdit::RemoveConstraint`, `evaluate` with the previous evaluation
-//! as the prior — and reads the answer off the evaluation and off
-//! `solve_document`, never off the key function.
+//! Every row goes through ordinary doors — `DocEdit::AddConstraint`,
+//! `DocEdit::AddValue`, `DocEdit::RemoveConstraint`, `evaluate` with the
+//! previous evaluation as the prior — and reads the answer off the
+//! evaluation and off `solve_document`, never off the key function.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -21,12 +22,13 @@ use editor_core::Formula;
 
 use std::sync::Arc;
 
+use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Mate, MateFault, MateFrame, MatePrimitive, MateRef, Node, NodeErrorKind,
-    NodeResult, ProfileDoc, RecipeNodeId, SitedFace, Space, evaluate,
+    CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation,
+    MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId,
+    SitedFace, SlideAxis, Space, Value, evaluate,
 };
-use fixture::{insert, len, on_frame, solve, step};
+use fixture::{ang, insert, len, on_frame, solve, step};
 use geom_core::Tol;
 
 // ---- substrate ----
@@ -64,63 +66,15 @@ const BASE_WIDTH: f64 = 4.0;
 const BLOCK_WIDTH: f64 = 1.0;
 const BLOCK_HEIGHT: f64 = 2.0;
 
-/// A mate frame ON the base's top cap at `(x, y)`, axis along that
-/// cap's OUTWARD normal.
-fn base_frame(x: f64, y: f64) -> MateFrame<Formula> {
-    MateFrame::authored(
-        [x, y, BASE_HEIGHT],
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        geom_core::Tol::witness(),
-    )
-    .expect("a definite frame")
-}
-
-/// A block's bottom-cap corner, axis along THAT cap's outward normal,
-/// which points DOWN in the block's own part coordinates. The two
-/// outward normals and `Opposed` are what make this a physical seat:
-/// the block stands ON what it is mated to.
-fn block_bottom() -> MateFrame<Formula> {
-    MateFrame::authored(
-        [0.0, 0.0, 0.0],
-        [0.0, 0.0, -1.0],
-        [1.0, 0.0, 0.0],
-        geom_core::Tol::witness(),
-    )
-    .expect("a definite frame")
-}
-
-/// A block's TOP-cap corner, axis along that cap's outward normal.
-fn block_top() -> MateFrame<Formula> {
-    MateFrame::authored(
-        [0.0, 0.0, BLOCK_HEIGHT],
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        geom_core::Tol::witness(),
-    )
-    .expect("a definite frame")
-}
-
-/// A `Rest` mate seating `b`'s frame on `a`'s.
-fn seat(
-    a: SitedFace,
-    b: SitedFace,
-    a_frame: MateFrame<Formula>,
-    b_frame: MateFrame<Formula>,
-    primitive: MatePrimitive,
-) -> Mate<Formula> {
-    fixture::mate(
-        a,
-        b,
-        ContactClass::Rest,
-        Alignment {
-            a: a_frame,
-            b: b_frame,
-            primitive,
-            sense: AxisSense::Opposed,
-            clocking: None,
-        },
-    )
+/// **`face`'s plane slid `h` along its own outward normal and flipped**:
+/// a target a face rests against at a standoff of `h`.
+fn standoff(face: SitedFace, h: f64) -> Operand {
+    let plane = fixture::plane(face);
+    fixture::flip(Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(plane.clone()),
+        along: RoleRead::through(plane, PoseRole::Normal),
+        by: len(h),
+    })))
 }
 
 /// A wide base slab pinned to the world and three blocks with empty
@@ -154,7 +108,7 @@ fn scene(label: &str) -> Scene {
     );
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
+    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base_ref), &opts);
     let (doc, top_a) = insert(doc, fixture::mated_instance(block_ref));
     let (doc, top_b) = insert(doc, fixture::mated_instance(block_ref));
     let (doc, top_c) = insert(doc, fixture::mated_instance(block_ref));
@@ -171,45 +125,81 @@ fn scene(label: &str) -> Scene {
 }
 
 impl Scene {
-    /// Adds `mate` to the bundle of the copy it places, answering its
-    /// address.
-    fn add(&mut self, mate: Mate<Formula>) -> MateRef {
-        let reach = editor_core::mate_reach::<f64>(&self.opts, Tol::witness());
-        let (doc, id) = fixture::constrain_with(self.doc.clone(), &reach, mate);
+    /// The base's top cap.
+    fn base_top(&self) -> SitedFace {
+        fixture::head_at(self.base, in_part(self.base, self.base_body, CapEnd::End))
+    }
+
+    /// A block's cap at `end`.
+    fn block_cap(&self, block: RecipeNodeId, end: CapEnd) -> SitedFace {
+        fixture::head_at(block, in_part(block, self.block_body, end))
+    }
+
+    /// Adds `mate` to `block`'s bundle, answering its address.
+    fn add(&mut self, block: RecipeNodeId, mate: editor_core::Mate<Formula>) -> MateRef {
+        let (doc, id) = fixture::constrain_at(self.doc.clone(), block, mate);
         self.doc = doc;
         id
     }
 
-    /// A constraint seating `block`'s bottom cap on the base's top cap
-    /// at `(x, y)`, under `primitive`, in `block`'s bundle.
-    fn seat_on_base(
-        &mut self,
-        block: RecipeNodeId,
-        x: f64,
-        y: f64,
-        primitive: MatePrimitive,
-    ) -> MateRef {
-        let mate = seat(
-            fixture::head_at(self.base, in_part(self.base, self.base_body, CapEnd::End)),
-            fixture::head_at(block, in_part(block, self.block_body, CapEnd::Start)),
-            base_frame(x, y),
-            block_bottom(),
-            primitive,
-        );
-        self.add(mate)
+    /// Sets the freedom `coord` of `mate` to `by`.
+    fn value(&mut self, mate: MateRef, coord: Coord, by: Formula) {
+        let applied = editor_core::apply(
+            &self.doc,
+            &DocEdit::AddValue {
+                placement: mate.placement,
+                value: Box::new(Value {
+                    mate: mate.id,
+                    coord,
+                    by,
+                }),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .unwrap_or_else(|e| panic!("the value is admitted: {e}"));
+        self.doc = applied.doc;
     }
 
-    /// A constraint seating `upper`'s bottom cap on `lower`'s top cap,
-    /// in `upper`'s bundle.
-    fn stack(&mut self, lower: RecipeNodeId, upper: RecipeNodeId) -> MateRef {
-        let mate = seat(
-            fixture::head_at(lower, in_part(lower, self.block_body, CapEnd::End)),
-            fixture::head_at(upper, in_part(upper, self.block_body, CapEnd::Start)),
-            block_top(),
-            block_bottom(),
-            MatePrimitive::FrameCoincidence,
+    /// `block`'s bottom cap resting on the base's top cap `h` above it:
+    /// a plane mate, which leaves the block a loose copy free to slide
+    /// and spin on the cap.
+    fn rest_on_base(&mut self, block: RecipeNodeId, h: f64) -> MateRef {
+        let mate = fixture::mate(
+            fixture::plane(self.block_cap(block, CapEnd::Start)),
+            standoff(self.base_top(), h),
+            ContactClass::Rest,
         );
-        self.add(mate)
+        self.add(block, mate)
+    }
+
+    /// `block` seated on the base's top cap with its origin over
+    /// `(x, y)` and its axes the base's: the rest and its three values,
+    /// which pin it.
+    fn seat_on_base(&mut self, block: RecipeNodeId, x: f64, y: f64) -> MateRef {
+        let rest = self.rest_on_base(block, 0.0);
+        self.value(rest, Coord::Slide(SlideAxis::X), len(x));
+        self.value(rest, Coord::Slide(SlideAxis::Y), len(y));
+        self.value(rest, Coord::Spin, ang(0.0));
+        rest
+    }
+
+    /// `upper`'s bottom cap seated on `lower`'s top cap, flush, in
+    /// `upper`'s bundle: pinned in `lower`'s space.
+    fn stack(&mut self, lower: RecipeNodeId, upper: RecipeNodeId) -> MateRef {
+        let rest = self.add(
+            upper,
+            fixture::rest(
+                self.block_cap(upper, CapEnd::Start),
+                self.block_cap(lower, CapEnd::End),
+                ContactClass::Rest,
+            ),
+        );
+        self.value(rest, Coord::Slide(SlideAxis::X), len(0.0));
+        self.value(rest, Coord::Slide(SlideAxis::Y), len(0.0));
+        self.value(rest, Coord::Spin, ang(0.0));
+        rest
     }
 
     /// Removes `mate` from its placement's bundle.
@@ -263,10 +253,8 @@ fn assert_ok(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) {
 ///
 /// A memo hit returns the prior `NodeValue` cloned, so its contact
 /// records are the same allocation; every op that runs mints a fresh
-/// one (the empty records a mate carries are `Arc::new`'d per call, so
-/// even they are a new pointer). Not the verdict log: a reused mate
-/// carries this run's recording. The document-wide `reused` counter cannot say
-/// WHICH node, which is the whole question here.
+/// one. The document-wide `reused` counter cannot say WHICH node, which
+/// is the whole question here.
 fn reused_value(earlier: &Evaluation<f64>, later: &Evaluation<f64>, id: RecipeNodeId) -> bool {
     match (earlier.value(id), later.value(id)) {
         (Some(a), Some(b)) => Arc::ptr_eq(&a.contacts, &b.contacts),
@@ -284,24 +272,28 @@ fn key(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) -> editor_core::Conte
 // ---- the rows ----
 
 /// **A contradiction added to an already-evaluated bundle faults its
-/// placement, and the row carries the solve's own blame.**
+/// placement, and the row carries the fold's own blame.**
 ///
-/// Two coaxials on one bundle about parallel, distinct axes: the
-/// first leaves the block a slide (a loose copy, evaluated `Ok`), the
-/// second admits at the door — the bundle did not yet pin its copy —
-/// and the fold of the two is empty.
+/// Two rests on one bundle against parallel planes a metre apart: the
+/// first leaves the block free on the cap (a loose copy, evaluated
+/// `Ok`), the second is admitted at the door — which decides nothing
+/// that needs a pose — and the fold of the two is empty.
+///
+/// *Breaks if* the placement's key omits its bundle, so the second
+/// evaluation serves the first's `Ok`, or the row's fault and the
+/// solve's blame disagree.
 #[test]
 fn a_contradiction_faults_the_placement_that_evaluated_before_it() {
     let mut s = scene("msolve4-contradiction");
-    let held = s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::Coaxial);
+    let held = s.rest_on_base(s.top_a, 0.0);
     // The first constraint lands and EVALUATES: the memo now holds an
     // `Ok` for the placement.
     let first = s.eval(None);
-    assert_ok(&first, s.top_a, "the placement of one coaxial");
+    assert_ok(&first, s.top_a, "the placement of one rest");
 
-    // A second coaxial on the same bundle, a metre away: the fold
-    // cannot hold both.
-    let added = s.seat_on_base(s.top_a, 2.0, 1.0, MatePrimitive::Coaxial);
+    // A second rest on the same bundle, a metre up: the fold cannot
+    // hold both.
+    let added = s.rest_on_base(s.top_a, 1.0);
     let second = s.eval(Some(&first));
 
     let poses = solve(&s.doc, &s.opts, Tol::witness());
@@ -325,16 +317,20 @@ fn a_contradiction_faults_the_placement_that_evaluated_before_it() {
     );
 }
 
-/// **A refusal upstream faults the unedited placement pinned to it.**
+/// **A refusal upstream poisons the unedited placement pinned to it.**
 ///
 /// A block stacked on a loose block evaluates `Ok` in the lower
 /// block's space; a contradiction then lands in the LOWER block's
-/// bundle. The upper block's bundle is untouched, and nothing in the
-/// fault's words is its own; only the solve's answer for it changed.
+/// bundle. The upper block's bundle is untouched, and its target reads
+/// the refused copy: it is poisoned through it, and not served from
+/// the memo.
+///
+/// *Breaks if* the upper block's key omits its target's, so the memo
+/// serves its `Ok` over a refused lower block.
 #[test]
-fn an_upstream_refusal_faults_the_unedited_placement_pinned_to_it() {
+fn an_upstream_refusal_poisons_the_unedited_placement_pinned_to_it() {
     let mut s = scene("msolve4-chain");
-    s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::Coaxial);
+    s.rest_on_base(s.top_a, 0.0);
     s.stack(s.top_a, s.top_b);
     let first = s.eval(None);
     assert_ok(&first, s.top_b, "the upper block");
@@ -344,7 +340,7 @@ fn an_upstream_refusal_faults_the_unedited_placement_pinned_to_it() {
         "the premise: the upper block lives in the lower block's space"
     );
 
-    let offender = s.seat_on_base(s.top_a, 3.0, 1.0, MatePrimitive::Coaxial);
+    let offender = s.rest_on_base(s.top_a, 1.0);
     let second = s.eval(Some(&first));
 
     let offence = row_fault(&second, s.top_a, "the lower block");
@@ -352,14 +348,19 @@ fn an_upstream_refusal_faults_the_unedited_placement_pinned_to_it() {
         matches!(offence, MateFault::Contradictory { added, .. } if added == offender),
         "the lower block carries the contradiction: {offence:?}"
     );
-    // The upper block is not in the fault's words at all, and it is
-    // faulted all the same, with the blame the solve recorded.
+    assert!(
+        matches!(
+            second.result(s.top_b),
+            Some(NodeResult::Poisoned { through }) if *through == s.top_a
+        ),
+        "the upper block is poisoned through the refused lower block: {:?}",
+        second.result(s.top_b)
+    );
     let poses = solve(&s.doc, &s.opts, Tol::witness());
-    let carried = row_fault(&second, s.top_b, "the upper block");
     assert_eq!(
-        Some(&carried),
-        poses.fault(s.top_b),
-        "the solve's blame and the upper block's row disagree"
+        (poses.fault(s.top_b), poses.space(s.top_b)),
+        (None, None),
+        "the upper block's own bundle refused nothing, and it has no answer"
     );
     assert!(
         !reused_value(&first, &second, s.top_b),
@@ -371,14 +372,16 @@ fn an_upstream_refusal_faults_the_unedited_placement_pinned_to_it() {
 /// faulted placement evaluate `Ok` again.**
 ///
 /// A faulted node is never memoized — the memo serves `Ok` priors
-/// only — so this direction was never broken. It is here because the
-/// key carries the fault flag, and a key that moved the wrong way
-/// would strand the repair as easily as the break.
+/// only — so this direction does not lean on the key; it is here so a
+/// key that moved the wrong way strands the repair as visibly as the
+/// break.
+///
+/// *Breaks if* the repaired placement still reads the refusal.
 #[test]
 fn removing_the_contradiction_returns_the_faulted_placement_to_ok() {
     let mut s = scene("msolve4-repair");
-    s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::Coaxial);
-    let added = s.seat_on_base(s.top_a, 2.0, 1.0, MatePrimitive::Coaxial);
+    s.rest_on_base(s.top_a, 0.0);
+    let added = s.rest_on_base(s.top_a, 1.0);
     let broken = s.eval(None);
     assert!(
         matches!(broken.result(s.top_a), Some(NodeResult::Failed(_))),
@@ -390,7 +393,7 @@ fn removing_the_contradiction_returns_the_faulted_placement_to_ok() {
     assert_ok(
         &repaired,
         s.top_a,
-        "the repaired document evaluates the placement on its own solve",
+        "the repaired document evaluates the placement on its own fold",
     );
     assert!(
         solve(&s.doc, &s.opts, Tol::witness())
@@ -406,6 +409,9 @@ fn removing_the_contradiction_returns_the_faulted_placement_to_ok() {
 /// The upper block is stacked on a loose lower block, so it lives in
 /// the lower block's space; seating the lower block on the base puts
 /// both in the world's. The upper block's bundle never changes.
+///
+/// *Breaks if* the upper block is served from the memo with the loose
+/// space it had.
 #[test]
 fn a_space_change_on_an_unedited_placement_reaches_its_value() {
     let mut s = scene("msolve4-space");
@@ -417,7 +423,7 @@ fn a_space_change_on_an_unedited_placement_reaches_its_value() {
         "the upper block lives in the loose lower block's space"
     );
 
-    s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::FrameCoincidence);
+    s.seat_on_base(s.top_a, 1.0, 1.0);
     let second = s.eval(Some(&first));
 
     assert_eq!(
@@ -437,19 +443,22 @@ fn a_space_change_on_an_unedited_placement_reaches_its_value() {
     );
 }
 
-/// **A placement whose payload AND whose solve answer are unchanged is
-/// still reused** — the key carries an answer, not a nonce.
+/// **A placement whose payload AND whose reads are unchanged is still
+/// reused** — the key carries an answer, not a nonce.
+///
+/// *Breaks if* a placement's key carries anything that differs between
+/// two evaluations of one document.
 #[test]
 fn an_unchanged_placement_is_reused() {
     let mut s = scene("msolve4-reuse");
-    s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::FrameCoincidence);
+    s.seat_on_base(s.top_a, 1.0, 1.0);
     let first = s.eval(None);
     let second = s.eval(Some(&first));
 
     assert_eq!(
         key(&first, s.top_a, "the first evaluation"),
         key(&second, s.top_a, "the second"),
-        "an unedited placement over an unchanged solve keys identically"
+        "an unedited placement over an unchanged document keys identically"
     );
     assert_eq!(
         second.recomputed, 0,
@@ -474,20 +483,22 @@ fn an_unchanged_placement_is_reused() {
 /// not; a key that carried anything document-global would re-run the
 /// far stack too, and no row that only counts recomputations would
 /// notice.
+///
+/// *Breaks if* a refusal in one space re-runs a placement of another.
 #[test]
 fn a_placement_in_another_space_is_untouched_by_a_refusal() {
     let mut s = scene("msolve4-per-placement");
     // Space one: two blocks stacked, nowhere near the base.
     s.stack(s.top_b, s.top_c);
-    // Space two: a block coaxial on the base.
-    s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::Coaxial);
+    // Space two: a block resting on the base.
+    s.rest_on_base(s.top_a, 0.0);
     let first = s.eval(None);
     for (id, what) in [(s.top_c, "the far stack"), (s.top_a, "the near block")] {
         assert_ok(&first, id, what);
     }
 
     // A contradiction in the near block's bundle only.
-    s.seat_on_base(s.top_a, 2.0, 1.0, MatePrimitive::Coaxial);
+    s.rest_on_base(s.top_a, 1.0);
     let second = s.eval(Some(&first));
     assert!(
         matches!(second.result(s.top_a), Some(NodeResult::Failed(_))),

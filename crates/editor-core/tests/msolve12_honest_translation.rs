@@ -24,12 +24,13 @@ use std::collections::BTreeMap;
 use crate::fixture;
 
 use editor_core::mate::coset::{Arm, Coset, FoldStop, Subgroup, intersect};
+use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocumentId, ExtrudeSide, LeverRefusal, MateFault,
-    MateFrame, MatePrimitive, Node, NodeErrorClass, ProfileDoc, RecipeNodeId,
+    CapEnd, ContactClass, DocumentId, ExtrudeSide, LeverRefusal, MateFault, NameRef, Node,
+    NodeErrorClass, Operand, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
 };
-use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{FIXTURE_MATE_AXIS, insert, len, on_frame, solve, square};
+use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
+use fixture::{FIXTURE_MATE_AXIS, ang, insert, len, on_frame, solve, square};
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
 use geom_core::predicate::Band;
 use geom_core::{RANGE_RECOURSE, Tol};
@@ -236,9 +237,7 @@ fn c1_every_separated_pair_measures_what_it_refuses() {
                                         format!("clash {predicate}")
                                     }
                                     Err(
-                                        stop @ (FoldStop::OutOfRange
-                                        | FoldStop::Unleverable(_)
-                                        | FoldStop::NoRepresentative { .. }),
+                                        stop @ (FoldStop::OutOfRange | FoldStop::Unleverable(_)),
                                     ) => {
                                         panic!(
                                             "every arm here decides angles and every meeting \
@@ -510,63 +509,85 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-/// A planar rest between the two instances' start caps, both sides
-/// framed along `axis`, `a`'s at `origin`.
-fn rest(
-    body: RecipeNodeId,
-    ids: [RecipeNodeId; 2],
-    origin: [f64; 3],
-    axis: [f64; 3],
-) -> editor_core::Mate<editor_core::Formula> {
-    let side = |o| {
-        MateFrame::authored(o, axis, [0.0, 1e152, 0.0], geom_core::Tol::witness())
-            .expect("a definite frame")
+/// **`name`, an entity of the part's body, as `instance` wears it**:
+/// under the placement the part's world copies the body by, inside the
+/// instance's `InPart` wrapper.
+fn worn(instance: RecipeNodeId, body: RecipeNodeId, name: StableName) -> StableName {
+    let placed = StableName {
+        kind: name.kind,
+        node: placement_of(body),
+        path: vec![RoleSeg::Placed {
+            of: NameRef::new(name),
+        }],
     };
-    fixture::mate(
-        fixture::head(in_part(ids[0], body, CapEnd::Start)),
-        fixture::head(in_part(ids[1], body, CapEnd::Start)),
-        ContactClass::Rest,
-        Alignment {
-            a: side(origin),
-            b: side([0.0, 0.0, 0.0]),
-            primitive: MatePrimitive::PlanarRest { offset: 0.0 },
-            sense: AxisSense::Aligned,
-            clocking: None,
-        },
-    )
+    StableName {
+        kind: placed.kind,
+        node: instance,
+        path: vec![RoleSeg::InPart { of: placed.into() }],
+    }
+}
+
+/// A pose turned `by` radians about an axis.
+fn spun(pose: Operand, about: Operand, by: f64) -> Operand {
+    Operand::Pose(Box::new(PoseDef::Spin {
+        pose: RoleRead::plain(pose),
+        about: RoleRead::plain(about),
+        by: ang(by),
+    }))
+}
+
+/// A pose slid `by` metres along a plane's own normal.
+fn lifted(plane: Operand, by: f64) -> Operand {
+    Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(plane.clone()),
+        along: RoleRead::through(plane, PoseRole::Normal),
+        by: len(by),
+    }))
 }
 
 /// **Through the doors.** Two planar rests between one pair of
-/// instances: the first through a frame 1e152 m up its own normal, the
-/// second tilted 1e-150 from it, each frame's vectors authored at its
-/// origin's scale so the frame ladder reads them. The insert door
-/// admits both (every datum is finite, and so is the lever's square),
-/// the solve separates the planes, and the pair refuses
-/// `PoseOutOfRange`, naming both mates — its own arm, its own class,
-/// the range's recourse.
+/// instances, both over the start cap: the first against the other
+/// instance's cap lifted 1e152 m up its own normal, the second with
+/// both caps turned 1e-150 rad about the same rim edge of each — the
+/// same construction on both sides, so the pair's rotations agree and
+/// only where the planes meet is at stake. The insert door admits both
+/// — it decides nothing that needs a pose — the fold separates the
+/// planes over an arm of 1e152 m (a levered sine of a hundred metres),
+/// and they meet some 1e302 m out: the placement refuses
+/// `PoseOutOfRange`, naming both mates — its own class, the range's
+/// recourse.
+///
+/// *Breaks if* a meeting point past the format refuses under a
+/// membership predicate, or the door decides the pair.
 #[test]
 fn out_of_range_through_the_doors() {
     let mut store = PartStore::new();
-    let (doc_ref, body) = store.insert_part(part("msolve12-range-part"), Tol::witness());
-    let doc = ProfileDoc::empty(DocumentId::derive("msolve12-range"), Tol::witness());
-    let (doc, i0) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, i1) = insert(doc, fixture::mated_instance(doc_ref));
-    let o = with_resolver(store);
-    // The second instance sits where its mates put it: both rests are
-    // its bundle's, against the first, pinned to the world. The door
-    // levers each over the parts, so it reaches them through the store.
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let admit = |doc: &ProfileDoc, mate| {
-        fixture::at_the_door_of(doc, &reach, i1, mate)
-            .unwrap_or_else(|(at, fault)| panic!("the door admits the rest, got {at:?}: {fault}"))
-    };
-    let (doc, first) = admit(
-        &doc,
-        rest(body, [i0, i1], [0.0, 0.0, 1e152], [0.0, 0.0, 1e152]),
+    let (part_doc, part_body) = part("msolve12-range-part");
+    let rim = fixture::rim_edge(
+        part_body,
+        CapEnd::Start,
+        fixture::piece(&part_doc, part_body, 0, 0),
     );
-    let (doc, second) = admit(
-        &doc,
-        rest(body, [i0, i1], [0.0, 0.0, 0.0], [100.0, 0.0, 1e152]),
+    let (doc_ref, body) = store.insert_part((part_doc, part_body), Tol::witness());
+    let o = with_resolver(store);
+    let doc = ProfileDoc::empty(DocumentId::derive("msolve12-range"), Tol::witness());
+    let (doc, i0) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
+    let (doc, i1) = insert(doc, fixture::mated_instance(doc_ref));
+    let cap = |i| fixture::plane(fixture::head(in_part(i, body, CapEnd::Start)));
+    let edge = |i| fixture::axis(SitedRef::new(i, worn(i, body, rim.clone())));
+    let (doc, first) = fixture::constrain_at(
+        doc,
+        i1,
+        fixture::mate(cap(i1), lifted(cap(i0), 1e152), ContactClass::Rest),
+    );
+    let (doc, second) = fixture::constrain_at(
+        doc,
+        i1,
+        fixture::mate(
+            spun(cap(i1), edge(i1), 1e-150),
+            spun(cap(i0), edge(i0), 1e-150),
+            ContactClass::Rest,
+        ),
     );
     let poses = solve(&doc, &o, Tol::witness());
     let fault = poses

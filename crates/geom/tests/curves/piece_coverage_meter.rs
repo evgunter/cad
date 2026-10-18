@@ -267,7 +267,11 @@ fn global_chord(c: &NurbsCurve3<f64>) -> f64 {
 /// The per-span chord assembly, spelled here: each nonempty span's
 /// control chord against its active derivative coefficients.
 fn per_span_chord(c: &NurbsCurve3<f64>) -> f64 {
-    let (p, knots, net) = (c.knots().degree(), c.knots().knots(), c.control());
+    let (p, knots, net) = (
+        c.knots_f64_interim().degree(),
+        c.knots_f64_interim().knots(),
+        c.control(),
+    );
     let q = derivative_coeffs(c);
     let mut best = f64::INFINITY;
     for s in p..net.len() {
@@ -284,7 +288,11 @@ fn per_span_chord(c: &NurbsCurve3<f64>) -> f64 {
 }
 
 fn derivative_coeffs(c: &NurbsCurve3<f64>) -> Vec<Vec3<f64>> {
-    let (p, knots, net) = (c.knots().degree(), c.knots().knots(), c.control());
+    let (p, knots, net) = (
+        c.knots_f64_interim().degree(),
+        c.knots_f64_interim().knots(),
+        c.control(),
+    );
     (0..net.len() - 1)
         .map(|i| (net[i + 1] - net[i]) * (p as f64 / (knots[i + p + 1] - knots[i + 1])))
         .collect()

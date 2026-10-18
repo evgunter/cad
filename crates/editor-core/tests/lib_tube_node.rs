@@ -858,71 +858,33 @@ fn both_kinds_round_trip_through_persistence() {
 }
 
 /// **A document that never names the two kinds loads.** The
-/// additive-growth direction of the one door, on real bytes the tour
-/// writes rather than bytes built here: `corpus/tour/die_composed_tour.pncad`
-/// names neither kind.
-///
-/// ε is re-stamped to the process's before the load, because a saved
-/// document records the ε it was decided at and `load` refuses a
-/// mismatch (`ToleranceConflict`) — without the re-stamp this row
-/// would pass vacuously on every CI ε row but one, asserting the
-/// tolerance door rather than the vocabulary one.
-///
-/// An edit of the log that inserts a node of a retired kind
-/// (`PlaceInWorld`, `Gauge`, `Mate`) is taken out before the load: a
-/// document holding retired vocabulary does not load at all, and this
-/// row is about the vocabulary growing, not about the one shrinking.
+/// additive-growth direction of the one door: a document whose recipe
+/// predates the tube vocabulary — the die tool's, a revolve placed in
+/// copies — saved in today's format and read back through the same
+/// load door a tube document goes through, with its log replayed.
 #[test]
 fn a_document_written_before_the_tube_vocabulary_still_loads() {
-    const OLDER: &str = include_str!("corpus/tour/die_composed_tour.pncad");
+    let older = corpus::die_tool::document();
+    let empty = ProfileDoc::empty_derived("lib-tube-older", Tol::witness());
+    let mut expected = empty.clone();
+    for edit in &older.edits {
+        expected = editor_core::apply_replayed(&expected, edit, Tol::witness())
+            .expect("a corpus edit applies")
+            .doc;
+    }
+    let text = save(&empty, &older.edits, Tol::witness()).expect("the older document saves");
     assert!(
-        !OLDER.contains("\"Tube\"") && !OLDER.contains("\"HollowTube\""),
+        !text.contains("\"Tube\"") && !text.contains("\"HollowTube\""),
         "the fixture must predate the tube vocabulary to say anything here"
     );
-    let probe = save(
-        &ProfileDoc::empty_derived("lib-tube-eps-probe", Tol::witness()),
-        &[],
-        Tol::witness(),
-    )
-    .expect("an empty document saves");
-    let wanted = probe
-        .lines()
-        .map(str::trim_start)
-        .find(|l| l.starts_with("\"epsilon\":"))
-        .expect("a saved document records its ε")
-        .trim_end_matches(',');
-    let text: String = OLDER
-        .lines()
-        .map(|l| {
-            if l.trim_start().starts_with("\"epsilon\":") {
-                let (indent, tail) = l.split_at(l.len() - l.trim_start().len());
-                let comma = if tail.trim_end().ends_with(',') {
-                    ","
-                } else {
-                    ""
-                };
-                format!("{indent}{wanted}{comma}")
-            } else {
-                l.to_owned()
-            }
-        })
-        .collect::<Vec<String>>()
-        .join("\n");
-    let text = crate::wire::doctored(&text, |wire| {
-        wire["edits"]
-            .as_array_mut()
-            .expect("the log is a list")
-            .retain(|edit| {
-                let node = &edit["InsertNode"]["node"];
-                ["PlaceInWorld", "Gauge", "Mate"]
-                    .iter()
-                    .all(|kind| node.get(kind).is_none())
-            });
-    });
     let loaded = load(&text, Tol::witness()).expect("an older document loads");
     assert!(
-        !loaded.doc.ids().is_empty() || !loaded.edits.is_empty(),
+        !loaded.doc.ids().is_empty() && !loaded.edits.is_empty(),
         "a vacuous document would prove nothing about growth"
+    );
+    assert!(
+        loaded.doc.bit_eq(&expected),
+        "the older document replays to itself"
     );
     assert!(
         loaded.doc.ids().iter().all(|&id| !matches!(

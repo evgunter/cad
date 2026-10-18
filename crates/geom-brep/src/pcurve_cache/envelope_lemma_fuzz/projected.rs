@@ -770,7 +770,12 @@ fn dominance_row(chart: Chart, moved: Moved, s: &mut fuzz::Rng) -> Option<(f64, 
             };
             let control = net.control().iter().map(|&p| p + unit(s) * size).collect();
             image.carrier = FramedCarrier::Net(Arc::new(
-                NurbsCurve3::new(net.knots().clone(), control, net.weights().to_vec()).unwrap(),
+                NurbsCurve3::new(
+                    net.knots_f64_interim().clone(),
+                    control,
+                    net.weights().to_vec(),
+                )
+                .unwrap(),
             ));
         }
         Moved::Deck => image.u_off += size,
@@ -1960,7 +1965,12 @@ fn the_hull_lane_reads_an_uncertified_control_as_escalating() {
     };
     let mut control = net.control().to_vec();
     control[1].x = f64::NAN;
-    let corrupt = NurbsCurve3::new(net.knots().clone(), control, net.weights().to_vec()).unwrap();
+    let corrupt = NurbsCurve3::new(
+        net.knots_f64_interim().clone(),
+        control,
+        net.weights().to_vec(),
+    )
+    .unwrap();
     image.carrier = FramedCarrier::Net(Arc::new(corrupt.clone()));
     let twin = super::super::orthonormal_chart(&torus);
     let hull = lane.projected_hull(&image, &corrupt, &twin, &[]).unwrap();
@@ -2000,7 +2010,12 @@ fn a_corrupt_net_escalates_the_azimuth_sector_on_a_cylinder() {
     };
     let mut control = net.control().to_vec();
     control[1] = Point3::new(f64::NAN, f64::NAN, f64::NAN);
-    let corrupt = NurbsCurve3::new(net.knots().clone(), control, net.weights().to_vec()).unwrap();
+    let corrupt = NurbsCurve3::new(
+        net.knots_f64_interim().clone(),
+        control,
+        net.weights().to_vec(),
+    )
+    .unwrap();
     image.carrier = FramedCarrier::Net(Arc::new(corrupt.clone()));
     let twin = super::super::orthonormal_chart(&cylinder);
     let hull = lane.projected_hull(&image, &corrupt, &twin, &[]).unwrap();

@@ -618,6 +618,14 @@
 //! the base tree against this one: every outcome identical; 8 points
 //! moved, all in `kitchen_sink`, by at most 2.2e-16 — the same 8 the
 //! turned-vertex change above moved.
+//!
+//! **THE `f64` AND `Interval` NUMBERS MOVED FOR INTENT STAGE 3 C (a
+//! mate relates two poses).** Every document places its
+//! copy by the "place part" gesture — a loose `Place`, then a mate and
+//! its values — where one edit minted the placement holding its world
+//! pin, so the placement's id and every id drawn after it moved. The
+//! id-free row held without a re-bless: no outcome and no point moved
+//! at `f64`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -913,7 +921,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0xfb26_4516_2477_a6d6, 0xb707_a6ef_a969_870a),
+        (0x2e03_527c_cebb_fff7, 0x6672_c1c3_d4af_bf7b),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -939,7 +947,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x76b8_b226_4a1a_3b03, 0xc354_ff1b_c858_1b47),
+        (0xbf0f_56b7_f284_574a, 0xec82_7d10_2242_66be),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -963,7 +971,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x677c_c7e4_46f7_3c3e, 0xb618_dc9c_4b28_76c2),
+        (0x2e03_527c_cebb_fff7, 0x6672_c1c3_d4af_bf7b),
         "the corpus's Probe evaluation moved"
     );
 }

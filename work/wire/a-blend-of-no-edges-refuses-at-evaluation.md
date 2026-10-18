@@ -4,6 +4,9 @@ kind: issue
 title: A blend's empty selection refuses at evaluation though its names are authored data the doors hold
 status: open
 opened: 2026-10-17
+priority: P3
+cost: M
+design: true
 ---
 
 

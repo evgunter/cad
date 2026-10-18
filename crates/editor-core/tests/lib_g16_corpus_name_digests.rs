@@ -80,14 +80,6 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// is why the documents whose booleans graft a split operand carry
 /// versions that no name reads.
 ///
-/// Two more rows are worth a reader's second look, and neither is a bug.
-///
-/// `die` is the same number
-/// `m4_pr3_names_ci::DIE_TABLE_DIGEST` carries, because it is the same
-/// digest of the same tables. The two pins agreeing is a cross-check,
-/// not a duplication: that one covers the die FIXTURE through its own
-/// bump rows, this one covers the registry.
-///
 /// `measured_web` (M10-2) was ADDED to this table when its document
 /// joined the registry, and the add is the header's "one row moves"
 /// claim being MEASURED rather than restated: the re-cut printed
@@ -216,36 +208,44 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// the merged rows are main's values but for the three split documents,
 /// `cut_cylinder`, `kitchen_sink` and `part_select`, which this unit
 /// moves, and whose merged values are neither tree's.
+///
+/// **Re-pinned for INTENT stage 3 C** (a mate relates two poses), every
+/// row: each document places its copy where it stands by a loose
+/// `Place` and the named interim's world pin, where one `place_in_world`
+/// edit minted the placement holding its world pin. The placement's mint
+/// preimage moved, and every id drawn after it. No outcome or point
+/// moved: `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0x3c13fb2010461034),
-    ("corner_table", 0xbbddc3c4abc8906c),
-    ("heat_sink", 0xf9f1496cd067a8e0),
-    ("crossing_slots", 0x049114ee8b39ec13),
-    ("nested_islands_105", 0xe4583499c96536eb),
-    ("nested_islands_106_depth1", 0x66a0cfbf3754287a),
-    ("nested_islands_106_depth2", 0xf314d126bb220d9c),
-    ("declared_tangency", 0xd22038e5a39ad897),
-    ("kitchen_sink", 0x9256193e9b3ce995),
-    ("cut_cylinder", 0x7efa037f22c590fc),
-    ("measured_web", 0x1226e61ce34498da),
-    ("boss_union", 0x7a6d76ab53337110),
-    ("die_fillet", 0x5b93994d1a18d566),
-    ("die_chamfer", 0xf9dd6d8e3add8254),
-    ("die_pips", 0x47208303174fb944),
-    ("heat_sink_fins", 0xb0ad90b1dd1e86f9),
-    ("die_tool", 0x86f4d25152fc251e),
-    ("face_sketch", 0x15aa7fa3bc077398),
-    ("part_select", 0x2efb8f75c7d753ca),
-    ("loft_prism", 0xd6132f025dd397dd),
-    ("die_composed", 0x0b738607eae8564a),
-    ("die_composed_tour", 0xb09e9181bb3d65b7),
-    ("plate_param", 0x3b32d1b178ac0e07),
-    ("kiss_carry", 0x3c980bd61eeb027a),
-    ("tube_ring", 0x148b9c5c3d39fbff),
-    ("tube_arc", 0x0e79d28d8b37df5e),
-    ("hollow_tube_elbow", 0x8ad8e92429342336),
-    ("hollow_tube_ring", 0x0f2d84650b44354d),
-    ("reshaped_rod", 0xfb70472fb45debce),
+    ("die", 0x34df2e9c2dc71228),
+    ("corner_table", 0xc87991ff2a580c70),
+    ("heat_sink", 0x04120ec6d62ef7f6),
+    ("crossing_slots", 0xac1f4dfeed7271e3),
+    ("nested_islands_105", 0x23ef0bd25d97014f),
+    ("nested_islands_106_depth1", 0xbb2608969c4bdff2),
+    ("nested_islands_106_depth2", 0x7d47ceb3a8f6fb10),
+    ("declared_tangency", 0xdadb9b611dfeec91),
+    ("kitchen_sink", 0x78e1bcfb451a86e9),
+    ("cut_cylinder", 0xed4591d0e46ab26c),
+    ("measured_web", 0xb60ba5962e3bb7ae),
+    ("boss_union", 0x0cfde2c7b3d753df),
+    ("die_fillet", 0x3fba24f805b44522),
+    ("die_chamfer", 0xf6507c3d5fc829d4),
+    ("die_pips", 0xc8330dcd32bbe4c2),
+    ("heat_sink_fins", 0x77b693009a096215),
+    ("die_tool", 0x14c3b16d494dd0ea),
+    ("face_sketch", 0xaca757ed8125029c),
+    ("part_select", 0x0f1851989e0f6454),
+    ("loft_prism", 0xd378e1199a49b979),
+    ("die_composed", 0x2aa2ac2b837dd67f),
+    ("die_composed_tour", 0x6f9c6f0fdb75b39c),
+    ("plate_param", 0x6d3705920c7cddfd),
+    ("kiss_carry", 0x3376b24ca731e0c0),
+    ("tube_ring", 0x461bd2fc66ba103f),
+    ("tube_arc", 0x9d966ca409e9076e),
+    ("hollow_tube_elbow", 0x7d091445dfdb76ae),
+    ("hollow_tube_ring", 0x5128e0d1fca325bd),
+    ("reshaped_rod", 0xf2e7ed288565c49e),
 ];
 
 #[test]

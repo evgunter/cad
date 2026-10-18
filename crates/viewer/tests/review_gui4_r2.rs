@@ -35,22 +35,20 @@ use crate::common;
 use common::asm;
 use pncad::document::{CancelToken, EvalOptions, Frame, PartResolver, evaluate};
 use pncad::geom_core::Tol;
-use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
 use viewer::display::AdmissionFault;
 use viewer::matetool::{MateTool, admitted_classes};
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
-/// **The pullback oracle**: the proposal's part-coordinate frames must
-/// equal the standalone part document's own `face_frame` answer — a
-/// derivation that never involved a placement, an inverse, or the
-/// assembly at all. A forward-instead-of-inverse pullback differs from
-/// this oracle by twice the placement translation (0.12 m on the
-/// post's x, 0.16 m on the shelf's y); an identity pullback differs by
-/// the translation itself.
+/// **The standalone-part oracle**: the proposal's two sides name the
+/// faces the standalone part documents answer for — a derivation that
+/// never involved a placement or the assembly at all — and, solved,
+/// the placed cap is the standalone pose carried by the post's solved
+/// placement. A side read at the world spot instead of by the part's
+/// own name would carry the instance's placement into the mate.
 #[test]
-fn proposal_frames_agree_with_the_standalone_part_documents() {
+fn proposal_sides_agree_with_the_standalone_part_documents() {
     let tol = Tol::witness();
     let bench = asm::bench("r2oracle", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -60,17 +58,17 @@ fn proposal_frames_agree_with_the_standalone_part_documents() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    let (doc, eval) = session.landed_pair().expect("landed");
+    let (doc, _) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
 
     // The oracle: resolve each pinned part from the store (the same
     // door the evaluator uses), evaluate it STANDALONE, and read the
-    // named cap's frame in the part's own coordinates — the pose the
-    // solve resolves the side to. What the proposal carries is that
-    // face's NAME, in the part's own spelling: the row the standalone
-    // evaluation answers, and no number beside it.
+    // named cap's frame in the part's own coordinates. What the
+    // proposal carries is that face's NAME, in the part's own spelling:
+    // the row the standalone evaluation answers, and no number beside
+    // it.
     let store = Workspace::open(&bench.dir).expect("the store opens");
     let oracle = |doc_ref, local: &pncad::prelude::StableName| {
         let part = PartResolver::resolve(&store, doc_ref, tol).expect("the part resolves");
@@ -87,9 +85,9 @@ fn proposal_frames_agree_with_the_standalone_part_documents() {
     let post = oracle(&bench.post, &bench.post_top);
     assert!(post.u_ref.is_some(), "the cap fixes a reference of its own");
     assert_eq!(
-        asm::face_side(doc, &proposal.alignment.a, &proposal.a),
+        asm::side_face(doc, &proposal.on),
         Some(bench.post_top.clone()),
-        "a names the post's own cap, the row the standalone part answers"
+        "on names the post's own cap, the row the standalone part answers"
     );
     let shelf = oracle(&bench.shelf, &bench.shelf_bottom);
     assert!(
@@ -97,11 +95,11 @@ fn proposal_frames_agree_with_the_standalone_part_documents() {
         "the cap fixes a reference of its own"
     );
     assert_eq!(
-        asm::face_side(doc, &proposal.alignment.b, &proposal.b),
+        asm::side_face(doc, &proposal.to),
         Some(bench.shelf_bottom.clone()),
-        "b names the shelf's own underside (the shelf placement's 0.08 m \
+        "to names the shelf's own underside (the shelf placement's 0.08 m \
          y-translation is the solve's, applied to the resolved pose, never \
-         baked into the frame)"
+         baked into the mate)"
     );
     // The solved state agrees with the oracle: the placed post's cap,
     // read off the landed evaluation, is the standalone pose carried
@@ -147,9 +145,9 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    let (doc, eval) = session.landed_pair().expect("landed");
+    let (doc, _) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
     common::commit_mate(&mut session, proposal.op());
 
@@ -270,10 +268,10 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), top);
     tool.pick(session.doc(), side);
-    let (doc, eval) = session.landed_pair().expect("landed");
+    let (doc, _) = session.landed_pair().expect("landed");
     assert!(
         matches!(
-            tool.proposal(doc, eval, asm::seat_choice()),
+            tool.proposal(doc, asm::seat_choice()),
             Err(viewer::matetool::MateToolError::SamePick { head })
                 if head.id() == bench.post_b
         ),
@@ -282,10 +280,12 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
 }
 
 /// **A second mate on the same pair refuses typed and is recoverable.**
-/// The first mate pins post_b, so a second one, at a contradicting
-/// alignment, is a mate beyond the pin: the door refuses it
-/// `Overconstrained` and commits nothing; undo then takes the first
-/// one off. No crash, no silent success, no silent drop.
+/// The first mate and its values pin post_b, so a second rest of the
+/// same faces a centimetre lower is a mate beyond the pin that
+/// contradicts it: the door admits it (it measures nothing) and the
+/// evaluation refuses post_b's bundle typed, naming both; undo takes
+/// the second off, and the assembly works again. No crash, no silent
+/// success, no silent drop.
 #[test]
 fn a_second_mate_beyond_the_pin_refuses_typed_and_undo_recovers() {
     let tol = Tol::witness();
@@ -297,72 +297,61 @@ fn a_second_mate_beyond_the_pin_refuses_typed_and_undo_recovers() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a.clone());
     tool.pick(session.doc(), b.clone());
-    let (doc, eval) = session.landed_pair().expect("landed");
+    let (doc, _) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
     common::commit_mate(&mut session, proposal.op());
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
 
-    // The same pair again, at a DIFFERENT alignment: the b side
-    // authored as vectors — the shelf's underside pose read off the
-    // landed evaluation and pulled back through the shelf's placement
-    // — with its origin shifted, so the two frame coincidences cannot
-    // both hold.
-    let mut shifted = proposal.alignment.clone();
-    shifted.b = {
-        let (doc, eval) = session.landed_pair().expect("landed");
-        let placed = common::solve(&session, doc, tol)
-            .placement(doc, bench.shelf_i)
-            .expect("the shelf is placed")
-            .affine::<f64>();
-        let pose =
-            pncad::select::face_frame(eval, b.node, &b.name).expect("the underside has a pose");
-        let [mut origin, axis, reference] = asm::vectors_from_world(
-            &placed,
-            &pose,
-            pose.u_ref.expect("the cap fixes a reference"),
-        );
-        origin[0] += 0.01;
-        pncad::document::MateFrame::authored(origin, axis, reference, geom_core::Tol::witness())
-            .expect("a definite frame")
+    // The same pair again, the shelf's underside slid a centimetre
+    // along its own normal (a standoff), with no values: the two rests
+    // cannot both hold.
+    let lower = {
+        use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
+        let seat = crate::fixture::flip(crate::fixture::plane(proposal.to.clone()));
+        pncad::document::Operand::Pose(Box::new(PoseDef::Slide {
+            pose: RoleRead::plain(seat.clone()),
+            along: RoleRead::through(seat, PoseRole::Normal),
+            by: common::len(0.01),
+        }))
     };
+    let mut second = proposal.mate.clone();
+    second.to = pncad::document::Target::Pose(lower);
     let outcome = session.perform(SessionOp::AddMate {
-        a: proposal.a.clone(),
-        b: proposal.b.clone(),
-        class: ContactClass::Rest,
-        alignment: shifted,
+        placement: bench.post_b,
+        mate: Box::new(second),
+        values: Vec::new(),
     });
     // post_b's bundle already pins it, so the second mate is a mate
-    // beyond the pin: the door refuses it typed and commits nothing.
-    assert!(outcome.committed.is_empty(), "nothing was committed");
-    match &outcome.refusal {
-        Some(Refusal::Edit(error)) => assert!(
-            matches!(
-                error.as_ref(),
-                pncad::document::EditError::MateRefused { fault, .. }
-                    if matches!(
-                        fault.as_ref(),
-                        pncad::document::MateFault::Overconstrained { placement, .. }
-                            if *placement == bench.post_b
-                    )
-            ),
-            "the second mate is overconstrained: {error}"
-        ),
-        other => panic!("a mate beyond the pin refuses, got {other:?}"),
-    }
+    // beyond the pin: the evaluation refuses the bundle typed, naming
+    // the pair.
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
-    for row in session.tree_rows() {
-        assert_eq!(
-            row.status,
-            RowStatus::Ok,
-            "the refused mate left no trace: {row:?}"
+    {
+        let (_, ev) = session.landed_pair().expect("landed");
+        let fault = match ev
+            .result(bench.post_b)
+            .and_then(|r| r.error())
+            .map(|e| &e.kind)
+        {
+            Some(pncad::document::NodeErrorKind::Mate(fault)) => fault.as_ref().clone(),
+            other => panic!("a mate beyond the pin refuses, got {other:?}"),
+        };
+        assert!(
+            matches!(
+                &fault,
+                pncad::document::MateFault::Contradictory { held, added, .. }
+                    if held.placement == bench.post_b && added.placement == bench.post_b
+                        && held != added
+            ),
+            "the second mate contradicts the first: {fault:?}"
         );
     }
 
-    // Undo removes the first mate; the assembly works again.
+    // Undo removes the second mate; the assembly works again.
     let outcome = session.perform(SessionOp::Undo);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
@@ -387,9 +376,9 @@ fn a_landing_mate_kills_an_in_flight_gesture() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    let (doc, eval) = session.landed_pair().expect("landed");
+    let (doc, _) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
 
     session.perform(SessionOp::BeginFreeMove {
@@ -435,9 +424,9 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    let (doc, eval) = session.landed_pair().expect("landed");
+    let (doc, _) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, asm::seat_choice())
+        .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
 
     session.perform(SessionOp::BeginFreeMove {

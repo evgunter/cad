@@ -3915,7 +3915,7 @@ mod properties_pane_tests {
         });
         // A pick is on the drawn copy, and says so.
         let line = format!(
-            "pick a: face of Place {}; pick b: —",
+            "on: face of Place {}; to: —",
             test_utils::refusal::tag(placement().0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
@@ -4906,8 +4906,8 @@ mod properties_pane_tests {
         Option<RecipeNodeId>,
     ) {
         use pncad::document::{
-            Bodies, BodyRead, ContentPin, CopyKey, DocEdit, DocRef, DocumentId, Node, Operand,
-            ProfileDoc, RecipeNodeId, VarId,
+            Bodies, BodyRead, ContentPin, CopyKey, DocRef, DocumentId, Node, Operand, ProfileDoc,
+            RecipeNodeId, VarId,
         };
         let tol = pncad::tolerance::witness();
         let part = DocRef {
@@ -4916,7 +4916,7 @@ mod properties_pane_tests {
         };
         let mut doc = ProfileDoc::empty(DocumentId::derive("shown-asm"), tol);
         let insert = |doc: &mut ProfileDoc, node| crate::test_support::insert_into(doc, node, tol);
-        // Each instance is a placement on its own, standing on the world.
+        // Each instance is a placement of its own.
         let a = insert(&mut doc, Node::instantiate_part(part));
         let b = insert(&mut doc, Node::instantiate_part(part));
         let union = fused.then(|| {
@@ -4930,7 +4930,12 @@ mod properties_pane_tests {
                     members: Bodies::Spelled(vec![copy(a), copy(b)]),
                 },
             );
-            crate::test_support::edit_into(&mut doc, DocEdit::place_in_world(union, None), tol);
+            // Placed, loose: the part never resolves, so no pose is
+            // read off its copies to pin it by.
+            insert(
+                &mut doc,
+                Node::place(vec![BodyRead::plain(Operand::from(union))]),
+            );
             union
         });
         let mut session = crate::session::DocSession::inline(doc, tol);
@@ -6081,7 +6086,7 @@ mod properties_pane_tests {
         }
     }
 
-    /// **The mate tool's instance-pick refusal says the kept label
+    /// **The mate tool's same-copy refusal says the kept label
     /// while the landed document is behind**: the run that would land
     /// the rename and the delete is held, so the landed document still
     /// says the picked copy's placement by its old label and the survival step keeps the
@@ -6138,9 +6143,9 @@ mod properties_pane_tests {
             test_utils::refusal::tag(placement().0.digest())
         );
         // Both picks are caps of the one copy, so the commit refuses
-        // the pair as one member, naming that member's placement.
+        // the pair, naming the copy's placement.
         assert!(
-            said.contains(&format!("(head: {plinth})")),
+            said.contains(&format!("both picks are on {plinth},")),
             "the refusal says the kept label: {said}"
         );
     }

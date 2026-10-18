@@ -4153,10 +4153,11 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(
             sorted(n for n in dir(DocEdit) if not n.startswith("_")),
             [
-                "add_constraint", "bind_count_param", "bind_instance_param",
+                "add_constraint", "add_value", "bind_count_param", "bind_instance_param",
                 "bind_v_degree_param", "declare_var", "define_var",
                 "delete_node", "delete_var",
-                "insert_node", "rebind", "remove_constraint", "rename_var",
+                "insert_node", "pin_where_it_stands", "rebind", "remove_constraint",
+                "rename_var",
                 "set_extrude_side",
                 "set_label", "set_members",
                 "set_param", "set_program",
@@ -4225,7 +4226,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # INTO a document — so it is pinned below the loop with
             # the other signature gaps rather than here.
             # G18 LEFT this list at LIB-G18b, the series' second half:
-            # `Alignment`, `MateFrame`, `MatePrimitive`, `AxisSense`,
+            # `Mate` (now two poses and a `WorldRead`, with `MateValue`),
             # `assemble`, `Assembly`, `AssemblyError`,
             # `solve_document`, `update_references`, `mixed_pins` and
             # `Workspace.update_to_store` are all bound, and the

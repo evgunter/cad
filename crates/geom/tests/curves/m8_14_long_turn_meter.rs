@@ -134,7 +134,7 @@ fn old_global_chord_bound(c: &NurbsCurve3<f64>) -> f64 {
     if p == 0 || c.control().len() < 2 {
         return f64::NAN;
     }
-    let knots = c.knots().knots();
+    let knots = c.knots_f64_interim().knots();
     let control = c.control();
     let chord = *control.last().unwrap() - *control.first().unwrap();
     let d = chord / chord.norm();

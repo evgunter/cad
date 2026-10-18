@@ -2,8 +2,9 @@
 id: an-ineffective-pose-move-is-not-reported-unobservable
 kind: issue
 title: An ineffective pose move is admitted but not reported unobservable
-status: open
+status: closed
 opened: 2026-10-17
+closed: 2026-10-17
 ---
 
 `docs/INTENT-STAGE3-SPEC.md:111` says that a move whose result does
@@ -27,3 +28,7 @@ The report is not A′'s to build. The spec names it beside a round
 pin's spin, which C (`a-mate-relates-two-poses`) owns. The work is to
 build it once and have it name both the placements and the pose moves
 whose values cannot be observed.
+
+## Closed
+
+Folded into stage 3 C: `mate::unobservable` reports a pose move inside the moved pose's symmetry, and a spin value about a line the copy is round about.
