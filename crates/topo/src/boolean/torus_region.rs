@@ -22,29 +22,34 @@
 //!    parallel's is normal to the axis, a meridian's holds it.
 //! 2. Every edge meets a leg at the roots of a first harmonic, certified
 //!    by the shared first-harmonic door
-//!    ([`super::circle_roots::first_harmonic_roots_in_band`]): a leg's
-//!    parameter against the edge's plane, except a circle on a meridian
-//!    leg, which is read in its own parameter against the leg's plane, as
-//!    the sphere's arcs meet its rays. A plane through the axis, or a
-//!    meridian's or Villarceau circle's, meets the torus in two circles,
-//!    and an oval's plane in two ovals, so each root is then asked which
-//!    one it lies on, and the edge's parameter there whether it lies in
-//!    the edge's span.
+//!    ([`super::circle_roots::first_harmonic_roots_in_band`]): the leg's
+//!    parameter against the edge's plane, except where that plane is
+//!    tangent to the torus at the crossing (below), where a circle edge
+//!    on a meridian leg is read in its own parameter against the leg's
+//!    plane, as the sphere's arcs meet its rays. A plane meets the torus
+//!    in two curves (two parallels, two meridians, two Villarceau circles,
+//!    two ovals), so each root is then asked which one it lies on, and the
+//!    edge's parameter there whether it lies in the edge's span.
 //! 3. At the closest crossing along the path, the leg's heading against
 //!    `N × τ` says whether the path leaves the face there (so `p` is in
 //!    it) or enters it.
 //!
-//! **Why the plane is chosen per pair.** A plane meets a curve on the
-//! torus at a double root wherever the plane is tangent to the torus, so
-//! each pair is read against the plane that is transversal to it: a
-//! meridian's plane is normal to the torus everywhere, an oval's (in the
-//! two-oval regime) nowhere tangent to it, and a meridian edge's holds the
-//! axis. A parallel's plane is tangent along the tube's top and bottom
-//! circles, which bound every fillet, so a parallel edge is read only in
-//! its own parameter (on a meridian leg; a parallel leg meets it nowhere
-//! or runs along it). A Villarceau circle's plane is tangent at the two
-//! points where it meets its mirror, which is where a crossing of it
-//! grazes.
+//! **Where the plane is the circle's own.** A plane meets a curve on the
+//! torus at a double root wherever the plane is tangent to the torus. A
+//! parallel's plane is tangent along the tube's top and bottom circles,
+//! which bound every fillet, so a parallel there (`r·cos v` not
+//! definitely nonzero, `bool_torus_region_family`) is read in its own
+//! parameter against a meridian leg's plane, which is normal to the torus
+//! everywhere; so is every circle that is not a parallel. The cost is the
+//! lever: a root in a circle's parameter is metered at the circle's
+//! radius, up to `R + r`, where a root in a meridian leg's is metered at
+//! `r`, so on a wide ring at a fine band a rim's crossing refuses
+//! (`Unsettled::Meter`) where a leg's would not. A parallel leg meets a
+//! parallel nowhere or runs along it. Elsewhere the decided plane is
+//! transversal except at true grazes: a Villarceau circle's plane is
+//! tangent at the two points where it meets its mirror, and a meridian
+//! leg is tangent to an oval's plane where the leg touches the oval's
+//! extreme in azimuth.
 //!
 //! An edge lying on a leg's own circle — the leg runs along it — grazes
 //! where the path reaches it; a first leg that turns at its corner short
@@ -77,9 +82,14 @@
 //!
 //! - `bool_torus_frame_radius`: `p`'s distance from the axis, which the
 //!   legs divide by.
+//! - `bool_torus_region_family`: whether a circle edge is a parallel (the
+//!   sine between its axis and the torus's, at its radius) off the top
+//!   and bottom circles (`ρ − R`): a choice between two sound readings,
+//!   never a verdict.
 //! - `bool_torus_region_component`: which of a plane's two curves a root
-//!   lies on — a meridian plane's `(y − c)·ρ̂`, a circle edge's distance
-//!   from its mirror and then from itself, an oval's `(y − c)·m`; and
+//!   lies on — a meridian plane's `(y − c)·ρ̂`, a parallel plane's
+//!   `ρ − R`, a circle edge's distance from its mirror and then from
+//!   itself, an oval's `(y − c)·m`; and
 //!   whether an edge in a leg's plane is on the leg's own circle.
 //! - `bool_torus_region_span`: a root's parameter against its edge's span
 //!   ends, at the circle's radius or the tube's.
@@ -107,7 +117,9 @@
 //!   it (the tube's radius bounds an oval's below), so a definite sign is
 //!   the true root's side of the end.
 //! - **component**: every sign read is a separation, never a Zero: a
-//!   meridian plane's two circles are `2(R − r)` apart, an oval plane's
+//!   meridian plane's two circles are `2(R − r)` apart, a parallel
+//!   plane's `2|r·cos v|`, which `bool_torus_region_family` decided
+//!   definite before the plane was read, an oval plane's
 //!   two ovals `2√((R − r)² − o²)`; a circle edge's root definitely off
 //!   its mirror is on the edge's circle, as the plane holds no third
 //!   curve, and one in band of both is where they cross, which grazes.
@@ -122,16 +134,18 @@ use super::BooleanDecision;
 use super::circle_roots::{
     FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_roots_in_band,
 };
+use super::region::{
+    Hit, RegionRefusal, TARGET_SHARES, circle_edge_hit, in_band, side_at_closest, span,
+};
 use super::solid_contain::PointInSolidError;
-use super::sphere_region::RegionRefusal;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, LoopKey};
 use crate::ray_walk::{self, Crossings, RayFault};
-use crate::splitting::containment::{ConicArc, ConicArcError, ConicHit, ConicRows};
+use crate::splitting::containment::ConicRows;
 use crate::splitting::spiric_arc::{Oval, SpiricArc, SpiricHit, SpiricRefusal, SpiricRows};
+use crate::splitting::{Uncrossable, UncrossableCarrier};
 use crate::validate::decide;
 use geom_brep::roots::{RootRefusal, Roots};
-use geom_brep::rounding_charge;
 
 const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
     noise: "bool_torus_region_roots_noise",
@@ -154,10 +168,6 @@ const SPIRIC: SpiricRows = SpiricRows {
     on: "bool_torus_region_spiric_on",
     leaf: "bool_torus_region_spiric_leaf",
 };
-
-/// Where along each edge an aimed path's target lies, as shares of its
-/// span.
-const TARGET_SHARES: [f64; 3] = [0.5, 0.25, 0.75];
 
 /// A trimmed torus face's boundary: every edge of every loop, each with
 /// the direction its loop traverses it.
@@ -201,6 +211,8 @@ enum Carrier<T: geom_core::Real> {
 #[derive(Clone, Debug)]
 struct RegionEdge<T: geom_core::Real> {
     edge: EdgeKey,
+    /// The loop the edge bounds.
+    r#loop: LoopKey,
     carrier: Carrier<T>,
     t0: T,
     t1: T,
@@ -311,15 +323,11 @@ enum PathSpec<T: geom_core::Real> {
     },
 }
 
-/// A crossing's reading at the closest: the leg's heading and the face's
-/// side of the edge there.
-struct Hit<T: geom_core::Real> {
-    heading: Vec3<T>,
-    face_side: Vec3<T>,
-}
-
 /// `face`'s region on its torus, or `None` when an edge of it lies in no
-/// plane — a spline — or is a carrier no torus holds.
+/// plane — a spline — or is neither a circle nor a spiric. A circle or a
+/// spiric is taken as a plane section of this torus, unchecked: every
+/// such edge of a torus face is one at rest (tier 3 places each edge on
+/// both its faces' carriers).
 ///
 /// Null scaffolding, a zero-length copy of a vertex (its two ends on one
 /// point), bounds nothing and is left out; an uncertified edge between
@@ -411,6 +419,7 @@ pub(crate) fn torus_face_region<T: Decide>(
             let (t0, t1) = curve.params();
             edges.push(RegionEdge {
                 edge: edge_key,
+                r#loop: lk,
                 carrier,
                 t0,
                 t1,
@@ -492,28 +501,9 @@ impl<T: Decide> TorusFaceRegion<T> {
         for edge in &self.edges {
             match edge.carrier {
                 Carrier::Circle { .. } => {
-                    let k = match ConicArc::of(&edge.curve(), (edge.t0, edge.t1), BOUNDARY, band) {
-                        Ok(Some(k)) => k,
-                        Err(ConicArcError::Escalated(e)) => {
-                            return Err(RegionRefusal::Escalated(e.diag));
-                        }
-                        Ok(None) | Err(ConicArcError::WoundPastPeriod) => {
-                            return Err(RegionRefusal::WoundPastPeriod);
-                        }
-                    };
-                    match k
-                        .hit(p, band)
-                        .map_err(|e| RegionRefusal::Escalated(e.diag))?
-                    {
-                        ConicHit::On(_) | ConicHit::End => return Ok(true),
-                        ConicHit::Off | ConicHit::Carrier => {}
-                        // A circle's `Past` stands on its nearest foot and
-                        // walks nothing, so this does not arise; were it
-                        // to, the point is unplaced and no path starts
-                        // from it.
-                        ConicHit::Unsettled => {
-                            return Err(RegionRefusal::RayExhausted { outer: self.outer });
-                        }
+                    let span = (edge.t0, edge.t1);
+                    if circle_edge_hit(&edge.curve(), span, BOUNDARY, p, self.outer, band)? {
+                        return Ok(true);
                     }
                 }
                 Carrier::Spiric {
@@ -539,7 +529,11 @@ impl<T: Decide> TorusFaceRegion<T> {
                             return Err(RegionRefusal::Escalated(diag));
                         }
                         Err(SpiricRefusal::Unsettled) => {
-                            return Err(RegionRefusal::RayExhausted { outer: self.outer });
+                            return Err(RegionRefusal::Unreadable(Uncrossable {
+                                r#loop: edge.r#loop,
+                                edge: edge.edge,
+                                carrier: UncrossableCarrier::Spiric,
+                            }));
                         }
                     }
                 }
@@ -650,23 +644,13 @@ impl<T: Decide> TorusFaceRegion<T> {
                 }
             }
         }
-        let hit = crossings
-            .closest("bool_torus_region_order", band, |diag, _| {
-                RegionRefusal::Escalated(diag)
-            })?
-            // A path meeting no edge lies wholly on one side.
-            .ok_or(RayFault::Unread)?;
-        match decide(
-            "bool_torus_region_cross",
-            Margin::of(self.minor * hit.heading.dot(hit.face_side)),
+        // A path meeting no edge lies wholly on one side.
+        side_at_closest(
+            crossings,
+            ("bool_torus_region_order", "bool_torus_region_cross"),
+            self.minor,
             band,
         )
-        .map_err(in_band)?
-        {
-            Sign::Negative => Ok(true),
-            Sign::Positive => Ok(false),
-            Sign::Zero => Err(RayFault::Graze),
-        }
     }
 
     /// Offers every crossing of `leg` with the boundary to `crossings`,
@@ -728,15 +712,43 @@ impl<T: Decide> TorusFaceRegion<T> {
         band: Band,
     ) -> Result<Vec<(Point3<T>, T, bool)>, RayFault<RegionRefusal>> {
         let row = |name, m: T| decide(name, Margin::of(m), band).map_err(in_band);
-        // The span reading: `None` past an end, `Some(sideless)` within.
-        let span = |t: T, lever: T| -> Result<Option<bool>, RayFault<RegionRefusal>> {
-            let start = row("bool_torus_region_span", lever * (t - edge.t0))?;
-            let end = row("bool_torus_region_span", lever * (edge.t1 - t))?;
-            Ok((start != Sign::Negative && end != Sign::Negative)
-                .then_some(start == Sign::Zero || end == Sign::Zero))
-        };
+        let span =
+            |t: T, lever: T| span("bool_torus_region_span", t, (edge.t0, edge.t1), lever, band);
         let mut out = Vec::new();
         match (edge.carrier, leg.kind) {
+            (
+                Carrier::Circle {
+                    center,
+                    axis,
+                    radius,
+                    u_ref,
+                },
+                LegKind::Meridian { .. },
+            ) if let Some(outer) = self.transversal_parallel(axis, radius, band) => {
+                // A parallel off the top and bottom circles: its plane meets
+                // the meridian leg at simple roots, read in the leg's
+                // parameter (speed `r`). The plane holds two parallels at
+                // `ρ − R = ±r·cos v`, which the decided `outer` tells apart.
+                let v_ref = axis.cross(u_ref);
+                let mid = (edge.t0 + edge.t1) * T::from_f64(0.5);
+                for s in found(self.plane_roots(leg, axis, center, band))? {
+                    let y = leg.at(s);
+                    let (rho, _, _) = self.polar(y);
+                    let side = row("bool_torus_region_component", rho - self.major)?;
+                    match (side, outer) {
+                        (Sign::Zero, _) => return Err(RayFault::Graze),
+                        (Sign::Positive, true) | (Sign::Negative, false) => {}
+                        _ => continue,
+                    }
+                    let w = y - center;
+                    let theta = (w.dot(v_ref).atan2(w.dot(u_ref)) - mid)
+                        .reduce_periodic_centred(T::tau())
+                        + mid;
+                    if let Some(sideless) = span(theta, radius)? {
+                        out.push((y, theta, sideless));
+                    }
+                }
+            }
             (Carrier::Circle { center, radius, .. }, LegKind::Meridian { radial }) => {
                 let thetas = match self.circle_roots(edge, leg, band) {
                     // The edge in the leg's plane: on the leg's own
@@ -853,6 +865,31 @@ impl<T: Decide> TorusFaceRegion<T> {
         Ok(out)
     }
 
+    /// Whether a circle edge `(axis, radius)` is a parallel whose plane is
+    /// transversal to the torus — off the top and bottom circles, where
+    /// `ρ − R = r·cos v` is definitely nonzero — and then which of the
+    /// plane's two parallels it is (`true` the outer one). `None` for any
+    /// other circle, a rim circle, or a margin in band of either: those
+    /// are read in the circle's own parameter, which serves every circle.
+    fn transversal_parallel(&self, axis: Vec3<T>, radius: T, band: Band) -> Option<bool> {
+        let tilt = Margin::levered(axis.cross(self.axis).norm(), radius);
+        if !matches!(
+            decide("bool_torus_region_family", tilt, band),
+            Ok(Sign::Zero)
+        ) {
+            return None;
+        }
+        match decide(
+            "bool_torus_region_family",
+            Margin::of(radius - self.major),
+            band,
+        ) {
+            Ok(Sign::Positive) => Some(true),
+            Ok(Sign::Negative) => Some(false),
+            Ok(Sign::Zero) | Err(_) => None,
+        }
+    }
+
     /// An edge on the leg's own circle: the leg runs along it if the
     /// path reaches it, which grazes. A whole leg reaches every point of
     /// its circle; a first leg, those short of its corner. Neither end of
@@ -916,15 +953,15 @@ impl<T: Decide> TorusFaceRegion<T> {
         else {
             return Ok(Roots::Miss);
         };
-        let g = leg.normal;
-        let offset = center - leg.center;
-        first_harmonic(
-            g.dot(offset),
-            radius * g.dot(u_ref),
-            radius * g.dot(axis.cross(u_ref)),
-            rounding_charge(offset.norm() + radius),
+        first_harmonic_roots_in_band(
+            &FirstHarmonic::circle_off_plane(
+                (center, axis, radius, u_ref),
+                (leg.center, leg.normal),
+            ),
             radius,
-            (edge.t0, edge.t1),
+            edge.t0,
+            edge.t1,
+            &ROOT_ROWS,
             band,
         )
     }
@@ -938,57 +975,20 @@ impl<T: Decide> TorusFaceRegion<T> {
         on: Point3<T>,
         band: Band,
     ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
-        let offset = leg.center - on;
-        first_harmonic(
-            n.dot(offset),
-            leg.radius * n.dot(leg.e1),
-            leg.radius * n.dot(leg.e2),
-            rounding_charge(offset.norm() + leg.radius),
+        first_harmonic_roots_in_band(
+            &FirstHarmonic::circle_off_plane((leg.center, leg.normal, leg.radius, leg.e1), (on, n)),
             leg.radius,
-            (T::zero(), T::tau()),
+            T::zero(),
+            T::tau(),
+            &ROOT_ROWS,
             band,
         )
     }
 }
 
-/// The certified roots of `d + cos_part·cos t + sin_part·sin t` over a
-/// circle of `speed`, reported about the middle of `span`.
-fn first_harmonic<T: Decide>(
-    d: T,
-    cos_part: T,
-    sin_part: T,
-    noise: T,
-    speed: T,
-    (t0, t1): (T, T),
-    band: Band,
-) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
-    let amplitude = (cos_part.powi(2) + sin_part.powi(2)).sqrt();
-    first_harmonic_roots_in_band(
-        &FirstHarmonic {
-            lo: d - amplitude,
-            hi: d + amplitude,
-            cos_part,
-            sin_part,
-            lo_noise: noise,
-            hi_noise: noise,
-            phase_noise: T::zero(),
-        },
-        speed,
-        t0,
-        t1,
-        &ROOT_ROWS,
-        band,
-    )
-}
-
 /// An angle in `(−π, π]` as a turn in `[0, 2π)`.
 fn turn<T: Decide>(s: T) -> T {
     (T::zero() - s).select_le_zero(s, s + T::tau())
-}
-
-/// An in-band margin, setting the path aside.
-fn in_band(diag: geom_core::Indeterminate) -> RayFault<RegionRefusal> {
-    RayFault::InBand(RegionRefusal::Escalated(diag))
 }
 
 /// A root door's answer on one leg: its roots, none for a miss; an edge
@@ -1005,7 +1005,7 @@ fn found<T: Decide>(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
     use core::f64::consts::{FRAC_PI_2, PI, TAU};
@@ -1019,6 +1019,7 @@ mod tests {
     fn parallel(v: f64, forward: bool, key: u64) -> RegionEdge<f64> {
         RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(key)),
+            r#loop: LoopKey::default(),
             carrier: Carrier::Circle {
                 center: Point3::new(0.0, 0.0, MINOR * v.sin()),
                 axis: Vec3::new(0.0, 0.0, 1.0),
@@ -1088,8 +1089,14 @@ mod tests {
     }
     /// R1 review probe: a strip between two Villarceau circles of one
     /// family, against a numeric oracle for the family parameter.
+    /// **A strip between two Villarceau circles reads its side at random
+    /// points** (a counterexample search: the seed varies and is logged,
+    /// the count rides `CAD_FUZZ_EFFORT`). The circles of one family, at
+    /// family parameters `0` and `φ₁`, bound the strip `0 < φ < φ₁`; each
+    /// point's parameter is found numerically (the plane's root on the
+    /// circle that holds it), and every answer is that membership.
     #[test]
-    fn r1_villarceau_strip_reads_consistently() {
+    fn a_villarceau_strip_reads_its_side_at_random_points() {
         let b = Band::new(1e-9, 1e-8).unwrap();
         let sa = MINOR / R;
         let ca = (1.0 - sa * sa).sqrt();
@@ -1102,6 +1109,7 @@ mod tests {
         let e0 = Vec3::new(ca, 0.0, sa);
         let circle = |phi: f64, forward: bool, key: u64| RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(key)),
+            r#loop: LoopKey::default(),
             carrier: Carrier::Circle {
                 center: Point3::origin() + rot(phi, c0),
                 axis: rot(phi, n0),
@@ -1147,15 +1155,10 @@ mod tests {
                 assert!(best.0 < 1e-9, "oracle {best:?}");
                 best.1
             };
-            let (mut agree, mut disagree, mut refused) = (0, 0, 0);
-            let mut x: u64 = 0x9e3779b97f4a7c15;
-            let mut rnd = || {
-                x ^= x << 13;
-                x ^= x >> 7;
-                x ^= x << 17;
-                (x >> 11) as f64 / (1u64 << 53) as f64
-            };
-            for _ in 0..400 {
+            let (mut agree, mut wrong) = (0, Vec::new());
+            let mut rng = test_utils::fuzz::start("torus_region_villarceau");
+            let mut rnd = || rng.unit();
+            for _ in 0..test_utils::fuzz::scaled(60) {
                 let (u, v) = (rnd() * TAU, rnd() * TAU);
                 let p = at(u, v);
                 let f = fam(p);
@@ -1165,18 +1168,25 @@ mod tests {
                 let inside = f < phi1;
                 match region.contains(p, b) {
                     Ok(Some(got)) if got == inside => agree += 1,
-                    Ok(Some(_)) => disagree += 1,
-                    _ => refused += 1,
+                    Ok(Some(got)) => wrong.push((u, v, got)),
+                    _ => {}
                 }
             }
-            eprintln!(
-                "R1 villarceau phi1 {phi1}: agree {agree} disagree {disagree} refused {refused}"
+            assert!(
+                wrong.is_empty() && agree > 0,
+                "φ₁ {phi1}: {agree} right, wrong at {wrong:?} ({})",
+                test_utils::fuzz::replay()
             );
-            assert!(agree == 0 || disagree == 0, "mixed: {agree} vs {disagree}");
         }
     }
+    /// **The Villarceau strip reads its side near its edges**: at points
+    /// `10⁻⁷` to `0.1` rad of family parameter either side of each edge
+    /// circle, and at the strip's middle, on four tori (the donut, a fat
+    /// one, the wide ring and a thin tube), every answer is the side, and
+    /// at least three in four of them answer (the thin tube reads four in
+    /// five).
     #[test]
-    fn r1_villarceau_strip_near_its_edges() {
+    fn a_villarceau_strip_reads_its_side_near_its_edges() {
         let b = Band::new(1e-9, 1e-8).unwrap();
         for (big, small) in [(2.0_f64, 0.5_f64), (2.0, 1.9), (100.0, 1.0), (1.0, 0.05)] {
             let sa = small / big;
@@ -1190,6 +1200,7 @@ mod tests {
             let e0 = Vec3::new(ca, 0.0, sa);
             let circle = |phi: f64, forward: bool, key: u64| RegionEdge {
                 edge: EdgeKey::from(KeyData::from_ffi(key)),
+                r#loop: LoopKey::default(),
                 carrier: Carrier::Circle {
                     center: Point3::origin() + rot(phi, c0),
                     axis: rot(phi, n0),
@@ -1216,7 +1227,7 @@ mod tests {
                     outer: LoopKey::default(),
                     edges: vec![circle(0.0, true, 1), circle(phi1, false, 2)],
                 };
-                let (mut a, mut d, mut r, mut wrong) = (0, 0, 0, vec![]);
+                let (mut a, mut r, mut wrong) = (0, 0, vec![]);
                 for k in 0..40 {
                     let t = 0.05 + TAU * f64::from(k) / 40.0;
                     for delta in [1e-7, 1e-5, 1e-3, 0.1] {
@@ -1225,20 +1236,232 @@ mod tests {
                             let inside = phi > 0.0 && phi < phi1;
                             match region.contains(p, b) {
                                 Ok(Some(got)) if got == inside => a += 1,
-                                Ok(Some(got)) => {
-                                    d += 1;
-                                    wrong.push((phi, t, got));
-                                }
+                                Ok(Some(got)) => wrong.push((phi, t, got)),
                                 _ => r += 1,
                             }
                         }
                     }
                 }
-                eprintln!(
-                    "R1 vnear ({big},{small}) phi1 {phi1}: agree {a} disagree {d} refused {r} {:?}",
-                    wrong.iter().take(3).collect::<Vec<_>>()
+                assert!(
+                    wrong.is_empty() && a >= 3 * r,
+                    "({big}, {small}), φ₁ {phi1}: {a} right, {r} refused, wrong at {wrong:?}"
                 );
-                assert!(a == 0 || d == 0, "mixed");
+            }
+        }
+    }
+
+    /// **The ring convention and the axis are decided where the region is
+    /// read, not premised.** A spindle (`R < r`) refuses under
+    /// `ring_torus_convention`, a tube that is not a length under
+    /// `torus_tube_positive` before the ring is asked, and a point on the
+    /// axis under `bool_torus_frame_radius` before a leg divides by its
+    /// distance from it; the ring torus with the same band answers.
+    #[test]
+    fn the_region_decides_the_ring_and_the_axis() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        let refusal = |major: f64, minor: f64, p: Point3<f64>| {
+            let region = TorusFaceRegion {
+                major,
+                minor,
+                ..band(0.3, 1.0)
+            };
+            match region.contains(p, b) {
+                Err(RegionRefusal::Escalated(diag)) => diag.predicate,
+                other => panic!("({major}, {minor}) at {p:?}: {other:?}"),
+            }
+        };
+        let p = Point3::new(0.8, 0.0, 0.1);
+        assert_eq!(refusal(0.2, 0.3, p), Some("ring_torus_convention"));
+        assert_eq!(refusal(0.75, -0.3, p), Some("torus_tube_positive"));
+        assert_eq!(
+            refusal(R, MINOR, Point3::new(0.0, 0.0, 0.2)),
+            Some("bool_torus_frame_radius")
+        );
+        assert!(
+            band(0.3, 1.0).contains(at(0.4, 0.6), b).is_ok(),
+            "a ring torus answers"
+        );
+    }
+
+    /// A region on the torus `(R, r)` about `z` whose one edge is `edge`.
+    fn holding(edge: RegionEdge<f64>) -> TorusFaceRegion<f64> {
+        TorusFaceRegion {
+            edges: vec![edge],
+            ..band(0.0, 1.0)
+        }
+    }
+
+    /// The circle `center + radius(û cos θ + (axis × û) sin θ)` over
+    /// `(t0, t1)`, run forward.
+    fn arc(
+        center: Point3<f64>,
+        axis: Vec3<f64>,
+        radius: f64,
+        u_ref: Vec3<f64>,
+        (t0, t1): (f64, f64),
+    ) -> RegionEdge<f64> {
+        RegionEdge {
+            edge: EdgeKey::from(KeyData::from_ffi(9)),
+            r#loop: LoopKey::default(),
+            carrier: Carrier::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            },
+            t0,
+            t1,
+            forward: true,
+        }
+    }
+
+    /// The meridian at major angle `u`, minor angle over `vs`.
+    fn meridian_arc(u: f64, vs: (f64, f64)) -> RegionEdge<f64> {
+        let radial = Vec3::new(u.cos(), u.sin(), 0.0);
+        arc(
+            Point3::origin() + radial * R,
+            radial.cross(Vec3::new(0.0, 0.0, 1.0)),
+            MINOR,
+            radial,
+            vs,
+        )
+    }
+
+    /// **A meridian leg keeps the crossing on its own meridian.** A rim
+    /// circle (the top circle, read in its own parameter) meets the
+    /// meridian leg's plane at the leg's major angle and the opposite
+    /// one; only the first is a crossing, and it lands where the leg is.
+    #[test]
+    fn a_meridian_leg_keeps_its_own_meridians_crossing() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        let top = parallel(FRAC_PI_2, true, 1);
+        let region = holding(top.clone());
+        for u in [0.3, 2.0, 4.4] {
+            let leg = region.meridian(at(u, 2.0), true);
+            let got = region.landings(&top, &leg, None, b).unwrap();
+            assert_eq!(got.len(), 1, "u {u}: {got:?}");
+            assert!(
+                (got[0].0 - at(u, FRAC_PI_2)).norm() < 1e-12,
+                "u {u}: {got:?}"
+            );
+        }
+    }
+
+    /// **A parallel leg keeps the crossing on the edge's own meridian.** A
+    /// meridian arc's plane holds the axis, so a parallel meets it at the
+    /// arc's major angle and the opposite one, which lies on the mirror
+    /// meridian and is no crossing of the arc.
+    #[test]
+    fn a_parallel_leg_keeps_the_edges_own_meridian() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        let side = meridian_arc(1.0, (-1.2, 1.2));
+        let region = holding(side.clone());
+        for v in [-0.9, 0.3, 1.0] {
+            let leg = region.parallel(at(0.2, v), true);
+            let got = region.landings(&side, &leg, None, b).unwrap();
+            assert_eq!(got.len(), 1, "v {v}: {got:?}");
+            assert!((got[0].0 - at(1.0, v)).norm() < 1e-12, "v {v}: {got:?}");
+        }
+    }
+
+    /// **A leg keeps the crossing on the edge's own oval.** The plane
+    /// `x = 1` cuts the torus in two ovals, `y > 0` and `y < 0`; an arc of
+    /// the first is crossed by the outer equator once, at `y > 0`.
+    #[test]
+    fn a_leg_keeps_the_crossing_on_the_edges_own_oval() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        let oval = RegionEdge {
+            edge: EdgeKey::from(KeyData::from_ffi(9)),
+            r#loop: LoopKey::default(),
+            carrier: Carrier::Spiric {
+                center: Point3::origin(),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                major: R,
+                minor: MINOR,
+                offset: 1.0,
+            },
+            t0: -2.5,
+            t1: 2.5,
+            forward: true,
+        };
+        let region = holding(oval.clone());
+        for p in [at(0.2, 0.0), at(2.0, 0.4), at(3.5, -0.3)] {
+            let leg = region.parallel(p, true);
+            let got = region.landings(&oval, &leg, None, b).unwrap();
+            assert_eq!(got.len(), 1, "{p:?}: {got:?}");
+            assert!(
+                got[0].0.y > 0.0 && (got[0].0.x - 1.0).abs() < 1e-12,
+                "{p:?}: {got:?}"
+            );
+        }
+    }
+
+    /// **A crossing at an edge's end reads no side there.** A meridian leg
+    /// through the start of a parallel arc meets it at its end: the
+    /// landing is sideless, so a path whose closest crossing it is grazes
+    /// instead of reading the side of the arc's interior.
+    #[test]
+    fn a_crossing_at_an_edges_end_is_sideless() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        let rim = arc(
+            Point3::new(0.0, 0.0, MINOR * 0.5f64.sin()),
+            Vec3::new(0.0, 0.0, 1.0),
+            R + MINOR * 0.5f64.cos(),
+            Vec3::new(1.0, 0.0, 0.0),
+            (0.0, 1.0),
+        );
+        let region = holding(rim.clone());
+        let leg = region.meridian(at(0.0, 1.4), false);
+        let got = region.landings(&rim, &leg, None, b).unwrap();
+        assert_eq!(got.len(), 1, "{got:?}");
+        assert!(got[0].2, "the arc's end is sideless: {got:?}");
+        let inner = region.meridian(at(0.5, 1.4), false);
+        let got = region.landings(&rim, &inner, None, b).unwrap();
+        assert!(
+            got.len() == 1 && !got[0].2,
+            "the arc's interior reads its side: {got:?}"
+        );
+        // A path whose only crossing is that end grazes.
+        assert!(matches!(
+            region.path(
+                at(0.0, 1.4),
+                PathSpec::Single {
+                    parallel: false,
+                    forward: false
+                },
+                b
+            ),
+            Err(RayFault::Graze)
+        ));
+    }
+
+    /// **A point near an edge is read by its distance from it, before
+    /// any path.** Round the fillet band's rim, a point within the band's
+    /// zero of it is on the boundary and one in the band refuses, whatever
+    /// a path from it would read.
+    #[test]
+    fn a_point_near_an_edge_is_read_before_any_path() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        let region = band(FRAC_PI_2, PI);
+        for i in 0..24 {
+            let u = f64::from(i) * TAU / 24.0 + 0.01;
+            for off in [-1.6e-9, -0.8e-9, 0.8e-9, 1.6e-9] {
+                assert_eq!(
+                    region.contains(at(u, FRAC_PI_2 + off), b),
+                    Ok(None),
+                    "u {u}: {off:e} off the rim"
+                );
+            }
+            for off in [-8e-9, 6e-9] {
+                assert!(
+                    matches!(
+                        region.contains(at(u, FRAC_PI_2 + off), b),
+                        Err(RegionRefusal::Escalated(diag))
+                            if diag.predicate == Some("curve_carrier_gap")
+                    ),
+                    "u {u}: {off:e} off the rim"
+                );
             }
         }
     }

@@ -91,7 +91,7 @@ use geom_brep::half_angle::{
     DegreeTwo, HalfAngleFrame, HalfAngleRows, MAX_DEGREE, RootSlack, half_angle_roots,
 };
 use geom_brep::roots::{OnCarrier, RootRefusal, Roots, Unsettled, extreme_sign, spread_signs};
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::{BooleanDecision, BooleanError};
 use crate::validate::decide;
@@ -199,6 +199,36 @@ pub(super) struct FirstHarmonic<T> {
     pub(super) lo_noise: T,
     pub(super) hi_noise: T,
     pub(super) phase_noise: T,
+}
+
+impl<T: Decide> FirstHarmonic<T> {
+    /// **A circle's signed distance off a plane**: the circle
+    /// `center + radius·(û cos θ + v̂ sin θ)`, `v̂ = axis × û`, against the
+    /// plane through `on` of unit normal `n`, its residual
+    /// `n·(center − on) + radius(n·û) cos θ + radius(n·v̂) sin θ` and one
+    /// uniform rounding charge on the terms it is formed from. The one
+    /// spelling of a circle against a plane: an edge against a ray's or a
+    /// leg's plane, a leg against an edge's, a sphere face's arc against a
+    /// cut.
+    pub(super) fn circle_off_plane(
+        (center, axis, radius, u_ref): (Point3<T>, Vec3<T>, T, Vec3<T>),
+        (on, n): (Point3<T>, Vec3<T>),
+    ) -> Self {
+        let offset = center - on;
+        let d = n.dot(offset);
+        let (cos_part, sin_part) = (radius * n.dot(u_ref), radius * n.dot(axis.cross(u_ref)));
+        let amplitude = (cos_part.powi(2) + sin_part.powi(2)).sqrt();
+        let noise = geom_brep::rounding_charge(offset.norm() + radius);
+        Self {
+            lo: d - amplitude,
+            hi: d + amplitude,
+            cos_part,
+            sin_part,
+            lo_noise: noise,
+            hi_noise: noise,
+            phase_noise: T::zero(),
+        }
+    }
 }
 
 /// The predicate rows one caller of [`first_harmonic_roots`] meters

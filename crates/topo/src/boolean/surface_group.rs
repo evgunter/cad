@@ -63,7 +63,7 @@ pub(super) fn off_axis<T: Decide>(origin: Point3<T>, axis: Vec3<T>, c: Point3<T>
 /// the centre's distance off the axis in metres.
 ///
 /// Every site that asks it decides the margins under its own predicate
-/// name, because the names are its door's rows: [`WrapRims::Coaxial`]
+/// name, because the names are its door's rows: [`WrapRims`]
 /// (`bool_wrap_rim`), the cylinder wall's rim class
 /// (`bool_wall_iso_rim`) and the sphere trim's latitude-rim class
 /// (`bool_sphere_iso_rim`).
@@ -78,19 +78,20 @@ pub(super) fn coaxial_margins<T: Decide>(
     ]
 }
 
-/// Which unmated boundary circles bound a union in the coordinate it
-/// does NOT wrap, and so may stay unmated when it wraps the other one.
+/// The unmated boundary circles that bound a union in the azimuth's
+/// other coordinate, and so may stay unmated when it wraps the azimuth:
+/// circles COAXIAL with the carrier's axis `(origin, axis)`
+/// ([`coaxial_margins`]). On a sphere a meridian is a circle too, centred
+/// on the axis but not coaxial, so the test is both halves.
 #[derive(Clone, Copy, Debug)]
-pub(super) enum WrapRims<T: geom_core::Real> {
-    /// Circles COAXIAL with the carrier's axis `(origin, axis)`
-    /// ([`coaxial_margins`]). On a sphere a meridian is a circle too,
-    /// centred on the axis but not coaxial, so the test is both halves.
-    Coaxial { origin: Point3<T>, axis: Vec3<T> },
+pub(super) struct WrapRims<T: geom_core::Real> {
+    pub(super) origin: Point3<T>,
+    pub(super) axis: Vec3<T>,
 }
 
 impl<T: Decide> WrapRims<T> {
     fn holds(self, rim: &Rim<T>, band: Band) -> Result<bool, Indeterminate> {
-        let Self::Coaxial { origin, axis } = self;
+        let Self { origin, axis } = self;
         for margin in coaxial_margins(origin, axis, rim) {
             if decide("bool_wrap_rim", margin, band)? != Sign::Zero {
                 return Ok(false);

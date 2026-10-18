@@ -17,7 +17,7 @@ use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, SizedPass};
 use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
 use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
-use super::sphere_region::RegionRefusal;
+use super::region::RegionRefusal;
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, LoopKey, VertexKey};
 use crate::live::{linked, proven};
@@ -968,7 +968,7 @@ fn curved_interior_placement<T: Decide>(
             return torus_face_containment(
                 body,
                 face,
-                TorusChart {
+                TorusCarrier {
                     center,
                     axis,
                     major_radius,
@@ -1135,12 +1135,14 @@ fn region_placement(
             diag,
         }),
         Err(RegionRefusal::RayExhausted { .. }) => Err(ContainError::RayExhausted),
-        Err(e @ RegionRefusal::WoundPastPeriod) => Err(solid_err(e.of_face(face))),
+        Err(e @ (RegionRefusal::WoundPastPeriod | RegionRefusal::Unreadable(_))) => {
+            Err(solid_err(e.of_face(face)))
+        }
     }
 }
 
 /// One torus carrier's data, as [`torus_face_containment`] reads it.
-struct TorusChart<T: geom_core::Real> {
+struct TorusCarrier<T: geom_core::Real> {
     center: Point3<T>,
     axis: Vec3<T>,
     major_radius: T,
@@ -1166,16 +1168,16 @@ struct TorusChart<T: geom_core::Real> {
 fn torus_face_containment<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    chart: TorusChart<T>,
+    carrier: TorusCarrier<T>,
     q: Point3<T>,
     band: Band,
 ) -> Result<CurvedPlacement, ContainError> {
-    let TorusChart {
+    let TorusCarrier {
         center,
         axis,
         major_radius,
         minor_radius,
-    } = chart;
+    } = carrier;
     let elevation =
         super::solid_contain::torus_elevation(center, axis, major_radius, minor_radius, q);
     match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {

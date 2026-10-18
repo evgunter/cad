@@ -2200,13 +2200,15 @@ fn an_l_shaped_torus_face_reads_its_notch_not_its_hull() {
 /// tube, a near-horn one and a wide one.
 const RINGS: [(f64, f64); 4] = [(2.0, 0.5), (10.0, 0.1), (1.0, 0.9), (100.0, 1.0)];
 
-/// Whether the region reading resolves a root on `ring`'s widest
-/// parallel at this run's band: the first-harmonic door charges a
-/// root's angle arithmetic `HARMONIC_NOISE_ULPS` half-ulps of a turn,
-/// at the circle's radius, and a slack past the band's zero refuses the
-/// root. On the wide ring at ε `1e-12` it does not, and every path
-/// grazes: the region refuses `RayExhausted`, never an answer.
-fn region_resolves(ring: (f64, f64)) -> bool {
+/// Whether a parallel leg on `ring`'s outer equator resolves its
+/// crossing of a meridian edge at this run's band: the root is a
+/// parameter of the leg, and the first-harmonic door charges a root's
+/// angle arithmetic `HARMONIC_NOISE_ULPS` half-ulps of a turn at the
+/// leg's radius `R + r`; a slack past the band's zero refuses it
+/// (`Unsettled::Meter`). On the wide ring at ε `1e-12` it does not, and a
+/// point whose every path must cross a meridian edge on a parallel leg
+/// refuses `RayExhausted`, never answers.
+fn parallel_leg_resolves(ring: (f64, f64)) -> bool {
     geom_brep::rounding_charge(TAU) * (ring.0 + ring.1) < band().zero()
 }
 
@@ -2251,9 +2253,8 @@ fn notched_chart(du: f64, dv: f64, corner: bool) -> (Vec<(f64, f64)>, (f64, f64)
 /// and as a U from `[0, π/2] × [−π/4, π/4]`, and each is asked at its
 /// centre, which is `s/2` from the face: the answer is `Out`, never `In`
 /// (the hull's answer) and never an escalation (a margin that shrinks
-/// faster than the notch), on every ring the region resolves
-/// ([`region_resolves`]), and a typed refusal on the others. Two thin
-/// notches ride along, `s` by `π/8` each way.
+/// faster than the notch), on every ring. Two thin notches ride along,
+/// `s` by `π/8` each way.
 #[test]
 fn a_small_notch_in_a_torus_face_reads_out_at_every_size() {
     let eps = Tol::witness().eps();
@@ -2272,12 +2273,7 @@ fn a_small_notch_in_a_torus_face_reads_out_at_every_size() {
                 let (corners, centre) = notched_chart(du, dv, corner);
                 let (body, face) = torus_sheet(ring, &corners);
                 let got = door(&body, face, torus_at(ring, centre));
-                let read = if region_resolves(ring) {
-                    matches!(got, Ok(Some(FaceContainment::Out)))
-                } else {
-                    matches!(got, Err(crate::ContainError::RayExhausted))
-                };
-                if !read {
+                if !matches!(got, Ok(Some(FaceContainment::Out))) {
                     bad.push(format!("ring {ring:?}, {what} notch {s:e} m: {got:?}"));
                 }
             }
@@ -2291,35 +2287,34 @@ fn a_small_notch_in_a_torus_face_reads_out_at_every_size() {
     );
 }
 
-/// **The rectangle still trims on every ring**: `In` at its centre,
-/// `Out` a tenth of a radian past its major window — where the region
-/// resolves a root on the ring ([`region_resolves`]), and a typed
-/// refusal at both where it does not.
+/// **The rectangle still trims on every ring**: `In` at its centre, and
+/// `Out` a tenth of a radian past its major window. That point lies on no
+/// meridian or parallel of the rectangle's span, so every path from it
+/// crosses a meridian edge on a parallel leg; where the leg's radius puts
+/// that root past the band ([`parallel_leg_resolves`]) it refuses typed.
 #[test]
 fn a_torus_rectangle_trims_on_every_ring() {
     let a = PI / 4.0;
     for ring in RINGS {
         let (body, face) = torus_sheet(ring, &[(0.0, -a), (2.0 * a, -a), (2.0 * a, a), (0.0, a)]);
-        if !region_resolves(ring) {
-            for q in [(a, 0.0), (2.0 * a + 0.1, 0.0)] {
-                let got = door(&body, face, torus_at(ring, q));
-                assert!(
-                    matches!(got, Err(crate::ContainError::RayExhausted)),
-                    "ring {ring:?} at {q:?}: {got:?}"
-                );
-            }
-            continue;
-        }
         assert_eq!(
             door(&body, face, torus_at(ring, (a, 0.0))).unwrap(),
             Some(FaceContainment::In),
             "ring {ring:?}: the centre"
         );
-        assert_eq!(
-            door(&body, face, torus_at(ring, (2.0 * a + 0.1, 0.0))).unwrap(),
-            Some(FaceContainment::Out),
-            "ring {ring:?}: past the window"
-        );
+        let past = door(&body, face, torus_at(ring, (2.0 * a + 0.1, 0.0)));
+        if parallel_leg_resolves(ring) {
+            assert_eq!(
+                past.unwrap(),
+                Some(FaceContainment::Out),
+                "ring {ring:?}: past the window"
+            );
+        } else {
+            assert!(
+                matches!(past, Err(crate::ContainError::RayExhausted)),
+                "ring {ring:?}: past the window: {past:?}"
+            );
+        }
     }
 }
 

@@ -987,12 +987,12 @@ They pool with nothing: the region is read by the point-in-solid door
 at points on a sphere, a population apart from the planar walk's and
 the boolean's boundary pre-pass's.
 
-**Roster change (RESTREAD): a torus face's region.** Sixteen names from
+**Roster change (RESTREAD): a torus face's region.** Seventeen names from
 `topo/src/boolean/torus_region.rs`, which replaces the torus chart
 windows: `bool_torus_trim`, `bool_torus_trim_major_period`,
 `bool_torus_trim_minor_period`, `bool_torus_chart_affine`,
 `bool_torus_chart_box` and `bool_torus_chart_closure` leave the roster,
-and `bool_torus_frame_radius` moves into the region. Six are its paths'
+and `bool_torus_frame_radius` moves into the region. Seven are its paths'
 bare literals, four a `FirstHarmonicRows` value (`ROOT_ROWS`), two a
 `ConicRows` value (`BOUNDARY`) and four a `SpiricRows` value (`SPIRIC`)
 for its boundary pre-pass:
@@ -1000,6 +1000,7 @@ for its boundary pre-pass:
 | name | carrier |
 |---|---|
 | `bool_torus_region_component` | a bare literal: which of a plane's two curves a root lies on, in metres (a meridian plane's `(y − c)·ρ̂`, a circle's distance from its mirror and from itself, an oval's `(y − c)·m`), and an edge in a leg's plane against the leg's own circle |
+| `bool_torus_region_family` | a bare literal: whether a circle edge is a parallel (the sine between its axis and the torus's, at its radius) off the top and bottom circles (`ρ − R`, metres): a class selection between two readings, each sound |
 | `bool_torus_region_span` | a bare literal: a root's parameter against its edge's span ends, at the circle's radius or the tube's |
 | `bool_torus_region_at` | a bare literal: a crossing's place along its leg from the leg's start, at the leg's radius |
 | `bool_torus_region_corner` | a bare literal: a first leg's crossing, or an end of an edge on its circle, against its corner |

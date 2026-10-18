@@ -200,8 +200,9 @@ use geom_brep::quartic::{QuarticRoots, QuarticRows, depressed_quartic_roots, qua
 use geom_brep::recourse::Reading;
 use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
+use super::region::RegionRefusal;
 use super::rim_wedge::Rim;
-use super::sphere_region::{RegionRefusal, SphereFaceRegion, sphere_face_region};
+use super::sphere_region::{SphereFaceRegion, sphere_face_region};
 use super::surface_group::{
     WrapRims, coaxial_margins, off_axis, scope_members, surface_group, wrap_rims, wrap_rims_within,
 };
@@ -391,7 +392,8 @@ pub enum PointInSolidError {
     /// census and the shell witness read it with them as a face kind
     /// the door does not serve rather than as a point too close to call.
     EdgeCarrierUnsupported {
-        /// The planar face whose outline the walk cannot cross.
+        /// The face whose outline the walk cannot read: a planar face's
+        /// loop walk, or a torus face's boundary reading of an oval arc.
         face: FaceKey,
         /// The loop, and the edge no ray got past.
         cause: crate::splitting::Uncrossable,
@@ -1090,12 +1092,6 @@ fn face_geo<T: Decide>(
             minor_radius,
             u_ref,
         }) => {
-            // Every torus arm leans on the ring convention: the region's
-            // legs and the ray's incidence divide by a distance from the
-            // axis that it keeps positive on the tube. Tier 3 enforces it
-            // at rest, and this door does not run the validator.
-            geom::require_ring_torus(major_radius, minor_radius, band)
-                .map_err(|diag| PointInSolidError::Escalated { face, diag })?;
             if let Some(representative) = torus_closed_group(body, face, charts)? {
                 return Ok(FaceGeo::Torus {
                     center,
@@ -1710,7 +1706,7 @@ pub(super) fn full_turn_outline<T: Decide>(
     band: Band,
 ) -> Result<Option<WallOutline<T>>, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    let Some(rims) = wrap_rims(body, face, WrapRims::Coaxial { origin, axis }, band)? else {
+    let Some(rims) = wrap_rims(body, face, WrapRims { origin, axis }, band)? else {
         return Ok(None);
     };
     let unsupported = Ok(Some(WallOutline::Unsupported { reach: None }));
@@ -1881,7 +1877,7 @@ pub(super) fn cone_face_trim<T: Decide>(
     cone_window_premise(body, face)?;
     let v = cone_slant_window(body, face, apex, axis, half_angle.cos())?;
     let nappe = cone_nappe(face, v, band)?;
-    if wrap_rims(body, face, WrapRims::Coaxial { origin: apex, axis }, band)?.is_some() {
+    if wrap_rims(body, face, WrapRims { origin: apex, axis }, band)?.is_some() {
         return Ok((None, v, nappe));
     }
     Ok((Some(cone_trimmed_window(body, face, v, band)?), v, nappe))
@@ -1893,9 +1889,8 @@ pub(super) fn cone_face_trim<T: Decide>(
 /// once. A face through the apex twice, or once with a ring, has no
 /// single lift. The window trims only when it is definitely narrower
 /// than a period AND the face is the chart rectangle it reports
-/// (`bool_cone_chart_box`, [`chart_polygon_box`], the torus trim's
-/// decision too): a face with a notch has the rectangle's hull, and the
-/// window would cover the notch.
+/// (`bool_cone_chart_box`, [`chart_polygon_box`]): a face with a notch
+/// has the rectangle's hull, and the window would cover the notch.
 ///
 /// # Errors
 ///
@@ -2183,14 +2178,7 @@ fn wrapped_cone_group<T: Decide>(
     let members = scope_members(body, face, charts)
         .map_err(|face| PointInSolidError::CorruptFace { face })?;
     let representative = members[0];
-    if wrap_rims_within(
-        body,
-        members,
-        WrapRims::Coaxial { origin: apex, axis },
-        band,
-    )?
-    .is_none()
-    {
+    if wrap_rims_within(body, members, WrapRims { origin: apex, axis }, band)?.is_none() {
         return Ok(None);
     }
     let reference = cone_slant_window(body, representative, apex, axis, cos_a)?;
@@ -3158,7 +3146,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     let (az, levels) = match wrap_rims(
         body,
         face,
-        WrapRims::Coaxial {
+        WrapRims {
             origin: center,
             axis,
         },
@@ -3605,6 +3593,28 @@ pub fn point_in_solid_faces<T: Decide + crate::props::AtRestPolicy>(
     point_in_faces(body, sel, q, band, tol)
 }
 
+/// Each face of a selection with its resolved query geometry, built once
+/// per query: the boundary pre-pass, every ray of the schedule and every
+/// aimed ray read the same list, so a face's region is read off its
+/// boundary once rather than at every ray.
+type FaceGeos<T> = Vec<(FaceKey, FaceGeo<T>)>;
+
+/// [`FaceGeos`] for `sel`.
+///
+/// # Errors
+///
+/// The first face whose geometry does not resolve ([`face_geo`]).
+fn face_geos<T: Decide>(
+    body: &Body<T>,
+    sel: &SolidFaces,
+    band: Band,
+) -> Result<FaceGeos<T>, PointInSolidError> {
+    sel.faces()
+        .iter()
+        .map(|&face| Ok((face, face_geo(body, face, &sel.charts, band)?)))
+        .collect()
+}
+
 /// The one closest-hit core behind both entries: the boundary
 /// pre-pass and the schedule sweep over exactly `faces` (module docs).
 /// An empty selection answers [`PointInSolidError::ZeroVolumeBody`]
@@ -3624,10 +3634,12 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
         return Err(PointInSolidError::ZeroVolumeBody);
     }
 
+    let geos = face_geos(body, sel, band)?;
+
     // ---- Boundary pre-pass: q on any face ⇒ OnBoundary. ----
-    for &face in faces {
+    for &(face, ref geo) in &geos {
         let escalate = |diag| PointInSolidError::Escalated { face, diag };
-        match face_geo(body, face, &sel.charts, band)? {
+        match *geo {
             FaceGeo::Plane(origin, normal) => {
                 // Orientation-free: a residual compared against Zero
                 // answers the same whichever way the normal points,
@@ -3849,9 +3861,9 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
         &SCHEDULE,
         |r| {
             let d = r.map(T::from_f64).normalize();
-            match cast_ray(body, sel, q, d, reach, band)? {
+            match cast_ray(body, &geos, q, d, reach, band)? {
                 Some(side) => Ok(side),
-                None => missed_side(body, sel, q, d, reach, band, tol, &reads),
+                None => missed_side(body, sel, &geos, q, d, reach, band, tol, &reads),
             }
         },
         || PointInSolidError::RayExhausted,
@@ -4329,13 +4341,12 @@ fn ray_passes_beside<T: Decide>(
 /// meets it tangentially.
 fn cast_ray<T: Decide>(
     body: &Body<T>,
-    sel: &SolidFaces,
+    geos: &[(FaceKey, FaceGeo<T>)],
     q: Point3<T>,
     d: Vec3<T>,
     reach: T,
     band: Band,
 ) -> Result<Option<SolidContainment>, RayFault<PointInSolidError>> {
-    let faces = sel.faces();
     let mut crossings = Crossings::new();
     // A crossing at advance `t` on `face`; behind `q` it is none.
     let mut offer = |face: FaceKey, t: T, outward: Sign, edge: bool| {
@@ -4347,10 +4358,9 @@ fn cast_ray<T: Decide>(
         }
         Ok::<(), RayFault<PointInSolidError>>(())
     };
-    for &face in faces {
+    for &(face, ref geo) in geos {
         let escalate = |diag| RayFault::InBand(PointInSolidError::Escalated { face, diag });
-        let geo = face_geo(body, face, &sel.charts, band).map_err(RayFault::Fatal)?;
-        match geo {
+        match *geo {
             FaceGeo::Plane(origin, normal) => {
                 // `normal` is the face's OUTWARD normal (S10, folded in
                 // by `face_geo`), so this sign IS the material-side
@@ -4740,6 +4750,12 @@ fn cast_ray<T: Decide>(
                         Err(e @ RegionRefusal::WoundPastPeriod) => {
                             return Err(RayFault::Fatal(e.of_face(face)));
                         }
+                        // An edge whose reading ran out at this hit: a
+                        // limit of the reader this ray met, which another
+                        // ray may miss.
+                        Err(e @ RegionRefusal::Unreadable(_)) => {
+                            return Err(RayFault::Blocked(e.of_face(face)));
+                        }
                     }
                 }
             }
@@ -4781,7 +4797,7 @@ fn cast_ray<T: Decide>(
                 sense,
                 ..
             } => {
-                let region = match &geo {
+                let region = match geo {
                     FaceGeo::Torus { representative, .. } if face != *representative => continue,
                     FaceGeo::TorusPatch { region, .. } => Some(region),
                     _ => None,
@@ -4814,6 +4830,9 @@ fn cast_ray<T: Decide>(
                             }
                             Err(e @ RegionRefusal::WoundPastPeriod) => {
                                 return Err(RayFault::Fatal(e.of_face(face)));
+                            }
+                            Err(e @ RegionRefusal::Unreadable(_)) => {
+                                return Err(RayFault::Blocked(e.of_face(face)));
                             }
                         }
                     }
@@ -4912,6 +4931,7 @@ fn as_ray_fault(e: PointInSolidError) -> RayFault<PointInSolidError> {
 fn missed_side<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     sel: &SolidFaces,
+    geos: &[(FaceKey, FaceGeo<T>)],
     q: Point3<T>,
     d: Vec3<T>,
     reach: T,
@@ -4938,7 +4958,7 @@ fn missed_side<T: Decide + crate::props::AtRestPolicy>(
                 .as_ref()
                 .map_err(|e| RayFault::Fatal(e.clone()))?;
             let from = q + d * (reach * T::from_f64(2.0));
-            let aimed = aimed_side(body, sel, from, aims, band).map_err(RayFault::Fatal)?;
+            let aimed = aimed_side(body, sel, geos, from, aims, band).map_err(RayFault::Fatal)?;
             match aimed {
                 Aimed::Side(side) => side,
                 Aimed::Undecided {
@@ -5034,6 +5054,7 @@ fn genuinely_in_band(e: &PointInSolidError) -> bool {
 fn aimed_side<T: Decide>(
     body: &Body<T>,
     sel: &SolidFaces,
+    geos: &[(FaceKey, FaceGeo<T>)],
     from: Point3<T>,
     aims: &[Point3<T>],
     band: Band,
@@ -5041,7 +5062,7 @@ fn aimed_side<T: Decide>(
     let reach = selection_reach(body, sel.faces(), from)?;
     let (mut in_band, mut limits) = (None, None);
     for &aim in aims {
-        match cast_ray(body, sel, from, (aim - from).normalize(), reach, band) {
+        match cast_ray(body, geos, from, (aim - from).normalize(), reach, band) {
             Ok(Some(side)) => return Ok(Aimed::Side(side)),
             Err(RayFault::InBand(e)) if genuinely_in_band(&e) => {
                 in_band.get_or_insert(e);
@@ -5203,9 +5224,10 @@ mod per_solid_entry_tests {
         let band = Band::linear(tol).unwrap();
         let body = two_cubes();
         let sel = SolidFaces::select(&body, body.faces().map(|(k, _)| k).collect()).unwrap();
+        let geos = face_geos(&body, &sel, band).unwrap();
         let cast = |q: Point3<f64>, d: Vec3<f64>| {
             let reach = selection_reach(&body, sel.faces(), q).unwrap();
-            cast_ray(&body, &sel, q, d.normalize(), reach, band)
+            cast_ray(&body, &geos, q, d.normalize(), reach, band)
         };
         let inside = Point3::new(0.5, 0.5, 0.5);
         assert!(matches!(
@@ -5573,10 +5595,9 @@ mod escalated_ending_rows {
 /// twin.** The bottom parallel's carrier parameter runs 5 and 10 periods
 /// below the azimuth it covers; the region reads each root against the
 /// span it was stated in, so every point of a lattice over the wall's
-/// chart and past it reads as the principal wall does. The face the
-/// fixture's `mef` returns runs its rectangle clockwise in the chart, so
-/// under the outward normal its region is the rest of the torus: a point
-/// reads `In` exactly where it is outside the rectangle.
+/// chart and past it reads as the principal wall does: in the patch. The
+/// same loop under the chart's own normal runs clockwise, and its face
+/// is the patch's complement.
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod stated_periods_rows {
@@ -5611,11 +5632,84 @@ mod stated_periods_rows {
                     let inside = us.0 < u && u < us.1 && vs.0 < v && v < vs.1;
                     assert_eq!(
                         region.contains(on(u, v), band),
-                        Ok(Some(!inside)),
+                        Ok(Some(inside)),
                         "{periods} periods: (u, v) = ({u}, {v})"
                     );
                 }
             }
         }
+        let (body, face) = crate::boolean::boxes::tests::torus_wall_clockwise(
+            Point3::origin(),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            2.0,
+            0.5,
+            us,
+            vs,
+        );
+        let region = torus_face_region(&body, face).unwrap().unwrap();
+        for (u, v) in [(1.1, 0.05), (-0.2, 0.05), (1.1, 1.5), (2.5, -1.0)] {
+            let inside = us.0 < u && u < us.1 && vs.0 < v && v < vs.1;
+            assert_eq!(
+                region.contains(on(u, v), band),
+                Ok(Some(!inside)),
+                "clockwise: (u, v) = ({u}, {v})"
+            );
+        }
+    }
+
+    /// **A wall and its clockwise twin read complementary sides at random
+    /// points** (a counterexample search: the seed varies and is logged,
+    /// the count rides `CAD_FUZZ_EFFORT`). Every point of the torus a
+    /// micron clear of the patch's boundary reads `In` on the wall exactly
+    /// where it is in the patch, and on the clockwise twin exactly where it
+    /// is not.
+    #[test]
+    fn a_wall_and_its_clockwise_twin_read_complementary_sides() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (us, vs) = ((0.3, 1.9), (-0.7, 0.8));
+        let frame = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x(), 2.0, 0.5);
+        let (wall, wf) = crate::boolean::boxes::tests::torus_wall(
+            frame.0, frame.1, frame.2, frame.3, frame.4, us, vs,
+        );
+        let (twin, tf) = crate::boolean::boxes::tests::torus_wall_clockwise(
+            frame.0, frame.1, frame.2, frame.3, frame.4, us, vs,
+        );
+        let (wall, twin) = (
+            torus_face_region(&wall, wf).unwrap().unwrap(),
+            torus_face_region(&twin, tf).unwrap().unwrap(),
+        );
+        let mut rng = test_utils::fuzz::start("torus_wall_clockwise_twin");
+        let tau = core::f64::consts::TAU;
+        let mut read = 0;
+        for _ in 0..test_utils::fuzz::scaled(200) {
+            let (u, v) = (
+                rng.range(0.0, tau),
+                rng.range(-core::f64::consts::PI, core::f64::consts::PI),
+            );
+            let clear = |x: f64, (a, b): (f64, f64)| (x - a).abs().min((x - b).abs()) > 1e-6;
+            if !clear(u, us) || !clear(v, vs) {
+                continue;
+            }
+            let inside = us.0 < u && u < us.1 && vs.0 < v && v < vs.1;
+            let p = Point3::new(
+                (2.0 + 0.5 * v.cos()) * u.cos(),
+                (2.0 + 0.5 * v.cos()) * u.sin(),
+                0.5 * v.sin(),
+            );
+            let replay = test_utils::fuzz::replay();
+            assert_eq!(
+                wall.contains(p, band),
+                Ok(Some(inside)),
+                "({u}, {v}), {replay}"
+            );
+            assert_eq!(
+                twin.contains(p, band),
+                Ok(Some(!inside)),
+                "({u}, {v}), {replay}"
+            );
+            read += 1;
+        }
+        assert!(read > 0, "no point clear of the boundary");
     }
 }

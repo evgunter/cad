@@ -125,6 +125,7 @@ pub use refusal_routes::{
     PlaneRung, SectionRadius, SectorRung, SelfCheck, Settling, SphereQuestion, TorusConvention,
     WallRung,
 };
+pub(crate) mod region;
 mod rim_wedge;
 pub(crate) mod sectors;
 pub(crate) mod separating;
@@ -357,6 +358,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_sphere_region_arc_span"
         | "bool_sphere_region_arc_straddle"
         | "bool_torus_region_component"
+        | "bool_torus_region_family"
         | "bool_torus_region_span"
         | "bool_torus_region_at"
         | "bool_torus_region_corner"
