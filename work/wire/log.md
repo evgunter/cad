@@ -6085,3 +6085,12 @@ Signed (WIRE orchestrator).
   and `wire/fold-minted-cells` (DM4's member-cell spelling for
   fold-minted cells, plus one margin per unordered pair); both FULL
   single reviews (naming units). (WIRE orchestrator)
+
+- 2026-10-18 — The recourse lane opened PR 5298 (`wire/refusals-state-their-recourse`),
+  green; STYLE review dispatched with four claims (new recourses true;
+  no held family or D10 ground touched; no double endings, through the
+  shared `NodeStanding` too; `NamingError::ending`'s category split).
+  `MeasureRefUnreadable/Readback` stays filed: its sentence is
+  `topo::ReadbackError`'s, which held `FaceFrameReadback/*` also
+  renders. The lane filed `naming-refusal-census-skips-ten-arms` (P3 E).
+  (WIRE orchestrator)
