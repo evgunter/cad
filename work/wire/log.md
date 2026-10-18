@@ -5959,3 +5959,17 @@ Signed (WIRE orchestrator).
 INTENT recorded its own row 156 concurrently; the merge of main into PR 5258 renumbered this program's row to 157. The entry above saying "row 156" means 157.
 
 Signed (WIRE orchestrator).
+
+## 2026-10-18 — PR 5263 MERGED (`6bf23859b7`): the P0 merged-chord rule
+
+Three rounds: full review (one MAJOR: the middle-point pick named a
+chord spanning both constituents confidently, and the pick flipped with
+the cut), fix pass (pick only an unjoined chord whose middle one
+constituent holds; ends checked), delta review (mergeable; every wrong-pick
+mutant caught, the join premise unbroken), a last small push. CI fully
+green on the head. P0 row closed; the spanning chord's name stays on its
+own design row. Merged before it: PR 5258 (`5be81cde65`, the N2 Split
+vertex `Keeps` rule Ev approved) and PR 5270 (`56a650efc7`, the union
+pinch-name pin and the FORK-FOLDPINCH decision).
+
+Signed (WIRE orchestrator).
