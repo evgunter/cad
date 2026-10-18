@@ -232,10 +232,14 @@ pub enum NamingError {
         /// The result-body edge.
         edge: EdgeKey,
     },
-    /// A boolean's chord between two MERGED faces that does not lie
-    /// within the rim its key's side reads it through to — the other
-    /// case [`Self::MergedChord`]'s rule does not cover, a sibling word
-    /// because its subject carries the offered rim as well.
+    /// A boolean's chord between two faces of one operand, one of them
+    /// at least MERGED, that lies within no rim of that operand between
+    /// a face on one side of it and a face on the other — the other case
+    /// [`Self::MergedChord`]'s rule does not cover, a sibling word
+    /// because its subject carries a rim it lies off as well (the least
+    /// by name). A union names such a chord beside one merged face as
+    /// the seam of the two faces' parents; between two merged faces, and
+    /// at a subtract or an intersect, no rule does.
     MergedChordOffRim {
         /// The result-body edge.
         edge: EdgeKey,
@@ -524,9 +528,9 @@ impl crate::spoken::Say for NamingError {
             ),
             Self::MergedChordOffRim { edge, node, rim } => write!(
                 f,
-                "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces, and \
-                 does not lie within the rim {rim:?} of operand {}'s body its key reads \
-                 through to",
+                "{UNRULED_FRAMING}: seam chord {edge:?} lies between two faces of one \
+                 operand, a merged face among them, and does not lie within the rim {rim:?} of \
+                 operand {}'s body it lies along, or within any other rim between them",
                 by.node(*node)
             ),
             Self::MemberEdgeTied { member, edge } => write!(
@@ -1867,7 +1871,11 @@ mod display_tests {
                     node: RecipeNodeId::new(0, test_utils::refusal::tagged(29)),
                     rim: two_edges().1,
                 },
-                vec!["merged faces", "00000000001d", "does not lie within"],
+                vec![
+                    "a merged face among them",
+                    "00000000001d",
+                    "does not lie within",
+                ],
             ),
             (
                 NamingError::ClosedCarrierUnread {

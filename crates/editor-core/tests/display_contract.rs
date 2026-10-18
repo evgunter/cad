@@ -2590,7 +2590,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 rim: edge,
             },
             vec![
-                "merged faces",
+                "a merged face among them",
                 "operand node 00000000001d",
                 "does not lie within",
             ],

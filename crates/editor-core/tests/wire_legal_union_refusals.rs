@@ -26,6 +26,7 @@ use editor_core::{
     ProfileDoc, Qualifier, RecipeNodeId, RoleSeg, SlotId, StableName,
 };
 use geom_core::{Point3, Tol};
+use std::collections::BTreeSet;
 
 /// A block's x span, y span, base z and height, as [`block`] takes them.
 type Spans = ((f64, f64), (f64, f64), f64, f64);
@@ -36,6 +37,7 @@ type Spans = ((f64, f64), (f64, f64), f64, f64);
 /// block), each block on a frame of its own an edit can move.
 struct SunkBossCut {
     doc: ProfileDoc,
+    boss: RecipeNodeId,
     joined: RecipeNodeId,
     tool: RecipeNodeId,
     cut: RecipeNodeId,
@@ -101,6 +103,7 @@ impl SunkBossCut {
         );
         Self {
             doc,
+            boss,
             joined,
             tool,
             cut,
@@ -128,7 +131,9 @@ impl SunkBossCut {
     }
 
     /// The names of the cut's edges whose two ends `ends` accepts, the
-    /// cut having named.
+    /// cut having named, each a seam whose one side is the boss wall's
+    /// merged face, cited by its `Merged` parent over the two wall pieces
+    /// ([`assert_cites_the_merged_wall`]).
     fn edges(
         &self,
         label: &str,
@@ -148,6 +153,23 @@ impl SunkBossCut {
             "{label}: the cut names: {:?}",
             failure(&ev, self.cut)
         );
+        let boss_body = body_of(&ev, self.boss);
+        let pieces: BTreeSet<StableName> = table(&ev, self.boss)
+            .iter()
+            .filter_map(|(name, entry)| match entry {
+                Entry::Unique(ent) => match ent.key {
+                    EntityKey::Face(f)
+                        if topo::query::face_surface_kind(boss_body, f)
+                            == Some(geom::SurfaceKind::Cylinder) =>
+                    {
+                        Some(name.clone())
+                    }
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect();
+        assert_eq!(pieces.len(), 2, "{label}: the boss wall is two pieces");
         let body = body_of(&ev, self.cut);
         let mut named = Vec::new();
         for (name, entry) in table(&ev, self.cut).iter() {
@@ -157,6 +179,7 @@ impl SunkBossCut {
             };
             let [p0, p1] = crate::fixture::ends(body, e).map(|v| point(body, v));
             if ends(p0, p1) || ends(p1, p0) {
+                assert_cites_the_merged_wall(label, name, &pieces);
                 named.push(name.clone());
             }
         }
@@ -172,7 +195,6 @@ impl SunkBossCut {
         let [name] = named.as_slice() else {
             panic!("{label}: one named edge runs {chord:?}: {named:?}");
         };
-        assert_cites_the_merged_wall(label, name);
         name.clone()
     }
 }
@@ -182,23 +204,30 @@ fn near(p: Point3<f64>, q: [f64; 3]) -> bool {
 }
 
 /// `name` is a seam, one of whose sides is the boss wall's `Merged`
-/// parent over both wall pieces.
-fn assert_cites_the_merged_wall(label: &str, name: &StableName) {
+/// parent: a set whose members, read through the reads that carried
+/// them, are the two wall pieces `pieces`, and no other face.
+fn assert_cites_the_merged_wall(label: &str, name: &StableName, pieces: &BTreeSet<StableName>) {
     let Some(RoleSeg::Seam { a, b }) = name.path.first() else {
         panic!("{label}: the chord is a seam: {name}");
     };
-    let merged: Vec<usize> = [a, b]
+    let through = |mut n: &StableName| {
+        while let [RoleSeg::From { of, .. }] = n.path.as_slice() {
+            n = of;
+        }
+        n.clone()
+    };
+    let merged: Vec<BTreeSet<StableName>> = [a, b]
         .into_iter()
         .filter_map(|side| match side.path.as_slice() {
-            [RoleSeg::Merged(set)] => Some(set.len()),
+            [RoleSeg::Merged(set)] => Some(set.iter().map(through).collect()),
             _ => None,
         })
         .collect();
     assert_eq!(
         merged,
-        [2],
-        "{label}: one side of the seam is the merged wall's parent, over both wall \
-         pieces: {name}"
+        std::slice::from_ref(pieces),
+        "{label}: one side of the seam is the merged wall's parent, over the two wall \
+         pieces and nothing else: {name}"
     );
 }
 
@@ -266,7 +295,6 @@ fn two_chords_of_one_seam_are_told_apart_by_their_ends() {
         panic!("two chords run up the left wall at x = 1.4: {chords:?}");
     };
     for c in [c0, c1] {
-        assert_cites_the_merged_wall("x = 1.4", c);
         assert!(
             matches!(
                 c.path.as_slice(),
@@ -296,8 +324,8 @@ fn volume(body: &topo::Body<f64>) -> f64 {
 /// boss, joined to them by a second union. The bar's walls cut each wall
 /// piece in two, and the judgement of the two members merges the two
 /// cosurface pieces on each side of the bar, so each merged wall face
-/// holds both boss pieces. The chord where a bar wall meets it reads
-/// through to the piece that holds it, as the sunk-boss slot's does
+/// holds both boss pieces. The chord where a bar wall meets it cites the
+/// merged wall's parent, as the sunk-boss slot's does
 /// (`emit_union_borders::a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls`).
 /// The union's end pass then links member faces only across the two
 /// members a judgement holds, so the two faces of the first member it

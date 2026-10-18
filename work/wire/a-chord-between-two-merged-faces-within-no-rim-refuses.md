@@ -10,12 +10,13 @@ opened: 2026-10-18
 ## Finding
 
 `crates/editor-core/src/names/emit_topo.rs`, `name_boolean_edges`'s
-`chord_kind`, `(true, true)` arm: a chord between two faces the pair
-merged is named as the rim a face of its key's side in one merged face
-shares with one in the other, where it lies within one
-(`chord_within`); one that lies within none refuses
-`NamingError::MergedChordOffRim`, and one with no key side (zip-listed)
-`NamingError::MergedChord`. N3 as widened on PR 5279 says a seam at every
+`chord_kind`, `(true, true)` arm, and `merged_pair_rim`: a chord between
+two faces the pair merged is named as the rim a face of its key's side in
+one merged face shares with one in the other, where it lies within one
+(`rim_among`). A chord that lies within none refuses
+`NamingError::MergedChordOffRim`, and a chord with no key side
+(zip-listed) refuses `NamingError::MergedChord`. The arm is reached in
+`emit_topo`'s unit rows and by no model in the suite. N3 as widened on PR 5279 says a seam at every
 boolean cites, as each side, the parent of the face beside it; a chord
 between two merged faces off every rim is a seam between their two
 `Merged` parents, which no arm mints.
