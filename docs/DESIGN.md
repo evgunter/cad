@@ -1243,8 +1243,11 @@ read as that copy carries it. A mate places and never checks.
 
 **Values.** `[placement.values]` A **value** sets one freedom of a
 placement's motion that its mates leave, a slide or a spin, to a
-`Length` or `Angle` variable, measured in the axes of the space the
-source is placed into. Where the mates fix a direction (a plane's
+`Length` or `Angle` variable, along or about an axis of the
+freedoms the mates leave. Those axes are the target space's own where
+no mate fixes a direction, and the target's swung onto the direction
+where one does, so a slide a plane mate leaves runs in that plane
+however the plane is tilted. Where the mates fix a direction (a plane's
 normal, an axis, a lone direction), each of the two spaces' axes is swung
 onto it by the shortest turn carrying its own z to the mated
 direction, the half-turn about its own x where that direction is its
