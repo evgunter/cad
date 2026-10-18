@@ -111,18 +111,17 @@ fn a1_the_solve_builds_no_environment_and_the_fold_reads_its_lanes() {
             "{file} builds no environment"
         );
     }
-    let solve = shipped(
-        SOLVE,
-        &["pub fn solve_document", "pub fn solve_document_at"],
-    );
+    let solve = shipped(SOLVE, &["pub fn solve_document"]);
     assert!(
         body_of(&solve, "pub fn solve_document(").contains("solve_document_at("),
         "`solve_document` is `solve_document_at` at `f64`"
     );
-    assert!(
-        body_of(&solve, "pub fn solve_document_at").contains("evaluate::<T>("),
-        "the solve is the evaluation"
-    );
+    // `solve_document_at` lives at the evaluation's scalar seam
+    // (`eval/mod.rs`), re-exported from the solve.
+    let at = shipped(EVAL, &["pub fn solve_document_at"]);
+    let at = body_of(&at, "pub fn solve_document_at");
+    assert!(at.contains("evaluate::<T>("), "the solve is the evaluation");
+    assert_eq!(at.matches(NEEDLE).count(), 0, "the solve builds none");
     let wire = shipped(WIRE, &["fn fold_with"]);
     let fold = body_of(&wire, "fn fold_with");
     assert!(

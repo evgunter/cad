@@ -1098,11 +1098,13 @@ fn the_place_gesture_reproduces_its_pose() {
 }
 
 /// **The gesture pins where its face's chart has no swing.** A box
-/// placed at a turn of `π − 1e-9` about `x`: its first planar face's
-/// normal stands within the band about the chart's one pole, where no
-/// value can be charted, so `place_at` falls back to the pin
-/// (`PlacedBy::Pin`) and the copy stands at `P`; a turn well clear of
-/// the pole writes the plane mate and its values.
+/// placed at a turn of `π − ε` about `x`: its first planar face's
+/// normal stands at the chart's one pole by a chord the band cannot
+/// decide (ε levered over the copy's arm), where no value can be
+/// charted, so `place_at` falls back to the pin (`PlacedBy::Pin`) and
+/// the copy stands at `P`; a turn well clear of the pole writes the
+/// plane mate and its values. The turn is the run's ε, not a literal:
+/// a chord the band decides zero takes the antipode's own chart.
 ///
 /// *Breaks if* the gesture refuses at that band of poses (with a reason
 /// that names no chart) instead of pinning.
@@ -1124,7 +1126,7 @@ fn the_place_gesture_pins_where_its_chart_has_no_swing() {
     };
     let (_, clear) = gesture(std::f64::consts::PI - 0.5);
     assert_eq!(clear.by, editor_core::PlacedBy::PlanarFace);
-    let (turn, near) = gesture(std::f64::consts::PI - 1e-9);
+    let (turn, near) = gesture(std::f64::consts::PI - Tol::witness().eps());
     assert_eq!(near.by, editor_core::PlacedBy::Pin, "{near:?}");
     let (doc, _) = fixture::constrain_at(doc, placement, near.mate);
     let at = solved(&doc, placement);
@@ -1487,8 +1489,9 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
 }
 
 /// **Fork C-5 — a box spanning the band encloses the value lane at its
-/// corners.** A box on the floor spun by `t`, declared at 1e-10 rad,
-/// boxed over `[1e-10, 6e-10]`: at the low corner the copy moves less
+/// corners.** A box on the floor spun by `t`, declared at a tenth of ε
+/// rad, boxed over `[ε/10, 6ε/10]` (ε the run's, 1e-9 by default): at
+/// the low corner the copy moves less
 /// than the band's zero and the value lane places it by no map; at the
 /// high one it moves more and keeps its turn. The box's own verdict
 /// spans the band, so its map holds both. A map that wide moves the
@@ -1500,6 +1503,9 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
 /// (the low corner's identity would lie outside the answer).
 #[test]
 fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
+    // The corners are tenths of the run's ε, so the low one moves less
+    // than the band's zero and the high one more at every ε.
+    let eps = Tol::witness().eps();
     let (doc, body) = a_box("s3c_spanning", 1.0);
     let (doc, _) = fixture::step(
         doc,
@@ -1507,7 +1513,7 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
             name: editor_core::VarName::new("t").expect("a name"),
             def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
                 editor_core::Dimension::Angle,
-                1e-10,
+                0.1 * eps,
             )),
         },
     );
@@ -1552,7 +1558,7 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
         motion_of(&evaluated::<f64>(&d, &EvalOptions::default()), placement)
             .map_or_else(Affine3::identity, |m| m.to_affine())
     };
-    let (low, high) = (at(1e-10), at(6e-10));
+    let (low, high) = (at(0.1 * eps), at(0.6 * eps));
     assert_eq!(
         format!("{low:?}"),
         format!("{:?}", Affine3::<f64>::identity()),
@@ -1563,7 +1569,10 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
         param_box: Some(std::sync::Arc::new(
             editor_core::analysis::ParamBox::from_axes(std::collections::BTreeMap::from([(
                 t,
-                editor_core::analysis::BoxAxis::Varying { lo: 0.0, hi: 5e-10 },
+                editor_core::analysis::BoxAxis::Varying {
+                    lo: 0.0,
+                    hi: 0.5 * eps,
+                },
             )])),
         )),
         ..EvalOptions::default()
