@@ -570,6 +570,7 @@ mod census {
 
     use super::*;
     use crate::names::{CapEnd, EntityKind, RoleSeg};
+    use crate::node::RecipeNodeId;
 
     test_utils::f6_variants! {
         /// Every `SelectRefusal` variant, as the wildcard-free `match`

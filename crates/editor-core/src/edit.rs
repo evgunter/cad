@@ -7945,9 +7945,11 @@ mod tests {
         }
         let others: [DocEdit<ProfileProgram>; 4] = [
             DocEdit::InsertNode {
-                node: Box::new(crate::node::Node::Datum(crate::node::Datum::Point {
-                    position: [len(0.0), len(0.0), len(0.0)],
-                })),
+                node: Box::new(crate::node::Node::Tube {
+                    major_radius: len(1.0),
+                    window: crate::node::TubeWindow::Full,
+                    minor_radius: len(0.25),
+                }),
                 fresh: Vec::new(),
             },
             DocEdit::Rebind {
@@ -7963,7 +7965,7 @@ mod tests {
             },
             DocEdit::SetParam {
                 node: id,
-                slot: crate::node::SlotId::RotationAngle,
+                slot: crate::node::SlotId::RevolveAngle,
                 value: crate::test_support::ang(0.5).into(),
                 fresh: Vec::new(),
             },

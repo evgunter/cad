@@ -5548,7 +5548,7 @@ mod split_edge_lineage {
 
     #[test]
     fn a_twice_crossed_rim_arcs_pieces_chase_to_the_rim_across_halves() {
-        let (doc, [ext, tool, _]) = clipped_cylinder(Tol::witness());
+        let (doc, [ext, split]) = clipped_cylinder(Tol::witness());
         let ev = evaluate::<f64>(
             &doc,
             None,
@@ -5560,18 +5560,25 @@ mod split_edge_lineage {
         let ValuePayload::Body(body) = &value.payload else {
             panic!("the extrude is one body");
         };
-        // The plane the split verb reads off the same datum.
-        let Some(ValuePayload::Datum(PoseValue::Plane { origin, normal })) =
-            ev.value(tool).map(|v| &v.payload)
-        else {
-            panic!("the tool is a plane datum");
+        // The plane the split verb reads, as the split binds it.
+        let Some(crate::Node::Split { tool, .. }) = doc.node(split) else {
+            panic!("the split is a split");
+        };
+        let Ok(PoseValue::Plane { origin, normal }) = crate::eval::bound_pose(
+            &doc,
+            &ev,
+            crate::OperandSlot::Tool,
+            *tool,
+            Tol::witness(),
+        ) else {
+            panic!("the tool is a plane");
         };
         let table = ev.table_at(ext).expect("the extrude's table");
         let out = topo::split(
             &topo::test_support::finished("the extrude", (**body).clone(), Tol::witness()),
             &SplitPlane {
-                origin: *origin,
-                normal: *normal,
+                origin,
+                normal,
             },
             Tol::witness(),
         )
@@ -5657,7 +5664,7 @@ mod crossings_rank_along_the_line {
     use crate::names::table::{EntityKey, EntityRef, Entry, NameTable};
     use crate::node::{Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget};
-    use crate::test_support::{frame, len, scl};
+    use crate::test_support::{len, scl};
     use crate::{ProfileDoc, RefusingReach};
     use geom_core::{Point3, Tol};
 
@@ -5677,11 +5684,9 @@ mod crossings_rank_along_the_line {
 
     fn extrude(
         doc: ProfileDoc,
-        z0: f64,
         dz: f64,
         loop_: LoopProgram<crate::Formula>,
     ) -> (ProfileDoc, RecipeNodeId) {
-        let (doc, plane) = ins(doc, frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
@@ -5694,6 +5699,28 @@ mod crossings_rank_along_the_line {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(dz),
+            },
+        )
+    }
+
+    /// `tool` cut from `from`, standing `z0` up `from`'s own z.
+    fn cut(
+        doc: ProfileDoc,
+        from: RecipeNodeId,
+        tool: RecipeNodeId,
+        z0: f64,
+    ) -> (ProfileDoc, RecipeNodeId) {
+        let (doc, copy) = crate::test_support::against(
+            doc,
+            from,
+            tool,
+            &crate::test_support::frame_at([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        );
+        ins(
+            doc,
+            Node::Subtract {
+                from: from.into(),
+                tool: crate::BodyRead::plain(crate::Operand::output(copy, 0)),
             },
         )
     }
@@ -5713,7 +5740,6 @@ mod crossings_rank_along_the_line {
         // centre: its top rim arc is one edge, one line.
         let (doc, disc) = extrude(
             doc,
-            0.0,
             1.0,
             LoopProgram::Chain(vec![
                 ProgramStep::At([len(1.0), len(0.0)]),
@@ -5727,18 +5753,11 @@ mod crossings_rank_along_the_line {
         );
         let (doc, notch) = extrude(
             doc,
-            0.8,
             1.0,
             LoopProgram::polygon([(-1.5, -0.38), (-0.6, -0.38), (-0.6, -0.30), (-1.5, -0.30)])
                 .expect("finite"),
         );
-        let (doc, notched) = ins(
-            doc,
-            Node::Subtract {
-                from: disc.into(),
-                tool: notch.into(),
-            },
-        );
+        let (doc, notched) = cut(doc, disc, notch, 0.8);
         let ev = evaluate::<f64>(
             &doc,
             None,
@@ -5860,7 +5879,6 @@ mod nurbs_crossings_rank_by_parameter {
     use crate::names::table::{EntityKey, EntityRef, Entry, NameTable};
     use crate::node::{Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram};
-    use crate::test_support::frame;
     use crate::{Formula, ProfileDoc, RefusingReach};
     use geom_core::{Point3, Tol};
     use topo::{Body, EdgeKey};
@@ -5884,9 +5902,9 @@ mod nurbs_crossings_rank_by_parameter {
     pub(super) fn wavy(a: f64) -> (RecipeNodeId, crate::eval::NodeValue<f64>, NameTable) {
         let mut doc = ProfileDoc::empty(DocumentId::derive("nurbs-crossings"), Tol::witness());
         let mut profiles = Vec::new();
-        for (k, dx) in [-a, a, -a, a].into_iter().enumerate() {
-            let z = [0.0, 1.0, 2.0, 3.0][k];
-            let (d, plane) = ins(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+        // D-LOFT: the sections stood at z = 0, 1, 2, 3 on their frames;
+        // where a 2-D section stands in a loft waits on the ruling.
+        for dx in [-a, a, -a, a] {
             let square = [
                 (dx - 1.0, -1.0),
                 (dx + 1.0, -1.0),
@@ -5894,7 +5912,7 @@ mod nurbs_crossings_rank_by_parameter {
                 (dx - 1.0, 1.0),
             ];
             let (d, profile) = ins(
-                d,
+                doc,
                 Node::Profile(ProfileProgram {
                     loops: vec![LoopProgram::polygon(square).expect("finite")],
                     ids: Vec::new(),
@@ -6226,7 +6244,7 @@ mod edge_pieces_of_one_line_tie {
     use crate::names::table::{Entry, NameTable};
     use crate::node::{Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram};
-    use crate::test_support::{frame, len};
+    use crate::test_support::len;
     use crate::{ProfileDoc, RefusingReach};
     use geom_core::Tol;
 
@@ -6246,11 +6264,9 @@ mod edge_pieces_of_one_line_tie {
 
     fn extrude(
         doc: ProfileDoc,
-        z0: f64,
         dz: f64,
         loop_: LoopProgram<crate::Formula>,
     ) -> (ProfileDoc, RecipeNodeId) {
-        let (doc, plane) = ins(doc, frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
@@ -6267,29 +6283,43 @@ mod edge_pieces_of_one_line_tie {
         )
     }
 
+    /// `tool` cut from `from`, standing `z0` up `from`'s own z.
+    fn cut(
+        doc: ProfileDoc,
+        from: RecipeNodeId,
+        tool: RecipeNodeId,
+        z0: f64,
+    ) -> (ProfileDoc, RecipeNodeId) {
+        let (doc, copy) = crate::test_support::against(
+            doc,
+            from,
+            tool,
+            &crate::test_support::frame_at([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        );
+        ins(
+            doc,
+            Node::Subtract {
+                from: from.into(),
+                tool: crate::BodyRead::plain(crate::Operand::output(copy, 0)),
+            },
+        )
+    }
+
     #[test]
     fn pieces_of_two_parents_with_one_pair_of_ends_tie() {
         let doc = ProfileDoc::empty(DocumentId::derive("edge-pieces-one-line"), Tol::witness());
         let (doc, rod) = extrude(
             doc,
-            0.0,
             1.5,
             LoopProgram::circle_split(0.0, 0.0, 1.0, 2, 0.0).unwrap(),
         );
         let (doc, top) = extrude(
             doc,
             1.0,
-            1.0,
             LoopProgram::polygon([(-2.0, -2.0), (2.0, -2.0), (2.0, 2.0), (-2.0, 2.0)])
                 .expect("finite"),
         );
-        let (doc, cut) = ins(
-            doc,
-            Node::Subtract {
-                from: rod.into(),
-                tool: top.into(),
-            },
-        );
+        let (doc, cut) = cut(doc, rod, top, 1.0);
         let ev = evaluate::<f64>(
             &doc,
             None,

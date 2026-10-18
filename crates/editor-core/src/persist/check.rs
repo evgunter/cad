@@ -2621,16 +2621,16 @@ mod tests {
             },
             SnapshotError::PlacementNonFinite {
                 node: node(),
-                at: FrameSite::Step { index: 0 },
+                at: FrameSite::Listed { index: 0 },
             },
             SnapshotError::PlacementImproper {
                 node: node(),
-                at: FrameSite::Step { index: 1 },
+                at: FrameSite::Listed { index: 1 },
                 determinant: -1.0,
             },
             SnapshotError::PlacementNonRigid {
                 node: node(),
-                at: FrameSite::Step { index: 1 },
+                at: FrameSite::Listed { index: 1 },
                 check: "transform_rigid_col0_unit",
             },
             SnapshotError::MateRefused {
@@ -2760,7 +2760,6 @@ mod tests {
             (doc, id)
         };
         let doc = ProfileDoc::empty_derived("check-speak", tol);
-        let (doc, plane) = insert(doc, Box::new(crate::test_support::xy_frame()));
         let triangle = crate::program::LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)])
             .expect("finite corners");
         let (doc, profile) = insert(

@@ -416,7 +416,7 @@ mod tests {
     use super::{NodeErrorClass as C, NodeErrorKind as K};
     use crate::names::{EntityKind, StableName};
     use crate::node::RecipeNodeId;
-    use geom_core::{Band, BandError, Indeterminate, MarginDiag, Tol, UnitVec3Error};
+    use geom_core::{Band, BandError, Indeterminate, MarginDiag, Tol};
     use sweep::blend::BlendKind;
 
     /// Every class, declared ONCE for two uses: [`ALL`], which the

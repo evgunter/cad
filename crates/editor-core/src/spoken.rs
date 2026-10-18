@@ -1467,7 +1467,11 @@ mod tests {
     fn a_held_node_is_its_kind_and_tag_and_an_absent_one_is_a_node() {
         let tol = Tol::witness();
         let empty: Doc<ProfileProgram> = Doc::empty_derived("spoken", tol);
-        let node = test_support::xy_frame();
+        let node = crate::node::Node::Tube {
+            major_radius: test_support::len(1.0),
+            window: crate::node::TubeWindow::Full,
+            minor_radius: test_support::len(0.25),
+        };
         let kind = node_kind_noun(&node);
         let doc = empty
             .apply(
@@ -1478,15 +1482,15 @@ mod tests {
                 tol,
                 &RefusingReach,
             )
-            .expect("the frame inserts")
+            .expect("the tube inserts")
             .doc;
-        let id = *doc.ids().last().expect("the inserted frame");
-        assert_eq!(kind, "Datum frame");
+        let id = *doc.ids().last().expect("the inserted tube");
+        assert_eq!(kind, "Tube");
         let spoken = doc.spoken(id);
-        assert_eq!((spoken.id(), spoken.kind()), (id, Some("Datum frame")));
+        assert_eq!((spoken.id(), spoken.kind()), (id, Some("Tube")));
         assert_eq!(
             spoken.to_string(),
-            format!("Datum frame {}", test_utils::refusal::tag(id.0.digest()))
+            format!("Tube {}", test_utils::refusal::tag(id.0.digest()))
         );
         let gone = empty.spoken(id);
         assert_eq!(gone.kind(), None);
@@ -1506,19 +1510,23 @@ mod tests {
         let doc = empty
             .apply(
                 &DocEdit::InsertNode {
-                    node: Box::new(test_support::xy_frame()),
+                    node: Box::new(crate::node::Node::Tube {
+                        major_radius: test_support::len(1.0),
+                        window: crate::node::TubeWindow::Full,
+                        minor_radius: test_support::len(0.25),
+                    }),
                     fresh: Vec::new(),
                 },
                 tol,
                 &RefusingReach,
             )
-            .expect("the frame inserts")
+            .expect("the tube inserts")
             .doc;
-        let id = *doc.ids().last().expect("the inserted frame");
+        let id = *doc.ids().last().expect("the inserted tube");
         let stranger = RecipeNodeId::new(0, test_utils::refusal::tagged(7));
         let forged = SpokenNode::forged(
             id,
-            Some("Datum frame"),
+            Some("Tube"),
             Some(Label::new("floor").expect("a label")),
         );
         let kept: HeldNodes = [forged.clone()].into_iter().collect();
@@ -1526,12 +1534,12 @@ mod tests {
         let said = |by: Speaker<'_>, id| by.node(id).to_string();
         assert_eq!(
             said(Speaker::of(&doc).or_held(&kept), id),
-            format!("Datum frame {t}"),
+            format!("Tube {t}"),
             "the document holds it, so the document says it"
         );
         assert_eq!(
             said(Speaker::of(&empty).or_held(&kept), id),
-            format!("Datum frame \"floor\" ({t})"),
+            format!("Tube \"floor\" ({t})"),
             "the document does not hold it, so it is said as kept"
         );
         assert_eq!(

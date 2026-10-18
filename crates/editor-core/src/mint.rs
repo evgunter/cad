@@ -767,9 +767,9 @@ mod tests {
     /// The display unit a slot is written in enters neither the
     /// anonymous variable's preimage (its kind and what it holds, a
     /// value by its bits and a definition with its literals canonical:
-    /// [`Held`]) nor the node's (its variables' ids). So one point
-    /// written in millimetres and in metres mints one id, and so does
-    /// one written `w + 125 mm` and `w + 0.125 m` (D6).
+    /// [`Held`]) nor the node's (its variables' ids). So one tube's
+    /// radii written in millimetres and in metres mint one id, and so do
+    /// radii written `w + 125 mm` and `w + 0.125 m` (D6).
     #[test]
     fn the_display_unit_is_not_part_of_what_an_insert_hashes() {
         let base = || {
@@ -790,10 +790,15 @@ mod tests {
         };
         let point = |position: [crate::Formula; 3]| -> RecipeNodeId {
             let doc = base();
+            let [major_radius, minor_radius, _] = position;
             let applied = crate::edit::apply(
                 &doc,
                 &crate::DocEdit::InsertNode {
-                    node: Box::new(Node::Datum(crate::node::Datum::Point { position })),
+                    node: Box::new(Node::Tube {
+                        major_radius,
+                        window: crate::node::TubeWindow::Full,
+                        minor_radius,
+                    }),
                     fresh: Vec::new(),
                 },
                 geom_core::Tol::witness(),
@@ -807,7 +812,7 @@ mod tests {
         assert_eq!(
             point(mm),
             point(m),
-            "one point in two units mints one id (D6)"
+            "one tube in two units mints one id (D6)"
         );
         let w =
             || crate::Formula::named(crate::VarName::from_static("w"), crate::Dimension::Length);
