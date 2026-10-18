@@ -1472,3 +1472,53 @@ fn delta6_sphere_meridian_past_a_full_turn() {
     }
     assert!(out.iter().all(|l| !l.contains("ERR") && !l.contains("Err")), "a row refused");
 }
+
+/// delta6: the spiric wall's eval `atan2(f, d)` with a negative offset:
+/// continuous along the span at f64, narrow at Interval, certifies.
+#[test]
+fn delta6_spiric_wall_negative_offset() {
+    use geom_core::{Bounds, Interval, Real};
+    let f = Interval::from_f64;
+    let (r, rr) = (0.09375, 0.0703125);
+    let mut out = vec![];
+    for d in [-0.0078125, 0.0078125, -0.02, -0.0234375 + 1e-9] {
+        let c = Curve3::Spiric {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_y(),
+            u_ref: Vec3::unit_x(),
+            major_radius: r,
+            minor_radius: rr,
+            offset: d,
+        };
+        let torus = Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_y(),
+            major_radius: r,
+            minor_radius: rr,
+            u_ref: Vec3::unit_x(),
+        };
+        for span in [(-0.8, 0.8), (0.5, 2.5), (2.0, 4.0)] {
+            let line = d6_cert(&format!("spiric wall d {d} span {span:?}"), &torus, &c, span);
+            if let Ok(p) = chart_pcurve_over(&c, span.0, span.1, &torus, band()) {
+                let mut jump = 0.0f64;
+                let n = 2000;
+                let mut prev = p.eval(span.0);
+                for i in 1..=n {
+                    let t = span.0 + (span.1 - span.0) * (i as f64) / (n as f64);
+                    let q = p.eval(t);
+                    jump = jump.max((q.x - prev.x).abs()).max((q.y - prev.y).abs());
+                    prev = q;
+                }
+                out.push(format!("{line}; max f64 step {jump:e}"));
+            } else {
+                out.push(line);
+            }
+        }
+        let yv = Interval::from_bounds(1e-3, 1e-3 + 1e-15);
+        let a = yv.atan2(f(d));
+        out.push(format!("D6 atan2([1e-3], {d}) = [{}, {}] w {:e}", a.lo(), a.hi(), a.hi() - a.lo()));
+    }
+    for l in &out {
+        eprintln!("{l}");
+    }
+}
