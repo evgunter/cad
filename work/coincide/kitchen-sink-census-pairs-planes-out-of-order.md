@@ -2,10 +2,11 @@
 id: kitchen-sink-census-pairs-planes-out-of-order
 kind: issue
 title: kitchen_sink's census reads bool_plane_parallel as laundered: one name, one sign, operands in another order
-status: open
+status: closed
 opened: 2026-10-10
 priority: P3
 cost: M
+closed: 2026-10-18
 refs: [the-from-f64-gate-reads-every-generic-crate, under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move]
 ---
 
@@ -39,3 +40,7 @@ tells the two apart today.
 Owed: read why the order differs. If it is a tie the move breaks
 another way, it is the census's to handle: pair the plane decisions as
 a set, or part there. If it is a laundering, fix it at its site.
+
+## Closed: folded
+
+Folded into `under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move`, re-scoped by the INLANE orchestrator's ruling (b) (2026-10-18) to the revalue instrument: p0 and p1 decisions are to be paired by what they decide, not by index. This item's plane swap is one of that item's two done-when rows.

@@ -245,17 +245,21 @@ pub enum NamingError {
         rim: EdgeKey,
     },
     /// A boolean's chord from a MERGED face that holds SEVERAL
-    /// constituents on the side the chord reads through to — the third
-    /// case the merged-chord rules do not cover, a sibling word because
-    /// its subject is the merged face's constituents, not a rim.
+    /// constituents on the side the chord reads through to, of which no
+    /// single one holds the whole chord — a sibling word of
+    /// [`Self::MergedChord`] and [`Self::MergedChordOffRim`] because its
+    /// subject is the merged face's constituents, not a rim.
     ///
     /// A chord between a merged face and an unmerged one is read
-    /// through to the merged face's one constituent on the other side.
-    /// A declared union can merge several faces of ONE operand into one
-    /// face — two members of an assembly glued across a declared wall,
-    /// say — and then nothing says which of them the chord lies on. The
-    /// body is sound; what is missing is a rule that picks the
-    /// constituent (a geometric one, as `chord_on_rim` is for a rim).
+    /// through to the merged face's constituent on the other side, and
+    /// where the merge glued several faces of that operand, to the one
+    /// that holds the chord whole: a chord the output stage never
+    /// joined, read at its middle. This is the chord that rule cannot
+    /// place in one: a chord the join made of several edges, which may
+    /// run across the glued faces' common rim, or one whose middle lies
+    /// on a constituent's boundary or on a face whose in-face door gives
+    /// no reading. The body is sound; what is missing is a rule for a
+    /// chord no single constituent holds.
     MergedChordConstituents {
         /// The result-body edge.
         edge: EdgeKey,
@@ -550,7 +554,7 @@ impl crate::spoken::Say for NamingError {
                 f,
                 "{UNRULED_FRAMING}: seam chord {edge:?} borders merged face {face:?}, which \
                  holds {several} faces of the operand the chord reads through to, and no rule \
-                 picks the one it lies on"
+                 picks one: none of them is read to hold the whole chord"
             ),
             Self::MergedChordOffRim { edge, node, rim } => write!(
                 f,

@@ -609,11 +609,6 @@ trait HoldsNodes {
     ) -> Option<crate::Formula> {
         None
     }
-    /// The place `name` holds in the selection `var`, where this
-    /// document holds both.
-    fn selection_position(&self, _var: crate::var::VarId, _name: &StableName) -> Option<usize> {
-        None
-    }
     /// Where name `reference` of the selection `var`, read at `node`'s
     /// operand `slot`, sits as a person reads it
     /// ([`Node::selection_slot`]), `None` where the selection there does
@@ -709,13 +704,6 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
             _ => Some(ports.get(usize::from(port))?.name),
         };
         Some(OutputOf { node, port })
-    }
-
-    fn selection_position(&self, var: crate::var::VarId, name: &StableName) -> Option<usize> {
-        self.selection(var)?
-            .names
-            .iter()
-            .position(|held| held == name)
     }
 
     fn selection_slot(
@@ -1157,18 +1145,6 @@ impl<'a> Speaker<'a> {
             }
         });
         NodeAs("node", said)
-    }
-
-    /// [`Self::selection_reference`] for the place `name` holds in the
-    /// selection `var`.
-    pub(crate) fn selection_name(
-        self,
-        slot: crate::OperandSlot,
-        var: crate::var::VarId,
-        name: &StableName,
-    ) -> Option<String> {
-        let reference = self.doc?.selection_position(var, name)?;
-        self.selection_reference(slot, var, reference, name)
     }
 
     /// `Self::reference` for name `reference` of the selection `var`

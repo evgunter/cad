@@ -51,6 +51,8 @@ pyo3::create_exception!(
      node the refusal is about, a node it names), `slot`, `param`, `name`, \
      `key`, `expected` and `found` (the dimension the door required \
      and the one it was offered), `kind`, `from_kind`, `to_kind`, \
+     `found_kind` and `expected_kind` (the entity kind a selection's \
+     name denotes and the one its seat reads), \
      `count`, `first`, `again`, `value`, `offered`, `determinant`, \
      `index` (which of a node's placement frames: a transform's step \
      or an explicit rule's listed placement), `side` (the mate side \
