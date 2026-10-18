@@ -975,8 +975,8 @@ fn derived_direction<T: Decide>(
 /// a face side's ([`resolve_side`]), and the part pin a face side's
 /// memo key carries (`eval`'s `SolveAnswer`), so the key and the solve
 /// cannot come to name two different parts for one side. It reads the
-/// part cache's own census ([`crate::eval::parts::instantiated`]), so
-/// every part a mate asks for is one the descent has entered.
+/// part table's own census ([`crate::eval::parts::instantiated`]), so
+/// every part a mate asks for is one the evaluation has entered.
 pub(crate) fn part_of<P>(
     doc: &Doc<P>,
     member: &Member,

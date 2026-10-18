@@ -2221,6 +2221,13 @@ pub fn wall(doc: &editor_core::ProfileDoc, ext: RecipeNodeId, seg: u32) -> RoleS
     RoleSeg::Lateral(piece(doc, ext, 0, seg as usize).into())
 }
 
+/// The END-cap rim edge over outer-loop canonical segment `seg` of the
+/// profile the extrude `ext` sweeps: the edge [`wall`]'s face meets the
+/// end cap along, named for a reader of edges.
+pub fn end_rim(doc: &editor_core::ProfileDoc, ext: RecipeNodeId, seg: u32) -> StableName {
+    rim_edge(ext, CapEnd::End, piece(doc, ext, 0, seg as usize))
+}
+
 /// **The four flush families two x-offset blocks share** — the walls
 /// y0/y1 (segments 0/2, the `square`/`desc` corner order) and both
 /// caps — in ONE place, so every suite that names them agrees about

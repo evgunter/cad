@@ -1466,6 +1466,8 @@ EDIT_ATTRS = (
     "kind",
     "from_kind",
     "to_kind",
+    "found_kind",
+    "expected_kind",
     "count",
     "first",
     "again",

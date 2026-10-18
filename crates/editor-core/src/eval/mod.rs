@@ -132,11 +132,11 @@ pub struct Evaluation<T: Decide> {
     pub loose: BTreeMap<RecipeNodeId, RecipeNodeId>,
     /// How many REFERENCED documents this evaluation actually
     /// evaluated across the document seam (ASM-2A D-3's sharing
-    /// evidence). N instances of one part contribute 1; a memo-hit
-    /// instance contributes 0, because it never asks; and a nested
-    /// crossing — a part that instantiates a part — contributes to
-    /// THIS count too, so the number is the whole run's seam traffic
-    /// rather than one level's.
+    /// evidence). N instances of one part contribute 1; a part the
+    /// prior evaluation carried contributes 0, however its instances
+    /// changed; and a nested crossing — a part that instantiates a
+    /// part — contributes to THIS count too, so the number is the whole
+    /// run's seam traffic rather than one level's.
     pub part_evaluations: usize,
     /// The document's appearance store resolved against THIS
     /// evaluation's name tables (M4 PR 7): per node, entity →
@@ -152,6 +152,9 @@ pub struct Evaluation<T: Decide> {
     /// Each output variable of the evaluated document and the port that
     /// defines it: what [`Self::table`] reads a variable through.
     reads: Arc<BTreeMap<crate::VarId, (RecipeNodeId, u8)>>,
+    /// The parts this run entered and evaluated, carried for the run
+    /// that names it as its prior.
+    parts: parts::Carried<T>,
 }
 
 impl<T: Decide> Evaluation<T> {
@@ -952,6 +955,7 @@ impl Evaluation<f64> {
             appearance: AppearanceResolution::default(),
             env: crate::expr::VarEnv::default(),
             reads: Arc::new(reads),
+            parts: parts::Carried::none(),
         }
     }
 
@@ -1524,140 +1528,6 @@ fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind, by: crate::spoken::Spea
     )
 }
 
-/// **The entity-kind door**: one home for *read a thing, test what kind
-/// of entity it is, refuse* — and, unlike a door built out of a
-/// convention, one a road cannot go around.
-///
-/// One refusal in `eval::wire` asks that question — a selection's
-/// (`SelectKind`), whichever node reads it: a blend's edges, a shell's
-/// open faces, a derived frame's face, a measure's reference. Its
-/// readers differ in the entity they admit and in the words the node
-/// speaks it in. They do NOT differ in how the answer to *"what was it
-/// instead"* is obtained, and that half is this module's. (A measure's
-/// primitive admits its kinds at the edit and load doors, as a seat's
-/// kind, so no evaluation-time kind refusal of its own remains.)
-///
-/// # Why a token rather than a rule
-///
-/// The obvious shape hands the road an [`crate::names::EntityKind`]
-/// and asks it not to make one up. That is a rule, and a rule over a
-/// spelling is enforceable only by a reader or a census — both of
-/// which can be walked past by a road that computes its own answer and
-/// passes it where the door's belongs. [`entity_door::Found`] removes
-/// that: it carries the kind, its field is private to this module, and
-/// [`entity_door::entity`] is the only thing that can mint one.
-///
-/// The readers therefore keep their own sentences while the one fact
-/// they share has one source.
-///
-/// # Why the door is in two files
-///
-/// [`entity_door::entity`] is here and `eval::wire`'s `select` — the
-/// designation road, which resolves a selection's names and then comes
-/// here — is there. That split is not a preference: [`entity_door::Found`]'s field
-/// must be private to a module that is NOT an ancestor of the roads,
-/// and the roads live in `eval::wire`, so the minting site cannot live
-/// there with them. Putting [`entity_door::Found`] beside
-/// [`crate::names::EntityKind`] instead would need a crate-visible
-/// constructor, which every road could call — the guarantee would be
-/// gone. `select`'s own docs carry the other half of this sentence.
-///
-/// **What an outside reader gets from this module is [`entity_door::Found`]**, which
-/// a refusal renders and a test reads through [`entity_door::Found::kind`]. The door
-/// itself is `pub(crate)`: nothing outside this crate resolves an
-/// entity, so nothing outside it has a key to ask about.
-///
-/// # What this does NOT promise, stated because the difference matters
-///
-/// **The WORD is unforgeable; the KEY it is read off is the caller's.**
-/// [`entity_door::entity`] computes the kind from the
-/// [`crate::names::EntityKey`] it was handed, so a road that hands it
-/// the wrong key gets a refusal that truthfully describes that key and
-/// falsely describes the entity the road was talking about. Nothing
-/// here prevents that, and no census in this repo does either: closing
-/// it would mean making [`crate::names::EntityKey`] itself unforgeable,
-/// and the naming layer constructs one in about 150 places.
-///
-/// What IS closed is the shape that made such a substitution
-/// invisible. `read` is a `fn` pointer, not a closure, so it cannot
-/// capture a second key: it answers from the key the door holds or not
-/// at all. A road that substitutes a key therefore substitutes it for
-/// its own success path too and stops working, rather than succeeding
-/// on one entity while refusing about another. The byte-exact refusals
-/// in `crates/editor-core/tests/wire_entity_door.rs` are what covers
-/// the rest, and
-/// `work/wire/the-entity-doors-key-comes-from-its-caller.md` is the row.
-pub mod entity_door {
-    use crate::names::{EntityKey, EntityKind};
-
-    use super::NodeErrorKind;
-
-    /// **What an entity turned out to be**, as a value only
-    /// [`entity`] can make.
-    ///
-    /// Readable by anyone (a refusal renders it; a test asserts on
-    /// it), constructible by nobody outside this module — the private
-    /// field is the whole mechanism, and it is why no census guards
-    /// the rule this type states.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct Found(EntityKind);
-
-    impl Found {
-        /// The kind, for a reader.
-        #[must_use]
-        pub fn kind(self) -> EntityKind {
-            self.0
-        }
-
-        /// The indefinite article agreeing with [`Found::noun`] — the
-        /// value decides it ("an edge", "a face"), so a sentence that
-        /// hard-codes one is wrong for some kind it can reach.
-        pub(crate) fn article(self) -> &'static str {
-            self.0.article()
-        }
-
-        /// The kind as a prose noun, for a refusal's own sentence.
-        pub(crate) fn noun(self) -> &'static str {
-            self.0.noun()
-        }
-    }
-
-    /// **What kind of entity is this, and refuse if it is not** — the
-    /// one home for that question, over a resolved
-    /// [`crate::names::EntityKey`].
-    ///
-    /// `read` is the only thing a caller decides about the ADMITTED
-    /// set: the projection that either finds on the key what this
-    /// door's consumer needs ([`EntityKey::face`], [`EntityKey::edge`],
-    /// or a wider one where a road admits two kinds), or says it is
-    /// not there. `refuse` is that road's OWN refusal — a shell
-    /// designation names a face, a blend's names an edge under its
-    /// verb, a measure's reference names a scope — and it is handed
-    /// the one thing it could not otherwise have.
-    ///
-    /// **`read` is a `fn` pointer rather than a closure, and that is
-    /// the door's second guarantee.** A capturing `read` can ignore its
-    /// argument and answer from a key it closed over, which lets a road
-    /// succeed on one entity while the refusal beside it describes
-    /// another — a lie with a byte-identical success path. A `fn`
-    /// cannot capture, so the value this door returns and the kind it
-    /// reports come off the same key. What remains is that the key is
-    /// the caller's (module docs), and a road that substitutes one
-    /// breaks its own success path in the same stroke.
-    ///
-    /// # Errors
-    ///
-    /// `refuse`'s own refusal, when `read` finds the key is not the
-    /// entity asked for.
-    pub(crate) fn entity<R>(
-        key: EntityKey,
-        read: fn(EntityKey) -> Option<R>,
-        refuse: impl FnOnce(Found) -> NodeErrorKind,
-    ) -> Result<R, NodeErrorKind> {
-        read(key).ok_or_else(|| refuse(Found(key.kind())))
-    }
-}
-
 /// How the copies of a circular pattern whose step is a turn or more
 /// would land ([`NodeErrorKind::FullRangeStep`]).
 #[derive(Debug, Clone, PartialEq)]
@@ -1845,23 +1715,6 @@ pub enum NodeErrorKind {
         reference: usize,
         /// The resolution failure (N5's closed trio).
         error: Box<crate::resolve::ResolveError>,
-    },
-    /// **A name of a selection the node reads denotes another entity
-    /// kind** than the selection's (a face in an edge set): refused
-    /// rather than reinterpreted, so a face is never blended as its
-    /// boundary.
-    SelectKind {
-        /// The operand reading the selection.
-        slot: crate::OperandSlot,
-        /// The selection.
-        var: crate::VarId,
-        /// The offending name.
-        name: Box<crate::names::StableName>,
-        /// The entity kind the selection holds.
-        expected: crate::names::EntityKind,
-        /// What the name denotes — the entity door's own answer
-        /// ([`entity_door::Found`]).
-        found: entity_door::Found,
     },
     /// The document's recorded ε disagrees with the process's
     /// committed ambient ε (M4 PR 6 spec D4: one process = one ε —
@@ -2567,26 +2420,6 @@ impl crate::spoken::Say for NodeErrorKind {
                     crate::spoken::Said(error.as_ref(), by)
                 ),
             },
-            Self::SelectKind {
-                slot,
-                var,
-                name,
-                expected,
-                found,
-            } => {
-                match by.selection_name(*slot, *var, name) {
-                    Some(at) => write!(f, "{at} names {}", by.name(name))?,
-                    None => write!(f, "a selection names {}", by.name(name))?,
-                }
-                write!(
-                    f,
-                    ", which is {} {}, not {} {}",
-                    found.article(),
-                    found.noun(),
-                    expected.article(),
-                    expected.noun()
-                )
-            }
             Self::ToleranceConflict {
                 document_eps,
                 process_eps,
@@ -3466,13 +3299,7 @@ pub struct EvalOptions {
     ///
     /// The `k_stats` recordings (verdicts, escalations, `probe`
     /// samples) are the serial walk's at any thread count, in the
-    /// serial walk's order, with one exception. When a document
-    /// instantiates the same part more than once, the part is evaluated
-    /// once, by whichever instance takes the part cache's lock first,
-    /// and that evaluation's `probe` samples are recorded with that
-    /// instance. The serial walk records them with the first instance
-    /// in its order; the level schedule may record them with another
-    /// (`work/wire/part-cache-miss-samples-land-on-whichever-instance-wins-the-lock.md`).
+    /// serial walk's order.
     ///
     /// A request, not a guarantee: while the calling thread has a
     /// symbolic session or shape report installed
@@ -3492,9 +3319,10 @@ pub struct EvalOptions {
     /// Production default: `Realized`.
     pub boolean_sweep: topo::SweepStrategy,
     /// The document seam (ASM-2A D-3): how an `InstantiatePart` node
-    /// reaches the document it pins. `None` — the default — is a
-    /// kernel-only evaluation, in which every instantiate node refuses
-    /// typed rather than pretending a part is empty.
+    /// reaches the document it pins. `None` — the default — crosses no
+    /// seam: a part the prior evaluation carried is served from it (the
+    /// pin says which content, A4), and every other instantiate node
+    /// refuses typed rather than pretending a part is empty.
     pub resolver: Option<Arc<dyn crate::part::PartResolver>>,
     /// The PARAMETER BOX this evaluation runs over (E6's leaf replay):
     /// each named axis binds `nominal + [lo, hi]` instead of the
@@ -3719,24 +3547,20 @@ impl Default for EvalOptions {
     }
 }
 
-/// **The mate solve's reach over a part cache** — the two geometric
+/// **The mate solve's reach over a part's row** — the two geometric
 /// reads the solve makes (A11 rule 5: a part's extent, a face's pose),
 /// answered from the parts this evaluation resolves.
 ///
-/// The evaluation's own run reads the cache it has already built
-/// ([`CacheReach`]); every caller outside a run — the viewer's mate
-/// tool, the Python door, the demos, the test fixtures — builds one
-/// through [`mate_reach`] over the options it would evaluate with, so
-/// there is one implementation of "a part's extent" and it is the
-/// evaluation's.
-fn reach_over_cache<T: EvalScalar>(
-    parts: &parts::PartCache<'_, T>,
-    part: &crate::ident::DocRef,
-    tol: Tol,
+/// The evaluation's own run reads the table it entered before the
+/// solve ([`TableReach`]); every caller outside a run — the viewer's
+/// mate tool, the Python door, the demos, the test fixtures — builds a
+/// store through [`mate_reach`] over the options it would evaluate
+/// with, so there is one implementation of "a part's extent" and it is
+/// the evaluation's.
+fn reach_of<T: EvalScalar>(
+    row: Result<parts::PartValue<T>, parts::PartFault>,
 ) -> Result<f64, crate::mate::ReachRefusal> {
-    let value = parts
-        .get(part, tol)
-        .map_err(|fault| crate::mate::ReachRefusal::PartUnresolved { fault })?;
+    let value = row.map_err(|fault| crate::mate::ReachRefusal::PartUnresolved { fault })?;
     // The reach is an UPPER BOUND by definition, and the bracket's `hi`
     // is that bound at the run's scalar (`EvalScalar` gathers the
     // ratified compound; on `f64` the bracket is the value). It scales
@@ -3750,7 +3574,7 @@ fn reach_over_cache<T: EvalScalar>(
     Ok(hi)
 }
 
-/// **A named face's canonical pose over a part cache** — the other
+/// **A named face's canonical pose over a part's row** — the other
 /// read `ASSEMBLY.md` A11 rule 5 lets into the solve, answered from
 /// the same cached product the reach reads: the part's own product
 /// table resolves the PART-LOCAL name to its face through the name
@@ -3765,17 +3589,13 @@ fn reach_over_cache<T: EvalScalar>(
 /// The pose crosses to the solve at the evaluation's scalar, the one
 /// the solve runs at (`ASSEMBLY.md` A11 (5)), as the part's product
 /// holds it.
-fn face_pose_over_cache<T: EvalScalar>(
-    parts: &parts::PartCache<'_, T>,
-    part: &crate::ident::DocRef,
+fn face_pose_of<T: EvalScalar>(
+    row: Result<parts::PartValue<T>, parts::PartFault>,
     face: &crate::FaceName,
-    tol: Tol,
 ) -> Result<topo::readback::Pose<T>, crate::mate::FacePoseRefusal> {
     use crate::mate::FacePoseRefusal as R;
     use crate::names::interrogate::{TableRefusal, key_in};
-    let value = parts
-        .get(part, tol)
-        .map_err(|fault| R::PartUnresolved { fault })?;
+    let value = row.map_err(|fault| R::PartUnresolved { fault })?;
     let (_, key) =
         key_in::<topo::FaceKey>(&value.names, face).map_err(|refusal| match refusal {
             TableRefusal::NoSuchName => R::NoSuchName,
@@ -3785,15 +3605,15 @@ fn face_pose_over_cache<T: EvalScalar>(
     topo::readback::face_pose(value.body.as_ref(), key).map_err(R::Readback)
 }
 
-/// The running evaluation's reach: its own cache, borrowed.
-struct CacheReach<'r, 'a, T: EvalScalar> {
-    parts: &'r parts::PartCache<'a, T>,
+/// The running evaluation's reach: the table it entered, borrowed.
+struct TableReach<'r, T: EvalScalar> {
+    parts: &'r parts::Reached<T>,
     tol: Tol,
 }
 
-impl<T: EvalScalar> crate::mate::MateReach<T> for CacheReach<'_, '_, T> {
+impl<T: EvalScalar> crate::mate::MateReach<T> for TableReach<'_, T> {
     fn reach(&self, part: &crate::ident::DocRef) -> Result<f64, crate::mate::ReachRefusal> {
-        reach_over_cache(self.parts, part, self.tol)
+        reach_of(self.parts.get(part, self.tol))
     }
 
     fn face_pose(
@@ -3801,19 +3621,33 @@ impl<T: EvalScalar> crate::mate::MateReach<T> for CacheReach<'_, '_, T> {
         part: &crate::ident::DocRef,
         face: &crate::FaceName,
     ) -> Result<topo::readback::Pose<T>, crate::mate::FacePoseRefusal> {
-        face_pose_over_cache(self.parts, part, face, self.tol)
+        face_pose_of(self.parts.get(part, self.tol), face)
     }
 }
 
 /// **A mate solve's reach, built outside an evaluation** — what
-/// [`mate_reach`] answers. Owns a part cache over `opts`' resolver,
-/// so a caller that solves a document and then evaluates it resolves
-/// each mated part once here and once there; the evaluation's own
-/// solve shares its run's cache instead. Bound to no document: the
-/// edit door threads one reach through a group of edits, each applied
-/// to its predecessor's output.
+/// [`mate_reach`] answers. Owns a part store over `opts`' resolver
+/// that evaluates each part on its first ask, so a caller that solves
+/// a document and then evaluates it resolves each mated part once here
+/// and once there; the evaluation's own solve reads its run's table
+/// instead. Bound to no document: the edit door threads one reach
+/// through a group of edits, each applied to its predecessor's output.
+///
+/// Not `Sync`: the store fills by `&mut` behind a `RefCell`, so one
+/// thread asks at a time and no ask waits on another's evaluation. It
+/// can still be sent:
+///
+/// ```compile_fail,E0277
+/// fn shared<R: Sync>() {}
+/// shared::<editor_core::PartReach<'static, f64>>();
+/// ```
+///
+/// ```
+/// fn sent<R: Send>() {}
+/// sent::<editor_core::PartReach<'static, f64>>();
+/// ```
 pub struct PartReach<'a, T: EvalScalar> {
-    parts: parts::PartCache<'a, T>,
+    parts: core::cell::RefCell<parts::PartStore<'a, T>>,
     tol: Tol,
 }
 
@@ -3834,28 +3668,34 @@ impl<'a, T: EvalScalar> PartReach<'a, T> {
         Self::over(resolver, defaults.boolean_sweep, tol)
     }
 
-    /// A reach over a part cache built from these options' parts.
+    /// A reach over a part store built from these options' parts.
     fn over(
         resolver: Option<&'a Arc<dyn crate::part::PartResolver>>,
         boolean_sweep: topo::SweepStrategy,
         tol: Tol,
     ) -> Self {
         Self {
-            parts: parts::PartCache::<T>::new(
+            parts: core::cell::RefCell::new(parts::PartStore::<T>::new(
                 resolver,
-                &[],
-                parts::Reached::none(),
                 boolean_sweep,
                 tol,
-            ),
+            )),
             tol,
         }
+    }
+
+    /// The row `part` has, evaluated on its first ask. Outside any run,
+    /// so nothing cancels it.
+    fn row(&self, part: &crate::ident::DocRef) -> Result<parts::PartValue<T>, parts::PartFault> {
+        self.parts
+            .borrow_mut()
+            .row(part, self.tol, &CancelToken::new())
     }
 }
 
 impl<T: EvalScalar> crate::mate::MateReach<T> for PartReach<'_, T> {
     fn reach(&self, part: &crate::ident::DocRef) -> Result<f64, crate::mate::ReachRefusal> {
-        reach_over_cache(&self.parts, part, self.tol)
+        reach_of(self.row(part))
     }
 
     fn face_pose(
@@ -3863,7 +3703,7 @@ impl<T: EvalScalar> crate::mate::MateReach<T> for PartReach<'_, T> {
         part: &crate::ident::DocRef,
         face: &crate::FaceName,
     ) -> Result<topo::readback::Pose<T>, crate::mate::FacePoseRefusal> {
-        face_pose_over_cache(&self.parts, part, face, self.tol)
+        face_pose_of(self.row(part), face)
     }
 }
 
@@ -3926,29 +3766,26 @@ pub fn evaluate<T>(
 where
     T: EvalScalar,
 {
-    evaluate_at_descent(doc, prior, cancel, opts, &[], parts::Reached::none(), tol)
+    evaluate_at_descent(doc, prior, cancel, opts, None, tol)
 }
 
 /// An instantiated document's own evaluation (ASM-2A D-3), one level
-/// deeper than its instantiator's. `chain` is the descent — every
-/// reference this run was reached through — which is what makes a
-/// cycle decidable at the seam. `reached` holds the parts the document
-/// instantiates, already evaluated (see [`parts::PartCache`] on why
-/// the descent runs bottom-up). No prior: a referenced document is
-/// resolved fresh, and the memo that keeps THAT from costing anything
-/// is the part cache, one layer up.
+/// deeper than its instantiator's. `reached` holds the parts the
+/// document instantiates, already evaluated by the descent (see
+/// [`parts`] on why it runs bottom-up). No prior: a referenced document
+/// is resolved fresh, and the memo that keeps THAT from costing
+/// anything is the top's part rows, carried from its prior.
 pub(crate) fn evaluate_nested<T>(
     doc: &Doc<ProfileProgram>,
     cancel: &CancelToken,
     opts: &EvalOptions,
-    chain: &[crate::ident::DocRef],
     reached: parts::Reached<T>,
     tol: Tol,
 ) -> Evaluation<T>
 where
     T: EvalScalar,
 {
-    evaluate_at_descent(doc, None, cancel, opts, chain, reached, tol)
+    evaluate_at_descent(doc, None, cancel, opts, Some(reached), tol)
 }
 
 /// Whether `doc` was recorded at the process's ε — the D4 door below.
@@ -3963,8 +3800,7 @@ fn evaluate_at_descent<T>(
     prior: Option<&Evaluation<T>>,
     cancel: &CancelToken,
     opts: &EvalOptions,
-    chain: &[crate::ident::DocRef],
-    reached: parts::Reached<T>,
+    reached: Option<parts::Reached<T>>,
     tol: Tol,
 ) -> Evaluation<T>
 where
@@ -4022,14 +3858,20 @@ where
     // with it as `wire::LaneEnv::nominal` — what it is and who reads
     // it is stated there; why the key owes it, at `tag::slot`.
     let nominal_env = doc.var_env::<f64>();
-    let parts = parts::PartCache::<T>::new(
-        opts.resolver.as_ref(),
-        chain,
-        reached,
-        opts.boolean_sweep,
-        tol,
-    )
-    .with_symbols(opts.symbols);
+    // The parts, entered before anything below reads one: handed down
+    // by the descent below the top, and entered here at the top, in
+    // one serial pass that reuses what the prior carried (`parts`
+    // module docs).
+    let entry = match reached {
+        Some(reached) => parts::Entry {
+            reached,
+            carried: parts::Carried::none(),
+            evaluations: 0,
+        },
+        None => parts::PartStore::<T>::new(opts.resolver.as_ref(), opts.boolean_sweep, tol)
+            .with_symbols(opts.symbols)
+            .enter_census(doc, prior.map(|p| &p.parts), cancel, tol),
+    };
     // The mate solve is a WHOLE-DOCUMENT computation over recipe data
     // (A11): each placement's bundle folded once, in schedule order,
     // read by every placement below. Running it here rather than per
@@ -4039,18 +3881,18 @@ where
     // seed or a box that binds what a mate reads moves the poses with
     // it. Its two geometric reads — each mated part's extent (the lever)
     // and a face-based side's face pose — come off THIS run's part
-    // cache: at the top a mated part is evaluated on its first ask,
-    // once, under the cache's shielding bracket, and below the top the
-    // descent has already entered it. Either way its instantiate node
-    // then hits the cache.
-    let reach = CacheReach { parts: &parts, tol };
+    // table, entered above.
+    let reach = TableReach {
+        parts: &entry.reached,
+        tol,
+    };
     let poses = crate::mate::solve_with_env(doc, &env, &reach, tol);
     // Which space each node lives in, read off the solve once, as the
     // solve is: a per-node reading would be a second answer.
     let spaces = crate::mate::solve::spaces_of(doc, &poses);
     let op_env = wire::OpEnv {
         boolean_sweep: opts.boolean_sweep,
-        parts: &parts,
+        parts: &entry.reached,
         poses: &poses,
         across: &spaces.across,
         lane: wire::LaneEnv {
@@ -4153,10 +3995,11 @@ where
         recomputed,
         reused,
         loose,
-        part_evaluations: parts.evaluations(),
+        part_evaluations: entry.evaluations,
         appearance: resolved_appearance,
         env,
         reads: Arc::new(doc.output_ports()),
+        parts: entry.carried,
     }
 }
 
@@ -4279,6 +4122,7 @@ where
         appearance: resolved_appearance,
         env: doc.var_env::<T>(),
         reads: Arc::new(doc.output_ports()),
+        parts: parts::Carried::none(),
     }
 }
 

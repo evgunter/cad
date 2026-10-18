@@ -10,7 +10,7 @@
 //! Intersected (the cap), and the brick minus the lens, the cut is glued
 //! away and the circle keeps one vertex with no identity of its own,
 //! which the table refuses typed until its edge-derived name is built
-//! (`work/fuse/a-conventional-vertex-mints-no-edge-derived-name.md`).
+//! (`work/emit/a-conventional-vertex-mints-no-edge-derived-name.md`).
 //! The union and the lens minus the brick keep the cut as two edges
 //! between pieces of one face ([`CUT_LEFT`]).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -111,7 +111,7 @@ pub(crate) fn brick_toward(
 /// Where the cut survives, the result holds two pieces of one sphere
 /// face across it.
 const CUT_LEFT: &str =
-    "work/fuse/a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick.md";
+    "work/hone/a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick.md";
 
 /// The document: the lens, the brick, and `op` over them, lens first or
 /// not.
