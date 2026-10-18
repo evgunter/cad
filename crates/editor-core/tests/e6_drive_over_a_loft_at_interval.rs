@@ -3,9 +3,11 @@
 //! when its sections are polygons, on an unrotated frame (every value a
 //! point) or a rotated one (the plane a few ulps wide, which the loft
 //! skins at the lane scalar). An arc section is a few ulps wide with no
-//! box at all, and an arc's weight is no point at `Interval`: the loft
-//! refuses `SkinError::ArcWeightNotAPoint` at every leaf, which a
-//! smaller box cannot lift, and the drive bisects to its leaf budget
+//! box at all, and an arc's weight is no point at `Interval`: its sweep
+//! is certified (a full turn, four sub-arcs) and the carrier's door
+//! refuses the weight (`SplineError::CarrierWeightNotAPoint`, C6's
+//! interim until S4/S5) at every leaf, which a smaller box cannot lift,
+//! and the drive bisects to its leaf budget
 //! (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -186,7 +188,9 @@ fn with_no_box_the_guided_lift_refuses_an_arc_section_and_lofts_a_rotated_plane(
     }
     let guided = run(&arc, ProfileLift::Guided);
     match guided.node_error(arc_loft).map(|e| &e.kind) {
-        Some(NodeErrorKind::Skin(SkinError::ArcWeightNotAPoint { section: 0 })) => {}
+        Some(NodeErrorKind::Skin(SkinError::Structure(
+            geom_core::spline::SplineError::CarrierWeightNotAPoint { .. },
+        ))) => {}
         other => panic!("the arc's weight is no point at Interval, got {other:?}"),
     }
     let guided = run(&rotated, ProfileLift::Guided);

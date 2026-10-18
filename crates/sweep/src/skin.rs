@@ -62,9 +62,13 @@
 //! that enclose the box's family. The sines and cosines are `Real`'s,
 //! the pure-Rust `libm` D9 prescribes.
 //!
-//! A carrier's weights and knots are points at every scalar, so at an
-//! enclosure scalar an arc refuses ([`SkinError::ArcWeightNotAPoint`]),
-//! as does an interior averaged knot wider than a point, and the knot
+//! A carrier's weights and knots are points at every scalar for now, so
+//! at an enclosure scalar an arc whose weight `cos(Δ/2)` is wider than a
+//! point refuses at the carrier's door
+//! (`SplineError::CarrierWeightNotAPoint`, until C6's S4/S5), as does an
+//! interior averaged knot wider than a point. An arc's sweep structure
+//! (non-zero, its sub-arc count, a turn) is certified for every value
+//! it stands for ([`SkinError::ArcSweepUndecided`]). The knot
 //! algebra, which is projective ([`ProjectiveScalar`]), does not run
 //! ([`SkinError::IncompatibleAtEnclosure`]). No topology decision is
 //! made here, so nothing routes through `k_stats`; the raw `f64`
@@ -82,7 +86,9 @@ use geom_core::Tol;
 use geom_core::spline::{
     KnotAlgebraError, Knots, ProjectiveScalar, ProjectiveSplit, SpanLocate, SplineError,
 };
-use geom_core::{Affine3, Arc2, COINCIDENCE_RECOURSE, Decide, Point2, Point3, Real, Vec3};
+use geom_core::{
+    Affine3, Arc2, COINCIDENCE_RECOURSE, Decide, MarginDiag, Point2, Point3, Real, Vec3,
+};
 use profile::{
     CanonicalStructure, ConstructedLoop, ConstructedProfile, Profile, ProfileError, ProfileLoop,
     SketchPlane, ValidatedProfile,
@@ -102,6 +108,33 @@ const SUB_ARC_ETA: f64 = 1.0 / 16.0;
 /// tangent-intersection control point stays finite and well
 /// conditioned (`cos(Δ/2) ≥ cos((π/4)(1 + η))`).
 const MAX_SUB_ARC: f64 = core::f64::consts::FRAC_PI_2 * (1.0 + SUB_ARC_ETA);
+
+/// Which of an arc's sweep decisions [`SkinError::ArcSweepUndecided`]
+/// names: each is structure read off the sweep, certified for every
+/// value it stands for (C6).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ArcSweepDecision {
+    /// That the sweep is not zero.
+    NonZero,
+    /// How many sub-arcs it takes: one sub-arc reaches `(π/2)(1 + η)`.
+    SubArcCount,
+    /// That an arc between two points stops short of a full turn.
+    TurnBetweenPoints,
+    /// That an arc back to its own start is one full turn, nearer one
+    /// than none or two.
+    TurnToItself,
+}
+
+impl core::fmt::Display for ArcSweepDecision {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::NonZero => "sweep's being non-zero",
+            Self::SubArcCount => "sub-arc count",
+            Self::TurnBetweenPoints => "staying short of a full turn",
+            Self::TurnToItself => "being one full turn",
+        })
+    }
+}
 
 /// Typed refusal of the §10.3/§10.4 constructions (closed enum, D4 ¶3).
 ///
@@ -231,14 +264,19 @@ pub enum SkinError {
         /// parameterization reads.
         row: usize,
     },
-    /// Section `section` has an arc whose sweep, or the weight
-    /// `cos(Δ/2)` its sub-arcs carry, is no single point. That holds at
-    /// an enclosure scalar, where outward rounding alone widens the
-    /// cosine, and a carrier holds point weights
-    /// (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`).
-    ArcWeightNotAPoint {
+    /// Section `section` has an arc whose sweep's structure is not
+    /// decided over the values it stands for (C6): its bracket
+    /// straddles one of the decision's breakpoints (`which` names the
+    /// decision). The margin is the sweep's distance to that
+    /// breakpoint, as read; inputs narrow enough that it clears zero
+    /// lift the refusal.
+    ArcSweepUndecided {
         /// The section.
         section: usize,
+        /// The decision.
+        which: ArcSweepDecision,
+        /// The sweep's distance to the breakpoint, as read.
+        margin: MarginDiag,
     },
     /// Section `section`'s curve differs from section 0's in degree or
     /// knots at an enclosure scalar. Making them compatible is the
@@ -314,12 +352,15 @@ impl core::fmt::Display for SkinError {
                  values they stand for, so the skin's parameterization is not one for them \
                  all. Recourse: narrow the range, or evaluate the loft at a point scalar"
             ),
-            Self::ArcWeightNotAPoint { section } => write!(
+            Self::ArcSweepUndecided {
+                section,
+                which,
+                margin,
+            } => write!(
                 f,
-                "section {section} has an arc whose sweep or weight is not a single point, \
-                 which a skinned carrier needs. At an interval scalar rounding alone widens an \
-                 arc's weight. Recourse: evaluate the loft at a point scalar; an arc section \
-                 over a range of values is not lofted yet"
+                "section {section} has an arc whose {which} is undecided over the values its \
+                 sweep stands for: the sweep is {margin} from the breakpoint. Recourse: narrow \
+                 the range of that sweep until it clears the breakpoint"
             ),
             Self::IncompatibleAtEnclosure { section } => write!(
                 f,
@@ -420,39 +461,81 @@ pub fn segment_curve<T: SpanLocate>(
                 sweep: theta,
                 ..
             } = arc;
-            let not_a_point = |v: T| v.point_value().is_none() && !v.is_poison();
-            if not_a_point(theta) {
-                return Err(SkinError::ArcWeightNotAPoint { section });
-            }
-            let sweep = theta.value_channel();
-            if !sweep.is_finite() || sweep == 0.0 {
+            // The sweep's structure is decided over |θ|'s bracket, for
+            // every value it stands for (C6): that it is not zero, how
+            // many sub-arcs it takes, and that it is short of a turn (an
+            // arc between two points) or one turn (an arc back to its
+            // start). A bracket that straddles a breakpoint refuses typed,
+            // with the margin a narrower box lifts.
+            let undecided = |which, lo: f64, hi: f64| SkinError::ArcSweepUndecided {
+                section,
+                which,
+                margin: MarginDiag::enclosure(lo, hi),
+            };
+            let Some((lo, hi)) = theta.abs().structure_bracket() else {
+                return Err(degenerate("zero or non-finite sweep"));
+            };
+            if !hi.is_finite() || hi == 0.0 {
                 return Err(degenerate("zero or non-finite sweep"));
             }
-            // The weight is decided before any branch reads the arc's
-            // endpoints, so an arc whose weight is no point refuses by
-            // it whatever its endpoints' brackets.
+            if lo == 0.0 {
+                return Err(undecided(ArcSweepDecision::NonZero, lo, hi));
+            }
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let m = ((sweep.abs() / MAX_SUB_ARC).ceil() as usize).max(1);
+            let count = |x: f64| ((x / MAX_SUB_ARC).ceil() as usize).max(1);
+            let m = count(lo);
+            if count(hi) != m {
+                #[allow(clippy::cast_precision_loss)]
+                let at = m as f64 * MAX_SUB_ARC;
+                return Err(undecided(ArcSweepDecision::SubArcCount, lo - at, hi - at));
+            }
             #[allow(clippy::cast_precision_loss)]
             let steps = m as f64;
             let delta = theta / T::from_f64(steps);
             let half = T::from_f64(0.5);
+            // The weight `cos(Δ/2)` is held in `T`; where it is no point
+            // (at an enclosure scalar, by rounding alone), the carrier's
+            // door refuses it (`CarrierWeightNotAPoint`) until C6's S4/S5.
             let (_, half_w) = (delta * half).sin_cos();
-            if not_a_point(half_w) {
-                return Err(SkinError::ArcWeightNotAPoint { section });
-            }
             // An arc that ends where it starts lands there after whole
             // turns, and converts only as ONE (D1's full turn): its
             // sweep is nearer one turn than none or two. An arc between
-            // two points stops short of a turn.
+            // two points stops short of a turn. Both read the true 2π's
+            // bracket.
+            let (tau_lo, tau_hi) = T::tau().structure_bracket().unwrap_or((TAU, TAU));
             if a.distance(b).structure_positive() {
-                if !(sweep.abs() < TAU) {
+                if lo >= tau_hi {
                     return Err(degenerate("a full turn or more between two points"));
                 }
-            } else if !(sweep.abs() > TAU / 2.0 && sweep.abs() < 1.5 * TAU) {
-                return Err(degenerate(
-                    "an arc from a point back to itself that is not one full turn",
-                ));
+                if hi >= tau_lo {
+                    return Err(undecided(
+                        ArcSweepDecision::TurnBetweenPoints,
+                        lo - tau_lo,
+                        hi - tau_lo,
+                    ));
+                }
+            } else {
+                let (half_lo, half_hi) = (0.5 * tau_lo, 0.5 * tau_hi);
+                let (three_lo, three_hi) = (1.5 * tau_lo, 1.5 * tau_hi);
+                if hi <= half_lo || lo >= three_hi {
+                    return Err(degenerate(
+                        "an arc from a point back to itself that is not one full turn",
+                    ));
+                }
+                if lo <= half_hi {
+                    return Err(undecided(
+                        ArcSweepDecision::TurnToItself,
+                        lo - half_hi,
+                        hi - half_hi,
+                    ));
+                }
+                if hi >= three_lo {
+                    return Err(undecided(
+                        ArcSweepDecision::TurnToItself,
+                        lo - three_lo,
+                        hi - three_lo,
+                    ));
+                }
             }
             let spoke = a - centre;
             let rim = spoke.norm();
