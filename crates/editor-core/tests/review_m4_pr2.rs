@@ -787,7 +787,7 @@ fn wire_doors_refuse_typed() {
         ),
         "{refusal:?}"
     );
-    // Pattern count 0: NonPositiveCount.
+    // Pattern count 0: CountOutOfRange.
     let (d, bad_pat) = insert(
         doc.clone(),
         Node::Pattern {
@@ -803,7 +803,14 @@ fn wire_doors_refuse_typed() {
     match ev.nodes.get(&bad_pat) {
         Some(NodeResult::Failed(e)) => {
             assert!(
-                matches!(e.kind, NodeErrorKind::NonPositiveCount { count: 0 }),
+                matches!(
+                    e.kind,
+                    NodeErrorKind::CountOutOfRange {
+                        slot: editor_core::SlotId::Count,
+                        count: 0,
+                        ..
+                    }
+                ),
                 "got {:?}",
                 e.kind
             );

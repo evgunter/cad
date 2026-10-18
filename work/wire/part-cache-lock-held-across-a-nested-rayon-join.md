@@ -5,7 +5,8 @@ title: PartCache::get holds a non-reentrant Mutex across a nested evaluation tha
 status: open
 opened: 2026-09-25
 priority: P1
-cost: D
+cost: M
+design: true
 ---
 
 

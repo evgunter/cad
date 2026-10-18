@@ -3,10 +3,9 @@
 //!
 //! A selection is a COMMITMENT (the #217 freeze ruling), so a name
 //! that stops resolving is a refusal, never a silent shrink. The
-//! vocabulary is `resolve_declarations`' verbatim — the two sites
-//! answer the same question, so they answer it the same way — plus two
-//! refusals a single-operand selection needs and a Declare pair does
-//! not: a mis-KINDED name and an EMPTY set.
+//! vocabulary is the mid-evaluation N5 ladder's (`eval/wire.rs`
+//! `ladder`), the same refusals `crate::resolve` mints, plus two a
+//! selection adds: a mis-KINDED name and an EMPTY set.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

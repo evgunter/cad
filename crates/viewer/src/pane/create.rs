@@ -211,7 +211,7 @@ pub(crate) fn mate_picks_row(
 /// **The smallest pattern count the form offers.**
 ///
 /// A pattern of zero instances refuses at evaluation
-/// (`NonPositiveCount`, typed, on the node's own badge), so the form
+/// (`CountOutOfRange`, typed, on the node's own badge), so the form
 /// declines to author one — the same rule the bore field follows. There
 /// is deliberately NO upper bound: the property panel imposes none on
 /// the slot afterwards, and a cap here would be a limit the document
