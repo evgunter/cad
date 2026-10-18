@@ -6138,3 +6138,10 @@ Signed (WIRE orchestrator).
   the split's output so it goes. Keeps: strike N2's in-plane clause, or
   extend it to faces with a recorded trace. Round 2 dispatched, each
   given the other's report. (WIRE orchestrator)
+
+- 2026-10-18 — FORK-INPLANE converged after five rounds and three
+  crossovers. Agreed: the split finishes halves maximal; chords stay
+  chords; `Keeps` reads descent, with N2's in-plane clause struck; every
+  merged group is `Merged`. `[ev]` PR 5306 edits N2/N3, fork-log row
+  162. Filed `a-section-faces-index-is-its-completion-order-not-its-identity`
+  (P3, design). The build unit waits on Ev. (WIRE orchestrator)
