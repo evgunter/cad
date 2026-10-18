@@ -1289,8 +1289,10 @@ vocabulary! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum WithdrawalKind {
         /// **A SUBSTITUTION.** The user's hand placement answered "where
-        /// does this part go", and the pin that landed answers it better,
-        /// so the probe steps aside and the picture keeps the part.
+        /// does this part go", and the document that landed answers it
+        /// differently — a pin, a join with another space, a placement it
+        /// refuses — so the probe steps aside and the picture keeps the
+        /// part.
         ///
         /// [`crate::display::PruneReport::superseded`] names, by their
         /// roots, the loose spaces whose COMMITTED free-move frame a prune
@@ -1298,8 +1300,10 @@ vocabulary! {
         /// than inferred. Most arrive with a landing, which is when a space
         /// is known (`DocSession::take_landed_withdrawals`), and the rest
         /// on [`crate::session::OpOutcome::withdrawn`] (a root gone);
-        /// [`crate::display::DisplayState::prune`] is where it happens, and
-        /// [`crate::display::space_check`] is the condition. A killed
+        /// [`crate::display::DisplayState::prune`] is where it happens
+        /// ([`crate::display::DisplayState::prune_structural`] for a value
+        /// gesture's scratch), and [`crate::display::space_check`] is the
+        /// condition. A killed
         /// in-flight gesture is NOT in that list, so
         /// it is not this channel's to report; the next gesture op refuses
         /// typed instead.

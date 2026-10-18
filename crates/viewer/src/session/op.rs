@@ -1297,8 +1297,9 @@ impl SessionOp {
     /// ([`crate::display::DisplayState::prune_structural`]), so a
     /// committed pin a preview overtook still lands mid-drag and a
     /// previewed refusal discards nothing committed. So the previewed
-    /// document and the committed one agree on every display question,
-    /// at every point of a drag.
+    /// document and the committed one agree on every display question
+    /// the graph decides, at every point of a drag; a refused placement
+    /// is said when the committed document lands, whatever refused it.
     /// Break that — let a gesture's edit change the graph — and
     /// committing a slider would take an in-flight probe away under
     /// the pointer holding it, saying nothing. The minting half is

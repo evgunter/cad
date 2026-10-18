@@ -38,6 +38,16 @@ The row is `a_pin_landing_a_value_gesture_overtakes_still_prunes` in
 `crates/viewer/tests/assembly_display.rs`. It was red before the fix: the
 landing withdrew nothing.
 
-Still without a row: the structural half's other side, that a value-refused
-placement keeps its frame at a scratch landing. It is listed in
-`free-move-landing-prune-gaps-have-no-row`.
+The review (single FULL, APPROVE-WITH-FIXES, no MAJOR) found that a refusal
+the graph decides (two mates over-constraining a copy) also waits for the
+committed landing, because an evaluation does not say what decided a refusal.
+That is now stated in `Answers::Structural`, `prune_structural` and the overlap
+argument. Rows pin both halves of the split and the arms the review's mutants
+found unpinned, and each goes red under its mutant:
+- `a_join_landing_a_value_gesture_overtakes_still_prunes` (`MovedSpace` at a
+  scratch landing);
+- `a_refused_placement_waits_for_the_committed_landing` (a scratch landing
+  keeps the frame, and the committed one drops it with `NoSpace`);
+- `deleting_a_frames_root_drops_it_at_the_edit`.
+
+The frame test is spelled once (`frame_check`).

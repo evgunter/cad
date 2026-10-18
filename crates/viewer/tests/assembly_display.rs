@@ -1056,21 +1056,12 @@ fn a_replacement_takes_the_landings_untaken_report() {
     );
 }
 
-/// **A pin's landing that a value gesture overtakes still prunes, mid-
-/// drag.** An undo pins post_b again under its committed frame; before
-/// that edit lands, a value gesture opens and previews, so the edit's
-/// own landing is stale and the next one to arrive is the scratch's.
-/// The scratch shares the committed graph, so it knows the pin: its
-/// landing drops the frame and says so then, not after the drag ends.
-#[test]
-fn a_pin_landing_a_value_gesture_overtakes_still_prunes() {
-    let tol = Tol::witness();
-    let bench = asm::bench("fmovertaken", tol);
-    let mut session = asm::open_bench(&bench, tol);
-    // A slot to drag: a pattern over post_a, whose spacing a value
-    // gesture writes. It places nothing, so no picture changes.
+/// **A slot a value gesture drags, on the bench**: a pattern over
+/// post_a, whose spacing the gesture writes. It places nothing, so no
+/// picture changes. Landed before it answers.
+fn drag_slot(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
     let pattern = common::session_insert(
-        &mut session,
+        session,
         SessionOp::AddPattern {
             input: bench.post_a.into(),
             count: 2,
@@ -1081,25 +1072,27 @@ fn a_pin_landing_a_value_gesture_overtakes_still_prunes() {
         },
     );
     session.pump();
-    asm::unpin(&mut session, bench.post_b);
+    pattern
+}
+
+/// A committed free-move frame on the loose `instance`.
+fn commit_frame(session: &mut DocSession, instance: RecipeNodeId) {
     for op in [
-        SessionOp::BeginFreeMove {
-            instance: bench.post_b,
-        },
+        SessionOp::BeginFreeMove { instance },
         SessionOp::PreviewFreeMove {
-            instance: bench.post_b,
+            instance,
             frame: Frame::translation([0.0, 0.0, 0.05]),
         },
-        SessionOp::CommitFreeMove {
-            instance: bench.post_b,
-        },
+        SessionOp::CommitFreeMove { instance },
     ] {
         let outcome = session.perform(op.clone());
         assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
     }
+}
 
-    // The pin back, and before it lands, a drag.
-    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+/// Open a value gesture on `pattern`'s spacing, preview it, and pump:
+/// the landing that arrives is the scratch's.
+fn drag_and_land(session: &mut DocSession, pattern: RecipeNodeId) {
     for op in [
         SessionOp::BeginGesture {
             node: pattern,
@@ -1118,13 +1111,38 @@ fn a_pin_landing_a_value_gesture_overtakes_still_prunes() {
     assert_ne!(
         session.landed_pair().map(|(doc, _)| doc),
         Some(session.committed_doc()),
-        "the landing is the scratch's: the pin's own was overtaken"
+        "the landing is the scratch's: the committed edit's own was overtaken"
     );
-    let superseded: Vec<_> = session
+}
+
+/// The frames the landings since the last read discarded.
+fn landed_superseded(session: &mut DocSession) -> Vec<viewer::display::Withdrawn> {
+    session
         .take_landed_withdrawals()
         .into_iter()
         .flat_map(|report| report.superseded)
-        .collect();
+        .collect()
+}
+
+/// **A pin's landing that a value gesture overtakes still prunes, mid-
+/// drag.** An undo pins post_b again under its committed frame; before
+/// that edit lands, a value gesture opens and previews, so the edit's
+/// own landing is stale and the next one to arrive is the scratch's.
+/// The scratch shares the committed graph, so it knows the pin: its
+/// landing drops the frame and says so then, not after the drag ends.
+#[test]
+fn a_pin_landing_a_value_gesture_overtakes_still_prunes() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fmovertaken", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let pattern = drag_slot(&mut session, &bench);
+    asm::unpin(&mut session, bench.post_b);
+    commit_frame(&mut session, bench.post_b);
+
+    // The pin back, and before it lands, a drag.
+    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    drag_and_land(&mut session, pattern);
+    let superseded = landed_superseded(&mut session);
     let [withdrawn] = &superseded[..] else {
         panic!("the scratch landing drops the pinned frame mid-drag: {superseded:?}")
     };
@@ -1141,54 +1159,122 @@ fn a_pin_landing_a_value_gesture_overtakes_still_prunes() {
     assert!(session.perform(SessionOp::CancelGesture).refusal.is_none());
     session.pump();
     assert!(
-        session.take_landed_withdrawals().is_empty(),
+        landed_superseded(&mut session).is_empty(),
         "and the cancel's landing has nothing left to say"
     );
 }
 
-/// **Between an edit and its landing the space is not known**, so the
-/// probe refuses typed rather than read the older document's spaces
-/// (the ruling: DI3, an evaluation names its document). post_b's pin
-/// comes back by an undo that has not landed: the last landing still
-/// says loose, and must not be asked.
+/// **A join a value gesture overtakes lands mid-drag too**: the seat
+/// that puts the framed post_b in the loose shelf's space is the
+/// graph's, so the scratch landing drops the frame, naming the join.
 #[test]
-fn the_probe_refuses_while_the_document_has_not_landed() {
+fn a_join_landing_a_value_gesture_overtakes_still_prunes() {
     let tol = Tol::witness();
-    let bench = asm::bench("fmunlanded", tol);
+    let bench = asm::bench("fmovertakenjoin", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let pattern = drag_slot(&mut session, &bench);
+    asm::unpin(&mut session, bench.post_b);
+    asm::unpin(&mut session, bench.shelf_i);
+    commit_frame(&mut session, bench.post_b);
+    let seat = session.perform(asm::seat_op(
+        &bench,
+        bench.post_b,
+        ContactClass::Rest,
+        asm::middle_seat_values(),
+    ));
+    assert!(seat.refusal.is_none(), "{:?}", seat.refusal);
+    drag_and_land(&mut session, pattern);
+    let superseded = landed_superseded(&mut session);
+    let [withdrawn] = &superseded[..] else {
+        panic!("the scratch landing drops the joined frame mid-drag: {superseded:?}")
+    };
+    assert!(
+        matches!(
+            &withdrawn.cause,
+            AdmissionFault::MovedSpace { instance, into }
+                if instance.id() == bench.post_b && into.id() != bench.post_b
+        ),
+        "{}",
+        withdrawn.cause
+    );
+}
+
+/// **A refused placement waits for the committed landing**, whatever
+/// refused it. Two seats over-constrain the framed post_b, which the
+/// evaluation refuses — a refusal the graph decides, but the scratch
+/// landing cannot tell it from one a previewed value decides, so it
+/// keeps the frame; the committed landing after the cancel drops it,
+/// saying the post is in no space.
+#[test]
+fn a_refused_placement_waits_for_the_committed_landing() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fmovertakenrefused", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let pattern = drag_slot(&mut session, &bench);
+    asm::unpin(&mut session, bench.post_b);
+    asm::unpin(&mut session, bench.shelf_i);
+    commit_frame(&mut session, bench.post_b);
+    for _ in 0..2 {
+        let seat = session.perform(asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Rest,
+            asm::middle_seat_values(),
+        ));
+        assert!(seat.refusal.is_none(), "{:?}", seat.refusal);
+    }
+    drag_and_land(&mut session, pattern);
+    assert!(
+        landed_superseded(&mut session).is_empty(),
+        "the scratch landing discards nothing over a refusal"
+    );
+    assert!(session.display().free_move_of(bench.post_b).is_some());
+
+    assert!(session.perform(SessionOp::CancelGesture).refusal.is_none());
+    session.pump();
+    assert_eq!(
+        session.landed_pair().map(|(doc, _)| doc),
+        Some(session.committed_doc()),
+        "the committed document landed"
+    );
+    let superseded = landed_superseded(&mut session);
+    let [withdrawn] = &superseded[..] else {
+        panic!("the committed landing drops the refused frame: {superseded:?}")
+    };
+    assert!(
+        matches!(
+            &withdrawn.cause,
+            AdmissionFault::NoSpace { instance } if instance.id() == bench.post_b
+        ),
+        "{}",
+        withdrawn.cause
+    );
+    assert!(session.display().free_move_of(bench.post_b).is_none());
+}
+
+/// **A frame whose root is deleted goes at the edit**, typed: the
+/// document alone says the root is gone.
+#[test]
+fn deleting_a_frames_root_drops_it_at_the_edit() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fmdeleteroot", tol);
     let mut session = asm::open_bench(&bench, tol);
     asm::unpin(&mut session, bench.post_b);
-    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    commit_frame(&mut session, bench.post_b);
+    let outcome = session.perform(SessionOp::DeleteNode { node: bench.post_b });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let [withdrawn] = &outcome.withdrawn.superseded[..] else {
+        panic!(
+            "the delete drops the frame: {:?}",
+            outcome.withdrawn.superseded
+        )
+    };
     assert!(
-        session.space_evaluation().is_none(),
-        "nothing answers the undone document"
+        matches!(&withdrawn.cause, AdmissionFault::NoSuchNode { node } if node.id() == bench.post_b),
+        "{}",
+        withdrawn.cause
     );
-    assert!(
-        matches!(
-            session
-                .perform(SessionOp::BeginFreeMove {
-                    instance: bench.post_b
-                })
-                .refusal,
-            Some(Refusal::Display(DisplayFault::Admission(
-                AdmissionFault::NotEvaluated { instance }
-            ))) if instance.id() == bench.post_b
-        ),
-        "the probe refuses NotEvaluated"
-    );
-    session.pump();
-    assert!(
-        matches!(
-            session
-                .perform(SessionOp::BeginFreeMove {
-                    instance: bench.post_b
-                })
-                .refusal,
-            Some(Refusal::Display(DisplayFault::Admission(
-                AdmissionFault::InTheWorld { .. }
-            )))
-        ),
-        "and once it lands, the pinned post is in the world"
-    );
+    assert!(session.display().free_move_of(bench.post_b).is_none());
 }
 
 #[test]

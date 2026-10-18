@@ -741,12 +741,23 @@ pub fn space_check(
     eval: Option<&Evaluation<f64>>,
     root: RecipeNodeId,
 ) -> Result<(), AdmissionFault> {
+    frame_check(doc, eval, root, Answers::All)
+}
+
+/// [`space_check`], over which answers it acts on: the frame test of
+/// [`DisplayState::prune`] and [`DisplayState::prune_structural`].
+fn frame_check(
+    doc: &Doc<ProfileProgram>,
+    eval: Option<&Evaluation<f64>>,
+    root: RecipeNodeId,
+    answers: Answers,
+) -> Result<(), AdmissionFault> {
     if doc.node(root).is_none() {
         return Err(AdmissionFault::NoSuchNode {
             node: doc.spoken(root),
         });
     }
-    eval.map_or(Ok(()), |eval| in_space(doc, eval, root, root, Answers::All))
+    eval.map_or(Ok(()), |eval| in_space(doc, eval, root, root, answers))
 }
 
 /// **Whether a held gesture still moves the space its instance lives
@@ -778,10 +789,15 @@ fn gesture_check(
 enum Answers {
     /// Every one: a landing of the committed document.
     All,
-    /// Those the node graph decides — a pin, a join, a split — and not
-    /// a refused placement, which a value can decide: a landing of a
-    /// value gesture's scratch, which shares the committed graph but
-    /// not its values ([`DisplayState::prune_structural`]).
+    /// Every one but a refused placement: a landing of a value
+    /// gesture's scratch, which shares the committed graph but not its
+    /// values ([`DisplayState::prune_structural`]). A pin, a join and a
+    /// split are the graph's, so the scratch answers them for the
+    /// committed document too. A refusal may be a value's, and the
+    /// evaluation does not say which decided it, so every refusal waits
+    /// for a committed landing — a graph-decided one too (two mates
+    /// that over-constrain a copy), which is then said at the drag's
+    /// end rather than mid-drag.
     Structural,
 }
 
@@ -1274,7 +1290,8 @@ impl DisplayState {
 
     /// Reconcile this state with a document: DISCARD every committed
     /// frame whose root no longer names a loose space (a placement pins
-    /// the copy, it joins another space, or the root is gone; DI5),
+    /// the copy, it joins another space, its placement is refused, or
+    /// the root is gone; DI5),
     /// drop hidden entries whose instance the picture can no longer
     /// address, and kill an in-flight gesture whose instance is gone or
     /// no longer lives in the space it moves.
@@ -1283,8 +1300,9 @@ impl DisplayState {
     /// only after the solve, so the session prunes twice: when the
     /// document changes, with no evaluation, which withdraws what the
     /// document alone says is gone, and when the evaluation answering it
-    /// lands, which withdraws a space a placement now pins
-    /// ([`space_check`]).
+    /// lands, which withdraws a space a placement now pins, joins or
+    /// refuses ([`space_check`]). A landing of a value gesture's scratch
+    /// prunes through [`DisplayState::prune_structural`] instead.
     ///
     /// **Returns the [`PruneReport`]** — every withdrawn display fact,
     /// each carrying the fault that withdrew it, so a caller reports
@@ -1306,12 +1324,13 @@ impl DisplayState {
     }
 
     /// [`DisplayState::prune`] against a value gesture's scratch and the
-    /// evaluation of it that landed, acting only on what the node graph
+    /// evaluation of it that landed, acting on what the node graph
     /// decides — a pin, a join, a split, a node gone — and not on a
-    /// placement the scratch's values refuse: the scratch shares the
-    /// committed graph, so its landing answers the committed document's
-    /// structure, and a preview the user may still cancel discards no
-    /// committed display state over a value.
+    /// refused placement: the scratch shares the committed graph, so its
+    /// landing answers the committed document's structure, and a
+    /// preview the user may still cancel discards no committed display
+    /// state over a value. A refusal is not told apart by what decided
+    /// it, so a graph-decided one waits too ([`Answers::Structural`]).
     ///
     /// The session runs it when a scratch landing overtakes a committed
     /// edit's own landing (a pin committed, then a drag previewed before
@@ -1333,20 +1352,17 @@ impl DisplayState {
         answers: Answers,
     ) -> PruneReport {
         let mut superseded = Vec::new();
-        let frame_check = |root| match doc.node(root) {
-            None => space_check(doc, None, root),
-            Some(_) => eval.map_or(Ok(()), |eval| in_space(doc, eval, root, root, answers)),
-        };
-        self.moves.retain(|&root, _| match frame_check(root) {
-            Ok(()) => true,
-            Err(cause) => {
-                superseded.push(Withdrawn {
-                    instance: root,
-                    cause,
-                });
-                false
-            }
-        });
+        self.moves
+            .retain(|&root, _| match frame_check(doc, eval, root, answers) {
+                Ok(()) => true,
+                Err(cause) => {
+                    superseded.push(Withdrawn {
+                        instance: root,
+                        cause,
+                    });
+                    false
+                }
+            });
         let dropped_hides: Vec<Withdrawn> = self
             .hidden
             .iter()
