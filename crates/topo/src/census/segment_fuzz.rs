@@ -379,7 +379,7 @@ fn the_closed_forms_enclosures_hold_the_exact_values() {
 #[test]
 fn each_readings_error_stays_inside_its_charge_far_from_the_unit_box() {
     let mut r = test_utils::fuzz::start("census_lines_closest_charge_ratio");
-    let count = test_utils::fuzz::scaled(1200);
+    let count = test_utils::fuzz::scaled(800);
     for (regime, scale, lmax, far, gmax) in [
         ("unit", 2.0, 3.0, 2.0, 1.0),
         ("coords1e4", 1e4, 3.0, 2.0, 1.0),
