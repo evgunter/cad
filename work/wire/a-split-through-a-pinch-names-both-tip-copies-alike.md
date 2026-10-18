@@ -6,8 +6,6 @@ status: open
 opened: 2026-10-08
 priority: P1
 cost: M
-design: true
-needs_ev: true
 ---
 
 
@@ -86,5 +84,11 @@ pentagon `(0,0) (2,0) (2,2) (1,1) (0,2)` extruded 1 and split at `y = 1`,
 with a Python reproducer. Its naming half is this row's; its second
 finding (pncad-py's prose gate panics on the refusal's `Debug` role
 path) moved to BIND, whose ground it is.
+
+Signed (WIRE orchestrator).
+
+## Ratified (2026-10-18)
+
+Ev approved the rule on PR 5258 ("ah ok, this sounds good!"), after asking why the vertex is duplicated (answered on the PR: one result vertex per piece of material at the point; a shared vertex would be non-manifold). N2 now carries it. Ready to build with `a-mirrored-split-through-a-pinch-refuses-emission-at-an-on-plane-vertex` riding along.
 
 Signed (WIRE orchestrator).
