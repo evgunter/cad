@@ -1175,3 +1175,93 @@ pub(crate) fn admit_value<P>(
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::{Equations, overconstrained, pins};
+    use crate::mate::coset::SubgroupFamily as F;
+    use crate::mate::{Coord, MateFault, SlideAxis};
+    use crate::node::ConstraintId;
+    use crate::{MintId, RecipeNodeId};
+
+    fn id(k: u32) -> ConstraintId {
+        ConstraintId(MintId::new(k, u64::from(k)))
+    }
+
+    fn value(mate: u32, coord: Coord) -> (ConstraintId, Equations) {
+        (
+            id(100 + mate * 10 + u32::from(matches!(coord, Coord::Spin))),
+            Equations::Value {
+                mate: id(mate),
+                coord,
+            },
+        )
+    }
+
+    /// The rule's verdict on `bundle`: `Ok(pinned)` where it admits,
+    /// the named constraints and the freedoms left where it refuses.
+    fn verdict(bundle: &[(ConstraintId, Equations)]) -> Result<bool, (Vec<ConstraintId>, u8)> {
+        match overconstrained(RecipeNodeId::WORLD, bundle) {
+            Ok(()) => Ok(pins(bundle)),
+            Err(fault) => match *fault {
+                MateFault::Overconstrained {
+                    constraints, free, ..
+                } => Err((constraints, free)),
+                other => panic!("the rule refuses only Overconstrained, got {other:?}"),
+            },
+        }
+    }
+
+    /// **A value counts beside its own mate, and beside another only
+    /// where that one leaves its freedom** (spec §4, C-2): a lone plane
+    /// admits a slide, an axis a slide along it and a spin, a ball and a
+    /// direction a spin about the direction (the ball frees every
+    /// rotation) but no slide (the ball fixes every translation), and a
+    /// plane beside an axis fixes, in general position, more than the
+    /// two count apart, so both are named.
+    #[test]
+    fn the_four_value_availability_rows() {
+        // A lone Plane with Slide(X): admitted, loose.
+        assert_eq!(
+            verdict(&[
+                (id(1), Equations::Mate(F::Planar)),
+                value(1, Coord::Slide(SlideAxis::X))
+            ]),
+            Ok(false)
+        );
+        // Cylindrical with Slide(Z) and Spin: admitted, pinned.
+        assert_eq!(
+            verdict(&[
+                (id(1), Equations::Mate(F::Cylindrical)),
+                value(1, Coord::Slide(SlideAxis::Z)),
+                value(1, Coord::Spin),
+            ]),
+            Ok(true)
+        );
+        // Point + Direction with a spin on the direction: admitted, pinned.
+        let ball_and_direction = [
+            (id(1), Equations::Mate(F::Spherical)),
+            (id(2), Equations::Mate(F::Parallel)),
+        ];
+        assert_eq!(verdict(&ball_and_direction), Ok(false));
+        let spun = [ball_and_direction.to_vec(), vec![value(2, Coord::Spin)]].concat();
+        assert_eq!(verdict(&spun), Ok(true));
+        // ... and with a slide on the direction: the ball fixes the
+        // translation it sets, so both are named.
+        let slid = [
+            ball_and_direction.to_vec(),
+            vec![value(2, Coord::Slide(SlideAxis::Z))],
+        ]
+        .concat();
+        assert_eq!(verdict(&slid), Err((vec![id(1), slid[2].0], 1)));
+        // Plane + Axis: each fixes what the other does.
+        assert_eq!(
+            verdict(&[
+                (id(1), Equations::Mate(F::Planar)),
+                (id(2), Equations::Mate(F::Cylindrical)),
+            ]),
+            Err((vec![id(1), id(2)], 0))
+        );
+    }
+}
