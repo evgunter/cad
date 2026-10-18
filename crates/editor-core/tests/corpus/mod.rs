@@ -98,8 +98,7 @@ impl PlacePart for Recorder {
                 fresh: Vec::new(),
             })
             .expect("a placement mints its node");
-        self.push(DocEdit::PinWhereItStands { placement })
-            .expect("a world pin stands alone in a fresh bundle");
+        self.push(DocEdit::PinWhereItStands { placement });
         placement
     }
 }

@@ -335,16 +335,20 @@ pub struct ConstraintRow {
 /// target reads the world, its contact class's name and `mate` for any
 /// other mate, and the freedom a value sets —
 /// `constraint 1: world mate`, `constraint 2: Rest mate`,
-/// `constraint 3: spin value`. Never its minted id, which is an arena
+/// `constraint 3: spin value`, and `world pin` for the named interim's
+/// pin where its body stands. Never its minted id, which is an arena
 /// key and no word a person reads.
 pub fn constraint_said(at: usize, constraint: &Constraint) -> String {
+    if constraint.world_pin().is_some() {
+        return format!("constraint {at}: world pin");
+    }
     match (constraint.mate(), constraint.value()) {
         (Some(mate), _) if matches!(mate.to, pncad::document::Target::World(_)) => {
             format!("constraint {at}: world mate")
         }
         (Some(mate), _) => format!("constraint {at}: {} mate", mate.class.name()),
         (None, Some(value)) => format!("constraint {at}: {} value", value.coord.name()),
-        (None, None) => unreachable!("a constraint is a mate or a value"),
+        (None, None) => unreachable!("a constraint is a mate, a value or a world pin"),
     }
 }
 

@@ -1484,8 +1484,7 @@ impl Recorder {
             .expect("a placement mints its node");
         // Where it stands: the named interim's world pin, as [`pin`]
         // writes at the identity.
-        self.push(DocEdit::PinWhereItStands { placement })
-            .expect("a world pin stands alone in a fresh bundle");
+        self.push(DocEdit::PinWhereItStands { placement });
         placement
     }
 
