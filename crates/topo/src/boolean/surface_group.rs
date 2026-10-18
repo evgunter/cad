@@ -14,8 +14,7 @@
 //! - **the wrapped coordinate** ([`wrap_rims_within`], [`wrap_rims`] for
 //!   one face): what is left must be circles that are iso-lines of the
 //!   OTHER coordinate ([`WrapRims`]) — coaxial rims for the azimuth of a
-//!   cylinder, cone or sphere and the major angle of a torus, meridians
-//!   for a torus's minor angle. They bound the union there and never in
+//!   cylinder, cone or sphere. They bound the union there and never in
 //!   the wrapped coordinate, so the union attains every value of it over
 //!   the range they bound. An unmated edge of any other kind bounds the
 //!   union in the wrapped coordinate, and then it does not wrap however
@@ -87,20 +86,12 @@ pub(super) enum WrapRims<T: geom_core::Real> {
     /// ([`coaxial_margins`]). On a sphere a meridian is a circle too,
     /// centred on the axis but not coaxial, so the test is both halves.
     Coaxial { origin: Point3<T>, axis: Vec3<T> },
-    /// Circles whose plane CONTAINS the axis direction: a torus's
-    /// meridians, the iso-lines of its major angle.
-    Meridians { axis: Vec3<T> },
 }
 
 impl<T: Decide> WrapRims<T> {
     fn holds(self, rim: &Rim<T>, band: Band) -> Result<bool, Indeterminate> {
-        let margins = match self {
-            Self::Coaxial { origin, axis } => coaxial_margins(origin, axis, rim).map(Some),
-            Self::Meridians { axis } => {
-                [Some(Margin::levered(rim.axis.dot(axis), rim.radius)), None]
-            }
-        };
-        for margin in margins.into_iter().flatten() {
+        let Self::Coaxial { origin, axis } = self;
+        for margin in coaxial_margins(origin, axis, rim) {
             if decide("bool_wrap_rim", margin, band)? != Sign::Zero {
                 return Ok(false);
             }

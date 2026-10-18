@@ -905,15 +905,11 @@ pub(crate) type WindowStep<'a, T> =
 /// # Why the window is a superset of the face's chart region
 ///
 /// The face's region is the planar region its loops' chart images
-/// bound, in the lift the pcurve mint certified closed (the argument
-/// `boolean::solid_contain`'s `bool_torus_chart_closure` makes,
-/// verbatim), and a region lies inside the bounding rectangle of its
-/// own boundary.
+/// bound, in the lift the pcurve mint certified closed, and a region
+/// lies inside the bounding rectangle of its own boundary.
 ///
 /// **That argument needs the boundary to SAY which side is material,
-/// and two guards are what make it hold.** They are the Decide lane's
-/// (`solid_contain::torus_chart_windows`), carried here because the
-/// box contract is the same statement:
+/// and two guards are what make it hold:
 ///
 /// - **A face with a RING gets no window.** Two loops can be pinned on
 ///   different branches, and their hull is then a rectangle neither

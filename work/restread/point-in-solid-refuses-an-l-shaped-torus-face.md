@@ -2,11 +2,12 @@
 id: point-in-solid-refuses-an-l-shaped-torus-face
 kind: issue
 title: point_in_solid refuses a body whose torus wall is L-shaped in the chart, which the plane x torus boolean now mints
-status: open
+status: closed
 opened: 2026-10-12
 priority: P1
 cost: M
 rides_with: torus-face-bounded-by-an-oblique-circle-refuses-point-classification
+closed: 2026-10-18
 ---
 
 
@@ -79,3 +80,13 @@ Moved from INSIDE by `git mv`: it and
 are one defect (the torus arm reads only chart rectangles), weighed by
 two designers and decided there. One unit closes both. Raised to P1
 with its carrier: the shell sort refuses whole ops on it.
+
+## Closed (RESTREAD, `restread/torus-region`, 2026-10-18)
+
+Closed with its carrier,
+`torus-face-bounded-by-an-oblique-circle-refuses-point-classification`,
+whose Closed section says how. `contact11_torus_chart_l` asserts `Out`
+in the notch and `In` under it; the GERM rows above read
+`point_in_solid` at every sampled point, and their sort stops are
+bodies held to the truth.
+

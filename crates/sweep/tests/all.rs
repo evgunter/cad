@@ -294,6 +294,8 @@ mod topo_ring_nesting;
 mod torax_axial;
 #[path = "torax_interval.rs"]
 mod torax_interval;
+#[path = "torus_region_probe.rs"]
+mod torus_region_probe;
 #[path = "transform_nurbs_walls.rs"]
 mod transform_nurbs_walls;
 #[path = "trim_3_chart_bound_bodies.rs"]
