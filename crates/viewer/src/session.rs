@@ -4103,29 +4103,29 @@ impl core::fmt::Debug for DocSession {
 mod tests {
     #![allow(clippy::expect_used)]
 
-    use super::{DocSession, ProfilePlane, Refusal, datum_node};
+    use super::{DocSession, Refusal};
     use pncad::document::{Doc, Node, ProfileProgram};
     use pncad::geom_core::Tol;
 
     /// **An action that swallows a refusal commits nothing.** The
-    /// action lands a frame, has its profile refused (an empty loop
-    /// list), ignores the refusal, lands a second frame and answers
-    /// success; the door still refuses the whole action, so neither
-    /// frame is committed. This reds if the run goes on past a refusal,
-    /// which would commit the two frames around it.
+    /// action lands a square profile, has an empty one refused (an
+    /// empty loop list), ignores the refusal, lands a second square and
+    /// answers success; the door still refuses the whole action, so
+    /// neither square is committed. This reds if the run goes on past a
+    /// refusal, which would commit the two squares around it.
     #[test]
     fn an_action_that_swallows_a_refusal_commits_nothing() {
         let tol = Tol::witness();
         let mut session = DocSession::inline(Doc::empty_derived("swallowed-refusal", tol), tol);
-        let frame = || datum_node(ProfilePlane::world_xy().expect("the world frame"));
+        let square = || crate::test_support::square(0.01);
         let before = session.history().len();
         let outcome = session.commit_run(|run| {
-            let plane = run.insert(frame())?;
+            run.insert(square())?;
             let _ = run.insert(Node::Profile(ProfileProgram {
                 loops: Vec::new(),
                 ids: Vec::new(),
             }));
-            let _ = run.insert(frame());
+            let _ = run.insert(square());
             Ok(())
         });
         assert!(
@@ -4135,7 +4135,7 @@ mod tests {
         );
         assert!(outcome.committed.is_empty(), "nothing is committed");
         assert_eq!(session.history().len(), before, "nothing is recorded");
-        assert!(session.committed_doc().is_empty(), "neither frame landed");
+        assert!(session.committed_doc().is_empty(), "neither square landed");
     }
 
     /// **The hide admission is asked of the document the op reads, not

@@ -167,18 +167,14 @@ struct Uniforms {
     /// by the shaded pass's held stripes and the edge pass's held
     /// lane, so the two cannot come out different colours.
     held: [f32; 4],
-    /// **Construction geometry's colour**, linear in `xyz`; `w` is
+    /// **A committed profile's colour**, linear in `xyz`; `w` is
     /// padding and the shader does not read it.
     ///
     /// A whole lane for three numbers, and the padding is the honest
     /// cost of the block staying a struct whose fields the shader
-    /// mirrors one for one. `Theme::datum` is a colour and not a
-    /// [`Mark`], so there is no strength to put in `w`: a datum is
+    /// mirrors one for one. `Theme::profile` is a line colour and not a
+    /// [`Mark`], so there is no strength to put in `w`: a profile is
     /// drawn in this colour, not tinted toward it.
-    datum: [f32; 4],
-    /// **A committed profile's colour**, linear in `xyz`; `w` is
-    /// padding. [`Uniforms::datum`]'s shape for its reason:
-    /// `Theme::profile` is a line colour, drawn as stated.
     profile: [f32; 4],
     /// **What the passes need to measure the screen**: the viewport's
     /// size in physical pixels (`xy`), which the edge pass reads, and
@@ -303,10 +299,7 @@ struct IdPass {
 /// mitred. On an opaque lane the overlap is invisible, and a mitre
 /// needs the neighbouring segment's direction — which is a different
 /// vertex format and a real amount of arithmetic for a join nobody
-/// can see. On the one translucent lane, the datum grid, the overlap
-/// is blended twice and shows as a pixel or two of fuller colour
-/// where two of its lines meet — which on a grid is where the eye
-/// expects a crossing to be anyway.
+/// can see, and every lane is opaque.
 ///
 /// **Lanes are drawn in [`EdgeLane::DRAW_ORDER`]**, one buffer in that
 /// order ([`edge_vertices`]), and the pass writes no depth, so where
@@ -367,10 +360,9 @@ fn lane_colour_wgsl(lane: EdgeLane) -> &'static str {
         // A preview is not in the document, and says so in the probe
         // mark — G3's "not committed" — over the same base.
         EdgeLane::Preview => "tint(base, uniforms.probe)",
-        // NOT tints: a datum and a profile are not material, so there
-        // is no body colour for either to be a state of. Each is drawn
-        // in the theme's own colour for it, as stated.
-        EdgeLane::Datum => "uniforms.datum.xyz",
+        // NOT a tint: a profile is not material, so there is no body
+        // colour for it to be a state of. It is drawn in the theme's
+        // own colour for it, as stated.
         EdgeLane::Profile => "uniforms.profile.xyz",
     }
 }
@@ -426,35 +418,19 @@ struct LaneStyle {
 ///
 /// A judgement, and the range it sits in is narrow at both ends: much
 /// above four points a mark's own width hides the short edges it is
-/// marking, and a line has to be clearly heavier than the datum grid
-/// ([`DATUM_HALF_WIDTH_POINTS`]) to read as the thing in front of it.
-/// Three points is also roughly the weight of the chrome's own text,
+/// marking, and below one point a line drops pixels along a shallow
+/// slope. Three points is also roughly the weight of the chrome's own text,
 /// which is what makes a mark findable at a glance without becoming the
 /// loudest thing in the picture.
 const EDGE_MARK_HALF_WIDTH_POINTS: f32 = 1.5;
-
-/// **Half the width of a datum's lines, in POINTS**: one point thick,
-/// a third of a mark.
-///
-/// A plane is ruled out to its horizon, so its grid is the one lane
-/// that covers the whole picture, and at a mark's weight it read as
-/// the loudest thing on screen. At one point it is the hairline a
-/// grid is. On a display of at least one pixel per point that is at
-/// least one physical pixel, and a quad at least a pixel wide covers a
-/// pixel centre in every column (or row) it crosses, so the line stays
-/// continuous rather than dotting the way a one-pixel `LineList` did.
-/// Under a scale factor below one the quad is narrower than a pixel
-/// and the grid CAN drop pixels along a shallow line; the marks, three
-/// times as wide, stay continuous down to a third of that scale.
-const DATUM_HALF_WIDTH_POINTS: f32 = 0.5;
 
 /// **Half the width of a held edge, in POINTS** — the edge half of the
 /// held mark's shape (`crate::marks::Held`): a hollow line, two rails
 /// with [`HELD_EDGE_HOLLOW`] of the width open between them.
 ///
-/// Wider than a mark so that each rail keeps at least the grid's
-/// weight: a rail thinner than the grid drops pixels the way the grid
-/// warns a hairline can. The selected mark, drawn over it where an
+/// Wider than a mark so that each rail keeps at least half a point: a
+/// rail thinner than that drops pixels along a shallow line. The
+/// selected mark, drawn over it where an
 /// edge is both, then leaves a sliver of each rail showing beside it.
 const HELD_EDGE_HALF_WIDTH_POINTS: f32 = 2.0;
 
@@ -481,22 +457,12 @@ const _: () = assert!(
 /// **Each lane's style.** One match, so a lane cannot be added
 /// without being given one.
 ///
-/// Profiles and previews are drawn at a mark's width and fully opaque,
-/// and the datum grid thin and half-transparent: a profile is what a
-/// person is looking at on a plane, and the plane is what it is drawn
-/// against. **Thickness is the channel that separates them**, with the
-/// grid's opacity on top: a translucent profile would take on the
-/// colour of whatever it crossed — the grid, a shaded face — and a
-/// profile's colour is what says which of the two lanes it is in.
-/// Drawn over the grid in any case ([`EdgeLane::DRAW_ORDER`]), so the
-/// grid never covers one.
+/// Profiles, previews and marks are drawn at a mark's width and fully
+/// opaque: a translucent profile would take on the colour of whatever
+/// it crossed, and a profile's colour is what says which lane it is in.
+/// The held mark is wider and hollow (`crate::marks::Held`).
 fn lane_style(lane: EdgeLane) -> LaneStyle {
     match lane {
-        EdgeLane::Datum => LaneStyle {
-            half_width_points: DATUM_HALF_WIDTH_POINTS,
-            opacity: crate::theme::DATUM_OPACITY,
-            hollow: 0.0,
-        },
         EdgeLane::Held => LaneStyle {
             half_width_points: HELD_EDGE_HALF_WIDTH_POINTS,
             opacity: 1.0,
@@ -892,7 +858,6 @@ impl ViewportRenderer {
                 probe: [0.0; 4],
                 focus: [0.0; 4],
                 held: [0.0; 4],
-                datum: [0.0; 4],
                 profile: [0.0; 4],
                 screen: [0.0; 4],
                 edge_lanes: [[0.0; 4]; EdgeLane::DRAW_ORDER.len()],
@@ -1249,8 +1214,8 @@ fn edge_vertices(overlay: &EdgeOverlay) -> (Vec<SegmentVertex>, Vec<u32>) {
     let mut marks: Vec<u32> = Vec::with_capacity(positions.capacity());
     for lane in EdgeLane::DRAW_ORDER {
         // Only the mark lanes can belong to a free-moved instance
-        // ([`EdgeOverlay::probed`]): a preview, a profile and a datum
-        // are placed by nothing, so the flag stays clear and the lane
+        // ([`EdgeOverlay::probed`]): a preview and a profile are placed
+        // by nothing, so the flag stays clear and the lane
         // supplies its colour outright.
         let word = if overlay.probed(lane) {
             lane_code(lane) | EDGE_FLAG_PROBE
@@ -1395,10 +1360,6 @@ impl ViewportCallback {
             probe: mark_lane(self.theme.probe),
             focus: mark_lane(self.theme.focus),
             held: mark_lane(self.theme.held()),
-            datum: {
-                let [r, g, b] = crate::theme::linear(self.theme.datum);
-                [r, g, b, 0.0]
-            },
             profile: {
                 let [r, g, b] = crate::theme::linear(self.theme.profile);
                 [r, g, b, 0.0]
@@ -1568,8 +1529,6 @@ struct Uniforms {
     probe: vec4<f32>,
     focus: vec4<f32>,
     held: vec4<f32>,
-    // The construction colour, in xyz; w is padding.
-    datum: vec4<f32>,
     // A committed profile's colour, in xyz; w is padding.
     profile: vec4<f32>,
     // Viewport size in physical pixels (xy), a held face's stripe
@@ -2007,11 +1966,10 @@ mod tests {
             held_refused: None,
             held_probed: false,
             preview: segment(2.0),
-            datums: segment(0.0),
             profiles: segment(1.0),
         };
         let (positions, marks) = edge_vertices(&overlay);
-        assert_eq!(positions.len(), 6 * QUAD_CORNERS.len());
+        assert_eq!(positions.len(), 5 * QUAD_CORNERS.len());
         assert_eq!(marks.len(), positions.len());
         let codes: Vec<u32> = marks.iter().map(|word| word & EDGE_LANE_MASK).collect();
         assert!(
@@ -2031,43 +1989,8 @@ mod tests {
                 "the probe flag on a {lane:?} vertex",
             );
         }
-        assert_eq!(codes.first(), Some(&lane_code(EdgeLane::Datum)));
+        assert_eq!(codes.first(), Some(&lane_code(EdgeLane::Profile)));
         assert_eq!(codes.last(), Some(&lane_code(EdgeLane::Selected)));
-    }
-
-    /// **Nothing is drawn fainter or thinner than the datum grid.** The
-    /// grid is the backdrop, so every lane drawn over it is at least as
-    /// wide and as opaque; and the lanes that say what something IS —
-    /// a profile, a preview, a mark — are strictly wider, so a profile
-    /// on its own plane reads as the heavier line even where colour
-    /// cannot tell them apart.
-    #[test]
-    fn the_datum_grid_is_the_faintest_and_thinnest_lane() {
-        let grid = lane_style(EdgeLane::Datum);
-        assert!(grid.opacity > 0.0 && grid.opacity <= 1.0, "{grid:?}");
-        // An absolute bound as well as the relative ones below: the
-        // grid is a hairline, at most one point across, and a grid
-        // drawn at a mark's weight — Ev's complaint — fails here even
-        // if every other lane were widened to stay ahead of it.
-        assert!(
-            grid.half_width_points > 0.0 && 2.0 * grid.half_width_points <= 1.0,
-            "the grid is {} pt wide; a hairline is at most 1 pt",
-            2.0 * grid.half_width_points
-        );
-        for lane in EdgeLane::DRAW_ORDER {
-            if lane == EdgeLane::Datum {
-                continue;
-            }
-            let style = lane_style(lane);
-            assert!(
-                style.half_width_points > grid.half_width_points,
-                "{lane:?} is no wider than the grid"
-            );
-            assert!(
-                style.opacity >= grid.opacity,
-                "{lane:?} is fainter than the grid"
-            );
-        }
     }
 
     /// **The output encode follows the surface, both ways.**

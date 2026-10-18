@@ -108,7 +108,7 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
 }
 
 /// A part whose product is a BOOLEAN: a 3x3x0.8 plate with a
-/// square boss sketched at z = 0.3 and extruded 1.0, poking out of the
+/// square boss placed at z = 0.3 and extruded 1.0, poking out of the
 /// top (the `corpus::boss` shape, squared). Strictly interior in x/y,
 /// so no face of the boss is coincident with one of the plate's — the
 /// union is a genuine one-solid result with nothing declared.
@@ -130,7 +130,7 @@ fn boolean_part(label: &str) -> ProfileDoc {
     );
     let (doc, boss_p) = on_frame(
         doc,
-        [0.0, 0.0, 0.3],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(1.2, 1.7, 0.35)],
@@ -142,6 +142,7 @@ fn boolean_part(label: &str) -> ProfileDoc {
             distance: len(1.0),
         },
     );
+    let (doc, boss) = crate::fixture::slid(doc, plate, boss, [0.0, 0.0, 0.3]);
     let (doc, fused) = insert(
         doc,
         Node::Union {

@@ -44,7 +44,7 @@ use editor_core::{
     DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram, TubeWindow,
     VarName, apply, product_recorded,
 };
-use fixture::{Recorder, band, len, scl};
+use fixture::{Recorder, band, len};
 use geom_core::Tol;
 use sweep::test_support::{PRISM_SQUARE, PRISM_TRAPEZOID};
 use topo::{

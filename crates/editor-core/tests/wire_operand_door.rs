@@ -42,10 +42,10 @@ use crate::fixture;
 use editor_core::AuthoredNode;
 
 use editor_core::{
-    Datum, DocEdit, EditError, EvalOptions, Formula, Node, NodeErrorKind, PartSelect, PatternKind,
-    ProfileDoc, RecipeNodeId, SlotKind, TubeWindow, VarKind,
+    CapEnd, Dimension, DocEdit, EditError, EvalOptions, Formula, Node, NodeErrorKind, PartSelect,
+    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SlotKind, VarKind,
 };
-use fixture::{ang, desc, insert, len, on_frame_keeping, scl, square};
+use fixture::{ang, desc, insert, len, scl, square};
 use geom_core::Tol;
 
 /// What a miswired node owes.
@@ -93,13 +93,7 @@ fn wired() -> (
     Vec<Row>,
 ) {
     let doc = ProfileDoc::empty_derived("wire_operand_door", Tol::witness());
-    let (doc, sketch, profile) = on_frame_keeping(
-        doc,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![square(0.0, 0.0, 1.0)],
-    );
+    let (doc, profile) = insert(doc, Node::Profile(desc(vec![square(0.0, 0.0, 1.0)])));
     let (doc, body) = insert(
         doc,
         Node::Extrude {
@@ -107,20 +101,20 @@ fn wired() -> (
             distance: len(1.0),
         },
     );
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
-    let (doc, axis3) = insert(
-        doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-    );
+    // Poses read off the body: its start cap's plane, a lateral edge's
+    // axis, and a frame at its origin.
+    let plane = fixture::plane(editor_core::Operand::select(
+        body,
+        vec![fixture::fname(body, RoleSeg::Cap(CapEnd::Start))],
+    ));
+    let axis3 = fixture::axis(editor_core::Operand::select(
+        body,
+        vec![fixture::ename(
+            body,
+            RoleSeg::LateralEdge(fixture::vpiece(&doc, body, 0, 0)),
+        )],
+    ));
+    let sketch = fixture::plane_on(&doc, body, [0.0; 3], [0.0, 0.0, 1.0]).read;
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -177,13 +171,13 @@ fn wired() -> (
     let mut doc = add(
         doc,
         &mut rows,
-        "body_operand over a plane datum (Shell)",
+        "body_operand over a plane (Shell)",
         Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Body)),
         Node::Shell {
             thickness: len(0.1),
-            open: editor_core::Operand::select(plane, vec![]),
+            open: editor_core::Operand::select(plane.clone(), vec![]),
         },
-        plane,
+        body,
     );
     doc = add(
         doc,
@@ -214,46 +208,26 @@ fn wired() -> (
     doc = add(
         doc,
         &mut rows,
-        "profile_plane_f64 (a profile drawn on a plane datum)",
-        Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Frame)),
-        Node::Profile(desc(plane, vec![square(0.0, 0.0, 1.0)])),
-        plane,
-    );
-    doc = add(
-        doc,
-        &mut rows,
-        "wire_swept (an Extrude of a plane datum)",
+        "wire_swept (an Extrude of a plane)",
         Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Profile)),
         Node::Extrude {
-            profile: plane.into(),
+            profile: plane.clone(),
             distance: len(1.0),
         },
-        plane,
+        body,
     );
     doc = add(
         doc,
         &mut rows,
-        "wire_revolve's profile pre-check (a Revolve of a plane datum)",
+        "wire_revolve's profile pre-check (a Revolve of a plane)",
         Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Profile)),
         Node::Revolve {
-            profile: plane.into(),
+            profile: plane.clone(),
             axis_through: [Formula::zero(Dimension::Length), Formula::zero(Dimension::Length)],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(1.0),
         },
-        plane,
-    );
-    doc = add(
-        doc,
-        &mut rows,
-        "tube_args (a Tube built in a profile) — behind the edit door",
-        Owes::EditDoor(VarKind::Profile, SlotKind::Is(VarKind::Frame)),
-        Node::Tube {
-            major_radius: len(2.0),
-            window: TubeWindow::Full,
-            minor_radius: len(0.5),
-        },
-        profile,
+        body,
     );
     doc = add(
         doc,
@@ -269,13 +243,13 @@ fn wired() -> (
     doc = add(
         doc,
         &mut rows,
-        "wire_split's tool (a Split tooled by a 3-D axis datum)",
+        "wire_split's tool (a Split tooled by an axis)",
         Owes::EditDoor(VarKind::Axis, SlotKind::Is(VarKind::Plane)),
         Node::Split {
             target: body.into(),
             tool: axis3.into(),
         },
-        axis3,
+        body,
     );
     doc = add(
         doc,
@@ -291,17 +265,17 @@ fn wired() -> (
     doc = add(
         doc,
         &mut rows,
-        "stepped_map's circular axis (a Pattern about a plane datum)",
+        "stepped_map's circular axis (a Pattern about a plane)",
         Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Axis)),
         Node::Pattern {
             input: body.into(),
             count: Formula::count(3),
             kind: PatternKind::Circular {
-                axis: plane.into(),
+                axis: plane.clone().into(),
                 step: ang(0.5),
             },
         },
-        plane,
+        body,
     );
 
     // ---- the section reads: a loft's and a sweep's profiles ----
@@ -312,7 +286,14 @@ fn wired() -> (
         "a Loft section that is a body",
         Owes::EditDoor(VarKind::Body, SlotKind::Is(VarKind::Profile)),
         Node::Loft {
-            profiles: vec![profile.into(), body.into()],
+            first: profile.into(),
+            then: vec![editor_core::LoftSection {
+                profile: body.into(),
+                station: vec![editor_core::StationMove::Slide {
+                    along: editor_core::Axis3::Z,
+                    by: len(1.0),
+                }],
+            }],
             v_degree: Formula::count(1),
         },
         body,
@@ -320,13 +301,20 @@ fn wired() -> (
     doc = add(
         doc,
         &mut rows,
-        "a Loft section that is a frame datum",
+        "a Loft section that is a frame",
         Owes::EditDoor(VarKind::Frame, SlotKind::Is(VarKind::Profile)),
         Node::Loft {
-            profiles: vec![profile.into(), sketch.into()],
+            first: profile.into(),
+            then: vec![editor_core::LoftSection {
+                profile: sketch,
+                station: vec![editor_core::StationMove::Slide {
+                    along: editor_core::Axis3::Z,
+                    by: len(1.0),
+                }],
+            }],
             v_degree: Formula::count(1),
         },
-        sketch,
+        body,
     );
     doc = add(
         doc,
@@ -417,7 +405,7 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
         phrases.is_empty() && families.is_empty(),
         "no row reaches an operand door"
     );
-    assert_eq!(doors.len(), 14, "the rows the edit door refuses");
+    assert_eq!(doors.len(), 12, "the rows the edit door refuses");
     let mut found: Vec<VarKind> = doors.iter().map(|d| d.0).collect();
     found.sort_unstable_by_key(|k| format!("{k:?}"));
     found.dedup();

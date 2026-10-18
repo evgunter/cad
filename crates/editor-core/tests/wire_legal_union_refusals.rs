@@ -43,7 +43,7 @@ type Spans = ((f64, f64), (f64, f64), f64, f64);
 /// subtract run on the two operand bodies.
 fn assert_sunk_boss_cut_refuses_as_a_missing_rule(tool: &[Spans], chord: [[f64; 3]; 2]) {
     let doc = ProfileDoc::empty_derived("wire_merged_chord", Tol::witness());
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
     let (doc, boss) = crate::emit_union_borders::cylinder(
         doc,
         [1.5, 1.5, 0.5],
@@ -54,7 +54,7 @@ fn assert_sunk_boss_cut_refuses_as_a_missing_rule(tool: &[Spans], chord: [[f64; 
     let mut doc = doc;
     let mut blocks = Vec::new();
     for &(x, y, z0, dz) in tool {
-        let (d, b) = block(doc, x, y, z0, dz);
+        let (d, b) = block_on(doc, plate, x, y, z0, dz);
         doc = d;
         blocks.push(b);
     }
@@ -187,7 +187,7 @@ fn volume(body: &topo::Body<f64>) -> f64 {
 #[test]
 fn a_bar_through_a_sunk_boss_refuses_at_the_unions_parents() {
     let doc = ProfileDoc::empty_derived("wire_merged_chord", Tol::witness());
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
     let (doc, boss) = crate::emit_union_borders::cylinder(
         doc,
         [1.5, 1.5, 0.5],
@@ -195,7 +195,7 @@ fn a_bar_through_a_sunk_boss_refuses_at_the_unions_parents() {
         [0.0, 1.0, 0.0],
         1.0,
     );
-    let (doc, bar) = block(doc, (1.4, 1.6), (0.5, 2.5), 0.8, 1.2);
+    let (doc, bar) = block_on(doc, plate, (1.4, 1.6), (0.5, 2.5), 0.8, 1.2);
     let (doc, joined) = crate::fixture::insert(
         doc,
         editor_core::Node::Union {
@@ -237,9 +237,9 @@ fn a_bar_through_a_sunk_boss_refuses_at_the_unions_parents() {
 #[test]
 fn a_split_fixture_with_a_merged_wall_fuses_in_every_order() {
     let doc = ProfileDoc::empty_derived("wire_seam_vertex", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, c) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, s) = block_on(doc, a, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
     for order in [
         vec![a, c, s],
         vec![a, s, c],
@@ -286,9 +286,9 @@ fn a_split_fixture_with_a_merged_wall_fuses_in_every_order() {
 #[test]
 fn a_rim_in_several_pieces_is_named_not_refused() {
     let doc = ProfileDoc::empty_derived("wire_shared_rim", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, g) = block(doc, (0.7, 0.8), (-1.0, 2.0), 0.5, 3.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, g) = block_on(doc, a, (0.7, 0.8), (-1.0, 2.0), 0.5, 3.0);
 
     let (docx, union) = crate::fixture::union_over(doc, &[a, b, g]);
     let ev = run(&docx);
@@ -377,9 +377,9 @@ fn every_order(
 /// no coplanar pair inside one operand, and no fold step judges a
 /// contact the pairwise pre-pass did not.
 fn area_overlap_fixture(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 3]) {
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
-    let (doc, big) = block(doc, (-1.0, 2.0), (-1.0, 2.0), 0.8, 1.4);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, s) = block_on(doc, a, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
+    let (doc, big) = block_on(doc, a, (-1.0, 2.0), (-1.0, 2.0), 0.8, 1.4);
     (doc, [a, s, big])
 }
 
@@ -415,7 +415,7 @@ fn no_order_of_the_area_overlap_union_with_a_fourth_member_refuses_a_fold_contac
     use Seen::Fused;
     let doc = ProfileDoc::empty_derived("wire_fold_contact_4", Tol::witness());
     let (doc, [a, s, big]) = area_overlap_fixture(doc);
-    let (doc, p) = block(doc, (0.6, 0.9), (0.2, 0.8), 1.0, 0.2);
+    let (doc, p) = block(doc, (0.6, 0.9), (0.2, 0.8), 0.2);
     every_order(
         &doc,
         &[("a", a), ("s", s), ("big", big), ("p", p)],
@@ -457,7 +457,7 @@ fn no_order_of_the_split_fixture_under_a_covering_block_refuses_a_fold_contact()
     use Seen::Fused;
     let doc = ProfileDoc::empty_derived("wire_fold_contact_split", Tol::witness());
     let (doc, [a, c, s]) = split_fixture(doc);
-    let (doc, big) = block(doc, (-0.5, 1.2), (-0.5, 1.5), 0.8, 1.2);
+    let (doc, big) = block(doc, (-0.5, 1.2), (-0.5, 1.5), 1.2);
     // `big` (4.08) plus `a ∪ c` (1.5) less their overlap (1.2 × 1 × 0.2).
     every_order(
         &doc,

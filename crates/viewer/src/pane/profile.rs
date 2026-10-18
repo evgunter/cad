@@ -111,10 +111,7 @@ pub(crate) fn edit_door_ui(
     preview: Option<&Result<ProfilePreview, PreviewError>>,
 ) -> Result<Option<SessionOp>, frame::Message> {
     let node = edit.node;
-    match edit.plane() {
-        Some(frame) => ui.label(format!("profile on {}", session.doc().spoken(frame))),
-        None => ui.label("profile on a frame a delete removed"),
-    };
+    ui.label(format!("profile {}", session.doc().spoken(node)));
     let loops = edit.loops().len();
     let units = (notation.length.def(), notation.angle.def());
     let mut rows = Vec::new();
@@ -477,7 +474,6 @@ mod tests {
     #![allow(clippy::panic)]
 
     use eframe::egui;
-    use pncad::document::ExtrudeSide;
     use pncad::document::{Doc, Node, ProfileProgram};
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::{PathErrorKind, ProfileError, SketchPlane, Step, Target, TipState, Verb};
@@ -493,7 +489,7 @@ mod tests {
     use crate::sketch::{
         self, Cut, LoopEnd, PreviewError, PreviewHold, PreviewLoop, ProfilePreview, ProfileShape,
     };
-    use crate::test_support::{self, inserted, line_to, try_inserted, two_legs, xy_frame};
+    use crate::test_support::{self, inserted, line_to, try_inserted, two_legs};
     use crate::theme::Theme;
 
     /// **Drawing the editor never rewrites a document value.** A
@@ -504,11 +500,7 @@ mod tests {
     #[test]
     fn drawing_a_split_circle_above_the_cap_leaves_it_alone() {
         use crate::forms::MAX_CIRCLE_SPLIT;
-        let (doc, plane) = inserted(
-            &Doc::empty_derived("probe", Tol::witness()),
-            xy_frame(),
-            Tol::witness(),
-        );
+        let doc = Doc::empty_derived("probe", Tol::witness());
         let n = MAX_CIRCLE_SPLIT + 1;
         // **The figure's scale is the run's ε times a constant, and
         // that is forced.** A circle split n ways is conditioned
@@ -1121,9 +1113,9 @@ mod tests {
     // -------------------------------------------------------------- //
 
     /// A session over a 10 mm square profile authored as the form's
-    /// default chain, a unit extrude of it, and a derived frame on the
-    /// wall step `named` draws — a payload carrier of one profile
-    /// piece's name. Answers the session, the profile, the carrier and
+    /// default chain, a unit extrude of it, and a shell opening the wall
+    /// step `named` draws — a payload carrier of one profile piece's
+    /// name. Answers the session, the profile, the carrier and
     /// the name.
     fn named_square(
         named: usize,
@@ -1133,12 +1125,11 @@ mod tests {
         pncad::document::RecipeNodeId,
         pncad::prelude::StableName,
     ) {
-        use pncad::document::Datum;
         use pncad::prelude::{EntityKind, ProfileEdgeRef, RoleSeg, StableName};
         use pncad::select::PieceRole;
 
         let tol = Tol::witness();
-        let (doc, plane) = inserted(&Doc::empty_derived("edit-door", tol), xy_frame(), tol);
+        let doc = Doc::empty_derived("edit-door", tol);
         let loops = vec![
             sketch::loop_program(
                 &crate::session::ProfileShape::Path {
@@ -1180,10 +1171,10 @@ mod tests {
         };
         let (doc, carrier) = inserted(
             &doc,
-            Node::Datum(Datum::FaceFrame {
-                face: pncad::document::Operand::select(extrude, vec![wall.clone()]),
-                spin: crate::test_support::ang(0.0),
-            }),
+            Node::Shell {
+                thickness: crate::test_support::len(0.001),
+                open: pncad::document::Operand::select(extrude, vec![wall.clone()]),
+            },
             tol,
         );
         (
@@ -1225,12 +1216,12 @@ mod tests {
     /// row inserts a leg; the new corner is typed into it; Apply —
     /// which strands nothing, and says nothing about stranding — forms
     /// one op, which lands as one `SetProgram` and one history state.
-    /// The frame on the right wall still spells that wall's step, the
+    /// The shell opening the right wall still spells that wall's step, the
     /// reshaped program still draws the step's leg, nothing is
     /// reported, and one undo restores the square.
     #[test]
     fn a_reshaped_profile_lands_as_one_edit_and_its_names_follow() {
-        use pncad::document::{Datum, DocEdit};
+        use pncad::document::DocEdit;
         use pncad::prelude::{ProfileEdgeRef, RoleSeg};
         use pncad::select::PieceRole;
 
@@ -1285,8 +1276,8 @@ mod tests {
         assert!(
             matches!(
                 session.committed_doc().node(carrier),
-                Some(Node::Datum(Datum::FaceFrame { face, .. }))
-                    if session.committed_doc().selection(*face).map(|s| s.names.clone())
+                Some(Node::Shell { open, .. })
+                    if session.committed_doc().selection(*open).map(|s| s.names.clone())
                         == Some(vec![wall.clone()])
             ),
             "the carrier's name is untouched"
@@ -1393,10 +1384,8 @@ mod tests {
             name.to_string().contains("the profile step "),
             "a removed step is said by its tag: {name}"
         );
-        let Some(Node::Datum(pncad::document::Datum::FaceFrame { face, .. })) =
-            before.node(carrier)
-        else {
-            panic!("the carrier is a face frame")
+        let Some(Node::Shell { open: face, .. }) = before.node(carrier) else {
+            panic!("the carrier is a shell")
         };
         let expected = vec![Maintenance::StrandedSelection {
             var: before.spoken_var(*face),

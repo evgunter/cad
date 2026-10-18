@@ -80,7 +80,7 @@ def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners]))
     doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
@@ -237,7 +237,7 @@ def prism(seed, width, depth, height):
     drawn by the "place part" gesture."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners]))
     doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
@@ -462,7 +462,7 @@ def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners]))
     doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
@@ -555,7 +555,7 @@ def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners]))
     doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
@@ -685,7 +685,7 @@ def prism(seed, width, depth, height):
     drawn by the "place part" gesture."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners]))
     doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
@@ -841,7 +841,7 @@ def prism(seed, width, depth, height):
     drawn by the "place part" gesture."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners]))
     doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
@@ -1090,7 +1090,7 @@ def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners]))
     doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
@@ -1213,7 +1213,7 @@ def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners]))
     doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 

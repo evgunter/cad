@@ -100,8 +100,8 @@ fn attack_all_ones_nan_slips_save_door() {
 #[test]
 fn tokens_separate_structure_from_data() {
     // These two programs never enter a document — the comparison is
-    // about loop STRUCTURE — so the frame they name is scaffolding.
-    let quad = |loops: Vec<Vec<(f64, f64)>>| desc(RecipeNodeId::new(0, 0), loops);
+    // about loop STRUCTURE.
+    let quad = |loops: Vec<Vec<(f64, f64)>>| desc(loops);
     // Loop shape stays structure-distinct: (2 loops of 1 point) vs
     // (1 loop of 2 points) — different programs, never a value alias.
     let two_loops = quad(vec![vec![(0.0, 0.0)], vec![(1.0, 1.0)]]);
@@ -252,13 +252,7 @@ fn attack_inf_via_big_exponent() {
 /// fingerprint identity (independent of the shipped kitchen sink).
 #[test]
 fn attack_all_fourteen_edit_variants_round_trip() {
-    let quad = |plane: RecipeNodeId| {
-        desc(
-            plane,
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )
-    };
-    let frame_at = |o: f64| fixture::frame([o, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
+    let quad = |o: f64| desc(vec![vec![(o, 0.0), (o + 1.0, 0.0), (o + 1.0, 1.0), (o, 1.0)]]);
     let mut doc = ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness());
     let mut edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
     let mut push = |doc: &mut ProfileDoc, e: DocEdit<ProfileProgram>| -> Option<RecipeNodeId> {
@@ -276,20 +270,11 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.5)),
         },
     );
-    // 2 InsertNode xN — the two quads sit at different x offsets, so
-    // they are on different planes and each names its own frame.
-    let f0 = push(
-        &mut doc,
-        DocEdit::InsertNode {
-            node: Box::new(frame_at(0.0)),
-            fresh: Vec::new(),
-        },
-    )
-    .unwrap();
+    // 2 InsertNode xN — the two quads sit at different x offsets.
     let p0 = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Box::new(Node::Profile(quad(f0))),
+            node: Box::new(Node::Profile(quad(0.0))),
             fresh: Vec::new(),
         },
     )
@@ -305,18 +290,10 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         },
     )
     .unwrap();
-    let f1 = push(
-        &mut doc,
-        DocEdit::InsertNode {
-            node: Box::new(frame_at(1.0)),
-            fresh: Vec::new(),
-        },
-    )
-    .unwrap();
     let p1 = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Box::new(Node::Profile(quad(f1))),
+            node: Box::new(Node::Profile(quad(1.0))),
             fresh: Vec::new(),
         },
     )
@@ -343,18 +320,10 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     )
     .unwrap();
     // A doomed node for DeleteNode.
-    let f_doomed = push(
-        &mut doc,
-        DocEdit::InsertNode {
-            node: Box::new(frame_at(5.0)),
-            fresh: Vec::new(),
-        },
-    )
-    .unwrap();
     let doomed = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Box::new(Node::Profile(quad(f_doomed))),
+            node: Box::new(Node::Profile(quad(5.0))),
             fresh: Vec::new(),
         },
     )

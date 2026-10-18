@@ -29,15 +29,12 @@ fn count(v: i64) -> Formula {
     Formula::count(v)
 }
 
-/// A square section at height `z`, scaled by `s`: the frame it sits
-/// on, then the profile that names it.
-///
-/// Each section is at a DIFFERENT height, so each gets its own frame —
-/// distinct planes are what a loft's sections are.
-fn section(doc: ProfileDoc, z: f64, s: f64) -> (ProfileDoc, RecipeNodeId) {
+/// A square section scaled by `s`, drawn on its own plane: a loft's
+/// station stands it at its height ([`lofted`]).
+fn section(doc: ProfileDoc, s: f64) -> (ProfileDoc, RecipeNodeId) {
     on_frame(
         doc,
-        [0.0, 0.0, z],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![
@@ -49,22 +46,39 @@ fn section(doc: ProfileDoc, z: f64, s: f64) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
+/// A loft over `profiles`, section `i` standing `i` up the first's own
+/// z: distinct planes are what a loft's sections are.
+fn lofted(profiles: &[RecipeNodeId], v_degree: Formula) -> editor_core::AuthoredNode {
+    Node::Loft {
+        first: profiles[0].into(),
+        then: profiles[1..]
+            .iter()
+            .zip(1u32..)
+            .map(|(&profile, i)| editor_core::LoftSection {
+                profile: profile.into(),
+                station: vec![editor_core::StationMove::Slide {
+                    along: editor_core::Axis3::Z,
+                    by: fixture::len(f64::from(i)),
+                }],
+            })
+            .collect(),
+        v_degree,
+    }
+}
+
 /// A three-section loft document; the middle section is scaled, so no
 /// wall is ruled (§5's "at least one non-affine pair").
 fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes", Tol::witness());
     let mut profiles = Vec::new();
-    for (z, s) in [(0.0, 1.0), (1.0, 1.6), (2.0, 1.0)] {
-        let (d, id) = section(doc, z, s);
+    for s in [1.0, 1.6, 1.0] {
+        let (d, id) = section(doc, s);
         doc = d;
         profiles.push(id);
     }
     let (doc, loft) = insert(
         doc,
-        Node::Loft {
-            profiles: profiles.clone().into_iter().map(Into::into).collect(),
-            v_degree: count(2),
-        },
+        lofted(&profiles, count(2)),
     );
     (doc, loft, profiles)
 }
@@ -95,9 +109,9 @@ fn loft_inputs_are_its_profiles_in_order() {
 #[test]
 fn sweep_inputs_are_profile_then_path_and_it_carries_both_slots() {
     let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes", Tol::witness());
-    let (d, profile) = section(doc, 0.0, 1.0);
+    let (d, profile) = section(doc, 1.0);
     doc = d;
-    let (d, path) = section(doc, 0.0, 1.0);
+    let (d, path) = section(doc, 1.0);
     doc = d;
     let (doc, sweep) = insert(
         doc,
@@ -125,10 +139,7 @@ fn a_dangling_profile_ref_refuses_at_the_edit_door() {
     let err = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Box::new(Node::Loft {
-                    profiles: vec![bogus.into()],
-                    v_degree: count(1),
-                }),
+                node: Box::new(lofted(&[bogus], count(1))),
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -146,10 +157,7 @@ fn a_length_expression_in_the_v_degree_slot_refuses() {
     let err = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Box::new(Node::Loft {
-                    profiles: profiles.into_iter().map(Into::into).collect(),
-                    v_degree: len(2.0),
-                }),
+                node: Box::new(lofted(&profiles, len(2.0))),
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -189,9 +197,9 @@ fn a_loft_document_round_trips_bit_identically() {
 #[test]
 fn a_sweep_document_round_trips_bit_identically() {
     let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes", Tol::witness());
-    let (d, profile) = section(doc, 0.0, 1.0);
+    let (d, profile) = section(doc, 1.0);
     doc = d;
-    let (d, path) = section(doc, 0.0, 2.0);
+    let (d, path) = section(doc, 2.0);
     doc = d;
     let (doc, _) = insert(
         doc,
@@ -274,12 +282,12 @@ fn a_well_formed_loft_evaluates_to_a_body() {
 #[test]
 fn mismatched_sections_refuse_before_the_frontier() {
     let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes", Tol::witness());
-    let (d, a) = section(doc, 0.0, 1.0);
+    let (d, a) = section(doc, 1.0);
     doc = d;
     // A triangle where the other section is a quad: no correspondence.
     let (d, b) = on_frame(
         doc,
-        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (2.0, 0.0), (1.0, 1.0)]],
@@ -287,10 +295,7 @@ fn mismatched_sections_refuse_before_the_frontier() {
     doc = d;
     let (doc, loft) = insert(
         doc,
-        Node::Loft {
-            profiles: vec![a.into(), b.into()],
-            v_degree: count(1),
-        },
+        lofted(&[a, b], count(1)),
     );
     with_failure(&doc, loft, |kind| match kind {
         NodeErrorKind::Skin(e) => {
@@ -310,10 +315,7 @@ fn an_unusable_v_degree_refuses_typed() {
     let (doc, _, profiles) = loft_doc();
     let (doc, loft) = insert(
         doc,
-        Node::Loft {
-            profiles: profiles.into_iter().map(Into::into).collect(),
-            v_degree: count(3), // == the section count
-        },
+        lofted(&profiles, count(3)), // == the section count
     );
     with_failure(&doc, loft, |kind| match kind {
         NodeErrorKind::CountOutOfRange {
@@ -339,25 +341,20 @@ fn an_unusable_v_degree_refuses_typed() {
 #[test]
 fn a_non_profile_input_refuses_typed() {
     let (doc, _, profiles) = loft_doc();
-    let (doc, datum) = insert(
+    let (doc, body) = insert(
         doc,
-        Node::Datum(editor_core::Datum::Point {
-            position: [fixture::len(0.0), fixture::len(0.0), fixture::len(0.0)],
-        }),
-    );
-    let refusal = fixture::insert_refused(
-        &doc,
-        Node::Loft {
-            profiles: vec![profiles[0].into(), datum.into()],
-            v_degree: count(1),
+        Node::Extrude {
+            profile: profiles[0].into(),
+            distance: len(1.0),
         },
     );
+    let refusal = fixture::insert_refused(&doc, lofted(&[profiles[0], body], count(1)));
     assert!(
         matches!(
             &refusal,
             editor_core::EditError::SlotVarKind {
                 slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Section(1)),
-                found: editor_core::VarKind::Point,
+                found: editor_core::VarKind::Body,
                 ..
             }
         ),
@@ -373,9 +370,9 @@ fn a_non_profile_input_refuses_typed() {
 #[test]
 fn a_sweep_node_reaches_its_own_wider_frontier() {
     let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes", Tol::witness());
-    let (d, profile) = section(doc, 0.0, 1.0);
+    let (d, profile) = section(doc, 1.0);
     doc = d;
-    let (d, path) = section(doc, 0.0, 2.0);
+    let (d, path) = section(doc, 2.0);
     doc = d;
     let (doc, sweep) = insert(
         doc,
@@ -406,9 +403,9 @@ fn a_sweep_node_reaches_its_own_wider_frontier() {
 #[test]
 fn a_sweeps_structural_slots_are_checked_before_the_frontier() {
     let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes", Tol::witness());
-    let (d, profile) = section(doc, 0.0, 1.0);
+    let (d, profile) = section(doc, 1.0);
     doc = d;
-    let (d, path) = section(doc, 0.0, 2.0);
+    let (d, path) = section(doc, 2.0);
     doc = d;
     let (doc, sweep) = insert(
         doc,

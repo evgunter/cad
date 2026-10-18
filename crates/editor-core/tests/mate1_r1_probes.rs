@@ -310,24 +310,14 @@ fn r1_oblique_circular_axis_with_a_non_identity_group_frame() {
     let axis_origin = [0.3, -1.2, 0.7];
     let axis_dir = [1.0, 2.0, 3.0];
     let theta = 0.7;
-    let (doc, axis) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Axis {
-            origin: [
-                len(axis_origin[0]),
-                len(axis_origin[1]),
-                len(axis_origin[2]),
-            ],
-            direction: [scl(axis_dir[0]), scl(axis_dir[1]), scl(axis_dir[2])],
-        }),
-    );
+    let axis = crate::mate1_member_vocab::axis_with(&doc, leg, axis_origin, axis_dir, &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
             input: leg.into(),
             count: Formula::count(3),
             kind: PatternKind::Circular {
-                axis: editor_core::pose::RoleRead::plain(axis),
+                axis,
                 step: ang(theta),
             },
         },
@@ -666,24 +656,14 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
         "a one-level name over a nested pattern reads no face: {fault:?}"
     );
 
-    // (b) a pattern of a TRANSFORM of an instance.
+    // (b) a pattern of a PLACEMENT of an instance.
     let mut store2 = PartStore::default();
     let leg2 = cube(&mut store2, "r1-xform-leg");
     let top2 = cube(&mut store2, "r1-xform-top");
     let o2 = with_resolver(store2);
     let doc2 = ProfileDoc::empty(DocumentId::derive("r1-xform"), Tol::witness());
     let (doc2, li) = insert_pinned(doc2, Node::instantiate_part(leg2.doc_ref), &o2);
-    let (doc2, xf) = insert(
-        doc2,
-        Node::transform(
-            li,
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.5)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
+    let (doc2, xf) = crate::mate1_member_vocab::slid_with(doc2, li, li, [0.0, 0.0, 0.5], &o2);
     let (doc2, pat) = insert(
         doc2,
         Node::Pattern {

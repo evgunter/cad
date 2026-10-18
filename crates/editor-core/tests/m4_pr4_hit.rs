@@ -57,8 +57,7 @@ fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
             .enumerate()
             .map(|(i, b)| (u32::try_from(i).unwrap(), &**b))
             .collect(),
-        ValuePayload::Datum(_)
-        | ValuePayload::Profile(_)
+        ValuePayload::Profile(_)
         // Neither sink denotes a body, so neither offers an entity to
         // invert.
         | ValuePayload::Measure { .. }
@@ -176,6 +175,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
             },
         )
     };
+    let (doc, b) = fixture::slid(doc, a, b, [0.0; 3]);
     let (doc, u) = insert(
         doc,
         Node::Union {
@@ -183,30 +183,23 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         },
     );
     // Split the union.
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Plane {
-            origin: [len(0.0), len(0.5), len(0.0)],
-            normal: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-    );
+    let tool = fixture::plane_on(&doc, u, [0.0, 0.5, 0.0], [0.0, 1.0, 0.0]);
     let (doc, _split) = insert(
         doc,
         Node::Split {
             target: u.into(),
-            tool: plane.into(),
+            tool,
         },
     );
     // A partial revolve (bands, meridians, wedge caps).
     let (doc, rp) = fixture::on_frame(
         doc,
-        [0.0, 3.0, 0.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     );
-    // The world axis sat at the FRAME's origin pointing along its v, so
-    // in the frame's own coordinates it is +y through (0, 0).
+    // The axis: the profile's own +y through (0, 0).
     let (doc, _rev) = insert(
         doc,
         fixture::revolve_about(

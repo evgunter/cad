@@ -28,7 +28,7 @@ use editor_core::{
     load, product_named, save,
 };
 use fixture::resolver::{PartStore, with_resolver};
-use fixture::{desc, insert, len, on_frame, run, split_world as split, square, step, xy_frame};
+use fixture::{desc, insert, len, on_frame, run, split_world as split, square, step};
 use geom_core::Tol;
 use std::sync::Arc;
 
@@ -36,12 +36,11 @@ use std::sync::Arc;
 
 /// A one-solid part document: a `side`-wide square extruded 1 tall,
 /// centered at `cx` (the asm2a fixture).
-/// **Positions** in a `part` document's node order — its sketch frame,
-/// the profile drawn on it, and the extrude that is its body. These
-/// index `doc.ids()`; they are not node ids.
-const PLANE_POSITION: usize = 0;
-const PROFILE_POSITION: usize = 1;
-const BODY_POSITION: usize = 2;
+/// **Positions** in a `part` document's node order — its profile and
+/// the extrude that is its body. These index `doc.ids()`; they are not
+/// node ids.
+const PROFILE_POSITION: usize = 0;
+const BODY_POSITION: usize = 1;
 
 fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -292,10 +291,7 @@ fn row1_split_plain_subtree_preserves_structure() {
     // Two disjoint plain components: a unit block at the origin and a
     // half-block at x = 10.
     let doc = part("asm4-r1p", 0.0, 1.0);
-    // The half-block's own frame: the cut takes it, because a profile
-    // whose plane stayed behind would sever an edge.
-    let (doc, f2) = insert(doc, xy_frame());
-    let (doc, p2) = insert(doc, Node::Profile(desc(f2, vec![square(10.0, 0.0, 0.5)])));
+    let (doc, p2) = insert(doc, Node::Profile(desc(vec![square(10.0, 0.0, 0.5)])));
     let (doc, e2) = insert(
         doc,
         Node::Extrude {
@@ -308,7 +304,7 @@ fn row1_split_plain_subtree_preserves_structure() {
     let ev1 = run(&doc, &opts);
     let (body1, _) = product_named(&doc, &ev1, Tol::witness()).expect("gathers");
 
-    let cut = BTreeSet::from([f2, p2, e2]);
+    let cut = BTreeSet::from([p2, e2]);
     let out = split(
         &doc,
         &cut,
@@ -518,16 +514,12 @@ fn row2_appearance_rides_the_bridge_both_ways() {
 #[test]
 fn row3_severing_cut_refuses_naming_the_edge() {
     let doc = part("asm4-r3s", 0.0, 1.0);
-    let plane = doc.ids()[PLANE_POSITION];
     let profile = doc.ids()[PROFILE_POSITION];
     let extrude = doc.ids()[BODY_POSITION];
-    // The kept consumer's edge into the cut input… The frame rides
-    // along, so the ONE severed edge is the extrude's — a cut that left
-    // the profile's plane behind would sever that one first, and this
-    // row is about the extrude's.
+    // The kept consumer's edge into the cut input…
     match split(
         &doc,
-        &BTreeSet::from([plane, profile]),
+        &BTreeSet::from([profile]),
         DocumentId::derive("n1"),
         Tol::witness(),
         None,
@@ -586,12 +578,7 @@ fn row3_uncut_param_reference_refuses() {
         },
     );
     let h = || Formula::named(VarName::from_static("h"), editor_core::Dimension::Length);
-    // Each block draws on its OWN frame. A shared one would sever an
-    // edge at the cut below — the frame is a document input now — and
-    // that refusal would fire before the parameter question this row
-    // is about.
-    let (doc, f1) = insert(doc, xy_frame());
-    let (doc, p1) = insert(doc, Node::Profile(desc(f1, vec![square(0.0, 0.0, 0.5)])));
+    let (doc, p1) = insert(doc, Node::Profile(desc(vec![square(0.0, 0.0, 0.5)])));
     let (doc, e1) = insert(
         doc,
         Node::Extrude {
@@ -599,8 +586,7 @@ fn row3_uncut_param_reference_refuses() {
             distance: h(),
         },
     );
-    let (doc, f2) = insert(doc, xy_frame());
-    let (doc, p2) = insert(doc, Node::Profile(desc(f2, vec![square(10.0, 0.0, 0.5)])));
+    let (doc, p2) = insert(doc, Node::Profile(desc(vec![square(10.0, 0.0, 0.5)])));
     let (doc, e2) = insert(
         doc,
         Node::Extrude {
@@ -611,7 +597,7 @@ fn row3_uncut_param_reference_refuses() {
     let doc = fixture::place_all(doc, &[e1, e2]);
     match split(
         &doc,
-        &BTreeSet::from([f1, p1, e1]),
+        &BTreeSet::from([p1, e1]),
         DocumentId::derive("n"),
         Tol::witness(),
         None,
@@ -632,7 +618,7 @@ fn row3_uncut_param_reference_refuses() {
     // split is legal.
     let out = split(
         &doc,
-        &BTreeSet::from([f1, p1, e1, f2, p2, e2]),
+        &BTreeSet::from([p1, e1, p2, e2]),
         DocumentId::derive("n"),
         Tol::witness(),
         None,
@@ -710,10 +696,9 @@ fn row3_further_typed_refusals() {
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
     let host = ProfileDoc::empty(DocumentId::derive("asm4-r3f-host"), Tol::witness());
     let (host, inst) = pinned(host, doc_ref, &o);
-    let (host, block) = insert(host, xy_frame());
     let (host, block_profile) = insert(
         host,
-        Node::Profile(desc(block, vec![square(5.0, 0.0, 0.5)])),
+        Node::Profile(desc(vec![square(5.0, 0.0, 0.5)])),
     );
     let (host, block) = insert(
         host,
@@ -1114,10 +1099,9 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     // kept node AND (through an embedded operand name) from a cut node.
     let doc = part("asm4-min2-straddle-kept", 0.0, 1.0);
     let kept_e = doc.ids()[BODY_POSITION];
-    let (doc, cut_f) = insert(doc, xy_frame());
     let (doc, cut_p) = insert(
         doc,
-        Node::Profile(desc(cut_f, vec![square(10.0, 0.0, 0.5)])),
+        Node::Profile(desc(vec![square(10.0, 0.0, 0.5)])),
     );
     let (doc, cut_e) = insert(
         doc,
@@ -1148,7 +1132,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     );
     match split(
         &doc,
-        &BTreeSet::from([cut_f, cut_p, cut_e]),
+        &BTreeSet::from([cut_p, cut_e]),
         DocumentId::derive("n"),
         Tol::witness(),
         None,
@@ -1221,7 +1205,7 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
     use editor_core::{EntityKind, derivation_nodes};
     let doc = ProfileDoc::empty_derived("asm4-reach-earliest", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
+    let (doc, b) = crate::blocks::block_on(doc, a, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
     let (doc, u) = insert(
         doc,
         Node::Union {
@@ -1311,7 +1295,7 @@ fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
     use editor_core::{EntityKind, derivation_nodes};
     let doc = ProfileDoc::empty_derived("asm4-reach-deleted", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
+    let (doc, b) = crate::blocks::block_on(doc, a, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
     let (doc, u) = insert(
         doc,
         Node::Union {
@@ -1675,17 +1659,16 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
 
 /// A `part` with a second component (a half-block at x = 10) whose
 /// profile has been reshaped once, its step at `position` re-minted,
-/// and a face frame on that step's wall added FIRST when `stranded` —
-/// so the reshaping strands the frame's name. Returns the document and
-/// the second component's `(frame, profile, extrude, face frame)`.
+/// and a shell opening that step's wall added FIRST when `stranded` —
+/// so the reshaping strands the shell's name. Returns the document and
+/// the second component's `(profile, extrude)` and shell.
 fn reshaped_component(
     label: &str,
     position: usize,
     stranded: bool,
-) -> (ProfileDoc, [RecipeNodeId; 3], Option<RecipeNodeId>) {
+) -> (ProfileDoc, [RecipeNodeId; 2], Option<RecipeNodeId>) {
     let doc = part(label, 0.0, 1.0);
-    let (doc, f2) = insert(doc, xy_frame());
-    let (doc, p2) = insert(doc, Node::Profile(desc(f2, vec![square(10.0, 0.0, 0.5)])));
+    let (doc, p2) = insert(doc, Node::Profile(desc(vec![square(10.0, 0.0, 0.5)])));
     let (doc, e2) = insert(
         doc,
         Node::Extrude {
@@ -1697,20 +1680,18 @@ fn reshaped_component(
         Some(Node::Profile(p)) => p.clone(),
         other => panic!("a profile, got {other:?}"),
     };
-    let (doc, face_frame) = if stranded {
+    let (doc, shell) = if stranded {
         let dropped = editor_core::ProfileEdgeRef::Piece {
             step: program.ids[0][position],
             role: editor_core::PieceRole::Leg,
         };
         let (doc, id) = insert(
             doc,
-            Node::Datum(editor_core::Datum::FaceFrame {
-                face: editor_core::Operand::select(
-                    e2,
-                    vec![fixture::fname(e2, RoleSeg::Lateral(dropped.into()))],
-                ),
-                spin: fixture::ang(0.0),
-            }),
+            Node::shell(
+                e2,
+                len(0.01),
+                vec![fixture::fname(e2, RoleSeg::Lateral(dropped.into()))],
+            ),
         );
         (doc, Some(id))
     } else {
@@ -1734,7 +1715,7 @@ fn reshaped_component(
     // Placed once reshaped: a pin is read off the body's own edges, so
     // a pin written before the reshape would read a step it drops.
     let doc = fixture::place(doc, e2).0;
-    (doc, [f2, p2, e2], face_frame)
+    (doc, [p2, e2], shell)
 }
 
 /// The ids a profile node holds, flattened in loop then step order.
@@ -1772,14 +1753,14 @@ fn flat_ids(doc: &ProfileDoc, profile: RecipeNodeId) -> Vec<editor_core::StepId>
 /// the same split minted twice mints the same ids (D9).
 #[test]
 fn a_split_step_map_follows_a_non_contiguous_re_mint() {
-    let (doc, [f2, p2, e2], _) = reshaped_component("asm4-steps", 2, false);
+    let (doc, [p2, e2], _) = reshaped_component("asm4-steps", 2, false);
     let old = flat_ids(&doc, p2);
     let n = 5;
     assert_eq!(old.len(), n, "one id per authored step");
     let cut = || {
         split(
             &doc,
-            &BTreeSet::from([f2, p2, e2]),
+            &BTreeSet::from([p2, e2]),
             DocumentId::derive("asm4-steps-new"),
             Tol::witness(),
             None,
@@ -1815,14 +1796,14 @@ fn a_split_step_map_follows_a_non_contiguous_re_mint() {
 /// stranded name and the dropped step.
 #[test]
 fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
-    let (doc, [f2, p2, e2], face_frame) = reshaped_component("asm4-dropped", 1, true);
+    let (doc, [p2, e2], shell) = reshaped_component("asm4-dropped", 1, true);
     let doc = labelled(doc, e2, "walled block");
-    let face_frame = face_frame.expect("the stranded frame");
-    let dropped = match doc.node(face_frame) {
-        Some(Node::Datum(editor_core::Datum::FaceFrame { face, .. })) => {
-            doc.selection(*face).expect("a face selection").names[0].clone()
+    let shell = shell.expect("the stranded shell");
+    let dropped = match doc.node(shell) {
+        Some(Node::Shell { open, .. }) => {
+            doc.selection(*open).expect("a face selection").names[0].clone()
         }
-        other => panic!("a face frame, got {other:?}"),
+        other => panic!("a shell, got {other:?}"),
     };
     let dropped_step = match dropped.path.as_slice() {
         [RoleSeg::Lateral(run)] => match run.single() {
@@ -1833,11 +1814,11 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
     };
     assert!(
         !flat_ids(&doc, p2).contains(&dropped_step),
-        "the frame spells a step the profile no longer holds"
+        "the shell spells a step the profile no longer holds"
     );
     match split(
         &doc,
-        &BTreeSet::from([f2, p2, e2, face_frame]),
+        &BTreeSet::from([p2, e2, shell]),
         DocumentId::derive("asm4-dropped-new"),
         Tol::witness(),
         None,
@@ -2043,7 +2024,7 @@ fn run_lines(name: &StableName) -> Vec<StableName> {
 /// *Acceptance*: name-resolution identity, up to minted ids).
 #[test]
 fn a_split_and_an_inline_keep_a_reordered_profiles_step_order() {
-    let (doc, [f2, p2, e2], _) = reshaped_component("asm4-order", 2, false);
+    let (doc, [p2, e2], _) = reshaped_component("asm4-order", 2, false);
     let old = flat_ids(&doc, p2);
     assert!(
         old[2] > old[3],
@@ -2058,7 +2039,7 @@ fn a_split_and_an_inline_keep_a_reordered_profiles_step_order() {
 
     let out = split(
         &doc,
-        &BTreeSet::from([f2, p2, e2]),
+        &BTreeSet::from([p2, e2]),
         DocumentId::derive("asm4-order-new"),
         Tol::witness(),
         None,
@@ -2139,7 +2120,7 @@ fn a_split_and_an_inline_keep_a_reordered_profiles_step_order() {
 /// typed, rather than carry a reference that no longer resolves.
 #[test]
 fn an_inline_keeps_each_profiles_order_and_refuses_a_run_across_two() {
-    let (doc, [_, p2, _], _) = reshaped_component("asm4-two", 2, false);
+    let (doc, [p2, _], _) = reshaped_component("asm4-two", 2, false);
     let order = doc.ids();
     let (p1, e1) = (order[PROFILE_POSITION], order[BODY_POSITION]);
     let program = match doc.node(p1) {

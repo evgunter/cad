@@ -255,7 +255,6 @@ def die_tool_document():
                 (Formula.length_in(DIE_L, m), Formula.length_in(DIE_L, m)),
                 (Formula.length_in(0, m), Formula.length_in(DIE_L, m)),
             ],
-            plane=doc.sketch_frame(elevation=Formula.length_in(0, m)),
         )
     )
     cube = doc.insert(Node.extrude(square, Formula.length_in(DIE_L, m)))

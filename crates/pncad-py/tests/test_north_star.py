@@ -151,8 +151,7 @@ class TestChute(unittest.TestCase):
             (1.5625, 0.1875), (1.1875, 0.1875), (1.1875, 0.625), (1.0, 0.625),
         ]
         doc = Doc()
-        frame = doc.sketch_frame()
-        profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in poly], plane=frame))
+        profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in poly]))
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
         axis = (
             (Formula.length_in(0, m), Formula.length_in(0, m)),
@@ -592,7 +591,7 @@ class TestBracket(unittest.TestCase):
     def build(self):
         doc = Doc()
         bracket = doc.insert(
-            Node.extrude(doc.insert(Node.profile(self.outline(), plane=doc.sketch_frame())), Formula.length_in(0.75, m))
+            Node.extrude(doc.insert(Node.profile(self.outline())), Formula.length_in(0.75, m))
         )
         return doc, bracket
 
@@ -667,10 +666,9 @@ class TestVase(unittest.TestCase):
             .line_to(Start)
         )
         doc = Doc()
-        frame = doc.sketch_frame()
         vase = doc.insert(
             Node.revolve(
-                doc.insert(Node.profile(outline, plane=frame)),
+                doc.insert(Node.profile(outline)),
                 *y_axis(doc, frame),
                 Formula.angle_in(360, deg),
             )
@@ -704,10 +702,9 @@ class TestSheave(unittest.TestCase):
         outline = tip.line_to(Start)
 
         doc = Doc()
-        frame = doc.sketch_frame()
         sheave = doc.insert(
             Node.revolve(
-                doc.insert(Node.profile(outline, plane=frame)),
+                doc.insert(Node.profile(outline)),
                 *y_axis(doc, frame),
                 Formula.angle_in(360, deg),
             )
@@ -739,7 +736,7 @@ class TestBossplate(unittest.TestCase):
             .line_to(Start)
         )
         plate = doc.insert(
-            Node.extrude(doc.insert(Node.profile(plate_outline, plane=doc.sketch_frame())), Formula.length_in(1.0, m))
+            Node.extrude(doc.insert(Node.profile(plate_outline)), Formula.length_in(1.0, m))
         )
         boss_outline = circle_split((2 * m, 2 * m), 0.5 * m, 3, 0 * rad)
         self.assertEqual(boss_outline.vertex_count, 3, "three arcs, three walls")
@@ -789,7 +786,7 @@ class TestSnowman(unittest.TestCase):
             .arc_to(Center(c=(0 * m, y * m), winding=ArcSweep.Ccw, p=(0 * m, (y + r) * m)))
             .line_to(Start)
         )
-        profile = doc.insert(Node.profile(semicircle, plane=frame))
+        profile = doc.insert(Node.profile(semicircle))
         return doc.insert(Node.revolve(profile, *axis, Formula.angle_in(2 * math.pi, rad)))
 
     def level(self, doc, y):
@@ -853,7 +850,6 @@ class TestSnowman(unittest.TestCase):
 
     def test_the_snowman_meets_its_closed_forms(self):
         doc = Doc()
-        frame = doc.sketch_frame()
         axis = y_axis(doc, frame)
         bottom = self.ball(doc, frame, axis, self.R1, 0.0)
         head = self.ball(doc, frame, axis, self.R2, self.D)
@@ -1068,7 +1064,6 @@ class TestTheVDegreeParamBinding(unittest.TestCase):
                 doc.insert(
                     Node.polygon(
                         [(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in PRISM_SQUARE],
-                        plane=doc.sketch_frame(),
                     )
                 ),
                 Formula.length_in(1, m),
@@ -1337,7 +1332,6 @@ class TestPlate(unittest.TestCase):
                     circle((-1.5 * m, 0 * m), 0.7 * m),
                     circle((1.5 * m, 0 * m), 0.7 * m),
                 ],
-                plane=doc.sketch_frame(),
             )
         )
         plate = doc.insert(Node.extrude(sketch, Formula.length_in(0.6, m)))
@@ -1354,7 +1348,6 @@ class TestPlate(unittest.TestCase):
             doc.insert(
                 Node.profile(
                     [circle((0 * m, 0 * m), 1 * m), circle((5 * m, 0 * m), 1 * m)],
-                    plane=doc.sketch_frame(),
                 )
             )
         self.assertEqual(caught.exception.variant, "profile_program_refused")
@@ -1386,7 +1379,6 @@ class TestAz(unittest.TestCase):
                 doc.insert(
                     Node.profile(
                         [loop_of(self.A_OUTLINE), loop_of(self.A_COUNTER)],
-                        plane=doc.sketch_frame(plane=SketchPlane.xy()),
                     )
                 ),
                 Formula.length_in(2.0, m),
@@ -1427,7 +1419,6 @@ class TestDiefillet(unittest.TestCase):
                     (Formula.length_in(self.L, m), Formula.length_in(self.L, m)),
                     (Formula.length_in(0, m), Formula.length_in(self.L, m)),
                 ],
-                plane=doc.sketch_frame(),
             )
         )
         cube = doc.insert(Node.extrude(sq, Formula.length_in(self.L, m)))
@@ -1487,7 +1478,6 @@ class TestDiefillet(unittest.TestCase):
                     ],
                     # The frame goes in the document being BUILT, not
                     # the one the edge names were read from.
-                    plane=target.sketch_frame(),
                 )
             )
             solid = target.insert(Node.extrude(sq, Formula.length_in(self.L, m)))
@@ -1531,7 +1521,6 @@ class TestDiechamfer(unittest.TestCase):
                     (Formula.length_in(self.L, m), Formula.length_in(self.L, m)),
                     (Formula.length_in(0, m), Formula.length_in(self.L, m)),
                 ],
-                plane=doc.sketch_frame(),
             )
         )
         cube = doc.insert(Node.extrude(sq, Formula.length_in(self.L, m)))
@@ -1605,7 +1594,6 @@ class TestDiechamfer(unittest.TestCase):
                     ],
                     # The frame goes in the document being BUILT, not
                     # the one the edge names were read from.
-                    plane=target.sketch_frame(),
                 )
             )
             solid = target.insert(Node.extrude(sq, Formula.length_in(self.L, m)))
@@ -1673,7 +1661,7 @@ class DieScene:
             .line_to(Start)
         )
         frame = doc.sketch_frame(plane=plane)
-        sketch = doc.insert(Node.profile(half, plane=frame))
+        sketch = doc.insert(Node.profile(half))
         # The axis in the sketch's own coordinates: the frame's v IS world +z, so the pole axis is its own +y.
         axis = (
             (Formula.length_in(0, m), Formula.length_in(0, m)),
@@ -1691,7 +1679,6 @@ class DieScene:
                     (Formula.length_in(self.L, m), Formula.length_in(self.L, m)),
                     (Formula.length_in(0, m), Formula.length_in(self.L, m)),
                 ],
-                plane=doc.sketch_frame(),
             )
         )
         cube = doc.insert(Node.extrude(sq, Formula.length_in(self.L, m)))
@@ -1920,7 +1907,7 @@ class TestTiltedcut(unittest.TestCase):
 
     def test_both_halves_bracket_the_exact_half_volume(self):
         doc = Doc()
-        disc = doc.insert(Node.profile(circle((0 * m, 0 * m), self.R * m), plane=doc.sketch_frame()))
+        disc = doc.insert(Node.profile(circle((0 * m, 0 * m), self.R * m)))
         cylinder = doc.insert(Node.extrude(disc, Formula.length_in(self.H, m)))
         plane = doc.insert(
             Node.datum_plane(
@@ -1952,7 +1939,7 @@ class TestTiltedcut(unittest.TestCase):
         """The value's KIND is the honest one: a split denotes two
         sides, so `body()` refuses rather than picking one."""
         doc = Doc()
-        disc = doc.insert(Node.profile(circle((0 * m, 0 * m), self.R * m), plane=doc.sketch_frame()))
+        disc = doc.insert(Node.profile(circle((0 * m, 0 * m), self.R * m)))
         cylinder = doc.insert(Node.extrude(disc, Formula.length_in(self.H, m)))
         plane = doc.insert(
             Node.datum_plane((
@@ -2072,7 +2059,7 @@ class TestRocker(unittest.TestCase):
         return 0.5 * abs(twice) - sector - segment
 
     def prism(self, doc, loops):
-        return doc.insert(Node.extrude(doc.insert(Node.profile(loops, plane=doc.sketch_frame())), Formula.literal(self.DEPTH)))
+        return doc.insert(Node.extrude(doc.insert(Node.profile(loops)), Formula.literal(self.DEPTH)))
 
     def census(self, doc, node):
         ev = evaluate(doc)
@@ -2306,11 +2293,9 @@ class TestHollowring(unittest.TestCase):
 
     def ring(self, doc):
         centre = (self.R * m, 0 * m)
-        frame = doc.sketch_frame()
         profile = doc.insert(
             Node.profile(
                 [circle(centre, self.RO * m), circle(centre, self.RI * m)],
-                plane=frame,
             )
         )
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
@@ -2448,7 +2433,7 @@ class TestKlein(unittest.TestCase):
             (0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0)
         )
         frame = doc.sketch_frame(plane=bulb_plane)
-        band = doc.insert(Node.profile(self.band(md), plane=frame))
+        band = doc.insert(Node.profile(self.band(md)))
         # The axis in the sketch's own coordinates: the axis is the plane's own +v — said in the plane now.
         axis = (
             (Formula.length_in(0, m), Formula.length_in(0, m)),
@@ -2522,8 +2507,7 @@ class TestBudfillet(unittest.TestCase):
             .line_to((self.BORE * m, self.TOP * m))
             .line_to(Start)
         )
-        frame = doc.sketch_frame()
-        profile = doc.insert(Node.profile(meridian, plane=frame))
+        profile = doc.insert(Node.profile(meridian))
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
         axis = (
             (Formula.length_in(0, m), Formula.length_in(0, m)),
@@ -2631,13 +2615,12 @@ def teapot_frame_and_axis(doc):
     """u = +X (the radius), v = +Y (the axis) — the sketch frame the
     teapot scene's world placement comes from — and the axis of
     revolution in that frame's own coordinates."""
-    frame = doc.sketch_frame(plane=SketchPlane.xy())
     return frame, y_axis(doc, frame)
 
 
 def fully_revolved(doc, frame, axis, meridian):
     """One full turn of `meridian` about `axis`, drawn on `frame`."""
-    profile = doc.insert(Node.profile(meridian, plane=frame))
+    profile = doc.insert(Node.profile(meridian))
     return doc.insert(Node.revolve(profile, *axis, Formula.angle_in(2 * math.pi, rad)))
 
 
@@ -2981,7 +2964,7 @@ class TestTeapot(unittest.TestCase):
         frame, axis = teapot_frame_and_axis(doc)
 
         # ---- the vessel: one revolve, two hollows ----
-        vessel = doc.insert(Node.profile(self.vessel_meridian(), plane=frame))
+        vessel = doc.insert(Node.profile(self.vessel_meridian()))
         pot = doc.insert(Node.revolve(vessel, *axis, Formula.angle_in(2 * math.pi, rad)))
         ev = evaluate(doc)
         bands = self.in_program_order(
@@ -3006,7 +2989,7 @@ class TestTeapot(unittest.TestCase):
         cup = doc.insert(Node.shell(doc.output(pot, 0), Formula.length_in(self.WALL, m), mouth))
 
         # ---- the lid: three rims, by name ----
-        lid_profile = doc.insert(Node.profile(self.lid_meridian(), plane=frame))
+        lid_profile = doc.insert(Node.profile(self.lid_meridian()))
         sharp = doc.insert(Node.revolve(lid_profile, *axis, Formula.angle_in(2 * math.pi, rad)))
         ev = evaluate(doc)
         rims = self.in_program_order(doc, lid_profile, sharp, band_rim, self.rim_edges(ev, sharp))
@@ -3690,8 +3673,7 @@ class TestMeshCrossCheck(unittest.TestCase):
             (1.5625, 0.1875), (1.1875, 0.1875), (1.1875, 0.625), (1.0, 0.625),
         ]
         doc = Doc()
-        frame = doc.sketch_frame()
-        profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in poly], plane=frame))
+        profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in poly]))
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
         axis = (
             (Formula.length_in(0, m), Formula.length_in(0, m)),
@@ -3742,7 +3724,6 @@ class TestMeshCrossCheck(unittest.TestCase):
                     (Formula.length_in(1, m), Formula.length_in(1, m)),
                     (Formula.length_in(0, m), Formula.length_in(1, m)),
                 ],
-                plane=doc.sketch_frame(),
             )
         )
         cube = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))

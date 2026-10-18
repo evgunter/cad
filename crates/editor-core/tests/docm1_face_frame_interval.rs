@@ -1,26 +1,20 @@
-//! **DOCM-1 under the Interval lane** — DM1c's rows: a profile on a
-//! derived frame is placed at the lane scalar under EVERY lift (its
-//! 2-D structure record still `f64`-pinned), a loft section on a
-//! derived frame lofts and encloses the `f64` loft, and a widened parameter the
-//! frame's body reads recomputes the profile rather than serving the
-//! nominal memo entry.
+//! **DOCM-1 under the Interval lane** — DM1c's rows: a boss placed on a
+//! face is placed at the lane scalar under EVERY lift, and the floor of
+//! a plain-`Interval` extrude of a widened height.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
 
 use crate::corpus;
-use crate::docm1_face_frame::lofted_on_face_frame;
-use crate::fixture::{self, Recorder, ang, len, scl};
+use crate::fixture::{self, Recorder};
 
-use editor_core::PoseValue;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::{
-    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
-    FreeVar, Node, ProfileDoc, ProfileLift, RecipeNodeId, RoleSeg, UnitSym, ValuePayload, VarName,
-    evaluate,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
+    Node, ProfileDoc, ProfileLift, UnitSym, VarName, evaluate,
 };
-use geom_core::{Bounds, Interval, Tol, UnitVec3};
+use geom_core::{Bounds, Interval, Tol};
 use topo::validate_closed;
 
 fn run(
@@ -35,41 +29,28 @@ fn lifted(doc: &ProfileDoc, lift: ProfileLift) -> EvalOptions {
     corpus::options_under(doc, lift).expect("the document has a continuous variable")
 }
 
-/// **The corpus document's profile is placed at the lane scalar under
-/// both lifts**: the profile on the derived frame evaluates green at
-/// `Interval`, and the boss's bottom encloses the cap's height —
-/// which is the frame's landed origin, not a placeholder.
+/// **The corpus document's boss is placed at the lane scalar under
+/// both lifts**: the boss's copy, placed on the box's top face,
+/// evaluates green at `Interval`, and its bottom encloses the cap's
+/// height — where the face it names lands, not a placeholder.
 #[test]
-fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() {
+fn a_boss_placed_on_a_face_is_placed_at_the_lane_scalar_under_every_lift() {
     let cd = corpus::face_sketch::document();
-    let boss = cd.result.expect("the boss");
-    let frame = cd
-        .doc
-        .ids()
-        .iter()
-        .copied()
-        .find(|id| matches!(cd.doc.node(*id), Some(Node::Datum(Datum::FaceFrame { .. }))))
-        .expect("the derived frame");
+    let whole = cd.result.expect("the union");
+    let Some(Node::Union { members, .. }) = cd.doc.node(whole) else {
+        panic!("the result is the union")
+    };
+    let boss = members
+        .reads()
+        .map(|m| cd.doc.operation_of(m.read).expect("a live member"))
+        .find(|&m| matches!(cd.doc.node(m), Some(Node::Place { .. })))
+        .expect("the boss's placement");
     for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
         let ev = run(&cd.doc, None, &lifted(&cd.doc, lift));
         assert!(
             corpus::failures(&ev).is_empty(),
             "{lift:?}: {:?}",
             corpus::failures(&ev)
-        );
-        let ValuePayload::Datum(PoseValue::Frame(f)) = &ev.value(frame).expect("the frame").payload
-        else {
-            panic!("a frame value");
-        };
-        let (origin, u, v) = (&f.origin(), &f.u(), &f.v());
-        assert!(
-            origin.z.lo() <= 1.0 && 1.0 <= origin.z.hi(),
-            "{lift:?}: origin {origin:?}"
-        );
-        let n = UnitVec3::get(*u).cross(UnitVec3::get(*v));
-        assert!(
-            n.z.lo() <= 1.0 && 1.0 <= n.z.hi(),
-            "{lift:?}: outward normal {n:?}"
         );
         let body = corpus::body_of(&ev, boss);
         assert_eq!(validate_closed(body), Ok(()), "{lift:?}");
@@ -82,185 +63,6 @@ fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() 
             "{lift:?}: the boss stands on the cap: {bottom}"
         );
     }
-}
-
-/// **A loft whose section is drawn on a derived frame evaluates at
-/// `Interval`, under both lifts, and encloses the `f64` loft.** The
-/// section is its profile's value at this scalar, on the frame's landed
-/// value, which is an enclosure wider than a point; the loft skins it
-/// in `T`. Each vertex of the `f64` body lies in the enclosing body's
-/// vertex of the same index (one construction lists them in one order).
-#[test]
-fn a_section_on_a_derived_frame_lofts_and_encloses_at_interval() {
-    let (doc, loft) = lofted_on_face_frame();
-    let nominal = editor_core::evaluate::<f64>(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        Tol::witness(),
-    );
-    let nominal: Vec<[f64; 3]> = corpus::body_of(&nominal, loft)
-        .points()
-        .map(|(_, p)| [p.x, p.y, p.z])
-        .collect();
-    assert!(!nominal.is_empty(), "the f64 loft has vertices");
-    for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-        let ev = run(&doc, None, &lifted(&doc, lift));
-        assert!(
-            ev.node_error(loft).is_none(),
-            "{lift:?}: the loft evaluates: {:?}",
-            ev.node_error(loft)
-        );
-        let body = corpus::body_of(&ev, loft);
-        assert_eq!(validate_closed(body), Ok(()), "{lift:?}");
-        let brackets: Vec<[(f64, f64); 3]> = body
-            .points()
-            .map(|(_, p)| [p.x, p.y, p.z].map(|c| (c.lo(), c.hi())))
-            .collect();
-        assert_eq!(
-            brackets.len(),
-            nominal.len(),
-            "{lift:?}: the vertex counts agree"
-        );
-        for (i, (b, v)) in brackets.iter().zip(&nominal).enumerate() {
-            assert!(
-                b.iter().zip(v).all(|((lo, hi), x)| lo <= x && x <= hi),
-                "{lift:?}: the f64 vertex {i} at {v:?} lies outside its enclosure {b:?}"
-            );
-        }
-    }
-}
-
-/// An exact unit box LIFTED by a document parameter `lift` (a rigid
-/// transform along +z) whose declared distribution the box's body
-/// value then carries, and a boss profile sketched on the lifted
-/// body's top face.
-///
-/// The widened parameter enters through the TRANSFORM here so the
-/// row measures the placement alone; the direct spelling — the
-/// widened parameter IS the extrude's height — is
-/// [`a_widened_extrude_height_carries_the_frame_at_one_tenth_eps`],
-/// and the width at which a plain-`Interval` extrude of a widened
-/// height certifies is measured by
-/// [`an_interval_extrude_of_a_widened_height`] (green at ε/10,
-/// refused at ε/8: a floor near ε/16, the one
-/// `m10_3_driver_interval.rs` documents).
-fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
-    let mut r = Recorder::new();
-    r.push(DocEdit::DeclareVar {
-        name: VarName::from_static("lift"),
-        def: editor_core::VarDecl::Free(FreeVar::Continuous {
-            dim: Dimension::Length,
-            value: 0.0,
-            display_unit: UnitSym::canonical_for(Dimension::Length),
-            distribution: Some(Distribution::Uniform {
-                lo: -width,
-                hi: width,
-            }),
-        }),
-    });
-    let (plane, profile) = r.profile_keeping(
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![fixture::square(0.0, 0.0, 1.0)],
-    );
-    let _ = plane;
-    let cube = r.insert(Node::Extrude {
-        profile: profile.into(),
-        distance: len(1.0),
-    });
-    let lifted = r.insert(Node::transform(
-        cube,
-        editor_core::Step::Rigid {
-            translation: [
-                len(0.0),
-                len(0.0),
-                Formula::named(VarName::from_static("lift"), Dimension::Length),
-            ],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
-    // A rigid transform keeps its input's name table verbatim, so the
-    // cap is still named by the extrude that minted it.
-    let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        face: editor_core::Operand::select(
-            lifted,
-            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
-        ),
-        spin: ang(0.0),
-    }));
-    // The document ends at the boss PROFILE: the row below measures the
-    // profile's memo and its carried placement. An extrude ABOVE a
-    // derived frame whose placement carries width is the open DM1c
-    // asymmetry on the symbolic lane (PR #1829's item-1 diagnosis),
-    // and is not what this row pins.
-    let boss_p = r.insert(Node::Profile(fixture::desc(
-        frame,
-        vec![fixture::square(0.0, 0.0, 0.5)],
-    )));
-    (r.doc, boss_p)
-}
-
-/// **The memo recomputes a profile on a derived frame through the
-/// UPSTREAM KEY**: widening the parameter the frame's body reads
-/// re-keys the body, hence the frame, hence the profile
-/// (a profile reads its frame's output, and a profile's
-/// content key folds every input's key in), so the widened placement
-/// cannot be served from the nominal memo entry. No placement feed of
-/// its own is needed for that, and none exists.
-///
-/// The widening is SCALED TO THE ROW'S ε (±ε/8) because the hosted
-/// matrix runs this row at every ε and the transform-lifted box must
-/// certify at each: ε/8 is a width the lifted box's own certification
-/// admits on plain `Interval` (the extrude's height is exact here),
-/// not the extrude-height floor the ladder row measures.
-#[test]
-fn widening_the_frames_body_parameter_recomputes_the_profile() {
-    let width = Tol::witness().eps() / 8.0;
-    let (doc, boss_p) = boxed_on_param(width);
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    // The prior is the drive's witness: the box collapsed to the
-    // nominal, so it elaborates under the widened run's (guided) lift
-    // and the memo compares like with like (`ParamBox::at_nominal`).
-    let nominal = run(
-        &doc,
-        None,
-        &EvalOptions {
-            param_box: Some(Arc::new(ParamBox::of(&analyzed).at_nominal())),
-            ..EvalOptions::default()
-        },
-    );
-    assert!(
-        corpus::failures(&nominal).is_empty(),
-        "{:?}",
-        corpus::failures(&nominal)
-    );
-    let opts = EvalOptions {
-        param_box: Some(Arc::new(ParamBox::of(&analyzed))),
-        ..EvalOptions::default()
-    };
-    let widened = run(&doc, Some(&nominal), &opts);
-    assert!(
-        corpus::failures(&widened).is_empty(),
-        "{:?}",
-        corpus::failures(&widened)
-    );
-    // The box's frame, profile and extrude read no parameter and are
-    // served from the memo; everything from the transform up — the
-    // lifted body, the derived frame and the boss profile — recomputes.
-    assert_eq!(widened.reused, 3, "the three parameter-free leaves");
-    assert_eq!(widened.recomputed, doc.len() - 3);
-    let ValuePayload::Profile(p) = &widened.value(boss_p).expect("the boss profile").payload else {
-        panic!("a profile");
-    };
-    let z = p.validated.plane().placement.translation.z;
-    assert!(
-        z.hi() - z.lo() >= 1.9 * width,
-        "the placement carries the widened height: {z:?}"
-    );
 }
 
 /// **The measurement of record for a plain-`Interval` extrude of a
@@ -328,87 +130,4 @@ fn an_interval_extrude_of_a_widened_height() {
         }
     }
     assert!(at(0.0), "the exact height certifies");
-}
-
-/// **The direct spelling**: the widened parameter IS the extrude's
-/// height, the derived frame sits on the cap it moves, the boss
-/// profile is on the frame — green at every ε row at ε/10, the
-/// placement carries the width, and the profile recomputes through
-/// the upstream key.
-#[test]
-fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
-    let width = Tol::witness().eps() / 10.0;
-    let mut r = Recorder::new();
-    r.push(DocEdit::DeclareVar {
-        name: VarName::from_static("h"),
-        def: editor_core::VarDecl::Free(FreeVar::Continuous {
-            dim: Dimension::Length,
-            value: 1.0,
-            display_unit: UnitSym::canonical_for(Dimension::Length),
-            distribution: Some(Distribution::Uniform {
-                lo: -width,
-                hi: width,
-            }),
-        }),
-    });
-    let profile = r.profile(
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![fixture::square(0.0, 0.0, 1.0)],
-    );
-    let cube = r.insert(Node::Extrude {
-        profile: profile.into(),
-        distance: Formula::named(VarName::from_static("h"), Dimension::Length),
-    });
-    let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        face: editor_core::Operand::select(
-            cube,
-            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
-        ),
-        spin: ang(0.0),
-    }));
-    let boss_p = r.insert(Node::Profile(fixture::desc(
-        frame,
-        vec![fixture::square(0.0, 0.0, 0.25)],
-    )));
-    let doc = r.doc;
-
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    // The prior is the drive's witness: the box collapsed to the
-    // nominal, so it elaborates under the widened run's (guided) lift
-    // and the memo compares like with like (`ParamBox::at_nominal`).
-    let nominal = run(
-        &doc,
-        None,
-        &EvalOptions {
-            param_box: Some(Arc::new(ParamBox::of(&analyzed).at_nominal())),
-            ..EvalOptions::default()
-        },
-    );
-    assert!(
-        corpus::failures(&nominal).is_empty(),
-        "nominal: {:?}",
-        corpus::failures(&nominal)
-    );
-    let opts = EvalOptions {
-        param_box: Some(Arc::new(ParamBox::of(&analyzed))),
-        ..EvalOptions::default()
-    };
-    let widened = run(&doc, Some(&nominal), &opts);
-    assert!(
-        corpus::failures(&widened).is_empty(),
-        "a widened EXTRUDE HEIGHT of eps/10 certifies green: {:?}",
-        corpus::failures(&widened)
-    );
-    let ValuePayload::Profile(p) = &widened.value(boss_p).expect("the boss profile").payload else {
-        panic!("a profile");
-    };
-    let z = p.validated.plane().placement.translation.z;
-    assert!(
-        z.hi() - z.lo() >= 1.9 * width,
-        "the placement carries the widened height: {z:?}"
-    );
-    assert_eq!(widened.reused, 2, "the two parameter-free leaves");
-    assert_eq!(widened.recomputed, doc.len() - 2);
 }

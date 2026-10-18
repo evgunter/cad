@@ -68,7 +68,7 @@ def rounded_plate(doc, width, height, radius, thickness):
         tip = tip.fillet(radius).toward(*ray).at(anchor)
     outline = tip.fillet(radius).to(Start)
     assert outline.vertex_count == 8, "four arcs, two tangent points each"
-    return doc.insert(Node.extrude(doc.insert(Node.profile(outline, plane=doc.sketch_frame())), Formula.literal(thickness)))
+    return doc.insert(Node.extrude(doc.insert(Node.profile(outline)), Formula.literal(thickness)))
 
 
 def slab(doc, x, y, z):

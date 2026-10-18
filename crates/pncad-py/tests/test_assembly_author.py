@@ -1552,7 +1552,7 @@ class TestRefactorings(BenchWorkspace):
             (Formula.length_in(0, m), Formula.length_in(0, m)),
             (Formula.length_in(1, m), Formula.length_in(0, m)),
             (Formula.length_in(1, m), Formula.length_in(1, m)),
-        ], plane=doc.sketch_frame()))
+        ]))
         body = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
         with self.assertRaises(pncad.InlineError) as caught:
             pncad.inline(doc, body, self.ws)
@@ -1568,12 +1568,11 @@ class TestRefactorings(BenchWorkspace):
         doc.apply(DocEdit.declare_var(VarName("k"), doc.parse_formula("w + j")))
 
         def block(x0, depth):
-            frame = doc.sketch_frame()
             profile = doc.insert(Node.polygon([
                 (Formula.length_in(x0, m), Formula.length_in(0, m)),
                 (Formula.length_in(x0 + 1, m), Formula.length_in(0, m)),
                 (Formula.length_in(x0 + 1, m), Formula.length_in(1, m)),
-            ], plane=frame))
+            ]))
             body = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
             doc.apply(DocEdit.set_param(body, "distance", doc.parse_formula(depth)))
             return [frame, profile, body]
@@ -1605,7 +1604,6 @@ class TestTheWorld(BenchWorkspace):
                     (Formula.length_in(x0 + 1, m), Formula.length_in(1, m)),
                     (Formula.length_in(x0, m), Formula.length_in(1, m)),
                 ],
-                plane=doc.sketch_frame(),
             )
         )
         return doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
@@ -1671,7 +1669,6 @@ class TestTheWorld(BenchWorkspace):
                         (Formula.length_in(x0 + 1, m), Formula.length_in(1, m)),
                         (Formula.length_in(x0, m), Formula.length_in(1, m)),
                     ],
-                    plane=doc.sketch_frame(),
                 )
             )
             return doc.insert(Node.extrude(profile, Formula.length_in(1, m)))

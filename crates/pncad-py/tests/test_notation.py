@@ -431,7 +431,7 @@ class TestANodeSlotRecordsTheAuthoredNotation(unittest.TestCase):
             (Formula.literal(10 * mm), Formula.literal(10 * mm)),
             (Formula.literal(0 * mm), Formula.literal(10 * mm)),
         ]
-        return doc.insert(Node.polygon(corner, plane=doc.sketch_frame()))
+        return doc.insert(Node.polygon(corner))
 
     def distance_of(self, doc):
         """The one extrude's stored `distance`, read off the FILE."""
@@ -521,7 +521,7 @@ class TestTheOneCallIsTheComposition(unittest.TestCase):
             (Formula.length_in(10, mm), Formula.length_in(10, mm)),
             (Formula.length_in(0, mm), Formula.length_in(10, mm)),
         ]
-        profile = doc.insert(Node.polygon(square, plane=doc.sketch_frame()))
+        profile = doc.insert(Node.polygon(square))
         doc.insert(Node.extrude(profile, Formula.length_in(25, mm)))
         stored = saved_distance(doc)
         self.assertEqual(stored["unit"], "mm")

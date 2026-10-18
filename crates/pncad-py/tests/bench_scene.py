@@ -144,7 +144,6 @@ def prism(seed, width, depth, height):
                 (Formula.length_in(width, m), Formula.length_in(depth, m)),
                 (Formula.length_in(0, m), Formula.length_in(depth, m)),
             ],
-            plane=doc.sketch_frame(elevation=Formula.length_in(0, m)),
         )
     )
     # A part with no height has no faces to read its seat off: it is

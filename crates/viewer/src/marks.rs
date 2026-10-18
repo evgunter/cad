@@ -144,10 +144,7 @@ fn face_id(index: &PickIndex, face: &FaceSelection) -> u32 {
 /// [`PickIndex::edge_polyline_for`] applies to an edge.
 ///
 /// The one answer to "is this pick in the picture": the held mark
-/// lights what this answers, and the add-datum form refuses a held
-/// face it answers `None` for (`crate::session::face_frame_seat_drawn`),
-/// so the button never commits against a face the viewport is not
-/// marking.
+/// lights what this answers.
 pub fn drawn_patch(index: &PickIndex, display: &DisplayView, face: &FaceSelection) -> Option<u32> {
     if display.hidden_placements.contains(&face.node) {
         return None;
@@ -167,8 +164,8 @@ pub const HELD_FACES: usize = 3;
 /// **The picks a form or a tool HOLDS**: the second source of marks
 /// beside the live selection.
 ///
-/// A held pick outlives the selection that made it. The add-datum
-/// form latches a face so that an author can click the feature tree
+/// A held pick outlives the selection that made it. The add-profile
+/// form drawing on a face latches the face so that an author can click the feature tree
 /// without losing it, and a modal tool keeps its picks until it
 /// commits. Nothing in the selection says so, so a picture that marked
 /// the selection alone would show no sign of a pick the next click
@@ -350,17 +347,6 @@ pub struct EdgeOverlay {
     /// requirement), so a wireframe can never be mistaken for a
     /// selection of something that exists.
     pub preview: Vec<[f32; 3]>,
-    /// **Construction geometry that is in the document but is not
-    /// material**: the datum wireframes `crate::datums` draws, in the
-    /// same line-list shape as everything above.
-    ///
-    /// It rides this overlay for [`EdgeOverlay::preview`]'s reason —
-    /// one pass for every world-space segment drawn over the solid —
-    /// and it is a separate LANE for the same reason that one is: the
-    /// mark is what differs. A datum is drawn in `Theme::datum`, the
-    /// colour that means "not material", so it can never be mistaken
-    /// for a marked face of something that is.
-    pub datums: Vec<[f32; 3]>,
     /// **Profiles the document holds**: the loops of every profile
     /// node the landed evaluation validated, drawn where they lie.
     ///
@@ -388,11 +374,8 @@ vocabulary! {
     /// [`EdgeLane::DRAW_ORDER`] — projected from this declaration — is
     /// the list the renderer walks and nothing else:
     ///
-    /// - The datum grid is first: it is the backdrop the rest is placed
-    ///   against, and a plane rules its whole seen region, so anything
-    ///   it could cover it would cover everywhere.
-    /// - A committed profile is over the grid, which is the plane it
-    ///   usually lies in.
+    /// - A committed profile is first: it is the backdrop the rest is
+    ///   placed against.
     /// - A preview is over the committed profiles: it is what the person
     ///   is composing now, possibly on top of one.
     /// - The marks are last, in [`Held`]'s precedence: a mark is the
@@ -400,8 +383,6 @@ vocabulary! {
     ///   something else covers it.
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub enum EdgeLane {
-        /// [`EdgeOverlay::datums`].
-        Datum,
         /// [`EdgeOverlay::profiles`].
         Profile,
         /// [`EdgeOverlay::preview`].
@@ -438,7 +419,6 @@ impl EdgeOverlay {
     /// One lane's segments, two positions per segment.
     pub fn lane(&self, lane: EdgeLane) -> &[[f32; 3]] {
         match lane {
-            EdgeLane::Datum => &self.datums,
             EdgeLane::Profile => &self.profiles,
             EdgeLane::Preview => &self.preview,
             EdgeLane::Held => &self.held,
@@ -455,7 +435,7 @@ impl EdgeOverlay {
             EdgeLane::Held => self.held_probed,
             EdgeLane::Hovered => self.hovered_probed,
             EdgeLane::Selected => self.selected_probed,
-            EdgeLane::Datum | EdgeLane::Profile | EdgeLane::Preview => false,
+            EdgeLane::Profile | EdgeLane::Preview => false,
         }
     }
 }
@@ -508,14 +488,13 @@ pub fn edge_overlay(
         // Nothing a SELECTION implies: a held pick is added by
         // [`compose`], from whoever holds it; a preview is about
         // something that is not in the document, so it is added by
-        // whoever is composing it. Datums are not derived from a pick
-        // either — they are simply what the document holds — so the
-        // same line covers them.
+        // whoever is composing it. Committed profiles are not derived
+        // from a pick either — they are simply what the document holds
+        // — so the same line covers them.
         held: Vec::new(),
         held_refused: None,
         held_probed: false,
         preview: Vec::new(),
-        datums: Vec::new(),
         profiles: Vec::new(),
     }
 }
@@ -611,8 +590,8 @@ impl LegLane {
     ///
     /// Generic over the shape an end is written in, because the
     /// crate's producers hold their positions differently — an
-    /// indexed edge's polyline is [`Point3<f64>`] and a datum mark's
-    /// segment list is `[f64; 3]` — and which of those a lane was fed
+    /// indexed edge's polyline is [`Point3<f64>`] and a profile's
+    /// drawn point is `[f64; 3]` — and which of those a lane was fed
     /// is not a difference the seam's rule has ever had.
     pub fn leg<T>(&mut self, from: T, to: T)
     where
@@ -678,14 +657,13 @@ impl LegLane {
 /// and made almost none of them.
 ///
 /// **A node that made nothing drawn still focuses something**, in two
-/// steps. A `Transform`, or a tool body a boolean consumed, mints no
-/// drawn entity but drawn entities pass THROUGH it, and those are its
-/// extent — the geometry built on top of it. Passing through is read
-/// off the name where the op re-named what it carried, and off the
-/// recipe where it did not: a `Transform` contributes no role segment
-/// by construction, so what it carries is what was minted below it
-/// ([`crate::display::derives_from`]). Failing that, a node no
-/// drawn name mentions at all — a profile, a datum plane, a sketch —
+/// steps. A tool body a boolean consumed mints no drawn entity but
+/// drawn entities pass THROUGH it, and those are its extent — the
+/// geometry built on top of it. Passing through is read off the name
+/// where the op re-named what it carried, and off the recipe where it
+/// did not: what an op that contributes no role segment carries is
+/// what was minted below it ([`crate::display::derives_from`]).
+/// Failing that, a node no drawn name mentions at all — a profile —
 /// marks the drawn copies deriving from it
 /// ([`crate::display::placements_deriving_from`]): a profile's line and the wall it
 /// swept are one thing seen twice. That last step is also where a name
@@ -770,7 +748,7 @@ fn marked_for(
     }
     // Passing through, by the name and by the recipe. A name records
     // the ops that RE-NAMED the entity, so an op that contributes no
-    // role segment — a `Transform` — is invisible to the walk; the
+    // role segment is invisible to the walk; the
     // entities it carries are the ones minted anywhere below it.
     let below: BTreeSet<RecipeNodeId> = made
         .iter()

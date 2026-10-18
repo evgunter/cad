@@ -2,9 +2,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{ang, insert, len, on_frame, place, square};
+use crate::fixture::{insert, len, on_frame, place, square};
 use editor_core::{
-    CapEnd, DocEdit, EntityKind, ExtrudeSide, MeasurePrimitive, Node, ProfileDoc, RecipeNodeId,
+    CapEnd, DocEdit, EntityKind, MeasurePrimitive, Node, ProfileDoc, RecipeNodeId,
     RoleSeg, SitedRef, StableName,
 };
 use geom_core::Tol;
@@ -69,10 +69,10 @@ fn r2_a_construction_reading_a_measures_world_copy_selection_by_var() {
     );
     let edited = doc.apply(
         &DocEdit::InsertNode {
-            node: Box::new(Node::Datum(editor_core::Datum::FaceFrame {
-                face: editor_core::Operand::Var(sel),
-                spin: ang(0.0),
-            })),
+            node: Box::new(Node::Shell {
+                thickness: len(0.1),
+                open: editor_core::Operand::Var(sel),
+            }),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -90,7 +90,7 @@ fn r2_a_construction_reading_a_measures_world_copy_selection_by_var() {
     });
     assert!(
         loaded.is_ok(),
-        "the edit door admitted a face frame reading a world copy's selection, and the load \
+        "the edit door admitted a shell reading a world copy's selection, and the load \
          door disagrees: {loaded:?}"
     );
 }
@@ -157,22 +157,22 @@ mod interference {
     use crate::corpus;
     use crate::fixture::{fname, insert, len, on_frame, place, square, wall};
     use editor_core::{
-        Assembly, AssertionRelation, ExtrudeSide, Formula, MeasurePrimitive, Node, ProfileDoc,
+        Assembly, AssertionRelation, Formula, MeasurePrimitive, Node, ProfileDoc,
         RecipeNodeId, RoleSeg, SitedRef, StableName, assemble,
     };
     use geom_core::Tol;
 
     /// A block extruded `height` from a square of half-side `h` at
-    /// `(cx, cy)`, on a frame `z` up the world's z axis: the extrude.
+    /// `(cx, cy)` on its own xy: the extrude.
     fn sblock(
         doc: ProfileDoc,
-        (cx, cy, z): (f64, f64, f64),
+        (cx, cy): (f64, f64),
         h: f64,
         height: f64,
     ) -> (ProfileDoc, RecipeNodeId) {
         let (doc, profile) = on_frame(
             doc,
-            [0.0, 0.0, z],
+            [0.0; 3],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             vec![square(cx, cy, h)],
@@ -194,6 +194,11 @@ mod interference {
 
     fn minus_x(doc: &ProfileDoc, b: RecipeNodeId) -> StableName {
         fname(b, wall(doc, b, 3))
+    }
+
+    /// One copy of `body` in the world, `z` up the world's z axis.
+    fn stand(doc: ProfileDoc, body: RecipeNodeId, z: f64) -> (ProfileDoc, RecipeNodeId) {
+        crate::fixture::in_world(doc, body, &editor_core::Frame::translation([0.0, 0.0, z]))
     }
 
     fn assembled(doc: &ProfileDoc) -> Assembly<f64> {
@@ -274,11 +279,10 @@ mod interference {
         StableName,
         StableName,
     ) {
-        use crate::fixture::{frame, piece};
+        use crate::fixture::piece;
         use editor_core::{LoopProgram, ProfileProgram};
         let circle = |r| LoopProgram::<Formula>::circle(0.0, 0.0, r).expect("a literal circle");
-        let prism = |doc: ProfileDoc, z, loops, h| {
-            // D-FRAME: let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+        let prism = |doc: ProfileDoc, loops, h| {
             let (doc, profile) = insert(
                 doc,
                 Node::Profile(ProfileProgram {
@@ -295,17 +299,17 @@ mod interference {
             )
         };
         let doc = ProfileDoc::empty_derived("r2-press", Tol::witness());
-        let outline = crate::fixture::desc(RecipeNodeId::new(0, 0), vec![square(0.0, 0.0, 1.0)])
+        let outline = crate::fixture::desc(vec![square(0.0, 0.0, 1.0)])
             .loops
             .remove(0);
         let mut loops = vec![outline, circle(0.5)];
         loops.extend(holes.iter().map(|&(cx, cy, r)| {
             LoopProgram::<Formula>::circle(cx, cy, r).expect("a literal circle")
         }));
-        let (doc, plate) = prism(doc, 0.0, loops, 1.0);
-        let (doc, pin) = prism(doc, -0.5, vec![circle(pin_r)], 2.0);
+        let (doc, plate) = prism(doc, loops, 1.0);
+        let (doc, pin) = prism(doc, vec![circle(pin_r)], 2.0);
         let (doc, p) = place(doc, plate);
-        let (doc, q) = place(doc, pin);
+        let (doc, q) = stand(doc, pin, -0.5);
         let lateral = |doc: &ProfileDoc, node, l| {
             fname(node, RoleSeg::Lateral(piece(doc, node, l, 0).into()))
         };
@@ -347,15 +351,15 @@ mod interference {
     #[test]
     fn r2_back_to_back_planes() {
         let doc = ProfileDoc::empty_derived("r2-b2b", Tol::witness());
-        let (doc, a) = sblock(doc, (0.0, 0.0, 0.0), 0.5, 1.0);
-        let (doc, b) = sblock(doc, (-0.2, 0.0, 0.25), 0.5, 0.5);
+        let (doc, a) = sblock(doc, (0.0, 0.0), 0.5, 1.0);
+        let (doc, b) = sblock(doc, (-0.2, 0.0), 0.5, 0.5);
         // b's square: half-side 0.5 at cx -0.2 -> x in [-0.7, 0.3]; y [-0.5,0.5] coincident with a's y walls. Shrink y:
         let _ = b;
         let doc2 = doc.clone();
         let (doc, b) = {
             let (d, profile) = on_frame(
                 doc2,
-                [0.0, 0.0, 0.25],
+                [0.0; 3],
                 [1.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0],
                 vec![vec![(-0.7, -0.3), (0.3, -0.3), (0.3, 0.3), (-0.7, 0.3)]],
@@ -369,7 +373,7 @@ mod interference {
             )
         };
         let (doc, p) = place(doc, a);
-        let (doc, q) = place(doc, b);
+        let (doc, q) = stand(doc, b, 0.25);
         let loud = report(&doc);
         eprintln!("unasserted: {loud:?}");
         let (doc, _) = gap_at_copies(
@@ -391,10 +395,9 @@ mod interference {
     /// test (outer concave, inner convex) keeps it loud.
     #[test]
     fn r2_two_convex_shafts_side_by_side_stay_loud() {
-        use crate::fixture::{frame, piece};
+        use crate::fixture::piece;
         use editor_core::{LoopProgram, ProfileProgram};
-        let rod = |doc: ProfileDoc, cx: f64, r: f64, z: f64| {
-            // D-FRAME: let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+        let rod = |doc: ProfileDoc, cx: f64, r: f64, long: bool| {
             let (doc, profile) = insert(
                 doc,
                 Node::Profile(ProfileProgram {
@@ -406,15 +409,15 @@ mod interference {
                 doc,
                 Node::Extrude {
                     profile: profile.into(),
-                    distance: len(if z == 0.0 { 1.0 } else { 0.5 }),
+                    distance: len(if long { 1.0 } else { 0.5 }),
                 },
             )
         };
         let doc = ProfileDoc::empty_derived("r2-shafts", Tol::witness());
-        let (doc, a) = rod(doc, 0.0, 1.0, 0.0);
-        let (doc, b) = rod(doc, 1.2, 0.3, 0.25);
+        let (doc, a) = rod(doc, 0.0, 1.0, true);
+        let (doc, b) = rod(doc, 1.2, 0.3, false);
         let (doc, p) = place(doc, a);
-        let (doc, q) = place(doc, b);
+        let (doc, q) = stand(doc, b, 0.25);
         let lateral =
             |doc: &ProfileDoc, node| fname(node, RoleSeg::Lateral(piece(doc, node, 0, 0).into()));
         let (fa, fb) = (lateral(&doc, a), lateral(&doc, b));
@@ -444,10 +447,10 @@ mod interference {
     #[test]
     fn r2_sunk_flange_beyond_the_outer_carrier_stays_loud() {
         let doc = ProfileDoc::empty_derived("r2-flange-swapped", Tol::witness());
-        let (doc, a) = sblock(doc, (0.0, 0.0, 0.0), 0.5, 1.0);
+        let (doc, a) = sblock(doc, (0.0, 0.0), 0.5, 1.0);
         let (doc, profile) = on_frame(
             doc,
-            [0.0, 0.0, 0.25],
+            [0.0; 3],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             vec![vec![
@@ -467,7 +470,7 @@ mod interference {
             },
         );
         let (doc, p) = place(doc, a);
-        let (doc, q) = place(doc, b);
+        let (doc, q) = stand(doc, b, 0.25);
         let (doc, assertion) = gap_at_copies(
             doc.clone(),
             (q, fname(b, wall(&doc, b, 5))),
@@ -496,11 +499,10 @@ mod interference {
     /// length = plate thickness, caps coplanar). Prints what the gate says.
     #[test]
     fn r2_observe_flush_press_fit() {
-        use crate::fixture::{frame, piece};
+        use crate::fixture::piece;
         use editor_core::{LoopProgram, ProfileProgram};
         let circle = |r| LoopProgram::<Formula>::circle(0.0, 0.0, r).expect("a literal circle");
-        let prism = |doc: ProfileDoc, z, loops, h| {
-            // D-FRAME: let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+        let prism = |doc: ProfileDoc, loops, h| {
             let (doc, profile) = insert(
                 doc,
                 Node::Profile(ProfileProgram {
@@ -517,11 +519,11 @@ mod interference {
             )
         };
         let doc = ProfileDoc::empty_derived("r2-flush", Tol::witness());
-        let outline = crate::fixture::desc(RecipeNodeId::new(0, 0), vec![square(0.0, 0.0, 1.0)])
+        let outline = crate::fixture::desc(vec![square(0.0, 0.0, 1.0)])
             .loops
             .remove(0);
-        let (doc, plate) = prism(doc, 0.0, vec![outline, circle(0.5)], 1.0);
-        let (doc, pin) = prism(doc, 0.0, vec![circle(0.505)], 1.0);
+        let (doc, plate) = prism(doc, vec![outline, circle(0.5)], 1.0);
+        let (doc, pin) = prism(doc, vec![circle(0.505)], 1.0);
         let (doc, _) = place(doc, plate);
         let (doc, _) = place(doc, pin);
         let _ = piece;

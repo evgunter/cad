@@ -91,7 +91,7 @@ def box(doc, width, depth, height):
         .line_to((0 * m, depth * m))
         .line_to(Start)
     )
-    return doc.insert(Node.extrude(doc.insert(Node.profile(outline, plane=doc.sketch_frame())), Formula.length_in(height, m)))
+    return doc.insert(Node.extrude(doc.insert(Node.profile(outline)), Formula.length_in(height, m)))
 
 
 def body_of(doc, node):
@@ -306,7 +306,7 @@ class TestWatertight(unittest.TestCase):
         that makes a mesh watertight by construction rather than by a
         repair pass."""
         doc = Doc()
-        disc = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame()))
+        disc = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m)))
         cyl = doc.insert(Node.extrude(disc, Formula.length_in(2, m)))
         self.assertEqual(unmatched_half_edges(body_of(doc, cyl).tessellate(5 * mm)), [])
 
@@ -321,7 +321,7 @@ class TestWatertight(unittest.TestCase):
         )
         hole = circle((0 * m, 0 * m), 0.7 * m)
         plate = doc.insert(
-            Node.extrude(doc.insert(Node.profile([outer, hole], plane=doc.sketch_frame())), Formula.length_in(0.6, m))
+            Node.extrude(doc.insert(Node.profile([outer, hole])), Formula.length_in(0.6, m))
         )
         self.assertEqual(unmatched_half_edges(body_of(doc, plate).tessellate(5 * mm)), [])
 
@@ -331,7 +331,7 @@ class TestBudget(unittest.TestCase):
 
     def test_a_finer_budget_buys_more_triangles_on_a_curve(self):
         doc = Doc()
-        disc = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame()))
+        disc = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m)))
         body = body_of(doc, doc.insert(Node.extrude(disc, Formula.length_in(2, m))))
         coarse = body.tessellate(20 * mm)
         fine = body.tessellate(1 * mm)
@@ -517,7 +517,6 @@ class TestCrossCheckConverges(unittest.TestCase):
             .line_to((0.5 * m, 2 * m))
             .line_to(Start)
         )
-        frame = doc.sketch_frame()
         # The axis in the sketch's own coordinates: the frame's v is
         # world +y, so the world y axis IS its own +y through (0, 0).
         axis = (
@@ -525,7 +524,7 @@ class TestCrossCheckConverges(unittest.TestCase):
             Formula.turn_over(4),
         )
         ring = doc.insert(
-            Node.revolve(doc.insert(Node.profile(outline, plane=frame)), *axis, Formula.angle_in(360, deg))
+            Node.revolve(doc.insert(Node.profile(outline)), *axis, Formula.angle_in(360, deg))
         )
         body = body_of(doc, ring)
         body.validate()

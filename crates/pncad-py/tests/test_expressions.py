@@ -482,7 +482,6 @@ def run():
     square = doc.insert(
         Node.polygon(
             [(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners],
-            plane=doc.sketch_frame(),
         )
     )
     at_the_bound = doc.parse_formula(" + ".join(["1 m"] + ["0 m"] * (bound - 1)))

@@ -35,7 +35,7 @@ fn placed(doc: ProfileDoc, input: RecipeNodeId, dx: f64) -> (ProfileDoc, RecipeN
 #[test]
 fn a_union_of_two_flush_placements_of_one_prototype_fuses() {
     let doc = ProfileDoc::empty_derived("docm7_placements", Tol::witness());
-    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
     let (doc, union) = insert(
@@ -67,7 +67,7 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses() {
 #[test]
 fn a_flush_union_mints_merged_rows_and_renames_nothing_else() {
     let doc = ProfileDoc::empty_derived("docm7_merged", Tol::witness());
-    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
     let (doc, union) = fixture::union_over(doc, &[m1, m2]);
@@ -155,11 +155,11 @@ fn a_flush_union_mints_merged_rows_and_renames_nothing_else() {
 #[test]
 fn a_member_flush_under_a_merged_wall_fuses() {
     let doc = ProfileDoc::empty_derived("rv_r2_merged_refusal", Tol::witness());
-    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
     // Flush under the merged y=0 wall (x 0..1.5 once m1 and m2 fuse).
-    let (doc, m3) = block(doc, (0.0, 1.5), (-1.0, 0.0), 0.0, 1.0);
+    let (doc, m3) = block_on(doc, proto, (0.0, 1.5), (-1.0, 0.0), 0.0, 1.0);
     let (doc, union) = fixture::union_over(doc, &[m1, m2, m3]);
     let ev = run(&doc);
     assert!(
@@ -244,9 +244,9 @@ fn redrawing_another_member_never_takes_a_held_flush_stretch() {
                     position: [len(f64::from(salt)), len(0.0), len(0.0)],
                 }),
             );
-            let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
-            let (doc, b) = block(doc, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);
-            let (doc, redrawn) = block(doc, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+            let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 1.0);
+            let (doc, b) = block_on(doc, a, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+            let (doc, redrawn) = block_on(doc, a, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);
             let (doc, union) = fixture::union_over(doc, &listed(a, b));
             let ev = run(&doc);
             assert!(
@@ -323,9 +323,9 @@ fn kiss_record(ev: &Evaluation<f64>, id: RecipeNodeId) -> editor_core::NamedCoin
 #[test]
 fn a_kiss_record_cites_its_vertex_fusion_row_at_the_pair_and_the_union() {
     let doc = ProfileDoc::empty_derived("docm7_kiss_cites", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 1.0);
-    let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (1.0, 2.0), (1.0, 2.0), 1.0, 1.0);
+    let (doc, far) = block_on(doc, a, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, pair) = fixture::union_over(doc, &[a, b]);
     let (doc, union) = fixture::union_over(doc, &[far, a, b]);
     let ev = run(&doc);
@@ -371,9 +371,9 @@ fn a_kiss_record_cites_its_vertex_fusion_row_at_the_pair_and_the_union() {
 #[test]
 fn a_contact_against_a_merged_cap_glues_in_every_order() {
     let doc = ProfileDoc::empty_derived("r1_merged_refusal", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, d) = block(doc, (0.2, 1.3), (0.2, 0.8), 1.0, 0.5);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, c) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, d) = block_on(doc, a, (0.2, 1.3), (0.2, 0.8), 1.0, 0.5);
     for order in [[a, c, d], [d, c, a], [c, d, a]] {
         let (doc, union) = fixture::union_over(doc.clone(), &order);
         let ev = run(&doc);
@@ -394,9 +394,9 @@ fn a_contact_against_a_merged_cap_glues_in_every_order() {
 #[test]
 fn a_stack_of_resting_slabs_builds() {
     let doc = ProfileDoc::empty_derived("declared-pairs-converge", Tol::witness());
-    let (doc, low) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-    let (doc, mid) = block(doc, (0.5, 2.5), (0.5, 2.5), 1.0, 1.0);
-    let (doc, top) = block(doc, (1.0, 2.0), (1.0, 2.0), 2.0, 1.0);
+    let (doc, low) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, mid) = block_on(doc, low, (0.5, 2.5), (0.5, 2.5), 1.0, 1.0);
+    let (doc, top) = block_on(doc, low, (1.0, 2.0), (1.0, 2.0), 2.0, 1.0);
     let (doc, union) = insert(
         doc,
         Node::Union {

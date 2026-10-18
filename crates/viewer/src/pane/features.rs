@@ -51,16 +51,16 @@ pub(crate) fn message_indent(ui: &egui::Ui, depth: usize) -> f32 {
 
 /// **What one feature-tree row reads as, drawn**: its headline
 /// ([`tree::headline`]) — a labelled node's label with its kind and tag
-/// muted beside it, an unlabelled node's kind, tag and pose — and the
-/// world badge.
+/// muted beside it, an unlabelled node's kind, tag and which one of its
+/// kind it is — and the world badge.
 ///
-/// **The kind alone is not a name.** A tree of rows reading `Datum
-/// frame` twice asks a person to tell two frames apart by clicking;
-/// the tag tells them apart, and the pose the node itself states is
-/// what tells a person WHICH frame ([`crate::tree::frame_pose`]) — the
-/// same words the creation forms' picker reads ([`crate::tree::node_label`]).
+/// **The kind alone is not a name.** A tree of rows reading `Extrude`
+/// twice asks a person to tell two extrudes apart by clicking; the tag
+/// tells them apart, and an instance's part file
+/// ([`crate::tree::part_file`]) tells a person WHICH part — the same
+/// words a picker reads ([`crate::tree::node_label`]).
 pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egui::Response {
-    let tree::Headline { lead, muted } = tree::headline(&row.spoken, row.pose.as_deref());
+    let tree::Headline { lead, muted } = tree::headline(&row.spoken, row.which.as_deref());
     let font_id = egui::TextStyle::Button.resolve(ui.style());
     // The lead takes the widget's own colour (selected, hovered), the
     // muted half the theme's weak one.
@@ -504,15 +504,16 @@ mod tests {
         );
     }
 
-    /// A row as `tree::rows` builds one for a `Datum::Frame` node.
-    fn frame_row(id: u64, pose: &str) -> TreeRow {
+    /// A row as `tree::rows` builds one for an instance of the part in
+    /// `file`.
+    fn instance_row(id: u64, file: &str) -> TreeRow {
         TreeRow {
             id: RecipeNodeId::new(0, test_utils::refusal::tagged(id)),
             spoken: spoken(
                 RecipeNodeId::new(0, test_utils::refusal::tagged(id)),
-                Some("Datum frame"),
+                Some("InstantiatePart"),
             ),
-            pose: Some(pose.to_owned()),
+            which: Some(file.to_owned()),
             depth: 0,
             placed: false,
             status: RowStatus::Ok,
@@ -524,37 +525,36 @@ mod tests {
         }
     }
 
-    /// **The pane draws which frame the row is**, not the kind alone.
+    /// **The pane draws which part the row is**, not the kind alone.
     ///
-    /// The tree's half of this unit. A `TreeRow` that carries a pose
-    /// the pane drops is the same defect the row was filed against
-    /// with a field added, and until this row existed deleting the
-    /// composition reddened nothing in either suite.
+    /// The tree's half of this unit. A `TreeRow` that carries which one
+    /// of its kind it is and a pane that drops it is the same defect the
+    /// row was filed against with a field added.
     #[test]
-    fn a_frame_row_says_which_frame_it_is() {
+    fn an_instance_row_says_which_part_it_is() {
         let drawn = painted_text(|ui| {
-            row_label(ui, &frame_row(3, "xy at (0, 0, 0) m"), false);
+            row_label(ui, &instance_row(3, "bracket.pncad"), false);
         });
-        assert!(drawn.contains("Datum frame"), "{drawn}");
+        assert!(drawn.contains("InstantiatePart"), "{drawn}");
         assert!(
-            drawn.contains("xy at (0, 0, 0) m"),
-            "the pose the node states reaches the row a person reads: {drawn}"
+            drawn.contains("bracket.pncad"),
+            "the part the node names reaches the row a person reads: {drawn}"
         );
     }
 
-    /// Two frames a centimetre apart are two different rows.
+    /// Two instances of two parts are two different rows.
     #[test]
-    fn two_frame_rows_a_centimetre_apart_read_differently() {
+    fn two_instance_rows_of_two_parts_read_differently() {
         let one = painted_text(|ui| {
-            row_label(ui, &frame_row(3, "xy at (0, 0, 0) m"), false);
+            row_label(ui, &instance_row(3, "bracket.pncad"), false);
         });
         let other = painted_text(|ui| {
-            row_label(ui, &frame_row(7, "xy at (0, 0, 0.01) m"), false);
+            row_label(ui, &instance_row(7, "hinge.pncad"), false);
         });
         assert_ne!(one, other, "{one} / {other}");
     }
 
-    /// A node with no pose reads as its kind, with no dangling
+    /// A node with nothing to say of which it is reads as its kind, with no dangling
     /// separator where the sentence would have been — and a placed
     /// body still carries its world badge.
     #[test]
@@ -565,7 +565,7 @@ mod tests {
                 RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
                 Some("Extrude"),
             ),
-            pose: None,
+            which: None,
             depth: 0,
             placed: true,
             status: RowStatus::Ok,
@@ -589,18 +589,19 @@ mod tests {
         );
     }
 
-    /// A placed row with a pose carries both: the pose AND the badge, in that
-    /// order — the composition the glyph arm is written around.
+    /// A placed row saying which one it is carries both: which AND the
+    /// badge, in that order — the composition the glyph arm is written
+    /// around.
     #[test]
-    fn a_placed_row_carries_the_pose_and_the_world_badge() {
-        let mut row = frame_row(2, "yz at (0, 0, 0) m");
+    fn a_placed_row_carries_which_it_is_and_the_world_badge() {
+        let mut row = instance_row(2, "bracket.pncad");
         row.placed = true;
         let drawn = painted_text(|ui| {
             row_label(ui, &row, false);
         });
         assert!(
             drawn.contains(&format!(
-                "Datum frame 000000000002 — yz at (0, 0, 0) m {GLYPH_WORLD}"
+                "InstantiatePart 000000000002 — bracket.pncad {GLYPH_WORLD}"
             )),
             "{drawn}"
         );
@@ -615,7 +616,7 @@ mod tests {
                 RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
                 Some("Mate"),
             ),
-            pose: None,
+            which: None,
             depth: 0,
             placed: false,
             status: RowStatus::Failed {
@@ -700,10 +701,10 @@ mod tests {
     #[test]
     fn a_failed_rows_link_to_the_node_to_repair_selects_it() {
         let placer = RecipeNodeId::new(0, test_utils::refusal::tagged(3));
-        let row = placer_refused_row(Some(spoken(placer, Some("Datum frame"))));
-        let link = tree::link_wording(&spoken(placer, Some("Datum frame")));
+        let row = placer_refused_row(Some(spoken(placer, Some("Extrude"))));
+        let link = tree::link_wording(&spoken(placer, Some("Extrude")));
         assert_eq!(
-            link, "see Datum frame 000000000003",
+            link, "see Extrude 000000000003",
             "the node as the document speaks it"
         );
         assert_eq!(clicking(&row, &link), Some(placer));
@@ -1011,7 +1012,7 @@ mod tests {
                 RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
                 Some("Split"),
             ),
-            pose: None,
+            which: None,
             depth: 0,
             placed: false,
             status: RowStatus::Ok,
@@ -1558,7 +1559,7 @@ mod tests {
                 RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
                 Some("InstantiatePart"),
             ),
-            pose: Some(crate::test_support::PART_FILE.to_owned()),
+            which: Some(crate::test_support::PART_FILE.to_owned()),
             depth: 0,
             placed: false,
             status: RowStatus::Ok,
@@ -1610,7 +1611,7 @@ mod tests {
                 RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
                 Some("Extrude"),
             ),
-            pose: None,
+            which: None,
             ..instance_row()
         };
         let drawn = painted(|ui| feature_row_drawn(ui, &row, &Theme::DEFAULT));

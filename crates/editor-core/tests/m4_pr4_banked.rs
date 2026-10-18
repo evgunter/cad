@@ -4,8 +4,8 @@
 //!    a full-pierce band entering the west face horizontally (walls
 //!    y=1.0/y=1.1) and turning to a DESCENDING diagonal that exits the
 //!    east face. The N piece (above the band) never touches the lower
-//!    horizontal wall H1. Translating the cutter east (a continuous
-//!    Transform knob) moves the diagonal's east-face exit vertex
+//!    horizontal wall H1. Sliding the cutter east (a continuous
+//!    placement value) moves the diagonal's east-face exit vertex
 //!    (4, y_u) across H1's FIXED plane y=1, with no topology change. A
 //!    piece is named by the walls it borders (N2's `Borders`), so no
 //!    piece name moves.
@@ -26,7 +26,7 @@ use editor_core::{
     Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, StableName,
     diff_verdicts, evaluate,
 };
-use fixture::{ang, insert, len, on_frame, scl, step};
+use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
 fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
@@ -43,12 +43,11 @@ fn block(
     doc: ProfileDoc,
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
-    z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, z0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
@@ -66,21 +65,41 @@ fn block(
 
 struct BandCut {
     doc: ProfileDoc,
-    transform: RecipeNodeId,
+    placement: RecipeNodeId,
     sub: RecipeNodeId,
+}
+
+/// `placement`'s slide along x, value-edited to `to`: every id stays.
+fn slide(doc: ProfileDoc, placement: RecipeNodeId, to: f64) -> ProfileDoc {
+    let slot = fixture::value_slot(
+        &doc,
+        placement,
+        editor_core::Coord::Slide(editor_core::SlideAxis::X),
+    );
+    step(
+        doc,
+        DocEdit::SetParam {
+            node: placement,
+            slot,
+            value: len(to).into(),
+            fresh: Vec::new(),
+        },
+    )
+    .0
 }
 
 /// A − band(tx): the band's horizontal tail pierces the west face,
 /// its descending diagonal exits the east face (module docs).
 fn band_cut() -> BandCut {
     let doc = ProfileDoc::empty_derived("m4_pr4_banked", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 1.0);
-    // The band profile on z = -0.5, extruded 2.0 (full pierce).
+    let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 1.0);
+    // The band profile, extruded 2.0 and placed 0.5 below `a`'s floor
+    // (full pierce).
     // Lower boundary: (-2.5,1.0) → (2.0,1.0) → (4.5,0.8);
     // upper boundary: (-2.5,1.1) → (2.0,1.1) → (4.5,0.9).
     let (doc, bp) = on_frame(
         doc,
-        [0.0, 0.0, -0.5],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![
@@ -99,27 +118,17 @@ fn band_cut() -> BandCut {
             distance: len(2.0),
         },
     );
-    let (doc, transform) = insert(
-        doc,
-        Node::transform(
-            band,
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
+    let (doc, placement) = fixture::slid(doc, a, band, [0.0, 0.0, -0.5]);
     let (doc, sub) = insert(
         doc,
         Node::Subtract {
             from: a.into(),
-            tool: transform.into(),
+            tool: placement.into(),
         },
     );
     BandCut {
         doc,
-        transform,
+        placement,
         sub,
     }
 }
@@ -150,15 +159,7 @@ fn a_flip_against_a_wall_no_piece_borders_renames_no_piece() {
     // the plane of the FIXED lower wall y = 1 (margins 0.06 → 0.04 at
     // the two positions — fat against every ε row; nothing is
     // band-edge), a wall that piece does not border.
-    let (doc2, _) = step(
-        f.doc.clone(),
-        DocEdit::SetParam {
-            node: f.transform,
-            slot: SlotId::Translation(editor_core::Axis3::X),
-            value: len(1.25).into(),
-            fresh: Vec::new(),
-        },
-    );
+    let doc2 = slide(f.doc.clone(), f.placement, 1.25);
     let ev2 = run(&doc2, Some(&ev1));
     // Every delta is at the subtract: the slide moved geometry the
     // boolean decides about.
@@ -198,38 +199,18 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
     // fusion drops the losing coincident-corner identities with no
     // retirement row).
     let doc = ProfileDoc::empty_derived("m4_pr4_banked", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, transform) = insert(
-        doc,
-        Node::transform(
-            b0,
-            editor_core::Step::Rigid {
-                translation: [len(2.5), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
-    // The slide's flush planes are declared on the union (the disjoint
-    // position keeps the same coplanarity, so ONE declared list serves
-    // both). The B side is read at the TRANSFORM, the boolean's operand;
-    // a transform carries `b0`'s names verbatim (N1).
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, placement) = fixture::slid(doc, a, b0, [2.5, 0.0, 0.0]);
+    // The B side is read at the PLACEMENT, the boolean's operand; the
+    // copy wears `b0`'s names under its `Placed` layer.
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), transform.into()]),
+            members: editor_core::Bodies::Spelled(vec![a.into(), placement.into()]),
         },
     );
-    let (doc2, _) = step(
-        doc.clone(),
-        DocEdit::SetParam {
-            node: transform,
-            slot: SlotId::Translation(editor_core::Axis3::X),
-            value: len(0.5).into(),
-            fresh: Vec::new(),
-        },
-    );
+    let doc2 = slide(doc.clone(), placement, 0.5);
     // M5 PR 8: the scenario runs under BOTH sweep strategies. The
     // idealized (brute-force) run keeps this pin at its original
     // strength — the disjoint prior run decides `bool_vertex_face_side`

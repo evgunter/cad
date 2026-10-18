@@ -58,12 +58,11 @@ fn block(
     doc: ProfileDoc,
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
-    z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, z0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
@@ -85,7 +84,6 @@ fn set_appearance_validates_and_applies_purely() {
         ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
@@ -164,7 +162,6 @@ fn multi_attribute_per_entity_and_clear_semantics() {
         ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let body = minted(EntityKind::Body, ext, RoleSeg::OutputBody);
@@ -256,10 +253,9 @@ fn multi_attribute_per_entity_and_clear_semantics() {
 #[test]
 fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
     let doc0 = ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness());
-    let (doc1, plane) = insert(doc0.clone(), fixture::xy_frame());
     let (doc1, p) = insert(
-        doc1,
-        Node::Profile(desc(plane, vec![square(0.0, 0.0, 0.5)])),
+        doc0.clone(),
+        Node::Profile(desc(vec![square(0.0, 0.0, 0.5)])),
     );
     let (doc2, ext) = insert(
         doc1,
@@ -387,32 +383,28 @@ fn appearance_only_edit_recomputes_zero_nodes() {
 }
 
 #[test]
-fn transform_pass_through_carries_the_attribute_downstream() {
+fn a_split_pass_through_carries_the_attribute_downstream() {
     let (doc, ext) = block(
         ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
+    let tool = fixture::plane_on(&doc, ext, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
     let (doc, moved) = insert(
         doc,
-        Node::transform(
-            ext,
-            editor_core::Step::Rigid {
-                translation: [len(4.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: fixture::ang(0.0),
-            },
-        ),
+        Node::Split {
+            target: ext.into(),
+            tool,
+        },
     );
     let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
     let ev = run(&doc);
     assert!(ev.appearance.is_lossless());
-    // The SAME name resolves in both tables (Transform contributes no
-    // RolePath segment), so the placed copy inherits the attribute
-    // with no policy involved.
+    // The SAME name resolves in both tables (a split passes a cap it
+    // does not cut through with no RolePath segment), so the half
+    // inherits the attribute with no policy involved.
     for node in [ext, moved] {
         let rows = ev.appearance.for_node(node).unwrap();
         assert_eq!(rows.len(), 1, "one attributed face at {node:?}");
@@ -435,7 +427,6 @@ fn deleting_the_minting_node_strands_the_attribute_loudly() {
         ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
@@ -475,7 +466,6 @@ fn failed_target_node_is_a_typed_indeterminate_loss() {
         ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
@@ -517,8 +507,9 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
     let doc = ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness());
     // Decoupled overlap (M4 PR 5: coincident planes demand a Declare;
     // this test wants a plain transversal union).
-    let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 3.0), (0.25, 1.75), 0.125, 0.75);
+    let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
+    let (doc, b) = block(doc, (1.0, 3.0), (0.25, 1.75), 0.75);
+    let (doc, b) = fixture::slid(doc, a, b, [0.0, 0.0, 0.125]);
     let (doc, uni) = insert(
         doc,
         Node::Union {
@@ -567,7 +558,6 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
         ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let (doc, pat) = insert(
@@ -636,10 +626,10 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
 /// Returns (doc, subtract node).
 fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
+    let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 4.0);
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![
@@ -660,6 +650,7 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
             distance: len(2.0),
         },
     );
+    let (doc, b) = fixture::slid(doc, a, b, [0.0, 0.0, 1.0]);
     let (doc, sub) = insert(
         doc,
         Node::Subtract {
@@ -702,22 +693,19 @@ fn tied_name_appearance_is_ambiguous_never_painted() {
 
 #[test]
 fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
-    // Review A2 (adapted from the reviewer's transform-duplicate
-    // probe): a tied name passed through a Transform appears in TWO
+    // Review A2 (adapted from the reviewer's pass-through-duplicate
+    // probe): a tied name passed through a split's half appears in TWO
     // tables; the loss report stays per-name — exactly ONE Ambiguous
     // row, `at` = the first carrying node in evaluation order, the rest
     // derivable by table lookup.
     let (doc, sub) = tie_fixture();
-    let (doc, _moved) = insert(
+    let tool = fixture::plane_on(&doc, sub, [0.0, 0.0, 3.5], [0.0, 0.0, 1.0]);
+    let (doc, _split) = insert(
         doc,
-        Node::transform(
-            sub,
-            editor_core::Step::Rigid {
-                translation: [len(10.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: fixture::ang(0.0),
-            },
-        ),
+        Node::Split {
+            target: sub.into(),
+            tool,
+        },
     );
     let ev = run(&doc);
     let tied = tied_name(&ev, sub);
@@ -753,8 +741,9 @@ fn operand_paint_does_not_follow_the_face_through_a_boolean() {
     // the ruling; changing it requires a ratified policy, not a code
     // tweak.
     let doc = ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 1.0);
+    let (doc, b) = fixture::slid(doc, a, b, [0.0; 3]);
     let (doc, uni) = insert(
         doc,
         Node::Union {
@@ -779,7 +768,6 @@ fn canceled_run_reports_not_evaluated_not_vanished() {
         ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));

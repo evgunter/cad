@@ -10,9 +10,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture;
-
-use editor_core::{CancelToken, EvalOptions, PoseValue, ProfileDoc, ValuePayload, evaluate};
 use geom_core::linalg::frame::{path_start_frame, point_at};
 use geom_core::{Affine3, Band, Mat3, Point3, RigidMotion, Tol, Vec3};
 use profile::SketchPlane;

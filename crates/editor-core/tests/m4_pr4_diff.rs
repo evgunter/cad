@@ -20,7 +20,7 @@ use editor_core::{
     CancelToken, DocEdit, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, RunStatus,
     SlotId, diff_verdicts, evaluate,
 };
-use fixture::{ang, insert, len, on_frame, scl, step};
+use fixture::{insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 /// Idealized (brute-force) boolean sweep since M5 PR 8: this file
@@ -43,12 +43,11 @@ fn block(
     doc: ProfileDoc,
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
-    z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, z0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
@@ -62,51 +61,45 @@ fn block(
     )
 }
 
-/// The sliding-union document: A fixed, B placed by a Transform whose
-/// x-translation is the edit knob, then A ∪ B.
+/// The sliding-union document: A fixed, B placed against A by a
+/// placement whose slide along x is the edit knob, then A ∪ B.
 struct Slide {
     doc: ProfileDoc,
-    transform: RecipeNodeId,
+    placement: RecipeNodeId,
     union: RecipeNodeId,
 }
 
 fn slide_union(tx: f64) -> Slide {
     let doc = ProfileDoc::empty_derived("m4_pr4_diff", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, transform) = insert(
-        doc,
-        Node::transform(
-            b0,
-            editor_core::Step::Rigid {
-                translation: [len(tx), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
-    // The sliding overlap's flush planes are declared on the union.
-    // The B side is read at the TRANSFORM, the boolean's operand;
-    // a transform carries `b0`'s names verbatim (N1).
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, placement) = fixture::slid(doc, a, b0, [tx, 0.0, 0.0]);
+    // The B side is read at the PLACEMENT, the boolean's operand; the
+    // copy wears `b0`'s names under its `Placed` layer.
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), transform.into()]),
+            members: editor_core::Bodies::Spelled(vec![a.into(), placement.into()]),
         },
     );
     Slide {
         doc,
-        transform,
+        placement,
         union,
     }
 }
 
 fn slide_to(s: &Slide, tx: f64) -> ProfileDoc {
+    let slot = fixture::value_slot(
+        &s.doc,
+        s.placement,
+        editor_core::Coord::Slide(editor_core::SlideAxis::X),
+    );
     let (doc, _) = step(
         s.doc.clone(),
         DocEdit::SetParam {
-            node: s.transform,
-            slot: SlotId::Translation(editor_core::Axis3::X),
+            node: s.placement,
+            slot,
             value: len(tx).into(),
             fresh: Vec::new(),
         },
@@ -153,7 +146,7 @@ fn flip_edit_reports_flips_localized_to_the_deciding_node() {
     assert!(!flips.is_empty(), "the flip edit must report");
     // Every recorded delta lives at the boolean (the deciding node):
     // the operands' derivations are untouched (N7 localization), and
-    // the transform's own decisions (axis normalization) do not flip.
+    // the placement's own decisions do not flip.
     for (&node, delta) in &flips.nodes {
         assert_eq!(node, s.union, "delta outside the boolean: {delta:?}");
     }
@@ -178,7 +171,7 @@ fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
     // per placed instance), which must surface as divergence, never
     // as sign flips of unrelated positions.
     let doc = ProfileDoc::empty_derived("m4_pr4_diff", Tol::witness());
-    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -210,37 +203,31 @@ fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
 
 #[test]
 fn failure_transitions_surface_as_status_rows() {
-    // A datum plane whose normal is the knob: zeroing it fails the
-    // datum and poisons its consumer.
+    // An extrude whose depth is the knob: zeroing it fails the extrude
+    // and poisons its consumer.
     let doc = ProfileDoc::empty_derived("m4_pr4_diff", Tol::witness());
-    let (doc, body) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 2.0);
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Plane {
-            origin: [len(0.0), len(0.0), len(1.0)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let (doc, body) = block(doc, (0.0, 2.0), (0.0, 2.0), 2.0);
+    let tool = fixture::plane_on(&doc, body, [0.0, 0.0, 1.0], [0.0, 0.0, 1.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: body.into(),
-            tool: plane.into(),
+            tool,
         },
     );
     let ev1 = run(&doc, None);
     let (doc2, _) = step(
         doc,
         DocEdit::SetParam {
-            node: plane,
-            slot: SlotId::Normal(editor_core::Axis3::Z),
-            value: scl(0.0).into(),
+            node: body,
+            slot: SlotId::Distance,
+            value: len(0.0).into(),
             fresh: Vec::new(),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
     let flips = diff_verdicts(&ev1, &ev2);
-    let d_plane = flips.nodes.get(&plane).expect("datum delta");
+    let d_plane = flips.nodes.get(&body).expect("extrude delta");
     assert_eq!(d_plane.old_status, RunStatus::Ok);
     assert_eq!(d_plane.new_status, RunStatus::Failed);
     let d_split = flips.nodes.get(&split).expect("split delta");
@@ -258,8 +245,9 @@ fn parallel_schedule_preserves_verdict_logs() {
     // thread-local — pin that the rayon lane records IDENTICAL logs
     // per node (the diff engine's inputs are schedule-independent).
     let doc = ProfileDoc::empty_derived("m4_pr4_diff", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 1.0);
+    let (doc, b) = fixture::slid(doc, a, b, [0.0; 3]);
     let (doc, _uni) = insert(
         doc,
         Node::Union {

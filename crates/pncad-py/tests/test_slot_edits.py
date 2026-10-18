@@ -50,7 +50,6 @@ def blank(doc, side=L, height=H):
                 (Formula.length_in(side, m), Formula.length_in(side, m)),
                 (Formula.length_in(0, m), Formula.length_in(side, m)),
             ],
-            plane=doc.sketch_frame(),
         )
     )
     return doc.insert(Node.extrude(square, Formula.length_in(height, m)))
@@ -250,7 +249,6 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
                     (Formula.length_in(2 * L, m), Formula.length_in(2 * L, m)),
                     (Formula.length_in(0, m), Formula.length_in(2 * L, m)),
                 ],
-                plane=doc.sketch_frame(),
             )
         )
         doc.apply(DocEdit.set_param(box, "profile", other))

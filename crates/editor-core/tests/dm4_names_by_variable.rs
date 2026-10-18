@@ -17,9 +17,9 @@
 //!   recourse (`persist`: no migration chain).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{self, insert, len, on_frame, scl};
+use crate::fixture::{self, insert, len, on_frame};
 use editor_core::{
-    Axis3, Datum, Diagnosis, DocEdit, EntityKind, Entry, Formula, Node, ProfileDoc,
+    Diagnosis, Dimension, DocEdit, EntityKind, Entry, Formula, Node, ProfileDoc,
     RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, SplitHalf, StableName,
     resolve, resolve_with_prior,
 };
@@ -28,9 +28,10 @@ use geom_core::Tol;
 /// A step in plan, extruded `z ∈ [0, 1]`: low `y ∈ [0, 1]` over
 /// `x ∈ [0, 2]`, high `y ∈ [0, 2]` over `x ∈ [2, 4]`, so the riser wall
 /// stands at `x = 2` (profile segment 3). Split by the plane `x = at`,
-/// normal `+x`: the riser lies Above for `at < 2` and Below for `at > 2`,
-/// and either plane cuts the step.
-fn step_split(at: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+/// normal `+x`, read off the step's own geometry: the riser lies Above
+/// for `at < 2` and Below for `at > 2`, and either plane cuts the step.
+/// The document, the extrude and the split.
+fn step_split(at: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dm4_names_by_variable", Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -53,21 +54,38 @@ fn step_split(at: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId)
             distance: len(1.0),
         },
     );
-    let (doc, tool) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(at), len(0.0), len(0.0)],
-            normal: [scl(1.0), scl(0.0), scl(0.0)],
-        }),
-    );
+    let tool = plane_at(&doc, ext, at);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: ext.into(),
-            tool: tool.into(),
+            tool,
         },
     );
-    (doc, ext, tool, split)
+    (doc, ext, split)
+}
+
+/// The plane `x = at`, normal `+x`, read off `ext`'s own geometry.
+fn plane_at(
+    doc: &ProfileDoc,
+    ext: RecipeNodeId,
+    at: f64,
+) -> editor_core::pose::RoleRead<editor_core::Operand> {
+    fixture::plane_on(doc, ext, [at, 0.0, 0.0], [1.0, 0.0, 0.0])
+}
+
+/// `doc` with `split`'s tool moved to the plane `x = at`.
+fn plane_moved(doc: &ProfileDoc, ext: RecipeNodeId, split: RecipeNodeId, at: f64) -> ProfileDoc {
+    fixture::step(
+        doc.clone(),
+        DocEdit::SetParam {
+            node: split,
+            slot: SlotId::Operand(editor_core::OperandSlot::Tool),
+            value: plane_at(doc, ext, at).read.into(),
+            fresh: Vec::new(),
+        },
+    )
+    .0
 }
 
 /// **A piece whose side flips leaves its read's table, and N5 says why.**
@@ -78,7 +96,7 @@ fn step_split(at: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId)
 /// diagnosed `PredicateFlip` off the split's recorded classification.
 #[test]
 fn a_piece_whose_side_flips_leaves_its_reads_table_diagnosed_as_a_predicate_flip() {
-    let (doc, ext, tool, split) = step_split(1.0);
+    let (doc, ext, split) = step_split(1.0);
     let riser = fixture::fname(ext, fixture::wall(&doc, ext, 3));
     let above = doc
         .output(split, SplitHalf::Above.port())
@@ -98,15 +116,7 @@ fn a_piece_whose_side_flips_leaves_its_reads_table_diagnosed_as_a_predicate_flip
         "the premise: the riser is the upper half's"
     );
 
-    let (moved, _) = fixture::step(
-        doc.clone(),
-        DocEdit::SetParam {
-            node: tool,
-            slot: SlotId::Origin(Axis3::X),
-            value: len(3.0).into(),
-            fresh: Vec::new(),
-        },
-    );
+    let moved = plane_moved(&doc, ext, split, 3.0);
     let after = fixture::run(&moved, &Default::default());
     assert!(
         !held(&after, above) && held(&after, below),
@@ -149,7 +159,7 @@ fn a_piece_whose_side_flips_leaves_its_reads_table_diagnosed_as_a_predicate_flip
 /// resolves it to that half's own face.
 #[test]
 fn the_section_face_is_one_name_and_each_halfs_read_resolves_its_own() {
-    let (doc, _, _, split) = step_split(1.0);
+    let (doc, _, split) = step_split(1.0);
     let ev = fixture::run(&doc, &Default::default());
     let section = StableName {
         kind: EntityKind::Face,
@@ -186,7 +196,7 @@ fn the_section_face_is_one_name_and_each_halfs_read_resolves_its_own() {
 /// on the other.
 #[test]
 fn a_paint_on_one_halfs_section_face_leaves_the_other_halfs_unpainted() {
-    let (doc, _, _, split) = step_split(1.0);
+    let (doc, _, split) = step_split(1.0);
     let section = StableName {
         kind: EntityKind::Face,
         node: split,
@@ -334,7 +344,7 @@ fn shared_fragment(
 /// (body 1), never the upper half's.
 #[test]
 fn a_vanished_shared_fragments_tombstone_is_its_own_reads() {
-    let (doc, _ext, tool, split) = step_split(1.0);
+    let (doc, ext, split) = step_split(1.0);
     let below = doc.output(split, 1).expect("below");
     let before = fixture::run(&doc, &Default::default());
     let (frag, _) = shared_fragment(&before, &doc, split);
@@ -346,15 +356,7 @@ fn a_vanished_shared_fragments_tombstone_is_its_own_reads() {
         panic!("the lower read resolves the fragment");
     };
     assert_eq!(was.entity.body, 1, "the lower half is the value's body 1");
-    let (moved, _) = fixture::step(
-        doc.clone(),
-        DocEdit::SetParam {
-            node: tool,
-            slot: SlotId::Origin(Axis3::X),
-            value: len(5.0).into(),
-            fresh: Vec::new(),
-        },
-    );
+    let moved = plane_moved(&doc, ext, split, 5.0);
     let after = fixture::run(&moved, &Default::default());
     let new = RunCtx {
         doc: &moved,
@@ -382,7 +384,7 @@ fn a_vanished_shared_fragments_tombstone_is_its_own_reads() {
 /// that holds it, so either half can be repainted from the offers.
 #[test]
 fn a_rebind_offer_names_every_read_holding_a_shared_name() {
-    let (doc, ext, _, split) = step_split(1.0);
+    let (doc, ext, split) = step_split(1.0);
     let ev = fixture::run(&doc, &Default::default());
     let (frag, parent) = shared_fragment(&ev, &doc, split);
     let (above, below) = (doc.output(split, 0).unwrap(), doc.output(split, 1).unwrap());
@@ -412,13 +414,13 @@ fn a_rebind_offer_names_every_read_holding_a_shared_name() {
     );
 }
 
-/// **An appearance entry is read in a body**: a datum plane's output is
-/// a live read holding no body, and a deleted operation's read is no
+/// **An appearance entry is read in a body**: a profile's output is a
+/// live read holding no body, and a deleted operation's read is no
 /// live read at all, so `SetAppearance` refuses both; deleting the
 /// operation a key's read is an output of strands the key `Took::Body`.
 #[test]
 fn an_appearance_read_must_hold_a_body_and_its_delete_strands_the_key() {
-    let (doc, ext, tool, split) = step_split(1.0);
+    let (doc, ext, split) = step_split(1.0);
     let riser = fixture::fname(ext, fixture::wall(&doc, ext, 3));
     let paint = |doc: &ProfileDoc, body| {
         editor_core::apply(
@@ -432,13 +434,15 @@ fn an_appearance_read_must_hold_a_body_and_its_delete_strands_the_key() {
             &editor_core::RefusingReach,
         )
     };
-    let plane = doc.output(tool, 0).expect("the plane's output");
+    let profile = doc
+        .output(fixture::swept(&doc, ext), 0)
+        .expect("the profile's output");
     assert!(
         matches!(
-            paint(&doc, plane),
+            paint(&doc, profile),
             Err(editor_core::EditError::AppearanceBodyNotARead { .. })
         ),
-        "a datum plane's read holds no body"
+        "a profile's read holds no body"
     );
     let above = doc.output(split, 0).unwrap();
     let painted = paint(&doc, above).expect("a half's read holds a body").doc;
@@ -481,7 +485,7 @@ fn a_node_named_alone_reads_its_one_named_output_in_a_name_door() {
         doc,
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
+        [0.0, 1.0, 0.0],
         vec![fixture::square(2.0, 0.0, 0.5)],
     );
     let (doc, revolve) = insert(
@@ -500,33 +504,35 @@ fn a_node_named_alone_reads_its_one_named_output_in_a_name_door() {
         "the revolve's body, beside its axis"
     );
     assert_eq!(doc.read_of_node(revolve), None, "an operand names the port");
-    let (doc, _, _, split) = step_split(1.0);
+    let (doc, _, split) = step_split(1.0);
     let ev = fixture::run(&doc, &Default::default());
     assert_eq!((ev.at_var(split), doc.read_of_node(split)), (None, None));
 }
 
 /// **A re-point that takes a key's name out of its read's reach strands
 /// the key** (PR #4674 review), as it strands a selection there: a key
-/// read in a transform's output, its name the input block's cap; the
-/// transform re-pointed at another block reports the key `Took::Reach`.
+/// read in a placement's output, its name the copy of the placed
+/// block's cap; the placement re-pointed at another block reports the
+/// key `Took::Reach`.
 #[test]
 fn a_repoint_that_takes_a_keys_name_out_of_reach_strands_it() {
     let doc = ProfileDoc::empty_derived("dm4_repoint", Tol::witness());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let sq = |x: f64| vec![vec![(x, 0.0), (x + 1.0, 0.0), (x + 1.0, 1.0), (x, 1.0)]];
-    let (doc, pa) = insert(doc, Node::Profile(fixture::desc(plane, sq(0.0))));
-    let (doc, pb) = insert(doc, Node::Profile(fixture::desc(plane, sq(3.0))));
+    let (doc, pa) = insert(doc, Node::Profile(fixture::desc(sq(0.0))));
+    let (doc, pb) = insert(doc, Node::Profile(fixture::desc(sq(3.0))));
     let ext = |p: RecipeNodeId| Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
     };
     let (doc, a) = insert(doc, ext(pa));
     let (doc, b) = insert(doc, ext(pb));
-    let (doc, t) = insert(
-        doc,
-        fixture::xform(a, [0.0, 0.0, 2.0], [0.0, 0.0, 1.0], 0.0),
+    let (doc, t) = fixture::xform(doc, a, [0.0, 0.0, 2.0], [0.0, 0.0, 1.0], 0.0);
+    let cap = crate::emit_shared_rim_several::own_name(
+        &doc,
+        t,
+        EntityKind::Face,
+        vec![RoleSeg::Cap(editor_core::CapEnd::End)],
     );
-    let cap = fixture::fname(a, RoleSeg::Cap(editor_core::CapEnd::End));
     let (doc, _) = fixture::step(
         doc.clone(),
         DocEdit::SetAppearance {
@@ -544,7 +550,7 @@ fn a_repoint_that_takes_a_keys_name_out_of_reach_strands_it() {
         &doc,
         &DocEdit::SetParam {
             node: t,
-            slot: SlotId::Operand(editor_core::OperandSlot::Input),
+            slot: SlotId::Operand(editor_core::OperandSlot::Shape(0)),
             value: editor_core::Operand::from(fixture::out(&doc, b)).into(),
             fresh: Vec::new(),
         },
@@ -565,17 +571,18 @@ fn a_repoint_that_takes_a_keys_name_out_of_reach_strands_it() {
     );
 }
 
-/// A cube and a transform of it: the cube's cap, carried through the
-/// transform's read under the cube's own name.
-fn cube_and_transform() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, StableName) {
+/// A cube and a placed copy of it: the copy's cap, read in the
+/// placement's output under the placement.
+fn cube_and_copy() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, StableName) {
     let doc = ProfileDoc::empty_derived("dm4_read_gone", Tol::witness());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
         doc,
-        Node::Profile(fixture::desc(
-            plane,
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        Node::Profile(fixture::desc(vec![vec![
+            (0.0, 0.0),
+            (1.0, 0.0),
+            (1.0, 1.0),
+            (0.0, 1.0),
+        ]])),
     );
     let (doc, cube) = insert(
         doc,
@@ -584,23 +591,25 @@ fn cube_and_transform() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, StableName) 
             distance: len(1.0),
         },
     );
-    let (doc, moved) = insert(
-        doc,
-        fixture::xform(cube, [0.0, 0.0, 2.0], [0.0, 0.0, 1.0], 0.0),
+    let (doc, moved) = fixture::xform(doc, cube, [0.0, 0.0, 2.0], [0.0, 0.0, 1.0], 0.0);
+    let cap = crate::emit_shared_rim_several::own_name(
+        &doc,
+        moved,
+        EntityKind::Face,
+        vec![RoleSeg::Cap(editor_core::CapEnd::End)],
     );
-    let cap = fixture::fname(cube, RoleSeg::Cap(editor_core::CapEnd::End));
     (doc, cube, moved, cap)
 }
 
 /// **A reference whose read is gone is stranded with its read, first**
-/// (N5's `ReadGone`, rung 0): the transform deleted, its read went with
+/// (N5's `ReadGone`, rung 0): the placement deleted, its read went with
 /// it, and the cap read there answers `ReadGone { Deleted }` — never a
 /// `Vanished` that blames the cube, which did not change. A read the
 /// document never minted is `Foreign`. With the cube deleted too, the
 /// name's own node is gone as well, and the read still answers first.
 #[test]
 fn a_reference_whose_read_is_gone_is_read_gone_before_node_gone() {
-    let (doc, cube, moved, cap) = cube_and_transform();
+    let (doc, cube, moved, cap) = cube_and_copy();
     let read = fixture::out(&doc, moved);
     let gone_read = |doc: &ProfileDoc, read| {
         let ev = fixture::run(doc, &Default::default());
@@ -609,9 +618,9 @@ fn a_reference_whose_read_is_gone_is_read_gone_before_node_gone() {
             other => panic!("a reference with no read must fail: {other:?}"),
         }
     };
-    let (no_transform, _) = fixture::step(doc.clone(), DocEdit::DeleteNode { id: moved });
+    let (no_copy, _) = fixture::step(doc.clone(), DocEdit::DeleteNode { id: moved });
     assert_eq!(
-        gone_read(&no_transform, read),
+        gone_read(&no_copy, read),
         ResolveError::ReadGone {
             name: cap.clone(),
             read,
@@ -626,7 +635,7 @@ fn a_reference_whose_read_is_gone_is_read_gone_before_node_gone() {
             ..
         }
     ));
-    let (neither, _) = fixture::step(no_transform, DocEdit::DeleteNode { id: cube });
+    let (neither, _) = fixture::step(no_copy, DocEdit::DeleteNode { id: cube });
     assert!(
         matches!(gone_read(&neither, read), ResolveError::ReadGone { .. }),
         "the site read answers ahead of the name's node"
@@ -663,13 +672,13 @@ fn a_reference_whose_read_is_gone_is_read_gone_before_node_gone() {
 }
 
 /// **A read that holds no body is no question to ask**: a live scalar
-/// variable, and a datum's output, refuse `ReadNotAnOutput` — typed,
+/// variable, and a profile's output, refuse `ReadNotAnOutput` — typed,
 /// never a `Resolution`. A node handle whose node went, holding a name
 /// it did not mint, refuses `NodeNotHeld`; one holding a name it minted
 /// answers `NodeGone`, about that node.
 #[test]
 fn a_read_that_holds_no_body_is_refused_and_a_gone_node_handle_says_so() {
-    let (doc, cube, moved, cap) = cube_and_transform();
+    let (doc, cube, moved, cap) = cube_and_copy();
     let (doc, _) = fixture::step(
         doc,
         DocEdit::DeclareVar {
@@ -681,32 +690,34 @@ fn a_read_that_holds_no_body_is_refused_and_a_gone_node_handle_says_so() {
         },
     );
     let depth = doc.var_named("depth").expect("the scalar");
-    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let profile = fixture::swept(&doc, cube);
     let ev = fixture::run(&doc, &Default::default());
     let ctx = RunCtx {
         doc: &doc,
         eval: &ev,
     };
-    for read in [depth, fixture::out(&doc, plane)] {
+    for read in [depth, fixture::out(&doc, profile)] {
         assert_eq!(
             resolve(ctx, read, &cap),
             Err(editor_core::ResolveRefusal::ReadNotAnOutput { read })
         );
     }
+    // The cube's own cap, which the cube minted and the copy did not.
+    let own_cap = fixture::fname(cube, RoleSeg::Cap(editor_core::CapEnd::End));
     let (gone, _) = fixture::step(doc.clone(), DocEdit::DeleteNode { id: moved });
     assert_eq!(
-        editor_core::stranded_at(&gone, moved, &cap),
+        editor_core::stranded_at(&gone, moved, &own_cap),
         Some(Err(editor_core::ResolveRefusal::NodeNotHeld {
             node: moved
         }))
     );
     let (gone, _) = fixture::step(gone, DocEdit::DeleteNode { id: cube });
     assert!(matches!(
-        editor_core::stranded_at(&gone, cube, &cap),
+        editor_core::stranded_at(&gone, cube, &own_cap),
         Some(Ok(Resolution::Failed(editor_core::ResolutionFailure {
             error: ResolveError::NodeGone { .. },
             ..
         })))
     ));
-    assert_eq!(editor_core::stranded_at(&doc, cube, &cap), None);
+    assert_eq!(editor_core::stranded_at(&doc, cube, &own_cap), None);
 }

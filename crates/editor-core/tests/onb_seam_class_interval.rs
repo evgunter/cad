@@ -45,7 +45,7 @@ use geom_brep::newell_plane;
 use geom_core::{Band, Bounds, Interval, Point3, Real, Tol, UnitVec3, Vec3};
 use topo::DATUM_UNIT_NORM;
 
-use fixture::{Recorder, len, scl};
+use fixture::{Recorder, len};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()

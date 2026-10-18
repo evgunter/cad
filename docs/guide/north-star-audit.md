@@ -384,8 +384,7 @@ poly = [
 ]
 
 doc = Doc()
-frame = doc.sketch_frame()
-profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in poly], plane=frame))
+profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in poly]))
 # The axis in the sketch's own coordinates: the frame's v is world
 # +y, so the world y axis IS its own +y through (0, 0).
 axis = (

@@ -56,7 +56,6 @@ def box(doc, width, depth, height):
                 (Formula.literal(width), Formula.literal(depth)),
                 (Formula.length_in(0, m), Formula.literal(depth)),
             ],
-            plane=doc.sketch_frame(elevation=Formula.length_in(0, m)),
         )
     )
     return doc.insert(Node.extrude(profile, Formula.literal(height)))

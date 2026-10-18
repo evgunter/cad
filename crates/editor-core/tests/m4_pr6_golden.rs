@@ -89,22 +89,10 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.001)),
         },
     );
-    // Every sketch in this fixture is drawn on the world xy plane, so
-    // ONE frame node serves them all — a profile names its
-    // plane now, and four copies of the same frame would say four
-    // planes where the document has one.
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(fixture::xy_frame()),
-            fresh: Vec::new(),
-        },
-    );
-    let plane = last(&doc);
     // v4 re-authoring (content-preserving): the quad with one arc
     // segment authors as a chain whose arc step carries its AUTHORED
     // bulge — the same 0.25 the retired form stored on vertex 1.
-    let mut d = desc(plane, vec![]);
+    let mut d = desc(vec![]);
     d.loops = vec![LoopProgram::Chain(vec![
         ProgramStep::At(len2([0.0, 0.0])),
         ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.0]))),
@@ -215,10 +203,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // `ChamferArmUnsupported`. A four-sided prism with all twelve edges
     // requested is accepted by the door, and a golden that froze a
     // refusing node would be the sick-bytes failure #117/#120 named.
-    let square = desc(
-        plane,
-        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-    );
+    let square = desc(vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]]);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -340,18 +325,6 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Datum(editor_core::Datum::Frame {
-                origin: [len0(), len0(), len0()],
-                u: [scl(1.0), scl(0.0), scl(0.0)],
-                v: [scl(0.0), scl(1.0), scl(0.0)],
-            })),
-            fresh: Vec::new(),
-        },
-    );
-    let spine = last(&doc);
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
             node: Box::new(Node::Tube {
                 major_radius: len(2.0),
                 window: editor_core::TubeWindow::Full,
@@ -378,7 +351,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // The shell's wire shape: an `open` list of face names in
     // DESIGNATION ORDER (the first named face carries the rim), here
     // one name — a box's end cap. The box is its own three nodes (a
-    // square on the sketch frame, its extrude, the shell) rather than
+    // square on its own xy, its extrude, the shell) rather than
     // a shell of the bulged block: what the shell verb does with the
     // bulged block's cylindrical wall is a kernel scope fact this
     // fixture is not the place to argue.
@@ -387,10 +360,12 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Profile(desc(
-                plane,
-                vec![vec![(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)]],
-            ))),
+            node: Box::new(Node::Profile(desc(vec![vec![
+                (3.0, 0.0),
+                (4.0, 0.0),
+                (4.0, 1.0),
+                (3.0, 1.0),
+            ]]))),
             fresh: Vec::new(),
         },
     );

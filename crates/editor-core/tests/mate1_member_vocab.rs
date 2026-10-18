@@ -27,6 +27,86 @@ use geom_core::Tol;
 
 // ---- Documents ----
 
+/// **The axis through `origin` along `dir` in `body`'s own
+/// coordinates, read off its geometry** under `o` (which reaches the
+/// parts an instance copies): [`fixture::axis_on`] for a body only a
+/// resolver evaluates.
+pub(crate) fn axis_with(
+    doc: &ProfileDoc,
+    body: RecipeNodeId,
+    origin: [f64; 3],
+    dir: [f64; 3],
+    o: &editor_core::EvalOptions,
+) -> editor_core::pose::RoleRead<editor_core::Operand> {
+    let n = geom_core::Vec3::new(dir[0], dir[1], dir[2]);
+    let seed = if n.x.abs() <= n.y.abs().max(n.z.abs()) {
+        geom_core::Vec3::new(1.0, 0.0, 0.0)
+    } else {
+        geom_core::Vec3::new(0.0, 1.0, 0.0)
+    };
+    let u = seed - n * (seed.dot(n) / n.dot(n));
+    let v = n.cross(u);
+    let at = fixture::frame_at(origin, [u.x, u.y, u.z], [v.x, v.y, v.z]);
+    let frame = editor_core::frame_at(doc, &body.into(), &at, o, Tol::witness())
+        .expect("the body offers a frame to read the axis off");
+    editor_core::pose::RoleRead::through(frame, editor_core::pose::PoseRole::Z)
+}
+
+/// **A copy of `body` placed against `target`, slid by `by`**, under
+/// `o` (which reaches the parts an instance copies):
+/// [`fixture::slid`] for bodies only a resolver evaluates. Returns the
+/// document and the placement.
+pub(crate) fn slid_with(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    body: RecipeNodeId,
+    by: [f64; 3],
+    o: &editor_core::EvalOptions,
+) -> (ProfileDoc, RecipeNodeId) {
+    against_with(doc, target, body, &Frame::translation(by), o)
+}
+
+/// **A copy of `body` placed against `target` at `at`** (the copy's
+/// own frame in `target`'s own coordinates), under `o`:
+/// [`fixture::against`] for bodies only a resolver evaluates. Returns
+/// the document and the placement.
+pub(crate) fn against_with(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    body: RecipeNodeId,
+    at: &Frame,
+    o: &editor_core::EvalOptions,
+) -> (ProfileDoc, RecipeNodeId) {
+    let read = editor_core::Operand::from(body);
+    let placed = editor_core::place_against(&doc, &target.into(), &read, at, o, Tol::witness())
+    .expect("the copy places against its target");
+    let (doc, placement) = insert(doc, Node::place(vec![editor_core::BodyRead::plain(read)]));
+    let applied = doc
+        .apply(
+            &DocEdit::AddConstraint {
+                placement,
+                mate: Box::new(placed.mate),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("the mate adds");
+    let mate = applied.record.minted_constraints[0];
+    let doc = placed.values.into_iter().fold(applied.doc, |doc, (coord, by)| {
+        step(
+            doc,
+            DocEdit::AddValue {
+                placement,
+                value: Box::new(editor_core::Value { mate, coord, by }),
+                fresh: Vec::new(),
+            },
+        )
+        .0
+    });
+    (doc, placement)
+}
+
 fn block_part(
     label: &str,
     x: (f64, f64),
@@ -267,13 +347,7 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-circ"), Tol::witness());
     let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
-    let (doc, axis) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Axis {
-            origin: [len(2.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let axis = axis_with(&doc, leg, [2.0, 0.0, 0.0], [0.0, 0.0, 1.0], &o);
     let theta = core::f64::consts::FRAC_PI_2;
     let (doc, pattern) = insert(
         doc,
@@ -281,7 +355,7 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
             input: leg.into(),
             count: Formula::count(4),
             kind: PatternKind::Circular {
-                axis: editor_core::pose::RoleRead::plain(axis),
+                axis,
                 step: ang(theta),
             },
         },

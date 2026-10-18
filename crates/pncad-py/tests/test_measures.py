@@ -46,6 +46,7 @@ from pncad import (
     FreeVar,
     FreeValue,
     EditError,
+    Frame,
     EntityKind,
     EvaluationError,
     Formula,
@@ -72,19 +73,39 @@ SQUARE = [
 ]
 
 
+def in_world(doc, body, z=0.0):
+    """`body`'s copy standing in the world, `z` up: two constructions
+    are two spaces, and a measure across them reads their copies in the
+    world's."""
+    if z == 0.0:
+        return doc.place(body)
+    return doc.place(body, pose=Frame.translation((0 * m, 0 * m, z * m)))
+
+
+def prism(doc, height=1.0):
+    """A 1 m x 1 m x `height` prism in its own coordinates."""
+    outline = doc.insert(Node.polygon(SQUARE))
+    return doc.insert(Node.extrude(outline, Formula.length_in(height, m)))
+
+
 def slab(doc, elevation, height=1.0):
-    """A 1 m x 1 m x `height` prism whose base sits at `elevation`."""
-    plane = doc.sketch_frame(elevation=Formula.length_in(elevation, m))
-    outline = doc.insert(Node.polygon(SQUARE, plane=plane))
+    """A 1 m x 1 m x `height` prism standing in the world with its base
+    at `elevation`."""
+    return in_world(doc, prism(doc, height), elevation)
+
+
+def cylinder_body(doc, centre_x, radius, height=0.5):
+    """A circular prism in its own coordinates, centred at `centre_x`."""
+    outline = doc.insert(
+        Node.profile(circle((centre_x * m, 0 * m), radius * m))
+    )
     return doc.insert(Node.extrude(outline, Formula.length_in(height, m)))
 
 
 def cylinder(doc, centre_x, radius, height=0.5):
-    """A circular prism on the world xy plane, centred at `centre_x`."""
-    outline = doc.insert(
-        Node.profile(circle((centre_x * m, 0 * m), radius * m), doc.sketch_frame())
-    )
-    return doc.insert(Node.extrude(outline, Formula.length_in(height, m)))
+    """A circular prism standing on the world xy plane, centred at
+    `centre_x`."""
+    return in_world(doc, cylinder_body(doc, centre_x, radius, height))
 
 
 def wall(ev, node):
@@ -332,39 +353,39 @@ class TestTheClosedForms(unittest.TestCase):
         """The reference names the node its carrier is READ AT, and
         that is what makes a measure report moved geometry.
 
-        ONE vertex name, measured against ITSELF at two reading sites:
-        a rigid transform is identity-preserving, so it mints no name
-        and the only thing that differs between the two references is
-        which node they resolve at. The distance between them is
-        exactly the translation, and reading both at the minting node
-        would be zero.
+        Two copies of ONE prism, the second `travel` along x: each
+        names the prism's corner under its own placement, and the
+        distance between the corner read at one copy and the same
+        corner read at the other is exactly the translation. The same
+        reference read at one site measures against itself: zero.
         """
         doc = Doc()
         travel = 100.0
-        prism = slab(doc, 0.0)
-        moved = doc.insert(
-            Node.transform(prism, (
-                Formula.length_in(travel, m),
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-            ), (
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-                Formula.literal(1.0),
-            ), Formula.angle_in(0, rad))
-        )
+        body = prism(doc)
+        here = in_world(doc, body)
+        moved = doc.place(body, pose=Frame.translation((travel * m, 0 * m, 0 * m)))
         ev = evaluate(doc)
         corner = sorted(ev.all_vertices(moved))[0]
-        self.assertIn(corner, ev.all_vertices(prism), "a transform mints no name")
+        at = [c.meters for c in ev.vertex_position(moved, corner)]
+        same = [
+            v
+            for v in ev.all_vertices(here)
+            if max(
+                abs(c.meters - w)
+                for c, w in zip(ev.vertex_position(here, v), (at[0] - travel, at[1], at[2]))
+            )
+            < 1e-9
+        ]
+        self.assertEqual(len(same), 1, "each copy holds the prism's corner once")
         placed = doc.insert(
-            Node.measure(MeasurePrimitive.distance((prism, corner), (moved, corner)))
+            Node.measure(MeasurePrimitive.distance((here, same[0]), (moved, corner)))
         )
         self.assertAlmostEqual(measured(doc, placed).value, travel, places=9)
         # The same name read at ONE site measures against itself: zero,
         # which is what makes the number above the translation and not
         # an artefact of which vertex was picked.
         authored = doc.insert(
-            Node.measure(MeasurePrimitive.distance((prism, corner), (prism, corner)))
+            Node.measure(MeasurePrimitive.distance((here, same[0]), (here, same[0])))
         )
         self.assertAlmostEqual(measured(doc, authored).value, 0.0, places=12)
 
@@ -604,8 +625,10 @@ class TestTheRefusals(unittest.TestCase):
     def test_a_construction_cannot_read_a_measured_value(self):
         """A measure's output is observed (D10): only an assertion reads
         it, and a construction's slot reading it refuses at the door."""
-        doc, node, face = self.one_face()
-        top = face_at_height(evaluate(doc), node, 1.0)
+        doc = Doc()
+        node = prism(doc)
+        ev = evaluate(doc)
+        face, top = face_at_height(ev, node, 0.0), face_at_height(ev, node, 1.0)
         measure = doc.insert(
             Node.measure(MeasurePrimitive.distance((node, face), (node, top)))
         )
@@ -822,15 +845,19 @@ class TestTheDocumentCarriesIt(unittest.TestCase):
         measure places nothing, and the gathered solid is the same
         one."""
         doc = Doc()
-        left = cylinder(doc, -0.30, 0.2)
-        right = cylinder(doc, 0.30, 0.2)
+        left = cylinder_body(doc, -0.30, 0.2)
+        right = doc.place_against(
+            left, cylinder_body(doc, 0.30, 0.2), Frame.translation((0 * m, 0 * m, 0 * m))
+        )
         placed = doc.place(doc.insert(Node.union([left, right])))
+        placements = doc.placements()
+        self.assertIn(placed, placements)
         before = pncad.product(doc, evaluate(doc)).mass_properties().volume
         ev = evaluate(doc)
         doc.insert(
             Node.measure(MeasurePrimitive.distance((left, wall(ev, left)), (right, wall(ev, right))))
         )
-        self.assertEqual(doc.placements(), [placed])
+        self.assertEqual(doc.placements(), placements)
         self.assertAlmostEqual(
             pncad.product(doc, evaluate(doc)).mass_properties().volume,
             before,
@@ -844,7 +871,8 @@ class TestTheDocumentCarriesIt(unittest.TestCase):
         doc = Doc()
         left = cylinder(doc, -0.30, 0.2)
         right = cylinder(doc, 0.30, 0.2)
-        placed = [doc.place(left), doc.place(right)]
+        placed = doc.placements()
+        self.assertEqual(placed, [left, right])
         before = pncad.product(doc, evaluate(doc)).mass_properties().volume
         self.assertGreater(before, 0.0)
         ev = evaluate(doc)

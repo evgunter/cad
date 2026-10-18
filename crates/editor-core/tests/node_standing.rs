@@ -27,11 +27,11 @@ use editor_core::clearance::{
     ClearanceRefusal, ClearanceVerdict, Selection, SelectionRefusal, clearance,
 };
 use editor_core::{
-    CancelToken, ChecksConfig, ChecksError, Cmp, DocEdit, EntityKind, EvalOptions, Evaluation,
-    GeomPred, HitTestError, InterrogateError, NameLookupError, NamePat, Node, NodePick,
+    CancelToken, ChecksConfig, ChecksError, DocEdit, EntityKind, EvalOptions, Evaluation,
+    HitTestError, InterrogateError, NameLookupError, Node, NodePick,
     NodePickError, NodeStanding, ProfileDoc, RecipeNodeId, Resolution, ResolveIndeterminate,
-    RoleSeg, RunCtx, RunStatus, SelectRefusal, Selector, SlotId, VerdictRow, VerdictVector,
-    body_name, denotation, evaluate, run_checks, select_where,
+    RoleSeg, RunCtx, RunStatus, SlotId, VerdictRow, VerdictVector,
+    body_name, denotation, evaluate, run_checks,
 };
 use geom_core::Tol;
 
@@ -133,7 +133,7 @@ fn speaks(door: &str, prefix: &str, refusal: &dyn core::fmt::Display, standing: 
 /// **Every standing renders one way through every door that carries
 /// it**, each under that door's own subject: the hit test, the
 /// pick-index build, the name lookup, the name read, the resolution
-/// verdict, the flush query, the checks registry, the
+/// verdict, the checks registry, the
 /// product gather and the clearance engine's selection (`pncad`'s suite holds the export door
 /// to the same shape, and `viewer`'s the duplicate and the blend tool).
 /// Each door's payload IS the standing [`Evaluation::usable`] answers,

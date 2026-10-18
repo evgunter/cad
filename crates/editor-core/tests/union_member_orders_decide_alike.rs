@@ -56,39 +56,39 @@ type Members = fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>);
 /// Three unit blocks in a row along x, each flush on the next: two
 /// rests and the continuations of their shared walls.
 fn three_in_a_row(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 2.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (1.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block_on(doc, a, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     (doc, vec![a, b, c])
 }
 
 /// Three plates stacked, each smaller than the one below: two rests,
 /// no continuation.
 fn stepped_stack(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 2.5), (0.5, 2.5), 1.0, 1.0);
-    let (doc, c) = block(doc, (1.0, 2.0), (1.0, 2.0), 2.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, b) = block_on(doc, a, (0.5, 2.5), (0.5, 2.5), 1.0, 1.0);
+    let (doc, c) = block_on(doc, a, (1.0, 2.0), (1.0, 2.0), 2.0, 1.0);
     (doc, vec![a, b, c])
 }
 
 /// A table: a top resting on four legs at its corners, each leg flush
 /// with two of the top's walls — 120 orders, sampled.
 fn table(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, top) = block(doc, (0.0, 4.0), (0.0, 3.0), 2.0, 0.25);
-    let (doc, l0) = block(doc, (0.0, 0.5), (0.0, 0.5), 0.0, 2.0);
-    let (doc, l1) = block(doc, (3.5, 4.0), (0.0, 0.5), 0.0, 2.0);
-    let (doc, l2) = block(doc, (0.0, 0.5), (2.5, 3.0), 0.0, 2.0);
-    let (doc, l3) = block(doc, (3.5, 4.0), (2.5, 3.0), 0.0, 2.0);
+    let (doc, top) = block(doc, (0.0, 4.0), (0.0, 3.0), 0.25);
+    let (doc, l0) = block_on(doc, top, (0.0, 0.5), (0.0, 0.5), 0.0, 2.0);
+    let (doc, l1) = block_on(doc, top, (3.5, 4.0), (0.0, 0.5), 0.0, 2.0);
+    let (doc, l2) = block_on(doc, top, (0.0, 0.5), (2.5, 3.0), 0.0, 2.0);
+    let (doc, l3) = block_on(doc, top, (3.5, 4.0), (2.5, 3.0), 0.0, 2.0);
     (doc, vec![top, l0, l1, l2, l3])
 }
 
 /// A slab and two posts through it and a bar across both posts: every
 /// meeting transverse, no coincidence.
 fn posts_and_bar(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, slab) = block(doc, (0.0, 4.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, p) = block(doc, (0.5, 1.0), (0.75, 1.25), -0.5, 2.5);
-    let (doc, q) = block(doc, (3.0, 3.5), (0.75, 1.25), -0.5, 2.5);
-    let (doc, bar) = block(doc, (0.25, 3.75), (0.875, 1.125), 1.5, 0.25);
+    let (doc, slab) = block(doc, (0.0, 4.0), (0.0, 2.0), 1.0);
+    let (doc, p) = block_on(doc, slab, (0.5, 1.0), (0.75, 1.25), -0.5, 2.5);
+    let (doc, q) = block_on(doc, slab, (3.0, 3.5), (0.75, 1.25), -0.5, 2.5);
+    let (doc, bar) = block_on(doc, slab, (0.25, 3.75), (0.875, 1.125), 1.5, 0.25);
     (doc, vec![slab, p, q, bar])
 }
 
@@ -96,9 +96,9 @@ fn posts_and_bar(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 /// wall: the sliver refuses, in band, whichever member meets it first.
 fn a_sliver_beside_a_rest(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let eps = Tol::witness().get().eps;
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 2.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (2.0 + 2.0 * eps, 3.0), (0.25, 0.75), 0.25, 0.5);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (1.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block_on(doc, a, (2.0 + 2.0 * eps, 3.0), (0.25, 0.75), 0.25, 0.5);
     (doc, vec![a, b, c])
 }
 

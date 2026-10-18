@@ -35,7 +35,7 @@
 //!
 //! The scene and the pick index emit geometry per WORLD PLACEMENT's
 //! copy (A10), and a placement reads whatever body it places — an
-//! instance, or a `Pattern`, `Transform` or `Part` over one. Display
+//! instance, or a `Pattern` or `Part` over one. Display
 //! state therefore PROPAGATES: an operation names the instance, and
 //! [`drawn_targets`] resolves it to every placement whose geometry
 //! derives from that instance alone (hiding a patterned instance hides
@@ -513,7 +513,7 @@ pub fn instance_check(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Result<(
 ///
 /// This is the map display state PROPAGATES through: the drawn scene
 /// is keyed by placements, and a placement reads whatever body it
-/// places — an instance, or a `Pattern` or `Transform` chain over one.
+/// places — an instance, or a `Pattern` chain over one.
 /// Display state names the INSTANCE (the thing with an identity a user
 /// hides or probes); this map says which drawn copies that names.
 fn instances_by_placement(
@@ -583,9 +583,8 @@ fn geometry_upstream(doc: &Doc<ProfileProgram>, id: RecipeNodeId) -> Vec<RecipeN
 /// [`placements_deriving_from`]'s question asked of ONE pair, over the same
 /// walk. What it is for: an entity minted at `source` and carried
 /// upward reaches `node`'s output, so a node whose op leaves no trace
-/// in a name — a `Transform`, which contributes no role segment by
-/// construction — can still be told which drawn entities passed
-/// through it.
+/// in a name — one that contributes no role segment — can still be
+/// told which drawn entities passed through it.
 pub fn derives_from(doc: &Doc<ProfileProgram>, node: RecipeNodeId, source: RecipeNodeId) -> bool {
     ancestry(doc, node).contains(&source)
 }
@@ -596,8 +595,8 @@ pub fn derives_from(doc: &Doc<ProfileProgram>, node: RecipeNodeId, source: Recip
 ///
 /// The inverse of [`ancestry`], and the answer to "if I am looking at
 /// this recipe node, what in the picture is it responsible for". A
-/// node that draws nothing on its own — a profile, a datum, a sketch
-/// plane — has a non-empty answer here, which is exactly the case that
+/// node that draws nothing on its own — a profile — has a non-empty
+/// answer here, which is exactly the case that
 /// makes the question worth asking: the profile IS the shape of the
 /// walls the extrude above it drew.
 ///

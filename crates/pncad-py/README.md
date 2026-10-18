@@ -42,7 +42,7 @@ profile = doc.insert(
         (Formula.length_in(80, mm), Formula.length_in(0, mm)),
         (Formula.length_in(80, mm), Formula.length_in(40, mm)),
         (Formula.length_in(0, mm), Formula.length_in(40, mm)),
-    ], plane=doc.sketch_frame())
+    ])
 )
 plate = doc.insert(Node.extrude(profile, Formula.length_in(8, mm)))
 
@@ -67,7 +67,7 @@ rounded = (
     .line_to(Start)
 )
 doc = Doc()
-plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), Formula.length_in(8, mm)))
+plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded)), Formula.length_in(8, mm)))
 assert evaluate(doc).succeeded(plate)
 ```
 

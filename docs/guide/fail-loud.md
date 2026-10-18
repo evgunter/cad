@@ -390,7 +390,6 @@ from pncad import Doc, EvaluationError, Formula, Node, Open, Start, evaluate, m,
 
 def revolved(x0, angle):
     doc = Doc()
-    frame = doc.sketch_frame()
     square = (
         Open.at((x0 * m, 0 * m))
         .line_to(((x0 + 1) * m, 0 * m))
@@ -402,7 +401,7 @@ def revolved(x0, angle):
         (Formula.length_in(0, m), Formula.length_in(0, m)),
         Formula.turn_over(4),
     )
-    node = doc.insert(Node.revolve(doc.insert(Node.profile(square, plane=frame)), *axis, Formula.literal(angle)))
+    node = doc.insert(Node.revolve(doc.insert(Node.profile(square)), *axis, Formula.literal(angle)))
     try:
         evaluate(doc).value(node)
         raise AssertionError("expected a typed refusal")
@@ -516,7 +515,7 @@ sketch = doc.insert(
         (Formula.length_in(1, m), Formula.length_in(0, m)),
         (Formula.length_in(1, m), Formula.length_in(1, m)),
         (Formula.length_in(0, m), Formula.length_in(1, m)),
-    ], plane=doc.sketch_frame())
+    ])
 )
 cube = doc.insert(Node.extrude(sketch, Formula.length_in(1, m)))
 body = evaluate(doc).value(cube).body()

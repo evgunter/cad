@@ -6,11 +6,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block, block_on, failure, run};
+use crate::emit_shared_rim_several::own_name;
 use crate::fixture::{ang, fname, insert, len, len2, on_frame, out, scl, table};
 
 use editor_core::{
-    Advisory, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum, EntityKey, EntityKind, Entry,
+    Advisory, CapEnd, CheckEvidence, CheckId, ChecksConfig, EntityKey, EntityKind, Entry,
     EvalOptions, Evaluation, FindingSubject, Formula, LoopProgram, NamedCell, NamedCoincidence,
     Node, PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     Proof, RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName, ValuePayload, VarId,
@@ -115,9 +116,14 @@ fn entity(input: VarId, name: &StableName) -> NamedCell {
 fn a_glued_rest_is_one_unproven_row_named_by_its_operands() {
     let doc = ProfileDoc::empty_derived("coincide-declared-rest", Tol::witness());
     let (doc, base) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
-    let (doc, plate) = block(doc, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
+    let (doc, plate) = block_on(doc, base, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
     let top = fname(base, RoleSeg::Cap(CapEnd::End));
-    let bottom = fname(plate, RoleSeg::Cap(CapEnd::Start));
+    let bottom = own_name(
+        &doc,
+        plate,
+        EntityKind::Face,
+        vec![RoleSeg::Cap(CapEnd::Start)],
+    );
     let (doc, union) = insert(
         doc,
         Node::Union {
@@ -239,12 +245,11 @@ fn face_of(
 }
 
 /// **The same construction read twice is proven, through the
-/// placement** (§11 row 4). A box placed by a transform and split in
-/// two: each half's `−x` wall is a piece of the one extruded wall, read
-/// through the one transform, so a row over them is
+/// placement** (§11 row 4). A box's placed copy split in two: each
+/// half's `−x` wall is a piece of the one extruded wall, read through
+/// the one placement, so a row over them is
 /// `Structural(SameConstruction)`. The box's own wall against a half's
-/// is two constructions — the placed copy is not the unplaced one, and
-/// the walk sees the transform although it adds no name segment — and
+/// is two constructions — the placed copy is not the unplaced one — and
 /// stays unproven.
 ///
 /// The row is built here over the scene's real cells; the production
@@ -254,29 +259,13 @@ fn face_of(
 fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
     let doc = ProfileDoc::empty_derived("coincide-same-source", Tol::witness());
     let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, placed) = insert(
-        doc,
-        Node::transform(
-            the_box,
-            editor_core::Step::Rigid {
-                translation: [len(3.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
-    let (doc, tool) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let (doc, placed) = crate::fixture::slid(doc, the_box, the_box, [3.0, 0.0, 0.0]);
+    let tool = crate::fixture::plane_on(&doc, the_box, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: placed.into(),
-            tool: tool.into(),
+            tool,
         },
     );
     let ev = run(&doc);
@@ -322,7 +311,7 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
 fn a_unions_rows_follow_its_member_order() {
     let doc = ProfileDoc::empty_derived("coincide-union-order", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let n = crate::fixture::flush_segs(&doc, a).len();
     let mut seen = Vec::new();
     for members in [[a, b], [b, a]] {
@@ -528,18 +517,25 @@ fn a_supplementary_chamfer_turn_is_recorded_unproven() {
     let s = 0.3;
     let (z0, z1) = (-0.5, 1.5);
     let doc = ProfileDoc::empty_derived("coincide-supplementary", Tol::witness());
+    // Each prism is drawn on its own xy. The `y`-running prism is the
+    // root, its own frame the world's plane `y = 3.5` (x along x, y
+    // along z, extruded toward −y); the `x`-running one stands on the
+    // plane `x = 3.5` (x along −y, y along z, extruded toward −x),
+    // spelled in the root's own coordinates, where a world point `p`
+    // reads `(p.x, p.z, 3.5 − p.y)`.
+    let identity = ([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
     let (doc, along_y) = on_frame(
         doc,
-        [0.0, 3.5, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
+        identity.0,
+        identity.1,
+        identity.2,
         vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0 + s, 1.0), (s, 1.0)]],
     );
     let (doc, along_x) = on_frame(
         doc,
-        [3.5, 0.0, 0.0],
-        [0.0, -1.0, 0.0],
-        [0.0, 0.0, 1.0],
+        identity.0,
+        identity.1,
+        identity.2,
         vec![vec![
             (-1.5 - s * z0, z0),
             (-s * z0, z0),
@@ -553,6 +549,12 @@ fn a_supplementary_chamfer_turn_is_recorded_unproven() {
     };
     let (doc, y) = insert(doc, extrude(along_y));
     let (doc, x) = insert(doc, extrude(along_x));
+    let (doc, x) = crate::fixture::against(
+        doc,
+        y,
+        x,
+        &crate::fixture::frame_at([3.5, 0.0, 3.5], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]),
+    );
     let (doc, sheared) = insert(
         doc,
         Node::Intersect {
@@ -560,10 +562,11 @@ fn a_supplementary_chamfer_turn_is_recorded_unproven() {
         },
     );
     let ev = run(&doc);
-    let w = [2.0 + s, s, 1.0];
+    let into_y = |p: [f64; 3]| [p[0], p[2], 3.5 - p[1]];
+    let w = into_y([2.0 + s, s, 1.0]);
     let edges = vec![
-        edge_named(&ev, sheared, w, [s, s, 1.0]),
-        edge_named(&ev, sheared, w, [2.0 + s, 1.5 + s, 1.0]),
+        edge_named(&ev, sheared, w, into_y([s, s, 1.0])),
+        edge_named(&ev, sheared, w, into_y([2.0 + s, 1.5 + s, 1.0])),
     ];
     let (doc, chamfer) = insert(doc, Node::chamfer(sheared, len(0.1), edges));
     let ev = run(&doc);
@@ -604,18 +607,12 @@ fn split_prism(
             distance: len(1.0),
         },
     );
-    let (doc, tool) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(at), len(0.0)],
-            normal: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-    );
+    let tool = crate::fixture::plane_on(&doc, prism, [0.0, at, 0.0], [0.0, 1.0, 0.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: prism.into(),
-            tool: tool.into(),
+            tool,
         },
     );
     let ev = run(&doc);
@@ -688,18 +685,12 @@ fn the_check_off_is_visibly_skipped() {
 fn a_reunited_splits_section_caps_are_one_construction() {
     let doc = ProfileDoc::empty_derived("coincide-reunite", Tol::witness());
     let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, tool) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let tool = crate::fixture::plane_on(&doc, the_box, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: the_box.into(),
-            tool: tool.into(),
+            tool,
         },
     );
     let ev = run(&doc);
@@ -749,7 +740,10 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     }) else {
         panic!("both caps walk")
     };
-    assert_eq!(a.origin, coincide::Origin::Datum(tool, None));
+    let Some(Node::Split { tool, .. }) = doc.node(split) else {
+        panic!("the split")
+    };
+    assert_eq!(a.origin, coincide::Origin::Tool(tool.read, tool.role));
     assert_eq!(a, b);
     for proof in proofs(&doc, union, &got) {
         assert!(
@@ -778,7 +772,7 @@ fn a_reunited_splits_section_caps_are_one_construction() {
 fn apart(subtract: bool, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     let boolean = if subtract {
         Node::Subtract {
             from: a.into(),
@@ -814,12 +808,8 @@ fn the_fallbacks_record_no_row_for_faces_that_never_meet() {
     }
 }
 
-/// A one-loop profile program on a fresh xy frame.
+/// A one-loop profile program.
 fn profile_of(doc: ProfileDoc, steps: LoopProgram<Formula>) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane) = insert(
-        doc,
-        crate::fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
     insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -1099,8 +1089,8 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
 fn a_union_records_a_vertex_touch_once() {
     let doc = ProfileDoc::empty_derived("coincide-union-kiss", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 2.0);
-    let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (1.0, 2.0), (1.0, 2.0), 1.0, 2.0);
+    let (doc, far) = block_on(doc, a, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, pair) = crate::fixture::union_over(doc, &[a, b]);
     // The kiss is the last step's, so its record is the union's.
     let (doc, union) = crate::fixture::union_over(doc, &[far, a, b]);
@@ -1268,8 +1258,8 @@ fn two_variables_typed_equal_are_one_constant_to_the_analysis_lane_and_two_symbo
     use editor_core::{FreeVar, ParamValue};
     use geom_core::{Band, Decide, Sym, SymBudget};
     let doc = ProfileDoc::empty_derived("coincide-two-metres", Tol::witness());
-    let (doc, _) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
-    let (doc, _) = block(doc, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
+    let (doc, base) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
+    let (doc, _) = block_on(doc, base, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
     let metres: Vec<editor_core::VarId> = doc
         .free_vars()
         .filter_map(|(id, free)| match *free {
@@ -1689,8 +1679,8 @@ fn a_report_settled_at_rest_is_the_synchronous_report() {
 fn ring_pinch(dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("coincide-ring", Tol::witness());
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
-    let (doc, p1) = block(doc, (1.0, 1.5), (-1.0, 1.0), 0.5, 1.5);
-    let (doc, p2) = block(doc, (1.5 + dx, 2.0), (1.0, 3.0), 0.47, 1.23);
+    let (doc, p1) = block_on(doc, plate, (1.0, 1.5), (-1.0, 1.0), 0.5, 1.5);
+    let (doc, p2) = block_on(doc, plate, (1.5 + dx, 2.0), (1.0, 3.0), 0.47, 1.23);
     let (doc, blocks) = insert(
         doc,
         Node::Union {
@@ -1751,9 +1741,9 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
     // extruded across the blocks' y range.
     let (doc, profile) = on_frame(
         doc,
-        [0.0, 4.0, 0.0],
+        [0.0; 3],
         [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
+        [0.0, 1.0, 0.0],
         vec![vec![(0.5, 0.0), (4.0, 0.0), (4.0, 2.0), (2.5, 2.0)]],
     );
     let (doc, slab) = insert(
@@ -1762,6 +1752,12 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
             profile: profile.into(),
             distance: len(6.0),
         },
+    );
+    let (doc, slab) = crate::fixture::against(
+        doc,
+        plate,
+        slab,
+        &crate::fixture::frame_at([0.0, 4.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
     );
     let (doc, cut) = insert(
         doc,

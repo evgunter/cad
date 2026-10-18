@@ -129,7 +129,7 @@ profile = doc.insert(
         (Formula.length_in(80, mm), Formula.length_in(0, mm)),
         (Formula.length_in(80, mm), Formula.length_in(40, mm)),
         (Formula.length_in(0, mm), Formula.length_in(40, mm)),
-    ], plane=doc.sketch_frame())
+    ])
 )
 plate = doc.insert(Node.extrude(profile, Formula.length_in(8, mm)))
 body = evaluate(doc).value(plate).body()
@@ -357,7 +357,7 @@ rounded = (
 )
 
 doc = Doc()
-plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), Formula.length_in(8, mm)))
+plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded)), Formula.length_in(8, mm)))
 ev = evaluate(doc)
 assert ev.succeeded(plate)
 
@@ -996,7 +996,7 @@ profile = doc.insert(
         (Formula.length_in(2, m), Formula.length_in(0, m)),
         (Formula.length_in(2, m), Formula.length_in(3, m)),
         (Formula.length_in(0, m), Formula.length_in(3, m)),
-    ], plane=doc.sketch_frame())
+    ])
 )
 block = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
 body = evaluate(doc).value(block).body()
@@ -1072,7 +1072,7 @@ profile = doc.insert(Node.polygon([
     (Formula.length_in(0, mm), Formula.length_in(0, mm)),
     (Formula.length_in(1, mm), Formula.length_in(0, mm)),
     (Formula.length_in(1, mm), Formula.length_in(1, mm)),
-], plane=doc.sketch_frame()))
+]))
 doc.insert(Node.extrude(profile, Formula.length_in(1, mm)))
 
 text = doc.save()
@@ -1112,7 +1112,7 @@ outer = (
 holes = [circle((-1.5 * m, 0 * m), 0.7 * m), circle((1.5 * m, 0 * m), 0.7 * m)]
 
 doc = Doc()
-sketch = doc.insert(Node.profile([outer, *holes], plane=doc.sketch_frame()))
+sketch = doc.insert(Node.profile([outer, *holes]))
 plate = doc.insert(Node.extrude(sketch, Formula.length_in(0.6, m)))
 
 body = evaluate(doc).value(plate).body()
@@ -1127,7 +1127,6 @@ try:
     other.insert(
         Node.profile(
             [circle((0 * m, 0 * m), 1 * m), circle((5 * m, 0 * m), 1 * m)],
-            plane=other.sketch_frame(),
         )
     )
     raise AssertionError("that profile should not have validated")
@@ -1172,7 +1171,7 @@ square = doc.insert(
         (Formula.length_in(L, m), Formula.length_in(0, m)),
         (Formula.length_in(L, m), Formula.length_in(L, m)),
         (Formula.length_in(0, m), Formula.length_in(L, m)),
-    ], plane=doc.sketch_frame())
+    ])
 )
 cube = doc.insert(Node.extrude(square, Formula.length_in(L, m)))
 
@@ -1258,7 +1257,7 @@ square = doc.insert(
         (Formula.length_in(1, m), Formula.length_in(0, m)),
         (Formula.length_in(1, m), Formula.length_in(1, m)),
         (Formula.length_in(0, m), Formula.length_in(1, m)),
-    ], plane=doc.sketch_frame())
+    ])
 )
 cube = doc.insert(Node.extrude(square, Formula.length_in(1, m)))
 
@@ -1285,7 +1284,7 @@ axis = (
     (Formula.length_in(0, m), Formula.length_in(0, m)),
     Formula.turn_over(4),
 )
-ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=frame)), *axis, Formula.angle_in(2 * math.pi, rad)))
+ball = doc.insert(Node.revolve(doc.insert(Node.profile(half)), *axis, Formula.angle_in(2 * math.pi, rad)))
 # A revolve defines two outputs, its body and its axis, so a read of
 # it names which: `doc.output(ball, 0)` is the body.
 pip = doc.insert(
@@ -1353,7 +1352,7 @@ square = doc.insert(
         (Formula.length_in(L, m), Formula.length_in(0, m)),
         (Formula.length_in(L, m), Formula.length_in(L, m)),
         (Formula.length_in(0, m), Formula.length_in(L, m)),
-    ], plane=doc.sketch_frame())
+    ])
 )
 cube = doc.insert(Node.extrude(square, Formula.length_in(L, m)))
 
@@ -1540,7 +1539,7 @@ square = doc.insert(
         (Formula.length_in(L, m), Formula.length_in(0, m)),
         (Formula.length_in(L, m), Formula.length_in(L, m)),
         (Formula.length_in(0, m), Formula.length_in(L, m)),
-    ], plane=doc.sketch_frame())
+    ])
 )
 box = doc.insert(Node.extrude(square, Formula.length_in(L, m)))
 
@@ -1637,12 +1636,11 @@ from pncad import (
 RI, RO, H, T = 1.0, 2.0, 1.0, 0.125
 
 doc = Doc()
-frame = doc.sketch_frame()
 bottom = Open.at((RI * m, 0 * m)).line_to((RO * m, 0 * m))
 outer = bottom.line_to((RO * m, H * m))
 top = outer.line_to((RI * m, H * m))
 section = top.line_to(Start)
-profile = doc.insert(Node.profile(section, plane=frame))
+profile = doc.insert(Node.profile(section))
 ring = doc.insert(
     Node.revolve(
         profile,

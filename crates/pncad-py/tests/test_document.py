@@ -94,7 +94,6 @@ class TestDocumentEditing(unittest.TestCase):
     def test_edits_go_through_the_docedit_vocabulary(self):
         doc = Doc()
         # The frame is its own insert, through the same one door.
-        frame = doc.sketch_frame()
         minted = doc.apply(
             DocEdit.insert_node(
                 Node.polygon(
@@ -102,7 +101,7 @@ class TestDocumentEditing(unittest.TestCase):
                         (Formula.length_in(0, m), Formula.length_in(0, m)),
                         (Formula.length_in(1, m), Formula.length_in(0, m)),
                         (Formula.length_in(1, m), Formula.length_in(1, m)),
-                    ], plane=frame
+                    ]
                 )
             )
         )
@@ -151,14 +150,13 @@ class TestNodeKindReadDoor(unittest.TestCase):
 
     def test_each_authored_node_answers_its_own_word(self):
         doc = Doc()
-        frame = doc.sketch_frame()
         profile = doc.insert(
             Node.polygon(
                 [
                     (Formula.length_in(0, m), Formula.length_in(0, m)),
                     (Formula.length_in(1, m), Formula.length_in(0, m)),
                     (Formula.length_in(1, m), Formula.length_in(1, m)),
-                ], plane=frame
+                ]
             )
         )
         solid = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
@@ -269,7 +267,6 @@ class TestEvaluation(unittest.TestCase):
                     (Formula.literal(1 * m), Formula.literal(1 * m)),
                     (Formula.literal(0 * m), Formula.literal(1 * m)),
                 ],
-                plane=doc.sketch_frame(elevation=Formula.literal(0 * m)),
             )
         )
         block = doc.insert(Node.extrude(profile, Formula.literal(2 * m), ExtrudeSide.Against))
@@ -309,7 +306,6 @@ class TestEvaluation(unittest.TestCase):
                     (Formula.literal(1 * m), Formula.literal(1 * m)),
                     (Formula.literal(0 * m), Formula.literal(1 * m)),
                 ],
-                plane=doc.sketch_frame(elevation=Formula.literal(0 * m)),
             )
         )
         block = doc.insert(Node.extrude(profile, Formula.literal(2 * m), ExtrudeSide.Against))
@@ -1310,12 +1306,11 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
             .line_to((x0 * m, side * m))
             .line_to(Start)
         )
-        return doc.insert(Node.profile(chain, plane=frame))
+        return doc.insert(Node.profile(chain))
 
     def revolved(self, x0, angle):
         """A square revolved about the sketch's own +y through 0."""
         doc = Doc()
-        frame = doc.sketch_frame()
         profile = self.square(doc, frame, x0)
         node = doc.insert(Node.revolve(
             profile,
@@ -1345,7 +1340,6 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
 
     def test_a_second_op_speaks_its_own_arms(self):
         doc = Doc()
-        frame = doc.sketch_frame()
         flat = doc.insert(Node.extrude(self.square(doc, frame), Formula.length_in(0, m)))
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(flat)
@@ -1358,7 +1352,6 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         # The poisoning path reports the ROOT cause, so it reports both
         # of the root cause's words or neither.
         doc = Doc()
-        frame = doc.sketch_frame()
         flat = doc.insert(Node.extrude(self.square(doc, frame), Formula.length_in(0, m)))
         moved = doc.insert(
             Node.transform(flat, (
@@ -1405,7 +1398,6 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
 
     def test_an_edit_arm_with_no_inner_refusal_says_none(self):
         doc = Doc()
-        frame = doc.sketch_frame()
         profile = self.square(doc, frame)
         body = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
         with self.assertRaises(EditError) as caught:
@@ -1510,9 +1502,8 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         (drawn by step 3's leg) shares with the end cap;
         `(doc, profile, box, rim, ids)`, `ids` the old steps' ids."""
         doc = Doc()
-        frame = doc.sketch_frame()
         square, steps = self.chain([(0, 0), (2, 0), (2, 2), (0, 2)])
-        profile = doc.insert(Node.profile(square, plane=frame))
+        profile = doc.insert(Node.profile(square))
         box = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
         piece = str(doc.piece(profile, 0, steps[3].leg))
         rim = [
@@ -1629,9 +1620,8 @@ class TestAuthoredStepHandles(unittest.TestCase):
         self.top = top.step
         self.loop = top.line_to(Start)
         self.doc = Doc()
-        frame = self.doc.sketch_frame()
-        self.a = self.doc.insert(Node.profile(self.loop, plane=frame))
-        self.b = self.doc.insert(Node.profile(self.loop, plane=frame))
+        self.a = self.doc.insert(Node.profile(self.loop))
+        self.b = self.doc.insert(Node.profile(self.loop))
 
     def test_one_loop_placed_twice_binds_one_handle_to_two_ids(self):
         a = self.doc.step(self.a, 0, self.top)
@@ -1900,7 +1890,6 @@ class TestNodeLabels(unittest.TestCase):
 
     def test_a_text_that_is_not_a_label_refuses_before_anything_is_applied(self):
         doc = Doc()
-        frame = doc.sketch_frame()
         cases = [
             ("", "label_blank"),
             ("  ", "label_blank"),

@@ -191,7 +191,7 @@ walked = (
 disc = circle((0 * mm, 0 * mm), 10 * mm)
 
 doc = Doc()
-plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), Formula.length_in(8, mm)))
+plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded)), Formula.length_in(8, mm)))
 hole = doc.insert(Node.extrude(doc.insert(Node.profile(disc, plane=doc.sketch_frame(elevation=Formula.length_in(-1, mm)))), Formula.length_in(10, mm)))
 lightened = doc.insert(Node.subtract(plate, hole))
 volume: float = evaluate(doc).value(lightened).body().mass_properties().volume
@@ -312,7 +312,6 @@ plate_with_holes: NodeId = doc.insert(
                     circle((-1 * m, 0 * m), 0.5 * m),
                     circle((1 * m, 0 * m), 0.5 * m),
                 ],
-                plane=doc.sketch_frame(),
             )
         ),
         Formula.length_in(1, m),
@@ -1052,9 +1051,8 @@ for _instance in _report.instances:
 # take an authored selection. Nothing here evaluates anything — that
 # is what the doors are for.
 _names_doc = Doc()
-_names_frame = _names_doc.sketch_frame()
 _names_profile: NodeId = _names_doc.insert(
-    Node.profile(circle((2 * m, 1 * m), 0.5 * m), plane=_names_frame)
+    Node.profile(circle((2 * m, 1 * m), 0.5 * m))
 )
 _revolved: NodeId = _names_doc.insert(
     Node.revolve(

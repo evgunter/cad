@@ -729,9 +729,10 @@ pub(crate) fn name_from_text(text: &str) -> PyResult<pncad::prelude::StableName>
 /// carry is a different question and belongs to the kernel, which
 /// answers it as `unknown_slot` naming the slot the node lacks.
 ///
-/// `program`, `placement_step` and a constraint's `world_slide`,
-/// `world_spin`, `value_slide` and `value_spin` are words of the
-/// alphabet with no slot to read back: the rest of each address holds
+/// `program`, a loft station's `station_slide` and `station_spin`, and
+/// a constraint's `world_slide`, `world_spin`, `value_slide` and
+/// `value_spin` are words of the alphabet with no slot to read back:
+/// the rest of each address holds
 /// an integer the word does not carry, so each refuses in its own
 /// sentence rather than as a misspelling.
 fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
@@ -744,11 +745,12 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
          that address — a loop index, a step index and which argument — is not carried \
          by the word: a profile's numbers are re-authored, not edited at a slot"
                 .to_owned()
-        } else if word == "placement_step" {
-            "`placement_step` addresses one expression of a later step of a transform's \
-         placement, and the rest of that address — the step index and which component — \
-         is an integer the word does not carry, so no slot word here writes at it"
-                .to_owned()
+        } else if word == "station_slide" || word == "station_spin" {
+            format!(
+                "`{word}` addresses one move of a loft section's station, and the rest of that \
+             address — the section and the move's place in its station — is not carried by \
+             the word: a parameter the number reads moves it, or the loft is re-authored"
+            )
         } else if word == "section" || word == "member" {
             format!(
                 "`{word}` addresses one entry of a list a node reads, and its position is not \

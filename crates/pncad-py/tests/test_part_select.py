@@ -60,7 +60,6 @@ def box(doc, half=BOX_HALF, height=BOX_H):
                 (Formula.length_in(half, m), Formula.length_in(half, m)),
                 (Formula.length_in(-half, m), Formula.length_in(half, m)),
             ],
-            plane=doc.sketch_frame(),
         )
     )
     return doc.insert(Node.extrude(square, Formula.length_in(height, m)))

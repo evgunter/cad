@@ -133,7 +133,7 @@ Node.loft([], 2.5)  # ty: error
 doc = Doc()
 solid: NodeId = doc.insert(
     Node.extrude(
-        doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame())),
+        doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m))),
         Formula.length_in(1, m),
     )
 )

@@ -73,7 +73,7 @@ use crate::pickindex::{EdgeNamesRefused, PickIndex, PictureKey};
 use crate::platform;
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
-use crate::session::{DocSession, ProfilePlane, Refusal, Selection, SessionOp, Step};
+use crate::session::{DocSession, Refusal, Selection, SessionOp, Step};
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::{Polarity, Theme};
 use crate::tools::Tools;
@@ -393,8 +393,9 @@ pub struct ViewerApp {
     /// moves somewhere it can be — so a badge one frame behind is a
     /// badge that appears.
     projection_fault: Option<CameraError>,
-    /// **How many datums the viewport drew nothing of on the last
-    /// frame it drew**, read by [`crate::frame::datums_badge`].
+    /// **How many committed profiles the viewport could not draw on
+    /// the last frame it drew** (`crate::sketch::CommittedProfiles::
+    /// undrawn`), read by [`crate::frame::profiles_badge`].
     ///
     /// One frame behind for the reason above. Unlike the fault above
     /// it is not held past the frame that made it: the frame entry
@@ -402,18 +403,12 @@ pub struct ViewerApp {
     /// panes write and assigns the result back unconditionally, so
     /// this says what the LAST FRAME found and never what some
     /// earlier one did.
-    datums_vanished: usize,
-    /// **How many committed profiles the viewport could not draw on
-    /// the last frame it drew** (`crate::sketch::CommittedProfiles::
-    /// undrawn`), read by [`crate::frame::profiles_badge`]. Zeroed and
-    /// assigned back every frame exactly as [`Self::datums_vanished`]
-    /// is.
     profiles_undrawn: usize,
     /// **What the index could not name on the held edge set's body on
     /// the last frame the viewport drew** (`marks::EdgeOverlay::
     /// held_refused`), read by [`crate::frame::held_edges_badge`].
     /// Zeroed and assigned back every frame as
-    /// [`Self::datums_vanished`] is.
+    /// [`Self::profiles_undrawn`] is.
     held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>>,
     /// Whether the next scene to land should have its δ CHOSEN by the
     /// triangle budget, rather than drawn at the δ already in force.
@@ -502,19 +497,6 @@ pub struct ViewerApp {
     /// A fit is owed, and will be taken by the viewport pane on the
     /// next frame — the only place that knows the real aspect.
     pending_fit: bool,
-    /// **Whether the viewport draws the document's datums.**
-    ///
-    /// A VIEW setting and not a document one, and the line is the same
-    /// one `DisplayState`'s hide is on the other side of: which datums
-    /// exist is the recipe's business, and whether this window draws
-    /// them is this window's. It is not persisted for that reason
-    /// either — a preference file holds what a person chose about the
-    /// application, and this is what they chose about a glance.
-    ///
-    /// On by default: a feature nobody can see is a feature nobody
-    /// finds, and construction geometry is most wanted exactly when it
-    /// has just been authored.
-    show_datums: bool,
     /// A fit is owed as soon as the NEXT rebuilt scene lands — set by
     /// a successful `Open`, whose document arrives asynchronously, so
     /// fitting immediately would frame the outgoing picture.
@@ -871,7 +853,6 @@ impl ViewerApp {
             scene_focus: BTreeSet::new(),
             scene_fault: None,
             projection_fault: None,
-            datums_vanished: 0,
             profiles_undrawn: 0,
             held_edges_refused: None,
             // The startup document goes through the same door an
@@ -893,7 +874,6 @@ impl ViewerApp {
             split_dragged: false,
             drafts: Drafts::default(),
             pending_fit: true,
-            show_datums: true,
             fit_on_scene: false,
             // Whatever the preferences file had to say, in the one
             // place this crate puts a thing that went wrong.
@@ -1247,14 +1227,14 @@ impl ViewerApp {
                 // op came from which panel.
                 None if tool_edit => {
                     self.tools.close();
-                    self.drafts.accepted(&accepted_op, &minted);
+                    self.drafts.accepted(&accepted_op);
                     self.drafts
                         .creation_landed(self.session.committed_doc(), &minted);
                 }
                 // A form whose op committed comes to rest, for the
                 // tool's reason: a refusal leaves it holding its draft.
                 None => {
-                    self.drafts.accepted(&accepted_op, &minted);
+                    self.drafts.accepted(&accepted_op);
                     self.drafts
                         .creation_landed(self.session.committed_doc(), &minted);
                 }
@@ -1837,20 +1817,11 @@ impl ViewerApp {
             {
                 draw_badge(ui, &self.theme, &badge);
             }
-            // **The datums the last drawn frame drew nothing of.**
-            // Not one of the three above: those hold a refusal until
-            // the seam they name succeeds, and this is a count the
-            // frame re-takes, so it stands for exactly as long as the
-            // view that produced it. What it buys is the one thing the
-            // picture cannot say — that the document HAS datums and
-            // this view draws none of them, which on screen is
-            // indistinguishable from a document with none.
-            if let Some(badge) = frame::datums_badge(self.datums_vanished) {
-                draw_badge(ui, &self.theme, &badge);
-            }
-            // The same kind of count for the committed profiles: a
-            // profile left out of the picture is otherwise a document
-            // without it.
+            // **The committed profiles the last drawn frame drew
+            // nothing of.** Not one of the three above: those hold a
+            // refusal until the seam they name succeeds, and this is a
+            // count the frame re-takes. A profile left out of the
+            // picture is otherwise a document without it.
             if let Some(badge) = frame::profiles_badge(self.profiles_undrawn) {
                 draw_badge(ui, &self.theme, &badge);
             }
@@ -1940,30 +1911,13 @@ impl eframe::App for ViewerApp {
             self.session.selection().node(),
         );
         let held = self.drafts.door_loops();
-        // **No frame picked, no preview.** The form draws on a frame,
-        // so with none picked there is no plane to place the loops on
-        // and nothing honest to show — the form says what it is
-        // waiting for instead, exactly as it does for a shape nobody
-        // chose. The edit door's frame is the committed profile's own.
+        // Both doors draw on the profile's own plane
+        // ([`sketch::profile_plane`]).
         let (tol, delta) = (self.session.tol(), self.delta.get());
         let profile_previews = held.as_ref().zip(self.profile_drawn).map(|(held, drawn)| {
-            held.as_ref().filter(|_| drawn).and_then(|held| {
-                let placement = match held.plane? {
-                    // **The frame that is not there yet.** Its
-                    // node does not exist until the submit, so
-                    // there is no landed value to read and the
-                    // placement comes from the choice's own
-                    // constant — the plane `ProfilePlane::NewXy`'s
-                    // numbers evaluate to, which a row in the
-                    // creation suite holds the two ends of.
-                    ProfilePlane::NewXy => ProfilePlane::xy_placement(),
-                    ProfilePlane::Existing(frame) => {
-                        let (doc, evaluation) = self.session.landed_pair()?;
-                        sketch::frame_placement(doc, evaluation, frame)?
-                    }
-                };
-                Some(sketch::preview(placement, &held.loops, tol, delta))
-            })
+            held.as_ref()
+                .filter(|_| drawn)
+                .map(|held| sketch::preview(sketch::profile_plane(), &held.loops, tol, delta))
         });
         // The committed node the edit door is previewing in its place,
         // which the committed-profile pass leaves out.
@@ -1971,10 +1925,9 @@ impl eframe::App for ViewerApp {
         let mut profile_drawn = ProfileDoors::<bool>::default();
         // **Zeroed here and assigned back below, every frame.** The
         // viewport writes it while it draws; a frame the viewport does
-        // not draw at all is a frame with no datums vanishing in it,
+        // not draw at all is a frame with no profile left undrawn in it,
         // and this is where that is said rather than left to whatever
         // the field last held.
-        let mut datums_vanished = 0_usize;
         let mut profiles_undrawn = 0_usize;
         let mut held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>> = None;
         let mut delta_request: Option<DisplayTolerance> = None;
@@ -2026,7 +1979,6 @@ impl eframe::App for ViewerApp {
                     profile_edited,
                     pending_fit: &mut self.pending_fit,
                     projection_fault: &mut self.projection_fault,
-                    datums_vanished: &mut datums_vanished,
                     profiles_undrawn: &mut profiles_undrawn,
                     held_edges_refused: &mut held_edges_refused,
                     notices: &mut self.notices,
@@ -2037,7 +1989,6 @@ impl eframe::App for ViewerApp {
                     delta_request: &mut delta_request,
                     features_content_height: &mut features_content_height,
                     split_dragged: &mut split_dragged,
-                    show_datums: &mut self.show_datums,
                 };
                 self.tree.ui(&mut behavior, ui);
             });
@@ -2047,7 +1998,6 @@ impl eframe::App for ViewerApp {
             self.remember_prefs();
         }
         self.profile_drawn = profile_drawn;
-        self.datums_vanished = datums_vanished;
         self.profiles_undrawn = profiles_undrawn;
         self.held_edges_refused = held_edges_refused;
         // An edit made while the panes drew leaves the preview a
@@ -2182,8 +2132,9 @@ pub(crate) struct ViewerBehavior<'a> {
     /// had already painted past and the next accepted act would
     /// sweep.
     pub(crate) projection_fault: &'a mut Option<CameraError>,
-    /// **How many datums the viewport drew nothing of this frame**,
-    /// for [`frame::datums_badge`] to read.
+    /// **How many committed profiles the viewport drew nothing of this
+    /// frame** ([`ViewerApp::profiles_undrawn`]), for
+    /// [`frame::profiles_badge`] to read.
     ///
     /// Written by the viewport pane and read by the toolbar next
     /// frame, like the fault above — and unlike it, it does not have
@@ -2192,18 +2143,11 @@ pub(crate) struct ViewerBehavior<'a> {
     /// borrows before the panes draw and assigns the result back
     /// after, whether or not the viewport was one of them, so a
     /// viewport dragged shut or tabbed away reports none rather than
-    /// leaving the last count it made standing. That is
-    /// `profile_drawn`'s discipline above, and it is the one
-    /// `work/view/projection-fault-has-no-sweeper.md` says the fault
-    /// still lacks.
-    pub(crate) datums_vanished: &'a mut usize,
-    /// How many committed profiles the viewport drew nothing of
-    /// ([`ViewerApp::profiles_undrawn`]); zeroed by the frame entry
-    /// point and written by the viewport, as `datums_vanished` is.
+    /// leaving the last count it made standing.
     pub(crate) profiles_undrawn: &'a mut usize,
     /// What the index could not name on the held edge set's body
     /// ([`ViewerApp::held_edges_refused`]); zeroed by the frame entry
-    /// point and written by the viewport, as `datums_vanished` is.
+    /// point and written by the viewport, as `profiles_undrawn` is.
     pub(crate) held_edges_refused: &'a mut Option<frame::Spelled<EdgeNamesRefused>>,
     /// **What this frame's panes have to SAY**, joined and ranked by
     /// [`frame::frame_status`] with everything else the frame
@@ -2232,9 +2176,6 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) features_content_height: &'a mut Option<f32>,
     /// Set when the user resized a tile themselves.
     pub(crate) split_dragged: &'a mut bool,
-    /// Whether the viewport draws datums ([`ViewerApp::show_datums`]);
-    /// the View pane's checkbox writes through it.
-    pub(crate) show_datums: &'a mut bool,
 }
 
 impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
@@ -4171,8 +4112,8 @@ mod properties_pane_tests {
     }
 
     /// The startup plate's node at `at` in document order, read off the
-    /// startup document itself (`scene::plate_with_hole`): its frame,
-    /// its profile, its extrude.
+    /// startup document itself (`scene::plate_with_hole`): its profile,
+    /// its extrude, its placement.
     fn startup_node(at: usize) -> RecipeNodeId {
         let (doc, _) = crate::scene::plate_with_hole(pncad::tolerance::witness())
             .expect("the startup document");
@@ -4181,18 +4122,52 @@ mod properties_pane_tests {
 
     /// The startup plate's extrude, and its one slot.
     fn extrude() -> RecipeNodeId {
-        startup_node(2)
+        startup_node(1)
     }
 
     /// The startup plate's world placement: the node its drawn copy is
     /// picked on.
     fn placement() -> RecipeNodeId {
-        startup_node(3)
+        startup_node(2)
     }
 
-    /// The startup plate's frame datum, whose origin is a vector.
-    fn frame_datum() -> RecipeNodeId {
-        startup_node(0)
+    /// **The startup document with a revolve added, then `then`'s ops**:
+    /// a circle off its profile's own y axis turned a full turn about
+    /// it. The revolve's axis point is a vector (`SlotId::Origin`, its x
+    /// and y), which is what the vector rows below are about. Answers
+    /// the pane and the revolve.
+    fn with_revolve(then: impl FnOnce(RecipeNodeId) -> Vec<SessionOp>) -> (Driven, RecipeNodeId) {
+        let mut pane = Driven::with(vec![SessionOp::AddProfile {
+            loops: vec![
+                pncad::document::LoopProgram::circle(0.02, 0.0, 0.005).expect("a finite circle"),
+            ],
+        }]);
+        let of_kind = |pane: &Driven, noun: &str| {
+            let doc = pane.app.session.committed_doc();
+            doc.ids()
+                .into_iter()
+                .filter(|&id| {
+                    doc.node(id)
+                        .is_some_and(|node| pncad::document::node_kind_noun(node) == noun)
+                })
+                .collect::<Vec<_>>()
+        };
+        let profile = *of_kind(&pane, "Profile")
+            .last()
+            .expect("the circle was added");
+        let zero = || pncad::document::Formula::zero(pncad::document::Dimension::Length);
+        pane.app.perform_batch(vec![SessionOp::AddRevolve {
+            profile,
+            axis_through: [zero(), zero()],
+            axis_heading: pncad::document::Formula::turn_over(4).expect("a quarter turn"),
+            angle: crate::test_support::ang(core::f64::consts::TAU),
+        }]);
+        let revolve = *of_kind(&pane, "Revolve")
+            .first()
+            .expect("the revolve was added");
+        pane.app.perform_batch(then(revolve));
+        pane.quiet();
+        (pane, revolve)
     }
 
     /// An expression with no variable in it: computed all the same,
@@ -4393,8 +4368,8 @@ mod properties_pane_tests {
     }
 
     /// **Accepting an unnamed offer names it and shares it as one
-    /// step** (VR2: a variable two slots share has a name): the frame's
-    /// origin x and the extrude's depth are typed alike, so the depth is
+    /// step** (VR2: a variable two slots share has a name): a revolve's
+    /// axis point x and the extrude's depth are typed alike, so the depth is
     /// offered the origin's unnamed variable; its button opens the empty
     /// naming field rather than sharing it, the document moving not at
     /// all, and the commit names it and makes the depth read it in one
@@ -4402,24 +4377,26 @@ mod properties_pane_tests {
     #[test]
     fn accepting_an_unnamed_offer_opens_the_name_field_and_shares_as_one_step() {
         let value = 0.004;
-        let mut pane = Driven::with(vec![
-            SessionOp::SetSlot {
-                node: frame_datum(),
-                slot: SlotId::Origin(pncad::document::Axis3::X),
-                value: crate::props::SlotValue::Continuous(value),
-            },
-            SessionOp::SetSlot {
-                node: extrude(),
-                slot: SlotId::Distance,
-                value: crate::props::SlotValue::Continuous(value),
-            },
-            SessionOp::Select(Selection::Node(extrude())),
-        ]);
+        let (mut pane, revolve) = with_revolve(|revolve| {
+            vec![
+                SessionOp::SetSlot {
+                    node: revolve,
+                    slot: SlotId::Origin(pncad::document::Axis3::X),
+                    value: crate::props::SlotValue::Continuous(value),
+                },
+                SessionOp::SetSlot {
+                    node: extrude(),
+                    slot: SlotId::Distance,
+                    value: crate::props::SlotValue::Continuous(value),
+                },
+                SessionOp::Select(Selection::Node(extrude())),
+            ]
+        });
         pane.quiet();
         let doc = pane.app.session.committed_doc();
         let origin = doc
-            .slot(frame_datum(), SlotId::Origin(pncad::document::Axis3::X))
-            .expect("the frame reads its origin x");
+            .slot(revolve, SlotId::Origin(pncad::document::Axis3::X))
+            .expect("the revolve reads its axis point x");
         assert!(doc.var_name(origin).is_none(), "the premise: it is unnamed");
         let offered = pane.app.session.offered(extrude(), SlotId::Distance);
         let offer = offered
@@ -4666,78 +4643,62 @@ mod properties_pane_tests {
     }
 
     /// **Over a vector with one computed component, the picker writes
-    /// the two it can and says which it skips.**
+    /// the one it can and says which it skips.**
     ///
-    /// x and y are written in millimetres and z is computed. The
-    /// picker reads `mm` — the notation the writable components agree
-    /// on, where counting z's canonical rendering would say `mixed`;
-    /// its hover says what a pick writes and skips, then z's refusal
-    /// in the op's words; a pick of `cm` rewrites x and y and leaves z
+    /// A revolve's axis point: x is written in millimetres and y is
+    /// computed. The picker reads `mm` — the notation the writable
+    /// component is in, where counting y's canonical rendering would say
+    /// `mixed`; its hover says what a pick writes and skips, then y's
+    /// refusal in the op's words; a pick of `cm` rewrites x and leaves y
     /// alone, and nothing reaches the status line, because nothing the
     /// op would refuse was pushed.
     #[test]
     fn a_vector_picker_writes_its_literal_components_and_names_the_skipped_one() {
         let mm = pncad::prelude::MM.def();
-        let mut pane = Driven::with(vec![
-            SessionOp::SetSlotUnit {
-                node: frame_datum(),
-                slot: SlotId::Origin(Axis3::X),
-                unit: mm,
-            },
-            SessionOp::SetSlotUnit {
-                node: frame_datum(),
-                slot: SlotId::Origin(Axis3::Y),
-                unit: mm,
-            },
-            SessionOp::SetSlotExpression {
-                node: frame_datum(),
-                slot: SlotId::Origin(Axis3::Z),
-                text: COMPUTED.to_owned(),
-            },
-            SessionOp::Select(Selection::Node(frame_datum())),
-        ]);
-        assert_eq!(
-            pane.row(frame_datum(), SlotId::Origin(Axis3::X)).unit,
-            Some(mm)
-        );
-        assert_eq!(
-            pane.row(frame_datum(), SlotId::Origin(Axis3::Y)).unit,
-            Some(mm)
-        );
-        let z = pane.row(frame_datum(), SlotId::Origin(Axis3::Z));
-        assert!(z.driver.is_driven(), "the setup drove z");
+        let (mut pane, revolve) = with_revolve(|revolve| {
+            vec![
+                SessionOp::SetSlotUnit {
+                    node: revolve,
+                    slot: SlotId::Origin(Axis3::X),
+                    unit: mm,
+                },
+                SessionOp::SetSlotExpression {
+                    node: revolve,
+                    slot: SlotId::Origin(Axis3::Y),
+                    text: COMPUTED.to_owned(),
+                },
+                SessionOp::Select(Selection::Node(revolve)),
+            ]
+        });
+        assert_eq!(pane.row(revolve, SlotId::Origin(Axis3::X)).unit, Some(mm));
+        let y = pane.row(revolve, SlotId::Origin(Axis3::Y));
+        assert!(y.driver.is_driven(), "the setup drove y");
         let gained = pane.gained_hovering("mm");
-        let said = refusal_for(&pane, frame_datum(), SlotId::Origin(Axis3::Z));
+        let said = refusal_for(&pane, revolve, SlotId::Origin(Axis3::Y));
+        let (x_label, y_label) = (
+            SlotId::Origin(Axis3::X).label(),
+            SlotId::Origin(Axis3::Y).label(),
+        );
         assert_eq!(
             gained,
-            vec![format!(
-                "a pick writes origin x, origin y and skips origin z:\n{said}"
-            )],
+            vec![format!("a pick writes {x_label} and skips {y_label}:\n{said}")],
             "the live picker says what a pick does and what it skips"
         );
         assert_eq!(
             said,
             format!(
-                "the origin z slot on Datum frame {} is computed, so it has no written unit to \
+                "the {y_label} slot on Revolve {revolve} is computed, so it has no written unit to \
                  change — set an expression to change what it says",
-                frame_datum()
             )
         );
         pane.click("mm");
         pane.click("cm");
         let cm = pncad::prelude::CM.def();
+        assert_eq!(pane.row(revolve, SlotId::Origin(Axis3::X)).unit, Some(cm));
         assert_eq!(
-            pane.row(frame_datum(), SlotId::Origin(Axis3::X)).unit,
-            Some(cm)
-        );
-        assert_eq!(
-            pane.row(frame_datum(), SlotId::Origin(Axis3::Y)).unit,
-            Some(cm)
-        );
-        assert_eq!(
-            pane.row(frame_datum(), SlotId::Origin(Axis3::Z)),
-            z,
-            "z is not the pick's"
+            pane.row(revolve, SlotId::Origin(Axis3::Y)),
+            y,
+            "y is not the pick's"
         );
         pane.quiet();
         assert_eq!(
@@ -4791,23 +4752,25 @@ mod properties_pane_tests {
     /// source**, and clicking away from it writes nothing.
     #[test]
     fn each_driven_vector_component_edits_its_own_source() {
-        let axes = [Axis3::X, Axis3::Y, Axis3::Z];
-        let sources = ["1 mm + 1 mm", "2 mm + 1 mm", "3 mm + 1 mm"];
-        let mut ops: Vec<SessionOp> = axes
-            .iter()
-            .zip(sources)
-            .map(|(axis, source)| SessionOp::SetSlotExpression {
-                node: frame_datum(),
-                slot: SlotId::Origin(*axis),
-                text: source.to_owned(),
-            })
-            .collect();
-        ops.push(SessionOp::Select(Selection::Node(frame_datum())));
-        let mut pane = Driven::with(ops);
+        let axes = [Axis3::X, Axis3::Y];
+        let sources = ["1 mm + 1 mm", "2 mm + 1 mm"];
+        let (mut pane, revolve) = with_revolve(|revolve| {
+            let mut ops: Vec<SessionOp> = axes
+                .iter()
+                .zip(sources)
+                .map(|(axis, source)| SessionOp::SetSlotExpression {
+                    node: revolve,
+                    slot: SlotId::Origin(*axis),
+                    text: source.to_owned(),
+                })
+                .collect();
+            ops.push(SessionOp::Select(Selection::Node(revolve)));
+            ops
+        });
         let history = pane.app.session.history().len();
         for (axis, source) in axes.iter().zip(sources) {
             let shown = crate::props::field_text(
-                &pane.row(frame_datum(), SlotId::Origin(*axis)),
+                &pane.row(revolve, SlotId::Origin(*axis)),
                 pane.app.session.notation(),
             );
             pane.click(&shown);
@@ -4843,37 +4806,40 @@ mod properties_pane_tests {
     /// per line, in the op's words.
     #[test]
     fn an_all_driven_vector_picker_is_disabled_with_every_refusal() {
-        let axes = [Axis3::X, Axis3::Y, Axis3::Z];
-        let mut ops: Vec<SessionOp> = axes
-            .iter()
-            .map(|axis| SessionOp::SetSlotExpression {
-                node: frame_datum(),
-                slot: SlotId::Origin(*axis),
-                text: COMPUTED.to_owned(),
-            })
-            .collect();
-        ops.push(SessionOp::Select(Selection::Node(frame_datum())));
-        let mut pane = Driven::with(ops);
+        let axes = [Axis3::X, Axis3::Y];
+        let (mut pane, revolve) = with_revolve(|revolve| {
+            let mut ops: Vec<SessionOp> = axes
+                .iter()
+                .map(|axis| SessionOp::SetSlotExpression {
+                    node: revolve,
+                    slot: SlotId::Origin(*axis),
+                    text: COMPUTED.to_owned(),
+                })
+                .collect();
+            ops.push(SessionOp::Select(Selection::Node(revolve)));
+            ops
+        });
         let before: Vec<_> = axes
             .iter()
-            .map(|axis| pane.row(frame_datum(), SlotId::Origin(*axis)))
+            .map(|axis| pane.row(revolve, SlotId::Origin(*axis)))
             .collect();
         assert!(before.iter().all(|row| row.driver.is_driven()));
         let gained = pane.gained_hovering("computed");
         let said: Vec<String> = axes
             .iter()
-            .map(|axis| refusal_for(&pane, frame_datum(), SlotId::Origin(*axis)))
+            .map(|axis| refusal_for(&pane, revolve, SlotId::Origin(*axis)))
             .collect();
         assert_eq!(gained, vec![said.join("\n")]);
-        let node = frame_datum();
+        let (x_label, y_label) = (
+            SlotId::Origin(Axis3::X).label(),
+            SlotId::Origin(Axis3::Y).label(),
+        );
         assert!(
             gained[0].starts_with(&format!(
-                "the origin x slot on Datum frame {node} is computed, so it has no written unit \
+                "the {x_label} slot on Revolve {revolve} is computed, so it has no written unit \
                  to change"
             )) && gained[0].contains(&format!(
-                "\nthe origin y slot on Datum frame {node} is computed"
-            )) && gained[0].contains(&format!(
-                "\nthe origin z slot on Datum frame {node} is computed"
+                "\nthe {y_label} slot on Revolve {revolve} is computed"
             )),
             "{gained:?}"
         );
@@ -4885,7 +4851,7 @@ mod properties_pane_tests {
         );
         let now: Vec<_> = axes
             .iter()
-            .map(|axis| pane.row(frame_datum(), SlotId::Origin(*axis)))
+            .map(|axis| pane.row(revolve, SlotId::Origin(*axis)))
             .collect();
         assert_eq!(now, before);
     }
@@ -5192,21 +5158,18 @@ mod properties_pane_tests {
             .collect()
     }
 
-    /// Which of three withholding reasons the app paints — the frame prompt,
-    /// the empty chain's, the bore's refusal — with `plane` picked,
-    /// `shape` chosen, a bore planted as wide as the radius and the
-    /// chain planted empty.
-    fn withheld_reason_said(
-        plane: Option<crate::session::ProfilePlane>,
-        shape: crate::forms::ShapeKind,
-    ) -> Vec<&'static str> {
+    /// Which of three withholding reasons the app paints — the face prompt,
+    /// the empty chain's, the bore's refusal — drawing `on_face` with no
+    /// face held, `shape` chosen, a bore planted as wide as the radius and
+    /// the chain planted empty.
+    fn withheld_reason_said(on_face: bool, shape: crate::forms::ShapeKind) -> Vec<&'static str> {
         const SAID: [&str; 3] = [
-            "pick a frame to draw on",
+            crate::pane::create::PICK_A_FACE,
             "add a step to the chain",
             "the bore must be smaller than the radius",
         ];
         let painted = painted_adding_a_profile(|drafts| {
-            drafts.profile_plane = plane;
+            drafts.sketch_on_face = on_face;
             drafts.profile_shape = Some(shape);
             drafts.profile_bored = true;
             drafts.profile_bore = drafts.profile_radius;
@@ -5224,29 +5187,28 @@ mod properties_pane_tests {
     }
 
     /// **The add-profile form says one withholding reason, and which one is
-    /// decided once**: with no frame and an empty chain, the frame
-    /// prompt, which comes first in the form; with an over-wide bore, the
-    /// refusal, picked frame or not.
+    /// decided once**: drawing on a face with none held and an empty
+    /// chain, the face prompt, which comes first in the form; with an
+    /// over-wide bore, the refusal, on a face or not.
     #[test]
-    fn the_add_profile_form_says_a_refusal_before_a_missing_input_and_the_frame_first() {
+    fn the_add_profile_form_says_a_refusal_before_a_missing_input_and_the_face_first() {
         use crate::forms::ShapeKind;
-        use crate::session::ProfilePlane;
         assert_eq!(
-            withheld_reason_said(None, ShapeKind::Path),
-            ["pick a frame to draw on"]
+            withheld_reason_said(true, ShapeKind::Path),
+            [crate::pane::create::PICK_A_FACE]
         );
         assert_eq!(
-            withheld_reason_said(None, ShapeKind::Circle),
+            withheld_reason_said(true, ShapeKind::Circle),
             ["the bore must be smaller than the radius"]
         );
         assert_eq!(
-            withheld_reason_said(Some(ProfilePlane::NewXy), ShapeKind::Circle),
+            withheld_reason_said(false, ShapeKind::Circle),
             ["the bore must be smaller than the radius"]
         );
-        // The empty chain is said once the frame is picked, so the
-        // first case above held it back rather than never drawing it.
+        // The empty chain is said off the face, so the first case above
+        // held it back rather than never drawing it.
         assert_eq!(
-            withheld_reason_said(Some(ProfilePlane::NewXy), ShapeKind::Path),
+            withheld_reason_said(false, ShapeKind::Path),
             ["add a step to the chain"]
         );
     }
@@ -5300,8 +5262,8 @@ mod properties_pane_tests {
     /// **The creation doors that are not tools are reachable too**: the
     /// extrude form, under "Add feature", paints its button (withheld,
     /// with nothing selected), and the `Add part…` button opens the part
-    /// chooser. The add-datum and add-profile forms are the subject of
-    /// rows of their own above, which open the section and read them.
+    /// chooser. The add-profile form is the subject of
+    /// rows of its own above, which open the section and read it.
     #[test]
     fn the_extrude_form_and_the_part_chooser_are_reachable() {
         use crate::pane::create::{ADD_FEATURE, ADD_PART, EXTRUDE};
@@ -5502,19 +5464,20 @@ mod properties_pane_tests {
             self.quiet();
         }
 
-        /// The add-datum form on its frame-on-face kind, opened, with
-        /// the startup extrude's top cap latched by its own rows and the
-        /// selection then cleared.
+        /// The add-profile form drawing on a face, opened, with a circle
+        /// chosen and the startup extrude's top cap latched by its own
+        /// rows, and the selection then cleared.
         fn holding_the_top_cap() -> (Self, crate::session::FaceSelection) {
             let mut driven = Self::with_seams(Vec::new(), |app| {
-                app.drafts.datum_kind = crate::forms::DatumKindChoice::FaceFrame;
+                app.drafts.sketch_on_face = true;
+                app.drafts.profile_shape = Some(crate::forms::ShapeKind::Circle);
             });
             driven.settle();
             driven.click(crate::pane::create::ADD_FEATURE);
             let top = cap_of(pncad::prelude::CapEnd::End);
             driven.select(Selection::Face(top.clone()));
             assert_eq!(
-                driven.app.drafts.datum_face.as_ref(),
+                driven.app.drafts.sketch_face.as_ref(),
                 Some(&top),
                 "the rows latched it"
             );
@@ -5523,14 +5486,14 @@ mod properties_pane_tests {
         }
     }
 
-    /// **The add-datum form's held face is marked after the selection
+    /// **The add-profile form's held face is marked after the selection
     /// moves on, and only while the form holds it.**
     ///
     /// Driven through the form itself: the pick is latched by the
-    /// frame-on-face rows the Properties pane draws, not written into
-    /// the drafts by this row.
+    /// on-face rows the Properties pane draws, not written into the
+    /// drafts by this row.
     #[test]
-    fn the_add_datum_forms_held_face_is_marked_until_the_form_lets_it_go() {
+    fn the_add_profile_forms_held_face_is_marked_until_the_form_lets_it_go() {
         use crate::pickindex::IdMap;
         use pncad::prelude::CapEnd;
         const NONE: u32 = IdMap::NOTHING;
@@ -5559,41 +5522,32 @@ mod properties_pane_tests {
             "the mark moved with the seat"
         );
 
-        // Another kind releases the pick without clearing the latch;
-        // the face-frame kind holds it again.
-        driven.click("plane");
+        // Drawing off the face releases the pick without clearing the
+        // latch; drawing on it again holds it again.
+        driven.click("on the picked face");
         driven.quiet();
         assert_eq!(
-            driven.app.drafts.datum_face.as_ref(),
+            driven.app.drafts.sketch_face.as_ref(),
             Some(&bottom),
             "kept, not cleared"
         );
         assert_eq!(driven.held(), [NONE; 3], "a released pick is not marked");
-        driven.click("frame on face");
+        driven.click("on the picked face");
         driven.quiet();
         assert_eq!(driven.held(), [bottom_id, NONE, NONE], "held again");
     }
 
     /// **A held face on a copy a feature re-points stays held, drawn
     /// and committable.** The pick is on the placement's copy; the
-    /// transform re-points that placement (A10), and a transform carries
-    /// the extrude's names unchanged, so the copy still draws the face —
-    /// moved — and the form commits a frame on the transform's body.
-    /// (A held face the picture does not draw — a hidden instance's —
-    /// is `tests/assembly_display.rs`'s row.)
+    /// transform re-points that placement (A10) to a placement of the
+    /// extrude moved within its own space, so the copy still draws the
+    /// face — moved — and the form commits a sketch on the face of the
+    /// moved body. (A held face the picture does not draw — a hidden
+    /// instance's — is `tests/assembly_display.rs`'s row.)
     #[test]
     fn a_held_face_on_a_copy_a_feature_re_points_stays_held() {
-        use crate::session::FaceFrameFault;
         use crate::test_support::{ang, len, scl};
-        let not_drawn = FaceFrameFault::NotDrawn.to_string();
         let (mut driven, _top) = Driven::holding_the_top_cap();
-        let said = |driven: &mut Driven| {
-            driven
-                .quiet()
-                .into_iter()
-                .any(|(text, _)| text == not_drawn)
-        };
-        assert!(!said(&mut driven), "a drawn held face is not refused");
         driven.perform(SessionOp::AddTransform {
             input: extrude().into(),
             translation: [len(0.05), len(0.0), len(0.0)],
@@ -5606,33 +5560,27 @@ mod properties_pane_tests {
             crate::pickindex::IdMap::NOTHING,
             "the moved copy still draws the held face"
         );
-        assert!(!said(&mut driven), "and the form does not withhold it");
-        let transform = *driven
+        let moved = *driven
             .app
             .session
             .doc()
             .ids()
             .iter()
             .find(|&&id| {
-                matches!(
-                    driven.app.session.doc().node(id),
-                    Some(Node::Transform { .. })
-                )
+                matches!(driven.app.session.doc().node(id), Some(Node::Place { .. }))
+                    && id != placement()
             })
-            .expect("the transform landed");
-        driven.click(crate::pane::create::ADD_DATUM);
+            .expect("the transform's placement landed");
+        driven.click(crate::pane::create::ADD_PROFILE);
         driven.quiet();
         let doc = driven.app.session.doc();
-        let datum = doc.ids().into_iter().find(|&id| {
-            matches!(
-                doc.node(id),
-                Some(Node::Datum(pncad::document::Datum::FaceFrame { .. }))
-            )
+        let union = doc.ids().into_iter().find(|&id| {
+            matches!(doc.node(id), Some(Node::Union { .. }))
         });
-        let datum = datum.expect("the button committed a frame on the face");
+        let union = union.expect("the button committed a sketch on the face");
         assert!(
-            doc.upstream(datum).contains(&transform),
-            "on the transform's body, which the copy places"
+            doc.upstream(union).contains(&moved),
+            "on the moved body, which the copy places"
         );
     }
 
@@ -5646,7 +5594,7 @@ mod properties_pane_tests {
         driven.perform(SessionOp::NewDocument {
             name: "fresh".to_owned(),
         });
-        assert_eq!(driven.app.drafts.datum_face, None, "new document");
+        assert_eq!(driven.app.drafts.sketch_face, None, "new document");
 
         let (mut driven, _top) = Driven::holding_the_top_cap();
         let path = std::env::temp_dir().join(format!(
@@ -5658,13 +5606,13 @@ mod properties_pane_tests {
             .perform_batch(vec![SessionOp::Save(path.clone())]);
         driven.perform(SessionOp::Open(path.clone()));
         let removed = std::fs::remove_file(&path);
-        assert_eq!(driven.app.drafts.datum_face, None, "open");
+        assert_eq!(driven.app.drafts.sketch_face, None, "open");
         removed.expect("the row removes the document it saved");
     }
 
     /// **The op loop re-speaks what outlives the op that made it**
     /// (`ViewerApp::respeak_held`): picked, renamed, then deleted, the
-    /// open tool's drop and the face-frame form's held face both name the
+    /// open tool's drop and the add-profile form's held face both name the
     /// extrude by its last label, through `perform_batch` itself.
     #[test]
     fn the_op_loop_says_a_held_node_by_its_last_label() {
@@ -5707,7 +5655,7 @@ mod properties_pane_tests {
             driven
                 .app
                 .drafts
-                .datum_face_said()
+                .sketch_face_said()
                 .spoken(extrude())
                 .to_string(),
             plinth,

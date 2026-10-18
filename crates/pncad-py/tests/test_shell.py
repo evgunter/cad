@@ -63,7 +63,6 @@ def blank(doc, side, h):
                 (Formula.length_in(side, m), Formula.length_in(side, m)),
                 (Formula.length_in(0, m), Formula.length_in(side, m)),
             ],
-            plane=doc.sketch_frame(),
         )
     )
     return doc.insert(Node.extrude(square, Formula.length_in(h, m)))

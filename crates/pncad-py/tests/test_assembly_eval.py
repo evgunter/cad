@@ -530,7 +530,6 @@ class TestAPartWithAnEmptyWorld(unittest.TestCase):
                     (Formula.length_in(0.02, m), Formula.length_in(0, m)),
                     (Formula.length_in(0.02, m), Formula.length_in(0.02, m)),
                 ],
-                plane=part.sketch_frame(elevation=Formula.length_in(0, m)),
             )
         )
         part.insert(Node.extrude(profile, Formula.length_in(0.01, m)))
@@ -568,7 +567,6 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
                     (Formula.length_in(0.02, m), Formula.length_in(0.02, m)),
                     (Formula.length_in(0, m), Formula.length_in(0.02, m)),
                 ],
-                plane=part.sketch_frame(elevation=Formula.length_in(0, m)),
             )
         )
         self.extrude = part.insert(Node.extrude(profile, Formula.length_in(0.01, m)))

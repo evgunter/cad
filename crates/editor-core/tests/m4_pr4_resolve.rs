@@ -45,12 +45,11 @@ fn block(
     doc: ProfileDoc,
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
-    z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, z0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
@@ -64,7 +63,7 @@ fn block(
     )
 }
 
-/// **A twin of the block `extrude`** ([`block`]): its frame, profile and
+/// **A twin of the block `extrude`** ([`block`]): its profile and
 /// extrude inserted again, every slot reading the original's variable
 /// ([`Node::authored`]), so the two are one geometry by structure —
 /// equal values typed apart are two variables, which is no sharing. A
@@ -80,16 +79,14 @@ fn twin(doc: ProfileDoc, extrude: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("{profile} is a block's profile")
     };
-    let frame = doc
-        .operation_of(program.frame)
-        .expect("the plane read is live");
+    let _ = program;
     let authored = |doc: &ProfileDoc, id: RecipeNodeId| {
         doc.node(id)
             .unwrap_or_else(|| panic!("{id} is in the document"))
             .authored(doc)
     };
     let mut doc = doc;
-    for id in [frame, profile, extrude] {
+    for id in [profile, extrude] {
         let slots = doc.node(id).expect("held").slots();
         for slot in slots {
             let var = doc.slot(id, slot).expect("a slot reads a variable");
@@ -107,11 +104,8 @@ fn twin(doc: ProfileDoc, extrude: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
             }
         }
     }
-    let node = authored(&doc, frame);
-    let (doc, frame) = insert(doc, node);
     let mut node = authored(&doc, profile);
     if let Node::Profile(program) = &mut node {
-        program.frame = frame.into();
         program.ids = Vec::new();
     }
     let (doc, profile) = insert(doc, node);
@@ -122,49 +116,73 @@ fn twin(doc: ProfileDoc, extrude: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     insert(doc, node)
 }
 
-/// The sliding union: A fixed, B on a Transform knob, A ∪ B.
+/// The sliding union: A fixed, B placed against A with its slide
+/// along x the knob, A ∪ B.
 struct Slide {
     doc: ProfileDoc,
     a: RecipeNodeId,
     b0: RecipeNodeId,
-    transform: RecipeNodeId,
+    placement: RecipeNodeId,
     union: RecipeNodeId,
     /// `a`'s read, the union's first member.
     a_read: editor_core::VarId,
-    /// The transform's read, the union's second member.
+    /// The placement's read, the union's second member.
     t_read: editor_core::VarId,
+}
+
+/// `placement`'s slide along x, value-edited to `tx`: every id stays.
+fn slide_placement(doc: ProfileDoc, placement: RecipeNodeId, tx: f64) -> ProfileDoc {
+    let slot = fixture::value_slot(
+        &doc,
+        placement,
+        editor_core::Coord::Slide(editor_core::SlideAxis::X),
+    );
+    step(
+        doc,
+        DocEdit::SetParam {
+            node: placement,
+            slot,
+            value: len(tx).into(),
+            fresh: Vec::new(),
+        },
+    )
+    .0
+}
+
+/// The body `placement` copies.
+fn placed_body(doc: &ProfileDoc, placement: RecipeNodeId) -> RecipeNodeId {
+    match doc.node(placement) {
+        Some(Node::Place { shapes, .. }) => doc
+            .operation_of(shapes[0].read)
+            .expect("the copied body is live"),
+        other => panic!("{placement} is a placement, not {other:?}"),
+    }
+}
+
+/// `name`, as the copy `placement` makes wears it.
+fn worn(placement: RecipeNodeId, name: StableName) -> StableName {
+    crate::m10_5_clearance_interval::in_placement(placement, name)
 }
 
 fn slide_union(tx: f64) -> Slide {
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, transform) = insert(
-        doc,
-        Node::transform(
-            b0,
-            editor_core::Step::Rigid {
-                translation: [len(tx), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
-    // The B side is read at the TRANSFORM — the boolean's operand —
-    // and named in `b0`'s vocabulary, which the transform carries
-    // verbatim (N1).
-    let (a_read, t_read) = (fixture::out(&doc, a), fixture::out(&doc, transform));
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, placement) = fixture::slid(doc, a, b0, [tx, 0.0, 0.0]);
+    // The B side is read at the PLACEMENT — the boolean's operand —
+    // and named in `b0`'s vocabulary under the copy's `Placed` layer.
+    let (a_read, t_read) = (fixture::out(&doc, a), fixture::out(&doc, placement));
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), transform.into()]),
+            members: editor_core::Bodies::Spelled(vec![a.into(), placement.into()]),
         },
     );
     Slide {
         doc,
         a,
         b0,
-        transform,
+        placement,
         union,
         a_read,
         t_read,
@@ -172,16 +190,7 @@ fn slide_union(tx: f64) -> Slide {
 }
 
 fn slide_to(s: &Slide, tx: f64) -> ProfileDoc {
-    let (doc, _) = step(
-        s.doc.clone(),
-        DocEdit::SetParam {
-            node: s.transform,
-            slot: SlotId::Translation(editor_core::Axis3::X),
-            value: len(tx).into(),
-            fresh: Vec::new(),
-        },
-    );
-    doc
+    slide_placement(s.doc.clone(), s.placement, tx)
 }
 
 /// A joined rim edge's name from the overlapping union's table: one
@@ -223,7 +232,10 @@ fn union_names_resolve_uniquely_and_pass_through_transforms() {
             of: cap.clone().into(),
         },
     );
-    let cap_b = minted(EntityKind::Face, s.b0, RoleSeg::Cap(CapEnd::End));
+    let cap_b = worn(
+        s.placement,
+        minted(EntityKind::Face, s.b0, RoleSeg::Cap(CapEnd::End)),
+    );
     let wrapped_b = minted(
         EntityKind::Face,
         s.union,
@@ -261,10 +273,10 @@ fn union_names_resolve_uniquely_and_pass_through_transforms() {
 fn tied_name_resolves_ambiguous_with_the_tie_witness() {
     // PR 3's symmetric U cutter: two prong fragments of B's caps tie.
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
+    let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 4.0);
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![
@@ -285,6 +297,7 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
             distance: len(2.0),
         },
     );
+    let (doc, b) = fixture::slid(doc, a, b, [0.0, 0.0, 1.0]);
     let (doc, sub) = insert(
         doc,
         Node::Subtract {
@@ -334,7 +347,7 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
 fn ranked_reference_widens_to_the_tied_base_row() {
     // Real edge keys to populate the synthetic table with.
     let src = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-    let (src, ext) = block(src, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (src, ext) = block(src, (0.0, 1.0), (0.0, 1.0), 1.0);
     let sev = run(&src, None);
     let mut edges = sev.table_at(ext).unwrap().iter().filter_map(|(n, e)| {
         if n.kind != EntityKind::Edge {
@@ -403,8 +416,8 @@ fn ranked_reference_widens_to_the_tied_base_row() {
 #[test]
 fn deleting_a_named_node_strands_names_as_node_gone() {
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-    let (doc, _) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 1.0);
     let cap_b = minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End));
     // b has no DAG dependents: deletion is allowed and strands cap_b —
     // N5's ratified dangling semantics.
@@ -431,7 +444,7 @@ fn deleting_a_named_node_strands_names_as_node_gone() {
 #[test]
 fn never_minted_node_reports_foreign_not_deleted() {
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-    let (doc, _a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let ev = run(&doc, None);
     let foreign = minted(
         EntityKind::Face,
@@ -590,18 +603,8 @@ fn a_vanished_merged_name_is_diagnosed_at_the_edit_not_through_a_retired_constit
 #[test]
 fn a_vanished_merged_name_over_a_merged_operand_is_diagnosed_at_the_edit() {
     let s = slide_union(0.5);
-    let (doc, c0) = block(s.doc.clone(), (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = insert(
-        doc,
-        Node::transform(
-            c0,
-            editor_core::Step::Rigid {
-                translation: [len(1.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
+    let (doc, c0) = block(s.doc.clone(), (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, c) = fixture::slid(doc, s.a, c0, [1.0, 0.0, 0.0]);
     let (doc, u2) = insert(
         doc,
         Node::Union {
@@ -669,7 +672,7 @@ fn a_vanished_merged_name_over_a_merged_operand_is_diagnosed_at_the_edit() {
 #[test]
 fn pattern_count_shrink_diagnoses_structural_param() {
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -777,15 +780,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
     ));
     // Slide B disjoint: the master's joined rim vanishes, so the
     // instance name vanishes THROUGH it.
-    let (doc2, _) = step(
-        doc.clone(),
-        DocEdit::SetParam {
-            node: s.transform,
-            slot: SlotId::Translation(editor_core::Axis3::X),
-            value: len(2.5).into(),
-            fresh: Vec::new(),
-        },
-    );
+    let doc2 = slide_placement(doc.clone(), s.placement, 2.5);
     let ev2 = run(&doc2, Some(&ev1));
     let res = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
@@ -840,8 +835,9 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
 #[test]
 fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 1.0);
+    let (doc, b) = fixture::slid(doc, a, b, [0.0; 3]);
     let (doc, u) = insert(
         doc,
         Node::Union {
@@ -920,7 +916,7 @@ fn rebind_suggestions_offer_wrapping_derivations() {
 #[test]
 fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve_fillet_door", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let ev = run(&doc, None);
     let rim = minted(
         EntityKind::Edge,
@@ -1138,10 +1134,10 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
     // OTHER body that merely border it, and never a kind Rebind
     // refuses.
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-    let (doc, _a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 1.0);
+    let (doc, _a) = block(doc, (0.0, 4.0), (0.0, 4.0), 1.0);
     let (doc, bp) = on_frame(
         doc,
-        [0.0, 0.0, -0.5],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![
@@ -1160,17 +1156,7 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
             distance: len(2.0),
         },
     );
-    let (doc, tr) = insert(
-        doc,
-        Node::transform(
-            band,
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
+    let (doc, tr) = fixture::slid(doc, _a, band, [0.0, 0.0, -0.5]);
     let (doc, sub) = insert(
         doc,
         Node::Subtract {
@@ -1226,18 +1212,23 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     // — the only honest evidence is the recipe edit at the union
     // node, and it is on the vanished name's path.
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
     // General position (no coplanar planes with A): B pierces A's
     // slab, strictly inside in y, poking out above and below.
-    let (doc, b) = block(doc, (1.0, 3.0), (0.5, 1.5), -0.5, 2.0);
+    let (doc, b0) = block(doc, (1.0, 3.0), (0.5, 1.5), 2.0);
+    let (doc, b) = fixture::slid(doc, a, b0, [0.0, 0.0, -0.5]);
     // The fold's predicate population reads its members' faces in name
-    // order, and a member's names carry its node id: a twin minted on
+    // order, and a member's names carry its node id: a twin placed on
     // the other side of `a` from `b` runs the same geometry through
     // other predicates (`point_in_loop_advance` flips, 8 of them). So
-    // the twin is minted until it sorts where `b` does.
-    let (mut doc, mut c) = twin(doc, b);
+    // the twin is minted and placed until it sorts where `b` does.
+    let twin_on = |doc: ProfileDoc| {
+        let (doc, c0) = twin(doc, b0);
+        fixture::slid(doc, a, c0, [0.0, 0.0, -0.5])
+    };
+    let (mut doc, mut c) = twin_on(doc);
     while (c < a) != (b < a) {
-        (doc, c) = twin(doc, b);
+        (doc, c) = twin_on(doc);
     }
     let (doc1, bl) = insert(
         doc,
@@ -1252,7 +1243,11 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
         node: bl,
         path: vec![RoleSeg::From {
             read: fixture::out(&doc1, m),
-            of: minted(EntityKind::Face, m, RoleSeg::Cap(CapEnd::End)).into(),
+            of: worn(
+                m,
+                minted(EntityKind::Face, placed_body(&doc1, m), RoleSeg::Cap(CapEnd::End)),
+            )
+            .into(),
         }],
     };
     let target = member_cap(b);
@@ -1342,26 +1337,19 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
 fn grandparent_repoint_rederives_the_grandchild_names() {
     use editor_core::{NodeResult, ValuePayload};
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-    let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, d) = block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, c) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, d) = block(doc, (5.0, 6.0), (0.0, 1.0), 1.0);
+    // `c` and `d` join `b`'s space where they stand.
+    let (doc, c) = fixture::slid(doc, b, c, [0.0; 3]);
+    let (doc, d) = fixture::slid(doc, b, d, [0.0; 3]);
     let (doc, x) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![b.into(), d.into()]),
         },
     );
-    let (doc1, n) = insert(
-        doc,
-        Node::transform(
-            x,
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.25), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
+    let (doc1, n) = fixture::slid(doc, x, x, [0.0, 0.25, 0.0]);
     let ev1 = run(&doc1, None);
     let (doc2, _) = step(
         doc1,
@@ -1405,7 +1393,7 @@ fn single_run_vanished_falls_back_to_cause_not_in_evidence() {
     // documented total fallback — the recorded reference disagrees
     // with the recipe as it stands, the cause not in evidence.
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -1482,7 +1470,7 @@ fn piece(node: RecipeNodeId, f: &StableName, walls: &[&StableName]) -> StableNam
 /// A node with no inputs and no evaluated body, for a doc whose
 /// evaluation is hand-built.
 fn leaf() -> AuthoredNode {
-    fixture::xy_frame()
+    Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)]))
 }
 
 /// One-node hand-built evaluation whose table is `t` (the over-tie

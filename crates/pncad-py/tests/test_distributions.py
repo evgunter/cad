@@ -657,7 +657,6 @@ class TestTheAnnotationDoesNotMoveGeometry(unittest.TestCase):
                     (Formula.length_in(1, m), Formula.length_in(1, m)),
                     (Formula.length_in(0, m), Formula.length_in(1, m)),
                 ],
-                plane=doc.sketch_frame(),
             )
         )
         return doc, doc.insert(Node.extrude(profile, Formula.length_in(2, m)))

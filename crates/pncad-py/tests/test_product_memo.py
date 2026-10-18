@@ -48,7 +48,6 @@ def slab(doc, x0, x1):
                 (Formula.length_in(x1, m), Formula.length_in(1.0, m)),
                 (Formula.length_in(x0, m), Formula.length_in(1.0, m)),
             ],
-            plane=doc.sketch_frame(elevation=Formula.length_in(0.0, m)),
         )
     )
     return doc.insert(Node.extrude(profile, Formula.length_in(1.0, m)))
@@ -120,7 +119,6 @@ class TestBothQuestionsOnOneEvaluation(unittest.TestCase):
                     (Formula.length_in(1.0, m), Formula.length_in(0.0, m)),
                     (Formula.length_in(1.0, m), Formula.length_in(1.0, m)),
                 ],
-                plane=doc.sketch_frame(elevation=Formula.length_in(0.0, m)),
             )
         )
         ev = evaluate(doc)

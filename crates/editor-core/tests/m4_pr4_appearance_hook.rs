@@ -60,17 +60,16 @@ fn set(doc: ProfileDoc, name: StableName, attr: Attr) -> ProfileDoc {
     .0
 }
 
-/// A rectangular block: profile on the plane z = `z0`, extruded `dz`.
+/// A rectangular block: profile on its own xy, extruded `dz`.
 fn block(
     doc: ProfileDoc,
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
-    z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, z0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
@@ -84,14 +83,28 @@ fn block(
     )
 }
 
+/// [`block`] placed against `target`, `z0` up its own z: the
+/// placement, whose copy a combine with `target` reads.
+fn block_on(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    xs: (f64, f64),
+    ys: (f64, f64),
+    z0: f64,
+    dz: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, b) = block(doc, xs, ys, dz);
+    crate::fixture::slid(doc, target, b, [0.0, 0.0, z0])
+}
+
 /// The PR 3 genuine-tie fixture: a U cutter through one wall; both
 /// B-cap prong fragments tie. Returns (doc, subtract node).
 fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m4_pr4_appearance_hook", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
+    let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 4.0);
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![
@@ -112,6 +125,7 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
             distance: len(2.0),
         },
     );
+    let (doc, b) = crate::fixture::slid(doc, a, b, [0.0, 0.0, 1.0]);
     let (doc, sub) = insert(
         doc,
         Node::Subtract {
@@ -129,8 +143,8 @@ fn gap_fixture() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, StableName) {
     // Decoupled overlap (M4 PR 5: the original y/z-flush variant now
     // demands a Declare and MERGES the caps — the A1 ergonomics this
     // fixture pins are the plain wrapping-derivation kind).
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 1.25);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (0.5, 1.5), (0.25, 0.75), 0.25, 1.25);
     let (doc, uni) = insert(
         doc,
         Node::Union {
@@ -196,9 +210,10 @@ fn ambiguous_loss_enriches_by_table_lookup_at_the_recorded_site() {
 
 /// **A tie a pass-through table carries is reported at the table that
 /// defined it**: `at` is the first carrying table in evaluation order.
-/// The fixture moves the defining node's copy of the name downstream
-/// through a transform, which carries the tie too, so a walk that took
-/// the last carrying table would report the transform.
+/// The fixture carries the defining node's name downstream through a
+/// split above the tie, whose lower half passes it through unchanged
+/// and so carries the tie too: a walk that took the last carrying
+/// table would report the split.
 #[test]
 fn a_carried_tie_is_reported_at_its_defining_table() {
     let (doc, sub) = tie_fixture();
@@ -211,16 +226,21 @@ fn a_carried_tie_is_reported_at_its_defining_table() {
             matches!(e, editor_core::Entry::Tied(c) if c.len() == 2).then(|| n.clone())
         })
         .expect("the U-cutter fixture ties");
-    let lift = editor_core::Step::Literal(editor_core::Frame::translation([4.0, 0.0, 0.0]));
-    let (doc, moved) = insert(doc, Node::transform(sub, lift));
+    let tool = crate::fixture::plane_on(&doc, sub, [0.0, 0.0, 3.5], [0.0, 0.0, 1.0]);
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: sub.into(),
+            tool,
+        },
+    );
     let doc = set(doc, tied.clone(), red());
     let ev = run(&doc);
     assert!(
-        ev.table_at(moved)
-            .unwrap()
+        crate::fixture::half(&ev, split, editor_core::SplitHalf::Below)
             .iter()
             .any(|(n, e)| *n == tied && matches!(e, editor_core::Entry::Tied(_))),
-        "the transform carries the tie"
+        "the split's lower half carries the tie"
     );
     let causes: Vec<_> = ev.appearance.losses.iter().map(|l| &l.cause).collect();
     assert_eq!(
@@ -236,20 +256,27 @@ fn node_gone_loss_enriches_with_the_derived_deletion_edit() {
         ProfileDoc::empty_derived("m4_pr4_appearance_hook", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
-    let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
-    // Read in a transform of the extrude, so the entry's read outlives
-    // the name's minting node: the loss is the name's, `NodeGone`.
-    let (doc, moved) = insert(
+    let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Start));
+    // Read in the lower half of a split of the extrude, which passes
+    // the cap through unchanged, so the entry's read outlives the
+    // name's minting node: the loss is the name's, `NodeGone`.
+    let tool = fixture::plane_on(&doc, ext, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
+    let (doc, split) = insert(
         doc,
-        fixture::xform(ext, [0.0, 0.0, 2.0], [0.0, 0.0, 1.0], 0.0),
+        Node::Split {
+            target: ext.into(),
+            tool,
+        },
     );
+    let below = doc
+        .output(split, editor_core::SplitHalf::Below.port())
+        .expect("a split defines its lower half");
     let (doc, _) = step(
         doc.clone(),
         DocEdit::SetAppearance {
-            body: fixture::out(&doc, moved),
+            body: below,
             name: cap.clone(),
             attr: red(),
         },
@@ -288,7 +315,6 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
         ProfileDoc::empty_derived("m4_pr4_appearance_hook", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let (doc, pat) = insert(
@@ -384,8 +410,8 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
     let doc = ProfileDoc::empty_derived("m4_pr4_appearance_hook", Tol::witness());
     // Decoupled overlap (M4 PR 5: coincident planes now demand a
     // Declare; this test wants a plain transversal union).
-    let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 3.0), (0.25, 1.75), 0.125, 0.75);
+    let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
+    let (doc, b) = block_on(doc, a, (1.0, 3.0), (0.25, 1.75), 0.125, 0.75);
     let (doc, uni) = insert(
         doc,
         Node::Union {
@@ -438,7 +464,6 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
         ProfileDoc::empty_derived("m4_pr4_appearance_hook", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
@@ -667,7 +692,6 @@ fn suggestion_map_is_total_over_the_store() {
         ProfileDoc::empty_derived("m4_pr4_appearance_hook", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
-        0.0,
         1.0,
     );
     let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));

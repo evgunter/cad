@@ -64,7 +64,6 @@ def square(doc, side=1.0, at=(0.0, 0.0)):
                 (Formula.length_in(x + side, m), Formula.length_in(y + side, m)),
                 (Formula.length_in(x + 0.0, m), Formula.length_in(y + side, m)),
             ],
-            plane=doc.sketch_frame(),
         )
     )
 

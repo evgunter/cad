@@ -19,16 +19,15 @@ use pncad::document::{
     VarName,
 };
 use pncad::geom_core::Point2;
-use pncad::prelude::StableName;
 use pncad::profile::{Step, Target};
 
 use crate::blend::BlendKindChoice;
 use crate::combine::PatternOutputChoice;
-use crate::forms::{DatumKindChoice, PatternKindChoice, ShapeKind};
+use crate::forms::{PatternKindChoice, ShapeKind};
 use crate::history::HistoryId;
 use crate::props::Notation;
 use crate::seats::SeatError;
-use crate::session::{DatumSpec, FaceSelection, ProfilePlane, ProfileShape, SessionOp};
+use crate::session::{FaceSelection, ProfileShape, SessionOp};
 use crate::sketch::{self, HeldRefusal};
 
 /// Transient text a panel is mid-edit on.
@@ -88,72 +87,42 @@ pub(crate) struct Drafts {
     /// open, `None` while it is not. The op is not emitted until
     /// Create — a name in flight is a draft, not a document.
     pub(crate) new_doc_name: Option<String>,
-    /// **The frame the add-profile form draws on** — `None` until one
-    /// is picked, which is the form's resting state in a document that
-    /// holds no frame yet.
-    ///
-    /// A pick rather than a constant: a profile's plane is a document
-    /// node, so the form names one — an existing frame, or the world
-    /// XY frame the same submit mints beside the profile
-    /// ([`ProfilePlane`]). Either way the frame a person drew on is a
-    /// node they can see and edit afterwards, and one submit is one
-    /// undo.
-    pub(crate) profile_plane: Option<ProfilePlane>,
-    /// The add-datum form's kind choice.
-    pub(crate) datum_kind: DatumKindChoice,
-    /// The add-datum form's origin/position, metres.
-    pub(crate) datum_origin: [f64; 3],
-    /// Its normal/direction (unitless; ignored by the point form).
-    pub(crate) datum_direction: [f64; 3],
-    /// The FRAME form's two in-plane axes, sketch +x then +y
-    /// (unitless; ignored by every other kind).
-    ///
-    /// Their own fields rather than a reuse of `datum_direction`,
-    /// because a form's default has to mean something: a plane opens
-    /// facing +z, and a frame opens as the world xy frame — which the
-    /// same buffer cannot say twice.
-    pub(crate) datum_u: [f64; 3],
-    /// The frame form's sketch +y axis.
-    pub(crate) datum_v: [f64; 3],
-    /// **The face a frame-on-face is read off** — `None` until one is
-    /// picked in the viewport.
+    /// **Whether the add-profile form draws on the selected face** —
+    /// "sketch on this face" ([`SessionOp::SketchOnFace`]) — rather than
+    /// on the profile's own plane alone.
+    pub(crate) sketch_on_face: bool,
+    /// **The face a sketch on a face is drawn on** — `None` until one
+    /// is picked in the viewport.
     ///
     /// A LATCH of the viewport's face pick rather than a read of the
     /// live selection: a face is not a node a combo can list, so the
     /// selection IS this form's picker, and an author who picks a face
     /// and then clicks the feature tree to check something must not
-    /// lose it. `crate::pane::create`'s frame-on-face arm writes it
-    /// whenever the live selection is a face, so a second pick moves
-    /// the seat; nothing else clears it, exactly as nothing clears the
-    /// origin a person last typed.
+    /// lose it. `crate::pane::create`'s on-face rows write it whenever
+    /// the live selection is a face, so a second pick moves the seat.
     ///
-    /// A latch that goes stale WITHIN a document is not a hazard the
-    /// form has to clear: the gate above it reads the pick against the
-    /// LANDED evaluation every frame
-    /// ([`crate::session::face_frame_seat`]), so a face an undo took
-    /// away is refused rather than authored.
-    ///
-    /// **Across documents it would be**: the gate cannot tell one
-    /// document's names from another's — a `RecipeNodeId` is a small
-    /// integer and a `StableName` carries no document identity — and
-    /// the viewport marks this pick, so a stale one would light, and
-    /// the button commit against, a same-numbered face of the next
-    /// document. A document replacement therefore drops it
-    /// ([`Self::document_replaced`]). The form's other held picks keep
-    /// the hazard:
-    /// `work/forms/a-creation-forms-held-pick-survives-a-document-swap`
-    /// carries them.
-    pub(crate) datum_face: Option<FaceSelection>,
-    /// The nodes [`Self::datum_face`] names, as the last document that
+    /// **Across documents it would be a hazard**: a `RecipeNodeId` is a
+    /// small integer and a `StableName` carries no document identity,
+    /// so a stale latch would commit against a same-numbered face of
+    /// the next document. A document replacement therefore drops it
+    /// ([`Self::document_replaced`]).
+    pub(crate) sketch_face: Option<FaceSelection>,
+    /// The nodes [`Self::sketch_face`] names, as the last document that
     /// held them spoke them: the selection's when the face was copied
     /// from it (`DocSession::selection_said`), spoken again from each
-    /// later document ([`Self::respeak`]). The form holds its face
-    /// after the selection moves on, so it keeps its own.
-    datum_face_said: HeldNodes,
-    /// The frame-on-face form's spin, radians — sketch +x's rotation
-    /// about the face's outward normal. Opens at zero, the
-    /// carrier's own u-reference.
-    pub(crate) datum_spin: f64,
+    /// later document ([`Self::respeak`]).
+    sketch_face_said: HeldNodes,
+    /// The sketch on a face's depth, metres: how far it is extruded
+    /// away from the face.
+    pub(crate) sketch_depth: f64,
+    /// The sketch on a face's spin, radians — its `+x`'s turn about the
+    /// face's outward normal. Opens at zero.
+    pub(crate) sketch_spin: f64,
+    /// The split form's plane: a point on it, metres, in the target's
+    /// own coordinates.
+    pub(crate) split_origin: [f64; 3],
+    /// The split form's plane normal (unitless).
+    pub(crate) split_normal: [f64; 3],
     /// The add-profile form's shape choice — `None` until the user
     /// makes one.
     ///
@@ -161,7 +130,7 @@ pub(crate) struct Drafts {
     /// is a number sitting in a field, but this one decides what the
     /// viewport draws: the add-profile preview is taken from these
     /// drafts each frame, so a pre-selected shape meant that merely
-    /// opening "Add feature" — to reach the datum form, say — put a
+    /// opening "Add feature" — to reach the extrude form, say — put a
     /// circle in the picture that nobody had asked for. `None` is the
     /// form at rest: no shape fields, no preview, and the commit
     /// disabled until a shape is chosen.
@@ -224,6 +193,11 @@ pub(crate) struct Drafts {
     pub(crate) pattern_spacing: f64,
     /// The circular rule's angular step, radians.
     pub(crate) pattern_step: f64,
+    /// The circular rule's axis: a point on it, metres, in the
+    /// patterned body's own coordinates.
+    pub(crate) pattern_through: [f64; 3],
+    /// The circular rule's axis direction (unitless).
+    pub(crate) pattern_axis: [f64; 3],
     /// Which instance of a pattern it projects — an INTEGER all the
     /// way from the field, for [`Drafts::pattern_count`]'s reason: the
     /// slot it lands in is Count-typed and a number rounded on the way
@@ -312,22 +286,19 @@ impl<T> ProfileDoors<T> {
     }
 }
 
-/// What one door's editor would preview: the frame it draws on (the
-/// form's pick, `None` until one is made) and its loops.
+/// What one door's editor would preview: its loops, drawn on the
+/// profile's own plane ([`sketch::profile_plane`]).
 #[derive(Clone, Debug)]
 pub(crate) struct DoorLoops {
-    /// The frame the loops are drawn on — an existing node, or the
-    /// world XY frame the add-profile form would mint.
-    pub(crate) plane: Option<ProfilePlane>,
     /// The loops, in description order.
     pub(crate) loops: Vec<ProfileShape>,
 }
 
 impl DoorLoops {
-    /// Whether `other` previews the same thing — the same frame and
-    /// loops that lower alike ([`sketch::authors_same_loops`]).
+    /// Whether `other` previews the same thing — loops that lower
+    /// alike ([`sketch::authors_same_loops`]).
     pub(crate) fn previews_as(&self, other: &Self) -> bool {
-        self.plane == other.plane && sketch::authors_same_loops(&self.loops, &other.loops)
+        sketch::authors_same_loops(&self.loops, &other.loops)
     }
 }
 
@@ -347,9 +318,6 @@ pub(crate) struct ProfileEdit {
     /// The committed program the loops were loaded from, as written
     /// ([`sketch::written_program`]).
     base: ProfileProgram<Formula>,
-    /// The frame node the profile's plane reads, `None` for a plane
-    /// read a delete stranded.
-    frame: Option<RecipeNodeId>,
     /// The loops as the editor holds them, in description order.
     loops: Vec<Vec<Step<f64>>>,
     /// Per held loop, per held step: the committed step it was loaded
@@ -379,7 +347,6 @@ impl ProfileEdit {
     /// of it), every step loaded as itself.
     fn load(
         node: RecipeNodeId,
-        frame: Option<RecipeNodeId>,
         program: ProfileProgram<Formula>,
         loops: Vec<Vec<Step<f64>>>,
     ) -> Self {
@@ -405,19 +372,12 @@ impl ProfileEdit {
             .collect();
         Self {
             node,
-            frame,
             base: program,
             loops,
             loaded_as,
             base_steps,
             report: None,
         }
-    }
-
-    /// The frame the profile is drawn on — a read the edit door does
-    /// not rewrite — or `None` where a delete stranded it.
-    pub(crate) fn plane(&self) -> Option<RecipeNodeId> {
-        self.frame
     }
 
     /// The committed program the loops were loaded from — what
@@ -537,7 +497,7 @@ impl ProfileEdit {
     /// rather than assumed: [`sketch::held_loops`]'s refusal.
     pub(crate) fn revert(&mut self, doc: &Doc<ProfileProgram>) -> Result<(), HeldRefusal> {
         let loops = sketch::held_loops(doc, self.node)?;
-        *self = Self::load(self.node, self.frame, self.base.clone(), loops);
+        *self = Self::load(self.node, self.base.clone(), loops);
         Ok(())
     }
 }
@@ -628,12 +588,11 @@ pub(crate) struct NameDraft {
 }
 
 impl Default for Drafts {
-    /// The creation forms' sensible defaults (the GAUTH-1 spec):
-    /// datum origin 0 with normal/direction +z, a 10 mm circle or
-    /// rectangle, a 10 mm extrude, a full-turn revolve. Everything
-    /// else starts empty.
+    /// The creation forms' sensible defaults (the GAUTH-1 spec): a
+    /// 10 mm circle or rectangle, a 10 mm extrude, a full-turn revolve,
+    /// a split plane and a pattern axis through the origin along +z.
+    /// Everything else starts empty.
     fn default() -> Self {
-        let (_, xy_u, xy_v) = ProfilePlane::xy_numbers();
         Self {
             delta_text: None,
             expr_target: None,
@@ -650,20 +609,13 @@ impl Default for Drafts {
             mate_flip: true,
             mate_values: [(false, 0.0); crate::matetool::MateFreedom::ALL.len()],
             new_doc_name: None,
-            profile_plane: None,
-            datum_kind: DatumKindChoice::Plane,
-            datum_origin: [0.0; 3],
-            datum_direction: [0.0, 0.0, 1.0],
-            // The frame form opens on the world xy frame — the SAME
-            // one the add-profile form's `NewXy` mints, taken from
-            // that choice rather than re-typed here, so the form a
-            // person edits and the frame the other door commits
-            // cannot drift apart.
-            datum_u: xy_u,
-            datum_v: xy_v,
-            datum_face: None,
-            datum_face_said: HeldNodes::default(),
-            datum_spin: 0.0,
+            sketch_on_face: false,
+            sketch_face: None,
+            sketch_face_said: HeldNodes::default(),
+            sketch_depth: 0.01,
+            sketch_spin: 0.0,
+            split_origin: [0.0; 3],
+            split_normal: [0.0, 0.0, 1.0],
             profile_shape: None,
             profile_path: vec![
                 Step::At(Point2::origin()),
@@ -691,6 +643,8 @@ impl Default for Drafts {
             pattern_direction: crate::combine::STEP_DIRECTION,
             pattern_spacing: 0.02,
             pattern_step: core::f64::consts::FRAC_PI_2,
+            pattern_through: [0.0; 3],
+            pattern_axis: [0.0, 0.0, 1.0],
             // The FIRST instance, which is the copy rather than the
             // original: a projection of instance 0 is the master where
             // it already stands, so the index a person opening this
@@ -756,19 +710,8 @@ impl Drafts {
     /// would keep drawing that shape in the probe tint over the
     /// committed drawing of the node it became. Resting the shape
     /// (`None`) is what the form means by "nothing being composed"; the
-    /// frame picked and the field values stay, so a second profile on
-    /// the same frame starts from where the first one left off.
-    ///
-    /// **[`ProfilePlane::NewXy`] becomes the frame it minted**, which
-    /// is what makes the sentence above true of that arm too. A choice
-    /// that stayed `NewXy` would mint a SECOND world xy frame on the
-    /// next submit, and two coincident frames out of two ordinary
-    /// submits is the quiet kind of wrong — nothing refuses, the
-    /// picture is identical, and the recipe has a node in it nobody
-    /// asked for. The id is `minted`'s FIRST, because that arm inserts
-    /// the frame before the profile that names it
-    /// (`DocSession::add_profile_on_new_xy`) — held by
-    /// `an_accepted_new_xy_leaves_the_form_on_the_frame_it_minted`.
+    /// field values stay, so a second profile starts from where the
+    /// first one left off. A sketch on a face settles the same way.
     ///
     /// A REFUSED add leaves the drafts alone, so correcting what was
     /// refused does not cost what was typed.
@@ -779,23 +722,17 @@ impl Drafts {
     /// (`Drafts::sync_profile_edit`, at the top of the next frame) —
     /// untouched again, and still open on the node, which is where the
     /// person is still working.
-    pub(crate) fn accepted(&mut self, op: &SessionOp, minted: &[RecipeNodeId]) {
+    pub(crate) fn accepted(&mut self, op: &SessionOp) {
         // A labelled creation settles the form its creation came from.
         let op = match op {
             SessionOp::CreateLabelled { creation, .. } => creation.op(),
             op => op,
         };
-        let SessionOp::AddProfile { plane, .. } = op else {
-            return;
-        };
-        self.profile_shape = None;
-        // The OP's plane, not the draft's: what settles is the choice
-        // the document accepted, and the draft is only where that
-        // choice was standing when the panel pushed it.
-        if *plane == ProfilePlane::NewXy
-            && let Some(frame) = minted.first()
-        {
-            self.profile_plane = Some(ProfilePlane::Existing(*frame));
+        if matches!(
+            op,
+            SessionOp::AddProfile { .. } | SessionOp::SketchOnFace { .. }
+        ) {
+            self.profile_shape = None;
         }
     }
 
@@ -818,8 +755,7 @@ impl Drafts {
     /// the kind noun of the node the action made
     /// ([`crate::world::made`]) — the noun a
     /// form's label field is keyed by, which is that node's kind
-    /// (`each_datum_choices_noun_is_the_kind_of_the_node_it_commits`,
-    /// `creation_nouns`). Called only for an op that committed, so a
+    /// (`creation_nouns`). Called only for an op that committed, so a
     /// refused creation keeps what was typed.
     pub(crate) fn creation_landed(&mut self, doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) {
         if let Some(node) = crate::world::made(doc, minted).and_then(|id| doc.node(id)) {
@@ -863,13 +799,7 @@ impl Drafts {
             let Some(base) = current else {
                 unreachable!("`held_loops` loaded node {} as a profile", node)
             };
-            let frame = match doc.node(node) {
-                Some(Node::Profile(program)) => {
-                    doc.defined_by(program.frame).map(|(frame, _)| frame)
-                }
-                _ => None,
-            };
-            self.profile_edit = Some(ProfileEdit::load(node, frame, base, loops));
+            self.profile_edit = Some(ProfileEdit::load(node, base, loops));
         }
         let Some(held) = self.profile_edit.as_mut() else {
             unreachable!("the edit draft was kept or loaded just above")
@@ -898,17 +828,14 @@ impl Drafts {
     }
 
     /// **What each door of the profile editor holds for its preview**:
-    /// the add-profile form's frame pick and loops, and the loops of a
-    /// committed profile opened for editing, on its own frame (`None`
-    /// while none is open).
+    /// the add-profile form's loops, and the loops of a committed
+    /// profile opened for editing (`None` while none is open).
     pub(crate) fn door_loops(&self) -> ProfileDoors<Option<DoorLoops>> {
         ProfileDoors {
             create: Some(DoorLoops {
-                plane: self.profile_plane,
                 loops: self.profile_loops(),
             }),
             edit: self.profile_edit.as_ref().map(|edit| DoorLoops {
-                plane: edit.plane().map(ProfilePlane::Existing),
                 loops: edit.shapes(),
             }),
         }
@@ -964,21 +891,21 @@ impl Drafts {
     /// **Another document replaced the one the held face was picked
     /// in** (an open, a new document): the latch names nothing in it.
     pub(crate) fn document_replaced(&mut self) {
-        self.datum_face = None;
-        self.datum_face_said = HeldNodes::default();
+        self.sketch_face = None;
+        self.sketch_face_said = HeldNodes::default();
     }
 
-    /// **The face-frame form takes the selection's face**, with its
-    /// nodes as the session has them spoken (`DocSession::selection_said`).
-    pub(crate) fn hold_datum_face(&mut self, face: FaceSelection, said: &HeldNodes) {
-        self.datum_face = Some(face);
-        self.datum_face_said = said.clone();
+    /// **The on-face form takes the selection's face**, with its nodes
+    /// as the session has them spoken (`DocSession::selection_said`).
+    pub(crate) fn hold_sketch_face(&mut self, face: FaceSelection, said: &HeldNodes) {
+        self.sketch_face = Some(face);
+        self.sketch_face_said = said.clone();
     }
 
     /// The held face's nodes as the last document that held them spoke
     /// them; empty with no face held.
-    pub(crate) fn datum_face_said(&self) -> &HeldNodes {
-        &self.datum_face_said
+    pub(crate) fn sketch_face_said(&self) -> &HeldNodes {
+        &self.sketch_face_said
     }
 
     /// **The held picks' nodes, spoken again from `doc`**, the session's
@@ -986,78 +913,40 @@ impl Drafts {
     /// rule): a node `doc` holds takes its label now, and one it no
     /// longer holds keeps the last it had.
     pub(crate) fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        self.datum_face_said = self.datum_face_said.respoken(doc);
+        self.sketch_face_said = self.sketch_face_said.respoken(doc);
     }
 
-    /// **The face this form holds**: [`Self::datum_face`] while the
-    /// chosen kind is the one that reads it, `None` under every other.
+    /// **The face this form holds**: [`Self::sketch_face`] while the
+    /// add-profile form draws on a face, `None` otherwise.
     ///
-    /// Under another kind the latch is kept, not held — nothing the
-    /// form commits reads it — so switching kind releases the pick,
-    /// and switching back holds it again. What the viewport marks as
-    /// held (`crate::marks::Held`).
+    /// Off the face the latch is kept, not held — nothing the form
+    /// commits reads it — so switching off releases the pick, and
+    /// switching back holds it again. What the viewport marks as held
+    /// (`crate::marks::Held`).
     pub(crate) fn held_face(&self) -> Option<&FaceSelection> {
-        self.datum_face
-            .as_ref()
-            .filter(|_| self.datum_kind == DatumKindChoice::FaceFrame)
+        self.sketch_face.as_ref().filter(|_| self.sketch_on_face)
     }
 
-    /// **The add-datum form's drafts as a spec**, for the kind chosen:
-    /// lengths in the form's notation, a normal or a direction
-    /// dimensionless. `Ok(None)` is a SEAT still unfilled — an axis in
-    /// a sketch with no frame chosen, a frame on a face whose gate has
-    /// not answered — and the form withholds its button until it is
-    /// filled, saying which pick it wants in that kind's own words
-    /// ([`DatumKindChoice::unmet_seat`]).
-    ///
-    /// **`face_seat` is [`crate::session::face_frame_seat`]'s `Ok`**,
-    /// not a second reading of [`Self::datum_face`]: the two picks a
-    /// face frame carries are DERIVED ONCE, by the gate that decides
-    /// whether the button is live, and lowered here. A form that
-    /// re-derived them would be gated by one computation and commit
-    /// another, which is the defect this seat exists to close. `None`
-    /// is every reason the gate did not answer — no face picked, a
-    /// curved carrier, a name that no longer resolves — and the gate's
-    /// own sentence is what the form draws beside the withheld button.
+    /// **The add-profile form's op**: the profile on its own plane, or
+    /// — drawing on a face — the sketch on the held face, `Ok(None)`
+    /// while no face is held.
     ///
     /// # Errors
     ///
-    /// A non-finite component.
-    pub(crate) fn datum_spec(
-        &self,
-        face_seat: Option<&(RecipeNodeId, StableName)>,
-        notation: Notation,
-    ) -> Result<Option<DatumSpec>, DimensionError> {
-        Ok(Some(match self.datum_kind {
-            DatumKindChoice::Plane => DatumSpec::Plane {
-                origin: notation.length_literals(self.datum_origin)?,
-                normal: scalars(self.datum_direction)?,
-            },
-            DatumKindChoice::Frame => DatumSpec::Frame {
-                origin: notation.length_literals(self.datum_origin)?,
-                u: scalars(self.datum_u)?,
-                v: scalars(self.datum_v)?,
-            },
-            DatumKindChoice::Axis => DatumSpec::Axis {
-                origin: notation.length_literals(self.datum_origin)?,
-                direction: scalars(self.datum_direction)?,
-            },
-            DatumKindChoice::FaceFrame => {
-                // Carried, not re-derived: which node the face is read
-                // out of is the gate's answer, decided where the
-                // evaluation is in hand.
-                let Some((at, face)) = face_seat else {
-                    return Ok(None);
-                };
-                DatumSpec::FaceFrame {
-                    at: *at,
-                    face: face.clone(),
-                    spin: notation.angle_literal(self.datum_spin)?,
-                }
-            }
-            DatumKindChoice::Point => DatumSpec::Point {
-                position: notation.length_literals(self.datum_origin)?,
-            },
+    /// A non-finite field, or a path that is not a program's shape.
+    pub(crate) fn profile_op(&self, notation: Notation) -> Result<Option<SessionOp>, CommitFault> {
+        let loops = self.profile_programs(notation)?;
+        if !self.sketch_on_face {
+            return Ok(Some(SessionOp::AddProfile { loops }));
+        }
+        let Some(face) = self.held_face() else {
+            return Ok(None);
+        };
+        Ok(Some(SessionOp::SketchOnFace {
+            face: face.clone(),
+            loops,
+            distance: notation.length_literal(self.sketch_depth)?,
+            spin: notation.angle_literal(self.sketch_spin)?,
         }))
     }
 }
@@ -1091,11 +980,19 @@ pub(crate) enum CommitFault {
     Seat(SeatError),
     /// A draft field is not a value a literal may hold.
     Dimension(DimensionError),
+    /// A profile draft is not a program's shape.
+    Program(RecordedProgramError),
 }
 
 impl From<SeatError> for CommitFault {
     fn from(error: SeatError) -> Self {
         Self::Seat(error)
+    }
+}
+
+impl From<RecordedProgramError> for CommitFault {
+    fn from(error: RecordedProgramError) -> Self {
+        Self::Program(error)
     }
 }
 
@@ -1110,6 +1007,7 @@ impl std::fmt::Display for CommitFault {
         match self {
             Self::Seat(error) => error.fmt(f),
             Self::Dimension(error) => error.fmt(f),
+            Self::Program(error) => error.fmt(f),
         }
     }
 }
@@ -1130,50 +1028,12 @@ mod tests {
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 
     use super::{Drafts, ProfileEdit, RowEdit};
-    use crate::forms::{DatumKindChoice, ShapeKind};
+    use crate::forms::ShapeKind;
     use crate::props::Notation;
-    use crate::seats::Seat;
-    use crate::session::NodeKindWanted;
+    use crate::session::FaceSelection;
     use crate::session::SessionOp;
-    use crate::session::author::datum_node;
-    use crate::session::{DatumSpec, FaceSelection, ProfilePlane};
     use crate::sketch;
-    use crate::test_support::{inserted, try_edited, try_inserted, xy_frame};
-
-    /// **An accepted `NewXy` leaves the form on the frame it
-    /// minted**, so the next submit draws on that frame instead of
-    /// minting a second copy of it.
-    ///
-    /// The ids arrive as a VALUE — this module names no session (the
-    /// module-kinds gate holds that) — and
-    /// `creation_ops::a_new_xy_action_mints_the_frame_before_the_profile`
-    /// is the row that holds the real door to handing them over in
-    /// this order.
-    #[test]
-    fn an_accepted_new_xy_leaves_the_form_on_the_frame_it_minted() {
-        let (frame, profile) = (RecipeNodeId::new(0, 1), RecipeNodeId::new(0, 2));
-        let mut drafts = Drafts {
-            profile_plane: Some(ProfilePlane::NewXy),
-            profile_shape: Some(ShapeKind::Circle),
-            ..Drafts::default()
-        };
-        let loops = drafts
-            .profile_programs(Notation::DEFAULT)
-            .expect("the default circle lowers");
-        drafts.accepted(
-            &SessionOp::AddProfile {
-                plane: ProfilePlane::NewXy,
-                loops,
-            },
-            &[frame, profile],
-        );
-        assert_eq!(
-            drafts.profile_plane,
-            Some(ProfilePlane::Existing(frame)),
-            "the frame the action minted, not the profile and not `NewXy` again"
-        );
-        assert_eq!(drafts.profile_shape, None, "the shape still rests");
-    }
+    use crate::test_support::{inserted, try_edited, try_inserted};
 
     /// A rename draft survives only while its own node's field shows.
     #[test]
@@ -1199,167 +1059,39 @@ mod tests {
     fn a_landed_creation_spends_its_kinds_label_draft_and_settles_its_form() {
         let tol = Tol::witness();
         let doc: Doc<ProfileProgram> = Doc::empty_derived("drafts-creation-landed", tol);
-        let (doc, frame) = inserted(&doc, xy_frame(), tol);
         let mut drafts = Drafts {
-            profile_plane: Some(ProfilePlane::NewXy),
             profile_shape: Some(ShapeKind::Circle),
             ..Drafts::default()
         };
-        drafts
-            .creation_labels
-            .insert("Datum frame", "floor".to_owned());
+        drafts.creation_labels.insert("Profile", "sketch".to_owned());
         drafts.creation_labels.insert("Extrude", "plate".to_owned());
         let loops = drafts
             .profile_programs(Notation::DEFAULT)
             .expect("the default circle lowers");
-        let creation = crate::session::Creation::of(SessionOp::AddProfile {
-            plane: ProfilePlane::NewXy,
-            loops,
-        })
-        .expect("adding a profile creates a node");
-        drafts.accepted(
-            &SessionOp::CreateLabelled {
-                creation,
-                label: pncad::document::Label::new("sketch").expect("a label"),
-            },
-            &[frame],
+        let (doc, profile) = inserted(
+            &doc,
+            Node::Profile(ProfileProgram {
+                loops: loops.clone(),
+                ids: Vec::new(),
+            }),
+            tol,
         );
+        let creation = crate::session::Creation::of(SessionOp::AddProfile { loops })
+            .expect("adding a profile creates a node");
+        drafts.accepted(&SessionOp::CreateLabelled {
+            creation,
+            label: pncad::document::Label::new("sketch").expect("a label"),
+        });
         assert_eq!(
-            drafts.profile_plane,
-            Some(ProfilePlane::Existing(frame)),
+            drafts.profile_shape, None,
             "the labelled add settles the form as the bare one does"
         );
-        drafts.creation_landed(&doc, &[frame]);
+        drafts.creation_landed(&doc, &[profile]);
         assert_eq!(
             drafts.creation_labels.keys().copied().collect::<Vec<_>>(),
             vec!["Extrude"],
-            "the frame's draft is spent, the extrude's kept"
+            "the profile's draft is spent, the extrude's kept"
         );
-    }
-
-    /// An accepted add on an EXISTING frame leaves the pick where it
-    /// was — the arm that must not follow the rule above, since the
-    /// one id it minted is the profile.
-    #[test]
-    fn an_accepted_add_on_an_existing_frame_leaves_the_pick_alone() {
-        let (plane, profile) = (RecipeNodeId::new(0, 4), RecipeNodeId::new(0, 9));
-        let mut drafts = Drafts {
-            profile_plane: Some(ProfilePlane::Existing(plane)),
-            profile_shape: Some(ShapeKind::Circle),
-            ..Drafts::default()
-        };
-        let loops = drafts
-            .profile_programs(Notation::DEFAULT)
-            .expect("the default circle lowers");
-        drafts.accepted(
-            &SessionOp::AddProfile {
-                plane: ProfilePlane::Existing(plane),
-                loops,
-            },
-            &[profile],
-        );
-        assert_eq!(
-            drafts.profile_plane,
-            Some(ProfilePlane::Existing(plane)),
-            "a second profile on the same frame starts where the first left off"
-        );
-    }
-
-    /// **The add-datum FRAME form opens on the frame the add-profile
-    /// form MINTS**, through the lowering rather than past it.
-    ///
-    /// Both now read `ProfilePlane::xy_numbers`, so the NUMBERS cannot
-    /// disagree. What this row still holds is the step between them:
-    /// `world_xy` lowers those triples into the slots
-    /// `Datum::Frame` takes, and a lowering that put the origin where
-    /// an axis goes would satisfy the shared constant and still author
-    /// a different frame.
-    #[test]
-    fn the_frame_forms_default_is_the_frame_the_profile_form_mints() {
-        let drafts = Drafts {
-            datum_kind: DatumKindChoice::Frame,
-            ..Drafts::default()
-        };
-        let form = drafts
-            .datum_spec(None, Notation::DEFAULT)
-            .expect("the default frame lowers")
-            .expect("the frame kind needs no pick");
-        let mint = ProfilePlane::world_xy().expect("the mint's own numbers lower");
-        assert_eq!(
-            datum_node(form),
-            datum_node(mint),
-            "the form a person opens and the frame the profile door mints are one frame"
-        );
-    }
-
-    /// **The add-datum drafts with every PICK filled**, for `kind` —
-    /// the form as it stands when its button goes live.
-    ///
-    /// Both picks are filled for every kind, not one per kind: what
-    /// each kind READS is the thing under test, and a helper that
-    /// chose which pick to fill would be restating the answer.
-    ///
-    /// **The face pick's node-valued answers are DIFFERENT ids here**,
-    /// deliberately: the ray met node 2 and the name was minted by
-    /// node 1, so `node`, `name.node` and `feature()` are not one
-    /// value and a row that reads the wrong one goes red. A fixture
-    /// that gave them one id would pass under exactly the substitution
-    /// the seat's doc warns compiles.
-    fn picked(datum_kind: DatumKindChoice) -> Drafts {
-        Drafts {
-            datum_kind,
-            datum_face: Some(FaceSelection {
-                name: StableName {
-                    kind: EntityKind::Face,
-                    node: RecipeNodeId::new(0, 1),
-                    path: vec![RoleSeg::Cap(CapEnd::End)],
-                },
-                node: RecipeNodeId::new(0, 2),
-                body: 0,
-            }),
-            ..Drafts::default()
-        }
-    }
-
-    /// **The face-frame gate's answer**, as `Drafts::datum_spec` takes
-    /// it — the pair `face_frame_seat` hands back once it has admitted
-    /// a pick.
-    ///
-    /// **Its `at` is a THIRD id**, matching neither the selection's
-    /// `node` nor its `feature()`: the form carries what the gate
-    /// answered and re-derives nothing, so a lowering that reached
-    /// back into `Drafts::datum_face` reads 2 here and goes red. WHICH
-    /// id the gate answers is the gate's own question, asked where the
-    /// two differ over a real body
-    /// (`docm1_face_frame::at_is_the_node_the_ray_met_and_not_the_feature`).
-    fn seated() -> (RecipeNodeId, StableName) {
-        (
-            RecipeNodeId::new(0, 3),
-            StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId::new(0, 1),
-                path: vec![RoleSeg::Cap(CapEnd::End)],
-            },
-        )
-    }
-
-    /// **A datum choice's noun is the kind of the node it lowers to**:
-    /// the add-datum form's proposed label counts by
-    /// [`DatumKindChoice::noun`], so it has to be `node_kind_noun`'s
-    /// word for what the form commits.
-    #[test]
-    fn each_datum_choices_noun_is_the_kind_of_the_node_it_commits() {
-        for (datum_kind, _) in DatumKindChoice::ALL {
-            let spec = picked(datum_kind)
-                .datum_spec(Some(&seated()), Notation::DEFAULT)
-                .expect("the default drafts are finite")
-                .expect("every pick is filled");
-            assert_eq!(
-                pncad::document::node_kind_noun(&datum_node(spec)),
-                datum_kind.noun(),
-                "{datum_kind:?}"
-            );
-        }
     }
 
     /// Blank clears; a label is kept as typed; a text the rule refuses
@@ -1382,58 +1114,6 @@ mod tests {
         ));
     }
 
-    /// **Every seat a datum fills can be filled from the add-datum
-    /// form.** Each choice the form offers is lowered from its default
-    /// drafts, with a frame picked, and every datum seat must admit at
-    /// least one of the nodes that produces — the question the seat's
-    /// own gate asks of a pick.
-    ///
-    /// The picked ids are arbitrary: `admits` reads the node's kind,
-    /// and whether an id names the kind its seat wants is the
-    /// add-datum door's question.
-    #[test]
-    fn every_datum_seat_is_fillable_from_the_add_datum_form() {
-        let authorable: Vec<_> = DatumKindChoice::ALL
-            .into_iter()
-            .map(|(datum_kind, _)| {
-                let spec = picked(datum_kind)
-                    .datum_spec(Some(&seated()), Notation::DEFAULT)
-                    .expect("the default drafts are finite");
-                datum_node(spec.expect("every pick is filled"))
-            })
-            .collect();
-        for seat in Seat::ALL {
-            let wanted = seat.wants();
-            match wanted {
-                // Made by the add-profile form and by the ops that
-                // produce bodies, not by this one.
-                //
-                // The part selector reads a pattern, which no datum
-                // form authors either.
-                NodeKindWanted::Profile | NodeKindWanted::Body | NodeKindWanted::Instances => {
-                    continue;
-                }
-                NodeKindWanted::Axis | NodeKindWanted::Plane | NodeKindWanted::Frame => {}
-            }
-            assert!(
-                // These seats are classified by the node's kind alone
-                // ([`crate::session::refuse::seat_kind`]), so the node's
-                // shape answers, its operands read as given.
-                authorable.iter().any(|node| {
-                    let mut doc = Doc::empty_derived("seat", Tol::witness());
-                    let stored =
-                        editor_core::test_support::stored_reading(&mut doc, node, |id, _| {
-                            editor_core::VarId(id.0)
-                        });
-                    crate::session::refuse::seat_kind(&stored) == Some(wanted)
-                }),
-                "the {} seat wants {} and no add-datum choice authors one",
-                seat.name(),
-                wanted.name(),
-            );
-        }
-    }
-
     /// **A profile the add form just committed is drawn once**, as the
     /// document's, and not a second time as the form's preview.
     ///
@@ -1450,22 +1130,21 @@ mod tests {
     fn a_committed_profile_is_not_drawn_again_as_its_preview() {
         let tol = Tol::witness();
         let chord = 1.0e-4;
-        let (doc, plane) = inserted(&Doc::empty_derived("drafts-accepted", tol), xy_frame(), tol);
+        let doc = Doc::empty_derived("drafts-accepted", tol);
         let mut drafts = Drafts {
-            profile_plane: Some(ProfilePlane::Existing(plane)),
             profile_shape: Some(ShapeKind::Circle),
             ..Drafts::default()
         };
 
         // The control: an accepted op that adds no profile leaves the
         // form composing.
-        drafts.accepted(&SessionOp::Hover(None), &[]);
+        drafts.accepted(&SessionOp::Hover(None));
         assert!(!drafts.profile_loops().is_empty(), "the draft was dropped");
 
         let loops = drafts
             .profile_programs(Notation::DEFAULT)
             .expect("the default circle lowers");
-        let (doc, profile) = inserted(
+        let (doc, _) = inserted(
             &doc,
             Node::Profile(ProfileProgram {
                 loops: loops.clone(),
@@ -1473,13 +1152,7 @@ mod tests {
             }),
             tol,
         );
-        drafts.accepted(
-            &SessionOp::AddProfile {
-                plane: ProfilePlane::Existing(plane),
-                loops,
-            },
-            &[profile],
-        );
+        drafts.accepted(&SessionOp::AddProfile { loops });
         let evaluation = evaluate(
             &doc,
             None,
@@ -1487,8 +1160,7 @@ mod tests {
             &EvalOptions::default(),
             tol,
         );
-        let placement =
-            sketch::frame_placement(&doc, &evaluation, plane).expect("the frame has a placement");
+        let placement = sketch::profile_plane();
         let committed = sketch::committed(&doc, &evaluation, chord, None);
         assert_eq!(
             committed.drawn.len(),
@@ -1503,99 +1175,56 @@ mod tests {
         );
     }
 
-    /// **The unmet-seat sentence follows the kind that is showing.**
+    /// **A sketch on a face lowers the held pick, the depth and the
+    /// spin in the form's notation**, and waits for a face while none is
+    /// held.
     ///
-    /// Two functions in two modules agree on one set: the kinds
-    /// `DatumKindChoice::unmet_seat` has a sentence for are exactly the
-    /// kinds `datum_spec` answers `Ok(None)` for with nothing picked.
-    /// A kind that gained a pick and no sentence would draw a held
-    /// button with nothing said over it; a kind that gained a sentence
-    /// and no pick would say it never. Both are red here.
-    ///
-    /// The sentences are also pairwise distinct, which is the whole
-    /// claim: one hardcoded sentence over the button was true of one
-    /// kind and false of the other.
-    ///
-    /// **This is the only row that has to say a kind waits.** It
-    /// asserts `Ok(None)` with nothing picked for EVERY kind the form
-    /// offers, so a row naming one of them said nothing this does not.
+    /// The face pick's node-valued answers are DIFFERENT ids here,
+    /// deliberately: the ray met node 2 and the name was minted by node
+    /// 1, so a lowering that carried the feature instead of the face as
+    /// picked is red. The spin is not zero: a lowering that dropped it,
+    /// or wrote it in canonical radians while the form said degrees, is
+    /// red too.
     #[test]
-    fn the_unmet_seat_sentence_follows_the_kind() {
-        let mut said = Vec::new();
-        for (kind, label) in DatumKindChoice::ALL {
-            let empty = Drafts {
-                datum_kind: kind,
-                ..Drafts::default()
-            };
-            let waiting = matches!(empty.datum_spec(None, Notation::DEFAULT), Ok(None));
-            assert_eq!(
-                waiting,
-                kind.unmet_seat().is_some(),
-                "the {label} kind waits for a pick without saying what for, or says so and never \
-                 waits",
-            );
-            // And a kind whose picks ARE filled lowers, so the
-            // sentence is about the PICK and not about the kind.
-            assert!(
-                matches!(
-                    picked(kind).datum_spec(Some(&seated()), Notation::DEFAULT),
-                    Ok(Some(_))
-                ),
-                "the {label} kind lowers once its picks are filled",
-            );
-            if let Some(sentence) = kind.unmet_seat() {
-                said.push(sentence);
-            }
-        }
-        let mut distinct = said.clone();
-        distinct.sort_unstable();
-        distinct.dedup();
-        assert_eq!(
-            distinct.len(),
-            said.len(),
-            "two kinds ask for their picks in the same words: {said:?}"
-        );
-    }
-
-    /// **The frame-on-face seat lowers the GATE's pair and the form's
-    /// angle notation** — the node the gate admitted, the frozen name
-    /// it admitted, and a spin written in the unit the form is working
-    /// in.
-    ///
-    /// The drafts here also hold a face pick, and it names a different
-    /// node ([`seated`]): a lowering that read the pick instead of the
-    /// gate's answer is red, which is the whole reason the pair is
-    /// passed in rather than derived twice.
-    ///
-    /// The spin is not zero here: a lowering that dropped it, or wrote
-    /// it in canonical radians while the form said half-turns, is red.
-    #[test]
-    fn the_frame_on_a_face_lowers_its_pick_and_its_spin() {
-        let drafts = Drafts {
-            datum_kind: DatumKindChoice::FaceFrame,
-            datum_spin: core::f64::consts::FRAC_PI_2,
-            ..picked(DatumKindChoice::FaceFrame)
-        };
-        let held = drafts.datum_face.clone().expect("the form holds a pick");
-        let seat = seated();
-        let Ok(Some(DatumSpec::FaceFrame {
-            at,
-            face: name,
-            spin,
-        })) = drafts.datum_spec(
-            Some(&seat),
-            Notation {
-                angle: pncad::quantity::DEG,
-                ..Notation::DEFAULT
+    fn a_sketch_on_a_face_lowers_its_pick_its_depth_and_its_spin() {
+        let face = FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId::new(0, 1),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
             },
-        )
-        else {
-            panic!("a filled seat lowers");
+            node: RecipeNodeId::new(0, 2),
+            body: 0,
         };
-        assert_eq!(at, seat.0, "the node the gate admitted");
-        assert_ne!(at, held.node, "and not the node the form is displaying");
-        assert_ne!(at, held.feature(), "nor the feature that made the entity");
-        assert_eq!(name, seat.1);
+        let notation = Notation {
+            angle: pncad::quantity::DEG,
+            ..Notation::DEFAULT
+        };
+        let waiting = Drafts {
+            profile_shape: Some(ShapeKind::Circle),
+            sketch_on_face: true,
+            ..Drafts::default()
+        };
+        assert!(
+            matches!(waiting.profile_op(notation), Ok(None)),
+            "no face held: the form waits"
+        );
+        let drafts = Drafts {
+            sketch_face: Some(face.clone()),
+            sketch_spin: core::f64::consts::FRAC_PI_2,
+            ..waiting
+        };
+        let Ok(Some(SessionOp::SketchOnFace {
+            face: held,
+            distance,
+            spin,
+            ..
+        })) = drafts.profile_op(notation)
+        else {
+            panic!("a held face lowers");
+        };
+        assert_eq!(held, face, "the face as picked");
+        assert_eq!(distance.literal_value(), Some(drafts.sketch_depth));
         let want = Formula::written_angle(pncad::quantity::WrittenAngle::canonical_in(
             core::f64::consts::FRAC_PI_2,
             pncad::quantity::DEG,
@@ -1605,10 +1234,18 @@ mod tests {
             spin.bit_eq(&want),
             "the spin is written in degrees: {spin:?}"
         );
+        let off = Drafts {
+            sketch_on_face: false,
+            ..drafts
+        };
+        assert!(
+            matches!(off.profile_op(notation), Ok(Some(SessionOp::AddProfile { .. }))),
+            "off the face, the profile on its own plane"
+        );
     }
 
-    /// A document holding one frame and the profile the add-profile
-    /// form's DEFAULT path authors on it, lowered by the form's own
+    /// A document holding the profile the add-profile form's DEFAULT
+    /// path authors, lowered by the form's own
     /// `profile_programs` and inserted through the edit door the
     /// create button's op reaches. Answers the document, the drafts
     /// that authored it, and the profile node.
@@ -1616,10 +1253,9 @@ mod tests {
         use crate::forms::ShapeKind;
 
         let tol = Tol::witness();
-        let (doc, plane) = inserted(&Doc::empty_derived("drafts-edit", tol), xy_frame(), tol);
+        let doc = Doc::empty_derived("drafts-edit", tol);
         let drafts = Drafts {
             profile_shape: Some(ShapeKind::Path),
-            profile_plane: Some(ProfilePlane::Existing(plane)),
             ..Drafts::default()
         };
         let loops = drafts
@@ -1742,7 +1378,7 @@ mod tests {
     /// document; `(doc, drafts, profile)`.
     fn held_path(steps: Vec<Step<f64>>) -> (Doc<ProfileProgram>, Drafts, RecipeNodeId) {
         let tol = Tol::witness();
-        let (doc, plane) = inserted(&Doc::empty_derived("drafts-ids", tol), xy_frame(), tol);
+        let doc = Doc::empty_derived("drafts-ids", tol);
         let loops = vec![
             sketch::loop_program(
                 &crate::session::ProfileShape::Path { steps },
@@ -1908,10 +1544,7 @@ mod tests {
         );
         drafts.profile_edit(&doc, profile).expect("held");
         let held = drafts.door_loops().edit.expect("the edit door holds loops");
-        let ProfilePlane::Existing(plane) = held.plane.expect("its own frame") else {
-            panic!("the edit door draws on the committed profile's own frame node")
-        };
-        let placement = sketch::frame_placement(&doc, &evaluation, plane).expect("placed");
+        let placement = sketch::profile_plane();
         let preview = sketch::preview(placement, &held.loops, tol, chord);
         assert!(
             matches!(&preview, Ok(p) if !p.loops.is_empty()),

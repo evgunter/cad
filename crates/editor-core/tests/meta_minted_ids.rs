@@ -155,30 +155,3 @@ fn metadata_holding_a_name_minted_above_i64_max_saves_and_loads() {
         "the loaded value reads back as the name"
     );
 }
-
-/// **A node id read by a door with its own visitor comes back through
-/// `from_value` at every id**, as it does through the saved text: a
-/// profile's `plane` reads through `plane_ref`, whose visitor takes the
-/// id's string alone, so an id spelled any other way would be refused.
-#[test]
-fn a_profile_program_comes_back_through_metadata_at_every_plane_id() {
-    for (ordinal, id) in [
-        (1, 5),
-        (2, i64::MAX as u64),
-        (3, i64::MAX as u64 + 1),
-        (u32::MAX, u64::MAX),
-    ] {
-        let program: ProfileProgram = ProfileProgram {
-            loops: Vec::new(),
-            ids: Vec::new(),
-        };
-        let value = to_value(&program).expect("a profile program is metadata");
-        let back = from_value::<ProfileProgram>(&value)
-            .unwrap_or_else(|e| panic!("plane {id} comes back through from_value: {e}"));
-        assert_eq!(back.frame, program.frame, "plane {id} comes back as itself");
-        let json = serde_json::to_string(&program).unwrap();
-        let read = serde_json::from_str::<ProfileProgram>(&json)
-            .unwrap_or_else(|e| panic!("plane {id} reads back from text: {e}"));
-        assert_eq!(read.frame, program.frame, "plane {id} reads back from text");
-    }
-}

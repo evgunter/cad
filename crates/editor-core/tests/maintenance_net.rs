@@ -10,7 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::block;
-use crate::fixture::{ang, fname, insert, wall};
+use crate::fixture::{fname, insert, len, wall};
 use editor_core::{
     Applied, Attr, AttrKind, DocEdit, EditError, Maintenance, Node, ProfileDoc, ProfileProgram,
     RecipeNodeId, Recorded, Recording, RefusingReach, Rgba8, StableName, apply,
@@ -44,36 +44,31 @@ fn net_of(
     (crate::fixture::without_anonymous(&maintenance), each, doc)
 }
 
-/// A derived frame on `at` carrying `face`.
-fn frame_on(doc: ProfileDoc, at: RecipeNodeId, face: StableName) -> (ProfileDoc, RecipeNodeId) {
-    insert(
-        doc,
-        Node::Datum(editor_core::Datum::FaceFrame {
-            face: editor_core::Operand::select(at, vec![face]),
-            spin: ang(0.0),
-        }),
-    )
+/// A shell of `at` opening `face`: a node carrying a selection of the
+/// name.
+fn shell_on(doc: ProfileDoc, at: RecipeNodeId, face: StableName) -> (ProfileDoc, RecipeNodeId) {
+    insert(doc, Node::shell(at, len(0.0625), vec![face]))
 }
 
-/// The selection a face frame reads.
-fn face_of(doc: &ProfileDoc, frame: RecipeNodeId) -> editor_core::VarId {
-    match doc.node(frame) {
-        Some(Node::Datum(editor_core::Datum::FaceFrame { face, .. })) => *face,
-        other => panic!("a face frame, got {other:?}"),
+/// The selection a shell reads.
+fn face_of(doc: &ProfileDoc, shell: RecipeNodeId) -> editor_core::VarId {
+    match doc.node(shell) {
+        Some(Node::Shell { open, .. }) => *open,
+        other => panic!("a shell, got {other:?}"),
     }
 }
 
 /// **A strand survives only while its carrier still holds the stranded
-/// name.** Deleting a block strands the frame's name on it; a `Rebind`
+/// name.** Deleting a block strands the shell's name on it; a `Rebind`
 /// in the same action repairs it onto the kept block, so the action
 /// strands nothing. The strand alone, without the repair, survives.
 #[test]
 fn a_strand_a_later_rebind_repairs_is_not_reported() {
     let doc = ProfileDoc::empty_derived("net-strand-rebind", Tol::witness());
-    let (doc, kept) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, kept) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 1.0);
     let named = fname(victim, wall(&doc, victim, 0));
-    let (doc, carrier) = frame_on(doc, kept, named.clone());
+    let (doc, carrier) = shell_on(doc, kept, named.clone());
 
     let (alone, _, _) = net_of(&doc, vec![DocEdit::DeleteNode { id: victim }]);
     assert_eq!(
@@ -108,10 +103,10 @@ fn a_strand_a_later_rebind_repairs_is_not_reported() {
 #[test]
 fn a_strand_on_a_carrier_the_action_deleted_is_not_reported() {
     let doc = ProfileDoc::empty_derived("net-strand-carrier-gone", Tol::witness());
-    let (doc, kept) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, kept) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 1.0);
     let named = fname(victim, wall(&doc, victim, 0));
-    let (doc, carrier) = frame_on(doc, kept, named);
+    let (doc, carrier) = shell_on(doc, kept, named);
     let (net, each, _) = net_of(
         &doc,
         vec![
@@ -129,8 +124,8 @@ fn a_strand_on_a_carrier_the_action_deleted_is_not_reported() {
 #[test]
 fn an_appearance_strand_a_later_clear_removes_is_not_reported() {
     let doc = ProfileDoc::empty_derived("net-appearance-clear", Tol::witness());
-    let (doc, _) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 1.0);
     let painted = fname(victim, wall(&doc, victim, 0));
     let doc = applied(
         &doc,
@@ -173,11 +168,11 @@ fn an_appearance_strand_a_later_clear_removes_is_not_reported() {
 #[test]
 fn a_recording_answers_its_edits_ids_and_document_in_order() {
     let doc = ProfileDoc::empty_derived("net-record", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 1.0);
+    let (doc, c) = block(doc, (4.0, 5.0), (0.0, 1.0), 1.0);
     let named = fname(b, wall(&doc, b, 0));
-    let (doc, _) = frame_on(doc, a, named.clone());
+    let (doc, _) = shell_on(doc, a, named.clone());
     let other = Node::Union {
         members: editor_core::Bodies::Spelled(vec![a.into(), c.into()]),
     };
@@ -233,7 +228,7 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
             .maintenance
             .iter()
             .any(|row| matches!(row, Maintenance::StrandedSelection { .. })),
-        "the premise: the delete alone strands the frame's name: {:?}",
+        "the premise: the delete alone strands the shell's name: {:?}",
         crate::fixture::without_anonymous(&first.maintenance)
     );
 
@@ -263,9 +258,9 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
 #[test]
 fn a_refusal_ends_the_action_even_when_the_caller_goes_on() {
     let doc = ProfileDoc::empty_derived("net-refused", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block(doc, (4.0, 5.0), (0.0, 1.0), 1.0);
+    let (doc, c) = block(doc, (8.0, 9.0), (0.0, 1.0), 1.0);
     let delete_b = DocEdit::DeleteNode { id: b };
     let union = Node::Union {
         members: editor_core::Bodies::Spelled(vec![b.into(), c.into()]),

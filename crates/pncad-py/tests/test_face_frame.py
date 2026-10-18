@@ -1,44 +1,33 @@
-"""The derived sketch frame and the two facts it is built from
+"""The face a sketch is placed on, and the two facts it is read from
 (LIB-B-FACE-FRAME).
 
 Three doors close this census family, and they are one story rather
 than three: `Evaluation.face_carrier_kind` asks a named face what KIND
 of surface carries it, `Pose.sense` carries the face's orientation
 sense beside the chart axis the frame doors already answered with, and
-`Node.datum_face_frame` turns a face NAME plus a spin angle into a
-sketch frame — "sketch on this face", the thing a user reaches for
-before anything else and could not spell in Python at all.
+`Doc.sketch_on_face` turns a face NAME plus a spin angle into a sketch
+standing on that face — "sketch on this face", the thing a user reaches
+for before anything else.
 
-WHAT MAKES IT DERIVED, and what the rows below check. The node stores
-the face's name and the spin, and nothing else: origin, +x and +y are
-READ off the upstream body at every evaluation. So the plate's own
-thickness decides where the frame lands (`TestTheFrameIsRead`), the
-body is a DAG INPUT the document refuses to delete out from under it
-(`test_the_body_is_a_dag_input`), and a face name that stops denoting
-fails the frame typed instead of quietly keeping nine stale numbers
-(`select_resolve`). A transcribed frame could do none of those.
+WHAT MAKES IT READ, and what the rows below check. The placement's
+mate stores the face's name and the spin, and nothing else: where the
+face lies is READ off the upstream body at every evaluation. So the
+plate's own thickness decides where the sketch lands
+(`test_the_sketch_lands_wherever_the_face_it_names_is`), the body is a
+read the document reports when it is deleted out from under the sketch
+(`test_the_body_is_a_read`), and a face name that stops denoting fails
+the placement typed instead of quietly keeping nine stale numbers. A
+transcribed frame could do none of those.
 
 NOTHING HERE READS INSIDE A NAME. Every face name is a materializer's
-opaque text handed straight back to the constructor, which is the
-whole point: the alphabet does not change between selecting a face and
+opaque text handed straight back to the gesture, which is the whole
+point: the alphabet does not change between selecting a face and
 sketching on it.
 
-TWO THINGS THIS FILE DELIBERATELY DOES NOT ASSERT, so their absence is
-not read as coverage.
-
-- **A parameter driving the frame's carrier.** "Raise the body and the
-  sketch rides up with it" is the derived frame's headline, and the
-  only mutation Python can aim at a continuous slot today is
-  re-authoring: no node constructor takes a `Formula`, and
-  `DocEdit.bind_count_param` is narrowed to structural counts on
-  purpose. So `TestTheFrameIsRead` shows the dependence by building
-  two plates rather than by moving one, and the DAG edge itself is
-  shown by the delete refusal.
-- **`face_frame_readback`.** The fourth authoring refusal needs a body
-  whose stored geometry cannot be re-read, which is not a state any
-  evaluated value is in — the same reason `test_readback.py` has no
-  `dangling_entity` row. It is bound and tagged; a row appears when
-  some door reaches it.
+ONE THING THIS FILE DELIBERATELY DOES NOT ASSERT, so its absence is not
+read as coverage: **a parameter driving the face.** "Raise the body and
+the sketch rides up with it" is the headline, and `TestSketchOnAFace`
+shows the dependence by building two plates rather than by moving one.
 """
 
 import math
@@ -52,8 +41,10 @@ from pncad import (
     EvaluationError,
     Formula,
     Node,
+    Open,
     Pose,
     ReadbackError,
+    Start,
     SurfaceKind,
     TubeWindow,
     evaluate,
@@ -71,7 +62,7 @@ SQUARE = [
 
 def plate(doc, thickness):
     """A 1 m x 1 m plate `thickness` thick, standing on the ground."""
-    square = doc.insert(Node.polygon(SQUARE, plane=doc.sketch_frame()))
+    square = doc.insert(Node.polygon(SQUARE))
     return doc.insert(Node.extrude(square, Formula.literal(thickness)))
 
 
@@ -88,23 +79,10 @@ def top_face(ev, node, height):
 
 
 def ring(doc):
-    """A solid ring torus about the world z axis — a CURVED carrier,
+    """A solid ring torus about its own z axis — a CURVED carrier,
     which is what a non-planar refusal needs."""
-    frame = doc.insert(Node.datum_frame((
-        Formula.length_in(0, m),
-        Formula.length_in(0, m),
-        Formula.length_in(0, m),
-    ), (
-        Formula.literal(1.0),
-        Formula.literal(0.0),
-        Formula.literal(0.0),
-    ), (
-        Formula.literal(0.0),
-        Formula.literal(1.0),
-        Formula.literal(0.0),
-    )))
     return doc.insert(
-        Node.tube(frame, Formula.length_in(1, m), TubeWindow.full(), Formula.length_in(0.3, m))
+        Node.tube(Formula.length_in(1, m), TubeWindow.full(), Formula.length_in(0.3, m))
     )
 
 
@@ -207,22 +185,9 @@ class TestTheOrientationSense(unittest.TestCase):
         is `-axis` there and the bool is the only thing that says so.
         Four faces, two of them inner."""
         doc = Doc()
-        frame = doc.insert(Node.datum_frame((
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(1.0),
-            Formula.literal(0.0),
-            Formula.literal(0.0),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-            Formula.literal(0.0),
-        )))
         tube = doc.insert(
             Node.hollow_tube(
-                frame, Formula.length_in(1, m), TubeWindow.full(), Formula.length_in(0.3, m), Formula.length_in(0.1, m)
+                Formula.length_in(1, m), TubeWindow.full(), Formula.length_in(0.3, m), Formula.length_in(0.1, m)
             )
         )
         ev = evaluate(doc)
@@ -249,176 +214,112 @@ class TestTheOrientationSense(unittest.TestCase):
         self.assertIn("sense=True", repr(pose))
 
 
-class TestTheDerivedFrame(unittest.TestCase):
-    """`Node.datum_face_frame`: the face's pose plus a spin, as a
-    document node.
+def loop(points):
+    """The closed polygon through `points`, in metres."""
+    path = Open.at((points[0][0] * m, points[0][1] * m))
+    for x, y in points[1:]:
+        path = path.line_to((x * m, y * m))
+    return path.line_to(Start)
 
-    Every number below is an oracle against the pose the READ door
-    answers with, never a transcribed constant: the frame's origin is
-    the pose's origin, its normal is `sense * axis`, and its +x is the
-    carrier's `u_ref` turned by the spin about that normal."""
+
+PAD = loop([(-0.3, -0.3), (0.3, -0.3), (0.3, 0.3), (-0.3, 0.3)])
+
+
+def positions(ev, node):
+    """Every vertex of `node`, in metres."""
+    return [tuple(c.meters for c in ev.vertex_position(node, v)) for v in ev.all_vertices(node)]
+
+
+class TestSketchOnAFace(unittest.TestCase):
+    """`Doc.sketch_on_face`: "sketch on this face" — a profile drawn on
+    its own plane, extruded up its own z, the copy placed against the
+    named face of the body and fused with it, as one action.
+
+    Every number below is an oracle against where the face SITS, read
+    off the evaluation: the boss starts on the face and grows along its
+    outward normal, its origin over the face body's own, turned by the
+    spin about that normal."""
 
     def setUp(self):
         self.doc = Doc()
         self.plate = plate(self.doc, 0.2 * m)
         ev = evaluate(self.doc)
         self.top = top_face(ev, self.plate, 0.2)
-        self.pose = ev.face_frame(self.plate, self.top)
 
-    def frame_datum(self, spin):
-        node = self.doc.insert(Node.datum_face_frame(self.plate, self.top, Formula.literal(spin)))
-        return node, evaluate(self.doc).value(node).datum()
-
-    def outward(self):
-        sign = 1.0 if self.pose.sense else -1.0
-        return tuple(sign * c for c in self.pose.axis)
-
-    def assert_close(self, got, want, delta=1e-12):
-        for a, b in zip(got, want, strict=True):
-            self.assertAlmostEqual(a, b, delta=delta)
-
-    def test_it_reads_back_as_an_ordinary_frame_datum(self):
-        """A derived frame's VALUE is exactly an authored frame's —
-        same kind, same projection — so every reader of a frame takes
-        it by value and none has to learn where the numbers came
-        from."""
-        _, datum = self.frame_datum(0 * rad)
-        self.assertEqual(datum.kind, "frame")
-        self.assertIsNotNone(datum.axes)
-
-    def test_its_origin_is_the_faces_carrier_origin(self):
-        _, datum = self.frame_datum(0 * rad)
-        self.assert_close(
-            tuple(c.meters for c in datum.origin),
-            tuple(c.meters for c in self.pose.origin),
-        )
-
-    def test_its_normal_is_the_sense_times_the_axis(self):
-        """DM1a, crossing: the sketch faces OUT of the plate, and the
-        sign is selected from the stored bool rather than computed."""
-        _, datum = self.frame_datum(0 * rad)
-        self.assert_close(datum.direction, self.outward())
-
-    def test_zero_spin_takes_the_carriers_u_reference_unturned(self):
-        _, datum = self.frame_datum(0 * rad)
-        u, v = datum.axes
-        self.assert_close(u, self.pose.u_ref)
-        # +y is the right-handed third leg, `n x u`.
-        n = self.outward()
-        self.assert_close(
-            v,
-            (
-                n[1] * u[2] - n[2] * u[1],
-                n[2] * u[0] - n[0] * u[2],
-                n[0] * u[1] - n[1] * u[0],
-            ),
-        )
-
-    def test_the_spin_turns_x_about_the_outward_normal(self):
-        """The arithmetic, checked rather than eyeballed: sketch +x is
-        `u_ref cos(spin) + (n x u_ref) sin(spin)`, right-handed about
-        the OUTWARD normal — so a positive spin turns the same way on
-        the underside of a plate as on the top."""
-        theta = math.pi / 6
-        _, datum = self.frame_datum(theta * rad)
-        n, u_ref = self.outward(), self.pose.u_ref
-        cross = (
-            n[1] * u_ref[2] - n[2] * u_ref[1],
-            n[2] * u_ref[0] - n[0] * u_ref[2],
-            n[0] * u_ref[1] - n[1] * u_ref[0],
-        )
-        want = tuple(
-            u * math.cos(theta) + c * math.sin(theta)
-            for u, c in zip(u_ref, cross, strict=True)
-        )
-        self.assert_close(datum.axes[0], want)
-
-    def test_the_spin_has_no_default(self):
-        """Which way a sketch faces on a face is an authoring
-        decision, and the door does not choose one — the argument is
-        positional and required."""
-        with self.assertRaises(TypeError):
-            Node.datum_face_frame(self.plate, self.top)
-
-    def test_a_sketch_on_the_frame_extrudes_out_of_the_plate(self):
+    def test_a_sketch_on_the_face_extrudes_out_of_the_plate(self):
         """The scene-scale row, authored the way a user would: select
         the top face, sketch on it, extrude. The boss starts at the
         plate's top and grows away from the material — which is what
-        the outward normal buys."""
-        frame = self.doc.insert(Node.datum_face_frame(self.plate, self.top, Formula.angle_in(0, rad)))
-        # The sketch's coordinates are the FRAME's, and the frame's
-        # origin is the carrier's distinguished point — the plate's
-        # centre, not its corner — so the pad is written about zero.
-        pad = self.doc.insert(
-            Node.polygon(
-                [
-                    (Formula.length_in(-0.3, m), Formula.length_in(-0.3, m)),
-                    (Formula.length_in(0.3, m), Formula.length_in(-0.3, m)),
-                    (Formula.length_in(0.3, m), Formula.length_in(0.3, m)),
-                    (Formula.length_in(-0.3, m), Formula.length_in(0.3, m)),
-                ],
-                plane=frame,
-            )
-        )
-        boss = self.doc.insert(Node.extrude(pad, Formula.length_in(0.3, m)))
+        the outward normal buys — and its footprint is the sketch's
+        coordinates over the plate's own origin, unturned at zero
+        spin."""
+        sketched = self.doc.sketch_on_face(self.plate, self.top, PAD, 0.3 * m)
         ev = evaluate(self.doc)
-        zs = [ev.vertex_position(boss, v)[2].meters for v in ev.all_vertices(boss)]
-        self.assertAlmostEqual(min(zs), 0.2, delta=1e-12)
-        self.assertAlmostEqual(max(zs), 0.5, delta=1e-12)
-        # And its FOOTPRINT is the sketch's coordinates landed through
-        # the frame: the origin is the plate's centre (0.5, 0.5), and
-        # at zero spin sketch +x and +y are the carrier's `u_ref` and
-        # `n x u_ref`, which here are world +x and +y — so a pad
-        # written about zero arrives centred and unrotated.
-        xs = [ev.vertex_position(boss, v)[0].meters for v in ev.all_vertices(boss)]
-        ys = [ev.vertex_position(boss, v)[1].meters for v in ev.all_vertices(boss)]
-        self.assertAlmostEqual(min(xs), 0.2, delta=1e-12)
-        self.assertAlmostEqual(max(xs), 0.8, delta=1e-12)
-        self.assertAlmostEqual(min(ys), 0.2, delta=1e-12)
-        self.assertAlmostEqual(max(ys), 0.8, delta=1e-12)
+        boss = positions(ev, sketched.placement)
+        for axis, (lo, hi) in enumerate(((-0.3, 0.3), (-0.3, 0.3), (0.2, 0.5))):
+            with self.subTest(axis=axis):
+                self.assertAlmostEqual(min(p[axis] for p in boss), lo, delta=1e-12)
+                self.assertAlmostEqual(max(p[axis] for p in boss), hi, delta=1e-12)
+        # The union holds the plate and the boss: 1 x 1 x 0.2 and
+        # 0.6 x 0.6 x 0.3.
+        volume = ev.value(sketched.union).body().mass_properties().volume
+        self.assertAlmostEqual(volume, 0.2 + 0.108, delta=1e-12)
 
+    def test_the_four_nodes_are_one_recorded_action(self):
+        """The gesture inserts a profile, its extrude, the placement and
+        the union, and answers each one's id."""
+        before = self.doc.node_count
+        sketched = self.doc.sketch_on_face(self.plate, self.top, PAD, 0.3 * m)
+        self.assertEqual(self.doc.node_count, before + 4)
+        self.assertEqual(
+            [self.doc.node_kind(n) for n in (sketched.profile, sketched.extrude, sketched.placement, sketched.union)],
+            ["profile", "extrude", "place", "union"],
+        )
 
-class TestTheFrameIsRead(unittest.TestCase):
-    """Not transcribed: the frame's numbers come off the upstream body
-    at every evaluation, and the document knows it depends on it."""
+    def test_the_spin_turns_the_sketch_about_the_outward_normal(self):
+        """The arithmetic, checked rather than eyeballed: a corner the
+        sketch draws at `(0.4, 0)` lands at `(0.4 cos spin, 0.4 sin
+        spin)`, right-handed about the face's outward normal."""
+        theta = math.pi / 6
+        arm = loop([(0, 0), (0.4, 0), (0.4, 0.1), (0, 0.1)])
+        sketched = self.doc.sketch_on_face(
+            self.plate, self.top, arm, 0.3 * m, Formula.angle_in(theta, rad)
+        )
+        ev = evaluate(self.doc)
+        want = (0.4 * math.cos(theta), 0.4 * math.sin(theta), 0.2)
+        near = [
+            p for p in positions(ev, sketched.placement) if max(abs(a - b) for a, b in zip(p, want)) < 1e-12
+        ]
+        self.assertEqual(len(near), 1, "the sketch's (0.4, 0) corner, turned by the spin")
 
-    def test_the_frame_lands_wherever_the_face_it_names_is(self):
-        """Two plates, the same six downstream calls, one number
-        different: the frame follows the face and nothing in the
-        recipe repeats the thickness."""
+    def test_the_sketch_lands_wherever_the_face_it_names_is(self):
+        """Two plates, the same downstream call, one number different:
+        the sketch follows the face and nothing in the recipe repeats
+        the thickness."""
         for thickness in (0.2, 0.7):
             with self.subTest(thickness=thickness):
                 doc = Doc()
                 node = plate(doc, thickness * m)
-                ev = evaluate(doc)
-                face = top_face(ev, node, thickness)
-                frame = doc.insert(Node.datum_face_frame(node, face, Formula.angle_in(0, rad)))
-                origin = evaluate(doc).value(frame).datum().origin
-                self.assertAlmostEqual(origin[2].meters, thickness, delta=1e-12)
+                face = top_face(evaluate(doc), node, thickness)
+                sketched = doc.sketch_on_face(node, face, PAD, 0.3 * m)
+                zs = [p[2] for p in positions(evaluate(doc), sketched.placement)]
+                self.assertAlmostEqual(min(zs), thickness, delta=1e-12)
 
     def test_the_body_is_a_read(self):
-        """`at` is a READ, exactly as a profile's plane is —
-        so deleting the body out from under the frame is accepted and
-        reported, naming the frame, which refuses until re-pointed."""
-        doc = Doc()
-        node = plate(doc, 0.2 * m)
-        ev = evaluate(doc)
-        frame = doc.insert(
-            Node.datum_face_frame(node, top_face(ev, node, 0.2), Formula.angle_in(0, rad))
-        )
-        doc.apply(DocEdit.delete_node(node))
-        stranded = [m.node for m in doc.last_maintenance if m.variant == "stranded_read"]
-        self.assertEqual(stranded, [frame])
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(frame)
-        self.assertEqual(caught.exception.kind, "unresolved_read")
+        """The face is read off the body, so deleting the body out from
+        under the sketch is accepted and reported, naming the placement
+        whose mate reads it, which refuses until re-pointed."""
+        sketched = self.doc.sketch_on_face(self.plate, self.top, PAD, 0.3 * m)
+        self.doc.apply(DocEdit.delete_node(self.plate))
+        stranded = [m.node for m in self.doc.last_maintenance if m.variant == "stranded_read"]
+        self.assertIn(sketched.placement, stranded)
+        with self.assertRaises(EvaluationError):
+            evaluate(self.doc).value(sketched.placement)
 
 
-class TestTheDerivedFrameRefuses(unittest.TestCase):
-    """Typed at `evaluate`, never at the constructor: which face a
-    frame names is recipe data, and a recipe that cannot be built is
-    still a recipe. Three of the four arms are constructible from
-    Python; the fourth is named in this module's docstring."""
+class TestSketchOnAFaceRefuses(unittest.TestCase):
+    """What the face a sketch names can be wrong about: its kind at the
+    edit door, its denotation and its carrier at `evaluate`."""
 
     def setUp(self):
         self.doc = Doc()
@@ -431,60 +332,58 @@ class TestTheDerivedFrameRefuses(unittest.TestCase):
             evaluate(self.doc).value(node)
         return caught.exception
 
-    def test_an_edge_name_refuses_at_the_insert(self):
-        """An edge name builds a `Node`, and the insert refuses it as
-        the seat's kind: what a name denotes is its own kind, so the
-        door that reads it asks."""
+    def test_an_edge_name_refuses_at_the_door_and_nothing_lands(self):
+        """An edge name is refused as the seat's kind: what a name
+        denotes is its own kind, so the door that reads it asks. The
+        gesture is one action, so nothing of it lands."""
         edge = self.ev.all_edges(self.plate)[0]
-        node = Node.datum_face_frame(self.plate, edge, Formula.angle_in(0, rad))
+        before = self.doc.node_count
         with self.assertRaises(EditError) as caught:
-            self.doc.insert(node)
+            self.doc.sketch_on_face(self.plate, edge, PAD, 0.3 * m)
         refused = caught.exception
         self.assertEqual(refused.variant, "selection_name_kind")
-        self.assertEqual(refused.first, 0)
         self.assertEqual(refused.found_kind, EntityKind.Edge)
         self.assertEqual(refused.expected_kind, EntityKind.Face)
         self.assertEqual(refused.name, edge)
+        self.assertEqual(self.doc.node_count, before)
 
-    def test_a_curved_carrier_refuses_face_frame_not_planar(self):
-        """A sketch frame wants a plane. The refusal's prose names the
-        carrier it found, and `Evaluation.face_carrier_kind` is the
-        door that answers the same question BEFORE the frame is
-        built."""
+    def test_a_curved_carrier_refuses_at_evaluate(self):
+        """A sketch rests on a plane: a face read as a plane refuses a
+        curved carrier, and `Evaluation.face_carrier_kind` is the door
+        that answers the same question BEFORE the sketch is placed."""
         torus = ring(self.doc)
         ev = evaluate(self.doc)
         face = ev.all_faces(torus)[0]
-        node = self.doc.insert(Node.datum_face_frame(torus, face, Formula.angle_in(0, rad)))
-        err = self.kind_of(node)
-        self.assertEqual(err.kind, "face_frame_not_planar")
-        self.assertIn("torus", str(err))
+        sketched = self.doc.sketch_on_face(torus, face, PAD, 0.3 * m)
+        self.assertIsNotNone(self.kind_of(sketched.placement).kind)
         self.assertIs(ev.face_carrier_kind(torus, face), SurfaceKind.Torus)
 
-    def test_a_name_that_does_not_denote_here_refuses_select_resolve(self):
-        """The N5 failure mode, and the evidence that the frame is
-        READ: a transcribed frame could not fail this way. The repair
-        is a rebind, not an edit of nine numbers."""
+    def test_a_name_that_does_not_denote_here_refuses_the_mate(self):
+        """The N5 failure mode, and the evidence that the face is READ:
+        a transcribed frame could not fail this way. The plane read off
+        a name the body does not hold does not evaluate, so the
+        placement's mate refuses naming that side; the repair is a
+        rebind, not an edit of nine numbers."""
         second = plate(self.doc, 0.2 * m)
-        node = self.doc.insert(Node.datum_face_frame(second, self.top, Formula.angle_in(0, rad)))
-        self.assertEqual(self.kind_of(node).kind, "select_resolve")
+        sketched = self.doc.sketch_on_face(second, self.top, PAD, 0.3 * m)
+        err = self.kind_of(sketched.placement)
+        self.assertEqual(err.kind, "mate_side_unevaluated")
+        self.assertIn("`to` pose did not evaluate", str(err))
 
-    def test_a_failed_frame_poisons_the_sketch_above_it(self):
-        """The fillet's failure mode, one node out: a sketch drawn on
-        a frame that cannot be built is poisoned rather than placed on
-        a fabricated plane, and `through` names the frame."""
+    def test_a_failed_placement_poisons_the_union_above_it(self):
+        """One node out: the union over a copy that cannot be placed is
+        poisoned rather than fused at a fabricated pose, and `through`
+        names the placement."""
         second = plate(self.doc, 0.2 * m)
-        frame = self.doc.insert(
-            Node.datum_face_frame(second, self.top, Formula.angle_in(0, rad))
-        )
-        pad = self.doc.insert(Node.polygon(SQUARE, plane=frame))
-        err = self.kind_of(pad)
+        sketched = self.doc.sketch_on_face(second, self.top, PAD, 0.3 * m)
+        err = self.kind_of(sketched.union)
         self.assertEqual(err.reason, "poisoned")
-        self.assertEqual(err.through, frame)
-        self.assertEqual(err.kind, "select_resolve")
+        self.assertEqual(err.through, sketched.placement)
+        self.assertEqual(err.kind, "mate_side_unevaluated")
 
     def test_text_that_is_no_name_at_all_is_a_boundary_refusal(self):
         with self.assertRaises(ValueError):
-            Node.datum_face_frame(self.plate, "the top one", Formula.angle_in(0, rad))
+            self.doc.sketch_on_face(self.plate, "the top one", PAD, 0.3 * m)
 
 
 if __name__ == "__main__":

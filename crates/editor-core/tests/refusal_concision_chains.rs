@@ -77,7 +77,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Naming/SplitLineage",
     "Naming/SeamVertexParentage",
     "Naming/SharedRim",
-    "FaceFrameReadback/Dangling",
     "Shell/Partition",
     "Shell/Insert",
     "Shell/Rim",
@@ -211,10 +210,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Expr/Unlowered",
     "Expr/UnresolvedVar",
     "Expr/VarKindMismatch",
-    "FaceFrameNotPlanar",
-    "FaceFrameReadback/Dangling",
-    "FaceFrameReadback/NoCanonicalFrame",
-    "FaceFrameReadback/NoCarrier",
     "SelectResolve/Ambiguous",
     "SelectResolve/Vanished",
     "InstanceOutOfRange",
@@ -1247,12 +1242,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "ShellLaneUnsupported",
             NodeErrorKind::ShellLaneUnsupported { scalar: "interval" },
-        ),
-        row(
-            "FaceFrameNotPlanar",
-            NodeErrorKind::FaceFrameNotPlanar {
-                carrier: geom::SurfaceKind::Cylinder,
-            },
         ),
         row(
             "MeasureNotParallel",
@@ -3714,7 +3703,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         InterrogateError, PartFault, WitnessAge, WitnessBifurcation,
     };
     use payloads::*;
-    use topo::{EntityId, FaceKey, ReadbackError};
+    use topo::{FaceKey, ReadbackError};
     let face = || stable(EntityKind::Face, 3);
     let mut rows = vec![
         row(
@@ -3791,24 +3780,6 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             }),
         ),
     ];
-    for (n, error) in [
-        (
-            "Dangling",
-            ReadbackError::Dangling {
-                what: EntityId::Face(FaceKey::default()),
-            },
-        ),
-        (
-            "NoCanonicalFrame",
-            ReadbackError::NoCanonicalFrame { carrier: "torus" },
-        ),
-        ("NoCarrier", ReadbackError::NoCarrier),
-    ] {
-        rows.push(row(
-            &format!("FaceFrameReadback/{n}"),
-            NodeErrorKind::FaceFrameReadback { error },
-        ));
-    }
     let interrogate = [
         (
             "NodeNotEvaluated",

@@ -700,12 +700,13 @@ fn twin(id: &str) -> ProfileDoc {
 fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
     let tol = Tol::witness();
     let doc = ProfileDoc::empty(DocumentId::derive(id), tol);
-    let (doc, a) = slab(doc, 0.0, 1.0);
+    let (doc, a) = slab(doc, 1.0);
     // A gap strictly inside the ambiguity band: the margins decide the
     // two caps neither one carrier nor two, so the union refuses.
     let band = tol.get();
     let gap = 0.5 * (band.eps + band.k * band.eps);
-    let (doc, b) = slab(doc, 1.0 + gap, 1.0);
+    let (doc, b) = slab(doc, 1.0);
+    let (doc, b) = crate::fixture::slid(doc, a, b, [0.0, 0.0, 1.0 + gap]);
     let (doc, fused) = insert(
         doc,
         Node::Union {
@@ -715,11 +716,11 @@ fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
     crate::fixture::place(doc, fused)
 }
 
-/// A unit-footprint slab from `z0` up by `dz`.
-fn slab(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
+/// A unit-footprint slab on its own xy, up by `dz`.
+fn slab(doc: ProfileDoc, dz: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = on_frame(
         doc,
-        [0.0, 0.0, z0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
@@ -797,10 +798,10 @@ fn twin_pair(id: &str, apart: f64) -> ProfileDoc {
     );
     let (doc, second) = on_frame(
         doc,
-        [apart, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
-        vec![square(0.0, 0.0, 0.5)],
+        vec![square(apart, 0.0, 0.5)],
     );
     let (doc, b) = insert(
         doc,

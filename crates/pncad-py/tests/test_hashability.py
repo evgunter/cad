@@ -237,7 +237,6 @@ class TestEveryMirrorIsAKey(unittest.TestCase):
                     (Formula.length_in(1, m), Formula.length_in(1, m)),
                     (Formula.length_in(0, m), Formula.length_in(1, m)),
                 ],
-                plane=doc.sketch_frame(),
             )
         )
         plate = doc.insert(Node.extrude(square, Formula.length_in(1, m)))

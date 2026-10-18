@@ -104,9 +104,8 @@ fn edges_of_kind(
 
 /// Inserts a measure over `refs` and returns (doc, measure id).
 ///
-/// Each reference is read AT ITS MINTING NODE — the spelling this
-/// suite means throughout, since none of its fixtures places the
-/// geometry it measures. Adapting to the `SitedRef` shape the fix
+/// Each reference is read AT ITS MINTING NODE — a placed copy's names
+/// are its placement's, so a placed body is read where it stands. Adapting to the `SitedRef` shape the fix
 /// pass introduced for MAJ-2; the rows and their oracles are
 /// unchanged.
 fn with_measure(
@@ -150,10 +149,13 @@ fn outcome(ev: &Evaluation<f64>, id: RecipeNodeId) -> Result<f64, String> {
 // Geometry authoring (independent of the unit's fixtures)
 // ---------------------------------------------------------------
 
-/// A box [x0,x1]x[y0,y1]x[z0,z0+h], authored as a polygon extrude.
-/// Returns (doc, extrude id).
+/// A box [x0,x1]x[y0,y1]x[z0,z0+h], authored as a polygon extrude on
+/// its own xy — placed against `on` at `z0` up its own z where given
+/// (`z0` is then in `on`'s coordinates), else a root standing at
+/// `z0 = 0`. Returns (doc, the extrude or its placement).
 fn boxed(
     doc: &ProfileDoc,
+    on: Option<RecipeNodeId>,
     x: (f64, f64),
     y: (f64, f64),
     z0: f64,
@@ -162,22 +164,12 @@ fn boxed(
     let doc = push(
         doc,
         &DocEdit::InsertNode {
-            node: Box::new(fixture::frame(
-                [0.0, 0.0, z0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let plane = crate::fixture::newest(&doc);
-    let doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::Profile(fixture::desc(
-                plane,
-                vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-            ))),
+            node: Box::new(Node::Profile(fixture::desc(vec![vec![
+                (x.0, y.0),
+                (x.1, y.0),
+                (x.1, y.1),
+                (x.0, y.1),
+            ]]))),
             fresh: Vec::new(),
         },
     );
@@ -193,12 +185,35 @@ fn boxed(
         },
     );
     let e = crate::fixture::newest(&doc);
-    (doc, e)
+    placed(doc, on, e, [0.0, 0.0, z0])
 }
 
-/// A sphere of radius `r` centred at (0, 0, cz): a bulge-1 half-disc on
-/// the XZ frame, revolved a full turn about the world Z axis.
-fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, RecipeNodeId) {
+/// `body` placed against `on` at the translation `by`, or `body`
+/// itself as a root (where `by` must be zero).
+fn placed(
+    doc: ProfileDoc,
+    on: Option<RecipeNodeId>,
+    body: RecipeNodeId,
+    by: [f64; 3],
+) -> (ProfileDoc, RecipeNodeId) {
+    match on {
+        Some(target) => fixture::slid(doc, target, body, by),
+        None => {
+            assert_eq!(by, [0.0; 3], "a root stands at its own origin");
+            (doc, body)
+        }
+    }
+}
+
+/// A sphere of radius `r` centred at `cz` along its own pole axis: a
+/// bulge-1 half-disc revolved a full turn about its own y, placed
+/// against `on` where given.
+fn sphere(
+    doc: &editor_core::ProfileDoc,
+    on: Option<RecipeNodeId>,
+    r: f64,
+    cz: f64,
+) -> (ProfileDoc, RecipeNodeId) {
     let half = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(-r)]),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
@@ -209,18 +224,6 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
     ]);
     let doc = push(
         doc,
-        &DocEdit::InsertNode {
-            node: Box::new(fixture::frame(
-                [0.0, 0.0, cz],
-                [1.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0],
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let plane = crate::fixture::newest(&doc);
-    let doc = push(
-        &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
                 loops: vec![half],
@@ -233,9 +236,7 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            // The frame's v is world +Z and its origin sits ON the world
-            // Z axis, so the pole axis is this frame's own +y through
-            // (0, 0).
+            // The pole axis is the profile's own +y through (0, 0).
             node: Box::new(fixture::revolve_about(
                 p,
                 (0.0, 0.0),
@@ -246,13 +247,14 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
         },
     );
     let s = crate::fixture::newest(&doc);
-    (doc, s)
+    placed(doc, on, s, [0.0, cz, 0.0])
 }
 
-/// A cylinder of radius `r` about the axis through (cx, cy) along +Z,
-/// from z0 up by h.
+/// A cylinder of radius `r` about the axis through (cx, cy) along its
+/// own +z, from z0 up by h — placed against `on` where given.
 fn cylinder(
     doc: &ProfileDoc,
+    on: Option<RecipeNodeId>,
     r: f64,
     cx: f64,
     cy: f64,
@@ -261,18 +263,6 @@ fn cylinder(
 ) -> (ProfileDoc, RecipeNodeId) {
     let doc = push(
         doc,
-        &DocEdit::InsertNode {
-            node: Box::new(fixture::frame(
-                [0.0, 0.0, z0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let plane = crate::fixture::newest(&doc);
-    let doc = push(
-        &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
                 loops: vec![LoopProgram::Circle {
@@ -296,7 +286,7 @@ fn cylinder(
         },
     );
     let e = crate::fixture::newest(&doc);
-    (doc, e)
+    placed(doc, on, e, [0.0, 0.0, z0])
 }
 
 fn empty(tag: &str) -> ProfileDoc {
@@ -317,7 +307,7 @@ fn empty(tag: &str) -> ProfileDoc {
 /// distances against the eight authored corners rather than one pair.
 #[test]
 fn r2_distance_vertex_vertex_is_the_exact_norm() {
-    let (doc, b) = boxed(&empty("r2-vv"), (0.0, 3.0), (0.0, 4.0), 0.0, 12.0);
+    let (doc, b) = boxed(&empty("r2-vv"), None, (0.0, 3.0), (0.0, 4.0), 0.0, 12.0);
     let ev = eval(&doc);
     let vs = vertices(&ev, b);
     assert_eq!(vs.len(), 8, "a box has eight corners, got {}", vs.len());
@@ -390,7 +380,7 @@ fn r2_distance_vertex_vertex_is_the_exact_norm() {
 /// from a run.
 #[test]
 fn r2_distance_vertex_plane_is_the_normal_projection() {
-    let (doc, b) = boxed(&empty("r2-vp"), (0.0, 3.0), (0.0, 4.0), 0.0, 12.0);
+    let (doc, b) = boxed(&empty("r2-vp"), None, (0.0, 3.0), (0.0, 4.0), 0.0, 12.0);
     let ev = eval(&doc);
     let vs = vertices(&ev, b);
     let planes = faces(&ev, b, geom::SurfaceKind::Plane);
@@ -447,8 +437,8 @@ fn r2_distance_vertex_plane_is_the_normal_projection() {
 #[test]
 fn r2_distance_plane_plane_is_the_authored_offset() {
     let d0 = empty("r2-pp");
-    let (d1, a) = boxed(&d0, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (d2, b) = boxed(&d1, (0.0, 1.0), (0.0, 1.0), 3.0, 1.0);
+    let (d1, a) = boxed(&d0, None, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (d2, b) = boxed(&d1, Some(a), (0.0, 1.0), (0.0, 1.0), 3.0, 1.0);
     let ev = eval(&d2);
     let pa = faces(&ev, a, geom::SurfaceKind::Plane);
     let pb = faces(&ev, b, geom::SurfaceKind::Plane);
@@ -505,7 +495,7 @@ fn r2_distance_plane_plane_is_the_authored_offset() {
 /// The row asserts the closed set and that pi/2 actually occurs.
 #[test]
 fn r2_angle_line_line_is_the_box_direction_set() {
-    let (doc, b) = boxed(&empty("r2-ll"), (0.0, 2.0), (0.0, 5.0), 0.0, 7.0);
+    let (doc, b) = boxed(&empty("r2-ll"), None, (0.0, 2.0), (0.0, 5.0), 0.0, 7.0);
     let ev = eval(&doc);
     let es = edges_of_kind(&ev, b, editor_core::CurveKind::Line);
     assert_eq!(es.len(), 12, "a box has twelve straight edges");
@@ -550,8 +540,8 @@ fn r2_angle_line_line_is_the_box_direction_set() {
 fn r2_gap_sphere_sphere_walks_all_three_regimes() {
     for (cz, want) in [(0.25_f64, 0.25_f64), (0.5, 0.0), (0.75, -0.25)] {
         let d0 = empty("r2-ss");
-        let (d1, outer) = sphere(&d0, 1.0, 0.0);
-        let (d2, inner) = sphere(&d1, 0.5, cz);
+        let (d1, outer) = sphere(&d0, None, 1.0, 0.0);
+        let (d2, inner) = sphere(&d1, Some(outer), 0.5, cz);
         let ev = eval(&d2);
         let fo = faces(&ev, outer, geom::SurfaceKind::Sphere);
         let fi = faces(&ev, inner, geom::SurfaceKind::Sphere);
@@ -603,8 +593,8 @@ fn r2_gap_plane_plane_role_swap_behaviour() {
     let d0 = empty("r2-gpp");
     // Two slabs with a physical 2.0 clearance between A's top (z = 1)
     // and B's bottom (z = 3).
-    let (d1, a) = boxed(&d0, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (d2, b) = boxed(&d1, (0.0, 1.0), (0.0, 1.0), 3.0, 1.0);
+    let (d1, a) = boxed(&d0, None, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (d2, b) = boxed(&d1, Some(a), (0.0, 1.0), (0.0, 1.0), 3.0, 1.0);
     let ev = eval(&d2);
     let pa = faces(&ev, a, geom::SurfaceKind::Plane);
     let pb = faces(&ev, b, geom::SurfaceKind::Plane);
@@ -681,8 +671,8 @@ fn r2_gap_plane_plane_role_swap_behaviour() {
 fn r2_the_parallelism_arm_is_clamped_below_one_metre() {
     for sep in [0.01_f64, 0.9] {
         let d0 = empty("r2-arm");
-        let (d1, c1) = cylinder(&d0, 0.001, 0.0, 0.0, 0.0, 0.01);
-        let (d2, c2) = cylinder(&d1, 0.001, sep, 0.0, 0.0, 0.01);
+        let (d1, c1) = cylinder(&d0, None, 0.001, 0.0, 0.0, 0.0, 0.01);
+        let (d2, c2) = cylinder(&d1, Some(c1), 0.001, sep, 0.0, 0.0, 0.01);
         let ev = eval(&d2);
         let f1 = faces(&ev, c1, geom::SurfaceKind::Cylinder);
         let f2 = faces(&ev, c2, geom::SurfaceKind::Cylinder);
@@ -718,21 +708,9 @@ fn r2_the_parallelism_arm_is_clamped_below_one_metre() {
 fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
     let theta = 1e-8_f64;
     let d0 = empty("r2-tilt");
-    let (d1, c1) = cylinder(&d0, 0.001, 0.0, 0.0, 0.0, 0.01);
-    // The second cylinder on a frame tilted by theta about x: its
-    // extrude direction (and so its axis) tilts with the plane normal.
-    let d1 = push(
-        &d1,
-        &DocEdit::InsertNode {
-            node: Box::new(fixture::frame(
-                [0.01, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, theta.cos(), -theta.sin()],
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let plane = crate::fixture::newest(&d1);
+    let (d1, c1) = cylinder(&d0, None, 0.001, 0.0, 0.0, 0.0, 0.01);
+    // The second cylinder placed on a frame tilted by theta about x:
+    // its axis tilts with the frame's normal.
     let d2 = push(
         &d1,
         &DocEdit::InsertNode {
@@ -758,6 +736,12 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
         },
     );
     let c2 = crate::fixture::newest(&d3);
+    let (d3, c2) = fixture::against(
+        d3,
+        c1,
+        c2,
+        &fixture::frame_at([0.01, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, theta.cos(), -theta.sin()]),
+    );
     let ev = eval(&d3);
     let f1 = faces(&ev, c1, geom::SurfaceKind::Cylinder);
     let f2 = faces(&ev, c2, geom::SurfaceKind::Cylinder);
@@ -789,7 +773,7 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
 #[test]
 fn r2_no_op_consumes_a_measure_or_a_verdict() {
     let d0 = empty("r2-consume");
-    let (d1, b) = boxed(&d0, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (d1, b) = boxed(&d0, None, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let ev = eval(&d1);
     let vs = vertices(&ev, b);
     let (d2, measure) = with_measure(
@@ -837,15 +821,8 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                 },
             ),
             (
-                "transform",
-                Node::transform(
-                    victim,
-                    editor_core::Step::Rigid {
-                        translation: [len(1.0), len(0.0), len(0.0)],
-                        axis: [scl(0.0), scl(0.0), scl(1.0)],
-                        angle: ang(0.0),
-                    },
-                ),
+                "place",
+                Node::place(vec![editor_core::BodyRead::plain(editor_core::Operand::Node(victim))]),
             ),
             (
                 "extrude-profile",
@@ -892,7 +869,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
 #[test]
 fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
     let d0 = empty("r2-invisible");
-    let (d1, b) = boxed(&d0, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (d1, b) = boxed(&d0, None, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let ev = eval(&d1);
     let vs = vertices(&ev, b);
     let (with_measure_doc, measure) = with_measure(
@@ -963,7 +940,7 @@ fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
 #[test]
 fn r2_a_measure_at_dual64_is_bit_identical_and_untangented() {
     use geom_core::Dual64;
-    let (doc, b) = boxed(&empty("r2-dual"), (0.0, 3.0), (0.0, 4.0), 0.0, 12.0);
+    let (doc, b) = boxed(&empty("r2-dual"), None, (0.0, 3.0), (0.0, 4.0), 0.0, 12.0);
     let ev = eval(&doc);
     let vs = vertices(&ev, b);
     let (doc, id) = with_measure(
@@ -1001,8 +978,8 @@ fn r2_a_measure_at_dual64_is_bit_identical_and_untangented() {
 fn r2_a_signed_gap_at_interval_contains_the_f64_value() {
     use geom_core::{Bounds, Interval};
     let d0 = empty("r2-ivl");
-    let (d1, outer) = sphere(&d0, 1.0, 0.0);
-    let (d2, inner) = sphere(&d1, 0.5, 0.75);
+    let (d1, outer) = sphere(&d0, None, 1.0, 0.0);
+    let (d2, inner) = sphere(&d1, Some(outer), 0.5, 0.75);
     let ev = eval(&d2);
     let fo = faces(&ev, outer, geom::SurfaceKind::Sphere);
     let fi = faces(&ev, inner, geom::SurfaceKind::Sphere);
@@ -1035,96 +1012,6 @@ fn r2_a_signed_gap_at_interval_contains_the_f64_value() {
 }
 
 // ===============================================================
-// DEVIATION 3 — "the carrier as minted"
-// ===============================================================
-
-/// **A measure of a transformed body reports the UNTRANSFORMED
-/// carrier, and the recourse the variant documents does not exist.**
-///
-/// `Node::Measure`'s docs state the minted-carrier scope and name the
-/// way out: "measuring the moved one means referencing the moving
-/// node's own emission." A rigid `Transform` emits NO names — it hands
-/// its input's table through by `Arc::clone` (N1: the name still points
-/// at the minting node) — so there is no such emission to reference,
-/// and every measure over a placed body silently reports the master's
-/// geometry.
-///
-/// **Oracle.** A unit box at the origin, translated 100 m in +x, and a
-/// fixed box at x in [5, 6]. The moved box's near corner is at x = 100;
-/// the fixed reference corner is at x = 5, so the true separation is at
-/// least 94. The interrogation layer — which takes the node to read the
-/// name AT, the argument a measure has no place for — is the
-/// independent witness: `vertex_position(ev, moved, name)` reports the
-/// moved point while the measure over the same name reports the master.
-#[test]
-fn r2_a_transform_has_no_emission_to_measure() {
-    let d0 = empty("r2-minted");
-    let (d1, b) = boxed(&d0, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (d2, fixed) = boxed(&d1, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
-    let d3 = push(
-        &d2,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::transform(
-                b,
-                editor_core::Step::Rigid {
-                    translation: [len(100.0), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                },
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let moved = crate::fixture::newest(&d3);
-    let ev = eval(&d3);
-    let vs_minted = vertices(&ev, b);
-    let vs_moved = vertices(&ev, moved);
-    let vs_fixed = vertices(&ev, fixed);
-    assert_eq!(vs_minted.len(), 8);
-    assert_eq!(vs_moved.len(), 8);
-
-    // (1) The transform emits no NEW name: its table is the input's.
-    assert_eq!(
-        vs_minted, vs_moved,
-        "a rigid transform re-emits its input's names verbatim, so there is \
-         no 'moving node's own emission' to reference"
-    );
-
-    // (2) The interrogation layer, which DOES take the node to read at,
-    // reports the two positions apart by the authored 100 m.
-    let at_master = editor_core::vertex_position(&ev, b, &vs_minted[0]).expect("readable");
-    let at_moved = editor_core::vertex_position(&ev, moved, &vs_moved[0]).expect("readable");
-    let shift = (at_moved - at_master).norm();
-    assert!(
-        (shift - 100.0).abs() < 1e-9,
-        "the interrogation door sees the authored 100 m shift; got {shift}"
-    );
-
-    // (3) The measure reports the MASTER's number, with no diagnostic.
-    let (d4, id) = with_measure(
-        &d3,
-        MeasurePrimitive::Distance { a: 0, b: 1 },
-        vec![vs_moved[0].clone(), vs_fixed[0].clone()],
-    );
-    let ev2 = eval(&d4);
-    let m = measured(&ev2, id);
-    let truth = (at_moved - editor_core::vertex_position(&ev, fixed, &vs_fixed[0]).unwrap()).norm();
-    eprintln!(
-        "R2/minted: measure reports {m}; the placed geometry is {truth} away \
-         (master reading, no diagnostic)"
-    );
-    assert!(
-        (m - truth).abs() > 50.0,
-        "the measure must disagree with the placed geometry by the transform; \
-         got {m} vs {truth}"
-    );
-    assert!(
-        matches!(ev2.nodes.get(&id), Some(NodeResult::Ok(_))),
-        "and it is a plain success — nothing flags the stale carrier"
-    );
-}
-
-// ===============================================================
 // CLAIM 3 — the load door, on files this reviewer corrupts
 // ===============================================================
 
@@ -1139,7 +1026,7 @@ fn r2_a_transform_has_no_emission_to_measure() {
 #[test]
 fn r2_corrupt_v16_files_refuse_at_the_load_door() {
     let d0 = empty("r2-load");
-    let (d1, b) = boxed(&d0, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (d1, b) = boxed(&d0, None, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let ev = eval(&d1);
     let vs = vertices(&ev, b);
     let (d2, measure) = with_measure(
@@ -1237,8 +1124,8 @@ fn unused(_: Axis3, _: FreeValue, _: NodeErrorKind) {}
 fn r2_e2e_ball_in_socket_authored_and_saved() {
     for (offset, want_gap, want_holds) in [(0.05_f64, 0.05_f64, true), (0.15, -0.05, false)] {
         let d0 = empty("r2-fit");
-        let (d1, socket) = sphere(&d0, 1.0, 0.0);
-        let (d2, ball) = sphere(&d1, 0.9, offset);
+        let (d1, socket) = sphere(&d0, None, 1.0, 0.0);
+        let (d2, ball) = sphere(&d1, Some(socket), 0.9, offset);
         let ev = eval(&d2);
         let fo = faces(&ev, socket, geom::SurfaceKind::Sphere);
         let fi = faces(&ev, ball, geom::SurfaceKind::Sphere);
@@ -1318,7 +1205,7 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
 #[test]
 fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     let d0 = empty("r2-assert-load");
-    let (d1, b) = boxed(&d0, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (d1, b) = boxed(&d0, None, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let ev = eval(&d1);
     let vs = vertices(&ev, b);
     let (d2, measure) = with_measure(
@@ -1413,7 +1300,7 @@ fn r2_a_measured_quotient_that_is_not_finite_refuses() {
             }),
         },
     );
-    let (d1, b) = boxed(&d0, (0.0, 3.0), (0.0, 4.0), 0.0, 12.0);
+    let (d1, b) = boxed(&d0, None, (0.0, 3.0), (0.0, 4.0), 0.0, 12.0);
     let ev = eval(&d1);
     let vs = vertices(&ev, b);
     let (d2, measured) = crate::fixture::measure(
@@ -1481,7 +1368,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
             }),
         },
     );
-    let (d1, b) = boxed(&d0, (0.0, 3.0), (0.0, 4.0), 0.0, 12.0);
+    let (d1, b) = boxed(&d0, None, (0.0, 3.0), (0.0, 4.0), 0.0, 12.0);
     let ev = eval(&d1);
     let vs = vertices(&ev, b);
     let (d2, measured) = crate::fixture::measure(

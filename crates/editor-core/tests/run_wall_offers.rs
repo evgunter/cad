@@ -3,9 +3,8 @@
 //! over a run"), so a value edit can move which pieces one wall holds:
 //! a station inserted on a side joins its two pieces into one run wall,
 //! and bending them apart splits it. The vanished name is offered the
-//! wall that covers it, or the walls that cover its pieces — both
-//! extrusion senses, since a reversed extrusion lists its walls in the
-//! other order. And the run names are the same at both scalar types.
+//! wall that covers it, or the walls that cover its pieces. And the run
+//! names are the same at both scalar types.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -17,18 +16,14 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use crate::fixture::{frame, insert, len, len2, member_entity, minted, piece, run};
+use crate::fixture::{insert, len, len2, member_entity, minted, piece, run};
 
 fn to(x: f64, y: f64) -> ProgramTarget<Formula> {
     ProgramTarget::Point(len2([x, y]))
 }
 
-fn build(
-    steps: Vec<ProgramStep<Formula>>,
-    side: ExtrudeSide,
-) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn build(steps: Vec<ProgramStep<Formula>>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("run_wall_offers", Tol::witness());
-    let (doc, plane) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -41,7 +36,6 @@ fn build(
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side,
         },
     );
     (doc, p, ex)
@@ -94,70 +88,68 @@ fn offers(doc: &ProfileDoc, name: &StableName) -> Vec<StableName> {
 
 #[test]
 fn a_station_joining_or_splitting_a_run_offers_across_it() {
-    for side in ExtrudeSide::ALL {
-        let plain = vec![
-            ProgramStep::At(len2([0.0, 0.0])),
-            ProgramStep::LineTo(to(2.0, 0.0)),
-            ProgramStep::LineTo(to(2.0, 2.0)),
-            ProgramStep::LineTo(to(0.0, 2.0)),
-            ProgramStep::LineTo(ProgramTarget::Start),
-        ];
-        let (doc, p, ex) = build(plain, side);
-        let held = lateral(ex, vec![piece(&doc, ex, 0, 0)]);
-        let i = ids(&doc, p);
-        // A station on the bottom side: its two pieces are one run.
-        let joined = vec![
-            ProgramStep::At(len2([0.0, 0.0])),
-            ProgramStep::LineTo(to(1.0, 0.0)),
-            ProgramStep::ContinueTo(to(2.0, 0.0)),
-            ProgramStep::LineTo(to(2.0, 2.0)),
-            ProgramStep::LineTo(to(0.0, 2.0)),
-            ProgramStep::LineTo(ProgramTarget::Start),
-        ];
-        let doc2 = edit(
-            &doc,
-            p,
-            joined,
-            vec![
-                Some(i[0]),
-                Some(i[1]),
-                None,
-                Some(i[2]),
-                Some(i[3]),
-                Some(i[4]),
-            ],
-        );
-        let run_wall = lateral(ex, vec![piece(&doc2, ex, 0, 0), piece(&doc2, ex, 0, 1)]);
+    let plain = vec![
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(to(2.0, 0.0)),
+        ProgramStep::LineTo(to(2.0, 2.0)),
+        ProgramStep::LineTo(to(0.0, 2.0)),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ];
+    let (doc, p, ex) = build(plain);
+    let held = lateral(ex, vec![piece(&doc, ex, 0, 0)]);
+    let i = ids(&doc, p);
+    // A station on the bottom side: its two pieces are one run.
+    let joined = vec![
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(to(1.0, 0.0)),
+        ProgramStep::ContinueTo(to(2.0, 0.0)),
+        ProgramStep::LineTo(to(2.0, 2.0)),
+        ProgramStep::LineTo(to(0.0, 2.0)),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ];
+    let doc2 = edit(
+        &doc,
+        p,
+        joined,
+        vec![
+            Some(i[0]),
+            Some(i[1]),
+            None,
+            Some(i[2]),
+            Some(i[3]),
+            Some(i[4]),
+        ],
+    );
+    let run_wall = lateral(ex, vec![piece(&doc2, ex, 0, 0), piece(&doc2, ex, 0, 1)]);
+    assert!(
+        offers(&doc2, &held).contains(&run_wall),
+        "the one-piece wall is offered the run wall that covers it"
+    );
+    // Bend the station off the line: the run splits.
+    let split = vec![
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(to(1.0, 0.0)),
+        ProgramStep::LineTo(to(2.0, 0.3)),
+        ProgramStep::LineTo(to(2.0, 2.0)),
+        ProgramStep::LineTo(to(0.0, 2.0)),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ];
+    let doc3 = edit(
+        &doc2,
+        p,
+        split,
+        match doc2.node(p) {
+            Some(Node::Profile(pp)) => pp.kept_in_place().remove(0),
+            other => panic!("not a profile: {other:?}"),
+        },
+    );
+    let got = offers(&doc3, &run_wall);
+    for k in 0..2 {
+        let wall = lateral(ex, vec![piece(&doc3, ex, 0, k)]);
         assert!(
-            offers(&doc2, &held).contains(&run_wall),
-            "{side:?}: the one-piece wall is offered the run wall that covers it"
+            got.contains(&wall),
+            "the broken run offers piece {k}'s wall"
         );
-        // Bend the station off the line: the run splits.
-        let split = vec![
-            ProgramStep::At(len2([0.0, 0.0])),
-            ProgramStep::LineTo(to(1.0, 0.0)),
-            ProgramStep::LineTo(to(2.0, 0.3)),
-            ProgramStep::LineTo(to(2.0, 2.0)),
-            ProgramStep::LineTo(to(0.0, 2.0)),
-            ProgramStep::LineTo(ProgramTarget::Start),
-        ];
-        let doc3 = edit(
-            &doc2,
-            p,
-            split,
-            match doc2.node(p) {
-                Some(Node::Profile(pp)) => pp.kept_in_place().remove(0),
-                other => panic!("not a profile: {other:?}"),
-            },
-        );
-        let got = offers(&doc3, &run_wall);
-        for k in 0..2 {
-            let wall = lateral(ex, vec![piece(&doc3, ex, 0, k)]);
-            assert!(
-                got.contains(&wall),
-                "{side:?}: the broken run offers piece {k}'s wall"
-            );
-        }
     }
 }
 
@@ -166,7 +158,7 @@ fn run_names_agree_across_scalar_types() {
     use geom_core::Interval;
     for (label, steps, revolve) in [
         (
-            "oblique run, extruded down",
+            "oblique run, extruded",
             vec![
                 ProgramStep::At(len2([0.0, 0.0])),
                 ProgramStep::LineTo(to(1.0, 0.7)),
@@ -190,7 +182,6 @@ fn run_names_agree_across_scalar_types() {
         ),
     ] {
         let doc = ProfileDoc::empty_derived("run_wall_offers_iv", Tol::witness());
-        let (doc, plane) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
         let (doc, p) = insert(
             doc,
             Node::Profile(ProfileProgram {
@@ -214,7 +205,6 @@ fn run_names_agree_across_scalar_types() {
                 Node::Extrude {
                     profile: p.into(),
                     distance: len(1.0),
-                    side: ExtrudeSide::Against,
                 },
             )
         };
@@ -255,8 +245,8 @@ fn a_union_offers_its_members_run_wall_across_a_station() {
         ProgramStep::LineTo(to(0.0, 2.0)),
         ProgramStep::LineTo(ProgramTarget::Start),
     ];
-    let (doc, p, ex) = build(plain, ExtrudeSide::ALL[0]);
-    let (doc, apart) = crate::blocks::block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, p, ex) = build(plain);
+    let (doc, apart) = crate::blocks::block_on(doc, ex, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, union) = crate::fixture::union_over(doc, &[ex, apart]);
     let ex_read = crate::fixture::out(&doc, ex);
     let keyed = |n: StableName| member_entity(union, ex_read, n, EntityKind::Face);

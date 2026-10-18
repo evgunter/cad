@@ -17,7 +17,7 @@ use editor_core::{
     content_pin, evaluate, inline, load, save,
 };
 use fixture::resolver::PartStore;
-use fixture::{die, insert, len, on_frame, square, step};
+use fixture::{die, insert, len, square, step};
 use geom_core::Tol;
 use test_utils::refusal::tag;
 
@@ -41,18 +41,10 @@ fn refusal(doc: &ProfileDoc, edit: DocEdit<editor_core::ProfileProgram>) -> Edit
         .expect_err("the edit refuses")
 }
 
-/// A square block on its own sketch frame, `cx` along x: the frame,
-/// the profile and the extrude, in the order inserted.
-fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, [RecipeNodeId; 3]) {
-    let before = doc.ids().len();
-    let (doc, profile) = on_frame(
-        doc,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![square(cx, 0.0, 0.5)],
-    );
-    let frame = doc.ids()[before];
+/// A square block on its own xy, `cx` along x: the profile and the
+/// extrude, in the order inserted.
+fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, [RecipeNodeId; 2]) {
+    let (doc, profile) = insert(doc, Node::Profile(fixture::desc(vec![square(cx, 0.0, 0.5)])));
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
@@ -60,7 +52,7 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, [RecipeNodeId; 3]) {
             distance: len(1.0),
         },
     );
-    (doc, [frame, profile, extrude])
+    (doc, [profile, extrude])
 }
 
 /// A rename recomputes nothing and moves no id: the evaluation memo
@@ -87,9 +79,9 @@ fn a_rename_recomputes_nothing_and_mints_nothing() {
     );
 
     assert_eq!(renamed.mint(), d.doc.mint(), "a label edit mints nothing");
-    let frame = fixture::xy_frame();
-    let (_, after_rename) = insert(renamed.clone(), frame.clone());
-    let (_, unlabelled) = insert(d.doc.clone(), frame);
+    let next = Node::Profile(fixture::desc(vec![square(0.0, 0.0, 0.5)]));
+    let (_, after_rename) = insert(renamed.clone(), next.clone());
+    let (_, unlabelled) = insert(d.doc.clone(), next);
     assert_eq!(
         after_rename, unlabelled,
         "the next insert draws the same id with or without the label"
@@ -106,12 +98,13 @@ fn a_rename_recomputes_nothing_and_mints_nothing() {
 #[test]
 fn set_label_refuses_a_dead_node_and_a_no_op_and_delete_drops_the_label() {
     let doc = ProfileDoc::empty_derived("node-labels-doors", Tol::witness());
-    let (doc, [frame, profile, extrude]) = block(doc, 0.0);
+    let (doc, [profile, extrude]) = block(doc, 0.0);
+    let (doc, [bare, _]) = block(doc, 2.0);
 
     let doc = set_label(doc, extrude, Some("pin"));
     let doc = set_label(doc, profile, Some("pin"));
     assert_eq!(
-        (doc.label(extrude), doc.label(profile), doc.label(frame)),
+        (doc.label(extrude), doc.label(profile), doc.label(bare)),
         (Some(&label("pin")), Some(&label("pin")), None),
         "two nodes may carry one label"
     );
@@ -136,12 +129,12 @@ fn set_label_refuses_a_dead_node_and_a_no_op_and_delete_drops_the_label() {
     match refusal(
         &doc,
         DocEdit::SetLabel {
-            node: frame,
+            node: bare,
             label: None,
         },
     ) {
         EditError::LabelUnchanged { node } => {
-            assert_eq!((node.id(), node.label()), (frame, None));
+            assert_eq!((node.id(), node.label()), (bare, None));
         }
         other => panic!("clearing no label refuses LabelUnchanged, got {other:?}"),
     }
@@ -170,7 +163,7 @@ fn set_label_refuses_a_dead_node_and_a_no_op_and_delete_drops_the_label() {
 fn a_label_survives_save_and_load_and_replays_from_the_log() {
     let tol = Tol::witness();
     let doc = ProfileDoc::empty_derived("node-labels-save", tol);
-    let (doc, [_, _, extrude]) = block(doc, 0.0);
+    let (doc, [_, extrude]) = block(doc, 0.0);
     let plain = save(&doc, &[], tol).expect("saves");
     assert!(
         !plain.contains("\"labels\""),
@@ -202,8 +195,8 @@ fn a_label_survives_save_and_load_and_replays_from_the_log() {
 fn the_load_door_refuses_a_blank_or_direction_setting_label_and_a_label_on_a_dead_node() {
     let tol = Tol::witness();
     let doc = ProfileDoc::empty_derived("node-labels-load", tol);
-    let (doc, [_, _, live]) = block(doc, 0.0);
-    let (doc, [_, _, gone]) = block(doc, 5.0);
+    let (doc, [_, live]) = block(doc, 0.0);
+    let (doc, [_, gone]) = block(doc, 5.0);
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: gone });
     let doc = set_label(doc, live, Some("lid"));
     let text = save(&doc, &[], tol).expect("saves");
@@ -236,35 +229,36 @@ fn the_load_door_refuses_a_blank_or_direction_setting_label_and_a_label_on_a_dea
 }
 
 /// The load door speaks a node from the document it judges: a file
-/// whose profile is drawn on the extrude's body refuses with the
-/// profile's kind and label, read off the parsed document.
+/// whose extrude sweeps another extrude's body refuses with the
+/// extrude's kind and label, read off the parsed document.
 #[test]
 fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
     let tol = Tol::witness();
     let doc = ProfileDoc::empty_derived("node-labels-speak", tol);
-    let (doc, [_, profile, extrude]) = block(doc, 0.0);
+    let (doc, [profile, extrude]) = block(doc, 0.0);
+    let (doc, [_, other]) = block(doc, 2.0);
     let doc = set_label(doc, profile, Some("outline"));
     let doc = set_label(doc, extrude, Some("base \"plate\""));
     let text = save(&doc, &[], tol).expect("saves");
     let (header, body) = text.split_once('\n').expect("a header line, then the body");
     let mut v: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
-    let frame = &mut v["snapshot"]["nodes"][profile.0.to_string()]["Profile"]["frame"];
-    assert!(frame.is_string(), "the profile carries its frame");
-    *frame = serde_json::json!(doc.output(extrude, 0).expect("the extrude's body").0);
+    let read = &mut v["snapshot"]["nodes"][extrude.0.to_string()]["Extrude"]["profile"];
+    assert!(read.is_string(), "the extrude reads its profile");
+    *read = serde_json::json!(doc.output(other, 0).expect("the other extrude's body").0);
     match load(&format!("{header}\n{v}\n"), tol) {
         Err(PersistError::Snapshot(error @ SnapshotError::SlotVarKind { .. })) => {
             let SnapshotError::SlotVarKind { node, .. } = &error else {
                 unreachable!("matched above")
             };
-            assert_eq!(node, &doc.spoken(profile), "the refused node");
-            let said = format!("Profile \"outline\" ({})", tag(profile.0.digest()));
+            assert_eq!(node, &doc.spoken(extrude), "the refused node");
+            let said = format!("Extrude \"base \\\"plate\\\"\" ({})", tag(extrude.0.digest()));
             let sentence = PersistError::Snapshot(error.clone()).to_string();
             assert!(
-                sentence.contains(&format!("{said}'s frame reads")),
+                sentence.contains(&format!("{said}'s profile reads")),
                 "the sentence speaks the node with its label: {sentence}"
             );
         }
-        other => panic!("a plane reading a body refuses SlotVarKind, got {other:?}"),
+        other => panic!("a profile read of a body refuses SlotVarKind, got {other:?}"),
     }
 }
 
@@ -275,20 +269,20 @@ fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
 fn split_and_inline_carry_labels_and_the_new_instance_has_none() {
     let tol = Tol::witness();
     let doc = ProfileDoc::empty_derived("node-labels-split", tol);
-    let (doc, [_, _, kept]) = block(doc, 0.0);
-    let (doc, [frame, profile, extrude]) = block(doc, 5.0);
+    let (doc, [_, kept]) = block(doc, 0.0);
+    let (doc, [profile, extrude]) = block(doc, 5.0);
     let doc = set_label(doc, kept, Some("base"));
     let doc = set_label(doc, profile, Some("pin sketch"));
     let doc = set_label(doc, extrude, Some("pin"));
     let doc = crate::fixture::place_all(doc, &[kept, extrude]);
 
-    let cut = BTreeSet::from([frame, profile, extrude]);
+    let cut = BTreeSet::from([profile, extrude]);
     let out = split(&doc, &cut, DocumentId::derive("node-labels-pin"), tol, None)
         .expect("the split is legal");
     let in_part = |old: RecipeNodeId| out.part.label(out.node_map[&old]);
     assert_eq!(
-        (in_part(frame), in_part(profile), in_part(extrude)),
-        (None, Some(&label("pin sketch")), Some(&label("pin"))),
+        (in_part(profile), in_part(extrude)),
+        (Some(&label("pin sketch")), Some(&label("pin"))),
         "each cut node's copy carries its label"
     );
     assert_eq!(out.part.labels().len(), 2, "and the part holds no other");
@@ -309,8 +303,8 @@ fn split_and_inline_carry_labels_and_the_new_instance_has_none() {
     let back = inline(&out.remainder, out.instance, &resolver, tol).expect("the inline is legal");
     let spliced = |old: RecipeNodeId| back.doc.label(back.node_map[&out.node_map[&old]]);
     assert_eq!(
-        (spliced(frame), spliced(profile), spliced(extrude)),
-        (None, Some(&label("pin sketch")), Some(&label("pin"))),
+        (spliced(profile), spliced(extrude)),
+        (Some(&label("pin sketch")), Some(&label("pin"))),
         "each spliced node carries its part-side label"
     );
     assert_eq!(back.doc.label(kept), Some(&label("base")));
@@ -323,7 +317,7 @@ fn split_and_inline_carry_labels_and_the_new_instance_has_none() {
 #[test]
 fn the_spoken_node_says_kind_label_and_tag_as_the_document_holds_them() {
     let doc = ProfileDoc::empty_derived("node-labels-spoken", Tol::witness());
-    let (doc, [_, _, extrude]) = block(doc, 0.0);
+    let (doc, [_, extrude]) = block(doc, 0.0);
     let labelled = set_label(doc.clone(), extrude, Some("base plate"));
     let t = tag(extrude.0.digest());
     assert_eq!(
@@ -348,7 +342,7 @@ fn the_spoken_node_says_kind_label_and_tag_as_the_document_holds_them() {
 #[test]
 fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
     let doc = ProfileDoc::empty_derived("node-labels-refusals", Tol::witness());
-    let (doc, [_, profile, extrude]) = block(doc, 0.0);
+    let (doc, [profile, extrude]) = block(doc, 0.0);
     let doc = set_label(doc, profile, Some("sketch"));
     let doc = set_label(doc, extrude, Some("base plate"));
     let e = tag(extrude.0.digest());
@@ -383,15 +377,15 @@ fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
 #[test]
 fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
     let doc = ProfileDoc::empty_derived("node-labels-strand", Tol::witness());
-    let (doc, [_, _, kept]) = block(doc, 0.0);
-    let (doc, [_, _, victim]) = block(doc, 4.0);
+    let (doc, [_, kept]) = block(doc, 0.0);
+    let (doc, [_, victim]) = block(doc, 4.0);
     let named = fixture::fname(victim, fixture::wall(&doc, victim, 0));
     let (doc, carrier) = insert(
         doc,
-        Node::Datum(editor_core::Datum::FaceFrame {
-            face: editor_core::Operand::select(kept, vec![named.clone()]),
-            spin: fixture::ang(0.0),
-        }),
+        Node::Shell {
+            thickness: len(0.1),
+            open: editor_core::Operand::select(kept, vec![named.clone()]),
+        },
     );
     let doc = set_label(doc, victim, Some("base plate"));
     let doc = set_label(doc, carrier, Some("mount"));
@@ -426,8 +420,8 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
             .next(),
         Some(
             format!(
-                "Datum frame (on face) \"mount\" ({}) selects the side wall over loop 0 step \
-                 1 of Extrude \"base plate\" ({})",
+                "Shell \"mount\" ({}) selects the side wall over loop 0 step 1 of Extrude \
+                 \"base plate\" ({})",
                 tag(carrier.0.digest()),
                 tag(victim.0.digest())
             )
@@ -441,7 +435,7 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
 #[test]
 fn a_forwarded_name_speaks_its_labelled_minting_node() {
     let doc = ProfileDoc::empty_derived("node-labels-name", Tol::witness());
-    let (doc, [_, _, extrude]) = block(doc, 0.0);
+    let (doc, [_, extrude]) = block(doc, 0.0);
     let doc = set_label(doc, extrude, Some("base plate"));
     let unreferenced = fixture::fname(extrude, fixture::wall(&doc, extrude, 0));
     let refused = refusal(
@@ -473,12 +467,12 @@ fn a_forwarded_name_speaks_its_labelled_minting_node() {
 #[test]
 fn a_severing_split_speaks_both_ends_and_prints_no_decimal_id() {
     let doc = ProfileDoc::empty_derived("node-labels-severed", Tol::witness());
-    let (doc, [frame, profile, extrude]) = block(doc, 0.0);
+    let (doc, [profile, extrude]) = block(doc, 0.0);
     let doc = set_label(doc, profile, Some("sketch"));
     let doc = set_label(doc, extrude, Some("base plate"));
     let refused = split(
         &doc,
-        &BTreeSet::from([frame, profile]),
+        &BTreeSet::from([profile]),
         DocumentId::derive("node-labels-severed-part"),
         Tol::witness(),
         None,
@@ -593,8 +587,8 @@ fn an_inline_forward_reference_speaks_from_the_part() {
 /// reference points forward.
 fn forward_reference(id: &str) -> (ProfileDoc, editor_core::StableName, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
-    let (doc, [_, _, a]) = block(doc, 0.0);
-    let (doc, [_, _, b]) = block(doc, 0.5);
+    let (doc, [_, a]) = block(doc, 0.0);
+    let (doc, [_, b]) = block(doc, 0.5);
     let early = fixture::fname(b, fixture::wall(&doc, b, 0));
     let (doc, _shell) = insert(
         doc,
@@ -603,7 +597,7 @@ fn forward_reference(id: &str) -> (ProfileDoc, editor_core::StableName, RecipeNo
             open: editor_core::Operand::select(a, vec![early.clone()]),
         },
     );
-    let (doc, [_, _, c]) = block(doc, 0.5);
+    let (doc, [_, c]) = block(doc, 0.5);
     let late = fixture::fname(c, fixture::wall(&doc, c, 0));
     let body = doc.output(a, 0);
     let (doc, _) = step(
@@ -624,13 +618,13 @@ fn forward_reference(id: &str) -> (ProfileDoc, editor_core::StableName, RecipeNo
 fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_part() {
     let tol = Tol::witness();
     let part_doc = ProfileDoc::empty_derived("node-labels-inline-part", tol);
-    let (part_doc, [_, _, body]) = block(part_doc, 0.0);
+    let (part_doc, [_, body]) = block(part_doc, 0.0);
     let (part_doc, body) = crate::fixture::place(part_doc, body);
     let part_doc = set_label(part_doc, body, Some("bracket"));
     // A second part whose world is two bodies.
     let pair = ProfileDoc::empty_derived("node-labels-inline-pair", tol);
-    let (pair, [_, _, a]) = block(pair, 0.0);
-    let (pair, [_, _, b]) = block(pair, 5.0);
+    let (pair, [_, a]) = block(pair, 0.0);
+    let (pair, [_, b]) = block(pair, 5.0);
     let pair = crate::fixture::place_all(pair, &[a, b]);
     let mut store = PartStore::default();
     let doc_ref = store.insert(part_doc, tol);
@@ -679,21 +673,21 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
     let pair_host = set_label(pair_host, inst, Some("left bracket"));
     let (consumed, by) = insert(
         pair_host,
-        Node::transform(
-            inst,
-            editor_core::Step::Rigid {
-                translation: [len(1.0), len(0.0), len(0.0)],
-                axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-                angle: fixture::ang(0.0),
+        Node::Pattern {
+            input: inst.into(),
+            count: editor_core::Formula::count(2),
+            kind: editor_core::PatternKind::Linear {
+                direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
+                spacing: len(1.0),
             },
-        ),
+        },
     );
     let consumed = set_label(consumed, by, Some("offset"));
     let refused = inline(&consumed, inst, &resolver, tol)
         .expect_err("a reader of a two-body world has no one body to read");
     assert!(
         refused.to_string().starts_with(&format!(
-            "inline: Transform \"offset\" ({b}) reads the instance's copies, and the world \
+            "inline: Pattern \"offset\" ({b}) reads the instance's copies, and the world \
              in question places 2 copies",
             b = tag(by.0.digest())
         )),
@@ -715,7 +709,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     };
 
     let doc = ProfileDoc::empty_derived("node-labels-analysis", Tol::witness());
-    let (doc, [_, profile, extrude]) = block(doc, 0.0);
+    let (doc, [profile, extrude]) = block(doc, 0.0);
     let doc = set_label(doc, profile, Some("sketch"));
     let doc = set_label(doc, extrude, Some("base plate"));
     let e = tag(extrude.0.digest());
@@ -859,9 +853,9 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
 fn a_report_rendered_from_another_document_fails_loud() {
     use editor_core::{Sensitivity, SensitivityOutcome, render_sensitivity};
     let doc = ProfileDoc::empty_derived("node-labels-taken-of", Tol::witness());
-    let (doc, [_, _, extrude]) = block(doc, 0.0);
+    let (doc, [_, extrude]) = block(doc, 0.0);
     let other = ProfileDoc::empty_derived("node-labels-another", Tol::witness());
-    let (other, [_, _, same]) = block(other, 0.0);
+    let (other, [_, same]) = block(other, 0.0);
     assert_eq!(
         extrude, same,
         "the two documents hold one id as two nodes: the hazard this guards"
@@ -887,8 +881,8 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
     use editor_core::{CheckEvidence, ChecksConfig, Severity, enforce_checks, run_checks};
     let tol = Tol::witness();
     let doc = ProfileDoc::empty_derived("node-labels-checks", tol);
-    let (doc, [_, _, base]) = block(doc, 0.0);
-    let (doc, [_, _, boss]) = block(doc, 0.5);
+    let (doc, [_, base]) = block(doc, 0.0);
+    let (doc, [_, boss]) = block(doc, 0.5);
     let (doc, base) = crate::fixture::place(doc, base);
     let (doc, boss) = crate::fixture::place(doc, boss);
     let doc = set_label(doc, base, Some("base"));
@@ -960,13 +954,13 @@ fn a_checks_report_spoken_from_another_document_fails_loud() {
     use editor_core::{ChecksConfig, run_checks};
     let tol = Tol::witness();
     let doc = ProfileDoc::empty_derived("node-labels-checks-taken-of", tol);
-    let (doc, [_, _, base]) = block(doc, 0.0);
-    let (doc, [_, _, boss]) = block(doc, 0.5);
+    let (doc, [_, base]) = block(doc, 0.0);
+    let (doc, [_, boss]) = block(doc, 0.5);
     let (doc, base) = crate::fixture::place(doc, base);
     let doc = crate::fixture::place(doc, boss).0;
     let other = ProfileDoc::empty_derived("node-labels-checks-another", tol);
-    let (other, [_, _, a]) = block(other, 0.0);
-    let (other, [_, _, _b]) = block(other, 0.5);
+    let (other, [_, a]) = block(other, 0.0);
+    let (other, [_, _b]) = block(other, 0.5);
     let (other, same) = crate::fixture::place(other, a);
     assert_eq!(
         base, same,
@@ -1001,23 +995,23 @@ fn a_checks_report_spoken_from_another_document_fails_loud() {
 fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     use editor_core::{
         ChecksError, Cmp, Diagnosis, EntityKind, HitTestError, InterrogateError, NamePat, NodePick,
-        NodePickError, NodeStanding, Resolution, ResolveError, RunCtx, SelectRefusal, Selector,
-        SlotId, select, select_where,
+        NodePickError, NodeStanding, Resolution, ResolveError, RoleSeg, RunCtx, SelectRefusal,
+        Selector, SlotId, select, select_where,
     };
 
     let tol = Tol::witness();
     let doc = ProfileDoc::empty_derived("node-labels-select", tol);
-    let (doc, [frame, _, extrude]) = block(doc, 0.0);
-    let doc = set_label(doc, frame, Some("sketch plane"));
+    let (doc, [sketch, extrude]) = block(doc, 0.0);
+    let doc = set_label(doc, sketch, Some("sketch plane"));
     let doc = set_label(doc, extrude, Some("base plate"));
     let eval = |doc: &ProfileDoc| {
         evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol)
     };
     let ev = eval(&doc);
-    let (f, e) = (tag(frame.0.digest()), tag(extrude.0.digest()));
+    let (f, e) = (tag(sketch.0.digest()), tag(extrude.0.digest()));
 
-    let pick = NodePick::build(&ev, frame, 0, 0.1, tol).expect_err("a frame draws no body");
-    assert_eq!(pick, NodePickError::NotABody { node: frame });
+    let pick = NodePick::build(&ev, sketch, 0, 0.1, tol).expect_err("a profile draws no body");
+    assert_eq!(pick, NodePickError::NotABody { node: sketch });
     assert!(
         pick.to_string()
             .starts_with(&format!("pick: node {f}'s value is not body-denoting")),
@@ -1025,45 +1019,51 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     );
     assert!(
         pick.spoken(&doc).starts_with(&format!(
-            "pick: Datum frame \"sketch plane\" ({f})'s value is not body-denoting"
+            "pick: Profile \"sketch plane\" ({f})'s value is not body-denoting"
         )),
         "{}",
         pick.spoken(&doc)
     );
-    let renamed = set_label(doc.clone(), frame, Some("top plane"));
+    let renamed = set_label(doc.clone(), sketch, Some("top plane"));
     assert!(
         pick.spoken(&renamed)
-            .starts_with(&format!("pick: Datum frame \"top plane\" ({f})'s")),
+            .starts_with(&format!("pick: Profile \"top plane\" ({f})'s")),
         "a refusal raised before a rename speaks the label as it stands: {}",
         pick.spoken(&renamed)
     );
 
-    let from_extrude = [editor_core::GeomPred::DatumDistance {
-        datum: extrude,
+    // An edge's name where the distance wants a face: no face to measure
+    // from, and the name speaks its labelled minting node.
+    let edge = fixture::ename(
+        extrude,
+        RoleSeg::LateralEdge(fixture::vpiece(&doc, extrude, 0, 0)),
+    );
+    let from_edge = [editor_core::GeomPred::PlaneDistance {
+        face: edge.clone(),
         cmp: Cmp::Approx,
         value: fixture::len(0.0),
     }];
     let faces = Selector::of(NamePat::of_kind(EntityKind::Face));
-    let refusal = select_where(&ev, extrude, &faces, &from_extrude, &doc.var_env(), tol)
-        .expect_err("an extrude is not a datum");
-    assert!(matches!(refusal, SelectRefusal::NotADatum { datum, .. } if datum == extrude));
+    let refusal = select_where(&ev, extrude, &faces, &from_edge, &doc.var_env(), tol)
+        .expect_err("an edge has no plane");
+    assert!(matches!(&refusal, SelectRefusal::FaceUnresolved { face } if **face == edge));
     assert!(
-        refusal.spoken(&doc, &ev).starts_with(&format!(
-            "select: the query measures from Extrude \"base plate\" ({e}), which produced"
-        )),
+        refusal
+            .spoken(&doc, &ev)
+            .contains(&format!("Extrude \"base plate\" ({e})")),
         "{}",
         refusal.spoken(&doc, &ev)
     );
 
     let poisoned = NodeStanding::Poisoned {
         node: extrude,
-        through: frame,
+        through: sketch,
     };
     assert_eq!(
         poisoned.spoken(&doc),
         format!(
-            "Extrude \"base plate\" ({e}) is poisoned by the failure at Datum frame \"sketch \
-             plane\" ({f}), so it has no value — the repair is upstream, at Datum frame \
+            "Extrude \"base plate\" ({e}) is poisoned by the failure at Profile \"sketch \
+             plane\" ({f}), so it has no value — the repair is upstream, at Datum sketch \
              \"sketch plane\" ({f})"
         )
     );
@@ -1159,7 +1159,7 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
         MateFault, MateRef, NodeErrorKind, NodeRefusal, PoseRefusal, Speaker, spoken_by,
     };
     let doc = ProfileDoc::empty(DocumentId::derive("speak-inner"), Tol::witness());
-    let (doc, [_, _, body]) = block(doc, 0.0);
+    let (doc, [_, body]) = block(doc, 0.0);
     let doc = set_label(doc, body, Some("base plate"));
     let t = tag(body.0.digest());
     let spoken = format!("Extrude \"base plate\" ({t})");
@@ -1241,7 +1241,8 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
 #[test]
 fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
     let doc = ProfileDoc::empty_derived("node-labels-respoken", Tol::witness());
-    let (doc, [frame, profile, extrude]) = block(doc, 0.0);
+    let (doc, [profile, extrude]) = block(doc, 0.0);
+    let (doc, [_, other]) = block(doc, 2.0);
     let doc = set_label(doc, profile, Some("sketch"));
     let doc = set_label(doc, extrude, Some("base plate"));
     let e = tag(extrude.0.digest());
@@ -1251,7 +1252,7 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
         DocEdit::SetParam {
             node: extrude,
             slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Profile),
-            value: editor_core::SlotValue::Read(frame.into()),
+            value: editor_core::SlotValue::Read(other.into()),
             fresh: Vec::new(),
         },
     );

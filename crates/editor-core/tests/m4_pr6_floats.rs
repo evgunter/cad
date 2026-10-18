@@ -14,7 +14,7 @@
 // round-tripping through save/load across EVERY float slot the format has,
 // so it rests on the persistence layer that writes and reads them and on
 // the four document modules that own those slots (doc params, expression
-// literals, frame placements, D7 metadata) plus the edit door the fixture
+// literals, extrude distances, D7 metadata) plus the edit door the fixture
 // is built through. `geom-core/src/tolerance.rs` is named because the
 // recorded eps is one of the slots.
 // `tests/fixture/` is named because `fixture::desc` builds the documents every
@@ -56,43 +56,32 @@ fn round_trip(value: f64) -> ProfileDoc {
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
         },
     );
-    // **The profile has no raw-float channel any more.** v4's was the
-    // plane PLACEMENT, twelve floats inline; the plane is a node now,
-    // and a frame's origin is an `Expr` like every other datum's. So
-    // the arbitrary magnitude rides the FRAME below, through the
-    // expression channel — which is the same channel the datum point
-    // further down covers, and the reason this row's profile arm
-    // becomes a frame arm rather than disappearing.
+    // **The profile has no raw-float channel**: the arbitrary
+    // magnitude rides the expression channel, as an extrude's distance
+    // over the profile, and a second extrude's distance carries `-0.0`.
     doc = push(
         &doc,
         DocEdit::InsertNode {
-            node: Box::new(fixture::frame(
-                [value, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-            )),
+            node: Box::new(Node::Profile(desc(vec![vec![
+                (0.0, 0.0),
+                (1.0, 0.0),
+                (0.5, 1.0),
+            ]]))),
             fresh: Vec::new(),
         },
     );
-    doc = push(
-        &doc,
-        DocEdit::InsertNode {
-            node: Box::new(Node::Profile(desc(
-                doc.ids()[0],
-                vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
-            ))),
-            fresh: Vec::new(),
-        },
-    );
-    doc = push(
-        &doc,
-        DocEdit::InsertNode {
-            node: Box::new(Node::Datum(editor_core::Datum::Point {
-                position: [len(value), len(0.0), len(-0.0)],
-            })),
-            fresh: Vec::new(),
-        },
-    );
+    for distance in [len(value), len(-0.0)] {
+        doc = push(
+            &doc,
+            DocEdit::InsertNode {
+                node: Box::new(Node::Extrude {
+                    profile: doc.ids()[0].into(),
+                    distance,
+                }),
+                fresh: Vec::new(),
+            },
+        );
+    }
     let text = save(&doc, &[], Tol::witness()).expect("save");
     load(&text, Tol::witness()).expect("load").doc
 }
@@ -113,41 +102,27 @@ fn check_all_slots(value: f64) {
         panic!("param lost");
     };
     assert_bits("doc param", value, *p);
-    // The frame the profile is drawn on: its origin x carries the
-    // value, as a literal `Expr`, so the bits are asserted the way
-    // every other expression literal's are.
-    let Some(Node::Datum(editor_core::Datum::Frame { origin, .. })) = doc.node(doc.ids()[0]) else {
-        panic!("frame lost");
-    };
-    let mut frame_bits = Vec::new();
-    doc.written(&editor_core::Expr::var(
-        origin[0],
-        editor_core::Dimension::Length,
-    ))
-    .literal_bits(&mut frame_bits);
-    assert_eq!(
-        frame_bits,
-        vec![value.to_bits()],
-        "the frame origin's literal bits"
-    );
-    let Some(Node::Profile(prof)) = doc.node(doc.ids()[1]) else {
-        panic!("profile lost");
-    };
-    assert_eq!(
-        doc.operation_of(prof.frame),
-        Some(doc.ids()[0]),
-        "the profile still reads its frame across the wire"
-    );
-    let Some(Node::Datum(editor_core::Datum::Point { position })) = doc.node(doc.ids()[2]) else {
-        panic!("datum lost");
-    };
-    let mut bits = Vec::new();
+    // The first extrude's distance carries the value, as a literal
+    // `Expr`, so the bits are asserted the way every other expression
+    // literal's are; it reads the profile across the wire.
     let written = |var: editor_core::VarId| {
         doc.written(&editor_core::Expr::var(var, editor_core::Dimension::Length))
     };
-    written(position[0]).literal_bits(&mut bits);
+    let Some(Node::Extrude { profile, distance }) = doc.node(doc.ids()[1]) else {
+        panic!("extrude lost");
+    };
+    let mut bits = Vec::new();
+    written(*distance).literal_bits(&mut bits);
     assert_eq!(bits, vec![value.to_bits()], "expression literal bits");
-    written(position[2]).literal_bits(&mut bits);
+    assert_eq!(
+        doc.operation_of(*profile),
+        Some(doc.ids()[0]),
+        "the extrude still reads its profile across the wire"
+    );
+    let Some(Node::Extrude { distance, .. }) = doc.node(doc.ids()[2]) else {
+        panic!("second extrude lost");
+    };
+    written(*distance).literal_bits(&mut bits);
     assert!(
         bits.contains(&(-0.0f64).to_bits()),
         "-0.0 literal must keep its sign"

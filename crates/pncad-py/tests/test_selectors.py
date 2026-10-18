@@ -43,7 +43,7 @@ def unit_cube(doc):
             (Formula.length_in(1, m), Formula.length_in(0, m)),
             (Formula.length_in(1, m), Formula.length_in(1, m)),
             (Formula.length_in(0, m), Formula.length_in(1, m)),
-        ], plane=doc.sketch_frame())
+        ])
     )
     return doc.insert(Node.extrude(square, Formula.length_in(1, m)))
 
@@ -243,7 +243,6 @@ def run():
     square = doc.insert(
         Node.polygon(
             [(zero, zero), (one, zero), (one, one), (zero, one)],
-            plane=doc.sketch_frame(),
         )
     )
     node = doc.insert(Node.extrude(square, one))

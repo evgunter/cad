@@ -41,12 +41,12 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-/// An extruded square: half-width `h` centered at `(cx, 0)` on the
-/// z = `z0` plane, extruded `dz` up.
-fn slab(doc: ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
+/// An extruded square: half-width `h` centered at `(cx, 0)` on its own
+/// xy, extruded `dz` up.
+fn slab(doc: ProfileDoc, cx: f64, h: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = on_frame(
         doc,
-        [0.0, 0.0, z0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(cx, 0.0, h)],
@@ -60,13 +60,26 @@ fn slab(doc: ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64) -> (ProfileDoc, Reci
     )
 }
 
+/// [`slab`] placed against `root`, `z0` up its own z: the placement.
+fn slab_on(
+    doc: ProfileDoc,
+    root: RecipeNodeId,
+    cx: f64,
+    h: f64,
+    z0: f64,
+    dz: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, b) = slab(doc, cx, h, dz);
+    fixture::slid(doc, root, b, [0.0, 0.0, z0])
+}
+
 /// Two disjoint unit cubes, deliberately united and placed: one copy,
 /// one body, two components. Answers the placement, the checks'
 /// subject.
 fn disjoint_union() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-disjoint", Tol::witness());
-    let (doc, a) = slab(doc, 0.0, 0.5, 0.0, 1.0);
-    let (doc, b) = slab(doc, 3.0, 0.5, 0.0, 1.0);
+    let (doc, a) = slab(doc, 0.0, 0.5, 1.0);
+    let (doc, b) = slab_on(doc, a, 3.0, 0.5, 0.0, 1.0);
     let (doc, result) = insert(
         doc,
         Node::Union {
@@ -80,8 +93,8 @@ fn disjoint_union() -> (ProfileDoc, RecipeNodeId) {
 /// component, two shells.
 fn voided() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-voided", Tol::witness());
-    let (doc, a) = slab(doc, 0.0, 1.5, 0.0, 3.0);
-    let (doc, b) = slab(doc, 0.0, 0.5, 1.0, 1.0);
+    let (doc, a) = slab(doc, 0.0, 1.5, 3.0);
+    let (doc, b) = slab_on(doc, a, 0.0, 0.5, 1.0, 1.0);
     let (doc, result) = insert(
         doc,
         Node::Subtract {
@@ -214,8 +227,8 @@ fn connectedness_is_labeled_certified() {
 /// subjects — and its placement.
 fn annihilated() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-annihilated", Tol::witness());
-    let (doc, a) = slab(doc, 0.0, 0.5, 0.0, 1.0);
-    let (doc, b) = slab(doc, 3.0, 0.5, 0.0, 1.0);
+    let (doc, a) = slab(doc, 0.0, 0.5, 1.0);
+    let (doc, b) = slab_on(doc, a, 3.0, 0.5, 0.0, 1.0);
     let (doc, result) = insert(
         doc,
         Node::Intersect {
@@ -298,7 +311,7 @@ fn in_band_shell_escalates_typed_never_guessed() {
     let tol = Tol::witness();
     let dz = (1.0 + tol.k()) * tol.eps();
     let doc = ProfileDoc::empty_derived("dsc-checks-thin", Tol::witness());
-    let (doc, thin) = slab(doc, 0.0, 0.5, 0.0, dz);
+    let (doc, thin) = slab(doc, 0.0, 0.5, dz);
     let (doc, root) = fixture::place(doc, thin);
     let report = checks(&doc, &ChecksConfig::default());
     // Exactly one finding: the typed escalation. NEVER a counted
@@ -355,8 +368,8 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
     let tol = Tol::witness();
     let t = (1.0 + tol.k()) * tol.eps();
     let doc = ProfileDoc::empty_derived("dsc-checks-thin-void", Tol::witness());
-    let (doc, a) = slab(doc, 0.0, 1.5, 0.0, 3.0);
-    let (doc, b) = slab(doc, 0.0, 0.5, 1.0, 1.0);
+    let (doc, a) = slab(doc, 0.0, 1.5, 3.0);
+    let (doc, b) = slab_on(doc, a, 0.0, 0.5, 1.0, 1.0);
     let (doc, hollow) = insert(
         doc,
         Node::Subtract {
@@ -364,7 +377,7 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
             tool: b.into(),
         },
     );
-    let (doc, c) = slab(doc, 0.0, 0.8, 0.5, 1.5 - t);
+    let (doc, c) = slab_on(doc, a, 0.0, 0.8, 0.5, 1.5 - t);
     let (doc, root) = insert(
         doc,
         Node::Union {
@@ -484,8 +497,8 @@ fn a_findings_attribution_resolves_to_its_subject() {
 /// grows when a body is placed beside what it was meant to join.
 fn two_roots(cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-two-roots", Tol::witness());
-    let (doc, a) = slab(doc, 0.0, 0.5, 0.0, 1.0);
-    let (doc, b) = slab(doc, cx, 0.5, 0.0, 1.0);
+    let (doc, a) = slab(doc, 0.0, 0.5, 1.0);
+    let (doc, b) = slab(doc, cx, 0.5, 1.0);
     let (doc, a) = fixture::place(doc, a);
     let (doc, b) = fixture::place(doc, b);
     (doc, a, b)
@@ -856,7 +869,7 @@ fn washer() -> (ProfileDoc, RecipeNodeId) {
         ProfileDoc::empty_derived("dsc-checks-washer", Tol::witness()),
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
+        [0.0, 1.0, 0.0],
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     );
     let (doc, washer) = insert(

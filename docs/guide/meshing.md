@@ -36,7 +36,7 @@ sketch = doc.insert(
         (Formula.length_in(2, m), Formula.length_in(0, m)),
         (Formula.length_in(2, m), Formula.length_in(1, m)),
         (Formula.length_in(0, m), Formula.length_in(1, m)),
-    ], plane=doc.sketch_frame())
+    ])
 )
 slab = doc.insert(Node.extrude(sketch, Formula.length_in(1, m)))
 body = evaluate(doc).value(slab).body()
@@ -147,7 +147,6 @@ def is_closed(mesh):
 # A washer: a rectangle revolved a full turn about the y axis, so
 # every lateral face is a cylinder and the mesh is an approximation.
 doc = Doc()
-frame = doc.sketch_frame()
 outline = doc.insert(
     Node.polygon(
         [
@@ -156,7 +155,6 @@ outline = doc.insert(
             (Formula.length_in(1.5, m), Formula.length_in(2, m)),
             (Formula.length_in(0.5, m), Formula.length_in(2, m)),
         ],
-        plane=frame,
     )
 )
 # The axis in the sketch's own coordinates: the frame's v is world
@@ -215,7 +213,7 @@ sketch = doc.insert(
         (Formula.length_in(1, m), Formula.length_in(0, m)),
         (Formula.length_in(1, m), Formula.length_in(1, m)),
         (Formula.length_in(0, m), Formula.length_in(1, m)),
-    ], plane=doc.sketch_frame())
+    ])
 )
 cube = doc.insert(Node.extrude(sketch, Formula.length_in(1, m)))
 mesh = evaluate(doc).value(cube).body().tessellate(1 * mm)
