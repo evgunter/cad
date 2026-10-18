@@ -7867,6 +7867,15 @@ impl<T: Decide> Placement<T> {
     ) -> Result<T, PcurveCertifyError> {
         // The read's one jump is the cut of the window it is named in.
         let read = dir.principal_in(along.window(), band);
+        if along == Along::Latitude {
+            if let Ok(path) = std::env::var("D6_LATLOG") {
+                use std::io::Write;
+                let name = std::thread::current().name().unwrap_or("?").to_string();
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                    let _ = writeln!(f, "READ\t{name}\t{read:?}");
+                }
+            }
+        }
         let turns = self.turns(along, read + offset(self.mid), band)?;
         Ok(if turns == 0 {
             read
