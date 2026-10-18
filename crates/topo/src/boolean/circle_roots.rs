@@ -91,7 +91,7 @@ use geom_brep::half_angle::{
     DegreeTwo, HalfAngleFrame, HalfAngleRows, MAX_DEGREE, RootSlack, half_angle_roots,
 };
 use geom_brep::roots::{OnCarrier, RootRefusal, Roots, Unsettled, extreme_sign, spread_signs};
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::{BooleanDecision, BooleanError};
 use crate::validate::decide;
@@ -199,6 +199,36 @@ pub(super) struct FirstHarmonic<T> {
     pub(super) lo_noise: T,
     pub(super) hi_noise: T,
     pub(super) phase_noise: T,
+}
+
+impl<T: Decide> FirstHarmonic<T> {
+    /// **A circle's signed distance off a plane**: the circle
+    /// `center + radius·(û cos θ + v̂ sin θ)`, `v̂ = axis × û`, against the
+    /// plane through `on` of unit normal `n`, its residual
+    /// `n·(center − on) + radius(n·û) cos θ + radius(n·v̂) sin θ` and one
+    /// uniform rounding charge on the terms it is formed from. The one
+    /// spelling of a circle against a plane: an edge against a ray's or a
+    /// leg's plane, a leg against an edge's, a sphere face's arc against a
+    /// cut.
+    pub(super) fn circle_off_plane(
+        (center, axis, radius, u_ref): (Point3<T>, Vec3<T>, T, Vec3<T>),
+        (on, n): (Point3<T>, Vec3<T>),
+    ) -> Self {
+        let offset = center - on;
+        let d = n.dot(offset);
+        let (cos_part, sin_part) = (radius * n.dot(u_ref), radius * n.dot(axis.cross(u_ref)));
+        let amplitude = (cos_part.powi(2) + sin_part.powi(2)).sqrt();
+        let noise = geom_brep::rounding_charge(offset.norm() + radius);
+        Self {
+            lo: d - amplitude,
+            hi: d + amplitude,
+            cos_part,
+            sin_part,
+            lo_noise: noise,
+            hi_noise: noise,
+            phase_noise: T::zero(),
+        }
+    }
 }
 
 /// The predicate rows one caller of [`first_harmonic_roots`] meters
@@ -311,13 +341,22 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     // by `ring_path::branch`'s window re-centring argument. Its readers
     // read an end of a whole-turn span alike: the wall crossing's
     // `at_end`, the sphere cut-in's vertex lookup at either end, and
-    // `sphere_region`'s ray reading `sideless` at either end. None reads
+    // `sphere_region`'s and `torus_region`'s readings `sideless` at
+    // either end. None reads
     // a root as an identity, which is why the floor stays: a structural
     // pick would decide nothing a reader uses.
-    let mid = (t0 + t1) / two;
-    let near_mid = |raw: T| mid + (raw - mid).reduce_periodic_centred(T::tau());
     Ok(Roots::all([
-        near_mid(phi - half_chord),
-        near_mid(phi + half_chord),
+        near_span(phi - half_chord, (t0, t1)),
+        near_span(phi + half_chord, (t0, t1)),
     ]))
+}
+
+/// **An angle on the branch of a span's middle**: `raw` moved by whole
+/// turns to within `π` of the middle of `(t0, t1)`, so it compares with the
+/// span's ends without wrapping. The one unwinding of a carrier's angle
+/// onto the span it is read against: this door's roots, and an angle a
+/// region reads off a point of an edge.
+pub(super) fn near_span<T: Decide>(raw: T, (t0, t1): (T, T)) -> T {
+    let mid = (t0 + t1) / T::from_f64(2.0);
+    mid + (raw - mid).reduce_periodic_centred(T::tau())
 }

@@ -31,3 +31,11 @@ mutant that survives the viewer suite:
   Spaces are given to failed nodes too (`spaces_of`). Check whether a copy
   mated to a refused root refuses as well. If it can survive, ask the root
   too.
+
+**Update (the PR that closed `an-overtaken-pin-landing-is-never-pruned`).** The
+gate is now `Answers::Structural` at a scratch landing, and
+`a_refused_placement_waits_for_the_committed_landing` pins it: the scratch
+landing keeps a refused frame, and the committed landing drops it. Still open:
+the root half of `gesture_check`, and a gesture whose root is refused while
+its copy is not. A frame's deleted root is pinned by
+`deleting_a_frames_root_drops_it_at_the_edit`.

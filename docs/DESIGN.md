@@ -1036,7 +1036,8 @@ suits the slot.
   other; a sweep reads a profile and, at most, a heading and a tilt in
   the profile's own axes (an extrude's slant, held to one side of the
   profile's plane) or a point and a heading (a revolve's axis line),
-  never a frame.
+  never a frame. A loft reads its sections and, for each after the
+  first, a station: slides and spins in the first section's own axes.
 - *Selections* of a shape: one cell of a body (`Face`, `Edge`,
   `Vertex`), or the set of them a reader takes (`Faces`, `Edges`; a
   set kind exists only for a slot that reads one).
