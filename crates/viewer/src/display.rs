@@ -51,9 +51,10 @@
 //! — the alternative, accepting the op and drawing nothing different,
 //! is the silent no-op G3's honesty rule forbids. The free-move refuses
 //! it so that it answers the test the properties pane draws its control
-//! from; the frame itself would move the whole space, fused product
-//! included, so a fuse that arrives under a held frame does not discard
-//! it.
+//! from. A frame already held when a fuse arrives stays: its space is
+//! still loose and the frame still moves that space's own copies, while
+//! the fused product is placed by its own placement, in its own space,
+//! and does not move with it.
 //!
 //! # Supersession: the frame goes when its root stops naming a loose space
 //!
@@ -130,7 +131,8 @@ const RIGID_SLACK: f64 = 1e-9;
 /// The rule over the whole enum, not a property of one arm: an arm
 /// whose subject IS a part instance says **"instance N"**
 /// ([`AdmissionFault::InTheWorld`], [`AdmissionFault::NotEvaluated`],
-/// [`AdmissionFault::NoSpace`], [`AdmissionFault::FusedGeometry`])
+/// [`AdmissionFault::NoSpace`], [`AdmissionFault::JoinedSpace`],
+/// [`AdmissionFault::FusedGeometry`])
 /// — the word the properties panel and the feature tree use for the
 /// thing a user hides or probes. An arm whose whole content is that
 /// the id does NOT denote one says **"node N"**
@@ -154,7 +156,7 @@ const RIGID_SLACK: f64 = 1e-9;
 /// to know which sentences it is a claim about. The admission tests
 /// answer this enum rather than [`DisplayFault`], and [`Withdrawn`]
 /// stores what they answer, so the sentences the claim ranges over
-/// are these six and a seventh cannot arrive without an arm here. The
+/// are these seven and an eighth cannot arrive without an arm here. The
 /// claim itself is then a census over a closed set, held by
 /// `a_withdrawn_cause_never_carries_the_list_mark` in
 /// `crates/viewer/tests/frame_policy.rs`.
@@ -234,6 +236,17 @@ pub enum AdmissionFault {
         /// The instance, as the document held it.
         instance: SpokenNode,
     },
+    /// The loose space a frame was drawn for joined another: a mate put
+    /// its root's copy in the loose space `into` is the root of, so the
+    /// root no longer names a loose space of its own (DI5) and the frame
+    /// goes. Raised by [`space_check`] alone; the probe still admits the
+    /// copy, to the joined space.
+    JoinedSpace {
+        /// The root the frame was keyed by, as the document held it.
+        instance: SpokenNode,
+        /// The root of the space it joined, as the document held it.
+        into: SpokenNode,
+    },
     /// The instance's geometry is FUSED into a drawn product together
     /// with other instances' (a boolean or placed union consumes
     /// both), so no display operation can address this instance
@@ -278,6 +291,12 @@ impl core::fmt::Display for AdmissionFault {
                 "{instance} is in no space: the evaluation refused its placement, so there is \
                  no picture of it to move"
             ),
+            Self::JoinedSpace { instance, into } => write!(
+                f,
+                "{instance}'s loose space joined {into}'s: a mate put it in that space, so the \
+                 frame drawn for {instance}'s own space is gone. A free-move of either copy \
+                 moves the joined space"
+            ),
             Self::FusedGeometry {
                 instance,
                 body,
@@ -317,6 +336,10 @@ impl AdmissionFault {
             },
             Self::NoSpace { instance } => Self::NoSpace {
                 instance: again(instance),
+            },
+            Self::JoinedSpace { instance, into } => Self::JoinedSpace {
+                instance: again(instance),
+                into: again(into),
             },
             Self::FusedGeometry {
                 instance,
@@ -358,19 +381,19 @@ impl From<AdmissionFault> for DisplayFault {
 ///
 /// # Two families, and the split is a type
 ///
-/// [`DisplayFault::Admission`] carries the four faults that say an
-/// INSTANCE cannot hold display state — the answers of the admission
-/// tests [`display_check`] and [`free_move_check`], each naming the id
-/// it is about. The four arms beside it are about a gesture or a frame
-/// and name no id at all.
+/// [`DisplayFault::Admission`] carries the faults that say a node
+/// cannot hold display state — the answers of the tests
+/// [`display_check`], [`free_move_check`] and [`space_check`], each
+/// naming the id it is about. The four arms beside it are about a
+/// gesture or a frame and name no id at all.
 ///
 /// The families are apart because one of them is joined into a list
 /// and the other is not: [`DisplayState::prune`] fills every
-/// [`Withdrawn`] from the two admission tests, so a withdrawal's
-/// cause is an [`AdmissionFault`] by signature rather than by a
-/// property of those two functions' error sets, and
-/// [`AdmissionFault`]'s own docs carry what the join then needs of
-/// the four sentences.
+/// [`Withdrawn`] from [`display_check`] and [`space_check`], so a
+/// withdrawal's cause is an [`AdmissionFault`] by signature rather than
+/// by a property of those functions' error sets, and
+/// [`AdmissionFault`]'s own docs carry what the join then needs of its
+/// sentences.
 ///
 /// A caller rendering these must not promise its reader one
 /// vocabulary across all of them.
@@ -648,8 +671,7 @@ pub fn display_check(
 ///
 /// [`display_check`] runs first, as for a hide, so an instance fused
 /// into a product with another's refuses
-/// ([`AdmissionFault::FusedGeometry`]) here too. The frame would move
-/// the whole space, fused product included, but the properties pane
+/// ([`AdmissionFault::FusedGeometry`]) here too: the properties pane
 /// offers the probe only where the hide is addressable, and the op and
 /// the control it stands in for answer one test.
 ///
@@ -694,7 +716,8 @@ pub fn free_move_check(
 /// # Errors
 ///
 /// [`AdmissionFault::NoSuchNode`], and with an evaluation
-/// [`AdmissionFault::NoSpace`] and [`AdmissionFault::InTheWorld`].
+/// [`AdmissionFault::NoSpace`], [`AdmissionFault::InTheWorld`] and
+/// [`AdmissionFault::JoinedSpace`].
 pub fn space_check(
     doc: &Doc<ProfileProgram>,
     eval: Option<&Evaluation<f64>>,
@@ -708,7 +731,11 @@ pub fn space_check(
     let Some(eval) = eval else { return Ok(()) };
     match loose_root(eval, root) {
         Ok(found) if found == root => Ok(()),
-        Ok(_) | Err(Unplaced::World) => Err(AdmissionFault::InTheWorld {
+        Ok(found) => Err(AdmissionFault::JoinedSpace {
+            instance: doc.spoken(root),
+            into: doc.spoken(found),
+        }),
+        Err(Unplaced::World) => Err(AdmissionFault::InTheWorld {
             instance: doc.spoken(root),
         }),
         Err(Unplaced::Refused) => Err(AdmissionFault::NoSpace {
@@ -776,10 +803,10 @@ fn free_move_words() -> g1::Refusals<DisplayFault> {
 /// What the scene and pick paths read: the display state snapshotted
 /// as a value, in BOTH keyings — the raw instance-keyed facts (what
 /// the chrome's checkboxes and panels show) and their resolution onto
-/// the WORLD PLACEMENTS the scene is actually drawn under
-/// ([`drawn_targets`] — a patterned instance's geometry is emitted
-/// under the placements of the pattern's copies, and this resolution
-/// is what makes hide and free-move reach it there).
+/// the WORLD PLACEMENTS the scene is actually drawn under. A hide
+/// reaches them through [`drawn_targets`] (a patterned instance's
+/// geometry is emitted under the placements of the pattern's copies),
+/// and a free-move frame reaches every placement in its loose space.
 ///
 /// Owned rather than borrowed so a caller can hold one across the
 /// mutation that would invalidate a borrow, and because the maps are
@@ -789,8 +816,9 @@ pub struct DisplayView {
     /// Instances the picture drops (instance-keyed; the chrome's
     /// reading).
     pub hidden: BTreeSet<RecipeNodeId>,
-    /// Instance → the display frame composed over its drawn placement.
-    /// An in-flight preview overrides that instance's committed value.
+    /// Loose space's root → the display frame composed over its drawn
+    /// copies. An in-flight preview overrides that space's committed
+    /// value.
     pub moved: BTreeMap<RecipeNodeId, Frame>,
     /// The placements whose copies the hidden instances govern — what
     /// the scene and the pick index drop.
@@ -820,18 +848,21 @@ impl DisplayView {
 /// it exists exactly once, here.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Withdrawn {
-    /// The instance the display fact was keyed on.
+    /// The node the display fact was keyed on: the instance, for a
+    /// hide and a killed gesture, and the loose space's root — a
+    /// placement, which need not be an instance — for a discarded
+    /// frame.
     pub instance: RecipeNodeId,
     /// Why the document no longer admits it.
     ///
     /// **[`AdmissionFault`] and not [`DisplayFault`]**, because the
-    /// causes a prune can withdraw on are exactly what the two
-    /// admission tests answer — and because
+    /// causes a prune can withdraw on are exactly what its two tests
+    /// ([`display_check`], [`space_check`]) answer — and because
     /// [`crate::frame::Withdrawal`] joins several of these into one
     /// sentence with [`crate::frame::LIST_SEPARATOR`], which is a
-    /// claim about what the four can say. A field typed as the whole
-    /// vocabulary would have left that claim resting on which faults
-    /// `prune`'s two callees happen to raise.
+    /// claim about what those sentences can say. A field typed as the
+    /// whole vocabulary would have left that claim resting on which
+    /// faults `prune`'s two callees happen to raise.
     pub cause: AdmissionFault,
 }
 
@@ -902,8 +933,9 @@ impl PruneReport {
     /// Whether the prune withdrew nothing at all — the ordinary case,
     /// and the one a caller reports nothing for.
     ///
-    /// Private: [`DisplayState::prune`] is its one caller, deciding
-    /// whether the revision moved. The two types themselves are `pub`
+    /// Crate-private: [`DisplayState::prune`] reads it deciding whether
+    /// the revision moved, and `DocSession::land` deciding whether a
+    /// landing's prune is news to keep. The two types themselves are `pub`
     /// structurally rather than by choice — this is `prune`'s return
     /// type and [`Withdrawn`] is the element type of three public
     /// [`crate::session::OpOutcome`] fields, so neither could be
@@ -914,7 +946,7 @@ impl PruneReport {
     /// withdrawal is E0027 here rather than a withdrawal that leaves
     /// the revision where it was — which is the chrome not rebuilding
     /// a picture that changed.
-    fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         let Self {
             superseded,
             dropped_hides,

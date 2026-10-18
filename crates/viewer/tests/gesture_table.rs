@@ -775,6 +775,24 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             "{slot:?}: the two documents draw the probe on the same copies"
         );
 
+        // And once the SCRATCH lands, its landing answers the committed
+        // document's spaces too, so the probe still opens mid-drag.
+        session.pump();
+        assert_ne!(
+            session.landed_pair().map(|(doc, _)| doc),
+            Some(session.committed_doc()),
+            "{slot:?}: the landing is the scratch's"
+        );
+        assert!(
+            viewer::display::free_move_check(
+                session.committed_doc(),
+                session.space_evaluation(),
+                post
+            )
+            .is_ok(),
+            "{slot:?}: a scratch landing answers the spaces of both documents"
+        );
+
         // A whole free-move gesture, mid-value-gesture, through
         // `perform` — and the view, resolved against the SCRATCH
         // document, puts the previewed frame on the instance's copy.

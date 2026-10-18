@@ -592,6 +592,7 @@ impl Refusal {
                     | AdmissionFault::NotAnInstance { .. }
                     | AdmissionFault::InTheWorld { .. }
                     | AdmissionFault::NoSpace { .. }
+                    | AdmissionFault::JoinedSpace { .. }
                     | AdmissionFault::FusedGeometry { .. } => 1,
                 },
             },

@@ -420,21 +420,24 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         second.refusal
     );
 
-    // Free-move now refuses on BOTH participants: the shelf lives in
-    // the world's space, and so does post_b — or, where the second mate
-    // went in and the evaluation refused the post's placement, it is in
-    // no space at all. Either way there is no loose space to move.
-    for constrained in [bench.post_b, bench.shelf_i] {
+    // Free-move now refuses on BOTH participants. The shelf lives in
+    // the world's space; post_b, under the two mates, is a placement
+    // the evaluation refuses, so it is in no space at all. Either way
+    // there is no loose space to move.
+    for (participant, in_the_world) in [(bench.post_b, false), (bench.shelf_i, true)] {
         match session
             .perform(SessionOp::BeginFreeMove {
-                instance: constrained,
+                instance: participant,
             })
             .refusal
         {
-            Some(Refusal::Display(DisplayFault::Admission(
-                AdmissionFault::InTheWorld { instance } | AdmissionFault::NoSpace { instance },
-            ))) => assert_eq!(instance.id(), constrained),
-            other => panic!("a participant must refuse the probe, got {other:?}"),
+            Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::InTheWorld {
+                instance,
+            }))) if in_the_world => assert_eq!(instance.id(), participant),
+            Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::NoSpace {
+                instance,
+            }))) if !in_the_world => assert_eq!(instance.id(), participant),
+            other => panic!("{participant:?} must refuse the probe, got {other:?}"),
         }
     }
 }

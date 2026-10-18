@@ -2,11 +2,13 @@
 id: free-move-admits-a-loose-space
 kind: issue
 title: viewer: free-move admits a loose space and keys its frame by the space's root (DI5), not an instance no mate names
-status: open
+status: closed
 opened: 2026-10-17
 priority: P2
 cost: M
 blocked_on: [a-mate-relates-two-poses]
+pr: 5296
+closed: 2026-10-18
 ---
 
 
@@ -97,3 +99,13 @@ also drops the frame when a world pin goes back on, and
 `free_move_accepts_only_a_loose_space`, both in
 `crates/viewer/tests/assembly_display.rs`. The fixtures probe after
 `asm::unpin`, with `asm::where_b_stood` frames.
+
+A frame whose space joins another loose space, because its root's copy was mated
+onto another loose copy, goes at the landing with `JoinedSpace`, which names
+the space it joined. The probe still admits the copy to that joined space
+(`a_frame_whose_space_joins_another_goes_saying_so`). Review findings not
+taken in this PR have items of their own:
+`a-fused-instances-held-frame-has-no-reset`,
+`sync-scene-landing-notices-have-no-row`,
+`space-evaluation-compares-whole-docs-per-frame` and
+`gallery-probe-may-probe-nothing-under-di5`.

@@ -1564,10 +1564,7 @@ impl DocSession {
             .as_ref()
             .map(|run| run.evaluation.as_ref());
         let report = self.display.prune(&self.requested_doc, eval);
-        if !report.superseded.is_empty()
-            || !report.dropped_hides.is_empty()
-            || report.killed_gesture.is_some()
-        {
+        if !report.is_empty() {
             self.landed_withdrawals.push(report);
         }
         Landing::Landed
@@ -2744,6 +2741,9 @@ impl DocSession {
     fn clear_for_new_document(&mut self) {
         self.derived = Derived::none();
         self.display.clear();
+        // A landing's report names the outgoing document's nodes, which
+        // the incoming one cannot speak (`DisplayState::clear`).
+        self.landed_withdrawals.clear();
     }
 
     /// Insert one datum node ([`SessionOp::AddDatum`]). Its slots are

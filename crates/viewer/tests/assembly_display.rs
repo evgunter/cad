@@ -834,6 +834,71 @@ fn two_copies_mated_to_each_other_free_move_as_one() {
     assert!(session.display_view().moved_placements.is_empty());
 }
 
+/// **A frame whose space joins another goes, and says so** (DI5): the
+/// probed post's own loose space is keyed by its root; a mate onto
+/// another LOOSE copy puts the post in that copy's space, so the root
+/// no longer names a loose space and the landing drops the frame —
+/// reporting the join, not a world pin, because the joined space is
+/// still loose and the probe still admits the post to it.
+#[test]
+fn a_frame_whose_space_joins_another_goes_saying_so() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fmjoin", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    asm::unpin(&mut session, bench.post_b);
+    asm::unpin(&mut session, bench.shelf_i);
+    for op in [
+        SessionOp::BeginFreeMove {
+            instance: bench.post_b,
+        },
+        SessionOp::PreviewFreeMove {
+            instance: bench.post_b,
+            frame: Frame::translation([0.0, 0.0, 0.05]),
+        },
+        SessionOp::CommitFreeMove {
+            instance: bench.post_b,
+        },
+    ] {
+        let outcome = session.perform(op.clone());
+        assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
+    }
+    assert!(session.display().free_move_of(bench.post_b).is_some());
+
+    common::commit_mate(
+        &mut session,
+        asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Rest,
+            asm::middle_seat_values(),
+        ),
+    );
+    session.pump();
+    let joined = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
+        .expect("the mated post is in the shelf's loose space");
+    assert_ne!(joined, bench.post_b, "the post's space joined another");
+    let superseded: Vec<_> = session
+        .take_landed_withdrawals()
+        .into_iter()
+        .flat_map(|report| report.superseded)
+        .collect();
+    let [withdrawn] = &superseded[..] else {
+        panic!("the landing drops the post's frame: {superseded:?}")
+    };
+    assert_eq!(withdrawn.instance, bench.post_b);
+    assert!(
+        matches!(
+            &withdrawn.cause,
+            AdmissionFault::JoinedSpace { instance, into }
+                if instance.id() == bench.post_b && into.id() == joined
+        ),
+        "the cause is the join, naming the space it joined: {}",
+        withdrawn.cause
+    );
+    assert!(session.display().free_move_of(bench.post_b).is_none());
+    assert!(session.display().free_move_of(joined).is_none());
+}
+
 #[test]
 fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
     let tol = Tol::witness();

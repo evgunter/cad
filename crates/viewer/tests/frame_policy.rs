@@ -362,7 +362,8 @@ fn cause_ordinal(cause: &AdmissionFault) -> usize {
         AdmissionFault::InTheWorld { .. } => 2,
         AdmissionFault::NotEvaluated { .. } => 3,
         AdmissionFault::NoSpace { .. } => 4,
-        AdmissionFault::FusedGeometry { .. } => 5,
+        AdmissionFault::JoinedSpace { .. } => 5,
+        AdmissionFault::FusedGeometry { .. } => 6,
     }
 }
 
@@ -385,12 +386,16 @@ fn every_cause() -> Vec<AdmissionFault> {
         AdmissionFault::NoSpace {
             instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(8))),
         },
-        AdmissionFault::FusedGeometry {
+        AdmissionFault::JoinedSpace {
             instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
-            body: SpokenNode::absent(RecipeNodeId::new(0, tagged(10))),
+            into: SpokenNode::absent(RecipeNodeId::new(0, tagged(10))),
+        },
+        AdmissionFault::FusedGeometry {
+            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(11))),
+            body: SpokenNode::absent(RecipeNodeId::new(0, tagged(12))),
             others: vec![
-                SpokenNode::absent(RecipeNodeId::new(0, tagged(11))),
-                SpokenNode::absent(RecipeNodeId::new(0, tagged(12))),
+                SpokenNode::absent(RecipeNodeId::new(0, tagged(13))),
+                SpokenNode::absent(RecipeNodeId::new(0, tagged(14))),
             ],
         },
     ]
@@ -409,7 +414,7 @@ fn every_cause() -> Vec<AdmissionFault> {
 ///
 /// What is held instead is the POPULATION. The admission tests answer
 /// `AdmissionFault` and `Withdrawn::cause` stores what they answer, so
-/// the sentences this claim ranges over are exactly these four — the
+/// the sentences this claim ranges over are exactly these seven — the
 /// compiler's census, `cause_ordinal` being exhaustive and the
 /// ordinals having to run from 0 with no hole — and this row is the
 /// claim over it. Before the narrowing the field was the whole of

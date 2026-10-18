@@ -570,9 +570,11 @@ impl ViewerBehavior<'_> {
                 // with. Advisory for every fault that reaches here: the
                 // kind faults end the section above, which leaves a copy
                 // the document pins to the world (the document working
-                // as written) or a space not known yet (an evaluation
+                // as written), a space not known yet (an evaluation
                 // still on its way), neither of which asks anything of
-                // the reader.
+                // the reader, or a placement the evaluation refused,
+                // whose failure the tree's row already reports where it
+                // lives — here it only says why there is no probe.
                 crate::widgets::message_toned(ui, fault.to_string(), &self.theme, Tone::Advisory);
             }
             Ok(root) => {
