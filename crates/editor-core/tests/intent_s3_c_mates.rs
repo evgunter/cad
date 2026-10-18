@@ -464,6 +464,16 @@ fn turn_between(a: Mat3<f64>, b: Mat3<f64>) -> f64 {
 /// A box resting on the world floor by its bottom face, with values
 /// `(slide x, slide y, spin)` written in `order`.
 fn box_on_the_floor(values: [f64; 3], order: [usize; 3]) -> (ProfileDoc, RecipeNodeId) {
+    box_resting_on(WorldRead::through(PoseRole::Xy).flip(), values, order)
+}
+
+/// A box resting by its bottom face on the world plane `target`, with
+/// values `(slide x, slide y, spin)` written in `order`.
+fn box_resting_on(
+    target: WorldRead<Formula>,
+    values: [f64; 3],
+    order: [usize; 3],
+) -> (ProfileDoc, RecipeNodeId) {
     let (doc, body) = a_box("s3c_floor", 1.0);
     let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
     let (doc, placement) = placed(doc, body);
@@ -472,7 +482,7 @@ fn box_on_the_floor(values: [f64; 3], order: [usize; 3]) -> (ProfileDoc, RecipeN
         placement,
         Mate {
             on: plane_of(on_body(body, bottom)),
-            to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
+            to: Target::World(target),
             class: ContactClass::Rest,
         },
     );
@@ -547,6 +557,178 @@ fn a_plane_mate_leaves_two_slides_and_a_spin_in_any_order() {
             );
         }
         first.get_or_insert(at);
+    }
+}
+
+/// **Every listing order places the copy to the bit, on a tilted
+/// target too.** The floor read spun 0.3 about `x` and 0.7 about `z`,
+/// then flipped: values `(3.3, 4.7, 0.9)` in all six orders give one
+/// map, bit for bit — the values are taken in one order whatever order
+/// they are listed in.
+///
+/// *Breaks if* the solve takes the values in their listed order (a
+/// tilted chart's slides round apart in the last bits).
+#[test]
+fn every_order_places_the_copy_to_the_bit_on_a_tilted_target() {
+    let tilted = WorldRead::through(PoseRole::Xy)
+        .spin(WorldRead::through(PoseRole::X), ang(0.3))
+        .spin(WorldRead::through(PoseRole::Z), ang(0.7))
+        .flip();
+    let orders = [
+        [0, 1, 2],
+        [0, 2, 1],
+        [1, 0, 2],
+        [1, 2, 0],
+        [2, 0, 1],
+        [2, 1, 0],
+    ];
+    let maps: Vec<String> = orders
+        .iter()
+        .map(|&order| {
+            let (doc, p) = box_resting_on(tilted.clone(), [3.3, 4.7, 0.9], order);
+            format!("{:?}", solved(&doc, p))
+        })
+        .collect();
+    assert!(
+        maps.iter().all(|m| *m == maps[0]),
+        "one map whatever the order: {maps:#?}"
+    );
+}
+
+/// A box resting on the world floor and against the world's `yz` wall
+/// turned `wall_turn` about `z`, by its bottom and its `+x` face, with
+/// `value` on the floor mate.
+fn box_in_a_corner(
+    wall_turn: f64,
+    value: (Coord, f64),
+) -> (ProfileDoc, RecipeNodeId, ConstraintId) {
+    let (doc, body) = a_box("s3c_turned_corner", 1.0);
+    let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
+    let side = face_toward(&doc, body, [1.0, 0.0, 0.0]);
+    let (doc, placement) = placed(doc, body);
+    let (doc, floor) = fixture::constrain_at(
+        doc,
+        placement,
+        Mate {
+            on: plane_of(on_body(body, bottom)),
+            to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
+            class: ContactClass::Rest,
+        },
+    );
+    let (doc, _wall) = fixture::constrain_at(
+        doc,
+        placement,
+        Mate {
+            on: plane_of(on_body(body, side)),
+            to: Target::World(
+                WorldRead::through(PoseRole::Yz)
+                    .spin(WorldRead::through(PoseRole::Z), ang(wall_turn)),
+            ),
+            class: ContactClass::Rest,
+        },
+    );
+    let (doc, id) = add_value(doc, placement, floor.id, value.0, number(value.0, value.1))
+        .expect("a plane mate leaves the slide");
+    (doc, placement, id)
+}
+
+/// **A slide whose axis the residual reaches pins the copy, whichever
+/// way the residual runs.** A box on the floor against a wall turned
+/// 30° about `z`: the two rests leave a slide along the wall's
+/// horizontal, `(−sin 30°, cos 30°, 0)`, which neither of the floor
+/// chart's axes is. A slide value along `x` places the copy with its
+/// origin's `x` at the value, inside the residual; one along `y` placing
+/// the same origin's `y` gives the same map. Against the unturned wall
+/// the residual runs along `y`, and a slide along `x` is the freedom
+/// the wall already fixes (`NotAFreedom` with no kind).
+///
+/// *Breaks if* a slide is admitted only along an axis inside the
+/// residual (a turned corner could then be pinned by no value), or is
+/// moved off the residual (the wall mate would break).
+#[test]
+fn a_slide_the_residual_reaches_pins_a_turned_corner() {
+    let turn = 30.0_f64.to_radians();
+    let (doc, p, _) = box_in_a_corner(turn, (Coord::Slide(SlideAxis::X), 2.0));
+    let by_x = solved(&doc, p);
+    assert!(
+        (by_x.translation.x - 2.0).abs() < 1e-12,
+        "the copy's origin stands at x = 2: {by_x:?}"
+    );
+    let (doc, p, _) = box_in_a_corner(turn, (Coord::Slide(SlideAxis::Y), by_x.translation.y));
+    let by_y = solved(&doc, p);
+    assert!(
+        (by_y.translation - by_x.translation).norm() < 1e-12
+            && turn_between(by_y.linear, by_x.linear) < 1e-12,
+        "the residual's one copy at that place: {by_x:?} against {by_y:?}"
+    );
+    let (doc, p, value) = box_in_a_corner(0.0, (Coord::Slide(SlideAxis::X), 2.0));
+    match evaluated_fault(&doc, p) {
+        NodeErrorKind::Mate(fault) => assert!(
+            matches!(
+                *fault,
+                MateFault::NotAFreedom {
+                    value: at,
+                    coord: Coord::Slide(SlideAxis::X),
+                    kind: None,
+                } if at == MateRef::new(p, value)
+            ),
+            "{fault}"
+        ),
+        other => panic!("the placement refuses the value: {other:?}"),
+    }
+}
+
+/// **A freedom set twice refuses, whatever else the bundle leaves.** A
+/// box resting on the floor with two slides along `x` (1 and 2) and no
+/// spin: the second is a freedom the first already fixes, and refuses
+/// `NotAFreedom` with no kind where the placement evaluates, though the
+/// spin is still free.
+///
+/// *Breaks if* a value after the residual leaves the table's forms is
+/// skipped unchecked (the copy would read as merely loose).
+#[test]
+fn a_slide_set_twice_refuses_though_a_turn_is_free() {
+    let (doc, body) = a_box("s3c_twice", 1.0);
+    let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
+    let (doc, placement) = placed(doc, body);
+    let (doc, mate) = fixture::constrain_at(
+        doc,
+        placement,
+        Mate {
+            on: plane_of(on_body(body, bottom)),
+            to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
+            class: ContactClass::Rest,
+        },
+    );
+    let (doc, _) = add_value(
+        doc,
+        placement,
+        mate.id,
+        Coord::Slide(SlideAxis::X),
+        len(1.0),
+    )
+    .expect("a plane mate leaves the slide");
+    let (doc, second) = add_value(
+        doc,
+        placement,
+        mate.id,
+        Coord::Slide(SlideAxis::X),
+        len(2.0),
+    )
+    .expect("the door reads no residual");
+    match evaluated_fault(&doc, placement) {
+        NodeErrorKind::Mate(fault) => assert!(
+            matches!(
+                *fault,
+                MateFault::NotAFreedom {
+                    value: at,
+                    coord: Coord::Slide(SlideAxis::X),
+                    kind: None,
+                } if at == MateRef::new(placement, second)
+            ),
+            "{fault}"
+        ),
+        other => panic!("the placement refuses the second value: {other:?}"),
     }
 }
 
@@ -1265,4 +1447,116 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
         (entries[0][1].deriv - 1.0).abs() < 1e-12 && (entries[1][0].deriv + 1.0).abs() < 1e-12,
         "the turn's tangent moves x along y: {map:?}"
     );
+}
+
+/// **Fork C-5 — a box spanning the band encloses the value lane at its
+/// corners.** A box on the floor spun by `t`, declared at 1e-10 rad,
+/// boxed over `[1e-10, 6e-10]`: at the low corner the copy moves less
+/// than the band's zero and the value lane places it by no map; at the
+/// high one it moves more and keeps its turn. The box's own verdict
+/// spans the band, so its map holds both. A map that wide moves the
+/// copy's edges by about the band's zero, so the box run may refuse to
+/// certify them — an escalation; what it never does is answer a map
+/// that leaves a corner out.
+///
+/// *Breaks if* a box the band cannot decide keeps its turned map alone
+/// (the low corner's identity would lie outside the answer).
+#[test]
+fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
+    let (doc, body) = a_box("s3c_spanning", 1.0);
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::DeclareVar {
+            name: editor_core::VarName::new("t").expect("a name"),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                editor_core::Dimension::Angle,
+                1e-10,
+            )),
+        },
+    );
+    let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
+    let (doc, placement) = placed(doc, body);
+    let (mut doc, mate) = fixture::constrain_at(
+        doc,
+        placement,
+        Mate {
+            on: plane_of(on_body(body, bottom)),
+            to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
+            class: ContactClass::Rest,
+        },
+    );
+    let turn = Formula::named(
+        editor_core::VarName::new("t").expect("a name"),
+        editor_core::Dimension::Angle,
+    );
+    for (coord, by) in [
+        (Coord::Slide(SlideAxis::X), len(0.0)),
+        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Spin, turn),
+    ] {
+        doc = add_value(doc, placement, mate.id, coord, by)
+            .expect("a plane mate leaves the freedom")
+            .0;
+    }
+    let t = doc.var_named("t").expect("declared");
+    let at = |value: f64| {
+        let d = fixture::step(
+            doc.clone(),
+            DocEdit::DefineVar {
+                var: editor_core::VarName::new("t").expect("a name").into(),
+                def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                    editor_core::Dimension::Angle,
+                    value,
+                )),
+                fresh: Vec::new(),
+            },
+        )
+        .0;
+        motion_of(&evaluated::<f64>(&d, &EvalOptions::default()), placement)
+            .map_or_else(Affine3::identity, |m| m.to_affine())
+    };
+    let (low, high) = (at(1e-10), at(6e-10));
+    assert_eq!(
+        format!("{low:?}"),
+        format!("{:?}", Affine3::<f64>::identity()),
+        "the low corner is at rest in the value lane"
+    );
+    assert!(high.linear.c0.y != 0.0, "the high corner keeps its turn");
+    let boxed = EvalOptions {
+        param_box: Some(std::sync::Arc::new(
+            editor_core::analysis::ParamBox::from_axes(std::collections::BTreeMap::from([(
+                t,
+                editor_core::analysis::BoxAxis::Varying { lo: 0.0, hi: 5e-10 },
+            )])),
+        )),
+        ..EvalOptions::default()
+    };
+    let run = evaluated::<geom_core::Interval>(&doc, &boxed);
+    let map = match run.result(placement) {
+        Some(NodeResult::Ok(value)) => value.motion.expect("the box keeps a map").to_affine(),
+        Some(NodeResult::Failed(error)) => {
+            assert!(
+                !error.escalations.is_empty(),
+                "a box that does not answer escalates: {error:?}"
+            );
+            return;
+        }
+        other => panic!("the placement evaluates or refuses: {other:?}"),
+    };
+    let entries = |m: &Affine3<f64>| {
+        [m.linear.c0, m.linear.c1, m.linear.c2, m.translation].map(|c| [c.x, c.y, c.z])
+    };
+    let boxed_entries =
+        [map.linear.c0, map.linear.c1, map.linear.c2, map.translation].map(|c| [c.x, c.y, c.z]);
+    for corner in [low, high] {
+        for (column, want) in boxed_entries.iter().zip(entries(&corner)) {
+            for (e, w) in column.iter().zip(want) {
+                use geom_core::Bounds;
+                assert!(
+                    e.lo() <= w && w <= e.hi(),
+                    "the box encloses each corner: {e:?} against {w}"
+                );
+            }
+        }
+    }
 }

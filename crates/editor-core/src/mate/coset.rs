@@ -1759,38 +1759,35 @@ pub(crate) fn after_turn<T: Real>(g: Subgroup<T>) -> Option<Subgroup<T>> {
     }
 }
 
-/// **What `g` leaves once a value fixes its slide along `v`**: `None`
-/// where the rest is no subgroup of the table (a turn still free beside
-/// a translation fixed).
+/// **The line across two directions** — their cross product minted at
+/// `arm`'s lever, as [`parallel`] decides it — or `None` where they are
+/// parallel.
 ///
 /// # Errors
 ///
-/// [`Indeterminate`] when the direction left across `v` in a plane of
-/// translations cannot be minted.
-pub(crate) fn after_slide<T: SolveScalar>(
-    g: Subgroup<T>,
+/// [`Indeterminate`] when the verdict lands in the band.
+pub(crate) fn across<T: SolveScalar>(
+    u: UnitVec3<T>,
     v: UnitVec3<T>,
     band: Band,
-) -> Result<Option<Subgroup<T>>, Indeterminate> {
-    Ok(match g {
-        Subgroup::PlaneTranslation { normal } => {
-            match UnitVec3::new(normal.get().cross(v.get()), "mate_value_slide_across", band) {
-                Ok(direction) => Some(Subgroup::Prismatic { direction }),
-                Err(UnitVec3Error::Escalated(diag)) => return Err(diag),
-                Err(_) => None,
-            }
-        }
-        Subgroup::Prismatic { .. } => Some(Subgroup::Trivial),
-        Subgroup::Translation => Some(Subgroup::PlaneTranslation { normal: v }),
-        Subgroup::Se3
-        | Subgroup::Planar { .. }
-        | Subgroup::Cylindrical { .. }
-        | Subgroup::Revolute { .. }
-        | Subgroup::Spherical { .. }
-        | Subgroup::Parallel { .. }
-        | Subgroup::Trivial
-        | Subgroup::Empty => None,
-    })
+    arm: Arm,
+) -> Result<Option<UnitVec3<T>>, Indeterminate> {
+    Ok(parallel(u, v, band, arm)?.map(|(line, _)| line))
+}
+
+/// **Whether a translation along `r` moves a measure along `v`**: `v`
+/// is not perpendicular to `r`, decided over `arm` ([`perpendicular`]).
+///
+/// # Errors
+///
+/// [`Indeterminate`] when the verdict lands in the band.
+pub(crate) fn reaches<T: SolveScalar>(
+    v: UnitVec3<T>,
+    r: UnitVec3<T>,
+    band: Band,
+    arm: Arm,
+) -> Result<bool, Indeterminate> {
+    Ok(perpendicular(v, r, band, arm)?.is_some())
 }
 
 /// **Whether two directions are parallel**, decided over `arm`

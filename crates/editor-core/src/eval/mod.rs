@@ -3543,6 +3543,30 @@ impl crate::mate::SolveScalar for geom_core::Interval {
     fn identity_varying_as(_map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
         None
     }
+
+    /// Each entry's hull with the identity's: the enclosure of every map
+    /// the box spans, at rest or not.
+    fn with_rest(map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
+        use geom_core::SpanLocate;
+        use geom_core::linalg::Vec3;
+        let (one, zero) = (
+            <Self as geom_core::Real>::one(),
+            <Self as geom_core::Real>::zero(),
+        );
+        let hull = |v: Vec3<Self>, w: Vec3<Self>| {
+            Vec3::new(
+                v.x.enclosure_hull(w.x),
+                v.y.enclosure_hull(w.y),
+                v.z.enclosure_hull(w.z),
+            )
+        };
+        let mut out = *map;
+        out.linear.c0 = hull(map.linear.c0, Vec3::new(one, zero, zero));
+        out.linear.c1 = hull(map.linear.c1, Vec3::new(zero, one, zero));
+        out.linear.c2 = hull(map.linear.c2, Vec3::new(zero, zero, one));
+        out.translation = hull(map.translation, Vec3::new(zero, zero, zero));
+        Some(out)
+    }
 }
 
 /// The seed lane's solve: a refusal quotes the value channel — the
@@ -3603,6 +3627,10 @@ where
         out.translation = column(t, 3);
         Some(out)
     }
+
+    fn with_rest(_map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
+        None
+    }
 }
 
 /// The symbolic tier's solve: its lane scalar's quote, and the tier's
@@ -3638,6 +3666,10 @@ where
     }
 
     fn identity_varying_as(_map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
+        None
+    }
+
+    fn with_rest(_map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
         None
     }
 }
@@ -4723,8 +4755,9 @@ where
 ///
 /// **Disposition of the inline matches.** A few small vocabularies are
 /// written as an exhaustive `match` that maps an enum's variants to
-/// literals at the site — an alignment's primitive and sense (`MatePrimitive`, `AxisSense`), a name's entity
-/// kind, a side verdict, a qualifier, a cap end, a meridian end and a
+/// literals at the site — a constraint's kind, a value's coordinate and
+/// a world read's arm (`tag::constraint_kind`, `tag::value_coord`,
+/// `tag::world_read`), a name's entity kind, a side verdict, a qualifier, a cap end, a meridian end and a
 /// rim support (`names/role.rs`), a tube's window (`node.rs`), an
 /// assertion's relation and a measure primitive (`measure.rs`), a
 /// dimension (`expr.rs`). Each is total by exhaustiveness — a variant
@@ -5486,9 +5519,9 @@ where
         // referenced content, so nothing about the part needs hashing
         // here) and WHERE it sits. Where it sits is read off other
         // nodes — its constraints' targets, the parameters its
-        // constraints read — which is exactly why it must feed the key
-        // (`SolveAnswer` says why): a parameter driving a target moves
-        // this node's value and nothing else about the node changes.
+        // constraints read — which is exactly why it must feed the key:
+        // a parameter driving a target moves this node's value and
+        // nothing else about the node changes.
         // The INTERFACE RECORD feeds the
         // key too (ASM-R2b D-4 discharging ASM-4's hook obligation):
         // it is inhabited now, it is on-wire data, and evaluation

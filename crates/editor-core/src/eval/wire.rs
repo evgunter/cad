@@ -741,6 +741,17 @@ where
                 target_space.unwrap_or(Space::World),
             ))
         }
+        // A box the band cannot decide at rest spans points the value
+        // lane snaps and points it keeps: its map holds both.
+        crate::mate::solve::Folded::Pinned(rep)
+            if crate::mate::solve::rest_verdict(&rep, reach, b).is_none()
+                && let Some(spanned) = T::with_rest(&rep) =>
+        {
+            Ok((
+                crate::mate::solve::marked(spanned).rigid(b)?,
+                target_space.unwrap_or(Space::World),
+            ))
+        }
         crate::mate::solve::Folded::Pinned(rep) => Ok((
             crate::mate::solve::marked(rep).rigid(b)?,
             target_space.unwrap_or(Space::World),

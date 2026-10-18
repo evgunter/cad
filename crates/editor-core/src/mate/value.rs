@@ -13,17 +13,22 @@
 //!
 //! [`settle`] places a folded bundle's copy at its values: each spin
 //! turns the copy about `d` inside the bundle's residual, then each
-//! slide moves it along its axis inside what is left. A turn or a slide
-//! the residual does not hold is a freedom the bundle's other
-//! constraints already fix ([`MateFault::NotAFreedom`] with no kind),
-//! the placement's own refusal until F's door (the named interim C-3).
+//! slide moves it, by the least translation the residual still holds,
+//! until its measure along its axis is the value. A turn the residual
+//! does not hold, or a slide whose axis the residual's translations do
+//! not reach, is a freedom the bundle's other constraints already fix
+//! ([`MateFault::NotAFreedom`] with no kind), the placement's own
+//! refusal until F's door (the named interim C-3). The values are taken
+//! in one order whatever order they are listed in (spins, then slides
+//! along `x`, `y`, `z`, each by its mate's id), so the listed order
+//! moves no bit.
 
 use std::collections::BTreeMap;
 
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
 use geom_core::predicate::{Band, Indeterminate};
 
-use super::coset::{Arm, Coset, Subgroup, after_slide, after_turn, slides_along, turn_line};
+use super::coset::{Arm, Coset, Subgroup, after_turn, turn_line};
 use super::solve::SolveScalar;
 use super::{Coord, MateFault, MateRef, SlideAxis};
 use crate::NodeErrorKind;
@@ -54,6 +59,10 @@ impl<T: SolveScalar> Chart<T> {
     /// body whose own frame is `target` in the target space, its sense
     /// flipped when `flipped`. `None` for a point or a frame mate, which
     /// has no chart.
+    ///
+    /// Beside each body's swing (one [`super::reference_about`] verdict
+    /// each), its three directions are minted as a datum's are
+    /// (`DATUM_UNIT_NORM`), and every refusal is the chart's.
     ///
     /// # Errors
     ///
@@ -167,7 +176,7 @@ pub(crate) fn settle<T: SolveScalar>(
     band: Band,
 ) -> Result<Option<Affine3<T>>, Box<MateFault>> {
     let mut m = coset.representative;
-    let mut left: Option<Subgroup<T>> = Some(coset.subgroup);
+    let mut left = coset.subgroup;
     let indeterminate = |value: MateRef| {
         move |diag: Indeterminate| {
             Box::new(MateFault::Indeterminate {
@@ -190,16 +199,25 @@ pub(crate) fn settle<T: SolveScalar>(
             why: super::NoChartWhy::PointRotation,
         })),
     };
-    // Spins first: a turn about `d` moves no slide's measure of a
-    // translation, and a slide moves no spin.
-    let spins = values.iter().filter(|v| v.coord == Coord::Spin);
-    let slides = values.iter().filter(|v| v.coord != Coord::Spin);
+    // One order whatever order the values are listed in: spins, then
+    // slides along x, y and z, each by its mate's id.
+    let mut ordered: Vec<&ReadValue<T>> = values.iter().collect();
+    ordered.sort_by_key(|v| {
+        let rank = match v.coord {
+            Coord::Spin => 0,
+            Coord::Slide(SlideAxis::X) => 1,
+            Coord::Slide(SlideAxis::Y) => 2,
+            Coord::Slide(SlideAxis::Z) => 3,
+        };
+        (rank, v.mate)
+    });
+    let (spins, slides): (Vec<_>, Vec<_>) =
+        ordered.into_iter().partition(|v| v.coord == Coord::Spin);
+    // Spins first: every slide after them re-measures the copy's origin.
     for v in spins {
         let chart = chart(v)?;
-        let Some(g) = left else {
-            continue;
-        };
-        let Some(line) = turn_line(g, chart.d, band, arm).map_err(indeterminate(v.value))? else {
+        let Some(line) = turn_line(left, chart.d, band, arm).map_err(indeterminate(v.value))?
+        else {
             return Err(not_a_freedom(v));
         };
         let by = v.by - chart.spin(&m);
@@ -214,23 +232,102 @@ pub(crate) fn settle<T: SolveScalar>(
                 Affine3::from_parts(turn.linear * m.linear, m.translation)
             }
         };
-        left = after_turn(g);
+        // A turn the table holds no rest of (a ball's, less one) leaves
+        // a turn free beside it: no value can pin what remains, and a
+        // second turn is not charted on it.
+        let Some(rest) = after_turn(left) else {
+            return Err(not_a_freedom(v));
+        };
+        left = rest;
     }
+    let turns_fixed = matches!(
+        left,
+        Subgroup::PlaneTranslation { .. }
+            | Subgroup::Prismatic { .. }
+            | Subgroup::Translation
+            | Subgroup::Trivial
+    );
+    let mut free = Translations::of(left);
     for v in slides {
         let chart = chart(v)?;
         let Coord::Slide(along) = v.coord else {
             unreachable!("the spins were taken above")
         };
-        let Some(g) = left else {
-            continue;
-        };
         let axis = chart.axis(along);
-        if !slides_along(g, axis, band, arm).map_err(indeterminate(v.value))? {
-            return Err(not_a_freedom(v));
-        }
-        let shift = axis.get() * (v.by - chart.slide(&m, axis));
+        let gap = v.by - chart.slide(&m, axis);
+        let (shift, rest) = free
+            .slide(axis, gap, band, arm)
+            .map_err(indeterminate(v.value))?
+            .ok_or_else(|| not_a_freedom(v))?;
         m = Affine3::from_parts(Mat3::identity(), shift) * m;
-        left = after_slide(g, axis, band).map_err(indeterminate(v.value))?;
+        free = rest;
     }
-    Ok(matches!(left, Some(Subgroup::Trivial)).then_some(m))
+    Ok((turns_fixed && matches!(free, Translations::None)).then_some(m))
+}
+
+/// **The translations a residual still holds**, apart from its turns:
+/// every one, those across a normal (a plane of them), those along a
+/// direction (a line of them), or none.
+#[derive(Debug, Clone, Copy)]
+enum Translations<T: geom_core::Real> {
+    Every,
+    Across(UnitVec3<T>),
+    Along(UnitVec3<T>),
+    None,
+}
+
+impl<T: SolveScalar> Translations<T> {
+    fn of(g: Subgroup<T>) -> Self {
+        match g {
+            Subgroup::Se3 | Subgroup::Parallel { .. } | Subgroup::Translation => Self::Every,
+            Subgroup::Planar { normal } | Subgroup::PlaneTranslation { normal } => {
+                Self::Across(normal)
+            }
+            Subgroup::Cylindrical { direction, .. } | Subgroup::Prismatic { direction } => {
+                Self::Along(direction)
+            }
+            Subgroup::Revolute { .. }
+            | Subgroup::Spherical { .. }
+            | Subgroup::Trivial
+            | Subgroup::Empty => Self::None,
+        }
+    }
+
+    /// **The least translation these hold that moves a measure along
+    /// `axis` by `gap`**, and the translations left that keep it: `None`
+    /// where none of these reaches `axis` (every one is perpendicular to
+    /// it). The one divisor is the share of `axis` these reach, decided
+    /// away from zero over `arm`.
+    #[allow(clippy::type_complexity)]
+    fn slide(
+        self,
+        axis: UnitVec3<T>,
+        gap: T,
+        band: Band,
+        arm: Arm,
+    ) -> Result<Option<(Vec3<T>, Self)>, Indeterminate> {
+        let a = axis.get();
+        Ok(match self {
+            Self::Every => Some((a * gap, Self::Across(axis))),
+            Self::Across(n) => {
+                // The line the plane keeps once `a`'s measure is fixed:
+                // across `a` and `n`, none where they are parallel.
+                let Some(left) = super::coset::across(axis, n, band, arm)? else {
+                    return Ok(None);
+                };
+                // `a` with its share along `n` taken out: the plane's
+                // nearest translation to `a`, whose own measure along `a`
+                // is its squared length.
+                let reach = a - n.get() * a.dot(n.get());
+                Some((reach * (gap / reach.dot(a)), Self::Along(left)))
+            }
+            Self::Along(r) => {
+                if !super::coset::reaches(axis, r, band, arm)? {
+                    return Ok(None);
+                }
+                Some((r.get() * (gap / r.get().dot(a)), Self::None))
+            }
+            Self::None => None,
+        })
+    }
 }

@@ -258,6 +258,15 @@ fn world_at(linear: Mat3<f64>, translation: geom_core::linalg::Vec3<f64>) -> Wor
     moved_by(WorldRead::Frame, linear, translation)
 }
 
+/// **A number read back from a pose, as a literal**, written without a
+/// sign on its zero: `-0.0` and `0.0` are one value, and a held
+/// variable binds them alike, so the written literal is the one both
+/// read. The one writer of `pin_at`'s and `place_at`'s numbers.
+fn written(value: f64, dim: Dimension) -> Formula {
+    Formula::literal(value + 0.0, dim)
+        .unwrap_or_else(|_| unreachable!("a finite literal of {dim:?}"))
+}
+
 /// **`world` moved by the rigid motion `(linear, translation)`**: spun
 /// about the world's x, then y, then z — `linear = Rz(γ)·Ry(β)·Rx(α)`,
 /// the angles taken once by `atan2` — and slid along the world's x, y
@@ -283,20 +292,13 @@ pub(crate) fn moved_by(
         ((-r(1, 2)).atan2(r(1, 1)), 0.0)
     };
     let mut world = world;
-    // A number read back from a pose is written without a sign on its
-    // zero: `-0.0` and `0.0` are one value, and a held variable binds
-    // them alike, so the written literal is the one both read.
-    let constant = |value: f64, dim| {
-        Formula::literal(value + 0.0, dim)
-            .unwrap_or_else(|_| unreachable!("a finite literal of {dim:?}"))
-    };
     for (role, angle) in [
         (PoseRole::X, alpha),
         (PoseRole::Y, beta),
         (PoseRole::Z, gamma),
     ] {
         if angle != 0.0 {
-            world = world.spin(WorldRead::through(role), constant(angle, Dimension::Angle));
+            world = world.spin(WorldRead::through(role), written(angle, Dimension::Angle));
         }
     }
     for (role, length) in [
@@ -305,10 +307,7 @@ pub(crate) fn moved_by(
         (PoseRole::Z, translation.z),
     ] {
         if length != 0.0 {
-            world = world.slide(
-                WorldRead::through(role),
-                constant(length, Dimension::Length),
-            );
+            world = world.slide(WorldRead::through(role), written(length, Dimension::Length));
         }
     }
     world
@@ -424,25 +423,18 @@ pub fn place_at(
         super::value::Chart::of(&on, &to, false, &geom_core::Affine3::identity(), arm, band)
             .map_err(|_| PinRefusal::NoFrame { node })?
             .unwrap_or_else(|| unreachable!("a plane mate has a chart"));
-    // A number read back from a pose is written without a sign on its
-    // zero: `-0.0` and `0.0` are one value, and a held variable binds
-    // them alike, so the written literal is the one both read.
-    let constant = |value: f64, dim| {
-        Formula::literal(value + 0.0, dim)
-            .unwrap_or_else(|_| unreachable!("a finite literal of {dim:?}"))
-    };
     let values = vec![
         (
             super::Coord::Slide(super::SlideAxis::X),
-            constant(chart.slide_at(&at, super::SlideAxis::X), Dimension::Length),
+            written(chart.slide_at(&at, super::SlideAxis::X), Dimension::Length),
         ),
         (
             super::Coord::Slide(super::SlideAxis::Y),
-            constant(chart.slide_at(&at, super::SlideAxis::Y), Dimension::Length),
+            written(chart.slide_at(&at, super::SlideAxis::Y), Dimension::Length),
         ),
         (
             super::Coord::Spin,
-            constant(chart.spin_at(&at), Dimension::Angle),
+            written(chart.spin_at(&at), Dimension::Angle),
         ),
     ];
     let on = Operand::Pose(Box::new(PoseDef::Plane {

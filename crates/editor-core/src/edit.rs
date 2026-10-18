@@ -6483,8 +6483,8 @@ fn add_constraint<P: Clone + crate::ProfilePayload>(
 /// its world read is a pose, its two poses are of one kind, its class
 /// is admitted. What the fold decides needs the poses' values, and is
 /// the placement's own refusal where it evaluates (INTENT stage 3 C's
-/// interim until F's measure-free door; `reach` and the bundle ahead,
-/// `k`, are what that door will read). The one call every edit that
+/// interim until F's measure-free door; `reach`, `tol` and the bundle
+/// ahead, `k`, are what that door will read). The one call every edit that
 /// writes a constraint ([`DocEdit::writes_a_mates_datum`]) makes.
 fn admit_written_constraint<P: Clone + crate::ProfilePayload>(
     new: &Doc<P>,

@@ -103,6 +103,13 @@ pub trait SolveScalar: Decide {
     /// it, and the run's variation `map`'s own. `None` where the lane
     /// cannot part the two, and the map is kept whole.
     fn identity_varying_as(map: &Affine3<Self>) -> Option<Affine3<Self>>;
+
+    /// **`map` and the identity in one enclosure**, for a map the band
+    /// cannot decide at rest or apart ([`rest_verdict`]): a box lane's
+    /// map spans points the value lane snaps to the identity and points
+    /// it keeps, so the box's answer holds both. `None` where the lane
+    /// keeps its map (a value lane's undecided map is kept whole).
+    fn with_rest(map: &Affine3<Self>) -> Option<Affine3<Self>>;
 }
 
 impl SolveScalar for f64 {
@@ -127,6 +134,10 @@ impl SolveScalar for f64 {
     }
 
     fn identity_varying_as(_map: &Affine3<f64>) -> Option<Affine3<f64>> {
+        None
+    }
+
+    fn with_rest(_map: &Affine3<f64>) -> Option<Affine3<f64>> {
         None
     }
 }
@@ -156,6 +167,10 @@ impl SolveScalar for geom_core::Probe {
     }
 
     fn identity_varying_as(_map: &Affine3<Self>) -> Option<Affine3<Self>> {
+        None
+    }
+
+    fn with_rest(_map: &Affine3<Self>) -> Option<Affine3<Self>> {
         None
     }
 }
@@ -460,6 +475,18 @@ pub(crate) fn at_rest<T: SolveScalar>(map: &Affine3<T>, reach: f64, band: Band) 
 /// snaps has the value lane's bits in a seed run too, its tangent kept
 /// ([`SolveScalar::identity_varying_as`]).
 pub(crate) fn rests_in_value<T: SolveScalar>(map: &Affine3<T>, reach: f64, band: Band) -> bool {
+    rest_verdict(map, reach, band) == Some(true)
+}
+
+/// **[`rests_in_value`]'s verdict, three ways**: `Some(true)` decided
+/// at rest, `Some(false)` decided apart, `None` where the band cannot
+/// decide — a box lane whose enclosure spans the band's zero, some of
+/// its points at rest and some not ([`SolveScalar::with_rest`]).
+pub(crate) fn rest_verdict<T: SolveScalar>(
+    map: &Affine3<T>,
+    reach: f64,
+    band: Band,
+) -> Option<bool> {
     use geom_core::linalg::Vec3;
     // Sums of magnitudes bound the lengths from above — the turn's
     // departure ‖Q − I‖ and the translation's length — with no square
@@ -480,7 +507,8 @@ pub(crate) fn rests_in_value<T: SolveScalar>(map: &Affine3<T>, reach: f64, band:
         geom_core::predicate::Margin::of(moved),
         band,
     )
-    .is_ok_and(|sign| sign == geom_core::predicate::Sign::Zero)
+    .ok()
+    .map(|sign| sign == geom_core::predicate::Sign::Zero)
 }
 
 /// **The solved map as the composition rule takes it**: the stored
