@@ -56,3 +56,14 @@ All sixteen rows pass. The geom-brep rows that pin the poses:
 - `pose::window::rows::*`, one row per reading and a control.
 
 What stays on this row is the meter itself: shallow meetings with no found meeting beside them (the evidence above).
+
+## Evidence: the needle at ε 1e-12 is red on main (2026-10-18)
+
+`band_turn_overrun_fillet::the_needle_builds_then_refuses_at_the_turn_as_it_flattens`
+fails at `CAD_TOLERANCE_EPS=1e-12` on `origin/main` (`80d100e8e`),
+measured locally and on PR 5269's CI: "the needle at 1°: tier 3′,
+[CensusUnsupported { … ContactLane(NotCertifiable { what: "the meeting
+reading of two curved edges could not settle a count" }) }]" on two
+edges. The window reading above passes it at the default ε; the 1e-12
+row still reaches the meter.
+

@@ -2,7 +2,7 @@
 id: notched-half-donut-owes-its-notch-and-volume-when-torus-plane-lands
 kind: issue
 title: When the torus x plane boolean is admitted, the notched half donut owes a point_in_solid Out at its notch and a volume of 3pi^2/8
-status: parked
+status: open
 opened: 2026-10-08
 priority: P3
 cost: E
@@ -41,3 +41,15 @@ torus walls are L-shaped in the chart, which `torus_chart_trim` reads in
 neither of its classes; the row pins that refusal. The notch's `Out` is
 re-parked on that containment arm,
 `work/inside/point-in-solid-refuses-an-l-shaped-torus-face.md`.
+
+## Fired: the notch reads (RESTREAD, 2026-10-18)
+
+`restread/torus-region` closed the containment arm this row is parked
+on (`point-in-solid-refuses-an-l-shaped-torus-face`): a torus face is
+read from its boundary edges (`boolean::torus_region`).
+`contact11_torus_chart_l.rs` `a_notched_half_donut_answers_its_volume`
+now asserts `Out` at the notch `(√2, 0.25, −√2)`, `In` under it and on
+the other quarter's top, `Out` past the half turn, and the analytic
+membership at a 400-point lattice over the tube, beside the volume
+`3π²/8` the row already held. Both obligations above are met. Set `open`,
+its trigger having fired; closing it is CONTACTHOLD's.
