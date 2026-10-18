@@ -294,7 +294,7 @@ fn donut_poses_answer(name: &str, t: AtRestBody<f64>, want: &[(&str, &str)]) {
         assert_eq!(*pose, named, "{name}: the poses in order");
         let what = format!("{name}, {pose}");
         let tie = *pose == "the tie bar" && tie_in_band();
-        let (_, read) = answers(
+        let (bodies, read) = answers(
             &what,
             (&t, p),
             *meet,
@@ -302,7 +302,7 @@ fn donut_poses_answer(name: &str, t: AtRestBody<f64>, want: &[(&str, &str)]) {
             (answer, tie),
         );
         assert!(
-            read > 0 || !answer.contains('B'),
+            read > 0 || bodies.iter().all(Option::is_none),
             "{what}: point_in_solid reads no sampled point of a built body"
         );
     }
