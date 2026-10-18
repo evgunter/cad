@@ -210,7 +210,7 @@ pub(crate) fn settle<T: SolveScalar>(
         // is: composed as a turn about that point, a box lane would
         // widen it by the turn's own width levered over the origin's
         // distance, twice.
-        m = match turn_line(left).or(chart.line) {
+        m = match residual_turn_point(left).or(chart.line) {
             Some(at) => Affine3::rotation_about_axis(at, chart.d.get(), by) * m,
             None => {
                 let turn = Affine3::rotation_about_axis(Point3::origin(), chart.d.get(), by);
@@ -237,7 +237,7 @@ pub(crate) fn settle<T: SolveScalar>(
 /// **The line a residual's turns about its direction fix**: the
 /// residual's own for a line's or a ball's group, none for a group
 /// freeing every translation across its direction.
-fn turn_line<T: geom_core::Real>(g: Subgroup<T>) -> Option<Point3<T>> {
+fn residual_turn_point<T: geom_core::Real>(g: Subgroup<T>) -> Option<Point3<T>> {
     match g {
         Subgroup::Cylindrical { point, .. }
         | Subgroup::Revolute { point, .. }

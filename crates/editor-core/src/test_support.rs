@@ -543,9 +543,8 @@ pub fn slot_spelling(doc: &ProfileDoc, node: RecipeNodeId, slot: crate::SlotId) 
 /// **`mate` written into `placement`'s bundle past the bundle rule**:
 /// the constraint lowered and admitted as [`DocEdit::AddConstraint`]
 /// admits it into an empty bundle, then the bundle's other
-/// constraints put back beside it. The state a doctored save, a rebind
-/// or a definition edit that changed a kind leaves, which no edit door
-/// admits and the fold refuses (`MateFault::Overconstrained`); for
+/// constraints put back beside it. The state a doctored save leaves, which
+/// no edit door admits and the fold refuses (`MateFault::Overconstrained`); for
 /// rows that hold the solve's half of the rule. Answers the document
 /// and the constraint's id.
 ///

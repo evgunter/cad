@@ -474,8 +474,8 @@ fn an_instance_reads_its_own_copy_on_the_copy_side_alone() {
 /// **A mate beyond the pin refuses at the door**: the second instance
 /// is pinned by its stack (a rest and its three values), and a second
 /// rest beyond it fixes what they fix. Measuring nothing, the door names
-/// every constraint whose equations the others already fix: both rests,
-/// and the values the second takes the freedoms of.
+/// the mates that repeat an equation, both rests, and none of the
+/// values, which live inside what the mates leave.
 #[test]
 fn a_mate_beyond_the_pin_refuses_at_the_door() {
     let (doc, store, doc_ref, body) = host("s3b-beyond");
@@ -493,8 +493,13 @@ fn a_mate_beyond_the_pin_refuses_at_the_door() {
             assert!(constraints.contains(&rest.id), "{constraints:?}");
             assert_eq!(
                 constraints.len(),
-                fixture::bundle(&doc, b).len() + 1,
-                "the rests and the values: {constraints:?}"
+                2,
+                "the two rests, and none of the values inside what they leave: \
+                 {constraints:?}"
+            );
+            assert!(
+                fixture::bundle(&doc, b).len() > 1,
+                "the premise: values beside the rest"
             );
             assert_eq!(free, 1, "two planes in general position leave a slide");
         }

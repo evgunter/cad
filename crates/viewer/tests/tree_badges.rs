@@ -326,6 +326,71 @@ fn a_refused_bundle_badges_the_placement_that_evaluated_before_it() {
     std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
 }
 
+/// **Two different faults in succession on one placement never serve
+/// a stale one, and the repair re-runs on the faulted run as prior.**
+///
+/// The shelf's bundle refuses one mate where it evaluates, then, that
+/// mate removed, another against the other post. The memo serves only
+/// `Ok` priors, so the second fault is the second mate's and never the
+/// first's again; removing it returns the shelf to `Ok`, re-run.
+#[test]
+fn two_faults_in_succession_on_one_placement_never_serve_a_stale_one() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("badge-succession", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    common::asm::unpin(&mut session, bench.shelf_i);
+    let fault = |session: &DocSession| match session
+        .evaluation_arc()
+        .expect("a result landed")
+        .result(bench.shelf_i)
+    {
+        Some(NodeResult::Failed(err)) => format!("{:?}", err.kind),
+        other => panic!("the shelf refuses, got {other:?}"),
+    };
+
+    let first = common::commit_mate(
+        &mut session,
+        common::asm::no_centre_op(&bench, bench.post_a),
+    );
+    let f1 = fault(&session);
+    let removed = session.perform(SessionOp::RemoveConstraint { mate: first });
+    assert!(removed.refusal.is_none(), "{:?}", removed.refusal);
+    let second = common::commit_mate(
+        &mut session,
+        common::asm::no_centre_op(&bench, bench.post_b),
+    );
+    assert_ne!(first, second);
+    let f2 = fault(&session);
+    assert_ne!(
+        f1, f2,
+        "a second, different fault, not the first served again"
+    );
+    assert!(matches!(
+        common::status_of(&session.tree_rows(), bench.shelf_i),
+        RowStatus::Failed { .. }
+    ));
+
+    let removed = session.perform(SessionOp::RemoveConstraint { mate: second });
+    assert!(removed.refusal.is_none(), "{:?}", removed.refusal);
+    session.pump();
+    let ev = session.evaluation_arc().expect("a result landed");
+    assert!(
+        matches!(ev.result(bench.shelf_i), Some(NodeResult::Ok(_))),
+        "repaired: {:?}",
+        ev.result(bench.shelf_i)
+    );
+    assert!(
+        ev.recomputed >= 1,
+        "the prior was Failed, so the placement re-ran"
+    );
+    assert_eq!(
+        common::status_of(&session.tree_rows(), bench.shelf_i),
+        RowStatus::Ok
+    );
+
+    std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
+}
+
 /// **A row poisoned through a chained copy points at the terminal cause,
 /// not at a POISONED row.**
 ///

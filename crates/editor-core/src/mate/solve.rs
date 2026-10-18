@@ -615,99 +615,183 @@ impl Equations {
     }
 }
 
-/// The pose kind whose symmetry `family` is, for the kinds a mate reads.
+/// The pose kind whose symmetry `family` is, for the kinds a mate reads:
+/// [`crate::VarKind::symmetry`] read backwards, so the two cannot drift.
 fn kind_of(family: SubgroupFamily) -> Option<crate::VarKind> {
     use crate::VarKind as K;
-    Some(match family {
-        SubgroupFamily::Trivial => K::Frame,
-        SubgroupFamily::Planar => K::Plane,
-        SubgroupFamily::Cylindrical => K::Axis,
-        SubgroupFamily::Parallel => K::Direction,
-        SubgroupFamily::Spherical => K::Point,
-        SubgroupFamily::Se3
-        | SubgroupFamily::Prismatic
-        | SubgroupFamily::Revolute
-        | SubgroupFamily::Translation
-        | SubgroupFamily::PlaneTranslation => return None,
-    })
+    [K::Frame, K::Plane, K::Axis, K::Direction, K::Point]
+        .into_iter()
+        .find(|kind| kind.symmetry() == Some(family))
 }
 
-/// **How many equations a set of constraints fixes**, read off their
-/// families alone: the mates' families met ([`SubgroupFamily::meet`]),
-/// and one more for each freedom a value sets that its mate's kind
-/// leaves with a chart and every other mate leaves too. A slide is left
-/// by a mate freeing every translation, a spin by one freeing every
-/// rotation about a point: any other mate fixes, in general position,
-/// what the value would set. Two values of one freedom on one mate set
-/// it once.
-fn codimension(bundle: &[(crate::node::ConstraintId, Equations)]) -> u8 {
-    let mates: Vec<(crate::node::ConstraintId, SubgroupFamily)> = bundle
+/// A bundle's mates, by id and family.
+fn mates_of(
+    bundle: &[(crate::node::ConstraintId, Equations)],
+) -> Vec<(crate::node::ConstraintId, SubgroupFamily)> {
+    bundle
         .iter()
         .filter_map(|&(id, e)| match e {
             Equations::Mate(family) => Some((id, family)),
             Equations::Value { .. } => None,
         })
-        .collect();
-    let met = mates
+        .collect()
+}
+
+/// How many equations a set of mates fixes: their families met in
+/// general position ([`SubgroupFamily::meet`]).
+fn mates_codimension(mates: &[(crate::node::ConstraintId, SubgroupFamily)]) -> u8 {
+    mates
         .iter()
-        .fold(SubgroupFamily::Se3, |held, &(_, family)| held.meet(family));
+        .fold(SubgroupFamily::Se3, |held, &(_, family)| held.meet(family))
+        .codimension()
+}
+
+/// **Whether a value's freedom is its own to set beside `mates`**: its
+/// mate is in the bundle, the mate's kind leaves the freedom with a
+/// chart, and every other mate leaves it too. The solve reads a slide
+/// as a translation equation and a spin as a rotation equation, and
+/// settles each structurally inside what the mates leave, so a slide
+/// is its own only beside mates freeing every translation, a spin only
+/// beside mates freeing every rotation. Beside a mate that fixes a
+/// translation (a rotation), the value's equation is one that mate
+/// already fixes in that reading — even where, through the copy's
+/// lever, it would in general position fix a different freedom (a
+/// slide beside a ball would fix the ball's turn): the solve does not
+/// trade one freedom for another.
+fn own_freedom(
+    mates: &[(crate::node::ConstraintId, SubgroupFamily)],
+    mate: crate::node::ConstraintId,
+    coord: super::Coord,
+) -> bool {
+    let Some(&(_, own)) = mates.iter().find(|&&(id, _)| id == mate) else {
+        return false;
+    };
+    kind_of(own).is_some_and(|kind| coord.admitted_by(kind).is_ok())
+        && mates
+            .iter()
+            .filter(|&&(id, _)| id != mate)
+            .all(|&(_, f)| frees(f, coord))
+}
+
+/// Whether a mate of `family` leaves `coord`'s whole class of freedom.
+fn frees(family: SubgroupFamily, coord: super::Coord) -> bool {
+    match coord {
+        super::Coord::Slide(_) => family.frees_every_translation(),
+        super::Coord::Spin => family.frees_every_rotation(),
+    }
+}
+
+/// **How many equations a bundle fixes**, read off its families alone:
+/// its mates met ([`mates_codimension`]), and one more for each
+/// freedom a value sets that is its own ([`own_freedom`]). Two values
+/// of one freedom on one mate set it once.
+fn codimension(bundle: &[(crate::node::ConstraintId, Equations)]) -> u8 {
+    let mates = mates_of(bundle);
     let mut set = Vec::new();
     for &(_, e) in bundle {
-        let Equations::Value { mate, coord } = e else {
-            continue;
-        };
-        let Some(&(_, own)) = mates.iter().find(|&&(id, _)| id == mate) else {
-            continue;
-        };
-        let charted = kind_of(own).is_some_and(|kind| coord.admitted_by(kind).is_ok());
-        let left_by_the_rest =
-            mates
-                .iter()
-                .filter(|&&(id, _)| id != mate)
-                .all(|&(_, f)| match coord {
-                    super::Coord::Slide(_) => f.frees_every_translation(),
-                    super::Coord::Spin => f.frees_every_rotation(),
-                });
-        if charted && left_by_the_rest && !set.contains(&(mate, coord)) {
+        if let Equations::Value { mate, coord } = e
+            && own_freedom(&mates, mate, coord)
+            && !set.contains(&(mate, coord))
+        {
             set.push((mate, coord));
         }
     }
     let set = u8::try_from(set.len()).unwrap_or(u8::MAX);
-    met.codimension().saturating_add(set).min(6)
+    mates_codimension(&mates).saturating_add(set).min(6)
 }
 
 /// **The constraints any of whose equations the rest of `bundle`
-/// already fixes** (FORK-S3O, A11 (1)): each whose own equations and
-/// the rest's together fix fewer than they count. Decided by subgroup
-/// algebra over the families alone, measuring nothing, and order-free:
-/// the bundle has no order, so none of them is "the later one".
+/// already fixes** (FORK-S3O, A11 (1)). A bundle fixes no equation
+/// twice exactly when its count is the sum of its members' counts, so
+/// that is the test, and it is order-free. Which to name is read in
+/// two steps, the mates first, since a value lives inside what they
+/// leave:
+///
+/// - where the mates fix an equation twice, each mate the others fix
+///   an equation of (`codim(M∖m) + codim(m) > codim(M)`), and no value;
+/// - else each value that is not its own freedom ([`own_freedom`]),
+///   with the mates beside it that fix its class; each value that sets
+///   a freedom another value of its mate sets too; and, past six
+///   equations, every value.
 fn already_fixed(
     bundle: &[(crate::node::ConstraintId, Equations)],
 ) -> Vec<crate::node::ConstraintId> {
-    let all = codimension(bundle);
-    bundle
+    let total: u16 = bundle
         .iter()
-        .enumerate()
-        .filter(|&(k, &(_, e))| {
-            let rest: Vec<_> = bundle
+        .map(|&(_, e)| u16::from(e.codimension()))
+        .sum();
+    if u16::from(codimension(bundle)) == total {
+        return Vec::new();
+    }
+    let mates = mates_of(bundle);
+    let met = mates_codimension(&mates);
+    let named = |id: crate::node::ConstraintId, named: &mut Vec<crate::node::ConstraintId>| {
+        if !named.contains(&id) {
+            named.push(id);
+        }
+    };
+    let mut out = Vec::new();
+    if u16::from(met)
+        < mates
+            .iter()
+            .map(|&(_, f)| u16::from(f.codimension()))
+            .sum::<u16>()
+    {
+        for (k, &(id, family)) in mates.iter().enumerate() {
+            let rest: Vec<_> = mates
                 .iter()
                 .enumerate()
                 .filter(|&(j, _)| j != k)
-                .map(|(_, &c)| c)
+                .map(|(_, &m)| m)
                 .collect();
-            codimension(&rest) + e.codimension() > all
+            if mates_codimension(&rest) + family.codimension() > met {
+                named(id, &mut out);
+            }
+        }
+        return out;
+    }
+    let values: Vec<_> = bundle
+        .iter()
+        .filter_map(|&(id, e)| match e {
+            Equations::Value { mate, coord } => Some((id, mate, coord)),
+            Equations::Mate(_) => None,
         })
-        .map(|(_, &(id, _))| id)
+        .collect();
+    for &(id, mate, coord) in &values {
+        if !own_freedom(&mates, mate, coord) {
+            for &(other, family) in &mates {
+                if other != mate && !frees(family, coord) {
+                    named(other, &mut out);
+                }
+            }
+            named(id, &mut out);
+        } else if values
+            .iter()
+            .any(|&(o, m, c)| o != id && m == mate && c == coord)
+        {
+            named(id, &mut out);
+        }
+    }
+    if out.is_empty() {
+        for &(id, ..) in &values {
+            named(id, &mut out);
+        }
+    }
+    // The bundle's order, whatever order the walk named them in.
+    bundle
+        .iter()
+        .map(|&(id, _)| id)
+        .filter(|id| out.contains(id))
         .collect()
 }
 
 /// **The bundle rule** (FORK-S3O): `placement`'s constraints, read as
 /// equations, refuse [`MateFault::Overconstrained`] where any of them
 /// fixes an equation the others already fix, pinned or not, naming
-/// every such constraint. Asked by every door that writes a constraint
-/// or a bundle (the edit doors and the load door) and by the fold, for
-/// a state no door saw (a rebind, a definition edit that changed a
-/// kind).
+/// every such constraint. Asked by every edit door that writes a
+/// constraint or a bundle, and by the fold, for a state no edit door
+/// saw (a loaded save: the load door asks only each constraint's own
+/// admission).
 ///
 /// # Errors
 ///
@@ -781,10 +865,16 @@ pub(crate) fn fold_bundle<T: SolveScalar>(
     let mut held_mate: Option<MateRef> = None;
     for m in mates {
         held = super::coset::intersect(held, mate_coset(&m.on, &m.to)).ok_or_else(|| {
+            let met = mates
+                .iter()
+                .fold(SubgroupFamily::Se3, |held, m| {
+                    held.meet(mate_coset(&m.on, &m.to).subgroup.family())
+                })
+                .codimension();
             Box::new(MateFault::Overconstrained {
                 placement,
                 constraints: mates.iter().map(|m| m.mate.id).collect(),
-                free: 0,
+                free: 6 - met,
             })
         })?;
         if !geom_core::is_finite_length(held.representative.translation.norm()) {
@@ -1263,5 +1353,73 @@ mod tests {
             ]),
             Err((vec![id(1), id(2)], 0))
         );
+    }
+
+    /// **Where the mates fix an equation twice, the mates are named,
+    /// and no value**: a value lives inside what the mates leave, so
+    /// deleting it never answers a refusal it did not cause. Two
+    /// direction mates fix one rotation twice whatever values hang off
+    /// either (a value of a dropped mate still counts as its equation),
+    /// and a slide on one of two planes is not what the planes repeat.
+    #[test]
+    fn mates_that_repeat_an_equation_are_named_whatever_values_they_carry() {
+        let x = Coord::Slide(SlideAxis::X);
+        let directions = [
+            (id(1), Equations::Mate(F::Parallel)),
+            value(1, x),
+            (id(2), Equations::Mate(F::Parallel)),
+            value(2, x),
+        ];
+        assert!(matches!(verdict(&directions), Err((named, _)) if named == vec![id(1), id(2)]));
+        let reversed: Vec<_> = directions.iter().rev().copied().collect();
+        assert!(matches!(verdict(&reversed), Err((named, _)) if named == vec![id(2), id(1)]));
+        let planes = [
+            (id(1), Equations::Mate(F::Planar)),
+            value(1, x),
+            (id(2), Equations::Mate(F::Planar)),
+        ];
+        assert!(matches!(verdict(&planes), Err((named, _)) if named == vec![id(1), id(2)]));
+        for (on, other) in [(F::Planar, F::Parallel), (F::Cylindrical, F::Parallel)] {
+            let coord = if on == F::Planar {
+                x
+            } else {
+                Coord::Slide(SlideAxis::Z)
+            };
+            let bundle = [
+                (id(1), Equations::Mate(on)),
+                value(1, coord),
+                (id(2), Equations::Mate(other)),
+            ];
+            assert!(
+                matches!(verdict(&bundle), Err((ref named, _)) if *named == vec![id(1), id(2)]),
+                "{on:?} with a value beside {other:?}: {:?}",
+                verdict(&bundle)
+            );
+        }
+    }
+
+    /// **Two values of one freedom on one mate name each other**, and
+    /// nothing else: the mate fixes nothing they repeat.
+    #[test]
+    fn a_freedom_set_twice_names_its_two_values() {
+        let x = Coord::Slide(SlideAxis::X);
+        let bundle = [
+            (id(1), Equations::Mate(F::Planar)),
+            (
+                id(7),
+                Equations::Value {
+                    mate: id(1),
+                    coord: x,
+                },
+            ),
+            (
+                id(8),
+                Equations::Value {
+                    mate: id(1),
+                    coord: x,
+                },
+            ),
+        ];
+        assert_eq!(verdict(&bundle), Err((vec![id(7), id(8)], 2)));
     }
 }

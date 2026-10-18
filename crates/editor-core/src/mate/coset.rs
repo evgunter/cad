@@ -549,9 +549,8 @@ impl Arm {
 /// witnesses at any arm the reach bounds). A length that is no number
 /// has no input to come from: the arm is an [`Arm`].
 ///
-/// `lever` is that arm in `T` ([`Arm::lever`]): the one value the
-/// intersection's every levered product multiplies by, so a step that
-/// divides by `sine` cancels the arm it multiplies by.
+/// `lever` is that arm in `T` ([`Arm::lever`]), which the sine is
+/// levered by.
 fn parallel<T: SolveScalar>(
     u: UnitVec3<T>,
     v: UnitVec3<T>,

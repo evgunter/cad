@@ -301,7 +301,12 @@ only where their families meet transversally, their codimensions
 adding, which of two mates' families only a ball's and a direction's
 do; a value only on a freedom its mate's kind leaves, set once, and
 which every other mate leaves too (a slide beside mates freeing every
-translation, a spin beside mates freeing every rotation). The rule is
+translation, a spin beside mates freeing every rotation). The solve
+reads a slide as a translation equation and a spin as a rotation one
+and settles each inside what the mates leave, so a slide beside a ball
+refuses although, through the copy's lever, it would fix the ball's
+turn. Where the mates repeat an equation, the mates are named and no
+value. The rule is
 order-free and decides determination by codimension alone, so a copy's
 space is the recipe's, never a value's (`mate::solve::overconstrained`,
 `pins`). A pinned copy is the case `(Trivial, _)`. The cosets a bundle
@@ -312,7 +317,7 @@ constraint's own admission (`mate::solve::admit_mate`, `admit_value`)
 and the bundle rule, refusing `EditError::MateRefused`; the load door
 asks the constraint's own admission (`SnapshotError::MateRefused`), and
 the fold asks the bundle rule again for a state no edit door saw (a
-rebind, a loaded snapshot, a definition edit that changed a kind).
+loaded snapshot).
 
 **(2) A placement is the bundle of its constraints.** Each placement's
 bundle is folded inside the placement's own op, where it evaluates

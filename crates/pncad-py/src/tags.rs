@@ -1054,7 +1054,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PartDepthExceeded => "part_depth_exceeded",
         C::PartNotEntered => "part_not_entered",
         // The mate solve's refusals tag per FAULT, the way
-        // the root invariants do — OVERCONSTRAINED, CONTRADICTORY and a
+        // the root invariants do — OVERCONSTRAINED, an out-of-range pose and a
         // dangling head carry different recourses, so a caller
         // branches on which one fired, not on "a mate failed".
         C::MatePosesOfAnotherDocument => "mate_poses_of_another_document",
