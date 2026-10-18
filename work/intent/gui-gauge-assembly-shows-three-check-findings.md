@@ -47,3 +47,7 @@ GUI's red is expected. The bench's builder now says so beside `bench`,
 naming H. The montage's red clears when H lands. The release-budget
 sweep's `enforce_checks refuses: 1 check finding(s) at Error severity`
 on an assembly scene is likely the same class, but it was not read here.
+
+## 2026-10-18 — after stage 4 H
+
+The door now replays each seat (H, `placed-carriers-compare-through-their-frames`): the three findings report replay `Numeric`, not `NotReplayed`, and recourse `OneConstruction`. They are still expected. A mated seat stays unproven within the door's budget while the parts' frames hold component symbols, so the montage's red clears with `a-mate-placed-seat-is-unproven-at-the-doors-budget`, not with H. The mate6 row is now `a_mated_record_cites_the_census_row_the_lint_replays`.

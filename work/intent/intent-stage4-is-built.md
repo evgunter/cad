@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [placed-carriers-compare-through-their-frames, mates-declare-no-contact]
+blocked_on: [a-mate-placed-seat-is-unproven-at-the-doors-budget, mates-declare-no-contact]
 ---
 
 
