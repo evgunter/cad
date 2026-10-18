@@ -938,3 +938,505 @@ fn placement_on_a_generic_axis_certifies_at_interval_from_either_start() {
         }
     }
 }
+// ---- review 5225 r2 probes ----
+
+fn r2_villarceau(phi: f64, family: f64, psi: f64) -> (Surface<f64>, Curve3<f64>) {
+    let (major, minor) = (2.0, 0.7);
+    let axis = Vec3::unit_z();
+    let u_ref = Vec3::unit_x();
+    let torus = Surface::Torus {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis,
+        major_radius: major,
+        minor_radius: minor,
+        u_ref,
+    };
+    let d = u_ref * phi.cos() + axis.cross(u_ref) * phi.sin();
+    let tilt = (minor / major).asin();
+    let lean = d.cross(axis) * tilt.cos() + axis * (family * tilt.sin());
+    let c = Curve3::Circle {
+        center: Point3::new(0.0, 0.0, 0.0) + d * minor,
+        axis: d.cross(lean),
+        radius: major,
+        u_ref: d * psi.cos() + lean * psi.sin(),
+    };
+    (torus, c)
+}
+
+fn report(name: &str, surface: &Surface<f64>, carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Vec<String> {
+    let band = band();
+    let mut bad = vec![];
+    let base = chart_pcurve_over(carrier, t0, t1, surface, band).unwrap();
+    for k in [-3.0, -1.0, 0.0, 1.0, 3.0] {
+        let (a, b) = (t0 + k * TAU, t1 + k * TAU);
+        let image = chart_pcurve_over(carrier, a, b, surface, band).unwrap();
+        let m = image.eval(0.5 * (a + b));
+        let q = base.eval(0.5 * (t0 + t1));
+        eprintln!("{name} k={k}: mid {m:?} (base {q:?})");
+        if !(in_window(m.x)) { bad.push(format!("{name} k={k}: u {} out of window", m.x)); }
+        if (m.y - q.y).abs() > 1e-9 { bad.push(format!("{name} k={k}: v {} vs base {}", m.y, q.y)); }
+        if (m.x - q.x).abs() > 1e-9 { bad.push(format!("{name} k={k}: u {} vs base {}", m.x, q.x)); }
+    }
+    bad
+}
+
+#[test]
+fn r2_villarceau_v_channel() {
+    let (torus, c) = r2_villarceau(0.7, 1.0, 0.3);
+    let bad = report("villarceau", &torus, &c, (0.4, 1.6));
+    assert!(bad.is_empty(), "{bad:#?}");
+}
+
+#[test]
+fn r2_spiric_wall_v_channel() {
+    let (r, rr, d) = (0.09375, 0.0703125, 0.0078125);
+    let c = Curve3::Spiric {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+        major_radius: r,
+        minor_radius: rr,
+        offset: d,
+    };
+    let torus = Surface::Torus {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::unit_y(),
+        major_radius: r,
+        minor_radius: rr,
+        u_ref: Vec3::unit_x(),
+    };
+    let t = 0.8911225078866529;
+    let bad = report("spiric wall", &torus, &c, (-t, t));
+    assert!(bad.is_empty(), "{bad:#?}");
+}
+
+#[test]
+fn r2_sphere_meridian_south() {
+    let sphere = Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 0.0),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    // meridian in the xz plane; circle(o, -y, 1, x): t=0 at +x, t=π/2 at ?
+    let c = circle(Point3::new(0.0, 0.0, 0.0), -Vec3::unit_y(), 1.0, Vec3::unit_x());
+    let band = band();
+    for (t0, t1) in [(0.2, 1.0), (-1.5, -1.1), (-1.4, -0.9), (4.9, 5.2)] {
+        let image = chart_pcurve_over(&c, t0, t1, &sphere, band).unwrap();
+        let old = super::chart_pcurve(&c, &sphere, band).unwrap();
+        eprintln!("sphere meridian [{t0},{t1}]: mid {:?}, ends {:?} {:?}; spanless mid {:?}", image.eval(0.5*(t0+t1)), image.eval(t0), image.eval(t1), old.eval(0.5*(t0+t1)));
+        let cert = PcurveCache::certify(image.clone(), t0, t1, &c, &sphere, band);
+        eprintln!("  certifies: {:?}", cert.as_ref().map(|c| c.certificate().envelope));
+    }
+}
+
+#[test]
+fn r2_cone_focal_u() {
+    let cone = Surface::Cone {
+        apex: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        half_angle: 0.4,
+        u_ref: Vec3::unit_x(),
+    };
+    // an oblique plane z = 1 + 0.2 x cuts an ellipse
+    let n = Vec3::new(-0.2, 0.0, 1.0).normalize();
+    // find ellipse via intersect? build directly: param the section numerically is hard; use geom's plane-cone section if any
+    let _ = (cone, n);
+}
+
+/// delta4 probe: a direction moved across the read's cut line (the line
+/// through `ANGLE_WINDOW_START`), with the gap placed somewhere other than
+/// the window's cut (an offset, or the latitude window). Prints, per case,
+/// whether every `pcurve_chart_` decision of the `t0` build re-values at
+/// `t1` to the bits the `t1` build decides.
+#[test]
+#[allow(clippy::expect_used)]
+fn delta4_read_cut_off_the_windows_cut() {
+    use geom_core::sym::revalue::{record, revalue};
+    use geom_core::sym::with_session;
+    use geom_core::{ParamSymbol, Real, Sym, SymBudget};
+
+    use super::{Along, Azimuth, Levers, Placement};
+
+    type S = Sym<f64>;
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    let t_sym = ParamSymbol::new(1);
+    let e = 10.0 * band().escalate();
+    let mut report = Vec::new();
+    for (case, along, off, ang, t0, t1) in [
+        ("azimuth, offset 0, dir at -1 (window cut)", Along::Azimuth, 0.0, ANGLE_WINDOW_START, -e, e),
+        ("azimuth, offset 2.0, dir at -1 (gap at 1.0)", Along::Azimuth, 2.0, ANGLE_WINDOW_START, -e, e),
+        ("azimuth, offset 2.0, dir at pi-1 (gap at pi+1)", Along::Azimuth, 2.0, PI + ANGLE_WINDOW_START, -e, e),
+        ("latitude, offset 0, dir at -1", Along::Latitude, 0.0, ANGLE_WINDOW_START, -e, e),
+        ("latitude, offset 0, dir at pi-1", Along::Latitude, 0.0, PI + ANGLE_WINDOW_START, -e, e),
+        ("tube, offset 0.5, dir at -1", Along::Tube, 0.5, ANGLE_WINDOW_START, -e, e),
+        ("control: azimuth, offset 2.0, dir at 0.3", Along::Azimuth, 2.0, 0.3, -e, e),
+    ] {
+        let (s, c) = ang.sin_cos();
+        let build = |t: f64| {
+            with_session(budget, || {
+                let place = Placement::<S> {
+                    mid: S::from_f64(0.5),
+                    levers: Levers {
+                        azimuth: S::one(),
+                        tube: S::one(),
+                        latitude: S::one(),
+                    },
+                };
+                let tt = S::param(t_sym, t);
+                let dir = Azimuth::of(S::from_f64(s) + tt * S::from_f64(c), S::from_f64(c) - tt * S::from_f64(s));
+                let env = move |p: ParamSymbol| (p == t_sym).then_some(t1);
+                let (placed, decisions) = record(|| {
+                    place
+                        .phase(along, dir, |_| S::from_f64(off), band())
+                        .expect("a unit direction places")
+                });
+                (
+                    geom_core::Bounds::lo(placed),
+                    decisions
+                        .iter()
+                        .filter(|d| d.predicate.starts_with("pcurve_chart_"))
+                        .map(|d| (d.predicate, d.value, revalue(d.node, &env)))
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .0
+        };
+        let ((p0, a0), (p1, a1)) = (build(t0), build(t1));
+        let same_len = a0.len() == a1.len();
+        let mut bad = Vec::new();
+        for (k, ((n0, _, re), (n1, v1, _))) in a0.iter().zip(&a1).enumerate() {
+            if n0 != n1 || re.map(f64::to_bits) != v1.map(f64::to_bits) {
+                bad.push(format!("#{k} {n0}: re-valued {re:?} vs decided {v1:?}"));
+            }
+        }
+        report.push(format!(
+            "{case}: placed {p0:?} -> {p1:?}; decisions {} / {}; mismatches {bad:?}",
+            a0.len(),
+            a1.len()
+        ));
+        let _ = same_len;
+    }
+    for r in &report {
+        eprintln!("DELTA4 {r}");
+    }
+}
+
+/// delta4 probe: a latitude below the read's cut (−1) reads a turn up and
+/// is placed back by a whole turn; is the placed value atan2's own bits?
+#[test]
+fn delta4_latitude_below_the_reads_cut() {
+    use super::{Along, Azimuth, Levers, Placement};
+    let place = Placement::<f64> {
+        mid: 0.0,
+        levers: Levers {
+            azimuth: 1.0,
+            tube: 1.0,
+            latitude: 1.0,
+        },
+    };
+    for lat in [-FRAC_PI_2, -1.3, -1.0000001, -0.9, 0.5] {
+        let (y, x) = (lat.sin(), lat.cos());
+        let read = Azimuth::of(y, x).principal(band());
+        let turns = place.turns(Along::Latitude, read, band()).unwrap();
+        let placed = place.phase(Along::Latitude, Azimuth::of(y, x), |_| 0.0, band()).unwrap();
+        eprintln!(
+            "DELTA4LAT lat {lat:?}: read {read:?} turns {turns} placed {placed:?} atan2 {:?} bit-equal {}",
+            y.atan2(x),
+            placed.to_bits() == y.atan2(x).to_bits()
+        );
+    }
+}
+
+// ---- review 5225 delta5 probes ----
+
+/// delta5: a meridian placed on the far half reads its polar angle as
+/// `atan2(aa, −‖a_r‖)`: at an equator start (`aa ≈ 0`) that is `π`, on
+/// atan2's own cut. At Interval with `aa` straddling zero, what is read?
+#[test]
+fn delta5_far_meridian_polar_angle_at_the_equator_phase() {
+    use geom_core::{Bounds, Interval, Real};
+
+    use super::{Along, Azimuth, Levers, Placement};
+    let f = Interval::from_f64;
+    for (lo, hi) in [(0.0, 0.0), (-1e-17, 1e-17), (-1e-12, 1e-12)] {
+        let place = Placement::<Interval> {
+            mid: f(3.0),
+            levers: Levers {
+                azimuth: f(1.0),
+                tube: f(1.0),
+                latitude: f(1.0),
+            },
+        };
+        let dir = Azimuth::of(Interval::from_bounds(lo, hi), f(-1.0));
+        let lat = dir.principal_in(super::Window::Latitude, band());
+        let pr = dir.principal(band());
+        let placed = place.phase(Along::Latitude, dir, |m| m, band());
+        eprintln!(
+            "DELTA5PHASE aa [{lo:e},{hi:e}]: latitude read [{:.17},{:.17}] principal read [{:.17},{:.17}] placed {:?}",
+            lat.lo(),
+            lat.hi(),
+            pr.lo(),
+            pr.hi(),
+            placed.map(|p| (p.lo(), p.hi(), p.hi() - p.lo()))
+        );
+    }
+}
+
+/// delta5: end to end, a meridian of a sphere with a generic axis, its
+/// carrier started on the equator, its edge on the far half (midpoint at
+/// `t = 3`). Interval image width of the polar channel, against the same
+/// edge on the carrier started elsewhere (near half).
+#[test]
+fn delta5_far_meridian_on_a_tilted_sphere_end_to_end() {
+    use geom_core::{Bounds, Interval, Real};
+    let axis = Vec3::new(0.0, 0.6, 0.8);
+    let sphere = Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 0.0),
+        radius: 1.0,
+        axis,
+        u_ref: Vec3::unit_x(),
+    };
+    let a = Vec3::new(0.0, 0.8, -0.6);
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let start_eq = circle(o, Vec3::new(-1.0, 0.0, 0.0), 1.0, a);
+    // The same great circle started a quarter turn on (at -axis).
+    let start_q = circle(o, Vec3::new(-1.0, 0.0, 0.0), 1.0, axis * -1.0);
+    let f = Interval::from_f64;
+    for (name, c, (t0, t1)) in [
+        ("equator start, far half", &start_eq, (2.5, 3.5)),
+        ("equator start, near half", &start_eq, (-0.5, 0.5)),
+        ("quarter start, same edge as far", &start_q, (2.5 - FRAC_PI_2, 3.5 - FRAC_PI_2)),
+    ] {
+        let p = chart_pcurve_over(c, t0, t1, &sphere, band());
+        let at_f64 = p.as_ref().map(|p| p.eval(0.5 * (t0 + t1)));
+        let (ci, si) = (c.map_scalar(f), sphere.map_scalar(f));
+        let q = chart_pcurve_over(&ci, f(t0), f(t1), &si, band());
+        let at_iv = q.as_ref().map(|q| {
+            let e = q.eval(f(0.5 * (t0 + t1)));
+            ((e.x.lo(), e.x.hi()), (e.y.lo(), e.y.hi()), e.y.hi() - e.y.lo())
+        });
+        eprintln!("DELTA5E2E {name}: f64 mid {at_f64:?}; Interval mid {at_iv:?}");
+        let cert = q.map(|img| {
+            PcurveCache::certify(img, f(t0), f(t1), &ci, &si, band())
+                .map(|c| format!("{:?}", c.certificate().envelope))
+        });
+        eprintln!("DELTA5CERT {name}: Interval certify {cert:?}");
+    }
+}
+
+/// delta5: latitude exactly at ±π/2 and an Interval enclosure straddling a
+/// pole (x straddling zero).
+#[test]
+fn delta5_latitude_at_and_astride_the_pole() {
+    use geom_core::{Bounds, Interval, Real};
+
+    use super::Azimuth;
+    for (y, x) in [(1.0, 0.0), (-1.0, 0.0), (1.0, -0.0), (-1.0, -0.0)] {
+        eprintln!(
+            "DELTA5POLE f64 ({y},{x}): latitude {:?} principal {:?}",
+            Azimuth::of(y, x).principal_in(super::Window::Latitude, band()),
+            Azimuth::of(y, x).principal(band())
+        );
+    }
+    let f = Interval::from_f64;
+    for (y, xlo, xhi) in [(1.0, -1e-12, 1e-12), (-1.0, -1e-12, 1e-12), (1.0, -0.0, 0.0)] {
+        let d = Azimuth::of(f(y), Interval::from_bounds(xlo, xhi));
+        let l = d.principal_in(super::Window::Latitude, band());
+        let p = d.principal(band());
+        eprintln!(
+            "DELTA5POLE Interval y {y} x [{xlo:e},{xhi:e}]: latitude [{:.17},{:.17}] principal [{:.17},{:.17}]",
+            l.lo(),
+            l.hi(),
+            p.lo(),
+            p.hi()
+        );
+    }
+}
+
+// ---- review 5225 delta6 probes ----
+
+fn d6_cert(name: &str, s: &Surface<f64>, c: &Curve3<f64>, (t0, t1): (f64, f64)) -> String {
+    use geom_core::{Bounds, Interval, Real};
+    let f = Interval::from_f64;
+    let p = chart_pcurve_over(c, t0, t1, s, band());
+    let f64s = match &p {
+        Ok(p) => {
+            let m = p.eval(0.5 * (t0 + t1));
+            let e0 = p.eval(t0);
+            let cf = PcurveCache::certify(p.clone(), t0, t1, c, s, band())
+                .map(|c| c.certificate().envelope);
+            format!("mid ({:.15},{:.15}) start ({:.15},{:.15}) cert {cf:?}", m.x, m.y, e0.x, e0.y)
+        }
+        Err(e) => format!("derive ERR {e}"),
+    };
+    let (ci, si) = (c.map_scalar(f), s.map_scalar(f));
+    let iv = match chart_pcurve_over(&ci, f(t0), f(t1), &si, band()) {
+        Ok(q) => {
+            let m = q.eval(f(0.5 * (t0 + t1)));
+            let w = (m.x.hi() - m.x.lo(), m.y.hi() - m.y.lo());
+            let cert = PcurveCache::certify(q, f(t0), f(t1), &ci, &si, band())
+                .map(|c| c.certificate().envelope.hi());
+            format!("Interval mid widths {w:?} cert {cert:?}")
+        }
+        Err(e) => format!("Interval derive ERR {e}"),
+    };
+    format!("D6 {name}: f64 {f64s}; {iv}")
+}
+
+/// delta6: a far-half meridian whose ORIGIN reads exactly on the
+/// latitude window's cut (origin at near-half latitude −1, edge on the far
+/// half: read atan2(−sin1, −cos1) = 1 − π), and origins a hair either
+/// side; restarts move the origin elsewhere (C4).
+#[test]
+fn delta6_far_meridian_read_on_the_latitude_cut() {
+    let axis = Vec3::new(0.0, 0.6, 0.8);
+    let sphere = Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 0.0),
+        radius: 1.0,
+        axis,
+        u_ref: Vec3::unit_x(),
+    };
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let h = Vec3::new(0.0, 0.8, -0.6);
+    let n = Vec3::new(-1.0, 0.0, 0.0);
+    let mut out = vec![];
+    for eps in [0.0, 1e-17, -1e-17, 1e-13, -1e-13, 1e-9, -1e-9] {
+        let l: f64 = -1.0 + eps;
+        let start = h * l.cos() + axis * l.sin();
+        let c = circle(o, n, 1.0, start);
+        // p(t) at near-half latitude -(t - l)... far half for t in (~0.57, ~3.71)
+        for span in [(1.6, 2.6), (0.9, 3.3), (2.0, 3.6)] {
+            out.push(d6_cert(&format!("origin lat {l:e} span {span:?} by 0"), &sphere, &c, span));
+            for by in [0.7, -2.1, PI, 5.5] {
+                let r = restarted(&c, by);
+                out.push(d6_cert(
+                    &format!("origin lat {l:e} span {span:?} by {by}"),
+                    &sphere,
+                    &r,
+                    (span.0 - by, span.1 - by),
+                ));
+            }
+        }
+    }
+    for l in &out {
+        eprintln!("{l}");
+    }
+    assert!(out.iter().all(|l| !l.contains("ERR") && !l.contains("Err")), "a row refused");
+}
+
+/// delta6: a torus meridian on the far side of the tube (tube angle ≈ π,
+/// the inner equator) and a whole-turn meridian on a generic axis, at
+/// Interval, from several starts.
+#[test]
+fn delta6_torus_far_meridian_generic_axis() {
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let a = Vec3::new(0.0, 0.6, 0.8);
+    let e1 = Vec3::unit_x();
+    let e2 = a.cross(e1);
+    let torus = Surface::Torus {
+        center: o,
+        axis: a,
+        major_radius: 2.0,
+        minor_radius: 0.7,
+        u_ref: e1,
+    };
+    let mut out = vec![];
+    for (phi_name, rad) in [("e2", e2), ("-e2", e2 * -1.0), ("e1", e1), ("mix", (e1 * 0.3 + e2 * -0.954).normalize())] {
+        let n = a.cross(rad);
+        let c = circle(o + rad * 2.0, n, 0.7, rad);
+        for span in [(2.5, 3.8), (PI - 0.4, PI + 0.4), (0.0, TAU), (-1.2, 1.2)] {
+            for by in [0.0, 0.7, -2.1, PI, 5.5, 1.0 + PI] {
+                let r = restarted(&c, by);
+                out.push(d6_cert(
+                    &format!("torus meridian {phi_name} span {span:?} by {by}"),
+                    &torus,
+                    &r,
+                    (span.0 - by, span.1 - by),
+                ));
+            }
+        }
+    }
+    for l in &out {
+        eprintln!("{l}");
+    }
+    assert!(out.iter().all(|l| !l.contains("ERR") && !l.contains("Err")), "a row refused");
+}
+
+/// delta6: cone rulings on a generic axis at Interval, origin moved.
+#[test]
+fn delta6_cone_ruling_generic_axis() {
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let a = Vec3::new(0.0, 0.6, 0.8);
+    let e1 = Vec3::unit_x();
+    let e2 = a.cross(e1);
+    let alpha: f64 = 0.4;
+    let cone = Surface::Cone {
+        apex: o,
+        axis: a,
+        half_angle: alpha,
+        u_ref: e1,
+    };
+    let mut out = vec![];
+    for phi in [0.0, 2.3, PI, -1.0, TAU - 1.0, -FRAC_PI_2] {
+        let rul = a * alpha.cos() + (e1 * phi.cos() + e2 * phi.sin()) * alpha.sin();
+        let c = Curve3::Line { origin: o + rul * 0.5, dir: rul };
+        for by in [0.0, 0.7, -2.1] {
+            let r = restarted(&c, by);
+            out.push(d6_cert(&format!("cone ruling phi {phi} by {by}"), &cone, &r, (0.2 - by, 1.5 - by)));
+        }
+    }
+    for l in &out {
+        eprintln!("{l}");
+    }
+    assert!(out.iter().all(|l| !l.contains("ERR") && !l.contains("Err")), "a row refused");
+}
+
+/// delta6: the latitude read over the whole latitude window at f64 and
+/// Interval: value vs θ, bits vs Real::atan2 on the direct side, and the
+/// Interval width, near the cut line's two ends (1 − π and 1).
+#[test]
+fn delta6_latitude_read_sweep() {
+    use geom_core::{Bounds, Interval, Real};
+
+    use super::{Azimuth, LATITUDE_WINDOW_START, Window};
+    let f = Interval::from_f64;
+    let s0 = LATITUDE_WINDOW_START;
+    let mut worst_f = 0.0f64;
+    let mut worst_w: (f64, f64) = (0.0, 0.0);
+    let mut nonbit = vec![];
+    let n = 20000;
+    for i in 1..=n {
+        let th = s0 + TAU * (i as f64) / (n as f64);
+        for r in [1.0, 0.37, 1e3] {
+            let (y, x) = (r * th.sin(), r * th.cos());
+            let rd = Azimuth::of(y, x).principal_in(Window::Latitude, band());
+            let d = (rd - th).abs();
+            if d > worst_f {
+                worst_f = d;
+            }
+            if th > s0 + 1e-6 && th < 1.0 - 1e-6 && rd.to_bits() != Real::atan2(y, x).to_bits() {
+                nonbit.push(th);
+            }
+            let iv = Azimuth::of(f(y), f(x)).principal_in(Window::Latitude, band());
+            let w = iv.hi() - iv.lo();
+            if w > worst_w.1 {
+                worst_w = (th, w);
+            }
+        }
+    }
+    eprintln!("D6SWEEP worst f64 |read-θ| {worst_f:e}; worst Interval width {worst_w:?}; direct-side non-bit {}", nonbit.len());
+    // Near the line's two ends at Interval, astride.
+    for (name, th) in [("cut 1-π", s0), ("line end 1", 1.0), ("π", PI), ("-π/2", -FRAC_PI_2), ("π/2", FRAC_PI_2), ("0", 0.0)] {
+        for d in [0.0, 1e-17, 1e-15, 1e-12, 1e-9] {
+            let (y0, x0) = th.sin_cos();
+            let dir = Azimuth::of(Interval::from_bounds(y0 - d, y0 + d), Interval::from_bounds(x0 - d, x0 + d));
+            let iv = dir.principal_in(Window::Latitude, band());
+            let fv = Azimuth::of(y0, x0).principal_in(Window::Latitude, band());
+            eprintln!("D6END {name} ±{d:e}: f64 {fv:.17} Interval [{:.17}, {:.17}] w {:e}", iv.lo(), iv.hi(), iv.hi() - iv.lo());
+        }
+    }
+}
