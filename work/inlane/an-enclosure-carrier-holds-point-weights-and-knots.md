@@ -36,6 +36,8 @@ refuses typed"). Two cases hit this:
   (`crates/editor-core/tests/e6_drive_over_a_loft_at_interval.rs`: the
   arc row still bisects to its leaf budget). Sections whose values are
   all points still loft through the lifted `f64` skin.
+  (S3 retired `ArcWeightNotAPoint`: the weight is held in `T` and
+  stops at the carrier's door, `CarrierWeightNotAPoint`, until S4/S5.)
 - **More sections than `v_degree + 1`.** The interior averaged knots
   are chord-length parameters (Book Eq. 10.8, `skin_parameters`). Over
   a wide section they are wide, and `Knots::new` refuses them as

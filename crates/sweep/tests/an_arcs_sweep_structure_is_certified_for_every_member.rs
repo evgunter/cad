@@ -1,14 +1,16 @@
 //! **An arc's sweep structure is decided once, for every member (C6).**
-//! The skin's arc conversion (`sweep::segment_curve`) reads three
-//! structure decisions off the sweep: that it is not zero, how many
-//! sub-arcs it takes (one reaches `(π/2)(1 + η)`, η = 1/16), and that it
-//! is short of a turn (an arc between two points) or one turn (an arc
-//! back to its start). At a point scalar they are read off the sweep; at
-//! an enclosure scalar they are certified over its bracket, and a
+//! The skin's arc conversion (`sweep::segment_curve`) reads its
+//! structure off the sweep and the endpoints: that the sweep is not
+//! zero, how many sub-arcs it takes (one reaches `(π/2)(1 + η)`,
+//! η = 1/16), whether the arc ends where it starts, and that it is short
+//! of a turn (an arc between two points) or one turn (an arc back to its
+//! start). At a point scalar they are read off the values; at an
+//! enclosure scalar they are certified over their brackets, and a
 //! bracket that straddles a breakpoint refuses typed with its margin.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, PI, TAU};
+use geom_core::Bounds;
 use geom_core::spline::SplineError;
 use geom_core::{Affine3, Arc2, Interval, Point2, Real};
 use sweep::{ArcSweepDecision, SketchSegment, SkinError, segment_curve};
@@ -133,4 +135,97 @@ fn an_arc_at_interval_refuses_at_the_carriers_door_until_s4_s5() {
         other => panic!("a point quarter turn at Interval: {:?}", other.map(|_| ())),
     }
     assert_eq!(sub_arcs(FRAC_PI_2, false), 1);
+}
+
+/// **The turn checks read the true 2π's bracket, at both ends of the
+/// one turn an arc back to its start may make.** At `Interval`:
+/// - `T::tau()` itself between two points refuses undecided: the true
+///   2π lies in its bracket, so some member is a full turn. Red where
+///   the check reads `f64`'s `TAU` (below the true 2π, so the sweep
+///   reads a turn or more, definite) or tests `hi` against the
+///   bracket's top.
+/// - A sweep around 3π back to its start refuses undecided: red where
+///   only the half-turn side is checked.
+/// - A sweep from `π`'s bracket's top back to its start refuses
+///   undecided: the true π may be that top. Red where the half-turn
+///   side compares against the bracket's bottom.
+#[test]
+fn the_turn_checks_read_the_true_turns_bracket_at_both_ends() {
+    undecided(
+        segment_curve(0, arc(Interval::tau(), false), Affine3::identity()),
+        ArcSweepDecision::TurnBetweenPoints,
+    );
+    undecided(
+        convert(3.0 * PI - 0.1, 3.0 * PI + 0.1, true),
+        ArcSweepDecision::TurnToItself,
+    );
+    let pi_top = Interval::pi().hi();
+    undecided(convert(pi_top, 3.3, true), ArcSweepDecision::TurnToItself);
+}
+
+/// **Whether an arc ends where it starts is decided for every member.**
+/// At `Interval`: an arc from `(1, 0)` to an end whose box holds `(1, 0)`
+/// and points apart from it refuses undecided, with the endpoints'
+/// distance as its margin, rather than reading as an arc back to its
+/// start (which a quarter turn is not, definite). The same end at a
+/// point apart converts to the carrier's door. Red where the branch is
+/// read off `structure_positive` alone.
+#[test]
+fn whether_an_arc_ends_where_it_starts_is_decided_for_every_member() {
+    let iv = Interval::from_bounds;
+    let with_end = |b: Point2<Interval>| SketchSegment::Arc {
+        a: Point2::new(Interval::one(), Interval::zero()),
+        b,
+        arc: Arc2 {
+            centre: Point2::new(Interval::zero(), Interval::zero()),
+            radius: Interval::one(),
+            sweep: Interval::from_f64(FRAC_PI_2),
+        },
+    };
+    match segment_curve(
+        0,
+        with_end(Point2::new(iv(0.9, 1.1), iv(-0.1, 0.1))),
+        Affine3::identity(),
+    ) {
+        Err(SkinError::ArcSweepUndecided {
+            which: ArcSweepDecision::Endpoints,
+            margin,
+            ..
+        }) => {
+            let geom_core::ErrorTextReading::Enclosure { lo, hi } =
+                margin.diagnostic_f64_for_error_text()
+            else {
+                panic!("an enclosure margin, got {margin:?}");
+            };
+            assert!(lo <= 0.0 && 0.0 < hi, "margin [{lo}, {hi}] reaches zero");
+        }
+        other => panic!("an end some members share: {:?}", other.map(|_| ())),
+    }
+    match segment_curve(
+        0,
+        with_end(Point2::new(iv(0.0, 0.0), iv(1.0, 1.0))),
+        Affine3::identity(),
+    ) {
+        Err(SkinError::Structure(SplineError::CarrierWeightNotAPoint { index: 1 })) => {}
+        other => panic!("an end apart from the start: {:?}", other.map(|_| ())),
+    }
+}
+
+/// **A sweep some of whose members are unbounded leaves its count
+/// undecided**, not degenerate: `[1, +∞]` has finite members. A sweep
+/// with no finite member is degenerate for every one. Red where the
+/// whole bracket reads degenerate for its top alone.
+#[test]
+fn a_sweep_unbounded_above_leaves_its_count_undecided() {
+    match convert(1.0, f64::INFINITY, false) {
+        Err(SkinError::ArcSweepUndecided {
+            which: ArcSweepDecision::SubArcCount,
+            ..
+        }) => {}
+        other => panic!("[1, inf]: {:?}", other.map(|_| ())),
+    }
+    match convert(f64::INFINITY, f64::INFINITY, false) {
+        Err(SkinError::DegenerateSection { .. }) => {}
+        other => panic!("[inf, inf]: {:?}", other.map(|_| ())),
+    }
 }

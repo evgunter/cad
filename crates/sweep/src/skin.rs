@@ -35,10 +35,12 @@
 //!
 //! # Structure selection is f64 (C6/D9)
 //!
-//! Degrees, knot multiplicities, sub-arc counts, the degree raise, the
-//! merged knots and the parameters' order are chosen in `f64`,
-//! deterministically, on the value channel of the data
-//! ([`SpanLocate::point_value`]): same sections in, same structure out.
+//! Degrees, knot multiplicities, the degree raise, the merged knots and
+//! the parameters' order are chosen in `f64`, deterministically, on the
+//! value channel of the data ([`SpanLocate::point_value`]): same
+//! sections in, same structure out. An arc's sub-arc count and its turn
+//! and endpoint branches are decided over the brackets they read, for
+//! every member ([`SkinError::ArcSweepUndecided`]).
 //! A positivity the structure asks of a value (a chord that is not
 //! empty, a parameter step that ascends) holds for every value it
 //! stands for ([`SpanLocate::structure_positive`]), so at an enclosure
@@ -74,7 +76,6 @@
 //! made here, so nothing routes through `k_stats`; the raw `f64`
 //! comparisons below are structure selection under C6.
 
-use core::f64::consts::TAU;
 use core::num::NonZeroUsize;
 use std::sync::Arc;
 
@@ -123,15 +124,20 @@ pub enum ArcSweepDecision {
     /// That an arc back to its own start is one full turn, nearer one
     /// than none or two.
     TurnToItself,
+    /// Whether the arc ends where it starts (its endpoints' distance
+    /// is zero) or between two points: the branch the two turn checks
+    /// above select between.
+    Endpoints,
 }
 
 impl core::fmt::Display for ArcSweepDecision {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
-            Self::NonZero => "sweep's being non-zero",
-            Self::SubArcCount => "sub-arc count",
-            Self::TurnBetweenPoints => "staying short of a full turn",
-            Self::TurnToItself => "being one full turn",
+            Self::NonZero => "whether its sweep is zero",
+            Self::SubArcCount => "how many sub-arcs its sweep takes",
+            Self::TurnBetweenPoints => "whether its sweep stops short of a full turn",
+            Self::TurnToItself => "whether its sweep is one full turn",
+            Self::Endpoints => "whether it ends where it starts",
         })
     }
 }
@@ -264,12 +270,15 @@ pub enum SkinError {
         /// parameterization reads.
         row: usize,
     },
-    /// Section `section` has an arc whose sweep's structure is not
-    /// decided over the values it stands for (C6): its bracket
-    /// straddles one of the decision's breakpoints (`which` names the
-    /// decision). The margin is the sweep's distance to that
-    /// breakpoint, as read; inputs narrow enough that it clears zero
-    /// lift the refusal.
+    /// Section `section` has an arc whose structure is not decided
+    /// over the values it stands for (C6): the bracket a decision reads
+    /// (`which` names it; the sweep's, or for [`ArcSweepDecision::Endpoints`]
+    /// the endpoints' distance) straddles that decision's breakpoint.
+    /// The margin is the bracket's distance to the breakpoint, as read;
+    /// inputs narrow enough that it clears zero lift the refusal. A
+    /// bracket may be wide from rounding alone: a constant sweep of
+    /// exactly a full turn between two points reads `T::tau()`'s own
+    /// enclosure, which no narrower input clears.
     ArcSweepUndecided {
         /// The section.
         section: usize,
@@ -358,9 +367,11 @@ impl core::fmt::Display for SkinError {
                 margin,
             } => write!(
                 f,
-                "section {section} has an arc whose {which} is undecided over the values its \
-                 sweep stands for: the sweep is {margin} from the breakpoint. Recourse: narrow \
-                 the range of that sweep until it clears the breakpoint"
+                "section {section} has an arc that leaves {which} undecided over the values it \
+                 stands for: what it reads is {margin} from the breakpoint. Recourse: narrow the \
+                 range of that sweep or those endpoints until it clears the breakpoint; the width \
+                 may be rounding alone (a constant sweep of exactly a full turn), and then \
+                 evaluate at a point scalar"
             ),
             Self::IncompatibleAtEnclosure { section } => write!(
                 f,
@@ -404,9 +415,10 @@ impl From<FitError> for SkinError {
 /// - **Line** → degree 1, two control points, unit weights: the chord,
 ///   with the segment's own affine parameter.
 /// - **Arc** → the standard rational-quadratic circular representation
-///   (Book §7.5 / A7.1), split into `⌈|θ| / (π/2)⌉` equal sub-arcs so
-///   every tangent-intersection control point stays finite and the
-///   interior weights `cos(Δ/2)` stay ≥ `cos(π/4)`. Exact in ℝ: the
+///   (Book §7.5 / A7.1), split into `⌈|θ| / ((π/2)(1+η))⌉` equal
+///   sub-arcs, η = 1/16 (`MAX_SUB_ARC`), so every tangent-intersection
+///   control point stays finite and the interior weights `cos(Δ/2)`
+///   stay ≥ `cos((π/4)(1+η))`. Exact in ℝ: the
 ///   locus IS the carrier circle, not a fit of it. The circle is the
 ///   one [`SketchSegment::eval`] describes — `a` turned about the
 ///   centre through the sweep — so the control points are `a − centre`
@@ -425,9 +437,12 @@ impl From<FitError> for SkinError {
 /// distance from its centre, an arc between two points sweeping a full
 /// turn or more, or an arc back to its own start that is not one full
 /// turn (D1's full turn, one segment at one vertex, is the one that
-/// converts); [`SkinError::ArcWeightNotAPoint`] for an arc whose sweep
-/// or weight is no single point; [`SkinError::Structure`] if validated
-/// construction refuses.
+/// converts); [`SkinError::ArcSweepUndecided`] for an arc whose sweep
+/// or endpoints leave one of those decisions, or its sub-arc count,
+/// undecided over the values they stand for;
+/// [`SkinError::Structure`] if validated construction refuses
+/// (`CarrierWeightNotAPoint` for a weight wider than a point, C6's
+/// interim until S4/S5).
 // `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
 // geom-core::spline::algebra note): a poisoned coordinate must take
 // the refusal arm, not slip through a negated comparison.
@@ -461,12 +476,13 @@ pub fn segment_curve<T: SpanLocate>(
                 sweep: theta,
                 ..
             } = arc;
-            // The sweep's structure is decided over |θ|'s bracket, for
-            // every value it stands for (C6): that it is not zero, how
-            // many sub-arcs it takes, and that it is short of a turn (an
-            // arc between two points) or one turn (an arc back to its
-            // start). A bracket that straddles a breakpoint refuses typed,
-            // with the margin a narrower box lifts.
+            // The arc's structure is decided for every value it stands
+            // for (C6), over |θ|'s bracket: that it is not zero, how many
+            // sub-arcs it takes, and that it is short of a turn (an arc
+            // between two points) or one turn (an arc back to its start);
+            // and over the endpoints' distance, which of those two it is.
+            // A bracket that straddles a breakpoint refuses typed, with
+            // the margin a narrower box lifts.
             let undecided = |which, lo: f64, hi: f64| SkinError::ArcSweepUndecided {
                 section,
                 which,
@@ -475,7 +491,11 @@ pub fn segment_curve<T: SpanLocate>(
             let Some((lo, hi)) = theta.abs().structure_bracket() else {
                 return Err(degenerate("zero or non-finite sweep"));
             };
-            if !hi.is_finite() || hi == 0.0 {
+            // A sweep with no finite member, or none but zero, is
+            // degenerate for every member; one some of whose members are
+            // finite and others not straddles every count's breakpoint
+            // and refuses below as the count undecided.
+            if !lo.is_finite() || hi == 0.0 {
                 return Err(degenerate("zero or non-finite sweep"));
             }
             if lo == 0.0 {
@@ -502,8 +522,18 @@ pub fn segment_curve<T: SpanLocate>(
             // sweep is nearer one turn than none or two. An arc between
             // two points stops short of a turn. Both read the true 2π's
             // bracket.
-            let (tau_lo, tau_hi) = T::tau().structure_bracket().unwrap_or((TAU, TAU));
-            if a.distance(b).structure_positive() {
+            let Some((tau_lo, tau_hi)) = T::tau().structure_bracket() else {
+                unreachable!("τ is a number at every scalar")
+            };
+            let chord = a.distance(b);
+            let between = chord.structure_positive();
+            if !between
+                && let Some((chord_lo, chord_hi)) = chord.structure_bracket()
+                && chord_hi > 0.0
+            {
+                return Err(undecided(ArcSweepDecision::Endpoints, chord_lo, chord_hi));
+            }
+            if between {
                 if lo >= tau_hi {
                     return Err(degenerate("a full turn or more between two points"));
                 }
