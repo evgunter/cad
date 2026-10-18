@@ -62,8 +62,9 @@ is unchanged; retitled to the half that remains.
 
 The naming half is built (WIRE, the Split vertex `Keeps` rule): the notched
 pentagon split at `y = 1` now names with no refusal
-(`crates/editor-core/tests/split_pinch_keeps.rs`), so the Python snippet
-above evaluates and the prose gate's panic needs another refusal whose
-message carries a `Debug` rendering to reproduce.
+(`crates/editor-core/tests/split_pinch_keeps.rs`, the same document built
+in Rust; the Python snippet was not re-run), so the prose gate's panic
+needs another refusal whose message carries a `Debug` rendering to
+reproduce.
 
 Signed (wire-keeps lane).
