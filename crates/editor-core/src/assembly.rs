@@ -1270,12 +1270,17 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
         bundles.flat_map(|(placement, bundle)| bundle.iter().map(move |c| (placement, c)))
     {
         let id = crate::mate::MateRef::new(placement, constraint.id);
-        // A side on the copy itself or on the world reads no face, and
-        // a constraint with one declares no contact.
-        let (Some(a), Some(b)) = (constraint.mate.a.face(), constraint.mate.b.face()) else {
+        // A mate declares a contact only where it rests two faces: a
+        // standoff, a construction and a world read place and declare
+        // nothing.
+        let Some(mate) = constraint.mate() else {
             continue;
         };
-        let class = &constraint.mate.class;
+        let Some((a, b)) = crate::mate::rested_faces(doc, mate) else {
+            continue;
+        };
+        let (a, b) = (&a, &b);
+        let class = &mate.class;
         let (head_a, head_b) = (
             crate::mate::member::head_of(doc, *a),
             crate::mate::member::head_of(doc, *b),
@@ -1309,8 +1314,8 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
             unreachable!("a mate that evaluated reads two faces of live bodies")
         };
         let (face_a, face_b) = match (
-            copy_face(doc, evaluation, copies, id, MateSide::A, *a, &head_a),
-            copy_face(doc, evaluation, copies, id, MateSide::B, *b, &head_b),
+            copy_face(doc, evaluation, copies, id, MateSide::On, *a, &head_a),
+            copy_face(doc, evaluation, copies, id, MateSide::To, *b, &head_b),
         ) {
             (Ok(Some(face_a)), Ok(Some(face_b))) => (face_a, face_b),
             // A member no placement reads is not in the product: the

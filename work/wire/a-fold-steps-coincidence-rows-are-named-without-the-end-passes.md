@@ -30,3 +30,15 @@ Read together with `a-union-fold-publishes-no-pinch-row` (same function,
 same fold).
 
 Signed (WIRE orchestrator).
+
+## Measured on the member-space spelling (2026-10-18, `wire-foldrows`)
+
+With fold rows spelled by member cells (`names::fold_cell`), a cell
+whose collapsed name has a member `From` head no longer carries fold
+qualifiers: in a probe run of the editor tests matching `union`, every
+fold-row cell was `From` (vertex or edge), `From` + `Fragment` (edge),
+`Crossing` (vertex) or `Merged` (edge). No vertex cell had a `Fragment`
+tail. The `Crossing` cells the fold minted are still read off
+`collapse_table(acc_table)`, and 236 of 354 published ones are not
+names the node's table holds:
+`a-fold-row-names-a-vertex-the-fold-minted-by-the-step-that-minted-it`.

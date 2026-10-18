@@ -286,15 +286,27 @@ fn surface_sig(surface: &Surface<f64>) -> Vec<u64> {
             let (nu, nv) = payload.control_counts();
             let mut sig = vec![
                 tag,
-                payload.knots_u().degree() as u64,
-                payload.knots_v().degree() as u64,
-                payload.knots_u().knots().len() as u64,
-                payload.knots_v().knots().len() as u64,
+                payload.knots_u_f64_interim().degree() as u64,
+                payload.knots_v_f64_interim().degree() as u64,
+                payload.knots_u_f64_interim().knots().len() as u64,
+                payload.knots_v_f64_interim().knots().len() as u64,
                 nu as u64,
                 nv as u64,
             ];
-            sig.extend(payload.knots_u().knots().iter().map(|k| k.to_bits()));
-            sig.extend(payload.knots_v().knots().iter().map(|k| k.to_bits()));
+            sig.extend(
+                payload
+                    .knots_u_f64_interim()
+                    .knots()
+                    .iter()
+                    .map(|k| k.to_bits()),
+            );
+            sig.extend(
+                payload
+                    .knots_v_f64_interim()
+                    .knots()
+                    .iter()
+                    .map(|k| k.to_bits()),
+            );
             sig.extend(payload.control().iter().flat_map(|q| p(*q)));
             sig.extend(payload.weights().iter().map(|w| w.to_bits()));
             sig
@@ -768,7 +780,7 @@ fn iso_curve_candidates(
             // carries the file's parameterization, where `u = 1` is
             // an interior column — a description naming a locus the
             // carrier is not on.
-            let (du0, du1) = wp.knots_u().domain();
+            let (du0, du1) = wp.knots_u_f64_interim().domain();
             let u = if end { du1 } else { du0 };
             match spec.carrier {
                 Curve3::Nurbs(ref nurbs_carrier) => {
@@ -884,7 +896,7 @@ fn line_column_match(
         }
     }
     let near = |a: &Point3<f64>, b: &Point3<f64>| a.distance(*b) <= eps;
-    let (dv0, dv1) = iso.knots().domain();
+    let (dv0, dv1) = iso.knots_f64_interim().domain();
     if near(first, &p_start) && near(last, &p_end) {
         return Some((dv0, dv1));
     }
@@ -1200,13 +1212,13 @@ fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<
 /// sides by construction (`NurbsCurve3::new` validates them equal).
 fn bitwise_iso_match(carrier: &geom::NurbsCurve3<f64>, iso: &geom::NurbsCurve3<f64>) -> bool {
     let bits3 = |p: &Point3<f64>| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
-    carrier.knots().degree() == iso.knots().degree()
-        && carrier.knots().knots().len() == iso.knots().knots().len()
+    carrier.knots_f64_interim().degree() == iso.knots_f64_interim().degree()
+        && carrier.knots_f64_interim().knots().len() == iso.knots_f64_interim().knots().len()
         && carrier
-            .knots()
+            .knots_f64_interim()
             .knots()
             .iter()
-            .zip(iso.knots().knots())
+            .zip(iso.knots_f64_interim().knots())
             .all(|(a, b)| a.to_bits() == b.to_bits())
         && carrier.control().len() == iso.control().len()
         && carrier
@@ -1433,8 +1445,8 @@ mod tests {
         weights[1] = 2.0;
         let reweighted = Surface::Nurbs(std::sync::Arc::new(
             NurbsSurface::new(
-                payload.knots_u().clone(),
-                payload.knots_v().clone(),
+                payload.knots_u_f64_interim().clone(),
+                payload.knots_v_f64_interim().clone(),
                 payload.control().to_vec(),
                 weights,
             )
@@ -1444,7 +1456,7 @@ mod tests {
         let kv3 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
         let refined = Surface::Nurbs(std::sync::Arc::new(
             NurbsSurface::new(
-                payload.knots_u().clone(),
+                payload.knots_u_f64_interim().clone(),
                 kv3,
                 vec![Point3::new(0.0, 0.0, 0.0); 8],
                 vec![1.0; 8],

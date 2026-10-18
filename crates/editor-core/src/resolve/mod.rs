@@ -2615,10 +2615,9 @@ pub fn apply_with_names<T: Decide>(
         } => names.extend(read.selected_names()),
         DocEdit::Rebind { to, .. } => names.push(to),
         DocEdit::AddConstraint { mate, .. } => {
-            for (_, read) in mate.sides() {
-                if let Some(read) = read.face() {
-                    names.extend(read.selected_names());
-                }
+            names.extend(mate.on.selected_names());
+            if let Some(to) = mate.to.pose() {
+                names.extend(to.selected_names());
             }
         }
         // Name-carrying and deliberately unchecked here: an appearance
@@ -2633,6 +2632,10 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::ClearAppearanceMeta { .. } => {}
         // Carry no `StableName` at all.
         DocEdit::DeleteNode { .. }
+        // A value reads its mate by id and holds a number.
+        | DocEdit::AddValue { .. }
+        // A world pin reads nothing.
+        | DocEdit::PinWhereItStands { .. }
         // A list of node ids carries no name.
         | DocEdit::SetMembers { .. }
         // A program and its step ids carry no name, and the door

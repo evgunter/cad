@@ -485,14 +485,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     // The mechanism is the world: every placed bar and pin, one copy
     // each, base first.
     for &body in bars.iter().chain(&pins) {
-        doc = apply(
-            &doc,
-            &DocEdit::place_in_world(body, None),
-            tol,
-            &RefusingReach,
-        )
-        .expect("a placed link places")
-        .doc;
+        doc = crate::world::place_in_world(&doc, body, tol).doc;
     }
 
     // The target: the mating pin at the chain's nominal tip, fixed.

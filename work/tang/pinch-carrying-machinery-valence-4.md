@@ -115,6 +115,14 @@ pair's section crosses itself with no operand edge there (a *node*).
 Approved by Ev after four reconciliation rounds (row 147 of
 `docs/DESIGN-FORK-LOG.md`); both designers hold the design below.
 
+## Built: U2a, U-lever and U2p (2026-10-16)
+
+U2a (the factored crossing, PR 5192), U-lever
+(`u-lever-the-wedge-is-levered-at-the-faces-extent`, PR 5204) and U2p
+(the pair reading at the pierce, PR 5203) are on main. The near-node
+seam and cap poses build at their closed forms in every op; the √band
+ring's one open row is its pcert item. U2b and U2c below remain.
+
 ## Remaining
 
 - **U2, a node on an operand edge.** A seam, rim or other edge passes through a node. The common case is a node at an operand *vertex*: an extruded wall's one seam ruling ends at the rims' only vertices, so the usual tee puts one node at the branch rim's vertex, and the usual pipe cross puts both seams through one node and none through the other. The edge is not avoidable: a rim is real geometry, and a seam's place is convention (D2), so whether an op builds must not depend on it.

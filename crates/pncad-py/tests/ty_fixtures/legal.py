@@ -10,7 +10,6 @@ from pncad import (
     Var,
     IndexedRead,
     MeasurePrimitive,
-    Placement,
     Measured,
     Measurement,
     AssertionRelation,
@@ -25,12 +24,12 @@ from pncad import (
     McReport,
     monte_carlo,
     sample_offset,
-    Alignment,
+    Coord,
     Angle,
     AngleUnit,
     ArcSweep,
     Assembly,
-    AxisSense,
+    WorldRead,
     Bulge,
     ClosedLoop,
     CancelToken,
@@ -79,8 +78,8 @@ from pncad import (
     StructureNormalization,
     Mesh,
     MateFault,
-    MateFrame,
-    MatePrimitive,
+    MateValue,
+    Placed,
     Mate,
     MateRef,
     ConstraintId,
@@ -116,6 +115,7 @@ from pncad import (
     StepId,
     SurfaceKind,
     Workspace,
+    WorldPin,
     assemble,
     canonical_bytes,
     circle,
@@ -594,17 +594,17 @@ crossings: int = both.part_evaluations
 # two copies meet, and the gate says whether the result is valid at
 # rest.
 instance: NodeId = doc.insert(Node.instantiate_part(reference))
-at_here: Mate = Mate.world_pin(Placement.literal(here))
-at_origin: Mate = Mate.world_pin()
+gesture: Placed = doc.pin(instance, here, resolver=store)
+gesture_by: str = gesture.by
+gesture_values: list[MateRef] = gesture.values
 loose_instance: Node = Node.instantiate_part(reference, [])
-pinned_instance: Node = Node.instantiate_part(reference, [at_here])
 repinned: DocEdit = DocEdit.update_reference(instance, pin)
-placed: NodeId = doc.place(sideways, [Mate.world_pin(Placement.identity())], label="the post")
+placed: NodeId = doc.place(sideways, pose=here, label="the post")
+placed_at: Placed = doc.place_at(sideways, here)
 twice: NodeId = doc.place([sideways, sideways])
 world: list[NodeId] = doc.placements()
 the_world: NodeId = doc.world
-placer: Node = Node.place(sideways, [at_origin])
-held: list[tuple[MateRef, Mate]] = doc.bundle(placed)
+held: list[tuple[MateRef, Mate | MateValue | WorldPin]] = doc.bundle(placed)
 pin_ref: MateRef = held[0][0]
 pin_id: ConstraintId = pin_ref.constraint
 pin_holder: NodeId = pin_ref.placement
@@ -613,30 +613,28 @@ carried_reference: DocRef | None = doc.reference(instance)
 seam_record: InterfaceRecord | None = doc.interface(instance)
 after_edit: list[Maintenance] = doc.last_maintenance
 
-# The authored mate datum: two frames, a primitive, an axis sense, and
-# an optional clocking rider.
-side_a: MateFrame = MateFrame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0))
-side_b: MateFrame = MateFrame((0 * m, 0 * m, 1 * m), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0))
-seated: MatePrimitive = MatePrimitive.planar_rest(0 * m)
-datum: Alignment = Alignment(side_a, side_b, seated, AxisSense.Aligned)
-clocked: Alignment = Alignment(
-    side_a, side_b, MatePrimitive.coaxial(), AxisSense.Opposed, 90 * deg
+# The authored mate: two poses of one kind, a pose of the world read
+# inside the mate, and the values that set what it leaves free.
+floor: WorldRead = WorldRead.through("xy").flip()
+raised: WorldRead = floor.slide(WorldRead.through("z"), 1 * m)
+spun_world: WorldRead = WorldRead.frame().spin(WorldRead.through("z"), 90 * deg).role("xy")
+floor_kind: str | None = floor.kind
+mate: Mate = Mate(PoseDef.plane(instance, "a-name"), floor, ContactClass.Rest)
+between: Mate = Mate(
+    PoseDef.plane(instance, "a-name"), PoseDef.flip(PoseDef.plane(sideways, "b-name")), ContactClass.Rest
 )
-on_top: MateFrame = MateFrame.on_face(
-    Placement.rigid(
-        translation=(Formula.length_in(0.0, m), Formula.length_in(0.0, m), Formula.length_in(0.0, m)),
-        axis=(Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
-        angle=Formula.angle_in(90.0, deg),
-    )
-)
-side_base: str = on_top.base
-side_offset: Placement = side_a.offset
-mate: Mate = Mate(instance, "a-name", instance, "b-name", ContactClass.Rest, datum)
 mate_class: ContactClass = mate.class_
-mate_datum: Alignment = mate.alignment
-mate_side: str = mate.a
+mate_on: PoseDef = mate.on
+mate_to: PoseDef | WorldRead = mate.to
 pinned_on: DocEdit = DocEdit.add_constraint(instance, mate)
+placer: Node = Node.place(sideways, [mate])
 joint: MateRef = doc.constrain(instance, mate)
+slide_x: MateRef = doc.add_value(joint, Coord.slide("x"), 0.1 * m)
+spun: MateRef = doc.add_value(joint, Coord.spin(), 90 * deg)
+set_value: MateValue = MateValue(joint, Coord.slide("y"), 0)
+set_by_id: MateValue = MateValue(joint.constraint, Coord.spin(), 0)
+value_edit: DocEdit = DocEdit.add_value(instance, set_value)
+value_coord: str = set_value.coord.variant
 
 # The solve's read side, and the admission table a tool asks first.
 poses: SolvedPoses = solve_document(doc)

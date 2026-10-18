@@ -118,15 +118,9 @@ fn boolean_doc(
         },
         tol,
     );
-    let placed = apply(
-        &doc,
-        &DocEdit::place_in_world(boolean, None),
-        tol,
-        &RefusingReach,
-    )
-    .expect("the boolean places");
+    let placed = crate::world::place_in_world(&doc, boolean, tol);
     doc = placed.doc;
-    let placement = placed.record.minted.expect("a placement mints an id");
+    let placement = placed.placement;
     let ev = evaluate::<f64>(
         &doc,
         None,

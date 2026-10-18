@@ -3,6 +3,7 @@ id: a-carrier-pair-tangency-is-read-by-three-methods
 kind: issue
 title: A plane-sphere or sphere-sphere touch point and a plane-cylinder or cylinder-cylinder tangent line are each read by three methods
 status: open
+priority: P3
 opened: 2026-10-14
 ---
 

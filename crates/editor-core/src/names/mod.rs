@@ -54,9 +54,7 @@ pub(crate) use discriminate::{
     CHORD_ON_RIM, DECISION_WORDS, FAMILY, ON_MEMBER_EDGE, ON_SEAM_LINE, ORDER_ALONG,
 };
 pub use emit::{NamingError, RimShare};
-pub(crate) use emit::{
-    check_total, empty, flat_body_index, name_pattern, name_placed_union, output_body, to_u32,
-};
+pub(crate) use emit::{check_total, empty, name_pattern, name_placed_union, output_body, to_u32};
 pub(crate) use emit::{name_in_part, name_in_part_copy, name_placed, name_placed_copies};
 pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
@@ -64,8 +62,8 @@ pub(crate) use emit_shell::name_shell;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{FaceDescent, OperandCtx, name_boolean, name_split};
 pub(crate) use emit_union::{
-    Fold as UnionFold, Links as UnionLinks, Member as UnionMember, collapse_table, member_view,
-    name_lone_member, name_union,
+    Fold as UnionFold, FoldCell, Links as UnionLinks, Member as UnionMember, collapse_table,
+    fold_cell, member_view, name_lone_member, name_union,
 };
 pub use geompred::{
     Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal, SurfaceKindSet,

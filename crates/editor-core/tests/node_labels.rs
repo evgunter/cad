@@ -557,11 +557,18 @@ fn a_split_forward_reference_speaks_from_the_document_being_split() {
 fn an_inline_forward_reference_speaks_from_the_part() {
     let tol = Tol::witness();
     let (part_doc, late, c) = forward_reference("node-labels-inline-forward");
+    // The late block is the part's world, so the instance has a copy
+    // to pin where it stands.
+    let (part_doc, _) = fixture::place(part_doc, c);
     let mut store = PartStore::default();
     let doc_ref = store.insert(part_doc.clone(), tol);
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
+    let opts = editor_core::EvalOptions {
+        resolver: Some(Arc::clone(&resolver)),
+        ..editor_core::EvalOptions::default()
+    };
     let host = ProfileDoc::empty_derived("node-labels-inline-forward-host", tol);
-    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, inst) = fixture::insert_pinned(host, Node::instantiate_part(doc_ref), &opts);
     let refused = inline(&host, inst, &resolver, tol).expect_err("the part splices in order");
     let InlineError::Edit { error } = &refused else {
         panic!("the replay refuses, got {refused:?}");
@@ -665,7 +672,12 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
     );
 
     let pair_host = ProfileDoc::empty_derived("node-labels-inline-pair-host", tol);
-    let (pair_host, inst) = insert(pair_host, Node::instantiate_part(pair_ref));
+    let opts = editor_core::EvalOptions {
+        resolver: Some(Arc::clone(&resolver)),
+        ..editor_core::EvalOptions::default()
+    };
+    let (pair_host, inst) =
+        fixture::insert_pinned(pair_host, Node::instantiate_part(pair_ref), &opts);
     let pair_host = set_label(pair_host, inst, Some("left bracket"));
     let (consumed, by) = insert(
         pair_host,
@@ -1149,7 +1161,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
 fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
     use editor_core::clearance::{ClearanceRefusal, SelectionRefusal};
     use editor_core::{
-        MateFault, MateRef, MateSide, NodeErrorKind, NodeRefusal, PoseRefusal, Speaker, spoken_by,
+        MateFault, MateRef, NodeErrorKind, NodeRefusal, PoseRefusal, Speaker, spoken_by,
     };
     let doc = ProfileDoc::empty(DocumentId::derive("speak-inner"), Tol::witness());
     let (doc, [_, _, body]) = block(doc, 0.0);
@@ -1184,44 +1196,38 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
         placement: body,
         root: body,
     };
-    let said = placement.spoken(&doc);
+    let said = spoken_by(&placement, &doc);
     assert!(
         said.starts_with(&format!(
-            "{spoken} has no world pose: its bundle pins less than its body needs, so it is \
-             a loose copy"
+            "{spoken} is a loose copy: nothing pins it against the world, so it has no world \
+             pose"
         )),
         "{said}"
     );
     assert_eq!(said.matches(&t).count(), 1, "{said}");
 
-    // A mate fault recorded against an instance names the instance once,
-    // by its noun where it has one and as `this node` where it has none.
-    let self_mate = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::SelfMate {
-        mate: MateRef::new(
-            RecipeNodeId::new(0, 7),
-            editor_core::ConstraintId(editor_core::MintId::new(0, 8)),
-        ),
-        instance: body,
+    // A mate fault recorded against a placement names the placement
+    // once, by its noun where it has one and as `this node` where it has
+    // none.
+    let constraint = editor_core::ConstraintId(editor_core::MintId::new(8, 0x8));
+    let targets = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::TargetsDiffer {
+        placement: body,
+        constraints: vec![constraint],
     })));
-    let line = self_mate.line_at(body, Speaker::of(&doc));
+    let line = targets.line_at(body, Speaker::of(&doc));
     assert!(
         line.starts_with(&format!(
-            "{spoken} failed: the mate solve refused: constraint "
-        )) && line.contains("(it stands on this instance)"),
+            "{spoken} failed: the mate solve refused: this node's constraints "
+        )) && line.matches(&t).count() == 1,
         "{line}"
     );
-    let dangling = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::DanglingHead {
-        mate: MateRef::new(
-            RecipeNodeId::new(0, 7),
-            editor_core::ConstraintId(editor_core::MintId::new(0, 8)),
-        ),
-        side: MateSide::A,
-        head: body,
+    let off_the_copy = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::NotOnTheCopy {
+        mate: MateRef::new(body, constraint),
     })));
-    let line = dangling.line_at(body, Speaker::TAG);
+    let line = off_the_copy.line_at(body, Speaker::TAG);
     assert!(
         line.starts_with(&format!("node {t} failed:"))
-            && line.contains("reference resolves through this node, which")
+            && line.contains("constraint #8 of this node's `on` pose reads geometry other than")
             && line.matches(&t).count() == 1,
         "{line}"
     );
