@@ -237,7 +237,7 @@ impl<T: Decide> Window<'_, T> {
             d.dot(self.b.u_ref) / self.b.semi_u,
             d.dot(self.b.v_ref()) / self.b.semi_v,
         );
-        y.atan2(x)
+        super::angle(y, x)
     }
 
     /// **The pieces of `(l, r)`, each read**, halved until each reads or

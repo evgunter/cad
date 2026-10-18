@@ -2,10 +2,13 @@
 id: a-pinch-vertexs-name-depends-on-the-unions-member-order
 kind: issue
 title: A pinch vertex's name depends on the union's member order: it is named by whichever block's corner reached it last
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: E
+closed: 2026-10-18
+pr: 5270
+branch: wire/union-fold-pinch-row
 ---
 
 
@@ -47,5 +50,11 @@ pinch, as does a variant where the blocks' corners meet on the plate. What is
 left is the pin: assert one name table over `orders(3)` in
 `tests/union_pinch_member_order.rs` (and the three-block fixture over
 `orders(4)`), then close. Re-priced `E`, design cleared.
+
+Signed (WIRE orchestrator).
+
+## Closed (2026-10-18)
+
+PR 5270 pins it: `union_pinch_member_order::a_pinch_union_publishes_one_table_in_every_member_order` asserts one name table over every member order of four fixtures, and goes red with `emit_union::Flush::meeting` switched off (the row's original defect). Merged on the orchestrator's read (test-only).
 
 Signed (WIRE orchestrator).
