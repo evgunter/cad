@@ -229,7 +229,7 @@ fn answers(
                     .unwrap_or_else(|| panic!("{what}: empty"))
                     .body
                     .clone();
-                let n = volume_and_points(&what, (op, swap), (t, p), meet, &b, within, true);
+                let n = volume_and_points(&what, (op, swap), (t, p), meet, &b, within);
                 assert!(
                     n > 0,
                     "{what}: point_in_solid reads no sampled point of the body"
@@ -368,6 +368,32 @@ fn the_one_face_and_seamed_tori_s_spiric_poses_answer_as_the_donuts() {
         };
         donut_poses_answer(&name, t, want);
     }
+}
+
+/// **Every sampled point of the spiric box on the one-face torus reads
+/// its side**, in every op: the subset of
+/// [`the_one_face_and_seamed_tori_s_spiric_poses_answer_as_the_donuts`]
+/// where the most points' rays meet none of the result's boundary (half
+/// the sampled points of each meet), so the side at infinity is read off
+/// the sign of a volume whose torus walls the ovals trim, which only the
+/// quadrature measures.
+#[test]
+fn every_point_of_the_spiric_box_on_the_one_face_torus_reads_its_side() {
+    let (name, t) = tori_of_one_face_pair(2.0, 0.5)
+        .into_iter()
+        .next()
+        .expect("the one-face torus with its vertex at 0");
+    let (pose, p, meet) = donut_poses()
+        .into_iter()
+        .find(|(pose, ..)| *pose == "the spiric box")
+        .expect("the spiric box pose");
+    answers(
+        &format!("{name}, {pose}"),
+        (&ring(t, (2.0, 0.5)), &p),
+        meet,
+        about_the_tube(2.0, 0.5),
+        ("BBBBBB", false),
+    );
 }
 
 /// The edges of `b` on spiric carriers, each with both ends in the

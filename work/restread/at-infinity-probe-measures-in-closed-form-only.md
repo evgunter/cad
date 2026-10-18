@@ -2,10 +2,11 @@
 id: at-infinity-probe-measures-in-closed-form-only
 kind: issue
 title: point-in-solid's at-infinity probe measures in closed form only, so an obliquely trimmed wall refuses VolumeUncertified
-status: open
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: M
+closed: 2026-10-18
 ---
 
 ## What
@@ -322,3 +323,37 @@ queries. Both rows admit exactly this refusal and cite this item
 (`germ_plane_torus_chord::volume_and_points`'s `probe_gap`), so they go
 red on any other and read these points once the probe measures by
 quadrature.
+
+## Closed
+
+A ray that meets nothing now reads its side from the first of three
+readings that decides (`boolean::solid_contain::missed_side`):
+
+1. the sign of the selection's volume in closed form;
+2. the rays aimed at its planar faces;
+3. the same sign measured through the scalar's quadrature lane
+   (`AtRestPolicy::quad_lane`), refined only until the bracket's sign
+   decides (`props::role_walk`).
+
+The third reading runs only where the closed form had no value for a
+face, and it does not run at all at a dual. Every query main answered
+is answered by the same reading. An undecided bracket is typed
+`ZeroVolumeBody` only where both of its ends read zero
+(`props::RoleUnread::zero_at_both_ends`). With an end off zero it is
+`VolumeUncertified`.
+
+Measured at ε 1e-9:
+
+- `torus_region_probe` at seed `0x5eed1234`: 16 `VolumeUncertified`
+  of 1 176 queries on main, 0 on the branch.
+- `germ_plane_torus_spiric`'s one-face tori: 324 refused points over 18
+  bodies on main, 0 on the branch. The `probe_gap` escape is gone, and
+  `every_point_of_the_spiric_box_on_the_one_face_torus_reads_its_side`
+  pins the fast subset.
+- The wall pieces of `a_plane_across_a_one_face_wall` and every result
+  in `continuation_pose` are now legal operands, and both are asserted.
+
+The shell-role refusal shares the zero-at-one-end typing. It is filed on
+TALLY as `a-shell-role-left-open-at-the-target-is-typed-zero-volume`.
+The batteries this row cites (`join3_*`, `pocket_ring_steep_ellipse`,
+`curved_notch_pinch`) were not re-run.

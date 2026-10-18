@@ -312,10 +312,11 @@ pub enum PointInSolidError {
     ///
     /// Consulted only when a schedule ray crosses NO boundary at all —
     /// `q` then sits on the at-infinity side, and which side that IS
-    /// depends on the body's orientation. A body whose volume the props
-    /// lane cannot certify (a curved face outside its closed-form
-    /// inventory — the shapes `topo::ValidationError::VolumeUncomputable`
-    /// breaks down by source), and none of whose aimed rays decides
+    /// depends on the body's orientation. A body whose volume's sign the
+    /// props lane cannot certify (a face outside the closed-form inventory
+    /// at a scalar with no quadrature lane, a quadrature that ran out of
+    /// budget, or a bracket that still straddles zero at the reporting
+    /// target), and none of whose aimed rays decides
     /// without reading in band, leaves that question unanswerable along
     /// that ray; where no ray of the schedule decides, this says so
     /// rather than reporting a HEALTHY body as broken. A body with no
@@ -568,7 +569,7 @@ impl PointInSolidError {
                  (a spline surface), so its material cannot be probed"
             }
             Self::VolumeUncertified => {
-                "the instance's at-infinity side could not be read — its closed-form \
+                "the instance's at-infinity side could not be read — the sign of its \
                  signed volume is uncertified, and no ray aimed at a flat face of it \
                  decided"
             }
@@ -658,8 +659,8 @@ impl core::fmt::Display for PointInSolidError {
             Self::VolumeUncertified => write!(
                 f,
                 "cannot tell what is inside the solid: a test ray from the point met \
-                 none of its boundary, and neither its volume, unmeasurable for a curved \
-                 face, nor a ray aimed at a flat face said which side that leaves; no \
+                 none of its boundary, and neither its volume, whose sign could not be \
+                 certified, nor a ray aimed at a flat face said which side that leaves; no \
                  other ray settled it. The solid itself is fine. Recourse: test a point \
                  whose rays meet the boundary"
             ),
@@ -4859,11 +4860,13 @@ fn cast_ray<T: Decide>(
 }
 
 /// **What a query's rays that cross nothing share**, read once per query
-/// whichever such ray comes first: the selection's volume reading
-/// ([`at_infinity_side`]) and the points its rays aim at ([`aim_points`]).
+/// whichever such ray comes first: the selection's volume reading in
+/// closed form and through the quadrature ([`at_infinity_side`]), and
+/// the points its rays aim at ([`aim_points`]).
 struct MissedReads<T: Decide> {
     volume: core::cell::OnceCell<Result<SolidContainment, PointInSolidError>>,
     aims: core::cell::OnceCell<Result<Vec<Point3<T>>, PointInSolidError>>,
+    measured: core::cell::OnceCell<Result<SolidContainment, PointInSolidError>>,
 }
 
 impl<T: Decide> MissedReads<T> {
@@ -4871,6 +4874,7 @@ impl<T: Decide> MissedReads<T> {
         Self {
             volume: core::cell::OnceCell::new(),
             aims: core::cell::OnceCell::new(),
+            measured: core::cell::OnceCell::new(),
         }
     }
 }
@@ -4893,12 +4897,15 @@ fn as_ray_fault(e: PointInSolidError) -> RayFault<PointInSolidError> {
 /// to infinity without crossing the boundary (module docs).
 ///
 /// A selection whose role is already decided reads it
-/// ([`SolidFaces::with_role`]). Otherwise the selection's certified
-/// signed volume reads it where its sign is definite
-/// ([`at_infinity_side`]), and where it is not, rays aimed at the
-/// boundary from `from`, a point of the missed ray, do ([`aimed_side`]):
-/// the volume's margin is the selection's `V/A`, while an
-/// aimed ray reads the side off one crossing's outward normal. Any point
+/// ([`SolidFaces::with_role`]). Otherwise, the first that decides: the
+/// sign of the selection's signed volume in closed form
+/// ([`at_infinity_side`]); rays aimed at the boundary from `from`, a
+/// point of the missed ray ([`aimed_side`]); and, where the closed form
+/// had no value for a face, the same sign measured through the scalar's
+/// quadrature lane, refined only until it decides. The volume's margin
+/// is the selection's `V/A`, while an aimed ray reads the side off one
+/// crossing's outward normal; the quadrature comes last because it is
+/// the dearest, not because it is the weakest. Any point
 /// of the missed ray is on `q`'s side; `from` is the one twice the
 /// selection's reach out, past the ball about `q` that holds every
 /// face's loops, so the aimed rays leave from away from the carriers `q`
@@ -4909,7 +4916,9 @@ fn as_ray_fault(e: PointInSolidError) -> RayFault<PointInSolidError> {
 /// tolerance may decide, [`genuinely_in_band`]); then, ranked as a walk
 /// ranks ([`ray_walk::Evidence`]), the volume's refusal and the first
 /// limit the aimed rays met, a limit first and the volume's before an
-/// aimed one of the same rank.
+/// aimed one of the same rank. The volume's refusal is the quadrature's
+/// where it was measured, since that reading supersedes the closed
+/// form's.
 ///
 /// A selection read as given ([`SolidFaces::read_as_given`]) whose side at
 /// infinity reads `In`, by the volume or by an aimed ray, refuses the
@@ -4931,7 +4940,7 @@ fn missed_side<T: Decide + crate::props::AtRestPolicy>(
     }
     let side = match reads
         .volume
-        .get_or_init(|| at_infinity_side(body, sel.faces(), band, tol))
+        .get_or_init(|| at_infinity_side(body, sel.faces(), band, tol, None))
     {
         Ok(side) => *side,
         Err(refused) => {
@@ -4952,6 +4961,20 @@ fn missed_side<T: Decide + crate::props::AtRestPolicy>(
                     in_band: Some(e), ..
                 } => return Err(RayFault::InBand(e)),
                 Aimed::Undecided { limits, .. } => {
+                    let refused = match (refused, T::quad_lane()) {
+                        (RayFault::Blocked(PointInSolidError::VolumeUncertified), Some(lane)) => {
+                            match reads.measured.get_or_init(|| {
+                                at_infinity_side(body, sel.faces(), band, tol, Some(lane))
+                            }) {
+                                Ok(side) => return sided(sel, *side),
+                                Err(e) => match as_ray_fault(e.clone()) {
+                                    RayFault::Fatal(e) => return Err(RayFault::Fatal(e)),
+                                    measured => measured,
+                                },
+                            }
+                        }
+                        (refused, _) => refused,
+                    };
                     let mut kept = ray_walk::Evidence::default();
                     match refused {
                         RayFault::InBand(e) => kept.in_band(e),
@@ -4970,6 +4993,15 @@ fn missed_side<T: Decide + crate::props::AtRestPolicy>(
             }
         }
     };
+    sided(sel, side)
+}
+
+/// `side` as the side at infinity of `sel`: a selection read as given
+/// whose material holds infinity is inside-out.
+fn sided(
+    sel: &SolidFaces,
+    side: SolidContainment,
+) -> Result<SolidContainment, RayFault<PointInSolidError>> {
     if sel.as_given && side == SolidContainment::In {
         return Err(RayFault::Fatal(PointInSolidError::InsideOut));
     }
@@ -5063,13 +5095,15 @@ fn aimed_side<T: Decide>(
     Ok(Aimed::Undecided { in_band, limits })
 }
 
-/// The at-infinity material side, from the EXACT signed volume the
-/// entry's own `faces` enclose (the divergence-theorem props —
-/// carrier-aware since the M5 PR 9 fix pass: the old vertex-fan
-/// triangulation read a two-arc disc cylinder as (near-)zero volume, a
-/// structural degeneracy of the chord approximation, and refused
-/// `ZeroVolumeBody` on a perfectly solid operand). Margin is scaled to
-/// a length (V / surface area, meters).
+/// The at-infinity material side, from the sign of the signed volume
+/// the entry's own `faces` enclose: the role walk
+/// ([`crate::props::role_walk`]) measured through `measure` — `None`
+/// for closed forms only, where a face with none refuses
+/// `VolumeUncertified`, or the scalar's quadrature lane, which refines
+/// such a face round by round only until the bracket's sign decides —
+/// and certified through the scalar's lane
+/// ([`crate::props::AtRestPolicy::quad_lane`]). Margin is scaled to a
+/// length (V / surface area, meters).
 ///
 /// The volume is the SELECTION's, not the body's: for
 /// [`point_in_solid`] the two coincide (the arena list), and for
@@ -5082,11 +5116,10 @@ fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
     faces: &[FaceKey],
     band: Band,
     tol: Tol,
+    measure: Option<crate::props::QuadLane<T>>,
 ) -> Result<SolidContainment, PointInSolidError> {
     use crate::props::ShellRole;
-    // Measured in closed form, so an obliquely trimmed face refuses here
-    // (`work/restread/at-infinity-probe-measures-in-closed-form-only`);
-    // the sign is certified through the scalar's own lane
+    // The sign is certified through the scalar's own lane
     // ([`crate::props::Round::certify`]), so a volume below its own
     // rounding reads no side rather than a wrong one.
     //
@@ -5127,21 +5160,23 @@ fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
         | crate::props::MassPropsError::RingOnCurvedFace { .. }
         | crate::props::MassPropsError::Face { .. } => PointInSolidError::VolumeUncertified,
     };
+    // An undecided bracket is a zero volume only where both its ends
+    // read zero; an end read definite off zero leaves the volume
+    // unmeasured, not empty.
     let undecided = |unread: crate::props::RoleUnread| match unread.escalation() {
         Some(diag) => PointInSolidError::Escalated {
             face: faces[0],
             diag,
         },
-        None => PointInSolidError::ZeroVolumeBody,
+        None if unread.zero_at_both_ends() => PointInSolidError::ZeroVolumeBody,
+        None => PointInSolidError::VolumeUncertified,
     };
-    // The one role walk, measured in closed form and certified through
-    // the scalar's own lane.
     let (role, _) = crate::props::role_walk(
         body,
         faces,
         band,
         tol,
-        None,
+        measure,
         T::quad_lane(),
         AT_INFINITY,
         AT_INFINITY_ENCLOSURE,

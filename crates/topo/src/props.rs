@@ -330,9 +330,7 @@ pub fn mass_properties<T: Decide + geom_core::CertifiedBounds>(
 /// walk, at the certified door's own signature and at plain
 /// `T: Decide`: no bracket is read anywhere on this path, so no bracket
 /// term is spelled. It IS `mass_properties_closed_form` with the band
-/// built inside from `tol`, the one public door onto that walk (the
-/// band-outside entry is `pub(crate)`, for the containment door's
-/// at-infinity probe, which holds a band already). Every closed-form face
+/// built inside from `tol`, the one public door onto that walk. Every closed-form face
 /// computes exactly as it does through the certified door, and a face
 /// that needs the certified quadrature refuses typed rather than
 /// passing unbounded, so on a closed-form body this door answers the
@@ -898,6 +896,15 @@ impl RoleUnread {
     /// The escalation either end hit, the high end's first.
     pub(crate) fn escalation(&self) -> Option<Indeterminate> {
         self.hi.err().or(self.lo.err())
+    }
+
+    /// Whether both ends decided zero: the volume lies in band, a
+    /// verdict. An end decided off zero with no role read (a bracket
+    /// straddling zero, or reaching from zero to one side) is a volume
+    /// left unmeasured, not a zero one.
+    pub(crate) fn zero_at_both_ends(&self) -> bool {
+        let zero = |end: Result<Decided, Indeterminate>| end.is_ok_and(|d| d.sign == Sign::Zero);
+        zero(self.lo) && zero(self.hi)
     }
 
     /// The certified reading's verdict, where it lies wholly in band
@@ -1884,9 +1891,7 @@ impl<T: Real> fmt::Display for TargetUnreached<T> {
 }
 
 /// The closed-form-only walk against a caller-held band: plain
-/// `T: Decide`, no quadrature lane and no bracket read — the
-/// containment door's at-infinity probe (`at_infinity_side`)
-/// takes it with the band it already holds, and
+/// `T: Decide`, no quadrature lane and no bracket read —
 /// [`mass_properties_structural`] is this door with the band built
 /// inside, the public spelling of the same walk. On a conic-trimmed
 /// face the closed form refuses typed (fail-loud). The at-rest
@@ -1908,10 +1913,7 @@ pub(crate) fn mass_properties_closed_form<T: Decide>(
 /// [`mass_properties_closed_form`] over exactly `faces` — the enclosure
 /// those faces bound, summed in the order given. The whole-body door
 /// is this one handed the face arena in arena order, so its answer is
-/// bit-for-bit the same (`face_list_door_tests` pins it); the
-/// point-in-solid door's per-solid entry hands it one solid's faces so
-/// a no-hit ray reads THAT solid's at-infinity side and not the
-/// body's total.
+/// bit-for-bit the same (`face_list_door_tests` pins it).
 pub(crate) fn mass_properties_closed_form_of<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -4403,6 +4405,46 @@ where
         _tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError> {
         Ok(AtRestOutcome::NotRunAtThisScalar)
+    }
+}
+
+#[cfg(test)]
+mod role_unread_rows {
+    #![allow(clippy::expect_used, clippy::panic)]
+    //! A role read that decided nothing is a zero volume only where both
+    //! ends of its reading decided zero; a bracket with an end off zero
+    //! leaves the volume unmeasured.
+
+    use super::{RoleNames, RoleRead, SignReading, VolumeEnclosure, read_role};
+    use geom_core::{Band, Tol};
+
+    fn unread(reading: SignReading<f64>) -> super::RoleUnread {
+        let band = Band::linear(Tol::witness()).expect("the witness band builds");
+        match read_role(reading, RoleNames::one("role_unread_rows"), band) {
+            RoleRead::Unread(unread) => unread,
+            RoleRead::Decided(role) => panic!("{reading:?} decided {role:?}"),
+        }
+    }
+
+    fn bracket(volume_lo: f64, volume_hi: f64) -> SignReading<f64> {
+        SignReading::Bracket(VolumeEnclosure {
+            volume_lo,
+            volume_hi,
+            surface_area: 1.0,
+        })
+    }
+
+    #[test]
+    fn only_a_reading_zero_at_both_ends_is_a_zero_volume() {
+        for (what, reading, zero) in [
+            ("an exact zero", SignReading::exact(0.0, 1.0), true),
+            ("a bracket inside the band", bracket(-1e-15, 1e-15), true),
+            ("a bracket straddling zero", bracket(-1.0, 1.0), false),
+            ("a bracket from zero up", bracket(0.0, 1.0), false),
+            ("a bracket from below up to zero", bracket(-1.0, 0.0), false),
+        ] {
+            assert_eq!(unread(reading).zero_at_both_ends(), zero, "{what}");
+        }
     }
 }
 
