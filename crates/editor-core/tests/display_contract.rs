@@ -2454,6 +2454,7 @@ test_utils::f6_variants! {
     /// closes that.
     const NAMING_ERROR: NamingError = [
         Duplicate,
+        KindMismatch,
         Unnamed,
         MissingUpstream,
         Emission,
@@ -2519,6 +2520,17 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 }),
             },
             vec!["minted twice"],
+        ),
+        (
+            NamingError::KindMismatch {
+                name: Box::new(StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId::new(0, tagged(7)),
+                    path: vec![RoleSeg::Cap(CapEnd::End)],
+                }),
+                found: EntityKind::Vertex,
+            },
+            vec!["names a face", "seated on a vertex"],
         ),
         (
             NamingError::Unnamed {

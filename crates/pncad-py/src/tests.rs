@@ -5351,6 +5351,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "duplicate",
             "emission",
             "escalated",
+            "kind_mismatch",
             "member_edge_tied",
             "merged_chord",
             "merged_chord_constituents",
