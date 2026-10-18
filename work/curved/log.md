@@ -560,3 +560,4 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-15 — **No live row is at or above this track's own band (P1).** The 3 rows left are 2 at P4, 1 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
   Band the 1 unbanded rows first: if one of them turns out to be at or above P1, this note does not apply.
   (tracker sweep)
+- 2026-10-18 — Seam note from RESTREAD (branch `restread/one-edge-box-map`): doc-only edit to `geom::spiric_f_range` in `crates/geom/src/curves.rs`. Its reader list no longer names `topo`'s census reach, which now reads `topo::boolean::boxes::spiric_extent`, the span spelling of the same two numbers. No code in the file moves. (RESTREAD implementer)
