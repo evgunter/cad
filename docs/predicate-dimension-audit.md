@@ -965,8 +965,8 @@ Flagged, NOT fixed here (dispositions):
   This row proposed levering the sine at the profile's radial extent,
   kernel-side. What happened instead is that the QUESTION was deleted.
   A revolve's axis is now written on the revolve itself, in its
-  profile's own two coordinates (`Revolve`'s `axis_origin` and
-  `axis_direction`), so it cannot have an out-of-plane component to
+  profile's own two coordinates (`Revolve`'s `axis_through` and
+  `axis_heading`), so it cannot have an out-of-plane component to
   classify and there is no second frame to compare: nothing is left to
   decide, with no band and no scale. Both in-plane
   predicates went with it, this one and the metre-valued
@@ -1091,6 +1091,13 @@ Flagged, NOT fixed here (dispositions):
   at margin 0 and never a rule sample, so no K claim moves; what moves
   is the per-predicate attribution of 1,054 rows, now under their own
   name.
+
+  **Retired (2026-10-16, `expr-non-finite-asks-value-times-zero`).**
+  `value · 0` reads `[0, 0]` for an unbounded enclosure (`[MAX, ∞]`,
+  `[0, ∞]`, `[−∞, ∞]`), so the check passed an expression whose value
+  ran to infinity. `refuse_non_finite` now asks `Real::is_bounded`,
+  which is not a band decision, so this site decides nothing and
+  records no `expr_non_finite` K sample.
 
 - **F19** (added by TRIM-3, the chart-boundary outside test)
   `topo/src/chart_bound.rs` `certifies_outside` and `assembled`: the

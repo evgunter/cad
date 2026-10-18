@@ -27,8 +27,8 @@ use std::sync::Arc;
 
 use editor_core::{
     CancelToken, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, EvalScalar, Evaluation,
-    Formula, Frame, FreeValue, FreeVar, LoopProgram, Node, NodeResult, ProfileDoc, ProfileLift,
-    ProfileProgram, RecipeNodeId, VarName, evaluate,
+    Formula, Frame, FreeValue, FreeVar, LoopProgram, Node, NodeResult, ProfileDoc, ProfileProgram,
+    RecipeNodeId, VarName, evaluate,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{insert, len, on_frame, run, square, step, xy_frame};
@@ -58,7 +58,7 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
     fixture::place(doc, body).0
 }
 
-/// An assembly instantiating `refs` in order, each placed in the world.
+/// An assembly instantiating `refs` in order, each pinned to the world.
 fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
@@ -67,7 +67,29 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc = next;
         ids.push(id);
     }
-    (fixture::place_all(doc, &ids), ids)
+    (doc, ids)
+}
+
+/// `placement` pinned to the world at `pose`: its bundle replaced by
+/// one world pin.
+fn pinned_at(
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    pose: editor_core::Placement<Formula>,
+) -> ProfileDoc {
+    let doc = fixture::bundle(&doc, placement)
+        .into_iter()
+        .fold(doc, |doc, c| {
+            step(
+                doc,
+                DocEdit::RemoveConstraint {
+                    placement,
+                    constraint: c.id,
+                },
+            )
+            .0
+        });
+    fixture::constrain_at(doc, placement, editor_core::Mate::world_pin(pose)).0
 }
 
 /// The part's one Profile node.
@@ -114,27 +136,16 @@ const EXTRUDE_LOG: usize = 655;
 
 /// Two instances, both placed, so both ops do the same work.
 fn placed(doc: ProfileDoc, ids: &[RecipeNodeId]) -> ProfileDoc {
-    let (doc, _) = step(
+    let doc = pinned_at(
         doc,
-        DocEdit::SetOffset {
-            instance: ids[0],
-            offset: Some(editor_core::Placement::literal(&Frame::translation([
-                0.0, 9.0, 0.0,
-            ]))),
-            fresh: Vec::new(),
-        },
+        ids[0],
+        editor_core::Placement::literal(&Frame::translation([0.0, 9.0, 0.0])),
     );
-    let (doc, _) = step(
+    pinned_at(
         doc,
-        DocEdit::SetOffset {
-            instance: ids[1],
-            offset: Some(editor_core::Placement::literal(&Frame::translation([
-                9.0, 0.0, 0.0,
-            ]))),
-            fresh: Vec::new(),
-        },
-    );
-    doc
+        ids[1],
+        editor_core::Placement::literal(&Frame::translation([9.0, 0.0, 0.0])),
+    )
 }
 
 fn logs(ev: &Evaluation<f64>, ids: &[RecipeNodeId]) -> Vec<usize> {
@@ -416,10 +427,8 @@ fn under_the_guided_lift_the_ops_decisions_follow_the_pre_pass() {
     let pinned = run(&part_doc, &EvalOptions::default());
     let guided = run(
         &part_doc,
-        &EvalOptions {
-            profile_lift: ProfileLift::Guided,
-            ..EvalOptions::default()
-        },
+        &crate::corpus::options_under(&part_doc, editor_core::ProfileLift::Guided)
+            .expect("the part has a continuous variable"),
     );
     let profile = profile_node(&part_doc);
     let pinned_log = &pinned

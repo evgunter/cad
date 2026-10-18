@@ -57,7 +57,7 @@ pub use emit::{NamingError, RimShare};
 pub(crate) use emit::{
     check_total, empty, flat_body_index, name_pattern, name_placed_union, output_body, to_u32,
 };
-pub(crate) use emit::{name_in_part, name_placed};
+pub(crate) use emit::{name_in_part, name_in_part_copy, name_placed, name_placed_copies};
 pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_shell::name_shell;
@@ -114,9 +114,9 @@ pub use words::{LeafRole, leaf_role, role_leaf};
 /// the emptiness surfaces there rather than here.
 pub fn all_edges<T: geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
-    node: crate::node::RecipeNodeId,
+    at: impl Into<crate::At>,
 ) -> Vec<StableName> {
-    all_of_kind(ev, node, EntityKind::Edge)
+    all_of_kind(ev, at.into(), EntityKind::Edge)
 }
 
 /// **Every face name of a node's output body, as of THIS evaluation**
@@ -124,44 +124,44 @@ pub fn all_edges<T: geom_core::Decide>(
 /// filter, sort, dedup; empty for a node with no value or no table.
 pub fn all_faces<T: geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
-    node: crate::node::RecipeNodeId,
+    at: impl Into<crate::At>,
 ) -> Vec<StableName> {
-    all_of_kind(ev, node, EntityKind::Face)
+    all_of_kind(ev, at.into(), EntityKind::Face)
 }
 
 /// **Every vertex name of a node's output body, as of THIS
 /// evaluation** — [`all_edges`]'s sibling, same contract.
 pub fn all_vertices<T: geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
-    node: crate::node::RecipeNodeId,
+    at: impl Into<crate::At>,
 ) -> Vec<StableName> {
-    all_of_kind(ev, node, EntityKind::Vertex)
+    all_of_kind(ev, at.into(), EntityKind::Vertex)
 }
 
 /// **Every body name a node's evaluation carries, as of THIS
 /// evaluation** — [`all_edges`]'s sibling, same contract. Usually one
 /// row (a body-producing op mints one [`RoleSeg::OutputBody`]); a
-/// split's two halves are the plural case.
+/// family's members are the plural case. A split's halves are two
+/// reads with a row each, and a split named alone has none.
 pub fn all_bodies<T: geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
-    node: crate::node::RecipeNodeId,
+    at: impl Into<crate::At>,
 ) -> Vec<StableName> {
-    all_of_kind(ev, node, EntityKind::Body)
+    all_of_kind(ev, at.into(), EntityKind::Body)
 }
 
 /// The one body of all four materializers (they differ only in the
 /// kind they keep): the node's table, filtered, in canonical order.
 fn all_of_kind<T: geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
-    node: crate::node::RecipeNodeId,
+    at: crate::At,
     kind: EntityKind,
 ) -> Vec<StableName> {
     // No value, no names: `select::select`'s doc.
-    let Some(value) = ev.value(node) else {
+    let Some(table) = ev.table_at(at) else {
         return Vec::new();
     };
-    let mut out: Vec<StableName> = value
-        .name_table
+    let mut out: Vec<StableName> = table
         .iter()
         .filter(|(name, _)| name.kind == kind)
         .map(|(name, _)| name.clone())

@@ -7587,7 +7587,7 @@ pub fn record_at_rest<T: Real>(
         findings = census(&records);
         let found = findings
             .iter()
-            .filter_map(|f| interpenetrating(body, f))
+            .filter_map(|f| census_uncleared_solids(body, f))
             .filter_map(|(x, y)| groups(x, y))
             .filter(|pair| !overlapping.contains(pair))
             .collect::<Vec<_>>();
@@ -7659,31 +7659,25 @@ fn recordable(
         crate::RowCell::Input { .. } | crate::RowCell::Tool => None,
     });
     let (x, y) = (x?, y?);
-    let pair = groups(cell_solid(body, x)?, cell_solid(body, y)?)?;
+    let pair = groups(census_cell_solid(body, x)?, census_cell_solid(body, y)?)?;
     let contact = crate::Contact::new(body, x, y).ok()?;
     Some((pair, row, contact))
 }
 
-/// The two solids a finding says interpenetrate, or that the census
-/// could not clear of it: an instance's vertex inside the other's
-/// material, a pierce, a crossing whose side test read `SameSide` or
-/// did not decide, and a cross-solid pair the census cannot look at.
-/// `None` for every other finding.
-fn interpenetrating<T: Real>(
+/// **The two solids a finding decides interfere**: an instance's vertex
+/// inside the other's material, an edge piercing a face, or a crossing
+/// whose side test read `SameSide`. `None` for every other finding,
+/// including the ones that only fail to clear a pair
+/// ([`census_uncleared_solids`]). The gather localizes these pairs as
+/// interference; this is that reading's one home.
+#[must_use]
+pub fn census_interference_solids<T: Real>(
     body: &Body<T>,
     finding: &ValidationError,
 ) -> Option<(crate::SolidKey, crate::SolidKey)> {
-    let entity = |e: EntityId| match e {
-        EntityId::Solid(s) => Some(s),
-        EntityId::Face(f) => body.solid_of_face(f),
-        EntityId::Edge(e) => cell_solid(body, crate::Cell::Edge(e)),
-        EntityId::Vertex(v) => cell_solid(body, crate::Cell::Vertex(v)),
-        EntityId::Shell(_) | EntityId::Loop(_) | EntityId::HalfEdge(_) => None,
-    };
-    let edge = |e| cell_solid(body, crate::Cell::Edge(e));
+    let edge = |e| census_cell_solid(body, crate::Cell::Edge(e));
     match finding {
         ValidationError::InstanceInterference { outer, inner, .. } => Some((*outer, *inner)),
-        ValidationError::CensusUndecidable { a, b, .. } => Some((entity(*a)?, entity(*b)?)),
         ValidationError::UnrecordedContact {
             contact: CensusContact::EdgeFacePierce { edge: e, face },
             ..
@@ -7693,7 +7687,7 @@ fn interpenetrating<T: Real>(
                 CensusContact::EdgeEdgeCross {
                     a,
                     b,
-                    side: Some(CrossingSideVerdict::SameSide | CrossingSideVerdict::Undecided),
+                    side: Some(CrossingSideVerdict::SameSide),
                 },
             ..
         } => Some((edge(*a)?, edge(*b)?)),
@@ -7701,15 +7695,60 @@ fn interpenetrating<T: Real>(
     }
 }
 
-/// The solid a cell of `body` belongs to: a face's, or an edge's or a
-/// vertex's through a half-edge of it; `None` for a lone vertex.
-fn cell_solid<T: Real>(body: &Body<T>, cell: crate::Cell) -> Option<crate::SolidKey> {
+/// **The two solids a finding does not clear of interpenetrating**:
+/// every pair [`census_interference_solids`] decides, and the two the
+/// census could not decide, a crossing whose side test did not decide
+/// and a pair it cannot look at (`CensusUndecidable`). `None` for every
+/// other finding. [`record_at_rest`] records no touch between such a
+/// pair, since the census reads the pair's overlap off those touches.
+#[must_use]
+pub fn census_uncleared_solids<T: Real>(
+    body: &Body<T>,
+    finding: &ValidationError,
+) -> Option<(crate::SolidKey, crate::SolidKey)> {
+    let edge = |e| census_cell_solid(body, crate::Cell::Edge(e));
+    match finding {
+        ValidationError::CensusUndecidable { a, b, .. } => Some((
+            census_entity_solid(body, *a)?,
+            census_entity_solid(body, *b)?,
+        )),
+        ValidationError::UnrecordedContact {
+            contact:
+                CensusContact::EdgeEdgeCross {
+                    a,
+                    b,
+                    side: Some(CrossingSideVerdict::Undecided),
+                },
+            ..
+        } => Some((edge(*a)?, edge(*b)?)),
+        decided => census_interference_solids(body, decided),
+    }
+}
+
+/// **The solid a cell of `body` belongs to**: a face's, or an edge's or
+/// a vertex's through a half-edge of it; `None` for a lone vertex.
+#[must_use]
+pub fn census_cell_solid<T: Real>(body: &Body<T>, cell: crate::Cell) -> Option<crate::SolidKey> {
     let he = match cell {
         crate::Cell::Face(f) => return body.solid_of_face(f),
         crate::Cell::Edge(e) => body.get_edge(e)?.he_plus,
         crate::Cell::Vertex(v) => body.get_vertex(v)?.emanating?,
     };
     body.solid_of_face(body.face_of_half_edge(he)?)
+}
+
+/// **The solid a census finding's entity belongs to**: itself, or the
+/// solid of its face, edge or vertex ([`census_cell_solid`]); `None`
+/// for a shell, a loop or a half-edge, which no finding names.
+#[must_use]
+pub fn census_entity_solid<T: Real>(body: &Body<T>, entity: EntityId) -> Option<crate::SolidKey> {
+    match entity {
+        EntityId::Solid(s) => Some(s),
+        EntityId::Face(f) => body.solid_of_face(f),
+        EntityId::Edge(e) => census_cell_solid(body, crate::Cell::Edge(e)),
+        EntityId::Vertex(v) => census_cell_solid(body, crate::Cell::Vertex(v)),
+        EntityId::Shell(_) | EntityId::Loop(_) | EntityId::HalfEdge(_) => None,
+    }
 }
 
 /// **The census's coincidence a finding reports, as the row recording
@@ -9622,6 +9661,105 @@ mod tests {
                 .expect("a line between the edge's vertices");
         }
         p.body
+    }
+
+    /// **The two readings of an at-rest finding, side by side.** The gather
+    /// localizes interference only where the census decided it:
+    /// [`census_interference_solids`] reads an instance's vertex in the
+    /// other's material, a pierce and a `SameSide` crossing. The door
+    /// records no touch wherever the census did not clear the pair:
+    /// [`census_uncleared_solids`] reads those, plus an `Undecided`
+    /// crossing and a pair it cannot look at, whose entities may be
+    /// edges or vertices. A touch, and a crossing read `OppositeSides`,
+    /// is neither. Red if either reading drops a finding it owes, or if
+    /// the decided reading takes in something the census left
+    /// undecided.
+    #[test]
+    fn the_decided_reading_is_the_uncleared_reading_less_what_the_census_left_open() {
+        let body = two_cubes(Vec3::new(2.0, 0.0, 0.0));
+        let solids: Vec<crate::SolidKey> = body.solids().map(|(k, _)| k).collect();
+        let [s0, s1] = solids[..] else {
+            panic!("two solids: {solids:?}");
+        };
+        let edge_of = |s| {
+            body.edges()
+                .map(|(k, _)| k)
+                .find(|&e| census_cell_solid(&body, crate::Cell::Edge(e)) == Some(s))
+                .expect("an edge of the solid")
+        };
+        let vertex_of = |s| {
+            body.vertices()
+                .map(|(k, _)| k)
+                .find(|&v| census_cell_solid(&body, crate::Cell::Vertex(v)) == Some(s))
+                .expect("a vertex of the solid")
+        };
+        let face_of = |s| {
+            body.faces()
+                .map(|(k, _)| k)
+                .find(|&f| body.solid_of_face(f) == Some(s))
+                .expect("a face of the solid")
+        };
+        let (ea, eb) = (edge_of(s0), edge_of(s1));
+        let touch = |contact| ValidationError::UnrecordedContact {
+            contact,
+            witness: String::new(),
+            margin: None,
+        };
+        let cross = |side| touch(CensusContact::EdgeEdgeCross { a: ea, b: eb, side });
+        let pair = Some((s0, s1));
+        // (finding, the decided reading, the uncleared reading)
+        let rows = [
+            (
+                ValidationError::InstanceInterference {
+                    outer: s0,
+                    inner: s1,
+                    witness: vertex_of(s1),
+                },
+                pair,
+                pair,
+            ),
+            (
+                touch(CensusContact::EdgeFacePierce {
+                    edge: ea,
+                    face: face_of(s1),
+                }),
+                pair,
+                pair,
+            ),
+            (cross(Some(CrossingSideVerdict::SameSide)), pair, pair),
+            (cross(Some(CrossingSideVerdict::Undecided)), None, pair),
+            (cross(Some(CrossingSideVerdict::OppositeSides)), None, None),
+            (cross(None), None, None),
+            (
+                ValidationError::CensusUndecidable {
+                    a: EntityId::Edge(ea),
+                    b: EntityId::Vertex(vertex_of(s1)),
+                    what: "",
+                },
+                None,
+                pair,
+            ),
+            (
+                touch(CensusContact::VertexOnFace {
+                    vertex: vertex_of(s0),
+                    face: face_of(s1),
+                }),
+                None,
+                None,
+            ),
+        ];
+        for (finding, decided, uncleared) in rows {
+            assert_eq!(
+                census_interference_solids(&body, &finding),
+                decided,
+                "decided: {finding:?}"
+            );
+            assert_eq!(
+                census_uncleared_solids(&body, &finding),
+                uncleared,
+                "uncleared: {finding:?}"
+            );
+        }
     }
 
     /// One body: the unit cube at the origin and a second cube whose

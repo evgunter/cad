@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [a-mate-relates-two-poses, poses-move-by-lengths-and-angles]
+blocked_on: [a-mate-relates-two-poses]
 refs: [intent-stage3-is-built]
 ---
 

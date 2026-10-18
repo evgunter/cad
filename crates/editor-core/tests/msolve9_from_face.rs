@@ -29,7 +29,6 @@
 
 use crate::fixture;
 use crate::wire;
-use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
@@ -39,10 +38,10 @@ use editor_core::mate::SurfaceKind;
 use editor_core::{
     Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EditError,
     EntityKind, EvalOptions, Evaluation, FaceName, FacePoseRefusal, FaceRefusal, Formula, Frame,
-    LoopProgram, MateFault, MateFrame, MatePrimitive, MateSide, Node, NodeErrorKind, PartFault,
-    PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId, RefusingReach,
-    RoleSeg, SitedFace, SlotId, StableName, all_faces, face_carrier_kind, face_frame, load,
-    mate_reach, save,
+    LoopProgram, Mate, MateFault, MateFrame, MatePrimitive, MateRef, MateSide, Node, NodeErrorKind,
+    PartFault, PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId,
+    RefusingReach, RoleSeg, SideRead, SitedFace, SlotId, StableName, all_faces, face_carrier_kind,
+    face_frame, load, mate_reach, save,
 };
 use fixture::resolver::{PartStore, in_part, in_world, with_resolver};
 use fixture::{at_the_door, gate, insert, len, on_frame, run, solve, square, step, step_with};
@@ -126,7 +125,7 @@ fn mate(
     (a, a_body): (RecipeNodeId, RecipeNodeId),
     b: (RecipeNodeId, RecipeNodeId),
     alignment: Alignment<Formula>,
-) -> AuthoredNode {
+) -> Mate<Formula> {
     mate_on(a, &in_world(a_body, CapEnd::End), b, alignment)
 }
 
@@ -137,26 +136,52 @@ fn mate_on(
     a_face: &StableName,
     (b, b_body): (RecipeNodeId, RecipeNodeId),
     alignment: Alignment<Formula>,
-) -> AuthoredNode {
-    Node::Mate {
-        a: (fixture::head(
+) -> Mate<Formula> {
+    fixture::mate(
+        fixture::head(
             FaceName::new(a_face.clone())
                 .expect("a face")
                 .in_part(a)
                 .into_name(),
-        ))
-        .into(),
-        b: fixture::head(in_part(b, b_body, CapEnd::Start)).into(),
-        class: ContactClass::Rest,
+        ),
+        fixture::head(in_part(b, b_body, CapEnd::Start)),
+        ContactClass::Rest,
         alignment,
+    )
+}
+
+/// **The JSON pointer to `mate`'s alignment in a saved document**: the
+/// constraint at its position in its placement's bundle.
+fn alignment_pointer(doc: &ProfileDoc, mate: MateRef) -> String {
+    let at = fixture::bundle(doc, mate.placement)
+        .iter()
+        .position(|c| c.id == mate.id)
+        .expect("the constraint is its placement's");
+    format!(
+        "/snapshot/nodes/{}/InstantiatePart/constraints/{at}/mate/alignment",
+        mate.placement.0
+    )
+}
+
+/// `mate` as its placement holds it, written back as authored.
+fn written_mate(doc: &ProfileDoc, mate: MateRef) -> Mate<Formula> {
+    match doc.node(mate.placement).map(|n| n.written(doc)) {
+        Some(Node::InstantiatePart { constraints, .. } | Node::Place { constraints, .. }) => {
+            constraints
+                .into_iter()
+                .find(|c| c.id == mate.id)
+                .expect("the constraint is its placement's")
+                .mate
+        }
+        other => panic!("{mate:?}'s placement is no placement: {other:?}"),
     }
 }
 
-/// **The item's document**: a post and a block in a store, the block
-/// instantiated after the post with no offset (so the post is the
-/// root), and the block SEATED on the post's cap — the post side's
-/// frame is its head, the cap FACE, the block side is its own origin
-/// frame. Returns the assembly, the
+/// **The item's document**: a post and a block in a store, the post
+/// pinned to the world and the block with an empty bundle, and the
+/// block SEATED on the post's cap by a constraint of its bundle — the
+/// post side's frame is its head, the cap FACE, the block side is its
+/// own origin frame. Returns the assembly, the
 /// two instances and their parts' bodies, the mate, the store's
 /// options and the post document as stored.
 struct Seat {
@@ -165,7 +190,7 @@ struct Seat {
     block_i: RecipeNodeId,
     post_body: RecipeNodeId,
     block_body: RecipeNodeId,
-    mate: RecipeNodeId,
+    mate: MateRef,
     opts: EvalOptions,
     store: PartStore,
     post: ProfileDoc,
@@ -182,30 +207,24 @@ fn seat(label: &str, post_height: f64) -> Seat {
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, post_i) = insert(doc, Node::instantiate_part(post_ref));
-    // The block carries no offset: the mate door places the FIRST
-    // operand's group on the second's, so with the post first the
-    // block's empty offset keeps the post the root it seats on.
     let (doc, block_i) = insert(doc, fixture::mated_instance(block_ref));
-    let doc = fixture::place_all(doc, &[post_i, block_i]);
-    let (doc, mate) = step_with(
+    let (doc, mate) = fixture::constrain_with(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(mate(
-                (post_i, post_body),
-                (block_i, block_body),
-                coincide(MateFrame::from_face(), identity()),
-            )),
-            fresh: Vec::new(),
-        },
         &reach,
+        mate(
+            (post_i, post_body),
+            (block_i, block_body),
+            coincide(MateFrame::from_face(), identity()),
+        ),
     );
+    assert_eq!(mate.placement, block_i, "the seat is the block's");
     Seat {
         doc,
         post_i,
         block_i,
         post_body,
         block_body,
-        mate: mate.expect("the mate is minted"),
+        mate,
         opts,
         store,
         post,
@@ -250,9 +269,13 @@ fn bits(frame: &Frame) -> Vec<u64> {
         .collect()
 }
 
-/// The mate's fault as the evaluation records it.
-fn mate_fault(ev: &Evaluation<f64>, mate: RecipeNodeId) -> MateFault {
-    match &ev.node_error(mate).expect("the mate faulted").kind {
+/// The mate's fault as the evaluation records it, on its placement.
+fn mate_fault(ev: &Evaluation<f64>, mate: MateRef) -> MateFault {
+    match &ev
+        .node_error(mate.placement)
+        .expect("the mate faulted")
+        .kind
+    {
         NodeErrorKind::Mate(fault) => (**fault).clone(),
         other => panic!("a mate's own refusal: {other}"),
     }
@@ -322,9 +345,9 @@ fn a1_the_mate_follows_the_edited_face() {
     );
     let ev = run(&s.doc, &s.opts);
     assert!(
-        ev.node_error(s.mate).is_none(),
+        ev.node_error(s.mate.placement).is_none(),
         "{:?}",
-        ev.node_error(s.mate)
+        ev.node_error(s.mate.placement)
     );
     assert!(
         gate(&s.doc, &ev).is_ok(),
@@ -354,9 +377,9 @@ fn a1_the_mate_follows_the_edited_face() {
     );
     let ev = run(&s.doc, &s.opts);
     assert!(
-        ev.node_error(s.mate).is_none(),
+        ev.node_error(s.mate.placement).is_none(),
         "{:?}",
-        ev.node_error(s.mate)
+        ev.node_error(s.mate.placement)
     );
     assert!(
         gate(&s.doc, &ev).is_ok(),
@@ -368,14 +391,16 @@ fn a1_the_mate_follows_the_edited_face() {
     // alone — the head is the face.
     let text = save(&s.doc, &[], Tol::witness()).expect("saves");
     let body = wire::wire_body(&text);
-    let node = &body["snapshot"]["nodes"][s.mate.0.to_string()];
+    let alignment = body
+        .pointer(&alignment_pointer(&s.doc, s.mate))
+        .expect("the saved seat");
     assert_eq!(
-        node["Mate"]["alignment"]["a"],
+        alignment["a"],
         serde_json::json!({ "base": "Face", "offset": { "steps": [] } }),
         "the face side names no face"
     );
     assert_eq!(
-        node["Mate"]["alignment"]["b"]["base"],
+        alignment["b"]["base"],
         serde_json::json!("Part"),
         "the authored side is the part base"
     );
@@ -427,7 +452,7 @@ fn revolved(doc: ProfileDoc, loops: Vec<Vec<(f64, f64)>>) -> ProfileDoc {
         fixture::revolve_about(
             profile,
             (0.0, 0.0),
-            (0.0, 1.0),
+            crate::fixture::along_y(),
             fixture::ang(std::f64::consts::TAU),
         ),
     );
@@ -454,7 +479,7 @@ fn revolved_program(doc: ProfileDoc, program: LoopProgram<Formula>) -> ProfileDo
         fixture::revolve_about(
             profile,
             (0.0, 0.0),
-            (0.0, 1.0),
+            crate::fixture::along_y(),
             fixture::ang(std::f64::consts::TAU),
         ),
     );
@@ -491,7 +516,7 @@ fn resolve_through_the_solve(
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, a) = insert(doc, Node::instantiate_part(part_ref));
     let (doc, b) = insert(doc, fixture::mated_instance(block_ref));
-    let node = mate_on(
+    let seat = mate_on(
         a,
         face,
         (b, block_body),
@@ -500,9 +525,9 @@ fn resolve_through_the_solve(
             ..coincide(frame, identity())
         },
     );
-    let (doc, mate) = at_the_door(&doc, &reach, node).map_err(|(_, fault)| fault)?;
+    let (doc, mate) = at_the_door(&doc, &reach, seat).map_err(|(_, fault)| fault)?;
     let poses = solve(&doc, &opts, Tol::witness());
-    match poses.fault(mate) {
+    match poses.fault(mate.placement) {
         Some(fault) => Err(fault.clone()),
         None => Ok(poses.relative(b).expect("the block is placed")),
     }
@@ -620,7 +645,18 @@ fn a2_the_sense_bit_is_not_folded_and_axis_sense_alone_decides() {
         "the CHART axis, sense left out"
     );
     let z = |f: &Frame| f.columns[2];
-    assert_eq!(z(&aligned), pose.axis.to_array());
+    // The axis's heading is a quarter turn, whose cosine rounds to
+    // 6.1e-17 rather than 0. Each read rounds that unit vector's
+    // components once more, by at most half an ulp of 1, so the two
+    // agree to within an ulp of 1, `f64::EPSILON`.
+    let close =
+        |a: [f64; 3], b: [f64; 3]| a.iter().zip(&b).all(|(x, y)| (x - y).abs() <= f64::EPSILON);
+    assert!(
+        close(z(&aligned), pose.axis.to_array()),
+        "{:?} against {:?}",
+        z(&aligned),
+        pose.axis
+    );
     let opposed = resolve_through_the_solve(
         "msolve9-a2-sense-opposed",
         part,
@@ -629,9 +665,8 @@ fn a2_the_sense_bit_is_not_folded_and_axis_sense_alone_decides() {
         AxisSense::Opposed,
     )
     .expect("resolves");
-    assert_eq!(
-        z(&opposed),
-        [-pose.axis.x, -pose.axis.y, -pose.axis.z],
+    assert!(
+        close(z(&opposed), [-pose.axis.x, -pose.axis.y, -pose.axis.z]),
         "the mate's own sense turns the pair round"
     );
 }
@@ -730,9 +765,8 @@ fn a_tied_face_refuses_ambiguous_at_the_door() {
     ));
     let ev = run(&part, &EvalOptions::default());
     let tied = ev
-        .value(sub)
+        .table_at(sub)
         .expect("the U subtract evaluates")
-        .name_table
         .iter()
         .find_map(|(name, entry)| match entry {
             editor_core::Entry::Tied(_) if name.kind == EntityKind::Face => Some(name.clone()),
@@ -781,7 +815,7 @@ fn a_face_frame_under_an_analysis_evaluation_resolves() {
     use geom_core::Bounds;
     let s = seat("msolve9-dual", 1.0);
     let at_f64 = run(&s.doc, &s.opts);
-    assert!(at_f64.node_error(s.mate).is_none());
+    assert!(at_f64.node_error(s.mate.placement).is_none());
     let nominal: Vec<_> = editor_core::all_vertices(&at_f64, s.block_i)
         .into_iter()
         .map(|v| {
@@ -804,14 +838,14 @@ fn a_face_frame_under_an_analysis_evaluation_resolves() {
         Tol::witness(),
     );
     assert!(
-        dual.node_error(s.mate).is_none(),
+        dual.node_error(s.mate.placement).is_none(),
         "{:?}",
-        dual.node_error(s.mate)
+        dual.node_error(s.mate.placement)
     );
     assert!(
-        interval.node_error(s.mate).is_none(),
+        interval.node_error(s.mate.placement).is_none(),
         "{:?}",
-        interval.node_error(s.mate)
+        interval.node_error(s.mate.placement)
     );
     for (v, at) in nominal {
         let d = editor_core::vertex_position(&dual, s.block_i, &v).expect("placed at Dual64");
@@ -876,7 +910,7 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     else {
         panic!("expected NoSuchName, got {refusal:?}");
     };
-    assert_eq!(*m, named);
+    assert_eq!(m.placement, named);
     assert_eq!(*instance, s.post_i);
     assert_eq!(**face, bogus);
     let Some(Node::InstantiatePart { doc_ref, .. }) = s.doc.node(s.post_i) else {
@@ -893,11 +927,16 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     // The insert as its door recorded it, while the face was the
     // post's: the entry carries the rows that door minted, which is
     // what replay re-applies.
-    let logged = DocEdit::InsertNode {
-        node: Box::new(s.doc.node(s.mate).expect("the mate").written(&s.doc)),
+    let logged = DocEdit::AddConstraint {
+        placement: s.block_i,
+        mate: Box::new(written_mate(&s.doc, s.mate)),
         fresh: Vec::new(),
     };
-    let (unmated, _) = step_with(s.doc.clone(), DocEdit::DeleteNode { id: s.mate }, &reach);
+    let unmate = DocEdit::RemoveConstraint {
+        placement: s.mate.placement,
+        constraint: s.mate.id,
+    };
+    let (unmated, _) = step_with(s.doc.clone(), unmate.clone(), &reach);
     unmated
         .apply(&logged, Tol::witness(), &reach)
         .expect("admitted while the face exists");
@@ -947,19 +986,22 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     );
     assert!(
         ev.node_error(s.block_i).is_some(),
-        "the fault poisons the cluster"
+        "the fault is the block's"
     );
 
     // The load: the logged insert replays with no store and the
     // document loads; what it then evaluates to is the solve's.
     let log = vec![logged];
-    let (snapshot, _) = step_with(doc.clone(), DocEdit::DeleteNode { id: s.mate }, &reach);
+    let (snapshot, _) = step_with(doc.clone(), unmate, &reach);
     let text = save(&snapshot, &log, Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("a face-based insert replays with no store");
-    let replayed = *loaded.doc.ids().last().expect("the replayed mate");
+    let [replayed] = &fixture::bundle(&loaded.doc, s.block_i)[..] else {
+        panic!("the block's bundle holds the replayed seat alone");
+    };
+    let replayed = MateRef::new(s.block_i, replayed.id);
     assert_eq!(
-        loaded.doc.node(replayed).map(|n| n.written(&loaded.doc)),
-        doc.node(s.mate).map(|n| n.written(&doc)),
+        written_mate(&loaded.doc, replayed),
+        written_mate(&doc, s.mate),
         "the mate as logged"
     );
     let ev = run(&loaded.doc, &s.opts);
@@ -1042,27 +1084,28 @@ fn an_unresolvable_part_faults_in_the_resolvers_voice() {
 
 // ---- A4: the memo key ----
 
-/// **The mate's key moves under an edit to the face's part, and holds
-/// under an edit outside it.** The key carries the part's content pin
+/// **The seated block's key moves under an edit to the face's part,
+/// and holds under an edit outside it.** The key carries the part's content pin
 /// (`SolveAnswer`'s face channel), which over-approximates the face
 /// in the direction that re-reads: an edit to the part that moves the
-/// face re-keys the mate — its value is recomputed and the block's
-/// pose follows — and so does an edit to the part that leaves the face
-/// bit for bit where it was (a datum frame inserted into the post),
-/// while an edit outside the part leaves the key alone and the mate's
-/// value comes off the memo. The whole-document solve runs on every
-/// evaluation either way; what the memo serves is the mate's value.
+/// face re-keys the block whose bundle holds the mate — its value is
+/// recomputed and its pose follows — and so does an edit to the part
+/// that leaves the face bit for bit where it was (a datum frame
+/// inserted into the post), while an edit outside the part leaves the
+/// key alone and the block's value comes off the memo. The
+/// whole-document solve runs on every evaluation either way; what the
+/// memo serves is the block's value.
 #[test]
 fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_it() {
     let mut s = seat("msolve9-a4", 1.0);
-    let (mate, block_i) = (s.mate, s.block_i);
+    let (mate, block_i) = (s.mate.placement, s.block_i);
     let first = run(&s.doc, &s.opts);
-    let key = move |ev: &Evaluation<f64>| ev.value(mate).expect("the mate evaluates").content_key;
+    let key = move |ev: &Evaluation<f64>| ev.value(mate).expect("the block evaluates").content_key;
     let reused = move |earlier: &Evaluation<f64>, later: &Evaluation<f64>| match (
         earlier.value(mate),
         later.value(mate),
     ) {
-        (Some(a), Some(b)) => Arc::ptr_eq(&a.name_table, &b.name_table),
+        (Some(a), Some(b)) => Arc::ptr_eq(&a.contacts, &b.contacts),
         _ => false,
     };
     let placed_z = move |doc: &ProfileDoc, opts: &EvalOptions| {
@@ -1082,7 +1125,7 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
         Tol::witness(),
     );
     assert_ne!(key(&first), key(&second), "the face moved, the key moved");
-    assert!(!reused(&first, &second), "the mate's value was recomputed");
+    assert!(!reused(&first, &second), "the block's value was recomputed");
     assert!(second.node_error(mate).is_none());
     assert_eq!(
         placed_z(&s.doc, &s.opts),
@@ -1130,7 +1173,7 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
         key(&third),
         "an edit to the face's part moves the key, whether or not the face moved"
     );
-    assert!(!reused(&second, &third), "the mate's value was recomputed");
+    assert!(!reused(&second, &third), "the block's value was recomputed");
     assert_eq!(
         placed_z(&s.doc, &s.opts).to_bits(),
         1.3_f64.to_bits(),
@@ -1157,7 +1200,7 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
     );
     assert!(
         reused(&third, &fourth),
-        "the mate's value came off the memo"
+        "the block's value came off the memo"
     );
 }
 
@@ -1175,14 +1218,15 @@ fn both_arms_round_trip_and_a_stray_key_on_either_refuses() {
     let text = save(&s.doc, &[], Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("loads with no store");
     assert_eq!(
-        loaded.doc.node(s.mate),
-        s.doc.node(s.mate),
+        loaded.doc.node(s.block_i),
+        s.doc.node(s.block_i),
         "both bases as themselves"
     );
     let again = save(&loaded.doc, &[], Tol::witness()).expect("re-saves");
     assert_eq!(again, text, "byte for byte");
     let body = wire::wire_body(&text);
-    let alignment = &body["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"];
+    let pointer = alignment_pointer(&s.doc, s.mate);
+    let alignment = body.pointer(&pointer).expect("the saved seat");
     assert_eq!(
         alignment["a"],
         serde_json::json!({ "base": "Face", "offset": { "steps": [] } }),
@@ -1200,7 +1244,7 @@ fn both_arms_round_trip_and_a_stray_key_on_either_refuses() {
         }),
     ] {
         let doctored = wire::doctored(&text, |wire| {
-            doctor(&mut wire["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"]["b"]);
+            doctor(&mut wire.pointer_mut(&pointer).expect("the saved seat")["b"]);
         });
         let err = load(&doctored, Tol::witness()).expect_err("a stray key refuses");
         assert!(
@@ -1221,6 +1265,7 @@ fn both_arms_round_trip_and_a_stray_key_on_either_refuses() {
 fn an_older_file_naming_its_face_refuses_unreadable_with_the_recourse() {
     let s = seat("msolve9-older", 1.0);
     let text = save(&s.doc, &[], Tol::witness()).expect("saves");
+    let pointer = alignment_pointer(&s.doc, s.mate);
     for (what, side, frame) in [
         ("the bare face tag", "a", serde_json::json!("FromFace")),
         (
@@ -1259,8 +1304,7 @@ fn an_older_file_naming_its_face_refuses_unreadable_with_the_recourse() {
         ),
     ] {
         let older = wire::doctored(&text, |wire| {
-            wire["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"][side] =
-                frame.clone();
+            wire.pointer_mut(&pointer).expect("the saved seat")[side] = frame.clone();
         });
         let err = load(&older, Tol::witness()).expect_err("an older frame refuses");
         assert!(
@@ -1282,6 +1326,7 @@ fn an_older_file_naming_its_face_refuses_unreadable_with_the_recourse() {
 fn an_untagged_frame_refuses_whichever_arms_keys_it_carries() {
     let s = seat("msolve9-untagged", 1.0);
     let text = save(&s.doc, &[], Tol::witness()).expect("saves");
+    let pointer = alignment_pointer(&s.doc, s.mate);
     for (what, side, frame) in [
         ("a base alone", "a", serde_json::json!({ "base": "Face" })),
         (
@@ -1305,8 +1350,7 @@ fn an_untagged_frame_refuses_whichever_arms_keys_it_carries() {
         ),
     ] {
         let doctored = wire::doctored(&text, |wire| {
-            wire["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"][side] =
-                frame.clone();
+            wire.pointer_mut(&pointer).expect("the saved seat")[side] = frame.clone();
         });
         let err = load(&doctored, Tol::witness()).expect_err("an incomplete frame refuses");
         assert!(
@@ -1391,12 +1435,12 @@ fn c5_every_tracked_document_loads_on_the_tagged_wire_and_re_saves_identically()
                 frames += 1;
             }
         });
-        let mates = loaded
+        let mates: usize = loaded
             .doc
-            .ids()
-            .iter()
-            .filter(|&&id| matches!(loaded.doc.node(id), Some(Node::Mate { .. })))
-            .count();
+            .placements()
+            .into_iter()
+            .map(|p| fixture::bundle(&loaded.doc, p).len())
+            .sum();
         assert!(
             frames >= 2 * mates,
             "{}: the walk met every mate's two frames",
@@ -1439,8 +1483,9 @@ fn a_face_side_authors_no_number_the_finiteness_door_sees() {
     let err = s
         .doc
         .apply(
-            &DocEdit::InsertNode {
-                node: Box::new(mate(
+            &DocEdit::AddConstraint {
+                placement: s.block_i,
+                mate: Box::new(mate(
                     (s.post_i, s.post_body),
                     (s.block_i, s.block_body),
                     coincide(poisoned, identity()),
@@ -1457,7 +1502,8 @@ fn a_face_side_authors_no_number_the_finiteness_door_sees() {
             EditError::NonFinitePlacement {
                 at: editor_core::FrameSite::MateStep {
                     side: editor_core::MateSide::A,
-                    index: 0
+                    index: 0,
+                    ..
                 },
                 ..
             }
@@ -1474,11 +1520,12 @@ fn a_face_side_authors_no_number_the_finiteness_door_sees() {
 #[test]
 fn a_face_sides_face_is_its_heads_row_in_the_part() {
     let s = seat("msolve9-spelling", 1.0);
-    let Some(Node::Mate { a, alignment, .. }) = s.doc.node(s.mate) else {
-        panic!("the mate");
-    };
+    let editor_core::Mate { a, alignment, .. } = fixture::constraint(&s.doc, s.mate);
     assert_eq!(alignment.a, MateFrame::from_face());
-    let head: &SitedFace = &crate::fixture::side_head(&s.doc, *a);
+    let SideRead::Face(a) = a else {
+        panic!("the post side reads a face");
+    };
+    let head: &SitedFace = &crate::fixture::side_head(&s.doc, a);
     assert_eq!(head.name.node, s.post_i, "a head is the instance's wrapper");
     assert_eq!(
         editor_core::head_face(&s.doc, head).map(FaceName::into_name),

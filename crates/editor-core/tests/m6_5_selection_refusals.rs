@@ -3,10 +3,9 @@
 //!
 //! A selection is a COMMITMENT (the #217 freeze ruling), so a name
 //! that stops resolving is a refusal, never a silent shrink. The
-//! vocabulary is `resolve_declarations`' verbatim — the two sites
-//! answer the same question, so they answer it the same way — plus two
-//! refusals a single-operand selection needs and a Declare pair does
-//! not: a mis-KINDED name and an EMPTY set.
+//! vocabulary is the mid-evaluation N5 ladder's (`eval/wire.rs`
+//! `ladder`), the same refusals `crate::resolve` mints, plus two a
+//! selection adds: a mis-KINDED name and an EMPTY set.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -319,14 +318,8 @@ fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
     let (doc, us) = symmetric_u();
     let ev = eval(&doc);
     let tied: StableName = ev
-        .nodes
-        .get(&us)
-        .and_then(|r| match r {
-            NodeResult::Ok(v) => Some(v),
-            _ => None,
-        })
+        .table_at(us)
         .expect("the U subtract evaluates")
-        .name_table
         .iter()
         // Any tied row will do: the resolver reaches the TIE before it
         // reaches the kind check, so ambiguity is refused first — which

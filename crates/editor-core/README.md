@@ -220,11 +220,23 @@ also feed the key through `ContentBits::feed` (both channels of a dual,
 DUAL-DESIGN DL2), so a seeded or widened profile parameter cannot alias the
 nominal memo entry. Keys never persist.
 
-**PP6 — Scope and the bit-identity fence.** `ProfileLift::Pinned` is the
-default and the build path: profile geometry is the f64 elaboration embedded
-through `from_f64`, unchanged. `Guided` is set by the E6 driver (`src/drive.rs`)
-and the E4 sensitivities (`src/stackup.rs`). Guided replay at `f64` reproduces
-plain replay bitwise (`tests/m10_p_fence.rs`,
+**PP6 — Scope and the bit-identity fence.** The evaluator chooses the lift
+from what the evaluation binds (`EvalOptions::profile_lift_over`: the
+options' half, `EvalOptions::profile_lift`, and the environment's,
+`VarEnv::binds_symbols`); no caller sets it. The build is `ProfileLift::Pinned`, at any scalar: profile geometry
+is the f64 elaboration embedded through `from_f64`, unchanged. An analysis —
+an evaluation whose box varies an axis (`[0, 0]` included), which carries a
+seed, or which binds every variable a symbol — is `Guided`: the E6 driver (`src/drive.rs`, its
+witness over the root box collapsed to the nominal, `ParamBox::at_nominal`),
+the E4 sensitivities (`src/stackup.rs`), Monte Carlo (`src/mc.rs`) and the
+coincidence door's symbolic replay. The lift follows what the environment
+binds: a `Fixed` axis holds its variable at the nominal (at `Sym` a constant),
+and an environment that binds any variable as a parameter symbol — at `Sym`, a
+toleranced variable under any box, named or not (VR8) — is guided whatever the
+box's shape (`VarEnv::binds_symbols`). So an empty or all-`Fixed` box is the
+build at every numeric scalar, and at `Sym` exactly when it binds no symbol.
+Guided replay at `f64` reproduces plain
+replay bitwise (`tests/m10_p_fence.rs`,
 `crates/profile/tests/scalar_channels.rs`).
 
 - **Sections.** A loft reads each section operand's Profile value at the

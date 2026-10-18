@@ -12,16 +12,21 @@
 //! never persisted: `save` writes the document, and a reopened session
 //! starts with this state empty. That is not an accident of the code
 //! path; it is G3's boundary, and the round-trip row pins it. DI5
-//! (`crates/editor-core/IDENTITY.md`) reverses it: a free-moved
-//! placement may be recorded persistently, and until that is built
-//! the tree keeps G3's.
+//! (`crates/editor-core/IDENTITY.md`) states the rule over loose spaces:
+//! a free-move moves the picture of a loose space, its release writes
+//! nothing to the document, and the frame is keyed by the space's root
+//! and dropped by [`DisplayState::prune`] once that root stops naming a
+//! loose space. Keeping a position means stating it, as a placement's
+//! mates and typed values. (This module still admits and keys by
+//! instance, under the eligibility rule below;
+//! `work/intent/free-move-admits-a-loose-space.md`.)
 //!
 //! # Eligibility is derived from the document
 //!
 //! Free-move accepts only a **completely-unconstrained** instance: one
-//! that appears in NO mate node ([`mates_naming`] scans the recipe's
-//! own `Node::Mate` references — the authored data, not the solver's
-//! state). An instance any mate names refuses typed
+//! that appears in NO constraint ([`mates_naming`] scans the recipe's
+//! own bundles — the authored data, not the solver's state — and passes
+//! the world pin an instance stands on). An instance any mate names refuses typed
 //! ([`AdmissionFault::MateConstrained`], listing the mates), because its
 //! pose is mate-derived and a display value contradicting it would
 //! draw a relation the document does not have.
@@ -82,7 +87,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use pncad::document::{Doc, Frame, Node, ProfileProgram, RecipeNodeId, SpokenNode};
+use pncad::document::{
+    Constraint, ConstraintId, Doc, Frame, MateRef, Node, OperandSlot, ProfileProgram, RecipeNodeId,
+    SideRead, SpokenNode, VarId,
+};
 use pncad::geom_core::Vec3;
 
 use crate::g1;
@@ -193,9 +201,9 @@ pub enum AdmissionFault {
     MateConstrained {
         /// The instance, as the document held it.
         instance: SpokenNode,
-        /// Every mate node naming it, document order, as the document
-        /// held them.
-        mates: Vec<SpokenNode>,
+        /// Every constraint naming it ([`mates_naming`]'s order): the
+        /// placement holding it, as the document held it, and its id.
+        mates: Vec<(SpokenNode, ConstraintId)>,
     },
     /// The instance's geometry is FUSED into a drawn product together
     /// with other instances' (a boolean or placed union consumes
@@ -226,7 +234,12 @@ impl core::fmt::Display for AdmissionFault {
                 write!(f, "{node} is not a part instance")
             }
             Self::MateConstrained { instance, mates } => {
-                let list: Vec<String> = mates.iter().map(ToString::to_string).collect();
+                let list: Vec<String> = mates
+                    .iter()
+                    // By its placement, never by its minted id, which is an
+                    // arena key and no word a person reads.
+                    .map(|(placement, _)| format!("a constraint of {placement}"))
+                    .collect();
                 write!(
                     f,
                     "{instance} is mate-constrained ({}): its pose is mate-derived, so the \
@@ -268,7 +281,10 @@ impl AdmissionFault {
             Self::NotAnInstance { node } => Self::NotAnInstance { node: again(node) },
             Self::MateConstrained { instance, mates } => Self::MateConstrained {
                 instance: again(instance),
-                mates: mates.into_iter().map(again).collect(),
+                mates: mates
+                    .into_iter()
+                    .map(|(placement, id)| (again(placement), id))
+                    .collect(),
             },
             Self::FusedGeometry {
                 instance,
@@ -378,23 +394,51 @@ impl core::fmt::Display for DisplayFault {
 
 impl core::error::Error for DisplayFault {}
 
-/// Every mate node naming `instance` on either side, document order —
-/// the completely-unconstrained test's evidence, read from the
-/// AUTHORED references (a dangling or misdirected reference still
-/// names its head node; participation is about what the document
-/// says, not about what currently resolves).
-pub fn mates_naming(doc: &Doc<ProfileProgram>, instance: RecipeNodeId) -> Vec<RecipeNodeId> {
-    doc.ids()
-        .iter()
-        .copied()
-        .filter(|&id| match doc.node(id) {
-            Some(Node::Mate { a, b, .. }) => [*a, *b].into_iter().any(|side| {
-                doc.selection(side)
-                    .is_some_and(|select| select.names.iter().any(|name| name.node == instance))
-            }),
-            _ => false,
+/// Every constraint naming `instance`, document order of the placements
+/// holding them and bundle order within one — the
+/// completely-unconstrained test's evidence, read from the AUTHORED
+/// bundles (a dangling or misdirected face read still names its head
+/// node; participation is about what the document says, not about what
+/// currently resolves).
+///
+/// A constraint names the instance when either side's face read selects
+/// one of its faces, wherever the constraint sits, and when it sits in
+/// the instance's own bundle and is not a world pin. A world pin (the
+/// world against the copy's own frame) is where the document stands the
+/// instance, not a relation to another copy, so it leaves the instance
+/// free to probe, the way an instance standing on the world always was.
+pub fn mates_naming(doc: &Doc<ProfileProgram>, instance: RecipeNodeId) -> Vec<MateRef> {
+    let names_instance = |side: &SideRead<VarId>| {
+        side.face().is_some_and(|&read| {
+            doc.selection(read)
+                .is_some_and(|select| select.names.iter().any(|name| name.node == instance))
+        })
+    };
+    doc.placements()
+        .into_iter()
+        .flat_map(|placement| {
+            bundle_of(doc, placement)
+                .iter()
+                .filter(|constraint| {
+                    let mate = &constraint.mate;
+                    let own = placement == instance && !mate.is_world_pin();
+                    own || names_instance(&mate.a) || names_instance(&mate.b)
+                })
+                .map(|constraint| MateRef::new(placement, constraint.id))
+                .collect::<Vec<_>>()
         })
         .collect()
+}
+
+/// `placement`'s bundle: a `Place`'s or an instance's constraints, empty
+/// for any other node.
+fn bundle_of(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> &[Constraint] {
+    match doc.node(placement) {
+        Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) => {
+            constraints
+        }
+        _ => &[],
+    }
 }
 
 /// **`node` is a live `InstantiatePart`**, or the typed refusal that
@@ -480,9 +524,35 @@ fn ancestry(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> BTreeSet<RecipeNod
         if !seen.insert(id) {
             continue;
         }
-        stack.extend(doc.upstream(id));
+        stack.extend(geometry_upstream(doc, id));
     }
     seen
+}
+
+/// `node`'s upstream ([`Doc::upstream`]) less the nodes it reaches only
+/// through a constraint's side: a constraint reads where another copy
+/// stands, not material, so a copy mated to an instance draws none of
+/// that instance's geometry.
+fn geometry_upstream(doc: &Doc<ProfileProgram>, id: RecipeNodeId) -> Vec<RecipeNodeId> {
+    let Some(node) = doc.node(id) else {
+        return Vec::new();
+    };
+    let (sides, material): (Vec<_>, Vec<_>) = node
+        .operand_rows()
+        .into_iter()
+        .partition(|(seat, _)| matches!(seat, OperandSlot::Side { .. }));
+    let reached = |rows: Vec<(OperandSlot, VarId)>| -> BTreeSet<RecipeNodeId> {
+        rows.into_iter()
+            .flat_map(|(_, var)| doc.read_ports(var))
+            .map(|(at, _)| at)
+            .collect()
+    };
+    let through_sides = reached(sides);
+    let through_material = reached(material);
+    doc.upstream(id)
+        .into_iter()
+        .filter(|at| !through_sides.contains(at) || through_material.contains(at))
+        .collect()
 }
 
 /// **Whether `node`'s geometry derives from `source`** — `source` in
@@ -598,7 +668,10 @@ pub fn free_move_check(
     } else {
         Err(AdmissionFault::MateConstrained {
             instance: doc.spoken(instance),
-            mates: mates.into_iter().map(|mate| doc.spoken(mate)).collect(),
+            mates: mates
+                .into_iter()
+                .map(|mate| (doc.spoken(mate.placement), mate.id))
+                .collect(),
         })
     }
 }
@@ -798,8 +871,9 @@ pub struct DisplayState {
     /// a `gesture` of its own — the VALUE drag a slot or parameter
     /// field opens — and the two are independent drags that can be
     /// open at once, so one field name must not stand for both. Why
-    /// that overlap is sound, the identity it rests on and the
-    /// ratified change (DI5) that ends the argument are stated at
+    /// that overlap is sound, the identity it rests on, and why DI5
+    /// keeps it so (a release writes nothing to the document) are
+    /// stated at
     /// [`crate::session::SessionOp::permitted_during_value_gesture`].
     free_move: g1::Slot<RecipeNodeId, Frame>,
     /// Bumped on every visible change — the chrome's cheap "does the

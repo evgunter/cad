@@ -1,7 +1,8 @@
 //! **The door's symbolic rungs** (D10, FORK-S4F): the document replayed
 //! in the `Sym` lane with every continuous variable a symbol of its own
 //! ([`crate::analysis::var_env_symbolic`]), profile geometry elaborated
-//! in that lane ([`crate::ProfileLift::Guided`]), and each row read
+//! in that lane (symbols make the lift [`crate::ProfileLift::Guided`]),
+//! and each row read
 //! twice off the replay.
 //!
 //! - **The carrier-pair verdict** ([`Rung::CarrierVerdict`]): for a row
@@ -38,14 +39,13 @@
 //! there, between cells of the same names.
 
 use std::collections::BTreeMap;
-use std::sync::Arc;
 
 use geom_core::sym::deferred;
 use geom_core::{Band, Sym, SymBudget, SymRules, Tol};
 use topo::{Body, CarrierRelation, FaceKey};
 
 use super::{Canceled, NamedCell, NamedCoincidence, Recourse, Rung, Unreplayed};
-use crate::eval::{BooleanValue, EvalOptions, EvalOutcome, Evaluation, ProfileLift, ValuePayload};
+use crate::eval::{EvalOptions, EvalOutcome, Evaluation};
 use crate::names::{EntityKey, EntityRef, Entry};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
@@ -61,6 +61,36 @@ const BUDGET: SymBudget = SymBudget {
     max_terms: 256,
     max_degree: crate::drive::DEFAULT_SYM_MAX_DEGREE,
 };
+
+/// **The replay with every variable a symbol, as one session**: the
+/// door's budget ([`BUDGET`]) with the drive's retry ladder, DEFERRING
+/// (a margin's form is built only where a reader asks for its
+/// discharge), on `base`, the caller's environment — which binds every
+/// variable a symbol or varies a box, so its profile geometry is
+/// elaborated in the lane ([`crate::eval::ProfileLift::Guided`], read off
+/// what the evaluation binds by [`EvalOptions::profile_lift_over`]). Every
+/// reader of a replay opens it here — the door (`symbols`), its census,
+/// and the re-valuation instrument (`editor-core/tests/revalue_corpus.rs`,
+/// its own degenerate boxes) — so the instrument reads exactly what
+/// the door replays.
+///
+/// Deferring is what keeps it tractable: a guided profile at `Sym` is a
+/// polynomial in the atoms it mints, and an eager session builds every
+/// definite margin's form for its contradiction check. Measured on
+/// `plate_param`: eager at 4096 terms past 4.9 GB and not done at
+/// 120 s, here 136 MB in 1.07 s
+/// (`work/inlane/the-sym-profile-lowering-exhausts-memory-under-the-revalue-instrument.md`).
+pub fn with_replay_session<R>(
+    base: EvalOptions,
+    f: impl FnOnce(&EvalOptions) -> R,
+) -> (R, geom_core::SymCounts) {
+    deferred::with_deferred_session(
+        BUDGET,
+        SymRules::shipped(),
+        crate::drive::DEFAULT_SYM_RETRY,
+        || f(&base),
+    )
+}
 
 /// The scalar the door replays at: `f64` arithmetic, every variable a
 /// symbol.
@@ -79,44 +109,37 @@ pub(super) fn rungs(
     tol: Tol,
     cancel: &crate::CancelToken,
 ) -> Result<Vec<Vec<Result<Rung, Left>>>, Canceled> {
-    let opts = EvalOptions {
+    let symbols = EvalOptions {
         symbols: true,
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
-    let (out, _) = deferred::with_deferred_session(
-        BUDGET,
-        SymRules::shipped(),
-        crate::drive::DEFAULT_SYM_RETRY,
-        || {
-            let ev: Evaluation<Lane> = crate::eval::evaluate(doc, None, cancel, &opts, tol);
-            if ev.outcome == EvalOutcome::Canceled {
-                return Err(Canceled);
-            }
-            let band = Band::linear(tol).ok();
-            nodes
-                .iter()
-                .map(|&(node, rows)| {
-                    let mut ordinals = BTreeMap::new();
-                    rows.iter()
-                        .map(|row| {
-                            let ordinal = ordinals.entry(row.site).or_insert(0usize);
-                            let at = *ordinal;
-                            *ordinal += 1;
-                            prove_row(doc, &ev, node, row, at, band, cancel)
-                        })
-                        .collect()
-                })
-                .collect()
-        },
-    );
+    let (out, _) = with_replay_session(symbols, |opts| {
+        let ev: Evaluation<Lane> = crate::eval::evaluate(doc, None, cancel, opts, tol);
+        if ev.outcome == EvalOutcome::Canceled {
+            return Err(Canceled);
+        }
+        let band = Band::linear(tol).ok();
+        nodes
+            .iter()
+            .map(|&(node, rows)| {
+                let mut ordinals = BTreeMap::new();
+                rows.iter()
+                    .map(|row| {
+                        let ordinal = ordinals.entry(row.site).or_insert(0usize);
+                        let at = *ordinal;
+                        *ordinal += 1;
+                        prove_row(&ev, node, row, at, band, cancel)
+                    })
+                    .collect()
+            })
+            .collect()
+    });
     out
 }
 
 /// The two symbolic rungs for one row, `at` its ordinal among its
 /// node's rows at its site. Canceled before it discharges a margin.
 fn prove_row(
-    doc: &crate::doc::Doc<ProfileProgram>,
     ev: &Evaluation<Lane>,
     node: RecipeNodeId,
     row: &NamedCoincidence,
@@ -146,7 +169,7 @@ fn prove_row(
         return Err(Canceled);
     }
     if let Some(band) = band
-        && carrier_verdict(doc, ev, row, band)
+        && carrier_verdict(ev, row, band)
     {
         return Ok(Ok(Rung::CarrierVerdict));
     }
@@ -179,50 +202,35 @@ fn why_no_value(ev: &Evaluation<Lane>, node: RecipeNodeId) -> Unreplayed {
 /// **The kernel's carrier-pair verdict on the row's two cells**, where
 /// the row decided two faces one carrier: whether every Zero it stands
 /// on is proven.
-fn carrier_verdict(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    ev: &Evaluation<Lane>,
-    row: &NamedCoincidence,
-    band: Band,
-) -> bool {
+fn carrier_verdict(ev: &Evaluation<Lane>, row: &NamedCoincidence, band: Band) -> bool {
     let wanted = match row.relation {
         topo::Relation::SameOriented => CarrierRelation::SameOriented,
         topo::Relation::SameOpposite => CarrierRelation::SameOpposite,
         _ => return false,
     };
-    let [a, b] = row.cells.each_ref().map(|cell| face_of(doc, ev, cell));
+    let [a, b] = row.cells.each_ref().map(|cell| face_of(ev, cell));
     let (Some((a, fa)), Some((b, fb))) = (a, b) else {
         return false;
     };
-    match topo::boolean::carrier_pair_decided(&a, fa, &b, fb, band) {
+    match topo::boolean::carrier_pair_decided(a, fa, b, fb, band) {
         Ok(Ok((relation, Some(margin)))) if relation == wanted => deferred::discharge(margin),
         _ => false,
     }
 }
 
 /// The face `cell` names, as the replay built it: the body of the read
-/// it came in through and its key there.
-fn face_of(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    ev: &Evaluation<Lane>,
-    cell: &NamedCell,
-) -> Option<(Arc<Body<Lane>>, FaceKey)> {
+/// it came in through and its key there, read in that read's own table.
+fn face_of<'e>(ev: &'e Evaluation<Lane>, cell: &NamedCell) -> Option<(&'e Body<Lane>, FaceKey)> {
     let NamedCell::Entity { input, name } = cell else {
         return None;
     };
-    let value = ev.value(doc.operation_of(*input)?)?;
     let Some(Entry::Unique(EntityRef {
         body,
         key: EntityKey::Face(face),
-    })) = value.name_table.lookup(name)
+    })) = ev.table(*input)?.lookup(name)
     else {
         return None;
     };
-    let body = match (&value.payload, body) {
-        (ValuePayload::Body(b), 0)
-        | (ValuePayload::Boolean(BooleanValue::Body { body: b, .. }), 0) => Arc::clone(b),
-        (ValuePayload::Instances(bodies), i) => Arc::clone(bodies.get(usize::try_from(*i).ok()?)?),
-        _ => return None,
-    };
+    let body = ev.read_body(*input, *body).ok()?.ok()?;
     Some((body, *face))
 }

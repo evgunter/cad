@@ -1564,9 +1564,9 @@ fn unit_tangent(station: usize, d: Vec3<f64>) -> Result<Vec3<f64>, SkinError> {
 /// What the path contributes — each station's offset from the start
 /// point, the turn's axis and its angle — is computed in `f64` from the
 /// path and enters `T` as the computed values it is
-/// ([`Real::from_computed`]). The frame's arms are chosen on those
-/// `f64` values, and at `f64` the composition is the one this door
-/// always made, bit for bit.
+/// ([`Real::from_computed`]); the angle is `Real`'s `atan2`, the
+/// pure-Rust `libm` D9 prescribes, so every platform turns the stations
+/// alike. The frame's arms are chosen on those `f64` values.
 // `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
 // geom-core::spline::algebra note).
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
@@ -1607,7 +1607,7 @@ pub fn sweep_places<T: Real>(
             Affine3::rotation_about_axis(
                 origin,
                 (axis / sin).map(T::from_computed),
-                T::from_computed(sin.atan2(cos)),
+                T::from_computed(<f64 as Real>::atan2(sin, cos)),
             )
         } else if cos > 0.0 {
             Affine3::identity()

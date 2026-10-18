@@ -1,4 +1,4 @@
-//! **`ValidatedProfile::lift_onto` is total over the canonical form and
+//! **`ValidatedProfile::lift_onto` is total over the canonical form on a finite plane, and
 //! decides nothing.** Over the crate's own fixtures — a hole, a hole
 //! listed before its outer, arcs, tangent joints, a fillet, the
 //! two-vertex lens, an outer loop the author wound the wrong way, a
@@ -170,7 +170,10 @@ fn lift_equals_revalidation<U: Real + Decide>(channels: &[Channel<U>]) {
     let scalar = U::NAME;
     for (name, raw) in fixtures() {
         let at_f64 = raw.validate(tol()).expect(name);
-        let lifted: ValidatedProfile<U> = at_f64.clone().lift_onto(SketchPlane::xy());
+        let lifted: ValidatedProfile<U> = at_f64
+            .clone()
+            .lift_onto(SketchPlane::xy())
+            .expect("the xy plane is finite");
         let revalidated: ValidatedProfile<U> = lift::<U>(&raw).validate(tol()).expect(name);
         let (l, r) = (scalars(&lifted), scalars(&revalidated));
         assert_eq!(
@@ -231,7 +234,12 @@ fn the_lift_to_f64_is_the_identity() {
         };
         let plane = *at_f64.plane();
         assert_eq!(
-            bits(&at_f64.clone().lift_onto::<f64>(plane)),
+            bits(
+                &at_f64
+                    .clone()
+                    .lift_onto::<f64>(plane)
+                    .expect("a finite plane lifts")
+            ),
             bits(&at_f64),
             "{name}"
         );
@@ -248,7 +256,10 @@ fn the_lift_to_dual_equals_validating_at_dual() {
     lift_equals_revalidation::<Dual64>(&[("value", |d| d.value)]);
     for (name, raw) in fixtures() {
         let at_f64 = raw.validate(tol()).expect(name);
-        let lifted = at_f64.clone().lift_onto::<Dual64>(SketchPlane::xy());
+        let lifted = at_f64
+            .clone()
+            .lift_onto::<Dual64>(SketchPlane::xy())
+            .expect("a finite plane lifts");
         let revalidated = lift::<Dual64>(&raw).validate(tol()).expect(name);
         assert!(
             scalars(&lifted).iter().all(|d| d.deriv == 0.0)
@@ -295,7 +306,10 @@ fn the_carried_decisions_are_the_f64_ones() {
     };
     for (name, raw) in fixtures() {
         let at_f64 = raw.validate(tol()).expect(name);
-        let lifted = at_f64.clone().lift_onto::<Dual64>(SketchPlane::xy());
+        let lifted = at_f64
+            .clone()
+            .lift_onto::<Dual64>(SketchPlane::xy())
+            .expect("a finite plane lifts");
         assert_eq!(
             lifted.loops()[0].role(),
             LoopRole::Outer,
@@ -328,7 +342,8 @@ fn the_carried_decisions_are_the_f64_ones() {
     let ring = annulus()
         .validate(tol())
         .unwrap()
-        .lift_onto::<Dual64>(SketchPlane::xy());
+        .lift_onto::<Dual64>(SketchPlane::xy())
+        .expect("a finite plane lifts");
     for s in ring.loops()[1].segments() {
         assert!(
             matches!(
@@ -360,7 +375,7 @@ fn the_plane_is_the_callers_and_nothing_else_moves_with_it() {
         ),
         Vec3::new(1.0, 2.0, 3.0),
     ));
-    let moved = vp.lift_onto::<f64>(plane);
+    let moved = vp.lift_onto::<f64>(plane).expect("a finite plane lifts");
     assert_eq!(format!("{:?}", moved.plane()), format!("{plane:?}"));
     assert_eq!(format!("{:?}", moved.loops()), before);
     // The plane places; the 2-D data does not move with it.

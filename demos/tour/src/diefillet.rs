@@ -273,8 +273,8 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
             // The pole axis, in the meridian frame's own coordinates:
             // that frame's v IS world +Z, so the axis is its +y through
             // (0, 0).
-            axis_origin: [len(0.0), len(0.0)],
-            axis_direction: [scl(0.0), scl(1.0)],
+            axis_through: [len(0.0), len(0.0)],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             // A full turn, in the degrees this document is written in.
             angle: ang(360.0),
         },
@@ -512,7 +512,7 @@ pub fn corpus_text(tol: Tol) -> String {
             }
         })
         .collect();
-    edits.push(DocEdit::place(die.composed, None));
+    edits.push(DocEdit::place_in_world(die.composed, None));
     let mut replay = empty.clone();
     for edit in &edits {
         replay = apply(&replay, edit, tol, &RefusingReach)
@@ -581,7 +581,7 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let die = build(tol);
     apply(
         &die.doc,
-        &DocEdit::place(die.composed, None),
+        &DocEdit::place_in_world(die.composed, None),
         tol,
         &RefusingReach,
     )

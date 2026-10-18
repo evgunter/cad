@@ -699,9 +699,10 @@ impl crate::finding::Finding for SaidFinding<'_> {
             CheckEvidence::UnprovenCoincidence { row, residual, .. } => {
                 let cell = |c: &crate::coincide::NamedCell| match c {
                     crate::coincide::NamedCell::Entity { name, .. } => by.name(name).to_string(),
-                    crate::coincide::NamedCell::Tool { input } => {
-                        format!("the plane of {}", by.read(*input))
-                    }
+                    crate::coincide::NamedCell::Tool { input, role } => match role {
+                        Some(role) => format!("the {role} of {}", by.read(*input)),
+                        None => format!("the plane of {}", by.read(*input)),
+                    },
                     crate::coincide::NamedCell::Piece { profile, piece } => {
                         crate::names::words::piece(piece, *profile, by)
                     }
@@ -1403,7 +1404,7 @@ type DoorRows = (
 /// **The rows the `unproven-coincidence` resident asks the door
 /// about** (D10): every evaluated node's rows, in evaluation order then
 /// decision order, then the at-rest census's rows on the gathered
-/// product and on each unplaced group's own space, in their order; each
+/// product and on each loose copy's own space, in their order; each
 /// under the subject it is reported against — the node that decided it,
 /// the mate whose pair the census decided, or the two copies it found
 /// in contact.
@@ -1429,7 +1430,7 @@ fn door_rows<P, T: Decide>(
     // A row of two copies is proved at the first copy's placement, which
     // is no decision the replay retakes: the door replays no census row.
     let at_rest_node = |by: &crate::assembly::AtRestBy| match *by {
-        crate::assembly::AtRestBy::Mate(mate) => mate,
+        crate::assembly::AtRestBy::Mate(mate) => mate.placement,
         crate::assembly::AtRestBy::Copies(a, _) => doc
             .operation_of(a.var)
             .unwrap_or_else(|| unreachable!("a gathered copy is a live placement's output")),
@@ -1444,7 +1445,7 @@ fn door_rows<P, T: Decide>(
         .map(|(node, rows)| (FindingSubject::Node(node), node, rows))
         .chain(at_rest.into_iter().map(|r| {
             let subject = match r.by {
-                crate::assembly::AtRestBy::Mate(mate) => FindingSubject::Node(mate),
+                crate::assembly::AtRestBy::Mate(mate) => FindingSubject::Node(mate.placement),
                 crate::assembly::AtRestBy::Copies(a, b) => FindingSubject::Copies { a, b },
             };
             (subject, at_rest_node(&r.by), vec![r.row.clone()])
@@ -1999,6 +2000,7 @@ mod tests {
         for refusal in [
             crate::ProductError::EmptyProduct {
                 unplaced: Vec::new(),
+                loose: Vec::new(),
             },
             crate::ProductError::Root(crate::NodeStanding::Poisoned {
                 node: RecipeNodeId::new(0, 7),

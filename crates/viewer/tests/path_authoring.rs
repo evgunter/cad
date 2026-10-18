@@ -241,7 +241,7 @@ fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
         out.refusal,
     );
     assert_eq!(
-        session.committed_doc().ids(),
+        common::authored_ids(session.committed_doc()),
         &[plane][..],
         "and nothing landed — the frame the profile would have named is \
          all the document holds",
@@ -305,7 +305,7 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
         out.refusal,
     );
     assert_eq!(
-        session.committed_doc().ids(),
+        common::authored_ids(session.committed_doc()),
         &[plane][..],
         "and nothing landed — the frame the profile would have named is \
          all the document holds",

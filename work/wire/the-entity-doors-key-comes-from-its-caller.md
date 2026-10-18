@@ -5,7 +5,7 @@ title: The entity door's kind is unforgeable but the key it is read off is the c
 status: open
 opened: 2026-09-13
 priority: P1
-cost: D
+cost: M
 ---
 
 
@@ -71,3 +71,40 @@ today on module privacy — the token's constructor must be private to
 the minting module, `entity` must be able to read it, and `ladder`
 lives inside `eval::wire` while `entity` cannot. Moving one to reach
 the other is the change to weigh.
+
+## Decided (2026-10-17, FORK-ENTITYDOOR, designers converged)
+
+One Opus and one Fable designer, briefed with the problem only, reached
+the same final state independently in round 1. The two rows are one
+symptom: `NameTable`'s seating doors (`insert_ref`, `insert_tied_ref`)
+refuse a row whose name's kind differs from its key's, so the kind a
+resolved key answers is always `name.kind` — authored data, readable
+with no resolution. The question belongs at the doors that read what
+the author wrote, not at evaluation.
+
+**The build:** `Select::fault` gains a per-name kind arm (the name at
+`at` is not of the selection's kind), so the edit door, the load door
+(`persist/check.rs` `first_selection_fault`) and `Rebind` hold "a
+selection of kind K holds only names of kind K"; `SlotKind::selection_kind`'s
+`Is(kind)` arm stops ignoring the names' kind, and the measure/pose
+lowering checks against the minted `VarKind` rather than `names.first()`.
+Evaluation resolves into typed keys through `names::interrogate::key_in::<K>`
+(`Selected<K: Denoted>`); `eval::entity_door`, `Found` (and its `lib.rs`
+re-export), `NodeErrorKind::SelectKind`, `class.rs` `found_body`, the
+`Found` census in `tests/wire_entity_door.rs`, and the blend/shell
+`filter_map(EntityKey::edge/face)` silent drops all go. A wrong-kind key
+out of resolution is the table's broken invariant: loud, never an
+author-facing refusal. The Python `select_kind` tag folds into
+`selection_shape`.
+
+Not Ev's: the text it contradicts is agent-written (`Select::fault`'s
+doc, `eval::entity_door`'s module doc, `docs/INTENT-STAGE2-SPEC.md`
+§Select, kept with reasons by the stage 2 E implementer per DR-141);
+no ratified page states the evaluation-time kind check. Stage 3 reach,
+not designed here: a saved mate side naming a non-face would refuse at
+load rather than resolve to `MateFault::SideUnresolved`
+(`tests/edit_one_predicate.rs`), and `mate::member::head_of`'s kind
+check becomes a backstop; announced on INTENT's log. One unit carries
+both rows.
+
+Signed (WIRE orchestrator).

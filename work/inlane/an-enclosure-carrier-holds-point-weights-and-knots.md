@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-11
 priority: P1
 design: true
-needs_ev: true
 cost: H
 refs: [the-skin-at-interval-encloses-the-nominal-skin]
 ---

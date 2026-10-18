@@ -377,8 +377,14 @@ fn every_cause() -> Vec<AdmissionFault> {
         AdmissionFault::MateConstrained {
             instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(6))),
             mates: vec![
-                SpokenNode::absent(RecipeNodeId::new(0, tagged(7))),
-                SpokenNode::absent(RecipeNodeId::new(0, tagged(8))),
+                (
+                    SpokenNode::absent(RecipeNodeId::new(0, tagged(7))),
+                    pncad::document::ConstraintId(pncad::document::MintId::new(0, tagged(17))),
+                ),
+                (
+                    SpokenNode::absent(RecipeNodeId::new(0, tagged(8))),
+                    pncad::document::ConstraintId(pncad::document::MintId::new(0, tagged(18))),
+                ),
             ],
         },
         AdmissionFault::FusedGeometry {
@@ -942,7 +948,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         badge.detail(),
         Some(
             format!(
-                "pick index: PlaceInWorld {copy} could not be indexed: pick: this node is \
+                "pick index: Place {copy} could not be indexed: pick: this node is \
                  poisoned by the failure at Extrude {failed}, so it has no value — the repair \
                  is upstream, at Extrude {failed}",
                 copy = test_utils::refusal::tag(broken_copy.0.digest()),
@@ -996,54 +1002,62 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
 }
 
 /// **The one path where the tree's blame and the index's words part**:
-/// an instance the placement solve left without a pose because another
-/// mate in its group refused. The evaluation reports the instance
-/// `Failed` in its own right, so the index's words say its copy is
-/// poisoned through the instance; the tree draws the instance
-/// downstream of the mate the fault blames, and the badge names that
-/// mate, because that is the row a reader can act on.
+/// a placement the solve left without a pose because the bundle it is
+/// placed against refused. The evaluation reports that placement
+/// `Failed` in its own right, so the index's words name it; the tree
+/// draws it downstream of the placement the fault blames, and the badge
+/// names that one, because that is the row a reader can act on.
 #[test]
-fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
+fn a_refusal_reached_through_a_mate_names_the_placement_the_tree_blames() {
     let tol = Tol::witness();
     let bench = common::asm::bench("vnews-derived-mate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
-    let offender = common::commit_mate(
+    // post_a seated under the shelf, then the shelf's own bundle
+    // contradicted on post_b: post_a, first in the index's order, is
+    // chained to the refused shelf.
+    common::asm::unpin(&mut session, bench.post_a);
+    common::commit_mate(
         &mut session,
         common::asm::seat_op(
             &bench,
-            bench.post_b,
+            bench.post_a,
             ContactClass::Rest,
-            common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+            common::asm::middle_seat_alignment(),
         ),
     );
+    common::asm::unpin(&mut session, bench.shelf_i);
+    for offset in [0.0, 0.01] {
+        common::commit_mate(
+            &mut session,
+            common::asm::shelf_rest_op(&bench, bench.post_b, offset),
+        );
+    }
+    let offender = bench.shelf_i;
     let refusal = common::index_at(&session, common::asm::delta())
-        .expect_err("a copy of an instance the solve refused refuses the index");
+        .expect_err("a placement the solve refused refuses the index");
     let pickindex::PickIndexError::Node {
         node: copy,
-        error:
-            NodePickError::Standing(NodeStanding::Poisoned {
-                through: failed, ..
-            }),
+        error: NodePickError::Standing(NodeStanding::Failed { node: failed }),
     } = &refusal
     else {
-        panic!("the copy is poisoned through the instance that failed: {refusal:?}");
+        panic!("the copy failed in its own right: {refusal:?}");
     };
     let badge = frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
         (*copy, *failed),
-        (bench.shelf_copy, bench.shelf_i),
-        "the index's words name the shelf's copy, through the instance that failed"
+        (bench.post_a, bench.post_a),
+        "the index's words name post_a, which failed"
     );
-    assert_ne!(offender, *failed, "and the instance is not the mate");
+    assert_ne!(offender, *failed, "and post_a is not the refused shelf");
     assert_eq!(
         badge.label(),
         format!(
-            "pick index: waits on Mate {}, which failed — until the index builds, no pick \
-             is answered and the picture is not redrawn",
+            "pick index: waits on InstantiatePart {}, which failed — until the index builds, \
+             no pick is answered and the picture is not redrawn",
             test_utils::refusal::tag(offender.0.digest())
         ),
-        "the mate the tree blames, not the copy the index's words name"
+        "the placement the tree blames, not the copy the index's words name"
     );
     assert_eq!(badge.tone(), frame::Tone::Advisory);
 }
@@ -3099,7 +3113,7 @@ fn the_feature_tree_reads_the_landed_pair_not_the_shown_document() {
     let (landed_doc, _) = session.landed_pair().expect("a landed pair");
     assert_eq!(
         rows.len(),
-        landed_doc.ids().len(),
+        landed_doc.len(),
         "the tree describes the landed document, which is what is drawn"
     );
     session.pump();
@@ -3389,7 +3403,9 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         "the placement is held, so there is something to discard"
     );
 
-    // Then they mate it, and that placement is discarded under them.
+    // Then they take its world pin off and mate it, and that placement
+    // is discarded under them.
+    asm::unpin(&mut session, bench.post_b);
     let mate = asm::seat_op(
         &bench,
         bench.post_b,
@@ -3400,11 +3416,9 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     // The mate the op landed, read off the document rather than off the
     // fault under test.
-    let landed = *session.doc().ids().last().expect("the mate landed");
-    assert!(
-        matches!(session.doc().node(landed), Some(Node::Mate { .. })),
-        "the newest node is the mate"
-    );
+    let [landed] = common::mates_in(session.doc())[..] else {
+        panic!("one mate landed")
+    };
     let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
@@ -3429,7 +3443,10 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         "the fault names the same instance"
     );
     assert_eq!(
-        mates.iter().map(|mate| mate.id()).collect::<Vec<_>>(),
+        mates
+            .iter()
+            .map(|(placement, id)| pncad::document::MateRef::new(placement.id(), *id))
+            .collect::<Vec<_>>(),
         vec![landed],
         "and names the mate that landed, which is what the line then reads"
     );
@@ -3508,17 +3525,18 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // The fault is said twice, once as why the drag refused and once
     // as why the placement went: two typed values, each rendering
     // itself, which is the join's rule.
-    let (post, mate_node) = (
-        test_utils::refusal::tag(bench.post_b.0.digest()),
-        test_utils::refusal::tag(landed.0.digest()),
+    let post = test_utils::refusal::tag(bench.post_b.0.digest());
+    let mate_node = format!(
+        "a constraint of InstantiatePart {}",
+        test_utils::refusal::tag(landed.placement.0.digest())
     );
     assert_eq!(
         line.text(),
         format!(
-            "InstantiatePart {post} is mate-constrained (Mate {mate_node}): its pose is \
+            "InstantiatePart {post} is mate-constrained ({mate_node}): its pose is \
              mate-derived, so the free-move probe refuses — delete the mate(s) if free \
              relative motion is intended \u{2022} free move: a committed placement was \
-             discarded — InstantiatePart {post} is mate-constrained (Mate {mate_node}): its \
+             discarded — InstantiatePart {post} is mate-constrained ({mate_node}): its \
              pose is mate-derived, so the free-move probe refuses — delete the mate(s) if \
              free relative motion is intended"
         )

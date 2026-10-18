@@ -338,7 +338,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     assert_eq!(
         common::world(session.committed_doc()),
         [carved],
-        "the world is one copy: the rook"
+        "the world is one copy: the rook: {:?}",
+        common::world(session.committed_doc())
+            .into_iter()
+            .map(|node| session.committed_doc().spoken(node).to_string())
+            .collect::<Vec<_>>()
     );
     let carved_doc = session.committed_doc().clone();
 
@@ -464,14 +468,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
     assert!(
         affordance.hover.as_deref().is_some_and(|hover| {
-            [
-                "1 × Pattern",
-                "1 × PlacedUnion",
-                "1 × Union",
-                "1 × PlaceInWorld",
-            ]
-            .iter()
-            .all(|kind| hover.contains(kind))
+            ["1 × Pattern", "1 × PlacedUnion", "1 × Union", "1 × Place"]
+                .iter()
+                .all(|kind| hover.contains(kind))
         }),
         "the hover names each dependent by kind: {:?}",
         affordance.hover

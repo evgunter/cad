@@ -92,7 +92,7 @@ pub(crate) const MAX_DEPTH: usize = 1024;
 /// that says whose declaration each record is and which of the
 /// document's mates it could not mint at all.
 ///
-/// Each of the three row lists (`minted`, `unminted`, `unplaced`) is
+/// Each of the two row lists (`minted`, `unminted`) is
 /// the referenced document's OWN rows first, then what it carried up
 /// from ITS parts, each as a [`PartRow`] that already holds the
 /// document's nodes it names. Instantiation adds its own instance to
@@ -100,6 +100,10 @@ pub(crate) const MAX_DEPTH: usize = 1024;
 pub(crate) struct PartValue<T: Decide> {
     pub body: Arc<Body<T>>,
     pub names: Arc<NameTable>,
+    /// The same product copy by copy, each keyed by its identity in the
+    /// part ([`crate::CopyKey`]), in the part's frame: what an instance's
+    /// `copies` delivers to a reader of one copy ([`keyed_copies`]).
+    pub copies: Arc<Vec<super::KeyedCopy<T>>>,
     pub contacts: Arc<topo::ContactRecords>,
     /// The minted declarations — which mate authored which of those
     /// records, keyed in the same arena the records are. The records
@@ -111,10 +115,6 @@ pub(crate) struct PartValue<T: Decide> {
     /// business — a part with an unverifiable contact is a broken part,
     /// and the document that instantiates it is not at rest over it.
     pub unminted: Arc<Vec<PartRow<crate::assembly::MintRefusal>>>,
-    /// The UNPLACED GROUPS, by root, with their causes, in their
-    /// documents' order: material a world product leaves out (A9),
-    /// which the instantiating document must still be able to name.
-    pub unplaced: Arc<Vec<PartRow<crate::assembly::UnplacedGroup>>>,
     /// The at-rest census's findings for the mated pairs the document
     /// refused, its own and those carried up, keyed as `contacts` are
     /// ([`crate::Product::refused_at_rest`]).
@@ -138,10 +138,10 @@ impl<T: Decide> Clone for PartValue<T> {
         Self {
             body: Arc::clone(&self.body),
             names: Arc::clone(&self.names),
+            copies: Arc::clone(&self.copies),
             contacts: Arc::clone(&self.contacts),
             minted: Arc::clone(&self.minted),
             unminted: Arc::clone(&self.unminted),
-            unplaced: Arc::clone(&self.unplaced),
             refused: Arc::clone(&self.refused),
             coincidences: Arc::clone(&self.coincidences),
             cited_inputs: Arc::clone(&self.cited_inputs),
@@ -490,12 +490,9 @@ enum ProductRecourse {
 fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
     use crate::product::ProductErrorKind as K;
     match kind {
-        K::EmptyProduct
-        | K::StrandedPlacement
-        | K::Unplaced
-        | K::Graft
-        | K::RootInvalid
-        | K::ProductInvalid => ProductRecourse::Carried,
+        K::EmptyProduct | K::StrandedPlacement | K::Graft | K::RootInvalid | K::ProductInvalid => {
+            ProductRecourse::Carried
+        }
         K::ContactLineage
         | K::EvaluationOfAnotherDocument
         | K::UnknownNode
@@ -528,11 +525,6 @@ pub(crate) struct PartCache<'a, T: Decide> {
     /// booleans too — the strategy is a property of the run, not of
     /// the document, and results are bit-identical either way.
     boolean_sweep: topo::SweepStrategy,
-    /// Where profile geometry comes from, inherited across the seam
-    /// for the same reason `boolean_sweep` is: it is a property of the
-    /// RUN, so a referenced document must be elaborated the way its
-    /// instantiator is being elaborated.
-    profile_lift: super::ProfileLift,
     /// Whether the run binds every variable a symbol
     /// ([`super::EvalOptions::symbols`]), inherited for the same reason.
     symbols: bool,
@@ -552,7 +544,6 @@ impl<'a, T: Decide> PartCache<'a, T> {
         chain: &'a [DocRef],
         reached: Reached<T>,
         boolean_sweep: topo::SweepStrategy,
-        profile_lift: super::ProfileLift,
         tol: Tol,
     ) -> Self {
         Self {
@@ -560,7 +551,6 @@ impl<'a, T: Decide> PartCache<'a, T> {
             chain,
             eps_bits: tol.eps().to_bits(),
             boolean_sweep,
-            profile_lift,
             symbols: false,
             entries: Mutex::new(reached.0),
             evaluations: AtomicUsize::new(0),
@@ -697,7 +687,6 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             parallel: false,
             boolean_sweep: self.boolean_sweep,
             resolver: self.resolver.map(Arc::clone),
-            profile_lift: self.profile_lift,
             // NOT inherited, unlike the two rows above: a parameter box
             // is keyed by THIS document's variable ids, and a referenced
             // document is a different document with its own variables
@@ -716,6 +705,12 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             // part's variable ids collide with another document's.
             symbols: self.symbols,
         };
+        // No profile lift is set here, because none is inherited: it is
+        // read off what the evaluation binds
+        // (`EvalOptions::profile_lift_over`), and with
+        // no box and no seed a referenced document runs at its own
+        // nominal, so it is built as its instantiator's build would build
+        // it — pinned, with its own variables' values.
         let evaluation = super::evaluate_nested::<T>(
             doc,
             &super::CancelToken::new(),
@@ -738,32 +733,6 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             Ok(product) => product,
             Err(e) => return Err(product_fault(e, evaluation, doc)),
         };
-        // The part's unplaced groups are not in its product (A9), so
-        // they cross beside it: its own, and those its parts carried up
-        // to it, read off the evaluation rather than the product so a
-        // group below an instance no root gathers is named too.
-        let unplaced = evaluation
-            .unplaced_groups()
-            .into_iter()
-            .map(|(group, cause)| {
-                PartRow::own(
-                    doc,
-                    doc_ref.id,
-                    crate::assembly::UnplacedGroup { group, cause },
-                )
-            })
-            .chain(evaluation.all_unplaced_below().into_iter().map(|row| {
-                PartRow::below(
-                    doc,
-                    row.route,
-                    crate::assembly::UnplacedGroup {
-                        group: row.group,
-                        cause: row.cause,
-                    },
-                    row.held,
-                )
-            }))
-            .collect();
         // The whole product crosses the seam, not a slice of it: what
         // a document MEANS is its product, and its mates' identity and
         // mint health are as much part of that as its records are. The
@@ -782,8 +751,10 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
                 value.parts
             })
             .sum();
+        let copies = Arc::new(keyed_copies(doc, &evaluation));
         Ok(PartValue {
             parts,
+            copies,
             body: Arc::new(product.body.into_body()),
             names: Arc::new(product.names),
             contacts: Arc::new(product.contacts),
@@ -816,9 +787,62 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
                     )
                     .collect(),
             ),
-            unplaced: Arc::new(unplaced),
         })
     }
+}
+
+/// **A document's world copies, each keyed by its identity there**
+/// (FORK-DM4): the copy a world `Place` makes of each shape it reads,
+/// keyed by its placement and the read, and each copy a world instance
+/// delivers, keyed by its placement and the copy's key in its part. A
+/// copy a pattern placed is a family under one key. In the placements'
+/// document order, as the gather reads them, so the copies are the
+/// product's material copy by copy; an empty copy is none.
+pub(crate) fn keyed_copies<T: Decide>(
+    doc: &ProfileDoc,
+    evaluation: &super::Evaluation<T>,
+) -> Vec<super::KeyedCopy<T>> {
+    use super::{BooleanValue, KeyedCopy, ValuePayload};
+    use crate::CopyKey;
+    let mut out = Vec::new();
+    for node in doc.placements() {
+        if evaluation.space(node) != crate::mate::Space::World {
+            continue;
+        }
+        let Some(value) = evaluation.value(node) else {
+            continue;
+        };
+        let read = || match doc.node(node) {
+            Some(crate::node::Node::Place { shapes, .. }) => shapes.first().map(|s| s.read),
+            _ => None,
+        };
+        let one = |bodies: Vec<Arc<Body<T>>>, family: bool| {
+            read().map(|read| KeyedCopy {
+                key: CopyKey::part(node, CopyKey::Read(read)),
+                bodies,
+                family,
+                parts: value.parts,
+                table: value
+                    .output(0)
+                    .map_or_else(crate::names::empty, super::OutputNames::shared_table),
+                motion: None,
+            })
+        };
+        match &value.payload {
+            ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
+                out.extend(one(vec![Arc::clone(body)], false));
+            }
+            ValuePayload::Instances(bodies) => out.extend(one(bodies.clone(), true)),
+            ValuePayload::Copies(copies) => {
+                out.extend(copies.members.iter().map(|member| KeyedCopy {
+                    key: CopyKey::part(node, member.key.clone()),
+                    ..member.clone()
+                }));
+            }
+            _ => {}
+        }
+    }
+    out
 }
 
 /// **The parts a nested evaluation instantiates, already evaluated** —
@@ -1029,7 +1053,6 @@ mod tests {
                 chain,
                 Reached::none(),
                 defaults.boolean_sweep,
-                defaults.profile_lift,
                 Tol::witness(),
             )
         };

@@ -78,19 +78,8 @@ impl EntityKey {
         }
     }
 
-    /// **The vertex this key denotes, or `None`** — the third
-    /// projection, and NOT [`EntityKey::face`]'s twin in the way the
-    /// other two are twins.
-    ///
-    /// `face` and `edge` are handed to `eval::wire`'s entity door as
-    /// `read` function pointers, so the door mints the `Found` word
-    /// from the key they decline. This one is read directly, by
-    /// `resolve_declarations`'s same-operand projection, where the
-    /// kind was already decided from the NAME and a `None` here means
-    /// the table broke its own rule rather than that a caller named
-    /// the wrong kind. If a road ever wants a vertex through that
-    /// door, this is the projection to hand it — which would make the
-    /// three genuinely alike.
+    /// **The vertex this key denotes, or `None`** — [`EntityKey::face`]'s
+    /// twin, for the roads that select vertices.
     pub(crate) fn vertex(self) -> Option<VertexKey> {
         match self {
             Self::Vertex(k) => Some(k),
@@ -722,16 +711,22 @@ impl NameTable {
     /// rows keeps both distinct — but carried as the typed result
     /// rather than unwrapped: this crate has no panic paths.
     pub fn project(&self, body: u32) -> Result<NameTable, DuplicateName> {
-        let rekey = |e: &EntityRef| EntityRef {
-            body: 0,
-            key: e.key,
-        };
+        self.reindex(|b| (b == body).then_some(0))
+    }
+
+    /// The rows over the output bodies `onto` keeps, each re-indexed to
+    /// the body it answers: [`Self::project`] over several bodies at
+    /// once, so one copy that is a family keeps its members' rows.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::project`]'s.
+    pub fn reindex(&self, onto: impl Fn(u32) -> Option<u32>) -> Result<NameTable, DuplicateName> {
         let mut out = NameTable::new();
         for (name, row) in &self.forward {
             let kept: Vec<(Candidate, EntityRef)> = row
                 .pairs()
-                .filter(|(_, e)| e.body == body)
-                .map(|(c, e)| (c, rekey(&e)))
+                .filter_map(|(c, e)| onto(e.body).map(|body| (c, EntityRef { body, key: e.key })))
                 .collect();
             if !kept.is_empty() {
                 super::defer::narrow_into(&mut out, name.clone(), kept)?;

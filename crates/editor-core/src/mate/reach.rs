@@ -287,9 +287,9 @@ impl core::fmt::Display for ReachRefusal {
 /// edit whose maintenance needs a solved frame refuses at the door.
 /// What `eval::mate_reach` answers over options carrying no resolver,
 /// as a value for a door that has no options at all — and the honest
-/// reach for an edit that asks the parts nothing: one that cannot move
-/// a group's root and inserts no mate whose admission reads a part
-/// (a side that names a face, a rider on a coincidence). Such an
+/// reach for an edit that asks the parts nothing: one that adds no
+/// constraint whose admission reads a part (a side that names a face,
+/// a rider on a coincidence). Such an
 /// insert refuses through it, typed, at the door.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RefusingReach;

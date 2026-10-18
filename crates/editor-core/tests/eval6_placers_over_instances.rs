@@ -185,14 +185,14 @@ fn a_transform_of_a_pattern_passes_the_patterns_table_through() {
     let (doc, whole) = insert(doc, skew(pattern));
     let ev = run(&doc, &opts());
     let (of_pattern, of_transform) = (
-        &ev.value(pattern).expect("the pattern").name_table,
-        &ev.value(whole).expect("the transform").name_table,
+        ev.table_at(pattern).expect("the pattern"),
+        ev.table_at(whole).expect("the transform"),
     );
     assert!(
-        Arc::ptr_eq(of_pattern, of_transform),
+        std::ptr::eq(of_pattern, of_transform),
         "the transform's table is the pattern's own"
     );
-    assert_eq!(**of_pattern, **of_transform);
+    assert_eq!(of_pattern, of_transform);
     // And every row resolves in the placed value: instance `i`'s rows
     // name body `i`, which is the body the transform placed there.
     let placed = instances_of(&ev, whole);
@@ -255,8 +255,8 @@ fn a_nested_pattern_lays_out_placement_major() {
     // The names: Instance(j) over Instance(i) over the cube's own name,
     // at body j·M + i, and the inner row it wraps sits at body i.
     let (of_inner, of_outer) = (
-        &ev.value(inner).expect("the inner").name_table,
-        &ev.value(outer).expect("the outer").name_table,
+        ev.table_at(inner).expect("the inner"),
+        ev.table_at(outer).expect("the outer"),
     );
     assert_eq!(of_outer.len(), of_inner.len() * N as usize);
     for (name, entry) in of_outer.iter() {
@@ -345,7 +345,7 @@ fn a_part_over_a_nested_pattern_indexes_the_flat_list() {
         };
         let name = in_copy(outer, j as u32, in_copy(inner, i as u32, cube_body));
         assert_eq!(
-            ev.value(*p).expect("the part").name_table.lookup(&name),
+            ev.table_at(*p).expect("the part").lookup(&name),
             Some(&Entry::Unique(editor_core::EntityRef {
                 body: 0,
                 key: EntityKey::Body,

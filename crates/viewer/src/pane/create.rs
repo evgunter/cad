@@ -211,7 +211,7 @@ pub(crate) fn mate_picks_row(
 /// **The smallest pattern count the form offers.**
 ///
 /// A pattern of zero instances refuses at evaluation
-/// (`NonPositiveCount`, typed, on the node's own badge), so the form
+/// (`CountOutOfRange`, typed, on the node's own badge), so the form
 /// declines to author one — the same rule the bore field follows. There
 /// is deliberately NO upper bound: the property panel imposes none on
 /// the slot afterwards, and a cap here would be a limit the document
@@ -1300,24 +1300,23 @@ impl ViewerBehavior<'_> {
         }
         let unit = self.notation.length.def();
         ui.horizontal(|ui| {
-            ui.label("axis origin");
-            point_fields(ui, unit, &mut self.drafts.revolve_axis_origin);
-            length_picker(ui, "revolve_axis_origin", &mut self.notation.length);
+            ui.label("axis through");
+            point_fields(ui, unit, &mut self.drafts.revolve_axis_through);
+            length_picker(ui, "revolve_axis_through", &mut self.notation.length);
         });
         ui.horizontal(|ui| {
-            ui.label("axis direction");
-            for (axis, component) in ["x", "y"]
-                .into_iter()
-                .zip(&mut self.drafts.revolve_axis_direction)
-            {
-                ui.label(axis);
-                ui.add(number_field(component, UNIT_DRAG_SPEED));
-            }
+            ui.label("axis heading");
+            unit_field(
+                ui,
+                self.notation.angle.def(),
+                ANGLE_DRAG_SPEED,
+                &mut self.drafts.revolve_axis_heading,
+            );
         });
         // Where the numbers are measured, said where they are typed.
         crate::widgets::message(
             ui,
-            "x and y are the profile's own; the axis lies in its plane",
+            "x, y and the heading from x are the profile's own; the axis lies in its plane",
         );
         ui.horizontal(|ui| {
             ui.label("angle");
@@ -1331,8 +1330,8 @@ impl ViewerBehavior<'_> {
         });
         self.tool_commit_row(ui, ToolKind::Revolve, |drafts, notation| {
             Ok(tool.op(
-                notation.point_literals(drafts.revolve_axis_origin.to_array())?,
-                crate::drafts::scalars2(drafts.revolve_axis_direction)?,
+                notation.point_literals(drafts.revolve_axis_through.to_array())?,
+                notation.angle_literal(drafts.revolve_axis_heading)?,
                 notation.angle_literal(drafts.revolve_angle)?,
             )?)
         });

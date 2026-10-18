@@ -1,6 +1,7 @@
-//! **The mate node on the wire** (ASSEMBLY-DESIGN A3/A12, ratified
-//! #522; ASM-R2a D-1): [`Node::Mate`] is node vocabulary, so a
-//! document carrying one must cross the persistence door as itself.
+//! **The mate on the wire** (ASSEMBLY-DESIGN A3/A12, ratified #522;
+//! ASM-R2a D-1): a mate is a constraint in a placement's bundle, node
+//! vocabulary, so a document carrying one must cross the persistence
+//! door as itself.
 //! This suite is that round trip. (The format carries no schema
 //! version — the persist module docs say why — so there is no version
 //! pin here and no older golden to refuse.)
@@ -15,8 +16,7 @@ use editor_core::{
 use geom_core::Tol;
 
 /// A document carrying a mate round-trips through the persistence
-/// door bit for bit, and the mate's class rides the same stable
-/// spelling a declared pair's does.
+/// door bit for bit, and the mate's class rides its stable spelling.
 #[test]
 fn a_mate_bearing_document_round_trips() {
     let doc_ref = DocRef {
@@ -25,11 +25,16 @@ fn a_mate_bearing_document_round_trips() {
     };
     let mut doc = ProfileDoc::empty(DocumentId::derive("asm-r2a-schema"), Tol::witness());
     let mut ids = Vec::new();
-    for _ in 0..2 {
+    // The first instance is pinned to the world; the second sits where
+    // the mate puts it, so the mate is its bundle.
+    for node in [
+        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
+    ] {
         let applied = apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Box::new(Node::instantiate_part(doc_ref)),
+                node: Box::new(node),
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -60,19 +65,20 @@ fn a_mate_bearing_document_round_trips() {
     .expect("a definite frame");
     let doc = apply(
         &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::Mate {
-                a: crate::fixture::head(name(ids[0])).into(),
-                b: crate::fixture::head(name(ids[1])).into(),
-                class: ContactClass::Rest,
-                alignment: Alignment {
+        &DocEdit::AddConstraint {
+            placement: ids[1],
+            mate: Box::new(crate::fixture::mate(
+                crate::fixture::head(name(ids[0])),
+                crate::fixture::head(name(ids[1])),
+                ContactClass::Rest,
+                Alignment {
                     a: f.clone(),
                     b: f,
                     primitive: MatePrimitive::PlanarRest { offset: 0.5 },
                     sense: AxisSense::Opposed,
                     clocking: None,
                 },
-            }),
+            )),
             fresh: Vec::new(),
         },
         Tol::witness(),

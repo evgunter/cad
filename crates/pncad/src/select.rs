@@ -89,7 +89,7 @@
 // for a consumer of `pncad::document` alone, and the cost the other
 // way is the same name on two lists.
 pub use editor_core::{
-    CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict, CurveKind,
+    At, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict, CurveKind,
     CurveKindSet, DeclaredContact, Denotation, DuplicateName, EntityKind, FIT_DEFERRAL, GeomPred,
     InterrogateError, LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError,
     OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfilePieces, ProfileVertexRef, RimShare,
@@ -221,6 +221,6 @@ pub use editor_core::{
 // which is what a curated list owes; nothing here names one as a
 // type.
 pub use editor_core::{
-    AboutReference, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, RunCtx,
-    resolve,
+    AboutReference, ReadEdit, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate,
+    ResolveRefusal, RunCtx, resolve, stranded_at,
 };

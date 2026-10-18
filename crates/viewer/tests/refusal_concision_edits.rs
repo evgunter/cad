@@ -64,6 +64,17 @@ fn n(id: u64) -> RecipeNodeId {
     RecipeNodeId::new(0, tagged(id))
 }
 
+/// Constraint `id`'s minted id.
+fn c(id: u64) -> pncad::document::ConstraintId {
+    pncad::document::ConstraintId(pncad::document::MintId::new(0, tagged(id)))
+}
+
+/// Constraint `id` of placement 7, the copy every mate row's bundle
+/// places.
+fn r(id: u64) -> pncad::document::MateRef {
+    pncad::document::MateRef::new(n(7), c(id))
+}
+
 /// Node `id` as a refusal raised over a document holding it as a
 /// `kind` speaks it: labelled, the longest spelling a sentence names a
 /// node by, and by the kind the arm really names, so a template that
@@ -594,77 +605,29 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "OffsetOnNonInstance",
-            EditError::OffsetOnNonInstance {
+            "WorldIsUndeletable",
+            EditError::WorldIsUndeletable {
+                node: s(0, "World"),
+            },
+        ),
+        (
+            "ConstraintOnNonPlacement",
+            EditError::ConstraintOnNonPlacement {
                 node: s(5, "Extrude"),
             },
         ),
         (
-            "GaugeOnNonPlaced",
-            EditError::GaugeOnNonPlaced {
+            "UnknownConstraint",
+            EditError::UnknownConstraint {
+                node: s(5, "Place"),
+                constraint: c(9),
+            },
+        ),
+        (
+            "CopyReadOffBodySeat",
+            EditError::CopyReadOffBodySeat {
                 node: s(5, "Extrude"),
-            },
-        ),
-        (
-            "GaugeNotLive",
-            EditError::GaugeNotLive {
-                node: s(5, "InstantiatePart"),
-                gauge: SpokenNode::absent(n(3)),
-            },
-        ),
-        (
-            "NotAGauge",
-            EditError::NotAGauge {
-                node: s(5, "InstantiatePart"),
-                gauge: s(3, "Extrude"),
-            },
-        ),
-        (
-            "GaugeCycle",
-            EditError::GaugeCycle {
-                node: s(5, "Gauge"),
-                gauge: s(3, "Gauge"),
-            },
-        ),
-        (
-            "WouldStartPlacing",
-            EditError::WouldStartPlacing { mate: s(9, "Mate") },
-        ),
-        (
-            "PromoteOnNonInstance",
-            EditError::PromoteOnNonInstance { node: s(9, "Mate") },
-        ),
-        (
-            "PromoteWithoutOffset",
-            EditError::PromoteWithoutOffset {
-                node: s(4, "InstantiatePart"),
-            },
-        ),
-        (
-            "PromoteNonRoot",
-            EditError::PromoteNonRoot {
-                node: s(5, "InstantiatePart"),
-                root: s(4, "InstantiatePart"),
-            },
-        ),
-        (
-            "PromoteMemberOffset",
-            EditError::PromoteMemberOffset {
-                node: s(4, "InstantiatePart"),
-                member: s(5, "InstantiatePart"),
-            },
-        ),
-        (
-            "FoldOnNonGauge",
-            EditError::FoldOnNonGauge {
-                node: s(4, "InstantiatePart"),
-            },
-        ),
-        (
-            "FoldWouldStartPlacing",
-            EditError::FoldWouldStartPlacing {
-                node: s(3, "Gauge"),
-                mate: s(9, "Mate"),
+                slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Profile),
             },
         ),
         // `PlacementRuleMismatch`: every shape, each spoken with the
@@ -709,14 +672,18 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         ),
         (
             "NonFiniteAlignment",
-            EditError::NonFiniteAlignment { node: s(5, "Mate") },
+            EditError::NonFiniteAlignment {
+                node: s(5, "Place"),
+                constraint: c(9),
+                position: 2,
+            },
         ),
         (
             "MateRefused",
             EditError::MateRefused {
-                node: s(9, "Mate"),
+                node: s(7, "Place"),
                 fault: Box::new(MateFault::SelfMate {
-                    mate: n(9),
+                    mate: r(9),
                     instance: n(6),
                 }),
                 held: Default::default(),
@@ -881,7 +848,7 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
         (
             "Frame",
             MateFault::Frame {
-                mate: n(9),
+                mate: r(9),
                 side: MateSide::A,
                 error: FrameError::Degenerate {
                     input: FrameInput::Aim,
@@ -891,19 +858,19 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
         ),
         (
             "ClassNotAdmitted",
-            MateFault::ClassNotAdmitted { mate: n(9) },
+            MateFault::ClassNotAdmitted { mate: r(9) },
         ),
         (
             "TableLacks",
             MateFault::TableLacks {
-                mate: n(9),
+                mate: r(9),
                 what: "a clocking rider on a planar rest",
             },
         ),
         (
             "Indeterminate",
             MateFault::Indeterminate {
-                mate: n(9),
+                mate: r(9),
                 diag: Box::new(Indeterminate {
                     margin: MarginDiag::value(3.0e-10),
                     band,
@@ -924,25 +891,40 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
         (
             "Contradictory",
             MateFault::Contradictory {
-                held: n(8),
-                added: n(9),
+                held: r(8),
+                added: r(9),
                 predicate: "mate_coaxial",
                 clash: Clash::Length { metres: 0.002 },
             },
         ),
         (
-            "Under",
-            MateFault::Under {
-                mate: n(9),
-                parent: n(6),
-                child: n(7),
-                residual: Subgroup::Se3,
+            "Overconstrained",
+            MateFault::Overconstrained {
+                placement: n(7),
+                constraints: vec![c(8), c(9)],
+                held: Subgroup::Trivial,
+            },
+        ),
+        (
+            "TargetsDiffer",
+            MateFault::TargetsDiffer {
+                placement: n(7),
+                constraints: vec![c(8), c(9)],
+            },
+        ),
+        ("NotOnTheCopy", MateFault::NotOnTheCopy { mate: r(9) }),
+        (
+            "SideBase",
+            MateFault::SideBase {
+                mate: r(9),
+                side: MateSide::A,
+                base: editor_core::FrameBase::World,
             },
         ),
         (
             "DanglingHead",
             MateFault::DanglingHead {
-                mate: n(9),
+                mate: r(9),
                 side: MateSide::B,
                 head: n(4),
             },
@@ -950,7 +932,7 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
         (
             "PlacerRefused",
             MateFault::PlacerRefused {
-                mate: n(9),
+                mate: r(9),
                 side: MateSide::B,
                 placer: n(4),
                 error: NodeErrorKind::EmptyOperand { input: n(3) }.into(),
@@ -960,7 +942,7 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
         (
             "PartSelectsAnotherCopy",
             MateFault::PartSelectsAnotherCopy {
-                mate: n(9),
+                mate: r(9),
                 side: MateSide::A,
                 part: n(6),
                 named: 2,
@@ -970,37 +952,18 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
         (
             "SelfMate",
             MateFault::SelfMate {
-                mate: n(9),
+                mate: r(9),
                 instance: n(6),
             },
         ),
         (
             "Unleverable",
             MateFault::Unleverable {
-                mate: n(9),
+                mate: r(9),
                 refusal: Box::new(LeverRefusal::Reach {
                     instance: n(6),
                     part: doc_ref,
                     refusal: editor_core::ReachRefusal::NoExtent,
-                }),
-            },
-        ),
-        (
-            "OffsetDisagrees",
-            MateFault::OffsetDisagrees {
-                instance: n(7),
-                root: n(6),
-                predicate: "mate_member_translation_zero",
-                clash: Clash::Length { metres: 0.002 },
-            },
-        ),
-        (
-            "OffsetUnchecked",
-            MateFault::OffsetUnchecked {
-                instance: n(7),
-                cause: Box::new(editor_core::OffsetCheck::Placement {
-                    node: n(3),
-                    error: NodeErrorKind::EmptyOperand { input: n(2) }.into(),
                 }),
             },
         ),
@@ -1065,7 +1028,7 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
         rows.push((
             format!("MateRefused({arm})"),
             EditError::MateRefused {
-                node: s(9, "Mate"),
+                node: s(7, "Place"),
                 fault: Box::new(fault),
                 held: Default::default(),
             },

@@ -19,9 +19,13 @@
 //! shape, for the same reasons.
 //!
 //! One record rather than one match per attribute: every field of
-//! [`MateFaultPayload`] is read off `MateFault`'s thirteen arms, so a
-//! per-accessor match would name the same thirteen arms once per
-//! field and an arm added kernel-side would owe an edit per field.
+//! [`MateFaultPayload`] is read off `MateFault`'s arms, so a
+//! per-accessor match would name the same arms once per field and an
+//! arm added kernel-side would owe an edit per field.
+//!
+//! A mate is a constraint of a placement, never a node, so every field
+//! that names one holds its address, a [`MateRef`]: the placement and
+//! the constraint's id.
 //!
 //! # The flattening
 //!
@@ -64,8 +68,8 @@
 //! `FrameError::Band` as well as through `Band` itself.
 
 use pncad::document::{
-    Clash, DocumentId, FacePoseRefusal, FaceRefusal, Lever, LeverRefusal, MateFault, MateSide,
-    OffsetCheck, ReachRefusal, RecipeNodeId, Subgroup,
+    Clash, ConstraintId, DocumentId, FacePoseRefusal, FaceRefusal, FrameBase, Lever, LeverRefusal,
+    MateFault, MateRef, MateSide, ReachRefusal, RecipeNodeId, Subgroup,
 };
 use pncad::geom_core::{BandError, FrameError, Indeterminate};
 use pncad::prelude::StableName;
@@ -73,7 +77,7 @@ use pncad::prelude::StableName;
 use crate::escalation::escalation;
 use crate::tags::{
     band_error_tag, band_field_tag, face_refusal_tag, frame_error_tag, lever_refusal_tag,
-    node_error_tag, offset_check_tag,
+    node_error_tag,
 };
 
 /// What one [`MateFault`] arm carries, every field present.
@@ -84,8 +88,8 @@ use crate::tags::{
 /// `Copy` — the face a face-based side read.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MateFaultPayload<'a> {
-    /// The mate the fault is ABOUT.
-    pub mate: Option<RecipeNodeId>,
+    /// The mate the fault is ABOUT, by its address.
+    pub mate: Option<MateRef>,
     /// Which side of the mate refused.
     pub side: Option<MateSide>,
     /// The instantiate node a dangling reference head claims.
@@ -96,26 +100,28 @@ pub struct MateFaultPayload<'a> {
     /// every node failure crosses with
     /// ([`crate::tags::node_error_tag`]).
     pub error: Option<&'static str>,
-    /// The instance a self-mate names twice, the instance whose part
-    /// a lever or a face frame was asked of, or whose checked offset
-    /// faulted.
+    /// The instance a self-mate names twice, or the instance whose
+    /// part a lever or a face frame was asked of.
     pub instance: Option<RecipeNodeId>,
-    /// The root of a faulted checked offset's group: the member whose
-    /// offset places the group the solve placed the instance in.
-    pub root: Option<RecipeNodeId>,
+    /// The placement a bundle's fault is about: the one a constraint
+    /// over-constrains, or whose constraints target different copies.
+    pub placement: Option<RecipeNodeId>,
+    /// The constraints of [`Self::placement`] the fault names: each
+    /// whose removal leaves the bundle's codimension unchanged, or the
+    /// bundle's constraints whose targets differ.
+    pub constraints: Option<&'a [ConstraintId]>,
+    /// The frame base a side carries that its read does not admit.
+    pub base: Option<FrameBase>,
     /// **The face a face-based side read**: its head's face in the part's own
     /// spelling, or the head itself where it names no face of the part.
     pub face: Option<&'a StableName>,
-    /// The instance an under-determined tree mate extended FROM.
-    pub parent: Option<RecipeNodeId>,
-    /// The instance it failed to place.
-    pub child: Option<RecipeNodeId>,
-    /// What survived an under-determined fold.
+    /// What the rest of an over-constrained bundle already holds the
+    /// copy to.
     pub residual: Option<Subgroup>,
     /// The mate already folded, for a contradictory pair.
-    pub held: Option<RecipeNodeId>,
+    pub held: Option<MateRef>,
     /// The mate whose intersection died against it.
-    pub added: Option<RecipeNodeId>,
+    pub added: Option<MateRef>,
     /// **The predicate the refusal is about**: the one that decided
     /// against a contradictory pair, or the one an escalation could
     /// not decide at all. One concept, one attribute — the arm says
@@ -195,10 +201,10 @@ impl<'a> MateFaultPayload<'a> {
             placer,
             error,
             instance,
-            root,
+            placement,
+            constraints,
+            base,
             face,
-            parent,
-            child,
             residual,
             held,
             added,
@@ -229,10 +235,10 @@ impl<'a> MateFaultPayload<'a> {
             ("placer", placer.is_some()),
             ("error", error.is_some()),
             ("instance", instance.is_some()),
-            ("root", root.is_some()),
+            ("placement", placement.is_some()),
+            ("constraints", constraints.is_some()),
+            ("base", base.is_some()),
             ("face", face.is_some()),
-            ("parent", parent.is_some()),
-            ("child", child.is_some()),
             ("residual", residual.is_some()),
             ("held", held.is_some()),
             ("added", added.is_some()),
@@ -275,10 +281,10 @@ impl<'a> MateFaultPayload<'a> {
         placer: None,
         error: None,
         instance: None,
-        root: None,
+        placement: None,
+        constraints: None,
+        base: None,
         face: None,
-        parent: None,
-        child: None,
         residual: None,
         held: None,
         added: None,
@@ -530,16 +536,34 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
                 ..none
             }
         }
-        MateFault::Under {
-            mate,
-            parent,
-            child,
-            residual,
+        // A bundle's faults: the placement is the subject, and the
+        // constraints it names ride beside it, each by its id.
+        MateFault::Overconstrained {
+            placement,
+            constraints,
+            held,
         } => MateFaultPayload {
+            placement: Some(*placement),
+            constraints: Some(constraints),
+            residual: Some(*held),
+            ..none
+        },
+        MateFault::TargetsDiffer {
+            placement,
+            constraints,
+        } => MateFaultPayload {
+            placement: Some(*placement),
+            constraints: Some(constraints),
+            ..none
+        },
+        MateFault::NotOnTheCopy { mate } => MateFaultPayload {
             mate: Some(*mate),
-            parent: Some(*parent),
-            child: Some(*child),
-            residual: Some(*residual),
+            ..none
+        },
+        MateFault::SideBase { mate, side, base } => MateFaultPayload {
+            mate: Some(*mate),
+            side: Some(*side),
+            base: Some(*base),
             ..none
         },
         // The side's read rides the sentence; the payload names the
@@ -603,55 +627,5 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             instance: Some(*instance),
             ..none
         },
-        // A checked offset (A11 (2)): the instance stating it is the
-        // subject and names no mate. A refuted one carries the
-        // predicate and its measured clash as a contradiction does.
-        MateFault::OffsetDisagrees {
-            instance,
-            root,
-            predicate,
-            clash,
-        } => {
-            let (lever_tilt, lever_residual, lever_arm) = match clash {
-                Clash::Levered(Lever::Roll { radians, arm }) => (Some(*radians), None, Some(*arm)),
-                Clash::Levered(Lever::Residual { value, arm }) => (None, Some(*value), Some(*arm)),
-                Clash::Structural | Clash::Length { .. } => (None, None, None),
-            };
-            MateFaultPayload {
-                instance: Some(*instance),
-                root: Some(*root),
-                predicate: Some(predicate),
-                clash: clash.deviation(),
-                lever_tilt,
-                lever_residual,
-                lever_arm,
-                ..none
-            }
-        }
-        // Why it could not be checked is the inner word; each cause
-        // carries what its own arm elsewhere carries.
-        MateFault::OffsetUnchecked { instance, cause } => {
-            let base = MateFaultPayload {
-                instance: Some(*instance),
-                inner_variant: Some(offset_check_tag(cause)),
-                ..none
-            };
-            match &**cause {
-                // The node whose placement did not evaluate, and the
-                // evaluation's word for why, as a placer's.
-                OffsetCheck::Placement { node, error } => MateFaultPayload {
-                    placer: Some(*node),
-                    error: Some(node_error_tag(error.kind().class())),
-                    ..base
-                },
-                OffsetCheck::Unleverable(_) | OffsetCheck::OutOfRange => base,
-                OffsetCheck::Indeterminate(diag) => with_escalation(base, diag),
-                // The refused mate that strands the member.
-                OffsetCheck::Unreached { mate } => MateFaultPayload {
-                    mate: Some(*mate),
-                    ..base
-                },
-            }
-        }
     }
 }

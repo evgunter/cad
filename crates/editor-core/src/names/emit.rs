@@ -902,7 +902,7 @@ pub(crate) fn name_in_part<T: geom_core::Real>(
     Ok(Arc::new(t))
 }
 
-/// **A world placement's copy, named** (D10, A10): every row of the
+/// **A placement's copy, named** (D10, A10): every row of the
 /// body placed (`body`'s table, already projected to that one body) is
 /// re-minted as `Placed(name)` at the PLACEMENT node, so two placements
 /// of one body name their copies apart, as an instance names its
@@ -938,6 +938,67 @@ pub(crate) fn name_placed<T: geom_core::Real>(
         }
     }
     check_total(&t, placed, 0)?;
+    Ok(Arc::new(t))
+}
+
+/// **One copy of an instantiated part, named** ([`name_in_part`]'s
+/// rows for one of the part's copies): every name of the copy's part
+/// table, qualified by the instance, each kept on the body it answers,
+/// and the table total over every body of the copy.
+pub(crate) fn name_in_part_copy<T: geom_core::Real>(
+    node: RecipeNodeId,
+    part: &NameTable,
+    placed: &[Arc<Body<T>>],
+) -> Result<Arc<NameTable>, NamingError> {
+    part.seal_order();
+    let mut t = NameTable::new();
+    for (name, entry) in part.iter_refs() {
+        let wrapped = StableName {
+            kind: name.kind,
+            node,
+            path: vec![super::role::RoleSeg::InPart { of: name.clone() }],
+        };
+        match entry {
+            super::table::Entry::Unique(e) => t.insert(wrapped, *e)?,
+            super::table::Entry::Tied(es) => t.insert_tied(wrapped, es.clone())?,
+        }
+    }
+    for (ix, body) in placed.iter().enumerate() {
+        check_total(&t, body, output_body(ix)?)?;
+    }
+    Ok(Arc::new(t))
+}
+
+/// **A placement's copies of several shapes, named** (D10): copy `k`
+/// is body `k`, and every name of shape `k` is that copy's, qualified
+/// by the placement ([`super::role::RoleSeg::Placed`]) — its body name
+/// too, so each copy's body is named by the body it copies. A
+/// placement of one shape is [`name_placed`]'s.
+pub(crate) fn name_placed_copies<T: geom_core::Real>(
+    node: RecipeNodeId,
+    shapes: &[(&NameTable, &Body<T>)],
+) -> Result<Arc<NameTable>, NamingError> {
+    let mut t = NameTable::new();
+    for (k, (table, _)) in shapes.iter().enumerate() {
+        let k = output_body(k)?;
+        table.seal_order();
+        for (name, entry) in table.iter_refs() {
+            let wrapped = StableName {
+                kind: name.kind,
+                node,
+                path: vec![super::role::RoleSeg::Placed { of: name.clone() }],
+            };
+            match entry {
+                super::table::Entry::Unique(e) => t.insert(wrapped, ent(k, e.key))?,
+                super::table::Entry::Tied(es) => {
+                    t.insert_tied(wrapped, es.iter().map(|e| ent(k, e.key)).collect())?;
+                }
+            }
+        }
+    }
+    for (k, (_, body)) in shapes.iter().enumerate() {
+        check_total(&t, body, output_body(k)?)?;
+    }
     Ok(Arc::new(t))
 }
 

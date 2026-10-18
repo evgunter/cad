@@ -115,7 +115,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 53;
+const OP_COUNT: usize = 54;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -279,8 +279,8 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::AddRevolve {
             profile: node,
-            axis_origin: common::len2([0.0, 0.0]),
-            axis_direction: common::scl2([0.0, 1.0]),
+            axis_through: common::len2([0.0, 0.0]),
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: common::ang(1.0),
         },
         SessionOp::AddBoolean {
@@ -368,6 +368,12 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::DeclineOffer {
             node,
             slot: SlotId::Distance,
+        },
+        SessionOp::RemoveConstraint {
+            mate: pncad::document::MateRef::new(
+                node,
+                pncad::document::ConstraintId(pncad::document::MintId::new(0, 1)),
+            ),
         },
     ]
 }
@@ -465,6 +471,8 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // document nor the history.
         SessionOp::SetSlotVariable { .. } => (51, false),
         SessionOp::DeclineOffer { .. } => (52, true),
+        // A bundle edit: a document edit, fenced with every other one.
+        SessionOp::RemoveConstraint { .. } => (53, false),
     }
 }
 
@@ -712,7 +720,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     );
     assert_eq!(
         viewer::display::drawn_targets(session.doc(), post),
-        Ok(std::iter::once(bench.post_a_copy).collect()),
+        Ok(std::iter::once(bench.post_a).collect()),
         "the probe on the instance is drawn on the instance's own copy"
     );
 
@@ -779,10 +787,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             },
         );
         assert_eq!(
-            session
-                .display_view()
-                .moved_placements
-                .get(&bench.post_a_copy),
+            session.display_view().moved_placements.get(&bench.post_a),
             Some(&probe),
             "{slot:?}: the previewed probe reaches its drawn copy under a scratch document"
         );
@@ -873,6 +878,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         SessionOp::Select(_)
         | SessionOp::Hover(_)
         | SessionOp::DeleteNode { .. }
+        | SessionOp::RemoveConstraint { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
@@ -1482,6 +1488,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         SessionOp::Select(_)
         | SessionOp::Hover(_)
         | SessionOp::DeleteNode { .. }
+        | SessionOp::RemoveConstraint { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }

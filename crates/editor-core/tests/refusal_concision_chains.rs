@@ -97,8 +97,9 @@ pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
     ("Check/", "check connectedness"),
     ("Check/", "check chart-coherence"),
     ("Check/", "placement 000000000004 output 0"),
-    // The mate solve names the mate it refused (`mate 9: …`).
-    ("Mate/", "mate 000000000009"),
+    // The mate solve names the constraint it refused (`constraint #9 of
+    // node 7: …`).
+    ("Mate/", "constraint #9 of node 000000000007"),
     // A pair's corner list names each corner it could not fillet.
     ("ProfileReplay/Path/NoCornerOfPair(", "at corner"),
 ];
@@ -228,7 +229,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "SelectResolve/Vanished",
     "MeasureRefUnreadable/Ambiguous",
     "MeasureRefUnreadable/NoBodies",
-    "MeasureRefUnreadable/NoSuchBody",
     "MeasureRefUnreadable/NoSuchName",
     "MeasureRefUnreadable/NodeFailed",
     "MeasureRefUnreadable/NodeNotEvaluated",
@@ -238,7 +238,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MeasureRefUnreadable/WrongKind",
     "MeasureUnsupported",
     "MissingInput",
-    "MissingSlot",
     "Naming/Duplicate",
     "Naming/Emission",
     "Naming/MissingUpstream",
@@ -246,7 +245,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Naming/SharedRim",
     "Naming/SplitLineage",
     "Naming/Unnamed",
-    "NonPositiveCount",
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
     "PayloadExpr",
@@ -255,10 +253,8 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "PlacementRule/NoPlacements",
     "PlacementRule/NonFiniteFrame",
     "PlacementsUncertified",
-    "ProfileAnchor",
     "ProfileLaneReplay(Flipped)",
     "ProfileLaneReplay(None)",
-    "ProfilePieces",
     "Seed/CountVar",
     "Seed/TangentUnrepresentable",
     "Seed/UnknownVar",
@@ -268,7 +264,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "SelectResolve/Vanished",
     "ToleranceConflict",
     "UnschedulableCycle",
-    "VerbArity",
     "WitnessBifurcation",
     "WrongOperand",
     // work/paths/paths-refusals-short-of-the-shape-guard.md
@@ -762,7 +757,10 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
             "Carried/PlacerRefused",
             1,
             NodeErrorKind::Mate(Box::new(MateFault::PlacerRefused {
-                mate: RecipeNodeId::new(0, tagged(9)),
+                mate: editor_core::MateRef::new(
+                    RecipeNodeId::new(0, tagged(9)),
+                    editor_core::ConstraintId(editor_core::MintId::new(1, 0)),
+                ),
                 side: MateSide::B,
                 placer: RecipeNodeId::new(0, tagged(4)),
                 error: inner().into(),
@@ -799,7 +797,10 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
     // carried: the refusal is drawn once, on the placer's row.
     let placer = |placer_row| {
         NodeErrorKind::Mate(Box::new(MateFault::PlacerRefused {
-            mate: RecipeNodeId::new(0, tagged(9)),
+            mate: editor_core::MateRef::new(
+                RecipeNodeId::new(0, tagged(9)),
+                editor_core::ConstraintId(editor_core::MintId::new(1, 0)),
+            ),
             side: MateSide::B,
             placer: RecipeNodeId::new(0, tagged(4)),
             error: inner().into(),
@@ -982,7 +983,15 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
                 structure: None,
             },
         ),
-        row("ProfileAnchor", NodeErrorKind::ProfileAnchor { loop_: 0 }),
+        row("ProfileAnchor", NodeErrorKind::ProfileAnchor),
+        row(
+            "ProfileRecordMissing(None)",
+            NodeErrorKind::ProfileRecordMissing { loop_: None },
+        ),
+        row(
+            "ProfileRecordMissing(Some)",
+            NodeErrorKind::ProfileRecordMissing { loop_: Some(1) },
+        ),
         row(
             "ProfilePieces",
             NodeErrorKind::ProfilePieces {
@@ -1087,6 +1096,50 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
+            "NoSuchCopy",
+            NodeErrorKind::NoSuchCopy {
+                input: RecipeNodeId::new(0, tagged(3)),
+                key: Box::new(editor_core::CopyKey::Read(editor_core::VarId::new(
+                    0,
+                    tagged(2),
+                ))),
+            },
+        ),
+        row(
+            "CopiesShareAKey",
+            NodeErrorKind::CopiesShareAKey {
+                key: Box::new(editor_core::CopyKey::Read(editor_core::VarId::new(
+                    0,
+                    tagged(2),
+                ))),
+            },
+        ),
+        row(
+            "CopyShape/Family",
+            NodeErrorKind::CopyShape {
+                input: RecipeNodeId::new(0, tagged(3)),
+                key: Box::new(editor_core::CopyKey::Part {
+                    placement: RecipeNodeId::new(0, tagged(4)),
+                    within: Box::new(editor_core::CopyKey::Read(editor_core::VarId::new(
+                        0,
+                        tagged(2),
+                    ))),
+                }),
+                family: true,
+            },
+        ),
+        row(
+            "CopyShape/OneBody",
+            NodeErrorKind::CopyShape {
+                input: RecipeNodeId::new(0, tagged(3)),
+                key: Box::new(editor_core::CopyKey::Read(editor_core::VarId::new(
+                    0,
+                    tagged(2),
+                ))),
+                family: false,
+            },
+        ),
+        row(
             "DegenerateDirection",
             NodeErrorKind::DegenerateDirection {
                 role: "extrude direction",
@@ -1148,8 +1201,12 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "NonPositiveCount",
-            NodeErrorKind::NonPositiveCount { count: 0 },
+            "CountOutOfRange",
+            NodeErrorKind::CountOutOfRange {
+                slot: SlotId::VDegree,
+                count: -1,
+                admits: 0..=i64::MAX,
+            },
         ),
         row(
             "NegativeSpacing",
@@ -2937,6 +2994,7 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
     [
         ("Band", E::Band(band_error())),
         ("EmptyProfile", E::EmptyProfile),
+        ("PlaneNotFinite", E::PlaneNotFinite),
         ("EmptyLoop", E::EmptyLoop { loop_index: 0 }),
         ("DegenerateSegment", E::DegenerateSegment(a)),
         ("NearFullArc", E::NearFullArc(a)),
@@ -3715,29 +3773,23 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             }),
         ),
         row(
-            "Unplaced/NoOffset",
-            NodeErrorKind::Unplaced {
-                group: RecipeNodeId::new(0, 6),
-                cause: editor_core::Unplaced::NoOffset,
-            },
-        ),
-        row(
-            "Unplaced/DeadGauge",
-            NodeErrorKind::Unplaced {
-                group: RecipeNodeId::new(0, 6),
-                cause: editor_core::Unplaced::DeadGauge {
-                    gauge: RecipeNodeId::new(0, 2),
+            "SpaceMismatch/WorldAndLoose",
+            NodeErrorKind::SpaceMismatch {
+                a: editor_core::Space::World,
+                b: editor_core::Space::Loose {
+                    root: RecipeNodeId::new(0, tagged(6)),
                 },
             },
         ),
         row(
-            "PlacementRefused",
-            NodeErrorKind::PlacementRefused {
-                node: RecipeNodeId::new(0, 2),
-                error: NodeErrorKind::EmptyOperand {
-                    input: RecipeNodeId::new(0, 1),
-                }
-                .into(),
+            "SpaceMismatch/TwoLoose",
+            NodeErrorKind::SpaceMismatch {
+                a: editor_core::Space::Loose {
+                    root: RecipeNodeId::new(0, tagged(6)),
+                },
+                b: editor_core::Space::Loose {
+                    root: RecipeNodeId::new(0, tagged(7)),
+                },
             },
         ),
         row(
@@ -4054,6 +4106,9 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
     use geom_core::{FrameError, FrameInput};
     use payloads::*;
     let n = |id| RecipeNodeId::new(0, tagged(id));
+    let c = |id: u32| editor_core::ConstraintId(editor_core::MintId::new(id, 0));
+    // Constraint `id` of placement 7, the copy every row's bundle places.
+    let r = |id: u32| editor_core::MateRef::new(n(7), c(id));
     [
         (
             "PosesOfAnotherDocument",
@@ -4065,7 +4120,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
         (
             "Frame",
             M::Frame {
-                mate: n(9),
+                mate: r(9),
                 side: MateSide::A,
                 error: FrameError::Degenerate {
                     input: FrameInput::Aim,
@@ -4073,18 +4128,18 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
                 },
             },
         ),
-        ("ClassNotAdmitted", M::ClassNotAdmitted { mate: n(9) }),
+        ("ClassNotAdmitted", M::ClassNotAdmitted { mate: r(9) }),
         (
             "TableLacks",
             M::TableLacks {
-                mate: n(9),
+                mate: r(9),
                 what: "a clocking rider on a planar rest",
             },
         ),
         (
             "Indeterminate",
             M::Indeterminate {
-                mate: n(9),
+                mate: r(9),
                 diag: Box::new(diag()),
             },
         ),
@@ -4097,25 +4152,40 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
         (
             "Contradictory",
             M::Contradictory {
-                held: n(8),
-                added: n(9),
+                held: r(8),
+                added: r(9),
                 predicate: "mate_coaxial",
                 clash: Clash::Length { metres: 0.002 },
             },
         ),
         (
-            "Under",
-            M::Under {
-                mate: n(9),
-                parent: n(6),
-                child: n(7),
-                residual: Subgroup::Se3,
+            "Overconstrained",
+            M::Overconstrained {
+                placement: n(7),
+                constraints: vec![c(8), c(9)],
+                held: Subgroup::Trivial,
+            },
+        ),
+        (
+            "TargetsDiffer",
+            M::TargetsDiffer {
+                placement: n(7),
+                constraints: vec![c(8), c(9)],
+            },
+        ),
+        ("NotOnTheCopy", M::NotOnTheCopy { mate: r(9) }),
+        (
+            "SideBase",
+            M::SideBase {
+                mate: r(9),
+                side: MateSide::A,
+                base: editor_core::FrameBase::World,
             },
         ),
         (
             "DanglingHead",
             M::DanglingHead {
-                mate: n(9),
+                mate: r(9),
                 side: MateSide::B,
                 head: n(4),
             },
@@ -4123,7 +4193,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
         (
             "PlacerRefused",
             M::PlacerRefused {
-                mate: n(9),
+                mate: r(9),
                 side: MateSide::B,
                 placer: n(4),
                 error: NodeErrorKind::EmptyOperand { input: n(3) }.into(),
@@ -4133,7 +4203,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
         (
             "PartSelectsAnotherCopy",
             M::PartSelectsAnotherCopy {
-                mate: n(9),
+                mate: r(9),
                 side: MateSide::A,
                 part: n(6),
                 named: 2,
@@ -4143,14 +4213,14 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
         (
             "SelfMate",
             M::SelfMate {
-                mate: n(9),
+                mate: r(9),
                 instance: n(6),
             },
         ),
         (
             "FaceUnresolved",
             M::FaceUnresolved {
-                mate: n(9),
+                mate: r(9),
                 side: MateSide::A,
                 refusal: Box::new(editor_core::FaceRefusal::Reach {
                     instance: n(6),
@@ -4168,7 +4238,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
         (
             "FaceUnresolved/NoPartFace",
             M::FaceUnresolved {
-                mate: n(9),
+                mate: r(9),
                 side: MateSide::A,
                 refusal: Box::new(editor_core::FaceRefusal::NoPartFace {
                     instance: n(6),
@@ -4184,7 +4254,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
         (
             "FrameUnevaluated",
             M::FrameUnevaluated {
-                mate: n(9),
+                mate: r(9),
                 side: MateSide::B,
                 refusal: Box::new(
                     NodeErrorKind::DegenerateDirection {
@@ -4197,42 +4267,12 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
         (
             "Unleverable",
             M::Unleverable {
-                mate: n(9),
+                mate: r(9),
                 refusal: Box::new(LeverRefusal::Reach {
                     instance: n(6),
                     part: doc_ref(),
                     refusal: editor_core::ReachRefusal::NoExtent,
                 }),
-            },
-        ),
-        (
-            "OffsetDisagrees",
-            M::OffsetDisagrees {
-                instance: n(7),
-                root: n(6),
-                predicate: "mate_member_translation_zero",
-                clash: Clash::Length { metres: 0.002 },
-            },
-        ),
-        (
-            "OffsetUnchecked/Placement",
-            M::OffsetUnchecked {
-                instance: n(7),
-                cause: Box::new(editor_core::OffsetCheck::Placement {
-                    node: n(3),
-                    error: NodeErrorKind::EmptyOperand { input: n(2) }.into(),
-                }),
-            },
-        ),
-        (
-            "OffsetUnchecked/Unleverable",
-            M::OffsetUnchecked {
-                instance: n(7),
-                cause: Box::new(editor_core::OffsetCheck::Unleverable(LeverRefusal::Reach {
-                    instance: n(7),
-                    part: doc_ref(),
-                    refusal: editor_core::ReachRefusal::NoExtent,
-                })),
             },
         ),
     ]
