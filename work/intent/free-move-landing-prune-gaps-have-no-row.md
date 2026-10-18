@@ -48,12 +48,14 @@ its copy is not. A frame's deleted root is pinned by
 - **M7, the gesture side under a scratch landing:**
   `a_refused_gestures_copy_waits_for_the_committed_landing`. It goes red when
   `gesture_check` is given `Answers::All`.
-- **The root half of `gesture_check`:** argued away and removed. A root is a
-  placement with no mate, and every copy in its space reads it (D10,
-  `spaces_of`). So deleting the root takes the gesture's copy with it, which
-  the copy check catches; `deleting_a_gestures_root_takes_its_copy_and_kills_it`
-  pins that. A root that gains a mate is `MovedSpace`.
-- **A refused root under a copy that is not refused:** by reading, not by a
-  row. A copy that reads a refused root should refuse too, because its mate
-  reads the root's pose, so the copy check answers `NoSpace` first. If a shape
-  ever shows otherwise, that is a new item.
+- **The root half of `gesture_check`:** kept, and now pinned. A cascade delete
+  of the root takes the copy too
+  (`deleting_a_gestures_root_takes_its_copy_and_kills_it`), but an undo can
+  take the root alone: a second shelf inserted after the copy and then mated
+  onto by it is undone seat first and insertion last. So the root check is
+  what kills the gesture at the edit
+  (`an_undo_past_a_gestures_root_kills_it_at_the_edit`, which goes red without
+  it). The review of this PR found the undo shape; an earlier draft of this PR
+  had removed the check on a wrong argument about undo order.
+- **A refused root under a copy that is not refused:** moved to its own item,
+  `a-gesture-under-a-refused-root-is-unchecked`.

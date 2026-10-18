@@ -1336,8 +1336,8 @@ fn a_refused_gestures_copy_waits_for_the_committed_landing() {
 
 /// **Deleting a gesture's root takes the gesture's copy with it**, so
 /// the gesture dies at the edit naming the copy: every copy in a space
-/// reads its root, which is why `gesture_check` asks the copy and not
-/// the root.
+/// reads its root. (An undo can take the root alone:
+/// `an_undo_past_a_gestures_root_kills_it_at_the_edit`.)
 #[test]
 fn deleting_a_gestures_root_takes_its_copy_and_kills_it() {
     let tol = Tol::witness();
@@ -1358,6 +1358,61 @@ fn deleting_a_gestures_root_takes_its_copy_and_kills_it() {
         "{}",
         killed.cause
     );
+}
+
+/// **An undo that removes a gesture's root but not its copy kills the
+/// gesture at the edit.** A second shelf, inserted after post_b and then
+/// mated onto by it, roots the space the gesture moves; three undos
+/// take the seat, the unpin and the insertion in that order, so the
+/// shelf goes and post_b stays. No landing answers the document yet,
+/// so the root's absence is all there is to ask — and it is asked.
+#[test]
+fn an_undo_past_a_gestures_root_kills_it_at_the_edit() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fmundoroot", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    asm::unpin(&mut session, bench.post_b);
+    let shelf = common::instance_in(&mut session, bench.shelf.id);
+    asm::unpin(&mut session, shelf);
+    common::commit_mate(
+        &mut session,
+        asm::seat_op_under(
+            &bench,
+            bench.post_b,
+            shelf,
+            ContactClass::Rest,
+            asm::middle_seat_values(),
+        ),
+    );
+    session.pump();
+    assert_eq!(
+        display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b),
+        Ok(shelf),
+        "the second shelf roots post_b's space"
+    );
+    let outcome = session.perform(SessionOp::BeginFreeMove {
+        instance: bench.post_b,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+
+    let mut killed = None;
+    for _ in 0..3 {
+        let outcome = session.perform(SessionOp::Undo);
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        killed = killed.or(outcome.withdrawn.killed_gesture);
+    }
+    assert!(session.doc().node(shelf).is_none(), "the root is gone");
+    assert!(
+        session.doc().node(bench.post_b).is_some(),
+        "the copy is not"
+    );
+    let killed = killed.expect("the undo that took the root killed the gesture");
+    assert!(
+        matches!(&killed.cause, AdmissionFault::NoSuchNode { node } if node.id() == shelf),
+        "{}",
+        killed.cause
+    );
+    assert!(session.display().probing().is_none());
 }
 
 #[test]

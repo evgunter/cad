@@ -458,7 +458,8 @@ fn a_withdrawn_cause_never_carries_the_list_mark() {
         // may be a `Place`), so no sentence writes "instance" itself —
         // but the one whose content is that the node is not one.
         assert!(
-            matches!(cause, AdmissionFault::NotAnInstance { .. }) || !sentence.contains("instance"),
+            matches!(cause, AdmissionFault::NotAnInstance { .. })
+                || !sentence.to_lowercase().contains("instance"),
             "a cause names its subject's kind through the spoken node, not \
              its own words: {sentence}"
         );
