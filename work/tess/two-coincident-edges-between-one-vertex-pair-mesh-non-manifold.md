@@ -63,3 +63,28 @@ triangles"):
 Each holds `v` as one vertex, and no face passes it twice. The lines
 are identical on main and on the pinch unit's head, so they are this
 row's class, not a pinch's.
+
+## Measured: the split's zero-area ring (`cleave/keel-slit-ring`, PR 5350)
+
+The box `[0, 4] × [0, 4] × [−1, 1]` less a V-trench along x over
+`x ∈ [1.5, 2.5]`, split at `z = 0`
+(`crates/topo/tests/a_keel_wrapped_at_both_ends_splits_as_a_ring.rs`,
+row "closed at both ends"). The side above carries the keel as a ring of
+two coincident straight edges between one vertex pair, and passes tiers
+1–3 and 3′. `tessellate` then `check_mesh` refuses
+`NonManifoldEdge { count: 4 }` at that pair, at chordal 5e-3 and 0.1,
+either normal; `signed_volume` is exact (15.7). The one-end slit (the
+trench over `x ∈ [1.5, 4.5]`) meshes clean: its two edges end at two
+copies of the open end.
+
+No public door runs `check_mesh` (the STL writer does not), so the
+ring's mesh, and its STL, are non-manifold without a word.
+
+Curved, measured on the same branch before it stopped building the
+curved ring (the split now refuses it, `CurvedSlitTrace`): the curved
+ring's walls side gave `MismatchedWinding` at the V's tip on the plane
+and at `+0.6 ε`, and passed at `−0.6 ε`. The curved one-end slit, which
+main builds, refuses loudly: its walls side refuses `tessellate` at
+every δ from 1e-3 to 0.1, `PinchWedge` with the V turned −20° and
+`Triangulation` turned 160°
+(`crates/sweep/tests/a_curved_keel_in_the_plane.rs`'s fixture).
