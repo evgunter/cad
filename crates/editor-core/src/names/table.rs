@@ -306,13 +306,28 @@ pub struct ShortTie {
     pub candidates: usize,
 }
 
+/// A row offered for an entity that already holds a name: the reverse
+/// map's injectivity, one name per entity, found broken at the door
+/// that would have seated it. An entity offered twice in one list — to
+/// a minted tie, or under two candidates of a carried one — is this
+/// too, holding the name it is offered.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EntityNamed {
+    /// The name the row was to be seated under.
+    pub name: Box<StableName>,
+    /// The name the entity already holds.
+    pub held: Box<StableName>,
+}
+
 /// Why a seating door refused a row. Each is an emission bug, never a
 /// valid state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SeatingRefusal {
-    /// The name or the entity is already seated, or a candidate list
-    /// does not name one entity per (name, candidate) pair.
+    /// The name is already seated, or a candidate list gives one
+    /// (name, candidate) pair to two rows.
     Duplicate(DuplicateName),
+    /// The entity already holds a name.
+    EntityNamed(EntityNamed),
     /// The entity's kind is not the name's.
     KindMismatch(KindMismatch),
     /// A minted tie of fewer than two distinct entities, or a carried
@@ -331,6 +346,22 @@ impl SeatingRefusal {
         Self::Duplicate(DuplicateName {
             name: Box::new(name.clone()),
         })
+    }
+
+    fn entity_named(name: &StableName, held: &StableName) -> Self {
+        Self::EntityNamed(EntityNamed {
+            name: Box::new(name.clone()),
+            held: Box::new(held.clone()),
+        })
+    }
+
+    /// [`Self::EntityNamed`] when sorted `ents` repeat an entity.
+    fn check_distinct(name: &StableName, ents: &[EntityRef]) -> Result<(), Self> {
+        if ents.windows(2).any(|w| w[0] == w[1]) {
+            Err(Self::entity_named(name, name))
+        } else {
+            Ok(())
+        }
     }
 
     fn short_tie(name: &StableName, candidates: usize) -> Self {
@@ -541,8 +572,9 @@ impl NameTable {
         SeatingRefusal::check_kind(&name, &ent)?;
         // Each direction is searched ONCE: the vacant slot the
         // collision check lands on is the slot the row is written into.
-        let Slot::Vacant(rev) = self.reverse.entry(ent) else {
-            return Err(SeatingRefusal::duplicate(&name));
+        let rev = match self.reverse.entry(ent) {
+            Slot::Occupied(held) => return Err(SeatingRefusal::entity_named(&name, held.get())),
+            Slot::Vacant(rev) => rev,
         };
         match self.forward.entry(name) {
             Slot::Occupied(held) => Err(SeatingRefusal::duplicate(held.key())),
@@ -572,7 +604,7 @@ impl NameTable {
             SeatingRefusal::check_kind(&name, e)?;
         }
         ents.sort_unstable();
-        ents.dedup();
+        SeatingRefusal::check_distinct(&name, &ents)?;
         if ents.len() < 2 {
             return Err(SeatingRefusal::short_tie(&name, ents.len()));
         }
@@ -596,11 +628,14 @@ impl NameTable {
     ///
     /// # Errors
     ///
-    /// [`SeatingRefusal`] under [`NameTable::insert`]'s collisions, and
-    /// for a list that repeats a candidate or an entity, or holds a
-    /// strict name's [`Candidate::Only`] beside anything: a (name,
-    /// candidate) pair names one entity. [`SeatingRefusal::ShortTie`]
-    /// for an empty list.
+    /// [`SeatingRefusal`] under [`NameTable::insert`]'s collisions;
+    /// [`SeatingRefusal::Duplicate`] for a list that repeats a
+    /// candidate or holds a strict name's [`Candidate::Only`] beside
+    /// anything, as a (name, candidate) pair names one entity;
+    /// [`SeatingRefusal::EntityNamed`] for one that offers an entity
+    /// under two candidates, as [`NameTable::insert_tied`] refuses an
+    /// entity offered twice; and [`SeatingRefusal::ShortTie`] for an
+    /// empty list.
     pub(super) fn insert_candidates_ref(
         &mut self,
         name: NameRef,
@@ -630,9 +665,10 @@ impl NameTable {
                 let mut seen = ks.clone();
                 seen.sort_unstable();
                 seen.dedup();
-                if seen.len() != ks.len() || ents.windows(2).any(|w| w[0] == w[1]) {
+                if seen.len() != ks.len() {
                     return Err(dup(&name));
                 }
+                SeatingRefusal::check_distinct(&name, &ents)?;
                 self.write_candidates(name, ents, ks.into_boxed_slice())
             }
         }
@@ -654,8 +690,8 @@ impl NameTable {
         for e in &ents {
             SeatingRefusal::check_kind(&name, e)?;
         }
-        if ents.iter().any(|e| self.reverse.contains_key(e)) {
-            return Err(SeatingRefusal::duplicate(&name));
+        if let Some(held) = ents.iter().find_map(|e| self.reverse.get(e)) {
+            return Err(SeatingRefusal::entity_named(&name, held));
         }
         // The forward direction is searched once, as `insert_ref`'s is.
         // The reverse direction cannot be: a tie writes SEVERAL rows,
@@ -686,20 +722,21 @@ impl NameTable {
     /// # Errors
     ///
     /// [`SeatingRefusal::Duplicate`] if the name is already present
-    /// (aliasing) or the ENTITY is already named, and
-    /// [`SeatingRefusal::KindMismatch`] if the kinds disagree.
+    /// (aliasing), [`SeatingRefusal::EntityNamed`] if the entity is,
+    /// and [`SeatingRefusal::KindMismatch`] if the kinds disagree.
     pub fn insert(&mut self, name: StableName, ent: EntityRef) -> Result<(), SeatingRefusal> {
         self.insert_ref(NameRef::new(name), ent)
     }
 
-    /// Records an N2 tie: one name, ≥ 2 candidates (deduplicated,
-    /// sorted). Every candidate gets the name in the reverse map.
+    /// Records an N2 tie: one name, ≥ 2 distinct candidates, stored
+    /// sorted. Every candidate gets the name in the reverse map.
     ///
     /// # Errors
     ///
     /// [`SeatingRefusal`] under the same collisions as
-    /// [`NameTable::insert`], or [`SeatingRefusal::ShortTie`] if fewer
-    /// than 2 candidates remain.
+    /// [`NameTable::insert`], [`SeatingRefusal::EntityNamed`] if the
+    /// list repeats an entity, or [`SeatingRefusal::ShortTie`] if it
+    /// holds fewer than 2.
     pub fn insert_tied(
         &mut self,
         name: StableName,
@@ -1017,7 +1054,8 @@ mod carrying_door {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{
-        Candidate, EntityKey, EntityRef, Entry, KindMismatch, NameTable, SeatingRefusal, ShortTie,
+        Candidate, EntityKey, EntityNamed, EntityRef, Entry, KindMismatch, NameTable,
+        SeatingRefusal, ShortTie,
     };
     use crate::names::role::{EntityKind, NameRef, RoleSeg, StableName};
     use crate::node::RecipeNodeId;
@@ -1165,7 +1203,7 @@ mod carrying_door {
             }))
         };
         type Door = fn(&mut NameTable) -> Result<(), SeatingRefusal>;
-        let doors: [(&str, Door, usize); 4] = [
+        let doors: [(&str, Door, usize); 3] = [
             (
                 "a tie of none",
                 |t| t.insert_tied((*name()).clone(), vec![]),
@@ -1177,11 +1215,6 @@ mod carrying_door {
                 1,
             ),
             (
-                "a tie of one entity twice",
-                |t| t.insert_tied((*name()).clone(), vec![face(1), face(1)]),
-                1,
-            ),
-            (
                 "a carried list of none",
                 |t| t.insert_candidates_ref(name(), vec![]),
                 0,
@@ -1190,6 +1223,71 @@ mod carrying_door {
         for (door, seat, candidates) in doors {
             let mut t = NameTable::new();
             assert_eq!(seat(&mut t), short(candidates), "{door}");
+            assert!(t.iter().next().is_none(), "{door}: nothing is seated");
+        }
+    }
+
+    /// Every seating door refuses an entity that already holds a name
+    /// as that, carrying the name it holds, and seats nothing; an
+    /// entity repeated in one offered list holds the name it is
+    /// offered, at the minting and the carrying door alike. A repeated
+    /// (name, candidate) pair stays a duplicate name.
+    #[test]
+    fn an_entity_offered_a_second_name_refuses_as_entity_named() {
+        let other = StableName {
+            path: vec![RoleSeg::OutputBody, RoleSeg::OutputBody],
+            ..(*name()).clone()
+        };
+        let named = |held: &StableName| {
+            Err(SeatingRefusal::EntityNamed(EntityNamed {
+                name: Box::new((*name()).clone()),
+                held: Box::new(held.clone()),
+            }))
+        };
+        type Door = fn(&mut NameTable) -> Result<(), SeatingRefusal>;
+        let held: [(&str, Door); 4] = [
+            ("insert", |t| t.insert((*name()).clone(), face(1))),
+            ("insert_tied", |t| {
+                t.insert_tied((*name()).clone(), vec![face(2), face(1)])
+            }),
+            ("a carried strict row", |t| {
+                t.insert_candidates_ref(name(), vec![(Only, face(1))])
+            }),
+            ("a carried tie", |t| {
+                t.insert_candidates_ref(name(), vec![(Of(0), face(2)), (Of(1), face(1))])
+            }),
+        ];
+        for (door, seat) in held {
+            let mut t = NameTable::new();
+            t.insert(other.clone(), face(1)).unwrap();
+            assert_eq!(
+                seat(&mut t),
+                named(&other),
+                "{door}: face 1 holds another name"
+            );
+            assert!(t.lookup(&name()).is_none(), "{door}: nothing is seated");
+            assert_eq!(t.len(), 1, "{door}: the held row stands alone");
+        }
+        let repeated: [(&str, Door); 4] = [
+            ("a tie of one entity twice", |t| {
+                t.insert_tied((*name()).clone(), vec![face(1), face(1)])
+            }),
+            ("a tie of two, one twice", |t| {
+                t.insert_tied((*name()).clone(), vec![face(1), face(2), face(1)])
+            }),
+            ("one entity as two candidates", |t| {
+                t.insert_candidates_ref(name(), vec![(Of(0), face(1)), (Of(1), face(1))])
+            }),
+            ("one entity as three candidates", |t| {
+                t.insert_candidates_ref(
+                    name(),
+                    vec![(Of(0), face(1)), (Of(1), face(2)), (Of(2), face(1))],
+                )
+            }),
+        ];
+        for (door, seat) in repeated {
+            let mut t = NameTable::new();
+            assert_eq!(seat(&mut t), named(&name()), "{door}");
             assert!(t.iter().next().is_none(), "{door}: nothing is seated");
         }
     }

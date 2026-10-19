@@ -47,7 +47,7 @@ use std::collections::BTreeMap;
 use super::emit::NamingError;
 use super::role::NameRef;
 use super::table::{
-    Candidate, DuplicateName, EntityKey, EntityRef, Entry, NameTable, SeatingRefusal,
+    Candidate, DuplicateName, EntityKey, EntityNamed, EntityRef, Entry, NameTable, SeatingRefusal,
 };
 use crate::node::RecipeNodeId;
 
@@ -157,7 +157,9 @@ impl TieRows {
     /// [`DuplicateName`] when the pair is already carried — the same
     /// candidate twice, or a strict name ([`Candidate::Only`], its own
     /// only candidate) beside any other row under it — or when the op
-    /// also mints a row under the name.
+    /// also mints a row under the name. [`SeatingRefusal::EntityNamed`]
+    /// when the entity is already carried under the name as another
+    /// candidate, as the carrying door refuses it.
     pub(super) fn carry(&mut self, up: Upstream, e: EntityRef) -> Result<(), SeatingRefusal> {
         self.carry_as(up.name, up.candidate, e)
     }
@@ -180,6 +182,12 @@ impl TieRows {
                 name: Box::new((*name).clone()),
             }
             .into());
+        }
+        if rows.iter().any(|&(_, held)| held == e) {
+            return Err(SeatingRefusal::EntityNamed(EntityNamed {
+                name: Box::new((*name).clone()),
+                held: Box::new((*name).clone()),
+            }));
         }
         rows.push((Some(candidate), e));
         Ok(())
@@ -420,9 +428,11 @@ mod tests {
     //! **The gather's one rule on bare rows**: a (name, candidate) pair
     //! is carried at most once, whichever sources carry it.
 
-    use super::{Candidate, CarriedRows, narrow_into};
+    use super::{Candidate, CarriedRows, TieRows, narrow_into};
     use crate::names::role::{EntityKind, NameRef, RoleSeg, StableName};
-    use crate::names::table::{EntityKey, EntityRef, Entry, NameTable, SeatingRefusal};
+    use crate::names::table::{
+        DuplicateName, EntityKey, EntityNamed, EntityRef, Entry, NameTable, SeatingRefusal,
+    };
     use crate::node::RecipeNodeId;
 
     fn name() -> StableName {
@@ -457,6 +467,7 @@ mod tests {
         let duplicate = |e| match e {
             SeatingRefusal::Duplicate(d) => d.name,
             SeatingRefusal::KindMismatch(k) => panic!("every source row is a face: {k:?}"),
+            SeatingRefusal::EntityNamed(n) => panic!("every source face is distinct: {n:?}"),
             SeatingRefusal::ShortTie(t) => panic!("every carried tie has two candidates: {t:?}"),
         };
         let mut rows = CarriedRows::default();
@@ -477,6 +488,49 @@ mod tests {
             .collect();
         ks.sort();
         ks
+    }
+
+    /// A carry reports the fact it caught: a pair carried twice is a
+    /// duplicate name, and one entity carried as a second candidate is
+    /// an entity named twice, as the carrying door says of the same
+    /// list.
+    #[test]
+    fn a_carry_refuses_a_repeated_pair_and_a_repeated_entity_apart() {
+        let carried = || {
+            let mut rows = TieRows::default();
+            rows.carry_as(NameRef::new(name()), Candidate::Of(0), face(0, 1))
+                .expect("a first carry");
+            rows
+        };
+        assert_eq!(
+            carried().carry_as(NameRef::new(name()), Candidate::Of(0), face(0, 2)),
+            Err(SeatingRefusal::Duplicate(DuplicateName {
+                name: Box::new(name()),
+            })),
+            "candidate 0 carried twice"
+        );
+        let twice = Err(SeatingRefusal::EntityNamed(EntityNamed {
+            name: Box::new(name()),
+            held: Box::new(name()),
+        }));
+        assert_eq!(
+            carried().carry_as(NameRef::new(name()), Candidate::Of(1), face(0, 1)),
+            twice,
+            "face 1 carried as candidate 1 too"
+        );
+        let mut door = NameTable::new();
+        assert_eq!(
+            narrow_into(
+                &mut door,
+                NameRef::new(name()),
+                vec![
+                    (Candidate::Of(0), face(0, 1)),
+                    (Candidate::Of(1), face(0, 1))
+                ],
+            ),
+            twice,
+            "the carrying door says the same of that list"
+        );
     }
 
     #[test]
