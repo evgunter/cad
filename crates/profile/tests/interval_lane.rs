@@ -544,35 +544,40 @@ fn a_turn_after_a_ray_along_minus_x_turns_the_ray() {
     for b in [1.0, 0.5, 2.0] {
         let gamma = PI - 2.0 * f64::atan(b);
         let arc = || {
-            profile::Open.at(ip2(0.0, 0.0)).arc_to(
-                profile::Bulge {
-                    p: ip2(2.0 * gamma.cos(), 2.0 * gamma.sin()),
-                    b: one(b),
-                },
-                t,
-            )
+            profile::Open
+                .at(ip2(0.0, 0.0))
+                .arc_to(
+                    profile::Bulge {
+                        p: ip2(2.0 * gamma.cos(), 2.0 * gamma.sin()),
+                        b: one(b),
+                    },
+                    t,
+                )
+                .expect("the arc")
         };
-        if let Err(e) = arc()
-            .expect("the arc")
-            .turn(one(0.5), t)
-            .and_then(|p| p.line(one(1.0), t))
-        {
-            wrong.push(format!("b = {b}: .turn after the arc: {e:?}"));
+        match arc().turn(one(0.5), t) {
+            Ok(p) => {
+                if let Err(e) = p.line(one(1.0), t) {
+                    wrong.push(format!("b = {b}: the leg after .turn: {e:?}"));
+                }
+            }
+            Err(e) => wrong.push(format!("b = {b}: .turn after the arc: {e:?}")),
         }
-        if let Err(e) = arc()
-            .expect("the arc")
-            .tangent()
-            .arc_to(
-                profile::Sweep {
-                    r: one(1.0),
-                    side: profile::ArcSide::Left,
-                    angle: one(0.5),
-                },
-                t,
-            )
-            .and_then(|p| p.line_to(ip2(-10.0, 5.0), t))
-        {
-            wrong.push(format!("b = {b}: the Sweep extension after the arc: {e:?}"));
+        let sweep = arc().tangent().arc_to(
+            profile::Sweep {
+                r: one(1.0),
+                side: profile::ArcSide::Left,
+                angle: one(0.5),
+            },
+            t,
+        );
+        match sweep {
+            Ok(p) => {
+                if let Err(e) = p.line_to(ip2(-10.0, 5.0), t) {
+                    wrong.push(format!("b = {b}: the leg after the Sweep extension: {e:?}"));
+                }
+            }
+            Err(e) => wrong.push(format!("b = {b}: the Sweep extension after the arc: {e:?}")),
         }
     }
     let chord_then_turn = profile::Open
@@ -583,10 +588,14 @@ fn a_turn_after_a_ray_along_minus_x_turns_the_ray() {
         .expect("the computed point beside (1, 3)")
         .line_to(ip2(0.0, 3.0), t)
         .expect("the chord along -x")
-        .turn(one(1.0), t)
-        .and_then(|p| p.line(one(1.0), t));
-    if let Err(e) = chord_then_turn {
-        wrong.push(format!(".turn after the chord: {e:?}"));
+        .turn(one(1.0), t);
+    match chord_then_turn {
+        Ok(p) => {
+            if let Err(e) = p.line(one(1.0), t) {
+                wrong.push(format!("the leg after .turn after the chord: {e:?}"));
+            }
+        }
+        Err(e) => wrong.push(format!(".turn after the chord: {e:?}")),
     }
     assert!(
         wrong.is_empty(),
