@@ -1001,12 +1001,8 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         ),
         row("ProfileAnchor", NodeErrorKind::ProfileAnchor),
         row(
-            "ProfileRecordMissing(None)",
-            NodeErrorKind::ProfileRecordMissing { loop_: None },
-        ),
-        row(
-            "ProfileRecordMissing(Some)",
-            NodeErrorKind::ProfileRecordMissing { loop_: Some(1) },
+            "ProfileRecordMissing",
+            NodeErrorKind::ProfileRecordMissing { loop_: 1 },
         ),
         row(
             "ProfilePieces",
