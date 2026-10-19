@@ -4,7 +4,6 @@ kind: issue
 title: geom-core/geom-brep: a symbolic-tier proven zero classes NoSize, so at rest it never takes RefusedReading::ContradictsStoredData; a proved-zero ParamSpan ends in lever plus note while a reversed span ends in the defect ending
 status: open
 opened: 2026-10-14
-needs_ev: true
 branch: encl/proven-zero-ev
 ---
 
@@ -62,3 +61,7 @@ The revised clause (iv) says this. In the code:
 - At a build and past import, an unminted side and a stored contradiction panic.
 
 **Gaps against `[import]` today** (survey on PR 5134): adoption keeps the file's carriers verbatim instead of recomputing them; a negative surface radius goes unchecked. These are EXCH defects against ratified text (`can-an-import-reach-a-state-only-a-kernel-bug-otherwise-reaches`, `step-import-reads-a-negative-surface-radius-unchecked-before-edge-certification`). The panic arms cannot land until those gaps close, or a damaged file would panic.
+
+## Ev's decision (2026-10-19, PR 5134: "looks good!")
+
+The revised clause (iv) is ratified. The implementation unit carries out "What it decides in the code" from PR 5134's body. Its panic arms wait on EXCH closing the import gaps listed above.
