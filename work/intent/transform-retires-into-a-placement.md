@@ -107,6 +107,14 @@ So running the map at the nominal does not by itself make the lanes' decision li
 
   **Found (2026-10-19, with the narrowing re-applied locally):** in the two-hole plate drive (`m10_5_clearance_interval::a_driver_certified_leaf_carries_the_certificate`), the flip is at the hole placement, node 44. Every transform predicate counts 0 at the nominal and n at the leaf: `transform_rigid_*` 0→1, `carrier_endpoint_*` 0→36, `carrier_on_surface_*` 0→324, `dihedral_*` 0→252. The cause is `mate::solve::marked` (`src/mate/solve.rs:470`): with the snap skipped, the f64 witness's map is still exactly the stored identity, and `marked` turns it into `Motion::Identity`, which places the copy by no map and decides nothing. A box lane's map is never a stored identity, so the leaf runs the transform. The narrowing therefore has to skip `marked` too. A bundle that reads a variable is placed by its map as `Motion::Map` even at the bit-exact identity.
 
+  **Tried and reverted (not committed).** The narrowing plus that `Motion::Map` bypass of `marked`:
+  - fixes node 44: the plate study is back to 211/512 certified (94.9%), and the two m10 plate rows pass;
+  - chaintol 3/3 pass;
+  - **but the 1-link chain drive still certifies 0 leaves** (`demo-tour certified` panics at `chaintol.rs:568`, "0 certified");
+  - 23 editor-core rows go red, among them m10_10 (all_four_discharge, walked_rows_envelope), m10_di_dual and r2_m10_di_probes (Dual against Interval), `revalue_cut_cylinder`, m10_bulge ×3, m10_9 ×3, sym_9 ×2, sym11 and m10_sym_profile ×2, beside the expected f64 guard moves (`m10_p_fence` ×3, msolve14 a3).
+
+  So the chain's 0 has another cause besides `marked`. Next step: with both changes applied, print the chain drive's refusal detail (as `m10_5_clearance`'s row prints it: node, predicate, count a→b) for the 1-link leaf at θ = 0, and find which node and predicate still differ.
+
 **Window of 2026-10-19 (about 3% of usage left)**
 - **The tour die corpus:** `cargo run --release -- die-corpus ../../crates/editor-core/tests/corpus/tour/die_composed_tour.pncad` in `demos/tour` gives a file byte-identical to D's committed one (1,589,134 bytes) on D's head. Nightly 65's "not byte-regenerable since #5267" was raised against main's copy, which D replaces. Nothing that reads it needed re-pinning.
 - **msolve7 a4:** restated as `a4_every_checked_in_document_loads_and_its_bundles_reach_the_attribute`, since under D every placement is a bundle and the corpus now reaches the attribute. It asserts that every document loads and that the corpus carries bundles. 3/3 pass.
