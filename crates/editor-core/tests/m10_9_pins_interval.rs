@@ -11,10 +11,12 @@
 //! The arc carrier's builder registers both of its same-object
 //! identities (the rim `‖q − c‖ = r` and the span
 //! `carrier.eval(param_end) = q_to`), both discharge outright, and what
-//! bounds every measured document is `carrier_matches_mapped_source` —
-//! the carrier against the scaffold pushforward, an identity between two
-//! independently built objects — door open and door SHUT alike
-//! (`work/sym/plate-ceiling-is-now-the-scaffold-pushforward`).
+//! bounds every measured document but the pad is
+//! `carrier_matches_mapped_source` — the carrier against the scaffold
+//! pushforward, an identity between two independently built objects —
+//! door open and door SHUT alike
+//! (`work/sym/plate-ceiling-is-now-the-scaffold-pushforward`). The pad
+//! is bounded by `arc_span`, in the profile's validation.
 //!
 //! **Which tier these rows pin.** M10-9's — the shipped set with the
 //! form-level algebra OFF (`SymRules::without_the_algebra`), which is

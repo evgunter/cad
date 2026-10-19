@@ -75,8 +75,17 @@ junction reads a ray narrow around the nominal's; `declared_tangency`
 evaluates green, and its two corpus pins are gone.
 
 At `f64`: the bracket now lifts bit-identically (the lift census moves
-one row from value-equal to bit-identical), and one stored arc centre in
-`fillet_stored_tangency`'s corpus moves by ulps (re-baselined at every ε).
+one row from value-equal to bit-identical), one stored arc centre in
+`fillet_stored_tangency`'s corpus moves by ulps, and of the editor-core
+corpus only `declared_tangency` moves (4 points, ≤ 3.3e-16). Under the
+symbolic tier the directors are algebraic forms rather than `sin_cos`
+of an `atan2`: the rounded pad proves 162 more of its decisions
+symbolically (none gained or lost), the registry door buys nothing on
+it any more, and its ceiling rises from 2.7783e3·ε (`line_span`) to
+3.152e3·ε (`arc_span`); the slab and plate build fewer forms. Each pin
+is re-baselined with its note, and the drive's ladder-receipt row takes
+the pad with its first leg spelled as an angle, the measured document
+no longer retrying.
 
 Filed: `a-turn-reads-its-incoming-angle-off-atan2s-branch-cut-at-interval`
 (`.turn(δ)` and the `Sweep` extension still build a ray from the stored
