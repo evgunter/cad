@@ -25,6 +25,7 @@ radius `1 − d + g` out of `v` back through −1.6 rad, and a line home
 |---|---|---|---|
 | 17ε | −0.5ε | 1e-9, 1e-6, 1e-12 | validates |
 | 17ε | 0 | 1e-6 | validates |
+| 0.1 | −0.5ε | 1e-9, 1e-6, 1e-12 | validates (second arc back through −0.5 rad) |
 
 The carriers are nested (`g < 0`) or tangent at `v` (`g = 0`; at 1e-9
 and 1e-12 the `f64` radius rounds `g` to a few ulps, which reads
@@ -33,8 +34,10 @@ at 1e-12, both refused). They stand `|g − d(1 − cos θ)|` apart at angle
 `θ`, so the two arcs never meet but at the joint, and stay within ε of
 each other out to `√(2(ε + g)/d)`: 0.24 rad at `g = −0.5ε`, 0.34 rad
 at `g = 0`, at every ε. The joint pass records a tangent cusp; the pair
-pass reads the tangency at the joint (`carrier_circles_chord` Zero or
-Negative), and the shared vertex discounts it.
+pass reads the tangency at the joint (`carrier_circles_chord` Zero: a
+foot outside both circles reads zero depth), and the shared vertex
+discounts it. At `d = 0.1` the arcs stay within ε for `√(ε/d)` rad
+(1e-4 rad at ε = 1e-9), a tangent cusp's ordinary stretch.
 
 ## What is wrong, and what is a question
 

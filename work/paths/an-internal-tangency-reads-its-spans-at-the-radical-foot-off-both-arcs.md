@@ -91,8 +91,19 @@ cross at the ends of a chord whose half-length is `√(2g/d)·r`, 0.24 rad
 either side at `d = 17ε`, `g = 0.5ε`. Past the band the pair reads
 those two crossings (`Circles2::crossings`, as a proper secant) rather
 than one tangency; within it the circles cross, if at all, within
-`√(2rε)` of the foot, and the pair reads a tangency; in the band it
-escalates.
+`√(2rε)` of the foot, and the pair reads a tangency. A foot outside
+both circles (`g < 0`) reads zero depth, a tangency, without asking.
+In the band the pair is read both ways and keeps the contacts of both
+where they agree on whether the arcs meet away from their ends.
+
+**The cost that remains:** where the two readings disagree, the pair
+escalates on `carrier_circles_chord`. That is two arcs leaving a point
+near the tangency direction the same way, a cusp among them, on
+carriers whose `g` is within a factor `2d/(r₁ + r₂)` of ε: at `r = 1`,
+`d = 0.1`, `g` from 0.2ε to ε. A smooth joint on the same carriers
+reads alike both ways and validates. The escalation offers the
+tolerance at which the sagitta decides, and the PATHS `.fillet(r)`
+door, which constructs an exact tangency.
 
 The review found what reading one tangency there cost: a cusp at the
 joint `v` of two adjacent arcs on such carriers, both arcs holding the
@@ -124,9 +135,17 @@ Pinned at f64 and Interval, ε = 1e-9, 1e-6 and 1e-12:
 - `seg_reach_fuzz::a_joint_reads_clear_only_where_its_arcs_cross_near_it`:
   adjacent arcs at a joint on carriers within ε of internal tangency,
   judged by `validate::judge_pair` with its discount, against an oracle
-  of the arcs' crossings: none more than `3·√(2r·Kε)` from the joint
-  may read clear. It finds 1614, 769 and 920 at the review head (ε =
-  1e-9, 1e-6, 1e-12) and 165 on `main`.
+  of the arcs' crossings: none more than `1.5·√(2r·ε)` from the joint
+  may read clear. At its first allowance, `3·√(2r·Kε)`, it found
+  1614, 769 and 920 at the review head (ε = 1e-9, 1e-6, 1e-12) and 165
+  on `main`; at this one it also finds a chord depth read a fifth as
+  deep.
+- `rejections::a_compound_joint_escalates_only_where_its_readings_disagree`:
+  compound joints on carriers 0.5 to 0.01 apart. Smooth joints
+  validate at sagittas within the band and either side of it (they
+  escalated where the band was asked of both signs). Cusps escalate in
+  the band, the `d = 0.01`, `g = 0.03ε` one at its lower edge, and
+  refuse `NonSimple Crossing` past it.
 
 The fuzz's `near` family draws near-concentric centres from Kε to
 10⁻²·r apart, with arcs reaching across the stretch.
