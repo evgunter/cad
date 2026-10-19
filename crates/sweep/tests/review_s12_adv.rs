@@ -309,7 +309,7 @@ fn probe_involution_on_a_boolean_result_body() {
     );
     let v = vol(&holed);
     let original = format!("{holed:?}");
-    let rev = holed.revert();
+    let rev = holed.revert().unwrap();
     assert_eq!(vol(&rev).to_bits(), (-v).to_bits(), "volume bit-negated");
     assert_eq!(
         topo::validate_geometric(&rev, Tol::witness()),
@@ -318,7 +318,7 @@ fn probe_involution_on_a_boolean_result_body() {
         }])
     );
     assert_eq!(
-        format!("{:?}", rev.revert()),
+        format!("{:?}", rev.revert().unwrap()),
         original,
         "bitwise involution"
     );

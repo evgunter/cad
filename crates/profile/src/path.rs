@@ -3224,7 +3224,6 @@ fn map_fillet_err<T: Real>(refusal: TrimRefusal<T>, corner: Point2<T>, radius: T
             },
         ),
         TrimRefusal::Escalated(source) => PathError::Escalated { source },
-        TrimRefusal::Band(b) => PathError::Band(b),
     }
 }
 

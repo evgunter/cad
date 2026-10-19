@@ -17,7 +17,7 @@ use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, SizedPass};
 use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
 use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
-use super::sphere_region::RegionRefusal;
+use super::region::RegionRefusal;
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, LoopKey, VertexKey};
 use crate::live::{linked, proven};
@@ -269,9 +269,10 @@ pub enum ContainError {
 /// corners** (`bool_contact_arc_end_vertex`), every one decided: what
 /// [`ContainError::ArcEndClearOfCorners`] carries. The two passes of
 /// [`boundary_pre_pass`] part only by as much as an end sits off its
-/// corner, plus the point's own slack at the end (two zero bands at
-/// most). So where every end lies at a corner the parting is the band's,
-/// reachable only at `K ≤ 3`. Certification pins each end within the
+/// corner: the boundary reading puts the point at an end on its raw
+/// chord to the end's point, the distance the vertex pass reads to the
+/// corner. So where every end lies at a corner the parting is the band's,
+/// reachable only at `K < 2`. Certification pins each end within the
 /// run's zero band of its corner (`geom_brep`'s
 /// `carrier_endpoint_{start,end}`), and the ends here are read through
 /// the same `Curve3::eval`, so an end off both corners is read where a
@@ -660,7 +661,7 @@ fn boundary_pre_pass<T: Decide>(
     }
     let mut read = Vec::with_capacity(loops.len());
     for &lk in loops {
-        let OnLoop { lp, edge: i, on } = match carrier_loop(body, lk, ROWS, band)?
+        let OnLoop { lp, edge: i, on } = match carrier_loop(body, lk, ROWS.conic, band)?
             .place_off(q, ROWS, band)
             .map_err(|e| ContainError::Escalated {
                 decision: Some(LoopDecision::Boundary.into()),
@@ -747,9 +748,6 @@ const ROWS: BoundaryRows = BoundaryRows {
     line: &EDGE_ROWS,
     conic: ConicRows {
         span: "bool_contact_arc_span",
-        on: "bool_contact_arc",
-        end: "bool_contact_arc_end",
-        trim: "bool_contact_arc_trim",
         straddle: "bool_contact_arc_straddle",
     },
     spiric: SpiricRows {
@@ -940,9 +938,14 @@ fn curved_interior_placement<T: Decide>(
 ) -> Result<CurvedPlacement, ContainError> {
     let face_data = proven(&body.faces, face, EntityId::Face);
     let surface = body.face_surface_linked(face, face_data);
-    // The sphere's region reading takes rings in its stride; the chart
-    // trims below do not model them.
-    if !face_data.rings.is_empty() && !matches!(surface, geom::Surface::Sphere { .. }) {
+    // The sphere's and torus's region readings take rings in their
+    // stride; the chart trims below do not model them.
+    if !face_data.rings.is_empty()
+        && !matches!(
+            surface,
+            geom::Surface::Sphere { .. } | geom::Surface::Torus { .. }
+        )
+    {
         return Ok(CurvedPlacement::Trim(None));
     }
     let (origin, axis, radius, u_ref) = match surface {
@@ -960,17 +963,16 @@ fn curved_interior_placement<T: Decide>(
             axis,
             major_radius,
             minor_radius,
-            u_ref,
+            ..
         } => {
             return torus_face_containment(
                 body,
                 face,
-                TorusChart {
+                TorusCarrier {
                     center,
                     axis,
                     major_radius,
                     minor_radius,
-                    u_ref,
                 },
                 q,
                 band,
@@ -1113,7 +1115,17 @@ fn sphere_face_containment<T: Decide>(
         Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
     };
-    match region.contains(q, band) {
+    region_placement(face, region.contains(q, band))
+}
+
+/// A region reading's verdict ([`super::sphere_region`],
+/// [`super::torus_region`]) as this door states it: `None` on the
+/// region's boundary, which the boundary walk did not place.
+fn region_placement(
+    face: FaceKey,
+    reading: Result<Option<bool>, RegionRefusal>,
+) -> Result<CurvedPlacement, ContainError> {
+    match reading {
         Ok(Some(true)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::In))),
         Ok(Some(false)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))),
         Ok(None) => Ok(CurvedPlacement::Trim(None)),
@@ -1123,66 +1135,49 @@ fn sphere_face_containment<T: Decide>(
             diag,
         }),
         Err(RegionRefusal::RayExhausted { .. }) => Err(ContainError::RayExhausted),
-        Err(e @ RegionRefusal::WoundPastPeriod) => Err(solid_err(e.of_face(face))),
+        Err(e @ (RegionRefusal::WoundPastPeriod | RegionRefusal::Unreadable(_))) => {
+            Err(solid_err(e.of_face(face)))
+        }
     }
 }
 
-/// One torus carrier's chart data, as [`torus_face_containment`] reads it.
-struct TorusChart<T: geom_core::Real> {
+/// One torus carrier's data, as [`torus_face_containment`] reads it.
+struct TorusCarrier<T: geom_core::Real> {
     center: Point3<T>,
     axis: Vec3<T>,
     major_radius: T,
     minor_radius: T,
-    u_ref: Vec3<T>,
 }
 
 /// The TORUS chart's arm of [`curved_face_containment`], reached after
-/// the shared boundary walk and the ring test.
+/// the shared boundary walk.
 ///
-/// The same three steps as the cylinder and sphere arms, in the same
-/// order and for the same reasons: the CARRIER first (the point's
-/// elevation off the tube, `√((ρ − R)² + h²) − r`, which is exact
-/// distance to a ring torus), then the chart trim, then membership in
-/// it. The trim and the membership test are the solid door's own
-/// ([`super::solid_contain::torus_face_windows`],
-/// [`super::solid_contain::point_on_torus_in_face`]), so the face-level
-/// and solid-level doors cannot disagree about which chart points a
-/// torus face holds.
+/// The same steps as the sphere arm, in the same order and for the same
+/// reasons: the CARRIER first (the point's elevation off the tube,
+/// `√((ρ − R)² + h²) − r`, which is exact distance to a ring torus), then
+/// the face's region, read from its boundary edges by the one reading the
+/// ray lane takes too ([`super::torus_region`]). This door is asked about
+/// ONE face, so it reads that face's own region whatever group it sits
+/// in: a donut's two faces are each bounded by the parallels they share,
+/// and a face closed on its own surface has only seams, so its region is
+/// the whole torus.
 ///
-/// **What differs from the solid door is the question.** The solid door
-/// asks about a closed group's UNION and lets its representative answer
-/// for every member; this door is asked about ONE face, so it reads
-/// that face's own windows whatever group it sits in — a donut's two
-/// faces each wrap the major azimuth and split the minor angle, and
-/// each window answers for its own face alone.
-///
-/// The remainder, per case:
-///
-/// - A face whose own windows the walk **cannot pin**, or cannot take at
-///   all, is the honest remainder rather than corruption of the
-///   caller's query, as in the cylinder arm. `None`.
-/// - A coordinate the face ALONE wraps
-///   ([`super::surface_group::wrap_rims`], the structural test every
-///   chart shares) is NOT a remainder, as it is not on the cylinder
-///   arm's full-turn band: there is no window in it to trim by. A window
-///   that reads a whole period on a face that does not wrap alone is
-///   refused, as is a face wrapping BOTH.
-/// - A **graze** on a window edge that the boundary walk did not place
-///   ON a vertex or an edge is `None`, as everywhere in this door.
+/// `None` is the honest remainder: a boundary edge that lies in no plane,
+/// or a point on the region's boundary that the walk above did not place.
+/// A region no path settles refuses as a planar face's does.
 fn torus_face_containment<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    chart: TorusChart<T>,
+    carrier: TorusCarrier<T>,
     q: Point3<T>,
     band: Band,
 ) -> Result<CurvedPlacement, ContainError> {
-    let TorusChart {
+    let TorusCarrier {
         center,
         axis,
         major_radius,
         minor_radius,
-        u_ref,
-    } = chart;
+    } = carrier;
     let elevation =
         super::solid_contain::torus_elevation(center, axis, major_radius, minor_radius, q);
     match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {
@@ -1190,37 +1185,12 @@ fn torus_face_containment<T: Decide>(
         Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
         Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
     }
-    let (u_win, v_win) = match super::solid_contain::torus_face_windows(
-        body,
-        face,
-        major_radius,
-        minor_radius,
-        band,
-    ) {
-        Ok(w) => w,
-        Err(
-            super::solid_contain::PointInSolidError::PartialTorusFace { .. }
-            | super::solid_contain::PointInSolidError::CorruptFace { .. },
-        ) => return Ok(CurvedPlacement::Trim(None)),
+    let region = match super::torus_region::torus_face_region(body, face) {
+        Ok(Some(region)) => region,
+        Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
     };
-    match super::solid_contain::point_on_torus_in_face(
-        face,
-        center,
-        axis,
-        major_radius,
-        minor_radius,
-        u_ref,
-        u_win,
-        v_win,
-        q,
-        band,
-    ) {
-        Ok(Some(true)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::In))),
-        Ok(Some(false)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))),
-        Ok(None) => Ok(CurvedPlacement::Trim(None)),
-        Err(e) => Err(solid_err(e)),
-    }
+    region_placement(face, region.contains(q, band))
 }
 
 /// One cone carrier's chart data, as [`cone_face_containment`] reads it.
@@ -1330,9 +1300,10 @@ pub(super) fn solid_err(e: super::solid_contain::PointInSolidError) -> ContainEr
 /// Its caller, the boolean reduction's point split, turns a definite
 /// miss into a broken-invariant refusal, because a split point was
 /// placed on that carrier by an exact row upstream. The boundary
-/// pre-pass asks the same distance of a circle edge under the same row
-/// name, folded the same way
-/// ([`crate::splitting::containment::LoopEdge::contact`]).
+/// pre-pass reads a circle edge through the point-on-span reading
+/// instead ([`crate::splitting::containment::LoopEdge::contact`]), whose
+/// gap row reads this distance at the point's exact foot
+/// (`work/cleave/point-on-circle-is-a-second-point-on-carrier-reading.md`).
 pub(super) fn point_on_circle<T: Decide>(
     q: Point3<T>,
     center: Point3<T>,
@@ -1709,23 +1680,25 @@ mod tests {
     }
 
     /// **A point at an arc's end the vertex pass placed clear of its
-    /// corners is a finding, not an escalation** (D4 ¶1 (iv)), in both of
-    /// the two ways it is reached, through the public door on bodies the
-    /// public operators built.
+    /// corners is a finding, not an escalation** (D4 ¶1 (iv)), through the
+    /// public door on a body the public operators built.
     ///
     /// - **An end off both corners**, here at a band finer than the
     ///   run's: the cap's corner stands `off = zero/2` from its arc's
     ///   end, certified at the run's band, and `contfp` reads it at a band
     ///   of zero `off/50`. The finding leads with the gap to the end's own
-    ///   corner, `off`.
-    /// - **The band's own parting** (`K ≤ 3`): on a cap whose corner is
-    ///   its arc's end, a point `≈ 1.34·zero` from the corner reads clear
-    ///   of it at `K = 1.25` and at the end. At the run's `K` the same
-    ///   point is the vertex reading's escalation, not the finding.
-    ///
-    /// Both arms log no escalation, and each end is decided once against
-    /// each corner. They end in the arc end's lever at a build and
-    /// through the Boolean.
+    ///   corner, `off`. It logs no escalation, each end is decided once
+    ///   against each corner, and it ends in the arc end's lever at a
+    ///   build and through the Boolean.
+    /// - **The band's own parting no longer parts them**: on a cap whose
+    ///   corner is its arc's end, the boundary reading puts a point at the
+    ///   end only on its raw chord to the end's point, the distance the
+    ///   vertex pass reads to the corner. A point `≈ 1.34·zero` from the
+    ///   corner at `K = 1.25` is clear of both, with its foot within the
+    ///   zero band of the end along the arc, which the side of the end
+    ///   cannot place beside a chord past the band: it escalates on that
+    ///   straddle (`curve_pair_span_end_straddle`). At the run's `K` the
+    ///   same point is the vertex reading's escalation.
     #[test]
     fn a_point_at_an_arc_end_clear_of_its_corners_is_a_finding() {
         use crate::boolean::{BooleanError, Operand};
@@ -1780,8 +1753,14 @@ mod tests {
         let (body, cap, end) = half_disc_cap(0.0, tol);
         let q = beside_the_arc_end(end, zero);
         let narrow = Band::new(zero, 1.25 * zero).unwrap();
-        let gaps = finding("the band's own parting", &body, cap, q, narrow);
-        assert!(!gaps.off_corner(), "every end lies at a corner: {gaps:?}");
+        assert!(
+            matches!(
+                contfp(&body, cap, Vec3::unit_z(), q, narrow),
+                Err(ContainError::Escalated { diag, .. })
+                    if diag.predicate == Some("curve_pair_span_end_straddle")
+            ),
+            "the band's own parting escalates on the end's straddle"
+        );
         if run.escalate() / zero <= 1.4 {
             test_utils::vacuity::stood_down(
                 "a_point_at_an_arc_end_clear_of_its_corners_is_a_finding",

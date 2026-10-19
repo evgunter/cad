@@ -348,7 +348,6 @@ fn the_doors_refuse_an_index_where_no_family_is_read() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::UnknownSlot { slot, .. }) => assert_eq!(
             slot,

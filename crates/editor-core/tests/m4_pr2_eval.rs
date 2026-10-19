@@ -131,7 +131,6 @@ fn doc_param_edit_recomputes_the_param_cone() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -169,7 +168,6 @@ fn a_side_flip_recomputes_its_cone_and_undo_restores_the_body() {
                 side: ExtrudeSide::Along,
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("a side flip at an extrude")
         .doc;
@@ -220,9 +218,7 @@ fn a_side_flip_recomputes_its_cone_and_undo_restores_the_body() {
 /// the block on the other side of the sketch plane.
 #[test]
 fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
-    use editor_core::{
-        Dimension, DocEdit, Formula, FreeVar, Node, NodeErrorKind, RefusingReach, VarName,
-    };
+    use editor_core::{Dimension, DocEdit, Formula, FreeVar, Node, NodeErrorKind, VarName};
     let h = VarName::from_static("h");
     let mut r = fixture::Recorder::new();
     r.push(DocEdit::DeclareVar {
@@ -279,7 +275,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
         },
     ] {
         mended = mended
-            .apply(&edit, Tol::witness(), &RefusingReach)
+            .apply(&edit, Tol::witness())
             .expect("the recourse's edits")
             .doc;
     }
@@ -318,7 +314,6 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;

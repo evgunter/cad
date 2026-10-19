@@ -70,3 +70,14 @@ was cut by the tilted plane `z = 1 + y·tan 20°`, and by the plane
 
 `a_plane_across_a_one_face_wall` pins those three runs as
 `Known::Operand` and cites this row.
+
+## Moved on `restread/at-infinity-probe` (RESTREAD, 2026-10-18)
+
+The missed ray's side now falls back to the volume's sign measured
+through the quadrature once the closed form and the aimed rays leave it
+open (`solid_contain.rs` `missed_side`). The three wall pieces above unite
+with the far brick at ε 1e-9, and `a_plane_across_a_one_face_wall` no
+longer pins them as `Known::Operand`. The aimed rays still meet this
+row's `bool_wall_trim_period` refusal at the wall face; the quadrature
+reads the side before that matters. A query whose ray crosses the wall
+is not affected and still meets the guard.

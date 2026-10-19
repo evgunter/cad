@@ -121,9 +121,10 @@ fn name_tables_by_position() {
             // The table iterates in name order, which reads the ids;
             // sorted after the rewrite, the rows are in one order on
             // both trees.
-            let mut rows: Vec<String> = value
-                .name_table
-                .iter()
+            let _ = value;
+            let mut rows: Vec<String> = crate::fixture::tables(&ev, *id)
+                .into_iter()
+                .flat_map(|t| t.iter())
                 .map(|(n, e)| at_position(&format!("{n:?}={e:?}"), &at, &mut unplaced))
                 .collect();
             rows.sort_unstable();

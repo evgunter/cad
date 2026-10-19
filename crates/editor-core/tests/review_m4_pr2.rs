@@ -410,7 +410,12 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     );
     let (doc, rev) = insert(
         doc,
-        revolve_about(rp, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::PI)),
+        revolve_about(
+            rp,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            ang(std::f64::consts::PI),
+        ),
     );
     // Split the union by a datum plane.
     let (doc, pl) = insert(
@@ -552,7 +557,10 @@ fn revolve_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
         [0.0, 1.0, 0.0],
         vec![square(1.5, 0.0, 0.25)],
     );
-    let (doc, rev) = insert(doc, revolve_about(rp, (0.0, 0.0), (0.0, 1.0), ang(angle)));
+    let (doc, rev) = insert(
+        doc,
+        revolve_about(rp, (0.0, 0.0), crate::fixture::along_y(), ang(angle)),
+    );
     (doc, rev)
 }
 
@@ -779,7 +787,7 @@ fn wire_doors_refuse_typed() {
         ),
         "{refusal:?}"
     );
-    // Pattern count 0: NonPositiveCount.
+    // Pattern count 0: CountOutOfRange.
     let (d, bad_pat) = insert(
         doc.clone(),
         Node::Pattern {
@@ -795,7 +803,14 @@ fn wire_doors_refuse_typed() {
     match ev.nodes.get(&bad_pat) {
         Some(NodeResult::Failed(e)) => {
             assert!(
-                matches!(e.kind, NodeErrorKind::NonPositiveCount { count: 0 }),
+                matches!(
+                    e.kind,
+                    NodeErrorKind::CountOutOfRange {
+                        slot: editor_core::SlotId::Count,
+                        count: 0,
+                        ..
+                    }
+                ),
                 "got {:?}",
                 e.kind
             );

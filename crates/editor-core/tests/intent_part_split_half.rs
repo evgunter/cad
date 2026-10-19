@@ -122,16 +122,22 @@ fn a_measure_across_one_splits_two_halves_reads_each_by_its_port() {
         tool: tool.into(),
     });
     let ev = fixture::run(&r.doc, &editor_core::EvalOptions::default());
+    // Each half is read by its port (NAMES N1): the end cap is the
+    // upper half's, the start cap the lower's.
     let cap = |end: CapEnd| {
+        let half = match end {
+            CapEnd::End => SplitHalf::Above,
+            CapEnd::Start => SplitHalf::Below,
+        };
         let found = select(
             &ev,
-            split,
+            r.doc.output(split, half.port()).expect("a half's read"),
             &Selector::of(
                 NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)),
             ),
         );
         let [name] = found.as_slice() else {
-            panic!("one {end:?} cap on the split: {found:?}")
+            panic!("one {end:?} cap on the split's {half:?} half: {found:?}")
         };
         name.clone()
     };

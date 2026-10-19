@@ -28,7 +28,7 @@
 //! then a substitution of one value for another *within one colour
 //! space*, not a conversion between two spaces where drift can live.
 //! That type is `editor-core`'s, reached on a direct edge rather than
-//! through a new re-export on the façade's root — the ruling
+//! through a new re-export on the façade's root — the rule
 //! `pncad`'s own crate docs state for a type the façade does not
 //! carry, and the same one the `bvh` edge in this crate's manifest
 //! cites. It adds nothing to the build: `pncad` already depends on
@@ -289,9 +289,10 @@ pub struct Theme {
     /// **The one chrome colour the palette states**, worn by whatever
     /// a reader may need to act on: [`crate::frame::Tone::Actionable`]
     /// — an unresolved selection, a deleted feature, a FAILED badge.
-    /// Chrome only; it tints no geometry. (A POISONED row is not
-    /// among them: a row showing someone else's failure draws quiet,
-    /// so the colour stays on the row to act on.)
+    /// Chrome only; it tints no geometry. Which row statuses wear it is
+    /// not the palette's to say: `tree::RowStatus::tone` classifies
+    /// them, and `app::toned` draws this colour for `Tone::Actionable`
+    /// only.
     ///
     /// Redundant to the words, held for salience: everything wearing
     /// it says what it means, so no meaning rests on the colour, and

@@ -32,10 +32,9 @@
 //!   both operands' faces is minted in the reduction as a ring in both
 //!   walls, four struts paired across the operands, so every arc of
 //!   the section runs node to node and every boolean of the pair builds
-//!   at its closed form, for two rods and for two bores. A node the
-//!   placement cannot certify inside or outside both faces, or one
-//!   where a rod crosses a bore, refuses typed (`NodeUnbuilt`). Branch
-//!   stubs,
+//!   at its closed form, for rods and bores in any pairing. A node the
+//!   placement cannot certify inside or outside both faces refuses
+//!   typed (`NodeUnbuilt`). Branch stubs,
 //!   whose nodes miss a face, build without a ring
 //!   (`bisector_lane_stubs`); the full family is `bisector_nodes`.
 //!

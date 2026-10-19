@@ -121,7 +121,7 @@ fn n1r1_c24_dump() {
             }
         }
         // In-span doors at every span, at both ends and the middle.
-        for si in 0..c.knots().knots().len() {
+        for si in 0..c.knots_f64_interim().knots().len() {
             let Some(span) = c.span(si) else {
                 continue;
             };

@@ -198,11 +198,13 @@ fn silent_fixed_predicates_scale_linearly() {
     };
     let mm = run(1e-3);
     let m = run(1.0);
-    for pred in [
-        "bool_plane_orient",
-        "split_join_frame_arm",
-        "split_section_area",
-        "bool_strut_order",
+    // The first three are the sites this probe exists to pin, so a
+    // silence there is a red; `bool_strut_order` stays optional (header).
+    for (pred, required) in [
+        ("bool_plane_orient", true),
+        ("split_join_frame_arm", true),
+        ("split_section_area", true),
+        ("bool_strut_order", false),
     ] {
         match (mm.get(pred), m.get(pred)) {
             (Some(a), Some(b)) => {
@@ -217,7 +219,16 @@ fn silent_fixed_predicates_scale_linearly() {
                 );
                 assert!(worst < 1e-9, "{pred} margins do not scale linearly");
             }
-            _ => println!("SILENT {pred} in flush+split configs"),
+            (mm_hit, m_hit) => {
+                assert!(
+                    !required,
+                    "{pred} fired no decisive sample (mm: {}, m: {}): the \
+                     linearity check for it is vacuous",
+                    mm_hit.is_some(),
+                    m_hit.is_some()
+                );
+                println!("SILENT {pred} in flush+split configs");
+            }
         }
     }
 }

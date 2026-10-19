@@ -72,7 +72,9 @@ tangent's one point, each its owner's to weigh:
   nothing reads its place today; only `geom-brep`'s own
   `intersect_table` test reads it.
 - `crates/topo/src/boolean/carrier_cross.rs`, the circle crossing's
-  `apart`/`nested` Zero return of `foot` (CLEAVE/HONE).
+  `apart`/`nested` Zero return of `foot`: retired with
+  `carrier_cross::meetings` (stage (c) of
+  `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227)).
 - `crates/topo/src/validate.rs`, the circle-circle edge-pair candidates'
   tangent arm (RESTFRONT). Its `a` now comes from the clearances
   (`geom_core::Circles::radical`), as seg.rs's does; the point is
@@ -86,10 +88,10 @@ tangent's one point, each its owner's to weigh:
   `tan.touch` closure on a `REACH` or `NEST` escalation: its touch is
   `c₁ + k·(dd² + r₁² − r₂²)/2dd` (CLEAVE/HONE/ORBIT). Found by FUSE's
   sweep for the curve-pair reader (stage (b) of
-  `work/fuse/the-curve-pair-reader.md`). The reader itself places a
+  `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227)). The reader itself places a
   touch at the residual's extreme, on one circle exactly
-  (`geom_brep::curve_pair::pose`, `harmonic_roots`), and a stage (c)
-  caller switch retires `carrier_cross`'s copy.
+  (`geom_brep::curve_pair::pose`, `harmonic_roots`), which
+  `carrier_cross` now reads.
 
 All of them put the point on the link line, so its ANGLE about either
 centre is the link's; a reader that only span-checks that angle sees
@@ -158,3 +160,10 @@ trims read at a point the caller computed elsewhere. A second pass
 grepped the trim and span readers (`arc_trim(`, `arc_span(`,
 `window(`, `strictly_inside(`) for their call sites and read what
 point each is handed; none beyond the above is handed a tangency foot.
+
+## The class's open sweep (from cleave's conditioning P1)
+
+`work/cleave/a-near-tangent-coplanar-circle-pair-places-its-touch-off-both-circles.md` asked for every closed-form arm to be swept for a generic formula evaluated at data a `Zero` reading has just called degenerate. Its `carrier_cross` arm is retired. Two arms of the shape remain, and this row holds them:
+- `splitting::conic_plane_candidates` (`crates/topo/src/splitting/classify.rs`): its graze row's `Zero` places the double root by the generic root formula.
+- `rim_wedge::crossings` (`crates/topo/src/boolean/rim_wedge.rs`): its line and circle closed forms are lenient in the band, and place a touch the same way.
+Not measured on a body. Both were found by reading, in the review of PR 5154.

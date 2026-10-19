@@ -1,5 +1,7 @@
 # VNEWS — the viewer's news vocabulary (plan)
 
+**Handed back 2026-10-14** (`status: ready`): the live state and the open rows are in `work/vnews/log.md`'s last entry. §Order below predates batches 1 and 2 (#3391, #5182) and is history.
+
 **STATUS: OPEN (2026-09-17).** Opened in VIEW's re-scope, on fourteen
 rows that arrived by `git mv` with their bodies unchanged. Live state
 is `work/vnews/log.md`'s tail and the item files beside this plan,

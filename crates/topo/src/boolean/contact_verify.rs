@@ -446,11 +446,10 @@ fn tangent_table<T: Decide>(
         }));
     }
     // The locus's honest spatial extent, capping every lever arm the
-    // schedule uses — the same `edge_extent` cap the edge certifier
-    // applies (`certify.rs`'s tangent arm), shared rather than
-    // mirrored. Without it a planar carrier's curvature lever arm is
-    // `f64::MAX` and every angular margin reads definite at a lever no
-    // configuration is consumed over.
+    // schedule uses. Without it a planar carrier's curvature lever arm
+    // is `f64::MAX` and every angular margin reads definite at a lever
+    // no configuration is consumed over. (The edge certifier levers
+    // the same pair at its faces' extent; this table has no faces.)
     let chord = carrier.eval(t0).distance(carrier.eval(t1));
     let extent = geom_brep::edge_extent(carrier, t0, t1, chord);
     let mut halvings = 0;

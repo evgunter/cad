@@ -37,9 +37,7 @@ use geom_core::Tol;
 use topo::Surface;
 
 fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(d, e, Tol::witness(), &editor_core::RefusingReach)
-        .expect("edit applies")
-        .doc
+    apply(d, e, Tol::witness()).expect("edit applies").doc
 }
 
 fn axis_doc() -> (ProfileDoc, RecipeNodeId) {
@@ -221,7 +219,7 @@ fn a_hollow_full_rings_cavity_faces_are_named_totally() {
     assert_eq!(body.shells().count(), 2, "a torus shell plus its cavity");
     let entities = body.faces().count() + body.edges().count() + body.vertices().count() + 1;
     assert_eq!(
-        ev.value(tube).expect("a value").name_table.len(),
+        ev.table_at(tube).expect("a value").len(),
         entities,
         "the cavity shell's entities must be named — a template that only reached \
          the outer shell would leave a silent naming dead end"

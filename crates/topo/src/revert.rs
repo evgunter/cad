@@ -75,15 +75,38 @@
 //!   designation and survives; null-entity sides refer to the
 //!   splitting surface, not the body's orientation).
 //!
-//! **Every surface class reverts, and `revert` refuses nothing.** The
-//! sense flip is uniform over every non-plane surface class, so no
-//! per-class residue is left inside this operator. What remains gated
-//! is downstream and belongs to the *boolean* — a curved subtract still
-//! needs a join lane for its seam, and the classes that lack one refuse
-//! typed at their own doors naming their own blocker. The operand is a
-//! body some door left, at rest or mid-operation, so a link the map
-//! cannot follow is a kernel bug and panics naming its record (D2
-//! row 4).
+//! **Every surface class reverts.** The sense flip is uniform over
+//! every non-plane surface class, so no per-class residue is left inside
+//! this operator. What remains gated by class is downstream and belongs
+//! to the *boolean* — a curved subtract still needs a join lane for its
+//! seam, and the classes that lack one refuse typed at their own doors
+//! naming their own blocker. The operand is a body some door left, at
+//! rest or mid-operation, so a link the map cannot follow is a kernel
+//! bug and panics naming its record (D2 row 4).
+//!
+//! **A sign flip is the complement only where two sheets meet.** Where
+//! two distinct edges lie on one line, four face sheets meet there and
+//! the material pairs them, one edge per creased wedge of material (D1
+//! tier 3, the coincident-distinct-edges class). The complement's
+//! wedges pair the same sheets differently — a slit's two wedges, each
+//! between the floor and one wall, complement to the floor running flat
+//! across the line and one crease between the walls — so the map above
+//! would leave each edge bounding the complement of its own wedge, more
+//! than π each, and the two would overlap. That re-pairing is not built, so
+//! `revert` refuses such a body ([`RevertError::CoincidentEdges`]),
+//! naming where the line runs. It reads the line structurally, deciding
+//! nothing: two line edges whose ends lie on the same two point keys
+//! ([`crate::census::shared_segments`]). A pair only a decision would
+//! read (a bound on a record, one edge's end on the other's interior)
+//! passes here, and passes the void door, which reverts its cavity
+//! through this map and decides nothing either. Only ∖ reads such
+//! pairs, holding a band: it reads every collinear overlap of the
+//! edges of its operand that its result keeps
+//! ([`crate::census::collinear_overlaps`]) and checks the result's
+//! wedges on each ([`crate::census::line_wedges`]). Two curved edges
+//! on one curve are outside every reader, as they are outside the
+//! census's exact sweeps. A single cusp is one edge, so its revert, the
+//! knife slit, is unaffected.
 //!
 //! Functional style (the plan's assumption, made concrete): `revert`
 //! takes `&self` and returns a **new body value** — the operand is
@@ -102,8 +125,9 @@
 //! What the map deliberately does NOT give is
 //! tier 3: it bounds the complement, so the +V invariant fails
 //! (`NegativeVolume`, pinned by test). That is correct, not a defect:
-//! `revert(B)` is ∖'s transient operand, never an at-rest solid
-//! handed across the API. `sweep`'s `revert_periodic_wrap` measures
+//! the reverted body bounds no solid of its own, so no door hands it
+//! across the API as one; ∖ reverts its operand's kept part and the void
+//! door its cavity, each grafted into a body that bounds a solid. `sweep`'s `revert_periodic_wrap` measures
 //! exactly `NegativeVolume` on the two-arc sphere's cavity and a cone
 //! through its apex (loops that wrap at closure), and on the drums,
 //! the tori and a NURBS loft (loops that do not);
@@ -118,7 +142,8 @@ use geom::Surface;
 use geom_core::Real;
 
 use crate::body::Body;
-use crate::entity::{EntityId, FaceKey, GeomRef, HalfEdgeKey};
+use crate::census::CollinearOverlap;
+use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey};
 use crate::geometry::CurveKey;
 use crate::live::{OPERATORS_KEEP_LINKS, Proven, dangling_link, link};
 use crate::null::CurveGeom;
@@ -129,6 +154,11 @@ impl<T: Real> Body<T> {
     /// involution/determinism contract). Every surface class is
     /// supported as of M5 S12. The source is untouched.
     ///
+    /// # Errors
+    ///
+    /// [`RevertError::CoincidentEdges`] where two distinct edges lie on
+    /// one segment (module docs).
+    ///
     /// # Panics
     ///
     /// Where a link the map follows does not resolve, naming the record
@@ -136,7 +166,24 @@ impl<T: Real> Body<T> {
     /// body could not keep (D2 row 4): a body no public door leaves.
     /// Every such read precedes construction of the result.
     #[track_caller]
-    pub fn revert(&self) -> Self {
+    pub fn revert(&self) -> Result<Self, RevertError> {
+        let out = self.reverted();
+        match crate::census::shared_segments(self).into_iter().next() {
+            Some(line) => Err(line.refusal()),
+            None => Ok(out),
+        }
+    }
+
+    /// [`Self::revert`]'s map with no refusal, for ∖'s working clone,
+    /// whose coincident edges the door reads on its input instead
+    /// (`boolean::finish`): the clone also holds a coincident pair where
+    /// the other operand's coincident edges lie in its faces.
+    ///
+    /// # Panics
+    ///
+    /// As [`Self::revert`].
+    #[track_caller]
+    pub(crate) fn reverted(&self) -> Self {
         // ---- The plan (read-only). ----
         // Which faces' surfaces carry their own reversal (`Plane`: the
         // normal is negated in the surface — the M3 encoding) and which
@@ -316,6 +363,82 @@ impl<T: Real> Body<T> {
     }
 }
 
+impl<T: Real> CollinearOverlap<T> {
+    /// The refusal naming this line: its two edges and where it runs.
+    pub(crate) fn refusal(&self) -> RevertError {
+        RevertError::CoincidentEdges {
+            edges: self.edges,
+            from: crate::census::witness(self.ends[0]),
+            to: crate::census::witness(self.ends[1]),
+        }
+    }
+}
+
+/// Why [`Body::revert`], or ∖ on the lines it reverts, refused (closed
+/// enum, D4 ¶3).
+#[derive(Clone, Debug, PartialEq)]
+pub enum RevertError {
+    /// **Two distinct edges lie on one line**, so more than two face
+    /// sheets meet there and the material decides which of them pair
+    /// into edges: one edge per creased wedge of material. The
+    /// complement's wedges pair the sheets differently, and reversing
+    /// each face's side alone leaves both edges bounding the
+    /// complement's wedge of each, the two wedges overlapping. The
+    /// re-pairing is not built, so the reversal refuses.
+    CoincidentEdges {
+        /// The two edges, in arena order.
+        edges: [EdgeKey; 2],
+        /// Where their common span begins.
+        from: String,
+        /// Where it ends.
+        to: String,
+    },
+    /// **The result's edges on one line bound overlapping material**,
+    /// where ∖ reversed a line two edges of the subtracted solid lie on
+    /// ([`crate::census::line_wedges`]): the faces meeting there are
+    /// paired as no material pairs them. Which operand's edges carry the
+    /// overlap is not read.
+    WedgesOverlap {
+        /// Two of the result's edges whose wedges overlap, in arena
+        /// order.
+        edges: [EdgeKey; 2],
+        /// Where the line read begins.
+        from: String,
+        /// Where it ends.
+        to: String,
+    },
+    /// A face meeting a line where two edges lie has no tangent plane
+    /// there, so the material on its side of the line has no reading.
+    NoSheet {
+        /// The two coincident edges, in arena order.
+        edges: [EdgeKey; 2],
+    },
+}
+
+impl core::fmt::Display for RevertError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::CoincidentEdges { from, to, .. } => write!(
+                f,
+                "two edges lie on one line from {from} to {to}: the complement pairs the faces \
+                 meeting there differently, and that re-pairing is not built"
+            ),
+            Self::WedgesOverlap { from, to, .. } => write!(
+                f,
+                "the result's edges on the line from {from} to {to} bound overlapping material: \
+                 the reversal pairs the faces meeting there as the material does not, and the \
+                 re-pairing it needs is not built"
+            ),
+            Self::NoSheet { .. } => write!(
+                f,
+                "a face meeting a line where two edges lie has no tangent plane there"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for RevertError {}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -337,7 +460,7 @@ mod tests {
             before.iter().all(|s| *s),
             "the seed states sense: true and every mef derives it"
         );
-        let reverted = cube.body.revert();
+        let reverted = cube.body.revert().unwrap();
         let after: Vec<bool> = reverted.faces().map(|(_, f)| f.sense).collect();
         assert!(after.iter().all(|s| !*s), "every non-plane face flipped");
         // The surfaces themselves are untouched (the reversal is on the
@@ -347,7 +470,7 @@ mod tests {
             format!("{:?}", cube.body.surfaces().collect::<Vec<_>>()),
         );
         assert_eq!(
-            format!("{:?}", reverted.revert()),
+            format!("{:?}", reverted.revert().unwrap()),
             format!("{:?}", cube.body),
         );
     }
@@ -371,17 +494,17 @@ mod tests {
                 kept += 1;
             }
             assert_eq!(
-                format!("{:?}", reverted.revert()),
+                format!("{:?}", reverted.revert().unwrap()),
                 format!("{body:?}"),
                 "bitwise involution"
             );
             kept
         };
         let cube = declined_cube::<f64>(Tol::witness());
-        assert_eq!(assert_kept(&cube.body, &cube.body.revert()), 6);
+        assert_eq!(assert_kept(&cube.body, &cube.body.revert().unwrap()), 6);
 
         let plane = lone_plane_face();
-        assert_eq!(assert_kept(&plane, &plane.revert()), 1);
+        assert_eq!(assert_kept(&plane, &plane.revert().unwrap()), 1);
     }
 
     /// One plane face bounded by a single line edge (a two-half-edge
@@ -501,7 +624,7 @@ mod tests {
         ];
         for (cause, torn, fragments) in rows {
             let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
-                drop(torn.revert());
+                drop(torn.revert().unwrap());
             }));
             for fragment in fragments.iter().map(String::as_str).chain([ROW_FOUR]) {
                 assert!(
@@ -568,7 +691,7 @@ mod tests {
         body.faces.get_mut(seed.face).unwrap().surface = copy;
         body.surfaces.remove(chart).unwrap();
         let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
-            drop(body.revert());
+            drop(body.revert().unwrap());
         }));
         for fragment in [
             format!("{}'s chart image's surface names", GeomRef::Curve(curve)),
@@ -594,8 +717,8 @@ mod tests {
     fn revert_mirrors_a_plane_chart_image_and_its_certificate_survives() {
         use crate::{FaceSurface, MevSite};
         use geom::{Curve3, Surface};
+        use geom_brep::EdgeCurveSpec;
         use geom_brep::certify::{CertCheck, CertifyError};
-        use geom_brep::{EdgeCurveSpec, Pcurve};
         use geom_core::{Band, Point3, Vec3};
 
         let tol = Tol::witness();
@@ -647,7 +770,7 @@ mod tests {
         let image_of =
             |c: &geom_brep::EdgeCurve<f64>| c.description().chart().unwrap().pcurve.clone();
         let source = curve_of(&body);
-        let Pcurve::Harmonic { p0, pa, pb, pl } = image_of(&source) else {
+        let Some((p0, pa, pb, pl)) = image_of(&source).harmonic_form() else {
             panic!("a circle in a plane chart is a harmonic image")
         };
         assert!(
@@ -655,15 +778,9 @@ mod tests {
             "the image has a v channel (sin t · 1): pb = {pb:?}"
         );
 
-        let reverted = body.revert();
+        let reverted = body.revert().unwrap();
         let mirrored = curve_of(&reverted);
-        let Pcurve::Harmonic {
-            p0: q0,
-            pa: qa,
-            pb: qb,
-            pl: ql,
-        } = image_of(&mirrored)
-        else {
+        let Some((q0, qa, qb, ql)) = image_of(&mirrored).harmonic_form() else {
             panic!("the mirrored image keeps its kind")
         };
         for (before, after) in [(p0.x, q0.x), (pa.x, qa.x), (pb.x, qb.x), (pl.x, ql.x)] {
@@ -685,7 +802,7 @@ mod tests {
         // is the defect, and the meter says so where it always did.
         assert!(
             matches!(
-                source.recertify(start, end, surfaces, band),
+                source.recertify(start, end, surfaces, 1.0, band),
                 Err(CertifyError::ResidualExceeded {
                     check: CertCheck::ChartResidual,
                     sample: 1,
@@ -695,7 +812,7 @@ mod tests {
             "the source's image is wrong on the reverted plane"
         );
         let rerun = mirrored
-            .recertify(start, end, surfaces, band)
+            .recertify(start, end, surfaces, 1.0, band)
             .expect("the mirrored image certifies on the reverted plane");
         assert_eq!(
             format!("{rerun:?}"),
@@ -703,7 +820,7 @@ mod tests {
             "the certificate that travelled verbatim is the fresh run's"
         );
         assert_eq!(
-            format!("{:?}", reverted.revert()),
+            format!("{:?}", reverted.revert().unwrap()),
             format!("{body:?}"),
             "bitwise involution"
         );

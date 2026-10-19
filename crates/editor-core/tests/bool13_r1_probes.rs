@@ -363,7 +363,7 @@ fn the_unknown_variant_detail_lists_the_vocabulary_in_full() {
     for expected in [
         "`Profile`",
         "`Extrude`",
-        "`Mate`",
+        "`Place`",
         "`Measure`",
         "`Assertion`",
     ] {

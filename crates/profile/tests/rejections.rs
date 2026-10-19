@@ -33,6 +33,33 @@ fn empty_profile_is_rejected() {
     assert_eq!(err(&p), ProfileError::EmptyProfile);
 }
 
+/// A plane that is not finite refuses at every validation door, and at
+/// `lift_onto`, as `PlaneNotFinite`. Validation decides nothing on the
+/// plane, but the canonical form carries it, so a NaN or infinite plane
+/// would otherwise be a validated profile with no place in space.
+#[test]
+fn a_plane_that_is_not_finite_is_rejected() {
+    use geom_core::{Affine3, Vec3};
+    let at = |z: f64| SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z)));
+    for z in [f64::NAN, f64::INFINITY] {
+        let p = profile::Profile::new(at(z), vec![rect(0.0, 0.0, 1.0, 1.0)]);
+        assert_eq!(err(&p), ProfileError::PlaneNotFinite, "validate, z = {z}");
+        assert_eq!(
+            p.validate_recording(tol()).map(|_| ()),
+            Err(ProfileError::PlaneNotFinite),
+            "validate_recording, z = {z}"
+        );
+        let finite = profile::Profile::new(at(0.0), vec![rect(0.0, 0.0, 1.0, 1.0)])
+            .validate(tol())
+            .expect("the finite plane validates");
+        assert_eq!(
+            finite.lift_onto(at(z)).map(|_| ()),
+            Err(ProfileError::PlaneNotFinite),
+            "lift_onto, z = {z}"
+        );
+    }
+}
+
 #[test]
 fn empty_loop_fails_arity() {
     let p = profile(vec![chain(&[])]);

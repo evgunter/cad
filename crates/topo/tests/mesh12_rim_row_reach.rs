@@ -216,21 +216,14 @@ fn the_remint_admits_the_gaps_the_examination_reports() {
         .half_edges()
         .find_map(|(he, h)| {
             let row = body.pcurve(he)?;
-            let geom_brep::Pcurve::Harmonic { p0, pa, pb, pl } = row.pcurve() else {
-                return None;
-            };
+            row.pcurve().harmonic_form()?;
             let edge = body.get_edge(h.edge)?;
             let Some(topo::CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
                 return None;
             };
             let face = body.face_of_half_edge(he)?;
             let sphere = body.get_surface(body.get_face(face)?.surface)?;
-            let shifted = geom_brep::Pcurve::Harmonic {
-                p0: geom_core::Point2::new(p0.x, p0.y + 100.0 * eps / RS),
-                pa: *pa,
-                pb: *pb,
-                pl: *pl,
-            };
+            let shifted = row.pcurve().translate(0.0, 100.0 * eps / RS);
             let (t0, t1) = row.params();
             Some(geom_brep::PcurveCache::certify(
                 shifted,
