@@ -1663,6 +1663,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::GraftRecertify => "graft_recertify",
         BooleanErrorKind::Pieces => "pieces",
         BooleanErrorKind::Revert => "revert",
+        BooleanErrorKind::LineWedges => "line_wedges",
     }
 }
 
@@ -3002,6 +3003,7 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::SameRadius => "same_radius",
         R::AxesMeet => "axes_meet",
         R::CoRuled => "co_ruled",
+        R::Meet => "meet",
     }
 }
 

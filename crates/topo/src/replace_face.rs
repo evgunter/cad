@@ -385,8 +385,7 @@ pub enum ReplaceFaceError<T: Real> {
         /// where it gave one (a general-rung routing, an operand guard
         /// that fired before the pose was classified), and
         /// `route_pose`'s statement where the arm's refusal carries no
-        /// text (unequal cylinder radii, a torus off its ring
-        /// convention).
+        /// text (unequal cylinder radii).
         why: &'static str,
     },
     /// **The fitted face's boundary this door does not carry.** A moved
@@ -683,6 +682,17 @@ pub enum ReplaceFaceError<T: Real> {
         /// Which shape it is.
         what: &'static str,
     },
+    /// A torus the edge's section reads is not shown inside its ring
+    /// convention `R > r > 0` (D3), in band or decided: the section arm
+    /// refuses the shape before it reads any pose, in the half's own
+    /// words. The door does not validate the body it is handed, so the
+    /// neighbour's torus is whatever the body carries.
+    DegenerateTorus {
+        /// The edge whose section read the torus.
+        edge: EdgeKey,
+        /// The half that refused, and how.
+        refusal: geom_brep::TorusRefusal,
+    },
     /// A margined predicate escalated: the margin landed in the
     /// ambiguity band or was poisoned (escalate-never-guess, D4 ¶3). No
     /// offset door takes a declaration, so its ending offers the
@@ -908,6 +918,7 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 f,
                 "an edge of the body cannot follow the offset: {what}. {NOT_YET_ENDING}"
             ),
+            Self::DegenerateTorus { refusal, .. } => refusal.fmt(f),
             Self::Escalated { source } => write!(
                 f,
                 "{}",
@@ -2633,8 +2644,12 @@ fn plan_edge<T: Decide>(
                 | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
                     ReplaceFaceError::Escalated { source }
                 }
-                // `route_pose` returns only an escalation or a
-                // dispatch naming the wrong arm or seat — this
+                geom_brep::SectionError::DegenerateTorus(refusal) => {
+                    ReplaceFaceError::DegenerateTorus { edge, refusal }
+                }
+                // `route_pose` returns only an escalation, a torus off
+                // its ring convention, or a dispatch naming the wrong
+                // arm or seat — this
                 // kernel's own bug, not the body's (its `# Errors`);
                 // every other variant is answered inside it and
                 // never returned.
@@ -2643,11 +2658,10 @@ fn plan_edge<T: Decide>(
                 | geom_brep::SectionError::DegenerateOperand { .. }
                 | geom_brep::SectionError::BeyondOperandExtent { .. }
                 | geom_brep::SectionError::CoincidentSurfaces
-                | geom_brep::SectionError::DegenerateTorus
                 | geom_brep::SectionError::RoutesToGeneralRung { .. }
                 | geom_brep::SectionError::Carrier(_)
                 | geom_brep::SectionError::Spiric(_)) => unreachable!(
-                    "{edge:?}: `route_pose` answers only an escalation or a misdispatch, and \
+                    "{edge:?}: `route_pose` answers only an escalation, a torus refusal or a misdispatch, and \
                  returned {other:?}"
                 ),
             },
@@ -3080,6 +3094,9 @@ fn derive_edge<T: Decide>(
         | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
             ReplaceFaceError::Escalated { source }
         }
+        geom_brep::SectionError::DegenerateTorus(refusal) => {
+            ReplaceFaceError::DegenerateTorus { edge, refusal }
+        }
         // As at `neighbour_section`: every other variant is answered
         // inside `route_pose` and never returned.
         other @ (geom_brep::SectionError::WrongLane { .. }
@@ -3087,11 +3104,10 @@ fn derive_edge<T: Decide>(
         | geom_brep::SectionError::DegenerateOperand { .. }
         | geom_brep::SectionError::BeyondOperandExtent { .. }
         | geom_brep::SectionError::CoincidentSurfaces
-        | geom_brep::SectionError::DegenerateTorus
         | geom_brep::SectionError::RoutesToGeneralRung { .. }
         | geom_brep::SectionError::Carrier(_)
         | geom_brep::SectionError::Spiric(_)) => unreachable!(
-            "{edge:?}: `route_pose` answers only an escalation or a misdispatch, and returned \
+            "{edge:?}: `route_pose` answers only an escalation, a torus refusal or a misdispatch, and returned \
              {other:?}"
         ),
     })?;

@@ -529,11 +529,12 @@ pub(crate) fn copy_rows<T: Decide>(
             crate::assembly::AtRestRow {
                 by: crate::assembly::AtRestBy::Copies(by(ca.min(cb)), by(ca.max(cb))),
                 row: crate::coincide::NamedCoincidence {
-                    cells: [na, nb],
+                    cells: vec![na, nb],
                     relation: row.relation,
                     site: row.site,
                     margin: row.margin,
                     discharge: row.discharge,
+                    origin: crate::coincide::RowOrigin::Node,
                 },
             }
         })

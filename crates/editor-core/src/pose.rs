@@ -255,7 +255,9 @@ pub enum PoseDef<R = crate::VarId, S = crate::VarId> {
 /// read through is part of the read"): a frame's x, y or z axis, its
 /// origin or one of its coordinate planes; a plane's normal; an axis's
 /// direction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum PoseRole {
     /// A frame's x axis: through its origin along `u`.
     X,

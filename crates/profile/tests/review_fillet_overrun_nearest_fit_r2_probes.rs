@@ -28,23 +28,24 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::{anchor_fit_at, anchor_fit_entries, arc_arc, close, grid_a, line_arc_grid};
+use crate::common::{
+    anchor_fit_at, anchor_fit_entries, arc_arc, close, grid_a, line_arc_grid, past_the_corner,
+    past_the_corner_pin,
+};
 use geom_core::k_stats;
 use profile::{FilletLeg, PathError, ProfileLoop};
 
 /// The corner's anchor fit is satisfied at this radius: the loop builds,
-/// or — at a wide ε — its CLOSER (`line_to(Start)`) answers instead,
-/// in-band (`path_junction_*`) or tangent (`JunctionTangent`). The fit
-/// gates classify on the exact band, so the corner's own verdict does
-/// not move with ε; the closer's can, and it is not the subject here.
+/// or a read past the corner answers instead ([`past_the_corner`]). The
+/// fit gates classify on the exact band, so the corner's own verdict
+/// does not move with ε; a later read's can, and it is not the subject
+/// here.
 fn anchor_fit_satisfied(res: &Result<ProfileLoop<f64>, PathError<f64>>, what: &str) {
-    match res {
-        Ok(_) | Err(PathError::JunctionTangent { .. }) => {}
-        Err(PathError::Escalated { source })
-            if source
-                .predicate
-                .is_some_and(|p| p.starts_with("path_junction_")) => {}
-        Err(e) => panic!("{what}: the anchor fit must be satisfied, got {e:?}"),
+    if let Err(e) = res {
+        assert!(
+            past_the_corner(e).is_some(),
+            "{what}: the anchor fit must be satisfied, got {e:?}"
+        );
     }
 }
 
@@ -190,8 +191,8 @@ fn line_arc_grid_side_census_under_the_leg_rule() {
 /// **C3, the recourse census.** For every anchor-fit entry grid A
 /// reports, reduce the radius by that entry's `setback − available`
 /// (and `f64::EPSILON`) and build: the anchor fit is satisfied at 605
-/// entries (the loop builds, or at a wide ε the closing junction
-/// answers in-band or tangent), the deficit is not below the radius at
+/// entries (the loop builds, or a read past the corner answers,
+/// [`past_the_corner`]), the deficit is not below the radius at
 /// 469, and the corner STILL refuses at 2 111. Three entries pin the spread: at
 /// authoring 3608 the reported deficit is 0.0013 m and the largest
 /// building radius is 0.0384 m below r (29×); at 4831 following the
@@ -202,7 +203,7 @@ fn line_arc_grid_side_census_under_the_leg_rule() {
 #[test]
 fn the_recourse_census_on_grid_a() {
     let (mut builds, mut refuses, mut not_a_request) = (0_usize, 0_usize, 0_usize);
-    let mut closer: Vec<&'static str> = Vec::new();
+    let mut past: Vec<&'static str> = Vec::new();
     grid_a(|_, case, r, out| {
         let Err(e) = out else { return };
         for (_, _, setback, available) in anchor_fit_entries(e) {
@@ -213,37 +214,24 @@ fn the_recourse_census_on_grid_a() {
             }
             match arc_arc(case, followed) {
                 Ok(_) => builds += 1,
-                // The corner's anchor fit is satisfied and the CLOSER
-                // (`line_to(Start)`) is what answers next: at a wide ε
-                // its junction can classify in-band or tangent — two
-                // loops at `CAD_TOLERANCE_EPS=1e-6`, one escalating at
-                // `path_junction_turn`, one `JunctionTangent` — which is
-                // a fact about the closing junction, never about the
-                // fillet corner (its fit gates classify on the exact
-                // band and cannot move with ε).
-                Err(PathError::Escalated { source })
-                    if source
-                        .predicate
-                        .is_some_and(|p| p.starts_with("path_junction_")) =>
-                {
-                    closer.push(source.predicate.unwrap_or("<unnamed>"));
-                }
-                Err(PathError::JunctionTangent { .. }) => closer.push("JunctionTangent"),
-                Err(_) => refuses += 1,
+                Err(e) => match past_the_corner(&e) {
+                    Some(name) => past.push(name),
+                    None => refuses += 1,
+                },
             }
         }
     });
     assert_eq!(
-        builds + closer.len() + refuses + not_a_request,
+        builds + past.len() + refuses + not_a_request,
         3_185,
         "grid A's anchor-fit entries"
     );
-    println!("recourse census: builds {builds}, the closer answered at this ε: {closer:?}");
-    // Bounded so the fillet's answer cannot slide into the closer's bucket
-    // unnoticed (two loops at the 1e-6 row, none at the others).
-    assert!(closer.len() <= 2, "closer bucket {closer:?}");
+    println!("recourse census: builds {builds}, past the corner at this ε: {past:?}");
+    if let Some(pin) = past_the_corner_pin() {
+        assert_eq!(past.len(), pin, "past the corner: {past:?}");
+    }
     assert_eq!(
-        (builds + closer.len(), refuses, not_a_request),
+        (builds + past.len(), refuses, not_a_request),
         (605, 2_111, 469),
         "anchor fit satisfied / still refuses / not a request"
     );

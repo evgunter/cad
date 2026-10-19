@@ -616,6 +616,8 @@ BOUND_AS = {
     "Proof": "Coincidence.rung",
     "Rung": "Coincidence.rung",
     "Residual": "Coincidence.residual",
+    # Which of the node's decisions a row is crosses as a tuple tag.
+    "RowOrigin": "Coincidence.origin",
     # The verify door's two-plane verdict crosses as the row's word:
     # `same_oriented` / `same_opposite` on `Coincidence.relation`.
     "PlaneRelation": "Coincidence.relation",
