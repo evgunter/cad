@@ -4273,12 +4273,25 @@ fn decide_joint<T: Decide>(
                     |g| Margin::levered(g, polar),
                     band,
                 ),
-                None => period.decide(
-                    "pcurve_loop_branch",
-                    gap,
-                    |g| Margin::metered_sup(g, v_meter(chart)),
+                // A net's `v` periods are decided only where its whole
+                // `v` stretch is decided past the band, as its `u`
+                // periods are ([`singular_at`]): under it, or in it, no
+                // `v` displacement on the chart reaches ε, every lift
+                // names the same point, and the joint's chart-space gap
+                // decides ([`spline_gap_closes`]) with `kv = 0`.
+                None => match decide(
+                    "pcurve_loop_v_stretch",
+                    Margin::of(v_meter(chart).get()),
                     band,
-                ),
+                ) {
+                    Ok(Sign::Positive) => period.decide(
+                        "pcurve_loop_branch",
+                        gap,
+                        |g| Margin::metered_sup(g, v_meter(chart)),
+                        band,
+                    ),
+                    Ok(Sign::Zero | Sign::Negative) | Err(_) => Ok(0),
+                },
             }
             .map_err(|stop| PinMiss::from(stop.miss))?
         }
@@ -6138,7 +6151,12 @@ mod stretch_meter {
     /// and the joint's chart-space gap is what decides it
     /// (`spline_gap_closes`, here a zero gap). Read off a net whose
     /// stretch is under the band, in it, and past it, on a chart given a
-    /// period of 1: a reset, a reset, an ordinary identity.
+    /// period of 1: a reset, a reset, an ordinary identity. The net's
+    /// control points are all within the band of each other below the
+    /// band, so it also reads closed in `v` (`chart_v_period`); its `v`
+    /// stretch gates the `v` periods the same way
+    /// (`pcurve_loop_v_stretch`), so no `v` mark is read there and the
+    /// reset carries `v = 0`.
     #[test]
     fn a_spline_gate_that_is_not_off_writes_a_reset() {
         use super::{Deck, JointElement, decide_joint};
