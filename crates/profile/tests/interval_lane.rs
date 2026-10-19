@@ -430,7 +430,7 @@ fn the_value_channel_refuses_an_arc_carrier_at_its_segment() {
 }
 
 /// **A chord heading along −x from a computed point reads its turn as an
-/// enclosure of the nominal's.** `line(1.5)` along `π/2` from `(1, 1.5)`
+/// enclosure of the nominal's.** `line(2.9)` along `π/2` from `(1, 0.1)`
 /// lands on a thin enclosure of `(1, 3)`, so every chord from it to an
 /// authored point on `y = 3` runs along −x with a `y` component
 /// straddling zero — `atan2`'s branch cut, where an angle enclosure is
@@ -524,5 +524,72 @@ fn a_chord_along_minus_x_from_a_computed_point_reads_a_narrow_turn() {
     assert!(
         margin.lo() <= 0.0 && 0.0 <= margin.hi() && margin.hi() - margin.lo() < 1e-12,
         "the tangent junction's turn margin encloses zero narrowly, got {margin:?}"
+    );
+}
+
+/// **A direction a later step turns is turned as a ray, never rebuilt
+/// from an angle read back off it.** Each case ends a leg heading −x at
+/// `Interval`, where an angle read off that ray by `atan2` straddles its
+/// branch cut and encloses the whole circle, and then turns it: `.turn`
+/// after a bulge arc whose end tangent heads −x (`b` = 1, ½ and 2, the
+/// chord `2·unit(π − 2·atan b)`), the `Sweep` extension after the same
+/// arc with a leg following, and `.turn` after a chord along −x from a
+/// computed point. Each junction then reads a definite turn.
+#[test]
+fn a_turn_after_a_ray_along_minus_x_turns_the_ray() {
+    use std::f64::consts::{FRAC_PI_2, PI};
+    let t = Tol::witness();
+    let one = |v: f64| Interval::from_f64(v);
+    let mut wrong = Vec::new();
+    for b in [1.0, 0.5, 2.0] {
+        let gamma = PI - 2.0 * f64::atan(b);
+        let arc = || {
+            profile::Open.at(ip2(0.0, 0.0)).arc_to(
+                profile::Bulge {
+                    p: ip2(2.0 * gamma.cos(), 2.0 * gamma.sin()),
+                    b: one(b),
+                },
+                t,
+            )
+        };
+        if let Err(e) = arc()
+            .expect("the arc")
+            .turn(one(0.5), t)
+            .and_then(|p| p.line(one(1.0), t))
+        {
+            wrong.push(format!("b = {b}: .turn after the arc: {e:?}"));
+        }
+        if let Err(e) = arc()
+            .expect("the arc")
+            .tangent()
+            .arc_to(
+                profile::Sweep {
+                    r: one(1.0),
+                    side: profile::ArcSide::Left,
+                    angle: one(0.5),
+                },
+                t,
+            )
+            .and_then(|p| p.line_to(ip2(-10.0, 5.0), t))
+        {
+            wrong.push(format!("b = {b}: the Sweep extension after the arc: {e:?}"));
+        }
+    }
+    let chord_then_turn = profile::Open
+        .at(ip2(1.0, 0.1))
+        .angle(one(FRAC_PI_2), t)
+        .expect("the director up")
+        .line(one(2.9), t)
+        .expect("the computed point beside (1, 3)")
+        .line_to(ip2(0.0, 3.0), t)
+        .expect("the chord along -x")
+        .turn(one(1.0), t)
+        .and_then(|p| p.line(one(1.0), t));
+    if let Err(e) = chord_then_turn {
+        wrong.push(format!(".turn after the chord: {e:?}"));
+    }
+    assert!(
+        wrong.is_empty(),
+        "every turned ray reads a definite turn: {wrong:#?}"
     );
 }

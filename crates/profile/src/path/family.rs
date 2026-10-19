@@ -987,7 +987,7 @@ type PointCarrier<T> = (Point2<T>, crate::sugar::ArcSweep, Dir<T>, Point2<T>);
 
 /// The shared Bulge-shaped derivation: carrier from chord + bulge (the
 /// existing closed form), winding from the bulge's sign, start tangent
-/// the chord's ray turned by −θ/2 (exactly the sharp legs' derivation).
+/// from [`super::chord_tangents`].
 fn bulge_carrier<T: geom_core::Decide>(
     at: Point2<T>,
     p: Point2<T>,
@@ -1005,10 +1005,7 @@ fn bulge_carrier<T: geom_core::Decide>(
         Err(source) => return Err(PathError::Escalated { source }),
     };
     let arc = crate::lower_arc(at, p, b);
-    let start = super::turned(
-        super::chord_director(p - at).unit,
-        -arc.sweep / T::from_f64(2.0),
-    );
+    let (start, _) = super::chord_tangents(p - at, arc.sweep);
     Ok((arc.centre, winding, start))
 }
 
@@ -1090,10 +1087,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
             PathError::DegenerateArcChord { chord: c }
         })?;
         let theta = super::center_sweep(at, self.p, self.c, r_tip, self.winding);
-        let start = super::turned(
-            super::chord_director(self.p - at).unit,
-            -theta / T::from_f64(2.0),
-        );
+        let (start, _) = super::chord_tangents(self.p - at, theta);
         // The AUTHORED centre is the carrier (never the re-derived one).
         Ok((self.c, self.winding, start, self.p))
     }
