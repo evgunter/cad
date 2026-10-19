@@ -76,8 +76,7 @@ fn the_gate_meters_either_order_and_refuses_a_negative_minor() {
         matches!(
             got,
             Err(CertifyError::StatedInterval {
-                refused: geom_brep::StatedSpan::NotForward,
-                ..
+                refused: geom_brep::StatedSpan::NotForward(_),
             })
         ),
         "a negative minor: {:?}",

@@ -368,8 +368,51 @@ pub enum RefusedSide {
     /// contradiction does. At a build only a kernel bug reaches it, so
     /// its ending panics there ([`SizedDecision::recourse`]): every public
     /// door that hands the decision its caller's input refuses that input
-    /// typed first.
+    /// typed first, and what reaches the decision past them is the
+    /// kernel's own data, read as it was minted.
     Unminted,
+}
+
+/// **An edge interval's two span decisions**: whether the interval runs
+/// forward over a clear length, and whether a periodic carrier's stays
+/// short of one full turn. The one home of each decision's lever, size
+/// and pass rule, which every reader of it shares — the edge certifier's
+/// checks ([`crate::CertCheck::ParamSpan`],
+/// [`crate::CertCheck::ParamWinding`], [`crate::CertCheck::ImageSpan`]),
+/// the chart image's that restate them, and the minting door's refusal
+/// of its caller's interval ([`crate::CertifyError::StatedInterval`]).
+/// Each reader names its own refused side.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SpanDecision {
+    /// The interval runs forward over a clear length.
+    Forward,
+    /// A periodic carrier's interval stays short of one full turn.
+    Winding,
+}
+
+impl SpanDecision {
+    /// The decision, read with `side` as its refused side.
+    pub(crate) const fn on(self, side: RefusedSide) -> SizedDecision {
+        let (lever, size, passes) = match self {
+            Self::Forward => (
+                "move the geometry so this edge runs forward over a clear length",
+                "length",
+                SizedPass::Positive,
+            ),
+            Self::Winding => (
+                "move the geometry so this arc stays clearly short of a full turn",
+                "arc",
+                SizedPass::NonNegative,
+            ),
+        };
+        SizedDecision {
+            lever,
+            size,
+            passes,
+            side,
+            no_size: None,
+        }
+    }
 }
 
 /// A decision on a size the user may intend (D4 ¶1 (i)): its own
@@ -454,8 +497,7 @@ impl SizedDecision {
     /// ([`MarginDiag::shows_no_size`]): every sign-certain refusal, and a
     /// band-decided one whose margin shows no size. A Zero this decision
     /// passes, and a straddle, are not.
-    #[must_use]
-    pub fn certainly_refused(self, arm: RefusedArm<'_>) -> bool {
+    pub(crate) fn certainly_refused(self, arm: RefusedArm<'_>) -> bool {
         let (margin, band) = match arm {
             RefusedArm::Zero(_) if self.passes.passes_zero() => return false,
             RefusedArm::Zero(Classified { margin, band }) => (margin, band),
@@ -496,6 +538,43 @@ impl SizedDecision {
             refused,
         }
     }
+}
+
+/// Whether `f` panics, and then that it panics as a reading certainly on
+/// an unminted side does at a build ([`SizedDecision::recourse`]): a row
+/// that expects that panic fails on any other. The message is captured
+/// through a panic hook, keeping this thread's alone, since the
+/// bit-identity punning gate bans downcasting `catch_unwind`'s payload.
+#[cfg(test)]
+pub(crate) fn panics_as_a_kernel_bug(f: impl FnOnce()) -> bool {
+    use std::sync::{Arc, Mutex, PoisonError};
+    static HOOK: Mutex<()> = Mutex::new(());
+    let _serialized = HOOK.lock().unwrap_or_else(PoisonError::into_inner);
+    let captured: Arc<Mutex<Option<String>>> = Arc::default();
+    let sink = Arc::clone(&captured);
+    let this = std::thread::current().id();
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        if std::thread::current().id() == this {
+            *sink.lock().unwrap_or_else(PoisonError::into_inner) = Some(info.to_string());
+        }
+    }));
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
+    std::panic::set_hook(previous);
+    if outcome.is_ok() {
+        return false;
+    }
+    let message = captured
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take()
+        .unwrap_or_default();
+    assert!(
+        message.contains("on a side no kernel construction produces reached a build")
+            && message.contains("a kernel bug"),
+        "a panic other than the unminted side's: {message}"
+    );
+    true
 }
 
 /// The content words `text` says more than once, for the payload pins:
@@ -1008,12 +1087,15 @@ mod tests {
         for (decision, end, build, rest, door) in rows {
             for (route, refused) in routes {
                 let at = |at: ReadAt| end(refused, at);
-                let built = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    at(Reading::Build.into())
-                }));
-                match built {
-                    Ok(got) => assert_eq!(got, build, "{decision}, {route}, at a build"),
-                    Err(_) => assert!(build.is_none(), "{decision}, {route}, panics at a build"),
+                let mut built = None;
+                let panicked = super::panics_as_a_kernel_bug(|| built = at(Reading::Build.into()));
+                assert_eq!(
+                    panicked,
+                    build.is_none(),
+                    "{decision}, {route}, panics at a build"
+                );
+                if !panicked {
+                    assert_eq!(built, build, "{decision}, {route}, at a build");
                 }
                 assert_eq!(
                     at(Reading::AtRest.into()),

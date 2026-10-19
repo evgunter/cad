@@ -152,9 +152,10 @@ still folds a `Sign::Zero` verdict into a sign-certain refusal (the
 and `pcurve_cache/projected.rs`), so a positive span in band, which an
 operation at a looser tolerance reaches on an edge minted at a tighter
 one, would read as certainly refused and panic. `PcurveCheck`'s routing
-now sends `ParamSpan` to its own `IMAGE_SPAN` and `AzimuthPeriod` /
-`TubePeriod` to `IMAGE_PERIOD`, both `RefusedSide::StoredContradiction`
-in the edge's levers (`PcurveCheck::routing`). Once the image's span
+now sends `ParamSpan` to its own `CertCheck::ImageSpan` and
+`AzimuthPeriod` / `TubePeriod` to the winding decision read on the image
+(`SpanDecision::Winding`), both `RefusedSide::StoredContradiction` in
+the edge's levers (`PcurveCheck::routing`). Once the image's span
 verdict carries its `Refused` margin, its span check can return to the
 edge's decision; the period gates stay apart, since a spline image can
 sweep past a period from input no door refuses.

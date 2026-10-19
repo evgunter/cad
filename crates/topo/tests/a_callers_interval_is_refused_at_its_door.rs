@@ -32,9 +32,16 @@ fn circle(r: f64) -> Curve3<f64> {
     }
 }
 
-/// What the door refused, and that its whole render at a build ends in
-/// the check's lever (rendering it does not panic).
-fn refused(result: Result<impl core::fmt::Debug, EulerOpError>, row: &str) -> StatedSpan {
+/// Which span check refused: what the door refused, once its whole
+/// render at a build is shown to end in the check's lever (rendering it
+/// does not panic).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Refused {
+    NotForward,
+    PastFullTurn,
+}
+
+fn refused(result: Result<impl core::fmt::Debug, EulerOpError>, row: &str) -> Refused {
     let error = result.expect_err(row);
     let EulerOpError::Certification {
         error: CertifyError::StatedInterval { refused, .. },
@@ -47,11 +54,14 @@ fn refused(result: Result<impl core::fmt::Debug, EulerOpError>, row: &str) -> St
         text.ends_with(&format!("Recourse: {}", refused.lever())),
         "{row}: {text}"
     );
-    *refused
+    match refused {
+        StatedSpan::NotForward(_) => Refused::NotForward,
+        StatedSpan::PastFullTurn(_) => Refused::PastFullTurn,
+    }
 }
 
 /// `Body::mev` from a lone vertex at `(1, 0)` with the caller's spec.
-fn mev(spec: EdgeCurveSpec<f64>, to: Point3<f64>, row: &str) -> StatedSpan {
+fn mev(spec: EdgeCurveSpec<f64>, to: Point3<f64>, row: &str) -> Refused {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(1.0, 0.0), true).unwrap();
     let r#loop = seed.r#loop;
@@ -87,7 +97,7 @@ fn every_door_refuses_a_callers_interval_typed() {
         param_end: 1.0,
         ..line.clone()
     };
-    let not_forward = StatedSpan::NotForward;
+    let not_forward = Refused::NotForward;
     let rows = [
         (
             "mev, reversed",
@@ -113,7 +123,7 @@ fn every_door_refuses_a_callers_interval_typed() {
         (
             "mev, an arc past a full turn",
             mev(arc(1.0, 1.5 * TAU), p(-1.0, 0.0), "past a turn"),
-            StatedSpan::PastFullTurn,
+            Refused::PastFullTurn,
         ),
     ];
     for (row, got, want) in rows {
@@ -181,8 +191,7 @@ fn every_door_refuses_a_callers_interval_typed() {
         matches!(
             direct,
             CertifyError::StatedInterval {
-                refused: StatedSpan::NotForward,
-                ..
+                refused: StatedSpan::NotForward(_),
             }
         ),
         "EdgeCurve::certify, coincident: {direct:?}"

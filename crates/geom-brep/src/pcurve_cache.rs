@@ -182,10 +182,10 @@ use geom_core::{
     Decide, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2, Vec3,
 };
 
-use crate::certify::{CERT_SAMPLES, sample_param};
+use crate::certify::{CERT_SAMPLES, CertCheck, sample_param};
 use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::ladder::{IdentityLadder, read_identity};
-use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass, Unsized};
+use crate::recourse::{Reading, RefusedArm, SizedDecision, SpanDecision, Unsized};
 use crate::ssi::{SsiDecision, SsiLimb};
 
 /// **One chart coordinate of a harmonic image** ([`Pcurve::Harmonic`]).
@@ -2386,46 +2386,29 @@ impl PcurveCertifyError {
     }
 }
 
-/// How a refusal of a [`PcurveCheck`] ends: as a sized decision in the
-/// edge certifier's own lever where the check restates it, otherwise as
-/// a decision with no size.
+/// How a refusal of a [`PcurveCheck`] ends: by the edge certifier's own
+/// decision where the check restates it, as a span decision read on the
+/// image where it restates one the edge reads otherwise, and otherwise
+/// as a decision with no size.
 #[derive(Clone, Copy)]
 enum Routing {
+    Edge(CertCheck),
     Sized(SizedDecision),
     Unsized(Unsized),
 }
 
-/// The span check's decision on an image: the edge certifier's lever
-/// ([`crate::CertCheck::ParamSpan`]) over a cache the kernel derives at a build
-/// at the band the operation passes, where a span its edge's mint
-/// decided forward can read in band at a looser one. So a reading on its
-/// refused side is not one no input reaches, and it ends as a stored
-/// contradiction does.
-const IMAGE_SPAN: SizedDecision = SizedDecision {
-    lever: crate::certify::StatedSpan::NotForward.lever(),
-    size: "length",
-    passes: SizedPass::Positive,
-    side: RefusedSide::StoredContradiction,
-    no_size: None,
-};
-
-/// The period gates' decision on an image: the edge certifier's winding
-/// lever ([`crate::CertCheck::ParamWinding`]) over a spline image that can sweep
-/// past a period no edge check counts (the projected lane's gate), so it
-/// ends as a stored contradiction does.
-const IMAGE_PERIOD: SizedDecision = SizedDecision {
-    lever: crate::certify::StatedSpan::PastFullTurn.lever(),
-    size: "arc",
-    passes: SizedPass::NonNegative,
-    side: RefusedSide::StoredContradiction,
-    no_size: None,
-};
-
 impl PcurveCheck {
     fn routing(self) -> Routing {
         match self {
-            Self::ParamSpan => Routing::Sized(IMAGE_SPAN),
-            Self::AzimuthPeriod | Self::TubePeriod => Routing::Sized(IMAGE_PERIOD),
+            // The image's span, read over a cache the kernel derives at
+            // the band the operation passes.
+            Self::ParamSpan => Routing::Edge(CertCheck::ImageSpan),
+            // The winding decision on a spline image, which can sweep
+            // past a period no edge check counts (the projected lane's
+            // gate): a stored contradiction, not a side no input reaches.
+            Self::AzimuthPeriod | Self::TubePeriod => Routing::Sized(
+                SpanDecision::Winding.on(crate::recourse::RefusedSide::StoredContradiction),
+            ),
             // The winding the kernel stores exactly: a form selection.
             Self::ChartWinding | Self::ChartIncidence | Self::Sector => {
                 Routing::Unsized(Unsized::Defect)
@@ -2451,6 +2434,7 @@ impl PcurveCheck {
     #[must_use]
     pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
         match self.routing() {
+            Routing::Edge(check) => crate::certify::recourse(check, arm, reading),
             Routing::Sized(decision) => decision.recourse(arm, reading),
             Routing::Unsized(decision) => decision.recourse(arm, reading),
         }
@@ -10193,7 +10177,7 @@ mod tests {
     #[test]
     fn the_azimuth_gate_ends_in_the_edge_winding_lever() {
         use crate::CertCheck;
-        use crate::certify::{CertifyError, StatedSpan, recourse};
+        use crate::certify::{CertifyError, recourse};
         let cause = Indeterminate {
             margin: geom_core::MarginDiag::value(5e-9),
             band: Band::new(1e-9, 1e-8).unwrap(),
@@ -10202,7 +10186,12 @@ mod tests {
         };
         assert_eq!(
             PcurveCertifyError::AzimuthPeriodExceeded.ending(Reading::Build),
-            Some(format!("Recourse: {}", StatedSpan::PastFullTurn.lever())),
+            Some(format!(
+                "Recourse: {}",
+                SpanDecision::Winding
+                    .on(crate::recourse::RefusedSide::Lever)
+                    .lever
+            )),
             "definite, at a build"
         );
         assert_eq!(

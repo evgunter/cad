@@ -241,13 +241,21 @@ unresolved enclosure, a straddle) ends in the lever whatever the side.
 Within ε_in the import door ends every band-decided reading in its one
 sentence and the lever, whatever the side. An unminted side panics at a
 build because every public door that hands its decision the caller's
-input refuses that input typed first: the edge certifier's minting door
-(`geom_brep::EdgeCurve::certify` and its `_via` forms, which every
-operation that mints an edge goes through) refuses a span check's reading
-certainly on its refused side as the caller's interval
-(`geom_brep::CertifyError::StatedInterval`, in the check's own lever), so
-only re-certification of a stored edge reaches `CertCheck::ParamSpan`'s
-and `CertCheck::ParamWinding`'s refused sides. The table departs from
+input refuses that input typed first. The edge certifier's minting door
+(`geom_brep::EdgeCurve::certify` and its `_via` forms, which every public
+door and every operation minting an edge from its caller's parameters
+goes through) refuses a span check's reading certainly on its refused
+side as the caller's interval (`geom_brep::CertifyError::StatedInterval`,
+at a build in the check's own lever). A public re-certification
+(`EdgeCurve::recertify` and its `_via` forms) refuses so a winding
+reading, since its band is its caller's: the winding decision passes a
+headroom its band reads as zero, so a finer band can read a stored arc
+past a turn. What reaches `CertCheck::ParamSpan`'s and
+`CertCheck::ParamWinding`'s refused sides is then the kernel's own
+re-mint or re-certification of an edge it holds
+(`EdgeCurve::remint_via_stated`, `EdgeCurve::rederive_via_stated`) at
+the run's one band, where the edge reads as its mint read it: a kernel
+bug. The table departs from
 clause (iv) in one cell, typed until the door that would keep input
 from it exists, and scheduled by its row: the at-rest column, which the
 validator also reads at the import gate (`[import]` step 4) and so a

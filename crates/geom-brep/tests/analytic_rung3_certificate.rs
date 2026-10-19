@@ -281,8 +281,7 @@ fn a_lane_free_door_refuses_for_the_lane_before_any_schedule_defect() {
             "backward" => matches!(
                 with_lane,
                 Err(CertifyError::StatedInterval {
-                    refused: geom_brep::StatedSpan::NotForward,
-                    ..
+                    refused: geom_brep::StatedSpan::NotForward(_),
                 })
             ),
             _ => matches!(with_lane, Err(CertifyError::ResidualExceeded { .. })),

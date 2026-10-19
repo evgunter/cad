@@ -40,8 +40,25 @@ impl ByPolicy {
     }
 }
 
-/// [`EdgeCurve::certify_via`] with `T`'s lane, the wedge levered at
-/// `reach` ([`crate::wedge_reach`]).
+/// **Whose interval a mint certifies**, which decides what a span
+/// check's reading certainly on its refused side is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Interval {
+    /// The caller's: a spec a public door was handed, or one an
+    /// operation computed from its caller's parameters. Such a reading is
+    /// the caller's input, refused typed through the minting door
+    /// ([`EdgeCurve::certify_via_stated`],
+    /// [`geom_brep::CertifyError::StatedInterval`]).
+    Callers,
+    /// The kernel's: a stored edge's interval carried unchanged (a rigid
+    /// motion, a re-description in place), or a split child's, whose
+    /// parameter the split decided interior first. Such a reading stays
+    /// the check's own ([`EdgeCurve::remint_via_stated`]): a kernel bug
+    /// at a build.
+    Kernels,
+}
+
+/// [`certify_stated`] with no stated image.
 pub(crate) fn certify<T: AtRestPolicy>(
     spec: EdgeCurveSpec<T>,
     start: Point3<T>,
@@ -49,14 +66,15 @@ pub(crate) fn certify<T: AtRestPolicy>(
     surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
     reach: T,
     band: Band,
+    interval: Interval,
 ) -> Result<EdgeCurve<T>, ByPolicy> {
-    EdgeCurve::certify_via(spec, start, end, surfaces, reach, band, T::nurbs_lane())
-        .map_err(ByPolicy::of::<T>)
+    certify_stated(spec, start, end, surfaces, reach, band, None, interval)
 }
 
-/// [`EdgeCurve::certify_via_stated`] with `T`'s lane: `stated` is a chart
-/// image the body already holds for the edge on one of its surfaces, and
-/// the wedge is levered at `reach` ([`crate::wedge_reach`]).
+/// The mint of `interval`'s door ([`Interval`]) with `T`'s lane: `stated`
+/// is a chart image the body already holds for the edge on one of its
+/// surfaces, and the wedge is levered at `reach` ([`crate::wedge_reach`]).
+#[allow(clippy::too_many_arguments)] // the mint's, plus whose interval it is
 pub(crate) fn certify_stated<T: AtRestPolicy>(
     spec: EdgeCurveSpec<T>,
     start: Point3<T>,
@@ -65,22 +83,25 @@ pub(crate) fn certify_stated<T: AtRestPolicy>(
     reach: T,
     band: Band,
     stated: Option<&geom_brep::StatedImage<T>>,
+    interval: Interval,
 ) -> Result<EdgeCurve<T>, ByPolicy> {
-    EdgeCurve::certify_via_stated(
-        spec,
-        start,
-        end,
-        surfaces,
-        reach,
-        band,
-        T::nurbs_lane(),
-        stated,
-    )
+    let lane = T::nurbs_lane();
+    match interval {
+        Interval::Callers => {
+            EdgeCurve::certify_via_stated(spec, start, end, surfaces, reach, band, lane, stated)
+        }
+        Interval::Kernels => {
+            EdgeCurve::remint_via_stated(spec, start, end, surfaces, reach, band, lane, stated)
+        }
+    }
     .map_err(ByPolicy::of::<T>)
 }
 
-/// [`EdgeCurve::recertify_via`] with `T`'s lane, the wedge levered at
-/// `reach` ([`crate::wedge_reach`]).
+/// The kernel's re-certification of a stored edge at the run's one band
+/// ([`EdgeCurve::rederive_via_stated`]) with `T`'s lane, the wedge
+/// levered at `reach` ([`crate::wedge_reach`]): the edge was minted at
+/// that band, so it reads as it did, and a span check's refusal stays
+/// the check's own.
 pub(crate) fn recertify<T: AtRestPolicy>(
     curve: &EdgeCurve<T>,
     start: Point3<T>,
@@ -90,7 +111,7 @@ pub(crate) fn recertify<T: AtRestPolicy>(
     band: Band,
 ) -> Result<Certificate<T>, ByPolicy> {
     curve
-        .recertify_via(start, end, surfaces, reach, band, T::nurbs_lane())
+        .rederive_via_stated(start, end, surfaces, reach, band, T::nurbs_lane(), None)
         .map_err(ByPolicy::of::<T>)
 }
 

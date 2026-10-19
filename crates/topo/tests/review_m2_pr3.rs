@@ -784,8 +784,7 @@ fn fixed_aliased_interval_refused_at_public_setter() {
             .unwrap_err(),
         EulerOpError::Certification {
             error: geom_brep::CertifyError::StatedInterval {
-                refused: geom_brep::StatedSpan::PastFullTurn,
-                verdict: None,
+                refused: geom_brep::StatedSpan::PastFullTurn(None),
             }
         }
     ));

@@ -1473,6 +1473,7 @@ impl<T: Decide> Body<T> {
                     p_end,
                     crate::edge_faces(self, edge),
                     tol,
+                    crate::policy_lane::Interval::Callers,
                 )
                 .map_err(|e| match e {
                     EulerOpError::Certification { error } => {

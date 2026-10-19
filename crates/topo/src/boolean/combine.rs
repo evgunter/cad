@@ -900,7 +900,8 @@ fn graft_solids_impl<T: geom_core::Decide>(
             curve.carrier(),
             curve.params(),
         );
-        let recert = geom_brep::EdgeCurve::certify_via(
+        // The source's stored interval, grafted verbatim.
+        let recert = geom_brep::EdgeCurve::remint_via_stated(
             spec,
             point(start_v),
             point(end_v),
@@ -908,6 +909,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
             reach,
             band,
             lane,
+            None,
         )
         .map_err(BooleanError::GraftRecertify)?;
         let Some(slot) = dst.curves.get_mut(dk) else {

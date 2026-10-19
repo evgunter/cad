@@ -2742,6 +2742,7 @@ impl<T: Decide> Body<T> {
             point,
             faces,
             tol,
+            crate::policy_lane::Interval::Callers,
         )?;
         self.certify_rebased_run(&plan.run, point, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation). ----
@@ -2992,6 +2993,7 @@ impl<T: Decide> Body<T> {
             point,
             [face; 2],
             tol,
+            crate::policy_lane::Interval::Callers,
         )?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // the empty loop becomes `he_plus → he_minus`, first `he_plus`.
@@ -3213,7 +3215,15 @@ impl<T: Decide> Body<T> {
         let after = Slot::of_spec(&surface, inherit_surface);
         let spec = curve.spec(u1 == u2, p1, p2);
         require_chord_adjacent(&spec, (inherit_surface, after))?;
-        let certified = self.certify_edge_spec(None, spec, p1, p2, [face_key; 2], tol)?;
+        let certified = self.certify_edge_spec(
+            None,
+            spec,
+            p1,
+            p2,
+            [face_key; 2],
+            tol,
+            crate::policy_lane::Interval::Callers,
+        )?;
         self.vouch_move(
             RechartDoor::Mef,
             face_key,
@@ -3384,7 +3394,15 @@ impl<T: Decide> Body<T> {
         let after = Slot::of_spec(&surface, inherit_surface);
         let spec = curve.spec(true, anchor, anchor);
         require_chord_adjacent(&spec, (inherit_surface, after))?;
-        let certified = self.certify_edge_spec(None, spec, anchor, anchor, [face_key; 2], tol)?;
+        let certified = self.certify_edge_spec(
+            None,
+            spec,
+            anchor,
+            anchor,
+            [face_key; 2],
+            tol,
+            crate::policy_lane::Interval::Callers,
+        )?;
         let carried = resolved.on_parent_chart;
         self.vouch_move(
             RechartDoor::Mef,
@@ -3936,14 +3954,16 @@ impl<T: Decide> Body<T> {
     /// that operand's untrimmed faces, and later discards one piece of a
     /// face a chord divides. What guarantees the result is the at-rest
     /// gate, which re-reads every edge at the faces it bounds there
-    /// (tier 3's re-certification and check 4). Pure (no mutation) —
-    /// ops call it inside their precondition phase.
+    /// (tier 3's re-certification and check 4). `interval` says whose
+    /// interval the spec carries ([`crate::policy_lane::Interval`]). Pure
+    /// (no mutation) — ops call it inside their precondition phase.
     ///
     /// # Errors
     ///
     /// [`EulerOpError::NurbsLaneUnsupported`] naming `edge` where the
     /// spec is of the plane × NURBS class and the scalar holds no lane;
     /// [`EulerOpError::Certification`] on every other refusal.
+    #[allow(clippy::too_many_arguments)] // the spec's ends and faces, plus whose interval it is
     pub(crate) fn certify_edge_spec(
         &self,
         edge: Option<EdgeKey>,
@@ -3952,6 +3972,7 @@ impl<T: Decide> Body<T> {
         p_end: Point3<T>,
         faces: [FaceKey; 2],
         tol: Tol,
+        interval: crate::policy_lane::Interval,
     ) -> Result<EdgeCurve<T>, EulerOpError>
     where
         T: crate::props::AtRestPolicy,
@@ -3979,6 +4000,7 @@ impl<T: Decide> Body<T> {
             reach,
             band,
             stated.as_ref(),
+            interval,
         )
         .map_err(|refusal| match refusal {
             ByPolicy::NoLane { scalar } => EulerOpError::NurbsLaneUnsupported { edge, scalar },

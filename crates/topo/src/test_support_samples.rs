@@ -490,12 +490,12 @@ fn certify_errors() -> Vec<CertifyError> {
         // A minting door's caller's interval, of no length and past a
         // full turn.
         CertifyError::StatedInterval {
-            refused: geom_brep::StatedSpan::NotForward,
-            verdict: Some(zero_verdict(0.0)),
+            refused: geom_brep::StatedSpan::NotForward(geom_brep::SpanReading::Decided(
+                zero_verdict(0.0),
+            )),
         },
         CertifyError::StatedInterval {
-            refused: geom_brep::StatedSpan::PastFullTurn,
-            verdict: None,
+            refused: geom_brep::StatedSpan::PastFullTurn(None),
         },
         CertifyError::ResidualExceeded {
             check: CertCheck::SurfaceResidual { surface: key },

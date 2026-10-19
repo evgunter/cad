@@ -50,8 +50,9 @@
 # ending into the kernel-or-file defect ending or the damaged-file one;
 # and the sign-certain arm asks the refused class's ending without a
 # reading (`SizedWords::sign_certain_recourse`); and whether a reading is
-# certainly on the refused side at all (`MarginDiag::shows_no_size`) is
-# the class those choices end, read without a sentence. All belong to
+# certainly on the refused side at all (`MarginDiag::shows_no_size`, and
+# `SizedDecision::certainly_refused` over it, crate-private to geom-brep)
+# is the class those choices end, read without a sentence. All belong to
 # the one table that picks how a definite reading ends from its class
 # and the decision's refused side, so the routes there cannot drift: a
 # spelling of any anywhere else is a second table. The list counts the variant's
@@ -141,9 +142,10 @@ SIZED_RE='(sized_recourse|sized_recourse_in_file|miss_recourse_in_file)([^A-Za-z
 # `path count why` — production files outside the definition home that
 # spell the stored-contradiction choice or ask the sign-certain ending.
 DEFINITE_ALLOWLIST=(
-  'crates/geom-brep/src/recourse.rs 4 the sized-decision table: SizedDecision::words picks the stored-contradiction and damaged-file choices once for every route, the sign-certain arm asks the refused class ending through those words, and SizedDecision::certainly_refused reads the class once for the unminted side and the minting door'
+  'crates/geom-brep/src/recourse.rs 6 the sized-decision table: SizedDecision::words picks the stored-contradiction and damaged-file choices once for every route, the sign-certain arm asks the refused class ending through those words, and SizedDecision::certainly_refused (its definition, and its call by recourse for the unminted side at a build) reads the class once through MarginDiag::shows_no_size'
+  'crates/geom-brep/src/certify.rs 1 the minting door and a public re-certification ask whether a span check refusal is certainly on its refused side, to refuse it as the caller input (StatedSpan::of) rather than end it'
 )
-DEFINITE_RE='(RefusedReading::(ContradictsStoredData|DamagedFile)|sign_certain_recourse|shows_no_size)([^A-Za-z0-9_]|$)'
+DEFINITE_RE='(RefusedReading::(ContradictsStoredData|DamagedFile)|sign_certain_recourse|shows_no_size|certainly_refused)([^A-Za-z0-9_]|$)'
 
 # `path count why` — production files that may write the classifier's
 # verdict `terminal_sliver: true` on an escalation of their own. None:
@@ -428,6 +430,13 @@ plant_definite_choice_outside() {
     > "$1/crates/topo/src/props.rs"
 }
 
+# Whether a reading is certainly refused, asked outside the table.
+plant_certainly_refused_outside() {
+  mkdir -p "$1/crates/topo/src"
+  printf 'fn f(d: MarginDiag, b: Band) -> bool { d.shows_no_size(b, SizedPass::Positive) }\n' \
+    > "$1/crates/topo/src/props.rs"
+}
+
 # The sign-certain ending asked outside the sized-decision table.
 plant_sign_certain_outside() {
   mkdir -p "$1/crates/topo/src"
@@ -462,9 +471,10 @@ gate_selftest() {
   gate_selftest_case "terminal_sliver: true written outside the classifier" plant_forged_sliver
   gate_selftest_case "RefusedReading::ContradictsStoredData spelled outside the allowlisted sites" plant_definite_choice_outside
   gate_selftest_case "sign_certain_recourse spelled outside the allowlisted sites" plant_sign_certain_outside
+  gate_selftest_case "shows_no_size spelled outside the allowlisted sites" plant_certainly_refused_outside
   gate_selftest_passes "the definition, the allowlisted calls and mints, a test module's, the poison constant and prose" gate_plant_clean
   gate_selftest_homes --narrowed --subject "$DEFINITION_SUBJECT" "${DEFINITION_HOMES[@]}"
-  printf '%s selftest OK: passes a clean fixture carrying the definition, every allowlisted call and mint, a test module that reads and mints, the poison constant and prose naming both; fires on a method call and a path call from another crate, on a moved count, on an equality against a minted reading, a path mint, a qualified-path mint and a mint in a plain mount, on the sized sentence or an import-door sentence asked outside its table, on the stored-contradiction choice or the sign-certain ending outside its table, and on a forged terminal-sliver verdict; skips a test-support mount; and stays RED, with a diagnosis, when grep itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying the definition, every allowlisted call and mint, a test module that reads and mints, the poison constant and prose naming both; fires on a method call and a path call from another crate, on a moved count, on an equality against a minted reading, a path mint, a qualified-path mint and a mint in a plain mount, on the sized sentence or an import-door sentence asked outside its table, on the stored-contradiction choice, the sign-certain ending or whether a reading is certainly refused outside its table, and on a forged terminal-sliver verdict; skips a test-support mount; and stays RED, with a diagnosis, when grep itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
