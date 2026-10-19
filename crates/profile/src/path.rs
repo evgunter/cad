@@ -6189,11 +6189,13 @@ mod tests {
         assert_eq!(named(Point2::new(3.0, 0.0), 0.3), own_leg);
     }
 
-    /// **The tangent arc's sweep against a 60-digit oracle**: one JSON
-    /// line per case — the tip `a`, the director's components, the target
-    /// `b`, and the arc [`tangent_arc`] stores at `f64` and at `Interval`
-    /// — over turns from 1e-12 to 2π − 1e-12 in both windings, at scales
-    /// 1e-6 to 1e6. `scripts/oracles/tangent_arc_sweep_mpmath.py` re-derives
+    /// **The tangent arc's and the centre arc's sweeps against a
+    /// 60-digit oracle**: one JSON line per case — the tip `a`, the
+    /// director's components, the target `b`, and the arc [`tangent_arc`]
+    /// stores at `f64` and at `Interval`; then, keyed `C`, the ends, the
+    /// centre and [`crate::sugar::sweep_about`] at both scalars — over
+    /// turns from 1e-12 to 2π − 1e-12 in both windings, at scales 1e-6 to
+    /// 1e6. `scripts/oracles/tangent_arc_sweep_mpmath.py` re-derives
     /// each sweep from the dumped inputs and checks the `f64` error, the
     /// stored arc's miss of `b`, and the enclosure. Run:
     /// `cargo nextest run -p profile --lib --run-ignored only
@@ -6266,6 +6268,46 @@ mod tests {
                                 i.radius.hi(),
                             );
                         }
+                    }
+                }
+            }
+        }
+        // The arc about a known centre: ends on a carrier of radius
+        // `scale` about `c`, turning `theta` in either sense.
+        for scale in [1e-6, 1e-4, 1e-2, 1.0, 1e2, 1e4, 1e6] {
+            for c in [
+                Point2::new(0.0, 0.0),
+                Point2::new(0.7 * scale, -1.3 * scale),
+            ] {
+                for &theta in &turns {
+                    for w in [1.0, -1.0] {
+                        let start = 0.4;
+                        let on = |t: f64| Point2::new(c.x + scale * t.cos(), c.y + scale * t.sin());
+                        let (a, b) = (on(start), on(start + w * theta));
+                        let f = crate::sugar::sweep_about(a, b, c, w);
+                        let lift = |p: Point2<f64>| {
+                            Point2::new(Interval::from_f64(p.x), Interval::from_f64(p.y))
+                        };
+                        let i = crate::sugar::sweep_about(
+                            lift(a),
+                            lift(b),
+                            lift(c),
+                            Interval::from_f64(w),
+                        );
+                        println!(
+                            "TADUMP {{\"k\":\"C\",\"a\":[{:e},{:e}],\"o\":[{:e},{:e}],\"b\":[{:e},{:e}],\
+                             \"turn\":{:e},\"w\":{w},\"f\":{:e},\"i\":[{:e},{:e}]}}",
+                            a.x,
+                            a.y,
+                            c.x,
+                            c.y,
+                            b.x,
+                            b.y,
+                            theta,
+                            f,
+                            i.lo(),
+                            i.hi(),
+                        );
                     }
                 }
             }

@@ -275,8 +275,9 @@ pub(crate) enum Consistency {
 ///     direct; [`Arc2::landing`]). Zero ⇒ the start, turned by the
 ///     sweep about the centre, lands on the end.
 /// - **`arc_diameter_clearance`** (arcs only) — margin:
-///   2r − |a − apex| = 2r·(1 − sin(|Δθ|/4)) (meters, computed in the
-///   second form): how far the arc's half-span chord sits below the
+///   2r − |a − apex| = 2r·cos²(|Δθ|/4)/(1 + sin(|Δθ|/4)) (meters,
+///   computed in the second form, which does not cancel near a full
+///   turn as `1 − sin(|Δθ|/4)` does): how far the arc's half-span chord sits below the
 ///   carrier diameter, ≈ L²/(16r) for a near-full arc of
 ///   endpoint chord L. Zero ⇒ the arc is within tolerance of a full
 ///   circle — rejected as [`ShapeIssue::NearFull`] (the angular gap g
