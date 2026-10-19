@@ -117,6 +117,13 @@ So running the map at the nominal does not by itself make the lanes' decision li
 
   **Second differing decision (found 2026-10-19, both changes applied locally):** the 1-link chain leaf refuses `flip_crossing` on `datum_unit_norm`, counted 5 at the nominal and 4 at the leaf, at nodes 50 and 63 (the joint placements). So one unit-normalisation decision that f64 makes is skipped on the box lane. Likely source: the frame-lane-only path the kernel lane added. `pose::own_direction` (`src/eval/wire/pose.rs`) reads the raw carrier direction and snaps it with `mate::solve::on_an_axis`, which decides nothing, while f64 builds the same direction through `UnitVec3::new` and decides `datum_unit_norm`. The fix is to make the two lanes decide the same thing: decide the unit norm on the frame-lane path too (and keep the raw direction), or skip it on f64 as well.
 
+  **Fix found, tested locally (2026-10-19), not yet committed.** It has three parts, all in mate/eval:
+  1. the narrowing (`bundle_reads_a_variable` before the snap in `eval/wire.rs` `fold_with`);
+  2. a varying bundle is placed by `Motion::Map` even at the stored identity, bypassing `marked`;
+  3. in `mate/value.rs` `Chart::of`, the taken-back direction is normalised on every lane (`let back = unit(...)?`), so a frame lane decides `datum_unit_norm` as f64 does, while keeping its own direction.
+
+  With all three, **`demo-tour certified` exits 0**: plate study 211/512, the 1-link chain drive certified 1, 0 refused, the 4-link drive certified too. Pending: triage the editor-core rows the fix moves (step 2), then commit if the bar holds. If this section still says pending, re-apply the three parts from this description.
+
 **Window of 2026-10-19 (about 3% of usage left)**
 - **The tour die corpus:** `cargo run --release -- die-corpus ../../crates/editor-core/tests/corpus/tour/die_composed_tour.pncad` in `demos/tour` gives a file byte-identical to D's committed one (1,589,134 bytes) on D's head. Nightly 65's "not byte-regenerable since #5267" was raised against main's copy, which D replaces. Nothing that reads it needed re-pinning.
 - **msolve7 a4:** restated as `a4_every_checked_in_document_loads_and_its_bundles_reach_the_attribute`, since under D every placement is a bundle and the corpus now reaches the attribute. It asserts that every document loads and that the corpus carries bundles. 3/3 pass.
