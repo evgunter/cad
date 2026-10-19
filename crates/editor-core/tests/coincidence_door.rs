@@ -1946,3 +1946,75 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
         "the pierces and the vertices beside them, each on the slab's one face: {onto:?}"
     );
 }
+
+/// **An unproven fold row is reported under the judged row it meets**
+/// (DM4: the judged rows are the union's order-free rows): over orders
+/// of `union_pinch_member_order`'s prism crossing one wedge with the
+/// plate, every unproven row a fold step logged is reported once, under
+/// the first unproven judged finding of its node that shares a member
+/// cell with it where there is one, else as its own finding. Red if a
+/// fold row is lost, reported twice, or reported apart from a judged
+/// finding it meets; and the fixture must report some under a judged
+/// finding, so the rule is not passed on nothing.
+#[test]
+fn an_unproven_fold_row_is_reported_under_the_judged_row_it_meets() {
+    use editor_core::RowOrigin;
+    let mut under = 0;
+    for order in [[0, 1, 2, 3], [1, 3, 0, 2], [3, 1, 0, 2], [2, 0, 3, 1]] {
+        let doc = ProfileDoc::empty_derived("door-fold-rows", Tol::witness());
+        let (doc, m) = crate::union_pinch_member_order::crossing_one_wedge(doc);
+        let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
+        let (doc, u) = crate::fixture::union_over(doc, &members);
+        let ev = run(&doc);
+        let logged = rows(&ev, u);
+        let unproven_fold: Vec<&NamedCoincidence> = logged
+            .iter()
+            .zip(proofs(&doc, u, &logged))
+            .filter(|(r, p)| {
+                matches!(r.origin, RowOrigin::Fold { .. }) && matches!(p, Proof::Unproven { .. })
+            })
+            .map(|(r, _)| r)
+            .collect();
+        let findings: Vec<_> = unproven(&doc, &ev)
+            .into_iter()
+            .filter(|f| f.subject == editor_core::FindingSubject::Node(u))
+            .collect();
+        let mut reported: Vec<&NamedCoincidence> = Vec::new();
+        for f in &findings {
+            let CheckEvidence::UnprovenCoincidence { row, restated, .. } = &f.evidence else {
+                continue;
+            };
+            if matches!(row.origin, RowOrigin::Fold { .. }) {
+                assert!(
+                    !findings.iter().any(|g| matches!(&g.evidence,
+                        CheckEvidence::UnprovenCoincidence { row: j, .. }
+                            if matches!(j.origin, RowOrigin::Judged { .. })
+                                && j.cells.iter().any(|c| row.cells.contains(c)))),
+                    "{order:?}: a fold row meeting a judged finding is reported apart: {row:?}"
+                );
+                reported.push(row);
+            }
+            for r in restated {
+                assert!(
+                    matches!(row.origin, RowOrigin::Judged { .. })
+                        && matches!(r.origin, RowOrigin::Fold { .. })
+                        && r.cells.iter().any(|c| row.cells.contains(c)),
+                    "{order:?}: a fold row reported under a judged row it meets: {r:?} under {row:?}"
+                );
+                reported.push(r);
+                under += 1;
+            }
+        }
+        let mut want = unproven_fold.clone();
+        want.sort_by_key(|r| format!("{r:?}"));
+        reported.sort_by_key(|r| format!("{r:?}"));
+        assert_eq!(
+            reported, want,
+            "{order:?}: every unproven fold row reported once"
+        );
+    }
+    assert!(
+        under > 0,
+        "the fixture reports a fold row under a judged finding"
+    );
+}
