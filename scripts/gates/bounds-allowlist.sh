@@ -658,7 +658,8 @@ BOUNDS_ALLOWLIST=(
   # anchor pick: re-read at the half turn where the seam's read spans
   # half a turn. Both anchors answer a parameter of the same point, so
   # it is a representation pick (DL5(b), as `seam_split_param`'s branch
-  # shift), and whether the window runs forward stays each caller's.
+  # shift); its other bracket read refuses a non-finite read, and
+  # whether the window runs forward stays each caller's.
   'crates/sweep/src/blend/surgery.rs 18 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # reach.rs 9 -> 14: `sign` decides a reference point's side of a
   # bound past its bracket (`±1` decided, `0` -- a vacuous bound --

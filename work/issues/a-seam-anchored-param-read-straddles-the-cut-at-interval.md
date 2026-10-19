@@ -25,6 +25,19 @@ site below anchors at the seam and then uses the value as a parameter:
 - `crates/topo/src/chord_join.rs` `SectionCurve::param`, the oval arm.
 - `crates/topo/src/replace_face.rs`, the analytic `seed` read of
   `old_point` that `ends_at((seed, seed))` roots from.
+- `crates/topo/src/shell.rs`, the seam-stretch's reversed arm
+  (`reversed.param_near(forward.eval(near), T::zero())`, then
+  `stretch(&reversed, mid)`). The point is the edge's midpoint; on a
+  full-turn window that is the forward carrier's `π`, which is the
+  reversed carrier's cut. The arm runs only after the forward stretch
+  fails, so reachability is unknown.
+
+A hand copy of the read, which a `param_near(` sweep cannot match:
+
+- `crates/editor-core/src/names/emit_topo.rs` `param_along`, the
+  ellipse arm: `Curve3::param_near`'s ellipse arm written out, anchored
+  at the edge's mid-parameter, so its cut is half a turn from it — a
+  full-turn edge's own end. Reachability is unknown.
 
 `editor-core`'s `emit_topo` read at the same anchor tests only
 `is_none()` and is not affected. The `geom-brep` hits are `f64` test

@@ -84,7 +84,7 @@ On `main`'s blend code at `CAD_TOLERANCE_EPS=1e-12`,
 `band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval`
 fail tier 3′ on the same `CensusUnsupported { ContactLane(NotCertifiable("the meeting reading of two curved edges could not settle a count")) }`.
 So does every fillet row of PR 5346's
-`band_planar_cut_off_interval::a_cut_off_at_an_oblique_end_carves_at_the_certified_scalar`
+`band_planar_cut_off_interval::a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar`
 at `Interval`: the sheared box's top edge, shears `±0.1 … ±0.6`, convex
 and concave. That row admits exactly this finding below `ε = 1e-9`
 (its `tier_3_prime`), so its tolerance comes out when this item is fixed.

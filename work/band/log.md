@@ -1149,6 +1149,7 @@ the one window read for `CapSliver::of` and `attach_contact`. A shear
 ladder of both signs, convex and concave, both verbs, at both scalars.
 Filed `a-rim-split-at-its-carriers-anti-seam-refuses-at-interval` and
 one issue for the seam-anchored reads in `topo`.
+
 ## 2026-10-19 — the blend arms place their centres at their inputs' scale (`band/arms-centre-placement`)
 
 `sheet_center`'s round × round arm reads `geom_core::Circles` for the

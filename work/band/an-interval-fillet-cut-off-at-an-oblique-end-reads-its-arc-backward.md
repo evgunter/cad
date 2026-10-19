@@ -67,7 +67,7 @@ mutant of one reader alone is caught (the description pass refuses at
 `interval_span_forward`, not the long way round).
 
 Rows: `band_planar_cut_off_interval`
-`a_cut_off_at_an_oblique_end_carves_at_the_certified_scalar` (shears
+`a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar` (shears
 `±0.1, ±0.3, ±0.6`, convex and concave, both verbs, `Interval` against
 `f64`, tiers 3 and 3′), and the skewed box joins
 `band_turn_overrun_fillet::the_overrun_carves_at_the_certified_scalar`;

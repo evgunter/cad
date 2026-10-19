@@ -26,3 +26,9 @@ function-of-point-and-carrier contract: re-read at the half turn when
 the seam's read spans half a turn or more. The measure-first step is a
 witness: a cut-off whose foot lands on a cylinder's or a sheared
 prism's curved rim at its anti-seam, at `Interval`.
+
+`surgery.rs` already has three ways of moving a parameter read off the
+wrong branch: `arc_window`'s second anchor at the half turn,
+`split_param_in_span`'s `±τ` shift into the stored window, and
+`seam_split_param`'s branch shift. The fix here should share one
+helper with `arc_window` rather than add a copy of its re-read.

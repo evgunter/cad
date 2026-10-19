@@ -5255,9 +5255,10 @@ impl SourceFaces {
 /// more — at the half turn. That is the foot on `atan2`'s cut, half a
 /// turn from `u_ref`: an oblique end's ellipse puts a foot on a major
 /// vertex, and an enclosure straddling the cut reads the whole turn
-/// ([`Curve3::param_near`]'s `|δ| = π` tie). The two anchors' cuts are
-/// half a turn apart, so a foot sits on at most one; a point read is
-/// never wide, so a point scalar reads at the seam.
+/// (`Interval::atan2`'s hull). The two anchors' cuts are half a turn
+/// apart, so a foot sits on at most one; a point read is never wide, so
+/// a point scalar reads at the seam. A read that is not finite is no
+/// window.
 pub(super) fn arc_window<T: Decide + Bounds>(
     c: &Curve3<T>,
     p0: Point3<T>,
@@ -5269,7 +5270,11 @@ pub(super) fn arc_window<T: Decide + Bounds>(
     } else {
         c.param_near(p0, T::pi())?
     };
-    Some((t0, c.param_near(p1, t0)?))
+    let t1 = c.param_near(p1, t0)?;
+    [t0.lo(), t0.hi(), t1.lo(), t1.hi()]
+        .iter()
+        .all(|v| v.is_finite())
+        .then_some((t0, t1))
 }
 
 /// The prefer-intrinsic upgrade for one new edge: rebuild the exact

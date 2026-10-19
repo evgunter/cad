@@ -279,19 +279,21 @@ fn tier_3_prime(body: &Body<Interval>, tol: Tol, what: &str) {
     );
 }
 
-/// **A cut-off at an oblique end face carves at the certified scalar as
+/// **A fillet foot on `atan2`'s cut carves at the certified scalar as
 /// at `f64`**: the sheared box's top edge over a ladder of shears of
-/// both signs, convex and concave, both verbs. The fillet's foot on the
-/// top rim is the end ellipse's major vertex, half a turn from `u_ref`
-/// at one sign of the shear, where a parameter read from the seam
-/// straddles `atan2`'s cut. Every row builds at both scalars, tiers 3
-/// and 3′ and naming total at `Interval`, its `ΔV` enclosure bracketing
-/// the `f64` body's within the props pad and its midpoint within
-/// `midpoint_tol`. At `ε = 1e-12` an `Interval` build may escalate its
-/// pcurve envelope instead, and tier 3′ may meet cpair's meter
-/// ([`tier_3_prime`]); neither is a backward window.
+/// both signs, convex and concave, both verbs. At a positive shear the
+/// fillet's foot on the top rim is the end ellipse's major vertex, half
+/// a turn from `u_ref`, where a parameter read from the seam straddles
+/// `atan2`'s cut: those six rows are the witnesses. The negative-shear
+/// rows put the foot on `u_ref` itself, and a chamfer's cut-off reads
+/// no arc; they are the ladder's controls. Every row builds at both
+/// scalars, tiers 3 and 3′ and naming total at `Interval`, its `ΔV`
+/// enclosure bracketing the `f64` body's within the props pad and its
+/// midpoint within `midpoint_tol`. At `ε = 1e-12` a control's
+/// `Interval` build may escalate its pcurve envelope instead, a witness
+/// never, and tier 3′ may meet cpair's meter ([`tier_3_prime`]).
 #[test]
-fn a_cut_off_at_an_oblique_end_carves_at_the_certified_scalar() {
+fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar() {
     use crate::band_planar_cut_off::{midpoint_tol, pad_ceiling};
     let tol = Tol::witness();
     for s in [-0.6, -0.3, -0.1, 0.1, 0.3, 0.6] {
@@ -301,6 +303,7 @@ fn a_cut_off_at_an_oblique_end_carves_at_the_certified_scalar() {
             let fv0 = mass_properties(&fbody, tol).expect("props").volume;
             let iv0 = mass_properties(&ibody, tol).expect("interval props");
             for round in [false, true] {
+                let witness = round && s > 0.0;
                 let what = format!("shear {s}, convex {convex}, round {round}");
                 let fout = if round {
                     fillet_edges(&fbody, &[fedge], D, tol)
@@ -318,7 +321,8 @@ fn a_cut_off_at_an_oblique_end_carves_at_the_certified_scalar() {
                     // At the finest ε a re-minted pcurve's envelope
                     // enclosure is wider than the band, and escalates.
                     Err(e)
-                        if tol.eps() <= 1e-12
+                        if !witness
+                            && tol.eps() <= 1e-12
                             && matches!(
                                 &e.error,
                                 BlendError::Certify {
@@ -330,7 +334,10 @@ fn a_cut_off_at_an_oblique_end_carves_at_the_certified_scalar() {
                                 }
                             ) =>
                     {
-                        println!("{what}: escalates at ε {}: {:?}", tol.eps(), e.error);
+                        test_utils::vacuity::stood_down(
+                            &what,
+                            &format!("a control escalates at ε {}: {:?}", tol.eps(), e.error),
+                        );
                         continue;
                     }
                     Err(e) => panic!("{what}: carves at Interval, got {e:?}"),
