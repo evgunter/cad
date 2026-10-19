@@ -430,9 +430,11 @@ reconcile the two specs.
 6. **The lever:** a frustum far from its apex escalates a near-parabola
    whose margin is in the band at the face's reach and clear of it at
    `|at − apex|` or at ten times the reach (Q4).
-7. **The near-circular tilt:** a tilt the classifier reads as definite
-   but the carrier cannot tell from a circle escalates
-   `ellipse_axes_distinct`, on the cone and on the cylinder arm alike.
+7. **The near-circular tilt** (retired): the axis-normal row is the
+   one decision of circle against ellipse, so a tilt it reads as
+   definite is the ellipse's own frame however near-circular, and only
+   a tilt in that row's band escalates, on the cone and on the
+   cylinder arm alike.
 
 ### U-S4 — plane-cone-join-lane
 

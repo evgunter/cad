@@ -64,7 +64,6 @@ fn section_word<S: core::fmt::Debug>(got: &Result<S, SectionError>) -> String {
     match got {
         Ok(s) => format!("{s:?}").chars().take_while(|c| *c != '(').collect(),
         Err(SectionError::Escalated(d)) => format!("Escalated[{}]", d.predicate.unwrap_or("?")),
-        Err(SectionError::Carrier(EllipseInvalid::CircularAxes(_))) => "CircularAxes".to_owned(),
         Err(SectionError::Carrier(EllipseInvalid::Escalated(d))) => {
             format!("Carrier::Escalated[{}]", d.predicate.unwrap_or("?"))
         }

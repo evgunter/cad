@@ -8998,8 +8998,9 @@ fn derive_class<T: Decide>(
         } => {
             // Structural carrier gate: only circles lie on a sphere — a
             // bounded algebraic surface holds no line, and its plane
-            // sections are circles, which an `Ellipse` (major > minor)
-            // is not.
+            // sections are circles. An `Ellipse` is refused by kind,
+            // even a near-circular one within ε of such a circle: its
+            // kind is the pose that minted it, a tilted section.
             if !matches!(carrier, Curve3::Circle { .. }) {
                 return Err(off_chart(
                     "a sphere holds no line, and its plane sections are circles",
@@ -9233,7 +9234,8 @@ fn derive_class<T: Decide>(
             let esc = winding_escalated;
             // A bounded surface holds no line, and a torus's plane
             // sections are bicircular quartics, whose conic components
-            // are circles — never an `Ellipse` (major > minor).
+            // are circles. An `Ellipse` is refused by kind, as on the
+            // sphere arm, however near-circular.
             if !matches!(carrier, Curve3::Circle { .. }) {
                 return Err(off_chart(
                     "a torus holds no line, and the conics among its plane sections are circles",

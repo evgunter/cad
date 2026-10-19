@@ -2481,13 +2481,11 @@ pub(crate) fn turn_reading<T: Decide>(
 /// normal: the cap plane's normal is the stored surface's, the ruling
 /// the arm's own cylinder axis.
 ///
-/// The ellipse's semi-axes differ by `radius·(sec θ − 1)`, second
-/// order in the tilt, so a tilt the departure decides definitely may
-/// still name axes too close to tell from one circle. The ellipse is
-/// built here, through [`geom::Curve3::ellipse`], and that door's
-/// verdict on its own axes (`ellipse_axes_distinct`) is the second
-/// decision, reported as [`BlendDecision::CapEllipse`]: where it reads
-/// them as one circle, or in band, the end escalates with that margin.
+/// This departure is the one decision of circle against ellipse: a
+/// definite one builds the exact ellipse through
+/// [`geom::Curve3::ellipse`], however near-circular (its semi-axes
+/// differ by `radius·(sec θ − 1)`, second order in the tilt).
+///
 /// An end face that nearly contains the spine — a tilt near a right
 /// angle, whose ellipse runs off to infinity — is not this decision's:
 /// its three face normals at the vertex are dependent, which
@@ -2504,9 +2502,9 @@ pub(crate) fn turn_reading<T: Decide>(
 /// # Errors
 ///
 /// [`BlendError::Escalated`] on an in-band departure
-/// ([`BlendDecision::CapTransverse`]), or on a definite one whose
-/// ellipse's axes the ellipse door does not read as definitely
-/// distinct ([`BlendDecision::CapEllipse`]).
+/// ([`BlendDecision::CapTransverse`]); [`BlendError::SurgeryInvariant`]
+/// if the ellipse door refuses the semi-axes, which are the radius the
+/// size gate passed and that radius over a cosine.
 pub fn cap_transverse<T: Decide + Bounds>(
     vertex: VertexKey,
     cap_normal: Vec3<T>,
@@ -2531,21 +2529,11 @@ pub fn cap_transverse<T: Decide + Bounds>(
             let origin = Point3::new(T::zero(), T::zero(), T::zero());
             Curve3::ellipse(origin, n, major, radius, u_major, band)
                 .map(EndSection::Ellipse)
-                .map_err(|refused| match refused {
-                    EllipseInvalid::CircularAxes(source) | EllipseInvalid::Escalated(source) => {
-                        BlendError::Escalated {
-                            site,
-                            decision: BlendDecision::CapEllipse,
-                            source,
-                        }
-                    }
-                    // Its semi-axes are the radius and the radius over a
-                    // cosine, and the radius passed the size gate.
-                    EllipseInvalid::MinorNotPositive => BlendError::SurgeryInvariant {
-                        at: EntityId::Vertex(vertex),
-                        detail: "an oblique end face's ellipse came out with a semi-axis \
-                                     that is not positive",
-                    },
+                .map_err(|_: EllipseInvalid| BlendError::SurgeryInvariant {
+                    at: EntityId::Vertex(vertex),
+                    detail: "an oblique end face's ellipse came out with a minor semi-axis \
+                             not definitely positive, though it is the radius the size gate \
+                             passed",
                 })
         }
     }

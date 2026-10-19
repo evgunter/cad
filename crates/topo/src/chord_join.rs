@@ -735,10 +735,8 @@ impl core::fmt::Display for SplitJoinError {
                      {margin:e}, definitely past the tolerance. {SECTION_WITHIN_CAUSE} {ending}"
                 )
             }
-            // The carrier's constructor states its escalation for a
-            // caller that could build the circle instead; no reader of
-            // a join can, so the join keeps the constructor's subject
-            // and offers its own door's levers.
+            // The join keeps the carrier constructor's subject and
+            // offers its own door's levers.
             Self::Section {
                 source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)),
                 ..

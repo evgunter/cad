@@ -64,11 +64,11 @@ use sweep::blend::battery::corner_config;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
     ALL_RECOURSES, BlendDecision, BlendError, CHAMFER_ARM_RECOURSE, CornerConfig,
-    FILLET3_ASSEMBLY_RECOURSE, FILLET3_CAP_ELLIPSE_RECOURSE, FILLET3_CHAIN_RECOURSE,
-    FILLET3_CLEARANCE_RECOURSE, FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_INDEPENDENCE_RECOURSE,
-    FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE,
-    FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
-    FILLET3_TANGENTIAL_RECOURSE, FILLET3_TURN_RECOURSE,
+    FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
+    FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_INDEPENDENCE_RECOURSE, FILLET3_CORNER_RECOURSE,
+    FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
+    FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
+    FILLET3_TURN_RECOURSE,
 };
 use sweep::test_support::{
     ROD_FILLET, cube, dome, one_edge_rim_at, prism, realized, rim_arcs_at, rod_creases,
@@ -598,18 +598,15 @@ fn fillet_turn_recourse() {
 /// [`the_turn_recourse_builds_at_each_end_it_names`]'s fillet legs at
 /// a box corner whose wall leans a few millionths of a degree
 /// (`leaning_turn`, positive), where the far band is cut off at the
-/// leaning wall. A five times larger radius, or a lean past the turn's
-/// band but short of `θ = acos(1 / (1 + e/r))`, leaves the far band's
-/// ellipse in band (`CapEllipse`), carrying
-/// [`FILLET3_CAP_ELLIPSE_RECOURSE`] as the turn sentence says. Its legs
-/// build: tilted twice past that edge, the overrun at either radius;
-/// squared, the feet meet and the corner mitres.
+/// leaning wall. Its legs build: a five times larger radius, or a lean
+/// ten times past the turn's band, the overrun, its far band ending in
+/// the exact ellipse however near-circular; squared, the feet meet and
+/// the corner mitres.
 fn fillet_turn_recourse_at_a_box_corner() {
     use crate::common::operands::leaning_turn;
     let band = Band::linear(tol()).expect("the run's band");
     let z = band.zero() / 1e-9;
     let lean = |deg: f64| leaning_turn(deg.to_radians().tan());
-    let ellipse_edge = |r: f64| (1.0 / (1.0 + band.escalate() / r)).acos().to_degrees();
     let fillet = |deg: f64, r: f64| {
         let (body, turn) = lean(deg);
         fillet_edges(&sweep::test_support::at_rest(&body, tol()), &turn, r, tol())
@@ -631,32 +628,16 @@ fn fillet_turn_recourse_at_a_box_corner() {
     carries(&err, FILLET3_TURN_RECOURSE, "a box fillet turn in band");
     for (what, deg, r) in [
         ("a larger setback", 2e-6 * z, 0.5),
-        ("a more asymmetric corner", ellipse_edge(0.1) / 2.0, 0.1),
+        ("a more asymmetric corner", 1e-4 * z, 0.1),
     ] {
-        let err = fillet(deg, r)
-            .map(|_| ())
-            .expect_err("the ellipse is in band")
-            .error;
-        assert!(
-            matches!(
-                err,
-                BlendError::Escalated {
-                    decision: BlendDecision::CapEllipse,
-                    ..
-                }
-            ),
-            "{what}: the far band's ellipse in band, got {err:?}"
-        );
-        carries(&err, FILLET3_CAP_ELLIPSE_RECOURSE, what);
-        let out = fillet(2.0 * ellipse_edge(r), r)
-            .unwrap_or_else(|e| panic!("{what}, tilted further: builds, got {:?}", e.error));
+        let out = fillet(deg, r).unwrap_or_else(|e| panic!("{what}: builds, got {:?}", e.error));
         validate_geometric(&out.body, tol())
-            .unwrap_or_else(|e| panic!("{what}, tilted further: tier 3, got {e:?}"));
+            .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
         assert!(
             !out.coincidences
                 .iter()
                 .any(|c| c.relation == topo::Relation::CommonFoot),
-            "{what}, tilted further: the overrun"
+            "{what}: the overrun"
         );
     }
     let out = fillet(0.0, 0.1).unwrap_or_else(|e| panic!("squared: builds, got {:?}", e.error));

@@ -329,8 +329,7 @@ fn window(what: &str, skews: &[f64], section: bool, at: impl Fn(f64) -> Outcome)
                     BlendDecision::TurnFeetGap
                         | BlendDecision::TurnOverrunChord
                         | BlendDecision::TurnFeet
-                ) || (section
-                    && matches!(d, BlendDecision::CapTransverse | BlendDecision::CapEllipse)) =>
+                ) || (section && matches!(d, BlendDecision::CapTransverse)) =>
             {
                 let (lo, _) = w.escalated.unwrap_or((skew, skew));
                 w.escalated = Some((lo, skew));
@@ -363,14 +362,11 @@ fn window(what: &str, skews: &[f64], section: bool, at: impl Fn(f64) -> Outcome)
 /// chord leaves the zero band (`≈0.0068°` at the default band) and
 /// overruns once the gap is definite (`≈0.0256°`); its row brackets
 /// both edges, computed from the run's band. The box corner's fillet
-/// leaves the turn's band within the decade, but on the side where it
+/// leaves the turn's band within the decade on either side: where it
 /// leans the wall (a positive lean) its overrun is the far band's
-/// cut-off at that wall, tilted off square by the skew `θ`: its
-/// ellipse's axes, `r·(sec θ − 1)` apart, stay in band (`CapEllipse`)
-/// until `sec θ = 1 + escalate / r`, `≈0.0256°` at `r = d`, as any
-/// cut-off at that tilt does; it overruns from there. Leaning the other
-/// way, the far band is cut off by the front face, square to its axis,
-/// in a circle, and the fillet overruns once it leaves the turn's band.
+/// cut-off at that wall, tilted off square by the skew, the exact
+/// ellipse however near-circular; leaning the other way, the far band
+/// is cut off by the front face, square to its axis, in a circle.
 #[test]
 fn the_verdict_escalates_only_in_a_narrow_band_around_a_coincidence() {
     // Where the readings are linear in the skew, the skews scale with
@@ -431,24 +427,8 @@ fn the_verdict_escalates_only_in_a_narrow_band_around_a_coincidence() {
         "the box chamfer mitres to {mitre_end:e}° and overruns from {overrun_from:e}°: \
          {chamfer_box:?}"
     );
-    let ellipse_from = (1.0 / (1.0 + band.escalate() / D)).acos().to_degrees();
-    let fillet_skews: Vec<f64> = linear
-        .iter()
-        .copied()
-        .filter(|s| *s < ellipse_from / 10.0)
-        .chain((0..=48).map(|i| ellipse_from / 10.0 * 10f64.powf(f64::from(i) / 24.0)))
-        .collect();
-    let fillet_box = window("box fillet", &fillet_skews, true, at_box(Verb::Fillet));
-    assert!(
-        fillet_box
-            .escalated
-            .is_some_and(|(a, b)| 1e-6 * z <= a && a <= 1e-5 * z && ellipse_from / step <= b)
-            && fillet_box
-                .overrun
-                .is_some_and(|o| ellipse_from / 1.01 <= o && o <= ellipse_from * step),
-        "the box fillet escalates from the turn's band to the ellipse's at {ellipse_from:e}°, \
-         then overruns: {fillet_box:?}"
-    );
+    let fillet_box = window("box fillet", &linear, true, at_box(Verb::Fillet));
+    inside(&fillet_box, (1e-6 * z, 1e-5 * z), "box fillet");
     let square = window("box fillet leaning square", &linear, false, |skew| {
         let (body, edges) = leaning_turn(-skew.to_radians().tan());
         outcome(&body, edges, Verb::Fillet)
@@ -460,8 +440,8 @@ fn the_verdict_escalates_only_in_a_narrow_band_around_a_coincidence() {
     }
 }
 
-/// **The needle never mitres.** Two requested edges turning `180° − ε`
-/// on the shared face, the third edge rising off it: as the turn
+/// **The needle never mitres on a definite chord.** Two requested edges
+/// turning `180° − ε` on the shared face, the third edge rising off it: as the turn
 /// flattens, a chamfer's gap closes as `ε²` and its chord only as `ε`,
 /// so a gap read Zero can stand beside an overrun chord well outside
 /// the band — a mitre built there would miss its trimlines by that
@@ -469,8 +449,9 @@ fn the_verdict_escalates_only_in_a_narrow_band_around_a_coincidence() {
 /// instead: at the default band, overrun at `1°` and `0.1°`, the gap in
 /// band at `0.03°`, and the gap Zero under a definite chord at `0.01°`
 /// (the angles scale with the square root of the run's band, as the
-/// gap does). The fillet's gap closes as its chord does, and neither
-/// verb mitres at any of them; what the fillet's surgery does there is
+/// gap does). The fillet's gap closes as its chord does, so it mitres
+/// only where both read Zero (at `0.01°` at the default band); what the
+/// fillet's surgery does there is
 /// `band_turn_overrun_fillet::the_needle_builds_then_refuses_at_the_turn_as_it_flattens`.
 #[test]
 fn a_flattening_turns_needle_escalates_and_never_mitres() {
@@ -508,8 +489,14 @@ fn a_flattening_turns_needle_escalates_and_never_mitres() {
                 "the needle: gap {gap:e} Zero, chords {chords:?} outside the band"
             );
         }
-        let fillet = outcome(&body, edges, Verb::Fillet);
-        assert_ne!(fillet, Outcome::Mitre, "fillet at {eps}°");
+        if outcome(&body, edges, Verb::Fillet) == Outcome::Mitre {
+            let (gap, chords) = turn_readings(&body, edges, D, BlendKind::Fillet, tol());
+            assert!(
+                gap.abs() < band.zero() && chords[0].max(chords[1]) < band.zero(),
+                "fillet at {eps}°: mitres only where its gap {gap:e} and chords {chords:?} \
+                 are Zero"
+            );
+        }
     }
 }
 

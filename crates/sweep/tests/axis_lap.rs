@@ -45,7 +45,7 @@ use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
-use topo::{AtRestBody, Body, BooleanError, SplitJoinError};
+use topo::{AtRestBody, Body, BooleanError};
 
 const R: f64 = 0.5;
 const LEN: f64 = 4.0;
@@ -348,20 +348,18 @@ fn a_blind_d_pocket_builds_from_either_face() {
     }
 }
 
-/// **A split whose section is too nearly a circle to name reads as the
-/// split's own refusal.** The plane is tilted from square to the rod by
-/// the angle that puts the section ellipse's semi-axis difference,
-/// `R(1/cos θ − 1)`, in the middle of the band — so the tilt itself is
-/// decided and the carrier's kind is not. The escalation says what it
-/// hinged on and offers the split's levers: no declaration (a split
-/// takes none) and no carrier to construct (no door the user reaches
-/// builds one).
+/// **A split whose section is nearly a circle is the exact ellipse.**
+/// The plane is tilted from square to the rod by the angle that puts
+/// the section ellipse's semi-axis difference, `R(1/cos θ − 1)`, in the
+/// middle of the band — the tilt itself decided, so the section is the
+/// ellipse however near-circular. Both halves certify at rest at half
+/// the rod's volume each (the plane passes through the axis' midpoint).
 #[test]
-fn a_split_whose_section_is_nearly_a_circle_offers_the_splits_levers() {
+fn a_split_whose_section_is_nearly_a_circle_is_the_ellipse() {
     let band = geom_core::Band::linear(tol()).unwrap();
     let difference = (band.zero() + band.escalate()) / 2.0;
     let theta = (R / (R + difference)).acos();
-    let err = topo::split(
+    let result = topo::split(
         &rod(),
         &topo::test_support::split_plane(
             Point3::new(0.0, 0.0, LEN / 2.0),
@@ -370,30 +368,13 @@ fn a_split_whose_section_is_nearly_a_circle_offers_the_splits_levers() {
         ),
         tol(),
     )
-    .expect_err("the section's kind is undecided");
-    let text = err.to_string();
-    println!("[axis_lap] the nearly-circular split: {text}");
-    assert!(
-        matches!(
-            err,
-            topo::SplitError::Join(SplitJoinError::Section {
-                source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(_)),
-                ..
-            })
-        ),
-        "the carrier's constructor escalates: {err:?}"
-    );
-    assert!(
-        text.starts_with(
-            "whether the curve is a circle or an ellipse is undecided for the section through \
-             a curved face: "
-        ) && text.ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
-        "{text}"
-    );
-    assert!(
-        test_utils::refusal::subjectless_escalations(&text).is_empty(),
-        "{text}"
-    );
+    .unwrap_or_else(|e| panic!("the nearly-circular split builds: {e}"));
+    for (what, part) in [("below", &result.below), ("above", &result.above)] {
+        let topo::SplitPart::Body(half) = part else {
+            panic!("{what}: the half carries material");
+        };
+        assert_sound(half, PI * R * R * LEN / 2.0, what);
+    }
 }
 
 /// A C — the annular sector about `(−0.5, 0)` between radii `ro` and

@@ -876,10 +876,8 @@ pub enum PlaneCylinderSection<T: Real> {
 /// 3. `pc_rim_alignment` — margin `‖axis×normal‖·r` (the tilt angle's
 ///    sine, metered at the rim radius): Zero ⇒
 ///    [`PlaneCylinderSection::Rim`]; definite ⇒
-///    [`PlaneCylinderSection::TiltedEllipse`] through the ellipse
-///    constructor (whose own `ellipse_axes_distinct` gate is the final
-///    word on near-circular tilts — the documented double gate: the
-///    constructor is the one deciding door for the kind).
+///    [`PlaneCylinderSection::TiltedEllipse`], however near-circular:
+///    this row is the one decision of the section's kind.
 ///
 /// # Errors
 ///
@@ -2266,9 +2264,9 @@ pub enum PlaneConeSection<T: Real> {
 ///    the plane; definite ⇒ step 4.
 /// 4. `pn_conic_type` — the same margin `D`, metered at `extent`, off
 ///    the apex: Negative ⇒ the plane meets every generator once and the
-///    section is [`PlaneConeSection::TiltedEllipse`] through the ellipse
-///    constructor (whose `ellipse_axes_distinct` gate is the final word
-///    on a near-circular tilt — the cylinder arm's double gate); Zero ⇒
+///    section is [`PlaneConeSection::TiltedEllipse`], however
+///    near-circular (step 3 is the one decision of circle against
+///    ellipse); Zero ⇒
 ///    a parabola, Positive ⇒ a hyperbola, each refused naming its conic.
 ///    An in-band `D` (a near-parabola) escalates; it is never snapped
 ///    to either side.

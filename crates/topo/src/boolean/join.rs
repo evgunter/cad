@@ -3476,15 +3476,13 @@ fn cylinder_pair_axes<T: Decide>(
 const FACE_REACH_ELSEWHERE: &str = "a curved face's reach levered a pair with no cone or torus";
 
 /// A germ pair's section refusal that is not the table's verdict on the
-/// pair's locus: an undecided degeneracy, or a carrier the conic
-/// constructor could not tell from a circle (the table's classifier read
-/// the tilt as definite, `ellipse_axes_distinct` read the semi-axes as
-/// equal or in the band), escalates; anything else is a desync.
+/// pair's locus: an undecided degeneracy, or a conic carrier whose
+/// minor semi-axis the constructor could not decide positive,
+/// escalates; anything else is a desync.
 fn section_refusal(e: geom_brep::SectionError) -> FrameError {
-    use geom::EllipseInvalid as Ei;
     match e {
         geom_brep::SectionError::Escalated(diag)
-        | geom_brep::SectionError::Carrier(Ei::Escalated(diag) | Ei::CircularAxes(diag)) => {
+        | geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)) => {
             FrameError::section(diag)
         }
         _ => FrameError::Desync("germ pair's section refused at match time"),
@@ -3777,9 +3775,7 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
         }
         Err(
             e @ (geom_brep::SectionError::Escalated(_)
-            | geom_brep::SectionError::Carrier(
-                geom::EllipseInvalid::Escalated(_) | geom::EllipseInvalid::CircularAxes(_),
-            )),
+            | geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(_))),
         ) => Err(refused(section_refusal(e))),
         Err(geom_brep::SectionError::RadiusEscalated { radius, diag }) => {
             Err(refused(FrameError::Escalated {
@@ -3907,9 +3903,7 @@ fn intersecting_cylinder_axes<T: Decide>(
         ),
         Err(
             e @ (geom_brep::SectionError::Escalated(_)
-            | geom_brep::SectionError::Carrier(
-                geom::EllipseInvalid::Escalated(_) | geom::EllipseInvalid::CircularAxes(_),
-            )),
+            | geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(_))),
         ) => section_refusal(e),
         // The table's own routing verdict, honoured the way
         // `cs_pair_frame` honours it: NOT a desync, since nothing is

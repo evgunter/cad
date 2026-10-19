@@ -2,12 +2,12 @@
 id: circular-axes-refuses-between-the-rim-alignment-band-and-the-axes-band
 kind: issue
 title: Tilts between eps/r and sqrt(2 eps/r) refuse CircularAxes with no lever: pc_rim_alignment and ellipse_axes_distinct read two different quantities
-status: open
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: M
-design: true
 branch: germ/circular-axes-band-gap
+closed: 2026-10-19
 ---
 
 Found by the CLEAVE section-end design fork (PR 4810).
@@ -134,3 +134,24 @@ doors that a classifier hands off to (`Curve3::spiric`, from
 before (the offset, and (R − r) − |d|, which the table reads with the
 tilt's swing beside it, so more strictly). No derived quantity sits
 between them, so there is no gap.
+
+## Closed (2026-10-19, PR 5156)
+
+Implemented as decided. `Curve3::ellipse` keeps only
+`ellipse_minor_positive`; `EllipseInvalid::CircularAxes` and every arm
+that existed for it are gone (`join.rs` `section_refusal` and the
+equal-cylinder frame, `sweep` `cap_transverse` → `CapEllipse` and
+`FILLET3_CAP_ELLIPSE_RECOURSE`). The plane × cylinder, plane × cone and
+equal-cylinder bisector arms serve the exact ellipse at every tilt the
+pose reads definite; `crates/sweep/tests/near_circular_sections.rs`
+pins the table, the served carrier's miss off both surfaces (≤ 1.5
+units of roundoff at its coordinate scale, at all three ε rows), a
+split, and a Boolean at three tilts across the old gap at three scales,
+each red with the gate restored. The pose's own band still refuses
+(`pc_rim_alignment`, `pn_axis_normal`, `cc_axes_parallel`), pinned in
+the same file and in `topo` `cone_frame_rows.rs`.
+
+Readers of a near-circular ellipse's major direction were audited (PR
+5156's body); the one that reads it off the semi-axes as a public
+answer is filed as
+`edge-pose-reads-a-near-circular-ellipses-u-ref-off-its-semi-axes`.

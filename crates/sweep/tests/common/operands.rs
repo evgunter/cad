@@ -277,10 +277,8 @@ pub fn leaning_turn(s: f64) -> (Body<f64>, [EdgeKey; 2]) {
 
 /// [`leaning_turn`] at [`lean_in_band`], where its chamfer turn
 /// escalates. A fillet's gap is linear in the lean, so the same lean is
-/// far outside its band, but its overrun is the far band's cut-off at a
-/// face tilted by the lean off its axis, whose ellipse's axes are still
-/// too close to tell from a circle: the fillet escalates there too
-/// (`ellipse_axes_distinct`).
+/// far outside its band; its overrun is the far band's cut-off at a
+/// face tilted by the lean off its axis.
 pub fn leaning_turn_in_band(tol: Tol) -> (Body<f64>, [EdgeKey; 2]) {
     leaning_turn(lean_in_band(tol))
 }
