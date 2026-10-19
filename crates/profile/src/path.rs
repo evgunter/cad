@@ -4061,6 +4061,36 @@ fn unit_from_components<T: Decide>(dx: T, dy: T, tol: Tol) -> Result<Dir<T>, Pat
     Ok(Dir::from_unit(Vec2::new(dx / norm, dy / norm)))
 }
 
+/// **A chord's director**: the chord's components over its length, so
+/// an enclosure of the chord is an enclosure of its ray whichever way
+/// it heads. An angle read off `atan2` is not: on its branch cut — a
+/// chord along −x whose `y` straddles zero — the angle's enclosure is
+/// the whole circle.
+///
+/// The length is not DECIDED here. It is the lever the junction gates
+/// ask about and the length the segment's shape validation asks about,
+/// each under its own name, so a band question here would be a second
+/// one about the same length, and would pre-empt the refusals that
+/// name a short leg for what it is. What it asks is only whether the
+/// division is a number: an overflowed or underflowed length refuses
+/// as [`unit_from_components`] and [`arc_fillet::carrier_tangent`] do,
+/// and a chord of no length at all (the authored point IS the tip)
+/// names no ray and stands in `+x` for one, which those later gates
+/// refuse.
+fn chord_director<T: Real>(d: Vec2<T>) -> Result<Dir<T>, PathError<T>> {
+    let len = d.norm_squared().sqrt();
+    if !is_finite_length(len) {
+        return Err(PathError::NonFiniteDirection { dx: d.x, dy: d.y });
+    }
+    if geom_core::is_underflowed_length(len, d.norm_witness()) {
+        return Err(PathError::UnderflowedDirection { dx: d.x, dy: d.y });
+    }
+    if crate::is_exact_zero(len) {
+        return Ok(Dir::from_unit(Vec2::new(T::one(), T::zero())));
+    }
+    Ok(Dir::from_unit(d / len))
+}
+
 /// The kernel behind the table's circle row: the lowered loop (the
 /// row supplies the one-step program).
 fn circle_kernel<T: Decide>(
@@ -4743,7 +4773,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let pos = self.tip_pos()?;
         let at = pos.at;
         let d = p - at;
-        let gamma = Dir::from_angle(d.y.atan2(d.x));
+        let gamma = chord_director(d)?;
         if self.core.pending.is_some() {
             self.core
                 .resolve_fillet(at, gamma, ArrivalKind::Continues, tol)?;
@@ -4777,7 +4807,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         })?;
         let at = self.tip_pos()?.at;
         let d = start_pos - at;
-        let gamma = Dir::from_angle(d.y.atan2(d.x));
+        let gamma = chord_director(d)?;
         if self.core.pending.is_some() {
             self.core
                 .resolve_fillet(at, gamma, ArrivalKind::Continues, tol)?;
@@ -4900,22 +4930,21 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         Ok(crate::bulge_leg(self.tip_pos()?.at, end, bulge))
     }
 
-    /// The leg's derived angles: chord direction γ, its stored sweep θ
-    /// (zero for a line), start tangent γ − θ/2, end tangent γ + θ/2.
+    /// The leg's derived tangents: the chord's unit ray turned by ∓θ/2
+    /// for its stored sweep θ (zero for a line, which leaves the ray
+    /// as it is) — start tangent and end tangent — and the chord length.
     fn arc_angles(
         at: Point2<T>,
         target: Point2<T>,
         leg: Option<BuiltArc<T>>,
-    ) -> (Dir<T>, Dir<T>, T) {
+        tol: Tol,
+    ) -> Result<(Dir<T>, Dir<T>, T), PathError<T>> {
         let d = target - at;
-        let gamma = d.y.atan2(d.x);
-        let theta = sweep_of(leg);
-        let half = theta / T::from_f64(2.0);
-        (
-            Dir::from_angle(gamma - half),
-            Dir::from_angle(gamma + half),
-            d.norm_squared().sqrt(),
-        )
+        let c = chord_director(d)?.unit;
+        let half = unit(sweep_of(leg) / T::from_f64(2.0));
+        let turned =
+            |s: T| Dir::from_unit(Vec2::new(c.x * half.x - c.y * s, c.x * s + c.y * half.x));
+        Ok((turned(-half.y), turned(half.y), d.norm_squared().sqrt()))
     }
 
     pub(super) fn arc_to_point(
@@ -4933,7 +4962,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         }
         let pos = self.tip_pos()?;
         let at = pos.at;
-        let (start_t, end_t, chord) = Self::arc_angles(at, p, leg);
+        let (start_t, end_t, chord) = Self::arc_angles(at, p, leg, tol)?;
         if let Some(inc) = &pos.incoming {
             junction_check(inc, start_t, false, tol)?;
         }
@@ -4968,7 +4997,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         })?;
         let pos = self.tip_pos()?;
         let at = pos.at;
-        let (start_t, end_t, chord) = Self::arc_angles(at, start_pos, leg);
+        let (start_t, end_t, chord) = Self::arc_angles(at, start_pos, leg, tol)?;
         if let Some(inc) = &pos.incoming {
             junction_check(inc, start_t, false, tol)?;
         }
