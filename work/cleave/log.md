@@ -1199,3 +1199,7 @@ Signed (CLEAVE orchestrator).
   - Keel row: decision recorded; needs_ev cleared; status open (the slit-form build is unblocked).
   - `[ev]` taken off the title; the body leads with the decision. Merge on CI.
   - Lesson: `work.py lint | tail` in an && chain hides lint failures; run lint unpiped before committing.
+- 2026-10-19 — 4795 merged (`0a702a9bc1`). Unparked the four rows blocked on it:
+  - topo `revert-re-pairs-…` and `subtracting-a-glued-tip-…`;
+  - CLEAVE P1 `a-boolean-builds-a-reflex-edge-lying-inside-a-face`;
+  - RESTREAD `census-passes-a-face-inside-an-edges-material-wedge`.
