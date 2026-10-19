@@ -7,11 +7,13 @@
 //! nothing — profile geometry reached every lane as f64 bits. These
 //! rows are what changed and what did not.
 //!
-//! - **Off is off.** The lift defaults to `Pinned` and the whole build
+//! - **Off is off.** The build is `Pinned` (the lift is read off what
+//!   the evaluation binds, `EvalOptions::profile_lift_over`) and the whole build
 //!   path runs there; `m10_p_fence.rs` digests that against the
-//!   pre-lift tree. Here the narrower claim: turning the lift ON at
-//!   `f64` changes nothing, because guided elaboration at `f64` is
-//!   plain elaboration at `f64`.
+//!   pre-lift tree. Here the narrower claim: the guided lift at `f64`,
+//!   asked for by a box varying every continuous variable over `[0, 0]`
+//!   (`corpus::options_under`), changes nothing, because guided
+//!   elaboration at `f64` is plain elaboration at `f64`.
 //! - **The seam is open.** Resolving the same program at `Dual` and
 //!   elaborating it GUIDED carries a seed on the hole radius through to
 //!   the vertices it moves — a derivative where there was a zero.
@@ -45,11 +47,8 @@ fn body_bits(ev: &editor_core::Evaluation<f64>) -> Vec<u64> {
     out
 }
 
-fn options(lift: ProfileLift) -> EvalOptions {
-    EvalOptions {
-        profile_lift: lift,
-        ..EvalOptions::default()
-    }
+fn options(doc: &editor_core::ProfileDoc, lift: ProfileLift) -> EvalOptions {
+    corpus::options_under(doc, lift).expect("the document has a continuous variable")
 }
 
 /// Turning the lift on at `f64` changes no geometry.
@@ -61,13 +60,20 @@ fn options(lift: ProfileLift) -> EvalOptions {
 /// for, taken through the public evaluation door.
 #[test]
 fn the_lift_at_f64_reproduces_the_pinned_evaluation() {
+    let mut compared = 0usize;
     for doc in corpus::documents() {
+        // A document with no continuous variable has no analysis to ask
+        // for at its nominal: its every evaluation is the build.
+        if corpus::options_under(&doc.doc, ProfileLift::Guided).is_none() {
+            continue;
+        }
+        compared += 1;
         let run = |lift| {
             evaluate::<f64>(
                 &doc.doc,
                 None,
                 &CancelToken::new(),
-                &options(lift),
+                &options(&doc.doc, lift),
                 Tol::witness(),
             )
         };
@@ -89,6 +95,10 @@ fn the_lift_at_f64_reproduces_the_pinned_evaluation() {
             );
         }
     }
+    assert!(
+        compared >= 10,
+        "only {compared} corpus documents have a continuous variable to ask the guided lift with"
+    );
 }
 
 /// The lift moves the CONTENT KEY, and must: two evaluations whose
@@ -102,7 +112,7 @@ fn the_lift_changes_the_content_key() {
             &doc.doc,
             None,
             &CancelToken::new(),
-            &options(lift),
+            &options(&doc.doc, lift),
             Tol::witness(),
         )
     };
@@ -310,7 +320,7 @@ fn the_loft_ladder_tracks_the_profile_ladder_under_the_lift() {
             &doc.doc,
             None,
             &CancelToken::new(),
-            &options(lift),
+            &options(&doc.doc, lift),
             Tol::witness(),
         )
     };
@@ -363,7 +373,7 @@ fn the_evaluation_door_runs_the_lift_at_dual() {
             &doc.doc,
             None,
             &CancelToken::new(),
-            &options(lift),
+            &options(&doc.doc, lift),
             Tol::witness(),
         )
     };
@@ -419,7 +429,7 @@ fn a_lofted_body_at_interval_is_one_body_under_both_lifts() {
             doc,
             None,
             &CancelToken::new(),
-            &options(lift),
+            &options(doc, lift),
             Tol::witness(),
         )
     };
@@ -498,4 +508,226 @@ fn profile_node_of(doc: &corpus::CorpusDoc) -> editor_core::RecipeNodeId {
         .iter()
         .find(|id| matches!(doc.doc.node(**id), Some(Node::Profile(_))))
         .expect("the plate has a profile node")
+}
+
+/// The plate at `Sym<f64>` under `box_`, in a deferring session at the
+/// door's budget: each node's content key, and the profile node's
+/// verdict log.
+fn at_sym(
+    doc: &corpus::CorpusDoc,
+    box_: Option<editor_core::analysis::ParamBox>,
+) -> (Vec<Option<editor_core::ContentKey>>, Vec<String>) {
+    let opts = EvalOptions {
+        param_box: box_.map(std::sync::Arc::new),
+        ..EvalOptions::default()
+    };
+    // Deferring, at the door's budget: the row reads which lift is taken
+    // and what it logs, not what the tier discharges, and an eager
+    // session over the guided plate is the memory the replay session
+    // exists to avoid (`coincide::with_replay_session`).
+    let budget = geom_core::SymBudget {
+        max_terms: 256,
+        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+    };
+    geom_core::sym::deferred::with_deferred_session(
+        budget,
+        geom_core::SymRules::shipped(),
+        editor_core::drive::DEFAULT_SYM_RETRY,
+        || {
+            let ev = evaluate::<geom_core::Sym<f64>>(
+                &doc.doc,
+                None,
+                &CancelToken::new(),
+                &opts,
+                Tol::witness(),
+            );
+            let keys = ev
+                .order
+                .iter()
+                .map(|id| ev.value(*id).map(|v| v.content_key))
+                .collect();
+            let log = ev
+                .value(profile_node_of(doc))
+                .expect("the profile evaluates")
+                .verdicts
+                .iter()
+                .map(|v| format!("{v:?}"))
+                .collect();
+            (keys, log)
+        },
+    )
+    .0
+}
+
+/// **A box that varies nothing is the build at `Sym` too.** A `Fixed`
+/// axis HOLDS its variable at the nominal, which at `Sym` binds a
+/// constant, not a parameter symbol (`analysis::var_env_over`), so the
+/// lift is pinned and every node is the unboxed build's: same content
+/// key, same profile verdict log. And `Varying { lo: 0, hi: 0 }` — the
+/// way to ask for the nominal as a symbol — is an analysis: guided, its
+/// profile log the guided op's own (the pinned log, then the op's replay
+/// and validation at the lane).
+#[test]
+fn at_sym_a_fixed_box_is_the_build_and_a_degenerate_varying_one_is_guided() {
+    use editor_core::analysis::{BoxAxis, ParamBox};
+    let doc = plate();
+    let continuous: Vec<editor_core::VarId> = doc
+        .doc
+        .free_vars()
+        .filter(|(_, p)| matches!(p, editor_core::FreeVar::Continuous { .. }))
+        .map(|(id, _)| id)
+        .collect();
+    assert!(!continuous.is_empty(), "the plate has a variable to hold");
+    let over =
+        |axis: BoxAxis| ParamBox::from_axes(continuous.iter().map(|&id| (id, axis)).collect());
+    let fixed = over(BoxAxis::Fixed);
+    let varying = over(BoxAxis::Varying { lo: 0.0, hi: 0.0 });
+    let lift = |b: &ParamBox| {
+        EvalOptions {
+            param_box: Some(std::sync::Arc::new(b.clone())),
+            ..EvalOptions::default()
+        }
+        .profile_lift()
+    };
+    assert_eq!(lift(&fixed), ProfileLift::Pinned);
+    assert_eq!(lift(&varying), ProfileLift::Guided);
+
+    let build = at_sym(&doc, None);
+    assert_eq!(
+        at_sym(&doc, Some(fixed.clone())),
+        build,
+        "an all-Fixed box at Sym is the build, node for node"
+    );
+    // And it binds no symbol: every margin the held run decides re-values
+    // to its own value with every parameter symbol moved, which a margin
+    // over a symbol would not. Keys and logs read the same either way, so
+    // this is the half that sees what a `Fixed` axis binds.
+    let opts = EvalOptions {
+        param_box: Some(std::sync::Arc::new(fixed)),
+        ..EvalOptions::default()
+    };
+    let decisions = geom_core::sym::deferred::with_deferred_session(
+        geom_core::SymBudget {
+            max_terms: 256,
+            max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+        },
+        geom_core::SymRules::shipped(),
+        editor_core::drive::DEFAULT_SYM_RETRY,
+        || {
+            let (_, decisions) = geom_core::sym::revalue::record(|| {
+                let _ = evaluate::<geom_core::Sym<f64>>(
+                    &doc.doc,
+                    None,
+                    &CancelToken::new(),
+                    &opts,
+                    Tol::witness(),
+                );
+            });
+            let moved = decisions
+                .iter()
+                .filter(|d| {
+                    let v0 = d.value.expect("Sym<f64> has a value");
+                    geom_core::sym::revalue::revalue(d.node, &|_| Some(1.0e-3))
+                        .is_some_and(|r| r.to_bits() != v0.to_bits())
+                })
+                .count();
+            (decisions.len(), moved)
+        },
+    )
+    .0;
+    assert!(decisions.0 > 0, "the held run decides");
+    assert_eq!(
+        decisions.1, 0,
+        "a margin of the held run moved with a parameter symbol: a Fixed axis bound one"
+    );
+    let (_, guided_log) = at_sym(&doc, Some(varying));
+    assert!(
+        guided_log.len() > build.1.len() && guided_log[..build.1.len()] == build.1[..],
+        "the guided log is the build's log, then the op's own: build {} decisions, guided {}",
+        build.1.len(),
+        guided_log.len()
+    );
+}
+
+/// Each node's content key and the first profile node's verdict log, for
+/// `doc` at `T` over an EMPTY box or none, in a deferring session at the
+/// door's budget (a no-op at a numeric scalar).
+fn under_an_empty_box<T: editor_core::EvalScalar>(
+    doc: &editor_core::ProfileDoc,
+    boxed: bool,
+) -> (Vec<Option<editor_core::ContentKey>>, Vec<String>) {
+    let opts = EvalOptions {
+        param_box: boxed.then(|| {
+            std::sync::Arc::new(editor_core::analysis::ParamBox::from_axes(
+                std::collections::BTreeMap::new(),
+            ))
+        }),
+        ..EvalOptions::default()
+    };
+    geom_core::sym::deferred::with_deferred_session(
+        geom_core::SymBudget {
+            max_terms: 256,
+            max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+        },
+        geom_core::SymRules::shipped(),
+        editor_core::drive::DEFAULT_SYM_RETRY,
+        || {
+            let ev = evaluate::<T>(doc, None, &CancelToken::new(), &opts, Tol::witness());
+            let profile = *doc
+                .ids()
+                .iter()
+                .find(|id| matches!(doc.node(**id), Some(Node::Profile(_))))
+                .expect("a profile node");
+            let keys = ev
+                .order
+                .iter()
+                .map(|id| ev.value(*id).map(|v| v.content_key))
+                .collect();
+            let log = ev
+                .value(profile)
+                .expect("the profile evaluates")
+                .verdicts
+                .iter()
+                .map(|v| format!("{v:?}"))
+                .collect();
+            (keys, log)
+        },
+    )
+    .0
+}
+
+/// **The lift follows what the environment binds.** The two-hole plate
+/// has toleranced variables. Under an EMPTY box at `Sym` each binds as
+/// its id's symbol (VR8: a toleranced variable is an axis and a symbol),
+/// so the environment is not the build's and the lift is guided though
+/// the box varies nothing — its profile log the build's, then the op's
+/// own. At `f64` and `Interval` the same empty box binds every variable
+/// at its nominal, and the evaluation is the build, key for key and
+/// verdict for verdict.
+#[test]
+fn an_empty_box_is_the_build_at_a_numeric_scalar_and_guided_at_sym_over_a_toleranced_variable() {
+    let doc = crate::m10_7_plate::plate(5.0e-5, 1.0e-5, Tol::witness()).0;
+    assert!(
+        doc.free_vars()
+            .any(|(_, p)| editor_core::analysis::is_axis(p)),
+        "the plate has a toleranced variable"
+    );
+    assert_eq!(
+        under_an_empty_box::<f64>(&doc, true),
+        under_an_empty_box::<f64>(&doc, false),
+        "at f64 an empty box is the build"
+    );
+    assert_eq!(
+        under_an_empty_box::<geom_core::Interval>(&doc, true),
+        under_an_empty_box::<geom_core::Interval>(&doc, false),
+        "at Interval an empty box is the build"
+    );
+    let (_, build) = under_an_empty_box::<geom_core::Sym<f64>>(&doc, false);
+    let (_, boxed) = under_an_empty_box::<geom_core::Sym<f64>>(&doc, true);
+    assert!(
+        boxed.len() > build.len() && boxed[..build.len()] == build[..],
+        "at Sym the empty box binds symbols, so the lift is guided: build {} decisions, boxed {}",
+        build.len(),
+        boxed.len()
+    );
 }

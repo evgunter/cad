@@ -93,19 +93,19 @@ fn lift_curve<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
 /// The row `u = u*` exposed by knot insertion to multiplicity `p` —
 /// the independent witness (evaluation-invariant in ℝ, rational-aware).
 fn inserted_row(chart: &NurbsSurface<f64>, u_star: f64) -> NurbsCurve3<f64> {
-    let p = chart.knots_u().degree();
+    let p = chart.knots_u_f64_interim().degree();
     let have = chart
-        .knots_u()
+        .knots_u_f64_interim()
         .multiplicity_of(u_star)
         .map_or(0, |(s, _)| s);
     let refined = chart.insert_knot_u(u_star, p - have).unwrap();
     let (_, nv) = refined.control_counts();
-    let kn = refined.knots_u().knots();
+    let kn = refined.knots_u_f64_interim().knots();
     let index = (0..refined.control_counts().0)
         .find(|i| (kn[i + 1..=i + p].iter().sum::<f64>() / p as f64 - u_star).abs() < 1e-15)
         .expect("a control row at the Greville abscissa");
     NurbsCurve3::new(
-        refined.knots_v().clone(),
+        refined.knots_v_f64_interim().clone(),
         refined.control()[index * nv..(index + 1) * nv].to_vec(),
         refined.weights()[index * nv..(index + 1) * nv].to_vec(),
     )
@@ -320,7 +320,7 @@ fn c2_body<T: Decide + Bounds>(lane: &str) {
         &[1.0, 0.7, 0.9, 1.0],
         "the inserted row carries row 0's weights"
     );
-    let (v0, v1) = s.knots_v().domain();
+    let (v0, v1) = s.knots_v_f64_interim().domain();
     let ok = certify_line::<T>(&s, &row, (u, v0), (0.0, v1 - v0))
         .unwrap_or_else(|e| panic!("{lane}: case (a) with varying row-0 weights certifies: {e}"));
     assert_eq!(
@@ -332,7 +332,12 @@ fn c2_body<T: Decide + Bounds>(lane: &str) {
     // A constant non-unit carrier against varying `W_j`: a different
     // curve, so check 3 sees it before the shared-space check does —
     // either refusal is sound.
-    let c2 = NurbsCurve3::new(row.knots().clone(), row.control().to_vec(), vec![2.0; 4]).unwrap();
+    let c2 = NurbsCurve3::new(
+        row.knots_f64_interim().clone(),
+        row.control().to_vec(),
+        vec![2.0; 4],
+    )
+    .unwrap();
     let e = certify_line::<T>(&s, &c2, (u, v0), (0.0, v1 - v0))
         .expect_err("a constant carrier against varying W refuses");
     assert!(
@@ -345,7 +350,7 @@ fn c2_body<T: Decide + Bounds>(lane: &str) {
     // A proportional (2·W) carrier IS the same curve in ℝ, and the
     // shared-space check is deliberately bitwise: refused typed.
     let c3 = NurbsCurve3::new(
-        row.knots().clone(),
+        row.knots_f64_interim().clone(),
         row.control().to_vec(),
         row.weights().iter().map(|w| 2.0 * w).collect(),
     )
@@ -377,14 +382,18 @@ fn c2_body<T: Decide + Bounds>(lane: &str) {
     // refuses.
     let sb = cubic_chart(Net::CaseBNonUnit, 1.0);
     let rowb = inserted_row(&sb, u);
-    let poly =
-        NurbsCurve3::new(rowb.knots().clone(), rowb.control().to_vec(), vec![3.0; 4]).unwrap();
+    let poly = NurbsCurve3::new(
+        rowb.knots_f64_interim().clone(),
+        rowb.control().to_vec(),
+        vec![3.0; 4],
+    )
+    .unwrap();
     let ok = certify_line::<T>(&sb, &poly, (u, v0), (0.0, v1 - v0)).unwrap_or_else(|e| {
         panic!("{lane}: case (b) non-unit chart, constant[3] carrier certifies: {e}")
     });
     assert!(ok.certificate().envelope.hi() < 1e-12);
     let vary = NurbsCurve3::new(
-        rowb.knots().clone(),
+        rowb.knots_f64_interim().clone(),
         rowb.control().to_vec(),
         vec![1.0, 2.0, 1.0, 1.0],
     )
@@ -404,8 +413,8 @@ fn c2_body<T: Decide + Bounds>(lane: &str) {
     let mut wts = s.weights().to_vec();
     wts[5 * 4 + 1] = 0.95;
     let sboth = NurbsSurface::new(
-        s.knots_u().clone(),
-        s.knots_v().clone(),
+        s.knots_u_f64_interim().clone(),
+        s.knots_v_f64_interim().clone(),
         s.control().to_vec(),
         wts,
     )
@@ -443,7 +452,7 @@ fn r1_c2_shared_space_interval() {
 /// term is exercised.
 fn c3_body<T: Decide + Bounds>(lane: &str) {
     let s = cubic_chart(Net::CaseA, 1.0);
-    let (v0, v1) = s.knots_v().domain();
+    let (v0, v1) = s.knots_v_f64_interim().domain();
     let reach = s
         .control()
         .iter()
@@ -527,7 +536,7 @@ fn out_of_domain_body<T: Decide + Bounds>(lane: &str) {
         ("caseB", Net::CaseB),
     ] {
         let s = cubic_chart(net, 10.0);
-        let (v0, v1) = s.knots_v().domain();
+        let (v0, v1) = s.knots_v_f64_interim().domain();
         for u in [-0.2, 1.2, -1e-3, 1.0 + 1e-3] {
             let row = interior_iso_u(&s, u).unwrap();
             let f = T::from_f64;

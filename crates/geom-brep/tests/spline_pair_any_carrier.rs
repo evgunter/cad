@@ -163,6 +163,34 @@ fn short(scale: f64) -> (f64, f64) {
     (0.7, 0.7 + scale * (eps() / 1e-9).sqrt().min(20.0))
 }
 
+/// How far a refusing carrier itself sits off the wall: its largest
+/// foot distance over `params`, at 257 samples. The refusal's limb-2
+/// break is one of the span's points, so a carrier this close to the
+/// wall everywhere is on it at the break, and the miss limb 2 reads is
+/// the certificate's own image's (`SsiLimb::ImageMiss`).
+fn carrier_foot_sup<T: geom_core::CertifiedBounds + geom_core::SpanLocate>(
+    carrier: &Curve3<T>,
+    (t0, t1): (f64, f64),
+    wall: &NurbsSurface<T>,
+) -> f64 {
+    (0..=256)
+        .map(|i| {
+            let t = t0 + (t1 - t0) * f64::from(i) / 256.0;
+            let foot = wall
+                .project(carrier.eval(T::from_f64(t)))
+                .unwrap_or_else(|e| panic!("the carrier's foot at {t}: {e:?}"));
+            foot.distance.hi()
+        })
+        .fold(0.0, f64::max)
+}
+
+/// The largest foot distance a refusing row's carrier may read over
+/// its span. These carriers are exact on their wall: the 1.3 rad circle
+/// and ellipse read 8.1e-14 m at most (f64; the circle 8.2e-14 m at
+/// `Interval`), and the circle 1.1e-16 m at the refusing break. A
+/// carrier moved a picometre off the wall breaks the rows that read it.
+const ON_THE_WALL: f64 = 1e-12;
+
 /// The verdict a row compares between a closed form and its twin:
 /// certified, or refused at a limb.
 #[derive(Debug, PartialEq)]
@@ -223,7 +251,7 @@ fn plane_rows_meet_their_twins(rows: Vec<PlaneRow>) {
             match v {
                 Verdict::Certified => assert!(b <= eps(), "{name}: the {who} within ε: {b:e}"),
                 Verdict::Refused(limb) => assert!(
-                    matches!(limb, SsiLimb::HullSup | SsiLimb::HullValueChart)
+                    matches!(limb, SsiLimb::HullSupChart | SsiLimb::ImageMiss)
                         && (eps()..1e-3).contains(&b),
                     "{name}: the {who} refused at limb 2 on a miss past ε: {limb:?}, {b:e}"
                 ),
@@ -267,6 +295,14 @@ fn a_short_circle_on_a_plane_by_spline_pair_certifies_with_its_twin() {
 #[test]
 fn a_closed_form_carrier_on_a_plane_by_spline_pair_refuses_with_its_twin() {
     let (ellipse, tilted) = ellipse();
+    for (name, carrier) in [("circle", circle(0.5)), ("ellipse", ellipse.clone())] {
+        let foot = carrier_foot_sup(&carrier, (0.1, 1.4), &quarter_cylinder_wall());
+        println!("{name}, 1.3 rad: the carrier's own foot reads {foot:e} m at most");
+        assert!(
+            foot <= ON_THE_WALL,
+            "{name}: the carrier is on the wall: {foot:e} m"
+        );
+    }
     plane_rows_meet_their_twins(vec![
         (
             "circle, 1.3 rad",
@@ -462,10 +498,13 @@ fn a_carrier_two_epsilon_off_the_wall_between_samples_escalates_at_limb_two() {
     };
     let wall = bumped_wall(2.0 * eps());
     for (name, carrier) in [("line", line.clone()), ("spline", twin(&line, (0.0, 1.0)))] {
-        match plane_nurbs_limbs(&carrier, (0.0, 1.0), &plane, &wall, 1.0, band()) {
+        let (got, frame) = geom_core::k_stats::detached(|| {
+            plane_nurbs_limbs(&carrier, (0.0, 1.0), &plane, &wall, 1.0, band())
+        });
+        match got {
             Err(PlaneNurbsRefusal::Escalated { limb, cause }) => {
                 assert!(
-                    matches!(limb, SsiLimb::HullSup | SsiLimb::HullValueChart),
+                    matches!(limb, SsiLimb::HullSupChart | SsiLimb::HullValueChart),
                     "{name}: limb 2 is what cannot decide: {limb:?}"
                 );
                 let read = upper(cause.margin);
@@ -473,10 +512,140 @@ fn a_carrier_two_epsilon_off_the_wall_between_samples_escalates_at_limb_two() {
                     (1.9 * eps()..=4.0 * eps()).contains(&read),
                     "{name}: the bound it read is the 2ε the wall stands off: {read:e}"
                 );
+                // The image-miss tell reads the carrier's foot here too,
+                // 2ε off and in band, but it names a refusal and states
+                // nothing: the frame's one escalation is limb 2's own.
+                let escalated: Vec<_> = frame
+                    .recorded()
+                    .escalations
+                    .iter()
+                    .map(|e| e.predicate())
+                    .collect();
+                assert_eq!(
+                    escalated,
+                    [cause
+                        .predicate
+                        .expect("limb 2's escalation names its predicate")],
+                    "{name}: the escalation log holds limb 2's decision alone"
+                );
             }
             other => panic!("{name}: a 2ε miss between samples escalates at limb 2: {other:?}"),
         }
     }
+}
+
+/// **A carrier definitely off the wall at a break is not the image's
+/// miss.** The same line and wall as the 2ε row with the bump at 100ε:
+/// limb 1 and the image's feet still read zero at every station, and at
+/// the break where limb 2's composite reads past the band the carrier's
+/// own foot is 100ε off too, so the refusal is the bound on the
+/// carrier's miss (`HullValueChart`), never [`SsiLimb::ImageMiss`].
+#[test]
+fn a_carrier_definitely_off_the_wall_at_a_break_refuses_on_its_own_miss() {
+    let line = Curve3::Line {
+        origin: Point3::new(0.0, 0.5, 0.0),
+        dir: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.5, 0.0),
+        normal: Vec3::new(0.0, 1.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let wall = bumped_wall(100.0 * eps());
+    for (name, carrier) in [("line", line.clone()), ("spline", twin(&line, (0.0, 1.0)))] {
+        match plane_nurbs_limbs(&carrier, (0.0, 1.0), &plane, &wall, 1.0, band()) {
+            Err(PlaneNurbsRefusal::Limb { limb, margin }) => {
+                assert_eq!(
+                    limb,
+                    SsiLimb::HullValueChart,
+                    "{name}: the carrier is off at the break, so the miss is its own"
+                );
+                let read = upper(margin);
+                assert!(
+                    (50.0 * eps()..=200.0 * eps()).contains(&read),
+                    "{name}: the reading is the 100ε the wall stands off: {read:e}"
+                );
+            }
+            other => panic!("{name}: a 100ε miss between samples refuses at limb 2: {other:?}"),
+        }
+    }
+}
+
+/// `z = k·x` over `[0, 1]²`, bilinear: it meets the plane `z = 0` along
+/// `x = 0`.
+fn slanted_wall(k: f64) -> NurbsSurface<f64> {
+    let p = |x, y, z| Point3::new(x, y, z);
+    bilinear([
+        p(0.0, 0.0, 0.0),
+        p(0.0, 1.0, 0.0),
+        p(1.0, 0.0, k),
+        p(1.0, 1.0, k),
+    ])
+}
+
+/// Degree 2 along `x = 0`, `y ∈ [0.1, 0.9]`, every interior knot doubled:
+/// on the plane `z = 0` at each of its `n + 1` knots and bulging `h` off
+/// it, toward `+z`, between them.
+fn scallops(n: usize, h: f64) -> Curve3<f64> {
+    let mut kv = vec![0.0; 3];
+    for i in 1..n {
+        #[allow(clippy::cast_precision_loss)]
+        let t = i as f64 / n as f64;
+        kv.extend([t, t]);
+    }
+    kv.extend([1.0; 3]);
+    let control: Vec<Point3<f64>> = (0..=2 * n)
+        .map(|j| {
+            #[allow(clippy::cast_precision_loss)]
+            let t = j as f64 / (2 * n) as f64;
+            let z = if j % 2 == 1 { 2.0 * h } else { 0.0 };
+            Point3::new(0.0, 0.1 + 0.8 * t, z)
+        })
+        .collect();
+    Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(
+            KnotVector::clamped(kv, 2).unwrap(),
+            control,
+            vec![1.0; 2 * n + 1],
+        )
+        .unwrap(),
+    ))
+}
+
+/// **A bound on the plane is about the carrier alone.** Scallops on the
+/// plane `z = 0` at every knot, bulging off it between them, refuse at
+/// limb 2 against the PLANE, the first operand the lane certifies: the
+/// limb is [`SsiLimb::HullSup`], the analytic one, and its words name
+/// an analytic surface and no image.
+#[test]
+fn a_plane_side_scallop_refuses_on_the_carriers_own_bound() {
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let carrier = scallops(8192, 50.0 * eps());
+    let got = plane_nurbs_limbs(
+        &carrier,
+        (0.0, 1.0),
+        &plane,
+        &slanted_wall(10.0),
+        1.0,
+        band(),
+    );
+    let Err(refusal @ PlaneNurbsRefusal::Limb { limb, .. }) = &got else {
+        panic!("the scallops refuse at a limb against the plane: {got:?}")
+    };
+    assert_eq!(
+        *limb,
+        SsiLimb::HullSup,
+        "the plane's bound, the carrier read alone"
+    );
+    let words = refusal.to_string();
+    assert!(
+        words.contains("from an analytic surface") && !words.contains("image"),
+        "the words name the analytic surface and no image: {words}"
+    );
 }
 
 /// **The door's typed refusal reaches the edge certificate.** A spiric
@@ -566,7 +735,7 @@ fn the_door_certifies_a_closed_form_carrier_on_a_spline_pair() {
         ),
     ] {
         let (arena, spec) = door_spec(a, b, line.clone(), (0.0, 1.0));
-        let edge = EdgeCurve::certify_via(spec, ends.0, ends.1, arena, band(), lane)
+        let edge = EdgeCurve::certify_via(spec, ends.0, ends.1, arena, 1.0, band(), lane)
             .unwrap_or_else(|e| panic!("{name}: the line certifies through the door: {e}"));
         assert!(
             edge.certificate().max_residual <= eps(),
@@ -582,12 +751,15 @@ fn the_door_certifies_a_closed_form_carrier_on_a_spline_pair() {
         arc.clone(),
         (t0, t1),
     );
-    let got = EdgeCurve::certify_via(spec, arc.eval(t0), arc.eval(t1), arena, band(), lane);
+    let foot = carrier_foot_sup(&arc, (t0, t1), &quarter_cylinder_wall());
+    println!("the circle's own foot reads {foot:e} m at most");
+    assert!(foot <= ON_THE_WALL, "the circle is on the wall: {foot:e} m");
+    let got = EdgeCurve::certify_via(spec, arc.eval(t0), arc.eval(t1), arena, 1.0, band(), lane);
     let Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, margin })) = got else {
         panic!("the circle refuses at a limb through the door: {got:?}")
     };
     assert!(
-        matches!(limb, SsiLimb::HullSup | SsiLimb::HullValueChart),
+        matches!(limb, SsiLimb::HullSupChart | SsiLimb::ImageMiss),
         "limb 2 refuses: {limb:?}"
     );
     assert!(
@@ -619,7 +791,7 @@ fn a_promoted_line_certifies_where_its_spline_did_on_the_same_image() {
             carrier.clone(),
             (0.0, 1.0),
         );
-        let edge = EdgeCurve::certify_via(spec, ends.0, ends.1, arena, band(), lane)
+        let edge = EdgeCurve::certify_via(spec, ends.0, ends.1, arena, 1.0, band(), lane)
             .unwrap_or_else(|e| panic!("{:?} certifies: {e}", carrier.kind()));
         bounds.push(edge.certificate().max_residual);
     }
@@ -633,7 +805,11 @@ fn a_promoted_line_certifies_where_its_spline_did_on_the_same_image() {
         .into_iter()
         .map(|c| {
             let image = fitted.general_image(c, (0.0, 1.0), &flat_wall()).unwrap();
-            assert_eq!(image.knots().domain(), (0.0, 1.0), "on the edge's interval");
+            assert_eq!(
+                image.knots_f64_interim().domain(),
+                (0.0, 1.0),
+                "on the edge's interval"
+            );
             image.control().iter().map(|p| (p.x, p.y)).collect()
         })
         .collect();
@@ -761,26 +937,38 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
         one,
         band(),
     );
-    for (scalar, limb) in [
-        ("f64", at_f64.as_ref().err()),
-        ("Interval", at_itv.as_ref().err()),
-    ] {
-        assert!(
-            matches!(
-                limb,
-                Some(
-                    PlaneNurbsRefusal::Limb {
-                        limb: SsiLimb::HullValueChart,
-                        ..
-                    } | PlaneNurbsRefusal::Escalated {
-                        limb: SsiLimb::HullValueChart,
-                        ..
-                    }
-                )
-            ),
-            "the 1.3 rad circle refuses at limb 2's break value at {scalar}: {limb:?}"
-        );
-    }
+    // The tell's label, not only a refusal, is the scalar's to agree on:
+    // the circle is on the wall at the break at both, so both name the
+    // image's own miss.
+    let feet = (
+        carrier_foot_sup(&circle(0.5), (0.1, 1.4), &quarter_cylinder_wall()),
+        carrier_foot_sup(
+            &circle(0.5).map_scalar(itv),
+            (0.1, 1.4),
+            &quarter_cylinder_wall().map_scalar(itv),
+        ),
+    );
+    println!(
+        "the circle's own foot, f64 then Interval: {:e}, {:e} m at most",
+        feet.0, feet.1
+    );
+    assert!(
+        feet.0 <= ON_THE_WALL && feet.1 <= ON_THE_WALL,
+        "the circle is on the wall at both scalars: {:e}, {:e} m",
+        feet.0,
+        feet.1
+    );
+    let label = |scalar: &str, got: Option<&PlaneNurbsRefusal>| match got {
+        Some(PlaneNurbsRefusal::Limb { limb, .. }) => ("limb", *limb),
+        Some(PlaneNurbsRefusal::Escalated { limb, .. }) => ("escalated", *limb),
+        other => panic!("the 1.3 rad circle refuses at limb 2 at {scalar}: {other:?}"),
+    };
+    let (f, i) = (
+        label("f64", at_f64.as_ref().err()),
+        label("Interval", at_itv.as_ref().err()),
+    );
+    assert_eq!(f, ("limb", SsiLimb::ImageMiss), "at f64: {at_f64:?}");
+    assert_eq!(i, f, "Interval reaches f64's verdict and label: {at_itv:?}");
 }
 
 /// **A circle's parameter is periodic.** The short arc read at `t + 2π`

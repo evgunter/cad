@@ -14,7 +14,7 @@
 //! arm of the record channel a family's result arrives in. The
 //! lowering in [`mod@crate::eval`] is generic over it — one body of
 //! code per declared door (`wire_blend` for the one-body verbs,
-//! `wire_boolean` for the pair family, `wire_swept` for the profile
+//! `wire_subtract` and `wire_combine` for the pair family, `wire_swept` for the profile
 //! family, `wire_split` for the two-sided split, `wire_shell` for the
 //! hollowing verb), each driven by the
 //! declarations here rather than matching the kernel's verb vocabulary of its

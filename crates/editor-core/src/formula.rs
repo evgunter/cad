@@ -132,6 +132,9 @@ pub(crate) enum SlotRoot<'a> {
     /// A lone written value: the slot reads a fresh anonymous free
     /// variable holding it.
     Value(crate::doc::FreeVar),
+    /// A lone `0`: the constant zero at this dimension (VR6), which the
+    /// slot reads through a fresh anonymous variable it defines.
+    Zero(Dimension),
     /// Anything else: the slot reads a fresh anonymous defined
     /// variable.
     Formula,
@@ -402,6 +405,7 @@ impl Formula {
             K::Leaf(AuthoredLeaf::Name(name)) => SlotRoot::Name(name, self.dim()),
             K::Leaf(AuthoredLeaf::Fresh(index)) => SlotRoot::Fresh(*index, self.dim()),
             K::Leaf(AuthoredLeaf::Quantity(q)) => SlotRoot::Value(q.free_var(self.dim())),
+            _ if self.is_zero() => SlotRoot::Zero(self.dim()),
             // A lone number is a typed value, not a constant (Q1).
             K::Integer(value) => SlotRoot::Value(crate::doc::FreeVar::Count { value: *value }),
             K::Ratio(ratio) => SlotRoot::Value(crate::doc::FreeVar::Continuous {
@@ -492,7 +496,7 @@ impl Formula {
     /// **The first leaf only a document's edit door resolves**, in
     /// pre-order — a name, or a fresh-table read — as it refuses where
     /// no name is held and no table is read; `None` for a formula that
-    /// evaluates as it stands ([`crate::eval`]).
+    /// evaluates as it stands ([`crate::eval`](fn@crate::eval)).
     #[must_use]
     pub fn unresolvable(&self) -> Option<LowerFault> {
         self.unresolved(&|_| None, &[])

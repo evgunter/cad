@@ -68,8 +68,8 @@ fn sampled_min(
     f: impl Fn(Vec3<Interval>, Vec3<Interval>) -> Interval,
 ) -> f64 {
     let si = s.map_scalar(<Interval as Real>::from_f64);
-    let (u0, u1) = s.knots_u().domain();
-    let (v0, v1) = s.knots_v().domain();
+    let (u0, u1) = s.knots_u_f64_interim().domain();
+    let (v0, v1) = s.knots_v_f64_interim().domain();
     let mut least = f64::INFINITY;
     for i in 0..=n {
         for j in 0..=n {
@@ -217,8 +217,8 @@ fn uniformly_scaled_weights_read_the_same_floors() {
     ];
     for k in [1e-3, 1e3] {
         let s = NurbsSurface::new(
-            base.knots_u().clone(),
-            base.knots_v().clone(),
+            base.knots_u_f64_interim().clone(),
+            base.knots_v_f64_interim().clone(),
             base.control().to_vec(),
             base.weights().iter().map(|w| w * k).collect(),
         )

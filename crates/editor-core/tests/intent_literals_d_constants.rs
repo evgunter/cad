@@ -23,7 +23,7 @@ fn n(name: &'static str) -> VarName {
 }
 
 fn step(doc: &ProfileDoc, edit: DocEdit<ProfileProgram>) -> editor_core::Applied<ProfileProgram> {
-    apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach).expect("the edit applies")
+    apply(doc, &edit, Tol::witness()).expect("the edit applies")
 }
 
 fn declare(doc: &ProfileDoc, name: &'static str, def: VarDecl) -> ProfileDoc {
@@ -170,7 +170,10 @@ fn revolved(doc: ProfileDoc, angle: Formula) -> (ProfileDoc, RecipeNodeId) {
         [0.0, 1.0, 0.0],
         vec![square(2.0, 0.0, 0.5)],
     );
-    insert(doc, revolve_about(profile, (0.0, 0.0), (0.0, 1.0), angle))
+    insert(
+        doc,
+        revolve_about(profile, (0.0, 0.0), crate::fixture::along_y(), angle),
+    )
 }
 
 /// The symbolic tier's theorems a session of `run` adds by deciding,

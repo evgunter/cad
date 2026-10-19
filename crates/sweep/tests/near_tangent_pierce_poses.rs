@@ -120,7 +120,7 @@ const POSES: [(&str, usize, f64, f64); 55] = [
 /// `(ε, prism, edge, sixteenths, tilt, run)`: the runs that build their
 /// closed form at that ε row and ship a definite tier-3′ finding, each
 /// pinned at what it ships (the findings' `Debug`, in order). They are
-/// FUSE's class (`work/fuse/a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms.md`),
+/// FUSE's class (`a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms` (a closed FUSE row; `docs/doc-ledger/fuse-leaves-the-tracker.md`)),
 /// which the door does not see until it runs the census over its result
 /// (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`):
 /// either landing turns these red, to be re-pinned.

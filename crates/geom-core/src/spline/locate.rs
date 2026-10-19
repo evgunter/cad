@@ -61,6 +61,28 @@ pub fn poison_from<T: Real>(seed: T) -> T {
     seed * T::from_f64(f64::NAN)
 }
 
+/// Whether `b` is above `a` for every value they stand for, as a
+/// structure decision (C6): at points, `a < b` on their value channels,
+/// so no arithmetic is formed at a point scalar; otherwise
+/// [`SpanLocate::structure_positive`] of `b − a`.
+pub fn structure_ascends<T: SpanLocate>(a: T, b: T) -> bool {
+    match (a.point_value(), b.point_value()) {
+        (Some(a), Some(b)) => a < b,
+        _ => (b - a).structure_positive(),
+    }
+}
+
+/// Whether `x` is nonzero for every value it stands for, as a structure
+/// decision (C6): at a point, `x != 0` on its value channel; otherwise
+/// [`SpanLocate::structure_positive`] of `x` or of `−x`. Poison is not
+/// nonzero.
+pub fn structure_nonzero<T: SpanLocate>(x: T) -> bool {
+    match x.point_value() {
+        Some(v) => v != 0.0,
+        None => x.structure_positive() || (-x).structure_positive(),
+    }
+}
+
 /// Seals [`SpanLocate`]: implemented for exactly the kernel scalars.
 pub(crate) mod sealed {
     /// The sealing supertrait (pub-in-private: unnameable downstream).
@@ -79,12 +101,13 @@ pub(crate) mod sealed {
 ///
 /// Both ends are [`Span`]s rather than bare indices: span validity
 /// originates *here*, in the locator, and every locator route is
-/// [`KnotVector::span_at`] or [`KnotVector::span_range`]. Carrying the proof out
-/// means no consumer re-derives *nonemptiness* or the window base — an
-/// evaluator taking a `usize` would have to. The set borrows the
-/// `knots` it was located in, through both of its spans, so a consumer
-/// has nothing to re-pair either: the vector each end is a proof about
-/// travels with it. Iterate the interior with
+/// [`KnotVector::span_at`] or [`KnotVector::span_range`] over point
+/// knots, or [`SpanLocate::locate_held`] over held knots wider than a
+/// point. Carrying the proof out means no consumer re-derives
+/// *nonemptiness* or the window base — an evaluator taking a `usize`
+/// would have to. The set borrows the structure it was located in,
+/// through both of its spans, so a consumer has nothing to re-pair
+/// either: the structure each end is a proof about travels with it. Iterate the interior with
 /// `first.index() + 1 ..= last.index()` and [`KnotVector::span`],
 /// which refuses the empty spans in between.
 /// `Debug` comes from [`Span`]'s, which prints the borrow as an
@@ -137,13 +160,14 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// channel's `p + 1` coefficients on that span: coefficient `k` is
     /// the blossom at `a` taken `p − k` times and `b` taken `k` times.
     /// `held` is the curve's knot values in the scalar (its
-    /// [`Knots::values`]), and `held_ends` the ends `ends` in the scalar
+    /// [`Knots::values`](super::Knots::values)), and `held_ends` the ends `ends` in the scalar
     /// (a breakpoint's held value, any other end its constant).
     ///
     /// Per scalar, as the locator is. At `Interval` it is the window's
     /// certified restriction ([`super::SpanRow::restrict`]), whose every
-    /// coefficient encloses the true one; a held knot there is the point
-    /// of its `f64` structure, so the restriction reads the structure.
+    /// coefficient encloses the true one. It reads the knots' `f64`
+    /// vector (C6's interim), so it runs on point knots, which every
+    /// carrier's are.
     /// At every other scalar it is de Boor's recurrence over the held
     /// knots and ends, the ratio `α` formed in the scalar and the fixed
     /// association `x·(1 − α) + y·α` (D9).
@@ -164,7 +188,7 @@ pub trait SpanLocate: sealed::Sealed + Real {
         held_ends: (Self, Self),
     ) -> Vec<Self> {
         let p = span.degree();
-        let knots = span.knots().knots();
+        let knots = span.knots_f64_interim().knots();
         // Indexing justified: `p ≤ index ≤ last_span() = len − p − 2`.
         let (lo, hi) = (knots[span.index()], knots[span.index() + 1]);
         let inside = |x: f64| lo <= x && x <= hi;
@@ -218,12 +242,91 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// beyond its value.
     fn plain_constant(self) -> Option<f64>;
 
+    /// **The closed bracket of every value this scalar stands for**, or
+    /// `None` for poison: `(v, v)` at a point, the enclosure's ends at
+    /// `Interval`, the value part's at the wrappers. A structure
+    /// refusal carries it as its margin (C6), so a refinement of the
+    /// inputs that narrows the bracket can lift the refusal.
+    fn structure_bracket(self) -> Option<(f64, f64)> {
+        self.point_value().map(|v| (v, v))
+    }
+
+    /// **The spans of a carrier whose knots are held in the scalar** and
+    /// may be wider than a point (C6): every nonempty span some member's
+    /// parameter can lie in, for some member's knots, hulled as the
+    /// first and the last. Span `i` can hold the parameter when its
+    /// lower knot's bracket starts at or below the parameter's top and
+    /// the parameter's bottom lies below its upper knot's bracket top;
+    /// the first span is closed below and the last above, as
+    /// [`KnotVector::span_at`] clamps. At point knots and a point
+    /// parameter that is the `f64` tie-break, the span starting at a
+    /// knot. `None` for a poison parameter or a poison knot.
+    ///
+    /// The spans it answers are over `structure` alone, so their
+    /// [`Span::knots_f64_interim`] refuses: their positions are `held`.
+    fn locate_held<'a>(
+        self,
+        structure: &'a super::knots::KnotStructure,
+        held: &[Self],
+    ) -> Option<SpanSet<'a>> {
+        let (t_lo, t_hi) = self.structure_bracket()?;
+        let mut brackets = Vec::with_capacity(held.len());
+        for k in held {
+            brackets.push(k.structure_bracket()?);
+        }
+        let (first_span, last_span) = (structure.first_span(), structure.last_span());
+        let possible = (first_span..=last_span).filter(|&i| {
+            structure.span_is_nonempty(i)
+                && (i == first_span || brackets[i].0 <= t_hi)
+                && (i == last_span || t_lo < brackets[i + 1].1)
+        });
+        let (mut first, mut last) = (None, None);
+        for i in possible {
+            first = first.or(Some(i));
+            last = Some(i);
+        }
+        Some(SpanSet {
+            first: structure.span(first?)?,
+            last: structure.span(last?)?,
+        })
+    }
+
     /// [`SpanLocate::point_value`], or NaN where there is none: the
     /// `f64` a structure decision reads, so that a value with no point
     /// (poison, an enclosure wider than a point) takes every
     /// NaN-catching refusal arm.
     fn value_channel(self) -> f64 {
         self.point_value().unwrap_or(f64::NAN)
+    }
+
+    /// Whether every value this scalar stands for is above zero: the
+    /// positivity a structure decision asks of a value (C6), such as a
+    /// chord that is not empty or a parameter step that ascends. At a
+    /// point scalar it is `value_channel() > 0.0`, so poison answers
+    /// `false`. At `Interval` it reads the bracket, as the locator does:
+    /// a wide value answers by its lower end. The wrappers answer by
+    /// their value part.
+    ///
+    /// `false` is "not every value", not "no value": a caller that
+    /// branches on it rather than refusing tells a point or poison
+    /// apart from a wide value first, since a wide value's members may
+    /// take both branches.
+    fn structure_positive(self) -> bool {
+        self.value_channel() > 0.0
+    }
+
+    /// **The homogeneous knot algebra's step**, `x + (y − x)·t`
+    /// ([`CurvePlan::apply_homogeneous`](super::CurvePlan::apply_homogeneous),
+    /// C6 S4): `t` is an insertion's or an elevation's blend coefficient,
+    /// in `[0, 1]`, or a removal's unblend `1/a` or `1/(1 − a)`, above
+    /// `1`. The expression, at every scalar but `Interval`. There, a
+    /// blend's `t` inside `[0, 1]` takes the hull of the step at its
+    /// box's corners, which meets the inputs' widths, so a chain of
+    /// blends does not multiply the widths it inherits (the expression
+    /// does: `x` enters twice); an unblend's `t` takes the expression, as
+    /// the ring applier does.
+    fn homogeneous_step(x: Self, y: Self, t: Self) -> Self {
+        x + (y - x) * t
     }
 
     /// **Which side of the projective partition this scalar is on**,
@@ -293,6 +396,63 @@ mod tests {
         assert!(0.5f64.enclosure_hull(0.6).is_nan());
         assert_eq!(0.5f64.point_value(), Some(0.5));
         assert_eq!(f64::NAN.point_value(), None, "NaN read as a point");
+    }
+
+    /// A structure positivity holds of every value a scalar stands for:
+    /// a point by its value channel, an enclosure only when its whole
+    /// bracket is above zero, and a wrapper by its value part.
+    #[test]
+    fn structure_positive_holds_of_every_value_the_scalar_stands_for() {
+        use crate::{Interval, Sym};
+        let wide = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
+        let cases = [
+            ("a positive point", 0.5f64.structure_positive(), true),
+            ("zero", 0.0f64.structure_positive(), false),
+            ("NaN", f64::NAN.structure_positive(), false),
+            (
+                "a wide positive",
+                wide(0.25, 0.75).structure_positive(),
+                true,
+            ),
+            (
+                "a straddling bracket",
+                wide(-0.25, 0.75).structure_positive(),
+                false,
+            ),
+            (
+                "a bracket touching zero",
+                wide(0.0, 0.75).structure_positive(),
+                false,
+            ),
+            (
+                "NaI",
+                Interval::from_f64(f64::NAN).structure_positive(),
+                false,
+            ),
+            (
+                "a dual over a wide positive",
+                Dual::new(wide(0.25, 0.75), wide(-1.0, 1.0)).structure_positive(),
+                true,
+            ),
+            (
+                "a dual over a straddling bracket",
+                Dual::new(wide(-0.25, 0.75), wide(1.0, 1.0)).structure_positive(),
+                false,
+            ),
+            (
+                "a sym over a wide positive",
+                Sym::<Interval>::from_f64(0.5).structure_positive(),
+                true,
+            ),
+            (
+                "a negative dual point",
+                Dual64::variable(-1.0).structure_positive(),
+                false,
+            ),
+        ];
+        for (what, got, want) in cases {
+            assert_eq!(got, want, "{what}");
+        }
     }
 
     /// The `Probe` half is behind the `probe` feature (the recording

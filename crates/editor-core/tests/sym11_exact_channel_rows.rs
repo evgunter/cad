@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use editor_core::ProfileDoc;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
-use editor_core::{CancelToken, EvalOptions, NodeResult, ProfileLift, evaluate};
+use editor_core::{CancelToken, EvalOptions, NodeResult, evaluate};
 use geom_core::{SymCounts, SymRules, Tol};
 
 use crate::m10_9_pins_interval::measured_studies;
@@ -83,12 +83,24 @@ use crate::m10_9_pins_interval::measured_studies;
 /// The pcurve envelope's orthonormal chart squaring its frame by cross
 /// products (`geom::square_frame`) moves only the frozen counts: bracket
 /// 1975 → 1969, pad 2985 → 2976.
+/// An edge's wedge levered at its faces' extent (`topo::wedge_reach`)
+/// where it was levered at the edge's own chord moves only `frozen`,
+/// and no decision column: each certified edge's lever reads its two
+/// faces' boundary vertices. The plate, the annulus and the link hold;
+/// bracket 1969 → 2044, pad 2976 → 3522, whose fillets' edges bound
+/// more faces than a planar wall's.
+/// The final non-finite check asking boundedness, where it decided
+/// `value · 0` (`expr-non-finite-asks-value-times-zero`), takes its
+/// theorems out of `symbolic` and moves nothing else: plate 1048 → 1003,
+/// annulus 566 → 539, link 356 → 323, bracket 1453 → 1392, pad
+/// 1317 → 1260. A decision left; none moved, so the dispute column's
+/// zero stands on the same decisions.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [1048, 654, 729]),
-    ("r1_annulus", [566, 399, 904]),
-    ("r2_link", [356, 259, 542]),
-    ("r2_filleted_bracket", [1453, 1008, 1969]),
-    ("r2_rounded_pad", [1317, 1159, 2976]),
+    ("two_hole_plate", [1003, 654, 729]),
+    ("r1_annulus", [539, 399, 904]),
+    ("r2_link", [323, 259, 542]),
+    ("r2_filleted_bracket", [1392, 1008, 2044]),
+    ("r2_rounded_pad", [1260, 1159, 3522]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
@@ -113,7 +125,6 @@ fn replay_on_a_thread(
     test_utils::own_thread::caught(move || {
         let opts = EvalOptions {
             param_box: Some(Arc::new(box_)),
-            profile_lift: ProfileLift::Guided,
             ..EvalOptions::default()
         };
         let budget = geom_core::SymBudget {

@@ -28,6 +28,7 @@
 //! master extrude, the pattern, and all five Transform+Union pairs;
 //! the base half of the DAG is reused).
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::{Dimension, DocEdit, Formula, FreeVar, Node, PatternKind, SlotId, VarName};
 
@@ -109,7 +110,7 @@ pub fn document() -> CorpusDoc {
         });
     }
 
-    r.place(acc);
+    r.place_part(acc);
     super::place_instances(&mut r, pattern, FINS);
 
     CorpusDoc {

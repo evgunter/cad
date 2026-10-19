@@ -23,7 +23,10 @@ about `u·r₁²`, and the meeting sits off the smaller carrier by up to
 its whole radius.
 
 - `crates/topo/src/boolean/carrier_cross.rs` `meetings`, the coplanar
-  circle × circle arm: the two crossing candidates.
+  circle × circle arm: retired. `carrier_cross` reads
+  `geom_brep::curve_pair::meet`, whose coplanar circles read their
+  distance as a first harmonic with exact metre extremes (stage (c) of
+  `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227)).
 - `crates/topo/src/boolean/rim_wedge.rs`, the coplanar-circles arm of
   the rim candidates (`x` and `y2 = re² − x²`).
 - `crates/topo/src/boolean/section_cert.rs` `sphere_sphere`: the

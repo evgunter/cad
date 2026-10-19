@@ -250,15 +250,17 @@ impl<T: Decide> Body<T> {
     /// What a child of a split edge describes. The restriction
     /// ([`geom_brep::EdgeCurve::split_specs`]) verbatim, except that a
     /// tangent child stores what the must-carry rule over the CHILD
-    /// demands ([`geom_brep::must_carry_over_edge`]): the rule meters
-    /// the sagitta over the edge's own extent, so a short child can be
-    /// under-determined, or in band, where its parent was
+    /// demands ([`geom_brep::must_carry_over_edge`]): the rule reads
+    /// the child's own stations, levered at its faces' extent
+    /// ([`crate::wedge_reach`]) read from the child's middle, so a child
+    /// can read under-determined, or in band, where its parent read
     /// jet-determinate.
     ///
     /// Under-determined stores the conventional description where the
-    /// child rests ([`crate::rest_locus`]). A pair child is
-    /// asked again too ([`geom_brep::reask_pair`]): its extent is not
-    /// its parent's, and the verdict reads it.
+    /// child rests ([`crate::rest_locus`]). A pair child, and a child
+    /// image that is not a wrap, is asked again too
+    /// ([`geom_brep::reask_pair`], [`geom_brep::reask_chart`]): its
+    /// stations are not its parent's, and the verdict reads them.
     ///
     /// The pair's keys are links of the parent's certified description,
     /// so a key that does not resolve is a torn body, not a refusal.
@@ -266,7 +268,6 @@ impl<T: Decide> Body<T> {
         &self,
         edge: EdgeKey,
         spec: EdgeCurveSpec<T>,
-        [p0, p1]: [Point3<T>; 2],
         band: Band,
     ) -> Result<EdgeCurveSpec<T>, EulerOpError> {
         let surface = |k| {
@@ -278,6 +279,21 @@ impl<T: Decide> Body<T> {
                 )
             })
         };
+        let refused = |refusal| match refusal {
+            geom_brep::PairRefusal::InBand(geom_brep::MustCarryEscalation::FirstOrder(
+                escalation,
+            )) => EulerOpError::SplitSmoothEscalated {
+                edge,
+                diag: escalation.diag(),
+            },
+            geom_brep::PairRefusal::InBand(geom_brep::MustCarryEscalation::SecondOrder(diag)) => {
+                EulerOpError::SplitSmoothBendEscalated { edge, diag }
+            }
+            geom_brep::PairRefusal::Mixed(stations) => EulerOpError::SplitSmoothRefuted {
+                edge,
+                mixed: Some(stations),
+            },
+        };
         let (pair, witness) = match spec.description {
             geom_brep::EdgeDescriptionSpec::TangentIntersection { pair, witness } => {
                 (pair, witness)
@@ -286,32 +302,39 @@ impl<T: Decide> Body<T> {
                 let description = self
                     .reask_on(
                         pair,
+                        crate::edge_faces(self, edge),
                         &spec.carrier,
                         (spec.param_start, spec.param_end),
                         declared,
                         band,
                     )
-                    .map_err(|refusal| match refusal {
-                        geom_brep::PairRefusal::InBand(
-                            geom_brep::MustCarryEscalation::FirstOrder(escalation),
-                        ) => EulerOpError::SplitSmoothEscalated {
-                            edge,
-                            diag: escalation.diag(),
-                        },
-                        geom_brep::PairRefusal::InBand(
-                            geom_brep::MustCarryEscalation::SecondOrder(diag),
-                        ) => EulerOpError::SplitSmoothBendEscalated { edge, diag },
-                        geom_brep::PairRefusal::Mixed(stations) => {
-                            EulerOpError::SplitSmoothRefuted {
-                                edge,
-                                mixed: Some(stations),
-                            }
-                        }
-                    })?;
+                    .map_err(refused)?;
                 return Ok(EdgeCurveSpec {
                     description,
                     ..spec
                 });
+            }
+            // A piece of an image is asked the same over its own span;
+            // it keeps the image where the rule still reads the join
+            // under-determined.
+            geom_brep::EdgeDescriptionSpec::Chart { wrap: false, .. } => {
+                return Ok(
+                    match self
+                        .reask_chart_on(
+                            edge,
+                            &spec.carrier,
+                            (spec.param_start, spec.param_end),
+                            band,
+                        )
+                        .map_err(refused)?
+                    {
+                        Some(description) => EdgeCurveSpec {
+                            description,
+                            ..spec
+                        },
+                        None => spec,
+                    },
+                );
             }
             geom_brep::EdgeDescriptionSpec::Intersection { .. }
             | geom_brep::EdgeDescriptionSpec::Chart { .. }
@@ -343,7 +366,12 @@ impl<T: Decide> Body<T> {
                 surfaces: [(ka, surface(ka)), (kb, surface(kb))],
                 carrier: &spec.carrier,
                 interval: (spec.param_start, spec.param_end),
-                chord: p0.distance(p1),
+                reach: crate::wedge_reach(
+                    self,
+                    crate::edge_faces(self, edge),
+                    &spec.carrier,
+                    (spec.param_start, spec.param_end),
+                ),
                 witness,
             },
             band,
@@ -455,10 +483,11 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): both children must
         // certify against their own endpoints.
         let (spec1, spec2) = curve.split_specs(t);
-        let spec1 = self.tangent_piece(edge, spec1, [p_u, p_new], band)?;
-        let spec2 = self.tangent_piece(edge, spec2, [p_new, p_v], band)?;
-        let cert1 = self.certify_edge_spec(Some(edge), spec1, p_u, p_new, tol)?;
-        let cert2 = self.certify_edge_spec(Some(edge), spec2, p_new, p_v, tol)?;
+        let spec1 = self.tangent_piece(edge, spec1, band)?;
+        let spec2 = self.tangent_piece(edge, spec2, band)?;
+        let faces = crate::edge_faces(self, edge);
+        let cert1 = self.certify_edge_spec(Some(edge), spec1, p_u, p_new, faces, tol)?;
+        let cert2 = self.certify_edge_spec(Some(edge), spec2, p_new, p_v, faces, tol)?;
         // ---- Pcurve gate (still no mutation): each parent half-edge's
         // stored chart row, restricted to the two children's
         // sub-intervals and re-certified. Read-only, so a refusal
