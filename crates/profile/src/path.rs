@@ -1081,8 +1081,10 @@ pub enum PathError<T: Real> {
     /// and the two are deliberately NOT one variant.** They are the two
     /// ways a stored fillet loses its carrier, they are told apart by a
     /// fact the door has in hand (whether the stored segment reads as an
-    /// arc), and their levers run in OPPOSITE directions: a larger
-    /// radius fixes this one and makes that one worse. D4 ¶1's addendum
+    /// arc), and their levers differ: a larger radius fixes this one,
+    /// while that one's lever is the scene's magnitude, which a radius
+    /// raises only once it outgrows the geometry's distance from the
+    /// origin. D4 ¶1's addendum
     /// asks one message and one recourse per user situation, and
     /// `PathErrorKind` is the branchable discriminant a caller gets —
     /// merging them would put the only distinction into prose a caller
@@ -1105,11 +1107,15 @@ pub enum PathError<T: Real> {
     /// classification. A joint's turn is read off headings taken from
     /// DIFFERENCES of coordinates at the scene's own magnitude — a
     /// vertex less its arc's centre, a chord's two ends — and such a
-    /// difference cancels first-order, so the levered turn resolves
-    /// only to about `scale · 2^-52`. Past the radius (or the distance
-    /// from the origin) where that floor is coarser than ε, the joint
-    /// cannot be classified whatever the turn is, and the levers run
-    /// the other way from its sibling's: see
+    /// difference cancels first-order. Each leg's heading is that
+    /// difference over the length it is taken across (an arc's radius
+    /// `ρ`, a line's length), so levered by the joint's arm — the
+    /// shorter leg's, never longer than the fillet's own `min(ρ, chord)`
+    /// — the turn resolves only to about `scale · 2⁻⁵² · arm/ρ`, at most
+    /// about `scale · 2⁻⁵²` (`resolution`). Past the distance from the
+    /// origin where that floor is coarser than ε the joint cannot be
+    /// classified whatever the turn is, and the lever is the magnitude,
+    /// not the turn: see
     /// [`FilletArcFlattenedInStorage`](Self::FilletArcFlattenedInStorage)
     /// for why the two are separate variants.
     FilletCarrierBelowSceneResolution {
@@ -1971,8 +1977,10 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     // coincidence" is advice about a declaration the caller
                     // never wrote, and the levers are the two the stored
                     // form actually has. The read's joint turn is
-                    // `path_junction_turn`, the junction's own question,
-                    // and renders as the junction check's does. The
+                    // `path_fillet_joint_turn`: validation's turn
+                    // (`seg::joint_tangency`) under the stored form's own
+                    // name, so its in-band refusal names these levers
+                    // rather than the junction's `.tangent()`. The
                     // `carrier_line_circle` and `carrier_circles_*` names
                     // but the identity are the pair pass's, which the
                     // read does not run; they are listed so that the
@@ -2001,6 +2009,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                         | "segment_straightness"
                         | "arc_diameter_clearance"
                         | "chord_side"
+                        | "path_fillet_joint_turn"
                         | "carrier_line_circle"
                         | "carrier_circles_identity"
                         | "carrier_circles_external"
@@ -3542,7 +3551,7 @@ impl<T: Decide> Core<T> {
                 } else {
                     (&arc, &other)
                 };
-                let reading = seg::joint_tangency(prev, next, band)
+                let reading = seg::joint_tangency(prev, next, "path_fillet_joint_turn", band)
                     .map_err(|source| PathError::Escalated { source })?;
                 match reading.class {
                     // A constructed joint whose carriers are tangent is
@@ -3560,7 +3569,7 @@ impl<T: Decide> Core<T> {
                             // interval's midpoint), so this is the resolution floor at any
                             // `T`; an interval's own enclosure width is `margin`, printed
                             // beside it, not folded into this number.
-                            resolution: reading.scale * T::from_f64(f64::EPSILON),
+                            resolution: reading.resolution,
                             predicate: reading.predicate,
                             margin: reading.margin,
                         });
@@ -6207,7 +6216,7 @@ mod fillet_stored_form {
     /// the funnel stopped at and the margin it classified — all three
     /// from [`seg::joint_tangency`], none of them re-derived here.
     fn reading(prev: &Seg<f64>, next: &Seg<f64>, band: Band) -> (String, f64) {
-        match seg::joint_tangency(prev, next, band) {
+        match seg::joint_tangency(prev, next, "path_fillet_joint_turn", band) {
             Ok(j) => (
                 format!(
                     "{} ({} {:e})",

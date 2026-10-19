@@ -616,18 +616,20 @@ pub const FILLET_FLATTENED_RECOURSE: &str = "turn the corner further, or use a L
 
 /// **The recourse for a fillet whose carrier the scene cannot resolve.**
 ///
-/// The stored form here IS an arc — the sagitta is metres — but the
-/// clearance a carrier predicate classifies is a DIFFERENCE of lengths
-/// at the scene's own magnitude (`r − |h|`, `d − |r₁ − r₂|`), and such a
-/// difference cancels first-order: at magnitude `M` it resolves only to
-/// about `M·2^-52`. When that floor is coarser than ε the joint cannot
-/// be classified at all, whatever the turn is.
+/// The stored form here IS an arc — the sagitta is metres — but a
+/// joint's turn is read off its legs' headings, each a DIFFERENCE of
+/// coordinates at the scene's own magnitude `M` (the larger of the
+/// coordinates and the radii) over the length it is taken across (an
+/// arc's radius `ρ`, a line's length), and such a difference cancels
+/// first-order: levered by the joint's arm, the turn resolves only to
+/// about `M·2⁻⁵²·arm/ρ`. The arm is the shorter leg's, never longer
+/// than the fillet's own `min(ρ, chord)`, so the floor is at most about
+/// `M·2⁻⁵²`, and when it is coarser than ε the joint cannot be
+/// classified at all, whatever the turn is.
 ///
-/// So this situation's levers run the OTHER way from
-/// [`FILLET_FLATTENED_RECOURSE`]'s: a larger radius makes it worse. What
-/// helps is shrinking the magnitude the difference is taken at — a
-/// smaller radius, or the geometry nearer the origin — or dropping the
-/// fillet.
+/// So the lever is the magnitude: the geometry nearer the origin, or a
+/// radius no larger than the scene's own distance from it (a radius
+/// below that changes nothing). Or drop the fillet.
 ///
 /// Followed at its own door by the row named
 /// `the_scene_resolution_recourse_is_followed_by_a_smaller_radius_and_a_nearer_scene`.
@@ -639,8 +641,8 @@ pub const FILLET_FLATTENED_RECOURSE: &str = "turn the corner further, or use a L
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "use a smaller radius (a LARGER one makes this worse), place the geometry nearer \
-     the origin, or drop the fillet and leave the corner sharp";
+pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "place the geometry nearer the origin, or keep the radius no larger than the \
+     geometry's distance from it; or drop the fillet and leave the corner sharp";
 
 /// **The recourse when the stored form's own classification is in
 /// band** — the undecided twin of the two above.
@@ -663,8 +665,8 @@ pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "use a smaller radius (a LARG
     )
 )]
 pub const FILLET_STORED_FORM_INBAND_RECOURSE: &str = "the arc may be too shallow to store (turn the corner further, or use a larger \
-     radius) or too fine for the scene (use a smaller radius, or move nearer the \
-     origin); dropping the fillet, or lowering the tolerance, settles either";
+     radius) or too fine for the scene (move nearer the origin); dropping the fillet, \
+     or lowering the tolerance, settles either";
 
 /// The recourse for a fillet leg with no extent to round against.
 ///
@@ -989,6 +991,12 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "path_junction_turn",
         kind: EndingKind::Lever(JUNCTION_TANGENT_LEVER),
     },
+    // the same turn read off a fillet's STORED joints by the door's stored-form re-read
+    // (`seg::joint_tangency` under this name): its levers are the stored form's, not `.tangent()`
+    DecisionEnding {
+        name: "path_fillet_joint_turn",
+        kind: EndingKind::Lever(FILLET_STORED_FORM_INBAND_RECOURSE),
+    },
     // an authored leg's extent metered against zero
     DecisionEnding {
         name: "path_leg_length",
@@ -1151,6 +1159,7 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
             "whether the path carries straight on at this junction or doubles back into a cusp"
         }
         "path_junction_turn" => "whether the path turns at this junction",
+        "path_fillet_joint_turn" => "whether a fillet's stored joint turns",
         "path_leg_length" => "whether an authored leg has any length",
         "path_run_out_carrier" => "whether an emitted segment lands on a fillet's arrival carrier",
         "path_seam_arrival_lever" => "whether the seam arrival has a leg long enough to measure",
@@ -2801,7 +2810,8 @@ fn judge_joints<T: Decide>(
             site: EscalationSite::SegmentPair(first, second),
             source,
         };
-        let reading = seg::joint_tangency(&segs[prev], &segs[joint], band).map_err(escalated)?;
+        let reading = seg::joint_tangency(&segs[prev], &segs[joint], "path_junction_turn", band)
+            .map_err(escalated)?;
         let carriers = match reading.class {
             seg::JointClass::Transversal if constructed.contains(&joint) => {
                 return Err(ProfileError::TangencyContradicted {

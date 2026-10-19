@@ -317,18 +317,24 @@ STORES, and a loop stores an arc as its chord and a carrier. Two things
 can happen to that claim between the door's arithmetic and the stored
 form, and both are refused at the door rather than left for validation:
 
-- **The arc flattens.** A fillet whose sagitta `r(1 − cos(θ/2))` sits at
-  or below ε is read back as a straight segment, so the carrier is not
-  there (`PathError::FilletArcFlattenedInStorage`; the levers are a
+- **The arc flattens.** A fillet whose sagitta `r(1 − cos(θ/2))` sits
+  at or below ε is read back as a straight segment, its chord. The
+  chord turns from each leg by half the fillet's turn over its own
+  length, so at the shorter arm its joints turn by about four times
+  the sagitta: within ε the declared tangency holds on the chord and
+  the loop validates; in band the door escalates; past the band it
+  refuses (`PathError::FilletArcFlattenedInStorage`; the levers are a
   larger turn or a larger radius).
 - **The joint falls below scene resolution.** A joint's turn is read
-  off headings taken from coordinates at the scene's own magnitude, so
-  levered by the joint's arm it resolves only to about that magnitude
-  times 2⁻⁵². Past the radius, or the distance from the origin, where
-  that floor is coarser than ε, the joint cannot be classified, nor the
-  stored carrier read against its own vertex
-  (`PathError::FilletCarrierBelowSceneResolution`; the levers run the
-  other way — a smaller radius, or the geometry nearer the origin).
+  off its legs' headings, each a difference of coordinates at the
+  scene's own magnitude over the length it is taken across, so levered
+  by the joint's arm it resolves only to about that magnitude times
+  2⁻⁵² times `arm/ρ`, at most about the magnitude times 2⁻⁵². Past the
+  distance from the origin where that floor is coarser than ε, the
+  joint cannot be classified, nor the stored carrier read against its
+  own vertex (`PathError::FilletCarrierBelowSceneResolution`; the lever
+  is the magnitude — the geometry nearer the origin, a radius no larger
+  than its distance from it — not the turn).
 
 Both read back through `seg::build_seg` and `seg::joint_tangency`, the
 verify layer's own classifications, so the door's answer is the verify

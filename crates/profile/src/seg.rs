@@ -791,6 +791,11 @@ pub(crate) struct JointReading<T: Real> {
     /// geometry, and a refusal built on this reading says so with this
     /// number.
     pub scale: T,
+    /// About the finest the margin could have been read: `scale·2⁻⁵²`
+    /// for an identity reading; for a turn, each leg's heading rounded
+    /// at that magnitude over the length it is taken across (a line's
+    /// length, an arc's radius), levered by the joint's arm.
+    pub resolution: T,
 }
 
 /// **`path_junction_side`** — whether a junction whose departure is
@@ -857,6 +862,16 @@ impl<T: Real> Seg<T> {
                 ArcSpan::Chord { .. } => arc_lever(g.arc.radius, self.len),
                 ArcSpan::FullTurn => g.arc.radius,
             },
+        }
+    }
+
+    /// The length a heading of this segment is taken across: a line's
+    /// length (its unit is its chord over it), an arc's radius (its
+    /// tangent is its radius vector over it).
+    pub(crate) fn heading_basis(&self) -> T {
+        match &self.kind {
+            SegKind::Line => self.len,
+            SegKind::Arc(g) => g.arc.radius,
         }
     }
 
@@ -944,9 +959,11 @@ fn heading_scale<T: Real>(s: &Seg<T>) -> T {
 pub(crate) fn joint_tangency<T: Decide>(
     prev: &Seg<T>,
     next: &Seg<T>,
+    turn_name: &'static str,
     band: Band,
 ) -> Result<JointReading<T>, Indeterminate> {
     let scale = heading_scale(prev).max(heading_scale(next));
+    let ulp = scale * T::from_f64(f64::EPSILON);
     match (&prev.kind, &next.kind) {
         (SegKind::Line, SegKind::Line) => {
             let (side, margin) = chord_side_reported(prev, next.b, band)?;
@@ -957,6 +974,7 @@ pub(crate) fn joint_tangency<T: Decide>(
                     margin,
                     diag: side.margin,
                     scale,
+                    resolution: ulp,
                 });
             }
         }
@@ -970,16 +988,18 @@ pub(crate) fn joint_tangency<T: Decide>(
                     margin: identity,
                     diag: same.margin,
                     scale,
+                    resolution: ulp,
                 });
             }
         }
         (SegKind::Line, SegKind::Arc(_)) | (SegKind::Arc(_), SegKind::Line) => {}
     }
+    let arm = prev.arm().min(next.arm());
     let (turn, margin) = junction_turn(
-        "path_junction_turn",
+        turn_name,
         prev.heading_at(prev.b),
         next.heading_at(next.a),
-        prev.arm().min(next.arm()),
+        arm,
         TurnSense::Unsigned,
         band,
     )?;
@@ -988,10 +1008,11 @@ pub(crate) fn joint_tangency<T: Decide>(
             Sign::Zero => JointClass::Tangent,
             Sign::Positive | Sign::Negative => JointClass::Transversal,
         },
-        predicate: "path_junction_turn",
+        predicate: turn_name,
         margin,
         diag: turn.margin,
         scale,
+        resolution: ulp * arm * (T::one() / prev.heading_basis() + T::one() / next.heading_basis()),
     })
 }
 
