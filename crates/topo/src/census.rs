@@ -15045,9 +15045,11 @@ mod two_carrier_records {
                         ValidationError::StaleContactDeclaration {
                             declaration: StaleDeclaration::Patch { face_a, face_b },
                         } if is(*face_a, *face_b) => out.push("stale".to_owned()),
-                        ValidationError::ContactContradicted { declaration, margin, .. }
-                            if is(declaration.a, declaration.b) =>
-                        {
+                        ValidationError::ContactContradicted {
+                            declaration,
+                            margin,
+                            ..
+                        } if is(declaration.a, declaration.b) => {
                             out.push(format!("contradicted({:?})", margin.predicate));
                         }
                         ValidationError::CensusEscalated { cause } => {
@@ -15064,7 +15066,13 @@ mod two_carrier_records {
                 }
             }
 
-            fn run(tag: &str, outline: &[(f64, f64)], wx: (f64, f64), sense: bool, expect: &str) -> String {
+            fn run(
+                tag: &str,
+                outline: &[(f64, f64)],
+                wx: (f64, f64),
+                sense: bool,
+                expect: &str,
+            ) -> String {
                 let r = match std::panic::catch_unwind(|| {
                     let mut r = rig(outline, wx, (-0.5, 0.5));
                     r.body.get_face_mut(r.wall).unwrap().sense = sense;
@@ -15076,7 +15084,11 @@ mod two_carrier_records {
                 let b = Band::linear(Tol::witness()).unwrap();
                 let mut row = String::new();
                 for swap in [false, true] {
-                    let (x, y) = if swap { (r.top, r.wall) } else { (r.wall, r.top) };
+                    let (x, y) = if swap {
+                        (r.top, r.wall)
+                    } else {
+                        (r.wall, r.top)
+                    };
                     let errors = census_and_certify(
                         &r.body,
                         &one(&r.body, Cell::Face(x), Cell::Face(y)),
@@ -15086,8 +15098,10 @@ mod two_carrier_records {
                     );
                     let c = class(&errors, r.wall, r.top);
                     let ok = c.starts_with(expect);
-                    row += &format!("{tag} swap {swap}: {c} (expect {expect}){}\n",
-                        if ok { "" } else { "  <-- DISAGREE" });
+                    row += &format!(
+                        "{tag} swap {swap}: {c} (expect {expect}){}\n",
+                        if ok { "" } else { "  <-- DISAGREE" }
+                    );
                 }
                 eprint!("{row}");
                 row
@@ -15112,8 +15126,20 @@ mod two_carrier_records {
                     (1e-2, "contradicted", "confirmed"),
                 ] {
                     let o = [(0.0, -1.0), (4.0, -1.0), (4.0, d), (0.0, d)];
-                    rows.push(run(&format!("p1 d {d:e} wrong"), &o, (0.5, 3.5), false, expect_wrong));
-                    rows.push(run(&format!("p1 d {d:e} right"), &o, (0.5, 3.5), true, expect_right));
+                    rows.push(run(
+                        &format!("p1 d {d:e} wrong"),
+                        &o,
+                        (0.5, 3.5),
+                        false,
+                        expect_wrong,
+                    ));
+                    rows.push(run(
+                        &format!("p1 d {d:e} right"),
+                        &o,
+                        (0.5, 3.5),
+                        true,
+                        expect_right,
+                    ));
                 }
                 assert!(!rows.iter().any(|r| r.contains("DISAGREE")), "{rows:#?}");
             }
@@ -15131,7 +15157,13 @@ mod two_carrier_records {
                     (0.5 * z, "stale"),
                     (10.0 * e, "stale"),
                 ] {
-                    rows.push(run(&format!("p2 s {s:e} wrong"), &PLAIN, (4.0 + s, 5.0), false, expect_wrong));
+                    rows.push(run(
+                        &format!("p2 s {s:e} wrong"),
+                        &PLAIN,
+                        (4.0 + s, 5.0),
+                        false,
+                        expect_wrong,
+                    ));
                 }
                 assert!(!rows.iter().any(|r| r.contains("DISAGREE")), "{rows:#?}");
             }
@@ -15147,12 +15179,24 @@ mod two_carrier_records {
                     (10.0 * e, "contradicted"),
                     (1e-3, "contradicted"),
                 ] {
-                    rows.push(run(&format!("p3 w {w:e} wrong"), &tab(1.1, 1.1 + w), (-1.0, 5.0), false, expect_wrong));
+                    rows.push(run(
+                        &format!("p3 w {w:e} wrong"),
+                        &tab(1.1, 1.1 + w),
+                        (-1.0, 5.0),
+                        false,
+                        expect_wrong,
+                    ));
                 }
                 // vertex graze with the sides wrong
                 rows.push(run(
                     "p3 graze wrong",
-                    &[(0.0, -1.0), (4.0, -1.0), (4.0, -0.5), (2.0, 0.0), (0.0, -0.5)],
+                    &[
+                        (0.0, -1.0),
+                        (4.0, -1.0),
+                        (4.0, -0.5),
+                        (2.0, 0.0),
+                        (0.0, -0.5),
+                    ],
                     (-1.0, 5.0),
                     false,
                     "stale",
@@ -15170,11 +15214,22 @@ mod two_carrier_records {
                 let b = Band::linear(tol).unwrap();
                 let mut rows = Vec::new();
                 for (tag, outline, sense, expect) in [
-                    ("bore through", PLAIN.to_vec(), false, "contradicted(Some(\"contact_tangent_overlap\"))"),
+                    (
+                        "bore through",
+                        PLAIN.to_vec(),
+                        false,
+                        "contradicted(Some(\"contact_tangent_overlap\"))",
+                    ),
                     ("peg through", PLAIN.to_vec(), true, "contradicted"),
-                    ("bore off", vec![(0.0, -1.0), (4.0, -1.0), (4.0, -0.5), (0.0, -0.5)], false, "stale"),
+                    (
+                        "bore off",
+                        vec![(0.0, -1.0), (4.0, -1.0), (4.0, -0.5), (0.0, -0.5)],
+                        false,
+                        "stale",
+                    ),
                 ] {
-                    let mut body = crate::test_support_fixtures::prism::<f64>(&outline, 1.0, tol).body;
+                    let mut body =
+                        crate::test_support_fixtures::prism::<f64>(&outline, 1.0, tol).body;
                     let top = body
                         .faces()
                         .find(|(_, f)| match body.get_surface(f.surface) {
@@ -15195,10 +15250,19 @@ mod two_carrier_records {
                     body.get_face_mut(wall).unwrap().sense = sense;
                     for swap in [false, true] {
                         let (x, y) = if swap { (top, wall) } else { (wall, top) };
-                        let errors = census_and_certify(&body, &one(&body, Cell::Face(x), Cell::Face(y)), b, tol, None);
+                        let errors = census_and_certify(
+                            &body,
+                            &one(&body, Cell::Face(x), Cell::Face(y)),
+                            b,
+                            tol,
+                            None,
+                        );
                         let c = class(&errors, wall, top);
                         let ok = c.starts_with(expect);
-                        let row = format!("p4 {tag} swap {swap}: {c} (expect {expect}){}", if ok { "" } else { "  <-- DISAGREE" });
+                        let row = format!(
+                            "p4 {tag} swap {swap}: {c} (expect {expect}){}",
+                            if ok { "" } else { "  <-- DISAGREE" }
+                        );
                         eprintln!("{row}");
                         rows.push(row);
                     }
