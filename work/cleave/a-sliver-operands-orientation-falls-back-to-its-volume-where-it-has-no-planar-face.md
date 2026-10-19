@@ -38,3 +38,16 @@ operand=false`, census clean), and 9 of those results refuse
 `Containment` when this operand probe reads them (`review-sliver-probe` feature,
 `flush/thinness-by-pairs-review` @ a79ba445). Whether those 9 are
 finding 1 is not established here: measure first.
+
+## Measured (FLUSH `flush/shell-role-reader`, 2026-10-14)
+
+The operand gate `gate_sliver_orientation` is retired on that branch:
+check 7 reads every solid's orientation at rest with the reader of a
+shell's role, so no inside-out sliver finishes at rest, and a dual's
+operand gate reads the same check 7. Finding 2 (the silent skip) goes
+with the gate. Finding 1 (no planar face, no aimed ray) is now the
+reader's own limit, narrowed: the reader aims at cylinders, cones, tori
+and closed spheres too, and what is left (trimmed spheres, untrimmable
+cones, splines) is on FLUSH's slate as
+`the-side-at-infinity-reader-offers-no-aim-on-a-trimmed-sphere-or-a-spline`.
+This row closes with that PR; CLEAVE closes it.

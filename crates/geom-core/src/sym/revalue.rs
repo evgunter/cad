@@ -49,6 +49,11 @@ pub struct Decision {
     /// ([`crate::MarginDiag::proven`]): `false` for a sign read off the
     /// value channel, or no sign at all.
     pub proven: bool,
+    /// The family the decision was taken under
+    /// ([`crate::k_stats::in_family`]), if any: an instrument's internal
+    /// decision, which a reader of this record may align apart from the
+    /// document's own (`topo`'s side reader is the one family today).
+    pub family: Option<&'static str>,
 }
 
 thread_local! {
@@ -84,6 +89,7 @@ pub(super) fn note<T: Real>(node: SymId, value: T) -> Option<usize> {
                 value: format!("{value:?}").parse::<f64>().ok(),
                 sign: None,
                 proven: false,
+                family: crate::k_stats::current_family(),
             });
             v.len() - 1
         })

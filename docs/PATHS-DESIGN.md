@@ -1074,8 +1074,10 @@ and the angle slot bound.
    TANGENT direction refuses — ONE refusal, one recourse, for any
    sub-ε_input margin (D4's two-tolerance principle): "this
    junction is tangent at any precision you could care about — if
-   intended as tangency onto a new carrier, use `.tangent()`, which
-   makes it exact by construction; if intended as a straight
+   intended as tangency onto a new carrier, use `.tangent()`
+   (`.tangent().tangent_arc_to(p)` for an arc; the tangent-arc or
+   seam-fillet close at the seam), which makes it exact by
+   construction; if intended as a straight
    continuation of the same line, spell it `line(len)` off the
    directed point — no junction exists there; otherwise move the
    geometry (or lower the tolerance)". The margin rides the payload

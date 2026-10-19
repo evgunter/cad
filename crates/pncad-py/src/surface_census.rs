@@ -388,8 +388,20 @@ fn verb_spelling(verb: Verb) -> Spelling {
     use Spelling::Bound;
     match verb {
         Verb::At => Bound(&["Open.at", "PathOpen.at", "PathAngle.at"]),
-        Verb::Angle => Bound(&["Open.angle", "PathOpen.angle", "PathPoint.angle"]),
-        Verb::Toward => Bound(&["Open.toward", "PathOpen.toward", "PathPoint.toward"]),
+        Verb::Angle => Bound(&[
+            "Open.angle",
+            "PathOpen.angle",
+            "PathPoint.angle",
+            "PathArcOnto.angle",
+            "PathArcOntoStart.angle",
+        ]),
+        Verb::Toward => Bound(&[
+            "Open.toward",
+            "PathOpen.toward",
+            "PathPoint.toward",
+            "PathArcOnto.toward",
+            "PathArcOntoStart.toward",
+        ]),
         Verb::Tangent => Bound(&["PathDirectedPoint.tangent"]),
         Verb::Cusp => Bound(&["PathDirectedPoint.cusp"]),
         Verb::Turn => Bound(&["PathDirectedPoint.turn"]),
@@ -415,6 +427,7 @@ fn verb_spelling(verb: Verb) -> Spelling {
             "PathDirected.arc_to",
         ]),
         Verb::TangentArcTo => Bound(&["PathDirected.tangent_arc_to"]),
+        Verb::ArcOnto => Bound(&["PathPoint.arc_onto", "PathDirectedPoint.arc_onto"]),
         Verb::Fillet => Bound(&["PathDirected.fillet", "PathDirectedPoint.fillet"]),
         Verb::FilletArc => Bound(&["PathDirected.fillet_arc", "PathDirectedPoint.fillet_arc"]),
         Verb::ArcFillet => Bound(&[
@@ -511,6 +524,8 @@ fn state_step_spelling(state: TipState) -> Spelling {
         TipState::RadiusArrivalDir => Bound(&["PathRadiusArrivalDir.step"]),
         TipState::ViaArrival => Bound(&["PathViaArrival.step"]),
         TipState::ViaArrivalStart => Bound(&["PathViaArrivalStart.step"]),
+        TipState::ArcOnto => Bound(&["PathArcOnto.step"]),
+        TipState::ArcOntoStart => Bound(&["PathArcOntoStart.step"]),
         TipState::Closed => Bound(&["ClosedLoop.step"]),
     }
 }

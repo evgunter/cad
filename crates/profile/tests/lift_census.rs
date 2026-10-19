@@ -148,7 +148,7 @@ fn corpus() -> Vec<(&'static str, ProfileLoop<f64>, Class)> {
         ),
         ("circle_split_3", thirds(), Class::Bits),
         ("half_disc", half_disc(), Class::Value),
-        ("bracket", bracket(), Class::Value),
+        ("bracket", bracket(), Class::Bits),
         ("rounded_rect", rounded_rect(4.0, 3.0, 0.5), Class::Value),
         ("unequal_split", unequal_split(), Class::Value),
         ("collinear_run", collinear_run(), Class::Bits),
@@ -184,8 +184,8 @@ fn the_census() {
 
     // The tally of record. A vocabulary change that moves a loop
     // between buckets must move these numbers deliberately.
-    assert_eq!(tally[Class::Bits as usize], 6, "bit-identical lifts");
-    assert_eq!(tally[Class::Value as usize], 7, "value-equal lifts");
+    assert_eq!(tally[Class::Bits as usize], 7, "bit-identical lifts");
+    assert_eq!(tally[Class::Value as usize], 6, "value-equal lifts");
     assert_eq!(tally[Class::Refused as usize], 0, "structural walls");
     assert_eq!(tally[Class::Wall as usize], 0, "geometric walls");
     assert_eq!(tally[Class::Mismatch as usize], 0, "mismatches");
@@ -197,21 +197,19 @@ fn the_census() {
 #[test]
 fn the_fidelity_report_is_honest() {
     // A declared junction is spelled `.tangent()`, and the arc that
-    // follows re-derives its bulge — so the bracket's fillet arc is
-    // value-equal, never bit-identical, and the tool says exactly that.
+    // follows re-derives its bulge from the ray the incoming chord hands
+    // on. The bracket's chord into its fillet runs along −x, a ray its
+    // components spell exactly, so the re-derived arc lands on the
+    // stored bits — and the tool reports bit-identity because it
+    // measured it.
     match lift_checked(&bracket(), Tol::witness()) {
         LiftOutcome::Lifted {
             fidelity,
             worst_ulps,
-            worst_abs,
             ..
         } => {
-            assert_eq!(fidelity, Fidelity::ValueEqual);
-            assert!(worst_ulps > 0, "value-equal means some bit moved");
-            assert!(
-                worst_abs < 1e-12,
-                "and only in the last bits: {worst_abs:e}"
-            );
+            assert_eq!(fidelity, Fidelity::BitIdentical);
+            assert_eq!(worst_ulps, 0, "bit-identical means no bit moved");
         }
         other => panic!("bracket should lift: {}", describe(&other)),
     }
@@ -222,9 +220,8 @@ fn the_fidelity_report_is_honest() {
     // bucketing was holding it, and there the RELATIVE criterion is
     // inoperative on this row (4.39e18 ulp, a straddle of zero), so only
     // the 1e-12 absolute floor applied: 300x the residue actually
-    // measured. Its residue is the same class as the bracket's — four
-    // fillet arcs re-deriving their bulge — so it gets the same kind of
-    // ceiling, sized to what it does.
+    // measured. Its residue is four fillet arcs re-deriving their bulge,
+    // so it gets a ceiling sized to what it does.
     match lift_checked(&rounded_rect(4.0, 3.0, 0.5), Tol::witness()) {
         LiftOutcome::Lifted {
             fidelity,
