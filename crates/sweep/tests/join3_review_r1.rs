@@ -207,7 +207,7 @@ fn j3r1_mixed_pockets() {
             ("flushbot", 0.0, 0.5),
             ("flushboth", 0.0, 1.0),
         ] {
-            let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+            let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
             let Some(t) = tool(plane, &ch, h) else {
                 println!("POSE c{case} {zname} SKIP profile {ch:?}");
                 continue;
@@ -235,7 +235,14 @@ fn j3r1_tilted_through() {
         let h = 4.0;
         let place = Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.5), axis, alpha)
             * Affine3::translation(Vec3::new(0.0, 0.0, -1.5));
-        let Some(t) = tool(SketchPlane::new(place), &ch, h) else {
+        let Some(t) = tool(
+            SketchPlane::from_frame(geom_core::test_support::rigid(
+                &place,
+                geom_core::Tol::witness(),
+            )),
+            &ch,
+            h,
+        ) else {
             println!("POSE t{case} SKIP profile {ch:?}");
             continue;
         };
@@ -273,7 +280,7 @@ fn j3r1_d_family() {
             ("flushbot", 0.0, 0.5),
             ("flushboth", 0.0, 1.0),
         ] {
-            let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+            let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
             let Some(t) = tool(plane, &ch, h) else {
                 println!("POSE d{flat} {zname} SKIP profile");
                 continue;
@@ -292,7 +299,14 @@ fn j3r1_d_family() {
                 Vec3::new(0.6, 0.8, 0.0),
                 alpha,
             ) * Affine3::translation(Vec3::new(0.0, 0.0, -1.5));
-            let Some(t) = tool(SketchPlane::new(place), &ch, 4.0) else {
+            let Some(t) = tool(
+                SketchPlane::from_frame(geom_core::test_support::rigid(
+                    &place,
+                    geom_core::Tol::witness(),
+                )),
+                &ch,
+                4.0,
+            ) else {
                 println!("POSE d{flat} tilt{alpha} SKIP profile");
                 continue;
             };

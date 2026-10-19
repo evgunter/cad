@@ -16,7 +16,7 @@ fn tol() -> Tol {
 }
 
 fn zprism(pts: &[(f64, f64, f64)], z: (f64, f64)) -> topo::Body<f64> {
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z.0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z.0));
     let lp = bulge_loop(
         pts.iter()
             .map(|&(x, y, b)| (Point2::new(x, y), b))

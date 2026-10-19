@@ -16,7 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Curve3;
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{brick, finished};
 use sweep::{ExtrudeSide, Extrusion, extrude};
@@ -36,7 +36,7 @@ fn d_prism() -> AtRestBody<f64> {
         (Point2::new(0.0, -1.0), 1.0),
         (Point2::new(0.0, 1.0), 0.0),
     ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.0));
     let profile = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
     let built = extrude(
         &profile,

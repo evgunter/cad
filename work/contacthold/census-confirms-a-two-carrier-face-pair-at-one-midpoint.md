@@ -2,9 +2,12 @@
 id: census-confirms-a-two-carrier-face-pair-at-one-midpoint
 kind: issue
 title: The census confirms a two-carrier face–face record by placing the tangent line's overlap midpoint in both faces, one point: a trim the line enters only elsewhere reads stale
-status: open
+status: closed
+branch: contacthold/one-tangent-interiors-reading
+pr: 5006
 opened: 2026-10-12
 priority: P2
+closed: 2026-10-19
 ---
 
 

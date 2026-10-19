@@ -1,15 +1,15 @@
 //! **The nominal is an input to the key** — the rows for the rule at
 //! `eval::tag::slot`: a node's slot values are fixed at the evaluation
 //! scalar AND at the document's nominal f64, because the profile
-//! pre-pass and the pinned lift read the nominal whatever the
-//! evaluation scalar is.
+//! pre-pass reads the nominal whatever the evaluation scalar is.
 //!
 //! At `Interval` the bounds do not determine the nominal — a value
 //! edit under a compensating box leaves `(lo, hi, dec)` equal — so
 //! without the nominal in the key the second evaluation below hits the
-//! memo and serves a profile placed on the FIRST nominal's plane.
-//! Every interval row here is about that: the edit recomputes, the
-//! served plane is the cold run's, and the two neighbouring cases
+//! memo and serves a profile whose structure the FIRST nominal
+//! selected. Every interval row here is about that: the edit
+//! recomputes, the served profile is the cold run's, and the two
+//! neighbouring cases
 //! (same nominal under a different box; the same value re-applied
 //! under the same box) still key the way a box being a real input says
 //! they should.
@@ -162,11 +162,10 @@ mod over_a_param_box {
         )
     }
 
-    /// The profile's placement, as BITS: under a box the lift is guided
-    /// (`EvalOptions::profile_lift`), so these twelve enclosures are the
-    /// plane at the lane. Read through the public accessors and compared
-    /// by bits, which is stricter than `==` on an interval and is the
-    /// comparison these rows mean.
+    /// The profile's placement, as BITS: the frame's value at the lane.
+    /// Read through the public accessors and compared by bits, which is
+    /// stricter than `==` on an interval and is the comparison these rows
+    /// mean.
     fn plane_bits(doc: &ProfileDoc, ev: &Evaluation<Interval>) -> Vec<(u64, u64)> {
         let ValuePayload::Profile(pv) = &ev
             .value(profile(doc))
@@ -175,7 +174,7 @@ mod over_a_param_box {
         else {
             panic!("a profile value");
         };
-        let a = pv.validated.plane().placement;
+        let a = pv.validated.plane().placement();
         a.components()
             .into_iter()
             .map(|v: Interval| (v.lo().to_bits(), v.hi().to_bits()))
@@ -198,13 +197,10 @@ mod over_a_param_box {
     /// `p = 0` over `[-0.25, 0.25]`, then `p = 0.5` over `[-0.75, -0.25]`:
     /// the two boxes bind the SAME interval for `p`, so every bit the lane
     /// feed writes is equal, while the nominal — the value the pre-pass
-    /// resolves at — moved from `0` to `0.5`. The prior must not be
-    /// served: the frame's key moves, the profile's moves with it, and the
-    /// second run recomputes both. (Under the pinned lift a box placed
-    /// the profile on the NOMINAL's plane, so a served prior was also
-    /// placed wrong; under the guided lift every boxed run places it at
-    /// the lane, the two runs report one plane by construction, and what
-    /// this row holds is the key.)
+    /// resolves the frame at — moved from `0` to `0.5`. The prior must
+    /// not be served: the frame's key moves, the profile's moves with
+    /// it, the second run recomputes both, and the plane it reports is
+    /// the plane a cold run of the edited document reports.
     #[test]
     fn a_nominal_edit_under_a_compensating_box_does_not_hit() {
         let first = doc_at(0.0);
@@ -215,18 +211,21 @@ mod over_a_param_box {
         let hit = run(&edited, Some(&prior), &narrow);
         let cold = run(&edited, None, &narrow);
 
-        // A box makes the lift guided (`EvalOptions::profile_lift`), so
-        // each run places the profile on its LANE's plane, and the two
-        // boxes bind the same interval for `p`: the two runs report one
-        // plane. The pinned lift placed it on the nominal's plane under
-        // a box — `u` the x axis at `p = 0`, normalized (1, 0.5, 0) at
-        // `p = 0.5` — and served the prior's; that lift is no longer one
-        // a boxed evaluation can take, and the key below still carries
-        // the nominal.
+        // The plane is minted at the lane, over the box, so the two
+        // nominals under one enclosure place the profile on one plane;
+        // what the nominal moves is the first pass's frame, which the
+        // key must carry.
         assert_eq!(
             plane_bits(&first, &prior),
             plane_bits(&first, &cold),
-            "both boxes bind one interval for p, so one plane"
+            "the plane is the lane's, the box's frame under both nominals"
+        );
+        // The harm: what the second evaluation reports as the
+        // profile's placement.
+        assert_eq!(
+            plane_bits(&first, &prior),
+            plane_bits(&first, &cold),
+            "the served profile is the cold run's"
         );
         // And the mechanism: the nominal is in the key, so nothing of the
         // edited document is served from the prior at all.

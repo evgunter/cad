@@ -12,8 +12,10 @@
 )]
 
 use geom::Surface;
+use geom_core::Point2;
+use geom_core::Point3;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
+use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use sweep::test_support::stacked_at;
 use topo::{Body, FaceKey};
@@ -123,9 +125,9 @@ fn probe_loft_wall_digits_and_sampled_soundness() {
     };
     let sections = vec![square(), square(), square()];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.5, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.5, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
     ];
     let body = sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")

@@ -1,10 +1,11 @@
 //! A Split whose plane passes through a pinch: one half holds the
 //! operand corner as several vertices, each `OnToolVertex { of }` +
 //! `Fragment(Keeps)` over the corner's own edges it is an end of a
-//! piece of in that half, an edge lying in the tool plane included
-//! (NAMES N2, *Vertices*). Each copy keeps the rim of its own piece and
-//! the in-plane edge: the tip's lateral edge of a notched prism, the
-//! circle a revolved apex sweeps.
+//! piece of in that half, read by descent (NAMES N2, *Vertices*). Each
+//! copy keeps the rim of its own piece alone: the corner's edge lying
+//! in the tool plane (the tip's lateral edge of a notched prism, the
+//! circle a revolved apex sweeps) has no piece in that half, whose
+//! edges along it are section chords.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;
@@ -216,16 +217,16 @@ fn copies(
     out
 }
 
-/// A pinched corner: its two rims' ends, and its in-plane edge's.
-type Tip = ([[[f64; 3]; 2]; 2], [[f64; 3]; 2]);
+/// A pinched corner: its two rims' ends.
+type Tip = [[[f64; 3]; 2]; 2];
 
 /// A pinch at the corners `tips` of the operand made `solid` from
 /// `outline`, each corner with its two `rims` (the operand edges off the
-/// plane, ends given) and its in-plane edge `flat`: the half `pinched`
-/// holds every corner twice, each copy keeping, in name order, the rim
-/// its piece holds (an edge `pinched` names at the copy) and `flat`;
-/// the other half holds each once, bare. `flips`: flipping the normal
-/// swaps the halves' tables and changes no name.
+/// plane, ends given): the half `pinched` holds every corner twice, each
+/// copy keeping the rim its piece holds (an edge `pinched` names at the
+/// copy) and nothing else; the other half holds each once, bare.
+/// `flips`: flipping the normal swaps the halves' tables and changes no
+/// name.
 struct Pinch {
     outline: &'static [(f64, f64)],
     solid: Solid,
@@ -243,19 +244,18 @@ fn assert_pinch(pinch: &Pinch, what: &str) {
     let held = copies(&ev, sp, pinch.pinched);
     let mut expected: BTreeSet<Vec<StableName>> = BTreeSet::new();
     let mut rims: BTreeSet<StableName> = BTreeSet::new();
-    for (pair, [fa, fb]) in &pinch.tips {
-        let flat = operand_edge(&ev, target, *fa, *fb);
+    for pair in &pinch.tips {
         for [ra, rb] in pair {
             let rim = operand_edge(&ev, target, *ra, *rb);
             rims.insert(rim.clone());
-            expected.insert(BTreeSet::from([rim, flat.clone()]).into_iter().collect());
+            expected.insert(vec![rim]);
         }
     }
     let got: BTreeSet<Vec<StableName>> = held.iter().map(|(k, _)| k.clone()).collect();
     assert_eq!(
         (held.len(), &got),
         (expected.len(), &expected),
-        "{what}: each copy keeps its rim and the in-plane edge, in name order"
+        "{what}: each copy keeps its rim alone"
     );
     for (kept, at) in &held {
         let own: Vec<_> = at.intersection(&rims).collect();
@@ -291,10 +291,7 @@ fn prism_tips(x: f64, left: (f64, f64), right: (f64, f64)) -> Vec<Tip> {
         .into_iter()
         .map(|z| {
             let tip = [x, 1.0, z];
-            (
-                [[tip, [left.0, left.1, z]], [tip, [right.0, right.1, z]]],
-                [[x, 1.0, 0.0], [x, 1.0, 1.0]],
-            )
+            [[tip, [left.0, left.1, z]], [tip, [right.0, right.1, z]]]
         })
         .collect()
 }
@@ -335,22 +332,196 @@ fn a_split_at_a_notched_pentagons_apex_tells_its_copies_apart_by_keeps() {
     assert_pinch(&pinch, "pentagon");
 }
 
-/// The revolved apex is one vertex on the seam, its in-plane edge the
-/// closed circle it sweeps. The mirror (normal `-y`) is not pinned: it
-/// refuses in the chord pass
-/// (`work/wire/a-revolved-pinch-split-refuses-with-its-normal-flipped.md`).
+/// The revolved apex is one vertex on the seam, the circle it sweeps
+/// lying in the plane: each copy keeps its own meridian rim, the
+/// circle's copies being chords.
 #[test]
-fn a_split_through_a_revolved_apex_keeps_the_circle_it_sweeps() {
+fn a_split_through_a_revolved_apex_keeps_its_own_rim() {
     let apex = [2.0, 1.0, 0.0];
     let pinch = Pinch {
         outline: REVOLVED,
         solid: Solid::Turned,
         pinched: SplitHalf::Above,
-        tips: vec![(
-            [[apex, [1.0, 2.0, 0.0]], [apex, [3.0, 2.0, 0.0]]],
-            [apex, apex],
-        )],
-        flips: false,
+        tips: vec![[[apex, [1.0, 2.0, 0.0]], [apex, [3.0, 2.0, 0.0]]]],
+        flips: true,
     };
     assert_pinch(&pinch, "revolved");
+}
+
+/// The operand's face lying in `y = 1` with outward normal `+y`.
+fn operand_floor(ev: &Evaluation<f64>, target: RecipeNodeId) -> StableName {
+    let body = ev.value(target).unwrap().payload.output_body(0).unwrap();
+    ev.table(ev.output_var(target, 0).unwrap())
+        .unwrap()
+        .iter()
+        .find_map(|(n, entry)| match entry {
+            Entry::Unique(EntityRef {
+                key: EntityKey::Face(f),
+                ..
+            }) => match body.get_surface(body.get_face(*f).unwrap().surface) {
+                Some(geom::Surface::Plane { origin, normal, .. })
+                    if origin.y == 1.0 && normal.y == 1.0 =>
+                {
+                    Some(n.clone())
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .expect("an operand face in y = 1")
+}
+
+/// The face the lower half of `outline` made `solid`, split at `y = 1`,
+/// takes for its top: `Merged` of `floor` (the operand's face in the
+/// plane, where there is one) and the sections `0..sections`, numbered
+/// in their completion order (N3). No section is published on its own,
+/// and `seams` of the half's edges are named from the merged face and
+/// the face across them, as a seam is.
+fn assert_merged_top(
+    outline: &[(f64, f64)],
+    solid: Solid,
+    floor: bool,
+    sections: u32,
+    seams: usize,
+) {
+    let (ev, target, sp) = split_at_y1(outline, solid, 1.0);
+    let face = |seg| StableName {
+        kind: editor_core::EntityKind::Face,
+        node: sp,
+        path: vec![seg],
+    };
+    let mut constituents: Vec<StableName> = (0..sections)
+        .map(|section| face(RoleSeg::SectionFace { section }))
+        .collect();
+    if floor {
+        constituents.push(operand_floor(&ev, target));
+    }
+    constituents.sort();
+    let merged = face(RoleSeg::Merged(constituents));
+    let below = fixture::half(&ev, sp, SplitHalf::Below);
+    assert!(
+        below.iter().any(|(n, _)| *n == merged),
+        "the lower top is {merged:?}: {:?}",
+        below.iter().map(|(n, _)| n).collect::<Vec<_>>()
+    );
+    assert!(
+        !below
+            .iter()
+            .any(|(n, _)| matches!(n.path.as_slice(), [RoleSeg::SectionFace { .. }])),
+        "no section of the lower half is published on its own"
+    );
+    let named_from_merged = below
+        .iter()
+        .filter(|(n, _)| match n.path.as_slice() {
+            [RoleSeg::Seam { a, b }] => **a == merged || **b == merged,
+            _ => false,
+        })
+        .count();
+    assert_eq!(named_from_merged, seams, "edges named from the merged top");
+}
+
+/// The notched block's lower top: the floor and the three sections
+/// beside it, one face; each cap's edge along it runs over the cap's
+/// chords and the floor's rim, so it is named from its two faces.
+#[test]
+fn a_notched_blocks_lower_top_is_the_floor_and_its_sections_merged() {
+    assert_merged_top(NOTCHED, Solid::Prism, true, 3, 2);
+}
+
+/// The pentagon's lower top: its two sections either side of the apex,
+/// one face; each cap's edge along it joins two chords, and stays one.
+#[test]
+fn a_pentagons_lower_top_is_its_two_sections_merged() {
+    assert_merged_top(PENTAGON, Solid::Prism, false, 2, 0);
+}
+
+/// The revolved pentagon's lower top: the disc's annulus inside the
+/// apex circle and the one outside it, one face.
+#[test]
+fn a_revolved_pentagons_lower_top_is_its_two_sections_merged() {
+    assert_merged_top(REVOLVED, Solid::Turned, false, 2, 0);
+}
+
+/// **A split half on the plane is an operand a boolean accepts.** A
+/// small box hole cut from each lower half, well away from the plane:
+/// each half ends with maximal faces, so none is refused
+/// `NonMaximalFaces`.
+#[test]
+fn a_lower_half_on_the_plane_takes_a_box_hole() {
+    for (what, outline, solid, (x0, x1), (z0, dz)) in [
+        ("notched", NOTCHED, Solid::Prism, (1.0, 2.0), (-1.0, 3.0)),
+        ("pentagon", PENTAGON, Solid::Prism, (0.5, 1.0), (-1.0, 3.0)),
+        ("revolved", REVOLVED, Solid::Turned, (1.5, 2.5), (-0.3, 0.6)),
+    ] {
+        let doc = ProfileDoc::empty_derived("split_half_hole", Tol::witness());
+        let (doc, p) = on_frame(
+            doc,
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![outline.to_vec()],
+        );
+        let operand = match solid {
+            Solid::Prism => Node::Extrude {
+                profile: p.into(),
+                distance: len(1.0),
+                side: ExtrudeSide::Along,
+            },
+            Solid::Turned => Node::Revolve {
+                profile: p.into(),
+                axis_through: [len(0.0), len(0.0)],
+                axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+                angle: ang(std::f64::consts::TAU),
+            },
+        };
+        let (doc, target) = insert(doc, operand);
+        let (doc, plane) = insert(
+            doc,
+            Node::Datum(Datum::Plane {
+                origin: [len(0.0), len(1.0), len(0.0)],
+                normal: [scl(0.0), scl(1.0), scl(0.0)],
+            }),
+        );
+        let (doc, sp) = insert(
+            doc,
+            Node::Split {
+                target: editor_core::Operand::output(target, 0).into(),
+                tool: plane.into(),
+            },
+        );
+        let (doc, q) = on_frame(
+            doc,
+            [0.0, 0.0, z0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(x0, 0.2), (x1, 0.2), (x1, 0.5), (x0, 0.5)]],
+        );
+        let (doc, hole) = insert(
+            doc,
+            Node::Extrude {
+                profile: q.into(),
+                distance: len(dz),
+                side: ExtrudeSide::Along,
+            },
+        );
+        let (doc, cut) = insert(
+            doc,
+            Node::Subtract {
+                from: editor_core::Operand::output(sp, SplitHalf::Below.port()).into(),
+                tool: hole.into(),
+            },
+        );
+        let ev = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        assert!(
+            ev.value(cut).is_some(),
+            "{what}: the lower half takes the hole: {:?}",
+            ev.node_error(cut)
+        );
+    }
 }

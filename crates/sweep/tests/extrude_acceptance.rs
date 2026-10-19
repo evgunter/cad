@@ -538,7 +538,7 @@ fn placed_profile_extrudes_along_its_own_normal() {
 #[test]
 fn a_negative_depth_refuses_naming_the_other_side() {
     let vp = validated(vec![l_loop()]);
-    let normal = vp.plane().placement.linear.c2;
+    let normal = vp.plane().normal().get();
     for side in ExtrudeSide::ALL {
         let err = extrude(
             &vp,

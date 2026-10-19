@@ -9,7 +9,7 @@
 
 use crate::common::operands::{m5_boss, n_arc_boss};
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Point3, Vec3};
+use geom_core::{Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::test_support::finished;
@@ -179,7 +179,7 @@ fn a_second_curved_boolean_chains_on_the_first_result() {
     // Second plate: 3 x 3 slab z in [1.0, 1.15], crossing the boss
     // wall strictly above the first plate.
     let lp = rect(3.0, 3.0);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 1.0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -223,9 +223,9 @@ fn du_of_rims_sums_equal_span_arcs_the_shape_the_old_rule_silently_halved() {
     // meridians at azimuth 0 and pi), split by x = 0 (cuts at
     // azimuth +/- pi/2): the below part's wall fragments span pi/2
     // EACH — equal spans, the exact shape the pre-PR-9 first-arc rule
-    // accepted silently at HALF the true du. After the cosurface
-    // merge the face has two arcs per rim level; volume must be the
-    // closed-form half-cylinder.
+    // accepted silently at HALF the true du. The split ends with the
+    // cosurface merge, so the below part's wall is one face; volume
+    // must be the closed-form half-cylinder.
     let lp = bulge_loop(vec![
         (Point2::new(-0.5, 0.0), 1.0),
         (Point2::new(0.5, 0.0), 1.0),
@@ -250,11 +250,14 @@ fn du_of_rims_sums_equal_span_arcs_the_shape_the_old_rule_silently_halved() {
         geom_core::Tol::witness(),
     );
     let parts = split(&body, &plane, Tol::witness()).expect("split at x=0");
-    let mut below = parts.below.body().expect("below").clone();
-    let out = below
-        .merge_coplanar_faces(Tol::witness())
-        .expect("cosurface merge");
-    assert_eq!(out.groups.len(), 1, "one wall re-merge: {:?}", out.groups);
+    let below = parts.below.body().expect("below").clone();
+    let merges: Vec<_> = parts
+        .naming
+        .merge_groups
+        .iter()
+        .filter(|(side, _)| *side == topo::splitting::PlaneSide::Below)
+        .collect();
+    assert_eq!(merges.len(), 1, "one wall re-merge: {merges:?}");
     let vol = topo::mass_properties(&below, Tol::witness())
         .unwrap()
         .volume;
@@ -315,7 +318,7 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
             .map(|(x, y)| (Point2::new(x, y), 0.0))
             .collect(),
     );
-    let plane2 = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
+    let plane2 = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.4));
     let profile2 = Profile::new(plane2, vec![lp2])
         .validate(Tol::witness())
         .unwrap();

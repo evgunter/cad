@@ -2,12 +2,12 @@
 id: a-split-names-an-operand-edge-in-its-plane-as-a-section-chord
 kind: issue
 title: A split names an operand edge lying in its plane, and the copies of it, as section chords: the edge's own name dies, and a face piece's Keeps cannot cite it
-status: dispatched
-branch: wire/split-maximal-halves
+status: closed
 opened: 2026-10-18
 priority: P2
 cost: M
 design: true
+closed: 2026-10-19
 ---
 
 
@@ -102,3 +102,7 @@ Ev approved the recommendation on PR 5306 ("sure, sounds good"): N2/N3 as
 the PR edits them. Design-fork log row 163. The build is a WIRE unit:
 the naming side plus `topo/src/splitting/finish.rs` (CLEAVE's
 `a-split-exactly-on-a-face-leaves-a-half-no-boolean-accepts`).
+
+## Resolution (2026-10-19)
+
+Closed by PR 5334: a split finishes each half with maximal faces (recording a curved skip), names in-plane edges and merged groups per N2/N3 as Ev approved on PR 5306, and reads `Keeps` by descent in one builder. Pinned in `split_pinch_keeps.rs`, `m3_pr3_split.rs` and `a_lower_half_on_the_plane_takes_a_box_hole`.

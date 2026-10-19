@@ -12,7 +12,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Tol};
+use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane};
 use sweep::ExtrudeSide;
 use sweep::test_support::{brick, finished};
@@ -48,7 +48,7 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
         .unwrap()
         .to(profile::Start, tol)
         .unwrap();
-    let plane = SketchPlane::new(Affine3::identity());
+    let plane = SketchPlane::xy();
     let prof = Profile::new(plane, vec![outline.into()])
         .validate(tol)
         .unwrap();

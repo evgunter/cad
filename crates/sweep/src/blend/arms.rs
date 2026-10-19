@@ -83,7 +83,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::SurfaceSide;
-use geom_core::{Point3, Real, Vec3};
+use geom_core::{Circles, Point3, Real, Vec3};
 
 use super::battery::{Convexity, sided};
 
@@ -628,10 +628,12 @@ impl<T: Real> SupportTrace<T> {
 ///   at the rim. The rim branch is `λ = b(√(1 − D/b²) − 1)`, written
 ///   that way so the `√` carries `b`'s own sign and no comparison
 ///   appears; `b = 0` is the tangential pair and poisons.
-/// - **circle × circle**: the standard two-circle crossing along the
-///   centre line, with the transverse half-chord carried by
-///   `μ·√((R'² − x²)/μ²)` for `μ` the rim's own transverse coordinate —
-///   again the rim branch, branch-free, poisoned at a tangential pair.
+/// - **circle × circle**: the two offset circles' crossing, the radical
+///   foot and half-chord's square `h²` read from [`Circles`] (each from
+///   the pair's clearances, so neither cancels at offsets orders of
+///   magnitude apart), with the transverse half-chord carried by
+///   `μ·√(h²/μ²)` for `μ` the rim's own transverse coordinate — again
+///   the rim branch, branch-free, poisoned at a tangential pair.
 ///
 /// Total arithmetic in, classification at the caller: nothing is gated
 /// here, exactly as [`plane_sphere_blend`] gates nothing.
@@ -709,16 +711,14 @@ pub fn sheet_center<T: Real>(
                 side: s_b,
             },
         ) => {
-            let span = c_b - c_a;
-            let dist = span.norm();
-            let along = span / dist;
-            let across = sheet_normal.cross(along);
-            let off_a = r_a - sided(s_a, radius);
-            let off_b = r_b - sided(s_b, radius);
-            let x = (dist.powi(2) + off_a.powi(2) - off_b.powi(2)) / (dist + dist);
+            // An offset circle is the circle at the offset's magnitude.
+            let off_a = (r_a - sided(s_a, radius)).abs();
+            let off_b = (r_b - sided(s_b, radius)).abs();
+            let offsets = Circles::new(c_a.distance(c_b), off_a, off_b).at(c_a, c_b);
+            let across = sheet_normal.cross(offsets.direction());
             let mu = (rim - c_a).dot(across);
-            let y = mu * (((off_a.powi(2) - x.powi(2)) / mu.powi(2)).sqrt());
-            c_a + along * x + across * y
+            let y = mu * ((offsets.pair().half_chord_squared() / mu.powi(2)).sqrt());
+            offsets.chord_ends(across, y)[0]
         }
     }
 }
@@ -1015,7 +1015,9 @@ pub fn corner_chart<T: Real>(feet: [Vec3<T>; 3]) -> (Vec3<T>, Vec3<T>) {
 /// The centre solves `(c − p_i)·n_i = ∓r` for the three outward
 /// normals (`−r` convex, `+r` concave: the outward normals point into
 /// the void, and the concave rest is on that side); the solution is
-/// `c = p + N⁻¹·(…)` written here as the Cramer expansion so
+/// `c = p₁ + N⁻¹·(…)`, solved for the offset from the first vertex so
+/// its rounding is of the corner's own size rather than its distance
+/// from the origin, and written here as the Cramer expansion so
 /// `|det(n₁, n₂, n₃)|` — the independence margin predicate 6
 /// classifies — falls out of the same computation, side-blind.
 ///
@@ -1048,16 +1050,17 @@ pub fn corner_ball<T: Real>(
     // displaces opposite the depth by definition of tangency. The one
     // place the fold must stay a negation; `corner_plan` cites it.
     let signed = -convexity.signed(radius);
-    // Right-hand sides: c·n_i = p_i·n_i + signed.
+    // Right-hand sides: (c − p₁)·n_i = (p_i − p₁)·n_i + signed.
+    let anchor = verts[0];
     let rhs = [
-        Vec3::new(verts[0].x, verts[0].y, verts[0].z).dot(n1) + signed,
-        Vec3::new(verts[1].x, verts[1].y, verts[1].z).dot(n2) + signed,
-        Vec3::new(verts[2].x, verts[2].y, verts[2].z).dot(n3) + signed,
+        signed,
+        (verts[1] - anchor).dot(n2) + signed,
+        (verts[2] - anchor).dot(n3) + signed,
     ];
     let det = n1.dot(n2.cross(n3));
-    // Cramer: c = (rhs₁·(n₂×n₃) + rhs₂·(n₃×n₁) + rhs₃·(n₁×n₂)) / det.
+    // Cramer: c − p₁ = (rhs₁·(n₂×n₃) + rhs₂·(n₃×n₁) + rhs₃·(n₁×n₂)) / det.
     let num = n2.cross(n3) * rhs[0] + n3.cross(n1) * rhs[1] + n1.cross(n2) * rhs[2];
-    let c = Point3::new(num.x / det, num.y / det, num.z / det);
+    let c = anchor + num / det;
     // The feet lie along `n_i` from a convex rest and along `−n_i` from
     // a concave one — the same fold as the centre's, `−signed/r`.
     let side = -signed / radius;

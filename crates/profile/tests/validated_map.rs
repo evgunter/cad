@@ -17,7 +17,8 @@
 use crate::common;
 
 use common::{annulus, bracket, chain, l_profile, lens, lift, profile, rounded_rect, tol};
-use geom_core::{Affine3, Arc2, Decide, Dual64, Point2, Real, Sign, Vec3};
+use geom_core::{Decide, Dual64, Point2, Point3, Real, Sign};
+use profile::test_support::stored_scalars;
 use profile::{LoopRole, Profile, SegmentKind, SketchPlane, ValidatedProfile};
 
 /// The fixtures, named: every canonical-form fact the door carries has
@@ -102,38 +103,6 @@ fn rounded_hole(x0: f64, y0: f64, w: f64, h: f64, r: f64) -> profile::ProfileLoo
     ])
 }
 
-/// Every scalar a validated profile stores, in one fixed order: the
-/// plane's placement, then per loop each vertex's position, then each
-/// segment's endpoints, bulge and (for an arc) center, radius and
-/// sweep. (`editor-core`'s `pinned_lift_validates_once` suite carries
-/// the same walk: `test-utils` is a dependency-free leaf and cannot
-/// host a walk over this crate's types without a cycle.)
-fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
-    let m = &vp.plane().placement;
-    let mut out = m.components().to_vec();
-    for lp in vp.loops() {
-        for v in lp.vertices() {
-            out.extend(v.to_array());
-        }
-        for s in lp.segments() {
-            out.extend([s.start.x, s.start.y, s.end.x, s.end.y]);
-            if let SegmentKind::Arc {
-                arc:
-                    Arc2 {
-                        centre,
-                        radius,
-                        sweep,
-                    },
-                ..
-            } = s.kind
-            {
-                out.extend([centre.x, centre.y, radius, sweep]);
-            }
-        }
-    }
-    out
-}
-
 /// One value channel of a scalar, named, projected to `f64` for a bit
 /// comparison.
 type Channel<T> = (&'static str, fn(T) -> f64);
@@ -175,7 +144,7 @@ fn lift_equals_revalidation<U: Real + Decide>(channels: &[Channel<U>]) {
             .lift_onto(SketchPlane::xy())
             .expect("the xy plane is finite");
         let revalidated: ValidatedProfile<U> = lift::<U>(&raw).validate(tol()).expect(name);
-        let (l, r) = (scalars(&lifted), scalars(&revalidated));
+        let (l, r) = (stored_scalars(&lifted), stored_scalars(&revalidated));
         assert_eq!(
             l.len(),
             r.len(),
@@ -230,7 +199,10 @@ fn the_lift_to_f64_is_the_identity() {
     for (name, raw) in fixtures() {
         let at_f64 = raw.validate(tol()).expect(name);
         let bits = |vp: &ValidatedProfile<f64>| {
-            scalars(vp).iter().map(|x| x.to_bits()).collect::<Vec<_>>()
+            stored_scalars(vp)
+                .iter()
+                .map(|x| x.to_bits())
+                .collect::<Vec<_>>()
         };
         let plane = *at_f64.plane();
         assert_eq!(
@@ -262,16 +234,16 @@ fn the_lift_to_dual_equals_validating_at_dual() {
             .expect("a finite plane lifts");
         let revalidated = lift::<Dual64>(&raw).validate(tol()).expect(name);
         assert!(
-            scalars(&lifted).iter().all(|d| d.deriv == 0.0)
-                && scalars(&revalidated).iter().all(|d| d.deriv == 0.0),
+            stored_scalars(&lifted).iter().all(|d| d.deriv == 0.0)
+                && stored_scalars(&revalidated).iter().all(|d| d.deriv == 0.0),
             "{name}: a constant profile's derivative channel is zero"
         );
         assert_eq!(
-            scalars(&lifted)
+            stored_scalars(&lifted)
                 .iter()
                 .map(|d| d.value.to_bits())
                 .collect::<Vec<_>>(),
-            scalars(&at_f64)
+            stored_scalars(&at_f64)
                 .iter()
                 .map(|x| x.to_bits())
                 .collect::<Vec<_>>(),
@@ -367,14 +339,8 @@ fn the_plane_is_the_callers_and_nothing_else_moves_with_it() {
         .validate(tol())
         .unwrap();
     let before = format!("{:?}", vp.loops());
-    let plane = SketchPlane::new(Affine3::from_parts(
-        geom_core::Mat3::from_cols(
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            Vec3::new(1.0, 0.0, 0.0),
-        ),
-        Vec3::new(1.0, 2.0, 3.0),
-    ));
+    let plane =
+        SketchPlane::from_frame(geom_core::RigidMotion::axes_yz(Point3::new(1.0, 2.0, 3.0)));
     let moved = vp.lift_onto::<f64>(plane).expect("a finite plane lifts");
     assert_eq!(format!("{:?}", moved.plane()), format!("{plane:?}"));
     assert_eq!(format!("{:?}", moved.loops()), before);
