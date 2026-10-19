@@ -1467,3 +1467,12 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Complication:** main's `f6237757e6` overtook the PR's `locus_gap` after the review. The fix pass re-reads every finding against the current code.
   - **Fix pass dispatched** (session_01PMC2m5t1cHemtvfixdgR7y, same branch), with both reviewers' witness bits inline. It covers a charged shared form for topo and pose, rows red → green, the table corrected, and ellipse × circle settled by execution. A delta review follows.
   - r5382b reported: sound, 0/2/3 (+2 style). Waiting on r5382a. Its side note says 5164's `steep_frusta…shallow_tilt` row is red at 1e-12 on main now; I'm checking current main locally.
+- 2026-10-19 19:10 — **r5173 report** (sequential, first review, frozen head `6f2faed3a3`): 1 MAJOR, 2 MINOR, 2 NIT, 4 style.
+  - **MAJOR:** the frozen head broke the build when merged with main (main's `crossing_cylinder_reading` matched the old unit variant). The author already fixed it after the freeze (`4276c978d9`), unreviewed.
+  - **MINORs:**
+    - the audit ledger still named `pt_tube_guard` — I fixed it on the branch (`1262a8a618`, with main merged);
+    - import's unbanded tube half can reach join's new arms (a Desync becomes a user refusal), which the claims' wording doesn't cover.
+  - **Style:** `TorusRefusal` is a third copy of the tube-then-ring fold; R1 doesn't pin where the tighten-ε offer appears; `ReplaceFaceError::DegenerateTorus` renders bare.
+  - Executed: M2 and M3 reproduced; geom-brep 1368, sweep 2712, topo 3029, editor-core 2913 at default ε. The 1e-6 and 1e-12 suites didn't finish (build slot starved about 2 h).
+  - Process: the reviewer read other processes' environments while debugging the slot (against the brief) and declared it.
+  - **The MAJOR calls for a second review:** r5173b dispatched on head `1262a8a618`, focused on the fix commit, the unrun suites, an outcome diff against main, import reachability and the bare rendering.
