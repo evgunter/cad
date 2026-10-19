@@ -114,12 +114,12 @@ pub(crate) enum RimRouting {
 /// **The angular margin is metered at the candidate's own extent**, not
 /// at unit arm. A dimensionless sine says nothing until it is priced as
 /// the displacement it induces over the reach the verdict is consumed
-/// across, and that reach is the rim's diameter — the same extent the
-/// caller then meters the wedge screen and the material arm at, so all
-/// three stages lever against one arm and their margins are comparable.
-/// The extent is DERIVED here rather than threaded in, and the reason is
-/// that it cannot be threaded: it is a property of the rim, and the
-/// caller has no rim until this function returns one. `ra.radius +
+/// across, and that reach is the rim's diameter. That diameter is
+/// derived here, not threaded in, because it cannot be: it is a
+/// property of the rim, and the caller has no rim until this function
+/// returns one. (The wedge screen and the material arm after it read a
+/// different quantity, the faces' wedge, which the caller levers at the
+/// faces' reach, `crate::wedge_reach`, as every reader of it does.) `ra.radius +
 /// rb.radius` is that diameter for any pair whose radii agree, and a
 /// pair whose radii disagree is about to be rejected on the radius
 /// margin regardless.
@@ -515,7 +515,14 @@ fn locus_point<T: Decide>(locus: Locus<T>, s: T) -> Point3<T> {
     }
 }
 
-/// The locus parameter of a point on (or decided at) the locus.
+/// The locus parameter of a point on (or decided at) the locus. On a
+/// rim it is reduced into `[0, τ)` up to rounding, so a point at the seam
+/// reads `0` or, where its angle comes back a hair negative, a hair
+/// under `τ`. The readers are invariant under which: the cuts partition
+/// the rim cyclically (the last piece wraps to the first cut a turn on,
+/// and a piece of no length is dropped), and a ride is looked up one
+/// turn either side of the piece's midpoint. A riding arc's whole turn is
+/// its own parameter span `t1 − t0`, carried as the ride's length.
 fn locus_param<T: Decide>(locus: Locus<T>, p: Point3<T>) -> T {
     match locus {
         Locus::Line { origin, dir } => (p - origin).dot(dir),
@@ -1019,9 +1026,9 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
 /// whose own samples disagree escalates rather than being decided by
 /// majority, which is the fold's rule.
 ///
-/// `extent` is the lever arm the angular margins are metered at — the
-/// contact's own reach, so a misalignment is priced as the
-/// displacement it induces where the verdict is consumed.
+/// `reach` is the lever arm the wedge's margins are metered at — the
+/// two faces' extent ([`crate::wedge_reach`]), as every reader of the
+/// wedge between an edge's faces levers it.
 ///
 /// `sense_plus`/`sense_minus` are the two faces' `Face::sense` BITS,
 /// passed through to the `geom_brep` doors that mint the outward
@@ -1040,7 +1047,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     s_minus: &geom::Surface<T>,
     sense_minus: bool,
     rim: Rim<T>,
-    extent: T,
+    reach: T,
     band: Band,
 ) -> Result<RimRouting, Indeterminate> {
     let Rim {
@@ -1079,7 +1086,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     let mut all_smooth = true;
     for i in 0..n {
         let (p, _) = station(i);
-        match geom_brep::classify_dihedral(s_plus, s_minus, p, extent, band)
+        match geom_brep::classify_dihedral(s_plus, s_minus, p, reach, band)
             .map_err(|escalation| escalation.diag())?
         {
             geom_brep::DihedralClass::Transverse => all_smooth = false,
@@ -1111,7 +1118,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
         s_plus,
         s_minus,
         (0..n).map(station),
-        extent,
+        reach,
         band,
         &mut stations,
     ) {
@@ -1524,14 +1531,18 @@ mod arc_end_rows {
     /// than reading the piece as the face's interior (`NoEdge`, a decided
     /// contradiction downstream).
     ///
-    /// - At `contains`, both arms of the finding, on half-disc caps the
-    ///   public operators built: an end off both corners (read at a band
-    ///   finer than the run's) and the band's own parting (`K = 1.25`).
-    /// - Through `departures`, the band's parting: a line along `x`
-    ///   through the point, which crosses the cap's arc just past it; a
-    ///   second face, a block's top in the cap's plane, whose left edge
-    ///   stands the same distance before it, so the one touch piece's
-    ///   midpoint is the point.
+    /// - At `contains`, the finding's arm on a half-disc cap the public
+    ///   operators built: an end off both corners, read at a band finer
+    ///   than the run's.
+    /// - The band's own parting (`K = 1.25`) no longer parts the end from
+    ///   its corner: the boundary reading puts a point at the end only on
+    ///   its raw chord, the distance the vertex pass reads to the corner.
+    ///   The point beside the end escalates at `contains` on the end's
+    ///   straddle (`curve_pair_span_end_straddle`), and so does the touch
+    ///   piece through `departures`: a line along `x` through the point,
+    ///   which crosses the cap's arc just past it, and a block's top in
+    ///   the cap's plane whose left edge stands the same distance before
+    ///   it, so the one touch piece's midpoint is the point.
     #[test]
     fn a_touch_at_an_arc_end_clear_of_its_corners_is_not_read() {
         let tol = Tol::witness();
@@ -1550,17 +1561,14 @@ mod arc_end_rows {
         let (body, cap, end) = half_disc_cap(0.0, tol);
         let q = beside_the_arc_end(end, zero);
         let narrow = Band::new(zero, 1.25 * zero).unwrap();
+        let straddle = |d: &Indeterminate| d.predicate == Some("curve_pair_span_end_straddle");
         assert!(
             matches!(
-                crate::boolean::contfp(&body, cap, Vec3::unit_z(), q, narrow),
-                Err(crate::boolean::ContainError::ArcEndClearOfCorners(ref g)) if !g.off_corner()
+                contains(&body, cap, q, narrow),
+                Err(ref d) if straddle(d)
             ),
-            "the band's own parting"
-        );
-        assert_eq!(
-            contains(&body, cap, q, narrow),
-            Ok(None),
-            "the band's parting"
+            "the band's parting escalates: {:?}",
+            contains(&body, cap, q, narrow)
         );
         // The line crosses the unit circle at `x = -sqrt(1 - y²)`, `delta`
         // past the point; the block's left edge stands `delta` before it.
@@ -1582,10 +1590,9 @@ mod arc_end_rows {
             dir: Vec3::unit_x(),
         };
         let got = departures(&body, cap, &block.body, block.top_face, locus, narrow);
-        assert_eq!(
-            got,
-            Ok(Departure::EdgeKindUnread),
-            "the touch piece at the arc's end is not read"
+        assert!(
+            matches!(got, Err(ref d) if straddle(d)),
+            "the touch piece at the arc's end escalates: {got:?}"
         );
     }
 }
@@ -1695,7 +1702,7 @@ mod boundary_midpoint_rows {
             });
             assert_rows(
                 arc,
-                "bool_contact_arc",
+                "curve_carrier_gap",
                 Departure::Untouched,
                 &format!("tangent arc, theta {theta}"),
             );
@@ -1834,7 +1841,7 @@ mod boundary_midpoint_rows {
             });
             assert_rows(
                 got,
-                "bool_contact_arc",
+                "curve_carrier_gap",
                 Departure::Untouched,
                 &format!("tangent circle, alpha {alpha}"),
             );

@@ -49,7 +49,13 @@ fn pick(
     (loops, split): &([SectionCurve<f64>; 2], LoopSplit<f64>),
     sites: [Point3<f64>; 2],
 ) -> Result<SectionCurve<f64>, SplitJoinError> {
-    section_loop(FaceKey::default(), loops.clone(), *split, sites, band())
+    section_loop(
+        FaceKey::default(),
+        loops.clone(),
+        (*split, None),
+        sites,
+        band(),
+    )
 }
 
 /// The circle a loop of a meridian or concentric section is.

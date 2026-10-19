@@ -48,10 +48,10 @@ pub(crate) const CROSSING_INTERIOR: &str = "whether a crossing lands strictly in
 pub(crate) const CROSSING_LEVER: &str =
     "move the geometry so the crossing lands clearly away from the edge's ends";
 
-/// The lever a split of a tangent edge has where the must-carry rule
+/// The lever a split of a smooth edge (a tangency or a pair) has where the must-carry rule
 /// over a piece is in band: the piece's length decides its sagitta.
-pub(crate) const TANGENT_PIECE_LEVER: &str =
-    "move the geometry so the crossing cuts a longer or a shorter piece off the tangent edge";
+pub(crate) const SMOOTH_PIECE_LEVER: &str =
+    "move the geometry so the crossing cuts a longer or a shorter piece off the smooth edge";
 
 /// What a crossing's interiority margin measures.
 pub(crate) const CROSSING_SIZE: &str = "distance from the edge's end";
@@ -159,9 +159,9 @@ impl<T: Decide> Body<T> {
     /// is certified ([`EulerOpError::NullScaffoldCurve`] — null
     /// scaffolding has nothing to split); the interiority trilean
     /// (above); a tangent child's description by the must-carry rule
-    /// over the child ([`EulerOpError::SplitTangentEscalated`],
-    /// [`EulerOpError::SplitTangentBendEscalated`],
-    /// [`EulerOpError::SplitTangentRefuted`]); both child specs certify
+    /// over the child ([`EulerOpError::SplitSmoothEscalated`],
+    /// [`EulerOpError::SplitSmoothBendEscalated`],
+    /// [`EulerOpError::SplitSmoothRefuted`]); both child specs certify
     /// ([`EulerOpError::Certification`] — endpoints
     /// `start(hp) → carrier(t)` and `carrier(t) → end(hp)`, he_plus
     /// forward order on each child; the plane × NURBS lane is the
@@ -169,29 +169,33 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::NurbsLaneUnsupported`] naming `edge`).
     ///
     /// **Pcurve rows** ([`crate::pcurves`]): a parent half-edge's
-    /// stored chart row is CARRIED to both children — a
-    /// [`geom_brep::Pcurve`] is a function of the carrier parameter
-    /// and holds no interval of its own, so each child's image is the
-    /// parent's restricted to its sub-interval, exactly as each
-    /// child's carrier is. A restriction DERIVES nothing: it
-    /// re-certifies the parent's image through the door that stated it
-    /// (`restate`: `PcurveCache::certify` for an exact row,
+    /// stored chart row passes to both children as each child's own
+    /// row. C4 places a row over its own edge's span in the chart's
+    /// principal window, so a closed-form or projected child is derived
+    /// over its sub-interval exactly as the mint derives it (and is the
+    /// mint's row, byte for byte); a fitted or general row, which has
+    /// no angular placement, is the parent's restricted to the
+    /// sub-interval. Either is certified through the door that states
+    /// it (`restate`: `PcurveCache::certify` for an exact row,
     /// `certify_projected`, `certify_fitted` or `certify_general` for
     /// the rest, the last three through the scalar's
-    /// [`crate::AtRestPolicy::fitted_lane`]). Both restrictions
-    /// are certified in the plan phase
+    /// [`crate::AtRestPolicy::fitted_lane`]). Both children are
+    /// certified in the plan phase
     /// ([`crate::pcurves::split_cache`]), so a face this op touches is
     /// never left half-minted and a refusal
     /// ([`EulerOpError::PcurveSplit`]) arrives with the body
-    /// untouched. So does the joint between the two children, decided
-    /// at the split point as every joint is: where it is undecided the
-    /// op refuses ([`EulerOpError::SplitJointUndecided`]) rather than
-    /// write an element nothing decided. A half-edge with no row keeps none: the op carries
+    /// untouched. So do the joints, decided as every joint is: the one
+    /// between the two children at the split point, the way the half
+    /// runs, and, where a child was placed again, the parent's joints
+    /// into and out of it against their neighbours' rows (children
+    /// placed apart can sit whole turns from the parent's image). Where
+    /// one is undecided the op refuses
+    /// ([`EulerOpError::SplitJointUndecided`]) rather than write an
+    /// element nothing decided. A half-edge with no row keeps none: the op carries
     /// what is there, and minting what is missing is the producer's
     /// closing mint.
     ///
-    /// Projected and fitted-grade rows restrict like any other. The
-    /// carry is exact on every chart; two readers of the split body are
+    /// The carry is exact on every chart; two readers of the split body are
     /// narrower, both stated at `split_cache`. On a SPLINE chart the
     /// recovery step the caveat below names, `mint_pcurves`, refuses on
     /// a described-NURBS wall's split: the iso derivation's rim arms
@@ -250,35 +254,26 @@ impl<T: Decide> Body<T> {
     /// What a child of a split edge describes. The restriction
     /// ([`geom_brep::EdgeCurve::split_specs`]) verbatim, except that a
     /// tangent child stores what the must-carry rule over the CHILD
-    /// demands ([`geom_brep::must_carry_over_edge`]): the rule meters
-    /// the sagitta over the edge's own extent, so a short child can be
-    /// under-determined, or in band, where its parent was
+    /// demands ([`geom_brep::must_carry_over_edge`]): the rule reads
+    /// the child's own stations, levered at its faces' extent
+    /// ([`crate::wedge_reach`]) read from the child's middle, so a child
+    /// can read under-determined, or in band, where its parent read
     /// jet-determinate.
     ///
-    /// Under-determined stores an image the door derives from the
-    /// carrier, in the chart of the face `he_plus` bounds. The locus
-    /// lies exactly in both adjacent charts, so either certifies; the
-    /// edge's own orientation names one, as it does for a blend's
-    /// contact edge, and both children's plus halves lie in that face.
-    /// A parent whose tangency names a pair that face's surface is not
-    /// in is incoherent with its faces, and refuses
-    /// [`EulerOpError::DescriptionNotAdjacent`] rather than rest there.
+    /// Under-determined stores the conventional description where the
+    /// child rests ([`crate::rest_locus`]). A pair child, and a child
+    /// image that is not a wrap, is asked again too
+    /// ([`geom_brep::reask_pair`], [`geom_brep::reask_chart`]): its
+    /// stations are not its parent's, and the verdict reads them.
     ///
     /// The pair's keys are links of the parent's certified description,
     /// so a key that does not resolve is a torn body, not a refusal.
     fn tangent_piece(
         &self,
         edge: EdgeKey,
-        he_plus: HalfEdgeKey,
         spec: EdgeCurveSpec<T>,
-        [p0, p1]: [Point3<T>; 2],
         band: Band,
     ) -> Result<EdgeCurveSpec<T>, EulerOpError> {
-        let geom_brep::EdgeDescriptionSpec::TangentIntersection { pair, witness } =
-            spec.description
-        else {
-            return Ok(spec);
-        };
         let surface = |k| {
             self.get_surface(k).unwrap_or_else(|| {
                 dangling_link(
@@ -288,23 +283,107 @@ impl<T: Decide> Body<T> {
                 )
             })
         };
+        let refused = |refusal| match refusal {
+            geom_brep::PairRefusal::InBand(geom_brep::MustCarryEscalation::FirstOrder(
+                escalation,
+            )) => EulerOpError::SplitSmoothEscalated {
+                edge,
+                diag: escalation.diag(),
+            },
+            geom_brep::PairRefusal::InBand(geom_brep::MustCarryEscalation::SecondOrder(diag)) => {
+                EulerOpError::SplitSmoothBendEscalated { edge, diag }
+            }
+            geom_brep::PairRefusal::Mixed(stations) => EulerOpError::SplitSmoothRefuted {
+                edge,
+                mixed: Some(stations),
+            },
+        };
+        let (pair, witness) = match spec.description {
+            geom_brep::EdgeDescriptionSpec::TangentIntersection { pair, witness } => {
+                (pair, witness)
+            }
+            geom_brep::EdgeDescriptionSpec::OnPair { pair, declared } => {
+                let description = self
+                    .reask_on(
+                        pair,
+                        crate::edge_faces(self, edge),
+                        &spec.carrier,
+                        (spec.param_start, spec.param_end),
+                        declared,
+                        band,
+                    )
+                    .map_err(refused)?;
+                return Ok(EdgeCurveSpec {
+                    description,
+                    ..spec
+                });
+            }
+            // A piece of an image is asked the same over its own span;
+            // it keeps the image where the rule still reads the join
+            // under-determined.
+            geom_brep::EdgeDescriptionSpec::Chart { wrap: false, .. } => {
+                return Ok(
+                    match self
+                        .reask_chart_on(
+                            edge,
+                            &spec.carrier,
+                            (spec.param_start, spec.param_end),
+                            band,
+                        )
+                        .map_err(refused)?
+                    {
+                        Some(description) => EdgeCurveSpec {
+                            description,
+                            ..spec
+                        },
+                        None => spec,
+                    },
+                );
+            }
+            geom_brep::EdgeDescriptionSpec::Intersection { .. }
+            | geom_brep::EdgeDescriptionSpec::Chart { .. }
+            | geom_brep::EdgeDescriptionSpec::Scaffold(_) => return Ok(spec),
+        };
         let [ka, kb] = pair.keys();
+        // The parent's two faces, each beside the key it lies on: the
+        // region the rest is read over.
+        let sides = crate::readback::edge_sides_of(
+            self,
+            edge,
+            crate::live::proven(&self.edges, edge, EntityId::Edge),
+        );
+        let face_on = |k| {
+            [sides.plus, sides.minus]
+                .into_iter()
+                .find(|side| side.surface == k)
+                .map(|side| side.face)
+        };
+        let rest = crate::rest_locus(
+            self,
+            [(ka, face_on(ka)), (kb, face_on(kb))],
+            &spec.carrier,
+            (spec.param_start, spec.param_end),
+            band,
+        );
         let description = geom_brep::must_carry_description(
             geom_brep::SmoothJoin {
                 surfaces: [(ka, surface(ka)), (kb, surface(kb))],
                 carrier: &spec.carrier,
                 interval: (spec.param_start, spec.param_end),
-                chord: p0.distance(p1),
+                reach: crate::wedge_reach(
+                    self,
+                    crate::edge_faces(self, edge),
+                    &spec.carrier,
+                    (spec.param_start, spec.param_end),
+                ),
                 witness,
             },
             band,
-            || crate::pcurves::half_edge_face(self, he_plus).1.surface,
-            |_, diag| EulerOpError::SplitTangentEscalated { edge, diag },
-            |_, diag| EulerOpError::SplitTangentBendEscalated { edge, diag },
-            || EulerOpError::SplitTangentRefuted { edge },
-            |_| EulerOpError::DescriptionNotAdjacent { edge: Some(edge) },
+            |_, diag| EulerOpError::SplitSmoothEscalated { edge, diag },
+            |_, diag| EulerOpError::SplitSmoothBendEscalated { edge, diag },
+            |mixed| EulerOpError::SplitSmoothRefuted { edge, mixed },
         )?
-        .spec();
+        .spec(rest);
         Ok(EdgeCurveSpec {
             description,
             ..spec
@@ -362,8 +441,8 @@ impl<T: Decide> Body<T> {
             // as definitely interior is truly clear of the endpoints in
             // meters. The stored semi-axes carry no order
             // (`geom_brep::Conic`); it is `minor` in the ordinary order.
-            geom::Curve3::Ellipse { major, minor, .. } => {
-                InfSpeed::new(major.abs().min(minor.abs()))
+            geom::Curve3::Ellipse { semi_u, semi_v, .. } => {
+                InfSpeed::new(geom::Curve3::semi_axes_by_size(semi_u, semi_v).1)
             }
             // The general rung (M5 PR 7, C12.3): a fitted SSI carrier
             // is metered at the CERTIFIED LOWER BOUND on ‖C′(t)‖ —
@@ -408,14 +487,16 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): both children must
         // certify against their own endpoints.
         let (spec1, spec2) = curve.split_specs(t);
-        let spec1 = self.tangent_piece(edge, hp.key(), spec1, [p_u, p_new], band)?;
-        let spec2 = self.tangent_piece(edge, hp.key(), spec2, [p_new, p_v], band)?;
-        let cert1 = self.certify_edge_spec(Some(edge), spec1, p_u, p_new, tol)?;
-        let cert2 = self.certify_edge_spec(Some(edge), spec2, p_new, p_v, tol)?;
+        let spec1 = self.tangent_piece(edge, spec1, band)?;
+        let spec2 = self.tangent_piece(edge, spec2, band)?;
+        let faces = crate::edge_faces(self, edge);
+        let cert1 = self.certify_edge_spec(Some(edge), spec1, p_u, p_new, faces, tol)?;
+        let cert2 = self.certify_edge_spec(Some(edge), spec2, p_new, p_v, faces, tol)?;
         // ---- Pcurve gate (still no mutation): each parent half-edge's
-        // stored chart row, restricted to the two children's
-        // sub-intervals and re-certified. Read-only, so a refusal
-        // leaves the body untouched like every gate above it.
+        // stored chart row, stated over the two children's sub-intervals
+        // (placed again where it is closed-form or projected) and
+        // certified, with the joints the children make. Read-only, so a
+        // refusal leaves the body untouched like every gate above it.
         let [rows_plus, rows_minus] =
             crate::pcurves::split_cache(self, [hp.key(), hm.key()], t, band).map_err(
                 |crate::pcurves::SplitRowError { half_edge, refusal }| match refusal {
@@ -459,15 +540,26 @@ impl<T: Decide> Body<T> {
         );
         // The joints the splice makes, read before it. Each child pair
         // joins at the split point with the element the restriction
-        // decided; the joint out of the second child is the parent's old
-        // one, the second child's exit being the parent's. A side the
-        // restriction carried nothing for takes no element.
-        let carried = |rows: &Option<crate::pcurves::CarriedRows<T>>, old: HalfEdgeKey| {
-            rows.as_ref()
-                .map_or((None, None), |rows| (Some(rows.joint), self.joint(old)))
-        };
-        let (into_n_plus, into_hp_next) = carried(&rows_plus, hp_next.key());
-        let (into_hm, into_n_minus) = carried(&rows_minus, hm.key());
+        // decided; the joint out of the child whose exit is the parent's
+        // is the parent's old one, unless that child was placed again
+        // over its own span, when the restriction decided it afresh. A
+        // side the restriction carried nothing for takes no element.
+        let carried =
+            |rows: &Option<crate::pcurves::CarriedRows<T>>,
+             placed: fn(&crate::pcurves::CarriedRows<T>) -> Option<crate::joint::JointElement>,
+             old: HalfEdgeKey| {
+                rows.as_ref().map_or((None, None), |rows| {
+                    (Some(rows.joint), placed(rows).or(self.joint(old)))
+                })
+            };
+        let (into_n_plus, into_hp_next) = carried(&rows_plus, |r| r.leaving, hp_next.key());
+        let (into_hm, into_n_minus) = carried(&rows_minus, |r| r.entering, hm.key());
+        // The joints into the fed child on the plus side and out of the
+        // first child on the minus side keep their half-edges, so the
+        // splice does not write them; a re-placed child's are written
+        // after it.
+        let entering_hp = rows_plus.as_ref().and_then(|r| r.entering);
+        let leaving_hm = rows_minus.as_ref().and_then(|r| r.leaving);
         // Splice 1: hp → n⁺ → old next(hp), in hp's loop.
         self.link_half_edges(hp, n_plus, into_n_plus);
         self.link_half_edges(n_plus, hp_next, into_hp_next);
@@ -485,6 +577,12 @@ impl<T: Decide> Body<T> {
         self.link_half_edges(n_minus, hm, into_hm);
         // The splice is done; past it the new halves are ordinary keys.
         let (n_plus, n_minus) = (n_plus.key(), n_minus.key());
+        if let Some(e) = entering_hp {
+            self.joints.insert(hp.key(), e);
+        }
+        if let Some(e) = leaving_hm {
+            self.joints.insert(hm_data.next, e);
+        }
         // The chart rows certified above: the parent halves keep the
         // first child's (they ARE the first child's halves), the new
         // halves take the second child's. Both children lie in their

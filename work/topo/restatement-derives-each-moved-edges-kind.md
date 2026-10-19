@@ -49,3 +49,13 @@ Waits on `intent-stage4-is-built`, not on the whole program: Ev held its details
 ## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
 
 E does not build the restater. Stage 4 A deletes `boolean/rest.rs`'s `zip_folded`. `zip_seam`'s kills and the merge's kill stay on `kef_minting` (`crates/topo/src/boolean/zip.rs:720`, `crates/topo/src/euler_kill.rs:1690`), and the restater's plug point is unchanged (`crates/topo/src/attach.rs:851`, `vouch_described_move`). E deletes the provenance rungs (`GeomSource`), so a moved edge's description no longer carries a source a restater would read. The open details (a tangent chart edge's kind, a declared chart image on a transverse pair, D2's authority rule) are not touched by E, and the outline stands for a designer pass.
+
+## Two of the open details answered (2026-10-15)
+
+Ev's decision on D2 (PR 5150, row 148 of `docs/DESIGN-FORK-LOG.md`)
+settles the authority rule: tier 3's check 4 keys on the
+description's form, so a conventional description on an edge the
+must-carry rule reads determinate is refused whoever stated it. The
+offset doors now store the rule's reading for a declared image moved
+onto a transverse pair (the declaration does not ride an intrinsic
+description). The tangent-chart question stands for the restater.

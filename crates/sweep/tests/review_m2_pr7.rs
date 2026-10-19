@@ -346,14 +346,14 @@ fn diagonal_chord_split_refuses_typed_not_silent() {
         .expect("diagonal chord split through the public operator");
     match mass_properties(&body, Tol::witness()) {
         Err(MassPropsError::Face { source, .. }) => {
-            // A diagonal chord is a line that is NOT axial, so it lies
-            // nowhere on the cylinder: an incidence premise, and so
+            // A diagonal chord across the wall sags inside the
+            // cylinder between its ends: an incidence premise, and so
             // `OffSurface` rather than the inventory's refusal.
             assert!(
                 matches!(
                     source,
                     geom_brep::PropsError::OffSurface {
-                        what: "props_meridian_axial"
+                        what: "props_meridian_on_surface"
                     }
                 ),
                 "expected OffSurface, got {source:?}"

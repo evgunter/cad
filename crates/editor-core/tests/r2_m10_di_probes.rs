@@ -107,15 +107,15 @@ impl Fnv {
             Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u,
+                semi_v,
                 u_ref,
             } => {
                 self.u64(42);
                 self.p3(center);
                 self.v3(axis);
-                self.s(*major);
-                self.s(*minor);
+                self.s(*semi_u);
+                self.s(*semi_v);
                 self.v3(u_ref);
             }
             Curve3::Spiric {
@@ -140,10 +140,10 @@ impl Fnv {
                 for p in n.control() {
                     self.p3(p);
                 }
-                for w in n.weight_channel() {
+                for w in n.weights_f64_interim() {
                     self.u64(w.to_bits());
                 }
-                for k in n.knots().knots() {
+                for k in n.knots_f64_interim().knots() {
                     self.u64(k.to_bits());
                 }
             }
@@ -220,13 +220,13 @@ impl Fnv {
                 for p in n.control() {
                     self.p3(p);
                 }
-                for w in n.weight_channel() {
+                for w in n.weights_f64_interim() {
                     self.u64(w.to_bits());
                 }
-                for k in n.knots_u().knots() {
+                for k in n.knots_u_f64_interim().knots() {
                     self.u64(k.to_bits());
                 }
-                for k in n.knots_v().knots() {
+                for k in n.knots_v_f64_interim().knots() {
                     self.u64(k.to_bits());
                 }
             }
@@ -344,8 +344,14 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                             d.body(b);
                         }
                     }
-                    ValuePayload::Mate(_) => d.u64(20),
-                    ValuePayload::Gauge => d.u64(25),
+                    // 20 and 25 were a mate's and a gauge's, retired.
+                    ValuePayload::Copies(copies) => {
+                        d.u64(28);
+                        d.u64(copies.bodies.len() as u64);
+                        for b in &copies.bodies {
+                            d.body(b);
+                        }
+                    }
                     // The measured quantity IS a lane value, so it is
                     // digested through the same value-channel bracket
                     // every coordinate takes.

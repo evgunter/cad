@@ -103,6 +103,11 @@ fn a0_alone() -> SymRules {
 /// does on this document, so rules A/B, D, E, F, G, the decision read
 /// and the registered-identity door reach nothing here and the eight
 /// are A0's own yield.
+///
+/// The symbolic counts fell by 26 in both tiers (482 -> 456, 490 -> 464)
+/// when the final non-finite check stopped deciding `value · 0` and
+/// started asking boundedness (`expr-non-finite-asks-value-times-zero`):
+/// those 26 were its theorems on the slab. Numeric and frozen do not move.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -132,12 +137,12 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic=482 numeric=265 frozen=0",
+        "decisions symbolic=456 numeric=265 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic=490 numeric=257 frozen=0",
+        "decisions symbolic=464 numeric=257 frozen=0",
         "eight of the 265 numeric refusals are comparisons of two rational CONSTANTS, which \
          A0 decides exactly"
     );

@@ -136,7 +136,7 @@ use geom_core::predicate::Band;
 use geom_core::spline::{KnotVector, ParamRange, SpanLocate, poison_from};
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
 
-use crate::harmonic::harmonic_sup;
+use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::offset::Nappe;
 
 use super::{
@@ -236,7 +236,7 @@ impl<T: SpanLocate> FramedCarrier<T> {
     }
 }
 
-impl<T: Real> FramedCarrier<T> {
+impl<T: SpanLocate> FramedCarrier<T> {
     /// The carrier parameters of the piece parameters `a`, `b`. On a
     /// net a piece end that is one of its breakpoints is that
     /// breakpoint's held value; any other is a break the partition
@@ -471,10 +471,13 @@ pub(crate) fn span_stretches(kv: &KnotVector, range: ParamRange) -> Option<Vec<P
 /// that breakpoint's held value; any other is a point the caller
 /// chose (a partition or halving break, or the `f64` end of an edge's
 /// certified parameter enclosure), entered as the constant it is.
-fn net_param<T: Real>(net: &NurbsCurve3<T>, v: f64) -> T {
-    net.knot_values()
-        .value_at(v)
-        .unwrap_or_else(|| T::from_f64(v))
+fn net_param<T: SpanLocate>(net: &NurbsCurve3<T>, v: f64) -> T {
+    match net.knot_values().value_at(v) {
+        Ok(k) => k.unwrap_or_else(|| T::from_f64(v)),
+        Err(e) => {
+            unreachable!("a carrier's door admits only point knots (`CarrierKnotNotAPoint`): {e}")
+        }
+    }
 }
 
 /// The control points and weights of a net's restriction to `piece`
@@ -497,7 +500,7 @@ pub(crate) fn piece_controls<T: SpanLocate>(
     piece: ParamRange,
 ) -> Vec<(Vec3<T>, T)> {
     let ends = (piece.start(), piece.end());
-    let (span, _) = net.knots().span_range(piece);
+    let (span, _) = net.knots_f64_interim().span_range(piece);
     let held = net.knot_values().values();
     let held_ends = (net_param(net, ends.0), net_param(net, ends.1));
     let homogeneous: Vec<(Vec3<T>, T)> = span
@@ -586,7 +589,7 @@ impl<T: SpanLocate> ProjectedImage<T> {
                 // A part may cross the net's knots (a plane chart's one
                 // piece is the whole net): each span it crosses is
                 // restricted on its own, never extended past its knots.
-                let Some(stretches) = span_stretches(net.knots(), part) else {
+                let Some(stretches) = span_stretches(net.knots_f64_interim(), part) else {
                     let poison = poison_from(t0 + t1);
                     return FrameBox {
                         x: (poison, poison),
@@ -827,7 +830,8 @@ impl<T: SpanLocate> ProjectedImage<T> {
 /// How many equal parts the fitted door cuts each knot span of a net
 /// into, in the composite's ring, when composing the chart's implicit
 /// form along it (`pcurve_cache::projected_hull_lane`): the incidence
-/// is read per part.
+/// is read per part. Not halved further: on honest rows eight parts read
+/// within 0.3% of a 64-cut read (`work/pcert/projected-check4-incidence-can-falsely-refuse-in-the-sliver-below-the-band.md`).
 pub(crate) const INCIDENCE_CUTS: usize = 8;
 
 /// How many equal parts [`ProjectedImage::sweep_box`] cuts a piece into.
@@ -1126,7 +1130,11 @@ pub(crate) fn project<T: Decide>(
     // The top-level pieces: a net's knot spans (a piece's hull is one
     // span's Bézier restriction), a circle's one interval.
     let tops: Vec<f64> = match &image.carrier {
-        FramedCarrier::Net(net) => net.knots().knot_runs().map(|(k, _)| k).collect(),
+        FramedCarrier::Net(net) => net
+            .knots_f64_interim()
+            .knot_runs()
+            .map(|(k, _)| k)
+            .collect(),
         FramedCarrier::Circle { .. } => vec![0.0, 1.0],
     };
     if matches!(image.chart, ProjectedChart::Plane) {
@@ -1164,6 +1172,25 @@ pub(crate) fn project<T: Decide>(
     image.breaks = breaks_vector(&breaks);
     image.azimuth = azimuth;
     image.tube = tube;
+    // C4's placement: the deck origin names the image's azimuth, and on
+    // a torus its tube angle, in the principal window at the span's
+    // midpoint, so where the carrier's parameter starts moves no image;
+    // each levered by `Placement`'s one rule.
+    let place = span.map_or_else(
+        || super::Placement::own(carrier, surface),
+        |span| super::Placement::over(span, carrier, surface),
+    );
+    let at = image.eval(place.mid());
+    let deck = |along, angle: T| {
+        Ok::<_, PcurveCertifyError>(match place.turns(along, angle, band)? {
+            0 => T::zero(),
+            k => super::Period::new(T::tau()).times(-k),
+        })
+    };
+    image.u_off = deck(super::Along::Azimuth, at.x)?;
+    if matches!(image.chart, ProjectedChart::Torus { .. }) {
+        image.v_off = deck(super::Along::Tube, at.y)?;
+    }
     Ok(image)
 }
 
@@ -1764,7 +1791,11 @@ pub(crate) fn net_offset_sup<T: Decide>(
     };
     let framed = FramedCarrier::Net(Arc::new(framed_net(net, origin, &e)));
     let chart = chart_of(surface, &framed, band)?;
-    let runs: Vec<f64> = net.knots().knot_runs().map(|(k, _)| k).collect();
+    let runs: Vec<f64> = net
+        .knots_f64_interim()
+        .knot_runs()
+        .map(|(k, _)| k)
+        .collect();
     let pieces = runs.len() - 1;
     let image = ProjectedImage {
         chart,
@@ -2041,7 +2072,10 @@ pub(super) fn projected_envelope<T: Decide>(
     match (image.chart, &twin) {
         (ProjectedChart::Cone { sin, cos, .. }, Surface::Cone { half_angle, .. }) => {
             let (s, c) = half_angle.sin_cos();
-            let drift = (sin - s).abs() + (cos - c).abs();
+            // The slant direction's radial and axial components moved.
+            let drift = harmonic_sup_scalar(sin - s, cos - c);
+            #[cfg(test)]
+            let drift = super::mutants::cone_drift(sin - s, cos - c).unwrap_or(drift);
             terms.add(EnvelopeTerm::FidelityV, drift * (v_reach + incidence + d));
         }
         (
@@ -2120,7 +2154,9 @@ pub(super) fn run_projected_checks<T: Decide>(
             // The structure is the carrier's, exactly (C6): one knot
             // vector and one weight vector, so the stored net and the
             // carrier's differ control point for control point.
-            if net.knots() != c.knots() || net.weight_channel() != c.weight_channel() {
+            if net.knots_f64_interim() != c.knots_f64_interim()
+                || net.weights_f64_interim() != c.weights_f64_interim()
+            {
                 return Err(refuse(
                     "the stored net's knots or weights are not the carrier's",
                 ));
@@ -2133,7 +2169,7 @@ pub(super) fn run_projected_checks<T: Decide>(
                 ));
             }
             if curved {
-                let kv = net.knots();
+                let kv = net.knots_f64_interim();
                 for k in 0..pieces {
                     let (a, z) = (b[k + 1], b[k + 2]);
                     let Some(span) = kv.span_at(0.5 * (a + z)) else {
@@ -2177,6 +2213,11 @@ pub(super) fn run_projected_checks<T: Decide>(
     if curved {
         // The period gate reads the sweep on a cover finer than the
         // pieces (`ProjectedImage::sweep_box`); the arms read the box.
+        // This lane keeps the gate the closed-form lanes dropped: their
+        // span past a period is bounded by the edge certificate's
+        // `interval_span_winding`, which counts a carrier's turns, and a
+        // spline carrier's parameter is no angle, so it has no turns to
+        // count (`work/pcert/projected-period-gate-stands-in-for-a-winding-bound-a-spline-carrier-has-none.md`).
         let (u_arm, _) = super::chart_arms_at(surface, &boxed)?;
         let swept = image.sweep_box(t0, t1);
         let mut gates = vec![(

@@ -17,7 +17,7 @@ use geom_core::spline::KnotVector;
 fn retired_skin_spelling(elevated: &[NurbsCurve3<f64>]) -> Vec<NurbsCurve3<f64>> {
     let mut union: Vec<(f64, usize)> = Vec::new();
     for c in elevated {
-        for (value, mult) in c.knots().interior_knots() {
+        for (value, mult) in c.knots_f64_interim().interior_knots() {
             match union.iter_mut().find(|(v, _)| *v == value) {
                 Some((_, m)) => *m = (*m).max(mult),
                 None => union.push((value, mult)),
@@ -28,7 +28,7 @@ fn retired_skin_spelling(elevated: &[NurbsCurve3<f64>]) -> Vec<NurbsCurve3<f64>>
     elevated
         .iter()
         .map(|c| {
-            let own: Vec<(f64, usize)> = c.knots().interior_knots().collect();
+            let own: Vec<(f64, usize)> = c.knots_f64_interim().interior_knots().collect();
             let mut add: Vec<f64> = Vec::new();
             for (value, want) in &union {
                 let have = own
@@ -52,7 +52,7 @@ fn retired_skin_spelling(elevated: &[NurbsCurve3<f64>]) -> Vec<NurbsCurve3<f64>>
 /// verbatim — note it does NOT sort the union.
 fn retired_fit_spelling(a: &NurbsCurve3<f64>, b: &NurbsCurve3<f64>) -> Vec<NurbsCurve3<f64>> {
     let mut need: Vec<(f64, usize)> = Vec::new();
-    for kv in [a.knots(), b.knots()] {
+    for kv in [a.knots_f64_interim(), b.knots_f64_interim()] {
         for (u, m) in kv.interior_knots() {
             match need.iter_mut().find(|(v, _)| *v == u) {
                 Some(entry) => entry.1 = entry.1.max(m),
@@ -61,7 +61,7 @@ fn retired_fit_spelling(a: &NurbsCurve3<f64>, b: &NurbsCurve3<f64>) -> Vec<Nurbs
         }
     }
     let refine_to = |c: &NurbsCurve3<f64>| -> NurbsCurve3<f64> {
-        let own: Vec<(f64, usize)> = c.knots().interior_knots().collect();
+        let own: Vec<(f64, usize)> = c.knots_f64_interim().interior_knots().collect();
         let mut add: Vec<f64> = Vec::new();
         for (u, m) in &need {
             let have = own.iter().find(|(v, _)| *v == *u).map_or(0, |(_, s)| *s);
@@ -80,7 +80,7 @@ fn retired_fit_spelling(a: &NurbsCurve3<f64>, b: &NurbsCurve3<f64>) -> Vec<Nurbs
 
 fn bits(c: &NurbsCurve3<f64>) -> String {
     let mut s = format!("deg {} knots", c.degree());
-    for k in c.knots().knots() {
+    for k in c.knots_f64_interim().knots() {
         s.push_str(&format!(" {:016x}", k.to_bits()));
     }
     s.push_str(" ctrl");

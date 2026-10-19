@@ -74,8 +74,9 @@ use geom_core::{Band, Bounds, Decide, Real, Vec3};
 use topo::{AtRestBody, Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey};
 
 use super::admit::{CornerFaces, CornerLinks};
+use super::arms::corner_chart;
 use super::battery::{BlendRequest, Link, run_battery};
-use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_geometry};
+use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, disagrees, unbuilt_geometry};
 use super::{BlendError, BlendKind, BlendRefusal};
 use geom_core::Tol;
 
@@ -409,30 +410,25 @@ pub(super) fn face_cycle_edges<T: Decide>(body: &Body<T>, face: FaceKey) -> Opti
         .collect()
 }
 
-/// The octant's chart pick at one trivalent corner. The criterion:
-/// the octant is an iso-parameter
-/// rectangle exactly when the chart is aimed along an incident edge
-/// whose axis `n_a × n_b` the THIRD support's normal is parallel to,
-/// so the pick minimizes `|n_c × axis|` over the incident requested
-/// links, ORDER-FREE — it finds the admitting edge whenever one
-/// exists and falls back to the best-scoring link (the genuinely
-/// oblique trihedron, whose octant is no iso rectangle and still
-/// passes tier 3) only when none does. Returns `(u_ref, axis)`.
+/// The octant's chart pick at one trivalent corner: the chart is
+/// [`corner_chart`] over the corner's feet with the pole on the THIRD
+/// support's foot (up to sign) of one incident link. Every link yields
+/// a valid chart that way — neither pole inside the patch off a
+/// vertex — so the pick only PREFERS one: the octant is an
+/// iso-parameter rectangle exactly when that link's edge axis
+/// `n_a × n_b` is parallel to the third support's normal `n_c`, so it
+/// minimizes `|n_c × (n_a × n_b)|` over the incident requested links,
+/// ORDER-FREE, and finds the admitting edge whenever one exists. On a
+/// genuinely oblique trihedron no link admits, and the octant is a
+/// spherical triangle with two meridian sides whichever link wins.
+/// Returns `(u_ref, axis)`.
 ///
-/// **The chart follows the corner's convexity, and the invariant it
-/// keeps is about the EQUATOR**: the seam meridian (`u_ref`) and its
-/// quarter-turn (`axis × u_ref`) each pass exactly through a foot, on
-/// either material side — a convex octant's feet lie along `+n_i`
-/// from the centre, so `(u_ref, axis) = (n_a, n_a × n_b)`; a concave
-/// one's lie along `−n_i`, so `(−n_b, n_b × n_a)`. The POLE is
-/// parallel to the third foot only UP TO SIGN, inherently: the score
-/// `|n_c × axis|` is even in `axis`, so the pick cannot constrain the
-/// sign, which falls out of the winning link's stored face order
-/// (measured split: 7:1 over a cube's convex octants, 6:2 over the
-/// cavity's concave ones —
-/// `review_blend4_r2_probes::r2_the_octant_chart_pole_is_the_third_foot_only_up_to_sign`,
-/// beside the seam/quarter-turn pin that holds both halves of the
-/// concave fold).
+/// **The chart follows the corner's convexity**: a convex octant's
+/// feet lie along `+n_i` from the centre, a concave one's along `−n_i`,
+/// and the seam passes through the foot `n_a` (convex) or `−n_b`
+/// (concave). The pole's sign falls out of the winding of the winning
+/// link's stored face order, so it differs between corners of one body
+/// (`review_blend4_r2_probes::r2_the_octant_chart_pole_is_the_third_foot_only_up_to_sign`).
 ///
 /// **The pick always yields, over one corner.** [`CornerLinks`] carries
 /// at least one link and [`CornerFaces::third`] is total over the
@@ -464,7 +460,7 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
     // adjacent corners apart, and the third support is exactly what
     // the score below turns on.
     if faces.vertex() != links.vertex() {
-        return Err(not_intact(
+        return Err(disagrees(
             EntityId::Vertex(links.vertex()),
             "a corner's chart was offered the face orbit of a different vertex",
         ));
@@ -479,7 +475,7 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
         // THIS corner's three. Necessary, not sufficient — the vertex
         // check above is what identifies the corner.
         let third = faces.third(l.face_a, l.face_b).ok_or_else(|| {
-            not_intact(
+            disagrees(
                 EntityId::Vertex(links.vertex()),
                 "a corner's chart candidate carries supports that are not two of this \
                  corner's own three faces",
@@ -494,12 +490,13 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
         // The third support of the corner — the one this edge does not
         // touch.
         let n_c = planar(third)?;
+        let score = n_c.cross(n_a.cross(n_b).normalize()).norm().lo().abs();
         let (u_ref, axis) = if convex {
-            (n_a, n_a.cross(n_b).normalize())
+            corner_chart([n_a, n_b, n_c])
         } else {
-            (-n_b, n_b.cross(n_a).normalize())
+            corner_chart([-n_b, -n_a, -n_c])
         };
-        Ok((n_c.cross(axis).norm().lo().abs(), u_ref, axis))
+        Ok((score, u_ref, axis))
     };
     let mut best = candidate(links.first().link())?;
     for l in links.rest() {

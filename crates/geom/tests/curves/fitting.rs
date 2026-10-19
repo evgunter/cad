@@ -73,13 +73,16 @@ fn bit_replay_fitting_twice_is_identical_structure_and_bits() {
     assert_eq!(a.bound.to_bits(), b.bound.to_bits());
     assert_eq!(a.refit_applied, b.refit_applied);
     assert_eq!(a.curve.degree(), b.curve.degree());
-    assert_eq!(a.curve.knots().knots().len(), b.curve.knots().knots().len());
+    assert_eq!(
+        a.curve.knots_f64_interim().knots().len(),
+        b.curve.knots_f64_interim().knots().len()
+    );
     for (ka, kb) in a
         .curve
-        .knots()
+        .knots_f64_interim()
         .knots()
         .iter()
-        .zip(b.curve.knots().knots().iter())
+        .zip(b.curve.knots_f64_interim().knots().iter())
     {
         assert_eq!(ka.to_bits(), kb.to_bits());
     }
@@ -109,9 +112,9 @@ fn approximation_respects_tolerance_and_compresses() {
     );
     // The Type-2 loop's point: far fewer control points than samples.
     assert!(
-        fit.curve.knots().control_count() < pts.len() / 2,
+        fit.curve.knots_f64_interim().control_count() < pts.len() / 2,
         "no compression: {} control points from {} samples",
-        fit.curve.knots().control_count(),
+        fit.curve.knots_f64_interim().control_count(),
         pts.len()
     );
     // The certified bound really does bound the data deviation.
@@ -135,7 +138,8 @@ fn tighter_tolerance_yields_tighter_bound_and_more_structure() {
     assert!(fine.bound <= 1e-6 && coarse.bound <= 1e-2);
     assert!(coarse.bound > 1e-3, "coarse loop accepted nothing?");
     assert!(
-        fine.curve.knots().control_count() >= coarse.curve.knots().control_count(),
+        fine.curve.knots_f64_interim().control_count()
+            >= coarse.curve.knots_f64_interim().control_count(),
         "tighter tolerance kept fewer control points"
     );
 }
@@ -159,7 +163,7 @@ fn pcurve_2d_fitting_rides_the_same_machinery() {
     }
     let fit = NurbsCurve2::approximate(&pts, 3, 1e-2).unwrap();
     assert!(fit.bound <= 1e-2);
-    assert!(fit.curve.knots().control_count() < pts.len());
+    assert!(fit.curve.knots_f64_interim().control_count() < pts.len());
 }
 
 fn chord_params2(pts: &[Point2<f64>]) -> Vec<f64> {

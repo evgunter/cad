@@ -22,9 +22,8 @@ use std::sync::Arc;
 use crate::common;
 
 use pncad::document::{
-    Alignment, AxisSense, CancelToken, Doc, DocEdit, DocRef, EvalOptions, Formula, Label,
-    MateFrame, MatePrimitive, Node, NodeResult, PatternKind, ProfileDoc, RecipeNodeId, content_pin,
-    evaluate,
+    CancelToken, Doc, DocEdit, DocRef, EvalOptions, Formula, Label, Node, NodeResult, PatternKind,
+    ProfileDoc, RecipeNodeId, content_pin, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -243,12 +242,14 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
 /// `broken.pncad` is [`common::broken_document`]: its extrude refuses
 /// and its one root, a transform over the extrude, never runs.
 /// `bracket.pncad`'s one placed body is a transform over an instance of
-/// it, so that transform never runs either. An assembly instantiating the bracket
-/// draws two levels under its row, each at the node that FAILED rather
-/// than the root it cost: the bracket's instance, labelled
-/// `bracket.pncad`, and the broken part's extrude, labelled
-/// `broken.pncad`. The traceback ends at the failing node, drawn byte
-/// for byte as its own document draws it.
+/// it, so that transform never runs either; the instance is a placement
+/// of its own, loose, and the bracket's gather names it as the node
+/// that failed. An assembly instantiating the bracket draws two levels
+/// under its row, each at the node that FAILED rather than the root it
+/// cost: the bracket's instance, labelled `bracket.pncad`, and the
+/// broken part's extrude, labelled `broken.pncad`. The traceback ends
+/// at the failing node, drawn byte for byte as its own document draws
+/// it.
 #[test]
 fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
     let tol = Tol::witness();
@@ -261,9 +262,11 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
         .expect("the broken part stores");
 
     let mut bracket = Doc::empty_derived("partroot-poisoned-bracket", tol);
+    // The instance's bundle empty, so it is no root of the bracket's
+    // product of its own: the transform's placement is.
     let inner = common::insert_into(
         &mut bracket,
-        Node::instantiate_part(reference(&broken, tol)),
+        crate::fixture::mated_instance(reference(&broken, tol)),
         tol,
     );
     let bracket_root = common::insert_into(
@@ -318,27 +321,26 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
         "one level per document, each at the node that failed, labelled with its file and \
          drawn as its part's own tree draws it"
     );
-    // The cost is the body's world placement: what the part's product
-    // reads (A10).
-    for (line, root, failed) in [
-        (
-            message,
-            bracket.spoken(common::copy_of(&bracket, bracket_root)),
-            bracket.spoken(inner),
-        ),
-        (
-            &carried[0].line,
-            broken.spoken(common::copy_of(&broken, broken_root)),
-            broken.spoken(extrude),
-        ),
-    ] {
-        assert!(
-            line.contains(&format!("its root, {root}"))
-                && line.contains(&format!("repair {failed}")),
-            "each carrying line names the root it cost and points at the node that failed: \
-             {line}"
-        );
-    }
+    // Each carrying line points at the node that failed; where that
+    // node poisoned a root of its part's product — the body's world
+    // placement (A10) — it names the root it cost too.
+    let inner_said = bracket.spoken(inner);
+    assert!(
+        message.contains(&format!("the part's {inner_said} failed"))
+            && message.contains(&format!("repair {inner_said}")),
+        "the top line points at the bracket's failed instance: {message}"
+    );
+    let (root, failed) = (
+        broken.spoken(common::copy_of(&broken, broken_root)),
+        broken.spoken(extrude),
+    );
+    assert!(
+        carried[0].line.contains(&format!("its root, {root}"))
+            && carried[0].line.contains(&format!("repair {failed}")),
+        "the broken part's line names the root it cost and points at the node that failed: \
+         {}",
+        carried[0].line
+    );
     hold_to_the_standard(message, carried);
 
     std::fs::remove_dir_all(&dir).expect("remove the fixture directory");
@@ -395,20 +397,14 @@ fn in_part(
     .into_name()
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
-        .expect("a definite frame")
-}
-
 /// **A mate's carried level inside a part is labelled with that part.**
 ///
-/// `sub.pncad` mates onto copy 1 of a pattern whose direction is
-/// `1e200`, so its fold refuses `PlacerRefused` and poisons the pattern;
-/// its first root, the cap instance the mate places, fails with that
-/// fault. An assembly instantiating `sub.pncad` draws two levels under
-/// its row: the cap's refusal and, under it, the pattern's, which the
-/// mate carries. Both nodes are numbered in `sub.pncad`, and both
-/// levels say so.
+/// `sub.pncad` rests its cap instance on copy 1 of a pattern whose
+/// direction is `1e200`, so the pattern refuses and the cap, whose
+/// mate's target reads the pattern's copy, is poisoned through it. An
+/// assembly instantiating `sub.pncad` draws one level under its row:
+/// the pattern's refusal, the node that failed. It is numbered in
+/// `sub.pncad`, and the level says so.
 #[test]
 fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
     let tol = Tol::witness();
@@ -420,7 +416,11 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
     store.save_at(&top, "top.pncad", tol).expect("stores");
 
     let sub = Doc::empty_derived("partroot-carried-sub", tol);
-    let (sub, cap) = common::inserted(&sub, Node::instantiate_part(reference(&top, tol)), tol);
+    let (sub, cap) = common::inserted(
+        &sub,
+        crate::fixture::mated_instance(reference(&top, tol)),
+        tol,
+    );
     let (sub, legs) = common::inserted(&sub, Node::instantiate_part(reference(&leg, tol)), tol);
     let (sub, pattern) = common::inserted(
         &sub,
@@ -434,33 +434,28 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
         },
         tol,
     );
-    let (sub, _mate) = common::inserted(
+    let (sub, _) = common::edited(
         &sub,
-        Node::Mate {
-            a: (common::head(StableName {
-                kind: EntityKind::Face,
-                node: pattern,
-                path: vec![RoleSeg::Instance {
-                    i: 1,
-                    of: in_part(legs, (leg_body, leg_copy), CapEnd::End).into(),
-                }],
-            }))
-            .into(),
-            b: common::head(in_part(cap, (top_body, top_copy), CapEnd::Start)).into(),
-            class: ContactClass::Rest,
-            alignment: Alignment {
-                a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
-                b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
-                primitive: MatePrimitive::FrameCoincidence,
-                sense: AxisSense::Opposed,
-                clocking: None,
-            },
+        DocEdit::AddConstraint {
+            placement: cap,
+            mate: Box::new(crate::fixture::rest(
+                common::head(in_part(cap, (top_body, top_copy), CapEnd::Start)),
+                common::head(StableName {
+                    kind: EntityKind::Face,
+                    node: pattern,
+                    path: vec![RoleSeg::Instance {
+                        i: 1,
+                        of: in_part(legs, (leg_body, leg_copy), CapEnd::End).into(),
+                    }],
+                }),
+                ContactClass::Rest,
+            )),
+            fresh: Vec::new(),
         },
         tol,
     );
-    // The world: the cap first, so it is the first placement the
-    // product door reads, then the pattern's copy 1.
-    let (sub, _) = common::placed(&sub, cap, tol);
+    // The world: the cap is the first placement the product door
+    // reads, then the legs, then the pattern's copy 1.
     let (sub, copy) = common::inserted(
         &sub,
         Node::Part {
@@ -490,20 +485,17 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
             .iter()
             .map(|c| c.document.as_str())
             .collect::<Vec<_>>(),
-        vec!["sub.pncad", "sub.pncad"],
-        "the cap's level and the placer's under it are both sub.pncad's: {carried:#?}"
+        vec!["sub.pncad"],
+        "the pattern's level is sub.pncad's: {carried:#?}"
     );
     assert_eq!(
         carried[0].line,
-        own_line(&sub, cap, &dir, tol),
-        "the cap's level is sub.pncad's own line for it"
+        own_line(&sub, pattern, &dir, tol),
+        "the level is sub.pncad's own line for the pattern"
     );
     assert!(
-        carried[1]
-            .line
-            .starts_with(&format!("{} failed: ", sub.spoken(pattern))),
-        "the carried level is the pattern's refusal: {}",
-        carried[1].line
+        message.contains(&format!("repair {}", sub.spoken(pattern))),
+        "the instance's line points at the pattern: {message}"
     );
     hold_to_the_standard(message, carried);
     std::fs::remove_dir_all(&dir).expect("remove the fixture directory");

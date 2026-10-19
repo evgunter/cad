@@ -53,13 +53,13 @@ use crate::corpus;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
-use editor_core::analysis::{AnalysisPolicy, analyzed_box};
+use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_vector, drive};
 use editor_core::report::{MassBasis, MassBudget};
 use editor_core::{
     AssertionRelation, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit,
     EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc,
-    ProfileLift, ProfileProgram, RecipeNodeId, SitedRef, UnitSym, ValuePayload, VarName, evaluate,
+    ProfileProgram, RecipeNodeId, SitedRef, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::Tol;
 
@@ -291,10 +291,7 @@ fn distributed_plate() -> ProfileDoc {
         &r.doc,
         None,
         &CancelToken::new(),
-        &EvalOptions {
-            profile_lift: ProfileLift::Guided,
-            ..EvalOptions::default()
-        },
+        &EvalOptions::default(),
         Tol::witness(),
     );
     let wall = |node: RecipeNodeId| {
@@ -529,10 +526,7 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
                     &entry.doc,
                     None,
                     &CancelToken::new(),
-                    &EvalOptions {
-                        profile_lift: ProfileLift::Guided,
-                        ..EvalOptions::default()
-                    },
+                    &EvalOptions::default(),
                     Tol::witness(),
                 );
                 for node in assertions_of(&entry.doc) {
@@ -593,7 +587,6 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
         for leaf in verdict.certified() {
             let opts = EvalOptions {
                 param_box: Some(std::sync::Arc::new(leaf.box_.clone())),
-                profile_lift: ProfileLift::Guided,
                 ..EvalOptions::default()
             };
             let ev: editor_core::Evaluation<geom_core::Interval> =
@@ -817,15 +810,25 @@ fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
     let doc = min_clearance_neck();
     let plain = plain_distance_doc();
     let mut text = String::new();
+    // `plain_distance`'s analysed box varies no axis (its drive refuses
+    // `NothingVaries` before it builds a witness), so its collapsed box
+    // is the build's and its keys are the pinned lift's
+    // (`EvalOptions::profile_lift`); `min_clearance_neck`'s varies one,
+    // and its keys are the guided lift's, as its drive's witness is.
+    assert!(
+        ParamBox::of(&analyzed_box(&plain, &AnalysisPolicy::default()))
+            .varying()
+            .next()
+            .is_none(),
+        "plain_distance's box varies no axis"
+    );
     for (label, d) in [("min_clearance_neck", &doc), ("plain_distance", &plain)] {
         let ev = evaluate::<f64>(
             d,
             None,
             &CancelToken::new(),
-            &EvalOptions {
-                profile_lift: ProfileLift::Guided,
-                ..EvalOptions::default()
-            },
+            // The witness's own options, as the drive builds them.
+            &editor_core::drive::witness_options(&analyzed_box(d, &AnalysisPolicy::default())),
             Tol::witness(),
         );
         let full = VerdictVector::of(&ev);

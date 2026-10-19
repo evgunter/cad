@@ -47,11 +47,11 @@ import unittest
 from pncad import (
     Doc,
     DocEdit,
+    EditError,
     EntityKind,
     EvaluationError,
     Formula,
     Node,
-    NodeId,
     Pose,
     ReadbackError,
     SurfaceKind,
@@ -431,19 +431,20 @@ class TestTheDerivedFrameRefuses(unittest.TestCase):
             evaluate(self.doc).value(node)
         return caught.exception
 
-    def test_nothing_is_pre_checked_at_the_constructor(self):
-        """An edge name builds a `Node` and inserts, and fails where
-        every other selection failure does."""
+    def test_an_edge_name_refuses_at_the_insert(self):
+        """An edge name builds a `Node`, and the insert refuses it as
+        the seat's kind: what a name denotes is its own kind, so the
+        door that reads it asks."""
         edge = self.ev.all_edges(self.plate)[0]
         node = Node.datum_face_frame(self.plate, edge, Formula.angle_in(0, rad))
-        self.assertIsInstance(self.doc.insert(node), NodeId)
-
-    def test_an_edge_name_refuses_face_frame_kind(self):
-        edge = self.ev.all_edges(self.plate)[0]
-        node = self.doc.insert(Node.datum_face_frame(self.plate, edge, Formula.angle_in(0, rad)))
-        err = self.kind_of(node)
-        self.assertEqual(err.kind, "select_kind")
-        self.assertEqual(err.node, node)
+        with self.assertRaises(EditError) as caught:
+            self.doc.insert(node)
+        refused = caught.exception
+        self.assertEqual(refused.variant, "selection_name_kind")
+        self.assertEqual(refused.first, 0)
+        self.assertEqual(refused.found_kind, EntityKind.Edge)
+        self.assertEqual(refused.expected_kind, EntityKind.Face)
+        self.assertEqual(refused.name, edge)
 
     def test_a_curved_carrier_refuses_face_frame_not_planar(self):
         """A sketch frame wants a plane. The refusal's prose names the
@@ -471,13 +472,15 @@ class TestTheDerivedFrameRefuses(unittest.TestCase):
         """The fillet's failure mode, one node out: a sketch drawn on
         a frame that cannot be built is poisoned rather than placed on
         a fabricated plane, and `through` names the frame."""
-        edge = self.ev.all_edges(self.plate)[0]
-        frame = self.doc.insert(Node.datum_face_frame(self.plate, edge, Formula.angle_in(0, rad)))
+        second = plate(self.doc, 0.2 * m)
+        frame = self.doc.insert(
+            Node.datum_face_frame(second, self.top, Formula.angle_in(0, rad))
+        )
         pad = self.doc.insert(Node.polygon(SQUARE, plane=frame))
         err = self.kind_of(pad)
         self.assertEqual(err.reason, "poisoned")
         self.assertEqual(err.through, frame)
-        self.assertEqual(err.kind, "select_kind")
+        self.assertEqual(err.kind, "select_resolve")
 
     def test_text_that_is_no_name_at_all_is_a_boundary_refusal(self):
         with self.assertRaises(ValueError):

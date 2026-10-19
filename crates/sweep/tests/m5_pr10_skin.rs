@@ -121,10 +121,14 @@ fn a_half_turn_arc_splits_into_sub_arcs_and_stays_exact() {
 #[test]
 fn compatibility_gives_one_degree_and_one_knot_vector() {
     let compat = strip(1);
-    let first = compat[0].knots();
+    let first = compat[0].knots_f64_interim();
     for (i, c) in compat.iter().enumerate() {
         assert_eq!(c.degree(), first.degree(), "section {i} degree");
-        assert_eq!(c.knots().knots(), first.knots(), "section {i} knots");
+        assert_eq!(
+            c.knots_f64_interim().knots(),
+            first.knots(),
+            "section {i} knots"
+        );
         assert_eq!(c.control().len(), compat[0].control().len());
     }
 }
@@ -209,7 +213,10 @@ fn the_wall_is_genuinely_curved_in_v() {
 fn the_construction_is_bit_deterministic() {
     let a = skin(&strip(1), 2).expect("skins");
     let b = skin(&strip(1), 2).expect("skins");
-    assert_eq!(a.knots_v().knots(), b.knots_v().knots());
+    assert_eq!(
+        a.knots_v_f64_interim().knots(),
+        b.knots_v_f64_interim().knots()
+    );
     for (p, q) in a.control().iter().zip(b.control()) {
         assert_eq!(p.x.to_bits(), q.x.to_bits());
         assert_eq!(p.y.to_bits(), q.y.to_bits());

@@ -21,19 +21,20 @@
 //!   plate and alone, in every member order: the line held by two
 //!   coincident edges meets the third, and folded first the three
 //!   pierce the top at one point;
+//! - a third prism bridging the gap between two wedges that touch along
+//!   the line, with the plate and alone: every order that builds
+//!   publishes one table;
 //! - the plate against the joined blocks as a pair boolean, both ways
 //!   round, so the pierced face sits on each operand side in turn;
-//! - the plate minus the joined blocks, where the pierced face is the
-//!   kept A side, and the plate intersected with them, where the two
+//! - the plate intersected with the joined blocks, where the two
 //!   pierces stay in two faces and so stay two vertices;
-//! - the plate against a slab the two blocks were cut from, in all six
-//!   ops: the pierces survive on two fragments of the plate's top, or on
-//!   one, and are one vertex only in the second case.
+//! - the plate minus the joined blocks, and a slab less them, which
+//!   refuse `Revert`: the blocks' contact runs inside the other operand,
+//!   where the complement pairs one block's faces with the other's.
 //!
 //! Each row also reads the result's contact record, its tier-3′ verdict
 //! and `check_mesh` on its tessellation: every result passes 3′, every
-//! order of one union publishes one record, and `check_mesh` diverges
-//! only while [`DOUBLED_EDGE`] stands.
+//! order of one union publishes one record, and every mesh passes.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
@@ -42,7 +43,8 @@ use crate::blocks::{block, failure, run};
 use crate::corpus::body_of;
 use crate::fixture::{ends, face_vertices, insert, len, on_frame, point};
 use editor_core::{
-    BooleanValue, Evaluation, ExtrudeSide, Node, ProfileDoc, RecipeNodeId, ValuePayload,
+    BooleanValue, Evaluation, ExtrudeSide, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    ValuePayload,
 };
 use geom_core::Tol;
 use topo::BooleanOp;
@@ -66,7 +68,7 @@ fn pair_node(op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::Au
 use topo::{Body, ContactRecords};
 
 /// The plate and the two blocks, in a document of their own.
-fn pinch(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn pinch(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, p1) = block(doc, (1.0, 1.5), (-1.0, 1.0), 0.5, 1.5);
     let (doc, p2) = block(doc, (1.5, 2.0), (1.0, 3.0), 0.47, 1.23);
@@ -449,11 +451,6 @@ fn orders(n: usize) -> Vec<Vec<usize>> {
     out
 }
 
-/// The double edge two touching solids leave meshes as one segment of
-/// four triangles, which `check_mesh` refuses.
-const DOUBLED_EDGE: &str =
-    "work/tess/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md";
-
 /// Asserts every member order of `fixture`'s union builds one body,
 /// with `counts` (faces, edges, vertices), `volume` and one vertex at
 /// each of `pinches`, passes 3′, and publishes one record and one mesh
@@ -576,9 +573,61 @@ fn holes_touching_at_a_corner_build_one_body_in_every_member_order() {
     );
 }
 
+/// **Every member order of a pinch union publishes one table**, the
+/// vertex at each pinch under one name: for the top pinch, for blocks
+/// through the plate, for the two holes meeting at a corner, and for a
+/// third block making a second pinch, over every order of its four
+/// members. Red if a pinch vertex keeps the name of whichever block
+/// reached it last.
+#[test]
+fn a_pinch_union_publishes_one_table_in_every_member_order() {
+    type Fixture = fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>);
+    let rows: [(&str, Fixture, &[Point]); 4] = [
+        ("top", pinch, &[top()]),
+        ("through", through, &[top(), (1_500_000, 1_000_000, 0)]),
+        ("corner holes", corner_holes, &[top()]),
+        (
+            "two pinches on the top",
+            two_pinches,
+            &[top(), (1_000_000, 1_000_000, 1_000_000)],
+        ),
+    ];
+    for (label, fixture, pinches) in rows {
+        let mut first: Option<NamedShape> = None;
+        let n = fixture(ProfileDoc::empty_derived("union_pinch", Tol::witness()))
+            .1
+            .len();
+        for order in orders(n) {
+            let (doc, m) = fixture(ProfileDoc::empty_derived("union_pinch", Tol::witness()));
+            let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
+            let (doc, u) = crate::fixture::union_over(doc, &members);
+            let what = format!("{label}, member order {order:?} (0 = plate)");
+            let ev = run(&doc);
+            if let Some(e) = failure(&ev, u) {
+                panic!("{what}: refused: {e:?}");
+            }
+            for &p in pinches {
+                let names = names_at(&ev, u, p);
+                assert_eq!(
+                    names.len(),
+                    1,
+                    "{what}: one name at the pinch {p:?}: {names:?}"
+                );
+            }
+            let here = named_shape(&ev, u);
+            match &first {
+                None => first = Some(here),
+                Some(f) => same_table(&here, f, &what),
+            }
+        }
+    }
+}
+
 /// **The plate against the joined blocks: a union both ways round
-/// builds the member-order body, a subtraction keeps the pinched top
-/// in two faces, and an intersection keeps the two footprints apart.**
+/// builds the member-order body, an intersection keeps the two
+/// footprints apart, and a subtraction refuses `Revert`**: the blocks'
+/// contact runs inside the plate, and ∖ does not build the re-pairing
+/// its complement needs.
 #[test]
 fn the_plate_against_the_joined_blocks_builds_in_every_op() {
     let (doc, m) = pinch(ProfileDoc::empty_derived("union_pinch", Tol::witness()));
@@ -619,18 +668,14 @@ fn the_plate_against_the_joined_blocks_builds_in_every_op() {
         );
     }
 
-    let s = m(
-        "plate ∖ blocks",
-        checked(&ev, notched, "plate ∖ blocks", 6.0 - NOTCHES),
-    )
-    .shape;
-    assert_eq!(at(&s, top()), 1, "plate ∖ blocks: vertices at the pinch");
-    let tops = s
-        .faces
-        .keys()
-        .filter(|ps| ps.iter().all(|p| p.2 == 1_000_000))
-        .count();
-    assert_eq!(tops, 2, "plate ∖ blocks: faces on the top");
+    // The blocks' contact runs inside the plate, where the complement
+    // pairs one block's faces with the other's; the reverted pair would
+    // bound 270° each, overlapping.
+    let refusal = failure(&ev, notched);
+    assert!(
+        format!("{refusal:?}").contains("Revert {"),
+        "plate ∖ blocks: {refusal:?}, not the revert's refusal"
+    );
 
     let o = checked(&ev, footprints, "plate ∩ blocks", NOTCHES);
     assert_eq!(o.verdict, Ok(()), "plate ∩ blocks: 3′");
@@ -645,129 +690,27 @@ fn the_plate_against_the_joined_blocks_builds_in_every_op() {
     );
 }
 
-/// **A slab the two blocks were cut from, against the plate, in all six
-/// ops.** The slab `X` holds the blocks' contact as two coincident
-/// edges, which pierce the plate's top at the pinch.
-/// - The plate minus `X`, and either union, keep the two pieces of the
-///   top the slab does not cover, and those are two fragments: the
-///   pierces stay two vertices, the body the contact builds.
-/// - `X` minus the plate, and either intersection, keep the piece the
-///   slab covers, which is one fragment running through both pierces:
-///   they are one vertex. In the intersection the contact
-///   then runs between one vertex at each end, as two coincident edges.
+/// **The slab the two blocks are cut from refuses**: `slab ∖ blocks`
+/// keeps the blocks' contact inside the slab, where the complement pairs
+/// one block's faces with the other's. The result would carry the
+/// contact as two coincident edges bounding 270° each, overlapping, and
+/// ∖ refuses `Revert`. The six ops of that slab against the plate return
+/// with the re-pairing
+/// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
 #[test]
-fn a_slab_holding_the_contact_is_one_vertex_only_on_one_fragment() {
+fn a_slab_holding_the_contact_refuses_to_be_cut() {
     let doc = ProfileDoc::empty_derived("union_pinch", Tol::witness());
     let (doc, slab) = block(doc, (-1.0, 4.0), (-1.0, 3.0), 0.5, 2.5);
     let (doc, p1) = block(doc, (1.0, 1.5), (-2.0, 1.0), 0.3, 2.0);
     let (doc, p2) = block(doc, (1.5, 2.0), (1.0, 4.0), 0.27, 1.73);
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
-    let pair = |doc, op, a: RecipeNodeId, b: RecipeNodeId| insert(doc, pair_node(op, a, b));
-    // One cut: cutting the blocks one at a time sets the second block's
-    // wall flush with the first's hole wall, an undeclared continuation.
     let (doc, blocks) = crate::fixture::union_over(doc, &[p1, p2]);
-    let (doc, x) = pair(doc, BooleanOp::Subtract, slab, blocks);
-    // The slab less the two notches, and the plate's part inside it.
-    let x_volume = 50.0 - 0.5 * 2.0 * 1.8 - 0.5 * 2.0 * 1.5;
-    let shared = 3.0 - 2.0 * 0.25;
-    let rows = [
-        (
-            "plate ∖ X",
-            BooleanOp::Subtract,
-            plate,
-            x,
-            6.0 - shared,
-            [15, 36, 23],
-            2,
-        ),
-        (
-            "X ∖ plate",
-            BooleanOp::Subtract,
-            x,
-            plate,
-            x_volume - shared,
-            [23, 60, 39],
-            1,
-        ),
-        (
-            "X ∪ plate",
-            BooleanOp::Union,
-            x,
-            plate,
-            x_volume + 6.0 - shared,
-            [22, 60, 40],
-            2,
-        ),
-        (
-            "plate ∪ X",
-            BooleanOp::Union,
-            plate,
-            x,
-            x_volume + 6.0 - shared,
-            [22, 60, 40],
-            2,
-        ),
-        (
-            "X ∩ plate",
-            BooleanOp::Intersect,
-            x,
-            plate,
-            shared,
-            [16, 36, 22],
-            1,
-        ),
-        (
-            "plate ∩ X",
-            BooleanOp::Intersect,
-            plate,
-            x,
-            shared,
-            [16, 36, 22],
-            1,
-        ),
-    ];
-    let mut doc = doc;
-    let mut ids = Vec::new();
-    for &(_, op, a, b, ..) in &rows {
-        let (d, id) = pair(doc, op, a, b);
-        doc = d;
-        ids.push(id);
-    }
+    let (doc, x) = insert(doc, pair_node(BooleanOp::Subtract, slab, blocks));
     let ev = run(&doc);
-    let mut outcomes = Vec::new();
-    for (&(what, op, _, _, volume, counts, pinch), &id) in rows.iter().zip(&ids) {
-        let o = checked(&ev, id, what, volume);
-        // X's own contact record carries into each result. Where the op
-        // keeps the pierce as two vertices, a record of the pair cites the
-        // fusion the ring serving both pierces decided.
-        assert_eq!(o.verdict, Ok(()), "{what}: 3′");
-        if pinch == 2 {
-            ring_fusion_recorded(&ev, id, &o, what);
-            far_end_backed(&ev, id, what);
-        }
-        if op == BooleanOp::Intersect {
-            // Two L-prisms touching along the contact line, which runs
-            // between one vertex at each end as two coincident edges.
-            assert_eq!(
-                o.manifold,
-                Err("NonManifoldEdge".to_owned()),
-                "{what}: check_mesh, while {DOUBLED_EDGE} stands"
-            );
-        } else {
-            assert_eq!(o.manifold, Ok(()), "{what}: check_mesh");
-        }
-        assert_eq!(o.shape.counts(), counts, "{what}: faces, edges, vertices");
-        assert_eq!(at(&o.shape, top()), pinch, "{what}: vertices at the pinch");
-        outcomes.push(o);
-    }
-    for (i, what) in [
-        (2, "X ∪ plate and plate ∪ X"),
-        (4, "X ∩ plate and plate ∩ X"),
-    ] {
-        let (o, swapped) = (&outcomes[i], &outcomes[i + 1]);
-        assert_eq!(o.shape, swapped.shape, "{what}: one body");
-        assert_eq!(o.record, swapped.record, "{what}: one record");
-    }
+    let refusal = failure(&ev, x);
+    assert!(
+        format!("{refusal:?}").contains("Revert {"),
+        "slab ∖ blocks: {refusal:?}, not the revert's refusal"
+    );
 }
 
 use topo::test_support::meeting::{
@@ -1291,6 +1234,347 @@ fn a_subtract_against_the_wedges_union_names_their_meeting_alike_in_every_member
             match &first {
                 None => first = Some(both),
                 Some(f) => assert_eq!(&both, f, "{label}, member order {order:?}"),
+            }
+        }
+    }
+}
+
+/// [`three_on_a_line`] with the third prism over 30°–140°: it bridges
+/// the gap between the first two's wedges, crossing both.
+fn bridging(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, a) = sector_prism(doc, 0.0, 50.0, (0.5, 2.0));
+    let (doc, b) = sector_prism(doc, 120.0, 170.0, (0.47, 1.7));
+    let (doc, c) = sector_prism(doc, 30.0, 140.0, (0.44, 1.81));
+    (doc, vec![plate, a, b, c])
+}
+
+/// Where the bridge folds last, after the plate, its edge meets the
+/// line's two coincident edges at two points, which topo does not build.
+const TWO_GERMS: &str = "work/tang/an-edge-crossing-two-wedges-about-a-contact-line-is-unbuilt.md";
+
+/// A table, key-free: each row's name by where its entities stand —
+/// a vertex at its point, an edge at its ends, a face at its vertices.
+type NamedShape = BTreeMap<String, Vec<Vec<Point>>>;
+
+/// `id`'s table as a [`NamedShape`].
+fn named_shape(ev: &Evaluation<f64>, id: RecipeNodeId) -> NamedShape {
+    let body = body_of(ev, id);
+    let at = |k: &editor_core::EntityKey| -> Vec<Point> {
+        let mut ps: Vec<Point> = match *k {
+            editor_core::EntityKey::Vertex(v) => vec![at_point(body, v)],
+            editor_core::EntityKey::Edge(e) => ends(body, e).map(|v| at_point(body, v)).to_vec(),
+            editor_core::EntityKey::Face(f) => face_vertices(body, f)
+                .into_iter()
+                .map(|v| at_point(body, v))
+                .collect(),
+            _ => Vec::new(),
+        };
+        ps.sort_unstable();
+        ps
+    };
+    crate::fixture::table(ev, id)
+        .iter()
+        .map(|(n, e)| {
+            let mut where_: Vec<Vec<Point>> = match e {
+                editor_core::Entry::Unique(r) => vec![at(&r.key)],
+                editor_core::Entry::Tied(rs) => rs.iter().map(|r| at(&r.key)).collect(),
+            };
+            where_.sort_unstable();
+            (n.to_string(), where_)
+        })
+        .collect()
+}
+
+/// Asserts `here` is `first`, row by row, listing every row only one
+/// of them holds.
+fn same_table(here: &NamedShape, first: &NamedShape, what: &str) {
+    let differ: Vec<String> = here
+        .iter()
+        .filter(|(n, w)| first.get(*n) != Some(*w))
+        .map(|(n, w)| format!("here only: {n} at {w:?}"))
+        .chain(
+            first
+                .iter()
+                .filter(|(n, w)| here.get(*n) != Some(*w))
+                .map(|(n, w)| format!("first only: {n} at {w:?}")),
+        )
+        .collect();
+    assert!(
+        differ.is_empty(),
+        "{what}: a different table from the first order:\n{}",
+        differ.join("\n")
+    );
+}
+
+/// The wedges at 0°–50° and 120°–170° about the line through (1.5, 1),
+/// and two bridges over 30°–140°, each filling the gap between the
+/// wedges over a stretch of the line: `d` from z 0.2 to 0.4 and `c` over
+/// `c_z`.
+fn two_bridges(doc: ProfileDoc, c_z: (f64, f64)) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, a) = sector_prism(doc, 0.0, 50.0, (0.12, 2.0));
+    let (doc, b) = sector_prism(doc, 120.0, 170.0, (0.1, 1.7));
+    let (doc, d) = sector_prism(doc, 30.0, 140.0, (0.2, 0.4));
+    let (doc, c) = sector_prism(doc, 30.0, 140.0, c_z);
+    (doc, vec![a, b, d, c])
+}
+
+/// [`two_bridges`] with `c` from z 0.6 to 1.5.
+fn two_bridges_short(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    two_bridges(doc, (0.6, 1.5))
+}
+
+/// [`two_bridges`] with `c` from z 0.6 to 1.81, past the second wedge.
+fn two_bridges_tall(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    two_bridges(doc, (0.6, 1.81))
+}
+
+/// One gap a bridge fills between two wedges' walls along their line.
+struct Gap {
+    label: &'static str,
+    fixture: fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>),
+    /// The member orders folded, as indices into the fixture's list.
+    orders: Vec<Vec<usize>>,
+    /// Whether an order refuses in topo ([`TWO_GERMS`]).
+    unbuilt: fn(&[usize]) -> bool,
+    /// The fixture's indices of the two wedges.
+    walls: [usize; 2],
+    /// The stretches of the line, as z from and to, along which the
+    /// wedges' walls meet: one edge each, a seam of those walls.
+    seams: &'static [(f64, f64)],
+}
+
+/// Asserts every order of `gap` that builds is tier-3 valid and names
+/// one body with one table, compared row by row by where each row's
+/// entities stand, the walls meeting along each of its seams in a
+/// `Seam` of the two; and every other refuses [`TWO_GERMS`]. Returns
+/// how many built.
+fn named_alike(gap: &Gap) -> usize {
+    let mut first: Option<(Shape, NamedShape)> = None;
+    let mut built = 0;
+    for order in &gap.orders {
+        let (doc, m) = (gap.fixture)(ProfileDoc::empty_derived("bridge", Tol::witness()));
+        let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
+        let (doc, u) = crate::fixture::union_over(doc, &members);
+        let what = format!("{}, member order {order:?}", gap.label);
+        let ev = run(&doc);
+        let unbuilt = (gap.unbuilt)(order);
+        match failure(&ev, u) {
+            Some(e) if unbuilt => {
+                let e = format!("{e:?}");
+                assert!(
+                    e.contains("CrossingsAlongAContactLine"),
+                    "{what}: refused other than {TWO_GERMS}: {e}"
+                );
+                continue;
+            }
+            Some(e) => panic!("{what}: refused: {e:?}"),
+            None => assert!(!unbuilt, "{what}: built ({TWO_GERMS} has landed)"),
+        }
+        built += 1;
+        let body = body_of(&ev, u);
+        if let Err(e) = topo::validate_geometric(body, Tol::witness()) {
+            panic!("{what}: tier 3 refused the body: {e:?}");
+        }
+        let mut walls = gap.walls.map(|i| m[i]);
+        walls.sort_unstable();
+        for &(lo, hi) in gap.seams {
+            let on: Vec<&StableName> = crate::fixture::table(&ev, u)
+                .iter()
+                .filter_map(|(n, e)| match e {
+                    editor_core::Entry::Unique(r) => {
+                        let editor_core::EntityKey::Edge(k) = r.key else {
+                            return None;
+                        };
+                        let mut ps = ends(body, k).map(|v| at_point(body, v));
+                        ps.sort_unstable();
+                        (ps == [micron(MEET[0], MEET[1], lo), micron(MEET[0], MEET[1], hi)])
+                            .then_some(n)
+                    }
+                    editor_core::Entry::Tied(_) => None,
+                })
+                .collect();
+            let [seam] = on[..] else {
+                panic!("{what}: one named edge on the line from z {lo} to {hi}: {on:?}")
+            };
+            let Some(RoleSeg::Seam { a, b }) = seam.path.first() else {
+                panic!("{what}: the edge on the line from z {lo} to {hi}: {seam:?}")
+            };
+            let mut sides = [side_node(a.name()), side_node(b.name())];
+            sides.sort_unstable();
+            assert_eq!(
+                sides, walls,
+                "{what}: the seam from z {lo} to {hi} lies between the wedges' walls: {seam:?}"
+            );
+        }
+        let here = (shape(body), named_shape(&ev, u));
+        if let Some(f) = &first {
+            assert_eq!(here.0, f.0, "{what}: a different body from the first order");
+            same_table(&here.1, &f.1, &what);
+        } else {
+            first = Some(here);
+        }
+    }
+    built
+}
+
+/// [`bridging`] with the plate or without it (`plate`), in `orders`.
+fn bridging_gap(label: &'static str, plate: bool, orders: Vec<Vec<usize>>) -> Gap {
+    Gap {
+        label,
+        fixture: bridging,
+        orders,
+        unbuilt: if plate { |o| o[3] == 3 } else { |_| false },
+        walls: [1, 2],
+        seams: if plate { &[(1.0, 1.7)] } else { &[(0.5, 1.7)] },
+    }
+}
+
+/// [`two_bridges`]'s gaps: `c` from z 0.6 to 1.5 or 1.81, in `orders`.
+fn two_bridges_gaps(orders: &[Vec<usize>]) -> [Gap; 2] {
+    [
+        Gap {
+            label: "two bridges, the upper to z 1.5",
+            fixture: two_bridges_short,
+            orders: orders.to_vec(),
+            unbuilt: |_| false,
+            walls: [0, 1],
+            seams: &[(0.2, 0.4), (0.6, 1.5)],
+        },
+        Gap {
+            label: "two bridges, the upper to z 1.81",
+            fixture: two_bridges_tall,
+            orders: orders.to_vec(),
+            unbuilt: |_| false,
+            walls: [0, 1],
+            seams: &[(0.2, 0.4), (0.6, 1.7)],
+        },
+    ]
+}
+
+/// **A prism bridging two wedges that touch along a line is named
+/// alike in the orders that fold it after both**, against one that
+/// folds it first. Folded after the two wedges, the bridge fills the gap
+/// between them and is consumed there, so the first wedge's 0° wall
+/// meets the second's 170° wall along the line: two faces of one fold
+/// operand that share no edge in it, or (a second bridge folded before)
+/// share one elsewhere on the line. That edge is their seam, as it is
+/// where the bridge comes before either wedge. The fast subset of
+/// [`a_prism_bridging_two_wedges_is_named_alike_in_every_member_order_that_builds`].
+#[test]
+fn a_bridge_folded_after_both_wedges_seams_their_walls() {
+    assert_eq!(
+        named_alike(&bridging_gap(
+            "the bridge alone",
+            false,
+            vec![vec![3, 2, 1], vec![2, 1, 3], vec![1, 2, 3]],
+        )),
+        3,
+        "the bridge alone: orders that build"
+    );
+    // Folded bridge, plate, wedges: the bridge's chord wall loses a
+    // notch to the second wedge at the last step, across a stretch of
+    // the plate's seam the first wedge split, and borders its walls as
+    // in every other order.
+    assert_eq!(
+        named_alike(&bridging_gap(
+            "the bridge with the plate",
+            true,
+            vec![vec![3, 2, 1, 0], vec![3, 0, 1, 2]],
+        )),
+        2,
+        "the bridge with the plate: orders that build"
+    );
+    for gap in two_bridges_gaps(&[vec![3, 2, 1, 0], vec![0, 1, 2, 3], vec![1, 0, 2, 3]]) {
+        assert_eq!(named_alike(&gap), 3, "{}: orders that build", gap.label);
+    }
+}
+
+/// **A prism bridging two wedges that touch along a line is named
+/// alike in every member order that builds**, with the plate and
+/// alone, and so are two bridges over two stretches of the line. With
+/// the plate, the 6 orders that fold the bridge last refuse in topo
+/// ([`TWO_GERMS`]); every other order builds one body and one table.
+#[test]
+fn a_prism_bridging_two_wedges_is_named_alike_in_every_member_order_that_builds() {
+    for (label, plate, builds) in [("with the plate", true, 18), ("alone", false, 6)] {
+        let gap = bridging_gap(label, plate, every_order_of(4, plate));
+        assert_eq!(named_alike(&gap), builds, "{label}: orders that build");
+    }
+    for gap in two_bridges_gaps(&orders(4)) {
+        assert_eq!(named_alike(&gap), 24, "{}: orders that build", gap.label);
+    }
+}
+
+/// The member node a union's `From` side was minted by.
+fn side_node(side: &StableName) -> RecipeNodeId {
+    match side.path.as_slice() {
+        [RoleSeg::From { of, .. }, ..] => of.name().node,
+        _ => panic!("a union seam side cites a member face: {side:?}"),
+    }
+}
+
+/// [`three_on_a_line`] with the third prism over 30°–60°: it crosses the
+/// first's wedge about the line and touches the second's edge along it.
+fn crossing_one_wedge(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, a) = sector_prism(doc, 0.0, 50.0, (0.5, 2.0));
+    let (doc, b) = sector_prism(doc, 120.0, 170.0, (0.47, 1.7));
+    let (doc, c) = sector_prism(doc, 30.0, 60.0, (0.44, 1.81));
+    (doc, vec![plate, a, b, c])
+}
+
+/// [`crossing_one_wedge`] without the plate.
+fn crossing_one_wedge_prisms(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, m) = crossing_one_wedge(doc);
+    (doc, m[1..].to_vec())
+}
+
+/// **A prism crossing one wedge about the contact line publishes one
+/// table in every member order** (N2, N4), with the plate and alone. The
+/// first wedge's bottom apex lies on the crossing prism's edge along the
+/// line, beside the second wedge's coincident edge there: it is that
+/// wedge's own start-cap vertex, cited once, never a crossing of the
+/// edge it lies on.
+#[test]
+fn a_prism_crossing_one_wedge_about_the_line_publishes_one_table_in_every_member_order() {
+    type Fixture = fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>);
+    let rows: [(&str, Fixture, bool); 2] = [
+        ("with the plate", crossing_one_wedge, false),
+        ("prisms alone", crossing_one_wedge_prisms, true),
+    ];
+    let apex = (1_500_000, 1_000_000, 500_000);
+    for (label, fixture, apex_kept) in rows {
+        let mut first: Option<NamedShape> = None;
+        let n = fixture(ProfileDoc::empty_derived("crossing", Tol::witness()))
+            .1
+            .len();
+        for order in orders(n) {
+            let (doc, m) = fixture(ProfileDoc::empty_derived("crossing", Tol::witness()));
+            let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
+            let (doc, u) = crate::fixture::union_over(doc, &members);
+            let what = format!("{label}, member order {order:?}");
+            let ev = run(&doc);
+            if let Some(e) = failure(&ev, u) {
+                panic!("{what}: refused: {e:?}");
+            }
+            let names = names_at(&ev, u, apex);
+            if apex_kept {
+                assert!(
+                    matches!(names.as_slice(), [n] if n.contains("CapVertex(Start")
+                        && !n.contains("Crossing")),
+                    "{what}: the apex is the first wedge's start-cap vertex: {names:?}"
+                );
+            } else {
+                assert!(
+                    names.is_empty(),
+                    "{what}: the plate holds the apex: {names:?}"
+                );
+            }
+            let here = named_shape(&ev, u);
+            match &first {
+                None => first = Some(here),
+                Some(f) => same_table(&here, f, &what),
             }
         }
     }

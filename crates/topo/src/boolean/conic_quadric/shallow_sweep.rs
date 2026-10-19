@@ -13,6 +13,9 @@
 test_utils::gated_to![
     "crates/topo/src/boolean/conic_quadric/mod.rs",
     "crates/topo/src/boolean/circle_roots.rs",
+    "crates/geom-brep/src/half_angle.rs",
+    "crates/geom-brep/src/quartic.rs",
+    "crates/geom-core/src/bisect.rs",
     "crates/topo/src/boolean/conic_oracle.rs",
     "crates/topo/src/boolean/conic_oracle/",
     "crates/topo/src/boolean/solid_contain.rs",
@@ -102,8 +105,8 @@ fn draw(rng: &mut Rng, family: usize) -> Pose {
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref: toward,
         }
     };
@@ -152,14 +155,14 @@ fn lifted(pose: &Pose) -> (geom::Curve3<Interval>, geom::Surface<Interval>) {
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => geom::Curve3::Ellipse {
             center: lift_p(center),
             axis: lift_v(axis),
-            major: at(major),
-            minor: at(minor),
+            semi_u: at(semi_u),
+            semi_v: at(semi_v),
             u_ref: lift_v(u_ref),
         },
         _ => panic!("the sweep draws circles and ellipses"),
@@ -195,14 +198,15 @@ fn lifted(pose: &Pose) -> (geom::Curve3<Interval>, geom::Surface<Interval>) {
 /// The door's certified roots as `(lo, hi)` pairs (`pair` reads one), or
 /// what it answered instead.
 fn answer<T: Decide>(
-    got: Result<CircleRoots<T>, BooleanError>,
+    got: Result<Result<CircleRoots<T>, Unsettled>, BooleanError>,
     pair: fn(T) -> (f64, f64),
 ) -> Result<Vec<(f64, f64)>, String> {
     match got {
-        Ok(CircleRoots::Certified { count, thetas }) => {
-            Ok(thetas[..count].iter().map(|&t| pair(t)).collect())
+        Ok(Ok(CircleRoots::Certified(found))) => {
+            Ok(found.roots().iter().map(|&t| pair(t)).collect())
         }
-        Ok(other) => Err(format!("{other:?}")),
+        Ok(Ok(other)) => Err(format!("{other:?}")),
+        Ok(Err(why)) => Err(format!("unsettled: {why:?}")),
         Err(e) => Err(format!("refused: {e:?}")),
     }
 }
@@ -226,7 +230,7 @@ fn no_certified_root_of_a_shallow_ladder_crossing_is_placed_past_the_band() {
         let (carrier_i, surface_i) = lifted(&pose);
         for eps in [1e-6, 1e-9, 1e-12] {
             let band = Band::new(eps, 10.0 * eps).unwrap();
-            if truth.depth < 10.0 * eps {
+            if truth.residual_depth < 10.0 * eps {
                 continue;
             }
             let at = Interval::from_f64;
@@ -274,7 +278,9 @@ fn no_certified_root_of_a_shallow_ladder_crossing_is_placed_past_the_band() {
                     }
                     Err(what) if what == "Miss" => (!truth.roots.is_empty())
                         .then(|| format!("Miss on {} true roots", truth.roots.len())),
-                    Err(what) if what == "Uncertain" || what.starts_with("refused") => None,
+                    Err(what) if what.starts_with("unsettled") || what.starts_with("refused") => {
+                        None
+                    }
                     Err(what) => Some(format!("certified {what}")),
                 };
                 if let Some(why) = why {

@@ -31,6 +31,7 @@
 //! D2 bump: the first leg's `Distance` (mid-DAG — its cone is that
 //! extrude plus all four unions, everything else reused).
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, Node, SlotId};
 
@@ -86,7 +87,7 @@ pub fn document() -> CorpusDoc {
         });
         acc = uni;
     }
-    r.place(acc);
+    r.place_part(acc);
 
     CorpusDoc {
         name: "corner_table",

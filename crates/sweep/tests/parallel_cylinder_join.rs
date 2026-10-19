@@ -19,7 +19,7 @@ use crate::common::differential::outcome;
 use crate::conic_edge_curved_face::{DRUM_RADIUS, TILT, drum_lower};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::finished;
-use topo::{AtRestBody, BooleanError, BooleanResult};
+use topo::{AtRestBody, BooleanError, BooleanErrorKind, BooleanResult};
 
 /// A vertical rod of radius `r` about `(x, y)` over `z ∈ [z0, z1]`.
 fn rod(r: f64, (x, y): (f64, f64), (z0, z1): (f64, f64)) -> AtRestBody<f64> {
@@ -461,4 +461,210 @@ fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
     );
     let bad = unsound(&poses);
     assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// The lever of an in-band reading of a cylinder pair's axes.
+const AXES_LEVER: &str = "Recourse: turn one part so the two cylinders' axes are clearly parallel";
+
+/// The unit rod about `(1, 1)` over `z ∈ [−0.5, 0.5]` tipped `theta`
+/// about `axis` through its centre, against the unit rod about the
+/// origin over `z ∈ [−1, 1]`. Their walls cross along the rulings at
+/// `(1, 0)` and `(0, 1)`, which are a seam ruling of each rod
+/// ([`rod`]'s seams stand at `x ± r`): each germ runs along one
+/// solid's edge inside the other's wall face, so no germ's frame reads
+/// the axes, and the join reads them first.
+fn seams_on_the_walls(axis: Vec3<f64>, theta: f64) -> Pose {
+    let tol = Tol::witness();
+    let m = Affine3::rotation_about_axis(Point3::new(1.0, 1.0, 0.0), axis, theta);
+    let b = rod(1.0, (1.0, 1.0), (-0.5, 0.5));
+    Pose {
+        label: format!("seams on the walls, tipped {theta:e} about {axis:?}"),
+        a: rod(1.0, (0.0, 0.0), (-1.0, 1.0)),
+        b: finished(
+            "the tipped rod",
+            topo::transform_rigid(&b, &geom_core::test_support::rigid(&m, tol), tol).unwrap(),
+            tol,
+        ),
+        va: 2.0 * PI,
+        vb: PI,
+        shared: lens((0.0, 0.0), 1.0, (1.0, 1.0), 1.0).0,
+    }
+}
+
+/// **The join reads the axes of a pair no frame read, at the frame's
+/// lever, and refuses an in-band reading as their angle.**
+/// [`seams_on_the_walls`] upright builds SOUND in every op and order.
+/// Tipped `1.5·zero / 3.2` about `x` or about `y`, the tip reads about
+/// `1.7·zero` over the walls' span (about 3.7, the diameter of their
+/// faces' vertices), in the band, and every op escalates
+/// `cc_axes_parallel` as the axes' own decision, whose lever is a turn;
+/// at the radius it would read `0.47·zero`, parallel, and take the
+/// rulings arm with the axes apart. The lever names the parallel side
+/// alone, the one that passes: turned back to `0.5·zero / 3.2` every op
+/// builds SOUND. Turned clearly apart, a fifth of a radian, every op
+/// ends at a frontier, the same at the three gated tolerances (1e-9,
+/// 1e-6, 1e-12; at 1e-5, 3e-5 and 1e-4 the tilt about `x` escalates
+/// first, on `PierceCurvature` or `ArcCylinderRoots`): about `x` the germ
+/// frame has no arm for the skew walls (`GermFrameUnsupported`), about
+/// `y` an edge pierces a curved face the Boolean cannot yet read
+/// (`CurvedPierceUnsupported`).
+#[test]
+fn seams_lying_on_the_walls_read_the_axes_at_the_walls_span() {
+    let tol = Tol::witness();
+    let zero = geom_core::Band::linear(tol).unwrap().zero();
+    let axes = [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)];
+    let mut building = vec![seams_on_the_walls(axes[0], 0.0)];
+    building.extend(axes.map(|axis| seams_on_the_walls(axis, 0.5 * zero / 3.2)));
+    let bad = unsound(&building);
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+    for (axis, frontier) in axes.into_iter().zip([
+        BooleanErrorKind::GermFrameUnsupported,
+        BooleanErrorKind::CurvedPierceUnsupported,
+    ]) {
+        let tipped = seams_on_the_walls(axis, 1.5 * zero / 3.2);
+        for (op, r, _) in tipped.runs() {
+            assert!(
+                matches!(
+                    &r,
+                    Err(e @ BooleanError::Escalated {
+                        decision: topo::BooleanDecision::CylinderAxes,
+                        diag,
+                    }) if diag.predicate == Some("cc_axes_parallel")
+                        && e.to_string().ends_with(AXES_LEVER)
+                ),
+                "{} | {op}: {:?}",
+                tipped.label,
+                r.map(|_| "a body").map_err(|e| e.to_string())
+            );
+        }
+        let turned = seams_on_the_walls(axis, 0.2);
+        for (op, r, _) in turned.runs() {
+            assert!(
+                matches!(&r, Err(e) if e.kind() == frontier),
+                "{} | {op}: want {frontier:?}, got {:?}",
+                turned.label,
+                r.map(|_| "a body").map_err(|e| e.to_string())
+            );
+        }
+    }
+}
+
+/// A one-face wall: the circle of radius `r` about `c` with its one
+/// vertex at azimuth `az`, extruded over `z ∈ [z0, z1]`, its seam the
+/// wall's wrap edge.
+fn one_face_rod(c: (f64, f64), r: f64, az: f64, (z0, z1): (f64, f64)) -> AtRestBody<f64> {
+    use profile::{Profile, RawLoop, Segment, SketchPlane};
+    let tol = Tol::witness();
+    let circle = RawLoop::new([(
+        Point2::new(c.0 + r * az.cos(), c.1 + r * az.sin()),
+        Segment::Arc(geom_core::Arc2 {
+            centre: Point2::new(c.0, c.1),
+            radius: r,
+            sweep: 2.0 * PI,
+        }),
+    )]);
+    let profile = Profile::new(SketchPlane::<f64>::xy(), vec![circle])
+        .validate(tol)
+        .unwrap();
+    let depth = sweep::Extrusion::Distance {
+        depth: z1 - z0,
+        side: sweep::ExtrudeSide::Along,
+    };
+    let body = sweep::extrude(&profile, depth, tol).unwrap().body;
+    let up = Affine3::translation(Vec3::new(0.0, 0.0, z0));
+    finished(
+        "the one-face rod",
+        topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol), tol).unwrap(),
+        tol,
+    )
+}
+
+/// The one-face unit rod about `(1.2, 0)` over `z ∈ [−0.3, 0.3]`,
+/// its seam at azimuth `az`, tipped `theta` about `x` through its
+/// centre, against the one-face unit rod about the origin over
+/// `z ∈ [−1, 1]` with its seam at the same azimuth. Every germ lies
+/// inside a wall face of both, so the frame reads the axes as the
+/// segments are matched.
+fn one_face_walls(az: f64, theta: f64) -> Pose {
+    let tol = Tol::witness();
+    let m =
+        Affine3::rotation_about_axis(Point3::new(1.2, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), theta);
+    let b = topo::transform_rigid(
+        &one_face_rod((1.2, 0.0), 1.0, az, (-0.3, 0.3)),
+        &geom_core::test_support::rigid(&m, tol),
+        tol,
+    )
+    .unwrap();
+    Pose {
+        label: format!("one-face walls, seams at {az}, tipped {theta:e}"),
+        a: one_face_rod((0.0, 0.0), 1.0, az, (-1.0, 1.0)),
+        b: finished("the tipped rod", b, tol),
+        va: 2.0 * PI,
+        vb: 0.6 * PI,
+        shared: 0.6 * lens((0.0, 0.0), 1.0, (1.2, 0.0), 1.0).0,
+    }
+}
+
+/// **The frame reads one-face walls' axes as an angle too.**
+/// [`one_face_walls`] tipped `0.2·zero` builds SOUND in every op and
+/// order; tipped `0.6·zero`, read over the walls' span, the tip is in
+/// the band and every op escalates `cc_axes_parallel` as the axes' own
+/// decision, its lever a turn.
+#[test]
+fn one_face_walls_read_their_axes_as_an_angle() {
+    let tol = Tol::witness();
+    let zero = geom_core::Band::linear(tol).unwrap().zero();
+    let seams = [0.0, PI];
+    let bad = unsound(&seams.map(|az| one_face_walls(az, 0.2 * zero)));
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+    for az in seams {
+        let tipped = one_face_walls(az, 0.6 * zero);
+        for (op, r, _) in tipped.runs() {
+            assert!(
+                matches!(
+                    &r,
+                    Err(e @ BooleanError::Escalated {
+                        decision: topo::BooleanDecision::CylinderAxes,
+                        diag,
+                    }) if diag.predicate == Some("cc_axes_parallel")
+                        && e.to_string().ends_with(AXES_LEVER)
+                ),
+                "{} | {op}: {:?}",
+                tipped.label,
+                r.map(|_| "a body").map_err(|e| e.to_string())
+            );
+        }
+    }
+}
+
+/// **A tipped rod's refusal does not hang on the operand order.** At
+/// the half-length 50 and the larger tip, the drum's seam vertex lies on
+/// the rod's tipped cap with its ruling a tip off the cap's plane, an
+/// honest in-band reading, while the rod's own rim vertex on the drum's
+/// wall reads the pair's definite skew frame. Whichever operand's
+/// vertices are read first, the definite refusal is the answer: every
+/// op of the pose, in both orders, refuses alike.
+#[test]
+fn a_tipped_rod_refuses_alike_in_both_operand_orders() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    for half in [50.0, 200.0] {
+        for drift in [2.0 * band.escalate(), 20.0 * band.escalate()] {
+            for (r, c) in [(0.2, 0.5), (0.3, 0.6)] {
+                let pose = tipped(r, c, half, drift / (2.0 * half));
+                let kinds: Vec<_> = pose
+                    .runs()
+                    .into_iter()
+                    .map(|(op, res, _)| match res {
+                        Err(e) => (op, e.kind()),
+                        Ok(_) => panic!("{} | {op}: refuses", pose.label),
+                    })
+                    .collect();
+                assert!(
+                    kinds.iter().all(|(_, k)| *k == kinds[0].1),
+                    "{}: every op in both orders refuses alike: {kinds:?}",
+                    pose.label
+                );
+            }
+        }
+    }
 }

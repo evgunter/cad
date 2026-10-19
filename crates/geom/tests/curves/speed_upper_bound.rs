@@ -45,7 +45,12 @@ fn sampled_sup_floor(c: &NurbsCurve3<f64>, n: usize) -> f64 {
 /// `d` the net's reach from `c`, over the coefficients of nonempty
 /// spans.
 fn recipe_a(c: &NurbsCurve3<f64>) -> f64 {
-    let (ctl, w, k, p) = (c.control(), c.weights(), c.knots().knots(), c.degree());
+    let (ctl, w, k, p) = (
+        c.control(),
+        c.weights(),
+        c.knots_f64_interim().knots(),
+        c.degree(),
+    );
     let o = ctl[0];
     let reach = ctl.iter().map(|q| (*q - o).norm()).fold(0.0, f64::max);
     let least = w.iter().copied().fold(f64::INFINITY, f64::min);

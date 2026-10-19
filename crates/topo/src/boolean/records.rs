@@ -567,13 +567,28 @@ impl ContactRecords {
     ///
     /// The index in [`Self::rows`] of the first record whose citations
     /// all mapped to none.
-    pub fn recited(mut self, mut f: impl FnMut(Backing) -> Vec<Backing>) -> Result<Self, usize> {
+    pub fn recited(self, mut f: impl FnMut(Backing) -> Vec<Backing>) -> Result<Self, usize> {
+        self.try_recited(|b| Ok(f(b)), |k| k)
+    }
+
+    /// [`Self::recited`] through a map that can refuse.
+    ///
+    /// # Errors
+    ///
+    /// The first refusal of `f`, or `uncited` of the index in
+    /// [`Self::rows`] of the first record whose citations all mapped to
+    /// none.
+    pub fn try_recited<E>(
+        mut self,
+        f: impl FnMut(Backing) -> Result<Vec<Backing>, E>,
+        uncited: impl FnOnce(usize) -> E,
+    ) -> Result<Self, E> {
+        let mut f = f;
         for (k, c) in self.rows.iter_mut().enumerate() {
-            c.cites = c
-                .cites
-                .try_map(|b| Ok::<_, core::convert::Infallible>(f(b)))
-                .unwrap_or_else(|never| match never {})
-                .ok_or(k)?;
+            match c.cites.try_map(&mut f)? {
+                Some(cites) => c.cites = cites,
+                None => return Err(uncited(k)),
+            }
         }
         Ok(self)
     }

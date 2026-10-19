@@ -221,9 +221,14 @@ fn m3_a_corrupt_m7_8_wall_is_caught_at_every_door_whose_bound_names_the_right() 
         let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
         let start = point(body.get_half_edge(e.he_plus).unwrap().start);
         let end = point(body.half_edge_end(e.he_plus).unwrap());
-        if let Err(geom_brep::CertifyError::NurbsLaneNotSupplied) =
-            c.recertify_via(start, end, |s| body.surfaces.get(s).cloned(), band, None)
-        {
+        if let Err(geom_brep::CertifyError::NurbsLaneNotSupplied) = c.recertify_via(
+            start,
+            end,
+            |s| body.surfaces.get(s).cloned(),
+            1.0,
+            band,
+            None,
+        ) {
             needs += 1;
             assert!(
                 lane_edges.contains(&k),

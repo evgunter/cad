@@ -7,10 +7,6 @@
 //!   every sign change. Where the two disagree in count, in a root's
 //!   value, or over a miss the oracle can see through, the rows say so
 //!   by pose regime.
-//! * The `sqrt`-chain CUBE ROOT answers to `f64::cbrt` across twelve
-//!   decades either side of 1 and both signs, and its truncation is
-//!   registered as a systematic bias rather than an enclosure — the
-//!   magnitude argument `solid_contain`'s `cbrt` docs rest on.
 //! * The BIQUADRATIC SIGN answers to the same geometric oracle, on the
 //!   rays that reach that arm.
 //!
@@ -98,49 +94,6 @@ fn oracle_roots(
     (roots, gap)
 }
 
-/// CLAIM 2 — the `sqrt`-chain cube root. Compared against `f64::cbrt`
-/// over 12 decades either side of 1 and both signs.
-#[test]
-fn r1_cbrt_chain_tracks_the_true_cube_root() {
-    let mut worst = 0.0f64;
-    let mut worst_x = 0.0f64;
-    for e in -30..=30 {
-        for mant in [1.0, 1.7, 3.3, 6.1, 9.4] {
-            for sgn in [1.0, -1.0] {
-                let x = sgn * mant * 10f64.powi(e);
-                let got = cbrt(x);
-                let want = x.cbrt();
-                let rel = ((got - want) / want).abs();
-                if rel > worst {
-                    worst = rel;
-                    worst_x = x;
-                }
-            }
-        }
-    }
-    println!("R1 cbrt: worst relative error {worst:e} at x = {worst_x:e}");
-    assert_eq!(cbrt(0.0), 0.0, "cbrt(0) must be 0");
-    assert!(
-        worst < 1e-12,
-        "the sqrt-chain cube root drifts from the true one by {worst:e} at {worst_x:e}"
-    );
-}
-
-/// The truncation is a SYSTEMATIC offset, not an enclosure: the chain
-/// computes `x^((1−4^-27)/3)`, and this measures how far that is from
-/// `x^(1/3)` at the magnitudes the resolvent actually feeds it.
-#[test]
-fn r1_cbrt_truncation_is_a_bias_not_a_containment() {
-    for x in [1e-18f64, 1e-6, 1.0, 1e6, 1e18, 1e36] {
-        let exact = x.powf((1.0 - 4f64.powi(-27)) / 3.0);
-        let truth = x.cbrt();
-        println!(
-            "R1 cbrt truncation: x={x:e} chain-exponent value={exact:e} true={truth:e} rel={:e}",
-            ((exact - truth) / truth).abs()
-        );
-    }
-}
-
 /// The torus centre and axis every probe below sweeps about.
 fn centre_and_axis() -> (Point3<f64>, Vec3<f64>) {
     (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0))
@@ -205,7 +158,8 @@ impl Tally {
         let got = line_torus_roots(o, d, c, a, rr, r, band());
         let (oracle, gap) = oracle_roots(o, d, c, a, rr, r);
         match got {
-            Ok(TorusRoots::Certified { count, ts }) => {
+            Ok(QuarticRoots::Certified(found)) => {
+                let (count, ts) = (found.count(), found.roots());
                 self.certified += 1;
                 if count != oracle.len() {
                     self.bad.push(format!(
@@ -227,7 +181,7 @@ impl Tally {
                     }
                 }
             }
-            Ok(TorusRoots::Miss) => {
+            Ok(QuarticRoots::Miss) => {
                 self.misses += 1;
                 if !oracle.is_empty() && gap > 1e-3 {
                     self.bad.push(format!(
@@ -236,14 +190,14 @@ impl Tally {
                     ));
                 }
             }
-            Ok(TorusRoots::Uncertain) | Err(_) => {
-                self.undecided.push(format!("[{regime}] R={rr} r={r}"));
-            }
-            Ok(TorusRoots::CountDisagrees { .. }) => {
+            Err(RootRefusal::Unsettled(Unsettled::CountDisagrees { .. })) => {
                 self.bad.push(format!(
                     "COUNT [{regime}] R={rr} r={r} o={o:?} d={d:?}: the constructed roots \
                      disagree with the certified count"
                 ));
+            }
+            Err(_) => {
+                self.undecided.push(format!("[{regime}] R={rr} r={r}"));
             }
         }
     }
@@ -412,7 +366,8 @@ fn r1_the_hole_ray_certifies_exactly_four_roots() {
     let a = Vec3::new(0.0, 1.0, 0.0);
     let d = Vec3::new(1.0, 0.0, 0.0);
     match line_torus_roots(Point3::new(0.0, 0.0, 0.0), d, c, a, rr, r, band()) {
-        Ok(TorusRoots::Certified { count, ts }) => {
+        Ok(QuarticRoots::Certified(found)) => {
+            let (count, ts) = (found.count(), found.roots());
             let mut v = ts[..count].to_vec();
             v.sort_by(|x, y| x.partial_cmp(y).unwrap());
             println!("R1 hole ray: count={count} ts={v:?}");
@@ -459,7 +414,8 @@ fn r1_the_near_perpendicular_ray_keeps_its_roots() {
         0.9,
         pinned,
     ) {
-        Ok(TorusRoots::Certified { count, ts }) => {
+        Ok(QuarticRoots::Certified(found)) => {
+            let (count, ts) = (found.count(), found.roots());
             assert_eq!(count, 2, "F64 COUNT: the exact Sturm count is 2");
             let mut v = ts[..count].to_vec();
             v.sort_by(|x, y| x.partial_cmp(y).unwrap());
@@ -484,7 +440,8 @@ fn r1_the_near_perpendicular_ray_keeps_its_roots() {
         iv(0.9),
         pinned,
     ) {
-        Ok(TorusRoots::Certified { count, ts }) => {
+        Ok(QuarticRoots::Certified(found)) => {
+            let (count, ts) = (found.count(), found.roots());
             assert_eq!(count, 2, "INTERVAL COUNT: the exact Sturm count is 2");
             let mut v = ts[..count].to_vec();
             v.sort_by(|x, y| x.lo().partial_cmp(&y.lo()).unwrap());
@@ -534,7 +491,8 @@ fn r1_a_ray_on_the_resolvents_q_zero_surface_still_certifies_at_interval() {
         iv(0.9),
         Band::new(1e-12, 1e-11).unwrap(),
     ) {
-        Ok(TorusRoots::Certified { count, ts }) => {
+        Ok(QuarticRoots::Certified(found)) => {
+            let (count, ts) = (found.count(), found.roots());
             assert_eq!(count, 2);
             let mut v = ts[..count].to_vec();
             v.sort_by(|x, y| x.lo().partial_cmp(&y.lo()).unwrap());
@@ -646,7 +604,8 @@ fn r1_the_q_zero_surface_certifies_on_both_sides() {
                 0.9,
                 pinned,
             ) {
-                Ok(TorusRoots::Certified { count, ts }) => {
+                Ok(QuarticRoots::Certified(found)) => {
+                    let (count, ts) = (found.count(), found.roots());
                     assert_eq!(count, 2, "F64 COUNT at {at}");
                     let mut v = ts[..count].to_vec();
                     v.sort_by(|x, y| x.partial_cmp(y).unwrap());
@@ -668,7 +627,8 @@ fn r1_the_q_zero_surface_certifies_on_both_sides() {
                 iv(0.9),
                 pinned,
             ) {
-                Ok(TorusRoots::Certified { count, ts }) => {
+                Ok(QuarticRoots::Certified(found)) => {
+                    let (count, ts) = (found.count(), found.roots());
                     assert_eq!(count, 2, "INTERVAL COUNT at {at}");
                     let mut v = ts[..count].to_vec();
                     v.sort_by(|x, y| x.lo().partial_cmp(&y.lo()).unwrap());

@@ -82,3 +82,18 @@ land whole. Probe: `zz_probe_near` in the lane's scratch (not committed); the po
 ## Found by
 
 CLEAVE DR-51's review of PR 3892, `review-tests/dr51` (74e151b6).
+
+Measured on `germ/pn-apex-tangent-generator`, which makes the apex lane
+return the grazed generator itself. A cylinder with a conical pit
+(α = π/6, apex vertex), split through the apex along the grazed ruling
+(τ ∈ {−0.5, −0.1, 0, 0.1, 0.5}·ε at four spins, ε 1e-9), still refuses
+`SliverSector` on `sector_straight` at the apex vertex. The tangent
+line plays no part in this refusal.
+
+
+## The partial revolve's two end rulings differ (review r5152, PR 5152)
+
+A frustum revolved `Partial(4 rad)` and grazed along its START ruling
+refuses `SliverSector` at `|τ| ≥ 0.5ε`. Grazed along its END ruling
+(`a = 4`), the same pose lands whole. Both results are identical on main
+and on the apex fix, at three ε. This asymmetry is not yet explained.

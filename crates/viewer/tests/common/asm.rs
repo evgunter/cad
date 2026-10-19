@@ -7,9 +7,14 @@
 //!
 //! Geometry is deliberately tiny (three small prisms, all disjoint)
 //! so every suite's evaluations stay cheap; what matters is the
-//! STRUCTURE: two pinned part documents, three instances, no mates —
-//! post_b completely unconstrained, which is what the free-move and
-//! mate-tool rows need to start from.
+//! STRUCTURE: two pinned part documents, three instances, each pinned
+//! to the world by one world pin (a frame mate read off the copy's
+//! geometry, `editor_core::pin_at`) and related by no mate. A pinned
+//! copy lives in the world's space, which the free-move probe does not
+//! move (DI5), so a free-move row takes post_b's world pin off first
+//! ([`unpin`]) and probes the loose post with [`where_b_stood`]; a
+//! mate-tool row takes it off too, so the mate it commits places post_b
+//! rather than overconstraining it.
 
 #![allow(dead_code)] // loaded once per consumer; each uses a subset
 #![allow(unreachable_pub)]
@@ -22,16 +27,16 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use pncad::document::{
-    CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, Placement,
-    ProfileDoc, RecipeNodeId, content_pin, evaluate,
+    CancelToken, Coord, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
+    RecipeNodeId, SlideAxis, evaluate,
 };
-use pncad::geom_core::{Tol, Vec3};
+use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::{CapEnd, EntityKind, NamePat, SegPat, SegTag, Selector};
 use pncad::workspace::Workspace;
 use viewer::session::{DocSession, FaceSelection, SessionOp};
 
-use super::{edit_into, insert_into, len};
+use super::{ang, insert_into, len};
 
 /// The post's square section and height, metres.
 pub const POST_SECTION: f64 = 0.02;
@@ -52,22 +57,27 @@ pub struct Bench {
     pub dir: PathBuf,
     /// The assembly document's save file inside it.
     pub asm_path: PathBuf,
-    /// The root post instance (identity placement).
+    /// The first post instance, pinned to the world at the identity.
+    /// An instance is a placement, so its drawn copy is picked on it.
     pub post_a: RecipeNodeId,
-    /// The shelf instance (explicit frame).
+    /// The shelf instance, pinned to the world at [`SHELF_AT`].
     pub shelf_i: RecipeNodeId,
-    /// The completely-unconstrained post instance.
+    /// The second post instance, pinned to the world at [`POST_B_AT`]
+    /// and named by no mate.
     pub post_b: RecipeNodeId,
-    /// `post_a`'s world placement: the node its drawn copy is picked on.
-    pub post_a_copy: RecipeNodeId,
-    /// `shelf_i`'s world placement.
-    pub shelf_copy: RecipeNodeId,
-    /// `post_b`'s world placement.
-    pub post_b_copy: RecipeNodeId,
     /// The post document's reference.
     pub post: DocRef,
     /// The shelf document's reference.
     pub shelf: DocRef,
+    /// The key the post part's one copy is delivered under by an
+    /// instance of it ([`copy`]).
+    pub post_key: pncad::document::CopyKey,
+    /// The key the shelf part's one copy is delivered under.
+    pub shelf_key: pncad::document::CopyKey,
+    /// The two part documents, held as a resolver: what a row that pins
+    /// an instance of its own reads the copy's geometry through
+    /// ([`Bench::opts`]).
+    pub store: crate::fixture::resolver::PartStore,
     /// The post's top-cap name, in the post's own names.
     pub post_top: StableName,
     /// The shelf's bottom-cap name, in the shelf's own names.
@@ -93,12 +103,18 @@ fn box_part(label: &str, width: f64, depth: f64, height: f64, tol: Tol) -> Profi
         tol,
     );
     // The part's world: its one body, placed (A10).
-    insert_into(
-        &mut doc,
-        Node::place_in_world(extrude, Placement::IDENTITY),
-        tol,
-    );
-    doc
+    super::placed(&doc, extrude, tol).0
+}
+
+/// **The key a part's one copy is delivered under**: the part's
+/// placement of its body, and the read it copies the body through.
+fn copy_key(part: &ProfileDoc) -> pncad::document::CopyKey {
+    use pncad::document::CopyKey;
+    let placement = *part.placements().first().expect("the part places its body");
+    let Some(Node::Place { shapes, .. }) = part.node(placement) else {
+        panic!("the part's placement is a `Place`")
+    };
+    CopyKey::part(placement, CopyKey::Read(shapes[0].read))
 }
 
 /// A part's own cap-face name at `end`, selected structurally from
@@ -141,43 +157,15 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
     );
     ws.create(&post, tol).expect("the post document stores");
     ws.create(&shelf, tol).expect("the shelf document stores");
-    let reference = |d: &ProfileDoc| DocRef {
-        id: d.id(),
-        pin: content_pin(d, tol).expect("the pin computes"),
-    };
-    let post_ref = reference(&post);
-    let shelf_ref = reference(&shelf);
+    let mut store = crate::fixture::resolver::PartStore::new();
+    let post_ref = store.insert(post.clone(), tol);
+    let shelf_ref = store.insert(shelf.clone(), tol);
+    let opts = crate::fixture::resolver::with_resolver(store.clone());
 
     let mut asm = ProfileDoc::empty(DocumentId::derive("gui4-bench"), tol);
-    let post_a = insert_into(&mut asm, Node::instantiate_part(post_ref), tol);
-    let shelf_i = insert_into(&mut asm, Node::instantiate_part(shelf_ref), tol);
-    edit_into(
-        &mut asm,
-        DocEdit::SetOffset {
-            instance: shelf_i,
-            offset: Some(Placement::literal(&Frame::translation(SHELF_AT))),
-            fresh: Vec::new(),
-        },
-        tol,
-    );
-    let post_b = insert_into(&mut asm, Node::instantiate_part(post_ref), tol);
-    edit_into(
-        &mut asm,
-        DocEdit::SetOffset {
-            instance: post_b,
-            offset: Some(Placement::literal(&Frame::translation(POST_B_AT))),
-            fresh: Vec::new(),
-        },
-        tol,
-    );
-    // The world: one identity placement per instance, in instance order.
-    let [post_a_copy, shelf_copy, post_b_copy] = [post_a, shelf_i, post_b].map(|instance| {
-        insert_into(
-            &mut asm,
-            Node::place_in_world(instance, Placement::IDENTITY),
-            tol,
-        )
-    });
+    let post_a = instance_at(&mut asm, post_ref, [0.0; 3], &opts, tol);
+    let shelf_i = instance_at(&mut asm, shelf_ref, SHELF_AT, &opts, tol);
+    let post_b = instance_at(&mut asm, post_ref, POST_B_AT, &opts, tol);
     let asm_path = ws.create(&asm, tol).expect("the assembly stores");
 
     Bench {
@@ -186,14 +174,139 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
         post_a,
         shelf_i,
         post_b,
-        post_a_copy,
-        shelf_copy,
-        post_b_copy,
         post: post_ref,
         shelf: shelf_ref,
+        post_key: copy_key(&post),
+        shelf_key: copy_key(&shelf),
+        store,
         post_top: cap_of(&post, CapEnd::End, tol),
         shelf_bottom: cap_of(&shelf, CapEnd::Start, tol),
     }
+}
+
+impl Bench {
+    /// Evaluation options that reach the bench's parts.
+    pub fn opts(&self) -> EvalOptions {
+        crate::fixture::resolver::with_resolver(self.store.clone())
+    }
+}
+
+/// **An instance of `part` pinned to the world at the translation
+/// `at`**: an instance whose bundle is empty, then one world pin.
+pub fn instance_at(
+    asm: &mut ProfileDoc,
+    part: DocRef,
+    at: [f64; 3],
+    opts: &EvalOptions,
+    tol: Tol,
+) -> RecipeNodeId {
+    instance_posed(asm, part, &Frame::translation(at), opts, tol)
+}
+
+/// [`instance_at`] at any pose: the pin is read off the copy's own
+/// geometry through `opts` (`editor_core::pin_at`).
+pub fn instance_posed(
+    asm: &mut ProfileDoc,
+    part: DocRef,
+    pose: &Frame,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> RecipeNodeId {
+    let instance = insert_into(asm, crate::fixture::mated_instance(part), tol);
+    *asm = super::pin(asm, instance, pose, opts, tol);
+    instance
+}
+
+/// **The world pin `placement`'s bundle holds**, by its address.
+///
+/// # Panics
+///
+/// Unless the bundle holds exactly one mate reading the world.
+pub fn world_pin_of(
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    placement: RecipeNodeId,
+) -> pncad::document::MateRef {
+    let pins: Vec<_> = crate::fixture::bundle(doc, placement)
+        .into_iter()
+        .filter(|constraint| {
+            constraint
+                .mate()
+                .is_some_and(|mate| matches!(mate.to, pncad::document::Target::World(_)))
+        })
+        .collect();
+    let [pin] = pins.as_slice() else {
+        panic!("{placement:?} holds one world pin: {pins:?}")
+    };
+    pncad::document::MateRef::new(placement, pin.id)
+}
+
+/// **Take `instance`'s world pin off through the session**, and pump:
+/// its bundle empties (the session takes any value naming the pin with
+/// it), so it is a loose copy and the next mate a row commits on it
+/// places it, where a pinned one would refuse overconstrained.
+pub fn unpin(session: &mut DocSession, instance: RecipeNodeId) {
+    let mate = world_pin_of(session.committed_doc(), instance);
+    let outcome = session.perform(SessionOp::RemoveConstraint { mate });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+}
+
+/// **A free-move frame for the loose post_b, drawn where its pin stood
+/// it**, composed with `frame`: `frame ∘ T(POST_B_AT)`.
+///
+/// A free-move moves the picture of a loose space (DI5), and a loose
+/// copy is drawn at its body's own coordinates. Its pin off ([`unpin`]),
+/// post_b is drawn at the part's origin, so a probe that should show it
+/// where the pinned post stood, displaced by `frame` as the display
+/// frame displaced the pinned copy, composes the pin's translation in
+/// first. A row asserting a drawn position keeps its numbers.
+pub fn where_b_stood(frame: Frame) -> Frame {
+    frame.compose(&Frame::translation(POST_B_AT))
+}
+
+/// **The read of `instance`'s one copy**, as a seat that reads one body
+/// takes it: the instance's copies, keyed by its part's copy. `instance`
+/// is one of the bench's posts or its shelf, or another instance of
+/// the same parts.
+pub fn copy(
+    bench: &Bench,
+    doc: &ProfileDoc,
+    instance: RecipeNodeId,
+) -> pncad::document::BodyRead<Formula> {
+    let key = match doc.node(instance) {
+        Some(Node::InstantiatePart { doc_ref, .. }) if *doc_ref == bench.shelf => &bench.shelf_key,
+        Some(Node::InstantiatePart { .. }) => &bench.post_key,
+        other => panic!("{instance:?} is an instance, got {other:?}"),
+    };
+    pncad::document::BodyRead::keyed(pncad::document::Operand::Node(instance), key.clone())
+}
+
+/// **A union of `members`' copies written into the bench's stored
+/// assembly**, answering the union. The viewer's boolean form reads
+/// whole bodies, and an instance's output is its copies, so a union of
+/// instance copies is authored into the file before a session opens it.
+pub fn store_union(bench: &Bench, members: &[RecipeNodeId], tol: Tol) -> RecipeNodeId {
+    let text = std::fs::read_to_string(&bench.asm_path).expect("the assembly reads");
+    let mut doc = pncad::document::load(&text, tol)
+        .expect("the assembly loads")
+        .doc;
+    let reads = members
+        .iter()
+        .map(|&member| copy(bench, &doc, member))
+        .collect();
+    let union = insert_into(
+        &mut doc,
+        Node::Union {
+            members: pncad::document::Bodies::Spelled(reads),
+        },
+        tol,
+    );
+    std::fs::write(
+        &bench.asm_path,
+        pncad::document::save(&doc, &[], tol).expect("the assembly saves"),
+    )
+    .expect("the assembly writes");
+    union
 }
 
 /// A session opened on the bench's assembly through the typed `Open`
@@ -218,148 +331,102 @@ pub fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
         .into_name()
 }
 
-/// **The face a proposal's side takes its frame from**: the frame the
-/// mate tool authors is the bare face base (`MateFrame::from_face()`), whose face is its head's
-/// in the member's part (`head_face`, the kernel's one strip) —
-/// `None` for an authored frame or a head outside the member
-/// vocabulary. What every tool row compares a proposal's side
-/// against, by the PART-LOCAL name.
-pub fn face_side(
+/// **The part-local face a mate side reads**: the side walked to its
+/// instance and the instance's wrapper taken off (`head_face`, the
+/// kernel's one strip) — what a tool row compares a proposal's side
+/// against. `None` for a side outside the member vocabulary.
+pub fn side_face(
     doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
-    frame: &pncad::document::MateFrame<Formula>,
-    head: &pncad::document::SitedFace,
+    side: &pncad::document::SitedFace,
 ) -> Option<StableName> {
-    if *frame != pncad::document::MateFrame::from_face() {
-        return None;
-    }
-    pncad::document::head_face(doc, head).map(pncad::document::FaceName::into_name)
-}
-
-/// **A world pose pulled back through a placement into part
-/// coordinates, as three authored vectors** — the hand-authored
-/// spelling a row uses where it wants a roll of its own
-/// (`reference` is the roll reference, in WORLD), which a face
-/// frame cannot carry beside the carrier's own. The placement is a
-/// rigid frame, so the pull-back is its inverse.
-pub fn authored_from_world(
-    placement: &pncad::geom_core::Affine3<f64>,
-    pose: &pncad::topo::readback::Pose<f64>,
-    reference: Vec3<f64>,
-) -> pncad::document::MateFrame<Formula> {
-    let [origin, axis, reference] = vectors_from_world(placement, pose, reference);
-    pncad::document::MateFrame::authored(origin, axis, reference, geom_core::Tol::witness())
-        .expect("a definite frame")
-}
-
-/// The three vectors [`authored_from_world`] authors: the origin, the
-/// axis and the roll reference, pulled back into the instance's own
-/// part coordinates.
-pub fn vectors_from_world(
-    placement: &pncad::geom_core::Affine3<f64>,
-    pose: &pncad::topo::readback::Pose<f64>,
-    reference: Vec3<f64>,
-) -> [[f64; 3]; 3] {
-    let inverse = placement.inverse();
-    [
-        inverse.transform_point(pose.origin).to_array(),
-        inverse.transform_vec(pose.axis).to_array(),
-        inverse.transform_vec(reference).to_array(),
-    ]
+    pncad::document::head_face(doc, side).map(pncad::document::FaceName::into_name)
 }
 
 // The assembly suites say `asm::down_at` / `asm::up_at`; both name the
 // shared rays, re-exported rather than restated.
 pub use super::{down_at, up_at};
 
-/// The mate tool's choice for the seat: Rest at frame coincidence,
-/// axes opposed, no clocking rider — on a frame coincidence the coset
-/// table decides any nonzero rider contradictory.
+/// **The seat's values, at `b_x` along the shelf**: a post's top cap
+/// rests on the shelf's underside (a plane mate, flipped), which leaves
+/// the post free to slide and spin in the shelf's plane; the values put
+/// its top cap's middle under the shelf at `b_x` along it and midway
+/// across it, unturned. Each value is measured on the two parts' own
+/// coordinates — the post's origin from the shelf's — along the
+/// shelf's frame swung onto the underside's outward normal, its own
+/// `−z`: the half-turn about its `x`, so the chart's `y` is the
+/// shelf's `−y`.
+pub fn seat_values(b_x: f64) -> Vec<(Coord, pncad::document::Formula)> {
+    vec![
+        (Coord::Slide(SlideAxis::X), len(b_x - POST_SECTION / 2.0)),
+        (
+            Coord::Slide(SlideAxis::Y),
+            len(POST_SECTION / 2.0 - SHELF_DEPTH / 2.0),
+        ),
+        (Coord::Spin, ang(0.0)),
+    ]
+}
+
+/// [`seat_values`] under the shelf's middle.
+pub fn middle_seat_values() -> Vec<(Coord, pncad::document::Formula)> {
+    seat_values(SHELF_LENGTH / 2.0)
+}
+
+/// **Where [`seat_values`] puts a post under the bench shelf**: the
+/// post unturned, its top cap on the shelf's underside, its middle at
+/// `b_x` along the shelf and midway across it.
+pub fn seated_at(b_x: f64) -> Frame {
+    Frame::translation([
+        SHELF_AT[0] + b_x - POST_SECTION / 2.0,
+        SHELF_AT[1] + SHELF_DEPTH / 2.0 - POST_SECTION / 2.0,
+        SHELF_AT[2] - POST_HEIGHT,
+    ])
+}
+
+/// **Asserts `placement` solves to `want`** in the session's landed
+/// document, each entry of the rigid motion within `1e-9`.
+pub fn assert_solved_at(session: &DocSession, placement: RecipeNodeId, want: &Frame, what: &str) {
+    let (doc, _) = session.landed_pair().expect("landed");
+    let got = super::solve(session, doc, Tol::witness())
+        .placement(doc, placement)
+        .unwrap_or_else(|refusal| panic!("{what}: {placement:?} has no pose: {refusal}"));
+    let close = got
+        .columns
+        .iter()
+        .flatten()
+        .chain(&got.translation)
+        .zip(want.columns.iter().flatten().chain(&want.translation))
+        .all(|(g, w)| (g - w).abs() < 1e-9);
+    assert!(close, "{what}: {got:?} vs {want:?}");
+}
+
+/// The mate tool's choice for the seat: a Rest of two planes, the
+/// target flipped (the faces rest against each other), at
+/// [`middle_seat_values`].
 pub fn seat_choice() -> viewer::matetool::MateChoice {
     viewer::matetool::MateChoice {
         class: pncad::select::ContactClass::Rest,
-        primitive: pncad::document::MatePrimitive::FrameCoincidence,
-        sense: pncad::document::AxisSense::Opposed,
-        clocking: None,
+        kind: pncad::document::VarKind::Plane,
+        flip: true,
+        values: middle_seat_values(),
     }
-}
-
-/// **The seat as a planar REST alone**, at `b_x` along the shelf: one
-/// planar rest fixes the seating plane and nothing else, so the pair
-/// may still slide and spin in it and the solve refuses UNDER, naming
-/// the one mate. The refusal the badge rows build a refused group
-/// from — a verdict about the PAIR, which the edit door admits and the
-/// solve decides (a mate the table refuses on its own datum is
-/// refused at the insert).
-pub fn rest_alignment(b_x: f64) -> pncad::document::Alignment<Formula> {
-    use pncad::document::{Alignment, MatePrimitive};
-    Alignment {
-        primitive: MatePrimitive::PlanarRest { offset: 0.0 },
-        ..seat_alignment(b_x, None)
-    }
-}
-
-/// **The seat ALIGNMENT the mate rows author directly**: a post's top
-/// cap on the shelf's underside, each frame in its own part's
-/// coordinates, at `b_x` along the shelf and with `clocking` as the
-/// rider.
-///
-/// One home because it is one geometric fact about this fixture — the
-/// two suites that build refused groups differ only in where along
-/// the shelf a post lands and whether a rider rides, and a per-suite
-/// copy of the ladder could only drift from the bench it addresses.
-/// (`seat` above is the mate TOOL's choice for the same seat; this is
-/// the frame pair `SessionOp::AddMate` takes.)
-pub fn seat_alignment(b_x: f64, clocking: Option<f64>) -> pncad::document::Alignment<Formula> {
-    use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive};
-    Alignment {
-        a: MateFrame::authored(
-            [POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT],
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            geom_core::Tol::witness(),
-        )
-        .expect("a definite frame"),
-        b: MateFrame::authored(
-            [b_x, SHELF_DEPTH / 2.0, 0.0],
-            [0.0, 0.0, -1.0],
-            [1.0, 0.0, 0.0],
-            geom_core::Tol::witness(),
-        )
-        .expect("a definite frame"),
-        primitive: MatePrimitive::FrameCoincidence,
-        sense: AxisSense::Opposed,
-        clocking,
-    }
-}
-
-/// [`seat_alignment`] under the shelf's middle, with no rider.
-pub fn middle_seat_alignment() -> pncad::document::Alignment<Formula> {
-    seat_alignment(SHELF_LENGTH / 2.0, None)
-}
-
-/// **A seat that contradicts the middle one**: [`seat_alignment`] one
-/// centimetre further along the shelf. Authored on the same pair as a
-/// [`middle_seat_alignment`] mate, the two frame coincidences cannot
-/// both hold, and the solve names the pair `Contradictory`.
-pub fn contradicting_seat_alignment() -> pncad::document::Alignment<Formula> {
-    seat_alignment(SHELF_LENGTH / 2.0 + 0.01, None)
 }
 
 /// **The seat mate as the op the session takes**: `post`'s top cap
-/// onto the bench shelf's underside, as `class`, at `alignment`.
+/// resting on the bench shelf's underside, as `class`, with `values`,
+/// in `post`'s bundle.
 ///
 /// One home for the op because the two faces it names are one fact
 /// about this fixture; what a row varies is the post, the class and
-/// the alignment. A row hands it to [`super::commit_mate`] or
+/// the values. A row hands it to [`super::commit_mate`] or
 /// [`super::session_insert`], or performs it itself when its subject
 /// is the outcome.
 pub fn seat_op(
     bench: &Bench,
     post: RecipeNodeId,
     class: pncad::select::ContactClass,
-    alignment: pncad::document::Alignment<Formula>,
+    values: Vec<(Coord, pncad::document::Formula)>,
 ) -> SessionOp {
-    seat_op_under(bench, post, bench.shelf_i, class, alignment)
+    seat_op_under(bench, post, bench.shelf_i, class, values)
 }
 
 /// [`seat_op`] under a shelf instance other than the bench's — one a
@@ -369,42 +436,119 @@ pub fn seat_op_under(
     post: RecipeNodeId,
     shelf: RecipeNodeId,
     class: pncad::select::ContactClass,
-    alignment: pncad::document::Alignment<Formula>,
+    values: Vec<(Coord, pncad::document::Formula)>,
 ) -> SessionOp {
     let (post_top, shelf_bottom) = seat_faces(bench, post, shelf);
     SessionOp::AddMate {
-        a: post_top,
-        b: shelf_bottom,
-        class,
-        alignment,
+        placement: post,
+        mate: Box::new(crate::fixture::rest(post_top, shelf_bottom, class)),
+        values,
     }
 }
 
-/// **[`seat_op_under`] with its operands swapped**: the same seat,
-/// `shelf` named first. The mate door clears the FIRST operand's root
-/// offset, so this is the seat that places a shelf on a post rather
-/// than a post under a shelf. `alignment` is written as
-/// [`seat_alignment`] writes it, post first; its two frames trade
-/// sides with the faces, and its primitive, sense and rider carry over
-/// as written.
-pub fn shelf_on_post_op(
-    bench: &Bench,
-    shelf: RecipeNodeId,
-    post: RecipeNodeId,
-    class: pncad::select::ContactClass,
-    alignment: pncad::document::Alignment<Formula>,
-) -> SessionOp {
-    let (post_top, shelf_bottom) = seat_faces(bench, post, shelf);
+/// **The shelf resting on `post`'s top, `offset` above it**, as the op
+/// the session takes: the shelf's underside on the post's top cap,
+/// flipped and slid `offset` along its own normal (a standoff), in the
+/// shelf's bundle once the shelf's world pin is off ([`unpin`]). It
+/// fixes the shelf's seating plane and nothing else, so the shelf is a
+/// loose copy; a second rest beside it fixes the plane again, which the
+/// edit door refuses.
+pub fn shelf_rest_op(bench: &Bench, post: RecipeNodeId, offset: f64) -> SessionOp {
+    use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
+    let (post_top, shelf_bottom) = seat_faces(bench, post, bench.shelf_i);
+    let seat = crate::fixture::flip(crate::fixture::plane(post_top));
+    let to = pncad::document::Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(seat.clone()),
+        along: RoleRead::through(seat, PoseRole::Normal),
+        by: len(offset),
+    }));
     SessionOp::AddMate {
-        a: shelf_bottom,
-        b: post_top,
-        class,
-        alignment: pncad::document::Alignment {
-            a: alignment.b,
-            b: alignment.a,
-            ..alignment
-        },
+        placement: bench.shelf_i,
+        mate: Box::new(crate::fixture::mate(
+            crate::fixture::plane(shelf_bottom),
+            to,
+            pncad::select::ContactClass::Rest,
+        )),
+        values: Vec::new(),
     }
+}
+
+/// **A mate the shelf's bundle refuses where it evaluates**: a ball
+/// mate on the centre of the shelf's underside, which a plane has none
+/// of, against the centre of `post`'s top. The door admits it (its
+/// kinds agree and its `on` reads the shelf); the placement refuses it
+/// where it evaluates, its `on` pose unevaluated (`NoCentre`).
+pub fn no_centre_op(bench: &Bench, post: RecipeNodeId) -> SessionOp {
+    let (post_top, shelf_bottom) = seat_faces(bench, post, bench.shelf_i);
+    SessionOp::AddMate {
+        placement: bench.shelf_i,
+        mate: Box::new(crate::fixture::mate(
+            crate::fixture::point_of(shelf_bottom),
+            crate::fixture::point_of(post_top),
+            pncad::select::ContactClass::Rest,
+        )),
+        values: Vec::new(),
+    }
+}
+
+/// [`no_centre_op`] in `post`'s bundle: a ball mate on the centre of
+/// `post`'s top cap, which a plane has none of, against the shelf's
+/// underside centre. The door admits it; `post` refuses it where it
+/// evaluates (`NoCentre`), so its copy is in no space.
+pub fn no_centre_seat_op(bench: &Bench, post: RecipeNodeId) -> SessionOp {
+    let (post_top, shelf_bottom) = seat_faces(bench, post, bench.shelf_i);
+    SessionOp::AddMate {
+        placement: post,
+        mate: Box::new(crate::fixture::mate(
+            crate::fixture::point_of(post_top),
+            crate::fixture::point_of(shelf_bottom),
+            pncad::select::ContactClass::Rest,
+        )),
+        values: Vec::new(),
+    }
+}
+
+/// **The shelf's bundle refused, and post_b chained to it**: post_b's
+/// world pin off and post_b seated under the shelf's middle (`sound`,
+/// in post_b's bundle), then the shelf's world pin off and its bundle
+/// one mate the evaluation refuses ([`no_centre_op`], the `offender`,
+/// against post_a). The shelf has no pose, and post_b, placed against
+/// the shelf, has none either; post_a, which only the shelf's
+/// constraints read, keeps its own. Committed, each pumped.
+pub fn refuse_shelf(session: &mut DocSession, bench: &Bench) -> Refused {
+    refuse_shelf_chaining(session, bench, bench.post_b, bench.post_a)
+}
+
+/// [`refuse_shelf`] with `chained` seated under the shelf and the
+/// shelf's refused mate against `rest_on`.
+pub fn refuse_shelf_chaining(
+    session: &mut DocSession,
+    bench: &Bench,
+    chained: RecipeNodeId,
+    rest_on: RecipeNodeId,
+) -> Refused {
+    unpin(session, chained);
+    let sound = super::commit_mate(
+        session,
+        seat_op(
+            bench,
+            chained,
+            pncad::select::ContactClass::Rest,
+            middle_seat_values(),
+        ),
+    );
+    unpin(session, bench.shelf_i);
+    let offender = super::commit_mate(session, no_centre_op(bench, rest_on));
+    Refused { sound, offender }
+}
+
+/// The two constraints [`refuse_shelf`] commits.
+#[derive(Debug, Clone, Copy)]
+pub struct Refused {
+    /// post_b's seat under the shelf, in post_b's bundle.
+    pub sound: pncad::document::MateRef,
+    /// The shelf's one mate, which its evaluation refuses.
+    pub offender: pncad::document::MateRef,
 }
 
 /// The two faces a seat names: `post`'s top cap and `shelf`'s
@@ -475,21 +619,18 @@ pub fn shelf_underside(session: &DocSession) -> FaceSelection {
 /// middle and each checked to land on the instance it aims at.
 pub fn seat_picks(session: &DocSession, bench: &Bench) -> (FaceSelection, FaceSelection) {
     let post_top = pick_face(session, &over_post_b());
-    assert_eq!(
-        post_top.node, bench.post_b_copy,
-        "the first pick is post_b's"
-    );
+    assert_eq!(post_top.node, bench.post_b, "the first pick is post_b's");
     let shelf_bottom = shelf_underside(session);
     assert_eq!(
-        shelf_bottom.node, bench.shelf_copy,
+        shelf_bottom.node, bench.shelf_i,
         "the second pick is the shelf's"
     );
     (post_top, shelf_bottom)
 }
 
 /// **The feature tree's instance rows**: the rows of `InstantiatePart`
-/// nodes, without the world placements beside them (A10) — what a row
-/// about resolving instances reads.
+/// nodes, without the rows of the bodies' own placements (A10) — what
+/// a row about resolving instances reads.
 pub fn instance_rows(session: &DocSession) -> Vec<viewer::tree::TreeRow> {
     session
         .tree_rows()

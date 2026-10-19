@@ -40,10 +40,10 @@
 //!   the descriptions with the radius-pricing `hyp` lever, then
 //!   MEASURED at the trims), and folds the angular coordinate by ONE
 //!   whole number of periods decided per pair as structure
-//!   ([`geom_brep::whole_periods`]). A gap astride a half-period mark
-//!   is answered on both branches and kept where they agree; the
-//!   [`ChartRegionError::PeriodFold`] decline is two branches that
-//!   disagree, or a gap past the branch reach.
+//!   ([`geom_brep::Period::decide`]), however many periods apart. A gap
+//!   astride a half-period mark is answered on both branches and kept
+//!   where they agree; the [`ChartRegionError::PeriodFold`] decline is
+//!   two branches that disagree.
 //!
 //! For both arms the claim earned is *certified everywhere within ε*,
 //! never *exact*: `decide`'s `Ok(Zero)` means `|m| ≤ zero`, not
@@ -265,9 +265,8 @@ pub enum ChartRegionError {
     /// The whole-period fold that carries one cylinder description's
     /// chart window onto the other's names no branch: the two windows'
     /// midpoints sit ON a half-period mark and the pair's answers on the
-    /// two branches astride it disagree, or they sit more than
-    /// [`geom_brep::MAX_BRANCH_PERIODS`] periods apart. The tie
-    /// declines, never certifying a false overlap.
+    /// two branches astride it disagree. The tie declines, never
+    /// certifying a false overlap.
     PeriodFold,
     /// A declared pair's two carrier DESCRIPTIONS are definitely apart
     /// somewhere over the pair's OWN extent. Door 1 bounds the tilt
@@ -397,7 +396,7 @@ impl core::fmt::Display for ChartRegionError {
                 "chart-region: the cross-description angular fold could not be \
                  pinned to one whole period — the two windows sit a genuine \
                  half-period tie apart and the pair reads differently on the two \
-                 branches, or they sit more periods apart than the branch reach; \
+                 branches; \
                  the tie declines, it never certifies. Move one \
                  description's window off the half-period tie, or re-describe the \
                  pair on one cylinder rather than two"
@@ -1321,15 +1320,14 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 /// away from A's. ONE integer `k` is decided per pair, from the gap
 /// `mid_A − mid_B̃` between the two windows' azimuth midpoints, and
 /// applied to every transferred vertex. It is decided as structure
-/// ([`geom_brep::whole_periods`], `chart_region_period_fold`): sign
+/// ([`geom_brep::Period::decide`], `chart_region_period_fold`): sign
 /// decisions at the half-period marks, levered by the radius, so the
 /// shift is `k·τ` with `k` a literal at every scalar. A gap on or in
 /// the band of a mark (the windows a half-period tie apart) is a tie
 /// between the two branches astride it, each of which sees the mirror
 /// image of the other's overlap: the pair is answered on both and the
 /// answer kept where they agree. Two that disagree decline
-/// [`ChartRegionError::PeriodFold`] on a mark and escalate in band; a
-/// gap past the branch reach declines [`ChartRegionError::PeriodFold`].
+/// [`ChartRegionError::PeriodFold`] on a mark and escalate in band.
 ///
 /// # Decline posture (issue 1435's disclosure obligation)
 ///
@@ -1619,24 +1617,24 @@ enum Fold<T> {
 
 /// The fold for windows whose azimuth midpoints are `gap` apart, on a
 /// cylinder of `radius`: the shift `k·τ`, with `k` decided by the
-/// half-period marks ([`geom_brep::whole_periods`]) levered at the
+/// half-period marks ([`geom_brep::Period::decide`]) levered at the
 /// radius, so it is a literal at every scalar. Where a mark misses, the
 /// two branches astride it (`pcurves::branches_astride`), each a literal.
 ///
 /// # Errors
 ///
-/// [`ChartRegionError::PeriodFold`] past the branch reach, or on a mark
-/// whose astride branches are not decided;
+/// [`ChartRegionError::PeriodFold`] on a mark whose astride branches
+/// are not decided;
 /// [`ChartRegionError::Escalated`] in band, likewise.
 fn period_fold<T: Decide>(gap: T, radius: T, band: Band) -> Result<Fold<T>, ChartRegionError> {
     let tau = T::tau();
     let name = "chart_region_period_fold";
     let meter = |g| Margin::levered(g, radius);
-    let shift = |k: i32| T::from_f64(f64::from(k)) * tau;
-    match geom_brep::whole_period_count(name, gap, tau, meter, band) {
+    let period = geom_brep::Period::new(tau);
+    let shift = |k: i32| period.times(k);
+    match period.decide(name, gap, meter, band) {
         Ok(k) => Ok(Fold::One(shift(k))),
-        Err(geom_brep::BranchMiss::OutOfReach) => Err(ChartRegionError::PeriodFold),
-        Err(miss) => {
+        Err(geom_brep::WalkStop { miss, .. }) => {
             let decline = match miss {
                 geom_brep::BranchMiss::Undecided(diag) => ChartRegionError::Escalated(diag),
                 _ => ChartRegionError::PeriodFold,
@@ -2434,18 +2432,26 @@ fn pcurve_entry<T: Decide + Bounds>(
         } else {
             Point2::new(p0.x + pd.x, p0.y + pd.y)
         }),
-        // Straight iff BOTH trig channels are exact-structural zeros
-        // (C6): rim circles (`pl = (β, 0)`), meridians, and every
-        // line edge of a plane chart land here; a tilted-section
-        // sinusoid (`pa`/`pb` alive) refuses — including a
-        // numerically-almost-zero channel, deliberately.
-        Pcurve::Harmonic { p0, pa, pb, pl } => {
-            if exact_zero(pa.x) && exact_zero(pa.y) && exact_zero(pb.x) && exact_zero(pb.y) {
-                let t = if forward { t0 } else { t1 };
-                Ok(Point2::new(p0.x + pl.x * t, p0.y + pl.y * t))
-            } else {
-                Err("Harmonic trig channels are not exact-structural zeros \
-                     (the sinusoid / tilted-cut class)")
+        // Straight iff each channel is (C6). An angle channel is, by
+        // its kind: a phase and a winding's rate, with no trig terms.
+        // A free channel is straight iff its trig coefficients are
+        // exact-structural zeros: a plane chart's line edges land here;
+        // a tilted-section sinusoid (`a`/`b` alive) refuses — including
+        // a numerically-almost-zero channel, deliberately.
+        Pcurve::Harmonic { u, v } => {
+            let t = if forward { t0 } else { t1 };
+            let at = |c: geom_brep::Channel<T>| match c {
+                geom_brep::Channel::Angle { phase, winding } => {
+                    Some(phase + geom_brep::angle_rate::<T>(winding) * t)
+                }
+                geom_brep::Channel::Free { c, a, b, l } => {
+                    (exact_zero(a) && exact_zero(b)).then(|| c + l * t)
+                }
+            };
+            match (at(*u), at(*v)) {
+                (Some(x), Some(y)) => Ok(Point2::new(x, y)),
+                _ => Err("Harmonic trig channels are not exact-structural zeros \
+                          (the sinusoid / tilted-cut class)"),
             }
         }
         Pcurve::Fitted(_) => Err("Fitted chart image (rung-3 trace) is not a straight segment"),
@@ -2518,7 +2524,7 @@ fn loop_uv_polygon<T: Decide + Bounds>(
                 return Err(ChartRegionError::Corrupt);
             };
             let (t0, t1) = curve.params();
-            let pcurve = geom_brep::chart_pcurve(curve.carrier(), surface, band)
+            let pcurve = geom_brep::chart_pcurve_over(curve.carrier(), t0, t1, surface, band)
                 .map_err(|_| refuse("no closed-form chart image for this carrier kind"))?;
             pcurve_entry(&pcurve, t0, t1, forward).map_err(refuse)?
         } else {
@@ -3564,6 +3570,11 @@ mod r2_probes;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[path = "chart_region_far_fold_rows.rs"]
+mod far_fold_rows;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
     use geom_core::Tol;
@@ -3951,21 +3962,21 @@ mod tests {
 
     #[test]
     fn zero_trig_harmonic_passes_and_sinusoid_refuses() {
-        let linear = geom_brep::Pcurve::Harmonic {
-            p0: Point2::new(0.0, 0.5),
-            pa: Vec2::zero(),
-            pb: Vec2::zero(),
-            pl: Vec2::new(1.0, 0.0),
-        };
+        let linear = geom_brep::Pcurve::free_harmonic(
+            Point2::new(0.0, 0.5),
+            Vec2::zero(),
+            Vec2::zero(),
+            Vec2::new(1.0, 0.0),
+        );
         assert_pt(pcurve_entry(&linear, 0.0, 3.0, true).unwrap(), 0.0, 0.5);
 
         // The tilted-cut class: an alive sin channel refuses typed.
-        let sinusoid = geom_brep::Pcurve::Harmonic {
-            p0: Point2::new(0.0, 0.5),
-            pa: Vec2::zero(),
-            pb: Vec2::new(0.0, 0.3),
-            pl: Vec2::new(1.0, 0.0),
-        };
+        let sinusoid = geom_brep::Pcurve::free_harmonic(
+            Point2::new(0.0, 0.5),
+            Vec2::zero(),
+            Vec2::new(0.0, 0.3),
+            Vec2::new(1.0, 0.0),
+        );
         assert!(pcurve_entry(&sinusoid, 0.0, 3.0, true).is_err());
     }
 
@@ -3973,12 +3984,12 @@ mod tests {
     fn a_numerically_almost_zero_trig_channel_refuses_typed() {
         // The C6 statement with teeth: 1e-300 is NOT a structural
         // zero, and no scalar zero-test on T may decide otherwise.
-        let nearly = geom_brep::Pcurve::Harmonic {
-            p0: Point2::new(0.0, 0.5),
-            pa: Vec2::new(0.0, 1e-300),
-            pb: Vec2::zero(),
-            pl: Vec2::new(1.0, 0.0),
-        };
+        let nearly = geom_brep::Pcurve::free_harmonic(
+            Point2::new(0.0, 0.5),
+            Vec2::new(0.0, 1e-300),
+            Vec2::zero(),
+            Vec2::new(1.0, 0.0),
+        );
         assert!(pcurve_entry(&nearly, 0.0, 3.0, true).is_err());
     }
 
@@ -4261,12 +4272,12 @@ mod tests {
         // reach the machinery — the tilted-cut image refuses typed at
         // the variant gate (`pcurve_entry`), which is exactly the
         // exclusion the module docs name.
-        let sinusoid = geom_brep::Pcurve::Harmonic {
-            p0: Point2::new(0.0, 1.0),
-            pa: Vec2::zero(),
-            pb: Vec2::new(0.0, 0.5),
-            pl: Vec2::new(1.0, 0.0),
-        };
+        let sinusoid = geom_brep::Pcurve::free_harmonic(
+            Point2::new(0.0, 1.0),
+            Vec2::zero(),
+            Vec2::new(0.0, 0.5),
+            Vec2::new(1.0, 0.0),
+        );
         assert!(pcurve_entry(&sinusoid, 0.0, core::f64::consts::PI, true).is_err());
     }
 
@@ -4547,13 +4558,13 @@ mod tests {
         let ellipse = Curve3::Ellipse {
             center: Point3::origin(),
             axis: Vec3::new(-k, 0.0, 1.0).normalize(),
-            major: major_len,
-            minor: 1.0,
+            semi_u: major_len,
+            semi_v: 1.0,
             u_ref: Vec3::new(1.0, 0.0, k).normalize(),
         };
         let surface = cyl_surface(1.0);
         let pcurve = geom_brep::chart_pcurve(&ellipse, &surface, band()).unwrap();
-        let geom_brep::Pcurve::Harmonic { pa, .. } = &pcurve else {
+        let Some((_, pa, _, _)) = pcurve.harmonic_form() else {
             panic!("the tilted section charts to a Harmonic");
         };
         assert!(
@@ -4637,12 +4648,12 @@ mod tests {
                     (Vec2::zero(), Vec2::new(tiny, 0.0)),
                     (Vec2::zero(), Vec2::new(0.0, tiny)),
                 ] {
-                    let h = geom_brep::Pcurve::Harmonic {
-                        p0: Point2::new(0.0, 0.0),
+                    let h = geom_brep::Pcurve::free_harmonic(
+                        Point2::new(0.0, 0.0),
                         pa,
                         pb,
-                        pl: Vec2::new(1.0, 0.0),
-                    };
+                        Vec2::new(1.0, 0.0),
+                    );
                     assert!(
                         pcurve_entry(&h, 0.0, 1.0, true).is_err(),
                         "a {tiny:e} trig channel must refuse typed"
@@ -4655,12 +4666,12 @@ mod tests {
         fn r1_negative_zero_is_the_zero_function_and_passes() {
             // -0.0 == 0.0 in value: the trig term is the exact zero
             // function, so admitting it is sound (structure, not bits).
-            let h = geom_brep::Pcurve::Harmonic {
-                p0: Point2::new(0.25, 0.5),
-                pa: Vec2::new(-0.0, 0.0),
-                pb: Vec2::new(0.0, -0.0),
-                pl: Vec2::new(1.0, 2.0),
-            };
+            let h = geom_brep::Pcurve::free_harmonic(
+                Point2::new(0.25, 0.5),
+                Vec2::new(-0.0, 0.0),
+                Vec2::new(0.0, -0.0),
+                Vec2::new(1.0, 2.0),
+            );
             assert_pt(pcurve_entry(&h, 0.5, 1.0, true).unwrap(), 0.75, 1.5);
         }
 
@@ -5868,7 +5879,7 @@ mod period_fold_rows {
     #[test]
     fn the_fold_is_its_whole_periods_as_a_theorem_over_a_box() {
         let band = Band::linear(geom_core::Tol::witness()).unwrap();
-        for k in [-1.0, 0.0, 1.0, 2.0] {
+        for k in [-7.0, -1.0, 0.0, 1.0, 2.0, 5.0] {
             let (out, counts) =
                 crate::test_support_fixtures::whole_period_gap_over_a_box(k, |a, b| {
                     let Fold::One(shift) = period_fold(a - b, Sym::from_f64(2.0), band).unwrap()

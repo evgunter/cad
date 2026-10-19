@@ -138,6 +138,21 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// through the verb lowering — bodies on both sides and name tables —
 /// one committed number each.
 ///
+/// The digest feeds every node id, each body's `Debug` (its carriers'
+/// stored fields and edge descriptions included) and each name table
+/// (`fixture::digest`'s module docs), so a re-minted id, a renamed field
+/// or a moved bit moves it. They are goldens in the ordinary sense —
+/// when one moves the question is whether the new behaviour is right,
+/// never how to restore the old number.
+///
+/// RE-BLESSED for INTENT stage 3 B (a placement is the bundle of
+/// mates): a placement is a `Place` holding a world pin where it was a
+/// `PlaceInWorld`, so its stored node, and with it its mint preimage,
+/// moved, and every id the mint chain draws after it. No outcome or
+/// point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
 /// The numbers were taken on this branch and re-taken on the extracted
 /// merge base with this file and the shared feed copied onto it; all
 /// three reproduce there. That differential is what "nothing observable moved" means;
@@ -246,18 +261,47 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// tree is neither value. `m4_pr8_corpus`'s exact mass pins,
 /// `m5_pr8_bvh_diff` and `m10_p_fence`'s id-masked geometry held.
 ///
-/// RE-BLESSED, `kitchen_sink`, beside `part_select` above,, merging main's INTENT stage 3 A
+/// RE-BLESSED, `kitchen_sink`, beside `part_select` above, merging main's INTENT stage 3 A
 /// re-pin with the at-rest records' cell-pair shape: each moved it
 /// alone, and the merged tree is neither value. `m4_pr8_corpus`'s exact
 /// mass pins, `m5_pr8_bvh_diff` and `m10_p_fence`'s id-masked geometry
 /// held.
+///
+/// RE-BLESSED, all three, merged over the two re-pins above, when a name came to be scoped by the variable
+/// holding its body (FORK-DM4 unit 2): a split's halves are two tables
+/// and its names spell no half, which is what this digest's name table
+/// feed reads; `part_select`'s union, declared by the half-free section
+/// face, took a new id too. No body moved: the id-masked geometry fence
+/// held.
+///
+/// Re-taken merged over main at `8612ce48e8` (main's split naming,
+/// killed lineage and vertex runs, over this unit's per-half tables):
+/// `cut_cylinder`'s merged digest is neither tree's, and `part_select`'s
+/// and `kitchen_sink`'s are this unit's.
+///
+/// Re-taken merged over INTENT stage 3 B (#5232, a placement is the
+/// bundle of mates), which re-blessed these rows by its new mint chain:
+/// `cut_cylinder`, `part_select`, `kitchen_sink` moved by this unit as well, and
+/// their merged values are neither tree's; every other row is main's.
+///
+/// RE-BLESSED, every row, for INTENT stage 3 C (a mate relates two
+/// poses): each document places its copy where it stands by a loose
+/// `Place` and the named interim's world pin, where one edit minted
+/// the placement holding its world pin, so the placement's id and every
+/// id drawn after it moved. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
+/// RE-BLESSED, `cut_cylinder` only, when a harmonic row's windings
+/// became stored structure (PCERT B2a, PR 5244): the stored pcurve is
+/// two channels where it was one flat tuple, and the digest hashes it.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xa6c1_1622_9a6f_5245u64),
-        ("part_select", 0x1613_0d79_3326_39ec),
-        ("kitchen_sink", 0x587e_9ada_00a5_7fb6),
+        ("cut_cylinder", 0x3c37_782c_be93_f19au64),
+        ("part_select", 0x7b4d_39f0_68df_e9b5),
+        ("kitchen_sink", 0x1032_8a96_fb12_9d02),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -335,6 +379,8 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// fixture drifts. With that, perturbing the digest's empty-side token
 /// reds THIS row while the three document constants stand, and a
 /// lowering that turned the typed empty into anything else — or an
+/// empty side into a phantom body — moves this number.
+///
 /// empty side into a phantom body — moves this number. The constant
 /// reproduces on the extracted merge base (the empty path predates the
 /// migration), so it is a differential pin, not a self-agreement.
@@ -361,6 +407,10 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
 /// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
 /// pins and `m5_pr8_bvh_diff` held.
+///
+/// RE-BLESSED when a name came to be scoped by the variable holding its
+/// body (FORK-DM4 unit 2): the split's one table became a table per
+/// half, the empty half's empty, and its names spell no half.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -381,7 +431,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x80bf_b0ea_1f66_8105,
+        got, 0x34f6_1e4d_65ea_b6a4,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

@@ -49,6 +49,12 @@ pub struct DiscardRow {
     /// `face`. The discard deletes these edges' lineage from the
     /// result, so a later reader that meets an ancestor here can still
     /// tell that the edge bounded this face.
+    ///
+    /// Each chain is a copy of the clone's `SplitEdge` records read up
+    /// to its root, so two discards that share an ancestor each carry
+    /// its hop, with the one parent the record names
+    /// ([`crate::provenance::Provenance::SplitEdge`] says why a copy is
+    /// as sound as the records).
     pub boundary_chains: Vec<Vec<EdgeKey>>,
     /// Each stretch where a kept face holding part of this face's region
     /// through a coincident copy (`BooleanNaming::covered`) runs into
@@ -192,7 +198,9 @@ pub(super) fn discard_row<T: geom_core::Real>(
                 let mut at = h.edge;
                 while let Some(Provenance::SplitEdge { edge: up }) = body.edge_provenance_of(at) {
                     if chain.contains(up) {
-                        return Err(desync("a discarded edge's split lineage is cyclic"));
+                        return Err(BooleanError::SplitLineage(crate::SplitLineageCycle {
+                            edge: h.edge,
+                        }));
                     }
                     at = *up;
                     chain.push(at);
@@ -205,4 +213,28 @@ pub(super) fn discard_row<T: geom_core::Real>(
         row.held = held.stretches(face, &boundary)?;
     }
     Ok(row)
+}
+
+/// **The split records an operand's carve takes with it**: each edge of
+/// `src`, the operand clone, that `carved` no longer holds and that held
+/// a `SplitEdge` record, with the edge it was split from, in the clone's
+/// keys (`BooleanNaming::carved_lineage`). The carve removes a dropped
+/// edge's birth record with the edge, so a kept piece split off it
+/// leads to its parent only through this copy. A row's
+/// [`DiscardRow::boundary_chains`] hold the edges of a discarded face
+/// whose face across is dropped too; an edge the carve kills beside a
+/// face the row counts as kept is in no chain, and is here.
+pub(super) fn carved_lineage<T: geom_core::Real>(
+    src: &Body<T>,
+    carved: &Body<T>,
+) -> std::collections::BTreeMap<EdgeKey, EdgeKey> {
+    let mut lineage = std::collections::BTreeMap::new();
+    super::edge_join::record_killed_lineage(
+        &mut lineage,
+        &super::edge_join::split_records(src),
+        src.edges()
+            .map(|(e, _)| e)
+            .filter(|&e| carved.get_edge(e).is_none()),
+    );
+    lineage
 }

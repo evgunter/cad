@@ -78,16 +78,17 @@
 //!   at most `r(R + r)²` of flux and `r(R + r)` of area per unit.
 
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{Interval, cross, dot};
+use geom_core::interval::{Interval, certified_hi, cross, dot};
 use geom_core::{Band, Bounds, Decide, Margin, Sign};
 
+use super::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
+use super::closure::{IntervalJunction, interval_loop_turns, require_boundary_windings};
 use super::quad::{
-    AbsEnclosure, FaceCutBounds, QUAD_INIT_PIECES, QUAD_MAX_ROUNDS, QUAD_TARGET_LEN_FACTOR, RVec3,
-    RoundOutcome, RoundWindow, classify_len, lo_or_refuse, mean_boundary_displacement, mid, pt,
-    rotate, round_exit, spread_cos, spread_sin, trig_at,
+    FaceCutBounds, QUAD_INIT_PIECES, QUAD_MAX_ROUNDS, QUAD_TARGET_LEN_FACTOR, RVec3, RoundOutcome,
+    RoundWindow, classify_len, mean_boundary_displacement, rotate, round_exit, spread_cos,
+    spread_sin, trig_at,
 };
 use super::{PropsCheck, PropsError};
-use crate::offset_meters::mig;
 
 /// The Taylor coefficients `g⁽ᵏ⁾/k!`, `k = 0..=4`, of a function of `t`,
 /// each an enclosure: at a node they are thin; over a piece (inputs
@@ -184,45 +185,131 @@ fn trig_of(x: Interval) -> (Interval, Interval) {
     trig_range(x.lo(), x.hi())
 }
 
-/// **The one home of a spiric edge's rate bounds over its span**: the
-/// speed `|P′| ≤ S` and the wall image's azimuth rate
-/// `|u′| = |d|·r·|sin t|/(ρ·f) ≤ √(S² − r²)/ρ_lo` (since
-/// `S² = r²(1 + d²sin²/f²)` at the window's worst point), both from
-/// [`geom::spiric_rate_bounds`] over the window the span actually
-/// covers — `ρ` and `|sin t|` read off [`trig_range`] over
-/// `[t₀.lo, t₁.hi]`. A cut whose plane passes the tube's hole
-/// (`|d| > R − r`) has `f` real on its own arc though not on the whole
-/// circle, and is bounded here by that arc. `None` when the window's
-/// `f` is not certified positive.
-pub fn span_rates(e: &SpiricEdgeQ) -> Option<(Interval, Interval)> {
-    if !(e.t0.is_certified() && e.t1.is_certified() && e.minor.is_certified()) {
+/// **The one home of a spiric edge's rate bounds over a window `[lo, hi]`
+/// of its parameter**, `sup|sin t|` and `inf f` read apart:
+/// [`geom::spiric_rate_bounds`] over `ρ = R + r·cos t` and `|sin t|` off
+/// [`trig_range`]. Returns the window's `cos t`, its `ρ` and the speed
+/// bound `|P′| ≤ S`. `None` when the window's `f` is not certified
+/// positive (`ρ_lo ≤ |d|`).
+fn window_rates(e: &SpiricEdgeQ, lo: f64, hi: f64) -> Option<(Interval, Interval, Interval)> {
+    if !(e.minor.is_certified() && e.major.is_certified() && e.offset.is_certified()) {
         return None;
     }
-    let (c, s) = trig_range(e.t0.lo(), e.t1.hi());
+    let (c, s) = trig_range(lo, hi);
     let rho = e.major + e.minor * c;
     if !(rho.is_certified() && s.is_certified()) {
         return None;
     }
-    let rho_lo = pt(rho.lo());
+    let reach = rho.lo() - e.offset.mag();
+    if reach.is_nan() || reach <= 0.0 {
+        return None;
+    }
     let (speed, _) =
-        geom::spiric_rate_bounds(e.minor, e.offset, (rho_lo, pt(rho.hi())), pt(s.mag()));
-    let reach = rho_lo.lo() - e.offset.mag();
-    if !speed.is_certified() || reach.is_nan() || reach <= 0.0 {
+        geom::spiric_rate_bounds(e.minor, e.offset, (pt(rho.lo()), pt(rho.hi())), pt(s.mag()));
+    Some((c, rho, speed))
+}
+
+/// A spiric edge's rate bounds over its whole span `[t₀.lo, t₁.hi]`
+/// ([`window_rates`]): the speed `|P′| ≤ S` and the wall image's azimuth
+/// rate `|u′| = |d|·r·|sin t|/(ρ·f) ≤ √(S² − r²)/ρ_lo` (since
+/// `S² = r²(1 + d²sin²/f²)` at the window's worst point). A cut whose
+/// plane passes the tube's hole (`|d| > R − r`) has `f` real on its own
+/// arc though not on the whole circle, and is bounded here by that arc.
+/// `None` when the window's `f` is not certified positive.
+pub fn span_rates(e: &SpiricEdgeQ) -> Option<(Interval, Interval)> {
+    if !(e.t0.is_certified() && e.t1.is_certified()) {
+        return None;
+    }
+    let (_, rho, speed) = window_rates(e, e.t0.lo(), e.t1.hi())?;
+    if !speed.is_certified() {
         return None;
     }
     let du = (speed.sqr() - e.minor.sqr())
         .clamped_to(0.0, f64::INFINITY)
         .sqrt()
-        / rho_lo;
+        / pt(rho.lo());
     du.is_certified().then_some((speed, du))
 }
 
-/// An upper bound on a spiric edge's length, `S·(t₁ − t₀)`
-/// ([`span_rates`]).
+/// The `i`-th of `pieces + 1` equally spaced nodes from `a` to `b`, the
+/// last exactly `b`.
+#[allow(clippy::cast_precision_loss)]
+fn node(a: f64, b: f64, pieces: usize, i: usize) -> f64 {
+    if i == pieces {
+        b
+    } else {
+        a + (b - a) * (i as f64 / pieces as f64)
+    }
+}
+
+/// The piece count a face's perimeter reads its spiric edges' lengths
+/// at ([`spiric_length_bound`]). The perimeter is only the extent
+/// gate's lever, read once per face with no refinement of its own, so
+/// it takes one fixed count: four times the 16 pieces at which the
+/// bound already holds within `1.1×` the arc at the pinch.
+pub const LENGTH_PIECES: usize = 64;
+
+/// **An upper bound on a spiric edge's length**: `[t₀.lo, t₁.hi]` in
+/// `pieces` equal pieces, each charged its width times [`piece_speed`].
+/// The bound tightens toward the arc's length as `pieces` grows, the
+/// pinch's piece included. `None` when a piece's `f` is not certified
+/// positive, or `pieces` is `0`.
 #[must_use]
-pub fn spiric_length_bound(e: &SpiricEdgeQ) -> Option<f64> {
-    let (speed, _) = span_rates(e)?;
-    Some((speed * (e.t1 - e.t0)).mag())
+pub fn spiric_length_bound(e: &SpiricEdgeQ, pieces: usize) -> Option<f64> {
+    if !(e.t0.is_certified() && e.t1.is_certified()) || pieces == 0 {
+        return None;
+    }
+    let (a, b) = (e.t0.lo(), e.t1.hi());
+    if !((b - a).is_finite() && b >= a) {
+        return None;
+    }
+    (0..pieces).try_fold(0.0, |len, i| {
+        let (p, q) = (node(a, b, pieces, i), node(a, b, pieces, i + 1));
+        let piece = (pt(piece_speed(e, p, q)?) * (pt(q) - pt(p))).hi();
+        Some(certified_hi(pt(len) + pt(piece)))
+    })
+}
+
+/// **`sup|P′|` over `t ∈ [p, q]`**, the smaller of two readings: the
+/// window's own, `sup|sin t|` and `inf f` apart ([`window_rates`]), and
+/// one with `sin t` and `f` together.
+/// `|P′|² = r²(1 + d²sin²t/f²)` ([`geom::spiric_rate_bounds`]); with
+/// `x = 1 + cos t`, `sin²t = x(2 − x)` and
+/// `f² = (ρ − |d|)(ρ + |d|)`, `ρ − |d| = δ + r·x`, `δ = R − r − |d|`:
+///
+/// ```text
+/// d²sin²t/f² = d²·(2 − x)·φ(x)/(ρ + |d|),   φ(x) = x/(δ + r·x)
+/// ```
+///
+/// `φ` is monotone in `x` wherever `δ + r·x > 0` (its derivative has
+/// `δ`'s sign), so its sup over the piece is at one end of the piece's
+/// `x`. Near the pinch (`ρ → |d|` as `x → 0`) the factor `x` cancels
+/// the vanishing `f²` — `φ ≤ 1/r` for `δ ≥ 0` — where the apart reading
+/// grows like `1/f`. Away from it the together reading pairs
+/// `(2 − x)`'s sup with `φ`'s, up to 4 times `sin²t` over a wide piece,
+/// where the apart reading is near exact. The same derivation for
+/// [`geom::spiric_rate_bounds`] itself is CURVED's
+/// `the-whole-period-spiric-speed-bound-reads-sin-and-f-apart`. `None`
+/// when the piece's `f` is not certified positive.
+fn piece_speed(e: &SpiricEdgeQ, p: f64, q: f64) -> Option<f64> {
+    let (c, rho, apart) = window_rates(e, p, q)?;
+    let d_abs = e.offset.sqr().sqrt();
+    let x = (Interval::one() + c).clamped_to(0.0, 2.0);
+    let delta = e.major - e.minor - d_abs;
+    let phi = |x: f64| {
+        let den = delta + e.minor * pt(x);
+        (den.is_certified() && den.lo() > 0.0).then(|| (pt(x) / den).hi())
+    };
+    let together = phi(x.lo()).zip(phi(x.hi())).map(|(lo, hi)| {
+        let ratio = e.offset.sqr() * (pt(2.0) - x) * pt(lo.max(hi)) / (rho + d_abs);
+        e.minor * (Interval::one() + ratio).sqrt()
+    });
+    [Some(apart), together]
+        .into_iter()
+        .flatten()
+        .filter(|v| v.is_certified())
+        .map(Bounds::hi)
+        .reduce(f64::min)
 }
 
 /// `∫_a^b g` for `N` integrands at once, `pieces` equal pieces (the rule
@@ -241,16 +328,8 @@ fn composite<const N: usize>(
         return [Interval::refused(); N];
     }
     let mut total = [Interval::zero(); N];
-    #[allow(clippy::cast_precision_loss)]
-    let node = |i: usize| {
-        if i == pieces {
-            b
-        } else {
-            a + span * (i as f64 / pieces as f64)
-        }
-    };
     for i in 0..pieces {
-        let (p, q) = (node(i), node(i + 1));
+        let (p, q) = (node(a, b, pieces, i), node(a, b, pieces, i + 1));
         let x = p + (q - p) * 0.5;
         let (ri, le) = (pt(q) - pt(x), pt(p) - pt(x));
         // `∫_p^q (t − x)ᵏ dt`, `k = 0..=4`.
@@ -366,6 +445,22 @@ pub struct WallChartQ {
     pub rims: Vec<RimQ>,
     /// Its meridians.
     pub meridians: Vec<MeridianQ>,
+    /// Every edge of its loop on the lift, in traversal order: what the
+    /// closure decision reads ([`wall_windings`]).
+    pub ends: Vec<ChartEndsQ>,
+}
+
+/// One edge of a torus wall's loop on its lift: where its traversal
+/// starts and ends, `(u, v)`, and its image's certificate envelope
+/// (metres).
+#[derive(Clone, Copy, Debug)]
+pub struct ChartEndsQ {
+    /// The traversal's start.
+    pub start: (Interval, Interval),
+    /// The traversal's end.
+    pub end: (Interval, Interval),
+    /// The image's certificate envelope (metres).
+    pub env: Interval,
 }
 
 /// One spiric-bounded face, bracketed by the caller.
@@ -557,22 +652,55 @@ fn face_bounds(
     })
 }
 
+/// **A torus wall's loop closes on its chart and winds it not at all**
+/// — the periodic-chart closure decision ([`super::closure`]) on the
+/// loop's lifted images ([`WallChartQ::ends`]).
+///
+/// At each junction the azimuth's gap is metered at the junction's own
+/// distance from the axis, `ρ = R + r·cos v`, enclosed over the after
+/// edge's start, and the tube angle's at `r`; the slack is the two
+/// images' envelopes. Reading `ρ` at one end is sound: the two ends'
+/// `ρ` differ by at most `r·|Δv|`, so the azimuth term moves by at most
+/// `r·|Δv|·|Δu|`, second order in a gap the decision admits. A wall
+/// carries one loop, so its turns must be zero.
+fn wall_windings<T: Decide>(chart: &WallChartQ, band: Band) -> Result<(), PropsError> {
+    if chart.ends.is_empty() {
+        return Err(PropsError::QuadratureUnsupported {
+            what: "a spiric torus wall handed no loop to decide closed",
+        });
+    }
+    let (big, r) = (chart.major, chart.minor);
+    let junctions = chart
+        .ends
+        .iter()
+        .zip(chart.ends.iter().cycle().skip(1))
+        .map(|(e, next)| {
+            let (cos_v, _) = trig_of(next.start.1);
+            IntervalJunction {
+                delta: [e.end.0 - next.start.0, e.end.1 - next.start.1],
+                lever: [big + r * cos_v, r],
+                slack: certified_hi(e.env + next.env),
+            }
+        });
+    let turns = interval_loop_turns::<T, 2>(junctions, [true, true], band)?;
+    require_boundary_windings(&[turns])
+}
+
 /// **The certified flux and area of a spiric-bounded face** over a
 /// [`RoundWindow`] — [`super::quad`]'s schedule, meter and exits
 /// (pieces doubling from `QUAD_INIT_PIECES`, convergence at
 /// `QUAD_TARGET_LEN_FACTOR·ε` of mean boundary displacement, the
 /// face-extent gate, the budget refusal).
 ///
-/// On a wall, the lift must close (`props_spiric_lift_closed`): the
-/// Green form bounds a region of the lifted chart only for a loop
-/// whose `Σ Δu` and `Σ Δv` vanish, decided as lengths at `R` and `r`:
-/// the distance of the returned enclosures from zero, so a round too
-/// coarse to tell is not read as an open loop.
+/// On a wall, the loop must close and wind the torus not at all
+/// ([`wall_windings`]): the Green form bounds a region of the lifted
+/// chart only then.
 ///
 /// # Errors
 ///
 /// [`PropsError`] — an escalated funnel decision, a degenerate face,
-/// a wall loop whose lift does not close, or the typed
+/// a wall loop that does not close ([`PropsError::ChartLoopOpen`]) or
+/// winds the torus ([`PropsError::LoopsWindChart`]), or the typed
 /// [`PropsError::QuadratureBudget`] refusal.
 pub fn spiric_face_rounds<T: Decide>(
     face: &SpiricFaceQ,
@@ -580,12 +708,15 @@ pub fn spiric_face_rounds<T: Decide>(
     band: Band,
     window: RoundWindow,
 ) -> Result<RoundOutcome, PropsError> {
+    if let Some(chart) = &face.wall {
+        wall_windings::<T>(chart, band)?;
+    }
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
     let schedule = super::quad::Schedule::to(QUAD_MAX_ROUNDS);
     let first = schedule.first(window);
     let mut pieces = QUAD_INIT_PIECES << first;
     for round in first..=schedule.last() {
-        let (bounds, [du, dv]) = face_bounds(face, pieces)?;
+        let (bounds, _) = face_bounds(face, pieces)?;
         let width_len = mean_boundary_displacement(bounds.flux, bounds.area)?;
         let converged = schedule.converged::<T>(
             round,
@@ -619,33 +750,15 @@ pub fn spiric_face_rounds<T: Decide>(
             )
         };
         if let Some(out) = out {
-            if let Some(chart) = &face.wall {
-                if !(du.is_certified() && dv.is_certified()) {
-                    return Err(PropsError::QuadratureUnsupported {
-                        what: "a spiric wall whose lift-closure enclosure is refused",
-                    });
-                }
-                // The enclosure's distance from zero: a wide bracket about
-                // zero is an open round, not an open loop.
-                let gap = mig(du * chart.major).max(mig(dv * chart.minor));
-                if classify_len::<T>(
-                    "props_spiric_lift_closed",
-                    Margin::of(gap),
-                    band,
-                    PropsCheck::Inventory,
-                )? != Sign::Zero
-                {
-                    return Err(PropsError::NotIsoRectangle {
-                        what: "props_spiric_lift_closed",
-                    });
-                }
-            }
             return Ok(out);
         }
         pieces *= 2;
     }
     unreachable!("the round window is non-empty: `first` is clamped to the last round")
 }
+
+#[cfg(test)]
+mod length_fuzz;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
@@ -774,6 +887,7 @@ mod tests {
             wall: Some(wall),
         };
         let chart = WallChartQ {
+            ends: Vec::new(),
             major: pt(big),
             minor: pt(r),
             rims: Vec::new(),
@@ -931,7 +1045,7 @@ mod tests {
 
     /// A spiric edge in an arbitrary frame: `(edge, P(t) − ref)`.
     #[allow(clippy::too_many_arguments)]
-    fn framed(
+    pub(super) fn framed(
         (big, r, d): (f64, f64, f64),
         axis: [f64; 3],
         normal: [f64; 3],
@@ -1021,7 +1135,9 @@ mod tests {
     /// **A cut through the tube's hole** (`|d| > R − r`): `f` is real on
     /// the arc though not on the whole circle, and the lane bounds it by
     /// the arc's own window ([`span_rates`]) — the vector area, the wall
-    /// terms and the length bound all certify, against the definitions.
+    /// terms and the length bound all certify, against the definitions;
+    /// the length bound holds the arc from above, where `φ` falls with
+    /// `x` ([`piece_speed`]).
     /// The whole-circle bound (`f_min = √((R − r)² − d²)`) is NaN here.
     #[test]
     fn a_cut_through_the_tubes_hole_is_bounded_by_its_own_arc() {
@@ -1035,10 +1151,36 @@ mod tests {
             (t0, t1),
             true,
         );
-        assert!(
-            spiric_length_bound(&e).is_some_and(f64::is_finite),
-            "the arc's length"
-        );
+        for ((big, r, d), span) in [
+            ((big, r, d), (t0, t1)),
+            (
+                (
+                    1.746_019_885_272_977_8,
+                    0.776_110_402_223_510_8,
+                    -1.179_434_705_286_893_2,
+                ),
+                (3.914_462_384_376_397_7, 7.990_064_206_637_532),
+            ),
+        ] {
+            let (e, _) = framed(
+                (big, r, d),
+                [0.0, 1.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0; 3],
+                [0.0; 3],
+                span,
+                true,
+            );
+            let arc = walked((big, r, d), span, 4000);
+            for pieces in [16, 128] {
+                let bound = spiric_length_bound(&e, pieces).unwrap();
+                assert!(
+                    arc <= bound,
+                    "({big}, {r}) cut at {d}, {span:?}, {pieces} pieces: the length bound \
+                     {bound} under the arc's {arc}"
+                );
+            }
+        }
         let want = vector_area_reference(&point, t0, t1);
         let got = spiric_vector_area(&e, 256);
         for k in 0..3 {
@@ -1050,6 +1192,7 @@ mod tests {
             env: pt(1e-6),
         };
         let chart = WallChartQ {
+            ends: Vec::new(),
             major: pt(big),
             minor: pt(r),
             rims: vec![],
@@ -1066,6 +1209,110 @@ mod tests {
             wall_chart(&face, &chart, 64).is_ok(),
             "the wall's pad has a rate bound"
         );
+    }
+
+    /// The length of the polygon through `n + 1` evenly spaced points of
+    /// the spiric `(R, r, d)` over `[t0, t1]`, less `1e-12` of itself for
+    /// rounding: under the arc's own length. Each side is read in the
+    /// oval's plane, `(r·sin t, f)`, from differences that keep their
+    /// digits at the pinch: `Δ sin t` and `Δρ` by sum-to-product,
+    /// `Δf = Δρ·(ρ_a + ρ_b)/(f_a + f_b)`, and `f² = (ρ − |d|)(ρ + |d|)`
+    /// with `ρ − |d| = δ + 2r·cos²(t/2)`, `δ = R − r − |d|` from the
+    /// exact two-sum of `R − r`.
+    pub(super) fn walked((big, r, d): (f64, f64, f64), (t0, t1): (f64, f64), n: u32) -> f64 {
+        let s = big - r;
+        let b = s - big;
+        let delta = (s - d.abs()) + ((big - (s - b)) + (-r - b));
+        let rho = |t: f64| big + r * t.cos();
+        let f = |t: f64| {
+            let c = (t / 2.0).cos();
+            ((delta + 2.0 * r * c * c) * (rho(t) + d.abs())).sqrt()
+        };
+        let at = |k: u32| t0 + (t1 - t0) * f64::from(k) / f64::from(n);
+        let len: f64 = (0..n)
+            .map(|k| {
+                let (ta, tb) = (at(k), at(k + 1));
+                let (m, h) = ((ta + tb) / 2.0, (tb - ta) / 2.0);
+                let dy = 2.0 * r * m.cos() * h.sin();
+                let drho = -2.0 * r * m.sin() * h.sin();
+                let dz = drho * (rho(ta) + rho(tb)) / (f(ta) + f(tb));
+                dy.hypot(dz)
+            })
+            .sum();
+        len * (1.0 - 1e-12)
+    }
+
+    /// **The length bound reads the arc at the pinch**: ovals cut `1e-3`
+    /// to `1e-12` short of the inner equator, on both sides of the axis,
+    /// over arcs through the pinch, along its neck and across a whole
+    /// period. The bound stays above a 4000-point polygon of the arc
+    /// ([`walked`]) at
+    /// every piece count, and within 1.1 times it at 16 pieces and 1.02
+    /// times at 128 — where `sup|sin t|` over `inf f`, read apart, is up
+    /// to `10⁶` times the arc's speed.
+    #[test]
+    fn the_length_bound_reads_the_arc_at_the_pinch() {
+        for (big, r) in [(2.0, 0.5), (3.0, 1.0), (1.0, 0.9)] {
+            for gap in [1e-3, 1e-6, 1e-9, 1e-12] {
+                for d in [big - r - gap, gap - big + r] {
+                    for span in [
+                        (PI - 0.5, PI + 0.3),
+                        (PI - 0.1, PI - 1e-4),
+                        (PI + 1e-6, PI + 4e-3),
+                        (PI - 1e-5, PI + 1e-5),
+                        (0.0, 2.0 * PI),
+                    ] {
+                        let (e, _) = framed(
+                            (big, r, d),
+                            [0.0, 1.0, 0.0],
+                            [1.0, 0.0, 0.0],
+                            [0.0; 3],
+                            [0.0; 3],
+                            span,
+                            true,
+                        );
+                        let arc = walked((big, r, d), span, 4000);
+                        for (pieces, slack) in [(1, f64::INFINITY), (16, 1.1), (128, 1.02)] {
+                            let bound = spiric_length_bound(&e, pieces).unwrap();
+                            assert!(
+                                arc <= bound && bound <= slack * arc,
+                                "({big}, {r}) cut at {d}, {span:?}, {pieces} pieces: \
+                                 bound {bound} against the arc's {arc}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// **The smaller reading is the bound**: a thin tube's generic cut,
+    /// `(1, 10⁻³)` at `0.9`, where `f` barely moves and the apart reading
+    /// is within `1.35×` the arc over a whole period at one or two pieces.
+    /// The together reading pairs `(2 − x)`'s sup with `φ`'s there, `2.47×`
+    /// the arc; the bound holds `1.4×`.
+    #[test]
+    fn a_thin_tubes_generic_cut_is_bounded_within_its_apart_reading() {
+        let (big, r, d) = (1.0, 1e-3, 0.9);
+        for span in [(0.0, 2.0 * PI), (-PI, PI)] {
+            let (e, _) = framed(
+                (big, r, d),
+                [0.0, 1.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0; 3],
+                [0.0; 3],
+                span,
+                true,
+            );
+            let arc = walked((big, r, d), span, 4000);
+            for pieces in [1, 2] {
+                let bound = spiric_length_bound(&e, pieces).unwrap();
+                assert!(
+                    arc <= bound && bound <= 1.4 * arc,
+                    "{span:?}, {pieces} pieces: bound {bound} against the arc's {arc}"
+                );
+            }
+        }
     }
 
     /// **The wall terms against the definitions** — `u` differentiated
@@ -1113,6 +1360,7 @@ mod tests {
                         env: Interval::zero(),
                     };
                     let chart = WallChartQ {
+                        ends: Vec::new(),
                         major: pt(big),
                         minor: pt(r),
                         rims: vec![],
@@ -1165,6 +1413,7 @@ mod tests {
                 true,
             );
             let chart = WallChartQ {
+                ends: Vec::new(),
                 major: pt(big),
                 minor: pt(r),
                 rims: vec![
@@ -1211,12 +1460,176 @@ mod tests {
         }
     }
 
-    /// **The lift-closure decide refuses an open loop and admits a
-    /// closed one**: a whole oval closed by a meridian back passes; the
-    /// oval alone (open in `v`) and an asymmetric arc closed only in `v`
-    /// (open in `u` by `≈ 0.0107`) refuse `props_spiric_lift_closed`.
+    /// A spiric wall edge's [`ChartEndsQ`] on its image
+    /// `u = u₀ + σ·atan2(f, d)`, `v = v₀ + σ·t` ([`WallImageQ`]), `u0` the
+    /// image's azimuth constant. `None` for an edge with no wall image.
+    fn spiric_wall_ends(e: &SpiricEdgeQ, u0: Interval) -> Option<ChartEndsQ> {
+        let w = e.wall.as_ref()?;
+        let sigma = pt(w.sense);
+        let at = |t: Interval| {
+            let (c, _) = trig_of(t);
+            let f = ((e.major + e.minor * c).sqr() - e.offset.sqr()).sqrt();
+            (
+                u0 + sigma * geom_core::Real::atan2(f, e.offset),
+                w.v0 + sigma * t,
+            )
+        };
+        let (a, b) = (at(e.t0), at(e.t1));
+        let (start, end) = if e.forward { (a, b) } else { (b, a) };
+        Some(ChartEndsQ {
+            start,
+            end,
+            env: w.env,
+        })
+    }
+
+    /// **A junction's azimuth gap is metered at the junction's own
+    /// distance from the axis** ([`wall_windings`]). On fat tori (`R = 1`,
+    /// `r = 0.5` and `0.6`), a whole oval from `t = π` closed by a meridian
+    /// back meets it at the inner equator, `ρ = R − r`. The meridian set
+    /// off in `u` by `δ` with `ρ·δ = 2ε` is within the vertex slack and
+    /// measures, at `f64` and at the interval scalar; read at `R + r` the
+    /// same gap is `6ε` and `8ε`, past it. Set off by `ρ·δ = 20ε` it is
+    /// open ([`PropsError::ChartLoopOpen`]).
     #[test]
-    fn the_lift_closure_check_refuses_open_and_admits_closed() {
+    fn an_inner_equator_junction_is_metered_at_its_own_radius() {
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let eps = tol.eps();
+        for r in [0.5, 0.6] {
+            let rho = 1.0 - r;
+            let face = |gap: f64| {
+                let (e, _) = framed(
+                    (1.0, r, 0.05),
+                    [0.0, 0.0, 1.0],
+                    [1.0, 0.0, 0.0],
+                    [0.0; 3],
+                    [0.0; 3],
+                    (PI, 3.0 * PI),
+                    true,
+                );
+                let arc = SpiricEdgeQ {
+                    wall: Some(WallImageQ {
+                        sense: 1.0,
+                        v0: Interval::zero(),
+                        env: Interval::zero(),
+                    }),
+                    ..e
+                };
+                let oval = spiric_wall_ends(&arc, Interval::zero()).unwrap();
+                let du = pt(gap / rho);
+                let back = ChartEndsQ {
+                    start: (oval.end.0 + du, oval.end.1),
+                    end: (oval.end.0 + du, oval.start.1),
+                    env: Interval::zero(),
+                };
+                SpiricFaceQ {
+                    closed_va: [Interval::zero(); 3],
+                    spirics: vec![arc],
+                    lever: [Interval::zero(); 3],
+                    perimeter: 20.0,
+                    wall: Some(WallChartQ {
+                        major: pt(1.0),
+                        minor: pt(r),
+                        rims: vec![],
+                        meridians: vec![MeridianQ {
+                            dv: oval.start.1 - oval.end.1,
+                            env: Interval::zero(),
+                        }],
+                        ends: vec![oval, back],
+                    }),
+                }
+            };
+            let near = face(2.0 * eps);
+            let at_f64 = spiric_face_rounds::<f64>(&near, eps, band, RoundWindow::SCHEDULE);
+            assert!(at_f64.is_ok(), "r = {r}, f64: {at_f64:?}");
+            let at_iv = spiric_face_rounds::<Interval>(&near, eps, band, RoundWindow::SCHEDULE);
+            assert!(at_iv.is_ok(), "r = {r}, interval: {at_iv:?}");
+            let far =
+                spiric_face_rounds::<f64>(&face(20.0 * eps), eps, band, RoundWindow::SCHEDULE);
+            assert!(
+                matches!(far, Err(PropsError::ChartLoopOpen)),
+                "r = {r}, 20ε: {far:?}"
+            );
+        }
+    }
+
+    /// **A junction its gap's bounds cannot decide is never measured**:
+    /// the meridian back's start held as a bracket `20ε/ρ` wide in `u`
+    /// about the oval's end, so the gap's lower bound is within the slack
+    /// and its upper bound past it. The closed decision reads the upper
+    /// bound and the open one the lower, so neither holds: it escalates,
+    /// at `f64` and at the interval scalar.
+    #[test]
+    fn a_junction_its_bounds_cannot_decide_is_never_measured() {
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let eps = tol.eps();
+        let (e, _) = framed(
+            (1.2, 0.275, 0.05),
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            [0.0; 3],
+            [0.0; 3],
+            (0.0, 2.0 * PI),
+            true,
+        );
+        let arc = SpiricEdgeQ {
+            wall: Some(WallImageQ {
+                sense: 1.0,
+                v0: Interval::zero(),
+                env: Interval::zero(),
+            }),
+            ..e
+        };
+        let oval = spiric_wall_ends(&arc, Interval::zero()).unwrap();
+        // At `v = 0` the junction sits at `ρ = R + r`.
+        let half = 10.0 * eps / 1.475;
+        let wide = oval.end.0 + Interval::from_bounds(-half, half);
+        let face = SpiricFaceQ {
+            closed_va: [Interval::zero(); 3],
+            spirics: vec![arc],
+            lever: [Interval::zero(); 3],
+            perimeter: 20.0,
+            wall: Some(WallChartQ {
+                major: pt(1.2),
+                minor: pt(0.275),
+                rims: vec![],
+                meridians: vec![MeridianQ {
+                    dv: oval.start.1 - oval.end.1,
+                    env: Interval::zero(),
+                }],
+                ends: vec![
+                    oval,
+                    ChartEndsQ {
+                        start: (wide, oval.end.1),
+                        end: (oval.start.0, oval.start.1),
+                        env: Interval::zero(),
+                    },
+                ],
+            }),
+        };
+        for got in [
+            spiric_face_rounds::<f64>(&face, eps, band, RoundWindow::SCHEDULE),
+            spiric_face_rounds::<Interval>(&face, eps, band, RoundWindow::SCHEDULE),
+        ] {
+            assert!(
+                matches!(got, Err(PropsError::Escalated { .. })),
+                "an undecidable junction escalates: {got:?}"
+            );
+        }
+    }
+
+    /// **The closure decision refuses an open loop and a winding one,
+    /// and admits a closed one** ([`wall_windings`]): a whole oval closed
+    /// by a meridian back passes; the oval alone winds the tube once
+    /// ([`PropsError::LoopsWindChart`]); an asymmetric arc closed by a
+    /// meridian at its end's azimuth is open in `u` by `≈ 0.0107`
+    /// ([`PropsError::ChartLoopOpen`]); the oval twice round winds twice
+    /// ([`PropsError::LoopsWindChart`]); and the closed loop with a
+    /// junction open by `2ε`, inside the vertex slack, measures.
+    #[test]
+    fn the_closure_decision_refuses_open_and_winding_and_admits_closed() {
         let tol = geom_core::Tol::witness();
         let band = Band::linear(tol).unwrap();
         let tau = 2.0 * PI;
@@ -1239,38 +1652,86 @@ mod tests {
                 ..e
             }
         };
-        let face = |spirics, meridians| SpiricFaceQ {
-            closed_va: [Interval::zero(); 3],
-            spirics,
-            lever: [Interval::zero(); 3],
-            perimeter: 20.0,
-            wall: Some(WallChartQ {
-                major: pt(1.2),
-                minor: pt(0.275),
-                rims: vec![],
-                meridians,
-            }),
+        // The meridian back from the arc's end to its start's level, at
+        // the end's azimuth.
+        let back = |arc: &SpiricEdgeQ| {
+            let ends = spiric_wall_ends(arc, Interval::zero()).unwrap();
+            let dv = ends.start.1 - ends.end.1;
+            (
+                MeridianQ {
+                    dv,
+                    env: Interval::zero(),
+                },
+                ChartEndsQ {
+                    start: ends.end,
+                    end: (ends.end.0, ends.start.1),
+                    env: Interval::zero(),
+                },
+            )
         };
-        let back = |dv: f64| MeridianQ {
-            dv: pt(dv),
-            env: Interval::zero(),
+        let face = |arc: SpiricEdgeQ, closed_by_back: bool| {
+            let mut ends = vec![spiric_wall_ends(&arc, Interval::zero()).unwrap()];
+            let mut meridians = vec![];
+            if closed_by_back {
+                let (m, e) = back(&arc);
+                meridians.push(m);
+                ends.push(e);
+            }
+            SpiricFaceQ {
+                closed_va: [Interval::zero(); 3],
+                spirics: vec![arc],
+                lever: [Interval::zero(); 3],
+                perimeter: 20.0,
+                wall: Some(WallChartQ {
+                    major: pt(1.2),
+                    minor: pt(0.275),
+                    rims: vec![],
+                    meridians,
+                    ends,
+                }),
+            }
         };
         let run =
             |f: &SpiricFaceQ| spiric_face_rounds::<f64>(f, tol.eps(), band, RoundWindow::SCHEDULE);
-        let closed = run(&face(vec![wall(0.05, 0.0, tau)], vec![back(-tau)]));
+        let closed = run(&face(wall(0.05, 0.0, tau), true));
         assert!(closed.is_ok(), "a closed lift measures: {closed:?}");
-        let refused = |o: Result<RoundOutcome, PropsError>| {
-            matches!(
-                o,
-                Err(PropsError::NotIsoRectangle {
-                    what: "props_spiric_lift_closed"
-                })
-            )
-        };
-        let open_v = run(&face(vec![wall(0.05, 0.0, tau)], vec![]));
-        assert!(refused(open_v.clone()), "open in v: {open_v:?}");
-        let open_u = run(&face(vec![wall(0.05, 0.3, 2.1)], vec![back(-1.8)]));
-        assert!(refused(open_u.clone()), "open in u: {open_u:?}");
+        let winds = run(&face(wall(0.05, 0.0, tau), false));
+        assert!(
+            matches!(winds, Err(PropsError::LoopsWindChart)),
+            "the oval alone winds the tube: {winds:?}"
+        );
+        // An arc closed by a meridian in level but at its START's
+        // azimuth, so its end meets the meridian `≈ 0.0107` away in `u`.
+        let mut f = face(wall(0.05, 0.3, 2.1), true);
+        if let Some(chart) = f.wall.as_mut() {
+            let u_start = chart.ends[0].start.0;
+            chart.ends[1].start.0 = u_start;
+            chart.ends[1].end.0 = u_start;
+        }
+        let open_u = run(&f);
+        assert!(
+            matches!(open_u, Err(PropsError::ChartLoopOpen)),
+            "open in u: {open_u:?}"
+        );
+        // The oval twice round winds the tube twice.
+        let mut twice = face(wall(0.05, 0.0, tau), false);
+        if let Some(chart) = twice.wall.as_mut() {
+            chart.ends.push(chart.ends[0]);
+        }
+        twice.spirics.push(twice.spirics[0]);
+        let twice = run(&twice);
+        assert!(
+            matches!(twice, Err(PropsError::LoopsWindChart)),
+            "twice round the tube: {twice:?}"
+        );
+        // A meridian back that starts `2ε` round the tube from the
+        // oval's end: within the vertex slack, so the loop closes.
+        let mut near = face(wall(0.05, 0.0, tau), true);
+        if let Some(chart) = near.wall.as_mut() {
+            chart.ends[1].start.1 = chart.ends[1].start.1 + pt(2.0 * tol.eps() / 0.275);
+        }
+        let near = run(&near);
+        assert!(near.is_ok(), "open by 2ε at the junction: {near:?}");
     }
 
     /// **Non-thin endpoint brackets**: the enclosure holds the integral
@@ -1300,6 +1761,7 @@ mod tests {
             env: Interval::zero(),
         };
         let chart = WallChartQ {
+            ends: Vec::new(),
             major: pt(big),
             minor: pt(r),
             rims: vec![],
@@ -1415,6 +1877,7 @@ mod tests {
                 lever: [Interval::zero(); 3],
                 perimeter: 1.0,
                 wall: Some(WallChartQ {
+                    ends: Vec::new(),
                     major: pt(big),
                     minor: pt(r),
                     rims: vec![],

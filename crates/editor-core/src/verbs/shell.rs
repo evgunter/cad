@@ -239,6 +239,7 @@ pub(crate) fn fold_shell_error<T: Real>(
         E::Rim { face, error } => E::Rim { face, error },
         E::Escalated { source } => E::Escalated { source },
         E::Pcurve { source } => E::Pcurve { source },
+        E::RimSeamMixed { edge, stations } => E::RimSeamMixed { edge, stations },
         E::Join { refusal } => E::Join { refusal },
         E::NotValid { errors } => E::NotValid { errors },
     }
@@ -348,6 +349,7 @@ fn fold_replace_face_error<T: Real>(
             verdict: fold_corner_verdict(verdict, end),
         },
         R::DeclaredEdgeTilted { edge } => R::DeclaredEdgeTilted { edge },
+        R::MixedEdge { edge, stations } => R::MixedEdge { edge, stations },
         R::ReanchorPastCarrierEnd { edge, gap } => R::ReanchorPastCarrierEnd {
             edge,
             gap: end(gap, Supremum),

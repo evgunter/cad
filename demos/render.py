@@ -35,6 +35,7 @@ from pathlib import Path
 
 import manifest
 import matplotlib
+from lane_cells import frame_path
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -164,7 +165,7 @@ def main():
         ax = fig.add_subplot(projection="3d")
         draw(ax, scene, stl_dir)
         fig.tight_layout(pad=0.1)
-        png = out_dir / f"{scene.name}.png"
+        png = frame_path(out_dir, scene.name)
         fig.savefig(png, facecolor="white", metadata=metadata)
         plt.close(fig)
         print(f"rendered {png}")
