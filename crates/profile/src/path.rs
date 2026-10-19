@@ -2991,10 +2991,8 @@ fn junction_check<T: Decide>(
     let band = linear_band(tol)?;
     let u_in = inc.ang.unit;
     let u_dep = dep.unit;
-    let turn = u_in.perp_dot(u_dep);
-    match decide("path_junction_turn", Margin::levered(turn, inc.arm), band) {
-        Ok(Sign::Zero) => {
-            let margin = turn * inc.arm;
+    match seg::junction_turn(u_in, u_dep, inc.arm, band) {
+        Ok((turn, margin)) if turn.sign == Sign::Zero => {
             // Which refusal class — tangent (dep ≈ incoming) or cusp
             // (dep ≈ reverse)? `path_junction_side`, in its one home
             // (validation asks it of every tangent joint between two

@@ -32,27 +32,34 @@
 //!    the candidate (`nearer_end`) stands within ε of the other carrier
 //!    and definitely nearer that candidate than the carriers' other one
 //!    (`own_candidate`), so inside the candidate's own stretch;
-//!    otherwise the pair escalates.
+//!    otherwise the pair escalates. The pass reads where a loop meets
+//!    itself, never how far two adjacent segments run within ε of each
+//!    other past their joint: that neighbourhood is the joint's own,
+//!    and its extent is not a number any pass reads
+//!    (`[topology.census]`). An adjacent pair is read beyond the vertex
+//!    it shares — at a tangent cusp, by its far ends: within ε
+//!    touches, in band escalates, definite validates however long the
+//!    stretch before it. Whether a tangent cusp is a legal edge is the
+//!    sweep's second-order question, asked where it becomes one.
 //! 4. **Tangent joints** (D1's profile tangency) — every *joint*
 //!    (adjacent-segment junction at its shared vertex) is classified by
-//!    the same carrier predicates the simplicity pass uses — the
-//!    carrier clearance margins (`carrier_line_circle`, the
-//!    `carrier_circles_*` family) are bit-identical expressions;
-//!    line/line joints reuse `chord_side` in the same expression form
-//!    on the joint's far endpoint (a carrier-identity question — no
-//!    new ε anywhere). A joint classified Zero, tangent carriers or one
-//!    carrier continuing, is a tangent joint: identity is a fact about
-//!    carriers, tangency a fact about directions, and the directions
-//!    agree there (Ev, in-chat, 2026-09-02). The tangent-joint set is
+//!    [`seg::joint_tangency`]: carrier identity first (`chord_side` of
+//!    a line/line joint's far endpoint, `carrier_circles_identity` of
+//!    an arc/arc one), then the joint's turn levered by the arriving
+//!    leg's arm (`path_junction_turn`, the reading the path door asks
+//!    of the same junction — no new ε). A joint whose turn reads Zero,
+//!    or whose carriers are one, is a tangent joint: identity is a fact
+//!    about carriers, tangency a fact about directions, and the
+//!    directions agree there (Ev, in-chat, 2026-09-02). The tangent-joint set is
 //!    derived here ([`ValidatedLoop::tangent_joints`]), from the
 //!    joints a [`ConstructedLoop`]'s constructors made and these
-//!    verdicts. A constructed joint the carriers definitely cross ⇒
+//!    verdicts. A constructed joint that definitely turns ⇒
 //!    [`ProfileError::TangencyContradicted`] (a construction is
 //!    verified, never trusted); a Zero joint no constructor made is
 //!    recorded as a tangency decided from values
 //!    ([`ValidatedLoop::decided_joints`]), for the
-//!    `unproven-coincidence` lint. In-band near-tangency escalates from
-//!    the simplicity pass as it always did.
+//!    `unproven-coincidence` lint. A turn in band escalates at the
+//!    joint's segment pair.
 //! 5. **Containment forest** — trilean point-in-loop by ray parity
 //!    (rays through arc segments included); a grazing ray is refused and
 //!    the next candidate ray tried deterministically (Mäntylä ch. 13's
@@ -117,6 +124,7 @@
 //! | `carrier_circles_identity` | d + |Δr| | direct |
 //! | `carrier_circles_external` | d − (r₁+r₂) | direct |
 //! | `carrier_circles_internal` | d − |Δr| | direct |
+//! | `path_junction_turn` | sin φ · arm | arriving leg's arm: a line's length, an arc's min(radius, chord) |
 //! | `carrier_circles_chord` | the radical foot's mean depth inside both circles, or zero outside them | direct |
 //! | `arc_apex_identity` | apex distance | direct |
 //! | `collinear_overlap` | overlap length | direct |
@@ -2231,10 +2239,10 @@ fn validate_loops<T: Decide, L: LoopInput<T>>(
         // 3b: the tangent joints — classify every joint
         // (adjacent-segment junction), verify the constructed ones and
         // record the ones decided Zero that no constructor made. Runs
-        // after simplicity so in-band near-tangency escalates from the
-        // pair classification exactly as before this arm existed. Each
-        // tangent joint's heading is decided here too: which of them
-        // are cusps (INPUT indices; canonicalization remaps them).
+        // after simplicity, so a pair that meets away from its joint is
+        // refused as a contact first. Each tangent joint's heading is
+        // decided here too: which of them are cusps (INPUT indices;
+        // canonicalization remaps them).
         let mut input_joints: Vec<JointVerdicts> = Vec::with_capacity(loops_in.len());
         for (li, input) in loops_in.iter().enumerate() {
             input_joints.push(judge_joints(
@@ -2742,8 +2750,7 @@ struct JointVerdicts {
 /// The per-loop joint pass of D1's profile tangency: joint v is the
 /// junction between segment (v − 1 mod n) (arriving) and segment v
 /// (leaving) at vertex v. Each joint is classified by
-/// [`seg::joint_tangency`] (module docs list the reused carrier
-/// predicates):
+/// [`seg::joint_tangency`] (module docs, step 4):
 ///
 /// - `Transversal` and constructed ⇒
 ///   [`ProfileError::TangencyContradicted`] (a construction is
