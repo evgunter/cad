@@ -18,7 +18,7 @@
 use crate::shared::tol::{band, eps};
 use crate::shared::topo;
 use geom::{Curve3, Surface};
-use geom_brep::props::{LoopEdge, PropsError, require_iso_rectangle};
+use geom_brep::props::{LoopEdge, PropsError, curved_face_loops, require_iso_rectangle};
 use geom_core::{Decide, Interval, Point3, Real, Vec3};
 
 const TAU: f64 = core::f64::consts::TAU;
@@ -343,4 +343,84 @@ fn a_cone_line_tipped_in_the_tangent_plane_is_on_it_and_not_a_generator() {
         &off_surface("props_meridian_on_surface"),
         "through both nappes",
     );
+}
+
+/// The sector `u ∈ [0, 1]`, slant `v ∈ [0, 2]` of the cone of
+/// half-angle ½ about the skew axis `(0.3, −0.4, 1)` through the apex
+/// `(0.2, −0.1, −1)`, its frame and carriers computed in `T`, so that at
+/// the interval scalar every one is an enclosure of some width.
+fn skew_sector<T: Real>() -> (Surface<T>, Vec<LoopEdge<T>>) {
+    let f = T::from_f64;
+    let (sa, ca) = f(0.5).sin_cos();
+    let apex = Point3::new(f(0.2), f(-0.1), f(-1.0));
+    let a = Vec3::new(f(0.3), f(-0.4), f(1.0));
+    let a = a * (T::one() / a.norm());
+    let e1 = Vec3::new(a.z, T::zero(), T::zero() - a.x);
+    let e1 = e1 * (T::one() / e1.norm());
+    let e2 = a.cross(e1);
+    let g = |u: T| e1 * (sa * u.cos()) + e2 * (sa * u.sin()) + a * ca;
+    let two = f(2.0);
+    let surface = Surface::Cone {
+        apex,
+        axis: a,
+        half_angle: f(0.5),
+        u_ref: e1,
+    };
+    let edge = |carrier, t1: T, tag: u32| {
+        LoopEdge::hand_built(carrier, T::zero(), t1, true, tag, (tag + 1) % 3)
+    };
+    let edges = vec![
+        edge(
+            Curve3::Line {
+                origin: apex,
+                dir: g(T::zero()),
+            },
+            two,
+            0,
+        ),
+        edge(
+            Curve3::Circle {
+                center: apex + a * (two * ca),
+                axis: a,
+                radius: two * sa,
+                u_ref: e1,
+            },
+            T::one(),
+            1,
+        ),
+        edge(
+            Curve3::Line {
+                origin: apex + g(T::one()) * two,
+                dir: Vec3::zero() - g(T::one()),
+            },
+            two,
+            2,
+        ),
+    ];
+    (surface, edges)
+}
+
+/// **A generator that ends at the apex is on the cone.** Its piece on
+/// the apex's side of the apex's plane has both ends on the axis, so the
+/// radial sag over it has nothing to divide by, and at the interval
+/// scalar the axis's distance from them is an enclosure of zero: the
+/// skew sector through the apex measures by the iso parse and by the
+/// flux lane, at `f64` and at the interval scalar.
+#[test]
+fn a_cone_sector_through_its_apex_measures() {
+    fn both<T: Decide>(scalar: &str) {
+        let (surface, edges) = skew_sector::<T>();
+        assert_eq!(
+            require_iso_rectangle(&surface, &edges, band()),
+            Ok(()),
+            "the sector's iso parse at {scalar}"
+        );
+        assert_eq!(
+            curved_face_loops(&surface, &[&edges], true, band()).map(|_| ()),
+            Ok(()),
+            "the sector's flux at {scalar}"
+        );
+    }
+    both::<f64>("f64");
+    both::<Interval>("the interval scalar");
 }

@@ -2242,15 +2242,21 @@ fn require_cone_generator<T: Decide>(
 /// radius at `λ ∈ [0, 1]` is at least `(1 − λ)·ρ0 + λ·ρ1` less this.
 ///
 /// That chord `c` meets `c² − ρ(λ)² = λ(1 − λ)·N`, with
-/// `N = ‖q1 − q0‖² − (ρ1 − ρ0)²`, so the sag is
+/// `N = (ℓ − δ)(ℓ + δ)`, `ℓ = ‖q1 − q0‖`, `δ = |ρ1 − ρ0|`, so the sag is
 /// `λ(1 − λ)·N / (c + ρ(λ)) ≤ λ(1 − λ)·N / c ≤ N / (√ρ0 + √ρ1)²`, the
 /// last the greatest over `λ` of the one before, and so within a factor
-/// 2 of the greatest sag. A segment with both ends on the axis lies on
-/// it and sags nowhere.
+/// 2 of the greatest sag. Read as `(ℓ − δ)` times `(ℓ + δ) / (√ρ0 + √ρ1)²`,
+/// whose second factor is at most 2 (`ℓ + δ ≤ 2·max ρ`), and taken at
+/// that where its denominator vanishes: a piece of a generator that
+/// ends at the apex, whose ends both read on the axis.
 fn radial_sag<T: Real>(q0: Vec3<T>, q1: Vec3<T>) -> T {
     let (r0, r1) = (q0.norm(), q1.norm());
-    let n = (q1 - q0).norm().powi(2) - (r1 - r0).powi(2);
-    (r0 + r1).select_le_zero(T::zero(), n / (r0.sqrt() + r1.sqrt()).powi(2))
+    let (l, d) = ((q1 - q0).norm(), (r1 - r0).abs());
+    let two = T::one() + T::one();
+    let roots = (r0.sqrt() + r1.sqrt())
+        .powi(2)
+        .max(T::from_f64(f64::MIN_POSITIVE));
+    (l - d) * two.min((l + d) / roots)
 }
 
 /// **Every conic span the cone reads, decided.** The cone's flux lane
