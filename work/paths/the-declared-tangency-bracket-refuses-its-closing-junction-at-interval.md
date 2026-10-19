@@ -2,7 +2,8 @@
 id: the-declared-tangency-bracket-refuses-its-closing-junction-at-interval
 kind: issue
 title: A LineTo heading along -x from a computed point reads its direction off atan2's branch cut at Interval, so its turn encloses the whole circle (declared_tangency's bracket refuses at Interval)
-status: dispatched
+status: closed
+closed: 2026-10-19
 opened: 2026-10-14
 priority: P2
 cost: E
@@ -54,3 +55,27 @@ arithmetic that needs a number (where the angle's own enclosure is narrow off
 the cut). The same `from_angle(atan2(..))` spelling sits in the sibling at
 `path.rs` `arc_angles`' chord and the second `line_to_point`-shaped door
 beside it; each of those is the class.
+
+## Outcome
+
+A chord's director is built from its components: `path::chord_director`
+divides the chord by its length, asking only whether that division is a
+number (overflow, underflow, the zero vector) and deciding nothing about
+how long the chord is — the lever gates and the segment shape
+validation already ask that, under their own names, and a band question
+here pre-empted `SeamArrivalLeverTooShort` on a sub-ε closing leg.
+`line_to_point` and `line_to_start` take it; `arc_angles` and the fused
+`Bulge` and `Center` incomings (`path/family.rs`) turn its ray by half the
+sweep (`path::turned`) instead of adding angles. At `Interval` every such
+junction reads a ray narrow around the nominal's; `declared_tangency`
+evaluates green, and its two corpus pins are gone.
+
+At `f64`: the bracket now lifts bit-identically (the lift census moves
+one row from value-equal to bit-identical), and one stored arc centre in
+`fillet_stored_tangency`'s corpus moves by ulps (re-baselined at every ε).
+
+Filed: `a-turn-reads-its-incoming-angle-off-atan2s-branch-cut-at-interval`
+(`.turn(δ)` and the `Sweep` extension still build a ray from the stored
+angle; measured for `.turn`), and
+`a-zero-length-line-leg-refuses-as-a-tangent-junction` (kept bit for
+bit here).

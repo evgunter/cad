@@ -1,0 +1,31 @@
+---
+id: a-zero-length-line-leg-refuses-as-a-tangent-junction
+kind: issue
+title: A LineTo onto the tip itself is classified against a stand-in +x ray, so it refuses as a tangent junction (or passes) instead of naming the empty leg
+status: open
+opened: 2026-10-19
+---
+
+
+Found by the chord-director fix
+(`the-declared-tangency-bracket-refuses-its-closing-junction-at-interval`),
+which kept this behaviour bit for bit rather than change it.
+
+A line leg's chord of no length names no ray. `path::chord_director`
+(`crates/profile/src/path.rs`) stands in `+x` for it, exactly what the
+old `atan2(0, 0) = 0` gave, and the departure junction is then
+classified against that stand-in before anything asks about the leg.
+Measured at `f64`: `Open.at((0, 0)).angle(0).line(1).line_to((1, 0))`
+refuses `JunctionTangent { margin: 0, arm: 1 }` — "a tangent departure",
+for a leg that does not exist; with any other incoming direction the
+junction passes and the empty segment is refused later, by shape
+validation, under its own name.
+
+The leg's length is decided by the lever gates and the segment shape
+validation, so the chord door deliberately asks no band question of it
+(a second decision on one length, and one that would pre-empt the
+`SeamArrivalLeverTooShort` arm `bool12r2_probes::r2_a_degenerate_closing_leg_is_refused_for_want_of_a_lever`
+pins). What is owed is a refusal at the door that names the empty leg
+when the chord is the zero vector — `geom_core::is_zero_length` already
+answers that without a band — rather than a junction class read off a
+stand-in.
