@@ -595,7 +595,7 @@ fn leaning_bore(p: (f64, f64), (h, q): (f64, (f64, f64)), a: f64) -> (Body<f64>,
 /// Whether `ε` resolves the near-coincidences a hair-scale fixture is
 /// built on; past `1e-9` the fixture's own Boolean refuses them as
 /// undecided, so the row says so and asserts nothing.
-fn resolves_hairs(what: &str) -> bool {
+pub(crate) fn resolves_hairs(what: &str) -> bool {
     let eps = tol().eps();
     let fine = eps <= 1e-9;
     if !fine {
