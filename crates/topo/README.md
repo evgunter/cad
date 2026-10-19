@@ -165,10 +165,14 @@ pair is from the two cells' carriers:
   closure; an unbacked bound is `UnrecordedContact`.
 - A **point touch** is a pair of any two cells whose interiors meet at
   isolated points without crossing (a circle on a plane, a sphere on a
-  plane, two circles kissing). The census finds each point on the
-  closed-form lane of the two carriers, refusing typed where none
-  exists, and certifies there coincidence within ε, the point strictly
-  inside both cells, and κ_rel definitely positive; in band escalates.
+  plane, two circles kissing). For a cell on a face, or two spheres,
+  the census finds each point on the closed-form lane of the two
+  carriers, refusing typed where none exists, and certifies there
+  coincidence within ε, the point strictly inside both cells, and
+  κ_rel definitely positive; in band escalates. Two edges kissing,
+  one of them curved, are found by the curved-edge lane's bisection
+  search over both spans, which certifies a point on both edges'
+  interiors.
   Whether the solids cross at the point is the touch analysis's
   reading of the faces around it.
 - A **patch** is a face–face pair on one carrier, backed by a

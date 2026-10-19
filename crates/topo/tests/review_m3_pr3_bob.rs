@@ -81,11 +81,11 @@ fn mirrored_fixture_flipped_plane_succeeds() {
     assert_eq!(pieces.shells().count(), 3, "three disconnected pieces");
     assert_eq!(slab.shells().count(), 1);
     // Tip copies: two coincident-but-distinct vertices per tip
-    // position on the pieces side, ONE on the slab side (the old
-    // vertex, keeping the tip edge as an artifact).
+    // position on the pieces side, none on the slab side, whose top at
+    // y = 1 is one maximal face.
     for z in [0.0, 1.0] {
         assert_eq!(vertices_at(pieces, 4.0, 1.0, z), 2);
-        assert_eq!(vertices_at(slab, 4.0, 1.0, z), 1);
+        assert_eq!(vertices_at(slab, 4.0, 1.0, z), 0);
     }
     // Volume conservation.
     let (vp, vs, v0) = (
