@@ -7,11 +7,13 @@
 // Panicking is a test's failure mechanism (workspace lint policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Bounds, Interval, Point2, Real, Tol, Vec3};
+use geom_core::Point3;
+use geom_core::{Bounds, Interval, Point2, Real, Tol};
+use profile::SketchPlane;
 use profile::{ProfileLoop, RawLoop};
 use sweep::{Section, loft_body};
 
-fn swaying(a: f64) -> (Vec<Section>, Vec<Affine3<f64>>) {
+fn swaying(a: f64) -> (Vec<Section>, Vec<SketchPlane<f64>>) {
     let square = || {
         vec![ProfileLoop::polygon(
             [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
@@ -22,7 +24,7 @@ fn swaying(a: f64) -> (Vec<Section>, Vec<Affine3<f64>>) {
     let places = [-a, a, -a, a]
         .into_iter()
         .zip([0.0, 1.0, 2.0, 3.0])
-        .map(|(dx, z)| Affine3::translation(Vec3::new(dx, 0.0, z)))
+        .map(|(dx, z)| SketchPlane::xy_at(Point3::new(dx, 0.0, z)))
         .collect();
     (vec![square(), square(), square(), square()], places)
 }
@@ -55,7 +57,7 @@ fn a_swaying_loft_builds_closed() {
             .unwrap_or_else(|e| panic!("{at}: {e:?}"));
         let lofted_i = loft_body::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&sections),
-            &sweep::test_support::lift_places::<Interval>(&places),
+            &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
             v_degree,
             Tol::witness(),
         )

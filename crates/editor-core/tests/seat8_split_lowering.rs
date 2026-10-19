@@ -295,11 +295,19 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// RE-BLESSED, `cut_cylinder` only, when a harmonic row's windings
 /// became stored structure (PCERT B2a, PR 5244): the stored pcurve is
 /// two channels where it was one flat tuple, and the digest hashes it.
+/// RE-BLESSED, `cut_cylinder` only, when each split half came to end
+/// with maximal faces and to re-describe the boundary of a curved run
+/// its merge records as skipped (PR 5334): the tilted cut leaves both
+/// half-walls' pieces in each half, and the re-description's pass over
+/// their boundary edges re-stores those edges' stored rows, which this
+/// digest hashes. Every edge description's `Debug` is unchanged, and no
+/// point moved (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held).
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x3c37_782c_be93_f19au64),
+        ("cut_cylinder", 0x615f_38e4_0bb7_2148u64),
         ("part_select", 0x7b4d_39f0_68df_e9b5),
         ("kitchen_sink", 0x1032_8a96_fb12_9d02),
     ] {

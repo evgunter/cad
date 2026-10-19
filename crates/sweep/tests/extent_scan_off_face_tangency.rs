@@ -45,7 +45,7 @@ pub(crate) fn ball(r: f64, c: Vec3<f64>) -> Body<f64> {
 pub(crate) fn rod_z(r: f64, (x, y): (f64, f64), (z0, z1): (f64, f64)) -> Body<f64> {
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(x, y), r, tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     extrude(
         &profile,

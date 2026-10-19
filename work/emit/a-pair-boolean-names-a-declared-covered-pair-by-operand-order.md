@@ -2,11 +2,10 @@
 id: a-pair-boolean-names-a-declared-covered-pair-by-operand-order
 kind: issue
 title: A pair boolean names a declared covered pair by operand order: emit_topo reads merge_groups, not covered
-status: open
+status: closed
+closed: 2026-10-19
 opened: 2026-10-02
-design: true
 priority: P2
-needs_ev: true
 cost: M
 ---
 
@@ -43,7 +42,7 @@ Waits on `intent-stage4-is-built`, not on the whole program: naming a declared c
 
 E answers the D10 re-ask's premise: a coincident covered pair is now glued whether or not it is declared, because the glue door declares every Zero-decided pair itself (`crates/topo/src/boolean/glue.rs:40`). The covered pairs a declaration produced and the ones the verdict produces are therefore one set (`crates/topo/src/boolean/mod.rs:1770`, `covered`). The naming question is unchanged. The pair boolean's emission still reads only `naming.merge_groups` (`crates/editor-core/src/names/emit_topo.rs:903`, `:989`) and never `covered`, so the faces of such a pair are still named by operand order. The question is now "how does a pair boolean name a Zero-glued covered pair", and it is Ev's call as before.
 
-## The designer pair: the premise is stale (fork-log row 172, 2026-10-19)
+## The designer pair: the premise is stale (fork-log row 173, 2026-10-19; numbered 172 until main took that number)
 
 Both designers measured main and found no operand-order dependence in
 any published name:
@@ -97,3 +96,11 @@ The designer pair's measurements hold on the branch and are pinned in
   `b − a` it is `b`'s.
 
 The row stays open on Ev's answer.
+
+## Closed (2026-10-19)
+
+Ev approved the designer pair's recommendation on PR 5345 ("sounds
+good"): the premise is stale on main, so no code changes. The pins above
+hold what main does. The names README states it: a two-member union or
+intersect is the union with one step, and the subtract links nothing.
+

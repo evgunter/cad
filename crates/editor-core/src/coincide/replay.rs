@@ -1,8 +1,7 @@
 //! **The door's symbolic rungs** (D10, FORK-S4F): the document replayed
 //! in the `Sym` lane with every continuous variable a symbol of its own
 //! ([`crate::analysis::var_env_symbolic`]), profile geometry elaborated
-//! in that lane (symbols make the lift [`crate::ProfileLift::Guided`]),
-//! and each row read
+//! in that lane ([`crate::ProfileLane`]), and each row read
 //! twice off the replay.
 //!
 //! - **The carrier-pair verdict** ([`Rung::CarrierVerdict`]): for a row
@@ -82,9 +81,9 @@ const BUDGET: SymBudget = SymBudget {
 /// door's budget ([`BUDGET`]) with the drive's retry ladder, DEFERRING
 /// (a margin's form is built only where a reader asks for its
 /// discharge), on `base`, the caller's environment — which binds every
-/// variable a symbol or varies a box, so its profile geometry is
-/// elaborated in the lane ([`crate::eval::ProfileLift::Guided`], read off
-/// what the evaluation binds by [`EvalOptions::profile_lift_over`]). Every
+/// variable a symbol or varies a box; its profile geometry is
+/// elaborated in the lane, as every evaluation's is
+/// ([`crate::ProfileLane`]). Every
 /// reader of a replay opens it here — the door (`symbols`), its census,
 /// and the re-valuation instrument (`editor-core/tests/revalue_corpus.rs`,
 /// its own degenerate boxes) — so the instrument reads exactly what

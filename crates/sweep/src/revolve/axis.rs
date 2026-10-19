@@ -10,20 +10,18 @@
 //! bulging across the axis).
 
 use geom_core::{
-    Affine3, Arc2, Band, Decide, Margin, Point2, Point3, Real, Sign, UnitVec3, Vec2, Vec3,
-    is_finite_length, is_underflowed_length,
+    Affine3, Arc2, Band, Decide, Margin, Point2, Point3, Real, Sign, UnitVec3, UnitVec3Error, Vec2,
+    Vec3,
 };
-use profile::ValidatedProfile;
+use profile::{SketchPlane, ValidatedProfile};
 
 use super::{ClearanceDecision, RevolveAxis, RevolveError, SweptSeg};
 use crate::swept::{arc_span, decide};
 use profile::SegmentKind;
 
-/// The K funnel name of the placed revolve axis's length: the sketch
-/// axis decided in the plane, carried through the sketch placement,
-/// and decided again as a direction in space before the revolve turns
-/// about it.
-pub(super) const REVOLVE_PLACED_AXIS: &str = "revolve_placed_axis";
+/// The K funnel name of the sketch axis's length: the revolve axis's
+/// direction decided in the sketch plane.
+pub(super) const REVOLVE_AXIS_DIRECTION: &str = "revolve_axis_direction";
 
 /// The classified axis in both coordinate systems: the sketch-plane
 /// line plus its placed 3-D frame. `a3`/`u3` are the **shared
@@ -42,70 +40,35 @@ pub(super) struct AxisFrame<T: Real> {
     pub(super) o3: Point3<T>,
     /// Placed unit axis direction.
     pub(super) a3: Vec3<T>,
-    /// [`Self::a3`] decided into a witness: the axis the revolve turns
-    /// about. The placement is a general map, so `a3` is unit only by
-    /// convention until this decision.
+    /// [`Self::a3`] as the witness it is: the sketch axis's decided
+    /// direction turned by the sketch frame, the axis the revolve
+    /// turns about.
     pub(super) axis: UnitVec3<T>,
     /// Placed unit radial direction (the seam meridian; `u_ref` of
     /// every revolution surface).
     pub(super) u3: Vec3<T>,
-    /// The sketch plane's normal (placement's third linear column).
+    /// The sketch plane's normal (the frame's third axis).
     pub(super) n3: Vec3<T>,
 }
 
 impl<T: Decide> AxisFrame<T> {
     /// Classifies the axis direction and builds the frame.
     ///
-    /// **Finiteness before sign.** An axis direction past
-    /// `Vec2::normalize`'s ~1e154 overflow band has an infinite norm,
-    /// which is maximally DEFINITE to the classifier: deciding the
-    /// sign first answers `Positive`, `normalize` then divides by ∞,
-    /// and the frame is built with `dir_sk = (0, 0)` — every radial
-    /// coordinate zero, every axial coordinate zero, out of a decided
-    /// path. So the length is asked whether it is a NUMBER first.
+    /// The sketch axis's direction is decided once, as a direction
+    /// witness in the plane (`(dir.x, dir.y, 0)` through
+    /// [`UnitVec3::new`] under `revolve_axis_direction`), and the
+    /// placed axis is the sketch frame turning it
+    /// ([`geom_core::RigidMotion::turn`]): a rigid motion carries a
+    /// unit vector to a unit vector, so nothing is decided in space.
     ///
-    /// **Underflow before sign, too.** The other end of the format is
-    /// the same failure and it is silent: an axis direction below
-    /// `Vec2::normalize`'s ~1e-162 underflow band squares to zero, so
-    /// the norm is EXACTLY zero and the classifier answers `Zero`
-    /// definitely — at which point the refusal says the axis is a
-    /// sliver or a coincidence and offers `COINCIDENCE_RECOURSE`, a
-    /// band for a quantity no band reaches. The axis has a direction;
-    /// what it does not have is a length this format can hold, and the
-    /// recourse is the overflow end's. `is_underflowed_length` is asked
-    /// against the largest `|component|` of `axis.dir`
-    /// (`Vec2::norm_witness`), which is the pairing that predicate's
-    /// contract requires, and it is asked SECOND because an overflowed
-    /// or poisoned length makes its two ratios non-finite for an
-    /// unrelated reason.
-    ///
-    /// **Point-scalar gates.** Both ask through the value channel, and
-    /// at `T = Interval` neither bites: `Interval::is_poison` is
-    /// `is_nai() || is_empty()`, and `[1e200, ∞] − [1e200, ∞]` is
-    /// `[−∞, ∞]`, which answers finite; and a norm whose lower end
-    /// underflowed still ENCLOSES the true length, so the underflow
-    /// ratio is an unbounded enclosure rather than poison and the
-    /// question answers `false`. So these gates bite at `f64` and
-    /// `Probe` and wave an enclosure through to the sign decision
-    /// below. No live caller builds this frame at `Interval` today; see
-    /// `geom_core::is_finite_length` for the general statement.
-    ///
-    /// **The length is evaluated twice**, by `axis.dir.norm()` here
-    /// (bound once for both gates) and again inside
-    /// `Margin::norm2(axis.dir)` below, which is
-    /// `Self(v.norm())` verbatim — so the two are bit-identical and
-    /// the gate cannot disagree with the decision it guards. It is
-    /// spelled this way, rather than binding the norm once and
-    /// switching to `Margin::of`, because `norm2` is the dimensional
-    /// door this site is supposed to come through and changing which
-    /// door a decided quantity uses is not a cosmetic edit. The other
-    /// four doors in this family bind once; this one is the exception
-    /// and the reason is here rather than in a reviewer's head.
-    ///
-    /// **K consequence.** The refusal precedes the funnel, so a
-    /// non-finite axis contributes no `revolve_axis_direction` sample.
-    /// The sample it used to contribute was a `+∞` margin recorded as
-    /// a definite `Positive`.
+    /// The decision's questions and their order — finiteness, then
+    /// underflow, then which side of zero the length lies on — are
+    /// [`geom_core::decide_unit_direction`]'s, each refusal mapped to
+    /// the revolve's own name for it. An axis past the overflow band
+    /// has an infinite length the classifier would call maximally
+    /// definite, and one below the underflow band a length of exactly
+    /// zero for a direction that is perfectly good; both are refused
+    /// before the sign, and neither contributes a sample.
     ///
     /// # Errors
     ///
@@ -116,40 +79,71 @@ impl<T: Decide> AxisFrame<T> {
     /// coincident-with-zero) direction; [`RevolveError::AxisEscalated`]
     /// on a sliver length.
     pub(super) fn build(
-        place: Affine3<T>,
+        plane: SketchPlane<T>,
         axis: &RevolveAxis<T>,
         band: Band,
     ) -> Result<Self, RevolveError> {
-        let len = axis.dir.norm();
-        if !is_finite_length(len) {
-            return Err(RevolveError::NonFiniteAxis);
-        }
-        if is_underflowed_length(len, axis.dir.norm_witness()) {
-            return Err(RevolveError::UnderflowedAxis);
-        }
-        match decide("revolve_axis_direction", Margin::norm2(axis.dir), band)
-            .map_err(|source| RevolveError::AxisEscalated { source })?
-        {
-            Sign::Positive => {}
-            Sign::Zero | Sign::Negative => return Err(RevolveError::DegenerateAxis),
-        }
-        let dir_sk = axis.dir.normalize();
+        let dir = Self::sketch_direction(axis, band)?;
+        Ok(Self::placed(
+            plane.placement(),
+            axis,
+            dir,
+            plane.frame().turn(dir),
+        ))
+    }
+
+    /// [`Self::build`] over a placement the caller assembled, with the
+    /// placed axis witness the caller already holds: `turn_axis` must
+    /// be the placement's linear part applied to the sketch axis's
+    /// decided direction. The tube door's sketch frame has its axis
+    /// along sketch `ŷ`, so that image is its placement's second
+    /// column, which is the spine-axis witness it built the placement
+    /// from.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::build`]'s.
+    pub(super) fn build_on(
+        place: Affine3<T>,
+        axis: &RevolveAxis<T>,
+        turn_axis: UnitVec3<T>,
+        band: Band,
+    ) -> Result<Self, RevolveError> {
+        let dir = Self::sketch_direction(axis, band)?;
+        Ok(Self::placed(place, axis, dir, turn_axis))
+    }
+
+    /// The sketch axis's direction, decided (the questions are
+    /// [`Self::build`]'s).
+    fn sketch_direction(axis: &RevolveAxis<T>, band: Band) -> Result<UnitVec3<T>, RevolveError> {
+        let in_plane = Vec3::new(axis.dir.x, axis.dir.y, T::zero());
+        UnitVec3::new(in_plane, REVOLVE_AXIS_DIRECTION, band).map_err(|e| match e {
+            UnitVec3Error::NonFiniteLength => RevolveError::NonFiniteAxis,
+            UnitVec3Error::UnderflowedLength => RevolveError::UnderflowedAxis,
+            UnitVec3Error::Degenerate => RevolveError::DegenerateAxis,
+            UnitVec3Error::Escalated(source) => RevolveError::AxisEscalated { source },
+        })
+    }
+
+    /// The frame from its decided parts.
+    fn placed(
+        place: Affine3<T>,
+        axis: &RevolveAxis<T>,
+        dir: UnitVec3<T>,
+        turn_axis: UnitVec3<T>,
+    ) -> Self {
+        let dir_sk = Vec2::new(dir.get().x, dir.get().y);
         let e_r = Vec2::new(dir_sk.y, T::zero() - dir_sk.x);
-        let o3 = place.transform_point(Point3::new(axis.origin.x, axis.origin.y, T::zero()));
-        let a3 = place.linear * Vec3::new(dir_sk.x, dir_sk.y, T::zero());
-        let u3 = place.linear * Vec3::new(e_r.x, e_r.y, T::zero());
-        let turn_axis = UnitVec3::new(a3, REVOLVE_PLACED_AXIS, band)
-            .map_err(|error| RevolveError::PlacedAxis { error })?;
-        Ok(Self {
+        Self {
             origin_sk: axis.origin,
             dir_sk,
             place,
-            o3,
-            a3,
+            o3: place.transform_point(Point3::new(axis.origin.x, axis.origin.y, T::zero())),
+            a3: turn_axis.get(),
             axis: turn_axis,
-            u3,
+            u3: place.linear * Vec3::new(e_r.x, e_r.y, T::zero()),
             n3: place.linear.c2,
-        })
+        }
     }
 }
 
@@ -663,12 +657,7 @@ mod tests {
             origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         };
-        AxisFrame::build(
-            vp.plane().placement,
-            &axis,
-            Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap()
+        AxisFrame::build(*vp.plane(), &axis, Band::linear(Tol::witness()).unwrap()).unwrap()
     }
 
     /// NIT-1 regression: an arc from −90° to 130° contains the carrier

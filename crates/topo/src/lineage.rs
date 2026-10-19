@@ -107,6 +107,7 @@ pub enum LineageError {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Lineage {
     rows: BTreeMap<Cell, Fate>,
+    merged: BTreeMap<Cell, Cell>,
     joins: Vec<EdgeJoin>,
     meeting: MintedBacking,
     glues: bool,
@@ -116,6 +117,7 @@ impl Default for Lineage {
     fn default() -> Self {
         Self {
             rows: BTreeMap::new(),
+            merged: BTreeMap::new(),
             joins: Vec::new(),
             meeting: MintedBacking::Refused,
             glues: false,
@@ -201,6 +203,17 @@ impl Lineage {
         self
     }
 
+    /// The lineage read through `merged`, the coplanar merges the op
+    /// ended with before its joins, each `(dead, by)` a cell a merge
+    /// killed with the face holding its interior
+    /// ([`crate::MergedGroup::substitutions`]): each image a merge
+    /// killed is its kept face.
+    #[must_use]
+    pub fn through_merges(mut self, merged: impl IntoIterator<Item = (Cell, Cell)>) -> Self {
+        self.merged.extend(merged);
+        self
+    }
+
     /// The lineage of an op whose one cut made every pair of cells it
     /// minted on a record's two cells ([`MintedBacking::OneCut`]).
     #[must_use]
@@ -254,8 +267,10 @@ impl Lineage {
         out
     }
 
-    /// An image read through the joins.
+    /// An image read through the merges, then the joins. A merge's
+    /// substitute is a live kept face, so the chase ends at once.
     pub(crate) fn joined(&self, cell: Cell) -> Cell {
+        let cell = self.merged.get(&cell).copied().unwrap_or(cell);
         crate::boolean::joined_cell(&self.joins, cell)
     }
 }

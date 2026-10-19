@@ -17,7 +17,7 @@
 use core::f64::consts::PI;
 
 use crate::common::germ_pair::{cyl, repose, spin};
-use geom_core::{Affine3, Point2, Tol, Vec3};
+use geom_core::{Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::test_support::finished;
 use sweep::{ExtrudeSide, Extrusion, extrude};
@@ -28,7 +28,7 @@ use topo::{Body, BooleanResult};
 fn stub_z(r: f64, (z0, z1): (f64, f64), phi: f64) -> Body<f64> {
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(0.0, 0.0), r, tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = SketchPlane::xy_at(geom_core::Point3::new(0.0, 0.0, z0));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     let body = extrude(
         &profile,

@@ -93,6 +93,7 @@ where
         + editor_core::analysis::SeedScalar
         + editor_core::MinClearanceLane
         + editor_core::mate::SolveScalar
+        + editor_core::ProfileLane
         + editor_core::checks::at_rest::LocalizeLane,
 {
 }
@@ -119,6 +120,7 @@ where
         + editor_core::analysis::SeedScalar
         + editor_core::MinClearanceLane
         + editor_core::mate::SolveScalar
+        + editor_core::ProfileLane
         + editor_core::checks::at_rest::LocalizeLane,
 {
     let _ = editor_core::eval::evaluate::<T>;
@@ -141,6 +143,7 @@ where
         + editor_core::analysis::SeedScalar
         + editor_core::MinClearanceLane
         + editor_core::mate::SolveScalar
+        + editor_core::ProfileLane
         + editor_core::checks::at_rest::LocalizeLane,
 {
     requires_the_whole_eval_scalar_set::<T>();
