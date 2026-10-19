@@ -6591,3 +6591,9 @@ Signed (WIRE orchestrator).
   - `Fused::origin` is total by `Minted` and stays as it is.
   - Filed hone/split-null-pair-rows-…-minted-list (P4).
   - STYLE review dispatched on the frozen head.
+
+- 2026-10-19 (WIRE orchestrator) PR 5407 (wire-p4) is green at 2369d63db3.
+  - The new arm `EntityNamed { name, held }` is ruled to cover an entity repeated inside one offered list. `insert_tied`'s silent dedup is gone.
+  - Six editor families are welded to f6 rosters. Swept: ParamBox SymbolsOverABox.
+  - Filed: kernel concision lists; the product carry messages.
+  - STYLE review dispatched; it presses the dedup removal as a behaviour change.
