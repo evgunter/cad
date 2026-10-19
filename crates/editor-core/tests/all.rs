@@ -766,6 +766,8 @@ mod emit_union_curved_flush;
 mod emit_union_flush_names;
 #[path = "emit_union_rim_piece_ranks.rs"]
 mod emit_union_rim_piece_ranks;
+#[path = "emit_union_seam_rank.rs"]
+mod emit_union_seam_rank;
 #[path = "glue_on_zero_rows.rs"]
 mod glue_on_zero_rows;
 #[path = "intent_literals_a_definitions.rs"]

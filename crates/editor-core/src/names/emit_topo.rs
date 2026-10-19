@@ -3234,7 +3234,7 @@ pub(super) struct Cover<K> {
 /// A candidate for [`Track::cover`]: an edge's two end points, the
 /// point halfway along it, and whether it is closed (one vertex at
 /// both ends, structurally).
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(super) struct CarrierArc<T: Decide> {
     pub(super) p0: Point3<T>,
     pub(super) mid: Point3<T>,
@@ -3247,7 +3247,10 @@ pub(super) struct CarrierArc<T: Decide> {
 /// carrier (`names/README.md`, "Flush edges"). Positions are carrier
 /// parameters, as offsets from the edge's start in its direction;
 /// lengths between them are metered in metres through the carrier's
-/// speed at the edge's middle. A closed edge is its carrier's whole
+/// greatest speed over every parameter
+/// ([`geom::carrier_speed::speed_range`]), so no verdict depends on
+/// which edge of the carrier reads it, and a stretch decided zero is
+/// within the zero band in metres. A closed edge is its carrier's whole
 /// period: nothing [`Track::cover`] says of it depends on where its
 /// vertex sits, which has no identity of its own (`docs/DESIGN.md`,
 /// maximal edges).
@@ -3259,7 +3262,7 @@ pub(super) struct Track<T: Decide> {
     len: T,
     period: Option<T>,
     closed: bool,
-    speed: T,
+    rate: geom_core::SupSpeed<T>,
 }
 
 impl<T: Decide> Track<T> {
@@ -3267,16 +3270,24 @@ impl<T: Decide> Track<T> {
     /// `he_plus` start to its end.
     pub(super) fn of_edge(body: &Body<T>, e: EdgeKey) -> Result<Self, NamingError> {
         let curve = certified_curve(body, e)?;
-        let carrier = curve.carrier().clone();
-        let (t0, t1) = curve.params();
+        let (v0, v1) = edge_ends(body, e)?;
+        Self::on(e, curve.carrier().clone(), curve.params(), v0 == v1)
+    }
+
+    /// Edge `e` on `carrier` over `(t0, t1)`, `closed` when one vertex
+    /// ends it at both ends.
+    fn on(
+        e: EdgeKey,
+        carrier: geom::Curve3<T>,
+        (t0, t1): (T, T),
+        closed: bool,
+    ) -> Result<Self, NamingError> {
         let period = match carrier {
             geom::Curve3::Circle { .. }
             | geom::Curve3::Ellipse { .. }
             | geom::Curve3::Spiric { .. } => Some(T::from_f64(std::f64::consts::TAU)),
             _ => None,
         };
-        let (v0, v1) = edge_ends(body, e)?;
-        let closed = v0 == v1;
         let len = match (closed, period) {
             (true, Some(p)) => p,
             (true, None) => {
@@ -3288,7 +3299,7 @@ impl<T: Decide> Track<T> {
             (false, _) => t1 - t0,
         };
         let mid = geom::mid_param(t0, t1);
-        let speed = carrier.deriv(mid).norm();
+        let rate = geom::carrier_speed::speed_range(&carrier).1;
         Ok(Track {
             edge: e,
             carrier,
@@ -3297,17 +3308,19 @@ impl<T: Decide> Track<T> {
             len,
             period,
             closed,
-            speed,
+            rate,
         })
     }
 
+    /// The sign of the stretch `x` along the carrier, metered by its
+    /// greatest speed.
     fn sign(
         &self,
         x: T,
         predicate: &'static str,
         bnd: geom_core::Band,
     ) -> Result<Sign, NamingError> {
-        decide(predicate, Margin::levered(x, self.speed), bnd)
+        decide(predicate, Margin::metered_sup(x, self.rate), bnd)
             .map_err(|source| NamingError::Escalated { predicate, source })
     }
 
@@ -3347,12 +3360,7 @@ impl<T: Decide> Track<T> {
             }
             None => self.mid,
         };
-        let Some(u) = self.carrier.param_near(p, anchor) else {
-            return Err(NamingError::CarrierUnplaced {
-                edge: self.edge,
-                carrier: self.carrier.kind(),
-            });
-        };
+        let u = self.place(p, anchor)?;
         if gap(self.carrier.eval(u))? != Sign::Zero {
             return Ok(None);
         }
@@ -3360,6 +3368,23 @@ impl<T: Decide> Track<T> {
         // `u − t0` lies in `(0, period]`, and the reduction moves only
         // the start's own reading, which is decided above.
         Ok(Some(self.forward(u - self.t0)))
+    }
+
+    /// **Where `p` lies along the carrier**: its parameter within half
+    /// a period of `anchor` ([`geom::Curve3::param_near`]), the one
+    /// placement every reading along a curved edge takes.
+    ///
+    /// # Errors
+    ///
+    /// [`NamingError::CarrierUnplaced`] on a carrier that recovers no
+    /// parameter for a point (a spline).
+    fn place(&self, p: Point3<T>, anchor: T) -> Result<T, NamingError> {
+        self.carrier
+            .param_near(p, anchor)
+            .ok_or(NamingError::CarrierUnplaced {
+                edge: self.edge,
+                carrier: self.carrier.kind(),
+            })
     }
 
     /// `x` reduced into `[0, period)` on a periodic carrier, unchanged
@@ -3371,17 +3396,18 @@ impl<T: Decide> Track<T> {
         }
     }
 
-    /// The stretches of offsets `arc` holds: one on an open carrier;
-    /// on a periodic one the arc from the end it starts at through its
-    /// middle, and that arc a period back, so a stretch through the
-    /// start reads whole on one side or the other. `None` where the arc
-    /// is off the carrier.
-    fn stretches(
+    /// **Where `arc` lies along the carrier**: the offsets of the end
+    /// it starts at and of its other end, in the carrier's direction
+    /// and the second past the first, and whether it starts at
+    /// `arc.p1`. On a periodic carrier the arc runs from the end it
+    /// starts at through its middle. `None` where the arc is off the
+    /// carrier.
+    fn span(
         &self,
         arc: &CarrierArc<T>,
         predicate: &'static str,
         bnd: geom_core::Band,
-    ) -> Result<Option<Vec<(T, T)>>, NamingError> {
+    ) -> Result<Option<(T, T, bool)>, NamingError> {
         let (Some(a0), Some(am), Some(a1)) = (
             self.offset(arc.p0, predicate, bnd)?,
             self.offset(arc.mid, predicate, bnd)?,
@@ -3390,22 +3416,39 @@ impl<T: Decide> Track<T> {
             return Ok(None);
         };
         let Some(per) = self.period else {
-            return Ok(Some(vec![match self.sign(a1 - a0, predicate, bnd)? {
-                Sign::Negative => (a1, a0),
-                _ => (a0, a1),
-            }]));
+            return Ok(Some(match self.sign(a1 - a0, predicate, bnd)? {
+                Sign::Negative => (a1, a0, true),
+                _ => (a0, a1, false),
+            }));
         };
-        if arc.closed {
-            return Ok(Some(vec![(T::zero(), per), (T::zero() - per, T::zero())]));
-        }
         let (d1, dm) = (self.forward(a1 - a0), self.forward(am - a0));
         // The middle is half the arc from either end, so this verdict
         // is never near its band.
-        let (lo, n) = match self.sign(d1 - dm, predicate, bnd)? {
-            Sign::Positive => (a0, d1),
-            _ => (a1, per - d1),
+        Ok(Some(match self.sign(d1 - dm, predicate, bnd)? {
+            Sign::Positive => (a0, a0 + d1, false),
+            _ => (a1, a1 + per - d1, true),
+        }))
+    }
+
+    /// The stretches of offsets `arc` holds ([`Track::span`]): one on
+    /// an open carrier; on a periodic one the arc and that arc a period
+    /// back, so a stretch through the start reads whole on one side or
+    /// the other, and a closed arc's whole period. `None` where the arc
+    /// is off the carrier.
+    fn stretches(
+        &self,
+        arc: &CarrierArc<T>,
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<Option<Vec<(T, T)>>, NamingError> {
+        let Some((lo, hi, _)) = self.span(arc, predicate, bnd)? else {
+            return Ok(None);
         };
-        Ok(Some(vec![(lo, lo + n), (lo - per, lo + n - per)]))
+        Ok(Some(match self.period {
+            None => vec![(lo, hi)],
+            Some(per) if arc.closed => vec![(T::zero(), per), (T::zero() - per, T::zero())],
+            Some(per) => vec![(lo, hi), (lo - per, hi - per)],
+        }))
     }
 
     /// Whether `p` lies on this edge: on its carrier at an offset within
@@ -3454,6 +3497,156 @@ impl<T: Decide> Track<T> {
             Ok(self.sign(p - q, predicate, bnd)? == Sign::Positive)
         })
     }
+
+    /// **Where `points` lie along a seam whose `pieces` lie on this
+    /// edge's carrier** (N2): each point's offset along the carrier in
+    /// its direction, from where the seam starts. On an open carrier
+    /// that is this edge's start. On a periodic one it is the end of the
+    /// gap the pieces leave in the period: their one gap, or, where they
+    /// leave several, the one no vertex of `group` bounds, which is
+    /// where the seam's arc ran before the cuts that made the group's
+    /// vertices. Each piece is its arc and the vertices at its two
+    /// ends, `[at p0, at p1]`, and a vertex bounds a gap when it is the
+    /// end of a piece beside it: an identity, never a place.
+    ///
+    /// The tie, with its reason ([`NoStart`]), where a piece or a point
+    /// lies off the carrier, where the pieces cover the whole period,
+    /// and where they leave several gaps of which none, or more than
+    /// one, is free of the group's vertices.
+    pub(super) fn open_offsets<V: Copy + PartialEq>(
+        &self,
+        pieces: &[(CarrierArc<T>, [V; 2])],
+        group: &[V],
+        points: &[Point3<T>],
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<Result<Vec<T>, NoStart>, NamingError> {
+        let mut spans = Vec::with_capacity(pieces.len());
+        for (arc, [v0, v1]) in pieces {
+            let Some((lo, hi, from_p1)) = self.span(arc, predicate, bnd)? else {
+                return Ok(Err(NoStart::OffCarrier));
+            };
+            if self.period.is_some() && arc.closed {
+                return Ok(Err(NoStart::WholePeriod));
+            }
+            spans.push(if from_p1 {
+                (lo, hi, *v1, *v0)
+            } else {
+                (lo, hi, *v0, *v1)
+            });
+        }
+        let start = match self.period {
+            None => T::zero(),
+            Some(per) => match self.seam_start(&spans, group, per, predicate, bnd)? {
+                Ok(start) => start,
+                Err(why) => return Ok(Err(why)),
+            },
+        };
+        let mut out = Vec::with_capacity(points.len());
+        for &p in points {
+            let Some(u) = self.offset(p, predicate, bnd)? else {
+                return Ok(Err(NoStart::OffCarrier));
+            };
+            let at = self.forward(u - start);
+            out.push(match self.period {
+                Some(per) if self.sign(per - at, predicate, bnd)? == Sign::Zero => T::zero(),
+                _ => at,
+            });
+        }
+        Ok(Ok(out))
+    }
+
+    /// **Where a seam starts along a periodic carrier**
+    /// ([`Track::open_offsets`]), from its pieces' `spans`, each
+    /// `(lo, hi, vertex at lo, vertex at hi)` with `lo` in one period.
+    /// A span's start is free, the end of a gap, where no other span,
+    /// nor its copy a period either way, runs from before it to it; its
+    /// end is free, the start of a gap, where none runs from it to past
+    /// it. Each free end begins the gap the next free start along the
+    /// carrier ends.
+    fn seam_start<V: Copy + PartialEq>(
+        &self,
+        spans: &[(T, T, V, V)],
+        group: &[V],
+        per: T,
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<Result<T, NoStart>, NamingError> {
+        let sign = |x: T| self.sign(x, predicate, bnd);
+        let copies = |j: usize| {
+            let (lo, hi, _, _) = spans[j];
+            [T::zero() - per, T::zero(), per].map(|s| (lo + s, hi + s))
+        };
+        let mut starts = Vec::new();
+        let mut ends = Vec::new();
+        for (i, &(lo, hi, at_lo, at_hi)) in spans.iter().enumerate() {
+            let (mut lo_free, mut hi_free) = (true, true);
+            for j in (0..spans.len()).filter(|&j| j != i) {
+                for (lo_j, hi_j) in copies(j) {
+                    if sign(lo - lo_j)? == Sign::Positive && sign(hi_j - lo)? != Sign::Negative {
+                        lo_free = false;
+                    }
+                    if sign(hi - lo_j)? != Sign::Negative && sign(hi_j - hi)? == Sign::Positive {
+                        hi_free = false;
+                    }
+                }
+            }
+            if lo_free {
+                starts.push((lo, at_lo));
+            }
+            if hi_free {
+                ends.push((hi, at_hi));
+            }
+        }
+        match starts.as_slice() {
+            [] => return Ok(Err(NoStart::WholePeriod)),
+            [(start, _)] => return Ok(Ok(*start)),
+            _ => {}
+        }
+        let mut free = Vec::new();
+        for &(end, at_end) in &ends {
+            let mut next: Option<(T, T, V)> = None;
+            for &(start, at_start) in &starts {
+                let reach = self.forward(start - end);
+                let nearer = match next {
+                    Some((best, _, _)) => sign(reach - best)? == Sign::Negative,
+                    None => true,
+                };
+                if nearer {
+                    next = Some((reach, start, at_start));
+                }
+            }
+            if let Some((_, start, at_start)) = next
+                && !group.contains(&at_end)
+                && !group.contains(&at_start)
+            {
+                free.push(start);
+            }
+        }
+        Ok(match free.as_slice() {
+            [start] => Ok(*start),
+            [] => Err(NoStart::EveryGapBounded),
+            _ => Err(NoStart::SeveralFreeGaps),
+        })
+    }
+}
+
+/// **Why a seam gives the vertices along it no offsets**
+/// ([`Track::open_offsets`]): N2's tie, for one of these reasons.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum NoStart {
+    /// A piece or a vertex lies off the carrier: the seam runs on
+    /// several.
+    OffCarrier,
+    /// The pieces cover the carrier's whole period: a closed carrier,
+    /// whose one start is where the kernel cut it.
+    WholePeriod,
+    /// The pieces leave several gaps, and a vertex of the group bounds
+    /// each.
+    EveryGapBounded,
+    /// The pieces leave several gaps that no vertex of the group
+    /// bounds.
+    SeveralFreeGaps,
 }
 
 /// **An edge's line for the flush readings**: its [`Segment`] where it
@@ -3480,9 +3673,7 @@ impl<T: Decide> EdgeCarrier<T> {
         if is_straight(body, e) {
             return Ok(EdgeCarrier::Straight(Segment::of_edge(body, e)?));
         }
-        let carrier = certified_curve(body, e)?.carrier();
-        let origin = Point3::new(T::zero(), T::zero(), T::zero());
-        if carrier.param_near(origin, T::zero()).is_none() {
+        if !places_points(certified_curve(body, e)?.carrier()) {
             return Ok(EdgeCarrier::Unread);
         }
         Ok(EdgeCarrier::Curved(Track::of_edge(body, e)?))
@@ -3508,6 +3699,13 @@ impl<T: Decide> EdgeCarrier<T> {
             | (EdgeCarrier::Curved(_), EdgeCarrier::Straight(_)) => Ok(None),
         }
     }
+}
+
+/// Whether `carrier` recovers a parameter for a point
+/// ([`geom::Curve3::param_near`]): every kind but a spline.
+fn places_points<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
+    let origin = Point3::new(T::zero(), T::zero(), T::zero());
+    carrier.param_near(origin, T::zero()).is_some()
 }
 
 /// Edge `e`'s certified curve.
@@ -3903,7 +4101,10 @@ pub(super) fn edges_holding<'b, T: Decide + 'b, K>(
 /// Edge `e` of `body` as a cover candidate: its ends and, on a curved
 /// edge, the point halfway along its certified carrier. A segment is
 /// read by its ends alone, so its middle is its start.
-fn carrier_arc<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<CarrierArc<T>, NamingError> {
+pub(super) fn carrier_arc<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+) -> Result<CarrierArc<T>, NamingError> {
     let (v0, v1) = edge_ends(body, e)?;
     let mid = if is_straight(body, e) {
         vertex_point(body, v0)?
@@ -4098,11 +4299,12 @@ fn crossed_curve<T: Decide>(
 }
 
 /// Where `p`, a point on edge `e` of `body`, lies along it: the edge's
-/// carrier's own parameter, increasing as the edge runs as stored.
-/// `None` for a carrier with no closed-form parameter here (a NURBS
-/// curve). The parameter is read near the middle of the edge's
-/// certified interval, so a closed edge's crossings, which lie inside
-/// it, are read without the period's cut between them.
+/// carrier's own parameter, increasing as the edge runs as stored,
+/// placed as every reading along an edge places a point
+/// ([`Track::place`]), near the middle of the edge's certified
+/// interval, so a closed edge's crossings, which lie inside it, are
+/// read without the period's cut between them. `None` on a carrier
+/// that places no point (a NURBS curve, [`EdgeCarrier::Unread`]).
 ///
 /// `p` lies within ε of the carrier, so two readings the band decides
 /// apart, by at least Kε, order the points' feet only where Kε > 2ε:
@@ -4112,25 +4314,11 @@ pub(super) fn param_along<T: Decide>(
     e: EdgeKey,
     p: Point3<T>,
 ) -> Result<Option<T>, NamingError> {
-    use geom::Curve3;
-    let curve = crossed_curve(body, e)?;
-    let (t0, t1) = curve.params();
-    let near = (t0 + t1) * T::from_f64(0.5);
-    Ok(match curve.carrier() {
-        Curve3::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-        } => {
-            let w = p - *center;
-            let (x, y) = (w.dot(*u_ref) / *semi_u, w.dot(axis.cross(*u_ref)) / *semi_v);
-            let (s, c) = near.sin_cos();
-            Some(near + (y * c - x * s).atan2(x * c + y * s))
-        }
-        carrier => carrier.param_near(p, near),
-    })
+    if !places_points(crossed_curve(body, e)?.carrier()) {
+        return Ok(None);
+    }
+    let track = Track::of_edge(body, e)?;
+    track.place(p, track.mid).map(Some)
 }
 
 /// The edge a crossing is read along: edge `edge` of `body`, named
@@ -4198,29 +4386,97 @@ pub(super) fn rank_crossings<T: Decide>(
             _ => return Ok(mint_candidates(t, tie, from_tie, base.clone(), keys)?),
         };
         way = Some(forward);
-        let ((lo, hi), unread) = match param_along(body, edge, p)? {
-            Some(at) => ((at, at), None),
-            None => (param_span(body, edge)?, Some((body, edge))),
-        };
-        let extent = if forward {
+        reads.push(match param_along(body, edge, p)? {
+            Some(at) => Read::At(at),
+            None => Read::Unread(param_span(body, edge)?, p, body, edge),
+        });
+    }
+    rank_reads(
+        t,
+        tie,
+        from_tie,
+        base,
+        &keys,
+        &reads,
+        way.unwrap_or(true),
+        bnd,
+    )
+}
+
+/// **Ranks the crossings of a union seam by their `offsets` along its
+/// carrier** ([`Track::open_offsets`]), as [`rank_crossings`] ranks a
+/// line's ([`rank_reads`]): oriented as `seam`, one of its pieces, runs
+/// ([`crossed_edge_orientation`]), and tied where it has no orientation.
+pub(super) fn rank_along_track<T: Decide>(
+    t: &mut NameTable,
+    tie: &mut TieRows,
+    base: &StableName,
+    keys: Vec<super::table::EntityRef>,
+    offsets: &[T],
+    seam: CrossedEdge<'_, T>,
+    bnd: geom_core::Band,
+) -> Result<(), NamingError> {
+    let CrossedEdge {
+        body,
+        table,
+        edge,
+        name,
+    } = seam;
+    let Some(forward) = crossed_edge_orientation(body, table, edge, name)? else {
+        return Ok(mint_candidates(t, tie, false, base.clone(), keys)?);
+    };
+    let reads: Vec<Read<'_, T>> = offsets.iter().map(|&x| Read::At(x)).collect();
+    rank_reads(t, tie, false, base, &keys, &reads, forward, bnd)
+}
+
+/// Where one crossing lies along the carrier [`rank_reads`] ranks on.
+enum Read<'a, T: Decide> {
+    /// At this parameter.
+    At(T),
+    /// Somewhere in this parameter interval of a piece whose carrier
+    /// places no point: the crossing's point, and that piece.
+    Unread((T, T), Point3<T>, &'a Body<T>, EdgeKey),
+}
+
+/// **Ranks `keys` by their `reads` along one carrier**, run `forward`
+/// or against it: crossings on different pieces of an unread carrier
+/// order by their pieces, and two on one piece order by where they lie
+/// along its chord when [`chord_along`] certifies that this is the
+/// order of their parameters, asked for only for such a pair. Each is
+/// put ranked, or all tied ([`insert_ranked_or_tied`]).
+#[allow(clippy::too_many_arguments)]
+fn rank_reads<T: Decide>(
+    t: &mut NameTable,
+    tie: &mut TieRows,
+    from_tie: bool,
+    base: &StableName,
+    keys: &[super::table::EntityRef],
+    reads: &[Read<'_, T>],
+    forward: bool,
+    bnd: geom_core::Band,
+) -> Result<(), NamingError> {
+    let oriented = |(lo, hi): (T, T)| {
+        if forward {
             Extent { min: lo, max: hi }
         } else {
             Extent { min: -hi, max: -lo }
-        };
-        reads.push((extent, p, unread));
-    }
-    let forward = way.unwrap_or(true);
+        }
+    };
+    let extent = |r: &Read<'_, T>| match *r {
+        Read::At(at) => oriented((at, at)),
+        Read::Unread(span, ..) => oriented(span),
+    };
     type PieceKey<T> = (*const Body<T>, EdgeKey);
     let mut chords: Vec<(PieceKey<T>, Option<Chord<T>>)> = Vec::new();
     let ranks = rank_by(reads.len(), |i, j| match (&reads[i], &reads[j]) {
-        ((_, pi, Some((bi, ei))), (_, pj, Some((bj, ej))))
-            if std::ptr::eq(*bi, *bj) && ei == ej =>
+        (&Read::Unread(_, pi, bi, ei), &Read::Unread(_, pj, bj, ej))
+            if std::ptr::eq(bi, bj) && ei == ej =>
         {
-            let piece = (std::ptr::from_ref(*bi), *ei);
+            let piece = (std::ptr::from_ref(bi), ei);
             let chord = match chords.iter().find(|(k, _)| *k == piece) {
                 Some(&(_, chord)) => chord,
                 None => {
-                    let chord = chord_along(bi, *ei, bnd)?;
+                    let chord = chord_along(bi, ei, bnd)?;
                     chords.push((piece, chord));
                     chord
                 }
@@ -4230,14 +4486,13 @@ pub(super) fn rank_crossings<T: Decide>(
             };
             let at = |p: Point3<T>| {
                 let c = chord.along(p);
-                let c = if forward { c } else { -c };
-                Extent { min: c, max: c }
+                oriented((c, c))
             };
-            extent_before(&at(*pi), &at(*pj), bnd)
+            extent_before(&at(pi), &at(pj), bnd)
         }
-        ((xi, _, _), (xj, _, _)) => extent_before(xi, xj, bnd),
+        (ri, rj) => extent_before(&extent(ri), &extent(rj), bnd),
     })?;
-    insert_ranked_or_tied(t, tie, from_tie, base, &keys, ranks, |e| *e)
+    insert_ranked_or_tied(t, tie, from_tie, base, keys, ranks, |e| *e)
 }
 
 /// A NURBS piece's chord, certified to order the piece's points as its
@@ -6635,7 +6890,8 @@ mod edge_pieces_of_one_line_tie {
 
 #[cfg(test)]
 mod track_cover {
-    //! **The flush rule along a curved carrier** ([`Track::cover`]).
+    //! **The flush rule along a curved carrier** ([`Track::cover`]),
+    //! and the seam reading N2 ranks along ([`Track::open_offsets`]).
     //! A closed edge's vertex is conventional and has no identity of
     //! its own (`docs/DESIGN.md`, maximal edges), so the same circle
     //! with its vertex anywhere, its candidates in either order, reads
@@ -6647,8 +6903,8 @@ mod track_cover {
     use geom_core::{Band, Point3, Tol, Vec3};
     use topo::Body;
 
-    use super::{CarrierArc, Cover, Track};
-    use crate::names::discriminate::ON_MEMBER_EDGE;
+    use super::{CarrierArc, Cover, NoStart, Track};
+    use crate::names::discriminate::{ON_MEMBER_EDGE, ON_SEAM_LINE};
 
     fn circle() -> geom::Curve3<f64> {
         geom::Curve3::Circle {
@@ -6768,6 +7024,230 @@ mod track_cover {
             (vec![], vec![0, 1], true)
         );
         assert_eq!(read(&t, vec![(0, arc(2.0, 3.0))]), (vec![], vec![], false));
+    }
+
+    /// A seam piece: the arc of `circle()` from `t0` to `t1` and the
+    /// vertices `v0`, `v1` at its ends.
+    fn piece(t0: f64, t1: f64, v0: u8, v1: u8) -> (CarrierArc<f64>, [u8; 2]) {
+        (arc(t0, t1), [v0, v1])
+    }
+
+    /// Where `at` (carrier parameters) lie along a seam of `pieces`
+    /// whose group is the vertices `group`, read on the track of the
+    /// arc from `t0` to `t1` ([`Track::open_offsets`]).
+    fn offsets(
+        t0: f64,
+        t1: f64,
+        pieces: &[(CarrierArc<f64>, [u8; 2])],
+        group: &[u8],
+        at: &[f64],
+    ) -> Result<Vec<f64>, NoStart> {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let points: Vec<_> = at.iter().map(|&a| circle().eval(a)).collect();
+        track(t0, t1)
+            .open_offsets(pieces, group, &points, ON_SEAM_LINE, band)
+            .unwrap()
+    }
+
+    fn assert_offsets(read: &[f64], want: &[f64], at: &str) {
+        assert_eq!(read.len(), want.len(), "{at}: {read:?}, want {want:?}");
+        for (got, want_one) in read.iter().zip(want) {
+            assert!(
+                (got - want_one).abs() < 1e-9,
+                "{at}: {read:?}, want {want:?}"
+            );
+        }
+    }
+
+    /// **A seam of arcs that leave one gap in the circle is read from
+    /// where it starts**, whichever piece the reading stands on and
+    /// whichever turn of the carrier's parameter it is read in: two pieces from 5.5 to
+    /// 6.0 and on to 7.0, across the cut at τ, read the points at 5.8,
+    /// τ and 6.5 in that order, from the start at 5.5.
+    #[test]
+    fn a_seam_with_one_gap_reads_from_its_start() {
+        let pieces = [piece(5.5, 6.0, 0, 1), piece(6.0, 7.0, 1, 2)];
+        for (t0, t1) in [(5.5, 6.0), (6.0, 7.0), (5.5 - TAU, 6.0 - TAU)] {
+            let read = offsets(t0, t1, &pieces, &[], &[5.8, TAU, 6.5])
+                .unwrap_or_else(|why| panic!("on the arc from {t0}: one stretch, got {why:?}"));
+            assert_offsets(
+                &read,
+                &[0.3, TAU - 5.5, 1.0],
+                &format!("on the arc from {t0}"),
+            );
+        }
+    }
+
+    /// **A seam whose arcs leave two gaps reads from the end of the one
+    /// no vertex of its group bounds**: the arc from 5.0 to 7.5, across
+    /// the cut at τ, with its stretch from 6.0 to 6.5 swallowed between
+    /// the group's two vertices, reads them at 1.0 and 1.5 from 5.0,
+    /// whichever piece reads, in either order, and either way round.
+    #[test]
+    fn a_seam_with_two_gaps_reads_from_the_one_its_group_leaves_free() {
+        let (head, tail) = (piece(5.0, 6.0, 0, 1), piece(6.5, 7.5, 2, 3));
+        let flip = |(a, [v0, v1]): (CarrierArc<f64>, [u8; 2])| {
+            let CarrierArc {
+                p0,
+                mid,
+                p1,
+                closed,
+            } = a;
+            (
+                CarrierArc {
+                    p0: p1,
+                    mid,
+                    p1: p0,
+                    closed,
+                },
+                [v1, v0],
+            )
+        };
+        let orders = [
+            vec![head.clone(), tail.clone()],
+            vec![tail.clone(), head.clone()],
+            vec![flip(head.clone()), flip(tail.clone())],
+        ];
+        for pieces in &orders {
+            for (t0, t1) in [(5.0, 6.0), (6.5, 7.5), (6.5 - TAU, 7.5 - TAU)] {
+                let at = format!("on the arc from {t0}, pieces {pieces:?}");
+                let read = offsets(t0, t1, pieces, &[1, 2], &[6.0, 6.5])
+                    .unwrap_or_else(|why| panic!("{at}: one free gap, got {why:?}"));
+                assert_offsets(&read, &[1.0, 1.5], &at);
+            }
+        }
+    }
+
+    /// **A closed carrier ties**: pieces that cover the whole circle, or
+    /// one closed piece, leave no gap to start from. Pieces that leave
+    /// two gaps tie where the group bounds both, or neither.
+    #[test]
+    fn a_seam_round_the_whole_circle_or_with_no_one_free_gap_has_no_start() {
+        let whole = [piece(1.0, 4.0, 0, 1), piece(4.0, 1.0 + TAU, 1, 0)];
+        assert_eq!(
+            offsets(1.0, 4.0, &whole, &[], &[2.0, 3.0]),
+            Err(NoStart::WholePeriod),
+            "two pieces round it"
+        );
+        assert_eq!(
+            offsets(1.0, 4.0, &[piece(1.0, 1.0 + TAU, 0, 0)], &[], &[2.0, 3.0]),
+            Err(NoStart::WholePeriod),
+            "one closed piece"
+        );
+        let holed = [piece(1.0, 2.0, 0, 1), piece(3.0, 4.0, 2, 3)];
+        let at = [1.5, 3.5];
+        assert_eq!(
+            offsets(1.0, 2.0, &holed, &[], &at),
+            Err(NoStart::SeveralFreeGaps),
+            "two gaps, the group bounding neither"
+        );
+        assert_eq!(
+            offsets(1.0, 2.0, &holed, &[1, 3], &at),
+            Err(NoStart::EveryGapBounded),
+            "two gaps, the group bounding both"
+        );
+        assert_offsets(
+            &offsets(3.0, 4.0, &holed, &[1, 2], &at).unwrap(),
+            &[0.5, 2.5],
+            "two gaps, the group bounding the one between them",
+        );
+        assert!(
+            offsets(1.0, 2.0, &holed[..1], &[], &[1.2, 1.5]).is_ok(),
+            "one piece of them, one gap"
+        );
+    }
+
+    /// **Pieces on two carriers tie**: an arc of the circle of radius 2
+    /// is no stretch of the unit circle, nor is a point off it.
+    #[test]
+    fn pieces_or_points_off_the_carrier_have_no_offset() {
+        let other = CarrierArc {
+            p0: Point3::new(2.0, 0.0, 0.0),
+            mid: Point3::new(0.0, 2.0, 0.0),
+            p1: Point3::new(-2.0, 0.0, 0.0),
+            closed: false,
+        };
+        assert_eq!(
+            offsets(
+                1.0,
+                2.0,
+                &[piece(1.0, 2.0, 0, 1), (other, [2, 3])],
+                &[],
+                &[1.5]
+            ),
+            Err(NoStart::OffCarrier),
+            "two carriers"
+        );
+        let band = Band::linear(Tol::witness()).unwrap();
+        let off = [Point3::new(0.0, 0.0, 1.0)];
+        assert_eq!(
+            track(1.0, 2.0)
+                .open_offsets(&[piece(1.0, 2.0, 0, 1)], &[], &off, ON_SEAM_LINE, band)
+                .unwrap(),
+            Err(NoStart::OffCarrier),
+            "a point off the circle"
+        );
+    }
+
+    /// **Which piece reads a seam on an ellipse changes no verdict**:
+    /// on the ellipse of semi-axes 3 and 0.5, three pieces leave one gap
+    /// of parameter width `g` at the fast end (θ = π/2, speed 3), and
+    /// each piece reads the gap and two points, its middle at speed 0.5,
+    /// 1.8 and 2.4. At every `g`, from well inside the zero band to well
+    /// past the escalate band, all three read alike: the same offsets,
+    /// the same tie, or the same escalation.
+    #[test]
+    fn every_piece_of_an_ellipse_seam_reads_its_gap_alike() {
+        use std::f64::consts::{FRAC_PI_2, PI};
+        let ellipse = geom::Curve3::Ellipse {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            semi_u: 3.0,
+            semi_v: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        let on = |t0: f64, t1: f64| CarrierArc {
+            p0: ellipse.eval(t0),
+            mid: ellipse.eval(0.5 * (t0 + t1)),
+            p1: ellipse.eval(t1),
+            closed: false,
+        };
+        let band = Band::linear(Tol::witness()).unwrap();
+        let points = [ellipse.eval(PI), ellipse.eval(TAU)];
+        for g in [1e-10, 5e-10, 1e-9, 2e-9, 5e-9, 1e-8, 2e-8, 1e-7] {
+            let ends = [
+                FRAC_PI_2 + g / 2.0,
+                1.5 * PI,
+                TAU + 0.3,
+                TAU + FRAC_PI_2 - g / 2.0,
+            ];
+            let pieces: Vec<_> = (0..3)
+                .map(|i| (on(ends[i], ends[i + 1]), [i, i + 1]))
+                .collect();
+            let reads: Vec<String> = (0..3)
+                .map(|i| {
+                    let track = Track::on(
+                        topo::EdgeKey::default(),
+                        ellipse.clone(),
+                        (ends[i], ends[i + 1]),
+                        false,
+                    )
+                    .unwrap();
+                    match track.open_offsets(&pieces, &[], &points, ON_SEAM_LINE, band) {
+                        Ok(Ok(at)) => format!("{at:.9?}"),
+                        Ok(Err(why)) => format!("{why:?}"),
+                        Err(crate::names::emit::NamingError::Escalated { .. }) => {
+                            "escalated".to_owned()
+                        }
+                        Err(other) => panic!("gap {g}, piece {i}: {other:?}"),
+                    }
+                })
+                .collect();
+            assert!(
+                reads.iter().all(|r| *r == reads[0]),
+                "gap {g}: the three pieces read {reads:?}"
+            );
+        }
     }
 }
 
