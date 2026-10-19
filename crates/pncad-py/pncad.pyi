@@ -1395,8 +1395,9 @@ class StartToken:
 
 class ArrivesTangentToken:
     """The type of `Start.arrives_tangent()`, the seam's declared
-    tangent arrival. `line_to`, `tangent_arc_to` and `arc_to(Bulge(...))`
-    take it; `Via` and `Center` do not."""
+    tangent arrival. Every closer takes it: where the leg's data fix its
+    end direction it is checked; `arc_onto` and the `Via` arrival take
+    `Start`'s direction from it and close at the verb."""
 
 # A closing target: `Start`, with or without the seam's declaration.
 _Close: TypeAlias = StartToken | ArrivesTangentToken
@@ -1475,7 +1476,18 @@ _PointLeg: TypeAlias = Bulge[_Pt] | Via[_Pt] | Center[_Pt]
 # position and tangent; the incoming side's anchor is the tip).
 _LegEndIncoming: TypeAlias = Bulge[_Pt] | Via[_Pt] | Center[_Pt] | Radius
 _BulgeClose: TypeAlias = Bulge[StartToken] | Bulge[ArrivesTangentToken]
-_PointClose: TypeAlias = _BulgeClose | Via[StartToken] | Center[StartToken]
+_PointClose: TypeAlias = (
+    _BulgeClose
+    | Via[StartToken]
+    | Via[ArrivesTangentToken]
+    | Center[StartToken]
+    | Center[ArrivesTangentToken]
+)
+# The arrivals that close at the verb: `Center` at `Start` (checked
+# when declared), and `Via` with the declaration supplying its director.
+_ArrivalClose: TypeAlias = (
+    Center[StartToken] | Center[ArrivesTangentToken] | Via[ArrivesTangentToken]
+)
 _Tangent: TypeAlias = Sweep | ArcLen
 
 class Open:
@@ -1497,7 +1509,7 @@ class Open:
     @overload
     @staticmethod
     def arc_fillet_arc(
-        spec: Center[_Pt], radius: Length, spec2: Center[StartToken]
+        spec: Center[_Pt], radius: Length, spec2: _ArrivalClose
     ) -> ClosedLoop: ...
     @overload
     @staticmethod
@@ -1589,6 +1601,27 @@ class PathViaArrivalStart:
     def angle(self, theta: Angle) -> ClosedLoop: ...
     def toward(self, dx: float, dy: float) -> ClosedLoop: ...
 
+class PathArcOnto:
+    """`arc_onto(p)`: the target bound, ONE director pending — it names
+    the arc's END tangent, and the departure is derived."""
+
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
+    def angle(self, theta: Angle) -> PathDirectedPoint: ...
+    def toward(self, dx: float, dy: float) -> PathDirectedPoint: ...
+
+class PathArcOntoStart:
+    """`arc_onto(Start)`: the sharp seam, ONE director pending."""
+
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
+    def angle(self, theta: Angle) -> ClosedLoop: ...
+    def toward(self, dx: float, dy: float) -> ClosedLoop: ...
+
 class PathPoint:
     """A plain point: position bound, no incoming carrier. There is
     nothing to inherit here, so `tangent` and `turn` are absent."""
@@ -1607,6 +1640,12 @@ class PathPoint:
     def arc_to(self, spec: _PointLeg) -> PathDirectedPoint: ...
     @overload
     def arc_to(self, spec: _PointClose) -> ClosedLoop: ...
+    @overload
+    def arc_onto(self, target: tuple[Length, Length]) -> PathArcOnto: ...
+    @overload
+    def arc_onto(self, target: StartToken) -> PathArcOntoStart: ...
+    @overload
+    def arc_onto(self, target: ArrivesTangentToken) -> ClosedLoop: ...
     def arc_fillet(self, spec: _PointLeg, radius: Length) -> PathOpen: ...
     @overload
     def arc_fillet_arc(
@@ -1614,7 +1653,7 @@ class PathPoint:
     ) -> PathDirectedPoint: ...
     @overload
     def arc_fillet_arc(
-        self, spec: _PointLeg, radius: Length, spec2: Center[StartToken]
+        self, spec: _PointLeg, radius: Length, spec2: _ArrivalClose
     ) -> ClosedLoop: ...
     @overload
     def arc_fillet_arc(
@@ -1646,7 +1685,7 @@ class PathDirectedPoint:
     @overload
     def fillet_arc(self, radius: Length, spec: Center[_Pt]) -> PathDirectedPoint: ...
     @overload
-    def fillet_arc(self, radius: Length, spec: Center[StartToken]) -> ClosedLoop: ...
+    def fillet_arc(self, radius: Length, spec: _ArrivalClose) -> ClosedLoop: ...
     @overload
     def fillet_arc(self, radius: Length, spec: Radius) -> PathRadiusArrival: ...
     @overload
@@ -1663,6 +1702,12 @@ class PathDirectedPoint:
     def arc_to(self, spec: _PointLeg) -> PathDirectedPoint: ...
     @overload
     def arc_to(self, spec: _PointClose) -> ClosedLoop: ...
+    @overload
+    def arc_onto(self, target: tuple[Length, Length]) -> PathArcOnto: ...
+    @overload
+    def arc_onto(self, target: StartToken) -> PathArcOntoStart: ...
+    @overload
+    def arc_onto(self, target: ArrivesTangentToken) -> ClosedLoop: ...
     def arc_fillet(self, spec: _LegEndIncoming, radius: Length) -> PathOpen: ...
     @overload
     def arc_fillet_arc(
@@ -1670,7 +1715,7 @@ class PathDirectedPoint:
     ) -> PathDirectedPoint: ...
     @overload
     def arc_fillet_arc(
-        self, spec: _LegEndIncoming, radius: Length, spec2: Center[StartToken]
+        self, spec: _LegEndIncoming, radius: Length, spec2: _ArrivalClose
     ) -> ClosedLoop: ...
     @overload
     def arc_fillet_arc(
@@ -1698,7 +1743,7 @@ class PathDirected:
     @overload
     def fillet_arc(self, radius: Length, spec: Center[_Pt]) -> PathDirectedPoint: ...
     @overload
-    def fillet_arc(self, radius: Length, spec: Center[StartToken]) -> ClosedLoop: ...
+    def fillet_arc(self, radius: Length, spec: _ArrivalClose) -> ClosedLoop: ...
     @overload
     def fillet_arc(self, radius: Length, spec: Radius) -> PathRadiusArrival: ...
     @overload
@@ -1715,7 +1760,7 @@ class PathDirected:
     ) -> PathDirectedPoint: ...
     @overload
     def arc_fillet_arc(
-        self, spec: _Tangent, radius: Length, spec2: Center[StartToken]
+        self, spec: _Tangent, radius: Length, spec2: _ArrivalClose
     ) -> ClosedLoop: ...
     @overload
     def arc_fillet_arc(
@@ -6864,9 +6909,9 @@ class CheckEvidence:
     `unsupported` (`reason`, `inner_variant`) — a shell's orientation
     read could not be decided at this tolerance, or a face is outside
     the flux inventory, so the count is UNKNOWABLE and says so rather
-    than guessing; `inner_variant` is which of the shell door's five
+    than guessing; `inner_variant` is which of the shell door's nine
     refusals it was (`band`, `props`, `escalated`, `zero_volume`,
-    `straddles`).
+    `straddles`, `ray_in_band`, `corner`, `ray`, `sign_unresolved`).
     `stale_expectation` (`expected`) — an
     expectation no subject consumed. `not_separated` (`other_root`,
     `other_output`) — a pair the box certificate could not prove apart,

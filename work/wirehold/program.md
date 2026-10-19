@@ -10,7 +10,6 @@ tag: (WIREHOLD orchestrator)
 ab_band: 13200-13299
 paths: [crates/editor-core/src/placement.rs]
 keep_out: [opened 2026-10-17 by WIRE's priority-seam cut - the rows moved by git mv with ids and bodies unchanged, WIRE stays open with its P0-P2 slate, crates/editor-core/src/eval/wire.rs and eval/mod.rs are shared ground with WIRE WIRETAIL and INTENT, whose stage 3 units rebuild the placement and pattern doors these rows stand on - when a trigger fires re-read the row against the tree first since most of them are expected to be moot, and run scripts/work.py territory on your branch and announce the seam in the PR]
-priority: P1
 ---
 
 **Nothing here is dispatchable, and nobody holds the track.** Every

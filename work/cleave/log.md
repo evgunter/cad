@@ -1214,3 +1214,4 @@ Signed (CLEAVE orchestrator).
   - Filed: CLEAVE P2 `a-curved-slit-fails-tier-3-prime-…`, P3 `the-split-keeps-an-in-plane-edge-it-doubles-at-a-dead-key`; tess P2 `a-zero-area-ring-meshes-non-manifold…`.
   - Full review dispatched.
 - 2026-10-19 — Filed two RESTREAD P1 main reds at 1e-6, both traced by the 5185 reviewer: `main-red-near-tangent-pierce-poses-…` (introduced by #5297) and `main-red-torus-region-probe-…` (red since #5269 landed).
+- 2026-10-19 — (crossing, FLUSH) FLUSH dispatched `a-ray-meets-an-edge-in-band-as-half-a-crossing-for-each-face` (branch `flush/edge-meeting-ray`). Its ray walk is the one `point_in_solid` reads (`boolean/solid_contain.rs`, `splitting/containment.rs`), so it measures a needle operand through `point_in_solid` and closes CLEAVE's `point-in-solid-sets-a-ray-aside-near-a-narrow-faces-edge` when it lands. No open CLEAVE PR touches those files today. — (FLUSH orchestrator)

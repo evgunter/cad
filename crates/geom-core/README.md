@@ -236,21 +236,29 @@ unresolved enclosure, a straddle) ends in the lever whatever the side.
 |---|---|---|---|
 | `Lever` | the lever and the note | the lever and the note | the lever and the note |
 | `StoredContradiction` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
-| `Unminted` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
+| `Unminted` | a panic | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
 
 Within ε_in the import door ends every band-decided reading in its one
-sentence and the lever, whatever the side. The table departs from
-clause (iv) in two cells, each typed until the door that would keep
-input from it exists, and each scheduled by its row:
-
-- an unminted side at a build, which `topo::Body::mev` reaches from a
-  caller's own interval until the public Euler doors refuse a
-  non-forward or degenerate span typed
-  (`work/encl/param-span-unminted-side-is-reached-at-a-build-by-public-euler-doors.md`);
-- the at-rest column, which the validator also reads at the import gate
-  (`[import]` step 4) and so a damaged file reaches until adoption
-  checks everything the validator does
-  (`work/encl/at-rest-stored-contradictions-and-unminted-sides-panic-once-import-validates-everything.md`).
+sentence and the lever, whatever the side. An unminted side panics at a
+build because no public door returns a refusal that reads so. Every
+public certification door (`geom_brep::EdgeCurve::certify`,
+`EdgeCurve::recertify` and their `_via` forms) reports a span check's
+reading certainly on its refused side as its input's
+(`geom_brep::CertifyError::StatedInterval`, at a build in the check's
+own lever): a caller's interval, or a stored arc re-certified at a band
+finer than the one it was minted at, since the winding decision passes
+a headroom its band reads as zero. Where that input is an edge the
+kernel holds, re-minted or re-certified at the run's one band (a rigid
+motion, a graft, a re-description in place, a split child, a re-based
+run), `topo` panics at the call site (`policy_lane::kernels_own`): a
+kernel bug. Only a refusal built by hand reaches `CertCheck::ParamSpan`'s
+or `CertCheck::ParamWinding`'s own ending at a build. The table departs from
+clause (iv) in one cell, typed until the door that would keep input
+from it exists, and scheduled by its row: the at-rest column, which the
+validator also reads at the import gate (`[import]` step 4) and so a
+damaged file reaches until adoption checks everything the validator
+does
+(`work/encl/at-rest-stored-contradictions-and-unminted-sides-panic-once-import-validates-everything.md`).
 
 Review checklist form: for every arm added to a decision, name which
 ε_input story it belongs to, or say why it belongs to none.

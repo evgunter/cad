@@ -399,8 +399,9 @@ const POLEFRUSTUM: &str = "tests/fixtures/poleguard/polefrustum.step";
 /// at rest (D4 ¶1): each twin's span lies past its file's ε_in
 /// (1e-10 m), so the file tells it from zero and the offer to tighten
 /// stands, valued — the value is the span over K, so it pins the span.
-/// A span of no length ends in the lever and a note instead, which the
-/// offer's words cannot match.
+/// A span of no length is refused as the interval the adoption's mint
+/// was handed instead, in the lever alone, which the offer's words
+/// cannot match.
 const POLEBAND_ZERO_SPAN_TOLD: &str = "the stored parameter interval is not shown to run \
      forward (length 5.654866773844621e-9 m). Recourse: move the geometry so this \
      edge runs forward over a clear length, or, if this length is intended, tighten the tolerance \

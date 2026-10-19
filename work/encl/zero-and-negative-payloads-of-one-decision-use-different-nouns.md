@@ -26,3 +26,11 @@ These payloads in `crates/geom-brep/src/certify.rs` (`impl Display for CertifyEr
 One noun, and one sign convention for a decision's margin, across its arms. That means either the signed margin everywhere, or the amount everywhere with the noun saying which way.
 
 The class: for every `CertifyError` variant with more than one refused arm, read its arms' Displays side by side. Put the hit list in the PR.
+
+## Evidence, 2026-10-19 (PR 5365)
+
+`crates/geom-brep/src/certify.rs` now spells the forward-span sentence twice:
+- `CertifyError::IntervalNotForward`'s Display (~717): "the stored parameter interval is not shown to run forward (length {} m)";
+- `StatedSpan`'s Display (~1113): "{given} is not shown to run forward (length {} m)".
+
+The two templates differ only in their subject. Give the sentence one home that takes the subject. (ENCL orchestrator)

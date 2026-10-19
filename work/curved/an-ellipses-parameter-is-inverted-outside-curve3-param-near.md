@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-01
 priority: P4
 cost: M
-refs: [edge-pieces-are-named-by-their-ends]
 ---
 
 
