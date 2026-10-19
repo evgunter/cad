@@ -529,7 +529,7 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
             // circle mints a projected one at rest (an oblique fillet
             // corner's octant); the props door refuses that face's spherical
             // triangle before this lane is asked.
-            let Pcurve::Harmonic { p0, pa, pb, pl } = *image else {
+            let Some((p0, pa, pb, pl)) = image.harmonic_form() else {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "curved-cut face half-edge carries a pcurve with no harmonic form on \
                        an analytic chart (a FITTED or PROJECTED image, or a cone section's or \
@@ -739,8 +739,9 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
                             major: iv(*major),
                             minor: iv(*minor),
                         },
-                        Pcurve::Harmonic { p0, pa, pb, pl } => {
-                            WallImage::Harmonic([pair(*p0), vec(*pa), vec(*pb), vec(*pl)])
+                        Pcurve::Harmonic { u, v } => {
+                            let (p0, pa, pb, pl) = geom_brep::harmonic_form_of(*u, *v);
+                            WallImage::Harmonic([pair(p0), vec(pa), vec(pb), vec(pl)])
                         }
                         _ => WallImage::Other,
                     },
@@ -1119,10 +1120,10 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         centre,
     );
     let out = quad::nurbs_patch_face_rounds::<T>(
-        payload.knots_u(),
-        payload.knots_v(),
+        payload.knots_u_f64_interim(),
+        payload.knots_v_f64_interim(),
         &control,
-        payload.weight_channel(),
+        payload.weights_f64_interim(),
         (u0, u1, v0, v1),
         perimeter,
         boundary_defect,
@@ -1259,13 +1260,13 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
                     });
                 }
                 Some(TrimPiece {
-                    knots: image.knots().clone(),
+                    knots: image.knots_f64_interim().clone(),
                     control: image
                         .control()
                         .iter()
                         .map(|p| (ring(p.x), ring(p.y)))
                         .collect(),
-                    weights: image.weight_channel().to_vec(),
+                    weights: image.weights_f64_interim().to_vec(),
                 })
             }
             Pcurve::Fitted(_) => {
@@ -1347,10 +1348,10 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
         centre,
     );
     quad::trimmed_patch_face_rounds::<T>(
-        payload.knots_u(),
-        payload.knots_v(),
+        payload.knots_u_f64_interim(),
+        payload.knots_v_f64_interim(),
         &control,
-        payload.weight_channel(),
+        payload.weights_f64_interim(),
         &chords,
         tol.eps(),
         band,

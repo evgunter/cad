@@ -33,6 +33,7 @@
 //! would fix `f64` rounding of an irrational rather than the geometry.
 //! The `die_chamfer` disposition, and every sibling's in this family.
 
+use super::PlacePart;
 use editor_core::{Datum, DocEdit, Node, SlotId, TubeWindow};
 
 use super::super::fixture::{len, scl};
@@ -74,7 +75,7 @@ pub fn document() -> CorpusDoc {
         wall: len(WALL),
     });
 
-    r.place(ring);
+    r.place_part(ring);
 
     CorpusDoc {
         name: "hollow_tube_ring",

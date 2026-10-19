@@ -30,9 +30,8 @@ use crate::emit_union_flush_names::parent_of;
 use crate::fixture::{ang, face_vertices, frame, insert, len, on_frame, out, scl, step, table};
 
 use editor_core::{
-    Axis3, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable, NamingError,
-    Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, SlotId,
-    StableName,
+    Axis3, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable, Node,
+    ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, SlotId, StableName,
 };
 use geom_core::Tol;
 
@@ -623,7 +622,7 @@ fn a_boss_moved_onto_the_divider_is_the_border_delta() {
     let [left] = gone.as_slice() else {
         panic!("exactly the left piece's name changes: {before:?} -> {after:?}");
     };
-    let res = editor_core::resolve(
+    let res = crate::fixture::resolve_at_mint(
         editor_core::RunCtx {
             doc: &doc2,
             eval: &ev2,
@@ -1334,14 +1333,10 @@ fn a_curved_divider_names_as_the_pair_boolean_does() {
 /// qualified by the slab wall it borders (N2) rather than both
 /// publishing the parent's bare name.
 ///
-/// The faces name; what refuses is the seam chord where a slab wall
-/// meets a merged face, which holds two faces of the boss on the side
-/// the chord reads through to (`NamingError::MergedChordConstituents`,
-/// the missing rule
-/// `work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`
-/// owns); when that rule lands, this row's expectation flips. The boss
-/// is joined by a pair boolean and by a union in both member orders,
-/// and each refuses the same way.
+/// Each seam chord where a slab wall meets a merged face cites the
+/// merged face's parent ([`assert_wall_chords_cite_the_merged_parent`]).
+/// The boss is joined by a pair boolean and by a union in both member
+/// orders.
 #[test]
 fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
     let doc = ProfileDoc::empty_derived("sunk-boss-slot", Tol::witness());
@@ -1374,16 +1369,91 @@ fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
             failure(&ev, joined)
         );
         assert!(
-            matches!(
-                failure(&ev, cut),
-                Some(NodeErrorKind::Naming(
-                    NamingError::MergedChordConstituents { several: 2, .. }
-                ))
-            ),
-            "{label}: the slot's faces name and only the chord rule is missing: {:?}",
+            failure(&ev, cut).is_none(),
+            "{label}: the slot names: {:?}",
             failure(&ev, cut)
         );
+        assert_wall_chords_cite_the_merged_parent(&label, &ev, boss, cut, 4);
     }
+}
+
+/// **A seam chord on the boss wall cites the merged wall's parent.**
+/// The boss of [`cylinder`] about (1.5, 1.5), radius 0.3, keeps its
+/// wall as two pieces, read off the boss's own table. Every edge of
+/// `out`'s table running up that wall (both ends on it, at one x and y)
+/// is a seam chord against a wall of the other operand, and the merged
+/// face beside it is cited by its parent, which lists both pieces,
+/// never by the piece the chord lies on (N3). The chords on one slot
+/// wall are two pieces of one seam, told apart by their `Ends` (N2);
+/// `chords` of them stand.
+fn assert_wall_chords_cite_the_merged_parent(
+    label: &str,
+    ev: &Evaluation<f64>,
+    boss: RecipeNodeId,
+    out: RecipeNodeId,
+    chords: usize,
+) {
+    use crate::fixture::{ends, point};
+    let on_wall = |p: geom_core::Point3<f64>| ((p.x - 1.5).hypot(p.y - 1.5) - 0.3).abs() < 1e-9;
+    let boss_body = body_of(ev, boss);
+    let pieces: Vec<String> = table(ev, boss)
+        .iter()
+        .filter_map(|(name, entry)| match entry {
+            Entry::Unique(ent) => match ent.key {
+                EntityKey::Face(f)
+                    if topo::query::face_surface_kind(boss_body, f)
+                        == Some(geom::SurfaceKind::Cylinder) =>
+                {
+                    Some(name.to_string())
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        pieces.len(),
+        2,
+        "{label}: the boss wall is two pieces: {pieces:?}"
+    );
+    let body = body_of(ev, out);
+    let mut seams: BTreeMap<RoleSeg, usize> = BTreeMap::new();
+    for (name, entry) in table(ev, out).iter() {
+        let Entry::Unique(ent) = entry else { continue };
+        let EntityKey::Edge(e) = ent.key else {
+            continue;
+        };
+        let [p0, p1] = ends(body, e).map(|v| point(body, v));
+        if !(on_wall(p0) && on_wall(p1) && (p0.x - p1.x).abs() < 1e-9 && (p0.y - p1.y).abs() < 1e-9)
+        {
+            continue;
+        }
+        let [
+            head @ RoleSeg::Seam { a, b },
+            RoleSeg::Fragment(Qualifier::Ends(_)),
+        ] = name.path.as_slice()
+        else {
+            panic!("{label}: a chord up the boss wall is a piece of a seam, by its ends: {name}");
+        };
+        let cites_both = |side: &StableName| pieces.iter().all(|p| side.to_string().contains(p));
+        assert!(
+            cites_both(a) != cites_both(b),
+            "{label}: the chord at ({:.3}, {:.3}) cites, on one side, the merged wall's \
+             parent over both pieces: {name}",
+            p0.x,
+            p0.y
+        );
+        *seams.entry(head.clone()).or_default() += 1;
+    }
+    assert_eq!(
+        seams.values().sum::<usize>(),
+        chords,
+        "{label}: the chords up the boss wall"
+    );
+    assert!(
+        seams.values().all(|&n| n == 2),
+        "{label}: each slot wall's seam with the merged wall is two pieces: {seams:?}"
+    );
 }
 
 /// **A slot across a sunk boss, turned 90°, names.** The boss of

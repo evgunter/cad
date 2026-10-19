@@ -59,7 +59,7 @@ use crate::m10_7_plate::plate;
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::nominal_box;
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
-use editor_core::{CancelToken, EvalOptions, ProfileLift, evaluate};
+use editor_core::{CancelToken, EvalOptions, evaluate};
 use geom_core::SymBudget;
 use geom_core::sym::with_session_rules;
 use std::sync::Arc;
@@ -71,7 +71,6 @@ use std::sync::Arc;
 fn bare_replay(doc: &editor_core::ProfileDoc, box_: &ParamBox, tol: Tol) -> geom_core::SymCounts {
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
     let budget = SymBudget {
@@ -620,12 +619,57 @@ const PLATE_MAX_TERMS: usize = 28;
 /// 5753 → 5790 forms, which it now builds where the check's walk built
 /// them first, and both digests; the frozen counts, the `Early/*` and
 /// `Door/*` lines and the largest form hold.
+///
+/// Placing each row over its edge's span in the chart's principal
+/// window (C4) reads two half-period marks per placed azimuth, each
+/// decided numerically, so each is checked against the tier: 36
+/// placements, `Plain/Assertion` and `Early/Assertion` 654 → 726 calls
+/// and `Door/Decision` 396 → 468, `Plain/Assertion` frozen 405 → 417.
+/// A cylinder's meridian azimuth is read only on a meridian, so the
+/// rim circles centred on the axis no longer take the frame read of
+/// their zero radial offset: `Plain/Decision` 1048 → 1032 calls. Forms
+/// and digests move on every line; the largest form holds.
+/// The placement's lever, the direction's length, squares by
+/// `powi(2)`: the `Plain/Assertion` digest, with every count held.
+/// With the wedge levered at its faces' extent as well, the calls and
+/// frozen counts are the placement's and the forms take both: Plain/Assertion
+/// 6081, Early/Decision 8925, Early/Assertion 7244, Door/Decision 8231;
+/// the largest form holds. The placement's azimuth levered at the
+/// carrier's farthest reach from the axis at the span's ends and midpoint
+/// (PR 5225's one lever rule) builds each mark's form from three points:
+/// every call holds; forms Plain/Decision 15888, Plain/Assertion 6909
+/// (frozen 417 → 405), Early/Decision 8889, Early/Assertion 8108,
+/// Door/Decision 9469. Main's final non-finite check and the placement
+/// add: `Plain/Decision` 1032 → 987 calls (main's −45) and forms
+/// 15888 → 15839, `Plain/Assertion` forms 6909 → 6946, both digests;
+/// every other line is the placement's. The frame decided across the
+/// window's cut builds the cut-side margin's form in place of `x`'s:
+/// forms Plain/Assertion 6946 → 7020, Early/Assertion 8108 → 8182,
+/// Door/Decision 9469 → 9545, and their digests; every call and frozen
+/// count holds.
+///
+/// A harmonic row's windings are structure it stores and certification
+/// compares exactly (PCERT B2a, `[ev]` PR 5113's first decision), so
+/// the decisions that read a winding off a slope are gone: the angle
+/// channel's two affine decisions, the winding walk and the harmonic
+/// lane's period gate, `Plain/Decision` 987 → 939 calls and
+/// `Plain/Assertion`, `Early/Assertion` 726 → 686, `Door/Decision`
+/// 468 → 428; forms and digests move with them, and freezes and the
+/// largest form hold.
+///
+/// A winding read as its slope through the chart channel's `Period`
+/// (`Period::rate`: `times(k)` over the carrier's period, PCERT B2a's
+/// fix pass, H1) rather than as a literal: each angle channel's slope
+/// is a quotient of two forms, so `Plain/Decision`, `Plain/Assertion`,
+/// `Early/Decision` and `Early/Assertion` +3 forms and `Door/Decision`
+/// +10, with every digest; every call, every freeze and the largest
+/// form hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1003 forms 16013 frozen 324 digest 5a00e900e5b75a93d7c4a204eab0bb17\n\
-     Plain/Assertion calls 654 forms 5790 frozen 405 digest eae9779dd552c4c2607469dbee61dbef\n\
-     Early/Decision calls 352 forms 8955 frozen 0 digest b7df112980f31400f624889d1eabd515\n\
-     Early/Assertion calls 654 forms 6972 frozen 0 digest f0e4564a343b8e6322ec666c5a03e5ab\n\
-     Door/Decision calls 396 forms 7987 frozen 0 digest f849cdbc1af49b153010b84116530ce4";
+     Plain/Decision calls 939 forms 15836 frozen 324 digest ac360a3480da30b765ada11e3a3550c7\n\
+     Plain/Assertion calls 686 forms 7003 frozen 405 digest 8d1ea8d4812fe2b0aa85cda0c308edfa\n\
+     Early/Decision calls 352 forms 8892 frozen 0 digest 61a2facb711fb0a70f13d4cfa3ece435\n\
+     Early/Assertion calls 686 forms 8165 frozen 0 digest 97a4cf4126af3c7869dc275a5f227dba\n\
+     Door/Decision calls 428 forms 9525 frozen 0 digest c92c1df17252cd30da849fc47ba1a121";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

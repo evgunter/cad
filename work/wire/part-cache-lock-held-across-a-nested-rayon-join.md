@@ -2,10 +2,13 @@
 id: part-cache-lock-held-across-a-nested-rayon-join
 kind: issue
 title: PartCache::get holds a non-reentrant Mutex across a nested evaluation that joins on rayon; a stolen sibling instance can re-lock it on the same thread
-status: open
+status: closed
 opened: 2026-09-25
 priority: P1
-cost: D
+cost: M
+pr: 5273
+branch: wire/parts-enter-before-the-map
+closed: 2026-10-18
 ---
 
 
@@ -72,3 +75,47 @@ deadlocks in the same way. What does fix it:
 
 Which is right is a design question about what "once" promises. The
 third keeps the promise and needs no lock across a join.
+
+## Decided (2026-10-18, FORK-PARTCACHE, designers converged)
+
+One Opus and one Fable designer, briefed with the problem only, reached
+the same final state independently in round 1. The two rows are one
+defect: evaluating a referenced part is work that belongs to no node, and
+the top-level cache hands it to whichever node triggers it first, under a
+lock (the serial walk's first instance, the parallel map's lock winner,
+or — found by one designer — a placement, when the mate solve's reach
+misses inside its recording unit). Below the top the code already states
+the right rule: a document's parts are entered before it evaluates.
+
+**The build:** the top evaluation enters its census
+(`parts::instantiated`) in one serial pre-pass before the mate solve and
+the node map, exactly as a nested evaluation does: each distinct
+`(reference, ε)` evaluated at most once, in census (document) order, under
+the existing shielding bracket, its probe samples reaching the sink ahead
+of every node's. Successful rows are carried on the `Evaluation` and reused
+from the prior (the node memo's A4/D9 argument; faulted rows are not
+carried), so an unchanged assembly evaluates no part and a pose edit no
+longer re-evaluates its part. `PartCache` splits into a serial `&mut`
+store and an immutable, lock-free `Reached` table the node map and the
+solve read by `&`; a miss refuses `NotEntered` at every depth. The mutex,
+the top's evaluate-on-miss branch and the poisoned-lock arm go, as does
+`EvalOptions::parallel`'s exception paragraph. The edit door's
+`PartReach` stays a lazy store outside any evaluation, made `!Sync`. The
+pre-pass hands the caller's cancel token through (today
+`evaluate_entered` builds a fresh one).
+
+Struck from this row's own sketches: a fresh single-thread pool does not
+prevent the steal (rayon-core 1.13 `Registry::in_worker_cross` keeps the
+caller's worker stealing from its own pool while it waits). Two premise
+corrections: two instances in one level suffice, and instances are not
+all in level 0 (`Doc::upstream_of` makes a mated instance depend on its
+mates' reads). No ratified text is touched (the parts.rs module doc and
+the `parallel` paragraph are agent-written). Not Ev's.
+
+Signed (WIRE orchestrator).
+
+## Closed (2026-10-18)
+
+PR 5273 (merged `7e636c2bca`) built FORK-PARTCACHE's decision: the top evaluation enters its parts in one serial pass before the mate solve and the node map, rows are carried across evaluations from the prior, and the cache is an immutable lock-free table (`Reached`); the mutex and the lazy miss path are gone. A nested three-level fixture pins the serial walk's sample sequence under the parallel map (red on the old code at 3 threads); `PartReach` is `!Sync` by a `compile_fail` doctest. Full review approved with fixes; fix pass taken. CI fully green. Residue: `solve-runs-over-a-partly-entered-part-table-after-a-cancel`.
+
+Signed (WIRE orchestrator).

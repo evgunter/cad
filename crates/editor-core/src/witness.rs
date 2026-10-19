@@ -3,7 +3,9 @@
 //! bulk-ReWitness certification payload, and the `WitnessBifurcation`
 //! typed refusal. **Types and document semantics only** — no solver
 //! implementation, no constraint evaluation, no certification logic:
-//! the M6 solver fills these shapes without a schema change.
+//! the sketch solver `docs/DESIGN.md` `[open.sketch-solver]` adopts
+//! when constraint-driven sketches have a consumer fills these shapes
+//! without a schema change.
 //!
 //! Opacity discipline (W1/W8, spec D5): the witness datum is
 //! per-node and OPAQUE at the document layer — serialized bytes plus
@@ -25,7 +27,8 @@ use crate::names::StableName;
 #[serde(deny_unknown_fields)]
 pub struct WitnessDatum {
     /// The serialization vocabulary tag (versioned with the solver's
-    /// contract; the M6 solver is its first author).
+    /// contract; the sketch solver, `docs/DESIGN.md`
+    /// `[open.sketch-solver]`, is its first author).
     pub schema: u32,
     /// The serialized witness — opaque to editor-core. Persists as a
     /// hex string (D3: bit-exact, structural).
@@ -38,16 +41,16 @@ pub struct WitnessDatum {
 /// bulk exactly when the W2 certificate proves old witness and new
 /// solution share one uniqueness region — semantically invisible,
 /// recorded, never silent. v1 carries the obligation AS DATA;
-/// **enforcement arrives with the M6 solver** (a checker that
-/// consumes this payload — an additive function, not a schema
-/// change).
+/// **enforcement arrives with the sketch solver** (`docs/DESIGN.md`
+/// `[open.sketch-solver]`; a checker that consumes this payload — an
+/// additive function, not a schema change).
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
 pub struct BranchCertification {
-    /// The certification evidence's vocabulary tag (M6's checker owns
-    /// it).
+    /// The certification evidence's vocabulary tag (the sketch
+    /// solver's checker owns it).
     pub schema: u32,
     /// Serialized certified-same-branch evidence for every entry of
     /// the bulk edit — opaque to editor-core. Persists as a hex
@@ -93,8 +96,9 @@ pub enum Implicated {
     /// A sketch entity, by stable name.
     Entity(StableName),
     /// A constraint, by its index in the owning sketch node's
-    /// recipe-recorded constraint list (M6's constraint vocabulary is
-    /// recipe data on the sketch node; the index is D8-structural).
+    /// recipe-recorded constraint list (the sketch solver's constraint
+    /// vocabulary is recipe data on the sketch node; the index is
+    /// D8-structural).
     Constraint(u32),
 }
 
@@ -116,8 +120,9 @@ pub struct WitnessAge {
 /// the result DAG as a per-node failure poisoning descendants only
 /// (GQ2), and NAMING-DESIGN N5's `Diagnosis::WitnessBifurcation` arm
 /// carries exactly this payload when a stable-name resolution fails
-/// through a sketch node. Constructed by the M6 solver; v1 pins the
-/// shape and the document semantics.
+/// through a sketch node. Constructed by the sketch solver
+/// (`docs/DESIGN.md` `[open.sketch-solver]`); v1 pins the shape and the
+/// document semantics.
 #[derive(Debug, Clone, PartialEq)]
 pub struct WitnessBifurcation {
     /// Which way the certificate refused.
@@ -157,12 +162,15 @@ impl core::fmt::Display for WitnessBifurcation {
         write!(
             f,
             " (margin {:e} against band zero {:e} / escalate {:e}; {} implicated \
-             element(s)) — move the sketch off the near-singular configuration, or \
-             re-solve to record a fresh witness",
+             element(s)). {}",
             self.margin.margin,
             self.margin.band_zero,
             self.margin.band_escalate,
-            self.implicated.len()
+            self.implicated.len(),
+            crate::sentence::Recourse(
+                "move the sketch off the near-singular configuration, or re-solve to record \
+                 a fresh witness"
+            )
         )
     }
 }

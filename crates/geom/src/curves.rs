@@ -1145,17 +1145,103 @@ impl<T: Real> Curve3<T> {
 
 /// The range of a spiric's `f = √(ρ² − offset²)` over one period, as
 /// `(f_min, f_max)` at `ρ = R ∓ r` — `f` is monotone in `ρ` and
-/// `ρ ∈ [R − r, R + r]`. The one spelling the amplitude boxes read
-/// (`topo`'s census reach, `mesh`'s chord sizing); `curves::boxes`
-/// spells the same two numbers in its outward-bracket arithmetic, which
-/// no plain-scalar helper can supply. Off-regime data (`ρ_min² <
+/// `ρ ∈ [R − r, R + r]`. The plain roots of [`spiric_radicands`]
+/// (`topo`'s chord join, `geom-brep`'s pcurve cache); the enclosing
+/// reading is [`spiric_period_box`]'s. Off-regime data (`ρ_min² <
 /// offset²`) yields poison in `f_min`, as every evaluator does.
 pub fn spiric_f_range<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
+    let (inner, outer) = spiric_radicands(major, minor, offset);
+    (inner.sqrt(), outer.sqrt())
+}
+
+/// `(ρ_min² − offset², ρ_max² − offset²)` at `ρ = R ∓ r`: the two
+/// radicands whose roots bound a spiric's `f` over a period — the one
+/// spelling [`spiric_f_range`] and [`spiric_period_box`] read.
+fn spiric_radicands<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
     let d2 = offset.powi(2);
-    (
-        ((major - minor).powi(2) - d2).sqrt(),
-        ((major + minor).powi(2) - d2).sqrt(),
-    )
+    ((major - minor).powi(2) - d2, (major + minor).powi(2) - d2)
+}
+
+/// **A spiric's whole-period box, enclosing at every scalar**, as its
+/// low and high corners. Per coordinate `e`:
+/// `(c + n·d)_e + m_e·[f_min, f_max] ± |a_e|·r`, with `n = u_ref`,
+/// `m = axis × u_ref` and `a = axis` — `f` ranges over
+/// [`spiric_f_range`]'s two numbers in a period and the `sin v` channel
+/// over its whole range. The one construction: `curves::boxes`'
+/// `spiric_arc_aabb` runs it in its scalar's own arithmetic and
+/// brackets the result, and `topo`'s two box lanes run it at their
+/// scalars, in the frame they box in.
+///
+/// **It encloses by itself, because a reader's pad cannot.** `f_min` is
+/// the root of a cancelling difference: a radicand rounded by `u·W` at
+/// its scale `W` moves its root by about `u·W / (2·f_min)`, which near
+/// the fold (`R − r − |d|` a few `escalate`) is far above any pad. So
+/// the construction charges for it, `u = ε/2` throughout:
+///
+/// - **The radicands** are computed as [`spiric_radicands`] states:
+///   `fl(R ∓ r)` is rounded relative to `R ∓ r` itself, then squared,
+///   less a rounded `d²`, each step rounded once, so each radicand's
+///   error is under `4.1·u·W` at its OWN scale
+///   `W = (R ∓ r)² + d²`. Each is widened by `8·u·W` before its root,
+///   which covers that error and the widening's own rounding; charging
+///   the inner one at the outer one's scale would over-widen a fat
+///   torus's `f_min` a hundredfold. A widened inner radicand whose span
+///   reaches below zero roots at zero (`f ≥ 0` — the arc's least `f` is
+///   not below it); one whose UPPER end is below zero is poison at both
+///   ends of `f` (the clamp is `min(max(lo, 0), hi)`, which needs no
+///   comparison), as off-regime data, which the deciding door refuses,
+///   is everywhere else.
+/// - **The coordinates** carry a few roundings each, every one at most
+///   `u` of a term whose magnitude the scale
+///   `S = ‖c‖₁ + ‖n‖₁·|d| + ‖a‖₁·‖n‖₁·f_max + ‖a‖₁·|r|` bounds: the
+///   derivation gives under `10·u·S`, and as much again for inputs
+///   carried a few ulps off the data they stand for (a point or
+///   direction turned into a frame's rows). Each end is moved out by
+///   `32·u·S`. Measured over 11k admitted spirics (world and aimed
+///   frames, `f64` and `Interval`, the bracket door) the error reached
+///   `3·u·S`, so the charge's margin over what was seen is `29·u·S`.
+///
+/// The box is wider than the exact one by at most `48·u·S` per end (the
+/// charge and the arithmetic it covers), and on the `m` channel by
+/// `‖a‖₁·‖n‖₁` times the radicands' widening at the root:
+/// `f_min − √(max(f_min² − 16·u·W_min, 0))` below and
+/// `√(f_max² + 16·u·W_max) − f_max` above. An `Interval` scalar's own
+/// enclosure is kept, and the charges only widen it; poison flows
+/// through as NaN ends.
+pub fn spiric_period_box<T: Real>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+    major: T,
+    minor: T,
+    offset: T,
+) -> (Point3<T>, Point3<T>) {
+    let charge_at = |rho: T| (rho.powi(2) + offset.powi(2)) * T::from_f64(4.0 * f64::EPSILON);
+    let (slack_in, slack_out) = (charge_at(major - minor), charge_at(major + minor));
+    let (inner, outer) = spiric_radicands(major, minor, offset);
+    let f_lo = (inner - slack_in)
+        .max(T::zero())
+        .min(inner + slack_in)
+        .sqrt();
+    let f_hi = (outer + slack_out).sqrt();
+    let norm1 = |v: Vec3<T>| v.x.abs() + v.y.abs() + v.z.abs();
+    let (na, nn) = (norm1(axis), norm1(u_ref));
+    let scale = norm1(Vec3::new(center.x, center.y, center.z))
+        + nn * offset.abs()
+        + na * nn * f_hi
+        + na * minor.abs();
+    let charge = scale * T::from_f64(16.0 * f64::EPSILON);
+    let m = axis.cross(u_ref);
+    let base = center + u_ref * offset;
+    let per = |b: T, me: T, ae: T| {
+        let (p, q) = (me * f_lo, me * f_hi);
+        let amp = ae.abs() * minor.abs() + charge;
+        (b + p.min(q) - amp, b + p.max(q) + amp)
+    };
+    let (xl, xh) = per(base.x, m.x, axis.x);
+    let (yl, yh) = per(base.y, m.y, axis.y);
+    let (zl, zh) = per(base.z, m.z, axis.z);
+    (Point3::new(xl, yl, zl), Point3::new(xh, yh, zh))
 }
 
 /// **Bounds on a spiric's speed and acceleration over a stretch of the
@@ -2510,6 +2596,47 @@ mod tests {
         }
     }
 
+    /// **`spiric_period_box`'s inner root has two arms, and each is
+    /// pinned.** A torus `R = 100, r = 1` cut at `d` against its inner
+    /// equator `ρ_min = 99`:
+    ///
+    /// - `d = 99 − 1e-14`: the inner radicand (about `2e-12`) lies
+    ///   inside its charge (`8·u·W ≈ 1.7e-11`), so its widened span
+    ///   reaches below zero and the root clamps at zero: the box's `y`
+    ///   (the `m = ẑ × x̂ = ŷ` channel) starts at zero less the coordinate
+    ///   charge, finite. A plain root of the widened radicand is poison.
+    /// - `d = 99.001`: the radicand's whole widened span is below zero
+    ///   (off-regime data), so the root is poison and so is every end
+    ///   the `m` channel reaches, `y` included. A clamp at zero with no
+    ///   upper end to answer to would return a finite box.
+    #[test]
+    fn the_spiric_period_boxs_inner_root_clamps_in_its_charge_and_poisons_past_it() {
+        let boxed = |d: f64| {
+            super::spiric_period_box(
+                Point3::origin(),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+                100.0,
+                1.0,
+                d,
+            )
+        };
+        let (lo, hi) = boxed(99.0 - 1e-14);
+        assert!(
+            lo.y.is_finite() && lo.y <= 0.0 && lo.y > -1e-11 && hi.y.is_finite(),
+            "a radicand inside its charge roots at zero: y ∈ [{}, {}]",
+            lo.y,
+            hi.y
+        );
+        let (lo, hi) = boxed(99.001);
+        assert!(
+            lo.y.is_nan() && hi.y.is_nan(),
+            "a radicand wholly below zero is poison: y ∈ [{}, {}]",
+            lo.y,
+            hi.y
+        );
+    }
+
     mod spiric_interval {
         use geom_core::{Bounds, Interval};
 
@@ -2762,7 +2889,7 @@ mod tests {
         let Curve3::Nurbs(n) = c else {
             panic!("fixture is a NURBS");
         };
-        let knots = n.knots().knots();
+        let knots = n.knots_f64_interim().knots();
         let mut ps: Vec<f64> = knots.to_vec();
         ps.extend(
             knots
@@ -2791,13 +2918,13 @@ mod tests {
             panic!("a described NURBS lifted to another variant");
         };
         assert_eq!(
-            lifted.knots(),
-            source.knots(),
+            lifted.knots_f64_interim(),
+            source.knots_f64_interim(),
             "knots must be carried verbatim"
         );
         assert_eq!(
-            lifted.weight_channel(),
-            source.weight_channel(),
+            lifted.weights_f64_interim(),
+            source.weights_f64_interim(),
             "the weights\' value channel must be carried verbatim"
         );
         for t in knot_and_span_params(&c) {
@@ -3142,13 +3269,13 @@ mod tests {
                 panic!("a described NURBS lifted to another variant");
             };
             assert_eq!(
-                lifted.knots(),
-                source.knots(),
+                lifted.knots_f64_interim(),
+                source.knots_f64_interim(),
                 "knots must be carried verbatim"
             );
             assert_eq!(
-                lifted.weight_channel(),
-                source.weight_channel(),
+                lifted.weights_f64_interim(),
+                source.weights_f64_interim(),
                 "the weights\' value channel must be carried verbatim"
             );
             for t in super::knot_and_span_params(&c) {

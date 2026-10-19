@@ -44,7 +44,7 @@ at the rule's home has to re-derive that pin.
 `carrier_cross`'s site is gone: `carrier_cross::boundary_crossing` reads
 each candidate against the swept span through
 `geom_brep::curve_pair::Span::contact` (stage (c) of
-`work/fuse/the-curve-pair-reader.md`). That reading decides the chord
+`the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227)). That reading decides the chord
 to each end first, in metres, and meters only the side of an end the
 chord already put past the band, by the greatest speed. The pin was
 renamed `a_swept_spans_end_is_read_by_its_chord_to_the_meeting` and

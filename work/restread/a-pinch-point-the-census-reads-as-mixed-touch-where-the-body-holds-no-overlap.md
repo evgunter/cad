@@ -5,7 +5,7 @@ title: At a three-cone pinch the census refuses a union MixedTouch where the bod
 status: open
 opened: 2026-10-12
 priority: P1
-cost: M
+cost: H
 ---
 
 
@@ -90,3 +90,60 @@ cones on two keys. PR 4823 accepts that cost: the typed refusal it
 retires read keys an earlier op had left apart, so it refused 287
 unions the key rule now builds (115 `SOUND`), and this row is where
 the census's half is owed.
+
+## 2026-10-18 — measured, weighed, decided (RESTREAD orchestrator)
+
+**Measured** (pinch lane, probe on `three i=4 j=3 k=1 ab U`). At `v`, solid 1 has
+two cycles: 11v1 (`CoConvex`, a convex sliver hole) and 49v1 (a saddle
+bounding a non-convex pocket). Solid 2's cube corner 48v3 lies in the pocket.
+(11, 48) reads `Crossing` → `MixedTouch`; (49, 48) reads `Unanalysed` (never
+seen, `blocks` returns first). The star at 11 is right and so is the body; the
+fault is the unit. `TouchSite::stars` takes one vertex's cycle as its solid's
+whole material, which holds only where the solid has one cycle at the point —
+and since PR 4057 a pinch is one vertex per cone. Solid 1's material exceeds a
+hemisphere at `v`, so no plane certificate can separate, and the pocket is
+non-convex, so the complement certificate fails too.
+
+**Weighed** by two designers (concurrent, same problem, two rounds). They
+converged: one designer moved to the other's final state, the other kept it
+with a correction. Not a fork for Ev: no ratified clause changes (README C2
+gains one sentence; the census's doors rule and `touch_verdict`'s completeness
+claim are agent text, CONTACT-7, commit 2b080332db).
+
+**Decision.**
+- The census reads a touch once per (solid A, solid B, point key). Every
+  finding at the point (vertex–vertex, vertex on edge, vertex on face) shares
+  that verdict, and `blocks` reads it once.
+- Each side is its solid's **whole link** there: every vertex of the solid on
+  the key, plus the edges and faces its own records tie to the point, gathered
+  structurally. That also closes
+  `census-reads-only-the-recorded-vertex-pair-at-a-shared-point`, which rides
+  this row.
+- One test, complete for two polygonal cones, decides the two links:
+  1. **Crossing** if a face of one crosses a face of the other along a ray, or
+     coplanar sectors facing the same way overlap in their plane (C1's aligned
+     case; read the in-plane sector overlap, not coplanarity alone);
+  2. **Crossing** if, for any face sector of either link cut at every ray of
+     the other link lying on it, a direction just off that piece on the
+     material side reads inside the other link's material — by arc
+     crossing-parity, no convexity assumed (one direction per *piece*, not per
+     cycle);
+  3. **Rest** otherwise. Undecided readings refuse by name (`TouchInBand` for
+     an in-band parity exit), never Rest or Crossing.
+- The plane and complement certificates become special cases and retire, and
+  with them `Shape` and `TouchUnanalysed`'s "neither convex nor concave" text.
+- **One reader, through the census's door.** The direction-side question
+  ("is this direction on this polygon cone's material side") gets one reader
+  in `topo`, deciding in metres through `metric::Distance` (the census's
+  doors rule, `the_touch_analysis_decides_only_through_its_doors`), over a cone
+  given as faces with real points on them. `boolean::sectors::cone_side`
+  (levered deviations over `BoolSector`) is not lifted as it stands: the
+  boolean calls the new reader if its side can move in the unit, and otherwise
+  `cone_side` is filed as the duplicate to retire.
+- The 214 unions should read Rest (likely, unmeasured). Re-baseline the pin
+  and this row's "Owed" on measurement.
+
+Absorbed: INSIDE's `a-touch-at-a-saddle-corner-refuses-unanalysed` and
+`a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone`
+are the same missing reading; they move here and ride this row. Class H; dual
+review, concurrent.

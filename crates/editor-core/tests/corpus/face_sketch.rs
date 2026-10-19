@@ -18,6 +18,7 @@
 //!
 //! Dyadic mass pin: 2 × 2 × 1 box plus a 1 × 1 × 0.5 boss on top.
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::{CapEnd, DocEdit, Node, RoleSeg, SlotId};
 
@@ -85,7 +86,7 @@ pub fn document() -> CorpusDoc {
         side: ExtrudeSide::Along,
     });
 
-    r.place(boss);
+    r.place_part(boss);
 
     CorpusDoc {
         name: "face_sketch",

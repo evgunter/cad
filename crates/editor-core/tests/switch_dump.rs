@@ -57,8 +57,8 @@ fn dump_corpus_payloads() {
         let mut names = String::new();
         for id in &ev.order {
             names.push_str(&format!("== node {id:?}\n"));
-            if let Some(NodeResult::Ok(v)) = ev.nodes.get(id) {
-                for (n, e) in v.name_table.iter() {
+            for t in crate::fixture::tables(&ev, *id) {
+                for (n, e) in t.iter() {
                     // Name AND binding: arena keys are D9-deterministic
                     // for identical geometry, so a name-to-entity SWAP
                     // (the rename class) shows even when the name SET

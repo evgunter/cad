@@ -3,9 +3,11 @@
 //! when its sections are polygons, on an unrotated frame (every value a
 //! point) or a rotated one (the plane a few ulps wide, which the loft
 //! skins at the lane scalar). An arc section is a few ulps wide with no
-//! box at all, and an arc's weight is no point at `Interval`: the loft
-//! refuses `SkinError::ArcWeightNotAPoint` at every leaf, which a
-//! smaller box cannot lift, and the drive bisects to its leaf budget
+//! box at all, and an arc's weight is no point at `Interval`: its sweep
+//! is certified (a full turn, four sub-arcs) and the carrier's door
+//! refuses the weight (`SplineError::CarrierWeightNotAPoint`, C6's
+//! interim until S4/S5) at every leaf, which a smaller box cannot lift,
+//! and the drive bisects to its leaf budget
 //! (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -154,11 +156,12 @@ fn a_rotated_frame_loft_certifies_under_a_box_elsewhere() {
     assert_certified_in_one_leaf("rotated", drive_loft(|| rect(len(1.0)), [0.6, 0.8, 0.0]));
 }
 
-/// What each row's loft does, one evaluation at `Interval` with no box:
-/// under the guided lift (the drive's) the arc section and the rotated
-/// plane are a few ulps wide. The arc's weight is no point and refuses
+/// What each row's loft does, one evaluation at `Interval` at the
+/// nominal: under the guided lift (an analysis's, here over an empty
+/// box) the arc section and the rotated plane are a few ulps wide. The arc's weight is no point and refuses
 /// by name; the rotated plane lofts in `T`. Under the pinned lift both
-/// are the `f64` form lifted, and loft.
+/// are the `f64` form lifted, and loft: an `Interval` evaluation with
+/// no box is the build.
 #[test]
 fn with_no_box_the_guided_lift_refuses_an_arc_section_and_lofts_a_rotated_plane() {
     use editor_core::{NodeErrorKind, ProfileLift};
@@ -169,10 +172,7 @@ fn with_no_box_the_guided_lift_refuses_an_arc_section_and_lofts_a_rotated_plane(
             doc,
             None,
             &editor_core::CancelToken::new(),
-            &editor_core::EvalOptions {
-                profile_lift: lift,
-                ..editor_core::EvalOptions::default()
-            },
+            &crate::corpus::options_under(doc, lift).expect("the loft has a continuous variable"),
             Tol::witness(),
         )
     };
@@ -188,7 +188,9 @@ fn with_no_box_the_guided_lift_refuses_an_arc_section_and_lofts_a_rotated_plane(
     }
     let guided = run(&arc, ProfileLift::Guided);
     match guided.node_error(arc_loft).map(|e| &e.kind) {
-        Some(NodeErrorKind::Skin(SkinError::ArcWeightNotAPoint { section: 0 })) => {}
+        Some(NodeErrorKind::Skin(SkinError::Structure(
+            geom_core::spline::SplineError::CarrierWeightNotAPoint { .. },
+        ))) => {}
         other => panic!("the arc's weight is no point at Interval, got {other:?}"),
     }
     let guided = run(&rotated, ProfileLift::Guided);

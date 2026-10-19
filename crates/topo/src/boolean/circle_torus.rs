@@ -601,7 +601,6 @@ fn parallel_axes_roots<T: Decide>(
             far == Band3::Beyond && near != Band3::Beyond,
         ),
     ];
-    let mid = (t0 + t1) / two;
     let mut thetas = [T::zero(); 2 * geom_brep::half_angle::MAX_DEGREE];
     let mut count = 0usize;
     for (contour, hit) in crossed {
@@ -642,7 +641,7 @@ fn parallel_axes_roots<T: Decide>(
         // (`at_end`), and reads it only against the span's ends, never as
         // an identity.
         for theta in [theta0 + spread, theta0 - spread] {
-            thetas[count] = mid + (theta - mid).reduce_periodic_centred(T::tau());
+            thetas[count] = super::circle_roots::near_span(theta, (t0, t1));
             count += 1;
         }
     }

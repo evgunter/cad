@@ -6,10 +6,10 @@ status: open
 opened: 2026-10-14
 priority: P3
 cost: M
-refs: [the-curve-pair-reader]
+refs: [5227]
 ---
 
-Found by the sweep of stage (c) of `work/fuse/the-curve-pair-reader.md`, which made `carrier_cross::boundary_crossing` a caller of `geom_brep::curve_pair::meet`.
+Found by the sweep of stage (c) of `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227), which made `carrier_cross::boundary_crossing` a caller of `geom_brep::curve_pair::meet`.
 
 `reduce::boundary_meets_circle_only_at` (`crates/topo/src/boolean/reduce.rs`) certifies that a face's boundary meets a circle nowhere but at given vertices. That is the curve-pair meeting question, asked of each boundary edge against the circle. It answers it with its own rows:
 - `bool_arc_plane_side`: each vertex against the circle's plane;

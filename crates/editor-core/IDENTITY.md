@@ -11,12 +11,11 @@ symbol beside them; the symbol is the stable half.
 
 ## 0. Grounding (committed elsewhere)
 
-- **Identity and version are distinct** (`crates/editor-core/ASSEMBLY.md`
-  A4): `DocumentId` answers which part and survives every edit;
-  `ContentPin` is the SHA-256 of the canonical bytes and answers which
-  version; `DocRef` pairs them. The store returns a document only when its
-  bytes hash to the pin (`crates/pncad/src/workspace.rs`), and moving a pin
-  is a recorded edit (A13, `UpdateReference`).
+- **Identity and version are distinct** (DESIGN `[assemblies.pins]`):
+  `DocumentId` says which document, `ContentPin` which version, `DocRef`
+  pairs them. The store returns a document only when its bytes hash to
+  the pin (`crates/pncad/src/workspace.rs`), and moving a pin is a
+  recorded edit (ASSEMBLY A13, `UpdateReference`).
 - **The document is a value and undo is keeping the old value** (G1,
   `crates/viewer/README.md`). `viewer::history` retains every `Doc` an
   action produced and never replays (`history.rs`); undo and redo move a
@@ -28,12 +27,14 @@ symbol beside them; the symbol is the stable half.
   store: the pin IS the referenced content.
 - **Determinism** (D9): same build, same inputs, same outputs. The store is
   an input of an evaluation only where the evaluation crosses the seam.
-- **Free-move is display state** (G3): a display frame over an instance's
-  placement, no solver, admitted only for an instance no mate names
-  (`display.rs`). `DocEdit::SetOffset` sets the instance's offset in its
-  gauge (A11 (2)).
+- **Free-move is display state** (G3, over shown spaces by DI5): a display
+  frame over one shown space's picture, no solver, keyed by that space
+  (DI5; `crates/viewer/src/display.rs`).
 
 ## DI1 — A node id names one authored node wherever it is minted
+
+DESIGN `[assemblies.pairing]` states the rule for every holder; this is
+why it holds and what it covers.
 
 `RecipeNodeId` is a digest of the document's mint chain (N1): the chain
 digests every minting edit since the empty document, and an insert's id
@@ -98,7 +99,8 @@ vocabulary), `document-seam-no-in-session-change-detection`.*
 
 ## DI3 — An evaluation carries its document's identity
 
-**`Evaluation` carries `document: DocumentId`**, stamped by `evaluate` from
+The rule is DESIGN `[assemblies.pairing]`; this is how an evaluation
+keeps it. **`Evaluation` carries `document: DocumentId`**, stamped by `evaluate` from
 `doc.id()`. A pairing door takes a document plus a value that must be of that
 document; without the stamp nothing could check the pairing, and a
 mispairing would misbehave silently. Every door that takes the pair refuses
@@ -119,7 +121,8 @@ than mined for coincidental hits.
 
 ## DI4 — Saving at a path never forks identity; forking is its own act
 
-Identity is the document's, not the file's (A4), so a save cannot mint a
+The rule is DESIGN `[assemblies.saving]`. Identity is the document's,
+not the file's, so a save cannot mint a
 fresh id without forking. And a directory holding one id under two filenames
 refuses `DuplicateId` for every resolution through it (`workspace.rs`), so
 writing the same `DocumentId` to a second file beside the original is not a
@@ -140,29 +143,26 @@ save the store can serve. Two acts, both typed:
 existing, requested }`, and `Workspace::save_as_new_document`, with a random
 id.*
 
-## DI5 — Releasing a free-move gesture is the placement edit
+## DI5 — A free-move frame belongs to the space it was drawn for
 
-The viewer records a free-moved placement persistently, under G1's
-preview-versus-commit rule: the gesture's previews stay display frames, and
-**its release emits one `DocEdit::SetOffset`** on the instance — one undo
-step, one document transition — so the placement survives save and reopen,
-which is what a user expects of a part they placed. This extends G3, which
-made free-move display state, never persisted, and left committing it out of
-v1. Consequences:
+Several spaces can be shown at once in the GUI, overlapping. A free-move
+repositions the picture of one shown space and changes no geometry in any
+space: releasing the gesture writes nothing to the document, and the
+release leaves the display frame where it is. The frame is a held value
+like any other on this page, so it names the space it was drawn for: it is
+keyed by that space, and it is dropped when that key stops naming a shown
+space (an undo or an edit removes it; `DisplayState::prune`).
+Consequences:
 
-- `CommitFreeMove` is the committed edit; `moves` in `DisplayState`
-  (`display.rs`) empties, since a committed frame is document data. `hidden`
-  stays display state.
-- Admission is unchanged: only an instance no mate names may be free-moved
-  (`free_move_check`), so the edit's target is a singleton group and roots
-  it (A11 (3)). A later mate that places it on another group clears its
-  offset, as the mate door does for any first operand (A11 (2)).
-- G3's sentence "hiding and free-move are display state, never persisted"
-  narrows to hiding; `crates/viewer/README.md`, the `display.rs` module doc
-  and the round-trip row that pins the boundary follow the edit.
-
-*Open: `no-persistent-setplacement-session-op`. `CommitFreeMove` is still a
-display-only op and `display.rs` still states the old boundary.*
+- Keeping a relation means stating it: a placement's mates read poses off
+  geometry and its values are numbers the user types. No edit reads the
+  display frame, and no gesture writes one into the model.
+- A free-move may write display metadata (Ev, PR 5312), so a layout can
+  outlive the session. It is viewer data outside the canonical bytes, never
+  hashed into a `ContentPin` and never read by evaluation; without it, a
+  reopened document draws its shown spaces at a default pose.
+- G3's "hiding and free-move are display state, never persisted" stands,
+  over shown spaces.
 
 ## What this doc does not touch
 

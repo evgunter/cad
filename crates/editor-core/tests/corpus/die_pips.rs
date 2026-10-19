@@ -74,6 +74,7 @@
 //! document pins is validity (tier 1 + closed) at every ε row, under
 //! Interval, and through BOTH sweep strategies.
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::Formula;
 use editor_core::{
@@ -139,7 +140,7 @@ pub fn document() -> CorpusDoc {
     let ball = r.insert(revolve_about(
         ball_p,
         (0.0, 0.0),
-        (0.0, 1.0),
+        crate::fixture::along_y(),
         ang(std::f64::consts::TAU),
     ));
 
@@ -159,7 +160,7 @@ pub fn document() -> CorpusDoc {
         tool: pip.into(),
     });
 
-    r.place(pipped);
+    r.place_part(pipped);
 
     CorpusDoc {
         name: "die_pips",

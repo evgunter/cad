@@ -471,14 +471,20 @@ impl<'a> Writer<'a> {
                     None => bound,
                     Some(worst) => worst.max(bound),
                 });
-                self.b_spline_curve(spline.knots(), spline.control(), spline.weights())?
+                self.b_spline_curve(
+                    spline.knots_f64_interim(),
+                    spline.control(),
+                    spline.weights(),
+                )?
             }
             // The placeholder is already refused by
             // `printable_carrier` above, so what reaches here is a
             // described net.
-            Curve3::Nurbs(ref payload) => {
-                self.b_spline_curve(payload.knots(), payload.control(), payload.weights())?
-            }
+            Curve3::Nurbs(ref payload) => self.b_spline_curve(
+                payload.knots_f64_interim(),
+                payload.control(),
+                payload.weights(),
+            )?,
         };
         let id = self.emit(&format!("EDGE_CURVE('', #{start}, #{end}, #{curve}, .T.)"));
         self.shared.edge_curves.insert(edge_key, id);
@@ -626,9 +632,14 @@ impl<'a> Writer<'a> {
             rows.push(format!("({})", refs(&row)));
         }
         let points = rows.join(", ");
-        let (du, dv) = (surface.knots_u().degree(), surface.knots_v().degree());
-        let (u_mults, u_values) = run_length_knots(surface.knots_u(), "b-spline surface u-knot")?;
-        let (v_mults, v_values) = run_length_knots(surface.knots_v(), "b-spline surface v-knot")?;
+        let (du, dv) = (
+            surface.knots_u_f64_interim().degree(),
+            surface.knots_v_f64_interim().degree(),
+        );
+        let (u_mults, u_values) =
+            run_length_knots(surface.knots_u_f64_interim(), "b-spline surface u-knot")?;
+        let (v_mults, v_values) =
+            run_length_knots(surface.knots_v_f64_interim(), "b-spline surface v-knot")?;
         if surface.weights().iter().all(|w| *w == 1.0) {
             Ok(self.emit(&format!(
                 "B_SPLINE_SURFACE_WITH_KNOTS('', {du}, {dv}, ({points}), .UNSPECIFIED., .U., \
@@ -1179,7 +1190,7 @@ mod tests {
     fn emitted(curve: &NurbsCurve3<f64>) -> String {
         let body = Body::<f64>::new();
         let mut w = Writer::new(&body, geom_core::Tol::witness().eps());
-        w.b_spline_curve(curve.knots(), curve.control(), curve.weights())
+        w.b_spline_curve(curve.knots_f64_interim(), curve.control(), curve.weights())
             .expect("a validated curve prints");
         w.data
             .lines()

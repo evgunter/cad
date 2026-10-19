@@ -59,6 +59,7 @@ fn a_flush_rest_glues_and_records_one_unproven_row() {
             coincide::prove(
                 &doc,
                 &[(union, &rows[..])],
+                None,
                 Tol::witness(),
                 &editor_core::CancelToken::new()
             )

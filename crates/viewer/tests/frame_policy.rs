@@ -359,8 +359,14 @@ fn cause_ordinal(cause: &AdmissionFault) -> usize {
     match cause {
         AdmissionFault::NoSuchNode { .. } => 0,
         AdmissionFault::NotAnInstance { .. } => 1,
-        AdmissionFault::MateConstrained { .. } => 2,
-        AdmissionFault::FusedGeometry { .. } => 3,
+        AdmissionFault::InTheWorld { .. } => 2,
+        AdmissionFault::NotEvaluated { .. } => 3,
+        AdmissionFault::NoSpace { .. } => 4,
+        // One ordinal per SENTENCE: the arm's guard chooses between a
+        // join and a split, mirrored here so each needs its own sample.
+        AdmissionFault::MovedSpace { instance, into } if instance.id() != into.id() => 5,
+        AdmissionFault::MovedSpace { .. } => 6,
+        AdmissionFault::FusedGeometry { .. } => 7,
     }
 }
 
@@ -374,19 +380,31 @@ fn every_cause() -> Vec<AdmissionFault> {
         AdmissionFault::NotAnInstance {
             node: SpokenNode::absent(RecipeNodeId::new(0, tagged(5))),
         },
-        AdmissionFault::MateConstrained {
+        AdmissionFault::InTheWorld {
             instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(6))),
-            mates: vec![
-                SpokenNode::absent(RecipeNodeId::new(0, tagged(7))),
-                SpokenNode::absent(RecipeNodeId::new(0, tagged(8))),
-            ],
+        },
+        AdmissionFault::NotEvaluated {
+            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(7))),
+        },
+        AdmissionFault::NoSpace {
+            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(8))),
+        },
+        AdmissionFault::MovedSpace {
+            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
+            into: SpokenNode::absent(RecipeNodeId::new(0, tagged(10))),
+        },
+        // The arm's second sentence, for a copy that left into a space
+        // of its own (`into` the copy itself).
+        AdmissionFault::MovedSpace {
+            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(15))),
+            into: SpokenNode::absent(RecipeNodeId::new(0, tagged(15))),
         },
         AdmissionFault::FusedGeometry {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
-            body: SpokenNode::absent(RecipeNodeId::new(0, tagged(10))),
+            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(11))),
+            body: SpokenNode::absent(RecipeNodeId::new(0, tagged(12))),
             others: vec![
-                SpokenNode::absent(RecipeNodeId::new(0, tagged(11))),
-                SpokenNode::absent(RecipeNodeId::new(0, tagged(12))),
+                SpokenNode::absent(RecipeNodeId::new(0, tagged(13))),
+                SpokenNode::absent(RecipeNodeId::new(0, tagged(14))),
             ],
         },
     ]
@@ -405,9 +423,11 @@ fn every_cause() -> Vec<AdmissionFault> {
 ///
 /// What is held instead is the POPULATION. The admission tests answer
 /// `AdmissionFault` and `Withdrawn::cause` stores what they answer, so
-/// the sentences this claim ranges over are exactly these four — the
+/// the sentences this claim ranges over are exactly these arms' — the
 /// compiler's census, `cause_ordinal` being exhaustive and the
-/// ordinals having to run from 0 with no hole — and this row is the
+/// ordinals having to run from 0 with no hole, one ordinal per sentence
+/// where an arm chooses its sentence by a guard (`MovedSpace`'s two) —
+/// and this row is the
 /// claim over it. Before the narrowing the field was the whole of
 /// `DisplayFault`, where `NonRigidFrame` writes a `LIST_SEPARATOR`
 /// inside one sentence: the property was true only because neither
@@ -434,6 +454,15 @@ fn a_withdrawn_cause_never_carries_the_list_mark() {
 
     for cause in every_cause() {
         let sentence = cause.to_string();
+        // The subject's kind is the spoken node's to say (a frame's root
+        // may be a `Place`), so no sentence writes "instance" itself —
+        // but the one whose content is that the node is not one.
+        assert!(
+            matches!(cause, AdmissionFault::NotAnInstance { .. })
+                || !sentence.to_lowercase().contains("instance"),
+            "a cause names its subject's kind through the spoken node, not \
+             its own words: {sentence}"
+        );
         assert!(
             !sentence.contains(frame::LIST_SEPARATOR),
             "a cause that writes the list mark nests inside the join that \
@@ -441,6 +470,32 @@ fn a_withdrawn_cause_never_carries_the_list_mark() {
              has: {sentence}"
         );
     }
+}
+
+/// **"Not evaluated yet" ranks with the gesture-order faults, below a
+/// real failure** (`Refusal::rank`): it is a wait on a landing, not a
+/// decision about what the user tried, so a batch that meets both keeps
+/// the decision.
+#[test]
+fn a_space_not_known_yet_ranks_below_a_space_that_refuses() {
+    let admission = |fault| Refusal::Display(DisplayFault::Admission(fault));
+    let waiting = admission(AdmissionFault::NotEvaluated {
+        instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(1))),
+    });
+    let refused = admission(AdmissionFault::InTheWorld {
+        instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(2))),
+    });
+    assert!(waiting.rank() > refused.rank());
+    let kept = Refusal::preferred(Some(waiting), refused);
+    assert!(
+        matches!(
+            kept,
+            Some(Refusal::Display(DisplayFault::Admission(
+                AdmissionFault::InTheWorld { .. }
+            )))
+        ),
+        "the real failure replaces the wait: {kept:?}"
+    );
 }
 
 /// **A withdrawal's cause list splits back into the causes it joined.**
@@ -942,7 +997,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         badge.detail(),
         Some(
             format!(
-                "pick index: PlaceInWorld {copy} could not be indexed: pick: this node is \
+                "pick index: Place {copy} could not be indexed: pick: this node is \
                  poisoned by the failure at Extrude {failed}, so it has no value — the repair \
                  is upstream, at Extrude {failed}",
                 copy = test_utils::refusal::tag(broken_copy.0.digest()),
@@ -990,60 +1045,64 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     assert_eq!(
         badge.label(),
         "pick index: placement 000000000063 could not be indexed: pick: this node has no result in \
-         this evaluation: the run was canceled before it reached the node — \
+         this evaluation: the run was canceled before it reached the node. Recourse: \
          re-evaluate the document to completion"
     );
 }
 
-/// **The one path where the tree's blame and the index's words part**:
-/// an instance the placement solve left without a pose because another
-/// mate in its group refused. The evaluation reports the instance
-/// `Failed` in its own right, so the index's words say its copy is
-/// poisoned through the instance; the tree draws the instance
-/// downstream of the mate the fault blames, and the badge names that
-/// mate, because that is the row a reader can act on.
+/// **A refusal reached through a mate names the placement the tree
+/// blames**: a placement mated against a bundle that refused reads that
+/// placement's copy, so the evaluation reports it poisoned through the
+/// refused placement; the index's words and the badge both name that
+/// one, the row a reader can act on.
 #[test]
-fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
+fn a_refusal_reached_through_a_mate_names_the_placement_the_tree_blames() {
     let tol = Tol::witness();
     let bench = common::asm::bench("vnews-derived-mate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
-    let offender = common::commit_mate(
+    // post_a seated under the shelf, then the shelf's own bundle a mate
+    // its evaluation refuses, against post_b: post_a, first in the
+    // index's order, is chained to the refused shelf.
+    common::asm::unpin(&mut session, bench.post_a);
+    common::commit_mate(
         &mut session,
         common::asm::seat_op(
             &bench,
-            bench.post_b,
+            bench.post_a,
             ContactClass::Rest,
-            common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+            common::asm::middle_seat_values(),
         ),
     );
+    common::asm::unpin(&mut session, bench.shelf_i);
+    common::commit_mate(
+        &mut session,
+        common::asm::no_centre_op(&bench, bench.post_b),
+    );
+    let offender = bench.shelf_i;
     let refusal = common::index_at(&session, common::asm::delta())
-        .expect_err("a copy of an instance the solve refused refuses the index");
+        .expect_err("a placement the solve refused refuses the index");
     let pickindex::PickIndexError::Node {
         node: copy,
-        error:
-            NodePickError::Standing(NodeStanding::Poisoned {
-                through: failed, ..
-            }),
+        error: NodePickError::Standing(NodeStanding::Poisoned { node, through }),
     } = &refusal
     else {
-        panic!("the copy is poisoned through the instance that failed: {refusal:?}");
+        panic!("the copy is poisoned through the shelf it rests against: {refusal:?}");
     };
     let badge = frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
-        (*copy, *failed),
-        (bench.shelf_copy, bench.shelf_i),
-        "the index's words name the shelf's copy, through the instance that failed"
+        (*copy, *node, *through),
+        (bench.post_a, bench.post_a, offender),
+        "the index's words name post_a, poisoned through the refused shelf"
     );
-    assert_ne!(offender, *failed, "and the instance is not the mate");
     assert_eq!(
         badge.label(),
         format!(
-            "pick index: waits on Mate {}, which failed — until the index builds, no pick \
-             is answered and the picture is not redrawn",
+            "pick index: waits on InstantiatePart {}, which failed — until the index builds, \
+             no pick is answered and the picture is not redrawn",
             test_utils::refusal::tag(offender.0.digest())
         ),
-        "the mate the tree blames, not the copy the index's words name"
+        "the placement the tree blames"
     );
     assert_eq!(badge.tone(), frame::Tone::Advisory);
 }
@@ -3099,7 +3158,7 @@ fn the_feature_tree_reads_the_landed_pair_not_the_shown_document() {
     let (landed_doc, _) = session.landed_pair().expect("a landed pair");
     assert_eq!(
         rows.len(),
-        landed_doc.ids().len(),
+        landed_doc.len(),
         "the tree describes the landed document, which is what is drawn"
     );
     session.pump();
@@ -3356,19 +3415,23 @@ fn the_preferences_path_follows_the_xdg_rules() {
 /// frame loop drives it.**
 ///
 /// The value the session computes here is the one the chrome used to
-/// drop: `OpOutcome::superseded`, which nothing outside the test suite
-/// read. This row fails if it goes silent again, and it is built from
-/// a REAL outcome — a real mate landing on a real assembly — because a
-/// hand-made `OpOutcome` would assert about a shape rather than about
-/// the path.
+/// drop. This row fails if it goes silent again, and it is built from
+/// a REAL landing — a real mate on a real assembly — because a
+/// hand-made report would assert about a shape rather than about the
+/// path. Under DI5 a free-move moves a loose space, so the post is
+/// unpinned first, and a mate onto the shelf, which the world pins,
+/// moves the post into the world's space: the supersession arrives
+/// when the evaluation that pins it lands, not with the edit.
 #[test]
 fn a_superseded_free_move_is_news_the_ranking_shows() {
     let tol = Tol::witness();
     let bench = asm::bench("framepolicy-supersede", tol);
     let mut session = asm::open_bench(&bench, tol);
+    // A loose copy: the only kind the probe moves.
+    asm::unpin(&mut session, bench.post_b);
 
-    // The user places the unconstrained post by hand and COMMITS it —
-    // only a committed placement is ever reported superseded.
+    // The user places the loose post by hand and COMMITS it — only a
+    // committed placement is ever reported superseded.
     for op in [
         SessionOp::BeginFreeMove {
             instance: bench.post_b,
@@ -3386,40 +3449,46 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     }
     assert!(
         session.display().free_move_of(bench.post_b).is_some(),
-        "the placement is held, so there is something to discard"
+        "the placement is held, keyed by the loose post's own root, so there is \
+         something to discard"
     );
 
-    // Then they mate it, and that placement is discarded under them.
+    // Then they mate it onto the shelf, and that placement is discarded
+    // under them once the solve placing it lands.
     let mate = asm::seat_op(
         &bench,
         bench.post_b,
         ContactClass::Rest,
-        asm::middle_seat_alignment(),
+        asm::middle_seat_values(),
     );
     let outcome = session.perform(mate.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    // The mate the op landed, read off the document rather than off the
-    // fault under test.
-    let landed = *session.doc().ids().last().expect("the mate landed");
     assert!(
-        matches!(session.doc().node(landed), Some(Node::Mate { .. })),
-        "the newest node is the mate"
+        outcome.withdrawn.superseded.is_empty(),
+        "the edit alone does not say the post's space is gone: spaces exist only \
+         after the solve, so the edit withdraws nothing: {:?}",
+        outcome.withdrawn
     );
-    let [superseded] = &outcome.withdrawn.superseded[..] else {
+    session.pump();
+    let landed = session.take_landed_withdrawals();
+    let [report] = &landed[..] else {
+        panic!("one landing withdrew something: {landed:?}")
+    };
+    let [superseded] = &report.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.withdrawn.superseded
+            report.superseded
         )
     };
     assert_eq!(
         superseded.instance, bench.post_b,
-        "the mate discards the hand placement"
+        "the mate discards the hand placement, keyed by the space's root"
     );
     // The PAYLOAD, not the variant: the variant is what the op this row
     // just performed already implies.
-    let AdmissionFault::MateConstrained { instance, mates } = &superseded.cause else {
+    let AdmissionFault::InTheWorld { instance } = &superseded.cause else {
         panic!(
-            "a mate landing supersedes with its own fault: {}",
+            "a mate pinning the space supersedes with its own fault: {}",
             superseded.cause
         )
     };
@@ -3428,28 +3497,19 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         bench.post_b,
         "the fault names the same instance"
     );
-    assert_eq!(
-        mates.iter().map(|mate| mate.id()).collect::<Vec<_>>(),
-        vec![landed],
-        "and names the mate that landed, which is what the line then reads"
+    assert!(
+        session.take_landed_withdrawals().is_empty(),
+        "a landing's report is taken once"
     );
 
-    // What the chrome does with it, in `perform_batch`'s order. The
-    // app-gated loop no row can reach is now ONE call, and this is
-    // that call rather than a hand-written mirror of it — which is the
-    // point: the mirror stood here listing two of the three producers
-    // after a third was added beside it, and a half-mirror passes
-    // while the real loop drops a kind. There is no list here to fall
-    // behind any more.
-    let notices: Vec<frame::Message> = frame::Withdrawal::all(&outcome.withdrawn)
-        .map(|withdrawal| withdrawal.notice())
-        .collect();
+    // What the chrome does with it: the landing's notices, worded as an
+    // operation's are, through the one door the frame loop calls.
+    let notices: Vec<frame::Message> = frame::withdrawal_notices(report).collect();
     assert_eq!(
         notices.len(),
         1,
-        "a mate landing on a probed instance withdraws a placement and \
-         neither of the other two kinds, so they are silent here rather \
-         than absent"
+        "a mate pinning a probed space withdraws a placement and neither of the \
+         other two kinds, so they are silent here rather than absent"
     );
     let verdict = frame::frame_status(
         &notices,
@@ -3483,9 +3543,9 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
 
     // **A refusing sibling op does not take the sentence.** The same
     // frame also carries a drag the user started on the post — which
-    // the mate that just landed has made unmovable, so it refuses. The
-    // refusal is about an op that did nothing, and the same drag says
-    // it again; nothing will ever again say that the mate took the
+    // the mate that just landed has put in the world, so it refuses.
+    // The refusal is about an op that did nothing, and the same drag
+    // says it again; nothing will ever again say that the mate took the
     // placement. Both are on the line, the refusal first. The text is
     // written out, so a rule that drops the supersession, or reorders
     // the two, cannot pass by comparing the line with another
@@ -3497,8 +3557,9 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     let refusal = refused
         .refusal
         .as_ref()
-        .expect("the premise: a mated instance refuses a free move");
-    let notices: Vec<frame::Message> = frame::outcome_notices(&outcome)
+        .expect("the premise: a copy in the world refuses a free move");
+    let notices: Vec<frame::Message> = notices
+        .into_iter()
         .chain(frame::outcome_notices(&refused))
         .collect();
     let RankedVerdict::Show(line) = frame::frame_status(&notices, &[mate, drag], Some(refusal))
@@ -3508,19 +3569,17 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // The fault is said twice, once as why the drag refused and once
     // as why the placement went: two typed values, each rendering
     // itself, which is the join's rule.
-    let (post, mate_node) = (
-        test_utils::refusal::tag(bench.post_b.0.digest()),
-        test_utils::refusal::tag(landed.0.digest()),
+    let post = test_utils::refusal::tag(bench.post_b.0.digest());
+    let in_the_world = format!(
+        "InstantiatePart {post} lives in the world's space: its placement pins it there (a \
+         world pin, or a mate onto a copy in the world), so the free-move probe refuses. \
+         Free-move moves a loose space, a copy nothing pins to the world"
     );
     assert_eq!(
         line.text(),
         format!(
-            "InstantiatePart {post} is mate-constrained (Mate {mate_node}): its pose is \
-             mate-derived, so the free-move probe refuses — delete the mate(s) if free \
-             relative motion is intended \u{2022} free move: a committed placement was \
-             discarded — InstantiatePart {post} is mate-constrained (Mate {mate_node}): its \
-             pose is mate-derived, so the free-move probe refuses — delete the mate(s) if \
-             free relative motion is intended"
+            "{in_the_world} \u{2022} free move: a committed placement was discarded — \
+             {in_the_world}"
         )
     );
 }
@@ -3768,7 +3827,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
         (
             "mate: a held pick lost",
             ToolNotice::Mate(MateToolEvent::PickLost {
-                side: MateSide::B,
+                side: MateSide::To,
                 node: viewer::test_support::spoken(RecipeNodeId::new(0, tagged(3)), None),
                 pick: FaceSelection {
                     name: face.clone(),
