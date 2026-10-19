@@ -164,7 +164,7 @@ pub enum StepArg {
     /// That point's y.
     PointY,
     /// A leg target's x (`line_to`, `arc_to`'s endpoint-full modes,
-    /// `tangent_arc_to` — the `Point` target form).
+    /// `tangent_arc_to`, `arc_onto` — the `Point` target form).
     TargetX,
     /// That target's y.
     TargetY,

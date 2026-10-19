@@ -2,7 +2,9 @@
 id: via-and-center-arc-closers-declared-arrival
 kind: issue
 title: paths: the declared seam arrival for the Via and Center arc closers (arc_to with a via point or centre targeting Start.arrives_tangent())
-status: open
+status: closed
+closed: 2026-10-19
+branch: paths/arc-onto
 opened: 2026-09-02
 github: 1579
 refs: [1573, 433]
@@ -33,3 +35,7 @@ Moved from `work/bool/` to PATHS (opened at this exit as S-BOOL's successor for 
 ## Question to Ev
 
 Ev ruled on the design in its `[ev]` PR (2026-10-19), alongside `arc-closer-constructed-from-arrival-tangent`'s `arc_onto(target)`. This row's half is the token rule. `Start.arrives_tangent()` is checked where the leg's data fix its end direction and supplied where they leave it free (`arc_onto`, the `Via` arrival). `Via` and `Center` take it on every row they close from: the sharp legs check, the `Center` arrival checks, and the `Via` arrival takes `Start`'s direction and closes at the verb with no director. The edits are in `docs/PATHS-DESIGN.md` §2 Closure, §3, §4 and §6 PQ4. One ruling closes both rows, and neither is dispatched before the PR merges. Re-priced `cost: D` → `M` on touching the row (`work/README.md`, "`D` is legacy").
+
+## Outcome
+
+Built as ruled, on `paths/arc-onto`: `Start.arrives_tangent()` is admitted on the `Via` and `Center` legs (`ARC_TO_POINT`, CHECKED through `arc_to_start(…, declared: true, …)`, the kernel `Bulge` uses) and on both closing arrivals (`ARRIVAL`). The `Center` arrival CHECKS it. The `Via` arrival takes `Start`'s direction from it and closes at the verb with no director. That arrival has the new `ArrivalSpec` impl `Via<T, ArrivesTangent>`, and `resolve_arc_close` classifies the seam through the one `seam_joint` helper (`SeamArrival::{Undeclared, Checked, Supplied}`). The census and admissible-pair tables are the dispatchers' own (`arc_specs_at`), walked by `tests/arc_spec_census.rs`. Rows, each with its refusal twin, are in `crates/profile/tests/arc_onto.rs`. In pncad-py, `Via` and `Center` accept the token.

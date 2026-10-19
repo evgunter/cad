@@ -2,8 +2,9 @@
 id: arc-closer-constructed-from-arrival-tangent
 kind: issue
 title: paths: an arc_to mode that fixes the ARRIVAL direction — the arc from the tip to p whose end tangent is authored (its Start row is the construct-from-arrival tangent closer)
-status: dispatched
+status: closed
 branch: paths/arc-onto
+closed: 2026-10-19
 opened: 2026-09-02
 github: 1578
 refs: [1573, 433]
@@ -45,3 +46,13 @@ Ev, authoring a `B` in the viewer's path form, hit the same gap away from the se
 ## Question to Ev
 
 Ev ruled on the design in its `[ev]` PR (2026-10-19): the reading (tangent where the arc arrives, free where it leaves), the name, and after a harmony pass the spelling `arc_onto(target)` followed by one director — the `Via` arrival's shape, with no builder (`docs/PATHS-DESIGN.md` §2a item 6). This row's half is the verb. `arc_onto(p).toward(d)` lands a directed point at `p` with its departure free; `arc_onto(Start).toward(d)` is the sharp seam; `arc_onto(Start.arrives_tangent())` is this row's tangent closer, the token supplying `Start`'s direction. One ruling closes this row and `via-and-center-arc-closers-declared-arrival` together, and neither is dispatched before the PR merges. Re-priced `cost: D` → `M` on touching the row (`work/README.md`, "`D` is legacy").
+
+## Outcome
+
+Built as ruled, on `paths/arc-onto`:
+
+- `arc_onto(target)` is a `transition_table!` verb on the two point states (`crates/profile/src/path/program.rs`). `arc_onto(p)` and `arc_onto(Start)` open the pending states `ArcOnto` / `ArcOntoStart` (`crates/profile/src/path/onto.rs`), which take exactly `.angle` / `.toward`. `arc_onto(Start.arrives_tangent())` closes at the verb, with the token supplying `Start`'s direction and joint 0 constructed.
+- The geometry is `tangent_arc_to`'s kernel run from the target backwards (`onto_arc_geom` over the shared `tangent_arc_geom` in `crates/profile/src/path.rs`), so the degeneracies are its own. The authored arrival is the landed point's incoming direction, bit for bit, and the departure is derived and junction-checked. `JunctionTangent`'s recourse now names `.tangent().tangent_arc_to(p)`.
+- Rows: `crates/profile/tests/arc_onto.rs` (every cell of §2a item 6's two tables, the `B` and `D`, the bit-for-bit round trip against `tangent_arc_to`, at f64 and Interval). The `B` and `D` also joined `common::coverage_corpus`.
+- Projections: editor-core's `ProgramStep::ArcOnto` (a wire addition), the viewer form, and pncad-py (`arc_onto`, `PathArcOnto` / `PathArcOntoStart`, the stub).
+- Found on the way, filed: `tangent-arc-ahead-in-band-builds-a-straddling-arc-at-interval`.

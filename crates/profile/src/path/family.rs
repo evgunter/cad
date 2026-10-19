@@ -652,7 +652,9 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Via<T, super::ArrivesTangent> {
 // make an author reach the recording a second way exactly where the
 // count is hardest.
 
-/// A `Radius` arrival awaiting both binders (either order).
+/// A `Radius` arrival awaiting both binders (either order). Its
+/// director is the arc's END tangent at the anchor — the landed point's
+/// incoming direction — and the departure there stays free.
 #[derive(Clone, Debug)]
 pub struct RadiusArrival<T: Real> {
     core: Core<T>,
@@ -674,7 +676,8 @@ impl<T: Real> RadiusArrival<T> {
     }
 }
 
-/// A `Radius` arrival with its anchor bound, director pending.
+/// A `Radius` arrival with its anchor bound, director pending: the
+/// director is the arc's end tangent, and the departure stays free.
 #[derive(Clone, Debug)]
 pub struct RadiusArrivalAt<T: Real> {
     core: Core<T>,
@@ -697,7 +700,8 @@ impl<T: Real> RadiusArrivalAt<T> {
     }
 }
 
-/// A `Radius` arrival with its director bound, anchor pending.
+/// A `Radius` arrival with its director — the arc's end tangent —
+/// bound, anchor pending.
 #[derive(Clone, Debug)]
 pub struct RadiusArrivalDir<T: Real> {
     core: Core<T>,
@@ -831,7 +835,9 @@ impl<T: geom_core::Decide> RadiusArrivalDir<T> {
     }
 }
 
-/// A `Via` arrival: anchor authored in the spec, director pending.
+/// A `Via` arrival: anchor authored in the spec, director pending. The
+/// director is the arc's end tangent at the anchor, and the departure
+/// there stays free.
 #[derive(Clone, Debug)]
 pub struct ViaArrival<T: Real> {
     core: Core<T>,
@@ -906,7 +912,11 @@ fn via_complete<T: geom_core::Decide>(
     resolve_arc_arrival(core, resolver, p, centre, winding, None, tol)
 }
 
-/// A `Via` CLOSE: anchor at the entry, director pending.
+/// A `Via` CLOSE: anchor at the entry, director pending. The director
+/// is the arc's end tangent at `Start`, and the seam is classified
+/// against `Start`'s own direction; the tangent close is
+/// `Via { q, p: Start.arrives_tangent() }`, which takes that direction
+/// from the token and closes at the verb.
 #[derive(Clone, Debug)]
 pub struct ViaArrivalStart<T: Real> {
     core: Core<T>,
