@@ -8,8 +8,9 @@
 //! face back over the ruling, where the escalation stands.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
-use sweep::test_support::revolved_about_y;
+use geom_core::{Band, Tol};
+
+use crate::common::operands::{about_y, turned_about_z};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -21,29 +22,6 @@ fn band() -> Band {
 
 fn at_rest(b: topo::Body<f64>) -> topo::AtRestBody<f64> {
     topo::AtRestBody::validate(b, tol()).unwrap()
-}
-
-/// A body about `y` from radius `inner` (0 for a rod) to `outer` over
-/// `y ∈ [lo, hi]`, swept by `turn` (full where `None`) and then turned
-/// by `spin` about `y`, its axis moved to `(x, ·, 0)`.
-fn about_y(
-    (inner, outer): (f64, f64),
-    (lo, hi): (f64, f64),
-    turn: Option<f64>,
-    spin: f64,
-    x: f64,
-) -> topo::Body<f64> {
-    let profile = vec![
-        (Point2::new(inner, lo), 0.0),
-        (Point2::new(outer, lo), 0.0),
-        (Point2::new(outer, hi), 0.0),
-        (Point2::new(inner, hi), 0.0),
-    ];
-    let rev = turn.map_or(sweep::Revolution::Full, sweep::Revolution::Partial);
-    let body = revolved_about_y(profile, rev, tol());
-    let place = Affine3::translation(Vec3::new(x, 0.0, 0.0))
-        * Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), spin);
-    topo::transform_rigid(&body, &geom_core::test_support::rigid(&place, tol()), tol()).unwrap()
 }
 
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> topo::Body<f64> {
@@ -93,11 +71,6 @@ fn all_say(rows: &[[String; 2]], want: &str, why: &str) {
     }
 }
 
-fn turned(b: topo::Body<f64>, angle: f64) -> topo::Body<f64> {
-    let t = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), angle);
-    topo::transform_rigid(&b, &geom_core::test_support::rigid(&t, tol()), tol()).unwrap()
-}
-
 /// The brick's top `5.5·ε` below the wall's carrier, slid off the
 /// ruling by `dx`: the top face never reaches the ruling and stands
 /// about `dx²/2` below the wall at its nearest edge, centimetres at
@@ -107,7 +80,7 @@ fn a_brick_beside_the_tube_ruling_is_no_tangency() {
     let gap = 5.5 * band().zero();
     for dx in [0.3, 0.1, 0.01] {
         let rows = table(
-            about_y((0.3, 1.0), (0.0, 1.0), None, 0.0, 0.0),
+            about_y(tol(), (0.3, 1.0), (0.0, 1.0), None, 0.0, 0.0),
             brick((dx, dx + 0.5), (0.2, 0.8), (-2.0, -1.0 - gap)),
         );
         all_say(&rows, "Ok", &format!("the brick {dx} m off the ruling"));
@@ -124,8 +97,17 @@ fn a_brick_beside_the_tube_ruling_is_no_tangency() {
 fn a_cylinder_wall_turned_off_the_ruling_is_no_tangency() {
     let gap = 5.5 * band().zero();
     let quarter = core::f64::consts::FRAC_PI_2;
-    let bore = || about_y((0.3, 1.0), (0.0, 1.0), None, 0.0, 0.0);
-    let rod = |spin| about_y((0.0, 0.2), (0.2, 0.8), Some(quarter), spin, 0.1 - gap);
+    let bore = || about_y(tol(), (0.3, 1.0), (0.0, 1.0), None, 0.0, 0.0);
+    let rod = |spin| {
+        about_y(
+            tol(),
+            (0.0, 0.2),
+            (0.2, 0.8),
+            Some(quarter),
+            spin,
+            0.1 - gap,
+        )
+    };
     all_say(
         &table(bore(), rod(0.5 * quarter)),
         "Ok",
@@ -137,10 +119,24 @@ fn a_cylinder_wall_turned_off_the_ruling_is_no_tangency() {
         "the rod's wall over the ruling",
     );
     let turn = 0.5;
-    let tube = || turned(about_y((0.3, 1.0), (0.0, 1.0), None, 0.0, 0.0), turn);
+    let tube = || {
+        turned_about_z(
+            tol(),
+            about_y(tol(), (0.3, 1.0), (0.0, 1.0), None, 0.0, 0.0),
+            turn,
+        )
+    };
     let wall = |spin| {
-        turned(
-            about_y((0.3, 1.0), (0.2, 0.8), Some(quarter), spin, 2.0 + gap),
+        turned_about_z(
+            tol(),
+            about_y(
+                tol(),
+                (0.3, 1.0),
+                (0.2, 0.8),
+                Some(quarter),
+                spin,
+                2.0 + gap,
+            ),
             turn,
         )
     };
@@ -179,7 +175,7 @@ fn a_brick_ending_at_the_ruling_is_read_by_its_reach() {
     let gap = 5.5 * b.zero();
     for dx in [-0.1, 0.0, 1e-3 * b.zero().sqrt(), 1e2 * b.zero().sqrt()] {
         let rows = table(
-            about_y((0.3, 1.0), (0.0, 1.0), None, 0.0, 0.0),
+            about_y(tol(), (0.3, 1.0), (0.0, 1.0), None, 0.0, 0.0),
             brick((dx, dx + 0.5), (0.2, 0.8), (-2.0, -1.0 - gap)),
         );
         let apart = (1.0f64 + dx * dx).sqrt() - 1.0 + gap;
@@ -207,10 +203,17 @@ fn a_cylinder_wall_ending_at_the_ruling_is_read_by_its_reach() {
     // The walls bend apart by about `delta²` (outside) and at least
     // `0.01·delta²` (the rod in the bore) off the ruling.
     for delta in [0.0, 1e-3 * b.zero().sqrt(), 0.05] {
-        let tube = || turned(about_y((0.3, 1.0), (0.0, 1.0), None, 0.0, 0.0), 0.5);
+        let tube = || {
+            turned_about_z(
+                tol(),
+                about_y(tol(), (0.3, 1.0), (0.0, 1.0), None, 0.0, 0.0),
+                0.5,
+            )
+        };
         for spin in [pi + delta, q - delta] {
-            let wall = turned(
-                about_y((0.3, 1.0), (0.2, 0.8), Some(q), spin, 2.0 + gap),
+            let wall = turned_about_z(
+                tol(),
+                about_y(tol(), (0.3, 1.0), (0.2, 0.8), Some(q), spin, 2.0 + gap),
                 0.5,
             );
             let rows = table(tube(), wall);
@@ -221,8 +224,8 @@ fn a_cylinder_wall_ending_at_the_ruling_is_read_by_its_reach() {
         }
         for spin in [delta, -q - delta] {
             let rows = table(
-                about_y((0.3, 1.0), (0.0, 1.0), None, 0.0, 0.0),
-                about_y((0.0, 0.2), (0.2, 0.8), Some(q), spin, 0.1 - gap),
+                about_y(tol(), (0.3, 1.0), (0.0, 1.0), None, 0.0, 0.0),
+                about_y(tol(), (0.0, 0.2), (0.2, 0.8), Some(q), spin, 0.1 - gap),
             );
             if 0.01 * delta * delta + gap < b.escalate() {
                 assert!(none_ok(&rows), "inside, delta = {delta:e}: {rows:?}");
