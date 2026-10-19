@@ -6548,3 +6548,19 @@ Signed (WIRE orchestrator).
     times. That reds the slow-set name check for any topo-touching PR;
     the PR dedups it.
   (WIRE orchestrator)
+
+- 2026-10-19 — PR 5378 dual review delivered. R1 and R2 are both
+  APPROVE-WITH-FIXES with no MAJOR, so there are no tally candidates.
+  The pair is flagged: each glimpsed only the other's directory or probe
+  names, after or apart from its findings. The pre-note is in the
+  session scratchpad (`rev5378-prenote.md`); the dual-review row rides
+  the PR as its last commit at merge.
+  - Fix pass on the union: `restated` grouped by point, not by any
+    shared cell, and projected to Python and the viewer; a completeness
+    guard that a dropped cell turns red; the collapse requires the site;
+    the catch-all refuses; one `Meet` constructor; the vacuous
+    determinism test fixed or deleted.
+  - Q4 adjudicated: naming `Meet` in DM4 stays as the orchestrator's
+    elaboration of the approved "set of member cells that meet". The PR
+    body flags it for Ev's retroactive read.
+  (WIRE orchestrator)
