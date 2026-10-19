@@ -310,22 +310,27 @@ fn eps_row(eps: f64) -> usize {
 /// 2697 → 2733 and `Early/Assertion` 4121 → 4157, and their digests, at
 /// every row; calls, frozen counts, both `*/Decision` lines and the
 /// largest form hold.
+///
+/// The joint's turn and the door's second junction read, as on the
+/// plate: `Plain/Assertion` and `Early/Assertion` +14 calls
+/// (514 → 528) and +30 forms, with their digests, at every row; both
+/// `*/Decision` lines and the largest form hold.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 928 forms 9415 frozen 0 digest 9fd9683c510b6d13533481894aff86fe\n\
-     Plain/Assertion calls 514 forms 2733 frozen 0 digest 806e4164ff0eae109afd91bcbb432fe9\n\
+     Plain/Assertion calls 528 forms 2763 frozen 0 digest de77b0b2c47cea9e7045c8471e184cb8\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 4157 frozen 0 digest 94eb0cd011bda6f54ff7bfe2ee0453c2",
+     Early/Assertion calls 528 forms 4187 frozen 0 digest fd25d46abfb0d394dbb3d2cc79b79f20",
     "\
      Plain/Decision calls 928 forms 9415 frozen 0 digest 7572a0635345c9fe906c50fadd763ce0\n\
-     Plain/Assertion calls 514 forms 2733 frozen 0 digest 7b90d93d3999a85acc7557a506e28138\n\
+     Plain/Assertion calls 528 forms 2763 frozen 0 digest 32b4131f53a420ef27309ad73c84bf01\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 4157 frozen 0 digest cf662dda5d1d031e0e9af6238f538eed",
+     Early/Assertion calls 528 forms 4187 frozen 0 digest d7d94722c1d348616d16414a2cc582c0",
     "\
      Plain/Decision calls 928 forms 9415 frozen 0 digest 4c421c5d18739546779e9a8966c18e71\n\
-     Plain/Assertion calls 514 forms 2733 frozen 0 digest d0fe4dd300906adf23c7097661588401\n\
+     Plain/Assertion calls 528 forms 2763 frozen 0 digest 214d14c7211d40f17dac0abfb356f2c1\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 4157 frozen 0 digest 188afd10ef6ad7f4f7c711336f4ee6fa",
+     Early/Assertion calls 528 forms 4187 frozen 0 digest e2aad0e30e65d05b5b701fe7c90eca55",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -678,18 +683,18 @@ const PLATE_MAX_TERMS: usize = 28;
 /// 8165 → 8205, and their digests; every call, frozen count, the three
 /// `*/Decision` lines and the largest form hold.
 ///
-/// An arc's diameter clearance spelled `2r·cos²(|Δθ|/4)/(1 + sin(|Δθ|/4))`
-/// (`profile::seg`, cancellation-free near a full turn) where it was
-/// `2r·(1 − sin(|Δθ|/4))`: forms `Plain/Assertion` 7043 → 7047,
-/// `Early/Assertion` 8205 → 8209 and `Door/Decision` 9525 → 9531, and
-/// their digests; every call, frozen count, the other two lines and the
-/// largest form hold.
+/// The profile's joint pass reading each joint's turn, levered by the
+/// shorter leg's arm, and the path door reading each junction a
+/// departing leg follows again once that leg is stored (#5354's ruling
+/// and #5377's fix pass): `Plain/Assertion` and `Early/Assertion` +7
+/// calls (686 → 693) and +30 forms, with their digests; the
+/// `*/Decision` lines, the freezes and the largest form hold.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 939 forms 15836 frozen 324 digest ac360a3480da30b765ada11e3a3550c7\n\
-     Plain/Assertion calls 686 forms 7047 frozen 405 digest 1abd63e098e643a1e59e4eb9b129829d\n\
+     Plain/Assertion calls 693 forms 7073 frozen 405 digest ac98c9fa756d2ff62148806efb245556\n\
      Early/Decision calls 352 forms 8892 frozen 0 digest 61a2facb711fb0a70f13d4cfa3ece435\n\
-     Early/Assertion calls 686 forms 8209 frozen 0 digest f5a5b05adcd4490759e3daf9eadbbf41\n\
-     Door/Decision calls 428 forms 9531 frozen 0 digest c96c57c5ee4e878c71b2a5bcf6386b4c";
+     Early/Assertion calls 693 forms 8235 frozen 0 digest c6b94455a9fdd240760bec7120a63c11\n\
+     Door/Decision calls 428 forms 9525 frozen 0 digest c92c1df17252cd30da849fc47ba1a121";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

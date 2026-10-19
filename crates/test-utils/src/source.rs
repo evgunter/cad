@@ -64,8 +64,8 @@
 //! is a space. Every operation below depends on exactly that
 //! precondition, which is why each lives beside the lexer rather than
 //! at each call site — [`balanced_end`], [`angle_end`],
-//! [`top_level_split`] and [`item_body`], plus the traversals
-//! [`rust_sources`] and [`suite_files`].
+//! [`top_level_split`], [`item_body`] and [`attributed_extent`], plus
+//! the traversals [`rust_sources`] and [`suite_files`].
 //!
 //! A second group reads a DECLARATION out of a blanked view rather
 //! than walking brackets in it: [`initializers`], [`sole_initializer`]
@@ -626,6 +626,83 @@ pub fn item_body(blanked: &str, from: usize) -> ItemBody {
         // that runs to the end of the file.
         None => ItemBody::Unterminated,
     }
+}
+
+/// The span an outer attribute starting at `attr_at` (its `#`) governs:
+/// from the attribute, through any attributes stacked after it, to the
+/// end of the thing they are attached to. `None` on unbalanced text.
+///
+/// Same precondition as [`balanced_end`]. **The end depends on what
+/// the attribute sits on**, and reading every attribute as an item's is
+/// the defect this exists to prevent: a field, a variant or a match arm
+/// has no `;` or `{` of its own, so an item-shaped scan runs past the
+/// enclosing `}` and takes the NEXT item with it.
+///
+/// - **An item or a `let`** (its head, past any `pub(..)`, is an item
+///   keyword) ends where [`item_body`] says: its body's `}` or its `;`.
+///   A `,` ends nothing here, since a generic list carries one.
+/// - **Anything else** — a field, a variant, an arm, an argument, an
+///   expression statement — ends at the first `,` or `;` at bracket
+///   depth zero (included), before a closer at depth zero (the
+///   enclosing `}`, `)` or `]`), or at the close of a `{` opened at
+///   depth zero (a struct variant's fields, an arm's block).
+///
+/// **The residue, stated:** in the second case `<` is not a bracket,
+/// so a field typed `Map<K, V>` ends at its first `,`; what is left
+/// over is the rest of that field, never the next item. An arm whose
+/// body continues past a depth-zero block (`X => S { .. }.f()`) ends
+/// at the block.
+#[must_use]
+pub fn attributed_extent(blanked: &str, attr_at: usize) -> Option<std::ops::Range<usize>> {
+    const ITEM_KEYWORDS: [&str; 16] = [
+        "fn",
+        "impl",
+        "mod",
+        "struct",
+        "enum",
+        "union",
+        "trait",
+        "type",
+        "const",
+        "static",
+        "use",
+        "extern",
+        "unsafe",
+        "async",
+        "let",
+        "macro_rules",
+    ];
+    let mut head = attr_at;
+    while blanked[head..].starts_with("#[") {
+        head = skip_ws(blanked, balanced_end(blanked, head + 1)? + 1);
+    }
+    let mut word = head;
+    if word_at(blanked, word, "pub") {
+        word = skip_ws(blanked, word + "pub".len());
+        if blanked[word..].starts_with('(') {
+            word = skip_ws(blanked, balanced_end(blanked, word)? + 1);
+        }
+    }
+    if ITEM_KEYWORDS.contains(&ident(blanked, word)) {
+        return match item_body(blanked, head) {
+            ItemBody::Body(body) => Some(attr_at..body.end),
+            ItemBody::Declaration(semi) => Some(attr_at..semi + 1),
+            ItemBody::Unterminated => None,
+        };
+    }
+    let mut depth = 0usize;
+    for (off, c) in blanked[head..].char_indices() {
+        let at = head + off;
+        match c {
+            '{' if depth == 0 => return balanced_end(blanked, at).map(|end| attr_at..end + 1),
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' if depth == 0 => return Some(attr_at..at),
+            ')' | ']' | '}' => depth -= 1,
+            ',' | ';' if depth == 0 => return Some(attr_at..at + 1),
+            _ => {}
+        }
+    }
+    None
 }
 
 /// The byte offset of the `>` closing the generic list that opens at
@@ -1744,9 +1821,9 @@ mod tests {
     // flakes about one run in thirteen (15/200; **issue #882**). Do not
     // copy that shape here.
     use super::{
-        ItemBody, Region, aggregation_violations, angle_end, balanced_end, boundary_after,
-        boundary_before, code_and_literals, code_only, comments_only, file_module_decls, item_body,
-        keeping, top_level_split, where_at,
+        ItemBody, Region, aggregation_violations, angle_end, attributed_extent, balanced_end,
+        boundary_after, boundary_before, code_and_literals, code_only, comments_only,
+        file_module_decls, item_body, keeping, top_level_split, where_at,
     };
 
     /// The keyword, not the letters: an identifier that contains
@@ -2110,6 +2187,51 @@ mod tests {
         assert_eq!(
             item_body(&code_only("fn f() { g();"), 0),
             ItemBody::Unterminated
+        );
+    }
+
+    /// **An attribute governs its own thing and no further.** Each row
+    /// is a shape whose end is not an item's: read as one, the span
+    /// runs past the enclosing `}` and takes the next item with it.
+    #[test]
+    fn an_attribute_spans_its_field_variant_arm_or_item_and_stops() {
+        let span = |text: &str| {
+            let code = code_only(text);
+            let at = code.find("#[").expect("an attribute");
+            let range = attributed_extent(&code, at).expect("balanced");
+            text[range].to_owned()
+        };
+        assert_eq!(
+            span("struct S { a: u8, #[cfg(test)] b: [u8; 2] } impl X for S {}"),
+            "#[cfg(test)] b: [u8; 2] ",
+            "a last field stops before the struct's closing brace"
+        );
+        assert_eq!(
+            span("struct S { #[cfg(test)] b: (u8, u8), c: u8 }"),
+            "#[cfg(test)] b: (u8, u8),"
+        );
+        assert_eq!(
+            span("enum E { #[cfg(test)]\n#[doc(hidden)] V { x: u8 }, W }"),
+            "#[cfg(test)]\n#[doc(hidden)] V { x: u8 }",
+            "stacked attributes, and a struct variant's fields"
+        );
+        assert_eq!(
+            span("match x { #[cfg(test)] A => f(a, b), B => g() }"),
+            "#[cfg(test)] A => f(a, b),"
+        );
+        assert_eq!(
+            span("#[cfg(test)] pub(crate) fn f<A, B>() -> [u8; 2] { g(); } fn h() {}"),
+            "#[cfg(test)] pub(crate) fn f<A, B>() -> [u8; 2] { g(); }",
+            "an item's generic `,` ends nothing"
+        );
+        assert_eq!(span("#[cfg(test)] mod m; fn h() {}"), "#[cfg(test)] mod m;");
+        assert_eq!(
+            span("fn f() { #[cfg(test)] tear(a, b); after(); }"),
+            "#[cfg(test)] tear(a, b);"
+        );
+        assert_eq!(
+            attributed_extent(&code_only("#[cfg(test)] fn f() {"), 0),
+            None
         );
     }
 

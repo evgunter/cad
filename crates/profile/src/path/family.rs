@@ -138,7 +138,7 @@ use super::verbs::{self, ArcLen, Center, DirectedPoint, PendingArc, Radius, Swee
 use super::{
     ArcData as SegArc, Core, Dir, FirstSeg, Flavor, HasAng, HasPos, Incoming, NoAng, NoPos, Open,
     PAIRED, PartialPath, PathError, PendingMeta, Plain, SeamArrival, Start, Tip, WithIncoming,
-    carriers_are_identical, in_state, junction_check, leg_end_tip, linear_band, seam_joint,
+    carriers_are_identical, in_state, leg_end_tip, linear_band, seam_joint,
 };
 
 // ------------------------------------------------------------------
@@ -1657,7 +1657,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         let incoming_radius = spec.to_wire(tol).carries_radius();
         match spec.incoming(DirectedPoint { at, dir: inc.ang }, tol)? {
             FusedIncoming::Anchored((centre, winding, start, anchor)) => {
-                junction_check(&inc, start, false, tol)?;
+                self.core.pend_junction(&inc, start, tol)?;
                 open_arc(
                     &mut self.core,
                     PendingArc {
