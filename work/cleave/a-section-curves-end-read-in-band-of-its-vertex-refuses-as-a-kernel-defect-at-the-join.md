@@ -2,11 +2,12 @@
 id: a-section-curves-end-read-in-band-of-its-vertex-refuses-as-a-kernel-defect-at-the-join
 kind: issue
 title: A section curve's end read in band of the vertex it meets refuses at the join as a kernel defect, at the split and at the Boolean
-status: review
+status: closed
 opened: 2026-10-12
 priority: P2
 cost: M
 branch: cleave/section-end-inband-join
+closed: 2026-10-15
 ---
 
 
