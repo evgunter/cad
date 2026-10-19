@@ -841,6 +841,22 @@ pub struct Product<T: Decide> {
     /// health is what the outermost gate refuses over, and the gather
     /// is where it arrives.
     pub carried_unminted: Vec<crate::assembly::CarriedRefusal>,
+    /// The overlaps documents below this one reported between their own
+    /// copies ([`crate::CarriedInterference`]), carried verbatim, in
+    /// gather order: reported by the gate, never refused.
+    pub carried_interference: Vec<crate::assembly::CarriedInterference>,
+    /// The at-rest refusals of documents below this one over a finding
+    /// none of their declarations answers for, each crossing whole
+    /// ([`crate::CarriedAtRestFinding`]), carried verbatim: the
+    /// outermost gate refuses over them.
+    pub carried_at_rest: Vec<crate::assembly::CarriedAtRestFinding>,
+    /// **The pairs of solids those carried findings are about**, re-keyed
+    /// onto the aggregate through each graft's own solid order, smaller
+    /// key first. The census over this product finds each again inside
+    /// the part's copy; the gate reads this to tell the part's answer
+    /// from a finding of this document's
+    /// ([`crate::checks::at_rest`]'s `less_carried`).
+    pub census_pairs: Vec<(topo::SolidKey, topo::SolidKey)>,
     /// **Each loose copy's space, gathered by itself** (D10, Spaces,
     /// A11 (2)), in document order: what the world leaves out, kept beside
     /// it so the at-rest gate checks every space of the document from
@@ -1095,6 +1111,9 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     let mut solid_copies: Vec<SolidOrigin> = Vec::new();
     let mut carried: Vec<crate::assembly::CarriedDeclaration> = Vec::new();
     let mut carried_unminted: Vec<crate::assembly::CarriedRefusal> = Vec::new();
+    let mut carried_interference: Vec<crate::assembly::CarriedInterference> = Vec::new();
+    let mut carried_at_rest: Vec<crate::assembly::CarriedAtRestFinding> = Vec::new();
+    let mut census_pairs: Vec<(topo::SolidKey, topo::SolidKey)> = Vec::new();
     let mut tie_rows = CarriedRows::default();
     let mut copies: Vec<GatheredCopy<T>> = Vec::with_capacity(grafted.len());
     for ((node, ix, body, table, records, rows), keys) in &grafted {
@@ -1152,6 +1171,34 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         // A refusal names no entity — it is a mate that produced NO
         // record — so it carries with nothing to re-key.
         carried_unminted.extend(rows.unminted.iter().cloned());
+        // A part's census findings carry verbatim too, spelled in its
+        // own document, each reported once per part row, by the first
+        // route in gather order (`once_per_part_row`). Only the pairs
+        // they are about name entities of this body, and they re-key
+        // through the graft's solid order, every instance's: the order
+        // `GraftKeys::solids` promises is the source's, which is the
+        // one bridge this carry reads by position.
+        crate::assembly::once_per_part_row(
+            &mut carried_interference,
+            rows.interference.iter().cloned(),
+        );
+        crate::assembly::once_per_part_row(&mut carried_at_rest, rows.at_rest.iter().cloned());
+        if !rows.census_pairs.is_empty() {
+            let solid: std::collections::BTreeMap<topo::SolidKey, topo::SolidKey> = body
+                .solids()
+                .map(|(key, _)| key)
+                .zip(keys.solids().iter().copied())
+                .collect();
+            for &(a, b) in &rows.census_pairs {
+                let (Some(&a), Some(&b)) = (solid.get(&a), solid.get(&b)) else {
+                    return Err(ProductError::ContactLineage {
+                        node: *node,
+                        what: "solid",
+                    });
+                };
+                census_pairs.push((a.min(b), a.max(b)));
+            }
+        }
     }
     // The name carry's second half, after the last source: every
     // carried row, narrowed ONCE over all of them (`carry_names`). A tie
@@ -1261,6 +1308,9 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         unminted,
         carried,
         carried_unminted,
+        carried_interference,
+        carried_at_rest,
+        census_pairs,
         spaces,
     })
 }

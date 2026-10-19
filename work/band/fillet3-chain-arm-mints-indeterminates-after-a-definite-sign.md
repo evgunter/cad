@@ -4,6 +4,8 @@ kind: issue
 title: fillet3_chain_arm mints Indeterminates by hand after a definite non-positive sign
 status: open
 opened: 2026-10-01
+priority: P2
+cost: E
 ---
 
 

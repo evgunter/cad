@@ -21,3 +21,7 @@ So one decision is now worded two ways:
 ## Ask
 
 Render the meter's payload, or reword the wrapper in the same idiom ("not shown … (margin … m)"), and pin it whole.
+
+## Update (`encl/zero-arm-wording`)
+
+The meter's payloads now read "the offset distance's magnitude is not shown below the face's curvature radius on its bending side, {reach} m (margin {m} m), so the result may fold" (Zero) and "… passes the face's radius of curvature on the side it bends toward, {reach} m (margin {m} m), so the result folds over itself" (Negative), each number through `geom_core::Readable` / `MarginDiag::readable()`, and no content word said twice. Both wrapper arms also say "face's" twice ("the face's radius of curvature … so the face's offset …"), and the Negative arm prints no margin either; the same rewording covers them.
