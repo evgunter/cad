@@ -8,7 +8,7 @@
 
 use crate::blocks::{block, block_on, failure, run};
 use crate::emit_shared_rim_several::own_name;
-use crate::fixture::{ang, fname, insert, len, len2, on_frame, out, scl, table};
+use crate::fixture::{fname, insert, len, len2, on_frame, out, scl, table};
 
 use editor_core::{
     Advisory, CapEnd, CheckEvidence, CheckId, ChecksConfig, EntityKey, EntityKind, Entry,
@@ -59,6 +59,7 @@ fn proofs(doc: &ProfileDoc, node: RecipeNodeId, rows: &[NamedCoincidence]) -> Ve
     coincide::prove(
         doc,
         &[(node, rows)],
+        None,
         Tol::witness(),
         &editor_core::CancelToken::new(),
     )
@@ -623,9 +624,7 @@ fn split_prism(
 /// half): a diamond prism split by `y = 1` has four operand vertices ON
 /// the plane (the diamond's side corners, at both ends), each with one
 /// run on either side, so the plane cuts there and leaves no pieces
-/// touching. The pinch half of the row is the kernel's (`topo`'s
-/// `m3_pr3_split`): a document cannot yet split through a pinch
-/// (`work/wire/a-split-through-a-pinch-names-both-tip-copies-alike.md`).
+/// touching.
 #[test]
 fn a_split_through_a_vertex_that_only_cuts_records_nothing() {
     let diamond = [(1.0, 0.0), (2.0, 1.0), (1.0, 2.0), (0.0, 1.0)];
@@ -636,6 +635,43 @@ fn a_split_through_a_vertex_that_only_cuts_records_nothing() {
         "an ON vertex that cuts is no pinch"
     );
     assert!(unproven(&doc, &ev).is_empty());
+}
+
+/// **A split through a pinch records it** (§11 row 6's first half): the
+/// notched prism's tip `(4, 1)` has both neighbours above `y = 1`, so the
+/// split leaves two pieces touching there, one row per tip vertex, each
+/// the operand vertex the split's side verdict read ON the tool.
+#[test]
+fn a_split_through_a_pinch_records_one_row_per_pinched_vertex() {
+    let notched = [
+        (0.0, 0.0),
+        (8.0, 0.0),
+        (8.0, 2.0),
+        (7.0, 1.0),
+        (6.0, 1.0),
+        (5.0, 2.0),
+        (4.0, 1.0),
+        (3.0, 2.0),
+        (0.0, 2.0),
+    ];
+    let (_, ev, split) = split_prism("coincide-pinch", &notched, 1.0);
+    let rows = rows(&ev, split);
+    assert_eq!(rows.len(), 2, "one row per tip vertex: {rows:?}");
+    for row in &rows {
+        assert_eq!(
+            (row.relation, row.site),
+            (Relation::OnCarrier, DecisionSite::SplitOn)
+        );
+        assert!(
+            matches!(
+                (&row.cells[0], &row.cells[1]),
+                (NamedCell::Entity { name, .. }, NamedCell::Tool { .. })
+                    if name.kind == EntityKind::Vertex
+            ),
+            "an operand vertex on the tool: {row:?}"
+        );
+    }
+    assert_ne!(rows[0].cells[0], rows[1].cells[0], "the two tip vertices");
 }
 
 /// **Turning the check off removes the reports and nothing else**
@@ -1062,10 +1098,11 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
 /// **A union records a vertex touch once, as a pair does.** Two blocks
 /// kissing at a corner: their two-member union — the pair — holds one
 /// `VertexFusion` row, cited by its one record. Folded into a union with
-/// a third block apart, the pairwise judgement decides the same touch,
-/// but its records are not the union's, so only the fold step's row,
-/// which the union's record cites, is published: the union's rows and
-/// findings are the pair's, the vertex touch once.
+/// a third block apart, the pairwise judgement decides the same touch
+/// and publishes its row, and the fold step's row, which the union's
+/// record cites, states the same two member cells, so the record cites
+/// the judged row: the union's rows and findings are the pair's, the
+/// vertex touch once.
 #[test]
 fn a_union_records_a_vertex_touch_once() {
     let doc = ProfileDoc::empty_derived("coincide-union-kiss", Tol::witness());
@@ -1356,6 +1393,7 @@ fn census_the_door_over_the_corpus() {
         let proofs = coincide::prove(
             &cd.doc,
             &nodes,
+            None,
             Tol::witness(),
             &editor_core::CancelToken::new(),
         )
@@ -1436,6 +1474,7 @@ fn the_door_proves_half_the_composed_dies_joints() {
         let all: Vec<Proof> = coincide::prove(
             &cd.doc,
             &nodes,
+            None,
             Tol::witness(),
             &editor_core::CancelToken::new(),
         )
@@ -1456,24 +1495,6 @@ fn the_door_proves_half_the_composed_dies_joints() {
                 .all(|u| *u == coincide::Unreplayed::Numeric),
             "{name}: the rest are unproven: {replayed:?}"
         );
-    }
-}
-
-/// A resolver that resolves nothing: what a run carries when it may
-/// cross a part seam.
-#[derive(Debug)]
-struct NoParts;
-
-impl editor_core::PartResolver for NoParts {
-    fn resolve(
-        &self,
-        _: &editor_core::DocRef,
-        _: Tol,
-    ) -> Result<ProfileDoc, editor_core::ResolveFailure> {
-        Err(editor_core::ResolveFailure {
-            fault: editor_core::ResolveFault::Unresolved,
-            message: "no parts here".to_owned(),
-        })
     }
 }
 
@@ -1514,42 +1535,89 @@ fn a_symbolic_run_over_a_box_refuses_every_node() {
     }
 }
 
-/// **A symbolic run crosses no part seam.** Two documents built by the
-/// same edits mint the same variable ids, and a symbol is keyed by its
-/// id, so two parts' variables would be one symbol and their difference
-/// a false identity. A run asked for symbols and a resolver refuses
-/// every node, typed, before any runs.
+/// **A part's variables are symbols of its own document version.** Two
+/// documents built by the same edits mint the same variable ids, and two
+/// versions of one document share them; the door keys each symbol by the
+/// document, the version its reference pins and the id, so two
+/// documents' widths, or two versions', are two symbols and their
+/// difference is no identity, while one version's width read twice (a
+/// part instanced twice) is one symbol.
+///
+/// Red if a symbol is keyed by its id alone, or by its document without
+/// the pin: the widths then cancel as a theorem.
 #[test]
-fn a_symbolic_run_with_a_resolver_refuses_every_node() {
-    use editor_core::{NodeErrorKind, NodeResult, ParamBoxError};
-    let doc = ProfileDoc::empty_derived("coincide-seam", Tol::witness());
-    let (doc, _) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let opts = editor_core::EvalOptions {
-        symbols: true,
-        resolver: Some(std::sync::Arc::new(NoParts)),
-        ..editor_core::EvalOptions::default()
+fn two_documents_variables_are_two_symbols() {
+    use editor_core::ContentPin;
+    use editor_core::ParamValue;
+    use editor_core::analysis::{var_env_symbolic, var_env_symbolic_pinned};
+    use geom_core::{Band, Decide, Sym, SymBudget};
+    let built = |seed: &str| {
+        let doc = ProfileDoc::empty_derived(seed, Tol::witness());
+        block(doc, (0.0, 1.0), (0.0, 1.0), 1.0).0
     };
-    let ev: Evaluation<geom_core::Sym<f64>> = editor_core::evaluate(
-        &doc,
-        None,
-        &editor_core::CancelToken::new(),
-        &opts,
-        Tol::witness(),
+    let (a, b) = (built("coincide-seam-a"), built("coincide-seam-b"));
+    let ids: Vec<VarId> = a.free_vars().map(|(id, _)| id).collect();
+    assert_eq!(
+        ids,
+        b.free_vars().map(|(id, _)| id).collect::<Vec<_>>(),
+        "the same edits mint the same ids"
     );
-    assert!(!ev.order.is_empty());
-    for id in &ev.order {
-        assert!(
-            matches!(
-                ev.result(*id),
-                Some(NodeResult::Failed(e)) if matches!(
-                    e.kind,
-                    NodeErrorKind::ParamBox { source: ParamBoxError::SymbolsAcrossAPartSeam }
-                )
-            ),
-            "{:?}",
-            ev.result(*id)
+    let band = Band::linear(Tol::witness()).expect("a band");
+    let budget = SymBudget {
+        max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
+        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+    };
+    let (decided, _) = geom_core::sym::with_session(budget, || {
+        let (ea, eb) = (
+            var_env_symbolic::<Sym<f64>, _>(&a).expect("every variable binds"),
+            var_env_symbolic::<Sym<f64>, _>(&b).expect("every variable binds"),
         );
-    }
+        let value = |env: &editor_core::VarEnv<Sym<f64>>, id| match env.bindings.get(id) {
+            Some(ParamValue::Continuous { value, .. }) => *value,
+            other => panic!("{id:?} binds {other:?}"),
+        };
+        let proven = |x: Sym<f64>| {
+            let d = x.sign_within(band).expect("a difference decides");
+            (d.sign, d.margin.proven())
+        };
+        let pinned = |pin: u8| {
+            var_env_symbolic_pinned::<Sym<f64>, _>(&a, Some(&ContentPin([pin; 32])))
+                .expect("every variable binds")
+        };
+        let (v1, v1_again, v2) = (pinned(1), pinned(1), pinned(2));
+        (
+            proven(value(&ea, &ids[0]) - value(&eb, &ids[0])),
+            proven(value(&ea, &ids[0]) - value(&ea, &ids[0])),
+            proven(value(&v1, &ids[0]) - value(&v2, &ids[0])),
+            proven(value(&v1, &ids[0]) - value(&v1_again, &ids[0])),
+            proven(value(&ea, &ids[0]) - value(&v1, &ids[0])),
+        )
+    });
+    assert_eq!(
+        decided.0,
+        (geom_core::Sign::Zero, false),
+        "two documents' variable of one id: Zero at the values, two symbols"
+    );
+    assert_eq!(
+        decided.1,
+        (geom_core::Sign::Zero, true),
+        "one document's variable read twice is one symbol"
+    );
+    assert_eq!(
+        decided.2,
+        (geom_core::Sign::Zero, false),
+        "two pinned versions of one document: two symbols"
+    );
+    assert_eq!(
+        decided.3,
+        (geom_core::Sign::Zero, true),
+        "one pinned version bound twice (a part instanced twice): one symbol"
+    );
+    assert_eq!(
+        decided.4,
+        (geom_core::Sign::Zero, false),
+        "the document being evaluated and a pinned version of it: two symbols"
+    );
 }
 
 /// **Two copies of one body are two constructions placed apart, never

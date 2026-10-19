@@ -28,7 +28,7 @@ use geom_core::{Point3, Vec3};
 
 use crate::{
     Dimension, DocEdit, Expr, Formula, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RefusingReach,
+    ProfileProgram, RecipeNodeId,
 };
 
 // --- literals -------------------------------------------------------
@@ -240,7 +240,7 @@ pub fn stored_loop(doc: &mut ProfileDoc, program: &LoopProgram<Formula>) -> Loop
 fn constrained(doc: ProfileDoc, placement: RecipeNodeId, placed: crate::Placed) -> ProfileDoc {
     let tol = geom_core::Tol::witness();
     let step = |doc: &ProfileDoc, edit: DocEdit<ProfileProgram>| {
-        crate::apply(doc, &edit, tol, &RefusingReach).expect("a placement's constraint applies")
+        crate::apply(doc, &edit, tol).expect("a placement's constraint applies")
     };
     let mated = step(
         &doc,
@@ -255,17 +255,20 @@ fn constrained(doc: ProfileDoc, placement: RecipeNodeId, placed: crate::Placed) 
         .minted_constraints
         .first()
         .expect("a mate mints its id");
-    placed.values.into_iter().fold(mated.doc, |doc, (coord, by)| {
-        step(
-            &doc,
-            DocEdit::AddValue {
-                placement,
-                value: Box::new(crate::mate::Value { mate, coord, by }),
-                fresh: Vec::new(),
-            },
-        )
-        .doc
-    })
+    placed
+        .values
+        .into_iter()
+        .fold(mated.doc, |doc, (coord, by)| {
+            step(
+                &doc,
+                DocEdit::AddValue {
+                    placement,
+                    value: Box::new(crate::mate::Value { mate, coord, by }),
+                    fresh: Vec::new(),
+                },
+            )
+            .doc
+        })
 }
 
 /// **A placement of `body`**, inserted with no constraint yet.
@@ -278,7 +281,6 @@ fn place_of(doc: ProfileDoc, body: crate::Operand) -> (ProfileDoc, RecipeNodeId)
             fresh: Vec::new(),
         },
         tol,
-        &RefusingReach,
     )
     .expect("a placement inserts");
     let placement = applied.record.minted.expect("an insert mints a node");
@@ -339,9 +341,15 @@ pub fn against(
 ) -> (ProfileDoc, RecipeNodeId) {
     let tol = geom_core::Tol::witness();
     let (target, body) = (target.into(), body.into());
-    let placed =
-        crate::place_against(&doc, &target, &body, at, &crate::EvalOptions::default(), tol)
-            .expect("the copy places against its target's geometry");
+    let placed = crate::place_against(
+        &doc,
+        &target,
+        &body,
+        at,
+        &crate::EvalOptions::default(),
+        tol,
+    )
+    .expect("the copy places against its target's geometry");
     let (doc, placement) = place_of(doc, body);
     (constrained(doc, placement, placed), placement)
 }
@@ -447,7 +455,6 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 2]) 
                 fresh: Vec::new(),
             },
             tol,
-            &RefusingReach,
         )
         .expect("the clipped cylinder's inserts apply");
         (a.doc, a.record.minted.expect("an insert mints a node"))
@@ -684,4 +691,59 @@ pub fn slot_spelling(doc: &ProfileDoc, node: RecipeNodeId, slot: crate::SlotId) 
         &crate::param_source::definitions_of(doc),
         var,
     ))
+}
+
+// --- a state no door admits -------------------------------------------
+
+/// **`mate` written into `placement`'s bundle past the bundle rule**:
+/// the constraint lowered and admitted as [`DocEdit::AddConstraint`]
+/// admits it into an empty bundle, then the bundle's other
+/// constraints put back beside it. The state a doctored save leaves, which
+/// no edit door admits and the fold refuses (`MateFault::Overconstrained`); for
+/// rows that hold the solve's half of the rule. Answers the document
+/// and the constraint's id.
+///
+/// # Panics
+///
+/// If `placement` is no placement, or the door refuses `mate` on its
+/// own.
+pub fn beside_past_the_bundle_rule(
+    doc: &ProfileDoc,
+    placement: RecipeNodeId,
+    mate: crate::Mate<Formula>,
+    tol: geom_core::Tol,
+) -> (ProfileDoc, crate::node::ConstraintId) {
+    let bundle = |doc: &mut ProfileDoc| match doc.nodes.get_mut(&placement) {
+        Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) => {
+            std::mem::take(constraints)
+        }
+        _ => panic!("{placement} is no placement"),
+    };
+    let mut emptied = doc.clone();
+    let held = bundle(&mut emptied);
+    let applied = crate::apply(
+        &emptied,
+        &DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(mate),
+            fresh: Vec::new(),
+        },
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the door admits the mate alone: {e}"));
+    let mut out = applied.doc;
+    let id = applied.record.minted_constraints[0];
+    // The door dropped the variables only the taken-out constraints
+    // read; they go back with them.
+    for (var, def) in &doc.vars {
+        out.vars.entry(*var).or_insert_with(|| def.clone());
+    }
+    let added = bundle(&mut out);
+    match out.nodes.get_mut(&placement) {
+        Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) => {
+            *constraints = held.into_iter().chain(added).collect();
+        }
+        _ => unreachable!("the placement was found above"),
+    }
+    (out, id)
 }

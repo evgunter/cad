@@ -111,7 +111,6 @@ fn an_assertion_over_a_non_scalar_is_refused_at_both_doors() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::PayloadVarKind {
             declared: editor_core::VarKind::Profile,
@@ -147,7 +146,6 @@ fn an_assertion_bound_of_the_wrong_dimension_is_refused_at_both_doors() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::AssertionDimension {
             measured: Dimension::Length,
@@ -186,7 +184,6 @@ fn saved_assertion(
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a well-dimensioned assertion inserts");
     let id = applied.record.minted.expect("the insert minted an id");
@@ -624,7 +621,6 @@ fn a_constraint_on_a_non_placement_is_refused_at_the_edit_door() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::ConstraintOnNonPlacement { node }) => assert_eq!(node.id(), other),
         other => panic!("a constraint on a non-placement must refuse typed, got {other:?}"),
@@ -642,7 +638,6 @@ fn transformed(label: &str, frame: Frame) -> Result<(ProfileDoc, RecipeNodeId), 
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .map(|applied| {
         let id = applied.record.minted.expect("an insert mints");
@@ -804,7 +799,6 @@ fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
             witness: witness(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::WitnessOnNonSketch { node }) => assert_eq!(node.id(), non_sketch),
         other => panic!("a witness on a non-sketch must refuse typed, got {other:?}"),
@@ -832,14 +826,9 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
     // Deleted rather than invented, so the id stays one the document
     // has minted and the load door's id walk passes it — the refusal read
     // is then the site rule's and not `NodeNotMinted`.
-    let doc = apply(
-        &doc,
-        &DocEdit::DeleteNode { id: gone },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("the extrude has no consumer")
-    .doc;
+    let doc = apply(&doc, &DocEdit::DeleteNode { id: gone }, Tol::witness())
+        .expect("the extrude has no consumer")
+        .doc;
     match apply(
         &doc,
         &DocEdit::ReWitness {
@@ -847,7 +836,6 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
             witness: witness(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::UnknownNode { id }) => assert_eq!(id.id(), gone),
         other => panic!("a witness on a missing node must refuse typed, got {other:?}"),
@@ -878,22 +866,12 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
 #[test]
 fn an_inadmissible_epsilon_is_refused_at_both_doors() {
     let (doc, _) = with_value();
-    match apply(
-        &doc,
-        &DocEdit::SetTolerance { eps: 0.0 },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    ) {
+    match apply(&doc, &DocEdit::SetTolerance { eps: 0.0 }, Tol::witness()) {
         Err(EditError::InvalidTolerance { value }) => assert_eq!(value, 0.0),
         other => panic!("a zero ε must refuse typed, got {other:?}"),
     }
     let below = geom_core::tolerance::EPS_MIN.next_down();
-    match apply(
-        &doc,
-        &DocEdit::SetTolerance { eps: below },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    ) {
+    match apply(&doc, &DocEdit::SetTolerance { eps: below }, Tol::witness()) {
         Err(EditError::InvalidTolerance { value }) => assert_eq!(value, below),
         other => panic!("an ε below the floor must refuse typed, got {other:?}"),
     }
@@ -972,7 +950,6 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
                 def: editor_core::VarDecl::Free(value.clone()),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         ) {
             Err(EditError::NonFiniteVar { var: n, field }) => {
                 assert_eq!(n.name(), Some(&name));
@@ -1029,7 +1006,6 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Count, 3.0)),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::ContinuousVarCannotBeCount { var: n }) => {
             assert_eq!(n.name(), Some(&name));
@@ -1144,7 +1120,6 @@ fn saved_with_width() -> (ProfileDoc, String) {
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a legal name declares");
     let text = save(&applied.doc, &[], Tol::witness()).expect("the fixture saves");

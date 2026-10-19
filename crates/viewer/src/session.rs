@@ -60,8 +60,8 @@ use pncad::document::{
     Assembly, AssemblyError, AuthoredNode, CheckId, ChecksConfig, ChecksReport, Dimension,
     DimensionError, Doc, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula,
     Frame, FreeValue, FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, Operand,
-    OperandSlot, PartReach, PartResolver, PatternKind, ProductError, ProfileProgram, RecipeNodeId,
-    Recorded, Recording, SlotId, StepId, Subject, VarId, VarName, apply, assemble_gathered,
+    OperandSlot, PartResolver, PatternKind, ProductError, ProfileProgram, RecipeNodeId, Recorded,
+    Recording, SlotId, StepId, Subject, VarId, VarName, apply, assemble_gathered,
     cascade_delete_order, parse_formula, product_recorded, run_checks_at_rest_on,
 };
 use pncad::geom_core::Tol;
@@ -410,6 +410,10 @@ pub struct DocSession {
     /// here (the seam-friction inventory rule). Never persisted; reset
     /// by `Open`; pruned against every new document value.
     display: DisplayState,
+    /// What the prunes on landed evaluations withdrew and nobody has
+    /// taken yet ([`DocSession::take_landed_withdrawals`]). A landing is
+    /// not an operation, so its withdrawals ride no [`OpOutcome`].
+    landed_withdrawals: Vec<crate::display::PruneReport>,
     /// The document seam: the opened file's own directory, consulted
     /// lazily (the directory rule and the scan-at-resolution posture
     /// are [`DirResolver`]'s docs). A session over an in-memory
@@ -840,6 +844,7 @@ impl DocSession {
             derived: Derived::none(),
             path: None,
             display: DisplayState::new(),
+            landed_withdrawals: Vec::new(),
             resolver: None,
             notation: Notation::DEFAULT,
         };
@@ -1060,6 +1065,22 @@ impl DocSession {
         Some((run.doc.as_ref(), run.evaluation.as_ref()))
     }
 
+    /// **The evaluation that answers the shown document's spaces**
+    /// (DI5): the landed one, when the document it answers is the
+    /// committed one or the shown one; `None` while it answers an older
+    /// document, until the next landing — what free-move admission
+    /// reads ([`crate::display::free_move_check`]).
+    ///
+    /// Mid-drag the two differ only by a value gesture's edits, which
+    /// leave the node graph alone
+    /// ([`SessionOp::permitted_during_value_gesture`]), and which space
+    /// a copy lives in is a function of that graph — which mates name
+    /// which copies, and which name the world — so a landing of either
+    /// answers both.
+    pub fn space_evaluation(&self) -> Option<&Evaluation<f64>> {
+        space_evaluation(&self.derived, &self.history)
+    }
+
     /// The part files the landed run's resolver could name
     /// ([`PartFiles`]): what the tree names an instance's part by.
     /// Unscanned while nothing has landed.
@@ -1181,7 +1202,7 @@ impl DocSession {
 
     /// The display snapshot the scene and pick paths consume.
     pub fn display_view(&self) -> DisplayView {
-        self.display.view(self.doc())
+        self.display.view(self.doc(), self.evaluation())
     }
 
     /// The directory this session resolves part references against —
@@ -1527,7 +1548,36 @@ impl DocSession {
             checks,
             files,
         });
+        // **The second prune** (DI5): spaces exist only after the solve,
+        // so whether a free-move's root still names a loose space is
+        // asked here, of the evaluation and the document it answers,
+        // rather than when the edit committed. A landing of a value
+        // gesture's scratch shares the committed graph but not its
+        // values, so it prunes on what the graph decides alone
+        // (`DisplayState::prune_structural`): a committed pin whose own
+        // landing the scratch's overtook takes effect now, mid-drag,
+        // and a placement a previewed value refuses — which the user may
+        // still cancel — discards nothing committed.
+        if let Some(run) = self.derived.landed.as_ref() {
+            let eval = run.evaluation.as_ref();
+            let report = if *self.requested_doc == *self.history.doc() {
+                self.display.prune(&self.requested_doc, Some(eval))
+            } else {
+                self.display.prune_structural(&self.requested_doc, eval)
+            };
+            if !report.is_empty() {
+                self.landed_withdrawals.push(report);
+            }
+        }
         Landing::Landed
+    }
+
+    /// **What the landings' prunes withdrew** since the last call, in
+    /// landing order: a free-move a placement now pins, or a gesture
+    /// whose space stopped being loose. The chrome reports them as it
+    /// reports an operation's [`OpOutcome::withdrawn`].
+    pub fn take_landed_withdrawals(&mut self) -> Vec<crate::display::PruneReport> {
+        core::mem::take(&mut self.landed_withdrawals)
     }
 
     /// Perform one operation.
@@ -1677,7 +1727,13 @@ impl DocSession {
                 }
             }
             SessionOp::BeginFreeMove { instance } => {
-                match self.display.begin_free_move(self.history.doc(), instance) {
+                // `space_evaluation` over the two fields it reads: the
+                // display state beside them is borrowed mutably.
+                let eval = space_evaluation(&self.derived, &self.history);
+                match self
+                    .display
+                    .begin_free_move(self.history.doc(), eval, instance)
+                {
                     Ok(()) => OpOutcome::default(),
                     Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
                 }
@@ -1801,11 +1857,7 @@ impl DocSession {
             node,
             label: Some(label),
         };
-        // A label edit performs no maintenance, so its reach is never
-        // asked; the session's own is handed over for uniformity.
-        let resolver = self.resolver_seam();
-        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
-        match apply(self.history.doc(), &edit, self.tol, &reach) {
+        match apply(self.history.doc(), &edit, self.tol) {
             Ok(applied) => {
                 self.history
                     .extend_current(recorded, edit.clone(), applied.doc);
@@ -2453,7 +2505,6 @@ impl DocSession {
     /// driving operation has to be), and what it is not is about this
     /// drag.
     fn preview_gesture(&mut self, named: &ValueGestureName, value: f64) -> OpOutcome {
-        let resolver = self.resolver_seam();
         let tol = self.tol;
         let previewed = self.gesture.preview(
             gesture_words(),
@@ -2466,15 +2517,8 @@ impl DocSession {
                     .map_err(Refusal::Dimension)?;
                 // Applied to the gesture's BASE, so previews replace
                 // one another instead of composing, and the history
-                // never sees any of them. The reach is the session's
-                // own seam: a gesture that moved a group would mint a
-                // frame from the parts' extent, and with no directory
-                // to resolve against it refuses typed. Built per tick,
-                // and lazy — a slot gesture moves no group, so what a
-                // tick pays for it is the construction and nothing
-                // more.
-                let reach = PartReach::<f64>::with_resolver(Some(&resolver), tol);
-                let applied = apply(&gesture.base, &edit, tol, &reach)
+                // never sees any of them.
+                let applied = apply(&gesture.base, &edit, tol)
                     .map_err(|error| Refusal::Edit(Box::new(error)))?;
                 // **The display layer's identity, held rather than
                 // argued.** Every display predicate is a function of
@@ -2573,11 +2617,11 @@ impl DocSession {
             return OpOutcome::refused(Refusal::NothingToDo { direction });
         }
         // The document moved, so the display state's derived facts
-        // (which instances exist; which are mate-constrained) may have
-        // too — an undo past a mate's insertion does NOT resurrect a
-        // discarded probe (the value is gone, not parked), but a redo
-        // over one discards the probe it constrains.
-        let pruned = self.display.prune(self.history.doc());
+        // (which instances exist; which spaces are loose) may have
+        // too — an undo past a pin's insertion does NOT resurrect a
+        // discarded frame (the value is gone, not parked), but a redo
+        // over one discards the frame it pins, when its landing knows.
+        let pruned = self.display.prune(self.history.doc(), None);
         self.request_eval();
         OpOutcome::from_prune(pruned)
     }
@@ -2690,6 +2734,9 @@ impl DocSession {
     fn clear_for_new_document(&mut self) {
         self.derived = Derived::none();
         self.display.clear();
+        // A landing's report names the outgoing document's nodes, which
+        // the incoming one cannot speak (`DisplayState::clear`).
+        self.landed_withdrawals.clear();
     }
 
     /// Insert one profile node ([`SessionOp::AddProfile`]), drawn on its
@@ -2785,9 +2832,7 @@ impl DocSession {
         let Some(edit) = self.set_program_of(node, base, loops, ids)? else {
             return Ok(Vec::new());
         };
-        let resolver = self.resolver_seam();
-        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
-        let mut run = Recording::start(self.committed_doc(), self.tol, &reach);
+        let mut run = Recording::start(self.committed_doc(), self.tol);
         let refused = |error| Refusal::Edit(Box::new(error));
         run.apply(edit).map_err(refused)?;
         // What the count says is what the person would lose: a
@@ -3395,12 +3440,13 @@ impl DocSession {
     }
 
     /// **The one door an edit enters the document through**: apply,
-    /// record, re-evaluate — and reconcile the display state, which is
-    /// where a free-move probe is superseded by the mate that
-    /// constrains its instance (the prune DISCARDS the value; see
-    /// `display`'s module docs for why discard and not zero) and where
-    /// a hide the picture can no longer honour is dropped. Both are
-    /// reported on the outcome, each with the fault that caused it.
+    /// record, re-evaluate — and reconcile the display state against
+    /// what the document alone says: a free-move frame whose root is
+    /// gone is discarded (see `display`'s module docs for why discard
+    /// and not zero), and a hide the picture can no longer honour is
+    /// dropped, each reported on the outcome with the fault that caused
+    /// it. A frame a placement now pins goes when the edit's evaluation
+    /// lands (`DocSession::land`'s second prune).
     fn commit(&mut self, edit: DocEdit<ProfileProgram>) -> OpOutcome {
         self.commit_action(vec![edit])
     }
@@ -3550,13 +3596,9 @@ impl DocSession {
         &self,
         action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<T, EditError>,
     ) -> Result<(Recorded<ProfileProgram>, T), Refusal> {
-        // ONE reach for the whole action, over the session's own seam
-        // (the directory rule; `None` refuses typed): the mate door
-        // asks it, and nothing it decides is recorded — the edits are
-        // the history.
-        let resolver = self.resolver_seam();
-        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
-        let mut run = Recording::start(self.history.doc(), self.tol, &reach);
+        // Nothing the door decides is recorded: the edits are the
+        // history.
+        let mut run = Recording::start(self.history.doc(), self.tol);
         let answer = action(&mut run);
         let refused = |error| Refusal::Edit(Box::new(error));
         let staged = run.finish().map_err(refused)?;
@@ -3578,7 +3620,7 @@ impl DocSession {
         } = staged;
         let committed = edits.clone();
         self.history.commit_group(edits, doc);
-        let pruned = self.display.prune(self.history.doc());
+        let pruned = self.display.prune(self.history.doc(), None);
         self.request_eval();
         OpOutcome {
             committed,
@@ -3961,6 +4003,16 @@ fn frame_along(
     })
 }
 
+/// [`DocSession::space_evaluation`], over the two session fields it
+/// reads: the shown document is the scratch while a value gesture
+/// previews, the committed one otherwise ([`DocSession::doc`]).
+fn space_evaluation<'a>(derived: &'a Derived, history: &History) -> Option<&'a Evaluation<f64>> {
+    let run = derived.landed.as_ref()?;
+    let committed = history.doc();
+    let shown = derived.scratch.as_ref().unwrap_or(committed);
+    (*run.doc == *committed || *run.doc == *shown).then(|| run.evaluation.as_ref())
+}
+
 /// **The "place part" gesture over the copy `body` reads**
 /// ([`editor_core::place_at`]): the mate `place_at` reads off the copy
 /// as `run`'s document holds it, added to `placement`'s bundle, and its
@@ -4147,6 +4199,7 @@ impl core::fmt::Debug for DocSession {
             derived,
             path,
             display: _,
+            landed_withdrawals: _,
             resolver,
             notation,
         } = self;

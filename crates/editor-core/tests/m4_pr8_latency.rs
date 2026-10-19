@@ -454,7 +454,6 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
             value: FreeValue::Count(fins),
         },
         tol,
-        &editor_core::RefusingReach,
     )
     .expect("the fin count is a document parameter")
     .doc;

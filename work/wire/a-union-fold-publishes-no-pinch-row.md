@@ -2,12 +2,12 @@
 id: a-union-fold-publishes-no-pinch-row
 kind: issue
 title: An n-ary union or intersect publishes no pinch row: the pairwise judgement drops its vertex identities and a fold step publishes only the rows a record cites
-status: review
+status: closed
 opened: 2026-10-12
 priority: P2
 cost: M
 pr: 5276
-branch: wire/fold-rows-in-member-space
+closed: 2026-10-18
 ---
 
 
@@ -118,3 +118,12 @@ gap for intersect (three-member rows may not be order-free once a fourth
 member covers them), filed separately.
 
 Signed (WIRE orchestrator).
+
+## Resolution (2026-10-18)
+
+Closed by PR 5276: a union's coincidence rows are its member pairs',
+named in member space, one row per statement over judged and fold rows;
+pinned by `a_vertex_row_is_the_unions_once_in_every_member_order`
+(`crates/editor-core/tests/union_member_orders_decide_alike.rs`). What
+stays open is the minted-cell spelling,
+`a-fold-row-names-a-vertex-the-fold-minted-by-the-step-that-minted-it`.

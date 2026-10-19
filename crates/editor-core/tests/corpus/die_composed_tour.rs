@@ -192,7 +192,7 @@ pub fn document() -> CorpusDoc {
     let edits = edits();
     let mut doc = ProfileDoc::empty_derived(DOC_LABEL, Tol::witness());
     for edit in &edits {
-        doc = editor_core::apply(&doc, edit, Tol::witness(), &editor_core::RefusingReach)
+        doc = editor_core::apply(&doc, edit, Tol::witness())
             .expect("the tour's edit log replays")
             .doc;
     }

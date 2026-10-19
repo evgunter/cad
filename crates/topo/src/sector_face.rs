@@ -192,8 +192,7 @@ pub(crate) fn resolve<T: Decide>(
         // its one home rather than re-derived here. It is `0/0` only on
         // the axis, which no point of a ring torus's tube reaches
         // (`ρ ≥ R − r > 0`); a vertex there poisons the normal, and
-        // poison escalates typed at the first decide that reads it —
-        // the same outcome `point_on_torus_in_face`'s banded check gives.
+        // poison escalates typed at the first decide that reads it.
         s @ geom::Surface::Torus { .. } => charted(
             geom_brep::implicit_gradient(s, point()).normalize(),
             SectorCarrier::Torus,

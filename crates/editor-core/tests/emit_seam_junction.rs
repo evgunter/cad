@@ -17,7 +17,7 @@ use std::collections::BTreeSet;
 
 use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
-use crate::fixture::{ename, fname, member_entity, member_face, table, vertex_of, wall};
+use crate::fixture::{ename, member_entity, member_face, table, vertex_of, wall};
 
 use editor_core::{
     CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg,

@@ -65,9 +65,7 @@ const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 80
 /// these are not): the prose's, not the names'. Filed as
 /// `work/wire/refusals-forwarding-a-name-state-no-marked-recourse.md`.
 const UNMARKED_RECOURSE: &[&str] = &[
-    "ResolveError::Vanished",
     "SelectRefusal::TiedDisagrees",
-    "SelectRefusal::Unreadable",
     "NodeErrorKind::CrossingUnverified",
 ];
 
@@ -129,9 +127,15 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// touch of a wall is said as a crossing of two rims, as are the pieces
 /// whose ends cite it. The longer sentences are the right names, not a
 /// regression. The percentiles, the maxima and the scoped row held.
+///
+/// The full total rose by 96 with a seam citing the parent face (N3).
+/// In `crossing_slots` and its world copy, the two seams beside the
+/// merged floor say its `Merged` parent, over both floors, where they
+/// said one of them. The longer sentences are the right names, not a
+/// regression. The percentiles, the maxima and the scoped row held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
     ("scoped faces", [16, 43, 57, 55_615]),
-    ("full", [19, 122, 196, 411_134]),
+    ("full", [19, 122, 196, 411_230]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -227,7 +231,10 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// the placement holding its world pin, so the placement's tag moved
 /// and every tag minted after it. [`NAME_WORDS`] held: no name says a
 /// word more or fewer.
-const SAID_DIGEST: u64 = 0x961f_05f0_952f_8b55;
+///
+/// A seam citing the parent face (N3) moved it with [`NAME_WORDS`], in
+/// `crossing_slots` alone.
+const SAID_DIGEST: u64 = 0x04fa_b47e_1ab9_fbed;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -899,7 +906,7 @@ fn a_run_of_seams_says_each_seam_by_its_faces() {
 fn respoken_after_a_dropped_step() {
     use crate::corpus::reshaped_rod::{CREASE, bump_ids, lateral_edge, rod_ids, rod_loop};
     use editor_core::{
-        DocEdit, Node, ProfileDoc, ProfileProgram, ProfileVertexRef, RefusingReach, RoleSeg, apply,
+        DocEdit, Node, ProfileDoc, ProfileProgram, ProfileVertexRef, RoleSeg, apply,
     };
 
     let tol = fixture::tol();
@@ -950,7 +957,6 @@ fn respoken_after_a_dropped_step() {
                 fresh: Vec::new(),
             },
             tol,
-            &RefusingReach,
         )
         .expect("the reshaping applies")
         .doc

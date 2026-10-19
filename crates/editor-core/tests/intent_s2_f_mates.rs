@@ -479,7 +479,6 @@ fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
             )),
         }],
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     assert!(
         matches!(

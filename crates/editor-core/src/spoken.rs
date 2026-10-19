@@ -1429,7 +1429,7 @@ mod tests {
     use crate::label::Label;
     use crate::node::{RecipeNodeId, StepId};
     use crate::program::ProfileProgram;
-    use crate::{RefusingReach, test_support};
+    use crate::test_support;
 
     /// The tag is the id's high twelve hex digits, its prefix; the full
     /// id is all sixteen. Written as numbers whose digits a reader can
@@ -1480,7 +1480,6 @@ mod tests {
                     fresh: Vec::new(),
                 },
                 tol,
-                &RefusingReach,
             )
             .expect("the tube inserts")
             .doc;
@@ -1518,7 +1517,6 @@ mod tests {
                     fresh: Vec::new(),
                 },
                 tol,
-                &RefusingReach,
             )
             .expect("the tube inserts")
             .doc;

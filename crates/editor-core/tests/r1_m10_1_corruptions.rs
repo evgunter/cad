@@ -28,7 +28,6 @@ fn annotated_doc(sigma: f64) -> ProfileDoc {
             )),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("applies")
     .doc
@@ -86,7 +85,6 @@ fn a_planted_bounds_corruption_refuses_at_load() {
                 )),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("applies")
         .doc
@@ -176,7 +174,6 @@ fn unknown_forms_and_stray_fields_refuse_to_parse() {
                 def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("applies")
         .doc

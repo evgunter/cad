@@ -30,11 +30,11 @@ use editor_core::{
     CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EntityKind, EvalOptions,
     Evaluation, FaceName, Formula, Frame, MateFault, MateRef, MateSide, Node, NodeErrorKind,
     NodeResult, PartFault, PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE,
-    RecipeNodeId, RefusingReach, RoleSeg, SlideAxis, SlotId, StableName, Target, Value, VarDef,
-    VarKind, all_faces, face_carrier_kind, face_frame, load, mate_reach, save,
+    RecipeNodeId, RoleSeg, SlideAxis, SlotId, StableName, Target, Value, VarDef, VarKind,
+    all_faces, face_carrier_kind, face_frame, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, gate, insert, len, on_frame, run, solve, square, step, step_with};
+use fixture::{ang, gate, insert, len, on_frame, run, solve, square, step};
 use geom_core::Tol;
 
 // ---- Substrate ----
@@ -110,7 +110,6 @@ fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Prof
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &RefusingReach,
     )
     .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
     .doc
@@ -294,14 +293,12 @@ fn edit_the_post(s: &mut Seat, edit: DocEdit<ProfileProgram>) {
     let new_ref = s.store.insert(post.clone(), Tol::witness());
     s.post = post;
     s.opts = with_resolver(s.store.clone());
-    let reach = mate_reach::<f64>(&s.opts, Tol::witness());
-    let (doc, _) = step_with(
+    let (doc, _) = step(
         s.doc.clone(),
         DocEdit::UpdateReference {
             node: s.post_i,
             new_pin: new_ref.pin,
         },
-        &reach,
     );
     s.doc = doc;
 }
@@ -717,9 +714,8 @@ fn a_vanished_name_refuses_where_its_reader_evaluates_never_at_the_door_or_load(
 
 /// **A part that does not resolve fails its instance in the
 /// resolver's own voice**, and the block whose target reads that
-/// instance is poisoned through it: the door, asked through the
-/// refusing reach, admits a seat on such a part, since it reads
-/// nothing.
+/// instance is poisoned through it: the door admits a seat on such a
+/// part, since it reads nothing.
 ///
 /// *Breaks if* the door asks a part, or a reader of a failed instance
 /// evaluates.
@@ -735,7 +731,6 @@ fn an_unresolvable_part_fails_its_instance_in_the_resolvers_voice() {
     );
     fixture::at_the_door_of(
         &doc,
-        &RefusingReach,
         other,
         fixture::rest(
             fixture::head(in_part(other, s.block_body, CapEnd::Start)),

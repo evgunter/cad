@@ -2,7 +2,6 @@
 //! here evaluates anything — the evaluation service interprets this
 //! data against the kernel ops.
 
-
 use std::collections::BTreeMap;
 
 use crate::expr::{Dimension, Slot};
@@ -138,7 +137,6 @@ pub enum Axis3 {
     /// The z component.
     Z,
 }
-
 
 /// A profile-program step's ARGUMENT ROLE — the closed per-verb enum
 /// that, with a loop and step index, addresses one expression inside a
@@ -1009,10 +1007,22 @@ macro_rules! station_rows {
         for (step, m) in $station.into_iter().enumerate() {
             match m {
                 StationMove::Slide { along: _, by } => {
-                    $out.push((SlotId::StationSlide { section: $section, step }, by));
+                    $out.push((
+                        SlotId::StationSlide {
+                            section: $section,
+                            step,
+                        },
+                        by,
+                    ));
                 }
                 StationMove::Spin { about: _, by } => {
-                    $out.push((SlotId::StationSpin { section: $section, step }, by));
+                    $out.push((
+                        SlotId::StationSpin {
+                            section: $section,
+                            step,
+                        },
+                        by,
+                    ));
                 }
             }
         }
@@ -2624,7 +2634,7 @@ impl<P> Node<P> {
                 v.extend(side_rows_mut(constraints));
                 v
             }
-            | Node::World
+            Node::World
             | Node::Assertion {
                 value: _,
                 bound: _,
@@ -2834,7 +2844,6 @@ impl<P> Node<P> {
         }
         hits
     }
-
 }
 
 impl<P, L> Node<P, crate::expr::ExprTree<L>>
@@ -2869,8 +2878,6 @@ pub(crate) fn map_array<S, S2, E, const N: usize>(
         Err(_) => unreachable!("{N} values in, {N} out"),
     }
 }
-
-
 
 impl<S> TubeWindow<S> {
     /// **This window in another slot form** ([`Node::try_map_slots`]'s
@@ -3052,10 +3059,7 @@ impl<P, S: Slot> Node<P, S> {
         use crate::OperandSlot as O;
         Ok(match self {
             Node::Profile(p) => Node::Profile(payload(p, f)?),
-            Node::Extrude {
-                profile,
-                distance,
-            } => Node::Extrude {
+            Node::Extrude { profile, distance } => Node::Extrude {
                 profile: read(O::Profile, profile)?,
                 distance: f(distance)?,
             },
@@ -3220,7 +3224,7 @@ impl<P, S: Slot> Node<P, S> {
             Node::Subtract { from, tool, .. } => vec![(O::From, from), (O::Cut, tool)],
             Node::Union { members, .. } | Node::Intersect { members, .. } => members.rows(),
             Node::Place { shapes, .. } => shapes.rows(),
-            | Node::Profile(_)
+            Node::Profile(_)
             | Node::Extrude { .. }
             | Node::Revolve { .. }
             | Node::Tube { .. }
@@ -3531,7 +3535,7 @@ impl<P, S: Slot> Node<P, S> {
                 },
                 kind,
             )),
-            | Node::Profile(..)
+            Node::Profile(..)
             | Node::Extrude { .. }
             | Node::Revolve { .. }
             | Node::Tube { .. }
@@ -3759,7 +3763,7 @@ impl<P> Node<P, crate::Formula> {
             Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => vec![selection],
             Node::Shell { open, .. } => vec![open],
             Node::Measure { primitive } => primitive.refs().to_vec(),
-            | Node::Profile(_)
+            Node::Profile(_)
             | Node::Extrude { .. }
             | Node::Revolve { .. }
             | Node::Tube { .. }

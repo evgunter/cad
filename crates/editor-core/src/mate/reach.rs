@@ -4,11 +4,9 @@
 //! A parallelism verdict is consumed as "the separation is constant
 //! across the parts", so its margin is `sin θ · L` where `L` is the
 //! length the two parts span together from the datum. [`body_reach`]
-//! answers the body term; [`MateReach::reach`] is the same question
-//! asked of a part by reference, implemented by the evaluation over
-//! the part table it entered before the solve (`eval::mate_reach` is
-//! the public door, over a store of its own), in the part's own
-//! coordinates.
+//! answers the body term, and [`part_reach`] the solve's reading of it
+//! over an evaluated body (the fold reads the copy's own geometry), in
+//! the part's own coordinates.
 //!
 //! # What "reach" is
 //!
@@ -52,34 +50,13 @@
 //! non-finite refuses where it is read.
 
 use geom::Surface;
-use geom_core::{Decide, Point3, Real};
+use geom_core::{Decide, Point3};
 use topo::Body;
 use topo::entity::FaceKey;
 
 use crate::eval::measure::reach_of;
-use crate::ident::DocRef;
 
-/// **The reach of a mated part**: an upper bound on the distance from
-/// the part's own origin to any point of its body.
-///
-/// Keyed by the PART (its reference), not by the instance: a reach is
-/// a fact about a document's body, so one value serves every instance
-/// of that part. Nothing reads it: the edit door takes one and leaves
-/// it unread (`work/intent/the-edit-door-takes-a-reach-it-never-reads.md`),
-/// and the trait retires with that parameter. `T` is the scalar of the
-/// door that takes it; the reach is an `f64` upper bound at every `T`.
-pub trait MateReach<T: Real = f64> {
-    /// The reach `R` of the part `part` names, from its own origin.
-    ///
-    /// # Errors
-    ///
-    /// [`ReachRefusal`]: the part does not resolve (carrying the
-    /// resolver's own fault), its body has a face whose reach cannot
-    /// be bounded, or its body has no faces.
-    fn reach(&self, part: &DocRef) -> Result<f64, ReachRefusal>;
-}
-
-/// Why a part's reach is not in hand ([`MateReach::reach`]). Named
+/// Why a part's reach is not in hand. Named
 /// against the part alone; the solve carries it beside the instance
 /// it was asking for ([`super::LeverRefusal::Reach`]).
 ///
@@ -154,21 +131,6 @@ impl core::fmt::Display for ReachRefusal {
     }
 }
 
-/// **The refusing reach** — the reach of a door with no resolver in
-/// hand: every part is [`crate::eval::PartFault::NoResolver`], typed.
-/// What `eval::mate_reach` answers over options carrying no resolver,
-/// as a value for a door that has no options at all.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct RefusingReach;
-
-impl<T: Real> MateReach<T> for RefusingReach {
-    fn reach(&self, _part: &DocRef) -> Result<f64, ReachRefusal> {
-        Err(ReachRefusal::PartUnresolved {
-            fault: crate::eval::PartFault::NoResolver,
-        })
-    }
-}
-
 /// The kind a refusal names a face's surface by — `geom`'s closed
 /// mirror of [`Surface`], with its one name table
 /// ([`SurfaceKind::name`]), so no second string table stands beside
@@ -177,7 +139,7 @@ pub use geom::SurfaceKind;
 
 /// **A part's reach as the solve reads it**: [`body_reach`] with a
 /// faceless body refused ([`ReachRefusal::NoExtent`]) — the one
-/// answer every [`MateReach`] over an evaluated body gives.
+/// answer the fold reads over an evaluated body.
 ///
 /// # Errors
 ///

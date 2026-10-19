@@ -18,8 +18,8 @@
 
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
-    BodyRead, Doc, DocEdit, EvalOptions, Frame, Node, Operand, ProfileProgram, RecipeNodeId,
-    RefusingReach, Value, apply, frame_at, place_against, place_at, stand,
+    BodyRead, Doc, DocEdit, EvalOptions, Frame, Node, Operand, ProfileProgram, RecipeNodeId, Value,
+    apply, frame_at, place_against, place_at, stand,
 };
 use pncad::document::{Coord, Formula, Mate, Target};
 use pncad::geom_core::Tol;
@@ -268,7 +268,7 @@ fn written(
 ) -> Placed {
     let mut edits = Vec::new();
     let mut step = |doc: &Doc<ProfileProgram>, edit: DocEdit<ProfileProgram>| {
-        let applied = apply(doc, &edit, tol, &RefusingReach)
+        let applied = apply(doc, &edit, tol)
             .unwrap_or_else(|err| panic!("the placement's edit applies: {err}"));
         edits.push(edit);
         applied

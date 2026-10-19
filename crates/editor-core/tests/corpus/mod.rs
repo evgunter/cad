@@ -223,14 +223,9 @@ impl CorpusDoc {
 
     /// The bumped document (the incremental-recompute probe's input).
     pub fn bumped(&self) -> ProfileDoc {
-        apply(
-            &self.doc,
-            &self.bump,
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("corpus bump edit must apply")
-        .doc
+        apply(&self.doc, &self.bump, Tol::witness())
+            .expect("corpus bump edit must apply")
+            .doc
     }
 }
 

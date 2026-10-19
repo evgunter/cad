@@ -15,7 +15,7 @@ use editor_core::{
     Bodies, BodyRead, DocEdit, EditError, Evaluation, Formula, Node, NodeError, NodeErrorKind,
     NodeResult, OperandSlot, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, StableName, VarName,
 };
-use fixture::{insert, insert_refused, len, run, scl, step, table};
+use fixture::{insert, insert_refused, len, run, step, table};
 use geom_core::Tol;
 
 /// A unit cube and a linear pattern of three of it along x at spacing
@@ -342,7 +342,6 @@ fn the_doors_refuse_an_index_where_no_family_is_read() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::UnknownSlot { slot, .. }) => assert_eq!(
             slot,

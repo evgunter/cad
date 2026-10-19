@@ -345,7 +345,6 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the fin count is a document parameter")
     .doc;

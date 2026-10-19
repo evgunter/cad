@@ -83,11 +83,12 @@
 //!
 //! A refusal raised mid-fold carries no fold-table name: a step's
 //! refusal is the kernel's own, under the member that step folds in
-//! (`NodeErrorKind::UnionFoldStep`). The coincidence rows a step
-//! decides are named against the collapsed accumulation
-//! ([`collapse_table`]) and published as they are, without the end
-//! passes, so a row citing an intermediate entity keeps the fold's
-//! qualifiers.
+//! (`NodeErrorKind::UnionFoldStep`). A coincidence row a step decides
+//! is read against the collapsed accumulation ([`collapse_table`]) and
+//! spelled by the member cells it lies in ([`fold_cell`]), as the
+//! pairwise judgement's rows are. A cell the fold minted keeps the
+//! spelling of the step that minted it
+//! (`work/wire/a-fold-row-names-a-vertex-the-fold-minted-by-the-step-that-minted-it.md`).
 //!
 //! # How an intermediate row is told from a member's row
 //!
@@ -1369,16 +1370,28 @@ fn member_faces(name: &StableName, out: &mut BTreeSet<MemberEntity>) {
     }
 }
 
+/// The member entity a name of this shape is a piece of — `From(m, x)`,
+/// then nothing but `Fragment` qualifiers — and those qualifiers. The
+/// one reader of that shape: [`member_edge_piece`] narrows it to an
+/// edge's pieces, [`fold_cell`] reads a fold row's cell through it.
+fn member_piece(name: &StableName) -> Option<(VarId, &NameRef, &[RoleSeg])> {
+    let (RoleSeg::From { read, of }, tail) = name.path.split_first()? else {
+        return None;
+    };
+    tail.iter()
+        .all(|s| matches!(s, RoleSeg::Fragment(_)))
+        .then_some((*read, of, tail))
+}
+
 /// The (member, member edge) an EDGE name of this shape is about —
 /// `From(m, e)`, `e` an edge, then nothing but `Fragment(Ends)`
-/// qualifiers — and whether any qualifier follows.
+/// qualifiers, the only qualifier an edge's piece carries — and whether
+/// any qualifier follows.
 fn member_edge_piece(name: &StableName) -> Option<(VarId, NameRef, bool)> {
     if name.kind != EntityKind::Edge {
         return None;
     }
-    let (RoleSeg::From { read: member, of }, tail) = name.path.split_first()? else {
-        return None;
-    };
+    let (member, of, tail) = member_piece(name)?;
     if of.kind != EntityKind::Edge
         || !tail
             .iter()
@@ -1386,7 +1399,7 @@ fn member_edge_piece(name: &StableName) -> Option<(VarId, NameRef, bool)> {
     {
         return None;
     }
-    Some((*member, of.clone(), !tail.is_empty()))
+    Some((member, of.clone(), !tail.is_empty()))
 }
 
 /// **A vertex is named for what it sits on in the finished body, and a
@@ -2533,6 +2546,92 @@ pub(crate) fn collapse_name(
 ) -> Result<StableName, NamingError> {
     collapse(node, name)
 }
+
+/// One cell of a fold row, read off its collapsed name ([`fold_cell`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum FoldCell {
+    /// A member's entity: the member's read and its name in that read's
+    /// table.
+    Member {
+        /// The member's read.
+        read: VarId,
+        /// The entity's name in the member's table.
+        name: StableName,
+    },
+    /// A cell the fold minted, in the node's own space.
+    Minted(StableName),
+}
+
+/// **A fold row's cell, by the member cell it lies in** (DM4, "A row
+/// names member cells"): `name` is a collapsed fold name
+/// ([`collapse_table`]), a head and the `Fragment`s the fold accumulated
+/// ([`member_piece`]). Under a member's `From` head its entity is a
+/// piece of the member entity the head names, and the cell is that
+/// entity. A `Crossing` vertex lies inside its crossed edge, and where
+/// that edge is a member's the cell is that member edge, as the pair
+/// verb reads a vertex it minted on an edge (`topo`'s `input_cell`).
+///
+/// Every other head the fold minted lies in no one member cell: a seam
+/// lies in a face of each of its two members, a junction's run
+/// (`EdgeCrossing`) in several member edges and seams, a `Merged` edge
+/// along several member edges, and a `Crossing` of a seam in two
+/// members' faces. Such a cell is that head in the node's own space,
+/// its pieces' qualifiers dropped, and a junction's run kept whole.
+///
+/// # Errors
+///
+/// [`NamingError::Emission`] for a head followed by anything but
+/// `Fragment`s (a junction's run aside), or a head no fold step mints.
+pub(crate) fn fold_cell(name: &StableName) -> Result<FoldCell, NamingError> {
+    let bug = |what| NamingError::Emission { what };
+    if let Some((read, of, _)) = member_piece(name) {
+        return if is_fold_side(read) {
+            Err(bug(FOLD_CELL_FOREIGN))
+        } else {
+            Ok(FoldCell::Member {
+                read,
+                name: of.name().clone(),
+            })
+        };
+    }
+    if is_junction(name) {
+        return Ok(FoldCell::Minted(name.clone()));
+    }
+    if let Some((RoleSeg::Crossing { edge, .. }, tail)) = name.path.split_first()
+        && tail.iter().all(|s| matches!(s, RoleSeg::Fragment(_)))
+        && let FoldCell::Member { read, name } = fold_cell(edge.name())?
+    {
+        return Ok(FoldCell::Member { read, name });
+    }
+    match name.path.split_first() {
+        Some((
+            RoleSeg::Seam { .. }
+            | RoleSeg::Crossing { .. }
+            | RoleSeg::EdgeCrossing(_)
+            | RoleSeg::Merged(_),
+            tail,
+        )) if tail.iter().all(|s| matches!(s, RoleSeg::Fragment(_))) => {
+            Ok(FoldCell::Minted(without_tail(name, |_| true)))
+        }
+        Some((
+            RoleSeg::From { .. }
+            | RoleSeg::Seam { .. }
+            | RoleSeg::Crossing { .. }
+            | RoleSeg::EdgeCrossing(_)
+            | RoleSeg::Merged(_),
+            _,
+        )) => Err(bug(FOLD_CELL_UNSTRIPPED)),
+        _ => Err(bug(FOLD_CELL_FOREIGN)),
+    }
+}
+
+/// A fold row's cell carries a segment past its head that is not a
+/// piece's qualifier.
+const FOLD_CELL_UNSTRIPPED: &str =
+    "a union fold row's cell carries a segment past its head that is not a fragment";
+
+/// A fold row's cell is headed by a segment a fold step does not mint.
+const FOLD_CELL_FOREIGN: &str = "a union fold row's cell has a head no fold step mints";
 
 /// The emission bug this module can raise: a fold table carrying a
 /// segment the pair emitter does not mint.

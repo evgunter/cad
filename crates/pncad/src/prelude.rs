@@ -97,9 +97,9 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // **`Indeterminate` IS here, and the count is the argument.** It is
 // the two-tolerance escalation payload (D4 ¶1 addendum): the thing a
 // refusal carries when the kernel could not certify a sign at the
-// tolerance it was given. TWELVE prelude-curated refusals carry it
+// tolerance it was given. ELEVEN prelude-curated refusals carry it
 // — `BlendError`, `BooleanError`, `ContactRefusal`, `ExtrudeError`,
-// `LoftError`, `MateFault`, `PathError`, `ProfileError`,
+// `LoftError`, `PathError`, `ProfileError`,
 // `RevolveError`, `SelectRefusal`, `TubeError`, `ValidationError` —
 // against one carrier for the payload CUR3 carried and one apiece
 // for CUR4's four. (`geom_core::UnitVec3Error`, the unit-vector

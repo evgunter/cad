@@ -103,7 +103,7 @@
 use core::f64::consts::PI;
 
 use pncad::authoring::{p2, validated};
-use pncad::document::{Operand, RefusingReach};
+use pncad::document::Operand;
 use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{
     CancelToken, Dimension, Doc, DocEdit, EvalOptions, Formula, LoopProgram, MM, Node,
@@ -198,7 +198,6 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
                 fresh: Vec::new(),
             },
             tol,
-            &RefusingReach,
         )
         .expect("the edit applies");
         *doc = applied.doc;

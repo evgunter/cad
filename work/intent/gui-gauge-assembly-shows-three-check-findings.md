@@ -47,3 +47,7 @@ GUI's red is expected. The bench's builder now says so beside `bench`,
 naming H. The montage's red clears when H lands. The release-budget
 sweep's `enforce_checks refuses: 1 check finding(s) at Error severity`
 on an assembly scene is likely the same class, but it was not read here.
+
+## 2026-10-18 — after stage 4 H's infrastructure (PR 5300)
+
+Unchanged: the three findings report replay `NotReplayed` and recourse `Assert`. The replay that would read a seat is built, but it is behind `coincide::REPLAYS_PLACED_COPIES`, which is off, and switched on it proves no seat within the door's budget. The montage's red clears with `a-mate-placed-seat-is-unproven-at-the-doors-budget`.

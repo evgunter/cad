@@ -13,11 +13,11 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, FragmentGroups,
+    CancelToken, Diagnosis, EntityKind, Entry, EvalOptions, Evaluation, FragmentGroups,
     GroupCutters, NameTable, Node, ProfileDoc, Qualifier, RecipeNodeId, Resolution, ResolveError,
     RoleSeg, RunCtx, StableName, evaluate,
 };
-use fixture::{insert, len, minted, step};
+use fixture::{insert, len, minted};
 use geom_core::Tol;
 use geom_core::k_stats::Verdict;
 

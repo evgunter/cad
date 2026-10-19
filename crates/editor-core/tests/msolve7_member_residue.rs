@@ -235,7 +235,6 @@ fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Prof
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
     .doc
@@ -409,7 +408,6 @@ fn saved_with_a_bundle(label: &str) -> (ProfileDoc, String) {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("an instance inserts");
         ids.push(applied.record.minted.expect("a minted id"));

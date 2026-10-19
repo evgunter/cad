@@ -192,3 +192,33 @@ pub fn in_world(body: RecipeNodeId, cap: CapEnd) -> StableName {
         }],
     }
 }
+
+/// **A part's own entity `seg` of kind `kind`, as an instance of it
+/// carries it**: the body's name under its placement's copy
+/// ([`placement_of`]), worn inside `instance`'s `InPart` — a face, an
+/// edge or a vertex alike.
+pub fn in_part_of(
+    kind: editor_core::EntityKind,
+    instance: RecipeNodeId,
+    body: RecipeNodeId,
+    seg: editor_core::RoleSeg,
+) -> StableName {
+    let placed = StableName {
+        kind,
+        node: placement_of(body),
+        path: vec![editor_core::RoleSeg::Placed {
+            of: editor_core::NameRef::new(StableName {
+                kind,
+                node: body,
+                path: vec![seg],
+            }),
+        }],
+    };
+    StableName {
+        kind,
+        node: instance,
+        path: vec![editor_core::RoleSeg::InPart {
+            of: editor_core::NameRef::new(placed),
+        }],
+    }
+}

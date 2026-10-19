@@ -427,7 +427,7 @@ fn one_past_the_bound_refuses_typed_at_every_door_that_mints_one() {
             },
             expr: Formula::neg(len(0.5)).unwrap(),
         };
-        match editor_core::apply(&r.doc, &edit, Tol::witness(), &editor_core::RefusingReach) {
+        match editor_core::apply(&r.doc, &edit, Tol::witness()) {
             Err(EditError::Dimension(error)) => assert_eq!(refused_bound(&error), BOUND),
             other => panic!("the edit door refuses the deeper tree, got {other:?}"),
         }

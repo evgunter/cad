@@ -243,7 +243,6 @@ fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
             fresh: Vec::new(),
         },
         tol,
-        &pncad::document::RefusingReach,
     );
     match count_into_continuous {
         Err(pncad::document::EditError::SlotDimensionMismatch {
@@ -273,7 +272,6 @@ fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
             fresh: Vec::new(),
         },
         tol,
-        &pncad::document::RefusingReach,
     );
     match continuous_into_count {
         Err(pncad::document::EditError::SlotDimensionMismatch {

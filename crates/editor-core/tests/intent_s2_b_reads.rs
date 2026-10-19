@@ -37,12 +37,12 @@ fn applied(
     doc: &ProfileDoc,
     edit: DocEdit<editor_core::ProfileProgram>,
 ) -> editor_core::Applied<editor_core::ProfileProgram> {
-    apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach)
+    apply(doc, &edit, Tol::witness())
         .unwrap_or_else(|refusal| panic!("the edit applies: {refusal}"))
 }
 
 fn refused(doc: &ProfileDoc, edit: DocEdit<editor_core::ProfileProgram>) -> EditError {
-    match apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach) {
+    match apply(doc, &edit, Tol::witness()) {
         Ok(_) => panic!("the door accepted an edit this row expects it to refuse"),
         Err(refusal) => refusal,
     }

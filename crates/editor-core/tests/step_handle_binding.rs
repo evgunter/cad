@@ -17,7 +17,7 @@ test_utils::gated_to![
     "crates/editor-core/tests/fixture/",
 ];
 
-use crate::fixture::{self, insert, tol};
+use crate::fixture::{insert, tol};
 use editor_core::Formula;
 use editor_core::{
     AuthoredStep, DocEdit, EditError, LoopProgram, Node, PieceRole, ProfileDoc, ProfileEdgeRef,
@@ -266,10 +266,7 @@ fn a_keep_map_lowers_to_the_grid_the_door_stores() {
         ids: grid,
         fresh: Vec::new(),
     };
-    let after = doc
-        .apply(&edit, tol(), &editor_core::RefusingReach)
-        .unwrap()
-        .doc;
+    let after = doc.apply(&edit, tol()).unwrap().doc;
     let new = program_of(&after, first);
     assert_eq!(new.step(0, &top), Ok(top_id), "the kept step keeps its id");
     assert_ne!(new.ids[0][6], old.ids[0][6], "an unkept step mints fresh");
@@ -289,7 +286,6 @@ fn a_keep_map_lowers_to_the_grid_the_door_stores() {
             fresh: Vec::new(),
         },
         tol(),
-        &editor_core::RefusingReach,
     );
     assert!(
         matches!(

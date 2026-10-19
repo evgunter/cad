@@ -23,8 +23,7 @@
 use pncad::document::{
     AuthoredNode, BooleanValue, CancelToken, ContentPin, Dimension, Doc, DocEdit, DocRef,
     DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node,
-    NodeErrorKind, PartFault, ProfileProgram, RecipeNodeId, RefusingReach, ValuePayload, VarName,
-    apply, evaluate,
+    NodeErrorKind, PartFault, ProfileProgram, RecipeNodeId, ValuePayload, VarName, apply, evaluate,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::prelude::{EntityKind, StableName};
@@ -102,7 +101,7 @@ pub fn try_edited(
     edit: DocEdit<ProfileProgram>,
     tol: Tol,
 ) -> Result<(Doc<ProfileProgram>, Option<RecipeNodeId>), EditError> {
-    let applied = apply(doc, &edit, tol, &RefusingReach)?;
+    let applied = apply(doc, &edit, tol)?;
     Ok((applied.doc, applied.record.minted))
 }
 
@@ -333,7 +332,6 @@ fn constrained(
             fresh: Vec::new(),
         },
         tol,
-        &RefusingReach,
     )
     .expect("the mate is admitted");
     let [id] = applied.record.minted_constraints[..] else {

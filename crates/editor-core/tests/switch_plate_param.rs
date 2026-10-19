@@ -46,7 +46,6 @@ fn scene() -> Scene {
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, HOLE_R_VALUE)),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the parameter declares")
     .doc;
@@ -57,7 +56,6 @@ fn scene() -> Scene {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the parametric profile inserts");
     let profile = applied.record.minted.expect("profile id");
@@ -71,7 +69,6 @@ fn scene() -> Scene {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the extrude inserts");
     let solid = applied.record.minted.expect("solid id");
@@ -93,7 +90,6 @@ fn set_hole_r(doc: &editor_core::ProfileDoc, value: f64) -> ProfileDoc {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("DefineVar never refuses for downstream profile breakage")
     .doc
@@ -303,7 +299,6 @@ fn the_authoring_door_refuses_but_define_var_does_not() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     assert!(
         refused.is_err(),
@@ -329,7 +324,6 @@ fn the_authoring_door_refuses_but_define_var_does_not() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a well-formed radius applies");
     let ev = eval::<f64>(&ok.doc);

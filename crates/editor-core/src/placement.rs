@@ -254,7 +254,6 @@ impl Frame {
         }
     }
 
-
     /// The frame a motion at `f64` denotes: the identity's own bits
     /// for the marked identity, the map's coordinates carried
     /// otherwise ([`Frame::from_affine`]).

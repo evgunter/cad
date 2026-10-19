@@ -63,7 +63,6 @@ fn edit(
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the program edit applies")
     .doc

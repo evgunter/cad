@@ -47,7 +47,6 @@
 
 use crate::eval::NodeRefusal;
 use crate::node::RecipeNodeId;
-use geom_core::predicate::{Indeterminate, Margin};
 
 pub mod anchor;
 pub mod coset;
@@ -64,7 +63,7 @@ pub use pin::{
     PinRefusal, Placed, PlacedBy, frame_at, frame_at_in, pin_at, pin_at_in, place_against,
     place_against_in, place_at, place_at_in, stand, stand_in,
 };
-pub use reach::{MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach};
+pub use reach::{ReachRefusal, SurfaceKind, body_reach, part_reach};
 pub use solve::{
     PoseRefusal, SolveScalar, SolvedPoses, Space, mate_coset, relative_freedom_components,
     solve_document, solve_document_at,
@@ -816,6 +815,12 @@ pub enum NoChartWhy {
     /// The mate's `to` reads two bodies: each has its own frame, and
     /// the chart is the one body's.
     TwoBodies,
+    /// A slide on a direction mate beside a ball mate: the ball fixes
+    /// every translation, so the slide could only fix the ball's turn
+    /// through the copy's lever, a circle meeting a plane at two points
+    /// or none, which the solve's structural settle does not choose
+    /// between.
+    SlideTurnsABall,
 }
 
 /// **Why a mate's kind leaves a value no freedom to set.**
@@ -884,20 +889,9 @@ pub fn reference_about<T: SolveScalar>(
 
 /// **The recourse a [`MateFault::Overconstrained`] ends on**: what an
 /// author does about a mate the rest of its bundle already fixes.
-pub const OVERCONSTRAINED_RECOURSE: &str = "delete one of the named constraints; where the two \
-     copies also meet, an assertion says so";
-
-/// **The recourse a [`MateFault::Contradictory`] ends on**: what an
-/// author does about two declarations that admit no common pose.
-///
-/// One sentence for both shapes the arm renders — a PAIR of mates and
-/// one mate named on both sides — because the repair is the same in
-/// both and a sentence naming "one of the two" is false of the second. The rung is the solve door: cosets are
-/// intersected exactly, so nothing here is a tolerance to widen and no
-/// pose is averaged out of the two.
-pub const CONTRADICTORY_RECOURSE: &str = "delete the mate that was not meant, or re-author the \
-                                          datum that is wrong; the solve intersects cosets \
-                                          exactly and never averages two declarations";
+pub const OVERCONSTRAINED_RECOURSE: &str = "delete one of the named constraints, and write what \
+     it held that the rest leave as a value (an axis mate with a spin is a prismatic joint); where \
+     the two copies also meet, an assertion says so";
 
 /// **The v1 class restriction, named.** `Fit` is specified and not
 /// built; a mate cannot declare a designed clearance until the kernel
@@ -991,7 +985,7 @@ pub fn class_admission(class: ContactClass) -> ClassAdmission {
 }
 
 /// Why a lever could not be formed for a mate: one of its parts' reach
-/// ([`MateReach::reach`]) is not in hand, the member stands on no
+/// is not in hand, the member stands on no
 /// instance, or the lever the two parts form is out of the format's
 /// range.
 #[derive(Debug, Clone, PartialEq)]
@@ -1089,99 +1083,6 @@ impl core::fmt::Display for LeverRefusal {
     }
 }
 
-/// **What a levered clash measured, and the arm that carried it to a
-/// length.** The product is the deviation; the halves are what the
-/// sentence prints, because a stored product beside them would assert
-/// an identity nothing enforces ([`Lever::deviation`] computes it).
-///
-/// A closed enum, and deliberately not a value beside a unit string:
-/// its arm is the kind of number the solve levers, and another kind is
-/// a new arm with its own sentence, never a free string a site could
-/// set to a length.
-///
-/// The arm is the one the predicate was decided over: the largest
-/// lever of the mates folded so far.
-///
-/// The solve measures a residual at its own scalar `T` and decides it
-/// there; a refusal carries it at `f64` (the default).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Lever<T = f64> {
-    /// A dimensionless residual — a sine, a cosine, a Frobenius
-    /// departure from the identity, a reachability defect — named by
-    /// the predicate that measured it.
-    Residual {
-        /// The residual, a pure number.
-        value: T,
-        /// The arm, in metres.
-        arm: f64,
-    },
-}
-
-impl<T> Lever<T> {
-    /// The arm, in metres, whichever kind of number it levered.
-    pub fn arm(self) -> f64 {
-        match self {
-            Self::Residual { arm, .. } => arm,
-        }
-    }
-}
-
-impl<T: geom_core::Real> Lever<T> {
-    /// **The margin this lever decides**: the pure number levered by
-    /// the arm through [`Margin::levered`] — the ONE home of that
-    /// multiplication for every levered predicate in the solve, at
-    /// whichever scalar it runs, so the number a refusal quotes and
-    /// the number the funnel decided are one value.
-    pub fn margin(self) -> Margin<T> {
-        match self {
-            Self::Residual { value, arm } => Margin::levered(value, T::from_computed(arm)),
-        }
-    }
-}
-
-impl Lever {
-    /// The deviation the lever measured, in metres: [`Self::margin`]'s
-    /// value, computed here and nowhere stored.
-    pub fn deviation(self) -> f64 {
-        self.margin().value()
-    }
-}
-
-/// **What a contradictory refusal measured** — closed over the three
-/// ways a membership predicate refuses, so the refusal carries the
-/// measurement and nothing that could disagree with it: no metre
-/// figure stored beside the halves it is the product of, no sentinel
-/// read back out of a number.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Clash {
-    /// The predicate decided the empty intersection STRUCTURALLY
-    /// (`mate_member_empty`): the empty set holds nothing and no
-    /// margin decides that, so there is no measurement at all.
-    Structural,
-    /// A length the predicate measured outright.
-    Length {
-        /// The margin that should have been zero and was not, in
-        /// metres.
-        metres: f64,
-    },
-    /// A pure number the predicate levered by an arm; the deviation
-    /// is the product ([`Lever::deviation`]).
-    Levered(Lever),
-}
-
-impl Clash {
-    /// The deviation in metres, when the predicate measured one: a
-    /// length verbatim, a lever's product, and `None` for the
-    /// structural refusal.
-    pub fn deviation(self) -> Option<f64> {
-        match self {
-            Self::Structural => None,
-            Self::Length { metres } => Some(metres),
-            Self::Levered(lever) => Some(lever.deviation()),
-        }
-    }
-}
-
 /// A typed mate refusal (D9: fail loud, never a guess). Every arm names
 /// its subject — the mate, the pair, the predicate, the residual, or
 /// the two documents a mispaired read named.
@@ -1211,65 +1112,23 @@ pub enum MateFault {
         mate: MateRef,
     },
 
-    /// A case-split predicate landed in the ambiguity band — the typed
-    /// escalation, never a silent pick.
-    Indeterminate {
-        /// The mate being folded when it fired.
-        mate: MateRef,
-        /// The predicate's diagnostics (it names itself).
-        diag: Box<Indeterminate>,
-    },
-    /// The pair's mates meet at a pose the floating-point format
-    /// cannot hold: the translation the fold solved for has no finite
-    /// length. The mates can both hold; the place they meet is past the
-    /// session's range.
-    PoseOutOfRange {
-        /// The mate already folded. **Equal to `added` when the pair
-        /// has no earlier mate**, as [`Self::Contradictory`] spells it.
-        held: MateRef,
-        /// The mate whose intersection named the meeting point.
-        added: MateRef,
-    },
-    /// The pair's mates intersect to the EMPTY coset (A11 rule 1's
-    /// CONTRADICTORY): names both mates, the predicate that failed,
-    /// and the measured clash.
-    Contradictory {
-        /// The mate already folded. **Equal to `added` when one mate
-        /// contradicts ITSELF**: a mate whose own two poses admit no
-        /// common pose dies by the same rule, and naming it on both
-        /// sides is how that shape reaches this variant.
-        held: MateRef,
-        /// The mate whose intersection died against it.
-        added: MateRef,
-        /// The predicate that decided against them.
-        predicate: &'static str,
-        /// What it measured: a length outright, a pure number levered
-        /// by an arm, or nothing — the structural refusal.
-        ///
-        /// A lever's arm is the mate's lever as the solve forms it —
-        /// the copy's reach plus its poses' own distances from their
-        /// origins, `ASSEMBLY.md` A11 rule 5's qualifier — and NOT a
-        /// contact feature, so a message
-        /// that names it is naming the parts' scale and nothing in the
-        /// model.
-        clash: Clash,
-    },
-    /// **A mate beyond the pin** (D10; FORK-S3O): the placement's
-    /// bundle already pins its copy without each named constraint, so
-    /// each is an equation the others fix. A mate places and never
-    /// checks, so none of them is verified and kept: the insert door
-    /// refuses the constraint being added to a bundle whose fold is
-    /// already trivial, and the solve, for a state no door saw (a load,
-    /// a rebind), names every constraint whose removal leaves the
-    /// fold's codimension unchanged. Constraints have no order, so
-    /// none of them is "the later one".
+    /// **A constraint any of whose equations the rest of its bundle
+    /// already fixes** (D10; FORK-S3O): a mate places and never checks,
+    /// so none is verified and kept. Decided by subgroup algebra over
+    /// the families the bundle's definitions name, measuring nothing,
+    /// pinned or not: the edit doors refuse the constraint being
+    /// written, and the solve, for a state no door saw (a load, a
+    /// rebind), names every constraint whose equations the others
+    /// already fix. Constraints have no order, so none of them is "the
+    /// later one".
     Overconstrained {
         /// The placement.
         placement: RecipeNodeId,
-        /// Every constraint the rest of the bundle already fixes.
+        /// Every constraint an equation of which the rest of the bundle
+        /// already fixes.
         constraints: Vec<crate::node::ConstraintId>,
-        /// What the rest of the bundle leaves, which is nothing.
-        held: Subgroup,
+        /// How many of the copy's six freedoms the whole bundle leaves.
+        free: u8,
     },
     /// **A bundle relates its copy to two spaces**: its mates' targets
     /// read geometry of two different spaces, or one the world and one
@@ -1325,22 +1184,21 @@ pub enum MateFault {
         /// The id it names.
         mate: crate::node::ConstraintId,
     },
-    /// **A value sets a freedom its mate does not leave** (ruling C-2):
-    /// the mate's kind fixes it (`kind` is that kind — refused at the
-    /// door), or the bundle's other constraints already fix it (`None`
-    /// — the placement's own refusal where it evaluates, until F's
-    /// measure-free door).
+    /// **A value sets a freedom its mate's kind does not leave**
+    /// (ruling C-2). A freedom the kind leaves and the rest of the bundle
+    /// fixes is [`Self::Overconstrained`].
     NotAFreedom {
         /// The value.
         value: MateRef,
         /// The freedom it sets.
         coord: Coord,
-        /// The mate's kind, where the kind alone fixes it.
-        kind: Option<crate::VarKind>,
+        /// The mate's kind.
+        kind: crate::VarKind,
     },
     /// **A value's freedom has no chart** (ruling C-1): a lone point
-    /// mate's rotation, or a mate whose `to` reads two bodies, whose
-    /// own frames do not agree on which reference to measure from.
+    /// mate's rotation, a mate whose `to` reads two bodies, whose own
+    /// frames do not agree on which reference to measure from, or a
+    /// slide beside a ball, which leaves it no translation to measure.
     NoChart {
         /// The value.
         value: MateRef,
@@ -1358,32 +1216,6 @@ pub enum MateFault {
         /// The evaluation layer's refusal.
         refusal: Box<NodeRefusal>,
     },
-}
-
-/// The measurement a refusal quotes, as the tail of its sentence:
-/// what was measured where `there` would have had to hold.
-fn write_clash(f: &mut core::fmt::Formatter<'_>, clash: Clash, there: &str) -> core::fmt::Result {
-    match clash {
-        Clash::Structural => write!(
-            f,
-            "found the cosets meet in the empty set — a structural refusal, with no margin to \
-             measure"
-        ),
-        Clash::Length { metres } if metres.is_finite() => {
-            write!(f, "measured a clash of {metres} m where {there}")
-        }
-        // A length that is not finite is not one.
-        Clash::Length { metres } => write!(
-            f,
-            "measured a clash that is not a finite length ({metres}) where {there}"
-        ),
-        Clash::Levered(lever @ Lever::Residual { value, arm }) => write!(
-            f,
-            "measured a dimensionless residual of {value} on a {arm} m arm, a deviation of {} m \
-             where {there}",
-            lever.deviation()
-        ),
-    }
 }
 
 /// **The pairing predicate's finding, in this door's vocabulary.**
@@ -1415,9 +1247,6 @@ impl MateFault {
             Self::SideUnevaluated { refusal, mate, .. } => Some((mate.placement, refusal)),
             Self::PosesOfAnotherDocument { .. }
             | Self::ClassNotAdmitted { .. }
-            | Self::Indeterminate { .. }
-            | Self::PoseOutOfRange { .. }
-            | Self::Contradictory { .. }
             | Self::Overconstrained { .. }
             | Self::TargetsDiffer { .. }
             | Self::NotOnTheCopy { .. }
@@ -1443,28 +1272,17 @@ impl MateFault {
 /// solved (`coset`, and the chart its values are read on), so a flip
 /// between two runs of a placement reads what turned.
 pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
-    ("mate_axes_parallel", "whether a mate's two axes are parallel"),
+    (
+        "mate_axes_parallel",
+        "whether a mate's two axes are parallel",
+    ),
     (
         "mate_axis_normal_perpendicular",
         "whether a mate's axis lies across its plane's normal",
     ),
-    ("mate_axis_point_offset", "whether a mate's point lies on its axis"),
-    ("mate_points_coincide", "whether a mate's two points coincide"),
     (
-        "mate_clocking_radius",
-        "whether a mate's point stands off the axis its copy turns about",
-    ),
-    (
-        "mate_ball_radius",
-        "whether a point stands off the axis a ball mate turns its copy about",
-    ),
-    (
-        "mate_ball_turn_axis",
-        "whether a ball mate's two directions are parallel",
-    ),
-    (
-        "mate_ball_turn_sense",
-        "whether a ball mate's two directions point the same way",
+        "mate_axis_point_offset",
+        "whether a mate's point lies on its axis",
     ),
     (
         "solve_copy_at_identity",
@@ -1512,93 +1330,6 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
     ),
 ];
 
-/// The predicate that decides the EMPTY intersection. It is the one
-/// name in the membership vocabulary that reports no measurement — the
-/// empty set holds nothing and no margin decides that — so it is a
-/// shared constant rather than a literal at each site, and every door
-/// that needs to know reads THIS rather than inspecting a margin.
-pub(crate) const MATE_MEMBER_EMPTY: &str = "mate_member_empty";
-
-/// **A predicate the solve refuses a contradiction on: its funnel name
-/// and what refusing it found, in words, declared together.** Every
-/// site that decides one passes [`Refuted::name`], and the sentence
-/// says [`Refuted::found`] in its place, so a predicate cannot be
-/// decided under a name the sentence has no words for — both are arms
-/// of one exhaustive match. The structural empty intersection
-/// ([`MATE_MEMBER_EMPTY`]) is not here: no margin decides it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Refuted {
-    /// A coset admitting no rotation: the candidate's rotation is the
-    /// identity.
-    RotationIdentity,
-    /// A coset admitting no motion: the candidate's translation is zero.
-    TranslationZero,
-    /// A prismatic coset: the translation runs along its direction.
-    TranslationAlong,
-    /// A coset about an axis: the rotation fixes that axis.
-    AxisFixed,
-    /// A planar coset: the translation stays in the plane.
-    TranslationInPlane,
-    /// A cylindrical coset: the axis point stays on the axis.
-    PointOnAxis,
-    /// A revolute coset: the axis point stays put.
-    PointFixed,
-    /// Two one-axis rotation constraints: one rotation reaches both.
-    TwoAxisReachable,
-}
-
-impl Refuted {
-    /// Every predicate, once.
-    pub const ALL: [Self; 8] = [
-        Self::RotationIdentity,
-        Self::TranslationZero,
-        Self::TranslationAlong,
-        Self::AxisFixed,
-        Self::TranslationInPlane,
-        Self::PointOnAxis,
-        Self::PointFixed,
-        Self::TwoAxisReachable,
-    ];
-
-    /// The funnel's name for it — routing, which a refusal carries in
-    /// its payload and never in its sentence.
-    #[must_use]
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::RotationIdentity => "mate_member_rotation_identity",
-            Self::TranslationZero => "mate_member_translation_zero",
-            Self::TranslationAlong => "mate_member_translation_along",
-            Self::AxisFixed => "mate_member_axis_fixed",
-            Self::TranslationInPlane => "mate_member_translation_in_plane",
-            Self::PointOnAxis => "mate_member_point_on_axis",
-            Self::PointFixed => "mate_member_point_fixed",
-            Self::TwoAxisReachable => "mate_rotation_two_axis_reachable",
-        }
-    }
-
-    /// What refusing it found, as a clause of the contradiction's
-    /// sentence.
-    #[must_use]
-    pub const fn found(self) -> &'static str {
-        match self {
-            Self::RotationIdentity => "the relative rotation is not the identity",
-            Self::TranslationZero => "the relative translation is not zero",
-            Self::TranslationAlong => "the translation leaves the shared direction",
-            Self::AxisFixed => "the rotation moves the shared axis",
-            Self::TranslationInPlane => "the translation leaves the shared plane",
-            Self::PointOnAxis => "the axis point leaves the shared axis",
-            Self::PointFixed => "the shared point moves",
-            Self::TwoAxisReachable => "no one rotation aligns both axes",
-        }
-    }
-
-    /// The predicate a refusal's payload names, when it is one of these.
-    #[must_use]
-    pub fn of(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|r| r.name() == name)
-    }
-}
-
 // Every node the fault names is in the mate's own document; a part's
 // face and refusal are numbered in the part and said by their own
 // `Display`. The mate is said by what it is, so a frame that has already
@@ -1632,79 +1363,26 @@ impl crate::spoken::Say for MateFault {
                 mate_(*mate),
                 topo::FIT_DEFERRAL
             ),
-            Self::Indeterminate { mate, diag } => write!(
-                f,
-                "{}: a case split could not be decided — {}. Recourse: {}",
-                mate_(*mate),
-                diag.payload(),
-                geom_core::COINCIDENCE_RECOURSE
-            ),
-            Self::PoseOutOfRange { held, added } => {
-                if held == added {
-                    write!(f, "{}'s constraints meet", mate_(*added))?;
-                } else {
-                    write!(f, "{} and {} meet", mate_(*held), mate_(*added))?;
-                }
-                write!(
-                    f,
-                    " at a point further away than the solve can measure a distance to. \
-                     Recourse: {}",
-                    geom_core::RANGE_RECOURSE
-                )
-            }
-            Self::Contradictory {
-                held,
-                added,
-                predicate,
-                clash,
-            } => {
-                // One mate named on BOTH sides is a mate contradicting
-                // itself, and "mate 6 and mate 6" reads as an indexing
-                // fault rather than as the shape the payload states.
-                if held == added {
-                    write!(
-                        f,
-                        "{} contradicts itself — the constraints it declares admit no \
-                         common pose",
-                        mate_(*held)
-                    )?;
-                } else {
-                    write!(f, "{} and {} cannot both hold", mate_(*held), mate_(*added))?;
-                }
-                // The predicate's name is routing and rides the
-                // payload; the sentence says what it found in words.
-                f.write_str(": ")?;
-                if let Some(refuted) = Refuted::of(predicate) {
-                    write!(f, "{} — ", refuted.found())?;
-                }
-                f.write_str("the solve ")?;
-                // WHETHER there is a measurement to report, and of
-                // which kind, is the predicate's fact and the type
-                // carries it: a levered clash prints the product of
-                // the two halves it shows, computed there, so the
-                // sentence cannot assert an identity the payload
-                // failed to keep.
-                write_clash(f, *clash, "the cosets would have had to meet")?;
-                // The repair is the same whichever measurement the
-                // predicate had to report, so it is stated once.
-                write!(f, ". Recourse: {CONTRADICTORY_RECOURSE}")
-            }
             Self::Overconstrained {
                 placement,
                 constraints,
-                held,
+                free,
             } => {
-                let (which, rest) = match constraints.as_slice() {
-                    [_] => ("constraint", "the others leave"),
-                    _ => ("any one of constraints", "without any one the others leave"),
+                let which = match constraints.as_slice() {
+                    [_] => "constraint",
+                    _ => "each of constraints",
+                };
+                let left = match free {
+                    0 => "the bundle pins its copy".to_string(),
+                    1 => "the bundle leaves its copy one freedom".to_string(),
+                    n => format!("the bundle leaves its copy {n} freedoms"),
                 };
                 write!(
                     f,
-                    "{}'s bundle pins its copy even without {which} {}, since {rest} {}. \
-                     Recourse: {OVERCONSTRAINED_RECOURSE}",
+                    "{}'s {which} {} fixes an equation the rest of its bundle already fixes \
+                     ({left}). Recourse: {OVERCONSTRAINED_RECOURSE}",
                     by.node(*placement),
                     ids(*placement, constraints),
-                    held.describe()
                 )
             }
             Self::TargetsDiffer {
@@ -1748,25 +1426,10 @@ impl crate::spoken::Say for MateFault {
                  Recourse: name a mate the bundle holds",
                 mate_(*value)
             ),
-            Self::NotAFreedom {
-                value,
-                coord,
-                kind: Some(kind),
-            } => write!(
+            Self::NotAFreedom { value, coord, kind } => write!(
                 f,
                 "{} sets the {} of a {kind} mate, which the mate fixes. Recourse: set a freedom \
                  the mate leaves",
-                mate_(*value),
-                coord.name()
-            ),
-            Self::NotAFreedom {
-                value,
-                coord,
-                kind: None,
-            } => write!(
-                f,
-                "{} sets its mate's {}, which the bundle's other constraints already fix. \
-                 Recourse: remove the value, or the constraint that fixes it",
                 mate_(*value),
                 coord.name()
             ),
@@ -1786,6 +1449,17 @@ impl crate::spoken::Say for MateFault {
                 f,
                 "{} is charted on its mate's target body, and the mate's `to` reads two. \
                  Recourse: read `to` off one body, or pin the copy by a frame mate",
+                mate_(*value)
+            ),
+            Self::NoChart {
+                value,
+                why: NoChartWhy::SlideTurnsABall,
+            } => write!(
+                f,
+                "{} sets a slide beside a ball mate, which fixes every translation, so the \
+                 slide could only turn the copy about the ball, and the solve does not settle \
+                 a turn from a slide. Recourse: set the turn as the direction mate's spin, or \
+                 pin the copy by a frame mate and its values",
                 mate_(*value)
             ),
             // The refusal is the pose's own, drawn on the carried line.

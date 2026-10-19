@@ -14,12 +14,11 @@
 //! door asks the same of every constraint a snapshot holds. THE DOORS
 //! DECIDE EDITS AND THE EVALUATION DECIDES STATES: what needs the poses'
 //! values — a contradiction, a face that stops resolving — is the
-//! placement's own refusal where it evaluates, so the door asks no reach
-//! and reads no face.
+//! placement's own refusal where it evaluates, so the door reads no
+//! face.
 //!
 //! These rows go through ordinary doors with a `PartStore`: each
-//! refusal at insert, a refused insert leaves no entry, the door reads
-//! nothing of the parts, replay round-trips what the recording door
+//! refusal at insert, a refused insert leaves no entry, replay round-trips what the recording door
 //! admitted and refuses what the door refuses, a doctored snapshot is
 //! refused at load in the door's words, and the door admits again every
 //! constraint of a corpus whatever its evaluation says.
@@ -31,10 +30,9 @@ use crate::wire;
 use editor_core::Formula;
 
 use editor_core::{
-    CapEnd, ContactClass, Coord, DocEdit, DocumentId, EditError, EvalOptions, MateFault, MateReach,
-    MateRef, Node, NodeErrorKind, NodeResult, PersistError, ProfileDoc, ReachRefusal, RecipeNodeId,
-    RefusingReach, SlideAxis, SnapshotError, Target, VarKind, WorldRead, WorldReadFault, load,
-    mate_reach, save,
+    CapEnd, ContactClass, Coord, DocEdit, DocumentId, EditError, EvalOptions, MateFault, MateRef,
+    Node, PersistError, ProfileDoc, RecipeNodeId, SlideAxis, SnapshotError, Target, VarKind,
+    WorldRead, WorldReadFault, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, at_the_door, at_the_door_of, insert, insert_pinned, len, on_frame, step};
@@ -157,42 +155,20 @@ fn add_value(
     }
 }
 
-/// `edit` through the door with the refusing reach: the document and
-/// the constraint it minted, or the fault the door refused with.
+/// `edit` through the door: the document and the constraint it minted, or the fault the door refused with.
 #[allow(clippy::result_large_err)]
 fn through_door(
     doc: &ProfileDoc,
     placement: RecipeNodeId,
     edit: &DocEdit<editor_core::ProfileProgram>,
 ) -> Result<(ProfileDoc, MateRef), MateFault> {
-    match doc.apply(edit, Tol::witness(), &RefusingReach) {
+    match doc.apply(edit, Tol::witness()) {
         Ok(applied) => {
             let id = applied.record.minted_constraints[0];
             Ok((applied.doc, MateRef::new(placement, id)))
         }
         Err(EditError::MateRefused { fault, .. }) => Err(*fault),
         Err(other) => panic!("the door refused otherwise: {other:?}"),
-    }
-}
-
-/// A reach that counts its asks and answers through `inner`.
-struct Counting<'a>(core::cell::Cell<usize>, &'a dyn MateReach);
-
-impl<'a> Counting<'a> {
-    fn over(inner: &'a dyn MateReach) -> Self {
-        Self(core::cell::Cell::new(0), inner)
-    }
-
-    /// How many asks were made.
-    fn asks(&self) -> usize {
-        self.0.get()
-    }
-}
-
-impl MateReach for Counting<'_> {
-    fn reach(&self, part: &editor_core::DocRef) -> Result<f64, ReachRefusal> {
-        self.0.set(self.0.get() + 1);
-        self.1.reach(part)
     }
 }
 
@@ -205,10 +181,9 @@ impl MateReach for Counting<'_> {
 /// sentence names the placement once and forwards the fault's.
 #[test]
 fn a1_a_mate_of_two_kinds_refuses_at_insert_naming_the_placement() {
-    let (doc, ids, opts, body) = instances("msolve10-a1-kinds", 2);
-    let reach = mate_reach::<f64>(&opts, Tol::witness());
+    let (doc, ids, _, body) = instances("msolve10-a1-kinds", 2);
     let (named, fault) =
-        at_the_door(&doc, &reach, kinds_differ(body, ids[0], ids[1])).expect_err("refused");
+        at_the_door(&doc, kinds_differ(body, ids[0], ids[1])).expect_err("refused");
     let MateFault::KindsDiffer { mate: held, on, to } = fault else {
         panic!("expected the kinds to differ, got {fault:?}");
     };
@@ -226,7 +201,6 @@ fn a1_a_mate_of_two_kinds_refuses_at_insert_naming_the_placement() {
         .apply(
             &add(ids[1], kinds_differ(body, ids[0], ids[1])),
             Tol::witness(),
-            &reach,
         )
         .expect_err("refused");
     let EditError::MateRefused { fault, .. } = &err else {
@@ -257,8 +231,8 @@ fn a1_a_mate_of_two_kinds_refuses_at_insert_naming_the_placement() {
 #[test]
 fn a1_a_mate_whose_on_reads_another_copy_refuses_not_on_the_copy() {
     let (doc, ids, _, body) = instances("msolve10-a1-not-on", 2);
-    let (named, fault) = at_the_door_of(&doc, &RefusingReach, ids[0], mate(body, ids[0], ids[1]))
-        .expect_err("refused");
+    let (named, fault) =
+        at_the_door_of(&doc, ids[0], mate(body, ids[0], ids[1])).expect_err("refused");
     assert_eq!(named, ids[0]);
     assert!(
         matches!(fault, MateFault::NotOnTheCopy { mate } if mate.placement == ids[0]),
@@ -380,7 +354,7 @@ fn a1_a_values_own_admission_refuses_at_insert() {
             fault,
             MateFault::NotAFreedom {
                 coord: Coord::Slide(SlideAxis::Z),
-                kind: Some(VarKind::Plane),
+                kind: VarKind::Plane,
                 ..
             }
         ),
@@ -488,7 +462,6 @@ fn a1_a_mate_re_pointed_re_asks_the_values_naming_it() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &RefusingReach,
     );
     assert!(
         matches!(
@@ -505,31 +478,6 @@ fn a1_a_mate_re_pointed_re_asks_the_values_naming_it() {
     );
 }
 
-// ---- A4: the door reads nothing of the parts ----
-
-/// **The door asks no reach and reads no face**: an admitted rest and
-/// every structural refusal, through a counting reach over the store's
-/// — zero asks. The same rest through the refusing reach is admitted
-/// too, to the same bundle: nothing the door decides needs the parts.
-#[test]
-fn a4_the_door_asks_no_reach_and_reads_no_face() {
-    let (doc, ids, opts, body) = instances("msolve10-a4-asks", 2);
-    let store_reach = mate_reach::<f64>(&opts, Tol::witness());
-    let counting = Counting::over(&store_reach);
-    let (with_store, _) =
-        at_the_door(&doc, &counting, mate(body, ids[0], ids[1])).expect("admitted");
-    at_the_door(&doc, &counting, kinds_differ(body, ids[0], ids[1])).expect_err("refused");
-    at_the_door_of(&doc, &counting, ids[0], mate(body, ids[0], ids[1])).expect_err("refused");
-    assert_eq!(counting.asks(), 0, "the door asks the parts nothing");
-    let (refusing, _) =
-        at_the_door(&doc, &RefusingReach, mate(body, ids[0], ids[1])).expect("admitted");
-    assert_eq!(
-        fixture::bundle(&refusing, ids[1]),
-        fixture::bundle(&with_store, ids[1]),
-        "the refusing reach admits the same constraint"
-    );
-}
-
 // ---- The history and the log ----
 
 /// **A refused add leaves no entry**: the document is the one it was,
@@ -539,7 +487,7 @@ fn a1_a_refused_insert_leaves_no_entry_in_the_history() {
     let (doc, ids, _, body) = instances("msolve10-a1-history", 2);
     let before = doc.clone();
     let (named, fault) =
-        at_the_door(&doc, &RefusingReach, kinds_differ(body, ids[0], ids[1])).expect_err("refused");
+        at_the_door(&doc, kinds_differ(body, ids[0], ids[1])).expect_err("refused");
     let MateFault::KindsDiffer { mate: refused, .. } = fault else {
         panic!("{fault:?}");
     };
@@ -573,11 +521,10 @@ fn a1_a_refused_insert_leaves_no_entry_in_the_history() {
 /// entry.
 #[test]
 fn a3_replay_round_trips_an_admitted_mate_and_refuses_a_door_refusal_at_load() {
-    let (doc, ids, opts, body) = instances("msolve10-a3-log", 2);
-    let reach = mate_reach::<f64>(&opts, Tol::witness());
+    let (doc, ids, _, body) = instances("msolve10-a3-log", 2);
     let snapshot = doc.clone();
     let edit = add(ids[1], mate(body, ids[0], ids[1]));
-    let applied = doc.apply(&edit, Tol::witness(), &reach).expect("admitted");
+    let applied = doc.apply(&edit, Tol::witness()).expect("admitted");
     let log = vec![edit.clone()];
     let text = save(&snapshot, &log, Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("a log the door admitted loads with no store");
@@ -616,14 +563,15 @@ fn a3_replay_round_trips_an_admitted_mate_and_refuses_a_door_refusal_at_load() {
     );
 }
 
-/// **What needs the poses' values is the placement's at evaluation**:
-/// two rests a copy cannot hold at once — its bottom cap and its top
-/// cap each resting on the same face — are each admitted at the door,
-/// replay with no store, and the placement's evaluation refuses them
-/// `Contradictory`, naming the two.
+/// **A second rest refuses at the door, and on replay**: two rests on
+/// one copy — its bottom cap and its top cap each resting on the same
+/// face — fix the normal twice, which the door reads off the two
+/// mates' kinds, measuring nothing (FORK-S3O). A log carrying the
+/// second refuses to save, its replay refusing in the same words,
+/// naming the entry.
 #[test]
-fn a3_a_contradictory_pair_is_admitted_and_refused_where_it_evaluates() {
-    let (doc, ids, opts, body) = instances("msolve10-a3-contradictory", 2);
+fn a3_a_second_rest_refuses_at_the_door_and_on_replay() {
+    let (doc, ids, _, body) = instances("msolve10-a3-overconstrained", 2);
     let snapshot = doc.clone();
     let bottom = add(ids[1], mate(body, ids[0], ids[1]));
     let top = add(
@@ -635,38 +583,31 @@ fn a3_a_contradictory_pair_is_admitted_and_refused_where_it_evaluates() {
         ),
     );
     let doc = doc
-        .apply(&bottom, Tol::witness(), &RefusingReach)
+        .apply(&bottom, Tol::witness())
         .expect("the door admits the first rest")
         .doc;
-    let doc = doc
-        .apply(&top, Tol::witness(), &RefusingReach)
-        .expect("the door admits the second rest: it decides no pose")
-        .doc;
-    let log = vec![bottom, top];
-    let text = save(&snapshot, &log, Tol::witness()).expect("saves");
-    let loaded = load(&text, Tol::witness()).expect("replay re-decides no pose");
-    assert_eq!(
-        fixture::bundle(&loaded.doc, ids[1]),
-        fixture::bundle(&doc, ids[1])
-    );
-    let held: Vec<editor_core::ConstraintId> =
-        fixture::bundle(&doc, ids[1]).iter().map(|c| c.id).collect();
-    let ev = fixture::run(&loaded.doc, &opts);
-    match ev.result(ids[1]) {
-        Some(NodeResult::Failed(err)) => assert!(
-            matches!(
-                &err.kind,
-                NodeErrorKind::Mate(fault) if matches!(
-                    **fault,
-                    MateFault::Contradictory { held: h, added: a, .. }
-                        if h != a && held.contains(&h.id) && held.contains(&a.id)
-                )
-            ),
-            "{:?}",
-            err.kind
+    let held = fixture::bundle(&doc, ids[1])[0].id;
+    let refused = doc
+        .apply(&top, Tol::witness())
+        .expect_err("the door refuses the second rest");
+    let EditError::MateRefused { fault, .. } = &refused else {
+        panic!("refused as a mate: {refused:?}");
+    };
+    assert!(
+        matches!(
+            &**fault,
+            MateFault::Overconstrained { placement, constraints, free: 1 }
+                if *placement == ids[1] && constraints.len() == 2 && constraints.contains(&held)
         ),
-        other => panic!("the placement refuses its own bundle: {other:?}"),
-    }
+        "{fault:?}"
+    );
+    let err = save(&snapshot, &[bottom, top], Tol::witness())
+        .expect_err("a log carrying the second rest does not replay");
+    let PersistError::EditReplay { index, error } = &err else {
+        panic!("expected EditReplay, got {err:?}");
+    };
+    assert_eq!(*index, 1, "the entry is named");
+    assert_eq!(**error, refused, "replay refuses in the door's words");
 }
 
 /// **A snapshot is data, and the load door decides it as the edit door
@@ -728,8 +669,7 @@ fn a3_a_doctored_snapshot_whose_mate_is_not_on_its_copy_refuses_at_load() {
         fixture::plane(cap(ids[1], body, CapEnd::Start)),
         ContactClass::Rest,
     );
-    let (named, door) =
-        at_the_door_of(&doc, &RefusingReach, ids[1], swapped_mate).expect_err("refused");
+    let (named, door) = at_the_door_of(&doc, ids[1], swapped_mate).expect_err("refused");
     assert_eq!(named, ids[1]);
     assert!(
         matches!(door, MateFault::NotOnTheCopy { mate } if mate.placement == ids[1]),
@@ -749,8 +689,9 @@ fn a_door_fault(fault: &MateFault) -> bool {
             | MateFault::KindsDiffer { .. }
             | MateFault::WorldRead { .. }
             | MateFault::ValueNamesNoMate { .. }
-            | MateFault::NotAFreedom { kind: Some(_), .. }
+            | MateFault::NotAFreedom { .. }
             | MateFault::NoChart { .. }
+            | MateFault::Overconstrained { .. }
     )
 }
 
@@ -760,9 +701,9 @@ type Row = (&'static str, ProfileDoc, EvalOptions);
 
 /// **The corpus**: shapes of constraint a document can hold, through
 /// the doors that admit them — a sound pair, a chain, a class that
-/// solves and mints nothing, a value on a mate, and states the
-/// evaluation refuses: a contradictory pair, and a target stranded past
-/// a pattern's count after the mate is in.
+/// solves and mints nothing, a value on a mate, and a state the
+/// evaluation refuses: a target stranded past a pattern's count after
+/// the mate is in.
 fn corpus() -> Vec<Row> {
     let mut rows: Vec<Row> = Vec::new();
     rows.push({
@@ -795,19 +736,6 @@ fn corpus() -> Vec<Row> {
         )
         .expect("a plane mate leaves its spin");
         ("msolve10-corpus-value", doc, opts)
-    });
-    rows.push({
-        let (doc, ids, opts, body) = instances("msolve10-corpus-contradictory", 2);
-        let (doc, _) = fixture::constrain(doc, mate(body, ids[0], ids[1]));
-        let (doc, _) = fixture::constrain(
-            doc,
-            fixture::rest(
-                cap(ids[1], body, CapEnd::End),
-                cap(ids[0], body, CapEnd::End),
-                ContactClass::Rest,
-            ),
-        );
-        ("msolve10-corpus-contradictory", doc, opts)
     });
     rows.push({
         // A target stranded past a pattern's count, after insert: the
@@ -861,7 +789,6 @@ fn corpus() -> Vec<Row> {
 fn a2_the_door_admits_every_constraint_of_the_corpus_again() {
     let (mut admitted, mut refused_where_evaluated) = (0_usize, 0_usize);
     for (label, doc, opts) in corpus() {
-        let reach = mate_reach::<f64>(&opts, Tol::witness());
         let poses = fixture::solve(&doc, &opts, Tol::witness());
         let mut constraints = 0_usize;
         for placement in doc.placements() {
@@ -897,7 +824,6 @@ fn a2_the_door_admits_every_constraint_of_the_corpus_again() {
                 .0;
                 let twin = at_the_door_of(
                     &without,
-                    &reach,
                     placement,
                     written.mate().cloned().expect("a mate"),
                 );
@@ -947,7 +873,7 @@ fn a2_the_door_admits_every_constraint_of_the_corpus_again() {
     // Floors, not counts: the corpus can grow, the claim cannot go
     // vacuous.
     assert!(
-        admitted >= 6 && refused_where_evaluated >= 2,
+        admitted >= 6 && refused_where_evaluated >= 1,
         "the corpus re-admitted {admitted} constraints over {refused_where_evaluated} \
          placements refused where they evaluate"
     );

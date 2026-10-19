@@ -194,25 +194,12 @@ fn a_document_against_its_own_evaluation_answers_as_it_always_did() {
     let t = Twins::build();
     let tol = Tol::witness();
     assert!(
-        apply_with_names(
-            &t.square,
-            &t.edit,
-            &t.ev_square,
-            tol,
-            &editor_core::RefusingReach
-        )
-        .is_ok(),
+        apply_with_names(&t.square, &t.edit, &t.ev_square, tol).is_ok(),
         "the square's own tables carry the fourth rim edge"
     );
     assert_eq!(
-        apply_with_names(
-            &t.triangle,
-            &t.edit,
-            &t.ev_triangle,
-            tol,
-            &editor_core::RefusingReach
-        )
-        .expect_err("the triangle has no fourth outer segment"),
+        apply_with_names(&t.triangle, &t.edit, &t.ev_triangle, tol)
+            .expect_err("the triangle has no fourth outer segment"),
         EditError::NameUnresolvedInEvaluation {
             name: t.triangle.spoken_name(&t.fourth)
         },
@@ -229,13 +216,7 @@ fn a_document_against_its_own_evaluation_answers_as_it_always_did() {
 fn a_name_only_the_twin_carries_is_not_admitted() {
     let t = Twins::build();
     expect_pairing(
-        apply_with_names(
-            &t.triangle,
-            &t.edit,
-            &t.ev_square,
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        ),
+        apply_with_names(&t.triangle, &t.edit, &t.ev_square, Tol::witness()),
         t.triangle.id(),
         t.square.id(),
         "a name the twin carries and this document does not",
@@ -251,13 +232,7 @@ fn a_name_only_the_twin_carries_is_not_admitted() {
 fn a_name_this_document_carries_is_not_refused_for_the_twins_tables() {
     let t = Twins::build();
     expect_pairing(
-        apply_with_names(
-            &t.square,
-            &t.edit,
-            &t.ev_triangle,
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        ),
+        apply_with_names(&t.square, &t.edit, &t.ev_triangle, Tol::witness()),
         t.square.id(),
         t.triangle.id(),
         "a name this document carries and the twin does not",
@@ -274,24 +249,11 @@ fn an_edit_carrying_no_name_is_refused_on_the_pairing_too() {
     let tol = Tol::witness();
     let nameless = DocEdit::SetTolerance { eps: 1e-7 };
     assert!(
-        apply_with_names(
-            &t.triangle,
-            &nameless,
-            &t.ev_triangle,
-            tol,
-            &editor_core::RefusingReach
-        )
-        .is_ok(),
+        apply_with_names(&t.triangle, &nameless, &t.ev_triangle, tol).is_ok(),
         "the premise: the edit itself is legal"
     );
     expect_pairing(
-        apply_with_names(
-            &t.triangle,
-            &nameless,
-            &t.ev_square,
-            tol,
-            &editor_core::RefusingReach,
-        ),
+        apply_with_names(&t.triangle, &nameless, &t.ev_square, tol),
         t.triangle.id(),
         t.square.id(),
         "an edit carrying no name",
@@ -312,14 +274,9 @@ fn the_pairing_is_identity_and_survives_a_new_version_of_the_document() {
     let ev_square = run(&square);
 
     // A new version under the SAME identity.
-    let moved = editor_core::apply(
-        &square,
-        &DocEdit::SetTolerance { eps: 1e-7 },
-        tol,
-        &editor_core::RefusingReach,
-    )
-    .expect("the edit is legal")
-    .doc;
+    let moved = editor_core::apply(&square, &DocEdit::SetTolerance { eps: 1e-7 }, tol)
+        .expect("the edit is legal")
+        .doc;
     assert_eq!(moved.id(), square.id(), "identity survives every edit");
 
     let fourth = ename(
@@ -331,7 +288,7 @@ fn the_pairing_is_identity_and_survives_a_new_version_of_the_document() {
         fresh: Vec::new(),
     };
     assert!(
-        apply_with_names(&moved, &edit, &ev_square, tol, &editor_core::RefusingReach).is_ok(),
+        apply_with_names(&moved, &edit, &ev_square, tol).is_ok(),
         "a stale-but-own evaluation still pairs: the stamp is the id"
     );
 }
@@ -530,7 +487,6 @@ fn a_later_evaluation_of_the_same_document_is_admitted() {
                     fresh: Vec::new(),
                 },
                 tol,
-                &editor_core::RefusingReach,
             )
             .expect("a length goes into the extrusion distance")
             .doc;
@@ -798,7 +754,6 @@ fn what_the_admitted_later_evaluation_answers() {
                 fresh: Vec::new(),
             },
             tol,
-            &editor_core::RefusingReach,
         )
         .expect("a length goes into the extrusion distance")
         .doc;

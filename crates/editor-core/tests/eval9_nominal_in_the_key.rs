@@ -69,7 +69,6 @@ fn doc_with(nominal: f64, u_of: fn(Formula) -> Formula) -> ProfileDoc {
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, nominal)),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;
@@ -99,7 +98,6 @@ fn doc_with(nominal: f64, u_of: fn(Formula) -> Formula) -> ProfileDoc {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the profile inserts")
         .doc;
@@ -112,7 +110,6 @@ fn doc_with(nominal: f64, u_of: fn(Formula) -> Formula) -> ProfileDoc {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the extrude inserts")
     .doc
@@ -172,7 +169,6 @@ mod over_a_param_box {
                 value: FreeValue::Continuous(value),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the value edit applies")
         .doc
@@ -320,7 +316,6 @@ fn a_slot_that_refuses_at_the_nominal_refuses_its_node() {
                 value: editor_core::FreeValue::Continuous(0.0),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the value edit applies")
         .doc;

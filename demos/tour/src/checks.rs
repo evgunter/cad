@@ -30,8 +30,8 @@ use std::collections::BTreeMap;
 
 use pncad::document::{
     Bodies, CancelToken, ChecksConfig, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation,
-    Formula, Frame, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach,
-    Severity, apply, enforce_checks, evaluate, run_checks,
+    Formula, Frame, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, Severity, apply,
+    enforce_checks, evaluate, run_checks,
 };
 use pncad::geom_core::Tol;
 use pncad::topo::BooleanOp;
@@ -45,7 +45,6 @@ fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
             fresh: Vec::new(),
         },
         tol,
-        &RefusingReach,
     )
     .expect("the insert applies");
     *doc = applied.doc;

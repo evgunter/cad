@@ -32,15 +32,9 @@ use editor_core::{
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{
-    FIXTURE_MATE_AXIS, ang, flip, head, insert, len, on_frame, plane, point_of, rest, run, solve,
-    square, step,
+    ang, flip, head, insert, len, on_frame, plane, point_of, rest, run, solve, square, step,
 };
 use geom_core::Tol;
-
-/// A one-metre lever, through the one door a lever is formed by.
-fn unit_arm() -> editor_core::mate::coset::Arm {
-    editor_core::mate::coset::Arm::of(0.0, 1.0).expect("a metre is in range")
-}
 
 // ---- Substrate ----
 
@@ -274,16 +268,6 @@ fn near(a: Frame, b: Frame, tol: f64) -> bool {
         .all(|(x, y)| (x - y).abs() <= tol)
 }
 
-fn mate_fault(ev: &Evaluation<f64>, node: RecipeNodeId) -> MateFault {
-    match ev.result(node) {
-        Some(NodeResult::Failed(e)) => match &e.kind {
-            NodeErrorKind::Mate(fault) => (**fault).clone(),
-            other => panic!("expected a Mate refusal, got {other:?}"),
-        },
-        other => panic!("expected a failure, got {other:?}"),
-    }
-}
-
 // ---- Row 1: a determined pair, evaluated, deterministic ----
 
 /// The A11 rule-1 exemplar, **a coaxial mate and its slide and spin
@@ -396,29 +380,37 @@ fn row1_evaluation_and_save_bytes_are_bit_identical_across_runs() {
     assert!(back.bit_eq(&doc), "the mates round-trip bit for bit");
 }
 
-// ---- Row 2: a bundle that pins less is a loose copy ----
+// ---- Row 2: a V-block refuses, and a lone plane mate leaves a loose copy ----
 
-/// **A V-block leaves a loose copy, not a refusal**: two plane mates
-/// on perpendicular walls fold to a prismatic freedom, so the bundle
-/// pins less than the copy needs. The copy evaluates in a space of its
-/// own and has no world pose.
+/// **A V-block refuses at the door; a lone plane mate leaves a loose
+/// copy** (FORK-S3O): two plane mates on perpendicular walls fix a
+/// normal twice, so the door refuses the second, naming both, and the
+/// families' meeting leaves a slide. The first alone pins less than the
+/// copy needs: the copy evaluates in a space of its own and has no world
+/// pose.
 ///
-/// *Breaks if* an under-pinned bundle refuses, or is taken as pinned.
+/// *Breaks if* the door admits the second wall, or an under-pinned
+/// bundle refuses or is taken as pinned.
 #[test]
-fn row2_a_v_block_leaves_a_loose_copy() {
+fn row2_a_v_block_refuses_and_one_wall_leaves_a_loose_copy() {
     let (doc, ids, kit) = assembly("asm-r2a-row2", 2);
-    let doc = (0..2).fold(doc, |doc, k| {
-        add(
-            doc,
-            ids[1],
-            fixture::mate(
-                plane(head(kit.wall(ids[1], k))),
-                standoff(head(kit.wall(ids[0], k)), 0.0),
-                ContactClass::Rest,
-            ),
+    let wall = |k| {
+        fixture::mate(
+            plane(head(kit.wall(ids[1], k))),
+            standoff(head(kit.wall(ids[0], k)), 0.0),
+            ContactClass::Rest,
         )
-        .0
-    });
+    };
+    let (doc, first) = add(doc, ids[1], wall(0));
+    let refused = fixture::door_refusal(&doc, wall(1));
+    assert!(
+        matches!(
+            &refused,
+            MateFault::Overconstrained { placement, constraints, free: 1 }
+                if *placement == ids[1] && constraints.len() == 2 && constraints.contains(&first.id)
+        ),
+        "the second wall fixes the normal the first fixes: {refused:?}"
+    );
     let o = kit.opts();
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(
@@ -441,56 +433,35 @@ fn row2_a_v_block_leaves_a_loose_copy() {
     assert_eq!(ev.space(ids[1]), Space::Loose { root: ids[1] });
 }
 
-// ---- Row 3: CONTRADICTORY, naming both mates and the clash ----
+// ---- Row 3: a second rest refuses whatever its height ----
 
-/// Two rests of `b`'s start cap on `a`'s top cap, one lifted a unit:
-/// parallel planes a unit apart, which no pose satisfies.
+/// Two rests of `b`'s start cap on `a`'s top cap, the second lifted by
+/// `h`: whether it agrees with the first (`h = 0`) or not, it fixes the
+/// normal and the standoff the first fixes, so the door refuses it,
+/// measuring nothing, in the same words at every height.
 ///
-/// *Breaks if* the fold admits them, names the mates the other way
-/// round, or measures any clash but the unit gap.
+/// *Breaks if* the door admits the agreeing rest (the fallback to an
+/// assertion Ev rejected), or tells the two heights apart.
 #[test]
-fn row3_a_gap_mismatched_planar_pair_refuses_contradictory() {
+fn row3_a_second_rest_refuses_at_the_door_whatever_its_height() {
     let (doc, ids, kit) = assembly("asm-r2a-row3", 2);
-    let mut doc = doc;
-    let mut mates = Vec::new();
-    for height in [0.0, 1.0] {
-        let (next, id) = add(doc, ids[1], lifted_rest(&kit, ids[0], ids[1], height));
-        doc = next;
-        mates.push(id);
-    }
-    let o = kit.opts();
-    let poses = solve(&doc, &o, Tol::witness());
-    let fault = poses.fault(ids[1]).expect("the bundle refuses").clone();
-    let MateFault::Contradictory {
-        held,
-        added,
-        predicate,
-        clash,
-    } = &fault
-    else {
-        panic!("expected CONTRADICTORY, got {fault:?}");
-    };
-    assert_eq!(*held, mates[0], "the constraint already folded is named");
-    assert_eq!(
-        *added, mates[1],
-        "the constraint that died against it is named"
-    );
-    assert_eq!(*predicate, "mate_member_translation_in_plane");
-    let editor_core::Clash::Length { metres } = *clash else {
-        panic!(
-            "a translation predicate measures a LENGTH outright, so there is no lever: {clash:?}"
-        );
-    };
-    assert!(
-        (metres.abs() - 1.0).abs() < 1e-9,
-        "the measured clash IS the authored gap mismatch: {metres}"
-    );
-    let message = fault.to_string();
-    assert!(
-        message.contains("the translation leaves the shared plane") && !message.contains(predicate),
-        "the sentence says in words what the predicate found: {message}"
-    );
-    assert!(message.contains("clash"), "{message}");
+    let (doc, held) = add(doc, ids[1], lifted_rest(&kit, ids[0], ids[1], 0.0));
+    let said: Vec<String> = [0.0, 1.0]
+        .into_iter()
+        .map(|h| {
+            let fault = fixture::door_refusal(&doc, lifted_rest(&kit, ids[0], ids[1], h));
+            assert!(
+                matches!(
+                    &fault,
+                    MateFault::Overconstrained { placement, constraints, .. }
+                        if *placement == ids[1] && constraints.len() == 2 && constraints.contains(&held.id)
+                ),
+                "h = {h}: {fault:?}"
+            );
+            fault.to_string()
+        })
+        .collect();
+    assert_eq!(said[0], said[1], "the refusal measures nothing");
 }
 
 // ---- Row 4: the constraint door, and no edit records a frame (A11 (2)) ----
@@ -514,7 +485,6 @@ fn row4b_removing_the_placing_constraint_leaves_the_orphan_loose() {
             constraint: joint.id,
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the constraint is removed");
     assert!(
@@ -555,13 +525,8 @@ fn row4b_removing_the_placing_constraint_leaves_the_orphan_loose() {
 fn row4c_deleting_the_target_strands_the_constraint_on_it() {
     let (doc, ids, joint, kit) = stacked_pair("asm-r2a-row4c");
     let before = doc.clone();
-    let applied = apply(
-        &doc,
-        &DocEdit::DeleteNode { id: ids[0] },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("the target deletes");
+    let applied = apply(&doc, &DocEdit::DeleteNode { id: ids[0] }, Tol::witness())
+        .expect("the target deletes");
     assert!(
         fixture::bundle(&applied.doc, ids[1])
             .iter()
@@ -706,242 +671,92 @@ fn row4e_a_whole_pair_cut_moves_as_selected() {
     );
 }
 
-// ---- Row 5: the closure enumeration, executed ----
+// ---- Row 5: the family meet, enumerated ----
 
-/// *Breaks if* an intersection of two closure members falls outside
-/// the closure, or any table row answers another subgroup.
+/// **The families meet within the closure, unordered, and transversely
+/// only where a mate may join another** (FORK-S3O): every pair of the
+/// ten families meets in one of them, the same in either order; SE(3)
+/// meets anything transversely, and of two mates' families only a
+/// ball's and a direction's meet transversely (in the revolute about
+/// the line through the point along the direction).
+///
+/// *Breaks if* a meeting falls outside the closure or depends on order,
+/// or a pair of mate kinds that fixes an equation twice is admitted.
 #[test]
-fn row5_the_closure_set_is_closed_under_intersection() {
-    use editor_core::Subgroup;
-    use geom_core::linalg::{Point3, UnitVec3, Vec3};
-    use geom_core::predicate::Band;
-    let band = Band::linear(Tol::witness()).expect("a band");
-    let unit = |v| UnitVec3::new(v, FIXTURE_MATE_AXIS, band).expect("a basis vector");
-    let x = unit(Vec3::new(1.0, 0.0, 0.0));
-    let y = unit(Vec3::new(0.0, 1.0, 0.0));
-    let z = unit(Vec3::new(0.0, 0.0, 1.0));
-    let o = Point3::origin();
-    let off = Point3::new(0.0, 1.0, 0.0);
-    let planar = |n| Subgroup::Planar { normal: n };
-    let cyl = |p, d| Subgroup::Cylindrical {
-        point: p,
-        direction: d,
-    };
-    let prism = |d| Subgroup::Prismatic { direction: d };
-    let rev = |p, d| Subgroup::Revolute {
-        point: p,
-        direction: d,
-    };
-    let meet = |a, b| {
-        editor_core::mate::coset::intersect_subgroups(a, b, band, unit_arm()).expect("decided")
-    };
-    // The universal rows: SE(3) is the identity, empty absorbs,
-    // trivial is the zero.
-    for g in [
-        Subgroup::Se3,
-        planar(z),
-        cyl(o, z),
-        prism(z),
-        rev(o, z),
-        Subgroup::Trivial,
-        Subgroup::Empty,
-    ] {
-        assert_eq!(meet(Subgroup::Se3, g), g, "X ∩ SE(3) = X");
-        assert_eq!(meet(g, Subgroup::Se3), g, "unordered");
-        assert_eq!(
-            meet(Subgroup::Empty, g),
-            Subgroup::Empty,
-            "X ∩ empty = empty"
-        );
-        if !matches!(g, Subgroup::Empty) {
-            assert_eq!(meet(Subgroup::Trivial, g), Subgroup::Trivial);
-        }
-    }
-    // Table row 1 — planar ∩ planar.
-    assert_eq!(meet(planar(z), planar(z)), planar(z));
-    assert_eq!(meet(planar(x), planar(y)), prism(z), "the V-block");
-    // Table row 2 — planar ∩ cylindrical.
-    assert_eq!(meet(planar(z), cyl(o, z)), rev(o, z), "the pin in the hole");
-    assert_eq!(meet(planar(z), cyl(o, x)), prism(x), "the slot");
-    assert_eq!(
-        meet(planar(z), cyl(o, unit(Vec3::new(1.0, 0.0, 1.0)))),
-        Subgroup::Trivial,
-        "a generic angle kills both freedoms"
-    );
-    // Table row 3 — cylindrical ∩ cylindrical.
-    assert_eq!(meet(cyl(o, z), cyl(o, z)), cyl(o, z), "the same line");
-    assert_eq!(meet(cyl(o, z), cyl(off, z)), prism(z), "parallel, distinct");
-    assert_eq!(meet(cyl(o, z), cyl(o, x)), Subgroup::Trivial, "concurrent");
-    assert_eq!(meet(cyl(o, z), cyl(off, x)), Subgroup::Trivial, "skew");
-    // Table row 4 — prismatic against everything.
-    assert_eq!(meet(prism(x), planar(z)), prism(x), "in-plane");
-    assert_eq!(meet(prism(z), planar(z)), Subgroup::Trivial);
-    assert_eq!(meet(prism(z), cyl(o, z)), prism(z));
-    assert_eq!(meet(prism(x), cyl(o, z)), Subgroup::Trivial);
-    assert_eq!(meet(prism(z), prism(z)), prism(z));
-    assert_eq!(meet(prism(x), prism(z)), Subgroup::Trivial);
-    assert_eq!(meet(prism(z), rev(o, z)), Subgroup::Trivial);
-    // Table row 5 — revolute against everything.
-    assert_eq!(meet(rev(o, z), planar(z)), rev(o, z));
-    assert_eq!(meet(rev(o, z), planar(x)), Subgroup::Trivial);
-    assert_eq!(meet(rev(o, z), cyl(o, z)), rev(o, z));
-    assert_eq!(meet(rev(o, z), cyl(off, z)), Subgroup::Trivial);
-    assert_eq!(meet(rev(o, z), rev(o, z)), rev(o, z));
-    assert_eq!(meet(rev(o, z), rev(off, z)), Subgroup::Trivial);
-    // Closedness, stated as the obligation it is: every result above is
-    // itself a member of the closure set.
-    for a in [planar(z), cyl(o, z), prism(z), rev(o, z), Subgroup::Trivial] {
-        for b in [planar(x), cyl(off, x), prism(y), rev(o, y), Subgroup::Se3] {
-            let out = meet(a, b);
+fn row5_the_family_meet_is_closed_unordered_and_transverse_only_where_mates_join() {
+    use editor_core::SubgroupFamily as F;
+    let all = [
+        F::Se3,
+        F::Planar,
+        F::Cylindrical,
+        F::Prismatic,
+        F::Revolute,
+        F::Spherical,
+        F::Parallel,
+        F::Translation,
+        F::PlaneTranslation,
+        F::Trivial,
+    ];
+    for a in all {
+        for b in all {
+            assert_eq!(a.meet(b), b.meet(a), "{a:?} ∩ {b:?} is unordered");
             assert!(
-                out.dimension().is_some() || matches!(out, Subgroup::Empty),
-                "the closure is closed: {} ∩ {} = {}",
-                a.name(),
-                b.name(),
-                out.name()
+                a.meet(b).dimension() <= a.dimension().min(b.dimension()),
+                "{a:?} ∩ {b:?} = {:?} lies in both",
+                a.meet(b)
+            );
+        }
+        assert_eq!(F::Se3.transverse(a), Some(a), "SE(3) meets {a:?} as {a:?}");
+    }
+    let mates = [
+        F::Trivial,
+        F::Planar,
+        F::Cylindrical,
+        F::Parallel,
+        F::Spherical,
+    ];
+    for a in mates {
+        for b in mates {
+            let want = matches!(
+                (a, b),
+                (F::Spherical, F::Parallel) | (F::Parallel, F::Spherical)
+            );
+            assert_eq!(
+                a.transverse(b).is_some(),
+                want,
+                "{a:?} beside {b:?}: {:?}",
+                a.transverse(b)
             );
         }
     }
+    assert_eq!(F::Spherical.transverse(F::Parallel), Some(F::Revolute));
 }
 
-// ---- Row 5b: the COSET level — invariant matches, not just types ----
-//
-// Row 5 enumerates SUBGROUP types. The table's other half is the
-// representative: entry 3's "inter-axis displacement invariants match
-// A vs B (decided) → prismatic, else empty". Those matches had no
-// direct rows, and that gap is exactly where review MAJOR-1 hid — the
-// candidate pinned the held representative's clocking instead of
-// solving the free angle about the shared axis, so an assemblable
-// two-pin pattern refused CONTRADICTORY. These rows are at the coset
-// level: same subgroup types, different representatives, different
-// verdicts. A pin is a coaxial of two lateral edges, so the pins'
-// spacing is the block's own: adjacent corners a unit apart, opposite
-// ones `√2`.
+// ---- Row 5b: pins beyond the first ----
 
-/// Two pins, inter-axis invariants MATCHING (both a unit apart) but
-/// `b`'s second pin a quarter turn round from `a`'s: the table's entry
-/// 3 parallel-distinct row, which requires **prismatic**. The
-/// prismatic fold pins less than the copy needs, so the copy is loose;
-/// the coset row below pins the witness itself.
+/// Two pins, their spacings matched (adjacent corners a unit apart) or
+/// not (A's opposite corners, `√2`, against B's adjacent): either way
+/// the second fixes the direction and the line the first fixes, so the
+/// door refuses it, measuring nothing. Where two copies meet beyond
+/// what their mates fix is a contact, and its recourse an assertion.
 ///
-/// *Breaks if* the fold pins the held representative's clocking
-/// instead of solving the free angle (CONTRADICTORY).
+/// *Breaks if* the door measures the spacing (admitting the matched
+/// pair or quoting the mismatch).
 #[test]
-fn row5b_two_pins_clocked_apart_but_invariant_matched_fold_to_prismatic() {
+fn row5b_a_second_pin_refuses_whatever_its_spacing() {
     let (doc, ids, kit) = assembly("asm-r2a-row5b", 2);
-    let (doc, _) = add(doc, ids[1], pin(&kit, ids[0], ids[1], 0, 0));
-    // A's second pin at its corner 1; B's at its corner 3 — both
-    // adjacent to corner 0, a quarter turn apart.
-    let (doc, _) = add(doc, ids[1], pin(&kit, ids[0], ids[1], 1, 3));
-    let o = kit.opts();
-    let poses = solve(&doc, &o, Tol::witness());
-    assert_eq!(
-        poses.fault(ids[1]),
-        None,
-        "an assemblable two-pin pair is no contradiction"
-    );
-    assert_eq!(
-        poses.space(ids[1]),
-        Some(Space::Loose { root: ids[1] }),
-        "the slide along the pins' shared direction leaves the copy loose"
-    );
-}
-
-/// The same shape at the COSET door, so the witness itself is pinned:
-/// the folded representative must be the quarter turn that carries B's
-/// pattern onto A's, not the identity the held mate happened to state.
-///
-/// *Breaks if* the fold keeps the held representative's clocking.
-#[test]
-fn row5b_the_folded_representative_is_the_solved_clocking() {
-    use editor_core::mate::coset::{Coset, Subgroup, intersect};
-    use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
-    use geom_core::predicate::Band;
-    let band = Band::linear(Tol::witness()).expect("a band");
-    let z = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), FIXTURE_MATE_AXIS, band).expect("unit z");
-    // Pin 1 pins the shared axis through the origin; pin 2's A-side
-    // axis is at +x while its representative carries B's at +y.
-    let held = Coset {
-        subgroup: Subgroup::Cylindrical {
-            point: Point3::origin(),
-            direction: z,
-        },
-        representative: Affine3::identity(),
-    };
-    let added = Coset {
-        subgroup: Subgroup::Cylindrical {
-            point: Point3::new(1.0, 0.0, 0.0),
-            direction: z,
-        },
-        representative: Affine3::from_parts(Mat3::identity(), Vec3::new(1.0, -1.0, 0.0)),
-    };
-    let out = intersect(held, added, band, unit_arm()).expect("the pair is assemblable");
-    assert_eq!(out.subgroup.name(), "prismatic");
-    let turned = out
-        .representative
-        .transform_point(Point3::new(0.0, 1.0, 0.0));
-    assert!(
-        (turned - Point3::new(1.0, 0.0, 0.0)).norm() < 1e-12,
-        "the witness carries B's second pin onto A's: {turned:?}"
-    );
-}
-
-/// Invariants that do NOT match: A's pins are `√2` apart (opposite
-/// corners), B's a unit (adjacent). The table says empty, and the
-/// refusal must quote the MEASURED clash — the spacing difference.
-///
-/// *Breaks if* the fold admits the pair, or measures another clash.
-#[test]
-fn row5b_mismatched_inter_axis_invariants_refuse_contradictory() {
-    let (doc, ids, kit) = assembly("asm-r2a-row5b-mismatch", 2);
     let (doc, first) = add(doc, ids[1], pin(&kit, ids[0], ids[1], 0, 0));
-    let (doc, second) = add(doc, ids[1], pin(&kit, ids[0], ids[1], 2, 1));
-    let o = kit.opts();
-    let poses = solve(&doc, &o, Tol::witness());
-    let fault = poses.fault(ids[1]).expect("the bundle refuses").clone();
-    let MateFault::Contradictory {
-        held,
-        added,
-        predicate,
-        clash,
-    } = &fault
-    else {
-        panic!("expected CONTRADICTORY, got {fault:?}");
-    };
-    assert_eq!((*held, *added), (first, second), "both mates are named");
-    assert_eq!(*predicate, "mate_member_point_on_axis");
-    let editor_core::Clash::Length { metres } = *clash else {
-        panic!("a point-on-axis offset is a LENGTH outright, so there is no lever: {clash:?}");
-    };
-    assert!(
-        (metres.abs() - (2.0_f64.sqrt() - 1.0)).abs() < 1e-9,
-        "the clash IS the inter-axis invariant difference (√2 − 1): {metres}"
-    );
-}
-
-/// A rest plus two pins — A11 rule 1's own fully-determined territory,
-/// and the shape MAJOR-1 falsely refused. The plate seats at the rest
-/// (lifted a unit) and both pins land, so the fold is DETERMINED and
-/// the pose is the seating height.
-///
-/// *Breaks if* the fold refuses an assemblable rest and two pins, or
-/// turns the plate.
-#[test]
-fn row5b_a_rest_and_two_pins_determine_the_plate() {
-    let (doc, ids, kit) = assembly("asm-r2a-row5b-plate", 2);
-    let (doc, _) = add(doc, ids[1], lifted_rest(&kit, ids[0], ids[1], 1.0));
-    let (doc, _) = add(doc, ids[1], pin(&kit, ids[0], ids[1], 0, 0));
-    let (doc, _) = add(doc, ids[1], pin(&kit, ids[0], ids[1], 1, 1));
-    let o = kit.opts();
-    let poses = solve(&doc, &o, Tol::witness());
-    assert_eq!(poses.fault(ids[1]), None, "rest + two pins determine");
-    let relative = poses.relative(ids[1]).expect("a solved pose");
-    assert!(
-        near(relative, Frame::translation([0.0, 0.0, 2.0]), 1e-12),
-        "the plate seats at the rest, unturned (both patterns agree): {relative:?}"
-    );
-    let ev = run(&doc, &o);
-    assert!(matches!(ev.result(ids[1]), Some(NodeResult::Ok(_))));
+    for (what, a, b) in [("matched", 1, 3), ("mismatched", 2, 1)] {
+        let fault = fixture::door_refusal(&doc, pin(&kit, ids[0], ids[1], a, b));
+        assert!(
+            matches!(
+                &fault,
+                MateFault::Overconstrained { placement, constraints, free: 0 }
+                    if *placement == ids[1] && constraints.len() == 2 && constraints.contains(&first.id)
+            ),
+            "{what}: {fault:?}"
+        );
+    }
 }
 
 // ---- Row 6: the A12 partition consequences ----
@@ -1002,7 +817,6 @@ fn row6b_a_constraint_add_and_remove_place_nothing() {
                 constraint: mate_ref.id,
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("removing a constraint is admitted");
     assert!(
@@ -1105,7 +919,6 @@ fn row6f_the_slot_door_repairs_a_stranded_side() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("a pose is re-pointed by its slot door");
     let mut members = fixture::mate_members(&applied.doc);
@@ -1148,7 +961,6 @@ fn row6h_the_constraint_door_refuses_a_head_naming_no_node() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect_err("the head names no node");
     assert!(
@@ -1225,8 +1037,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_any_payload_name() {
                 ContactClass::Rest
             )),
             &ev,
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .is_ok(),
         "the instance-qualified heads resolve in the instance's own table"
@@ -1249,7 +1060,6 @@ fn row6j_the_name_door_reads_a_mates_heads_like_any_payload_name() {
         &add(rest(on, head(bogus.clone()), ContactClass::Rest)),
         &ev,
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap_err();
     assert_eq!(
@@ -1320,7 +1130,6 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect_err("a value on a fixed freedom refuses");
         let EditError::MateRefused { fault, .. } = &err else {
@@ -1329,7 +1138,7 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
         assert!(
             matches!(
                 **fault,
-                MateFault::NotAFreedom { value, coord: c, kind: Some(k) }
+                MateFault::NotAFreedom { value, coord: c, kind: k }
                     if value.placement == ids[1] && c == coord && k == kind
             ),
             "{what}: {fault:?}"
@@ -1379,120 +1188,6 @@ fn the_fit_deferral_sentence_is_quoted_not_paraphrased() {
     assert!(editor_core::FIT_DEFERRAL.contains("not yet built"));
 }
 
-/// Two rests of `b` on `a`'s top cap, the second's target turned about
-/// a horizontal line of `a` by an angle whose induced displacement at
-/// the mate's lever arm is 3ε — definitely inside (ε, Kε) for the
-/// default K = 10 — in instance 1's bundle; the constraints, in bundle
-/// order.
-fn in_band_pair(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, Kit, Vec<MateRef>) {
-    let eps = geom_core::Tol::witness().get().eps;
-    let tilt = 3.0 * eps;
-    let (doc, ids, kit) = assembly(label, 2);
-    let (doc, first) = add(doc, ids[1], lifted_rest(&kit, ids[0], ids[1], 0.0));
-    let top = plane(head(kit.cap(ids[0], CapEnd::End)));
-    let r = |op: Operand| editor_core::pose::RoleRead::plain(op);
-    // The line the top cap meets wall 0 in: horizontal, on `a`.
-    let hinge = Operand::Pose(Box::new(editor_core::pose::PoseDef::Meet {
-        a: r(top.clone()),
-        b: r(plane(head(kit.wall(ids[0], 0)))),
-    }));
-    let tilted = Operand::Pose(Box::new(editor_core::pose::PoseDef::Spin {
-        pose: r(top),
-        about: r(hinge),
-        by: ang(tilt),
-    }));
-    let (doc, second) = add(
-        doc,
-        ids[1],
-        fixture::mate(
-            plane(head(kit.cap(ids[1], CapEnd::Start))),
-            flip(tilted),
-            ContactClass::Rest,
-        ),
-    );
-    (doc, ids, kit, vec![first, second])
-}
-
-/// The typed escalation: a case split constructed to land INSIDE the
-/// ambiguity band at the run's own ε, so the row holds at every ε CI
-/// sweeps.
-///
-/// *Breaks if* an in-band verdict is decided silently, or the
-/// escalation names another predicate or constraint.
-#[test]
-fn row7d_an_in_band_case_split_escalates_typed() {
-    let (doc, ids, kit, mates) = in_band_pair("asm-r2a-row7d");
-    let o = kit.opts();
-    let fault = solve(&doc, &o, Tol::witness())
-        .fault(ids[1])
-        .expect("the band escalates")
-        .clone();
-    let MateFault::Indeterminate { mate, diag } = &fault else {
-        panic!("expected the typed escalation, got {fault:?}");
-    };
-    assert_eq!(*mate, mates[1], "the constraint being folded when it fired");
-    assert_eq!(
-        diag.predicate,
-        Some("mate_axes_parallel"),
-        "the escalation NAMES the predicate that could not decide"
-    );
-    assert!(
-        fault.to_string().contains("could not be decided"),
-        "{fault}"
-    );
-}
-
-/// **The mate solve's escalation is on the refused placement's own
-/// log, and on no other.** Each bundle is folded where its placement
-/// evaluates, so the decision is kept on that placement's frame. The
-/// in-band case split here is decided while the fold adds `mates[1]`
-/// to the bundle's intersection, so it is instance 1's: on that
-/// placement's `NodeError`, on no other node's log, and not in a frame
-/// the caller holds around the evaluation.
-///
-/// *Breaks if* the escalation is logged twice, on another node, or in
-/// the caller's frame.
-#[test]
-fn row7e_a_mate_solve_escalation_is_on_the_refused_placements_own_log_and_not_in_an_outer_frame() {
-    let (doc, ids, kit, mates) = in_band_pair("asm-r2a-row7e");
-    let outer = geom_core::k_stats::Bracket::open();
-    let ev = run(&doc, &kit.opts());
-    let outside = outer.finish();
-    let named = |escalations: &[geom_core::k_stats::Escalation]| {
-        escalations
-            .iter()
-            .filter(|e| e.predicate() == "mate_axes_parallel")
-            .count()
-    };
-    let mut carriers = Vec::new();
-    for (id, result) in &ev.nodes {
-        let on_node = match result {
-            NodeResult::Ok(v) => named(&v.escalations),
-            NodeResult::Failed(e) => named(&e.escalations),
-            NodeResult::Poisoned { .. } => 0,
-        };
-        carriers.extend(std::iter::repeat_n(*id, on_node));
-    }
-    assert_eq!(
-        carriers,
-        vec![ids[1]],
-        "the escalation is on the refused placement's log, once, and on no other node's"
-    );
-    let MateFault::Indeterminate { mate: refused, .. } = mate_fault(&ev, ids[1]) else {
-        panic!("the placement fails typed through the error enum");
-    };
-    assert_eq!(
-        refused, mates[1],
-        "the fault names the constraint whose placement's log holds it"
-    );
-    assert_eq!(
-        named(&outside.escalations),
-        0,
-        "no frame around the evaluation sees the solve's escalation: {:?}",
-        outside.escalations
-    );
-}
-
 /// A mate in one placement's bundle whose `on` reads another copy
 /// pins nothing of the placement: a fact about the constraint alone,
 /// which the constraint door refuses where it is authored.
@@ -1504,7 +1199,6 @@ fn row7e_a_mate_not_on_its_copy_refuses_at_the_door() {
     let (doc, ids, kit) = assembly("asm-r2a-row7e-self", 2);
     let refused = fixture::at_the_door_of(
         &doc,
-        &editor_core::RefusingReach,
         ids[1],
         rest(
             head(kit.cap(ids[0], CapEnd::Start)),

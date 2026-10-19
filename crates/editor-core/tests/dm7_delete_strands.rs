@@ -33,7 +33,7 @@ use editor_core::{
     MeasurePrimitive, Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply,
     cascade_delete_order,
 };
-use fixture::{ang, fname, insert, len, wall};
+use fixture::{fname, insert, len, wall};
 use geom_core::Tol;
 
 /// The strand rows an accepted edit reported, in the order it reported
@@ -91,7 +91,6 @@ fn paint(doc: &editor_core::ProfileDoc, name: &StableName) -> ProfileDoc {
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the painted name's node is live")
     .doc
@@ -103,13 +102,8 @@ fn delete(
     doc: &editor_core::ProfileDoc,
     id: RecipeNodeId,
 ) -> editor_core::Applied<editor_core::ProfileProgram> {
-    apply(
-        doc,
-        &DocEdit::DeleteNode { id },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("a payload name is not a DAG edge, so the delete is legal")
+    apply(doc, &DocEdit::DeleteNode { id }, Tol::witness())
+        .expect("a payload name is not a DAG edge, so the delete is legal")
 }
 
 // ---------------------------------------------------------------------
@@ -596,8 +590,6 @@ fn a_delete_reports_its_strands_alone_and_a_constraint_add_reports_nothing() {
     let part = ProfileDoc::empty_derived("dm7_app_order_part", Tol::witness());
     let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 1.0);
     let doc_ref = store.insert(part, Tol::witness());
-    let opts = fixture::resolver::with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
 
     let doc = ProfileDoc::empty(DocumentId::derive("dm7_app_order"), Tol::witness());
     let (doc, ia) = insert(doc, Node::instantiate_part(doc_ref));
@@ -611,7 +603,6 @@ fn a_delete_reports_its_strands_alone_and_a_constraint_add_reports_nothing() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &reach,
     )
     .expect("the mate is added");
     assert!(
@@ -717,7 +708,6 @@ fn a_reported_appearance_strand_is_still_clearable() {
             kind: AttrKind::Color,
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("clearing does not require the name's node to be live")
     .doc;

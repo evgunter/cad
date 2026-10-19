@@ -19,12 +19,12 @@
 )]
 
 use crate::fixture::{self, ang, len};
-use editor_core::mate::coset::{Arm, Coset, FoldStop, Subgroup, intersect, intersect_subgroups};
+use editor_core::mate::coset::{Coset, Subgroup, intersect};
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BodyRead, ConstraintId, ContactClass, Coord, DocEdit, EditError, EvalOptions, Formula, Mate,
-    MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId,
-    RefusingReach, SlideAxis, StableName, Target, Value, WorldRead,
+    MateFault, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId, SlideAxis,
+    StableName, Target, Value, WorldRead,
 };
 use geom_core::Tol;
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
@@ -32,10 +32,6 @@ use geom_core::predicate::Band;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).expect("a band")
-}
-
-fn arm() -> Arm {
-    Arm::of(0.0, 10.0).expect("ten metres is in range")
 }
 
 fn unit(v: Vec3<f64>) -> UnitVec3<f64> {
@@ -101,7 +97,7 @@ fn element(g: Subgroup<f64>, d: &mut Draw) -> Affine3<f64> {
         }
         Subgroup::Translation => shift(d.vec()),
         Subgroup::PlaneTranslation { normal } => shift(d.vec().reject_from(normal.get())),
-        Subgroup::Trivial | Subgroup::Empty => Affine3::identity(),
+        Subgroup::Trivial => Affine3::identity(),
     }
 }
 
@@ -135,88 +131,20 @@ fn generic(d: &mut Draw) -> Vec<Subgroup<f64>> {
     ]
 }
 
-/// The pairs whose generic draw would miss the table's special
-/// verdicts: a ball on a line or at the other ball, a direction along
-/// a plane's normal or a line, a line lying in a plane.
-fn aligned(d: &mut Draw) -> Vec<(Subgroup<f64>, Subgroup<f64>)> {
-    let u = d.direction();
-    let p = d.point();
-    let across = unit(u.get().cross(d.vec()));
-    vec![
-        (
-            Subgroup::Spherical {
-                point: p + u.get() * 1.5,
-            },
-            Subgroup::Cylindrical {
-                point: p,
-                direction: u,
-            },
-        ),
-        (
-            Subgroup::Spherical { point: p },
-            Subgroup::Revolute {
-                point: p + u.get() * 0.5,
-                direction: u,
-            },
-        ),
-        (
-            Subgroup::Spherical { point: p },
-            Subgroup::Spherical { point: p },
-        ),
-        (
-            Subgroup::Parallel { direction: u },
-            Subgroup::Planar { normal: u },
-        ),
-        (
-            Subgroup::Parallel { direction: u },
-            Subgroup::Cylindrical {
-                point: p,
-                direction: u,
-            },
-        ),
-        (
-            Subgroup::Parallel { direction: u },
-            Subgroup::Revolute {
-                point: p,
-                direction: u,
-            },
-        ),
-        (
-            Subgroup::Parallel { direction: u },
-            Subgroup::Parallel { direction: u },
-        ),
-        (
-            Subgroup::PlaneTranslation { normal: u },
-            Subgroup::Planar { normal: u },
-        ),
-        (
-            Subgroup::PlaneTranslation { normal: u },
-            Subgroup::Cylindrical {
-                point: p,
-                direction: across,
-            },
-        ),
-        (
-            Subgroup::PlaneTranslation { normal: u },
-            Subgroup::Prismatic { direction: across },
-        ),
-    ]
-}
-
-/// **Two cosets sharing a pose meet in a coset of the table's residual
-/// that holds it**, in either order: each coset is `g·h⁻¹·x*` for a
-/// drawn element `h` of `g`, so `x*` lies in both and the intersection
-/// is not empty. The representative the fold builds must lie in both
-/// (the fold's own membership check) and its coset must hold `x*`
-/// (checked here against `x*`'s trivial coset).
+/// **Two cosets sharing a pose meet where their families meet
+/// transversally, and nowhere else**, in either order: each coset is
+/// `g·h⁻¹·x*` for a drawn element `h` of `g`, so `x*` lies in both.
+/// Where the families meet transversally (SE(3) with anything, a ball
+/// with a direction or the translations) the coset is constructed, its
+/// family the meet's, and it holds `x*`; every other pair the bundle
+/// rule refuses, and
+/// [`intersect`] answers none.
 ///
-/// *Breaks if* a pair with a ball, a direction or the translations has
-/// no representative ([`FoldStop`] refuses), or one that leaves `x*`
-/// out: a ball's turn about a line taken from the line's
-/// representative rather than solved puts the ball's point elsewhere,
-/// and the fold refuses a pair that meets.
+/// *Breaks if* a transverse pair has no representative, or one that
+/// leaves `x*` out (a ball's point carried elsewhere), or a pair that
+/// fixes an equation twice is met.
 #[test]
-fn every_pair_of_families_sharing_a_pose_folds_to_a_coset_holding_it() {
+fn every_pair_of_families_sharing_a_pose_meets_only_where_transverse() {
     let mut d = Draw(0x9e37_79b9_7f4a_7c15);
     let mut pairs = Vec::new();
     for _ in 0..4 {
@@ -228,12 +156,7 @@ fn every_pair_of_families_sharing_a_pose_folds_to_a_coset_holding_it() {
             }
         }
     }
-    for _ in 0..4 {
-        for (g1, g2) in aligned(&mut d) {
-            pairs.push((g1, g2));
-            pairs.push((g2, g1));
-        }
-    }
+    let mut met_any = 0;
     for (i, (g1, g2)) in pairs.into_iter().enumerate() {
         let x = d.rigid();
         let h1 = element(g1, &mut d);
@@ -247,66 +170,40 @@ fn every_pair_of_families_sharing_a_pose_folds_to_a_coset_holding_it() {
             representative: h2.inverse() * x,
         };
         let at = format!("pair {i}: {} against {}", g1.name(), g2.name());
-        let met = intersect(held, added, band(), arm())
-            .unwrap_or_else(|stop| panic!("{at}: two cosets sharing a pose refused {stop:?}"));
-        let residual = intersect_subgroups(g1, g2, band(), arm()).expect("the table decides");
-        assert_eq!(met.subgroup.family(), residual.family(), "{at}");
-        let pinned = Coset {
-            subgroup: Subgroup::Trivial,
-            representative: x,
+        let transverse = g1.family().transverse(g2.family());
+        let Some(met) = intersect(held, added) else {
+            assert!(transverse.is_none(), "{at}: a transverse pair was not met");
+            continue;
         };
-        intersect(met, pinned, band(), arm())
-            .unwrap_or_else(|stop| panic!("{at}: the coset leaves the shared pose out: {stop:?}"));
-    }
-}
-
-/// **A ball held at the wrong radius from a line, or two balls whose
-/// chords differ, refuse with the clash measured**: the representative
-/// stage turns as far as an angle can carry, and the membership check
-/// names what no angle reaches.
-///
-/// *Breaks if* the mismatch is solved away (a turn that scales, or a
-/// representative taken from one side alone that the other's check
-/// never measures) or refuses without a measured clash.
-#[test]
-fn a_ball_off_its_radius_or_chord_refuses_with_the_clash_measured() {
-    let z = unit(Vec3::new(0.0, 0.0, 1.0));
-    let line = Coset {
-        subgroup: Subgroup::Cylindrical {
-            point: Point3::origin(),
-            direction: z,
-        },
-        representative: Affine3::identity(),
-    };
-    // The ball's own point sits 1 m off the axis; the line's coset
-    // carries it to a point 1 m off; the ball asks for 2 m.
-    let ball = Coset {
-        subgroup: Subgroup::Spherical {
-            point: Point3::new(2.0, 0.0, 0.5),
-        },
-        representative: Affine3::from_parts(Mat3::identity(), Vec3::new(1.0, 0.0, 0.0)),
-    };
-    for (held, added) in [(ball, line), (line, ball)] {
-        match intersect(held, added, band(), arm()) {
-            Err(FoldStop::Clash { clash, .. }) => {
-                assert!(clash.deviation().is_some_and(|m| m > 0.5), "{clash:?}");
+        assert_eq!(Some(met.subgroup.family()), transverse, "{at}");
+        // `x*` lies in the met coset: `x*·rep⁻¹` is an element of its
+        // subgroup — for a ball and a direction's revolute one fixing
+        // its point and its direction, for a ball and the translations'
+        // trivial group the identity.
+        let h = x * met.representative.inverse();
+        match met.subgroup {
+            Subgroup::Revolute { point, direction } => {
+                assert!(
+                    (h.transform_point(point) - point).norm() < 1e-9
+                        && (h.linear * direction.get() - direction.get()).norm() < 1e-9,
+                    "{at}: the coset leaves the shared pose out"
+                );
+                met_any += 1;
             }
-            other => panic!("a ball off its radius: {other:?}"),
+            Subgroup::Trivial if g1.family() != g2.family() => {
+                let p = Point3::new(1.0, 2.0, 3.0);
+                assert!(
+                    (h.transform_point(p) - p).norm() < 1e-9,
+                    "{at}: the coset leaves the shared pose out"
+                );
+            }
+            _ => {}
         }
     }
-    let ball_at = |point: Point3<f64>, shift: Vec3<f64>| Coset {
-        subgroup: Subgroup::Spherical { point },
-        representative: Affine3::from_parts(Mat3::identity(), shift),
-    };
-    // Copy points 1 m apart; the target points 3 m apart.
-    let first = ball_at(Point3::origin(), Vec3::zero());
-    let second = ball_at(Point3::new(0.0, 3.0, 0.0), Vec3::new(0.0, 2.0, 0.0));
-    match intersect(first, second, band(), arm()) {
-        Err(FoldStop::Clash { clash, .. }) => {
-            assert!(clash.deviation().is_some_and(|m| m > 1.0), "{clash:?}");
-        }
-        other => panic!("two balls whose chords differ: {other:?}"),
-    }
+    assert!(
+        met_any >= 2,
+        "a ball and a direction met, both orders: {met_any}"
+    );
 }
 
 // ---- Values ----
@@ -416,7 +313,6 @@ fn add_value(
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &RefusingReach,
     )?;
     let id = applied.record.minted_constraints[0];
     Ok((applied.doc, id))
@@ -439,18 +335,6 @@ fn solved(doc: &ProfileDoc, placement: RecipeNodeId) -> Affine3<f64> {
     poses
         .relative_map(placement)
         .expect("the placement's copy has a pose")
-}
-
-/// The fault `placement` evaluated to.
-fn evaluated_fault(doc: &ProfileDoc, placement: RecipeNodeId) -> NodeErrorKind {
-    let ev = fixture::run(doc, &EvalOptions::default());
-    match ev.result(placement) {
-        Some(NodeResult::Failed(e)) => NodeErrorKind::Mate(match &e.kind {
-            NodeErrorKind::Mate(fault) => fault.clone(),
-            other => panic!("the placement refused otherwise: {other:?}"),
-        }),
-        other => panic!("the placement evaluated: {other:?}"),
-    }
 }
 
 /// The angle of the turn `a·bᵀ`, as `atan2(sin, cos)` from its skew
@@ -597,97 +481,14 @@ fn every_order_places_the_copy_to_the_bit_on_a_tilted_target() {
     );
 }
 
-/// A box resting on the world floor and against the world's `yz` wall
-/// turned `wall_turn` about `z`, by its bottom and its `+x` face, with
-/// `value` on the floor mate.
-fn box_in_a_corner(
-    wall_turn: f64,
-    value: (Coord, f64),
-) -> (ProfileDoc, RecipeNodeId, ConstraintId) {
-    let (doc, body) = a_box("s3c_turned_corner", 1.0);
-    let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
-    let side = face_toward(&doc, body, [1.0, 0.0, 0.0]);
-    let (doc, placement) = placed(doc, body);
-    let (doc, floor) = fixture::constrain_at(
-        doc,
-        placement,
-        Mate {
-            on: plane_of(on_body(body, bottom)),
-            to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
-            class: ContactClass::Rest,
-        },
-    );
-    let (doc, _wall) = fixture::constrain_at(
-        doc,
-        placement,
-        Mate {
-            on: plane_of(on_body(body, side)),
-            to: Target::World(
-                WorldRead::through(PoseRole::Yz)
-                    .spin(WorldRead::through(PoseRole::Z), ang(wall_turn)),
-            ),
-            class: ContactClass::Rest,
-        },
-    );
-    let (doc, id) = add_value(doc, placement, floor.id, value.0, number(value.0, value.1))
-        .expect("a plane mate leaves the slide");
-    (doc, placement, id)
-}
-
-/// **A slide whose axis the residual reaches pins the copy, whichever
-/// way the residual runs.** A box on the floor against a wall turned
-/// 30° about `z`: the two rests leave a slide along the wall's
-/// horizontal, `(−sin 30°, cos 30°, 0)`, which neither of the floor
-/// chart's axes is. A slide value along `x` places the copy with its
-/// origin's `x` at the value, inside the residual; one along `y` placing
-/// the same origin's `y` gives the same map. Against the unturned wall
-/// the residual runs along `y`, and a slide along `x` is the freedom
-/// the wall already fixes (`NotAFreedom` with no kind).
+/// **A freedom set twice refuses at the door, whatever else the bundle
+/// leaves.** A box resting on the floor with a slide along `x`: a
+/// second slide along `x` on the same mate sets the freedom the first
+/// already sets, so the door refuses it, naming both, though the spin
+/// is still free (FORK-S3O).
 ///
-/// *Breaks if* a slide is admitted only along an axis inside the
-/// residual (a turned corner could then be pinned by no value), or is
-/// moved off the residual (the wall mate would break).
-#[test]
-fn a_slide_the_residual_reaches_pins_a_turned_corner() {
-    let turn = 30.0_f64.to_radians();
-    let (doc, p, _) = box_in_a_corner(turn, (Coord::Slide(SlideAxis::X), 2.0));
-    let by_x = solved(&doc, p);
-    assert!(
-        (by_x.translation.x - 2.0).abs() < 1e-12,
-        "the copy's origin stands at x = 2: {by_x:?}"
-    );
-    let (doc, p, _) = box_in_a_corner(turn, (Coord::Slide(SlideAxis::Y), by_x.translation.y));
-    let by_y = solved(&doc, p);
-    assert!(
-        (by_y.translation - by_x.translation).norm() < 1e-12
-            && turn_between(by_y.linear, by_x.linear) < 1e-12,
-        "the residual's one copy at that place: {by_x:?} against {by_y:?}"
-    );
-    let (doc, p, value) = box_in_a_corner(0.0, (Coord::Slide(SlideAxis::X), 2.0));
-    match evaluated_fault(&doc, p) {
-        NodeErrorKind::Mate(fault) => assert!(
-            matches!(
-                *fault,
-                MateFault::NotAFreedom {
-                    value: at,
-                    coord: Coord::Slide(SlideAxis::X),
-                    kind: None,
-                } if at == MateRef::new(p, value)
-            ),
-            "{fault}"
-        ),
-        other => panic!("the placement refuses the value: {other:?}"),
-    }
-}
-
-/// **A freedom set twice refuses, whatever else the bundle leaves.** A
-/// box resting on the floor with two slides along `x` (1 and 2) and no
-/// spin: the second is a freedom the first already fixes, and refuses
-/// `NotAFreedom` with no kind where the placement evaluates, though the
-/// spin is still free.
-///
-/// *Breaks if* a value after the residual leaves the table's forms is
-/// skipped unchecked (the copy would read as merely loose).
+/// *Breaks if* a value is admitted beside one of its own freedom, or
+/// the door names only the later one.
 #[test]
 fn a_slide_set_twice_refuses_though_a_turn_is_free() {
     let (doc, body) = a_box("s3c_twice", 1.0);
@@ -702,7 +503,7 @@ fn a_slide_set_twice_refuses_though_a_turn_is_free() {
             class: ContactClass::Rest,
         },
     );
-    let (doc, _) = add_value(
+    let (doc, first) = add_value(
         doc,
         placement,
         mate.id,
@@ -710,27 +511,22 @@ fn a_slide_set_twice_refuses_though_a_turn_is_free() {
         len(1.0),
     )
     .expect("a plane mate leaves the slide");
-    let (doc, second) = add_value(
+    match add_value(
         doc,
         placement,
         mate.id,
         Coord::Slide(SlideAxis::X),
         len(2.0),
-    )
-    .expect("the door reads no residual");
-    match evaluated_fault(&doc, placement) {
-        NodeErrorKind::Mate(fault) => assert!(
+    ) {
+        Err(EditError::MateRefused { fault, .. }) => assert!(
             matches!(
-                *fault,
-                MateFault::NotAFreedom {
-                    value: at,
-                    coord: Coord::Slide(SlideAxis::X),
-                    kind: None,
-                } if at == MateRef::new(placement, second)
+                &*fault,
+                MateFault::Overconstrained { placement: p, constraints, free: 2 }
+                    if *p == placement && constraints.len() == 2 && constraints.contains(&first)
             ),
             "{fault}"
         ),
-        other => panic!("the placement refuses the second value: {other:?}"),
+        other => panic!("the door refuses the second slide: {other:?}"),
     }
 }
 
@@ -948,74 +744,6 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
     );
 }
 
-/// **Ruling C-3 — a freedom the bundle's other constraints fix is the
-/// placement's refusal where it evaluates.** A box resting on the floor
-/// by its bottom and against the world's `+x` wall by its `x`-face: the
-/// two plane mates leave only a slide along `y`. A spin value on the
-/// floor mate is admitted at the door (the plane's kind leaves a spin)
-/// and refused at evaluation, `NotAFreedom` with no kind; a slide along
-/// the floor mate's `y` is a freedom the bundle leaves, and places.
-///
-/// *Breaks if* the door folds the bundle to refuse it (C-3's interim is
-/// that the residual's refusals are the evaluation's), or the
-/// evaluation turns the copy anyway and breaks the wall mate.
-#[test]
-fn a_value_the_bundle_already_fixes_refuses_where_it_evaluates() {
-    let (doc, body) = a_box("s3c_corner", 1.0);
-    let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
-    let side = face_toward(&doc, body, [1.0, 0.0, 0.0]);
-    let (doc, placement) = placed(doc, body);
-    let (doc, floor) = fixture::constrain_at(
-        doc,
-        placement,
-        Mate {
-            on: plane_of(on_body(body, bottom)),
-            to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
-            class: ContactClass::Rest,
-        },
-    );
-    let (doc, _wall) = fixture::constrain_at(
-        doc,
-        placement,
-        Mate {
-            on: plane_of(on_body(body, side)),
-            to: Target::World(WorldRead::through(PoseRole::Yz)),
-            class: ContactClass::Rest,
-        },
-    );
-    let (spun, value) = add_value(doc.clone(), placement, floor.id, Coord::Spin, ang(0.3))
-        .expect("the door admits a spin a plane mate leaves");
-    match evaluated_fault(&spun, placement) {
-        NodeErrorKind::Mate(fault) => assert!(
-            matches!(
-                *fault,
-                MateFault::NotAFreedom {
-                    value: at,
-                    coord: Coord::Spin,
-                    kind: None,
-                } if at == MateRef::new(placement, value)
-            ),
-            "{fault}"
-        ),
-        other => panic!("the placement refuses the value: {other:?}"),
-    }
-    // The freedom the bundle leaves is the slide along the world's y
-    // (the floor chart's swung y).
-    let (slid, _) = add_value(
-        doc,
-        placement,
-        floor.id,
-        Coord::Slide(SlideAxis::Y),
-        len(2.0),
-    )
-    .expect("a plane mate leaves the slide");
-    let at = solved(&slid, placement);
-    assert!(
-        (at.translation.y - 2.0).abs() < 1e-12,
-        "slid along y by its value: {at:?}"
-    );
-}
-
 /// **Ruling C-2 — a mate a value names goes only once the value has
 /// gone.** Removing the floor mate while its spin value names it
 /// refuses `MateNamedByValue`; removing the value, then the mate, is
@@ -1039,7 +767,6 @@ fn a_mate_a_value_names_is_removed_only_after_it() {
                 constraint,
             },
             Tol::witness(),
-            &RefusingReach,
         )
     };
     match remove(&doc, mate) {

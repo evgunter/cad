@@ -154,7 +154,6 @@ impl Scene {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap_or_else(|e| panic!("the value is admitted: {e}"));
         self.doc = applied.doc;
@@ -198,6 +197,35 @@ impl Scene {
         self.value(rest, Coord::Slide(SlideAxis::Y), len(0.0));
         self.value(rest, Coord::Spin, ang(0.0));
         rest
+    }
+
+    /// Adds `mate` to `block`'s bundle past the bundle rule — the state
+    /// a doctored save leaves, which the fold refuses — answering its
+    /// address.
+    fn add_past_the_door(
+        &mut self,
+        block: RecipeNodeId,
+        mate: editor_core::Mate<Formula>,
+    ) -> MateRef {
+        let (doc, id) = editor_core::test_support::beside_past_the_bundle_rule(
+            &self.doc,
+            block,
+            mate,
+            Tol::witness(),
+        );
+        self.doc = doc;
+        MateRef::new(block, id)
+    }
+
+    /// A second rest of `block` on the base `h` above it, past the
+    /// door: a plane mate beside the rest the bundle holds.
+    fn second_rest(&mut self, block: RecipeNodeId, h: f64) -> MateRef {
+        let mate = fixture::mate(
+            fixture::plane(self.block_cap(block, CapEnd::Start)),
+            standoff(self.base_top(), h),
+            ContactClass::Rest,
+        );
+        self.add_past_the_door(block, mate)
     }
 
     /// Removes `mate` from its placement's bundle.
@@ -269,43 +297,39 @@ fn key(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) -> editor_core::Conte
 
 // ---- the rows ----
 
-/// **A contradiction added to an already-evaluated bundle faults its
-/// placement, and the row carries the fold's own blame.**
+/// **An overconstraint landing in an already-evaluated bundle faults
+/// its placement, and the row carries the fold's own blame.**
 ///
-/// Two rests on one bundle against parallel planes a metre apart: the
-/// first leaves the block free on the cap (a loose copy, evaluated
-/// `Ok`), the second is admitted at the door — which decides nothing
-/// that needs a pose — and the fold of the two is empty.
+/// Two rests on one bundle: the first leaves the block free on the cap
+/// (a loose copy, evaluated `Ok`); the second, beside it past the door
+/// (the state a doctored save leaves), fixes the normal the first
+/// already fixes, and the fold refuses the bundle naming both.
 ///
 /// *Breaks if* the placement's key omits its bundle, so the second
 /// evaluation serves the first's `Ok`, or the row's fault and the
 /// solve's blame disagree.
 #[test]
-fn a_contradiction_faults_the_placement_that_evaluated_before_it() {
-    let mut s = scene("msolve4-contradiction");
+fn an_overconstraint_faults_the_placement_that_evaluated_before_it() {
+    let mut s = scene("msolve4-overconstraint");
     let held = s.rest_on_base(s.top_a, 0.0);
     // The first constraint lands and EVALUATES: the memo now holds an
     // `Ok` for the placement.
     let first = s.eval(None);
     assert_ok(&first, s.top_a, "the placement of one rest");
 
-    // A second rest on the same bundle, a metre up: the fold cannot
-    // hold both.
-    let added = s.rest_on_base(s.top_a, 1.0);
+    // A second rest on the same bundle, a metre up.
+    let added = s.second_rest(s.top_a, 1.0);
     let second = s.eval(Some(&first));
 
     let poses = solve(&s.doc, &s.opts, Tol::witness());
     let row = row_fault(&second, s.top_a, "the placement");
     assert!(
         matches!(
-            row,
-            MateFault::Contradictory {
-                held: h,
-                added: a,
-                ..
-            } if h == held && a == added
+            &row,
+            MateFault::Overconstrained { placement, constraints, .. }
+                if *placement == s.top_a && *constraints == vec![held.id, added.id]
         ),
-        "expected the bundle's contradiction naming both constraints, got {row:?}"
+        "expected the bundle's overconstraint naming both constraints, got {row:?}"
     );
     // Blame and row agree — the consistency the whole unit is for.
     assert_eq!(
@@ -318,7 +342,7 @@ fn a_contradiction_faults_the_placement_that_evaluated_before_it() {
 /// **A refusal upstream poisons the unedited placement pinned to it.**
 ///
 /// A block stacked on a loose block evaluates `Ok` in the lower
-/// block's space; a contradiction then lands in the LOWER block's
+/// block's space; an overconstraint then lands in the LOWER block's
 /// bundle. The upper block's bundle is untouched, and its target reads
 /// the refused copy: it is poisoned through it, and not served from
 /// the memo.
@@ -338,13 +362,13 @@ fn an_upstream_refusal_poisons_the_unedited_placement_pinned_to_it() {
         "the premise: the upper block lives in the lower block's space"
     );
 
-    let offender = s.rest_on_base(s.top_a, 1.0);
+    let offender = s.second_rest(s.top_a, 1.0);
     let second = s.eval(Some(&first));
 
     let offence = row_fault(&second, s.top_a, "the lower block");
     assert!(
-        matches!(offence, MateFault::Contradictory { added, .. } if added == offender),
-        "the lower block carries the contradiction: {offence:?}"
+        matches!(&offence, MateFault::Overconstrained { constraints, .. } if constraints.contains(&offender.id)),
+        "the lower block carries the overconstraint: {offence:?}"
     );
     assert!(
         matches!(
@@ -366,7 +390,7 @@ fn an_upstream_refusal_poisons_the_unedited_placement_pinned_to_it() {
     );
 }
 
-/// **The reverse direction: removing the contradiction lets the
+/// **The reverse direction: removing the overconstraint lets the
 /// faulted placement evaluate `Ok` again.**
 ///
 /// A faulted node is never memoized — the memo serves `Ok` priors
@@ -376,10 +400,10 @@ fn an_upstream_refusal_poisons_the_unedited_placement_pinned_to_it() {
 ///
 /// *Breaks if* the repaired placement still reads the refusal.
 #[test]
-fn removing_the_contradiction_returns_the_faulted_placement_to_ok() {
+fn removing_the_overconstraint_returns_the_faulted_placement_to_ok() {
     let mut s = scene("msolve4-repair");
     s.rest_on_base(s.top_a, 0.0);
-    let added = s.rest_on_base(s.top_a, 1.0);
+    let added = s.second_rest(s.top_a, 1.0);
     let broken = s.eval(None);
     assert!(
         matches!(broken.result(s.top_a), Some(NodeResult::Failed(_))),
@@ -495,8 +519,8 @@ fn a_placement_in_another_space_is_untouched_by_a_refusal() {
         assert_ok(&first, id, what);
     }
 
-    // A contradiction in the near block's bundle only.
-    s.rest_on_base(s.top_a, 1.0);
+    // An overconstraint in the near block's bundle only.
+    s.second_rest(s.top_a, 1.0);
     let second = s.eval(Some(&first));
     assert!(
         matches!(second.result(s.top_a), Some(NodeResult::Failed(_))),

@@ -129,7 +129,7 @@ fn doc_of(program: LoopProgram<Formula>) -> ProfileDoc {
     let mut doc = empty();
     for edit in edits_of(program) {
         doc = doc
-            .apply(&edit, Tol::witness(), &editor_core::RefusingReach)
+            .apply(&edit, Tol::witness())
             .expect("the fixture document is legal")
             .doc;
     }

@@ -459,7 +459,6 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap_or_else(|e| panic!("the edit applies: {e}"))
     .doc;

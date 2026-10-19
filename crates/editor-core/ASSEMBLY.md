@@ -29,7 +29,7 @@ where they disagree with DESIGN, DESIGN is the design.
 | A6 improper frames | `src/placement.rs` (`Frame`), `EditError::ImproperPlacement` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
 | A9 partitions | `relative_freedom_components` in `src/mate/solve.rs` |
-| A11 (2) bundles, spaces | `solve_placement`, `fold_bundle`, `redundant_constraints`, `Pose`, `Space`, `spaces_with` in `src/mate/solve.rs`; the per-space gather (`LooseSpace`, `loose_spaces`) in `src/product.rs` and the gate's (`AssemblyError::Space`) in `src/assembly.rs`; the one cross-space predicate `Evaluation::across_spaces`; an instance's copies (`ValuePayload::Copies`, `CopyKey`) in `src/eval/wire.rs` and `src/eval/parts.rs` |
+| A11 (2) bundles, spaces | `solve_bundle`, `fold_bundle`, `overconstrained`, `pins`, `Space` in `src/mate/solve.rs`; the per-space gather (`LooseSpace`, `loose_spaces`) in `src/product.rs` and the gate's (`AssemblyError::Space`) in `src/assembly.rs`; the one cross-space predicate `Evaluation::across_spaces`; an instance's copies (`ValuePayload::Copies`, `CopyKey`) in `src/eval/wire.rs` and `src/eval/parts.rs` |
 | A10 the world and the gather | `Node::Place`, `Node::World` in `src/node.rs`, `Doc::placements`/`Doc::unplaced` in `src/doc.rs`, `src/product.rs`, `DocEdit::place` in `src/edit.rs`, `mate::place_at` and `mate::pin_at` |
 | Store (AQ1) | `Workspace` in `crates/pncad/src/workspace.rs` |
 
@@ -288,22 +288,37 @@ gathers the copies in placement order.
 
 **A11 — Five rules, decided structurally.**
 
-**(1) Primitives fold by coset intersection.** Each primitive pins the
-pair's relative pose to a coset of an SE(3) subgroup; the closure is
-the symmetry groups of the pose kinds a primitive equates (D10), and
-one `Subgroup` type is both a pose's symmetry and what a mate folds:
-`Subgroup::{Se3, Planar, Cylindrical, Prismatic, Revolute, Trivial,
-Empty}` with a `Point`'s (`Spherical`), a `Direction`'s (`Parallel`)
-and the pure translations (`Translation`, `PlaneTranslation`), and every
-pair of families has a representative, so several mates on one copy fold
-by exact coset intersection (`mate/coset.rs`) to DETERMINED, UNDER or
-CONTRADICTORY, the last refusing with the added mate's measured clash.
-The edit door and the load door ask each constraint's own admission —
-what the recipe shows (`mate::solve::admit_mate`, `admit_value`) — and
-refuse it `EditError::MateRefused` or `SnapshotError::MateRefused`.
-What needs the poses' values is the placement's refusal where it
-evaluates (the named interim F lifts): a verdict about the pair, and a
-state a mate comes to hold after insert (a face a rebind strands, a
+**(1) A placement's mates fold by subgroup algebra, measuring nothing,
+to DETERMINED or UNDER, or refuse OVERCONSTRAINED (a constraint any of
+whose equations the bundle already fixes, named)** (FORK-S3O). Each
+primitive pins the copy's relative pose to a coset of an SE(3)
+subgroup, the target pose's symmetry; one `Subgroup` type is both a
+pose's symmetry and what a mate folds:
+`Subgroup::{Se3, Planar, Cylindrical, Prismatic, Revolute, Spherical,
+Parallel, Translation, PlaneTranslation, Trivial}`, the closure of the
+pose kinds' symmetries (D10). A constraint is admitted by the families
+its definitions name (`SubgroupFamily::meet`, `transverse`): two mates
+only where their families meet transversally, their codimensions
+adding, which of two mates' families only a ball's and a direction's
+do; a value only on a freedom its mate's kind leaves, set once, and
+which every other mate leaves too (a slide beside mates freeing every
+translation, a spin beside mates freeing every rotation). The solve
+reads a slide as a translation equation and a spin as a rotation one
+and settles each inside what the mates leave, so a slide beside a ball
+refuses `MateFault::NoChart` (`SlideTurnsABall`): through the copy's
+lever it would fix the ball's turn, which is no repeat, but the ball
+leaves it no translation to set. Where the mates repeat an equation, the mates are named and no
+value. The rule is
+order-free and decides determination by codimension alone, so a copy's
+space is the recipe's, never a value's (`mate::solve::overconstrained`,
+`pins`). A pinned copy is the case `(Trivial, _)`. The cosets a bundle
+admits are met by construction and never checked
+(`mate::coset::intersect`). The edit doors (`AddConstraint`,
+`AddValue`, an inserted placement, a re-pointed side) ask each
+constraint's own admission (`mate::solve::admit_mate`, `admit_value`)
+and the bundle rule, refusing `EditError::MateRefused`; the load door
+asks the constraint's own admission (`SnapshotError::MateRefused`), and
+the fold asks the bundle rule again for a state no edit door saw (a
 loaded snapshot).
 
 **(2) A placement is the bundle of its constraints.** Each placement's
@@ -338,20 +353,21 @@ a body is never refused for the placement it removes, what is pinned is
 recomputed from what remains, and replay re-applies the edits alone,
 without solving.
 
-**(3) A constraint beyond the pin refuses** (FORK-S3O, #4326). Where
-the placement evaluates, a bundle whose mates pin the copy with a mate
-the rest already fix refuses `MateFault::Overconstrained`, naming every
-mate whose removal leaves the fold's codimension unchanged, never "the
-later one": constraints have no order. A value whose freedom the
-bundle's other constraints fix refuses `MateFault::NotAFreedom` (no
-kind). Until F these are evaluation faults; F moves them to the door.
+**(3) A constraint beyond the pin refuses** (FORK-S3O, #4326).
+`MateFault::Overconstrained` names every constraint any of whose
+equations the rest of the bundle already fixes, never "the later one":
+constraints have no order. A mate that would take a freedom a value
+sets refuses the same, and so does a value beside one of its own
+freedom. Where two copies meet beyond what their mates fix is a contact
+like any other, recorded and linted, and its recourse is an assertion
+(`OVERCONSTRAINED_RECOURSE`). A configuration degenerate at its values
+refuses as its construction does (`PoseDegenerate`).
 
 **(4) The solve is total and per-placement.** No cycle is ever solved:
 a placement reading its own copy, but for an instance's copy side
 (which reads the part's face, a pose the instance's motion carries, not
-one it computes), is a read cycle the door refuses; an inconsistent
-bundle dies at its clashing constraint (`MateFault::Contradictory`,
-recourse `CONTRADICTORY_RECOURSE`). A refusing bundle faults its own
+one it computes), is a read cycle the door refuses. A refusing bundle
+faults its own
 placement (`SolvedPoses::fault`), nothing else. The solve states where
 each copy is and what each constraint decides, never that a product
 exists: whether the document has a product is the gather's question
@@ -379,11 +395,17 @@ reads no walk, since every face is a value where it evaluates.
 *What the fold reads.* The fold's inputs are the poses its mates read,
 evaluated at the evaluation's own scalar over its own parameters, and
 its values' numbers. It reads one more number: the copy's REACH, an
-upper bound taken from the copy's own evaluated geometry, which enters
-only as the lever a parallelism verdict is decided over —
-`R + max(‖on.origin‖ + ‖to.origin‖)`, no floor and no constant. The
-fold's algorithm is coset intersection over decided predicates, with no
-numeric fitting. At `f64` it is the nominal solve; in a seed run each
+upper bound taken from the copy's own evaluated geometry. The reach
+enters as the lever a value's chart is decided over,
+`R + max(‖on.origin‖ + ‖to.origin‖)`, with no floor and no constant. The
+arm's one door (`Arm::of`) refuses a lever whose sixteenfold square
+overflows, so
+the bundle's meeting is always a finite length away. The reach is also
+the turn's lever in the placed copy's at-rest verdict (`rest_verdict`).
+Outside the fold, the unobservable report (`mate::unobservable`) reads
+the copies' reach again, as the lever of its own verdicts. The fold
+constructs its coset and places its values, deciding nothing about
+whether they hold, with no numeric fitting. At `f64` it is the nominal solve; in a seed run each
 solved pose carries its tangent, in a box run each is an enclosure over
 the box.
 
@@ -448,12 +470,10 @@ as the mate allows.
 The door admits a constraint on what the recipe shows: two poses of one
 kind, `on` reading the copy, a world read that is a pose, the class, and
 for a value a mate of the bundle whose kind leaves its freedom with a
-chart. The placement folds its bundle where it evaluates
+chart, and of the bundle that no constraint fixes an equation the rest
+already fix (A11 (1)). The placement folds its bundle where it evaluates
 (`eval::wire::fold_with`), reading every pose as a value: its mates'
-cosets intersected, then its values placed inside what they leave. What
-needs the poses' values — `Contradictory`, `Overconstrained`, a value's
-freedom the bundle already fixes — is the placement's refusal there, the
-named interim F lifts. A copy pinned to the world at a pose is a `Frame`
+cosets met, then its values placed inside what they leave. A copy pinned to the world at a pose is a `Frame`
 mate read off its own geometry to the world's frame moved there
 (`mate::pin_at`); the "place part" gesture writes a plane mate and its
 three values instead (`mate::place_at`).

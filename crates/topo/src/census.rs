@@ -567,8 +567,10 @@ impl CensusTrace {
 /// from the exact sweep, the same one the boolean sweep names for its
 /// tree (`boolean/reduce.rs`'s module docs: a pair whose boxes are
 /// disjoint can still escalate the brute path on a face's infinite
-/// plane; pruning drops only such spurious escalations), pinned as
-/// such by the differential suites, never absorbed.
+/// plane; pruning drops only such spurious escalations), admitted as
+/// such by the differential suites, never absorbed. No row exhibits a
+/// member of the class
+/// (`work/restread/the-census-filters-named-difference-has-no-witness-row.md`).
 ///
 /// A box door that reports corruption yields the poison box: the
 /// filter has no opinion, and the exact examination that follows is
@@ -828,7 +830,7 @@ pub fn census_traces_planted<T: Decide + crate::props::AtRestPolicy + Bounds>(
 }
 
 /// `tol` rides beside `band` for one consumer: the instance-containment
-/// arm's material test, whose at-infinity fold reads a closed-form
+/// arm's material test, whose at-infinity fold reads the sign of a
 /// volume through the props lane (`Tol` is never witnessed here).
 #[allow(clippy::too_many_arguments)] // the census's whole state: the doors' four, the region door, and the trace's three
 fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
@@ -3528,39 +3530,126 @@ fn ee_cross_backed<T: Decide>(
     }
 }
 
-/// Where two non-parallel edge lines come closest.
+/// Where two non-parallel edge lines come closest, each quantity as
+/// `[lower, upper]`: an enclosure of the real value under the closed
+/// form's rounding.
 struct LinesClosest<T: Real> {
     /// The lines' distance there.
-    gap: Margin<T>,
+    gap: [T; 2],
     /// Per edge, `[from its start, to its end]` along it.
-    reach: [[T; 2]; 2],
+    reach: [[[T; 2]; 2]; 2],
     /// The closest point on `ea`'s line.
     point: Point3<T>,
 }
 
-/// Where two non-parallel edge lines come closest, read from the ends
-/// the two edges share on one point key, else from their starts. The
-/// closed form's rounding is the distance between its two origins over
-/// the sine of the angle, so read from a shared point it is none: the
-/// lines meet there, at zero reach along each.
+/// Where two non-parallel edge lines come closest.
+///
+/// Two edges ending on one point key meet there: each reach is exactly
+/// `0` or its edge's length, the gap exactly `0`.
+///
+/// Otherwise every quantity is read from the nearest ends the closed
+/// form allows, and charged its rounding. With `n = da × db` and `s =
+/// |n| = sin φ`, an end `p` of one edge stands `(q − p)·(d' × n)/s²`
+/// from the closest point, for any point `q` of the other line (`d'`
+/// its direction); the lines' distance is `|(q − p)·n|/s` for any `p`,
+/// `q` on them. Read from ends `e = q − p` apart, the rounding of `e`,
+/// of the unit directions and of `n` (whose cancellation leaves it
+/// `u` off in any direction, `u/s` relative) is about `|e|·u/s` in the
+/// gap, and `(|e| + |reach| + gap/s)·u/s` in a reach: `n`'s tilt leaks
+/// the off-plane part of every `e`, the lines' real distance, into it
+/// over `s` once more, so a reach is charged the gap's upper bound.
+/// Counted to first order, the error is about
+/// `8.5u·|e|/s + 5.5u·|reach| + 5.5u·gap/s` in a reach and
+/// `(5.5/s + 4)u·|e|` in the gap, under the
+/// `16u` of [`geom_brep::rounding_charge`] by about 2×, and every single
+/// reading's error is held under half its charge at coordinates to
+/// `1e4` and ends to a thousand lengths off the crossing
+/// (`segment_fuzz::each_readings_error_stays_inside_its_charge_far_from_the_unit_box`).
+/// Each reading is taken from every pair of ends it allows and the
+/// enclosures intersected, so the nearest ends bound it.
 fn ee_lines_closest<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> LinesClosest<T> {
-    let (i, j) = [(0, 0), (0, 1), (1, 0), (1, 1)]
-        .into_iter()
-        .find(|&(i, j)| ea.points[i].is_some() && ea.points[i] == eb.points[j])
-        .unwrap_or((0, 0));
     let end = |e: &EdgeGeo<T>, k: usize| if k == 0 { e.p0 } else { e.p1 };
-    let (oa, ob) = (end(ea, i), end(eb, j));
-    let ncross = ea.dir.cross(eb.dir);
-    let nn = ncross.norm_squared();
-    let d = ob - oa;
-    let ta = d.cross(eb.dir).dot(ncross) / nn;
-    let tb = d.cross(ea.dir).dot(ncross) / nn;
-    let reach = |t: T, k: usize, len: T| if k == 0 { [t, len - t] } else { [len + t, -t] };
-    LinesClosest {
-        gap: Margin::levered_inv(d.dot(ncross).abs(), ncross.norm()),
-        reach: [reach(ta, i, ea.len), reach(tb, j, eb.len)],
-        point: oa + ea.dir * ta,
+    let shared = [(0, 0), (0, 1), (1, 0), (1, 1)]
+        .into_iter()
+        .find(|&(i, j)| ea.points[i].is_some() && ea.points[i] == eb.points[j]);
+    if let Some((i, j)) = shared {
+        let exact = |x: T| [x, x];
+        let reach = |k: usize, len: T| {
+            if k == 0 {
+                [exact(T::zero()), exact(len)]
+            } else {
+                [exact(len), exact(T::zero())]
+            }
+        };
+        return LinesClosest {
+            gap: exact(T::zero()),
+            reach: [reach(i, ea.len), reach(j, eb.len)],
+            point: end(ea, i),
+        };
     }
+    let (n, nn, s) = lines_frame(ea, eb);
+    let ends = [
+        (ea.p0, eb.p0),
+        (ea.p0, eb.p1),
+        (ea.p1, eb.p0),
+        (ea.p1, eb.p1),
+    ];
+    let [lo, hi] = ends
+        .into_iter()
+        .map(|(p, q)| gap_from_ends(q - p, n, s))
+        .reduce(both_enclose)
+        .unwrap_or_else(|| unreachable!("four ends"));
+    // `x`'s ends against the line of `y`: from its start, to its end.
+    let reaches = |x: &EdgeGeo<T>, y: &EdgeGeo<T>| {
+        let w = reach_axis(x, y, nn);
+        let from = |p: Point3<T>, flip: bool| {
+            let read = |q: Point3<T>| reach_from_end(q - p, w, flip, hi, s);
+            both_enclose(read(y.p0), read(y.p1))
+        };
+        [from(x.p0, false), from(x.p1, true)]
+    };
+    let reach = [reaches(ea, eb), reaches(eb, ea)];
+    let [from_lo, from_hi] = reach[0][0];
+    LinesClosest {
+        gap: [lo.max(T::zero()), hi],
+        point: ea.p0 + ea.dir * geom::mid_param(from_lo, from_hi),
+        reach,
+    }
+}
+
+/// Two edge lines' frame: `n = da × db`, `|n|²` and `s = |n|`.
+fn lines_frame<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> (Vec3<T>, T, T) {
+    let n = ea.dir.cross(eb.dir);
+    let nn = n.norm_squared();
+    (n, nn, nn.sqrt())
+}
+
+/// The lines' gap read from ends `e` apart, `|e·n|/s`, enclosed by its
+/// rounding charge ([`ee_lines_closest`]).
+fn gap_from_ends<T: Real>(e: Vec3<T>, n: Vec3<T>, s: T) -> [T; 2] {
+    let g = e.dot(n).abs() / s;
+    let charge = geom_brep::rounding_charge(e.norm() * (T::one() + s)) / s;
+    [g - charge, g + charge]
+}
+
+/// The axis `w = d_y × (d_x × d_y)/|n|²` whose dot with `q − p` is how
+/// far `x`'s end `p` stands from the closest point, `q` on `y`'s line.
+fn reach_axis<T: Real>(x: &EdgeGeo<T>, y: &EdgeGeo<T>, nn: T) -> Vec3<T> {
+    y.dir.cross(x.dir.cross(y.dir)) / nn
+}
+
+/// A reach read from an end `e` short of a point of the other line,
+/// `e·w` (negated from an edge's far end, `flip`), enclosed by its
+/// rounding charge, `gap_hi` the gap's upper bound ([`ee_lines_closest`]).
+fn reach_from_end<T: Real>(e: Vec3<T>, w: Vec3<T>, flip: bool, gap_hi: T, s: T) -> [T; 2] {
+    let r = if flip { -e.dot(w) } else { e.dot(w) };
+    let charge = geom_brep::rounding_charge(e.norm() + r.abs() + gap_hi / s) / s;
+    [r - charge, r + charge]
+}
+
+/// The intersection of two enclosures of one value.
+fn both_enclose<T: Real>([lo_a, hi_a]: [T; 2], [lo_b, hi_b]: [T; 2]) -> [T; 2] {
+    [lo_a.max(lo_b), hi_a.min(hi_b)]
 }
 
 /// The crossing point of two edges whose lines meet: the one point the
@@ -3581,7 +3670,8 @@ fn ee_overlap_midpoint<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> Point3<T> {
 
 /// Whether two non-parallel edges cross at a point inside both their
 /// spans: the lines' closest point is strictly interior to each
-/// (`pm_census_ee_span`) and the lines meet there (`pm_census_ee_gap`).
+/// (`pm_census_ee_span`) and the lines meet there (`pm_census_ee_gap`),
+/// each read off its enclosure ([`ee_lines_closest`]).
 /// `Some(Some(margin))` a crossing, with the reading of the Zero that
 /// made the lines meet; `Some(None)` none; `None` where a decision
 /// escalated (pushed). Either reading's definite no settles the pair
@@ -3596,22 +3686,85 @@ fn crossing_reading<T: Decide>(
 ) -> Option<Option<MarginDiag>> {
     let closest = ee_lines_closest(ea, eb);
     let mut held = Vec::new();
-    for m in closest.reach.into_iter().flatten() {
-        match decide("pm_census_ee_span", Margin::of(m), band) {
-            Ok(Sign::Positive) => {}
-            Ok(_) => return Some(None),
+    for reach in closest.reach.into_iter().flatten() {
+        match span_reading(reach, band) {
+            Ok(true) => {}
+            Ok(false) => return Some(None),
             Err(cause) => held.push(ValidationError::CensusEscalated { cause }),
         }
     }
-    let gap = gap_zero_reading("pm_census_ee_gap", closest.gap, band, &mut held);
-    match gap {
-        Some(None) => Some(None),
-        Some(Some(margin)) if held.is_empty() => Some(Some(margin)),
-        _ => {
+    match gap_reading(closest.gap, band) {
+        Ok(None) => Some(None),
+        Ok(Some(margin)) if held.is_empty() => Some(Some(margin)),
+        Ok(Some(_)) => {
             errors.extend(held);
             None
         }
+        Err(cause) => {
+            errors.extend(held);
+            errors.push(ValidationError::CensusEscalated { cause });
+            None
+        }
     }
+}
+
+/// What an enclosure `[lo, hi]` of a quantity decides.
+enum Enclosed {
+    /// `lo` reads Positive: the quantity exceeds `Kε`.
+    Above,
+    /// `hi` reads Zero or Negative: the quantity is at most `ε`, with
+    /// `hi`'s reading.
+    AtMost(MarginDiag),
+}
+
+/// The one reading of a quantity known only to lie in `[lo, hi]`, each
+/// bound decided by `decide`: [`Enclosed`], else the escalation of a
+/// bound that did not decide, or the bounds' straddle of the band under
+/// `straddle`, the site's own row.
+fn enclosure_reading<T: Decide>(
+    [lo, hi]: [T; 2],
+    straddle: &'static str,
+    band: Band,
+    decide: impl Fn(T) -> Result<geom_core::Decided, Indeterminate>,
+) -> Result<Enclosed, Indeterminate> {
+    match (decide(lo), decide(hi)) {
+        (Ok(b), _) if b.sign == Sign::Positive => Ok(Enclosed::Above),
+        (_, Ok(a)) if a.sign != Sign::Positive => Ok(Enclosed::AtMost(a.margin)),
+        (Ok(b), Ok(a)) => Err(geom_core::k_stats::straddle(straddle, b, a, band)),
+        (Err(cause), _) | (_, Err(cause)) => Err(cause),
+    }
+}
+
+/// Whether a reach enclosed by `[lo, hi]` stands strictly inside its
+/// span: `Ok(true)` above `Kε`; `Ok(false)` at most `ε`, so the closest
+/// point lies at an end or past it ([`enclosure_reading`]).
+fn span_reading<T: Decide>(reach: [T; 2], band: Band) -> Result<bool, Indeterminate> {
+    let decide = |m| geom_core::k_stats::decide_reported("pm_census_ee_span", Margin::of(m), band);
+    enclosure_reading(reach, "pm_census_ee_span_straddle", band, decide)
+        .map(|read| matches!(read, Enclosed::Above))
+}
+
+/// Whether a gap enclosed by `[lo, hi]` is zero: `Ok(Some(margin))` at
+/// most `ε`, with `hi`'s reading; `Ok(None)` above `Kε`
+/// ([`enclosure_reading`]). Both bounds are nonnegative by construction
+/// (`lo` a `max` from zero, `hi` the least `|e·n|/s` plus its charge), the magnitude
+/// door's precondition.
+fn gap_reading<T: Decide>(gap: [T; 2], band: Band) -> Result<Option<MarginDiag>, Indeterminate> {
+    let decide = |m| {
+        geom_core::k_stats::decide_magnitude_reported("pm_census_ee_gap", Margin::of(m), band).map(
+            |(magnitude, margin)| geom_core::Decided {
+                sign: match magnitude {
+                    Magnitude::Zero => Sign::Zero,
+                    Magnitude::Positive => Sign::Positive,
+                },
+                margin,
+            },
+        )
+    };
+    enclosure_reading(gap, "pm_census_ee_gap_straddle", band, decide).map(|read| match read {
+        Enclosed::Above => None,
+        Enclosed::AtMost(margin) => Some(margin),
+    })
 }
 
 /// A crossing strictly inside both spans ([`crossing_reading`];
@@ -4233,29 +4386,28 @@ pub(crate) fn boundary_unclaimable<T: Decide>(body: &Body<T>, f: crate::entity::
     body.face_boundary_linked(f, face)
         .any(|member| match member {
             BoundaryMember::Isolated { .. } => false,
-            BoundaryMember::Edge { ek, edge, .. } => axial_carrier(body, ek, edge).is_none(),
+            BoundaryMember::Edge { ek, edge, .. } => matches!(
+                axial_carrier(body, ek, edge),
+                crate::boolean::boxes::AxialCarrier::Unclaimable
+            ),
         })
 }
 
 /// One boundary edge's carrier as an axial span reads it
-/// ([`crate::boolean::boxes::axial_carrier`], at this lane's scalar);
-/// `None` where it claims nothing.
+/// ([`crate::boolean::boxes::axial_carrier`], at this lane's scalar).
 fn axial_carrier<T: Decide>(
     body: &Body<T>,
     ek: EdgeKey,
     e: &crate::entity::Edge,
-) -> Option<crate::boolean::boxes::AxialCarrier<T>> {
-    use crate::boolean::boxes::{AxialCarrier, SpanBox, edge_box_rule};
-    match crate::boolean::boxes::axial_carrier(
+) -> crate::boolean::boxes::AxialCarrier<T> {
+    use crate::boolean::boxes::{SpanBox, edge_box_rule};
+    crate::boolean::boxes::axial_carrier(
         edge_box_rule(body.edge_curve_linked(ek, e).certified()),
         SpanBox::point,
         SpanBox::vector,
         |x| x,
         |span| span,
-    ) {
-        AxialCarrier::Unclaimable => None,
-        claimed => Some(claimed),
-    }
+    )
 }
 
 /// The face boundary's AXIAL range about `(origin, axis)` — the
@@ -4284,7 +4436,10 @@ fn boundary_axial<T: Decide>(
             }
             BoundaryMember::Edge { ek, edge: e, .. } => {
                 let end = |h, field| SpanBox::point(edge_end_point(body, ek, h, field));
-                let axial = axial_carrier(body, ek, e)?;
+                let axial = axial_carrier(body, ek, e);
+                if let AxialCarrier::Unclaimable = axial {
+                    return None;
+                }
                 let (a, b) = (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus"));
                 edge_axial_span(&o, &ax, &axial, (&a, &b))
             }
@@ -4346,107 +4501,45 @@ pub(crate) fn edge_reach_in<T: Decide>(
 }
 
 /// [`edge_reach_in`] past its edge's lookup: `e` is `ek`'s record.
+///
+/// No public door builds a spiric-bearing operand that reaches the
+/// contact census at this head (the boolean's operand gate refuses the
+/// kind; a hollowed partial revolve stops at tier 3's check 7 before
+/// the census), so the spiric arm is exercised by the box module's
+/// hand-built sector rows.
 fn edge_reach_of<T: Decide>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
     e: &crate::entity::Edge,
     frame: &crate::boolean::boxes::BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    use crate::boolean::boxes::edge_end_point;
-    let (a, b) = (
-        frame.point(edge_end_point(body, ek, e.he_plus, "he_plus")),
-        frame.point(edge_end_point(body, ek, e.he_minus, "he_minus")),
-    );
-    let chord = (
-        Point3::new(a.x.min(b.x), a.y.min(b.y), a.z.min(b.z)),
-        Point3::new(a.x.max(b.x), a.y.max(b.y), a.z.max(b.z)),
-    );
-    match crate::boolean::boxes::edge_box_rule(body.edge_curve_linked(ek, e).certified()) {
-        crate::boolean::boxes::EdgeBoxRule::NoSoundBox => None,
-        crate::boolean::boxes::EdgeBoxRule::Chord => Some(chord),
-        // The spiric's whole-period amplitude box at this lane's
-        // scalar — `spiric_arc_aabb`'s construction without its
-        // outward rounding, as every conic arm here is: per axis the
-        // `m` channel ranges over `[f_min, f_max]` (the one
-        // `geom::spiric_f_range` spelling) and the `axis` channel over
-        // `r·[−1, 1]`, hulled with the chord. No public door builds a
-        // spiric-bearing operand that reaches the contact census at
-        // this head (the boolean's operand gate refuses the kind; a
-        // hollowed partial revolve stops at tier 3's check 7 before
-        // the census), so the arm is exercised by the box module's
-        // hand-built sector row (`boolean/boxes.rs`,
-        // `the_spiric_edge_box_and_reach_contain_a_dense_sample`).
-        crate::boolean::boxes::EdgeBoxRule::Spiric {
-            center,
-            axis,
-            u_ref,
-            major_radius,
-            minor_radius,
-            offset,
-            ..
-        } => {
-            let m = frame.vector(axis.cross(u_ref));
-            let (f_min, f_max) = geom::spiric_f_range(major_radius, minor_radius, offset);
-            let base = frame.point(center + u_ref * offset);
-            let axis = frame.vector(axis);
-            let per = |b: T, me: T, ae: T| {
-                let (p, q) = (me * f_min, me * f_max);
-                let amp = ae.abs() * minor_radius;
-                (b + p.min(q) - amp, b + p.max(q) + amp)
-            };
-            let (xl, xh) = per(base.x, m.x, axis.x);
-            let (yl, yh) = per(base.y, m.y, axis.y);
-            let (zl, zh) = per(base.z, m.z, axis.z);
-            Some((
-                Point3::new(xl.min(chord.0.x), yl.min(chord.0.y), zl.min(chord.0.z)),
-                Point3::new(xh.max(chord.1.x), yh.max(chord.1.y), zh.max(chord.1.z)),
-            ))
-        }
-        crate::boolean::boxes::EdgeBoxRule::ConicAmplitude {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-            params: (t0, t1),
-            ..
-        } => {
-            let (center, u_ref, v_ref) = (
-                frame.point(center),
-                frame.vector(u_ref),
-                frame.vector(axis.cross(u_ref)),
-            );
-            // The ARC's own extent, by `arc_extent`'s subdivision plus
-            // sagitta charge — not the exact arc box `edge_box` reads
-            // (`conic_arc_aabb`), because that one asks whether an
-            // extremal angle lies in the span and this scalar carries no
-            // ordering to answer. One rule, two arithmetics, the census
-            // box wider by at most the charge: `EdgeBoxRule`'s conic
-            // bullet states it, `the_two_box_lanes_agree_face_for_face`
-            // pins it.
-            let (flo, fhi) = span_pts(crate::boolean::boxes::arc_extent(
-                &crate::boolean::boxes::SpanBox::point(center),
-                &crate::boolean::boxes::SpanBox::vector(u_ref),
-                &crate::boolean::boxes::SpanBox::vector(v_ref),
-                crate::boolean::boxes::Span::exact(semi_u),
-                crate::boolean::boxes::Span::exact(semi_v),
-                t0,
-                t1,
-            ));
-            Some((
-                Point3::new(
-                    flo.x.min(chord.0.x),
-                    flo.y.min(chord.0.y),
-                    flo.z.min(chord.0.z),
-                ),
-                Point3::new(
-                    fhi.x.max(chord.1.x),
-                    fhi.y.max(chord.1.y),
-                    fhi.z.max(chord.1.z),
-                ),
-            ))
-        }
-    }
+    use crate::boolean::boxes::{ConicArc, Span, SpanBox, arc_extent, edge_end_point};
+    let end = |he, field| SpanBox::point(frame.point(edge_end_point(body, ek, he, field)));
+    // The ARC's own extent, by `arc_extent`'s subdivision plus sagitta
+    // charge — not the exact arc box `edge_box` reads, because that one
+    // asks whether an extremal angle lies in the span and this scalar
+    // carries no ordering to answer. One rule, two arithmetics, the
+    // census box wider by at most the charge: `EdgeBoxRule`'s conic
+    // bullet states it, `the_two_box_lanes_agree_face_for_face` pins it.
+    let conic = |arc: &ConicArc<'_, T>| {
+        arc_extent(
+            &SpanBox::point(frame.point(arc.center)),
+            &SpanBox::vector(frame.vector(arc.u_ref)),
+            &SpanBox::vector(frame.vector(arc.axis.cross(arc.u_ref))),
+            Span::exact(arc.semi_u),
+            Span::exact(arc.semi_v),
+            arc.params.0,
+            arc.params.1,
+        )
+    };
+    crate::boolean::boxes::edge_rule_box(
+        crate::boolean::boxes::edge_box_rule(body.edge_curve_linked(ek, e).certified()),
+        (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus")),
+        frame,
+        SpanBox::point,
+        conic,
+    )
+    .map(span_pts)
 }
 
 /// A [`crate::boolean::boxes::SpanBox`] as this lane's `(lo, hi)`
@@ -4526,7 +4619,7 @@ pub(crate) enum Undecided {
     /// check passes a volume in band of zero, so the part is the
     /// model's to fix, as tier 3 reads it too.
     ZeroVolume,
-    /// Arm 2: an instance whose closed-form volume is uncertified.
+    /// Arm 2: an instance whose volume's sign is uncertified.
     VolumeUncertified,
     /// Arm 2: an instance with a face kind the door does not serve.
     FaceKindUnsupported,
@@ -6980,10 +7073,23 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         /// `inner` has no vertex to probe.
         NoVertex,
     }
+    // One selection per container, shared by every pair it outers, so
+    // its side at infinity is read once.
+    let selections: std::collections::BTreeMap<
+        SolidKey,
+        std::sync::OnceLock<Result<crate::boolean::SolidFaces, crate::boolean::PointInSolidError>>,
+    > = body
+        .solids()
+        .map(|(s, _)| (s, std::sync::OnceLock::new()))
+        .collect();
     let probe = |outer: SolidKey, inner: SolidKey| -> Probe {
-        let sel = match crate::boolean::SolidFaces::of(body, outer) {
+        let selected = match selections.get(&outer) {
+            Some(cell) => cell.get_or_init(|| crate::boolean::SolidFaces::of(body, outer)),
+            None => &Err(crate::boolean::PointInSolidError::NoSuchSolid { solid: outer }),
+        };
+        let sel = match selected {
             Ok(sel) => sel,
-            Err(e) => return Probe::Refused(Undecided::of_point_in_solid(&e).what()),
+            Err(e) => return Probe::Refused(Undecided::of_point_in_solid(e).what()),
         };
         let (mut refused, mut out_seen, mut any) = (None, false, false);
         for &(v, p) in geo
@@ -6992,7 +7098,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             .filter(|(v, _)| vertex_solid(*v) == Some(inner))
         {
             any = true;
-            match crate::boolean::point_in_solid_faces(body, &sel, p, band, tol) {
+            match crate::boolean::point_in_solid_faces(body, sel, p, band, tol) {
                 Ok(SolidContainment::In) => return Probe::In(v),
                 Ok(SolidContainment::Out) => out_seen = true,
                 Ok(SolidContainment::OnBoundary) => {}
@@ -10814,20 +10920,16 @@ mod tests {
     }
 
     #[test]
-    fn a_carrier_stage_outcome_on_separated_entities_is_the_filters_to_answer() {
+    fn separated_cubes_on_in_band_edge_lines_read_apart_in_both_sweeps() {
         // The second cube 10 m along x and 5e-9 along y — inside the
         // band's escalation zone (`zero` 1e-9, `escalate` 1e-8) of the
         // first cube's x-parallel edge LINES, and metres from its
-        // edges. The exact sweeps escalate on the carrier questions
-        // (a vertex or an edge's end against a face's plane, a boundary
-        // vertex against an edge's line) and can decide nothing else;
-        // the edge pairs read as segments, apart. A vertex metres past an edge's
-        // span reads past it, whatever its distance from the line. The
-        // filter answers the entity question by separation.
-        // This is the named class of `Trees`'s contract, pinned as the
-        // ONE difference: every exact error is a carrier-stage
-        // escalation, the realized census is silent, and the realized
-        // examination is the exact one restricted.
+        // edges. The exact sweep reads every pair by where the entities
+        // lie, not by their carriers: the edge pairs as segments, a
+        // vertex metres past an edge's span as past it, and a straight
+        // edge against a face's boundary edge on one line by the gap
+        // along that line. So it decides what the filter answers by
+        // separation, and neither sweep raises anything.
         let body = two_cubes(Vec3::new(10.0, 5e-9, 0.0));
         let records = ContactRecords::default();
         let (real_errors, real) = census_traces(
@@ -10846,23 +10948,8 @@ mod tests {
             Some(RegionLane::certified()),
             CensusStrategy::Idealized,
         );
-        assert!(real_errors.is_empty(), "{real_errors:?}");
-        assert!(!ideal_errors.is_empty());
-        let mut predicates = BTreeSet::new();
-        for e in &ideal_errors {
-            let ValidationError::CensusEscalated { cause } = e else {
-                panic!("a non-escalation on separated cubes: {e:?}");
-            };
-            predicates.insert(cause.predicate.expect("a named predicate"));
-        }
-        assert!(
-            predicates.contains("curve_pair_pose_offset"),
-            "{predicates:?}"
-        );
-        assert!(
-            !predicates.iter().any(|p| p.starts_with("pm_census_ee_")),
-            "an edge pair escalated: {predicates:?}"
-        );
+        assert!(real_errors.is_empty(), "realized: {real_errors:?}");
+        assert!(ideal_errors.is_empty(), "exact: {ideal_errors:?}");
         restricted_and_silent(&real, &ideal);
     }
 
@@ -14881,5 +14968,64 @@ mod edge_pairs_as_segments {
         let long = seg([-1.0, 0.0, 0.0], [2.0, 0.0, 0.0]);
         let short = seg([0.0, 1.5e-9, 0.0], [1.0, 0.5e-9, 0.0]);
         assert_eq!(overlaps(&short, &long), [(true, 0); 2]);
+    }
+
+    /// **Nearly parallel edges sharing no point key, crossing well
+    /// inside both spans, are never read apart at `f64`**: each pair
+    /// crosses at least `3Kε` inside both edges (measured exactly), at
+    /// 2.8e-9 to 1.1e-7 rad. Read through the closed form from the
+    /// edges' starts, its rounding put the crossing a definite span
+    /// outside one edge at ε = 1e-12. Each reach and the gap are now
+    /// read off an enclosure of their rounding, so where that rounding
+    /// reaches the band the reading escalates, as `Interval`'s does.
+    #[test]
+    fn nearly_parallel_crossings_sharing_no_point_key_are_never_read_apart() {
+        let pairs = [
+            (
+                (
+                    [-0.57969420202416, 1.88862539895253, 1.125319280928707],
+                    [-0.8888391370099953, 1.9912650048598994, 1.3512645386746862],
+                ),
+                (
+                    [-0.8185163607393474, 1.9679170509070156, 1.2998676175168766],
+                    [-0.8377476620810586, 1.974302057180716, 1.3139232301007768],
+                ),
+            ),
+            (
+                (
+                    [0.9094635217007113, 0.795634715001027, -1.9525321423009292],
+                    [0.906583440932391, 0.7871642771827733, -1.9439503768151147],
+                ),
+                (
+                    [1.291972490856439, 1.9206095283007654, -3.0922925809420705],
+                    [0.8310534972376821, 0.565027566261542, -1.7188941070352404],
+                ),
+            ),
+            (
+                (
+                    [1.0194388820881284, 1.624640164893315, -0.018033492456674075],
+                    [0.91675493431915, 1.5146244538520608, -0.027124376056758173],
+                ),
+                (
+                    [1.0604926322270467, 1.668625203918349, -0.014398894659049784],
+                    [
+                        0.09459421682116398,
+                        0.6337604301239435,
+                        -0.09991245475486416,
+                    ],
+                ),
+            ),
+        ];
+        for (i, ((a0, a1), (b0, b1))) in pairs.into_iter().enumerate() {
+            let (ea, eb) = (seg(a0, a1), seg(b0, b1));
+            for (label, (x, y)) in [("as built", (&ea, &eb)), ("swapped", (&eb, &ea))] {
+                let (met, pushed) = meet(x, y, AT_1E12);
+                assert_eq!(
+                    (met, pushed > 0),
+                    (None, true),
+                    "pair {i} {label}: escalated, never a definite no"
+                );
+            }
+        }
     }
 }

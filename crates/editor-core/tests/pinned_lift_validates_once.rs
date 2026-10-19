@@ -289,7 +289,7 @@ fn a_margin_definite_at_f64_and_indeterminate_at_interval_is_pinned_and_guided_a
 /// live in release).
 #[test]
 fn a_default_interval_evaluation_of_an_extruded_copied_arc_builds() {
-    use crate::fixture::{self, Recorder, len, len2, scl};
+    use crate::fixture::{Recorder, len, len2, scl};
     use editor_core::{LoopProgram, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget};
     use geom_core::Interval;
     let mut r = Recorder::new();

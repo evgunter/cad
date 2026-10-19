@@ -547,7 +547,7 @@ fn suggestions_offer_the_final_wrapping_derivation_and_a_reattachment_repairs_th
     // set it at the offered read, clear it at the operand's.
     // Presentation-only — nothing recomputes.
     let apply = |doc: &ProfileDoc, edit| {
-        doc.apply(&edit, Tol::witness(), &editor_core::RefusingReach)
+        doc.apply(&edit, Tol::witness())
             .expect("a re-attachment edit applies")
     };
     let set_it = apply(
@@ -602,7 +602,6 @@ fn appearance_only_rebind_counts_as_a_site_not_no_references() {
                 to: target.name.clone(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("an appearance key is a rebind site");
     assert!(
@@ -638,8 +637,7 @@ fn rebind_appearance_collision_is_refused_typed() {
                 from: cap.clone(),
                 to: target.clone(),
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::RebindAppearanceCollision {
@@ -673,7 +671,6 @@ fn rebind_appearance_collision_is_refused_typed() {
                 to: target.clone(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("disjoint attribute kinds merge");
     let merged = applied.doc.appearance_of(read, &target).unwrap();

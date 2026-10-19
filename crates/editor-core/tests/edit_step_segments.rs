@@ -2575,7 +2575,6 @@ fn a_fillet_cannot_be_a_loops_closing_corner() {
                 fresh: Vec::new(),
             },
             tol(),
-            &editor_core::RefusingReach,
         );
         assert!(
             attempt.is_err(),
@@ -2689,7 +2688,6 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
                 fresh: Vec::new(),
             },
             tol(),
-            &editor_core::RefusingReach,
         )
         .expect("a fused step over a bulge spec is authorable and replays");
     let doc = applied.doc;

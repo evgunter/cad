@@ -48,7 +48,6 @@ fn doc_with(loops: Vec<LoopProgram<Formula>>) -> ProfileDoc {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("valid program")
     .doc
@@ -80,7 +79,6 @@ fn respelled(doc: &ProfileDoc, arg: StepArg, expr: Formula) -> ProfileDoc {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the re-spelling applies")
     .doc
@@ -145,7 +143,6 @@ fn resolved_values_feed_the_key() {
                     def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
                 },
                 Tol::witness(),
-                &editor_core::RefusingReach,
             )
             .unwrap()
             .doc;
@@ -161,7 +158,6 @@ fn resolved_values_feed_the_key() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc
@@ -196,7 +192,6 @@ fn a_carrier_centre_respelled_keys_identically() {
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -216,7 +211,6 @@ fn a_carrier_centre_respelled_keys_identically() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -259,7 +253,6 @@ fn doc_with_r(value: f64, loops: Vec<LoopProgram<Formula>>) -> ProfileDoc {
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -272,7 +265,6 @@ fn doc_with_r(value: f64, loops: Vec<LoopProgram<Formula>>) -> ProfileDoc {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc

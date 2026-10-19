@@ -425,7 +425,6 @@ fn r2_a_pattern_copy_of_the_placed_instance_is_not_its_copy() {
     );
     let refused = fixture::at_the_door_of(
         &doc,
-        &editor_core::RefusingReach,
         leg,
         fixture::rest(
             fixture::head(in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End))),

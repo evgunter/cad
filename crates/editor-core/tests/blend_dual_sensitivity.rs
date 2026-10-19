@@ -137,7 +137,6 @@ fn measured(doc: &ProfileDoc, measure: RecipeNodeId, param: &'static str, value:
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap_or_else(|e| panic!("edit refused: {e}"))
     .doc;

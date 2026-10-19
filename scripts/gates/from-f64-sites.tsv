@@ -10,7 +10,6 @@ crates/editor-core/src/eval/wire/stepped.rs	1	constant	i as f64	a pattern step's
 crates/editor-core/src/eval/wire/stepped.rs	1	constant	k as f64	a whole-turn count
 crates/editor-core/src/expr.rs	1	constant	f64::from(small)	a count read as a scalar
 crates/editor-core/src/expr.rs	1	constant	q.value	an authored quantity literal
-crates/editor-core/src/mate/coset.rs	2	launders(editor-core-keeps-computed-values-in-t)	arm.get()	the two step arms that divide by a levered sine (Arm::of): the parts' reach and the datum's terms, upper bounds read out of the resolved origins; the levered decisions take the arm through from_computed
 crates/editor-core/src/placement.rs	1	constant	<fn>	a frame's stored coordinates, carried exactly (f64 by type in the document)
 crates/editor-core/src/ratio.rs	1	constant	self.den as f64	an authored ratio's denominator
 crates/editor-core/src/ratio.rs	1	constant	self.num as f64	an authored ratio's numerator
@@ -70,7 +69,8 @@ crates/geom-core/src/dual.rs	1	constant	x	the Real impl's own door: Dual::from_f
 crates/geom-core/src/interval.rs	1	constant	x	the Real impl's own door: Interval::from_computed is the point embed by design
 crates/geom-core/src/interval/certification.rs	1	constant	x	the concrete Interval's point embed, the door itself: never Sym
 crates/geom-core/src/real.rs	1	constant	k	scale_pow2's default: the power of two a subdivision's 2^-r scale names, a constant of the cut
-crates/geom-core/src/spline/algebra.rs	1	constant	a	apply_rational: degree elevation's binomial ratio i/(p + 1), a constant of the operation
+crates/geom-core/src/spline/projective.rs	1	constant	den	form_coef: degree elevation's binomial i/(p + 1), its denominator p + 1, an integer of the operation
+crates/geom-core/src/spline/projective.rs	1	constant	num	form_coef: degree elevation's binomial i/(p + 1), its numerator i, an integer of the operation
 crates/geom-core/src/spline/basis.rs	1	constant	factor	a falling factorial of the degree, a count
 crates/geom-core/src/spline/basis.rs	1	constant	self.0.knots_f64_interim().knots()[i]	the lifted basis over a bare KnotVector, which holds no value in a scalar: its one production caller is geom's f64 fit, where from_f64 is the identity; a carrier's evaluation reads basis_funs_in over its held knots. KNOWN GAP: pub and generic, so a future caller passing a carrier's channel knots at Sym adds no gate site
 crates/geom-core/src/spline/derivative.rs	2	constant	p as f64	the degree, a derivative coefficient's factor over the held knots (and a Bézier axis's degree, the r-th derivative's scale)
@@ -88,7 +88,8 @@ crates/geom/src/curves/nurbs.rs	1	constant	binom	a binomial coefficient
 crates/geom/src/curves/nurbs.rs	1	constant	v	a value a knot operation brings in at the caller's f64 parameter (inserted)
 crates/geom/src/curves/nurbs.rs	1	constant	<fn>	the placeholder's unit knots (Knots::lift)
 crates/geom/src/curves/on_carrier.rs	1	constant	s	one of SPLINE_SAMPLES, the fixed fractions of a knot span a spline's foot search seeds at: a heuristic's place to read, never a verdict
-crates/geom/src/surfaces/nurbs.rs	1	constant	v	a removal's reinsertion of a knot the surface does not hold: the caller's f64 parameter (unreachable: the removal took it from the surface)
+crates/geom/src/surfaces/nurbs.rs	1	constant	u	a removal's reinsertion of the removed knot where the surface does not hold it: the caller's f64 parameter (unreachable: the removal took it from the surface)
+crates/geom/src/surfaces/nurbs.rs	1	constant	v	a removal's reinsertion of a value other than the removed knot: the caller's f64 parameter (unreachable: a reinsertion brings in the removed knot alone)
 crates/geom/src/surfaces/nurbs.rs	3	constant	<fn>	the placeholder's unit knots, and a knot a column's plan inserts at the caller's f64 parameter (Column::through's fresh entry, twice)
 crates/geom/src/test_support/held_arc.rs	1	constant	m as f64	a sub-arc count
 crates/geom/src/test_support/held_arc.rs	2	constant	k as f64	a sub-arc index
@@ -129,6 +130,7 @@ crates/topo/src/boolean/separating.rs	1	constant	f64::from(n)	a count
 crates/topo/src/boolean/solid_contain.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/boolean/sphere_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/boolean/sphere_region.rs	1	constant	share	a fixed split fraction
+crates/topo/src/boolean/torus_region.rs	1	constant	share	a fixed split fraction
 crates/topo/src/chart_bound.rs	1	constant	<fn>	a fixed direction of the 2-D ray schedule (SCHEDULE_2D)
 crates/topo/src/chart_bound.rs	1	constant	k	a ring shift count (RING_SHIFTS)
 crates/topo/src/chart_region.rs	1	constant	<fn>	a fixed ray direction of the schedule

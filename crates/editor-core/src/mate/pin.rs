@@ -852,12 +852,10 @@ fn axis_placed(
     // The axis in the copy's own coordinates: a revolve's `axis`
     // output as the evaluation reads it, a ring's own `z`.
     let (origin, dir) = match doc.output(construction, 1) {
-        Some(axis) => {
-            match crate::eval::read_pose_in(doc, ev, RoleRead::plain(axis), tol) {
-                Ok(crate::pose::PoseValue::Axis { origin, dir }) => (origin, dir),
-                _ => return Err(no_frame),
-            }
-        }
+        Some(axis) => match crate::eval::read_pose_in(doc, ev, RoleRead::plain(axis), tol) {
+            Ok(crate::pose::PoseValue::Axis { origin, dir }) => (origin, dir),
+            _ => return Err(no_frame),
+        },
         None => (Point3::origin(), UnitVec3::exact_z()),
     };
     let seed = if dir.get().x.abs() < 0.5 {
@@ -870,14 +868,16 @@ fn axis_placed(
     let own = Frame::from_affine(own.to_affine());
     let to = target(&at.compose(&own))?;
     let placed = at.affine::<f64>();
-    let unit = |v| UnitVec3::new(v, topo::query::DATUM_UNIT_NORM, band).map_err(|_| PinRefusal::Band);
+    let unit =
+        |v| UnitVec3::new(v, topo::query::DATUM_UNIT_NORM, band).map_err(|_| PinRefusal::Band);
     let on_value = crate::pose::PoseValue::Axis { origin, dir };
     let to_value = crate::pose::PoseValue::Axis {
         origin: placed.transform_point(origin),
         dir: unit(placed.linear * dir.get())?,
     };
     let reach = super::part_reach(&solid).map_err(|_| no_frame.clone())?;
-    let arm = super::coset::Arm::of(reach, placed.translation.norm()).map_err(|_| PinRefusal::Band)?;
+    let arm =
+        super::coset::Arm::of(reach, placed.translation.norm()).map_err(|_| PinRefusal::Band)?;
     let chart = super::value::Chart::of(
         &on_value,
         &to_value,
@@ -897,7 +897,10 @@ fn axis_placed(
         values: vec![
             (
                 super::Coord::Slide(super::SlideAxis::Z),
-                written(chart.slide_at(&placed, super::SlideAxis::Z), Dimension::Length),
+                written(
+                    chart.slide_at(&placed, super::SlideAxis::Z),
+                    Dimension::Length,
+                ),
             ),
             (
                 super::Coord::Spin,
@@ -917,7 +920,10 @@ fn minted_by(name: &crate::StableName, node: RecipeNodeId) -> bool {
     match whole {
         [RoleSeg::From { of, .. }] | [RoleSeg::SplitFragment { parent: of }] => minted_by(of, node),
         [RoleSeg::Merged(merged)] => merged.iter().any(|n| minted_by(n, node)),
-        [RoleSeg::Placed { .. } | RoleSeg::Instance { .. } | RoleSeg::InPart { .. }, ..] => false,
+        [
+            RoleSeg::Placed { .. } | RoleSeg::Instance { .. } | RoleSeg::InPart { .. },
+            ..,
+        ] => false,
         _ => name.node == node,
     }
 }
@@ -1157,7 +1163,8 @@ pub fn place_against_in(
         }));
         (plane(body, copy_face), to, m)
     };
-    let unit = |v| UnitVec3::new(v, topo::query::DATUM_UNIT_NORM, band).map_err(|_| PinRefusal::Band);
+    let unit =
+        |v| UnitVec3::new(v, topo::query::DATUM_UNIT_NORM, band).map_err(|_| PinRefusal::Band);
     let on_value = crate::pose::PoseValue::Plane {
         origin: Point3::origin(),
         normal: unit(placed.linear.transpose() * to_normal)?,
@@ -1187,11 +1194,17 @@ pub fn place_against_in(
         values: vec![
             (
                 super::Coord::Slide(super::SlideAxis::X),
-                written(chart.slide_at(&placed, super::SlideAxis::X), Dimension::Length),
+                written(
+                    chart.slide_at(&placed, super::SlideAxis::X),
+                    Dimension::Length,
+                ),
             ),
             (
                 super::Coord::Slide(super::SlideAxis::Y),
-                written(chart.slide_at(&placed, super::SlideAxis::Y), Dimension::Length),
+                written(
+                    chart.slide_at(&placed, super::SlideAxis::Y),
+                    Dimension::Length,
+                ),
             ),
             (
                 super::Coord::Spin,

@@ -26,7 +26,7 @@ use crate::corpus::body_of;
 use crate::emit_shared_rim_several::{
     Bx, construction, document, own_name, permutations, probe_corpus,
 };
-use crate::fixture::{ang, face_vertices, insert, len, scl, table};
+use crate::fixture::{face_vertices, len, table};
 
 use editor_core::{CapEnd, EntityKey, EntityKind, Entry, Node, RecipeNodeId, RoleSeg, StableName};
 

@@ -134,7 +134,6 @@ fn the_fin_group_equals_the_placement_union_chain() {
                         fresh: Vec::new(),
                     },
                     Tol::witness(),
-                    &editor_core::RefusingReach,
                 )
                 .expect("insert union");
                 let id = u.record.minted.expect("minted");
@@ -162,7 +161,6 @@ fn the_fin_group_equals_the_placement_union_chain() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("insert group");
     let group = grouped.record.minted.expect("minted");
@@ -430,8 +428,7 @@ fn the_edit_door_refuses_a_two_spelling_count() {
                 node: Box::new(with_count),
                 fresh: Vec::new()
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         ),
         Err(EditError::PlacementRuleMismatch { .. })
     ));
@@ -447,8 +444,7 @@ fn the_edit_door_refuses_a_two_spelling_count() {
                 node: Box::new(pattern_explicit),
                 fresh: Vec::new()
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         ),
         Err(EditError::PlacementRuleMismatch { .. })
     ));
@@ -479,7 +475,6 @@ fn a_placement_rule_refusals_recourse_gets_through() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
     };
     let linear = || PatternKind::Linear {
@@ -624,8 +619,7 @@ fn an_empty_placement_list_refuses_like_a_zero_count() {
                 node: Box::new(empty),
                 fresh: Vec::new()
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         ),
         Err(EditError::EmptyPlacementList { .. })
     ));
@@ -648,7 +642,6 @@ fn an_empty_placement_list_refuses_like_a_zero_count() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a zero count is legal to WRITE; it refuses at evaluation");
     let id = zero.record.minted.expect("minted");
@@ -678,7 +671,6 @@ fn the_wire_refuses_an_emptied_placement_list() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("one placement is legal");
     let text = editor_core::save(&one.doc, &[], Tol::witness()).expect("saves");
@@ -735,8 +727,7 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
                 node: Box::new(with(nan)),
                 fresh: Vec::new()
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         ),
         Err(EditError::NonFinitePlacement { .. })
     ));
@@ -749,7 +740,7 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
         Some(PlacementRuleFault::ImproperFrame { index: 0, .. })
     ));
     assert!(matches!(
-        apply(&doc, &DocEdit::InsertNode { node: Box::new(with(mirror)), fresh: Vec::new() }, Tol::witness(), &editor_core::RefusingReach),
+        apply(&doc, &DocEdit::InsertNode { node: Box::new(with(mirror)), fresh: Vec::new() }, Tol::witness()),
         Err(EditError::ImproperPlacement { determinant, .. }) if determinant < 0.0
     ));
 
@@ -771,7 +762,6 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(error @ EditError::NonRigidPlacement { at, .. }) => {
             assert_eq!(at, editor_core::FrameSite::Listed { index: 1 });
@@ -801,8 +791,7 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
                 node: Box::new(with(turned)),
                 fresh: Vec::new()
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .is_ok()
     );
@@ -861,7 +850,6 @@ fn the_rotated_explicit_group_equals_the_placement_union_chain() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("insert the group");
     let group = grouped.record.minted.expect("minted");
@@ -883,7 +871,6 @@ fn the_rotated_explicit_group_equals_the_placement_union_chain() {
                         fresh: Vec::new(),
                     },
                     Tol::witness(),
-                    &editor_core::RefusingReach,
                 )
                 .expect("insert union");
                 let id = u.record.minted.expect("minted");
@@ -940,8 +927,7 @@ fn the_typed_insert_answers_to_the_placement_backstops() {
         ("a mirror", with(vec![mirror])),
         ("a stretched frame", with(vec![Frame::IDENTITY, stretched])),
     ] {
-        let mut action =
-            editor_core::Recording::start(&doc, Tol::witness(), &editor_core::RefusingReach);
+        let mut action = editor_core::Recording::start(&doc, Tol::witness());
         let first = action
             .insert(with(vec![Frame::IDENTITY]))
             .expect("one placement is legal");
@@ -953,7 +939,6 @@ fn the_typed_insert_answers_to_the_placement_backstops() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect_err(what);
         assert!(

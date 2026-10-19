@@ -70,7 +70,6 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .map_err(|e| format!("{e:?}"))?;
     let profile = applied.record.minted.unwrap();

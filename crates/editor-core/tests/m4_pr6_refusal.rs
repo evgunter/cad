@@ -45,7 +45,6 @@ fn small() -> (ProfileDoc, String) {
             },
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("witness")
     .doc;
@@ -259,7 +258,6 @@ fn an_off_table_display_unit_refuses_the_same_way_on_either_route() {
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.01)),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the parameter applies")
     .doc;
@@ -581,7 +579,6 @@ fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
         &doc,
         &DocEdit::SetTolerance { eps: other_eps },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("SetTolerance applies as a pure doc edit")
     .doc;
@@ -604,21 +601,14 @@ fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
     }
     // And SetTolerance itself validates its value.
     assert!(
-        apply(
-            &doc,
-            &DocEdit::SetTolerance { eps: -1.0 },
-            Tol::witness(),
-            &editor_core::RefusingReach
-        )
-        .is_err(),
+        apply(&doc, &DocEdit::SetTolerance { eps: -1.0 }, Tol::witness()).is_err(),
         "non-positive ε must refuse"
     );
     assert!(
         apply(
             &doc,
             &DocEdit::SetTolerance { eps: f64::NAN },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .is_err(),
         "NaN ε must refuse"
@@ -645,7 +635,6 @@ fn metadata_convention_doors_refuse_typed() {
             value: MetaValue::map(m).expect("a shallow value"),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     assert!(
         matches!(no_v, Err(editor_core::EditError::MetaUnversioned { .. })),
@@ -661,7 +650,6 @@ fn metadata_convention_doors_refuse_typed() {
             value: MetaValue::Int(1.into()),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     assert!(
         matches!(scalar, Err(editor_core::EditError::MetaUnversioned { .. })),
@@ -785,7 +773,6 @@ fn corrupt_program_refuses_at_the_edit_door_before_any_save() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::ProfileProgramRefused { refusal, .. })
             if matches!(

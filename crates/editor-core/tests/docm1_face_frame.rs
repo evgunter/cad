@@ -12,20 +12,15 @@
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::AuthoredNode;
 
-use crate::fixture::{ang, len};
-use editor_core::PoseValue;
-use editor_core::persist::{load, save};
+use crate::fixture::len;
 use editor_core::{
-    CancelToken, CapEnd, Dimension, DocEdit, EditError, EntityKey, EntityKind, Entry, EvalOptions,
-    Formula, InterrogateError, Node, NodeError, NodeErrorKind, NodeResult, ProfileDoc,
-    ProfileProgram, RecipeNodeId, ResolveError, RoleSeg, SlotId, StableName, ValuePayload,
-    all_edges, all_faces, apply, edge_carrier_kind, edge_frame, evaluate, face_carrier_kind,
-    face_frame,
+    CancelToken, EntityKey, EntityKind, Entry, EvalOptions, InterrogateError, Node, NodeResult,
+    ProfileDoc, ProfileProgram, RecipeNodeId, StableName, ValuePayload, all_edges, all_faces,
+    edge_carrier_kind, edge_frame, evaluate, face_carrier_kind, face_frame,
 };
 use geom::SurfaceKind;
-use geom_core::{Tol, UnitVec3, Vec3};
+use geom_core::Tol;
 use topo::CurveKind;
 use topo::readback;
 

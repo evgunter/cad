@@ -25,7 +25,7 @@ use editor_core::{
     PatternKind, ProfileDoc, RecipeNodeId, ResolveError, RoleSeg, SlotId, SplitHalf, SplitSide,
     StableName, ValuePayload, all_edges, apply, denotation, evaluate, product,
 };
-use geom_core::{Affine3, Dual, Mat3, Tol, Vec3};
+use geom_core::{Dual, Tol};
 use topo::{Body, BooleanResult, mass_properties, transform_rigid};
 
 fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -585,7 +585,6 @@ fn a4_every_refusal_is_typed() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a structural edit")
     .doc;
@@ -632,7 +631,6 @@ fn a4_every_refusal_is_typed() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .err()
     };
@@ -672,7 +670,6 @@ fn a4_every_refusal_is_typed() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     assert!(
         matches!(
@@ -726,7 +723,6 @@ fn a5_the_content_key_separates_the_halves_and_the_instances() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a structural edit")
     .doc;

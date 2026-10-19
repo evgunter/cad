@@ -157,7 +157,6 @@ fn set_program(
             fresh: Vec::new(),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
 }
 
@@ -215,7 +214,6 @@ fn paint(doc: &editor_core::ProfileDoc, name: &StableName) -> ProfileDoc {
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .expect("the painted name's node is live")
     .doc
@@ -639,12 +637,7 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
 
     let next = never_minted(&reshaped);
     let unminted = wall_by(r.rod, next, PieceRole::Leg);
-    let never = |edit: DocEdit<ProfileProgram>| match apply(
-        &reshaped,
-        &edit,
-        tol(),
-        &editor_core::RefusingReach,
-    ) {
+    let never = |edit: DocEdit<ProfileProgram>| match apply(&reshaped, &edit, tol()) {
         Err(EditError::NameStepNeverMinted { name, step }) => {
             assert_eq!((name, step), (reshaped.spoken_name(&unminted), next));
         }
@@ -673,7 +666,6 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
                 to: unminted.clone(),
             },
             tol(),
-            &editor_core::RefusingReach,
         )
         .is_err_and(|e| matches!(e, EditError::NameStepNeverMinted { .. })),
         "a rebind onto a never-minted step refuses typed"
@@ -819,7 +811,6 @@ fn the_insert_door_mints_every_step_and_refuses_ids_of_the_callers() {
             fresh: Vec::new(),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .expect_err("ids are the door's to mint");
     assert!(
@@ -880,7 +871,6 @@ fn a_program_naming_an_undeclared_parameter_refuses_the_slot_doors_own_arm() {
             fresh: Vec::new(),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .expect_err("an undeclared parameter refuses at the slot door");
     let ids = keep_all(&doc, profile);
@@ -1292,7 +1282,6 @@ fn set_radius(
             fresh: Vec::new(),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .expect("the radius is a legal slot write")
 }
@@ -1365,7 +1354,6 @@ fn set_value(
             value: editor_core::FreeValue::Continuous(v),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .expect("the value lands")
 }
@@ -1421,6 +1409,92 @@ fn a_value_edit_moves_no_name() {
     );
     assert_eq!(opened_face(&applied.doc, shell), top);
     assert_eq!(wall_of(&applied.doc, ext, 0, 2), top);
+}
+
+/// **A `circle_split`'s phase edit moves every piece and renames none**
+/// (N1, the `circle_split` bullet). A split with `n = 4` about `(1, 1)`
+/// at radius `0.5`, phase 0, extruded; a paint on `Piece(0)`'s wall.
+/// The phase goes to `π/2` through `SetParam` — one whole arc, so the
+/// circle is the same point set — and `Piece(0)` is the arc from
+/// vertex 0, now at `π/2`, to vertex 1 at `π`: the arc `Piece(1)` drew
+/// before, with nothing reported.
+#[test]
+fn a_circle_splits_phase_edit_moves_its_pieces_and_renames_none() {
+    use std::f64::consts::FRAC_PI_2;
+    let (c, r) = (1.0, 0.5);
+    let at = |theta: f64| (c + r * theta.cos(), c + r * theta.sin());
+    let (doc, profile, ext) = extruded(
+        "split-phase-moves-pieces",
+        vec![LoopProgram::CircleSplit {
+            centre: [len(c), len(c)],
+            radius: len(r),
+            n: 4,
+            phase: ang(0.0),
+        }],
+    );
+    let step = ids_of(&doc, profile)[0][0];
+    let wall = wall_by(ext, step, PieceRole::Piece(0));
+    let start = fixture::ename(
+        ext,
+        RoleSeg::LateralEdge(editor_core::ProfileVertexRef::Piece {
+            step,
+            role: PieceRole::Piece(0),
+        }),
+    );
+    let doc = paint(&doc, &wall);
+    let spans = |doc: &ProfileDoc, from: f64| {
+        let corners = corners_of(doc, ext, &wall);
+        let hit = [from, from + FRAC_PI_2].into_iter().all(|t| {
+            let (x, y) = at(t);
+            has_corner3(&corners, (x, y, 0.0)) && has_corner3(&corners, (x, y, 1.0))
+        });
+        hit.then_some(()).ok_or(corners)
+    };
+    let starts_at = |doc: &ProfileDoc, t: f64| {
+        let (got, want) = (strut_at(doc, ext, &start), at(t));
+        let hit = (got.0 - want.0).abs() < 1e-9 && (got.1 - want.1).abs() < 1e-9;
+        hit.then_some(()).ok_or(got)
+    };
+    spans(&doc, 0.0).unwrap_or_else(|got| panic!("at phase 0 Piece(0) spans [0, π/2]: {got:?}"));
+    starts_at(&doc, 0.0).unwrap_or_else(|got| panic!("at phase 0 Piece(0) starts at 0: {got:?}"));
+
+    let turned = apply(
+        &doc,
+        &DocEdit::SetParam {
+            node: profile,
+            slot: SlotId::Profile {
+                loop_: 0,
+                step: 0,
+                arg: StepArg::Phase,
+            },
+            value: ang(FRAC_PI_2).into(),
+            fresh: Vec::new(),
+        },
+        tol(),
+    )
+    .expect("the phase is a legal slot write");
+
+    let ev = fixture::run(&turned.doc, &EvalOptions::default());
+    assert!(
+        corpus::failures(&ev).is_empty(),
+        "the turned document evaluates: {:?}",
+        corpus::failures(&ev)
+    );
+    assert!(
+        table(&ev, ext).iter().any(|(n, _)| *n == wall),
+        "(a) the name on Piece(0) still resolves on the extrude"
+    );
+    spans(&turned.doc, FRAC_PI_2).unwrap_or_else(|got| {
+        panic!("(b) at phase π/2 Piece(0) is the arc [π/2, π], where Piece(1) was: {got:?}")
+    });
+    starts_at(&turned.doc, FRAC_PI_2).unwrap_or_else(|got| {
+        panic!("(b) at phase π/2 Piece(0) starts at vertex 0, angle π/2: {got:?}")
+    });
+    assert_eq!(
+        crate::fixture::without_anonymous(&turned.maintenance),
+        vec![],
+        "(c) the phase edit reports nothing"
+    );
 }
 
 /// **A hole that becomes the outer loop moves no name.** `hole_r`
@@ -1495,7 +1569,6 @@ fn a_sense_flip_moves_no_name() {
             fresh: Vec::new(),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .expect("the apex moves");
     assert_eq!(
@@ -1925,7 +1998,6 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
                 fresh: Vec::new(),
             },
             tol(),
-            &editor_core::RefusingReach,
         )
         .is_err(),
         "a circle_split's count is no slot of the profile"
