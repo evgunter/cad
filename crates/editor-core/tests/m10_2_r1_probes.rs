@@ -400,7 +400,7 @@ fn ball(doc: &editor_core::ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNod
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let (doc, p) = insert(
-        &doc,
+        doc,
         Node::Profile(ProfileProgram {
             loops: vec![meridian],
             ids: Vec::new(),

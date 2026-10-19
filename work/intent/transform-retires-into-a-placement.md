@@ -140,40 +140,42 @@ So running the map at the nominal does not by itself make the lanes' decision li
   - **A finding to read (1):** sym11. two_hole_plate's receipt is [1381, 980, 1429], stored [1003, 654, 729]. More is proven, and more is frozen too.
   - **Pre-existing (1):** `m10_di_dual_corpus::assemble_census_verdicts`, die_composed_tour's 16 undecided touches at Interval, unchanged by the fix.
 
-**C-5 lane (2026-10-19): the fix is committed**, the three parts above plus the step that clears its three real reds:
-- **The Dual value channel.** `Dual<T>`'s `SolveScalar` did not delegate `exactly_zero`, so `mate::solve::on_an_axis` read a direction's axis on Interval but never on `Dual<Interval>`. Once a varying placement runs its map, `die`'s target copies are read in their own coordinates (`Chart::of`'s `own`), and the two lanes took different directions. Dual now delegates `exactly_zero` to its value channel: a coordinate exactly zero over the box is constant there, so its tangent is zero. Dual's `holds_rest`/`with_rest` now follow the value channel the same way, the hull taken on the value and each tangent kept, as `identity_varying_as` keeps them. Dual64 is unchanged, because f64 answers all three by the defaults. `m10_di_dual_corpus::dual_interval_…` and `r2_m10_di_probes::deep_value_channel_…` pass.
-- **`revalue_cut_cylinder`, restated InStep → Apart, floor 1051 → 1302.** Measured with the narrowing off, the apart move parts at decision 3667 of 3673 (`datum_unit_norm`): at `p0` the cutter's placement snaps at rest and is placed by no map, while at `p1` it runs its map. With the narrowing, both builds run it, and apart compares the whole document (4503 compared, 2605 moved, none laundered, no flips). That is the stronger pin.
-- revalue_corpus 12/12. The m10_di/dual set passes except `assemble_census_verdicts` (16 undecided, pre-existing, unchanged).
-- **Re-blessed (each with an in-file paragraph):** `m10_p_fence` ×4 numbers (Probe set equal to f64). Measured with a scratch dump, narrowing off against on: every outcome is identical, and 16 points moved, by at most 4.4e-16, in `tube_arc`, `hollow_tube_elbow` and `nested_islands_106_depth1`. That is the solved map's rounding, which the snap discarded. msolve14 a3 at all three ε: with the narrowing off the old digests reproduce; with it on, every corpus row moved except `pinned-chain`. m10_bulge ×3: every row rose, `transform_rigid_*` ×7 are new, `solve_copy_at_identity` leaves, and nothing went from symbolic to numeric. m10_9 ×3: +186 symbolic per placement at every ε, and all five still certify. Door shut, the bracket is 1708/1387 and the pad 1438/1508; the link holds 782/710. The pad's rule-F receipt is 1500/1446/1406. sym_9 ×2: +186/+159 per placement, and the pad leaf is 1504/1442/4 (bare 1500/1446/0). m10_10 ×2: the counts doubled, and every one is still a theorem with the algebra on. m10_sym_profile: the plate ledger moved, and `Plain/Report` went 8→16. `m10_6_ci` keys: the neck's two keys moved, `dropped=1` held. `m10_6_r1`: the original straddle assertion is restored.
-- **sym11, a finding, left red.** `PAST_THE_CEILING` still holds pre-D receipts. Measured at 1e-9, as [symbolic, numeric, frozen]:
+**C-5 lane, finished (2026-10-19). The narrowing is in. The editor-core suite is 2540/2548, and its 8 reds are the 8 that were red on the base (`c3bbb464c9`). The tour certifies.**
+- **The fix** (`eval/wire.rs` `fold_with`, `mate/value.rs` `Chart::of`), the three parts above:
+  - (1) `bundle_reads_a_variable` gates the at-rest snap;
+  - (2) a varying bundle is placed by `Motion::Map` even at the stored identity, bypassing `marked`;
+  - (3) `Chart::of` decides the taken-back direction unit on every lane.
+- **What "reads a variable" means, refined from 3fc2842244's walk; the orchestrator should confirm.** The walk as first written made 34 split, inline and kstats rows red (the triage had run only the m10/sym set). Two refinements:
+  - (a) **A variable is a declared one or a toleranced one.** A written number is VR6's anonymous untoleranced `FreeVar`, and no box or seed moves it. This follows `refactor::reads_a_number` and D's inline narrowing ("one that reads a named or toleranced variable keeps refusing"). Counter-text: `mate/anchor.rs`'s header ("a typed number with no tolerance is a document variable too … only the constant `0` reads nothing"), which `Anchors` itself keeps.
+  - (b) **A mate's selection of the copy's own entities is not entered where `mate::anchor::Anchors::fixed` calls every name fixed.** Without this, a stand on a body with a declared height runs its map; `intent_s3_c_mates::a_copy_stands_where_its_body_stands_at_every_value` is the row.
+  - **Known gap in (b):** `Anchors::fixed` answers whether the face's plane moves, not whether the pose read off it does. A root extrude's start cap is "fixed", yet its plane pose's origin moves with the profile's numbers. The m10 plate fixture's holes (`r.against`, start caps at ±half_spacing) therefore still snap. On this head that measured harmless: the m10_5 plate drive rows and the tour's plate study pass.
+  - Skipping the copied shapes outright was tried and rejected, because it is wrong for a face the copy's parameters move.
+- **The Dual value channel** (`eval/mod.rs`): `Dual<T>` did not delegate `exactly_zero`, so `mate::solve::on_an_axis` read an axis on Interval but never on `Dual<Interval>`. It now delegates `exactly_zero`, `holds_rest` and `with_rest` to the value channel, keeping each tangent. Dual64 is unchanged. `m10_di_dual_corpus::dual_interval_…` and `r2_m10_di_probes::deep_value_channel_…` pass.
+- **Rows restated, each with an in-file paragraph:**
+  - `revalue_cut_cylinder`, InStep → Apart, floor 1302. With the narrowing off, the apart move parts at decision 3667/3673 (`datum_unit_norm`): `p0` snaps the cutter while `p1` runs it.
+  - m10_bulge: the boss and the parameter D-tab run their maps, and the literal D-tab still snaps. The shared table now carries an overlay, `D_TAB_RUNNING_ITS_MAP`.
+  - m10_9 and sym_9: +186 symbolic and +159 numeric per varying placement; the plate holds.
+  - `decide_3`: the link +36/+18, with its trades unchanged.
+  - seat8: cut_cylinder and kitchen_sink moved in body `Debug` only; with the narrowing off they read their old pins.
+  - `m10_6_ci` keys: the neck's.
+  - `m10_6_r1`: its straddle is restored.
+  - `m10_p_fence`: stale at the base, measured there. The narrowing moves no f64 outcome or point (scratch dump, off against on); it moves the Interval number. The Probe row is set to the f64 number but not run (below).
+  - C-5's own rows in `intent_s3_c_mates`, ×3 (a seeded or boxed value reading a declared `s`/`t` now runs its map in every lane).
+  - msolve14 a3, m10_10 and m10_sym_profile are back to their pre-narrowing pins, measured at all three ε.
+- **sym11, left red as a finding.** `PAST_THE_CEILING` holds pre-D receipts. On this head, at 1e-9, as [symbolic, numeric, frozen]:
 
-  | document | stored | D only (narrowing off) | D + C-5 |
-  |---|---|---|---|
-  | plate | [1003, 654, 729] | [1009, 662, 161] | [1381, 980, 1429] |
-  | annulus | [539, 399, 904] | [542, 402, 144] | [728, 561, 777] |
-  | link | [323, 259, 542] | [323, 257, 236] | unchanged |
-  | bracket | [1392, 1008, 2044] | [1398, 1016, 458] | [1770, 1334, 2119] |
-  | pad | [1260, 1159, 3522] | [1260, 1157, 726] | unchanged |
+  | document | stored | measured |
+  |---|---|---|
+  | plate | [1003, 654, 729] | [1009, 662, 161] |
+  | annulus | [539, 399, 904] | [728, 561, 777] |
+  | link | [323, 259, 542] | [323, 257, 236] |
+  | bracket | [1392, 1008, 2044] | [1770, 1334, 2119] |
+  | pad | [1260, 1159, 3522] | [1260, 1157, 726] |
 
-  The decision columns are explained:
-  - D's charts add +3/+3 per placement, +6/+8 over two (as m10_9/sym_9 record).
-  - C-5 adds +186/+159 per placement on the documents whose replay reaches their placement's transform.
-  - The link and the pad stop first, and C-5 leaves them alone. Their numeric −2 under D matches the link's door-shut 712→710; the pad's was not traced.
-  - **The `frozen` column is not explained.** Under D it collapsed (729→161, 904→144, 542→236, 2044→458, 3522→726). C-5 then raises it on the plate, annulus and bracket. The dispute column is 0 everywhere and nothing fired. Restating needs a per-site attribution of the frozen move; that is not taken.
-
-**C-5 lane, the full editor-core suite on 9a6a2ed71a: 42 red, 34 of them new with the narrowing.** The triage above ran only the m10/sym/revalue/msolve14 set. With the narrowing switched off, these 34 pass: `intent_s3_c_mates` ×5, `p2_gauges` ×7, `p2_split` ×3, `p2_face`, `asm4_split_inline` ×3, `asm_r2a_mate_solve` row4e, `kstats_bracket_rows` ×5, `asm2a_instantiate`, `docm2_part` a7, `intent_s2_c_world::inline_keeps_both…`, `decide_3_no_predicate_loses_a_decision`, `m4_pr8_corpus_interval`, and `seat4` ×3 / `seat8` digests.
-- **Cause:** `bundle_reads_a_variable` skipped only the Place's own `Shape` slot. A mate's `on` reads a face of the copy (`Select { body: Var(copy) }`), so the walk entered the copy's construction and reached its parameters. Almost every bundle then "read a variable", and "a copy pinned at the identity is placed by no map" broke under split, inline and kstats. That contradicts the function's own definition: "the shapes it copies are not the bundle".
-- Two readings of "reads a variable" were tried and measured.
-- **Skipping the copied shapes outright was wrong.** The m10 plate's holes read only their own start caps, so they went back to snapping. A mate on a face the copy's parameters move does move the map.
-- **What the walk reads now (commit after 567ceb1e4a), for the orchestrator to confirm:**
-  - (a) **A variable is a declared one, or a toleranced one.** A written number is an anonymous untoleranced `FreeVar` under VR6, and no box or seed moves it. Precedent: `refactor::reads_a_number` ("an anonymous, untoleranced free value (`stand`'s, `place_at`'s and `pin_at`'s own writing)") and the inline narrowing in D's PR body ("one that reads a named or toleranced variable keeps refusing"). Counter-text: `mate/anchor.rs`'s header ("a typed number with no tolerance is a document variable too … only the constant `0` reads nothing"), which `Anchors` keeps. Literals alone account for most of the 34.
-  - (b) **A selection of the copy's own entities is not entered where `mate::anchor::Anchors::fixed` calls every name fixed.** Measured gap: a root extrude's start cap is "fixed" (its plane), but a plane pose read off it carries an origin that the profile's numbers move. The m10 plate's hole start cap is centred at ±half_spacing. So the m10 plate fixture's holes now snap again, and its rows go back to their pre-narrowing counts.
-- **Result, tour (release):** chaintol 3/3 and `certified` exit 0. The plate study is 211 certified / 301 refused. The 1-link chain drive certifies 1, and the 4-link drive certifies.
-- **Result, editor-core (the 42 plus m10/sym/msolve14/revalue/dual/intent_s3/inline/split/asm, 789 rows):** the 34 split, inline and kstats reds are green. Left red:
-  - `intent_s3_c_mates` ×3, C-5's own rows (a seeded or boxed value reading a declared `s`/`t` now runs its map: the ruling);
-  - re-pins to re-take (m10_10 ×2, m10_bulge d_tab literal, m10_9 no_registrant, m10_sym_profile ×2, sym_9 kept_atom, msolve14 a3, `m10_p_fence` ×3, `decide_3` r2_link, `seat8` digests);
-  - the 8 that were red before.
-- The 8 that stay red with the narrowing off were red before this lane: `edit_placement_corpus_bits`, `perf2`, `seat7`, `perf12`, `intent_s2_c_world::the_migrated_world…`, `intent_s3_c_mates::the_place_gesture_pins…`, `m10_di_dual` census, sym11.
+  The decision columns are explained: D's charts add +3/+3 per placement, and C-5 adds +186/+159 per varying placement (annulus, bracket ×2). **The `frozen` column is not explained.** It collapsed under D (plate 729→161, link 542→236, pad 3522→726) and rose under C-5 (annulus 144→777, bracket 458→2119). Dispute is 0, and nothing fired.
+- **The 8 reds left, all red on the base:** `edit_placement_corpus_bits`, `perf2_name_keying_differential`, `seat7_sweep_lowering`, `perf12_census_goldens`, `intent_s2_c_world::the_migrated_world…`, `intent_s3_c_mates::the_place_gesture_pins…`, the `m10_di_dual` census (16 undecided), and sym11.
+- **Also found:** `cargo test -p editor-core --features probe` does not compile on D. `tests/m4_pr8_k_probe.rs` names `ExtrudeSide` and `NodeValue::placement`, and so does `tests/parts_entered_before_the_map.rs`. These are D's fan-out, not yet fixed, so the fence's Probe row is unverified.
+- **Checks:** clippy `-p editor-core --all-targets -D warnings` is clean, after mechanical fixes in five test files. Tour (release): chaintol 3/3 and `certified` exit 0. The plate study is 211/301, the 1-link chain drive certified 1, and the 4-link drive certified.
 
 **Window of 2026-10-19 (about 3% of usage left)**
 - **The tour die corpus:** `cargo run --release -- die-corpus ../../crates/editor-core/tests/corpus/tour/die_composed_tour.pncad` in `demos/tour` gives a file byte-identical to D's committed one (1,589,134 bytes) on D's head. Nightly 65's "not byte-regenerable since #5267" was raised against main's copy, which D replaces. Nothing that reads it needed re-pinning.

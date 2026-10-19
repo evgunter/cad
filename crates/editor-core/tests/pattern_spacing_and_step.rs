@@ -347,10 +347,7 @@ fn a_driven_step_past_a_turn_says_what_it_evaluated_to() {
 
 /// A circular rule about the block's axis at `step`.
 fn circular(step: Formula) -> impl FnOnce(Axis) -> PatternKind<Formula> {
-    move |axis| PatternKind::Circular {
-        axis: axis.into(),
-        step,
-    }
+    move |axis| PatternKind::Circular { axis, step }
 }
 
 /// `text` parsed as a parameter-free expression.
@@ -402,7 +399,7 @@ fn a_one_copy_rule_reads_no_step() {
         let ring = patterned(
             1,
             |axis| PatternKind::Circular {
-                axis: axis.into(),
+                axis,
                 step: ang(TAU),
             },
             union,
@@ -437,7 +434,7 @@ fn a_placed_union_refuses_the_spacing_not_the_placements() {
     let step = patterned(
         3,
         |axis| PatternKind::Circular {
-            axis: axis.into(),
+            axis,
             step: ang(0.0),
         },
         true,

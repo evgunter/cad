@@ -819,23 +819,19 @@ fn every_node_kinds_slots_are_all_readable() {
         }
     }
 
-    for (rostered, walked) in [(
+    let walked: Vec<String> = nodes
+        .iter()
+        .map(test_utils::f6::variant_identifier)
+        .collect();
+    let covered: Vec<&str> = walked.iter().map(String::as_str).collect();
+    if let Some(report) = test_utils::census::set_difference(
         NODE_KIND.identifiers(),
-        nodes
-            .iter()
-            .map(test_utils::f6::variant_identifier)
-            .collect::<Vec<_>>(),
-    )] {
-        let covered: Vec<&str> = walked.iter().map(String::as_str).collect();
-        if let Some(report) = test_utils::census::set_difference(
-            rostered,
-            &covered,
-            "the node roster and the shapes this row walks disagree",
-            "walked here and absent from the roster — add it, spelled as `Debug` renders it",
-            "in the roster and walked by no value — give it one in `one_of_every_node_shape`",
-        ) {
-            panic!("{report}");
-        }
+        &covered,
+        "the node roster and the shapes this row walks disagree",
+        "walked here and absent from the roster — add it, spelled as `Debug` renders it",
+        "in the roster and walked by no value — give it one in `one_of_every_node_shape`",
+    ) {
+        panic!("{report}");
     }
 }
 

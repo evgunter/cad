@@ -328,7 +328,7 @@ pub(crate) fn runs_in(
             (doc, Some((tr, slot, dx)))
         }
     };
-    let shifted = |doc: editor_core::ProfileDoc| match shift.clone() {
+    let shifted = |doc: editor_core::ProfileDoc| match shift {
         None => doc,
         Some((node, slot, dx)) => {
             crate::fixture::step(

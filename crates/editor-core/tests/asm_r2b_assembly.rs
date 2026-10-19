@@ -973,7 +973,7 @@ fn row5_e_a_pin_move_that_moves_the_contact_face_carries_the_seat_with_it() {
     let (doc, base) = insert(doc, Node::instantiate_part(doc_ref));
     let doc = standing_on_its_bottom(doc, base, body);
     let (doc, seated) = insert(doc, fixture::mated_instance(doc_ref));
-    let ids = vec![base, seated];
+    let ids = [base, seated];
     let (doc, mate) = seat(doc, ids[1], rest_mate(body, ids[0], ids[1], 1.0));
 
     // Pre-move: the declared pair touches — no contradiction.
