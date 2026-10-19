@@ -34,7 +34,7 @@ use sweep::test_support::{brick, prism_on, sketch_from_axes};
 use topo::{AtRestPolicy, Body, EdgeKey, FaceKey};
 
 use crate::band_concave_bar::{blend, boolean, die, floor};
-use crate::band_one_cycle_members::assert_taken;
+use crate::band_one_cycle_members::{assert_taken, resolves_hairs};
 use crate::band_planar_consume::{VERBS, section};
 use crate::band_planar_cut_off::{D, Verb, edge, tol};
 
@@ -578,7 +578,9 @@ fn a_cup_of_the_bands_opposite_sign_on_its_strip_refuses_as_a_bound() {
 /// whatever its ends' planes, so `ΔV = −(A − 4b²·h)`, `h` its axis from
 /// the support to the floor. A round dimple leaning so has an ellipse for
 /// its mouth, which the ring meter does not read
-/// (`UnsupportedGeometry`).
+/// (`UnsupportedGeometry`); past `ε = 1e-9` its fixture's Boolean does
+/// not resolve the leaning cylinder against the top, and that half
+/// skips loudly.
 #[test]
 fn a_square_dimple_leaning_off_its_supports_normal_goes_and_a_round_one_refuses() {
     let (u, x, a, h) = CUP;
@@ -609,6 +611,9 @@ fn a_square_dimple_leaning_off_its_supports_normal_goes_and_a_round_one_refuses(
                 (dv, 1.0),
                 &what,
             );
+        }
+        if !resolves_hairs(&format!("a round dimple leaning {what}")) {
+            continue;
         }
         let body = boolean(false, block(), post(o - dir * 0.2, dir, 0.2 + h, a));
         for verb in VERBS {

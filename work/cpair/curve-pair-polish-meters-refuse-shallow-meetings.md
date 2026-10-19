@@ -75,3 +75,13 @@ every op `CurvedPierceUnsupported` at `θ ≤ 10³·Kε`. The cause is
 `meet(rim, rim)` → `Unsettled(Meter)` → `Unread`. Before the reader,
 main built this door at 1e-9. Filed as
 `a-ball-split-on-its-equator-and-turned-refuses-every-op-below-the-basin-floor`.
+
+## Evidence: a ruled cap-ring row at ε 1e-12 is red on main (2026-10-19)
+
+`band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval`
+fails tier 3′ at `CAD_TOLERANCE_EPS=1e-12` on `origin/main`
+(`88f431ad6`), with the same `CensusUnsupported { ContactLane(NotCertifiable
+{ what: "the meeting reading of two curved edges could not settle a count" }) }`
+on its edges; `band_turn_overrun_fillet::leaning_prisms_build_at_the_oracle_over_leans_radii_and_scales`
+fails the same way there (lean −2, scale 100, r 0.05). Found by PR 5338's
+1e-12 subset run, reproduced on a clean checkout of that main.
