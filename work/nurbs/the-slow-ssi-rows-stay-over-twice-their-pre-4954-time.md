@@ -1,7 +1,7 @@
 ---
 id: the-slow-ssi-rows-stay-over-twice-their-pre-4954-time
 kind: issue
-title: The slow SSI rows stay 2.5-2.7x their pre-4954 time after the quotient unit, against a 2x target
+title: The slow SSI rows stay over 2x their pre-4954 time (shelling 2.1x, r1 1.5x after #5391), against a 2x target
 status: open
 opened: 2026-10-14
 ---
@@ -24,7 +24,62 @@ added: the quotient fork admits a window-keyed cache only if a
 measurement asks for one, and its round 2 found window keys never
 repeat.
 
+## Re-timed after #5391 (2026-10-19)
+
+Main `36bdaf3b` against pre-4954 (`092b3022^1`, `27c7b42e`), fresh
+target directories, opt-level 1, `--test-threads 1`, three interleaved
+rounds:
+
+| row | pre-4954 | main `36bdaf3b` | ratio |
+|---|---|---|---|
+| shelling | 34.3 / 33.9 / 34.2 s | 72.6 / 72.7 / 71.1 s | **2.13×** |
+| r1 | 11.7 / 11.8 / 12.3 s | 18.5 / 17.4 / 17.5 s | **1.49×** |
+| face bound | 0.076–0.086 s | 0.41–0.61 s | about 5× |
+
+r1 is under the target, but shelling is not, and its runs do not
+overlap the 2× line (68.4 s). gdb sampling of shelling on main (66
+samples over two runs), each sample in its first bucket:
+
+| bucket | samples |
+|---|---|
+| whole-cell formation (`chart_speeds` → `fold_cells` → `cell` → `of_spans`, `cell_first_quotients`) | 15 (23%) |
+| other `enclose` (whole-cell readings, `fold_cells`) | 12 (18%) |
+| `rect_box` (#5059's point reading) | 10 (15%) |
+| the cut's restriction (`restrict_axes`, `split_restrict`) | 8 (12%) |
+| `transverse_readings` | 6 (9%) |
+| offset fit | 6 (9%) |
+| the cut's halving | 5 (8%) |
+| other | 4 (6%) |
+
+**Each wall is minted once per section, not once per shelling.**
+`topo::offset_derive::pair_section` calls `geom_brep::Section::of` (and
+`plane_section` calls `PlaneSection::of`), which mints a fresh
+`ChartedNurbs` for each wall (`ssi/pair.rs:127`, `ssi/plane.rs:198`). `ChartedNurbs::mint`
+reads `chart_speeds` over the whole domain, which forms every cell of
+the wall. Instrumented, the shelling row mints 17 times for 4 distinct
+walls (53×30 knots each), so 13 of the 17 whole-wall formations repeat
+one already done. `ChartedNurbs` is already the value its doc says "a
+cell is read once for the operand's life"; the doors just never take
+one.
+
 ## Levers, in order
+
+After #5391, in the order they would close shelling's gap (it needs
+about −6%):
+
+- **Mint each wall once per operation.** A `Section`/`PlaneSection`
+  door that takes the walls' `ChartedNurbs`, minted once by the caller
+  (`topo::offset_derive`), would drop the 13 repeated whole-wall
+  formations: most of the 23% bucket above. This is a lifetime, not a
+  window cache (the value already exists and is shared by clone); the
+  seam is topo's offset derivation and ssi's section doors.
+- **`Interval::mul_nonneg` in the thin step** (#5163, once it lands):
+  the restriction's arithmetic, 12% above; the step's weights are in
+  `[0, 1]`, so it is bit-identical by #5163's proof.
+- **#5163 itself** in the offset fit (about 9% there).
+- **`rect_box`** (15%): not yet split.
+
+Before #5391 (kept for the record):
 
 - **The restriction cut's own steps 2–4**
   (`cheapen-the-restriction-cut-steps-2-to-4`): axis-lazy restriction,

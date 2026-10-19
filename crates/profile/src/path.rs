@@ -1091,8 +1091,10 @@ pub enum PathError<T: Real> {
     /// and the two are deliberately NOT one variant.** They are the two
     /// ways a stored fillet loses its carrier, they are told apart by a
     /// fact the door has in hand (whether the stored segment reads as an
-    /// arc), and their levers run in OPPOSITE directions: a larger
-    /// radius fixes this one and makes that one worse. D4 ¶1's addendum
+    /// arc), and their levers differ: a larger radius fixes this one,
+    /// while that one's lever is the scene's magnitude, which a radius
+    /// raises only once it outgrows the geometry's distance from the
+    /// origin. D4 ¶1's addendum
     /// asks one message and one recourse per user situation, and
     /// `PathErrorKind` is the branchable discriminant a caller gets —
     /// merging them would put the only distinction into prose a caller
@@ -1112,13 +1114,18 @@ pub enum PathError<T: Real> {
     },
     /// **The fillet's stored arc IS an arc, and the scene cannot
     /// resolve its carrier.** The sagitta is metres; what fails is the
-    /// classification. A carrier clearance is a DIFFERENCE of lengths at
-    /// the scene's own magnitude — `r − |h|`, `d − |r₁ − r₂|` — and such
-    /// a difference cancels first-order, resolving only to about
-    /// `scale · 2^-52`. Past the radius (or the distance from the
-    /// origin) where that floor is coarser than ε, the joint cannot be
-    /// classified whatever the turn is, and the levers run the other way
-    /// from its sibling's: see
+    /// classification. A joint's turn is read off headings taken from
+    /// DIFFERENCES of coordinates at the scene's own magnitude — a
+    /// vertex less its arc's centre, a chord's two ends — and such a
+    /// difference cancels first-order. Each leg's heading is that
+    /// difference over the length it is taken across (an arc's radius
+    /// `ρ`, a line's length), so levered by the joint's arm — the
+    /// shorter leg's, never longer than the fillet's own `min(ρ, chord)`
+    /// — the turn resolves only to about `scale · 2⁻⁵² · arm/ρ`, at most
+    /// about `scale · 2⁻⁵²` (`resolution`). Past the distance from the
+    /// origin where that floor is coarser than ε the joint cannot be
+    /// classified whatever the turn is, and the lever is the magnitude,
+    /// not the turn: see
     /// [`FilletArcFlattenedInStorage`](Self::FilletArcFlattenedInStorage)
     /// for why the two are separate variants.
     FilletCarrierBelowSceneResolution {
@@ -1127,10 +1134,10 @@ pub enum PathError<T: Real> {
         turn: T,
         /// The requested fillet radius, meters (diagnostic).
         radius: T,
-        /// The magnitude the refusing clearance was a difference at,
-        /// meters — the carrier radii, the centre separation, the
-        /// offset from a carrier line, or the arc's own vertices where
-        /// its carrier disagrees with them.
+        /// The magnitude the refusing reading was a difference at,
+        /// meters — the joint's two legs' vertices, carrier radii and
+        /// centres, or the arc's own vertices where its carrier
+        /// disagrees with them.
         scale: T,
         /// About the finest that difference could have been read:
         /// `scale · 2^-52`, meters.
@@ -1979,10 +1986,16 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     // the door minted the joint itself, so "declare the
                     // coincidence" is advice about a declaration the caller
                     // never wrote, and the levers are the two the stored
-                    // form actually has. `carrier_circles_chord` is the
-                    // pair pass's, which the read does not run; it is
-                    // listed so that the near-tangency names render alike
-                    // here and there. Four of these names —
+                    // form actually has. The read's joint turn is
+                    // `path_fillet_joint_turn`: validation's turn
+                    // (`seg::joint_tangency`) under the stored form's own
+                    // name, so its in-band refusal names these levers
+                    // rather than the junction's `.tangent()`. The
+                    // `carrier_line_circle` and `carrier_circles_*` names
+                    // but the identity are the pair pass's, which the
+                    // read does not run; they are listed so that the
+                    // near-tangency names render alike here and there.
+                    // Four of these names —
                     // `carrier_line_circle` and every `carrier_circles_*`
                     // but the identity — also carry a note at
                     // `ProfileError::Escalated`, and the two sentences
@@ -2006,6 +2019,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                         | "segment_straightness"
                         | "arc_diameter_clearance"
                         | "chord_side"
+                        | "path_fillet_joint_turn"
                         | "carrier_line_circle"
                         | "carrier_circles_identity"
                         | "carrier_circles_external"
@@ -2191,6 +2205,17 @@ struct Incoming<T: Real> {
     ang: Dir<T>,
     arm: T,
     carrier: Option<ArcData<T>>,
+}
+
+/// A junction bound but not yet read: the arriving leg's data, the
+/// departure, and the tolerance it is read at. [`Core::set_leaving`]
+/// reads it once the departing leg is stored, so the junction is read
+/// at both legs' arms ([`junction_check`]).
+#[derive(Clone, Copy, Debug)]
+struct PendingJunction<T: Real> {
+    inc: Incoming<T>,
+    dep: Dir<T>,
+    tol: Tol,
 }
 
 /// The one-struct tip of PATHS-DESIGN §5: `pos: Option<PosData>`,
@@ -2397,6 +2422,10 @@ pub struct Core<T: Real> {
     /// each candidate's geometry, so a verb the lattice admits later
     /// names its segment correctly without this field changing.
     run_out: Option<PendingRunOut<T>>,
+    /// A junction whose departure is bound and whose departing leg is
+    /// not stored yet: its turn is read when that leg is, at the
+    /// shorter of the two legs' arms ([`junction_check`]).
+    junction: Option<PendingJunction<T>>,
     /// How this lowering treats the discrete decisions inside it:
     /// selecting freely and recording what it selected, or consuming a
     /// prior elaboration's selections and re-verifying each at this
@@ -2421,6 +2450,7 @@ impl<T: Real> Core<T> {
             pieces: Vec::new(),
             claim: None,
             run_out: None,
+            junction: None,
             guide: crate::structure::Guide::recording(),
         }
     }
@@ -2511,9 +2541,44 @@ impl<T: Real> Core<T> {
                 site: "entry of an empty chain",
             })
     }
+
+    /// The first leg's arm: the departing leg at the seam junction.
+    fn first_leg_arm(&self) -> Result<T, PathError<T>> {
+        match self.verts.as_slice() {
+            [(a, arc), (b, _), ..] => {
+                Ok(leg_arm(carrier_of(*arc), (*b - *a).norm_squared().sqrt()))
+            }
+            _ => Err(PathError::UnderdeterminedLeg {
+                site: "a seam junction on a chain with no first leg",
+            }),
+        }
+    }
 }
 
 impl<T: Decide> Core<T> {
+    /// Reads the junction at the chain's head, the departure `dep` off
+    /// the arriving leg `inc`, at the arriving leg's arm, and binds it
+    /// until the departing leg is stored ([`PendingJunction`]), where it
+    /// is read again at the shorter of the two arms: that second reading
+    /// is the junction's verdict, the one validation reads. The first
+    /// refuses at the verb that authored the direction what the second
+    /// would refuse anyway — a turn Zero or in band at the arriving arm
+    /// is Zero or in band at any shorter one.
+    fn pend_junction(
+        &mut self,
+        inc: &Incoming<T>,
+        dep: Dir<T>,
+        tol: Tol,
+    ) -> Result<(), PathError<T>> {
+        junction_check(inc, dep, inc.arm, false, tol)?;
+        self.junction = Some(PendingJunction {
+            inc: *inc,
+            dep,
+            tol,
+        });
+        Ok(())
+    }
+
     /// Sets the segment leaving the current last vertex for `to` — a
     /// line, or the arc its construction built — plus the structural
     /// first-segment kind pin, the emitting verb's `kind`. `to` is
@@ -2525,6 +2590,11 @@ impl<T: Decide> Core<T> {
         kind: FirstSeg,
         to: Point2<T>,
     ) -> Result<(), PathError<T>> {
+        if let Some(pending) = self.junction.take() {
+            let from = self.head()?;
+            let leaving_arm = leg_arm(carrier_of(arc), (to - from).norm_squared().sqrt());
+            junction_check(&pending.inc, pending.dep, leaving_arm, false, pending.tol)?;
+        }
         if self.verts.len() == 1 && self.first_seg == FirstSeg::NotYet {
             self.first_seg = kind;
         }
@@ -3059,8 +3129,13 @@ fn sweep_of<T: Real>(leg: Option<BuiltArc<T>>) -> T {
 }
 
 /// §4 item 1, one generic function: classifies the departure `dep`
-/// against the incoming tangent and its reverse on the incoming leg's
-/// lever arm. `seam` says "this junction is the loop's SEAM, so classify it as
+/// against the incoming tangent and its reverse, levered by the shorter
+/// of the arriving leg's arm and the departing leg's `leaving_arm` —
+/// the two legs lie side by side only over the shorter one, and it is
+/// the arm validation reads the same joint at ([`seg::joint_tangency`]).
+/// An interior junction is read when its departing leg is stored
+/// ([`Core::pend_junction`]); the seam's departing leg is the first,
+/// stored already. `seam` says "this junction is the loop's SEAM, so classify it as
 /// one" — nothing more. It is a plain flag rather than a site enum
 /// because there is only one special site left: a tangent DEPARTURE on
 /// a closing leg is geometrically identical to one mid-chain and now
@@ -3079,33 +3154,34 @@ fn sweep_of<T: Real>(leg: Option<BuiltArc<T>>) -> T {
 fn junction_check<T: Decide>(
     inc: &Incoming<T>,
     dep: Dir<T>,
+    leaving_arm: T,
     seam: bool,
     tol: Tol,
 ) -> Result<(), PathError<T>> {
     let band = linear_band(tol)?;
     let u_in = inc.ang.unit;
     let u_dep = dep.unit;
-    let turn = u_in.perp_dot(u_dep);
-    match decide("path_junction_turn", Margin::levered(turn, inc.arm), band) {
-        Ok(Sign::Zero) => {
-            let margin = turn * inc.arm;
+    let arm = inc.arm.min(leaving_arm);
+    match seg::junction_turn(
+        "path_junction_turn",
+        u_in,
+        u_dep,
+        arm,
+        seg::TurnSense::Signed,
+        band,
+    ) {
+        Ok((turn, margin)) if turn.sign == Sign::Zero => {
             // Which refusal class — tangent (dep ≈ incoming) or cusp
             // (dep ≈ reverse)? `path_junction_side`, in its one home
             // (validation asks it of every tangent joint between two
             // carriers too).
-            match seg::junction_reverses(u_in, u_dep, inc.arm, band) {
-                Ok(true) => Err(PathError::JunctionCusp {
-                    margin,
-                    arm: inc.arm,
-                }),
+            match seg::junction_reverses(u_in, u_dep, arm, band) {
+                Ok(true) => Err(PathError::JunctionCusp { margin, arm }),
                 Ok(false) => {
                     if seam {
                         Err(PathError::SeamTangent { margin })
                     } else {
-                        Err(PathError::JunctionTangent {
-                            margin,
-                            arm: inc.arm,
-                        })
+                        Err(PathError::JunctionTangent { margin, arm })
                     }
                 }
                 Err(source) => Err(PathError::Escalated { source }),
@@ -3141,9 +3217,17 @@ fn seam_joint<T: Decide>(
     tol: Tol,
 ) -> Result<(), PathError<T>> {
     match how {
-        SeamArrival::Undeclared => junction_check(arriving, start_ang, true, tol),
+        SeamArrival::Undeclared => {
+            junction_check(arriving, start_ang, core.first_leg_arm()?, true, tol)
+        }
         SeamArrival::Checked => {
-            seam_arrival_check(arriving.ang, arriving.arm, start_ang, tol)?;
+            seam_arrival_check(
+                arriving.ang,
+                arriving.arm,
+                core.first_leg_arm()?,
+                start_ang,
+                tol,
+            )?;
             core.construct_seam();
             Ok(())
         }
@@ -3180,15 +3264,17 @@ fn seam_joint<T: Decide>(
 ///
 /// The datum is `sin` of the turn — dimensionless — so comparing it
 /// against a LENGTH tolerance is a category error until an arm says
-/// what it displaces. It is LEVERED by the arriving leg's own arm, the
-/// same lever §4 item 1 uses for the junction at this very vertex, and
-/// the product is, TO FIRST ORDER, the lateral displacement the
-/// misalignment opens at the seam (for an arc leg the exact figure is
-/// `s·sin φ + s²/2R`; the lever takes the leading term, as §4 item 1
-/// does). That is the deviation ε_input is defined about, so the
-/// threshold is on the DISPLACEMENT and does not drift with leg length.
-/// A lever that is not definitely positive carries no question at all,
-/// and refuses.
+/// what it displaces. It is read as every junction's turn is
+/// ([`seg::junction_turn`], under the seam's own name), LEVERED by the
+/// shorter of the arriving leg's arm and the first leg's — the lever
+/// §4 item 1 and validation use at this very vertex — and the product
+/// is, TO FIRST ORDER, the lateral displacement the misalignment opens
+/// over the stretch where the two legs lie side by side (for an arc
+/// leg the exact figure is `s·sin φ + s²/2R`; the lever takes the
+/// leading term). That is the deviation ε_input is defined about. The
+/// first leg's extent is the one thing read of the following side; its
+/// carrier is not. An arriving lever that is not definitely positive
+/// carries no question at all, and refuses.
 ///
 /// The reverse class is not this refusal's: an arrival anti-parallel to
 /// the entry's outgoing direction has a near-zero turn too, and it is a
@@ -3196,22 +3282,31 @@ fn seam_joint<T: Decide>(
 /// other junction. One fact, one refusal.
 fn seam_arrival_check<T: Decide>(
     arriving: Dir<T>,
-    arm: T,
+    arriving_arm: T,
+    leaving_arm: T,
     start_ang: Dir<T>,
     tol: Tol,
 ) -> Result<(), PathError<T>> {
     let band = linear_band(tol)?;
     // (i) The lever.
-    match decide("path_seam_arrival_lever", Margin::of(arm), band) {
+    match decide("path_seam_arrival_lever", Margin::of(arriving_arm), band) {
         Ok(Sign::Positive) => {}
-        Ok(_) => return Err(PathError::SeamArrivalLeverTooShort { arm }),
+        Ok(_) => return Err(PathError::SeamArrivalLeverTooShort { arm: arriving_arm }),
         Err(source) => return Err(PathError::Escalated { source }),
     }
-    // (ii) The direction the declaration asserts.
-    let turn = arriving.unit.perp_dot(start_ang.unit);
-    let margin = turn * arm;
-    match decide("path_seam_arrival_turn", Margin::levered(turn, arm), band) {
-        Ok(Sign::Zero) => {
+    // (ii) The direction the declaration asserts, read as every
+    // junction's turn is ([`seg::junction_turn`]) under the seam's own
+    // name.
+    let arm = arriving_arm.min(leaving_arm);
+    match seg::junction_turn(
+        "path_seam_arrival_turn",
+        arriving.unit,
+        start_ang.unit,
+        arm,
+        seg::TurnSense::Signed,
+        band,
+    ) {
+        Ok((turn, margin)) if turn.sign == Sign::Zero => {
             let side = decide(
                 "path_seam_arrival_side",
                 Margin::levered(arriving.unit.dot(start_ang.unit), arm),
@@ -3223,7 +3318,7 @@ fn seam_arrival_check<T: Decide>(
                 Err(source) => Err(PathError::Escalated { source }),
             }
         }
-        Ok(_) => Err(PathError::SeamArrivalOffDirection { margin, arm }),
+        Ok((_, margin)) => Err(PathError::SeamArrivalOffDirection { margin, arm }),
         Err(source) => Err(PathError::Escalated { source }),
     }
 }
@@ -3487,8 +3582,8 @@ impl<T: Decide> Core<T> {
     /// the stored fillet segment came back an ARC. If it did not, the
     /// carrier is absent and the loss is flattening
     /// ([`PathError::FilletArcFlattenedInStorage`]); if it did, the
-    /// carrier is there and the clearance is what could not be read, so
-    /// the loss is the scene's resolution
+    /// carrier is there and the joint's turn is what could not be read,
+    /// so the loss is the scene's resolution
     /// ([`PathError::FilletCarrierBelowSceneResolution`]). Their levers
     /// run in opposite directions, which is why they are two variants.
     ///
@@ -3602,7 +3697,7 @@ impl<T: Decide> Core<T> {
                 } else {
                     (&arc, &other)
                 };
-                let reading = seg::joint_tangency(prev, next, band)
+                let reading = seg::joint_tangency(prev, next, "path_fillet_joint_turn", band)
                     .map_err(|source| PathError::Escalated { source })?;
                 match reading.class {
                     // A constructed joint whose carriers are tangent is
@@ -3620,7 +3715,7 @@ impl<T: Decide> Core<T> {
                             // interval's midpoint), so this is the resolution floor at any
                             // `T`; an interval's own enclosure width is `margin`, printed
                             // beside it, not folded into this number.
-                            resolution: reading.scale * T::from_f64(f64::EPSILON),
+                            resolution: reading.resolution,
                             predicate: reading.predicate,
                             margin: reading.margin,
                         });
@@ -4386,7 +4481,7 @@ impl<T: Decide, P: PosMarker> PartialPath<T, P, NoAng> {
     ) -> Result<PartialPath<T, P, HasAng>, PathError<T>> {
         if let Some(pos) = &self.tip.pos {
             if let Some(inc) = &pos.incoming {
-                junction_check(inc, dir, false, tol)?;
+                self.core.pend_junction(inc, dir, tol)?;
             }
             let at = pos.at;
             if self.core.pending.is_some() {
@@ -4449,7 +4544,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             },
         )?;
         let theta = turned(inc.ang.unit, delta);
-        junction_check(&inc, theta, false, tol)?;
+        self.core.pend_junction(&inc, theta, tol)?;
         self.tip.ang = Some(theta);
         self.tip.ang_by_tangent = false;
         Ok(in_state(self.core, self.tip))
@@ -4886,8 +4981,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
             self.core
                 .resolve_fillet(at, gamma, ArrivalKind::Continues, tol)?;
         } else {
-            if let Some(inc) = &self.tip_pos()?.incoming {
-                junction_check(inc, gamma, false, tol)?;
+            if let Some(inc) = self.tip_pos()?.incoming {
+                self.core.pend_junction(&inc, gamma, tol)?;
             }
             if self.core.start_ang.is_none() {
                 self.core.start_ang = Some(gamma);
@@ -4916,8 +5011,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         if self.core.pending.is_some() {
             self.core
                 .resolve_fillet(at, gamma, ArrivalKind::Continues, tol)?;
-        } else if let Some(inc) = &self.tip_pos()?.incoming {
-            junction_check(inc, gamma, false, tol)?;
+        } else if let Some(inc) = self.tip_pos()?.incoming {
+            self.core.pend_junction(&inc, gamma, tol)?;
         }
         let start_ang = *self.core.start_ang.get_or_insert(gamma);
         let head = self.core.head()?;
@@ -5059,8 +5154,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let pos = self.tip_pos()?;
         let at = pos.at;
         let (start_t, end_t, chord) = Self::arc_angles(at, p, leg);
-        if let Some(inc) = &pos.incoming {
-            junction_check(inc, start_t, false, tol)?;
+        if let Some(inc) = pos.incoming {
+            self.core.pend_junction(&inc, start_t, tol)?;
         }
         if self.core.start_ang.is_none() {
             self.core.start_ang = Some(start_t);
@@ -5094,8 +5189,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let pos = self.tip_pos()?;
         let at = pos.at;
         let (start_t, end_t, chord) = Self::arc_angles(at, start_pos, leg);
-        if let Some(inc) = &pos.incoming {
-            junction_check(inc, start_t, false, tol)?;
+        if let Some(inc) = pos.incoming {
+            self.core.pend_junction(&inc, start_t, tol)?;
         }
         let start_ang = *self.core.start_ang.get_or_insert(start_t);
         let carrier = carrier_of(leg);
@@ -6202,7 +6297,7 @@ mod fillet_stored_form {
     /// the funnel stopped at and the margin it classified — all three
     /// from [`seg::joint_tangency`], none of them re-derived here.
     fn reading(prev: &Seg<f64>, next: &Seg<f64>, band: Band) -> (String, f64) {
-        match seg::joint_tangency(prev, next, band) {
+        match seg::joint_tangency(prev, next, "path_fillet_joint_turn", band) {
             Ok(j) => (
                 format!(
                     "{} ({} {:e})",
@@ -6438,8 +6533,8 @@ mod fillet_stored_form {
     /// **The door computes the tangency exactly; the stored form is what
     /// loses it.** At every turn the door builds, the carrier the door
     /// computed — radius `r`, centred `r` off the arrival carrier at the
-    /// arc's end — is tangent to both legs to within a few ulps of `r`,
-    /// whatever the stored segment reads back as. The table
+    /// arc's end — turns from both legs by a few ulps, levered by the
+    /// joint's arm, whatever the stored segment reads back as. The table
     /// this prints (`--nocapture`) is the per-decade measurement: the
     /// stored kind, the two carrier errors, the margins both sides
     /// decide on, and both verdicts.
@@ -6449,11 +6544,12 @@ mod fillet_stored_form {
         // What the sweep MEASURES, with stated headroom rather than a
         // round number well above it: the largest door-carrier margin
         // anywhere in these three tables at any of the three epsilon
-        // rows is 6.7e-16, and this pins 3.6e-15 — eight ulps of the
-        // corners' own metre-scale coordinates, five times the measured
-        // worst case. A pin an order of magnitude looser would pass a
-        // door whose carrier had stopped being exact.
-        let ulps = 16.0 * f64::EPSILON;
+        // rows is 8.9e-15, a heading rounded by an ulp or two and
+        // levered by the corners' 4 m legs, and this pins 4.4e-14 —
+        // five times the measured worst case. A pin an order of
+        // magnitude looser would pass a door whose carrier had stopped
+        // being exact.
+        let ulps = 200.0 * f64::EPSILON;
         for corner in corners() {
             println!(
                 "\n### {}   eps = {:e}  K = {}  band = ({:e}, {:e})  r = {R}",

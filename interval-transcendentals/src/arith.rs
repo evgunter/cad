@@ -88,6 +88,69 @@ impl DInterval {
     }
 }
 
+impl DInterval {
+    /// **`self · w`, bit for bit the general product, reading two
+    /// corners where `w.lo >= 0`.** Total: every other operand — a `w`
+    /// with a negative lower end, a point `w` (whose general product
+    /// already folds two corners), a poisoned or empty operand — IS the
+    /// general product.
+    ///
+    /// With `w` non-negative, the extreme EXACT corners are fixed by the
+    /// signs of `self`'s endpoints: the least is `self.lo · w.lo` when
+    /// `self.lo >= 0` and `self.lo · w.hi` otherwise, the greatest
+    /// `self.hi · w.hi` when `self.hi >= 0` and `self.hi · w.lo`
+    /// otherwise. The four-corner fold takes the least of the PADDED
+    /// corners ([`mul_lo`]); that is the selected corner's own bound
+    /// `v`, because no other corner's bound reads below it (mirror for
+    /// `hi`):
+    ///
+    /// - **`v` padded** (`down1` of the rounded selected product): every
+    ///   other corner's exact value is at or above the selected one, so
+    ///   rounds at or above that rounded value, and pads to at or above
+    ///   `v`.
+    /// - **`v` exact and nonzero**: [`mul_lo`] certifies only a finite
+    ///   product at `|v| >= TWO_PROD_VALID_MIN`, so `v` is normal. A
+    ///   neighbouring corner replaces one factor, say `y`, by the other
+    ///   endpoint `y'`, at least one float away on the side that moves the
+    ///   product off `v`, so it lies at least `|x|·s(y)` from `v`, `s(z)`
+    ///   being the float spacing next to `z` on that side. For normal `z`, `s(z) >= 2⁻⁵³·|z|`, equal only
+    ///   when `z` is a power of two and the step is toward zero, and
+    ///   `s(z) <= 2⁻⁵²·|z|`, equal only when `z` is a power of two and
+    ///   the step is away from zero (a subnormal `y` has
+    ///   `s(y) = 2⁻¹⁰⁷⁴ > 2⁻⁵³·|y|`). So `|x|·s(y) >= 2⁻⁵³·|x·y| >=
+    ///   s(v)/2`, and the two equalities need the step toward zero at
+    ///   `y` and away from zero at `v`, while one step moves both the
+    ///   same way: the gap is STRICTLY more than half the spacing at
+    ///   `v`. The neighbour rounds to a float past `v` and pads at most
+    ///   back to `v`, and the far corner, beyond a neighbour, rounds no
+    ///   nearer. So this case needs no guard.
+    /// - **`v` an exact zero** (a zero factor): a neighbour can underflow
+    ///   to zero and pad one step past it, so the general product
+    ///   decides. This is the case the primitive's first draft got
+    ///   wrong (`[-∞, -1/3] · [-0, 5e-324]`: the fold's `hi` is
+    ///   `5e-324`, a bare selection's `0`).
+    #[must_use]
+    pub fn mul_nonneg(self, w: Self) -> Self {
+        if Self::propagate2(&self, &w).is_some() || w.lo < 0.0 || w.lo == w.hi {
+            return self * w;
+        }
+        let (a, b) = if self.lo >= 0.0 {
+            (self.lo, w.lo)
+        } else {
+            (self.lo, w.hi)
+        };
+        let (c, e) = if self.hi >= 0.0 {
+            (self.hi, w.hi)
+        } else {
+            (self.hi, w.lo)
+        };
+        if a == 0.0 || b == 0.0 || c == 0.0 || e == 0.0 {
+            return self * w;
+        }
+        Self::make(mul_lo(a, b), mul_hi(c, e), self.dec.min(w.dec))
+    }
+}
+
 /// `k > 0` with an all-zero significand at a normal exponent.
 fn is_normal_pow2(k: f64) -> bool {
     const SIGNIFICAND: u64 = (1 << 52) - 1;
@@ -492,6 +555,38 @@ mod tests {
                 y.lo,
                 y.hi
             );
+        }
+    }
+
+    /// **A product by a non-negative multiplier is the general
+    /// product.** Every interval over [`intervals`] times every one of
+    /// them with a non-negative lower end, [`DInterval::mul_nonneg`]
+    /// against `x * w`, bounds and decoration, across signed zeros, the
+    /// subnormal range, the 2Prod floor, the extremes and the
+    /// infinities. Then the operands the shortcut must hand back: a
+    /// multiplier with a negative lower end (selected on `w`'s sign
+    /// alone, `[-0.1, 0.3]·[-0.7, 0.3]` would read `lo = -0.1·0.3`, not
+    /// the true `0.3·-0.7`), and an empty or NaI operand.
+    #[test]
+    fn a_nonnegative_multiplier_is_the_general_product() {
+        let all = intervals();
+        let mut n = 0;
+        for &x in &all {
+            for &w in all.iter().filter(|w| w.lo >= 0.0) {
+                assert_eq!(bits(x.mul_nonneg(w)), bits(x * w), "{x:?} * {w:?}");
+                n += 1;
+            }
+        }
+        assert!(n > 10_000, "the table reaches the shortcut: {n} products");
+        let (x, w) = (
+            DInterval::from_bounds(-0.1, 0.3),
+            DInterval::from_bounds(-0.7, 0.3),
+        );
+        assert_eq!(bits(x.mul_nonneg(w)), bits(x * w), "a negative multiplier");
+        let w = DInterval::from_bounds(0.5, 2.0);
+        for odd in [DInterval::empty(), DInterval::nai()] {
+            assert_eq!(bits(odd.mul_nonneg(w)), bits(odd * w), "{odd:?} * {w:?}");
+            assert_eq!(bits(w.mul_nonneg(odd)), bits(w * odd), "{w:?} * {odd:?}");
         }
     }
 }

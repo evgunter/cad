@@ -120,8 +120,9 @@ pub enum NamingError {
         /// What was inconsistent.
         what: &'static str,
     },
-    /// An edge's split lineage cycles, caught where an emitter chased
-    /// it to its root — the same category of kernel bug as
+    /// An edge's split lineage cycles, as `topo::Body::split_root`
+    /// refuses it where an emitter chases through it (the emitters' own
+    /// walks over the copies panic instead, `names::chase`) — the same category of kernel bug as
     /// [`Self::Emission`], carrying the one thing the repair needs
     /// that a sentence cannot supply: WHICH edge.
     ///
