@@ -133,7 +133,7 @@ use geom::Curve3;
 use geom_core::spline::SpanLocate;
 use geom_core::{Indeterminate, KERNEL_OR_FILE_DEFECT_ENDING, Point3, Real, SizedPass, Vec3};
 
-use crate::recourse::{Reading, RefusedArm, SizedDecision, StoredDefinite, Unsized};
+use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, Unsized};
 
 pub use curved::{
     MaterialSign, boundary_material_sign, boundary_material_sign_loops, cone_face_closed_form,
@@ -589,7 +589,7 @@ pub const FACE_EXTENT: SizedDecision = SizedDecision {
     size: "width",
     passes: SizedPass::Positive,
     // The stored description a lever edits IS the face's own extent.
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
