@@ -1242,3 +1242,9 @@ Signed (CLEAVE orchestrator).
     - stronger tests; leftovers.
   - Ruling on typing: a definite overlap is a construction gap under D4 [loud-failure], not D10's `ResultInvalid`; cite both, change no ratified text.
   - Fix pass sent.
+- 2026-10-19 — PR 5350 fix pass green (`ef8bcaef56`).
+  - Curved slit trees refuse `CurvedSlitTrace` (not yet).
+  - `nest_slit` places by `point_in_loop` on the loops' carriers, with `SlitHoming` when undecided; the tilted-cylinder pin builds at its closed form.
+  - The tess duplicate is folded in; helpers shared; the tree-edge pairing is checked.
+  - Filed P2 `the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime` and P3 `the-split-reads-a-slit-twice-…`.
+  - Narrow re-review dispatched.
