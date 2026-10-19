@@ -921,8 +921,8 @@ impl<T: Decide> Sweep<T> {
     /// sections; each circle/ellipse section edge then adds its exact
     /// closed-form segment excess
     /// `[(c − O)×(B − A)]·n̂ + s_a·s_b·(axis·n̂)·Δt − [(A − O)×(B − O)]·n̂`
-    /// (the eccentric-anomaly parameterization's constant areal rate —
-    /// the same fact as `loop_vector_area`'s ellipse arm), and its
+    /// (the eccentric-anomaly parameterization's constant areal rate,
+    /// the fact `geom_brep::props::arc_segment_term` reads), and its
     /// perimeter contribution is raised from the chord to the
     /// conservative arc-length bound `s_a·|Δt|` (a larger perimeter
     /// only shrinks the mean-width margin — refuses more, never less).
