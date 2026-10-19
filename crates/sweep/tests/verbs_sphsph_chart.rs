@@ -582,8 +582,8 @@ fn a_meridian_edge_through_a_pole_is_read_at_the_face_door() {
     // The SAME circle, traversed the other way: its seam still sits at
     // the pole, so the long arc pole -> far pole -> rim is the forward
     // one. (The attach door certifies a forward, sub-period span:
-    // measured, a decreasing span refuses `IntervalNotForward` and a
-    // span past a full turn refuses `WindingExceeded`, so the reversal
+    // measured, a decreasing span and a span past a full turn each
+    // refuse as the caller's `StatedInterval`, so the reversal
     // is not a convenience — it is the only spelling the door takes.)
     let long = geom::Curve3::Circle {
         center,

@@ -2913,6 +2913,12 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::IntervalNotForward {
             verdict: Refused::Zero(_),
         } => "its length is within the tolerance of zero",
+        CertifyError::StatedInterval {
+            refused: geom_brep::StatedSpan::Forward(_),
+        } => "its parameter interval does not run forward",
+        CertifyError::StatedInterval {
+            refused: geom_brep::StatedSpan::Winding(_),
+        } => "its arc spans more than one full turn",
         CertifyError::NotTransverse { .. } | CertifyError::PlaneNurbs(P::NotTransverse { .. }) => {
             "its faces are tangent where its description says they cross"
         }
@@ -2992,6 +2998,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::ResidualExceeded { .. }
             | CertifyError::IntervalNotForward { .. }
             | CertifyError::WindingExceeded
+            | CertifyError::StatedInterval { .. }
             | CertifyError::NotTransverse { .. }
             | CertifyError::ArmCollapsed { .. }
             | CertifyError::SpanMeterCollapsed { .. }
@@ -3025,6 +3032,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
 fn certify_undecided(check: CertCheck) -> &'static str {
     match check {
         CertCheck::ParamSpan => "its length is too close to zero to decide at this tolerance",
+        CertCheck::ImageSpan => {
+            "its image's length on its wall's chart is too close to zero to decide at this \
+             tolerance"
+        }
         CertCheck::ParamSpanMeter => {
             geom_core::undecided!("whether its spline has a measurable length")
         }
@@ -6900,7 +6911,7 @@ pub(crate) fn tier3_local_checks_marked<
         // claim about an edge whose certificate needs that lane.
         //
         // **Read that at its true width, because it is wider than the
-        // class it is about.** `recertify_via` is ONE call and check 2
+        // class it is about.** `recertify_via_stated` is ONE call and check 2
         // is a whole-edge check: without the lane the description
         // resolver refuses `NurbsLaneNotSupplied` BEFORE the endpoint,
         // interval and chart-image checks run, so what a lane-free

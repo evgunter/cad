@@ -1027,7 +1027,7 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
 /// **The carrier-datum read over the datums no mint lets through**:
 /// certification refuses a carrier whose datum is not a number, or
 /// whose radius or semi-minor axis is not positive, before it reaches
-/// an arena (the carried row's measurement: `IntervalNotForward` or an
+/// an arena (the carried row's measurement: `StatedInterval` or an
 /// escalated endpoint or span predicate), so no body can carry one to
 /// check 1. The read is asked of the carrier directly, so that it names
 /// each such datum the day a door stops refusing it — and so that the
@@ -1401,6 +1401,56 @@ fn wrong_cache_at_rest_is_rejected_by_tier3() {
             ValidationError::EdgeCertification { edge, .. } if *edge == split.edge
         )),
         "{errs:?}"
+    );
+}
+
+/// **A stored arc past a full turn is typed at rest and a kernel bug
+/// where the kernel re-mints it** (`[failure]`): an arc minted at a band
+/// coarser than the run's, whose headroom to a full turn that band read
+/// as zero, planted in a body's arena (a state no door produces). The
+/// tier-3 validator reports it as a defect at rest; a rigid motion's
+/// re-mint of it, at the run's one band, panics as a kernel bug at its
+/// call site, rather than returning a refusal that names the caller's
+/// input.
+#[test]
+fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
+    let tol = Tol::witness();
+    let (mut body, split) = coplanar_pillow(tol);
+    let past = 10.0 * tol.k() * tol.eps();
+    let circle = geom::Curve3::Circle {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let t1 = core::f64::consts::TAU + past;
+    let spec = EdgeCurveSpec::arc_of_circle(circle, 0.0, t1).unwrap();
+    let (start, end) = (spec.carrier.eval(0.0), spec.carrier.eval(t1));
+    let coarse = geom_core::Band::new(2.0 * past, 20.0 * past).unwrap();
+    let planted = geom_brep::EdgeCurve::certify(spec, start, end, |_| None, 1.0, coarse)
+        .expect("a headroom the coarse band reads as zero passes");
+    let curve_key = body.get_edge(split.edge).unwrap().curve;
+    *body.curves.get_mut(curve_key).unwrap() = crate::null::CurveGeom::Certified(planted);
+
+    let errs = validate_geometric(&body, tol).unwrap_err();
+    assert!(
+        errs.iter().any(|e| matches!(
+            e,
+            ValidationError::EdgeCertification {
+                edge,
+                error: geom_brep::CertifyError::StatedInterval { .. },
+            } if *edge == split.edge
+        )),
+        "at rest, typed: {errs:?}"
+    );
+
+    let message = test_utils::panic_capture::caught(|| {
+        let _ = crate::transform_rigid(&body, &geom_core::RigidMotion::identity(), tol);
+    })
+    .expect("the re-mint panics");
+    assert!(
+        message.contains("transform_rigid") && message.contains("a kernel bug"),
+        "{message}"
     );
 }
 

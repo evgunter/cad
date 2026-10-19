@@ -2050,10 +2050,12 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
             "Certify",
             E::Certify {
                 edge: topo::EdgeKey::default(),
-                source: geom_brep::CertifyError::IntervalNotForward {
-                    verdict: geom_brep::recourse::Refused::Negative {
-                        margin: geom_core::MarginDiag::value(-1.0),
-                    },
+                source: geom_brep::CertifyError::StatedInterval {
+                    refused: geom_brep::StatedSpan::Forward(geom_brep::ForwardReading::Decided(
+                        geom_brep::recourse::Refused::Negative {
+                            margin: geom_core::MarginDiag::value(-1.0),
+                        },
+                    )),
                 },
             },
         ),
