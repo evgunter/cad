@@ -2,10 +2,11 @@
 id: cylinder-axis-inside-reads-the-surface-radius-not-the-rims
 kind: issue
 title: The cylinder decides props_chart_axis_inside at its surface radius, escalating a legal face whose rims the axis class admits
-status: open
+status: review
 opened: 2026-10-19
 priority: P3
 cost: E
+branch: flux/e-bundle-lane-honesty
 ---
 
 Found by the FLUX cone-closure unit (`flux/cone-closure-and-per-term-whole`,
@@ -47,3 +48,19 @@ The repair: the cylinder reads each rim's own radius (or, once it does,
 drops the call if the axis class then subsumes it, as the torus's is),
 with a row on the first two probe lines that measures their closed form
 `2π·r_c·h`. Not fixed in PR 5333.
+
+## Resolution (FLUX, `flux/e-bundle-lane-honesty`)
+
+`cylinder_windings` decides `props_chart_axis_inside` once, at the
+face's least rim radius (it passing, every rim's does), and not at all
+on a face that carries no circle. Kept rather than dropped: it is the
+premise `about_axis` is read under, and the torus states its own the
+same way, though the axis class subsumes both on every admitted face.
+A face with rims keeps its one verdict, Positive, at the same place in
+the walk, so no digest moves.
+
+Row: `periodic_chart_closure::a_cylinder_under_k_eps_with_admitted_rims_measures`
+(red on main at 1e-6, 1e-9 and 1e-12): `(R, r_c) = (9.6ε, 10.4ε)` and
+`(9.95ε, 10.5ε)` measure `2π·R` at both scalars; a rim at `5ε`
+escalates at `props_circle_axis_class`, and one at `0.5ε` is no rim.
+

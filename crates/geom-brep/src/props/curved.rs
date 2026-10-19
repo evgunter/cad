@@ -1339,7 +1339,21 @@ fn cylinder_windings<T: Decide>(
     spans: &[(usize, T)],
     band: Band,
 ) -> Result<Vec<[i64; 1]>, PropsError> {
-    closure::require_axis_inside(radius, band)?;
+    // The axis inside each rim carried to it, read at the rim's own
+    // radius (the least of them decides for all): the surface's may be
+    // up to `ε` less, and a cylinder narrower than `Kε` whose rims the
+    // axis class admits holds no such premise in doubt.
+    let least_rim = loops
+        .iter()
+        .flat_map(|l| l.iter())
+        .filter_map(|e| match e.carrier {
+            Curve3::Circle { radius: r, .. } => Some(r),
+            _ => None,
+        })
+        .reduce(T::min);
+    if let Some(r) = least_rim {
+        closure::require_axis_inside(r, band)?;
+    }
     let chart_loops: Vec<ChartLoop<T, 1>> = loops
         .iter()
         .enumerate()
