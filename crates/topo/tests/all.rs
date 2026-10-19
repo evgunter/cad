@@ -394,6 +394,8 @@ mod a_vertex_read_again_classes_every_edge;
 mod r1_fin_winding_probe;
 #[path = "r1_shell_role_probes.rs"]
 mod r1_shell_role_probes;
+#[path = "r1_needle_bar.rs"]
+mod r1_needle_bar;
 #[path = "a_vertex_read_by_two_sector_passes.rs"]
 mod a_vertex_read_by_two_sector_passes;
 #[path = "a_whole_spiric_oval_bounds_its_mirror_torus.rs"]
