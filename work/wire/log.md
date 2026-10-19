@@ -6597,3 +6597,10 @@ Signed (WIRE orchestrator).
   - Six editor families are welded to f6 rosters. Swept: ParamBox SymbolsOverABox.
   - Filed: kernel concision lists; the product carry messages.
   - STYLE review dispatched; it presses the dedup removal as a behaviour change.
+
+- 2026-10-19 (WIRE orchestrator) PR 5406 (wire-breaks) is green at c9fe0c1b5e.
+  - Part 2 is done: `OpInput`; `ProfileRecordMissing.loop_` narrowed to `u32`; silent defaults removed.
+  - Part 1 came back as a question, which is right: D9 row 4 (Ev engaged via PR 4006) against an agent-written `KERNEL_DEFECT_ENDING` typed-defect family, about 44 files.
+  - Filed a-kernel-defect-is-a-panic-or-a-typed-refusal-and-nothing-says-which (P2 M, design).
+  - Drew FORK-DEFECT on the analysis branch, unread; the designer pair is dispatched.
+  - FULL review of 5406 dispatched. 5406 closes only Part 2 and the defaults, and Part 1 moves to the new row.

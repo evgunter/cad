@@ -2,7 +2,7 @@
 id: eval-handles-internal-breaks-three-ways-and-run-op-carries-node-facts-as-loose-options
 kind: issue
 title: eval/: an internal break is handled three ways a few lines apart, and run_op carries node-kind facts as loose Options beside &Node
-status: dispatched
+status: review
 opened: 2026-10-17
 priority: P3
 cost: M
