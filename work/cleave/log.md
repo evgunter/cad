@@ -1274,3 +1274,8 @@ Signed (CLEAVE orchestrator).
   - `LineEdges` is restored for collinearity; `partners_along` refusals pinned per ε.
   - Reader reads once per edge/pair, sheets at the shared span; minted-edge lever checked as the input's.
   - Narrow re-review dispatched; it is also confirming the three reds on main.
+- 2026-10-19 — PR 5380 (`5cdfb57b11`): slow set green; gate red only on the three 1e-12 main reds (each filed).
+  - All 8 slow-set families were main building the rider form (class a). None is over-refusal.
+  - Tangent, Curved and DividedEndTouched now refuse before parting; new `SlitTipUnread` for a 0° tip between two line edges.
+  - My call: accept that 150 void-ray cells now refuse `SlitTipUnread` (typed, no lever). They built on main only from a rider-form operand. Filed P2 `a-boolean-reading-a-slit-tip-refuses-its-zero-corner`.
+  - Full review dispatched.

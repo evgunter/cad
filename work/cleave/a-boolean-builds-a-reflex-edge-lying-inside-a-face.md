@@ -2,7 +2,7 @@
 id: a-boolean-builds-a-reflex-edge-lying-inside-a-face
 kind: issue
 title: The boolean builds a reflex edge lying inside a face, and returns one solid for a wall-to-wall trench
-status: dispatched
+status: review
 opened: 2026-10-12
 priority: P1
 cost: M
