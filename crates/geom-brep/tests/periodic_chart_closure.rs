@@ -1518,3 +1518,60 @@ fn a_metre_spindle_torus_near_its_axis_measures_its_closed_form() {
     rows::<f64>("f64");
     rows::<geom_core::Interval>("the interval scalar");
 }
+
+/// **A cylinder narrower than `Kε` whose rims the axis class admits
+/// measures**: the band between two whole rims of radius `r_c` at
+/// heights 0 and 1 on the cylinder of radius `R`, `(R, r_c) ∈ {(9.6ε,
+/// 10.4ε), (9.95ε, 10.5ε)}`, at `f64` and at the interval scalar. Each
+/// rim is within `ε` of the surface and its radius is past `Kε`, so the
+/// axis passes inside it and its stored turn is carried to the axis
+/// clear of the branch cut: the premise is the rim's, read at the rim's
+/// radius, not the surface's. The face's area is the cylinder's,
+/// `2π·R`. A rim nearer the axis is still refused, typed, by the axis
+/// class (`props_circle_axis_class`): escalated in its band at `5ε`,
+/// and within `ε` no rim ([`PropsError::NotIsoRectangle`]).
+#[test]
+fn a_cylinder_under_k_eps_with_admitted_rims_measures() {
+    fn band_of<T: geom_core::Decide + geom_core::CertifiedEnclosure>(
+        radius: f64,
+        rim: f64,
+    ) -> Result<f64, PropsError> {
+        let (lower, upper) = (
+            vec![off_arc::<T>(rim, [0.0, 0.0], 0.0, 0.0, (0.0, TAU))],
+            vec![off_arc::<T>(rim, [0.0, 0.0], 0.0, 1.0, (TAU, 0.0))],
+        );
+        curved_face_loops(&cylinder_of::<T>(radius), &[&lower, &upper], true, band()).map(|fc| {
+            let (lo, hi) = fc.area.certified_bracket().expect("a certified area");
+            0.5 * (lo + hi)
+        })
+    }
+    fn rows<T: geom_core::Decide + geom_core::CertifiedEnclosure>(scalar: &str) {
+        let e = eps();
+        for (r, rc) in [(9.6, 10.4), (9.95, 10.5)] {
+            let got = band_of::<T>(r * e, rc * e)
+                .unwrap_or_else(|err| panic!("R = {r}ε, r_c = {rc}ε at {scalar}: {err:?}"));
+            let want = TAU * r * e;
+            assert!(
+                (got - want).abs() <= 1e-9 * want,
+                "R = {r}ε, r_c = {rc}ε: {got:e} vs {want:e} at {scalar}"
+            );
+        }
+        assert!(
+            matches!(
+                band_of::<T>(5.0 * e, 5.0 * e),
+                Err(PropsError::Escalated { ref cause, .. })
+                    if cause.predicate == Some("props_circle_axis_class")
+            ),
+            "a rim in the axis class's band at {scalar}"
+        );
+        assert_eq!(
+            band_of::<T>(0.5 * e, 0.5 * e),
+            Err(PropsError::NotIsoRectangle {
+                what: "cylinder boundary circle is not a rim"
+            }),
+            "a rim within ε of the axis at {scalar}"
+        );
+    }
+    rows::<f64>("f64");
+    rows::<geom_core::Interval>("the interval scalar");
+}

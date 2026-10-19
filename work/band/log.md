@@ -1197,3 +1197,16 @@ drops to P3 (no door reaches it while every chain is straight). Being
 finished before the hand-back: step 3b (strip-mouth cups), the two
 `arms.rs` centre placements, and the Interval oblique cut-off. Step 4
 (whole shells and the seal) and the P3 tail stay on the slate.
+
+## 2026-10-19 — the track handed back (`ready`, P2)
+
+Ev (in chat): finish what matters, then hand the tail back. Finished
+before the hand-back: step 3's strip half (PR 5338, a dimple or boss on
+a support's strip; its dual review found a wrong body at acute
+dihedrals, fixed by giving the ν-stray only inside the fillet ball's
+centre half-space, and the merged cap half was probed at 30°–135° and
+is unaffected), the two `arms.rs` centre placements (PR 5348), and the
+Interval oblique cut-off (PR 5346). The program is `ready` at P2: step 4
+(whole shells and the seal, H), the anti-seam Interval refusal, three
+error-propagation rows, and the P3 tail. The 1e-12 needle main red
+filed here is closed as a duplicate of CPAIR's bisected item.

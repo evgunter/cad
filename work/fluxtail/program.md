@@ -10,7 +10,6 @@ tag: (FLUXTAIL orchestrator)
 ab_band: 12200-12299
 paths: [crates/geom-brep/src/props/*]
 keep_out: [opened 2026-10-10 by FLUX's priority-seam cut (FLUX measured 125.5 budget points against 30 - work/README.md Track size) - the rows moved by git mv with ids and bodies unchanged and FLUX kept the curved closed-form arms. Shared ground is expected (Ev in chat 2026-09-20) - crates/geom-brep/src/props/* is shared with FLUX FLUXTAIL and QUAD, crates/geom-core/src/* with FLUX's siblings KNOT SCALAR and with FRAME NURBS SYM ENCL - run scripts/work.py territory on your branch and announce the seam in the PR]
-priority: P3
 ---
 
 **Sound closed forms whose readings are not.** FLUX's curved arms
