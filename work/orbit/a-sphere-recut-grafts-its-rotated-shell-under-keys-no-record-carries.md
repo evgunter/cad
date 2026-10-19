@@ -45,7 +45,7 @@ entity a grafted key is.
 ## Evidence (2026-10-14, EMIT `emit/ball-brick`)
 
 The unit ball cut by a tilted brick re-charts a one-shell operand
-(`work/emit/a-whole-ball-cut-by-a-tilted-brick-refuses-an-unclassified-member-edge-side.md`).
+(`work/borders/a-whole-ball-cut-by-a-tilted-brick-refuses-an-unclassified-member-edge-side.md`).
 It keeps no other shell, so the turned shell is the rebuild and no
 graft is made, and that document does not reach this row. Its
 refusal comes from the re-chart moving a pole and its meridians under

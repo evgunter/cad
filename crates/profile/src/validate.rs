@@ -194,8 +194,9 @@ pub const ARC_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the ori
 /// declare the tangency, or spell the continuation, or move the
 /// geometry.
 pub(crate) const JUNCTION_TANGENT_LEVER: &str = "for tangency onto a new carrier use .tangent() \
-     (or the tangent-arc or seam-fillet close at the seam); for a straight continuation spell it \
-     line(len) off the directed point; otherwise move the geometry";
+     (.tangent().tangent_arc_to(p) for an arc; the tangent-arc or seam-fillet close at the \
+     seam); for a straight continuation spell it line(len) off the directed point; otherwise \
+     move the geometry";
 
 use crate::path::num;
 use crate::seg::{
@@ -2029,8 +2030,8 @@ const N_RAYS: usize = 16;
 /// as an angle gets); the retry sequence is the same for every
 /// containment question.
 const RAY_BASE: f64 = 0.5;
-/// The golden angle, 2π·(1 − 1/φ).
-const RAY_STEP: f64 = 2.399_963_229_728_653;
+/// The golden angle ([`geom_core::GOLDEN_ANGLE`]).
+const RAY_STEP: f64 = geom_core::GOLDEN_ANGLE;
 
 impl<T: Decide> Profile<T> {
     /// Validates the profile and produces its canonical form — the gate

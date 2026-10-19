@@ -28,3 +28,11 @@ pair minted once at the door — `RationalCoeffs` for the section's
 `(h, w)` lines, a `CoeffWindow`-shaped window of the four-channel line
 for `bezier_on` — and delete the `zip` truncation and the
 `len != p + 1` refusal with it.
+
+## `bezier_on` retired (2026-10-14)
+
+`nurbs/cut-becomes-restriction` retires `bezier_on` and the cut's
+`pts`/`nv` reading (`NurbsBoxes::cut` is `CellNet::cut` now): a cut
+restricts the cell's formed quotients (`Grid::restricted_along`), whose
+line lengths are the grid's own, so the second bullet above is moot
+and no new instance replaces it. The section's `(h, w)` lines stand.

@@ -70,7 +70,8 @@ use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve_over};
 use crate::recourse::{
-    Classified, ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass, Unsized,
+    Classified, ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass, SpanDecision,
+    Unsized,
 };
 
 /// The fixed certification sample count (module docs): 9 uniform
@@ -99,7 +100,8 @@ pub enum CertCheck {
     /// The stored parameter interval's span is forward, metered as arc
     /// length (and a spline carrier's own meter is positive) — named on
     /// escalations of that decision; its definite failure is
-    /// [`CertifyError::IntervalNotForward`].
+    /// [`CertifyError::IntervalNotForward`], which every public door
+    /// reports as its input's [`CertifyError::StatedInterval`].
     ParamSpan,
     /// A spline carrier's knot domain, metered at its certified speed
     /// floor (a lower bound on its length), is definitely positive —
@@ -109,8 +111,14 @@ pub enum CertCheck {
     ParamSpanMeter,
     /// A periodic carrier's stored interval leaves headroom to one full
     /// period — named on escalations of that decision; its definite
-    /// failure is [`CertifyError::WindingExceeded`].
+    /// failure is [`CertifyError::WindingExceeded`], which every public
+    /// door reports as its input's [`CertifyError::StatedInterval`].
     ParamWinding,
+    /// The span of the edge's chart image on a spline wall (an arc rim's
+    /// exact image, [`crate::pcurve_cache::PcurveCheck::ParamSpan`]) is
+    /// forward — [`CertCheck::ParamSpan`]'s decision on the image, named
+    /// on its escalations.
+    ImageSpan,
     /// `|carrier(t₀) − start point|` (check 1).
     EndpointStart,
     /// `|carrier(t₁) − end point|` (check 2).
@@ -294,6 +302,7 @@ impl core::fmt::Display for CertCheck {
             Self::ParamSpan => "the stored interval's span",
             Self::ParamSpanMeter => "the spline carrier's metered length",
             Self::ParamWinding => "the stored interval's headroom to one full period",
+            Self::ImageSpan => "the span of the edge's image on its wall's chart",
             Self::EndpointStart => "the start-endpoint residual",
             Self::EndpointEnd => "the end-endpoint residual",
             Self::WitnessMidpoint => "the witness-midpoint residual",
@@ -430,11 +439,12 @@ pub enum CertifyError {
     /// A span `0 < m ≤ ε` is a real edge shorter than the tolerance, a
     /// size a user may intend, and a tolerance below `m/K` decides it
     /// forward. A span `m ≤ 0` — none, or reversed within the tolerance
-    /// — has no size to tighten below, and no kernel construction mints
-    /// one (coincident-endpoint chords are refused as poison, and
-    /// self-loop scaffolding carries the full period): at a build it is
-    /// a kernel defect, over stored geometry a defect of the kernel or
-    /// the file.
+    /// — has no size to tighten below. Every public door reports one as
+    /// its input's ([`CertifyError::StatedInterval`]), so none returns
+    /// this verdict on such a span; built by hand it ends as that refusal
+    /// does at a build, in the lever
+    /// ([`crate::recourse::RefusedSide::Unminted`]), and at rest it is a
+    /// defect of the kernel or the file.
     IntervalNotForward {
         /// The span's verdict, with its reporting margin.
         verdict: Refused,
@@ -459,8 +469,30 @@ pub enum CertifyError {
     /// `(Δ − θ)·i/8` vanishes mod τ iff `Δ = θ + 8kτ`), and with
     /// `0 < Δt ≤ τ` enforced no `k ≠ 0` alias is representable — the
     /// pointwise sample matches then pin the winding *within* the
-    /// period.
+    /// period. Every public door reports one as its input's
+    /// ([`CertifyError::StatedInterval`]), so none returns this refusal;
+    /// built by hand it ends as that refusal does at a build, in the
+    /// lever ([`crate::recourse::RefusedSide::Unminted`]), and at rest it
+    /// is a defect of the kernel or the file.
     WindingExceeded,
+    /// **The interval a door was handed runs no clear length forward, or
+    /// past one full turn**: the span checks' reading is certainly on
+    /// their refused side ([`CertCheck::ParamSpan`],
+    /// [`CertCheck::ParamWinding`]), and at a public door
+    /// ([`EdgeCurve::certify`], [`EdgeCurve::recertify`] and their `_via`
+    /// doors) that is its input — a zero, reversed or past-a-turn
+    /// `param_start … param_end`, a chord between coincident points, a
+    /// circle or ellipse carrier of no positive radius, or a stored arc
+    /// re-certified at a band finer than the one it was minted at, where
+    /// its headroom read as zero. At a build it ends in the check's
+    /// lever; at the import door it is the file's, as any reading of the
+    /// check's refused side is there. Where the input is data the kernel
+    /// holds, the kernel's call site panics on it instead: a kernel bug.
+    StatedInterval {
+        /// What the span checks refused, with the reading they refused it
+        /// on.
+        refused: StatedSpan,
+    },
     /// A residual definitely exceeded the escalation threshold: the
     /// cache does not represent the description (D4 ¶2's `residual ≤ ε`
     /// kernel invariant violated beyond doubt).
@@ -628,11 +660,13 @@ fn exact_arc_rim_words(iso: Option<crate::pcurve_cache::PcurveCheck>) -> &'stati
 /// The certification check an arc rim's exact image's `check` restates
 /// where it escalated ([`CertifyError::Escalated`]): its incidence limb's
 /// ([`crate::pcurve_cache::PcurveCheck::incidence_limb`]), and the
-/// span's own for the span check. A check no `IsoArc` certificate runs
+/// image's span decision for the span check ([`CertCheck::ImageSpan`]),
+/// not the edge's, whose interval it does not decide. A check no
+/// `IsoArc` certificate runs
 /// reads as the hull bound it would feed.
 fn arc_rim_check(check: crate::pcurve_cache::PcurveCheck) -> CertCheck {
     match check {
-        crate::pcurve_cache::PcurveCheck::ParamSpan => CertCheck::ParamSpan,
+        crate::pcurve_cache::PcurveCheck::ParamSpan => CertCheck::ImageSpan,
         other => other
             .incidence_limb()
             .map_or(CertCheck::PlaneNurbsHull, crate::ssi::SsiLimb::check),
@@ -723,6 +757,7 @@ impl core::fmt::Display for CertifyError {
                  spans more than one full period — |t₁ − t₀| ≤ τ is required to close the \
                  sample-schedule winding alias (8kτ family)"
             ),
+            Self::StatedInterval { refused } => write!(f, "{refused}"),
             // The check says its own noun ([`CertCheck`]'s `Display`);
             // this sentence decides only the grammar around it. Not
             // every check that reaches this arm meters a residual (a sup
@@ -872,15 +907,17 @@ impl CertifyError {
             | Self::IntersectionSameSurface { .. }
             | Self::WrapOnNonPeriodic
             | Self::TangentCertificateUnsupported
+            | Self::StatedInterval { .. }
             | Self::Band(_) => return None,
         })
     }
 
     /// The ending this refusal's decision gives it, read at `at`
     /// ([`recourse`] over [`CertifyError::decision`]), or `None` for a
-    /// refusal that is no decision's refused arm. The exception is the
-    /// lanes' one-arc proof (`TubeNotOneArc`): it has no `decision()`, and
-    /// ends by its own ([`crate::ssi::OneArcRefusal::ending`]).
+    /// refusal that is no decision's refused arm. The exceptions have no
+    /// `decision()` and end by their own: the lanes' one-arc proof
+    /// (`TubeNotOneArc`, [`crate::ssi::OneArcRefusal::ending`]), and a
+    /// door's input interval ([`StatedSpan::ending`]).
     ///
     /// `Display` renders the payload alone: where a refusal is read
     /// decides its ending (D4 ¶1 (i)), so the door that reports it
@@ -891,6 +928,7 @@ impl CertifyError {
         match self {
             Self::PlaneNurbs(refusal) => refusal.ending(at),
             Self::AnalyticRung3(refusal) => refusal.ending(at),
+            Self::StatedInterval { refused } => Some(refused.ending(at)),
             _ => self.decision().map(|(check, arm)| recourse(check, arm, at)),
         }
     }
@@ -940,6 +978,156 @@ enum Ending {
     Undefined(&'static str),
 }
 
+/// **What a span check refused of a door's input**
+/// ([`CertifyError::StatedInterval`]): the decision, each carrying the
+/// reading it refused on.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum StatedSpan {
+    /// [`CertCheck::ParamSpan`]'s decision refused.
+    Forward(ForwardReading),
+    /// [`CertCheck::ParamWinding`]'s decision refused.
+    Winding(WindingReading),
+}
+
+/// The reading [`CertCheck::ParamSpan`] refused a door's input on.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ForwardReading {
+    /// Decided past the band ([`CertifyError::IntervalNotForward`]).
+    Decided(Refused),
+    /// In band wholly on the refused side ([`CertifyError::Escalated`]).
+    InBand(Indeterminate),
+}
+
+/// The reading [`CertCheck::ParamWinding`] refused a door's input on.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum WindingReading {
+    /// Decided past the band ([`CertifyError::WindingExceeded`]), which
+    /// keeps no number.
+    Exceeded,
+    /// In band wholly on the refused side ([`CertifyError::Escalated`]).
+    InBand(Indeterminate),
+}
+
+impl StatedSpan {
+    /// The span check's refusal `error` is ([`CertCheck::span`]), where
+    /// its refused side is one no kernel construction produces and its
+    /// reading is certainly on that side.
+    fn of(error: &CertifyError) -> Option<Self> {
+        let refused = match *error {
+            CertifyError::IntervalNotForward { verdict } => {
+                Self::Forward(ForwardReading::Decided(verdict))
+            }
+            CertifyError::WindingExceeded => Self::Winding(WindingReading::Exceeded),
+            CertifyError::Escalated {
+                check: CertCheck::ParamSpan,
+                cause,
+                ..
+            } => Self::Forward(ForwardReading::InBand(cause)),
+            CertifyError::Escalated {
+                check: CertCheck::ParamWinding,
+                cause,
+                ..
+            } => Self::Winding(WindingReading::InBand(cause)),
+            _ => return None,
+        };
+        let (decision, RefusedSide::Unminted) = refused.check().span()? else {
+            return None;
+        };
+        decision
+            .on(RefusedSide::Unminted)
+            .certainly_refused(refused.arm())
+            .then_some(refused)
+    }
+
+    /// **A public door's reading of a refusal**: a span check's refusal
+    /// certainly on its refused side is the door's input
+    /// ([`CertifyError::StatedInterval`]); every other refusal stands.
+    fn at_a_door(error: CertifyError) -> CertifyError {
+        Self::of(&error).map_or(error, |refused| CertifyError::StatedInterval { refused })
+    }
+
+    /// The check that refused.
+    #[must_use]
+    pub const fn check(self) -> CertCheck {
+        match self {
+            Self::Forward(_) => CertCheck::ParamSpan,
+            Self::Winding(_) => CertCheck::ParamWinding,
+        }
+    }
+
+    /// The span decision that refused ([`CertCheck::span`] of
+    /// [`StatedSpan::check`]).
+    #[must_use]
+    pub fn decision(self) -> SpanDecision {
+        let Some((decision, _)) = self.check().span() else {
+            unreachable!("{:?} is a span check", self.check())
+        };
+        decision
+    }
+
+    /// The decision this refusal ends by. The interval is the door's
+    /// input, so at a build it ends in the check's lever, and at the
+    /// import door it is the file's as every reading of the check's
+    /// refused side is there: a stored contradiction's ending.
+    fn ends_by(self) -> SizedDecision {
+        self.decision().on(RefusedSide::StoredContradiction)
+    }
+
+    /// The refused arm its reading is.
+    fn arm(&self) -> RefusedArm<'_> {
+        match self {
+            Self::Forward(ForwardReading::Decided(verdict)) => verdict.arm(),
+            Self::Winding(WindingReading::Exceeded) => RefusedArm::SignCertain(None),
+            Self::Forward(ForwardReading::InBand(cause))
+            | Self::Winding(WindingReading::InBand(cause)) => RefusedArm::Undecided(cause),
+        }
+    }
+
+    /// The ending it carries, read at `at` (D4 ¶1 (iv)): the check's
+    /// lever at a build; at the import door, within ε_in the door's one
+    /// sentence and the lever, and past it the file's, as the check's
+    /// refused side is there.
+    #[must_use]
+    pub fn ending(&self, at: impl Into<ReadAt>) -> String {
+        self.ends_by().recourse(self.arm(), at)
+    }
+}
+
+/// The reading's words come from its verdict, never its number: only a
+/// decided negative runs backwards by an amount.
+impl core::fmt::Display for StatedSpan {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let given = "this edge's parameter interval";
+        match self {
+            Self::Forward(ForwardReading::Decided(Refused::Negative { margin })) => write!(
+                f,
+                "{given} runs backwards by {} m",
+                margin.readable_below_zero()
+            ),
+            Self::Forward(reading) => {
+                let length = match reading {
+                    ForwardReading::Decided(verdict) => verdict.margin(),
+                    ForwardReading::InBand(cause) => cause.margin,
+                };
+                write!(
+                    f,
+                    "{given} is not shown to run forward (length {} m)",
+                    length.readable()
+                )
+            }
+            Self::Winding(WindingReading::Exceeded) => {
+                write!(f, "{given} spans more than one full turn of its carrier")
+            }
+            Self::Winding(WindingReading::InBand(cause)) => write!(
+                f,
+                "{given} is not shown to stay within one full turn of its carrier (headroom {} \
+                 m)",
+                cause.margin.readable()
+            ),
+        }
+    }
+}
+
 /// The lever of both transversality decisions: the sampled angle and
 /// the uniqueness tube's bound are moved by the same change.
 const CROSS_LEVER: &str = "move the geometry so the surfaces cross at a clearer angle";
@@ -953,23 +1141,40 @@ impl CertCheck {
         matches!(self.ending(), Ending::Residual(Unsized::Bound))
     }
 
+    /// **The span decision this check reads, and the side it refuses
+    /// on** — the one map from a check to a [`SpanDecision`].
+    ///
+    /// - The edge's interval ([`CertCheck::ParamSpan`],
+    ///   [`CertCheck::ParamWinding`]): a side no kernel construction
+    ///   produces. Every public door reports a reading certainly on it as
+    ///   its input's ([`CertifyError::StatedInterval`]), and where that
+    ///   input is data the kernel holds, the kernel's call site panics on
+    ///   it as a kernel bug.
+    /// - The span of the edge's image on a spline wall
+    ///   ([`CertCheck::ImageSpan`]): a stored contradiction. The kernel
+    ///   derives the image at the band the operation passes, where a
+    ///   span its edge's mint decided forward can read in band at a
+    ///   looser one.
+    pub(crate) const fn span(self) -> Option<(SpanDecision, RefusedSide)> {
+        match self {
+            Self::ParamSpan => Some((SpanDecision::Forward, RefusedSide::Unminted)),
+            Self::ParamWinding => Some((SpanDecision::Winding, RefusedSide::Unminted)),
+            Self::ImageSpan => Some((SpanDecision::Forward, RefusedSide::StoredContradiction)),
+            _ => None,
+        }
+    }
+
     /// How this decision's refusals end: its own lever, and what it
     /// passes on, where it passes on a nonzero sign; otherwise the way
     /// its definite refusal ends.
     fn ending(self) -> Ending {
         match self {
-            // No kernel construction mints a span of no length or a
-            // reversed one (`CertifyError::IntervalNotForward`).
-            Self::ParamSpan => Ending::Sized(SizedDecision {
-                lever: "move the geometry so this edge runs forward over a clear length",
-                size: "length",
-                passes: SizedPass::Positive,
-                side: RefusedSide::Unminted,
-                no_size: Some(
-                    "an edge of no length, or a reversed one, is one no kernel construction \
-                     mints, so this is a kernel defect worth reporting",
-                ),
-            }),
+            Self::ParamSpan | Self::ParamWinding | Self::ImageSpan => {
+                let Some((decision, side)) = self.span() else {
+                    unreachable!("{self:?} is a span check")
+                };
+                Ending::Sized(decision.on(side))
+            }
             // The floor is a conservative lower bound, so a definite
             // refusal of it is the certificate's limit, which the lever
             // reaches, never a stored contradiction.
@@ -983,13 +1188,6 @@ impl CertCheck {
                     "if it does neither, the speed floor has reached its limit, which is worth \
                      reporting",
                 ),
-            }),
-            Self::ParamWinding => Ending::Sized(SizedDecision {
-                lever: "move the geometry so this arc stays clearly short of a full turn",
-                size: "arc",
-                passes: SizedPass::NonNegative,
-                side: RefusedSide::StoredContradiction,
-                no_size: None,
             }),
             Self::Transversality => Ending::Sized(SizedDecision {
                 lever: CROSS_LEVER,
@@ -1171,8 +1369,9 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// By calling this the caller asserts the edge's locus **is** the
     /// straight chord; a construction whose edge follows any other
     /// locus (an arc trajectory, a placed profile segment) builds its
-    /// spec explicitly. Coincident endpoints yield a poison carrier
-    /// that certification rejects loudly (typed, total).
+    /// spec explicitly. Coincident endpoints yield a span of no length,
+    /// which certification refuses as its caller's
+    /// ([`CertifyError::StatedInterval`]).
     ///
     /// **The door is for TRANSIENT edges.** An edge built here that
     /// comes to rest between two faces must be re-stated where it
@@ -1450,8 +1649,11 @@ pub struct Certificate<T: Real> {
 
 /// A certified edge carrier: the intensional description, its cached
 /// [`Curve3`] carrier with the certified parameter interval, and the
-/// [`Certificate`] of the attachment-time run. Constructible only
-/// through [`EdgeCurve::certify`] — fields are private so an
+/// [`Certificate`] of the attachment-time run. Constructible only by a
+/// run of the schedule ([`EdgeCurve::certify`] and its `_via` doors),
+/// or from a certified value by a map that carries its certificate
+/// ([`EdgeCurve::with_remapped_surfaces`],
+/// [`EdgeCurve::with_chart_v_mirrored`]) — fields are private so an
 /// uncertified value is unrepresentable (D4 ¶2 made structural).
 #[derive(Clone, Debug)]
 pub struct EdgeCurve<T: Real> {
@@ -1503,7 +1705,10 @@ impl<T: Decide> EdgeCurve<T> {
     ///    negative ([`CertifyError::WindingExceeded`]) — at most one
     ///    full period, which closes the 9-sample `8kτ` winding-alias
     ///    family (see that variant's docs). In-band/poisoned span
-    ///    margins escalate under [`CertCheck::ParamSpan`]. A spline
+    ///    margins escalate under [`CertCheck::ParamSpan`]. The interval
+    ///    is this door's input, so a reading certainly on either check's
+    ///    refused side refuses as [`CertifyError::StatedInterval`], here
+    ///    and at every re-certification ([`EdgeCurve::recertify`]). A spline
     ///    carrier's metre scale is decided first
     ///    ([`CertCheck::ParamSpanMeter`];
     ///    [`CertifyError::SpanMeterCollapsed`] where it is not there).
@@ -1578,16 +1783,7 @@ impl<T: Decide> EdgeCurve<T> {
         band: Band,
         nurbs_lane: Option<NurbsLane<T>>,
     ) -> Result<Self, CertifyError> {
-        let (certificate, canonical) =
-            run_checks(&spec, start, end, &surfaces, reach, nurbs_lane, None, band)?;
-        Ok(Self {
-            authority: authority_of(&spec.description),
-            description: canonical,
-            carrier: spec.carrier,
-            param_start: spec.param_start,
-            param_end: spec.param_end,
-            certificate,
-        })
+        Self::certify_via_stated(spec, start, end, surfaces, reach, band, nurbs_lane, None)
     }
 
     /// [`EdgeCurve::certify_via`] with a chart image the caller already
@@ -1614,7 +1810,8 @@ impl<T: Decide> EdgeCurve<T> {
     ) -> Result<Self, CertifyError> {
         let (certificate, canonical) = run_checks(
             &spec, start, end, &surfaces, reach, nurbs_lane, stated, band,
-        )?;
+        )
+        .map_err(StatedSpan::at_a_door)?;
         Ok(Self {
             authority: authority_of(&spec.description),
             description: canonical,
@@ -1625,10 +1822,14 @@ impl<T: Decide> EdgeCurve<T> {
         })
     }
 
-    /// Re-runs the full certification of this carrier at rest — the
-    /// tier-3 validator's per-edge pass. Same checks, same schedule,
-    /// same errors as [`EdgeCurve::certify`]; the stored certificate is
-    /// not consulted (re-certification re-derives, it does not trust).
+    /// Re-runs the full certification of this carrier at `band`. Same
+    /// checks, same schedule, same errors as [`EdgeCurve::certify`]: this
+    /// edge and `band` are the door's input, so a span check's reading
+    /// certainly on its refused side refuses as
+    /// [`CertifyError::StatedInterval`] — an arc minted at a coarser band,
+    /// whose headroom to a full turn that band read as zero, reads past
+    /// one at a finer band. The stored certificate is not consulted
+    /// (re-certification re-derives, it does not trust).
     ///
     /// # Errors
     ///
@@ -1641,8 +1842,7 @@ impl<T: Decide> EdgeCurve<T> {
         reach: T,
         band: Band,
     ) -> Result<Certificate<T>, CertifyError> {
-        run_checks(&self.spec(), start, end, &surfaces, reach, None, None, band)
-            .map(|(cert, _)| cert)
+        self.recertify_via(start, end, surfaces, reach, band, None)
     }
 
     /// The shared re-certification body, with the NURBS lane
@@ -1678,7 +1878,7 @@ impl<T: Decide> EdgeCurve<T> {
     ///
     /// # Errors
     ///
-    /// As [`EdgeCurve::certify`].
+    /// As [`EdgeCurve::recertify`].
     #[allow(clippy::too_many_arguments)] // `certify_via`'s, plus the stated image
     pub fn recertify_via_stated(
         &self,
@@ -1701,6 +1901,7 @@ impl<T: Decide> EdgeCurve<T> {
             band,
         )
         .map(|(cert, _)| cert)
+        .map_err(StatedSpan::at_a_door)
     }
 }
 
@@ -3115,7 +3316,7 @@ fn run_checks<T: Decide>(
         // The floor is `min(|major|, minor)`: a frame stored in either
         // order is metered at its smaller magnitude, and a non-positive
         // `minor` makes the floor non-positive, so the span is refused
-        // (`IntervalNotForward`), as this gate has always refused one. A
+        // (`IntervalNotForward`, a door's `StatedInterval`). A
         // negative `major` (its `u_ref` flipped, the same locus) it
         // admits, as it always has; tier 3 refuses it on its value.
         Curve3::Ellipse { semi_u, semi_v, .. } => span_at_floor(semi_u.abs().min(*semi_v))?,
@@ -4096,12 +4297,13 @@ mod tests {
     /// below. Held total against the enum by
     /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
     /// review.
-    fn all_checks() -> [CertCheck; 28] {
+    fn all_checks() -> [CertCheck; 29] {
         let surface = SurfaceKey::default();
         [
             CertCheck::ParamSpan,
             CertCheck::ParamSpanMeter,
             CertCheck::ParamWinding,
+            CertCheck::ImageSpan,
             CertCheck::EndpointStart,
             CertCheck::EndpointEnd,
             CertCheck::SurfaceResidual { surface },
@@ -4145,34 +4347,35 @@ mod tests {
     #[test]
     fn all_is_the_whole_taxonomy() {
         let rows = match CertCheck::ParamSpan {
-            CertCheck::ParamSpan => 28,
-            CertCheck::ParamSpanMeter => 28,
-            CertCheck::ParamWinding => 28,
-            CertCheck::EndpointStart => 28,
-            CertCheck::EndpointEnd => 28,
-            CertCheck::SurfaceResidual { .. } => 28,
-            CertCheck::WitnessSurfaceResidual { .. } => 28,
-            CertCheck::WitnessMidpoint => 28,
-            CertCheck::Transversality => 28,
-            CertCheck::TransversalityTube => 28,
-            CertCheck::TransversalityArm => 28,
-            CertCheck::TangentPlanes => 28,
-            CertCheck::TangentParallel => 28,
-            CertCheck::TangentGap => 28,
-            CertCheck::TangentSecondOrder => 28,
-            CertCheck::TangentHull => 28,
-            CertCheck::TangentTube => 28,
-            CertCheck::MappedSource => 28,
-            CertCheck::ChartImage => 28,
-            CertCheck::ChartResidual => 28,
-            CertCheck::PlaneNurbsOnLocus => 28,
-            CertCheck::PlaneNurbsHull => 28,
-            CertCheck::PlaneNurbsHullValue => 28,
-            CertCheck::AnalyticBreakResidual => 28,
-            CertCheck::AnalyticHull => 28,
-            CertCheck::PlaneNurbsReportedTransversality => 28,
-            CertCheck::PlaneNurbsChartSpeed => 28,
-            CertCheck::PlaneNurbsChartSpeedBound => 28,
+            CertCheck::ParamSpan => 29,
+            CertCheck::ParamSpanMeter => 29,
+            CertCheck::ParamWinding => 29,
+            CertCheck::ImageSpan => 29,
+            CertCheck::EndpointStart => 29,
+            CertCheck::EndpointEnd => 29,
+            CertCheck::SurfaceResidual { .. } => 29,
+            CertCheck::WitnessSurfaceResidual { .. } => 29,
+            CertCheck::WitnessMidpoint => 29,
+            CertCheck::Transversality => 29,
+            CertCheck::TransversalityTube => 29,
+            CertCheck::TransversalityArm => 29,
+            CertCheck::TangentPlanes => 29,
+            CertCheck::TangentParallel => 29,
+            CertCheck::TangentGap => 29,
+            CertCheck::TangentSecondOrder => 29,
+            CertCheck::TangentHull => 29,
+            CertCheck::TangentTube => 29,
+            CertCheck::MappedSource => 29,
+            CertCheck::ChartImage => 29,
+            CertCheck::ChartResidual => 29,
+            CertCheck::PlaneNurbsOnLocus => 29,
+            CertCheck::PlaneNurbsHull => 29,
+            CertCheck::PlaneNurbsHullValue => 29,
+            CertCheck::AnalyticBreakResidual => 29,
+            CertCheck::AnalyticHull => 29,
+            CertCheck::PlaneNurbsReportedTransversality => 29,
+            CertCheck::PlaneNurbsChartSpeed => 29,
+            CertCheck::PlaneNurbsChartSpeedBound => 29,
         };
         for (i, check) in all_checks().iter().enumerate() {
             assert!(
@@ -5692,13 +5895,12 @@ mod tests {
 
     /// Each arm of a split verdict ends as its own arm, at every
     /// reading. A span a smaller tolerance decides forward quotes it; a
-    /// span of no length or reversed, in band or past it, ends at a build
-    /// in the lever and the note that no construction mints one, and over
-    /// stored geometry in the defect ending (D4 ¶1 (iv)); an enclosure
-    /// across zero, which shows neither a size nor its absence, ends in
-    /// the lever alone. The winding bound's only refusal is a stored
-    /// contradiction: the lever alone at a build, the defect ending at
-    /// rest. The tangent tube's Zero is band-decided and its Negative the
+    /// span of no length or reversed, in band or past it, and the winding
+    /// bound's refusal, are sides no construction mints: built by hand,
+    /// they end in the lever at a build and over stored geometry in the
+    /// defect ending (D4 ¶1 (iv)); an enclosure across zero, which shows neither a size nor its
+    /// absence, ends in the lever alone. The tangent tube's Zero is
+    /// band-decided and its Negative the
     /// certificate's limit, the lever alone everywhere; the plane × NURBS
     /// tube's Zero quotes `m/K` where its clearance is positive, and a
     /// zero or negative transversality there ends as the transversality
@@ -5708,7 +5910,6 @@ mod tests {
         use crate::edge_nurbs::PlaneNurbsRefusal as P;
         let band = Band::new(1e-9, 1e-8).unwrap();
         let span = "Recourse: move the geometry so this edge runs forward over a clear length";
-        let winding = "Recourse: move the geometry so this arc stays clearly short of a full turn";
         let cross = "Recourse: move the geometry so the surfaces cross at a clearer angle";
         let curve = "Recourse: move the geometry so the faces curve apart more clearly where \
                      they touch";
@@ -5730,18 +5931,21 @@ mod tests {
                     "{lever}, or, if this {size} is intended, tighten the tolerance below {below} m"
                 )
             };
-            let definite = |lever: &str| match reading {
-                Reading::Build => lever.to_owned(),
-                Reading::AtRest => KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
+            let lever = |lever: &str| Some(lever.to_owned());
+            // A side no construction mints, built by hand.
+            let unminted = |at_build: &str| match reading {
+                Reading::Build => lever(at_build),
+                Reading::AtRest => Some(KERNEL_OR_FILE_DEFECT_ENDING.to_owned()),
             };
-            let no_span = definite(&format!(
-                "{span}; an edge of no length, or a reversed one, is one no kernel construction \
-                 mints, so this is a kernel defect worth reporting"
-            ));
+            let winding = "Recourse: move the geometry so this arc stays clearly short of a full \
+                           turn";
             let rows = [
-                (forward(zero(5e-10)), tightened(span, "length", "5e-11")),
-                (forward(zero(0.0)), no_span.clone()),
-                (forward(zero(-5e-10)), no_span.clone()),
+                (
+                    forward(zero(5e-10)),
+                    Some(tightened(span, "length", "5e-11")),
+                ),
+                (forward(zero(0.0)), unminted(span)),
+                (forward(zero(-5e-10)), unminted(span)),
                 // An enclosure across zero shows no size, nor that there
                 // is none: the lever alone, its payload printing it.
                 (
@@ -5751,32 +5955,25 @@ mod tests {
                             band,
                         }),
                     },
-                    span.to_owned(),
+                    lever(span),
                 ),
-                (forward(negative(-1e-3)), no_span),
-                (CertifyError::WindingExceeded, definite(winding)),
+                (forward(negative(-1e-3)), unminted(span)),
+                (CertifyError::WindingExceeded, unminted(winding)),
                 (
                     separated(zero(5e-10)),
-                    tightened(curve, "curvature difference", "5e-11"),
+                    Some(tightened(curve, "curvature difference", "5e-11")),
                 ),
-                (separated(zero(0.0)), curve.to_owned()),
-                (separated(negative(-0.5)), curve.to_owned()),
+                (separated(zero(0.0)), lever(curve)),
+                (separated(negative(-0.5)), lever(curve)),
                 // The tube's clearance is a lower bound: `0` is a straddle,
                 // which keeps the lever at every door.
-                (tube(zero(5e-10)), tightened(cross, "angle", "5e-11")),
-                (tube(zero(0.0)), cross.to_owned()),
-                (tube(negative(-5e-9)), cross.to_owned()),
+                (tube(zero(5e-10)), Some(tightened(cross, "angle", "5e-11"))),
+                (tube(zero(0.0)), lever(cross)),
+                (tube(negative(-5e-9)), lever(cross)),
             ];
-            if reading == Reading::Build {
-                assert_eq!(
-                    forward(negative(-1e-3)).ending(reading),
-                    forward(zero(-5e-10)).ending(reading),
-                    "a span reversed past the band ends as one reversed in band"
-                );
-            }
             for (error, want) in rows {
                 let got = error.ending(reading).unwrap();
-                assert_eq!(got, want, "{reading:?}: {error:?}");
+                assert_eq!(Some(&got), want.as_ref(), "{reading:?}: {error:?}");
                 if let Some((_, RefusedArm::SignCertain(_))) = error.decision() {
                     assert!(
                         !got.contains("tighten"),
@@ -5875,9 +6072,463 @@ mod tests {
         );
     }
 
+    /// **A refusal on the span checks' unminted side, built by hand,
+    /// renders at every door and ends as the door's own refusal of that
+    /// reading does** (`[failure]`): a public render of a value a caller
+    /// built is input, so it never panics. Each of the hand-built
+    /// refusals, and `recourse` on its check's arm, ends as the
+    /// [`CertifyError::StatedInterval`] a public door returns for the
+    /// same reading: the check's lever at a build, the kernel's or the
+    /// file's defect at rest, and the damaged file at the import door.
+    #[test]
+    fn a_hand_built_unminted_refusal_renders_at_every_door() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let in_band = Indeterminate {
+            margin: MarginDiag::value(-5e-9),
+            band,
+            predicate: None,
+            terminal_sliver: false,
+        };
+        let reversed = Refused::Negative {
+            margin: MarginDiag::value(-1e-3),
+        };
+        let escalated = |check| CertifyError::Escalated {
+            check,
+            sample: 0,
+            cause: in_band,
+        };
+        let rows = [
+            (
+                CertifyError::IntervalNotForward { verdict: reversed },
+                StatedSpan::Forward(ForwardReading::Decided(reversed)),
+            ),
+            (
+                escalated(CertCheck::ParamSpan),
+                StatedSpan::Forward(ForwardReading::InBand(in_band)),
+            ),
+            (
+                CertifyError::WindingExceeded,
+                StatedSpan::Winding(WindingReading::Exceeded),
+            ),
+            (
+                escalated(CertCheck::ParamWinding),
+                StatedSpan::Winding(WindingReading::InBand(in_band)),
+            ),
+        ];
+        let doors = [
+            (ReadAt::Run(Reading::Build), None),
+            (
+                ReadAt::Run(Reading::AtRest),
+                Some(KERNEL_OR_FILE_DEFECT_ENDING),
+            ),
+            (
+                ReadAt::File(FileCoincidence::new(1e-12)),
+                Some(geom_core::DAMAGED_FILE_ENDING),
+            ),
+        ];
+        for (error, refused) in rows {
+            let lever = format!("Recourse: {}", refused.decision().lever());
+            let stated = CertifyError::StatedInterval { refused };
+            for (at, defect) in doors {
+                let want = defect.map_or_else(|| lever.clone(), str::to_owned);
+                assert_eq!(error.ending(at), Some(want.clone()), "{error:?} at {at:?}");
+                assert_eq!(
+                    error.ending(at),
+                    stated.ending(at),
+                    "{error:?} at {at:?} ends as the door's refusal"
+                );
+                assert_eq!(
+                    error.render(at),
+                    format!("{error}. {want}"),
+                    "{error:?} at {at:?}"
+                );
+                assert_eq!(
+                    recourse(refused.check(), refused.arm(), at),
+                    want,
+                    "recourse({:?}, {:?}) at {at:?}",
+                    refused.check(),
+                    refused.arm()
+                );
+            }
+        }
+        for (check, decision) in [
+            (CertCheck::ParamSpan, SpanDecision::Forward),
+            (CertCheck::ParamWinding, SpanDecision::Winding),
+        ] {
+            assert_eq!(
+                recourse(check, RefusedArm::SignCertain(None), Reading::Build),
+                format!("Recourse: {}", decision.lever()),
+                "{check:?}"
+            );
+        }
+    }
+
+    /// **A stored arc past a full turn at a caller's finer band ends
+    /// typed** (`[failure]`): the winding decision passes a headroom its
+    /// band reads as zero, so an arc certified at a coarse band can lie
+    /// past a turn by up to it, and a public re-certification at a finer
+    /// band, the caller's, reads it past one — past the band, or in band
+    /// wholly below zero. Each refuses as the door's input, ending in the
+    /// winding lever at a build and in the damaged-file ending at the
+    /// import door past ε_in, and neither panics; every re-certification
+    /// door, the one the tier-3 validator reads through among them,
+    /// refuses it alike.
+    #[test]
+    fn a_stored_arc_past_a_turn_at_a_callers_finer_band_ends_typed() {
+        let circle = Curve3::Circle {
+            center: Point3::origin(),
+            axis: geom_core::Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: geom_core::Vec3::unit_x(),
+        };
+        let t1 = core::f64::consts::TAU + 5e-7;
+        let spec = EdgeCurveSpec::arc_of_circle(circle, 0.0, t1).unwrap();
+        let (start, end) = (spec.carrier.eval(0.0), spec.carrier.eval(t1));
+        let coarse = Band::new(1e-6, 1e-5).unwrap();
+        let minted = EdgeCurve::certify(spec, start, end, |_| None, 1.0, coarse)
+            .expect("a headroom the coarse band reads as zero passes");
+        let lever = "Recourse: move the geometry so this arc stays clearly short of a full turn";
+        for (finer, in_band) in [
+            (Band::new(1e-9, 1e-8).unwrap(), false),
+            (Band::new(1e-7, 1e-6).unwrap(), true),
+        ] {
+            let error = minted
+                .recertify(start, end, |_| None, 1.0, finer)
+                .unwrap_err();
+            let CertifyError::StatedInterval {
+                refused: StatedSpan::Winding(reading),
+            } = error
+            else {
+                panic!("{finer:?}: {error:?}");
+            };
+            assert_eq!(
+                matches!(reading, WindingReading::InBand(_)),
+                in_band,
+                "{finer:?}: {error:?}"
+            );
+            let built = error.render(Reading::Build);
+            assert!(built.ends_with(lever), "{finer:?}: {built}");
+            assert_eq!(
+                error.ending(FileCoincidence::new(1e-12)).as_deref(),
+                Some(geom_core::DAMAGED_FILE_ENDING),
+                "{finer:?} at the import door"
+            );
+            let kernels = minted
+                .recertify_via_stated(start, end, |_| None, 1.0, finer, None, None)
+                .unwrap_err();
+            assert_eq!(
+                kernels, error,
+                "{finer:?}: the validator's door refuses it alike, typed"
+            );
+        }
+    }
+
+    /// **The minting door refuses its caller's interval, and only a
+    /// reading certainly on the refused side**, through each of its three
+    /// spellings: a reversed line, an empty one and an arc past a full
+    /// turn refuse as the caller's. At a build each ends in the check's
+    /// lever; at rest in the defect ending; at the import door the
+    /// empty line, a size within ε_in, in the door's sentence and the
+    /// lever, and the reversed line and the arc, past it, as the file's.
+    /// A span a smaller tolerance decides forward stays the check's own,
+    /// its offer intact. The reversed line's payload names how far it runs
+    /// backwards, and renders whole at a build.
+    #[test]
+    fn the_minting_door_refuses_a_callers_interval() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let line = |t0: f64, t1: f64| EdgeCurveSpec {
+            param_start: t0,
+            param_end: t1,
+            ..EdgeCurveSpec::line_between(Point3::origin(), Point3::new(1.0, 0.0, 0.0))
+        };
+        fn ends(spec: &EdgeCurveSpec<f64>) -> (Point3<f64>, Point3<f64>) {
+            (
+                spec.carrier.eval(spec.param_start),
+                spec.carrier.eval(spec.param_end),
+            )
+        }
+        type Door = fn(EdgeCurveSpec<f64>, Band) -> Result<EdgeCurve<f64>, CertifyError>;
+        let doors: [(&str, Door); 3] = [
+            ("certify", |spec, band| {
+                let (start, end) = ends(&spec);
+                EdgeCurve::certify(spec, start, end, |_| None, 1.0, band)
+            }),
+            ("certify_via", |spec, band| {
+                let (start, end) = ends(&spec);
+                EdgeCurve::certify_via(spec, start, end, |_| None, 1.0, band, None)
+            }),
+            ("certify_via_stated", |spec, band| {
+                let (start, end) = ends(&spec);
+                EdgeCurve::certify_via_stated(spec, start, end, |_| None, 1.0, band, None, None)
+            }),
+        ];
+        let circle = Curve3::Circle {
+            center: Point3::origin(),
+            axis: geom_core::Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: geom_core::Vec3::unit_x(),
+        };
+        let past = EdgeCurveSpec::arc_of_circle(circle, 0.0, 3.0 * core::f64::consts::PI).unwrap();
+        let file = FileCoincidence::new(1e-12);
+        let span = "Recourse: move the geometry so this edge runs forward over a clear length";
+        let winding = "Recourse: move the geometry so this arc stays clearly short of a full turn";
+        let untold = "This length is within the file's declared coincidence distance ε_in = 1e-12 \
+                      m, so the file cannot tell it from zero.";
+        // (row, spec, refused forward, its ending at the import door)
+        let rows = [
+            (
+                "reversed",
+                line(1.0, 0.0),
+                true,
+                geom_core::DAMAGED_FILE_ENDING.to_owned(),
+            ),
+            ("empty", line(0.5, 0.5), true, format!("{untold} {span}")),
+            (
+                "past a turn",
+                past,
+                false,
+                geom_core::DAMAGED_FILE_ENDING.to_owned(),
+            ),
+        ];
+        for (door, mint) in doors {
+            for (row, spec, forward, at_the_file) in rows.clone() {
+                let error = mint(spec, band).unwrap_err();
+                let lever = if forward { span } else { winding };
+                let CertifyError::StatedInterval { refused } = error else {
+                    panic!("{door}, {row}: {error:?}");
+                };
+                assert_eq!(
+                    refused.decision() == SpanDecision::Forward,
+                    forward,
+                    "{door}, {row}: {refused:?}"
+                );
+                assert_eq!(
+                    refused.decision().lever(),
+                    lever.trim_start_matches("Recourse: ")
+                );
+                for (at, want) in [
+                    (ReadAt::Run(Reading::Build), lever.to_owned()),
+                    (
+                        ReadAt::Run(Reading::AtRest),
+                        KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
+                    ),
+                    (ReadAt::File(file), at_the_file),
+                ] {
+                    assert_eq!(error.ending(at), Some(want), "{door}, {row} at {at:?}");
+                }
+            }
+            let short = mint(line(0.5, 0.5 + 5e-9), band).unwrap_err();
+            assert!(
+                matches!(
+                    short,
+                    CertifyError::Escalated {
+                        check: CertCheck::ParamSpan,
+                        ..
+                    }
+                ),
+                "{door}: {short:?}"
+            );
+            assert!(
+                short
+                    .render(Reading::Build)
+                    .contains("tighten the tolerance below"),
+                "{door}: {short:?}"
+            );
+        }
+        let reversed = doors[0].1(line(1.0, 0.0), band).unwrap_err();
+        assert!(
+            matches!(
+                reversed,
+                CertifyError::StatedInterval {
+                    refused: StatedSpan::Forward(ForwardReading::Decided(Refused::Negative { .. })),
+                }
+            ),
+            "{reversed:?}"
+        );
+        assert_eq!(
+            reversed.render(Reading::Build),
+            format!("this edge's parameter interval runs backwards by 1 m. {span}"),
+        );
+    }
+
+    /// **No public door panics on a span it refuses**: each minting door
+    /// handed a reversed line, one reversed by less than the band, a chord
+    /// between coincident points, an arc past a full turn, or one past a
+    /// turn by less than a coarse band but more than its own finer one,
+    /// and each re-certification door
+    /// handed that last arc minted at the coarse band and read at a finer
+    /// band (past it, or in band), refuses it as its input
+    /// ([`CertifyError::StatedInterval`]), and the refusal renders at a
+    /// build, at rest and at the import door without panicking.
+    #[test]
+    fn no_public_door_panics_on_a_span_it_refuses() {
+        let fine = Band::new(1e-9, 1e-8).unwrap();
+        let coarse = Band::new(1e-6, 1e-5).unwrap();
+        let circle = Curve3::Circle {
+            center: Point3::origin(),
+            axis: geom_core::Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: geom_core::Vec3::unit_x(),
+        };
+        let arc = |t1: f64| EdgeCurveSpec::arc_of_circle(circle.clone(), 0.0, t1).unwrap();
+        let p = Point3::new(1.0, 2.0, 3.0);
+        let slightly_past = core::f64::consts::TAU + 5e-7;
+        let specs = [
+            (
+                "reversed",
+                EdgeCurveSpec {
+                    param_start: 1.0,
+                    param_end: 0.0,
+                    ..EdgeCurveSpec::line_between(Point3::origin(), Point3::new(1.0, 0.0, 0.0))
+                },
+            ),
+            (
+                "reversed within the band",
+                EdgeCurveSpec {
+                    param_start: 0.5,
+                    param_end: 0.5 - 5e-9,
+                    ..EdgeCurveSpec::line_between(Point3::origin(), Point3::new(1.0, 0.0, 0.0))
+                },
+            ),
+            ("coincident", EdgeCurveSpec::line_between(p, p)),
+            ("past a turn", arc(3.0 * core::f64::consts::PI)),
+            ("past a turn within a coarse band", arc(slightly_past)),
+        ];
+        type Mint = fn(EdgeCurveSpec<f64>, Band) -> Result<EdgeCurve<f64>, CertifyError>;
+        let mints: [(&str, Mint); 3] = [
+            ("certify", |spec, band| {
+                let (a, b) = (
+                    spec.carrier.eval(spec.param_start),
+                    spec.carrier.eval(spec.param_end),
+                );
+                EdgeCurve::certify(spec, a, b, |_| None, 1.0, band)
+            }),
+            ("certify_via", |spec, band| {
+                let (a, b) = (
+                    spec.carrier.eval(spec.param_start),
+                    spec.carrier.eval(spec.param_end),
+                );
+                EdgeCurve::certify_via(spec, a, b, |_| None, 1.0, band, None)
+            }),
+            ("certify_via_stated", |spec, band| {
+                let (a, b) = (
+                    spec.carrier.eval(spec.param_start),
+                    spec.carrier.eval(spec.param_end),
+                );
+                EdgeCurve::certify_via_stated(spec, a, b, |_| None, 1.0, band, None, None)
+            }),
+        ];
+        type Recertify = fn(&EdgeCurve<f64>, Band) -> Result<Certificate<f64>, CertifyError>;
+        let recertifiers: [(&str, Recertify); 3] = [
+            ("recertify", |curve, band| {
+                let (a, b) = (
+                    curve.carrier.eval(curve.param_start),
+                    curve.carrier.eval(curve.param_end),
+                );
+                curve.recertify(a, b, |_| None, 1.0, band)
+            }),
+            ("recertify_via", |curve, band| {
+                let (a, b) = (
+                    curve.carrier.eval(curve.param_start),
+                    curve.carrier.eval(curve.param_end),
+                );
+                curve.recertify_via(a, b, |_| None, 1.0, band, None)
+            }),
+            ("recertify_via_stated", |curve, band| {
+                let (a, b) = (
+                    curve.carrier.eval(curve.param_start),
+                    curve.carrier.eval(curve.param_end),
+                );
+                curve.recertify_via_stated(a, b, |_| None, 1.0, band, None, None)
+            }),
+        ];
+        let mut refusals = Vec::new();
+        for (door, mint) in mints {
+            for (row, spec) in specs.clone() {
+                refusals.push((format!("{door}, {row}"), mint(spec, fine).map(|_| ())));
+            }
+        }
+        let minted = mints[0].1(arc(slightly_past), coarse)
+            .expect("a headroom the coarse band reads as zero passes");
+        for (door, recertify) in recertifiers {
+            for band in [fine, Band::new(1e-7, 1e-6).unwrap()] {
+                refusals.push((
+                    format!("{door} at {band:?}"),
+                    recertify(&minted, band).map(|_| ()),
+                ));
+            }
+        }
+        assert_eq!(refusals.len(), 21, "every door and row");
+        let mut forward_in_band = 0;
+        for (row, refusal) in refusals {
+            let error = match refusal {
+                Err(error @ CertifyError::StatedInterval { .. }) => error,
+                other => panic!("{row}: {other:?}"),
+            };
+            if let CertifyError::StatedInterval {
+                refused: StatedSpan::Forward(ForwardReading::InBand(_)),
+            } = error
+            {
+                forward_in_band += 1;
+            }
+            for at in [
+                ReadAt::Run(Reading::Build),
+                ReadAt::Run(Reading::AtRest),
+                ReadAt::File(FileCoincidence::new(1e-12)),
+            ] {
+                assert_eq!(
+                    test_utils::panic_capture::caught(|| {
+                        let _ = error.render(at);
+                    }),
+                    None,
+                    "{row}: {error:?} at {at:?}"
+                );
+            }
+        }
+        assert_eq!(
+            forward_in_band, 3,
+            "each minting door refuses the reversed line within the band in band"
+        );
+    }
+
+    /// **A coincident-points edge and a sibling whose length the run's
+    /// band holds tell one story at the import door**: the door's
+    /// sentence that the file cannot tell the length from zero, and the
+    /// span lever, whether the door refused the span as its caller's (no
+    /// length) or the check kept it (a length a smaller tolerance
+    /// decides). A sibling past the band certifies, and is not this row's.
+    #[test]
+    fn a_coincident_edge_and_an_in_band_sibling_tell_one_story_in_a_file() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let file = FileCoincidence::new(1e-9);
+        let p = Point3::new(1.0, 2.0, 3.0);
+        let refused = |q: Point3<f64>| {
+            EdgeCurve::certify(EdgeCurveSpec::line_between(p, q), p, q, |_| None, 1.0, band)
+                .unwrap_err()
+        };
+        let coincident = refused(p);
+        let sibling = refused(Point3::new(1.0 + 5e-12, 2.0, 3.0));
+        assert!(
+            matches!(coincident, CertifyError::StatedInterval { .. }),
+            "{coincident:?}"
+        );
+        assert!(
+            !matches!(sibling, CertifyError::StatedInterval { .. }),
+            "{sibling:?}"
+        );
+        let untold = "This length is within the file's declared coincidence distance ε_in = 1e-9 \
+                      m, so the file cannot tell it from zero. Recourse: move the geometry so \
+                      this edge runs forward over a clear length";
+        for error in [coincident, sibling] {
+            let ending = error.ending(file).unwrap();
+            assert!(ending.starts_with(untold), "{error:?}: {ending}");
+        }
+    }
+
     /// A span of no length and a reversed one each render whole under
-    /// the one lever, which names the forward edge both lack, at a build,
-    /// and in the defect ending over stored geometry.
+    /// the one lever, which names the forward edge both lack, at the
+    /// minting door that refuses them as its caller's, and in the defect
+    /// ending over stored geometry.
     #[test]
     fn a_zero_and_a_reversed_span_render_whole() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -5887,19 +6538,21 @@ mod tests {
                 band,
             }),
         };
-        let reversed = CertifyError::IntervalNotForward {
-            verdict: Refused::Negative {
-                margin: MarginDiag::value(-1e-3),
-            },
+        let stated = |verdict| CertifyError::StatedInterval {
+            refused: StatedSpan::Forward(ForwardReading::Decided(verdict)),
+        };
+        let past = |reading| CertifyError::StatedInterval {
+            refused: StatedSpan::Winding(reading),
         };
         let rows = [
             (
-                in_band(0.0),
+                stated(Refused::Zero(Classified {
+                    margin: MarginDiag::value(0.0),
+                    band,
+                })),
                 Reading::Build,
-                "the stored parameter interval is not shown to run forward (length 0 m). \
-                 Recourse: move the geometry so this edge runs forward over a clear length; an \
-                 edge of no length, or a reversed one, is one no kernel construction mints, so \
-                 this is a kernel defect worth reporting",
+                "this edge's parameter interval is not shown to run forward (length 0 m). Recourse: \
+                 move the geometry so this edge runs forward over a clear length",
             ),
             (
                 in_band(0.0),
@@ -5908,18 +6561,49 @@ mod tests {
                  is no way through: this is a kernel defect or a damaged file; report it",
             ),
             (
-                reversed,
+                stated(Refused::Negative {
+                    margin: MarginDiag::value(-1e-3),
+                }),
                 Reading::Build,
-                "the stored interval runs backwards by 0.001 m — the edge's parameter must \
-                 increase from its start vertex to its end. Recourse: move the geometry so this \
-                 edge runs forward over a clear length; an edge of no length, or a reversed one, \
-                 is one no kernel construction mints, so this is a kernel defect worth reporting",
+                "this edge's parameter interval runs backwards by 0.001 m. Recourse: move the \
+                 geometry so this edge runs forward over a clear length",
             ),
             (
                 in_band(-5e-10),
                 Reading::AtRest,
                 "the stored parameter interval is not shown to run forward (length -5e-10 m). \
                  There is no way through: this is a kernel defect or a damaged file; report it",
+            ),
+            (
+                CertifyError::StatedInterval {
+                    refused: StatedSpan::Forward(ForwardReading::InBand(Indeterminate {
+                        margin: MarginDiag::value(-5e-10),
+                        band,
+                        predicate: Some("interval_span_forward"),
+                        terminal_sliver: false,
+                    })),
+                },
+                Reading::Build,
+                "this edge's parameter interval is not shown to run forward (length -5e-10 m). \
+                 Recourse: move the geometry so this edge runs forward over a clear length",
+            ),
+            (
+                past(WindingReading::Exceeded),
+                Reading::Build,
+                "this edge's parameter interval spans more than one full turn of its carrier. \
+                 Recourse: move the geometry so this arc stays clearly short of a full turn",
+            ),
+            (
+                past(WindingReading::InBand(Indeterminate {
+                    margin: MarginDiag::value(-5e-9),
+                    band,
+                    predicate: Some("interval_span_winding"),
+                    terminal_sliver: false,
+                })),
+                Reading::Build,
+                "this edge's parameter interval is not shown to stay within one full turn of its \
+                 carrier (headroom -5e-9 m). Recourse: move the geometry so this arc stays clearly \
+                 short of a full turn",
             ),
         ];
         let wrong: Vec<String> = rows
@@ -6092,21 +6776,48 @@ mod tests {
     #[test]
     fn each_decision_family_ends_in_its_routed_sentence() {
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let undecided = |check, margin| {
+        let undecided_at = |check, margin, reading| {
             let cause = Indeterminate {
                 margin,
                 band,
                 predicate: Some("a_probe"),
                 terminal_sliver: false,
             };
-            recourse(check, RefusedArm::Undecided(&cause), Reading::Build)
+            recourse(check, RefusedArm::Undecided(&cause), reading)
         };
+        let undecided = |check, margin| undecided_at(check, margin, Reading::Build);
+        // A span reading on a side no construction mints, built by hand,
+        // ends in its lever at a build, and is the kernel's or the file's
+        // at rest.
+        let unminted = [
+            (CertCheck::ParamSpan, MarginDiag::value(-5e-9)),
+            (CertCheck::ParamSpan, MarginDiag::value(0.0)),
+            (CertCheck::ParamSpan, MarginDiag::value(-0.0)),
+            (
+                CertCheck::ParamWinding,
+                MarginDiag::enclosure(-4.0e-9, -2.0e-9),
+            ),
+        ];
+        for (check, margin) in unminted {
+            let lever = match check {
+                CertCheck::ParamSpan => {
+                    "Recourse: move the geometry so this edge runs forward over a clear length"
+                }
+                _ => "Recourse: move the geometry so this arc stays clearly short of a full turn",
+            };
+            assert_eq!(
+                undecided(check, margin),
+                lever,
+                "{check:?} {margin} at a build"
+            );
+            assert_eq!(
+                undecided_at(check, margin, Reading::AtRest),
+                KERNEL_OR_FILE_DEFECT_ENDING,
+                "{check:?} {margin} at rest"
+            );
+        }
         let straddle = MarginDiag::enclosure(-2.0e-9, 4.0e-9);
         let inside = MarginDiag::enclosure(2.0e-9, 4.0e-9);
-        let below = MarginDiag::enclosure(-4.0e-9, -2.0e-9);
-        let no_span = "Recourse: move the geometry so this edge runs forward over a clear length; \
-                       an edge of no length, or a reversed one, is one no kernel construction \
-                       mints, so this is a kernel defect worth reporting";
         let rows = [
             (
                 undecided(CertCheck::ParamSpan, MarginDiag::value(5e-9)),
@@ -6114,17 +6825,9 @@ mod tests {
                  this length is intended, tighten the tolerance below 5e-10 m",
             ),
             (
-                undecided(CertCheck::ParamSpan, MarginDiag::value(-5e-9)),
-                no_span,
-            ),
-            (
                 undecided(CertCheck::ParamWinding, inside),
                 "Recourse: move the geometry so this arc stays clearly short of a full turn, or, \
                  if this arc is intended, tighten the tolerance below 2e-10 m",
-            ),
-            (
-                undecided(CertCheck::ParamWinding, below),
-                "Recourse: move the geometry so this arc stays clearly short of a full turn",
             ),
             (
                 undecided(CertCheck::Transversality, straddle),
@@ -6162,14 +6865,6 @@ mod tests {
                     MarginDiag::INVALID,
                 ),
                 KERNEL_DEFECT_ENDING,
-            ),
-            (
-                undecided(CertCheck::ParamSpan, MarginDiag::value(0.0)),
-                no_span,
-            ),
-            (
-                undecided(CertCheck::ParamSpan, MarginDiag::value(-0.0)),
-                no_span,
             ),
             (
                 // Touching zero, its sign unresolved: the lever alone.
@@ -6991,7 +7686,6 @@ mod tests {
             }
         }
         for (error, note) in [
-            (forward(zero(none)), "an edge of no length"),
             (meter(zero(none)), "the speed floor has reached its limit"),
             (arm(zero(none)), "faces of no extent"),
         ] {
@@ -7129,6 +7823,7 @@ mod tests {
             (CertCheck::ParamSpan, Sized(Positive)),
             (CertCheck::ParamSpanMeter, Sized(Positive)),
             (CertCheck::ParamWinding, Sized(NonNegative)),
+            (CertCheck::ImageSpan, Sized(Positive)),
             (
                 CertCheck::SurfaceResidual {
                     surface: SurfaceKey::default(),
@@ -7180,8 +7875,8 @@ mod tests {
             };
             assert_eq!(&got, want, "{check:?}");
             // A lever is named exactly where the decision is sized.
-            let named = recourse(check, RefusedArm::SignCertain(None), Reading::Build)
-                .starts_with("Recourse: move the geometry");
+            let at_build = recourse(check, RefusedArm::SignCertain(None), Reading::Build);
+            let named = at_build.starts_with("Recourse: move the geometry");
             assert_eq!(named, matches!(want, Sized(_)), "{check:?}");
         }
     }

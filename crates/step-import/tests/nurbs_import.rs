@@ -426,7 +426,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
             //   two orders: two orders of one sum may round apart by at
             //   most one ulp per addition, so the volumes must agree to
             //   within `faces − 1` ulps of each other, and the pad (a sum
-            //   of non-negative pads in the same fold, outward) must still
+            //   of non-negative pads in the same fold, rounded up) must still
             //   agree bit for bit at this body's values. Measured: 0 ulps
             //   before NURBS #4553 moved the rational wall's flux bits,
             //   1 at ε = 1e-6 and 2 at 1e-9 after it, and 1 and 0 since

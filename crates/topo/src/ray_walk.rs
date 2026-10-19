@@ -334,8 +334,8 @@ impl<T: Decide, H> Crossings<T, H> {
     /// The closest is the least by the caller's `order` row. Every other
     /// crossing is then asked against IT, not against whichever was
     /// least when it was offered: a tie with the closest grazes, and an
-    /// undecided one sets the ray aside as `escalate(diag, hit)`, the
-    /// hit the closest was compared with; a tie between two crossings
+    /// undecided one sets the ray aside as `escalate(diag, hit, closest)`,
+    /// the pair whose order is in band; a tie between two crossings
     /// beyond it decides nothing the verdict reads. The same holds of a
     /// sideless crossing: the closest one grazes, one beyond it does not
     /// matter.
@@ -347,7 +347,7 @@ impl<T: Decide, H> Crossings<T, H> {
         self,
         order: &'static str,
         band: Band,
-        escalate: impl FnOnce(Indeterminate, &H) -> E,
+        escalate: impl FnOnce(Indeterminate, &H, &H) -> E,
     ) -> Result<Option<H>, RayFault<E>> {
         let gap =
             |k: usize, b: usize| decide(order, Margin::of(self.ahead[k].0 - self.ahead[b].0), band);
@@ -363,7 +363,13 @@ impl<T: Decide, H> Crossings<T, H> {
                 // A tie, or a crossing the scan above left behind the
                 // one it kept: the closest is not certain.
                 Ok(Sign::Zero | Sign::Negative) => return Err(RayFault::Graze),
-                Err(diag) => return Err(RayFault::InBand(escalate(diag, &self.ahead[k].1))),
+                Err(diag) => {
+                    return Err(RayFault::InBand(escalate(
+                        diag,
+                        &self.ahead[k].1,
+                        &self.ahead[best].1,
+                    )));
+                }
             }
         }
         match self.ahead.into_iter().nth(best) {
@@ -911,7 +917,7 @@ mod tests {
         for &(at, hit, sideless) in crossings {
             c.push(at, hit, sideless);
         }
-        c.closest("test_ray_walk_order", band(), |_, _| ())
+        c.closest("test_ray_walk_order", band(), |_, _, _| ())
             .map_err(|f| match f {
                 RayFault::Graze => "graze",
                 RayFault::InBand(()) => "in band",

@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-07
 priority: P4
 cost: M
-refs: [name-order-was-insertion-order-under-the-counter]
 ---
 
 
