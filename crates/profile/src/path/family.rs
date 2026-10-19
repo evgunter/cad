@@ -1006,7 +1006,7 @@ fn bulge_carrier<T: geom_core::Decide>(
     };
     let arc = crate::lower_arc(at, p, b);
     let start = super::turned(
-        super::chord_director(p - at)?.unit,
+        super::chord_director(p - at).unit,
         -arc.sweep / T::from_f64(2.0),
     );
     Ok((arc.centre, winding, start))
@@ -1091,7 +1091,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
         })?;
         let theta = super::center_sweep(at, self.p, self.c, r_tip, self.winding);
         let start = super::turned(
-            super::chord_director(self.p - at)?.unit,
+            super::chord_director(self.p - at).unit,
             -theta / T::from_f64(2.0),
         );
         // The AUTHORED centre is the carrier (never the re-derived one).

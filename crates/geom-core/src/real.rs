@@ -882,10 +882,10 @@ pub trait Real:
 ///   OVERFLOWED chord behind a finite one;
 /// - `profile`'s two 2-D director doors (`unit_from_components`,
 ///   `arc_fillet::carrier_tangent`), and its chord director
-///   (`path::chord_director`), which normalizes a leg's chord without
-///   deciding its length — the lever gates and shape validation decide
-///   that — and asks this, [`is_underflowed_length`] and
-///   [`is_zero_length`] before it divides.
+///   (`path::chord_director`), which decides no length and refuses
+///   nothing — the lever gates and shape validation own a leg's length
+///   — and asks this, [`is_underflowed_length`] and [`is_zero_length`]
+///   only to choose how to divide.
 ///
 /// Each refuses with its own typed arm, naming the recourse its own
 /// caller can reach: the question is one question, but what a caller
@@ -971,8 +971,9 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 ///   its own and which an underflowed chord always wins, so asking the
 ///   arm would refuse without ever naming the cause.
 /// - `profile`'s `path::arc_fillet::carrier_tangent`, of the anchor's
-///   displacement from the arc centre, and `path::chord_director`, of
-///   a leg's chord from the tip to its target.
+///   displacement from the arc centre; and `path::chord_director`, of
+///   a leg's chord, which divides an underflowed chord by its largest
+///   component rather than refusing it.
 ///
 /// `profile`'s OTHER 2-D director door, `unit_from_components`, asks
 /// [`is_finite_length`] and deliberately not this: the pair it refuses
@@ -1023,8 +1024,8 @@ pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
 ///   job, metered and band-relative): a datum is asked whether it is
 ///   the zero vector, not whether it is short.
 /// - `profile`'s `path::chord_director`, of a leg's chord: a chord of
-///   no length names no ray, and its length is decided by the gates
-///   that read it as a lever and as a segment, not here.
+///   no length names no ray and stands in `+x`; its length is decided
+///   by the gates that read it as a lever and as a segment, not here.
 pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
     !is_finite_length(len / witness)
 }

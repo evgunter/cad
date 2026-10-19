@@ -59,11 +59,15 @@ beside it; each of those is the class.
 ## Outcome
 
 A chord's director is built from its components: `path::chord_director`
-divides the chord by its length, asking only whether that division is a
-number (overflow, underflow, the zero vector) and deciding nothing about
-how long the chord is — the lever gates and the segment shape
-validation already ask that, under their own names, and a band question
-here pre-empted `SeamArrivalLeverTooShort` on a sub-ε closing leg.
+divides the chord by its length, deciding and refusing nothing — the
+lever gates and the segment shape validation already ask about that
+length under their own names (a band question here pre-empted
+`SeamArrivalLeverTooShort` on a sub-ε closing leg), and geometry past the
+format's range is refused where its vertex is validated or drawn (a
+`NonFiniteDirection` refusal here reddened eight `viewer` rows built on
+that layering). An over- or underflowed length divides by the largest
+component first; the zero chord stands in `+x`; a component past the
+range keeps `atan2`'s heading.
 `line_to_point` and `line_to_start` take it; `arc_angles` and the fused
 `Bulge` and `Center` incomings (`path/family.rs`) turn its ray by half the
 sweep (`path::turned`) instead of adding angles. At `Interval` every such
