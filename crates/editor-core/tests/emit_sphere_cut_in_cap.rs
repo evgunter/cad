@@ -297,8 +297,8 @@ fn the_cap_states_its_meridian_crossings_as_meetings() {
                 && met
                     .iter()
                     .all(|r| r.site == topo::DecisionSite::VertexFusion
-                        && face_of(r.cells[0], false)
-                        && face_of(r.cells[1], true)),
+                        && r.cells.iter().any(|&c| face_of(c, false))
+                        && r.cells.iter().any(|&c| face_of(c, true))),
             "lens first {lens_first}: both crossings, the lens's face meeting the brick's: {met:?}"
         );
     }

@@ -1597,8 +1597,11 @@ fn pencil(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 /// rim edge sharing that point (`Relation::Meet`), never the one edge on
 /// the other. The union publishes each as the fold step's row of the
 /// member cells that meet there: the two boxes' faces the seam runs
-/// between and the prism's rim edge. Red if a crossing is published as
-/// an edge on an edge, or dropped.
+/// between and the prism's rim edge. (The boxes' own step logs its
+/// meetings of their edges too, apart from the judged rows stating them:
+/// a meeting of two edges names no vertex that would put the two at one
+/// point.) Red if a crossing is published as an edge on an edge, or
+/// dropped.
 #[test]
 fn a_face_through_a_seam_is_the_meeting_the_step_that_meets_it_decides() {
     for order in [[0, 1, 2], [1, 0, 2]] {
@@ -1659,7 +1662,7 @@ fn a_face_through_a_seam_is_the_meeting_the_step_that_meets_it_decides() {
             .expect("the union evaluates")
             .coincidences
             .iter()
-            .filter(|r| matches!(r.origin, editor_core::RowOrigin::Fold { .. }))
+            .filter(|r| matches!(r.origin, editor_core::RowOrigin::Fold { step: 2 }))
             .map(|r| {
                 let cells: Vec<String> = r
                     .cells
