@@ -652,10 +652,9 @@ pub fn monte_carlo(
     })
 }
 
-/// The replay's evaluation options: the defaults. A sample's box
-/// makes the profile lift guided ([`EvalOptions::profile_lift`]), so a
-/// sampled profile dimension reaches the geometry the same way the
-/// driver's leaves do (M10-P).
+/// The replay's evaluation options: the defaults, which are the
+/// driver's leaves' own, so a sampled profile dimension reaches the
+/// geometry the same way (M10-P).
 fn lane_opts() -> EvalOptions {
     EvalOptions::default()
 }

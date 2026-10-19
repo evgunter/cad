@@ -21,9 +21,12 @@ fn tol() -> Tol {
 
 fn prism(origin: Point3<f64>, x: Vec3<f64>, y: Vec3<f64>, pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let n = x.cross(y);
-    let plane = SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(x, y, n),
-        Vec3::new(origin.x, origin.y, origin.z),
+    let plane = SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(
+            Mat3::from_cols(x, y, n),
+            Vec3::new(origin.x, origin.y, origin.z),
+        ),
+        geom_core::Tol::witness(),
     ));
     let lp = bulge_loop(pts.iter().map(|&(a, b)| (Point2::new(a, b), 0.0)).collect());
     let p = Profile::new(plane, vec![lp]).validate(tol()).unwrap();

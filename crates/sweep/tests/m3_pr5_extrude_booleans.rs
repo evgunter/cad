@@ -10,7 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Point3, Vec3};
+use geom_core::{Point2, Point3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::ExtrudeSide;
@@ -28,10 +28,7 @@ fn slab(x0: f64, y0: f64, side: f64, z0: f64, height: f64) -> AtRestBody<f64> {
         Point2::new(x0 + side, y0 + side),
         Point2::new(x0, y0 + side),
     ]);
-    let plane = SketchPlane::new(Affine3::from_parts(
-        geom_core::Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Point3::new(0.0, 0.0, z0) - Point3::origin(),
-    ));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let validated = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();

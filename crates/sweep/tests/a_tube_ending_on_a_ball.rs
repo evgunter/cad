@@ -32,7 +32,7 @@ fn tube_at<T: geom_core::Decide + topo::AtRestPolicy>(a: T, z0: T, len: T) -> to
     let tol = Tol::witness();
     let o = T::zero();
     let circle = profile::circle(Point2::new(o, o), a, tol).unwrap();
-    let plane = profile::SketchPlane::new(Affine3::translation(Vec3::new(o, o, z0)));
+    let plane = profile::SketchPlane::xy_at(Point3::new(o, o, z0));
     let p = profile::Profile::new(plane, vec![circle.into()])
         .validate(tol)
         .unwrap();

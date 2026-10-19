@@ -41,10 +41,11 @@
 //!   [`RigidMotion`](super::RigidMotion) can build its axes and act on
 //!   a direction, and they are documented on their own doors.
 //!
-//! The exact crossings `UnitVec3::embed` and `UnitVec3::pin` are not
-//! built; they are scheduled with the frame's own on PATHS'
-//! `work/paths/the-sketch-plane-is-its-frame.md`
-//! ([`RigidMotion`](super::RigidMotion)'s "Not built yet").
+//! A witness exists at a scalar only by being minted there, and has no
+//! public crossing. It crosses down as an axis of its frame, through
+//! [`RigidMotion::point_value`](super::RigidMotion::point_value) (its
+//! module's "Crossing scalars"), and never up (Ev on #5068,
+//! 2026-10-14).
 //!
 //! The deciding ladders in [`frame`](super::frame) mint through the
 //! constructor under their own funnel names and map its refusals onto
@@ -73,6 +74,7 @@ use crate::k_stats::decide;
 use crate::linalg::Vec3;
 use crate::predicate::{Band, Decide, Indeterminate, Margin, Sign};
 use crate::real::{Real, is_finite_length, is_underflowed_length};
+use crate::spline::SpanLocate;
 
 /// **A direction that cannot be unnormalized.** The only spellings are
 /// the mints the [module docs](self) list; the field is private, so a
@@ -379,6 +381,20 @@ impl<T: Real> UnitVec3<T> {
     /// and the decided door, which has decided the column's norm.
     pub(in crate::linalg) fn by_construction(v: Vec3<T>) -> Self {
         Self(v)
+    }
+
+    /// The `f64` this witness's value channel holds, or `None` when a
+    /// component has no single finite one ([`SpanLocate::point_value`]:
+    /// poison, or an enclosure wider than a point). The frame's
+    /// [`point_value`](super::RigidMotion::point_value) crossing reads
+    /// each axis here.
+    pub(in crate::linalg) fn point_value(self) -> Option<UnitVec3<f64>>
+    where
+        T: SpanLocate,
+    {
+        let read = |x: T| x.point_value().filter(|x| x.is_finite());
+        let v = self.0;
+        Some(UnitVec3(Vec3::new(read(v.x)?, read(v.y)?, read(v.z)?)))
     }
 
     /// The exact `x̂`, unit as its literal bits at every scalar that

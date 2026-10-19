@@ -119,7 +119,7 @@ const POSES: [(&str, usize, f64, f64); 55] = [
 
 /// `(ε, prism, edge, sixteenths, tilt, run)`: the runs that build their
 /// closed form at that ε row and ship a definite tier-3′ finding, each
-/// pinned at what it ships (the findings' `Debug`, in order). They are
+/// pinned at what it ships ([`Pinned`], in order). They are
 /// FUSE's class (`a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms` (a closed FUSE row; `docs/doc-ledger/fuse-leaves-the-tracker.md`)),
 /// which the door does not see until it runs the census over its result
 /// (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`):
@@ -134,9 +134,10 @@ const SHIPS_A_FINDING: [Shipped; 1] = [
         3.8,
         1e-7,
         "prism ∪ cube",
-        &[
-            r#"UnrecordedContact { contact: EdgeEdgeCross { a: EdgeKey(16v1), b: EdgeKey(31v3), side: None }, witness: "(2.0, 1.018657088811564e-5, 1.0)", margin: Some(MarginDiag(Value(2.1931706656334435e-15, None, ZeroWord(0)))) }"#,
-        ],
+        &[(
+            "EdgeEdgeCross { a: EdgeKey(16v1), b: EdgeKey(31v3), side: None }",
+            [2.0, 1.0186570888e-5, 1.0],
+        )],
     ),
 ];
 
@@ -214,8 +215,48 @@ type Shipped = (
     f64,
     f64,
     &'static str,
-    &'static [&'static str],
+    &'static [Pinned],
 );
+
+/// A shipped `UnrecordedContact`: its contact's `Debug`, and the point
+/// its witness names to within ε. Its margin is the Zero reading that
+/// found the contact, so at most ε; the numbers past that are the
+/// census's rounding charge, and pinned they would only report it.
+type Pinned = (&'static str, [f64; 3]);
+
+/// Why `finding` is not the pinned one, if it is not.
+fn pinned_mismatch(finding: &ValidationError, (contact, at): Pinned, eps: f64) -> Option<String> {
+    let ValidationError::UnrecordedContact {
+        contact: got,
+        witness,
+        margin,
+    } = finding
+    else {
+        return Some("not an UnrecordedContact".into());
+    };
+    if format!("{got:?}") != contact {
+        return Some(format!("contact {got:?}, pinned {contact}"));
+    }
+    let point: Vec<f64> = witness
+        .trim_start_matches('(')
+        .trim_end_matches(')')
+        .split(", ")
+        .map(|c| c.parse().unwrap_or(f64::NAN))
+        .collect();
+    let off = (point.len() == 3).then(|| {
+        (0..3)
+            .map(|i| (point[i] - at[i]).powi(2))
+            .sum::<f64>()
+            .sqrt()
+    });
+    if !off.is_some_and(|d| d <= eps) {
+        return Some(format!("witness {witness}, pinned {at:?} within ε"));
+    }
+    match margin.map(geom_core::MarginDiag::diagnostic_f64_for_error_text) {
+        Some(geom_core::ErrorTextReading::Value(m)) if (0.0..=eps).contains(&m) => None,
+        other => Some(format!("margin {other:?}, not a Zero reading in [0, ε]")),
+    }
+}
 
 /// One run of a pose: its name, its result, and the closed-form volume.
 type Run = (&'static str, Result<BooleanResult<f64>, BooleanError>, f64);
@@ -299,18 +340,35 @@ fn check_pose((name, edge, a, d): (&str, usize, f64, f64), tol: Tol) -> (Vec<Str
                 props.volume
             ));
         }
-        let findings: Vec<String> = match topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
-        {
-            Ok(()) => Vec::new(),
-            Err(errors) => errors
-                .iter()
-                .filter(|e| !matches!(e, ValidationError::CensusEscalated { .. }))
-                .map(|e| format!("{e:?}"))
-                .collect(),
-        };
+        let findings: Vec<ValidationError> =
+            match topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol) {
+                Ok(()) => Vec::new(),
+                Err(errors) => errors
+                    .into_iter()
+                    .filter(|e| !matches!(e, ValidationError::CensusEscalated { .. }))
+                    .collect(),
+            };
         match pinned {
-            Some(want) if findings != want => {
-                wrong.push(format!("{tag}: the pinned findings moved: {findings:#?}"));
+            Some(want) => {
+                let moved: Vec<String> = if findings.len() == want.len() {
+                    findings
+                        .iter()
+                        .zip(want)
+                        .filter_map(|(f, &w)| pinned_mismatch(f, w, tol.eps()))
+                        .collect()
+                } else {
+                    vec![format!(
+                        "{} findings, pinned {}",
+                        findings.len(),
+                        want.len()
+                    )]
+                };
+                if !moved.is_empty() {
+                    wrong.push(format!(
+                        "{tag}: the pinned findings moved ({}): {findings:#?}",
+                        moved.join("; ")
+                    ));
+                }
             }
             None if !findings.is_empty() => {
                 wrong.push(format!("{tag}: fails tier 3′ definitely: {findings:#?}"));

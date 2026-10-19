@@ -2,10 +2,11 @@
 id: a-split-exactly-on-a-face-leaves-a-half-no-boolean-accepts
 kind: issue
 title: A split whose plane lies on an operand face or edge leaves coplanar section faces unmerged, so the half is refused as the input to every later boolean, with no editor merge door
-status: open
+status: closed
 opened: 2026-10-18
 priority: P1
 cost: M
+closed: 2026-10-19
 ---
 
 
@@ -44,3 +45,7 @@ builds it is likely one cross-territory WIRE unit (naming plus
 CLEAVE lane is in that file.
 
 Signed (WIRE orchestrator).
+
+## Resolution (2026-10-19)
+
+Closed by PR 5334: a split finishes each half with maximal faces (recording a curved skip), names in-plane edges and merged groups per N2/N3 as Ev approved on PR 5306, and reads `Keeps` by descent in one builder. Pinned in `split_pinch_keeps.rs`, `m3_pr3_split.rs` and `a_lower_half_on_the_plane_takes_a_box_hole`.

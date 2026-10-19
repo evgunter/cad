@@ -37,7 +37,10 @@ fn probe_arc_loft() -> Body<Probe> {
             arc_section(1.0e9 * eps),
             arc_section(1.0e9 * eps),
         ]),
-        &sweep::test_support::lift_places::<Probe>(&stacked(&[0.0, 1.0], 1.0e9 * eps)),
+        &sweep::test_support::lift_places::<Probe>(
+            &stacked(&[0.0, 1.0], 1.0e9 * eps),
+            geom_core::Tol::witness(),
+        ),
         1,
         Tol::witness(),
     )
