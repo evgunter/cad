@@ -2,11 +2,11 @@
 id: a-borders-join-can-link-two-obstacles-that-meet-only-at-a-notch-apex
 kind: issue
 title: The Borders chase links every discard one piece edge reaches through a join, which joins two obstacles that meet only at a reflex apex of a non-convex parent
-status: open
+status: closed
+closed: 2026-10-19
 opened: 2026-10-13
 priority: P3
 cost: M
-design: true
 ---
 
 
@@ -112,3 +112,86 @@ lost regions that meet only at a point are one obstacle, and N2 says so
 `borders.rs`, canonicalised through `null_copies`, the cone splits and
 the graft's vertex maps, with all six orders of the wall-through-the-apex
 probe naming alike.
+
+## Closed
+
+Built in `names/borders.rs` (`Obstacles`), branch `emit/borders-closure`.
+Closure is two channels; each goes red without it.
+
+- **A point the result holds as a vertex** (`Discard::meets`). Each
+  stretch end is settled through the step's `Settler` (the zip's
+  fusions and cone copies, the output stage's join and merge) to the
+  live vertices it lies at. An edge at one of those meets another
+  discard when it is, or descends from, an edge that discard borders end
+  to end (`Discard::whole`), of this step or an earlier one: an edge
+  `between` found for a stretch, and no edge the output stage joined,
+  whose other half the discard may not border. Identity only; no point
+  is compared.
+  - Without the channel, or with it restricted to earlier steps'
+    edges, three rows go red: `a_boss_whose_corner_touches_the_divider_is_part_of_it`,
+    `a_wall_through_a_notch_apex_names_alike_in_every_order` (two
+    discards of one step meeting at the point) and
+    `a_corner_touching_the_near_half_of_a_joined_seam_is_part_of_the_divider`.
+  - At 1379d6859f, reading the raw stretch-end keys instead of the
+    settled vertices turned the first two red. That mutant was not
+    re-run after the change to `whole`.
+  - **Not kept: targets read from `Discard::seams`.** That reading linked
+    a corner on the far half of a joined seam to the discard along the
+    near half, and in all 8 publishing orders it cited a diamond that
+    touches no lost region
+    (`a_corner_touching_the_far_half_of_a_joined_seam_is_not_cited`).
+    Holding only `whole` costs 2 of those orders a corner on the near
+    half of a seam joined in an earlier step. That case is pinned, and
+    the question of which half is open in
+    `borders-records-a-join-twice-and-reads-lineage-three-ways`.
+- **A point the output stage joined away** (`Obstacles::joined_from`,
+  the chase from a piece edge to every edge a join made it of).
+  Without it, `two_members_regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle`,
+  `emit_union_rim_piece_ranks`' flush-union and two-orders rows and
+  `union_member_orders_decide_alike`'s emit-corpus row go red.
+- **Not kept: a key link with key classes.** The first build joined
+  discards sharing a stretch-end key, each key widened to every key
+  the step held for the point (`null_copies`, `cone_splits`,
+  `vertex_merges`). Dropping the classes, or any one source of them,
+  turned nothing red, and the vertex channel above, read across all
+  steps, covers what the key link did within one. The key link also
+  compared keys across steps, which holds only while each step's
+  result is in operand A's keys.
+- **A result that is B alone** (`(Absent, Direct)`, the boundary-disjoint
+  fallback: a member that engulfs the accumulation) resets the record.
+  None of the earlier region survives, and its keys are another
+  arena's. Any other layout without A held directly refuses. Without
+  the reset, `a_member_engulfing_the_others_reads_only_what_follows_it`
+  trips `note_split`'s check, because an edge key of the new arena
+  collides with an earlier one ("recorded with two parents"). It trips
+  on origin/main too, so the reset fixes a latent defect there.
+- **Fixtures** (`editor-core/tests/emit_union_borders.rs`):
+  - `a_wall_through_a_notch_apex_names_alike_in_every_order`: all six
+    orders give left {`m:y=1.20`, `s2:x=1.50`}, right {`m:x=2.00`,
+    `m:y=1.20`, `s2:x=1.70`}. On main, order (plate, s2, m) gave left
+    {`s2:x=1.50`}.
+  - `a_boss_whose_corner_touches_the_divider_is_part_of_it` (the cost
+    Ev accepted): a diamond boss whose corner rests on the slab's wall.
+    The left piece cites the diamond's four walls beside `slab:x=1.40`
+    in all six orders.
+  - `a_member_engulfing_the_others_reads_only_what_follows_it`: 24
+    orders, one table.
+  - `regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle` and
+    `two_members_regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle`
+    lose `_today`. Unchanged.
+  - The joined seam, over the stepped plate. In each fixture with a
+    diamond, 16 of 24 orders refuse, the same orders as on main
+    (`a-union-over-a-stepped-plate-refuses-in-the-orders-that-fold-the-plate-early`).
+    - `a_corner_touching_the_far_half_of_a_joined_seam_is_not_cited`:
+      the 8 publishing orders give one table, with no diamond cited.
+    - `a_corner_touching_the_near_half_of_a_joined_seam_is_part_of_the_divider`:
+      6 orders cite the diamond, and 2 are held apart.
+    - `a_divider_beside_a_joined_seam_does_not_reach_across_it`: 6
+      orders, 4 right, and 2 held apart for the chain channel's
+      over-link, the same as main.
+- **Measured, nothing moved:** `emit_union_borders` 22/22 (+3 new, 1
+  ignored as before), `name_words_corpus`, `emit_union_rim_piece_ranks`,
+  `emit_union_flush_names`, `emit_shared_rim_several` and
+  `union_member_orders_decide_alike`: 56/56 with the slow set.
+- N2 (`names/README.md`) states the cost: a boss or notch on one piece
+  is cited when a point of it touches a divider.
