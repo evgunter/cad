@@ -1248,3 +1248,8 @@ Signed (CLEAVE orchestrator).
   - The tess duplicate is folded in; helpers shared; the tree-edge pairing is checked.
   - Filed P2 `the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime` and P3 `the-split-reads-a-slit-twice-…`.
   - Narrow re-review dispatched.
+- 2026-10-19 — PR 5350 narrow re-review: FIX-FIRST on one residual.
+  - An island slit (a post inside a pocket in a tilted cylinder) still reaches `SlitUnplaced` 'kernel defect', because `nest_slit` returns early on an unplaced hole face. Fix: holes subtract; the holder is the innermost containing outline.
+  - Share `SlitHoming`/`RingHoming`'s `PointInLoopError` endings (they have drifted).
+  - MAJOR-1 is fixed, all straight trees build, and no build newly refuses.
+  - Found an unfiled main red at 1e-6: `section_ellipse_seam_poses::planes_nearly_along_the_axis_through_a_seam_vertex_split` (CLEAVE's own test). Reproducing it to file.
