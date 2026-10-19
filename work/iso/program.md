@@ -10,7 +10,6 @@ tag: (ISO orchestrator)
 ab_band: 7700-7799
 paths: [crates/geom-brep/src/edge_nurbs.rs]
 keep_out: [opened by CHART's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - CHART measured 105 budget points and was cut into four tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are CHART SSI PCERT ISO and they share crates/geom-brep by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR rather than drawing a fence, TRIM keeps nurbs_iso.rs and docs/PCURVE-P2-SPEC.md until its exit, SHELL owns editor-core/src/clearance.rs, TESS and CHORD own crates/mesh, QUAD owns props/quad.rs]
-priority: P1
 ---
 The trimmed lane and the rational surfaces under it: `nurbs_iso`'s
 derivation arms, the trimmed quadrature's composite rounds, the

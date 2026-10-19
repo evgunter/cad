@@ -10,7 +10,6 @@ tag: (CIW orchestrator)
 ab_band: 1500-1599
 paths: [.github/workflows/*, local-scripts/*, .claude/hooks/*, scripts/apt-install.sh, demos/*.sh, demos/*.py, scripts/check-*.py, scripts/criterion-emit.py, scripts/doc-gate.sh, scripts/check_admesh.sh, scripts/check_step.sh, scripts/k_probe_sweep.sh, scripts/tess_budget_cut.sh, scripts/tess_budget_sweep.sh]
 keep_out: [scripts/gates/* is GUARD's (work/guard/program.md), tools/* is INSTR's (work/instr/program.md), scripts/ci-filter.py is S-TCOST's, scripts/work.py is the tracker's own and changes only with work/README.md, CI build knobs (profile/cache) stay S-TCOST's rule — measured in-unit or not at all, what a main push re-gates is an [ev] ruling]
-priority: P4
 ---
 
 **The workflow half**: `.github/workflows`, the jobs that gate a PR and

@@ -302,22 +302,30 @@ fn eps_row(eps: f64) -> usize {
 /// forms it used to build first are now built under `Plain/Assertion`
 /// (2690 → 2697). Its digests move at every row; the `Early/*` lines
 /// and the largest form hold.
+///
+/// A chord's director spelled as its components, prescaled by the
+/// largest and normalized (`profile`'s `path::chord_director`), where
+/// it was the `sin_cos` of an `atan2`, builds more forms under the
+/// assertions for the slab's straight legs: `Plain/Assertion`
+/// 2697 → 2733 and `Early/Assertion` 4121 → 4157, and their digests, at
+/// every row; calls, frozen counts, both `*/Decision` lines and the
+/// largest form hold.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 928 forms 9415 frozen 0 digest 9fd9683c510b6d13533481894aff86fe\n\
-     Plain/Assertion calls 514 forms 2697 frozen 0 digest 987caa300000f10b707150f4903f8be1\n\
+     Plain/Assertion calls 514 forms 2733 frozen 0 digest 806e4164ff0eae109afd91bcbb432fe9\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 4121 frozen 0 digest 05a8fa1aaad6a11bf8548406e96878e4",
+     Early/Assertion calls 514 forms 4157 frozen 0 digest 94eb0cd011bda6f54ff7bfe2ee0453c2",
     "\
      Plain/Decision calls 928 forms 9415 frozen 0 digest 7572a0635345c9fe906c50fadd763ce0\n\
-     Plain/Assertion calls 514 forms 2697 frozen 0 digest 9a2a9a3f8ddf5ff8d89e4b9066866446\n\
+     Plain/Assertion calls 514 forms 2733 frozen 0 digest 7b90d93d3999a85acc7557a506e28138\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 4121 frozen 0 digest dcc9543706fd55fd98e91ebcd58ab72a",
+     Early/Assertion calls 514 forms 4157 frozen 0 digest cf662dda5d1d031e0e9af6238f538eed",
     "\
      Plain/Decision calls 928 forms 9415 frozen 0 digest 4c421c5d18739546779e9a8966c18e71\n\
-     Plain/Assertion calls 514 forms 2697 frozen 0 digest f4ccbb5ade82a6f3191ad5729591c479\n\
+     Plain/Assertion calls 514 forms 2733 frozen 0 digest d0fe4dd300906adf23c7097661588401\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 4121 frozen 0 digest e8e45d5267b25b64b653e18901a234c1",
+     Early/Assertion calls 514 forms 4157 frozen 0 digest 188afd10ef6ad7f4f7c711336f4ee6fa",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -665,16 +673,23 @@ const PLATE_MAX_TERMS: usize = 28;
 /// +10, with every digest; every call, every freeze and the largest
 /// form hold.
 ///
+/// A chord's director spelled as its components, as on the slab:
+/// forms `Plain/Assertion` 7003 → 7043 and `Early/Assertion`
+/// 8165 → 8205, and their digests; every call, frozen count, the three
+/// `*/Decision` lines and the largest form hold.
+///
 /// Check 4 deciding no whole period (PCERT B2b): fidelity's 32 branch
 /// decisions are gone, each a numeric decision checked against the
 /// tier, so `Plain/Assertion` and `Early/Assertion` 686 → 654 calls and
 /// `Door/Decision` 428 → 396; forms and digests move with them, and
 /// `Plain/Decision`'s calls, every freeze and the largest form hold.
+/// Measured on the tree with both (the components' +40 forms on each
+/// `*/Assertion` line hold).
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 939 forms 15828 frozen 324 digest 106c6e8f656834241d3861faf20e7799\n\
-     Plain/Assertion calls 654 forms 6943 frozen 405 digest 2544c0a78ce8187ccc270e458e566291\n\
+     Plain/Assertion calls 654 forms 6983 frozen 405 digest 1ef4df39484a2e621ea573f570cb0d3a\n\
      Early/Decision calls 352 forms 8884 frozen 0 digest 77472cc4b2b651d309e31f2086d5b20a\n\
-     Early/Assertion calls 654 forms 8105 frozen 0 digest 39572c133e0d8ba3e7dcef3c5d779851\n\
+     Early/Assertion calls 654 forms 8145 frozen 0 digest 9d2325c4b098143e137e9e29960a0c41\n\
      Door/Decision calls 396 forms 9465 frozen 0 digest c689a400e4425e2426a805dc6619c228";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

@@ -10,7 +10,6 @@ tag: (FLUX orchestrator)
 ab_band: 12600-12699
 paths: [crates/geom-brep/src/props/*, crates/topo/src/props.rs]
 keep_out: [OPENED 2026-10-01 as PROPS' successor on Ev's instruction in chat. CUT 2026-10-10 on its priority seam at 125.5 budget points - FLUX kept the curved closed-form arms and its territory narrowed to them, the arms' numeric honesty went to FLUXTAIL, the spline net and fit doors to KNOT, the scalar doors and box-driver readings to SCALAR, the D10-held rows to FLUXHOLD, and the Boehm-step pair to NURBS. Shared ground is expected (Ev in chat 2026-09-20) - props/* is shared with FLUXTAIL and QUAD (QUAD has props/quad.rs and the quadrature rows), ENCL has offset_fit.rs patch_bound.rs offset_meters.rs, FRAME the give-me-a-frame family. The DL6 contract (docs/DUAL-DESIGN.md) is RATIFIED]
-priority: P0
 ---
 
 PROPS' successor, opened when PROPS' slate had outgrown it a second time:

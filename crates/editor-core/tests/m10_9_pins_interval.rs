@@ -11,10 +11,12 @@
 //! The arc carrier's builder registers both of its same-object
 //! identities (the rim `‖q − c‖ = r` and the span
 //! `carrier.eval(param_end) = q_to`), both discharge outright, and what
-//! bounds every measured document is `carrier_matches_mapped_source` —
-//! the carrier against the scaffold pushforward, an identity between two
-//! independently built objects — door open and door SHUT alike
-//! (`work/sym/plate-ceiling-is-now-the-scaffold-pushforward`).
+//! bounds every measured document but the pad is
+//! `carrier_matches_mapped_source` — the carrier against the scaffold
+//! pushforward, an identity between two independently built objects —
+//! door open and door SHUT alike
+//! (`work/sym/plate-ceiling-is-now-the-scaffold-pushforward`). The pad
+//! is bounded by `arc_span`, in the profile's validation.
 //!
 //! **Which tier these rows pin.** M10-9's — the shipped set with the
 //! form-level algebra OFF (`SymRules::without_the_algebra`), which is
@@ -118,7 +120,9 @@ pub(crate) struct Study {
 /// replay: the link (718, 740) → (718, 708), still refusing at
 /// `pcurve_envelope`, the bracket (1250, 1099) → (1250, 1059) and the pad
 /// (1147, 1392) → (1147, 1344). No registrant moved and no verdict
-/// moved.
+/// moved. With a chord's director spelled as its components (main), the
+/// pad's door-shut replay reads the shipped receipt, and B2b's 48
+/// numeric decisions come off it as off the shipped one: (1373, 1118).
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -189,17 +193,25 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
         },
         Study {
             name: "r2_rounded_pad",
-            certifies_at: 2.083e3,
-            // Bounded by `line_span`, in the profile's validation.
-            refuses_at: Some(2.7783e3),
+            // Its straight legs' chord directors are their components
+            // (`profile`'s `path::chord_director`), so `line_span` no
+            // longer bounds it (it did at 2.7783e3).
+            certifies_at: 3.151e3,
+            // Bounded by `arc_span`, in the profile's validation.
+            refuses_at: Some(3.152e3),
             refused_by: None,
             // Rule F's differential on this document is
-            // `m10_9_the_pad_at_both_rule_f_dials`'s.
-            without_the_registry: Some(((1147, 1344), None)),
+            // `m10_9_the_pad_at_both_rule_f_dials`'s. Door shut, the
+            // pad reads the shipped receipt: with its legs' directors
+            // exact components, the tier proves what the door used to
+            // discharge (64 decisions, `(1147, 1392)` shut against
+            // `(1211, 1328)` shipped, when they were angles), less
+            // check 4's 48 numeric branch decisions (PCERT B2b).
+            without_the_registry: Some(((1373, 1118), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
-            symbolic: [1211, 1211, 1211],
+            symbolic: [1373, 1373, 1373],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -631,6 +643,16 @@ fn m10_9_what_the_registry_buys() {
 /// 4112), at both dials alike; check 4 deciding no whole period (PCERT
 /// B2b), fidelity's 48 numeric branch decisions gone, (1211, 1280, 4112).
 ///
+/// A chord's director spelled as its components over its length
+/// (`profile`'s `path::chord_director`) where it was the `sin_cos` of an
+/// `atan2`: 162 decisions move from `numeric` to `symbolic`, and the
+/// forms the walks freeze rise, (1211, 1328, 4112) → (1373, 1166, 4298),
+/// at both dials alike. No decision is gained or lost. The same
+/// receipt holds at the pad's new `certifies_at` (its ceiling rose, see
+/// [`measured_studies`]). On the tree with B2b, measured: its 48 numeric
+/// branch decisions come off the components receipt alike,
+/// (1373, 1166, 4298) → (1373, 1118, 4298).
+///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
 /// at every ε row. It is two whole-box pad replays on top of the gating
@@ -663,7 +685,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1211, 1280, 4112), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1373, 1118, 4298), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

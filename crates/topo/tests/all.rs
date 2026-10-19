@@ -63,10 +63,14 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "a_callers_interval_is_refused_at_its_door.rs"]
+mod a_callers_interval_is_refused_at_its_door;
 #[path = "a_doubled_line_does_not_revert.rs"]
 mod a_doubled_line_does_not_revert;
 #[path = "a_given_pair_is_made_from_a_kernel_verdict.rs"]
 mod a_given_pair_is_made_from_a_kernel_verdict;
+#[path = "a_keel_wrapped_at_both_ends_splits_as_a_ring.rs"]
+mod a_keel_wrapped_at_both_ends_splits_as_a_ring;
 #[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]
 mod an_off_iso_straight_edge_takes_its_general_row;
 #[path = "analytic_rung3_at_rest.rs"]
@@ -315,6 +319,8 @@ mod rim_dim_boolean_twins;
 mod rim_dim_review_probes;
 #[path = "shell_operand_gate.rs"]
 mod shell_operand_gate;
+#[path = "shell_role_reader.rs"]
+mod shell_role_reader;
 #[path = "shell_roles.rs"]
 mod shell_roles;
 #[path = "shell_tolerance_chain.rs"]

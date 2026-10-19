@@ -585,9 +585,9 @@ fn sym_9_what_each_retry_recovers() {
 /// Check 4 deciding no whole period (PCERT B2b): fidelity's numeric
 /// branch decisions are gone, with the ladder and without it alike. The
 /// plate's `numeric` 686 → 654, the annulus 431 → 399, the boss
-/// 398 → 374, the bracket 1042 → 1002, the link 691 → 659; the pad's
-/// leaf 1328 → 1280 bare and 1324 → 1276 with the ladder. `symbolic`
-/// and `retried` hold.
+/// 398 → 374, the bracket 1042 → 1002, the link 691 → 659. `symbolic`
+/// and `retried` hold. (The pad's leaf is
+/// `sym_9_the_drive_writes_the_ladders_receipt`'s.)
 ///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
 /// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
@@ -666,26 +666,37 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 }
 
 /// **The DRIVE carries the ladder, and its receipt says so**: one
-/// whole-box leaf of R2's rounded pad at `1e1·ε` under
-/// `SymbolicDials::default()` — the shipped ladder, through the drive's
-/// own door (`sym::with_session_memo_retry`, with the drive's plain
-/// memo installed) — against the same leaf with `SymRetry::none()`.
+/// whole-box leaf of R2's rounded pad, its first straight leg spelled
+/// as an angle and a length
+/// (`m10_8_r2_probes_interval::pad_first_leg_by_angle`), at `1e1·ε`
+/// under `SymbolicDials::default()` — the shipped ladder, through the
+/// drive's own door (`sym::with_session_memo_retry`, with the drive's
+/// plain memo installed) — against the same leaf with
+/// `SymRetry::none()`.
 ///
 /// It reads both receipts the drive writes: the goldening line carries
-/// `retried=4` after the discharge columns, and the human form names
-/// the four as discharges a second attempt reached. Without the ladder
-/// neither appears and the line is the one a drive wrote before the
-/// ladder existed. The four move `symbolic` 1311 → 1315.
+/// `retried=38` after the discharge columns, and the human form names
+/// the thirty-eight as discharges a second attempt reached. Without
+/// the ladder neither appears and the line is the one a drive wrote
+/// before the ladder existed. The thirty-eight move `symbolic`
+/// 1208 → 1246. Check 4 deciding no whole period (PCERT B2b) takes its
+/// 48 numeric branch decisions off both receipts, measured:
+/// `[1246, 1294, 38]` → `[1246, 1246, 38]` with the ladder and
+/// `[1208, 1332, 0]` → `[1208, 1284, 0]` without it; `symbolic` and
+/// `retried` hold.
 ///
-/// The row read the filleted bracket, then the link. Since the
-/// constructions store the carriers they build, the first attempt
-/// discharges on both what their ladder used to, so neither retries,
-/// and the pad is the one measured document whose leaf still does. It
-/// is the heaviest of them: this row costs minutes in a debug build.
+/// The row read the filleted bracket, then the link, then the pad as
+/// authored. Since the constructions store the carriers they build,
+/// the first attempt discharges on the first two what their ladder
+/// used to; since a chord's director is its components, it does on the
+/// pad as authored too (it retried four). Spelling the pad's one
+/// point-target leg as an angle puts a `sin_cos(π/2)` round trip back,
+/// and the ladder reaches thirty-eight. It is the heaviest leaf here:
+/// this row costs minutes in a debug build.
 #[test]
 fn sym_9_the_drive_writes_the_ladders_receipt() {
     let tol = Tol::witness();
-    let doc = document("r2_rounded_pad", 1.0e1 * tol.eps(), tol);
+    let doc = crate::m10_8_r2_probes_interval::pad_first_leg_by_angle(1.0e1 * tol.eps(), tol).0;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let run = |symbolic: editor_core::drive::SymbolicDials| {
         editor_core::drive::drive(
@@ -717,19 +728,19 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let d = shipped.decisions();
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1215, 1276, 4],
+        [1246, 1246, 38],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains(" retried=4\n"),
+        line.contains(" retried=38\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
-        human.contains("; 4 of those discharges reached only by a second attempt"),
-        "the human form names the four as the ladder's: {human}"
+        human.contains("; 38 of those discharges reached only by a second attempt"),
+        "the human form names the thirty-eight as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1211, 1280, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1208, 1284, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

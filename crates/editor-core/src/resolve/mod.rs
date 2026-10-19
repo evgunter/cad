@@ -1437,8 +1437,8 @@ impl<U: Decide> Prior<'_, U> {
         flips: &FlipSet,
         nodes: &BTreeSet<RecipeNodeId>,
     ) -> Option<Evidence> {
-        if let Some((node, f)) = in_id_order(flips.flips_on_nodes(nodes)).first() {
-            return Some(Evidence::Flip(*node, *f));
+        if let Some((node, f)) = first_cause(flips.flips_on_nodes(nodes)) {
+            return Some(Evidence::Flip(node, f));
         }
         let ddiff = self.doc().diff(new.doc);
         if let Some((node, param)) =
@@ -1457,6 +1457,24 @@ impl<U: Decide> Prior<'_, U> {
 fn in_id_order<V>(mut found: Vec<(RecipeNodeId, V)>) -> Vec<(RecipeNodeId, V)> {
     found.sort_by_key(|&(id, _)| id);
     found
+}
+
+/// **The flip lane's pick** ([`Prior::lanes`]): the first of `found` in
+/// node order ([`in_id_order`]) that the side reader's ray caster did not
+/// decide. Its decisions are recorded under one family
+/// ([`topo::SIDE_READER_FAMILY`]; the volume it falls back on is not in
+/// it). A flip among them changes whether a body's side is read — a
+/// ray's pair gap is geometry, and its flip moves the ray between reading
+/// and refusing — never which side, since every ray from outside reads
+/// the same one (`[verdicts]`): it surfaces as a refusal, never as a
+/// piece that moved. So with no other flip found the cause is the next
+/// lane's (a structural parameter, a recipe edit) or another rung's (a
+/// group resized). The mirror of the `name_frag_*` rung, which puts a
+/// family first.
+fn first_cause(found: Vec<(RecipeNodeId, VerdictFlip)>) -> Option<(RecipeNodeId, VerdictFlip)> {
+    in_id_order(found)
+        .into_iter()
+        .find(|(_, f)| !f.predicate.starts_with(topo::SIDE_READER_FAMILY))
 }
 
 /// One lane's find ([`Prior::lanes`]), before a scope wraps it in the
@@ -1481,7 +1499,10 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
     ///    predicates are the name's OWN qualifier vocabulary, so a
     ///    discriminator flip is definitionally the flip that
     ///    re-qualified the fragment.
-    /// 2. The lane table ([`Prior::lanes`]) over the path.
+    /// 2. The lane table ([`Prior::lanes`]) over the path, whose flip
+    ///    lane passes over the ray caster's family ([`first_cause`]): a
+    ///    flip there changes whether a side is read, never which, so it
+    ///    surfaces as a refusal and never moves a piece.
     ///
     /// This is a consumer-side attribution choice — the diff engine
     /// itself stays cause-agnostic and unspecialized.
@@ -3362,5 +3383,44 @@ mod walk_tests {
             seen
         });
         assert_eq!(seen, 2 * DEEP as usize, "every level's operand and partner");
+    }
+}
+
+#[cfg(test)]
+mod flip_lane_rows {
+    //! N5's flip lane on hand flip sets ([`first_cause`]).
+
+    use super::*;
+
+    fn flip(predicate: &'static str) -> VerdictFlip {
+        VerdictFlip {
+            predicate,
+            from: Sign::Positive,
+            to: Sign::Negative,
+            count: 1,
+        }
+    }
+
+    /// A reader flip ahead of another flip on the same node: the other
+    /// one is the cause. Alone, a reader flip is no cause.
+    #[test]
+    fn a_side_reader_flip_ranks_after_any_other_flip() {
+        let node = RecipeNodeId::new(0, 7);
+        let reader = "side_at_infinity_point_in_loop_side";
+        assert!(
+            reader.starts_with(topo::SIDE_READER_FAMILY),
+            "the row's reader predicate is in the family"
+        );
+        let found = vec![(node, flip(reader)), (node, flip("split_vertex_side"))];
+        assert_eq!(
+            first_cause(found).map(|(_, f)| f.predicate),
+            Some("split_vertex_side")
+        );
+        assert_eq!(
+            first_cause(vec![(node, flip(reader))]),
+            None,
+            "a reader flip alone leaves the cause to the next lane"
+        );
+        assert_eq!(first_cause(Vec::new()), None);
     }
 }

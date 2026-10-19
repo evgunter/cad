@@ -76,41 +76,38 @@ fn unmirrored_twin_is_tier3_valid() {
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
 }
 
-/// EXECUTED BOUNDARY of the exemptions (ratified posture: the +V
-/// check is "an orientation probe, not a thinness gate" — Zero and
-/// escalated margins never flip valid → invalid). Findings, executed:
+/// EXECUTED BOUNDARY of the thin inside-out slab (D1 tier 3: check 7 is
+/// "an orientation probe, not a thinness gate", read by the reader of a
+/// shell's role). Findings, executed:
 ///
-/// - The **Zero branch is unreachable for slab-like bodies**: an
-///   inside-out slab needs thickness < 2ε for |V|/A ≤ ε, but its
-///   struts' parameter intervals then fail forward certification
-///   (`IntervalNotForward`) — the construction refuses first. Honest
-///   fail-loud, asserted below.
-/// - The **escalation band IS reachable**: thickness 2ε < t < 2Kε
-///   certifies (t ≥ Kε) yet lands |V|/A = t/2 in (ε, Kε), so the
-///   decide funnel escalates and the check exempts — an inside-out
-///   slab of thickness ~Kε passes tier 3. Pinned as executable fact;
-///   if the design ever tightens, this flips.
+/// - **Sub-2ε thickness is refused upstream**: its struts' parameter
+///   intervals fail forward certification (`IntervalNotForward`) — the
+///   construction refuses first. Honest fail-loud, asserted below.
+/// - **A slab `Kε` thick reads inside out**: its `|V|/A = t/2` lies in
+///   (ε, Kε), where the volume's sign would not decide, but a ray aimed at
+///   one of its faces at 60° crosses its two faces `2t` apart, definite,
+///   and enters its material first: `NegativeVolume`.
 #[test]
-fn thin_inverted_slab_exemption_boundary() {
+fn thin_inverted_slab_reads_inside_out() {
     let eps = geom_core::Tol::witness().get().eps;
-    // (a) sub-2ε thickness: refused upstream, Zero branch unreachable.
+    // (a) sub-2ε thickness: refused upstream.
     let sub = std::panic::catch_unwind(|| {
         common::mapped_cube(|x, y, z| Point3::new(-x, y, z * eps), Tol::witness())
     });
     assert!(
         sub.is_err(),
-        "a sub-ε slab should fail construction (forward certification), \
-         making the Zero exemption unreachable for this family"
+        "a sub-ε slab should fail construction (forward certification)"
     );
-    // (b) escalation-band thickness: builds, is inside out, passes.
+    // (b) a slab Kε thick: builds, is inside out, refuses.
     let t = 10.0 * eps; // = Kε at default K: certifies; |V|/A = 5ε ∈ (ε, Kε).
     let body = common::mapped_cube(|x, y, z| Point3::new(-x, y, z * t), Tol::witness());
     let props = mass_properties(&body, Tol::witness()).unwrap();
     assert!(props.volume < 0.0, "the slab is genuinely inside out");
+    let solid = body.solids().next().expect("one solid").0;
     assert_eq!(
         validate_geometric(&body, Tol::witness()),
-        Ok(()),
-        "the escalation exemption admits an inside-out ~Kε slab (ratified posture; executed pin)"
+        Err(vec![ValidationError::NegativeVolume { solid }]),
+        "the aimed ray reads the inside-out ~Kε slab"
     );
 }
 

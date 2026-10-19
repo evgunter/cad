@@ -17,7 +17,7 @@
 use crate::common;
 
 use common::{brick, finished};
-use geom_core::{Sign, Tol};
+use geom_core::Tol;
 use topo::{
     Body, BooleanResult, BooleanResultKind, ShellRole, classify_shells, mass_properties, subtract,
 };
@@ -98,20 +98,29 @@ fn per_shell_volumes_sum_to_the_body_volume() {
     assert!((area_sum - props.surface_area).abs() < 1e-12);
 }
 
-/// The sign read is the NAMED funnel site: one
-/// `chk_shell_volume_sign` verdict per closed-form shell (pad = 0
-/// reuses the low-end verdict), signs matching the roles.
+/// The role read is the NAMED funnel site: each shell's role is read
+/// off a ray aimed at one of its faces, its closest crossing decided by
+/// `side_at_infinity_order`, and no shell's volume sign is read.
 #[test]
-fn sign_read_is_the_named_decide_site() {
+fn role_read_is_the_aimed_ray() {
     let body = voided();
     let bracket = geom_core::k_stats::Bracket::open();
     let classes = classify_shells(&body, Tol::witness()).unwrap();
-    let verdicts = bracket.finish().verdicts;
-    let signs: Vec<Sign> = verdicts
+    let read: Vec<&str> = bracket
+        .finish()
+        .verdicts
         .iter()
-        .filter(|v| v.predicate == "chk_shell_volume_sign")
-        .map(|v| v.sign)
+        .map(|v| v.predicate)
         .collect();
-    assert_eq!(signs.len(), classes.len());
-    assert_eq!(signs, vec![Sign::Positive, Sign::Negative]);
+    assert_eq!(classes.len(), 2);
+    assert!(
+        read.contains(&"side_at_infinity_order"),
+        "the roles are read by aimed rays: {read:?}"
+    );
+    assert!(
+        !read
+            .iter()
+            .any(|p| p.starts_with("chk_shell_volume_sign") || p.starts_with("positive_volume")),
+        "no shell's volume sign is read: {read:?}"
+    );
 }

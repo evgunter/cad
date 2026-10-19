@@ -2,10 +2,12 @@
 id: the-declared-tangency-bracket-refuses-its-closing-junction-at-interval
 kind: issue
 title: A LineTo heading along -x from a computed point reads its direction off atan2's branch cut at Interval, so its turn encloses the whole circle (declared_tangency's bracket refuses at Interval)
-status: open
+status: closed
+closed: 2026-10-19
 opened: 2026-10-14
 priority: P2
 cost: E
+branch: paths/chord-director-components
 ---
 
 
@@ -53,3 +55,43 @@ arithmetic that needs a number (where the angle's own enclosure is narrow off
 the cut). The same `from_angle(atan2(..))` spelling sits in the sibling at
 `path.rs` `arc_angles`' chord and the second `line_to_point`-shaped door
 beside it; each of those is the class.
+
+## Outcome
+
+A chord's director is built from its components: `path::chord_director`
+divides the chord by its length, deciding and refusing nothing — the
+lever gates and the segment shape validation already ask about that
+length under their own names (a band question here pre-empted
+`SeamArrivalLeverTooShort` on a sub-ε closing leg), and geometry past the
+format's range is refused where its vertex is validated or drawn (a
+`NonFiniteDirection` refusal here reddened eight `viewer` rows built on
+that layering). The chord is divided by its largest component before it is
+normalized, at every scale; the zero chord stands in `+x`; a component past the
+range keeps `atan2`'s heading.
+`line_to_point` and `line_to_start` take it; `arc_angles` and the fused
+`Bulge` and `Center` incomings (`path/family.rs`) turn its ray by half the
+sweep (`path::turned`) instead of adding angles. At `Interval` every such
+junction reads a ray narrow around the nominal's; `declared_tangency`
+evaluates green, and its two corpus pins are gone.
+
+At `f64`: the bracket now lifts bit-identically (the lift census moves
+one row from value-equal to bit-identical), one stored arc centre in
+`fillet_stored_tangency`'s corpus moves by ulps, and of the editor-core
+corpus only `declared_tangency` moves (4 points, ≤ 3.3e-16). Under the
+symbolic tier the directors are algebraic forms rather than `sin_cos`
+of an `atan2`: the rounded pad proves 162 more of its decisions
+symbolically (none gained or lost), the registry door buys nothing on
+it any more, and its ceiling rises from 2.7783e3·ε (`line_span`) to
+3.152e3·ε (`arc_span`); the slab and plate build fewer forms. Each pin
+is re-baselined with its note, and the drive's ladder-receipt row takes
+the pad with its first leg spelled as an angle, the measured document
+no longer retrying.
+
+The review's fix pass (MAJOR-1) took the class whole: `.turn(δ)` and the
+`Sweep` extension rotate the ray instead of rebuilding it from a stored
+angle, and `Dir` carries no angle, which closes
+`a-turn-reads-its-incoming-angle-off-atan2s-branch-cut-at-interval`.
+Filed: `chord-and-component-directors-could-share-one-normalizing-core`
+(P3), and
+`a-zero-length-line-leg-refuses-as-a-tangent-junction` (kept bit for
+bit here).

@@ -131,8 +131,9 @@ this rule, and so do profile pieces:
   per verb. The piece door (`ProfileProgram::piece`) checks the list, and the
   authoring surfaces' role accessors are generated from it:
   - every verb that draws one segment has one role, `Leg`: `line`,
-    `line_to`, `continue_to`, `arc_to`, `tangent_arc_to`, `to` (the far
-    end), and the close to `Start`, whose leg is the seam;
+    `line_to`, `continue_to`, `arc_to`, `tangent_arc_to`, `arc_onto`
+    (whose leg the director after it lands, but which it names), `to`
+    (the far end), and the close to `Start`, whose leg is the seam;
   - a verb that only binds a point, a direction or a junction (`at`,
     `angle`, `toward`, `tangent`, `cusp`, `turn`) draws nothing and has no
     role;
@@ -240,8 +241,9 @@ The qualifier depends on what was split:
   are one obstacle, whether that point survives as a vertex or the output
   stage joins it away, so a name reads nothing off where a dead vertex sat;
   it divides the parent when it borders two or more pieces, so a boss or notch
-  on one piece is never cited and nothing in a piece's name lies beyond its
-  own boundary. Pieces with equal sets are N4's tie.
+  on one piece is never cited unless a point of it touches a divider, which
+  makes it part of that divider, and nothing in a piece's name lies beyond
+  its own boundary. Pieces with equal sets are N4's tie.
 - **The Split op's pieces** are told apart by their tool plane's side, which
   is the output variable that holds them (N1, the scope), so
   `SplitFragment` spells no side: there the plane is what the author drew. A

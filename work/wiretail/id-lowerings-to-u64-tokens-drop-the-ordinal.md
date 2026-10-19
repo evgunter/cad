@@ -7,7 +7,6 @@ opened: 2026-10-07
 priority: P3
 cost: M
 design: true
-refs: [name-order-was-insertion-order-under-the-counter]
 ---
 
 

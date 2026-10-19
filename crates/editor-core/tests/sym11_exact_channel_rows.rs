@@ -132,16 +132,26 @@ use crate::m10_9_pins_interval::measured_studies;
 /// 2112]`, pad `[1248, 1211, 3566]` → `[1212, 1181, 3566]`. The decisions
 /// are gone, not moved; no dispute fired, and `frozen` holds.
 ///
+/// A chord's director spelled as its components over its length
+/// (`profile`'s `path::chord_director`) where it was the `sin_cos` of an
+/// `atan2`: the link's `frozen` 542 → 556, its decisions held. The pad's
+/// ceiling rose with it (`line_span` no longer bounds it; `arc_span`
+/// does, at 3.152e3·ε), so its row is read at a new scale and is a new
+/// measurement: `[1397, 1178, 4309]`, where it was `[1212, 1181, 3566]`
+/// at 2.7783e3·ε. No dispute fired.
+///
 /// Check 4 deciding no whole period (PCERT B2b) takes fidelity's numeric
 /// branch decisions out: plate `numeric` 686 → 654, annulus 431 → 399,
-/// link 275 → 259, bracket 1046 → 1006, pad 1181 → 1157; `symbolic` and
-/// `frozen` hold, and no dispute fired.
+/// link 275 → 259, bracket 1046 → 1006; `symbolic` and `frozen` hold,
+/// and no dispute fired. On the components tree (main above), measured:
+/// the link `[291, 259, 556]`, and the pad, read at its new scale,
+/// `[1397, 1178, 4309]` → `[1397, 1130, 4309]`.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [939, 654, 729]),
     ("r1_annulus", [475, 399, 940]),
-    ("r2_link", [291, 259, 542]),
+    ("r2_link", [291, 259, 556]),
     ("r2_filleted_bracket", [1312, 1006, 2112]),
-    ("r2_rounded_pad", [1212, 1157, 3566]),
+    ("r2_rounded_pad", [1397, 1130, 4309]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
