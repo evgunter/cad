@@ -801,6 +801,13 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// are decisions a PR body has to state. Re-bless with
 /// `M10_6_BLESS_CERT_KEYS=1`, read the diff, and say in the PR which
 /// of the two it was.
+///
+/// `min_clearance_neck`'s two keys moved, and not the filter
+/// (`dropped=1` held, `plain_distance` unmoved), when a placement whose
+/// bundle reads a variable came to run its map at the nominal (C-5
+/// narrowed, the orchestrator's ruling): the neck's placed copy is no
+/// longer snapped at rest, so its transform's decisions join the
+/// vector's contents.
 #[test]
 fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
     let doc = min_clearance_neck();

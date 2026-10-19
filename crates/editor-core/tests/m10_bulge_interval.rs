@@ -159,6 +159,19 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// (`mate_chart_reference_antipode`, new at 2/0) and the one at-rest
 /// verdict of the solved map (`solve_copy_at_identity`, new at 1/0).
 /// Nothing else moves.
+///
+/// **A placement whose bundle reads a variable runs its map at the
+/// nominal** (C-5 narrowed, the orchestrator's ruling): the copy's
+/// bundle reads the document's parameters, so its map is no longer
+/// snapped at rest (`solve_copy_at_identity` leaves the table) but run
+/// and admitted, and its transform's decisions count here as they do
+/// at every box: `transform_rigid_*` new at 1/0 each, and the copied
+/// body's re-certification — `carrier_endpoint_*` 36 -> 42,
+/// `carrier_on_surface_*` 126 -> 162, `witness_*` 4 more each,
+/// `dihedral_*` 0/128 -> 0/156, `interval_span_*` and the eleven
+/// `pcurve_*` rows (the moved faces' charts derived again) and, per
+/// spelling, `carrier_matches_mapped_source` 18 more on the symbolic
+/// column. Every row rose; no symbolic decision went numeric.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
@@ -167,44 +180,50 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("cap_plane_orientation", [0, 4]),
     ("carrier_circles_identity", [3, 0]),
     ("carrier_cyl_axis_parallel", [1, 0]),
-    ("carrier_endpoint_end", [36, 0]),
-    ("carrier_endpoint_start", [36, 0]),
+    ("carrier_endpoint_end", [42, 0]),
+    ("carrier_endpoint_start", [42, 0]),
     ("carrier_line_circle", [0, 5]),
-    ("carrier_on_surface_1", [126, 18]),
-    ("carrier_on_surface_2", [126, 18]),
+    ("carrier_on_surface_1", [162, 18]),
+    ("carrier_on_surface_2", [162, 18]),
     ("chord_side", [6, 12]),
     ("circle_side", [2, 2]),
     ("contact_at_shared_vertex", [12, 4]),
     ("datum_unit_norm", [0, 5]),
-    ("dihedral_arm", [0, 128]),
-    ("dihedral_wedge", [0, 128]),
+    ("dihedral_arm", [0, 156]),
+    ("dihedral_wedge", [0, 156]),
     ("extrusion_normal_component", [0, 2]),
-    ("interval_span_forward", [0, 36]),
-    ("interval_span_winding", [0, 12]),
+    ("interval_span_forward", [0, 42]),
+    ("interval_span_winding", [0, 16]),
     ("line_span", [6, 4]),
     ("mate_chart_reference_antipode", [2, 0]),
     ("newell_plane_residual", [30, 0]),
     ("path_circle_radius", [0, 1]),
     ("path_junction_turn", [0, 4]),
-    ("pcurve_azimuth_period", [0, 12]),
-    ("pcurve_chart_azimuth_affine", [24, 0]),
-    ("pcurve_chart_azimuth_frame", [12, 26]),
-    ("pcurve_chart_orientation", [0, 12]),
-    ("pcurve_chart_radial_moving", [14, 12]),
-    ("pcurve_chart_winding", [12, 18]),
-    ("pcurve_envelope", [8, 4]),
-    ("pcurve_fidelity_branch", [0, 24]),
-    ("pcurve_interval_forward", [0, 12]),
-    ("pcurve_loop_branch", [0, 25]),
-    ("pcurve_map_residual", [18, 0]),
+    ("pcurve_azimuth_period", [0, 20]),
+    ("pcurve_chart_azimuth_affine", [40, 0]),
+    ("pcurve_chart_azimuth_frame", [20, 42]),
+    ("pcurve_chart_orientation", [0, 20]),
+    ("pcurve_chart_radial_moving", [22, 20]),
+    ("pcurve_chart_winding", [20, 30]),
+    ("pcurve_envelope", [16, 4]),
+    ("pcurve_fidelity_branch", [0, 40]),
+    ("pcurve_interval_forward", [0, 20]),
+    ("pcurve_loop_branch", [0, 42]),
+    ("pcurve_map_residual", [36, 0]),
     ("segment_straightness", [6, 6]),
     ("side_cylinders_cosurface", [2, 0]),
     ("side_planes_cosurface", [0, 2]),
-    ("solve_copy_at_identity", [1, 0]),
+    ("transform_rigid_col01_orth", [1, 0]),
+    ("transform_rigid_col02_orth", [1, 0]),
+    ("transform_rigid_col0_unit", [1, 0]),
+    ("transform_rigid_col12_orth", [1, 0]),
+    ("transform_rigid_col1_unit", [1, 0]),
+    ("transform_rigid_col2_unit", [1, 0]),
+    ("transform_rigid_det_plus_one", [1, 0]),
     ("vertex_separation", [0, 12]),
-    ("witness_at_mid_parameter", [16, 0]),
-    ("witness_on_surface_1", [14, 2]),
-    ("witness_on_surface_2", [14, 2]),
+    ("witness_at_mid_parameter", [20, 0]),
+    ("witness_on_surface_1", [18, 2]),
+    ("witness_on_surface_2", [18, 2]),
 ];
 
 /// **The boss at `bulge = 2`, whole.** `carrier_matches_mapped_source`
@@ -291,6 +310,15 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
 /// (`mate_chart_reference_antipode`, new at 2/0) and the one at-rest
 /// verdict of the solved map (`solve_copy_at_identity`, new at 1/0).
 /// Nothing else moves.
+///
+/// **A placement whose bundle reads a variable runs its map at the
+/// nominal** (C-5 narrowed, the orchestrator's ruling), as on the
+/// D-tab: `solve_copy_at_identity` leaves, `transform_rigid_*` are new
+/// at 1/0 each, and the copied body's re-certification raises
+/// `carrier_endpoint_*` 24 -> 30, `carrier_matches_mapped_source` 126
+/// -> 144, `carrier_on_surface_*` 90 -> 126, `witness_*` 10 -> 14,
+/// `dihedral_*` 0/80 -> 0/108, `interval_span_*` and the eleven
+/// `pcurve_*` rows. Every row rose; no symbolic decision went numeric.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -306,42 +334,48 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("cap_plane_orientation", [0, 4]),
             ("carrier_circles_identity", [3, 0]),
             ("carrier_cyl_axis_parallel", [1, 0]),
-            ("carrier_endpoint_end", [24, 0]),
-            ("carrier_endpoint_start", [24, 0]),
+            ("carrier_endpoint_end", [30, 0]),
+            ("carrier_endpoint_start", [30, 0]),
             ("carrier_line_circle", [0, 3]),
-            ("carrier_matches_mapped_source", [126, 0]),
-            ("carrier_on_surface_1", [90, 0]),
-            ("carrier_on_surface_2", [90, 0]),
+            ("carrier_matches_mapped_source", [144, 0]),
+            ("carrier_on_surface_1", [126, 0]),
+            ("carrier_on_surface_2", [126, 0]),
             ("contact_at_shared_vertex", [6, 3]),
             ("datum_unit_norm", [0, 5]),
-            ("dihedral_arm", [0, 80]),
-            ("dihedral_wedge", [0, 80]),
+            ("dihedral_arm", [0, 108]),
+            ("dihedral_wedge", [0, 108]),
             ("extrusion_normal_component", [0, 2]),
-            ("interval_span_forward", [0, 24]),
-            ("interval_span_winding", [0, 12]),
+            ("interval_span_forward", [0, 30]),
+            ("interval_span_winding", [0, 16]),
             ("line_span", [2, 0]),
             ("mate_chart_reference_antipode", [2, 0]),
             ("newell_plane_residual", [18, 0]),
             ("path_circle_radius", [0, 1]),
             ("path_junction_turn", [0, 2]),
-            ("pcurve_azimuth_period", [0, 12]),
-            ("pcurve_chart_azimuth_affine", [24, 0]),
-            ("pcurve_chart_azimuth_frame", [12, 26]),
-            ("pcurve_chart_orientation", [0, 12]),
-            ("pcurve_chart_radial_moving", [14, 12]),
-            ("pcurve_chart_winding", [12, 18]),
-            ("pcurve_envelope", [12, 0]),
-            ("pcurve_fidelity_branch", [0, 24]),
-            ("pcurve_interval_forward", [0, 12]),
-            ("pcurve_loop_branch", [0, 25]),
-            ("pcurve_map_residual", [18, 0]),
+            ("pcurve_azimuth_period", [0, 20]),
+            ("pcurve_chart_azimuth_affine", [40, 0]),
+            ("pcurve_chart_azimuth_frame", [20, 42]),
+            ("pcurve_chart_orientation", [0, 20]),
+            ("pcurve_chart_radial_moving", [22, 20]),
+            ("pcurve_chart_winding", [20, 30]),
+            ("pcurve_envelope", [20, 0]),
+            ("pcurve_fidelity_branch", [0, 40]),
+            ("pcurve_interval_forward", [0, 20]),
+            ("pcurve_loop_branch", [0, 42]),
+            ("pcurve_map_residual", [36, 0]),
             ("segment_straightness", [2, 6]),
             ("side_cylinders_cosurface", [2, 0]),
-            ("solve_copy_at_identity", [1, 0]),
+            ("transform_rigid_col01_orth", [1, 0]),
+            ("transform_rigid_col02_orth", [1, 0]),
+            ("transform_rigid_col0_unit", [1, 0]),
+            ("transform_rigid_col12_orth", [1, 0]),
+            ("transform_rigid_col1_unit", [1, 0]),
+            ("transform_rigid_col2_unit", [1, 0]),
+            ("transform_rigid_det_plus_one", [1, 0]),
             ("vertex_separation", [0, 8]),
-            ("witness_at_mid_parameter", [10, 0]),
-            ("witness_on_surface_1", [10, 0]),
-            ("witness_on_surface_2", [10, 0]),
+            ("witness_at_mid_parameter", [14, 0]),
+            ("witness_on_surface_1", [14, 0]),
+            ("witness_on_surface_2", [14, 0]),
         ],
     );
 }
@@ -366,7 +400,7 @@ fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a literal)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        &d_tab_table([170, 10]),
+        &d_tab_table([188, 10]),
     );
 }
 
@@ -392,6 +426,6 @@ fn m10_bulge_the_d_tabs_parameter_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a parameter)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        &d_tab_table([166, 14]),
+        &d_tab_table([184, 14]),
     );
 }

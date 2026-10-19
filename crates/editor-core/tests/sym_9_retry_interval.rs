@@ -558,6 +558,16 @@ fn sym_9_what_each_retry_recovers() {
 /// and the pad's leaf 1315/1280 -> 1318/1283 (1311/1284 -> 1314/1287
 /// without the ladder). `retried` does not move.
 ///
+/// A placement whose bundle reads a variable runs its map at the
+/// nominal (C-5 narrowed, the orchestrator's ruling), so its transform
+/// and its copy's re-certification decide there, with the ladder and
+/// without it alike: `symbolic` +186 per placement (plate and bracket
+/// +372 over two; annulus, boss and link +186) and `numeric` +159 per
+/// placement (+318; +159), the link's `carrier_on_surface_2` 100 -> 136
+/// and `witness_on_surface_2` 16 -> 20, and the pad's leaf
+/// 1318/1283 -> 1504/1442 (1314/1287 -> 1500/1446 without the ladder).
+/// Every row moved up; `retried` does not move.
+///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
 /// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
 /// defect in the ladder, not a re-baseline.
@@ -567,11 +577,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1009, 662], [1009, 662], 0),
-        ("r1_annulus", [542, 402], [542, 402], 0),
-        ("r1_segment_boss", [519, 379], [519, 379], 0),
-        ("r2_filleted_bracket", [1393, 1012], [1393, 1012], 0),
-        ("r2_link", [830, 666], [830, 666], 0),
+        ("two_hole_plate", [1381, 980], [1381, 980], 0),
+        ("r1_annulus", [728, 561], [728, 561], 0),
+        ("r1_segment_boss", [705, 538], [705, 538], 0),
+        ("r2_filleted_bracket", [1765, 1330], [1765, 1330], 0),
+        ("r2_link", [1016, 825], [1016, 825], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -591,8 +601,8 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
             // named second, so rule G's trade lands half on each slot:
             // `[76, 0, 16, 16]` became `[92, 0, 8, 8]` here.
             for (pred, want) in [
-                ("carrier_on_surface_2", [100, 8]),
-                ("witness_on_surface_2", [16, 0]),
+                ("carrier_on_surface_2", [136, 8]),
+                ("witness_on_surface_2", [20, 0]),
             ] {
                 let got = t.get(pred).copied().unwrap_or([0; 2]);
                 if got != want {
@@ -686,7 +696,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let d = shipped.decisions();
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1318, 1283, 4],
+        [1504, 1442, 4],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -698,7 +708,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         "the human form names the four as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1314, 1287, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1500, 1446, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

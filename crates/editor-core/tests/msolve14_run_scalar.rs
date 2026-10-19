@@ -927,10 +927,19 @@ fn run_at<T: editor_core::EvalScalar>(
 /// `Chart::turned`, Sym's at-rest snap) move no bit of this digest at
 /// any of the three ε, read on the tree that introduced them with each
 /// fix switched off and on, and after their switches were removed.
+///
+/// And when a placement whose bundle reads a variable came to run its
+/// map at the nominal (C-5 narrowed, the orchestrator's ruling; all
+/// three rows): such a map is no longer snapped to the identity where
+/// the band decides it at rest, nor placed by no map at the stored
+/// identity, so its transform decisions count at the nominal. Measured
+/// per corpus row with the narrowing switched off and on, at all three
+/// ε: off, the digests are the ones pinned before; on, every row moved
+/// but `pinned-chain`, whose own digest held.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x9fa4_a153_bf58_a0b5),
-    (1e-6, 0x1270_53ae_46cb_0d3f),
-    (1e-12, 0x099e_19b5_dcf1_6bda),
+    (1e-9, 0x3d64_7ce6_5eff_a15f),
+    (1e-6, 0x2b5f_e416_34aa_08fc),
+    (1e-12, 0x30f5_44eb_6165_58a5),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and

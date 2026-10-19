@@ -103,6 +103,15 @@ pub(crate) struct Study {
 /// door shut the receipts move with them: the link 782/712 -> 782/710,
 /// the bracket 1330/1061 -> 1336/1069, the pad 1247/1348 -> 1252/1349,
 /// refusing (or not) where they did.
+///
+/// A placement whose bundle reads a variable runs its map at the
+/// nominal (C-5 narrowed, the orchestrator's ruling): it is no longer
+/// snapped at rest, so its transform and the copied body's
+/// re-certification decide over the box, 186 more THEOREMS per
+/// placement at every ε row (plate and bracket +372, annulus, link and
+/// pad +186). All five still certify whole. With the door shut the
+/// bracket reads 1708/1387 and the pad 1438/1508; the link's still
+/// refuses at `pcurve_envelope`, its receipt 782/710 unmoved.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -116,7 +125,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door, and the plate refuses nowhere the bisection
             // reaches.
             without_the_registry: None,
-            symbolic: [1009, 1009, 1009],
+            symbolic: [1381, 1381, 1381],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -127,7 +136,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // As the plate: the circles' stored carrier makes every rim
             // decision a theorem.
             without_the_registry: None,
-            symbolic: [542, 542, 542],
+            symbolic: [728, 728, 728],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -149,7 +158,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // reads. Under INTENT stage 3 D's placement it decides two
             // fewer numeric comparisons on the way (712 -> 710).
             without_the_registry: Some(((782, 710), Some("pcurve_envelope"))),
-            symbolic: [830, 830, 830],
+            symbolic: [1016, 1016, 1016],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -163,13 +172,13 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // centre's algebra, so eight `dihedral_wedge` decisions are
             // registered rather than proved. The tangent certificate's
             // gap rows on the fillet's contact edges added ten (47 → 57).
-            without_the_registry: Some(((1336, 1069), None)),
+            without_the_registry: Some(((1708, 1387), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1393, 1393, 1393],
+            symbolic: [1765, 1765, 1765],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -180,11 +189,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             refused_by: None,
             // Rule F's differential on this document is
             // `m10_9_the_pad_at_both_rule_f_dials`'s.
-            without_the_registry: Some(((1252, 1349), None)),
+            without_the_registry: Some(((1438, 1508), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
-            symbolic: [1314, 1314, 1314],
+            symbolic: [1500, 1500, 1500],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -595,6 +604,10 @@ fn m10_9_what_the_registry_buys() {
 /// INTENT stage 3 D places the pad's construction by a plane mate and
 /// its values: symbolic and numeric +3 each (the placement's chart),
 /// and frozen 3972 → 774, with both dials still reading one receipt.
+/// A placement whose bundle reads a variable running its map at the
+/// nominal (C-5 narrowed) re-certifies the placed copy over the box:
+/// symbolic 1314 → 1500, numeric 1287 → 1446, frozen 774 → 1406, both
+/// dials still one receipt.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
@@ -628,7 +641,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1314, 1287, 774), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1500, 1446, 1406), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

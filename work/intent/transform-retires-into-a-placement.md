@@ -144,7 +144,22 @@ So running the map at the nominal does not by itself make the lanes' decision li
 - **The Dual value channel.** `Dual<T>`'s `SolveScalar` did not delegate `exactly_zero`, so `mate::solve::on_an_axis` read a direction's axis on Interval but never on `Dual<Interval>`. Once a varying placement runs its map, `die`'s target copies are read in their own coordinates (`Chart::of`'s `own`), and the two lanes took different directions. Dual now delegates `exactly_zero` to its value channel: a coordinate exactly zero over the box is constant there, so its tangent is zero. Dual's `holds_rest`/`with_rest` now follow the value channel the same way, the hull taken on the value and each tangent kept, as `identity_varying_as` keeps them. Dual64 is unchanged, because f64 answers all three by the defaults. `m10_di_dual_corpus::dual_interval_…` and `r2_m10_di_probes::deep_value_channel_…` pass.
 - **`revalue_cut_cylinder`, restated InStep → Apart, floor 1051 → 1302.** Measured with the narrowing off, the apart move parts at decision 3667 of 3673 (`datum_unit_norm`): at `p0` the cutter's placement snaps at rest and is placed by no map, while at `p1` it runs its map. With the narrowing, both builds run it, and apart compares the whole document (4503 compared, 2605 moved, none laundered, no flips). That is the stronger pin.
 - revalue_corpus 12/12. The m10_di/dual set passes except `assemble_census_verdicts` (16 undecided, pre-existing, unchanged).
-- Next: the 17 re-blesses, `m10_6_r1`'s assertion, sym11.
+- **Re-blessed (each with an in-file paragraph):** `m10_p_fence` ×4 numbers (Probe set equal to f64). Measured with a scratch dump, narrowing off against on: every outcome is identical, and 16 points moved, by at most 4.4e-16, in `tube_arc`, `hollow_tube_elbow` and `nested_islands_106_depth1`. That is the solved map's rounding, which the snap discarded. msolve14 a3 at all three ε: with the narrowing off the old digests reproduce; with it on, every corpus row moved except `pinned-chain`. m10_bulge ×3: every row rose, `transform_rigid_*` ×7 are new, `solve_copy_at_identity` leaves, and nothing went from symbolic to numeric. m10_9 ×3: +186 symbolic per placement at every ε, and all five still certify. Door shut, the bracket is 1708/1387 and the pad 1438/1508; the link holds 782/710. The pad's rule-F receipt is 1500/1446/1406. sym_9 ×2: +186/+159 per placement, and the pad leaf is 1504/1442/4 (bare 1500/1446/0). m10_10 ×2: the counts doubled, and every one is still a theorem with the algebra on. m10_sym_profile: the plate ledger moved, and `Plain/Report` went 8→16. `m10_6_ci` keys: the neck's two keys moved, `dropped=1` held. `m10_6_r1`: the original straddle assertion is restored.
+- **sym11, a finding, left red.** `PAST_THE_CEILING` still holds pre-D receipts. Measured at 1e-9, as [symbolic, numeric, frozen]:
+
+  | document | stored | D only (narrowing off) | D + C-5 |
+  |---|---|---|---|
+  | plate | [1003, 654, 729] | [1009, 662, 161] | [1381, 980, 1429] |
+  | annulus | [539, 399, 904] | [542, 402, 144] | [728, 561, 777] |
+  | link | [323, 259, 542] | [323, 257, 236] | unchanged |
+  | bracket | [1392, 1008, 2044] | [1398, 1016, 458] | [1770, 1334, 2119] |
+  | pad | [1260, 1159, 3522] | [1260, 1157, 726] | unchanged |
+
+  The decision columns are explained:
+  - D's charts add +3/+3 per placement, +6/+8 over two (as m10_9/sym_9 record).
+  - C-5 adds +186/+159 per placement on the documents whose replay reaches their placement's transform.
+  - The link and the pad stop first, and C-5 leaves them alone. Their numeric −2 under D matches the link's door-shut 712→710; the pad's was not traced.
+  - **The `frozen` column is not explained.** Under D it collapsed (729→161, 904→144, 542→236, 2044→458, 3522→726). C-5 then raises it on the plate, annulus and bracket. The dispute column is 0 everywhere and nothing fired. Restating needs a per-site attribution of the frozen move; that is not taken.
 
 **Window of 2026-10-19 (about 3% of usage left)**
 - **The tour die corpus:** `cargo run --release -- die-corpus ../../crates/editor-core/tests/corpus/tour/die_composed_tour.pncad` in `demos/tour` gives a file byte-identical to D's committed one (1,589,134 bytes) on D's head. Nightly 65's "not byte-regenerable since #5267" was raised against main's copy, which D replaces. Nothing that reads it needed re-pinning.
