@@ -1439,3 +1439,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - join's frame maps to the pierce's refusals.
     - Graded M. Arm byte 157, mod 3 = 1 → **SEQUENTIAL**: r5173.
   - All three reviews run as local Opus subagents.
+- 2026-10-19 15:20 — Resumed after the weekly-limit pause (Oct 14 22:49 → Oct 19 15:16).
+  - **Ev on PR 5156** (Oct 15): "not sure on circle vs ellipse, but sure we should check only once and not twice. Does checking only once force 'ellipse'?" I replied no: a single check can be on the pose (r·sin θ → Ellipse) or on the curve (a − b → a Circle in the cutting plane, which folds the rim in). They differ in the refused band (ε/r…Kε/r vs √(2ε/r)…√(2Kε/r), about 10⁴× wider in θ) and in C1's exact carrier. Recommendation unchanged.
+  - The three paused reviewers (r5172a, r5172b, r5173) are resumed.
+  - **Ev's direction (chat, 2026-10-19):** finish what is important, not the whole tail. At hand-back, leave GERM `ready` (not `active`) with the correct program priority.
+  - **Plan:** land the in-flight PRs 5172 and 5173 and the circle-torus and flat-frustum lanes, and carry PR 5156 to Ev's answer if it comes. Dispatch nothing new from the P3/P4 tail. Then hand back: `status: ready`, `priority: P1` (no open P0 row remains; the top live row is c5, P1, held by D10), and refresh the program body's stale P0 rationale.
