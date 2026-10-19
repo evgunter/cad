@@ -40,3 +40,18 @@ axis between their anchors and along the planar normals of both
 bodies, in `boxes::BoxFrame::aimed` frames
 (`census::face_reach_in`). Measure first: a pair of placements of a
 curved prototype, clear of each other, swept through relative turns.
+
+## 2026-10-18 — nested solids no direction separates (RESTREAD)
+
+A turned direction does not reach every case: two solids one inside
+the other (a rod in a tube's bore, the two thin walls a shell leaves of
+a hollow body) have nested boxes along every direction, so
+`SolidSeparation::certify` refuses `SolidsMeet` on them at every pose.
+The census's arm 1 had the same hole and now clears such pairs by a
+gap in depth about an axis, a centre or a circle that either face
+proposes (`census::depth_gap`, RESTREAD's
+`census-cross-solid-curved-pairs-undecidable-on-shell-results`), after
+the world axes and `boolean::separating::apart`'s turned directions.
+That reading takes two faces of one body; a door that reads face pairs
+behind its box overlap can call it for its pairs too. Read off the
+code; no `separation` fixture was built for it.
