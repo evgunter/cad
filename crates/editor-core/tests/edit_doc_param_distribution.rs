@@ -125,7 +125,7 @@ fn fixture() -> ProfileDoc {
         Tol::witness(),
     );
     for edit in declaring_log() {
-        doc = apply(&doc, &edit, Tol::witness(), &editor_core::RefusingReach)
+        doc = apply(&doc, &edit, Tol::witness())
             .expect("the fixture parameters are valid")
             .doc;
     }
@@ -158,7 +158,6 @@ fn annotating_a_standing_parameter_keeps_its_notation() {
             distribution: Some(sigma()),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("an annotation edit on a declared continuous parameter applies")
     .doc;
@@ -194,7 +193,6 @@ fn the_annotation_door_carries_the_value_forward() {
             distribution: Some(band()),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("applies")
     .doc;
@@ -247,7 +245,6 @@ fn clearing_is_the_same_door_and_keeps_the_rest_of_the_declaration() {
             unit: mm(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the notation edit applies")
     .doc;
@@ -259,7 +256,6 @@ fn clearing_is_the_same_door_and_keeps_the_rest_of_the_declaration() {
             distribution: None,
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("clearing goes through the same door")
     .doc;
@@ -294,7 +290,6 @@ fn clearing_is_the_same_door_and_keeps_the_rest_of_the_declaration() {
                 distribution: None
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .is_ok(),
         "writing None over None is the same write"
@@ -369,7 +364,6 @@ fn the_annotation_door_refuses_typed() {
                 distribution,
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect_err("refused")
     };
@@ -437,7 +431,7 @@ fn the_annotation_door_refuses_typed() {
             unit: mm(),
         },
     ] {
-        let text = apply(&doc, &other, Tol::witness(), &editor_core::RefusingReach)
+        let text = apply(&doc, &other, Tol::witness())
             .expect_err("the sibling door refuses the same undeclared name")
             .to_string();
         assert_ne!(
@@ -582,8 +576,7 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
     ];
     for (from, to, direct, want) in cases {
         assert_eq!(
-            apply(&doc, &direct, Tol::witness(), &editor_core::RefusingReach)
-                .expect_err("apply refuses"),
+            apply(&doc, &direct, Tol::witness()).expect_err("apply refuses"),
             want,
             "apply's refusal"
         );

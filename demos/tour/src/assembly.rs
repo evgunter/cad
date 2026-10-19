@@ -107,11 +107,11 @@ use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
     Assembly, AssemblyError, CancelToken, Constraint, Coord, Datum, Dimension, DocEdit, DocRef,
     DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, InlineError,
-    LoopProgram, Mate, MateFault, MateReach, MateRef, MintRefusal, NO_AT_REST_RECORD_RECOURSE,
-    Node, OVERCONSTRAINED_RECOURSE, Operand, PartReach, PartResolver, PartSelect, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace, SlideAxis, Space, Target,
-    Value, ValuePayload, VarName, WorldRead, apply, assemble, content_pin, evaluate, inline, load,
-    mixed_pins, parse_formula, pin_at, place_at, product_named, save, solve_document, split,
+    LoopProgram, Mate, MateFault, MateRef, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node,
+    OVERCONSTRAINED_RECOURSE, Operand, PartResolver, PartSelect, PatternKind, ProfileDoc,
+    ProfileProgram, RecipeNodeId, SitedFace, SlideAxis, Space, Target, Value, ValuePayload,
+    VarName, WorldRead, apply, assemble, content_pin, evaluate, inline, load, mixed_pins,
+    parse_formula, pin_at, place_at, product_named, save, solve_document, split,
 };
 use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
@@ -278,9 +278,8 @@ fn length(metres: f64) -> Formula {
 ///
 /// Every node the scenes insert through here — an instance (a loose
 /// copy until its bundle places it), a pattern, a sketch — is admitted
-/// on its own datum and reads no part's faces, so the door asks nothing
-/// of the reach and the refusing one is the honest value. A mate goes
-/// through [`constrain`].
+/// on its own datum and reads no part's faces. A mate goes through
+/// [`constrain`].
 fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
@@ -289,24 +288,21 @@ fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
             fresh: Vec::new(),
         },
         tol,
-        &RefusingReach,
     )
     .unwrap_or_else(|err| panic!("the insert applies: {err:?}"));
     *doc = applied.doc;
     applied.record.minted.expect("an insert mints an id")
 }
 
-/// Adds `mate` to `placement`'s bundle through `reach` — the
-/// workspace's, the reach an evaluation of a mated document uses — and
-/// returns the constraint's address.
+/// Adds `mate` to `placement`'s bundle and returns the constraint's
+/// address.
 fn constrain(
     doc: &mut ProfileDoc,
     placement: RecipeNodeId,
     mate: Mate<Formula>,
     tol: Tol,
-    reach: &dyn MateReach,
 ) -> MateRef {
-    let applied = apply(doc, &add_constraint(placement, mate), tol, reach)
+    let applied = apply(doc, &add_constraint(placement, mate), tol)
         .unwrap_or_else(|err| panic!("the bundle admits the mate: {err:?}"));
     *doc = applied.doc;
     let [id] = applied.record.minted_constraints[..] else {
@@ -334,7 +330,6 @@ fn set_values(
     mate: MateRef,
     values: impl IntoIterator<Item = (Coord, Formula)>,
     tol: Tol,
-    reach: &dyn MateReach,
 ) {
     for (coord, by) in values {
         edit(
@@ -349,7 +344,6 @@ fn set_values(
                 fresh: Vec::new(),
             },
             tol,
-            reach,
         );
     }
 }
@@ -392,8 +386,8 @@ fn place_in_world(
 ) {
     let placed = place_at(doc, &copy_read(doc, placement), pose, opts, tol)
         .unwrap_or_else(|refusal| panic!("the copy places over its geometry: {refusal}"));
-    let mate = constrain(doc, placement, placed.mate, tol, &RefusingReach);
-    set_values(doc, mate, placed.values, tol, &RefusingReach);
+    let mate = constrain(doc, placement, placed.mate, tol);
+    set_values(doc, mate, placed.values, tol);
 }
 
 /// Places one copy of `body` in the world where it stands — pinned by
@@ -401,21 +395,13 @@ fn place_in_world(
 /// placement's id.
 fn place(doc: &mut ProfileDoc, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
     let placement = insert(doc, Node::place(vec![body.into()]), tol);
-    edit(
-        doc,
-        &DocEdit::PinWhereItStands { placement },
-        tol,
-        &RefusingReach,
-    );
+    edit(doc, &DocEdit::PinWhereItStands { placement }, tol);
     placement
 }
 
-/// Applies an edit that mints nothing, through `reach` — the scene
-/// builders pass the refusing one where nothing reads a part (see
-/// [`insert`]); the walks over a mated document pass the workspace's,
-/// because its mates re-admit through the parts' own extent.
-fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol, reach: &dyn MateReach) {
-    let applied = apply(doc, e, tol, reach).unwrap_or_else(|err| panic!("edit refused: {err:?}"));
+/// Applies an edit that mints nothing.
+fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol) {
+    let applied = apply(doc, e, tol).unwrap_or_else(|err| panic!("edit refused: {err:?}"));
     *doc = applied.doc;
 }
 
@@ -445,9 +431,8 @@ fn with_store(ws: &Workspace) -> EvalOptions {
     }
 }
 
-/// The workspace as the document seam the reach-taking doors resolve
-/// through — what an edit on a mated document levers the parts'
-/// extent with ([`PartReach::with_resolver`]).
+/// The workspace as the document seam an evaluation resolves parts
+/// through.
 fn store(ws: &Workspace) -> Arc<dyn PartResolver> {
     Arc::new(ws.clone())
 }
@@ -508,7 +493,6 @@ fn prism_part(
                 def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
             },
             tol,
-            &RefusingReach,
         );
         scope.insert(name, Dimension::Length);
     }
@@ -867,13 +851,7 @@ fn on_the_turntable(
 /// faces DOWN, and the chart of a downward direction is the bodies'
 /// own frames turned half about their `x`, so its `y` runs along the
 /// shelf's `-y`.
-fn stand_doc(
-    parts: &Parts,
-    seating: Seating,
-    opts: &EvalOptions,
-    tol: Tol,
-    reach: &dyn MateReach,
-) -> Stand {
+fn stand_doc(parts: &Parts, seating: Seating, opts: &EvalOptions, tol: Tol) -> Stand {
     let (post, shelf) = (parts.post, parts.shelf);
     let (post_top, shelf_bottom) = (&parts.post_top, &parts.shelf_bottom);
     let mut doc = ProfileDoc::empty(DocumentId::derive("pncad-demo-stand"), tol);
@@ -884,13 +862,12 @@ fn stand_doc(
             def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
         },
         tol,
-        &RefusingReach,
     );
     let scope = BTreeMap::from([(swing(), Dimension::Angle)]);
     let spot = [0.0, (SHELF_DEPTH - POST_SECTION) / 2.0, 0.0];
     let post_a = insert(&mut doc, Node::instantiate_part(post), tol);
     let pin = on_the_turntable(&doc, post_a, spot, &scope, opts, tol);
-    constrain(&mut doc, post_a, pin, tol, reach);
+    constrain(&mut doc, post_a, pin, tol);
     let shelf_i = insert(&mut doc, Node::instantiate_part(shelf), tol);
     let post_b = insert(&mut doc, Node::instantiate_part(post), tol);
 
@@ -908,7 +885,6 @@ fn stand_doc(
             seating.class,
         ),
         tol,
-        reach,
     );
     let mate_2 = constrain(
         &mut doc,
@@ -919,7 +895,6 @@ fn stand_doc(
             ContactClass::Rest,
         ),
         tol,
-        reach,
     );
     if seating.set {
         let half = POST_SECTION / 2.0;
@@ -928,14 +903,12 @@ fn stand_doc(
             mate_1,
             seated_at(half - SEAT_A[0], half - SEAT_A[1]),
             tol,
-            reach,
         );
         set_values(
             &mut doc,
             mate_2,
             seated_at(SEAT_B[0] - half, half - SEAT_B[1]),
             tol,
-            reach,
         );
     }
     Stand {
@@ -969,11 +942,10 @@ struct Bench {
 /// mate (the stand's two and the crate's), and the viewer's status line
 /// shows them as `checks: 3 finding(s)`. They are expected: each is the
 /// at-rest census's row for its mate's own seat, which D10 makes
-/// structural ("a mate-placed face is"), but no rung proves it yet.
-/// The rung is INTENT stage 4 PR H
-/// (`work/intent/placed-carriers-compare-through-their-frames.md`), and
-/// the three go quiet when it lands.
-fn bench(stand: &Stand, parts: &Parts, tol: Tol, reach: &dyn MateReach) -> Bench {
+/// structural ("a mate-placed face is"), but the door does not prove a
+/// mated seat yet
+/// (`work/intent/a-mate-placed-seat-is-unproven-at-the-doors-budget.md`).
+fn bench(stand: &Stand, parts: &Parts, tol: Tol) -> Bench {
     let mut doc = stand.doc.clone();
     let crate_i = insert(&mut doc, Node::instantiate_part(parts.crate_ref), tol);
     let crate_mate = constrain(
@@ -985,7 +957,6 @@ fn bench(stand: &Stand, parts: &Parts, tol: Tol, reach: &dyn MateReach) -> Bench
             ContactClass::Rest,
         ),
         tol,
-        reach,
     );
     set_values(
         &mut doc,
@@ -995,7 +966,6 @@ fn bench(stand: &Stand, parts: &Parts, tol: Tol, reach: &dyn MateReach) -> Bench
             (SHELF_DEPTH - CRATE_DEPTH) / 2.0,
         ),
         tol,
-        reach,
     );
     Bench {
         doc,
@@ -1289,8 +1259,6 @@ fn poses(
     authored: Evaluation<f64>,
     tol: Tol,
 ) -> Vec<(f64, AtRest, String)> {
-    let store = store(ws);
-    let reach = PartReach::<f64>::with_resolver(Some(&store), tol);
     let mut doc = bench.doc.clone();
     let mut prior = authored;
     let mut out = Vec::new();
@@ -1302,7 +1270,6 @@ fn poses(
                 value: FreeValue::Continuous(degrees.to_radians()),
             },
             tol,
-            &reach,
         );
         let ev = evaluate::<f64>(
             &doc,
@@ -1609,11 +1576,6 @@ fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
 /// that stopped being typed, stopped naming its subject, or stopped
 /// ending on its recourse breaks this walk.
 fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
-    // Every edit and every solve here is on a MATED document, so it
-    // levers through the workspace's own reach: the parts' extent,
-    // the way the evaluation resolves them. ONE reach for the walk.
-    let store = store(ws);
-    let reach = PartReach::<f64>::with_resolver(Some(&store), tol);
     let (post, shelf) = (parts.post, parts.shelf);
     let opts = with_store(ws);
     println!(
@@ -1633,7 +1595,6 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         },
         &opts,
         tol,
-        &reach,
     );
     let poses = solve_document(&under.doc, &opts, tol);
     assert!(
@@ -1660,12 +1621,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         standoff(plane(under.post_a, &parts.post_top), 0.01),
         ContactClass::Rest,
     );
-    let fault = match apply(
-        &under.doc,
-        &add_constraint(under.shelf_i, again),
-        tol,
-        &reach,
-    ) {
+    let fault = match apply(&under.doc, &add_constraint(under.shelf_i, again), tol) {
         Err(pncad::document::EditError::MateRefused { fault, .. }) => *fault,
         Err(other) => panic!("a second rest refuses as the mate's own fault, got {other:?}"),
         Ok(_) => panic!("the door admitted a second rest beside the first"),
@@ -1695,13 +1651,11 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         },
         &opts,
         tol,
-        &reach,
     );
     edit(
         &mut swapped.doc,
         &DocEdit::DeleteNode { id: swapped.post_b },
         tol,
-        &reach,
     );
     let swapped = swapped.doc;
     let ev = run(&swapped, &with_store(ws), tol);
@@ -1989,11 +1943,6 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
 /// it, the mixed-pin LINT in between, and re-verification at every
 /// evaluation.
 fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, tol: Tol) {
-    // Every edit here is on a MATED document, so it levers through
-    // the workspace's own reach: the parts' extent, the way the
-    // evaluation resolves them.
-    let store = store(ws);
-    let reach = PartReach::<f64>::with_resolver(Some(&store), tol);
     println!("\n-- the update door: moving a pin is a recorded edit --");
     let before = run(&bench.doc, &with_store(ws), tol);
     let crate_before = solve_document(&bench.doc, &with_store(ws), tol)
@@ -2016,7 +1965,6 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
             value: FreeValue::Continuous(SHELF_THICKNESS * 1.5),
         },
         tol,
-        &reach,
     );
     ws.resave(&thicker, tol).expect("the new version is stored");
 
@@ -2063,7 +2011,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
             matches!(e, DocEdit::UpdateReference { .. }),
             "the elaboration is per-reference primitives and nothing else"
         );
-        edit(&mut updated, e, tol, &reach);
+        edit(&mut updated, e, tol);
     }
 
     let after = run(&updated, &with_store(ws), tol);
@@ -2141,7 +2089,6 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
             value: FreeValue::Continuous(POST_HEIGHT - 0.04),
         },
         tol,
-        &reach,
     );
     ws.resave(&shorter, tol).expect("the short post is stored");
     let short_pin = content_pin(&shorter, tol).expect("the pin computes");
@@ -2158,7 +2105,6 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
             new_pin: short_pin,
         },
         tol,
-        &reach,
     );
     let lint = mixed_pins(&staged);
     assert_eq!(lint.len(), 1, "one id at two pins");
@@ -2197,7 +2143,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     assert_eq!(all.len(), 1, "one site is already on the new pin");
     let mut migrated = staged.clone();
     for e in &all {
-        edit(&mut migrated, e, tol, &reach);
+        edit(&mut migrated, e, tol);
     }
     assert!(
         mixed_pins(&migrated).is_empty(),
@@ -2256,7 +2202,6 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
             value: FreeValue::Continuous(POST_HEIGHT),
         },
         tol,
-        &reach,
     );
     ws.resave(&shorter, tol).expect("the post is restored");
     edit(
@@ -2266,7 +2211,6 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
             value: FreeValue::Continuous(SHELF_THICKNESS),
         },
         tol,
-        &reach,
     );
     ws.resave(&thicker, tol).expect("the shelf is restored");
     let restored = run(&bench.doc, &with_store(ws), tol);
@@ -2394,12 +2338,8 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
 
     let (layout, pattern, shelf_i) = layout_doc(parts.post, parts.shelf, &with_store(&ws), tol);
     ws.create(&layout, tol).expect("the layout is stored");
-    // The stand's mates name the post's cap face, so the door that
-    // inserts them reads the parts: through the workspace's reach.
-    let store = store(&ws);
-    let reach = PartReach::<f64>::with_resolver(Some(&store), tol);
-    let stand = stand_doc(&parts, SEATED, &with_store(&ws), tol, &reach);
-    let bench = bench(&stand, &parts, tol, &reach);
+    let stand = stand_doc(&parts, SEATED, &with_store(&ws), tol);
+    let bench = bench(&stand, &parts, tol);
     ws.create(&bench.doc, tol).expect("the bench is stored");
 
     let layout_body = layout_scene(&ws, &layout, pattern, tol);

@@ -769,7 +769,6 @@ fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect_err("the outer mate never enters the document");
     assert!(
@@ -1887,7 +1886,6 @@ fn a_mate_refused_at_the_door_speaks_the_nodes_its_fault_names() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect_err("the mate's `on` reads another copy");
     let editor_core::EditError::MateRefused { node, fault, .. } = &err else {

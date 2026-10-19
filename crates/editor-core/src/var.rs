@@ -268,8 +268,9 @@ impl Select {
     /// one name, a name of another entity kind than the selection's, or
     /// a set out of its stored order ([`Select`]).
     ///
-    /// What a name denotes is its own `kind`, which the name table
-    /// makes every entity answering to it agree with, so a selection
+    /// What a name denotes is its own `kind`: the name table's seating
+    /// doors refuse a row whose entity is of another kind
+    /// ([`crate::names::SeatingRefusal::KindMismatch`]), so a selection
     /// this passes resolves only to entities of its kind.
     #[must_use]
     pub fn fault(kind: VarKind, names: &[crate::names::StableName]) -> Option<SelectionFault> {

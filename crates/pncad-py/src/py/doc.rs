@@ -777,8 +777,7 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
 
 /// A recipe node's identity within a document.
 /// The seam the document's doors resolve parts through: the same one
-/// `evaluate(doc, resolver=)` crosses. The reach is built over it by
-/// [`d::PartReach::with_resolver`] at each edit door.
+/// `evaluate(doc, resolver=)` crosses.
 pub(crate) fn seam(
     resolver: Option<&super::store::Workspace>,
 ) -> Option<std::sync::Arc<dyn d::PartResolver>> {
@@ -1125,9 +1124,9 @@ impl Doc {
         ) -> Result<d::RecipeNodeId, d::EditError>,
     ) -> Result<NodeId, d::EditError> {
         let tol = Tol::witness();
-        let seam = seam(resolver);
-        let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
-        let mut action = d::Recording::start(&self.inner, tol, &reach);
+        // Unread: work/intent/the-python-edit-doors-take-a-resolver-they-never-read.md
+        let _ = resolver;
+        let mut action = d::Recording::start(&self.inner, tol);
         let id = insert(&mut action)?;
         if let Some(label) = label {
             action.apply(d::DocEdit::SetLabel {
@@ -1220,10 +1219,9 @@ impl Doc {
         resolver: Option<&super::store::Workspace>,
     ) -> PyResult<Option<NodeId>> {
         let tol = Tol::witness();
-        let seam = seam(resolver);
-        let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
-        let applied =
-            d::apply(&self.inner, &edit.inner, tol, &reach).map_err(|err| edit_err(py, &err))?;
+        // Unread: work/intent/the-python-edit-doors-take-a-resolver-they-never-read.md
+        let _ = resolver;
+        let applied = d::apply(&self.inner, &edit.inner, tol).map_err(|err| edit_err(py, &err))?;
         Ok(self.accept(applied).minted.map(NodeId))
     }
 
@@ -1446,15 +1444,14 @@ impl Doc {
         resolver: Option<&super::store::Workspace>,
     ) -> PyResult<super::mate::MateRef> {
         let tol = Tol::witness();
-        let seam = seam(resolver);
-        let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
+        // Unread: work/intent/the-python-edit-doors-take-a-resolver-they-never-read.md
+        let _ = resolver;
         let edit = d::DocEdit::AddConstraint {
             placement: placement.0,
             mate: Box::new(mate.0.clone()),
             fresh: Vec::new(),
         };
-        let applied =
-            d::apply(&self.inner, &edit, tol, &reach).map_err(|err| edit_err(py, &err))?;
+        let applied = d::apply(&self.inner, &edit, tol).map_err(|err| edit_err(py, &err))?;
         let record = self.accept(applied);
         let id = *record
             .minted_constraints
@@ -1574,9 +1571,9 @@ impl Doc {
     ) -> PyResult<Measured> {
         let primitives: Vec<d::MeasurePrimitive> = primitives.into_iter().map(|p| p.0).collect();
         let tol = Tol::witness();
-        let seam = seam(resolver);
-        let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
-        let mut action = d::Recording::start(&self.inner, tol, &reach);
+        // Unread: work/intent/the-python-edit-doors-take-a-resolver-they-never-read.md
+        let _ = resolver;
+        let mut action = d::Recording::start(&self.inner, tol);
         let measured = action
             .measure(&primitives)
             .map_err(|err| edit_err(py, &err))?;
@@ -1664,9 +1661,9 @@ impl Doc {
             if pose.is_none() {
                 let label = label.map(|text| label_from_text(py, text)).transpose()?;
                 let tol = Tol::witness();
-                let seam = seam(resolver);
-                let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
-                let mut action = d::Recording::start(&self.inner, tol, &reach);
+                // Unread: work/intent/the-python-edit-doors-take-a-resolver-they-never-read.md
+                let _ = resolver;
+                let mut action = d::Recording::start(&self.inner, tol);
                 let edit_failed = |err: d::EditError| edit_err(py, &err);
                 let placement = action
                     .insert(d::Node::place(shapes.reads()))
@@ -1741,8 +1738,7 @@ impl Doc {
             resolver: seam.clone(),
             ..d::EvalOptions::default()
         };
-        let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
-        let mut action = d::Recording::start(&self.inner, tol, &reach);
+        let mut action = d::Recording::start(&self.inner, tol);
         let edit_failed = |err: d::EditError| edit_err(py, &err);
         let placement = action
             .insert(d::Node::place(shapes.reads()))
@@ -1782,8 +1778,7 @@ impl Doc {
             resolver: seam.clone(),
             ..d::EvalOptions::default()
         };
-        let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
-        let mut action = d::Recording::start(&self.inner, tol, &reach);
+        let mut action = d::Recording::start(&self.inner, tol);
         let placed = gesture(py, &mut action, placement.0, &pose, &opts, tol)?;
         let done = action.finish().map_err(|err| edit_err(py, &err))?;
         self.take_up(done.doc, done.maintenance);
@@ -1829,7 +1824,7 @@ impl Doc {
             })
             .collect();
         let tol = Tol::witness();
-        let mut action = d::Recording::start(&self.inner, tol, &d::RefusingReach);
+        let mut action = d::Recording::start(&self.inner, tol);
         for edit in edits {
             action.apply(edit).map_err(|err| edit_err(py, &err))?;
         }
@@ -1862,8 +1857,8 @@ impl Doc {
             value: Box::new(value.0),
             fresh: Vec::new(),
         };
-        let applied = d::apply(&self.inner, &edit, Tol::witness(), &d::RefusingReach)
-            .map_err(|err| edit_err(py, &err))?;
+        let applied =
+            d::apply(&self.inner, &edit, Tol::witness()).map_err(|err| edit_err(py, &err))?;
         let record = self.accept(applied);
         let id = *record
             .minted_constraints

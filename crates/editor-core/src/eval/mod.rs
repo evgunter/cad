@@ -154,9 +154,24 @@ pub struct Evaluation<T: Decide> {
     /// The parts this run entered and evaluated, carried for the run
     /// that names it as its prior.
     parts: parts::Carried<T>,
+    /// The resolver this run crossed the document seam with: what a
+    /// replay of the same document at another scalar resolves its parts
+    /// through ([`Self::resolver`]). Asserted unwind-safe: the evaluation
+    /// only hands it on to a later run, never calls it itself, so no
+    /// unwind across an evaluation can interrupt the resolver or leave
+    /// the evaluation's own state torn.
+    resolver: Option<std::panic::AssertUnwindSafe<Arc<dyn crate::part::PartResolver>>>,
 }
 
 impl<T: Decide> Evaluation<T> {
+    /// **The resolver this run crossed the document seam with**
+    /// ([`EvalOptions::resolver`]), `None` for a run that resolved no
+    /// part.
+    #[must_use]
+    pub fn resolver(&self) -> Option<&Arc<dyn crate::part::PartResolver>> {
+        self.resolver.as_ref().map(|r| &r.0)
+    }
+
     /// **The name table of the variable `var`** (NAMES N1, the scope):
     /// the names of the bodies that variable holds, a split's half its
     /// own. The one door to a table: a name is scoped by the variable
@@ -990,6 +1005,7 @@ impl Evaluation<f64> {
             env: crate::expr::VarEnv::default(),
             reads: Arc::new(reads),
             parts: parts::Carried::none(),
+            resolver: None,
         }
     }
 
@@ -3298,8 +3314,8 @@ pub struct EvalOptions {
     /// coincidence door replays a document in. `false` — the default —
     /// is every other evaluation. Exclusive with `param_box`, which
     /// widens named variables over a box instead: an evaluation asked
-    /// for both refuses every node. So does one that also carries a
-    /// `resolver` ([`crate::analysis::ParamBoxError::SymbolsAcrossAPartSeam`]).
+    /// for both refuses every node. A part it resolves binds its own
+    /// variables as symbols of its own document.
     pub symbols: bool,
 }
 
@@ -3570,116 +3586,6 @@ impl Default for EvalOptions {
     }
 }
 
-/// **A part's reach over its row** — a part's extent, answered from
-/// the parts an evaluation resolves.
-///
-/// Every caller outside a run — the viewer's mate tool, the Python
-/// door, the demos, the test fixtures — builds a store through
-/// [`mate_reach`] over the options it would evaluate with, so there is
-/// one implementation of "a part's extent" and it is the evaluation's.
-fn reach_of<T: EvalScalar>(
-    row: Result<parts::PartValue<T>, parts::PartFault>,
-) -> Result<f64, crate::mate::ReachRefusal> {
-    let value = row.map_err(|fault| crate::mate::ReachRefusal::PartUnresolved { fault })?;
-    // The reach is an UPPER BOUND by definition, and the bracket's `hi`
-    // is that bound at the run's scalar (`EvalScalar` gathers the
-    // ratified compound; on `f64` the bracket is the value). It scales
-    // a margin in the refusal-safe direction and decides no topology:
-    // the solve still decides through `Decide`. A bracket that reads
-    // back non-finite is poison, not a bound.
-    let hi = crate::mate::part_reach(&value.body)?.hi();
-    if !hi.is_finite() {
-        return Err(crate::mate::ReachRefusal::NoFiniteBound);
-    }
-    Ok(hi)
-}
-
-/// **A mate solve's reach, built outside an evaluation** — what
-/// [`mate_reach`] answers. Owns a part store over `opts`' resolver
-/// that evaluates each part on its first ask, so a caller that solves
-/// a document and then evaluates it resolves each mated part once here
-/// and once there; the evaluation's own solve reads its run's table
-/// instead. Bound to no document: the edit door threads one reach
-/// through a group of edits, each applied to its predecessor's output.
-///
-/// Not `Sync`: the store fills by `&mut` behind a `RefCell`, so one
-/// thread asks at a time and no ask waits on another's evaluation. It
-/// can still be sent:
-///
-/// ```compile_fail,E0277
-/// fn shared<R: Sync>() {}
-/// shared::<editor_core::PartReach<'static, f64>>();
-/// ```
-///
-/// ```
-/// fn sent<R: Send>() {}
-/// sent::<editor_core::PartReach<'static, f64>>();
-/// ```
-pub struct PartReach<'a, T: EvalScalar> {
-    parts: core::cell::RefCell<parts::PartStore<'a, T>>,
-    tol: Tol,
-}
-
-impl<'a, T: EvalScalar> PartReach<'a, T> {
-    /// **A reach from a resolver alone** — for the doors that are not
-    /// a run: the edit door, a solve read outside an evaluation, a
-    /// refactoring. Such a door has no evaluation options of its own,
-    /// so its parts evaluate under the defaults (`EvalOptions`'s sweep
-    /// strategy), spelled here once; a door that IS
-    /// a run, or holds a run's options, goes through [`mate_reach`].
-    /// `None` is the refusing reach: every part is the typed
-    /// no-resolver fault.
-    pub fn with_resolver(
-        resolver: Option<&'a Arc<dyn crate::part::PartResolver>>,
-        tol: Tol,
-    ) -> Self {
-        let defaults = EvalOptions::default();
-        Self::over(resolver, defaults.boolean_sweep, tol)
-    }
-
-    /// A reach over a part store built from these options' parts.
-    fn over(
-        resolver: Option<&'a Arc<dyn crate::part::PartResolver>>,
-        boolean_sweep: topo::SweepStrategy,
-        tol: Tol,
-    ) -> Self {
-        Self {
-            parts: core::cell::RefCell::new(parts::PartStore::<T>::new(
-                resolver,
-                boolean_sweep,
-                tol,
-            )),
-            tol,
-        }
-    }
-
-    /// The row `part` has, evaluated on its first ask. Outside any run,
-    /// so nothing cancels it.
-    fn row(&self, part: &crate::ident::DocRef) -> Result<parts::PartValue<T>, parts::PartFault> {
-        self.parts
-            .borrow_mut()
-            .row(part, self.tol, &CancelToken::new())
-    }
-}
-
-impl<T: EvalScalar> crate::mate::MateReach<T> for PartReach<'_, T> {
-    fn reach(&self, part: &crate::ident::DocRef) -> Result<f64, crate::mate::ReachRefusal> {
-        reach_of(self.row(part))
-    }
-}
-
-/// **The public door to the evaluation's reach** for
-/// [`crate::mate::solve_document`] and [`crate::edit::apply`]: each
-/// mated part's extent, resolved through `opts`' resolver the way an
-/// evaluation over `opts` would resolve it (same seam, same sweep
-/// strategy), at the top of the descent. A caller
-/// with no resolver gets a reach whose every answer is the typed
-/// no-resolver fault, so the solve refuses each mate in the
-/// resolver's own voice rather than levering over nothing.
-pub fn mate_reach<'a, T: EvalScalar>(opts: &'a EvalOptions, tol: Tol) -> PartReach<'a, T> {
-    PartReach::over(opts.resolver.as_ref(), opts.boolean_sweep, tol)
-}
-
 /// **A pose variable bound against an evaluation**, as a reader at
 /// `slot` binds it ([`wire::pose`]): a definition at the evaluation's
 /// lane scalar from the results it reads, an operation's output from
@@ -3870,12 +3776,13 @@ pub(crate) fn evaluate_nested<T>(
     cancel: &CancelToken,
     opts: &EvalOptions,
     reached: parts::Reached<T>,
+    pin: &crate::ident::ContentPin,
     tol: Tol,
 ) -> Evaluation<T>
 where
     T: EvalScalar,
 {
-    evaluate_at_descent(doc, None, cancel, opts, Some(reached), tol)
+    evaluate_at_descent(doc, None, cancel, opts, Some((reached, pin)), tol)
 }
 
 /// Whether `doc` was recorded at the process's ε — the D4 door below.
@@ -3890,7 +3797,7 @@ fn evaluate_at_descent<T>(
     prior: Option<&Evaluation<T>>,
     cancel: &CancelToken,
     opts: &EvalOptions,
-    reached: Option<parts::Reached<T>>,
+    reached: Option<(parts::Reached<T>, &crate::ident::ContentPin)>,
     tol: Tol,
 ) -> Evaluation<T>
 where
@@ -3922,10 +3829,9 @@ where
     // each call site.
     let env = match (opts.param_box.as_deref(), opts.symbols) {
         (None, false) => Ok(doc.var_env::<T>()),
-        (None, true) if opts.resolver.is_some() => {
-            Err(crate::analysis::ParamBoxError::SymbolsAcrossAPartSeam)
+        (None, true) => {
+            crate::analysis::var_env_symbolic_pinned::<T, _>(doc, reached.as_ref().map(|r| r.1))
         }
-        (None, true) => crate::analysis::var_env_symbolic::<T, _>(doc),
         (Some(b), false) => crate::analysis::var_env_over::<T, _>(doc, b),
         (Some(_), true) => Err(crate::analysis::ParamBoxError::SymbolsOverABox),
     };
@@ -3953,7 +3859,7 @@ where
     // one serial pass that reuses what the prior carried (`parts`
     // module docs).
     let entry = match reached {
-        Some(reached) => parts::Entry {
+        Some((reached, _)) => parts::Entry {
             reached,
             carried: parts::Carried::none(),
             evaluations: 0,
@@ -4070,6 +3976,7 @@ where
         env,
         reads: Arc::new(doc.output_ports()),
         parts: entry.carried,
+        resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
     }
 }
 
@@ -4193,6 +4100,7 @@ where
         env: doc.var_env::<T>(),
         reads: Arc::new(doc.output_ports()),
         parts: parts::Carried::none(),
+        resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
     }
 }
 

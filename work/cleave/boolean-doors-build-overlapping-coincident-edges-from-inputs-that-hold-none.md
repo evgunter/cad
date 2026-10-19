@@ -2,11 +2,12 @@
 id: boolean-doors-build-overlapping-coincident-edges-from-inputs-that-hold-none
 kind: issue
 title: Boolean doors build coincident edges with overlapping material wedges from inputs that hold none, and every tier passes them
-status: open
+status: dispatched
 opened: 2026-10-14
 priority: P1
 cost: H
 refs: [reverting-a-slit-body-overlaps-its-coincident-edges-wedges-and-passes-every-tier, census-passes-a-face-inside-an-edges-material-wedge]
+branch: cleave/gate-refuses-overlapping-wedges
 ---
 
 Found by the fix pass on PR 5106 (`cleave/revert-repairs-coincident-edges`),

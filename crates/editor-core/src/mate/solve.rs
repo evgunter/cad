@@ -54,8 +54,13 @@ use crate::pose::PoseValue;
 ///
 /// What a scalar answers here beyond deciding is per scalar. No pose
 /// value is derived from [`Self::quoted`] or [`Self::upper`]. `quoted`
-/// feeds a sign and a payload only. `upper` forms the arm
-/// ([`Arm::of`]), so it feeds the lever's own refusal
+/// feeds a sign and a payload, and it chooses between two spellings of
+/// one value where each is exact and only their conditioning differs:
+/// [`super::reference_about`]'s two formulas for `1 + c`, and
+/// [`frame_of`]'s pole a direction is aimed from. Such a choice is no
+/// verdict and is not sampled; a box lane may take the other spelling
+/// than its value lane, and each encloses the same value. `upper` forms
+/// the arm ([`Arm::of`]), so it feeds the lever's own refusal
 /// (`LeverRefusal::OutOfRange` where the arm is formed), and there an
 /// over-stated arm refuses sooner, never wrongly.
 pub trait SolveScalar: Decide {
@@ -551,24 +556,55 @@ pub(crate) struct ReadMate<T: Real> {
 /// normal along `z`, the identity frame) onto it. Which map is a
 /// representative: two differ by an element of the kind's own
 /// symmetry, so a coset built through either is the same coset.
-fn frame_of<T: Real>(pose: &PoseValue<T>) -> Affine3<T> {
-    let aimed = |origin: geom_core::linalg::Point3<T>, d: geom_core::UnitVec3<T>| {
-        let (b1, b2) = d.orthonormal_basis();
-        Affine3::from_parts(
-            Mat3::from_cols(b1, b2, d.get()),
-            origin - geom_core::linalg::Point3::origin(),
-        )
+///
+/// A direction `d = (a, b, c)` is aimed by the shortest turn carrying
+/// `z` onto it, whose columns are rational in `d`'s components with the
+/// one divisor `1 + c`; where `c < 0` it is aimed from `−z` instead
+/// (divisor `1 − c`), after the half-turn about `x`. Which of the two
+/// is a choice of arithmetic, not a verdict ([`SolveScalar`]): both
+/// carry `z` to `d`, and at a point neither divisor falls below one
+/// where it is taken (over an enclosure, below one by at most half its
+/// width in `c`). So at `Sym` a
+/// frame is a rational function of the pose, with no guard the
+/// symbolic tier cannot see through.
+fn frame_of<T: SolveScalar>(pose: &PoseValue<T>) -> Affine3<T> {
+    use geom_core::linalg::{Point3, Vec3};
+    let aimed = |origin: Point3<T>, d: geom_core::UnitVec3<T>| {
+        let d = d.get();
+        let (a, b, c) = (d.x, d.y, d.z);
+        let one = T::one();
+        let (x, y) = if c.quoted() < 0.0 {
+            let k = one - c;
+            (
+                Vec3::new(one - a.powi(2) / k, T::zero() - a * b / k, a),
+                Vec3::new(a * b / k, b.powi(2) / k - one, T::zero() - b),
+            )
+        } else {
+            let k = one + c;
+            (
+                Vec3::new(one - a.powi(2) / k, T::zero() - a * b / k, T::zero() - a),
+                Vec3::new(T::zero() - a * b / k, one - b.powi(2) / k, T::zero() - b),
+            )
+        };
+        Affine3::from_parts(Mat3::from_cols(x, y, d), origin - Point3::origin())
     };
     match *pose {
-        PoseValue::Point { position } => Affine3::from_parts(
-            Mat3::identity(),
-            position - geom_core::linalg::Point3::origin(),
-        ),
-        PoseValue::Direction { dir } => aimed(geom_core::linalg::Point3::origin(), dir),
+        PoseValue::Point { position } => {
+            Affine3::from_parts(Mat3::identity(), position - Point3::origin())
+        }
+        PoseValue::Direction { dir } => aimed(Point3::origin(), dir),
         PoseValue::Axis { origin, dir } => aimed(origin, dir),
         PoseValue::Plane { origin, normal } => aimed(origin, normal),
         PoseValue::Frame(f) => f.to_affine(),
     }
+}
+
+/// The inverse of a rigid map, its linear part transposed: a frame's
+/// columns are orthonormal by construction, so no determinant is
+/// divided by.
+fn rigid_inverse<T: Real>(map: Affine3<T>) -> Affine3<T> {
+    let linear = map.linear.transpose();
+    Affine3::from_parts(linear, -(linear * map.translation))
 }
 
 /// **One mate's coset** (A11 (1), FORK-S3M): the copy's relative poses
@@ -583,15 +619,16 @@ fn frame_of<T: Real>(pose: &PoseValue<T>) -> Affine3<T> {
 pub fn mate_coset<T: SolveScalar>(on: &PoseValue<T>, to: &PoseValue<T>) -> Coset<T> {
     Coset {
         subgroup: to.symmetry(),
-        representative: frame_of(to) * frame_of(on).inverse(),
+        representative: frame_of(to) * rigid_inverse(frame_of(on)),
     }
 }
 
 /// **One constraint's equations, as the bundle rule reads them**
 /// (FORK-S3O): a mate's are its pose kind's symmetry, a value's the one
-/// freedom it sets on the mate it names. The doors read them off the
-/// definitions and the fold off the poses' values, whose kinds the pose
-/// evaluator asserts are the definitions'.
+/// freedom it sets on the mate it names. Read once per bundle, off its
+/// definitions ([`equations_of`]), by the edit doors and by the solve
+/// alike, so the rule the door asks and the rule the fold asks are one
+/// reading.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Equations {
     /// A mate, by its kind's symmetry.
@@ -898,14 +935,25 @@ pub(crate) fn equations_of<P>(
 ///
 /// [`MateFault::Overconstrained`] naming every mate where two do not
 /// meet transversally (a pose whose kind is not its definition's, which
-/// the pose evaluator refuses first), and [`MateFault::PoseOutOfRange`]
-/// where they meet further away than a length can say.
+/// the pose evaluator refuses first).
+///
+/// **The meeting is always a finite length away.** The bundle's arm
+/// ([`bundle_arm`]) is formed before the solve, and [`Arm::of`] refuses
+/// one whose sixteenfold square overflows, so every mate's two poses
+/// sit within `datum < 3.4e153` of their origins. A lone mate's
+/// representative moves by at most `|o_on| + |o_to| ≤ datum`, and the
+/// one transverse meeting ([`super::coset::intersect`], a ball and a
+/// direction) by `p − R·p + R·t`, at most `3·datum`, whose squared
+/// norm stays inside the format. So no range is asked here. The bound
+/// is a point scalar's: an enclosure lane's product of rotation
+/// enclosures can widen past it, and a translation that is then no
+/// bounded number refuses where the placed copy's motion is minted
+/// (`RigidMotion`'s mints ask `Real::is_bounded`), never silently.
 pub(crate) fn fold_bundle<T: SolveScalar>(
     placement: RecipeNodeId,
     mates: &[ReadMate<T>],
 ) -> Result<Coset<T>, Box<MateFault>> {
     let mut held = Coset::unconstrained();
-    let mut held_mate: Option<MateRef> = None;
     for m in mates {
         held = super::coset::intersect(held, mate_coset(&m.on, &m.to)).ok_or_else(|| {
             let met = mates
@@ -920,13 +968,6 @@ pub(crate) fn fold_bundle<T: SolveScalar>(
                 free: 6 - met,
             })
         })?;
-        if !geom_core::is_finite_length(held.representative.translation.norm()) {
-            return Err(Box::new(MateFault::PoseOutOfRange {
-                held: held_mate.unwrap_or(m.mate),
-                added: m.mate,
-            }));
-        }
-        held_mate.get_or_insert(m.mate);
     }
     Ok(held)
 }
@@ -941,13 +982,16 @@ pub(crate) enum Folded<T: Real> {
     Pinned(Affine3<T>),
 }
 
-/// **One placement's bundle, solved.** Each value is first asked what
-/// its mate's kind decides (a freedom the kind leaves, with a chart),
-/// then the bundle rule ([`overconstrained`]) refuses a constraint any
-/// of whose equations the rest already fix. The mates fold, and the
-/// values place the copy inside what they leave
-/// ([`super::value::settle`]). A bundle that pins less than its copy
-/// needs ([`pins`]) makes a loose copy, never a refusal.
+/// **One placement's bundle, solved.** `equations` are the bundle's,
+/// read once off its definitions ([`equations_of`]) — the reading the
+/// edit doors ask the rule of, so the door and the solve decide over
+/// one value. Each value is first asked what its mate's kind decides (a
+/// freedom the kind leaves, with a chart), then the bundle rule
+/// ([`overconstrained`]) refuses a constraint any of whose equations
+/// the rest already fix. The mates fold, and the values place the copy
+/// inside what they leave ([`super::value::settle`]). A bundle that
+/// pins less than its copy needs ([`pins`]) makes a loose copy, never a
+/// refusal.
 ///
 /// # Errors
 ///
@@ -957,17 +1001,12 @@ pub(crate) enum Folded<T: Real> {
 /// values ([`super::value::settle`]).
 pub(crate) fn solve_bundle<T: SolveScalar>(
     placement: RecipeNodeId,
+    equations: &[(crate::node::ConstraintId, Equations)],
     mates: &[ReadMate<T>],
     values: &[super::value::ReadValue<T>],
     charts: &BTreeMap<crate::node::ConstraintId, Option<super::value::Chart<T>>>,
-    arm: Arm,
-    band: Band,
 ) -> Result<Folded<T>, crate::NodeErrorKind> {
     let fault = |f: MateFault| crate::NodeErrorKind::Mate(Box::new(f));
-    let mut equations: Vec<(crate::node::ConstraintId, Equations)> = mates
-        .iter()
-        .map(|m| (m.mate.id, Equations::Mate(m.to.symmetry().family())))
-        .collect();
     for v in values {
         let Some(&(_, Equations::Mate(family))) = equations.iter().find(|&&(id, _)| id == v.mate)
         else {
@@ -982,22 +1021,13 @@ pub(crate) fn solve_bundle<T: SolveScalar>(
                 .map_err(|refusal| fault(refused_freedom(v.value, v.coord, kind, refusal)))?;
         }
     }
-    equations.extend(values.iter().map(|v| {
-        (
-            v.value.id,
-            Equations::Value {
-                mate: v.mate,
-                coord: v.coord,
-            },
-        )
-    }));
-    overconstrained(placement, &equations).map_err(|f| fault(*f))?;
+    overconstrained(placement, equations).map_err(|f| fault(*f))?;
     if mates.is_empty() {
         return Ok(Folded::Loose);
     }
     let coset = fold_bundle(placement, mates).map_err(|f| fault(*f))?;
-    let at = super::value::settle(coset, values, charts, arm, band)?;
-    Ok(if pins(&equations) {
+    let at = super::value::settle(coset, values, charts)?;
+    Ok(if pins(equations) {
         Folded::Pinned(at)
     } else {
         Folded::Loose
@@ -1343,6 +1373,50 @@ mod tests {
                 } => Err((constraints, free)),
                 other => panic!("the rule refuses only Overconstrained, got {other:?}"),
             },
+        }
+    }
+
+    /// **No slide the rule admits sits beside a second mate** — the
+    /// premise `value::settle` moves each slide along its own chart's
+    /// axis on. A slide is its own only beside mates that free every
+    /// translation, which only a direction mate does; a direction mate
+    /// beside a mate of any other kind, or another direction, repeats an
+    /// equation, and beside a ball the slide refuses as having no chart.
+    /// So every slide a bundle sets is on one lone mate's chart, whose
+    /// `x`, `y` and `d` lie in its residual and are perpendicular.
+    ///
+    /// *Breaks if* a pair of mates comes to admit a slide on either: the
+    /// settle would then move a slide's copy across a translation the
+    /// other mate fixes (a ball and a direction with a slide moves the
+    /// copy off the ball), where no structural move is right.
+    #[test]
+    fn no_admitted_slide_sits_beside_a_second_mate() {
+        let kinds = [
+            F::Trivial,
+            F::Planar,
+            F::Cylindrical,
+            F::Parallel,
+            F::Spherical,
+        ];
+        // A slide each kind's chart leaves, where it leaves one.
+        let slide = |f: F| match f {
+            F::Planar | F::Parallel => Some(Coord::Slide(SlideAxis::X)),
+            F::Cylindrical => Some(Coord::Slide(SlideAxis::Z)),
+            _ => None,
+        };
+        for a in kinds {
+            for b in kinds {
+                let Some(on_b) = slide(b) else { continue };
+                let bundle = [
+                    (id(1), Equations::Mate(a)),
+                    (id(2), Equations::Mate(b)),
+                    value(2, on_b),
+                ];
+                assert!(
+                    overconstrained(RecipeNodeId::WORLD, &bundle).is_err(),
+                    "{a:?} beside {b:?} admits a slide on the {b:?}"
+                );
+            }
         }
     }
 

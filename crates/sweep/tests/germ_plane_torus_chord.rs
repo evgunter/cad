@@ -226,17 +226,13 @@ pub(crate) fn body_holds(
     b: &topo::Body<f64>,
     within: (Point3<f64>, Point3<f64>),
 ) {
-    let read = volume_and_points(what, ops, solids, meet, b, within, false);
+    let read = volume_and_points(what, ops, solids, meet, b, within);
     assert!(read >= 40, "{what}: {read} points read");
 }
 
 /// [`body_holds`]'s volume and tier 3, and its `point_in_solid` reading
-/// at every sampled point the operands' memberships place. A refusal at
-/// a point is `VolumeUncertified` where `probe_gap` (the at-infinity
-/// probe measures in closed form only, and a spiric-trimmed torus wall
-/// has none: `work/restread/at-infinity-probe-measures-in-closed-form-only.md`),
-/// and reads nothing, at no more points than it reads; any other refusal
-/// fails. The points read.
+/// at every sampled point the operands' memberships place, each one
+/// answered and right. The points read.
 pub(crate) fn volume_and_points(
     what: &str,
     (op, swap): (BooleanOp, bool),
@@ -244,7 +240,6 @@ pub(crate) fn volume_and_points(
     meet: f64,
     b: &topo::Body<f64>,
     (lo, hi): (Point3<f64>, Point3<f64>),
-    probe_gap: bool,
 ) -> usize {
     let (x, y) = if swap { (p, t) } else { (t, p) };
     let want = match op {
@@ -264,23 +259,18 @@ pub(crate) fn volume_and_points(
         (v - want).abs() <= volume_tol(want),
         "{what}: volume {v} against the truth {want}"
     );
-    let (mut read, mut gaps) = (0usize, 0usize);
+    let mut read = 0usize;
     for q in points(lo, hi, 48) {
         let (Some(a), Some(c)) = ((x.inside)(q), (y.inside)(q)) else {
             continue;
         };
-        match contains(b, q) {
-            Err(topo::PointInSolidError::VolumeUncertified) if probe_gap => gaps += 1,
-            got => {
-                assert_eq!(got, Ok(kept(op, a, c)), "{what}: point_in_solid at {q:?}");
-                read += 1;
-            }
-        }
+        assert_eq!(
+            contains(b, q),
+            Ok(kept(op, a, c)),
+            "{what}: point_in_solid at {q:?}"
+        );
+        read += 1;
     }
-    assert!(
-        gaps <= read,
-        "{what}: the at-infinity probe refuses {gaps} points, more than the {read} read"
-    );
     read
 }
 

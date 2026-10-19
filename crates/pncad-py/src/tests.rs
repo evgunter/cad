@@ -89,7 +89,6 @@ fn insert(
             fresh: Vec::new(),
         },
         pncad::tolerance::Tol::witness(),
-        &pncad::document::RefusingReach,
     )
     .expect("the edit is accepted");
     let minted = applied.record.minted.expect("an insert mints an id");
@@ -128,7 +127,6 @@ fn box_doc(
         &doc,
         &pncad::document::DocEdit::PinWhereItStands { placement },
         pncad::tolerance::Tol::witness(),
-        &pncad::document::RefusingReach,
     )
     .expect("the world pin is admitted")
     .doc;
@@ -848,7 +846,6 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         ConstraintId, Coord, DocumentId, LeverRefusal, MateFault as F, MateRef, MateSide, MintId,
         NoChartWhy, NodeErrorKind, NodeRefusal, RecipeNodeId, SlideAxis, VarKind, WorldReadFault,
     };
-    use pncad::geom_core::{Band, Indeterminate, MarginDiag};
 
     let id = |n| RecipeNodeId::new(0, n);
     // A constraint's address: constraint `n` of placement `n`.
@@ -874,61 +871,8 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         &["expected_document", "found_document"],
     );
     carries(&F::ClassNotAdmitted { mate: m(1) }, &["mate"]);
-    carries(
-        &F::PoseOutOfRange {
-            held: m(1),
-            added: m(2),
-        },
-        &["held", "added"],
-    );
-    // The arms whose payload is a NESTED refusal. Each crosses under
-    // the inner refusal's own word, with the numbers that word
-    // qualifies beside it — the frame door's vocabulary, spelled the
-    // same way here.
-    let band = Band::new(1.0e-9, 1.0e-6).expect("a valid band");
-    let escalated = |predicate| Indeterminate {
-        margin: MarginDiag::value(2.0e-9),
-        band,
-        predicate,
-        terminal_sliver: false,
-    };
-    // An enclosure straddles rather than landing: two bounds and no
-    // value, the `MarginDiag` fork the frame door publishes.
-    carries(
-        &F::Indeterminate {
-            mate: m(1),
-            diag: Box::new(Indeterminate {
-                margin: MarginDiag::enclosure(-1.0e-9, 3.0e-9),
-                band,
-                predicate: None,
-                terminal_sliver: false,
-            }),
-        },
-        &["mate", "margin_low", "margin_high", "zero", "escalate"],
-    );
-    // A poisoned margin is the absence of a number, not a number:
-    // the band still crosses.
-    carries(
-        &F::Indeterminate {
-            mate: m(1),
-            diag: Box::new(Indeterminate {
-                margin: MarginDiag::INVALID,
-                band,
-                predicate: None,
-                terminal_sliver: false,
-            }),
-        },
-        &["mate", "zero", "escalate"],
-    );
-    // A struct, not an enum: the escalation has no inner WORD, and
-    // its shape is which margin attribute is set.
-    carries(
-        &F::Indeterminate {
-            mate: m(1),
-            diag: Box::new(escalated(Some("mate_chart_reference_antipode"))),
-        },
-        &["mate", "predicate", "margin", "zero", "escalate"],
-    );
+    // The arms whose payload is a NESTED refusal cross under the
+    // inner refusal's own word.
     carries(
         &F::Unleverable {
             mate: m(1),
@@ -1044,12 +988,6 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         )
     );
     assert_eq!(payload.free, Some(0));
-    let far = F::PoseOutOfRange {
-        held: m(9),
-        added: m(16),
-    };
-    let payload = mate_payload(&far);
-    assert_eq!((payload.held, payload.added), (Some(m(9)), Some(m(16))));
 
     // The unevaluated pose's `error` is the evaluation layer's own
     // tag, unaltered — the vocabulary `EvaluationError.kind` speaks.
@@ -1121,21 +1059,6 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     let payload = mate_payload(&unleverable);
     assert_eq!(payload.inner_variant, Some("part_unresolved"));
     assert_eq!(payload.instance, Some(id(0)));
-
-    // The classifier's numbers are the ones the band and the margin
-    // held, on the frame door's own names.
-    let escalation = F::Indeterminate {
-        mate: m(1),
-        diag: Box::new(escalated(Some("mate_axes_parallel"))),
-    };
-    let payload = mate_payload(&escalation);
-    assert_eq!(payload.margin, Some(2.0e-9));
-    assert_eq!(
-        (payload.zero, payload.escalate),
-        (Some(1.0e-9), Some(1.0e-6))
-    );
-    assert_eq!(payload.predicate, Some("mate_axes_parallel"));
-    assert_eq!((payload.margin_low, payload.margin_high), (None, None));
 }
 
 /// **Each door keeps its word for each standing**, the two absent
@@ -1370,14 +1293,9 @@ fn resolution_status_tags_are_stable() {
 
     // FAILED: the minting node is gone from the document, so the name
     // is stranded and the repair is an explicit rebind.
-    let pruned = apply(
-        &doc,
-        &DocEdit::DeleteNode { id: extrude },
-        tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the leaf deletes")
-    .doc;
+    let pruned = apply(&doc, &DocEdit::DeleteNode { id: extrude }, tol)
+        .expect("the leaf deletes")
+        .doc;
     let after = run(&pruned, &live);
     let verdict = resolve(
         RunCtx {
@@ -1740,7 +1658,6 @@ fn expression_evaluation_tags_are_stable() {
                 def: pncad::document::VarDecl::Free(param),
             },
             tol,
-            &pncad::document::RefusingReach,
         )
         .expect("a parameter declaration applies")
         .doc
@@ -1875,8 +1792,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
         node: Box::new(xy_frame()),
         fresh: Vec::new(),
     };
-    let framed =
-        apply(&doc, &frame, tol, &pncad::document::RefusingReach).expect("the frame inserts");
+    let framed = apply(&doc, &frame, tol).expect("the frame inserts");
     let plane = framed.record.minted.expect("a frame id");
     let profile = DocEdit::InsertNode {
         node: Box::new(Node::Profile(ProfileProgram {
@@ -1886,8 +1802,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
         })),
         fresh: Vec::new(),
     };
-    apply(&framed.doc, &profile, tol, &pncad::document::RefusingReach)
-        .expect("the profile inserts");
+    apply(&framed.doc, &profile, tol).expect("the profile inserts");
     // Saved as its edit log over the empty document: a slot holds a
     // variable's id in a snapshot, and the edits carry the formulas as
     // written — the literals the load door rebuilds.
@@ -2280,8 +2195,6 @@ fn node_error_tags_are_the_published_words() {
         PartNotEntered => "part_not_entered",
         MatePosesOfAnotherDocument => "mate_poses_of_another_document",
         MateClassNotAdmitted => "mate_class_not_admitted",
-        MateIndeterminate => "mate_indeterminate",
-        MatePoseOutOfRange => "mate_pose_out_of_range",
         MateOverconstrained => "mate_overconstrained",
         MateTargetsDiffer => "mate_targets_differ",
         MateNotOnTheCopy => "mate_not_on_the_copy",
@@ -5351,9 +5264,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "duplicate",
             "emission",
             "escalated",
+            "kind_mismatch",
             "member_edge_tied",
             "merged_chord",
-            "merged_chord_constituents",
             "merged_chord_off_rim",
             "missing_upstream",
             "partner_unread",
@@ -5401,13 +5314,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "instance_out_of_range",
             "loft",
             "mate_class_not_admitted",
-            "mate_indeterminate",
             "mate_kinds_differ",
             "mate_no_chart",
             "mate_not_a_freedom",
             "mate_not_on_the_copy",
             "mate_overconstrained",
-            "mate_pose_out_of_range",
             "mate_poses_of_another_document",
             "mate_side_unevaluated",
             "mate_targets_differ",
@@ -5574,7 +5485,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "param_box_error_tag",
         values: &[
             "axis_unrepresentable",
-            "symbols_across_a_part_seam",
             "symbols_over_a_box",
             "unknown_param",
         ],
@@ -5982,7 +5892,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "degenerate_section",
             "domain_not_unit",
             "fit",
-            "incompatible_at_enclosure",
             "knot_algebra",
             "no_parameter_step",
             "path_tangent_reversal",

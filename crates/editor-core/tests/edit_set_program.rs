@@ -161,7 +161,6 @@ fn set_program(
             fresh: Vec::new(),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
 }
 
@@ -213,7 +212,6 @@ fn paint(doc: &editor_core::ProfileDoc, name: &StableName) -> ProfileDoc {
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .expect("the painted name's node is live")
     .doc
@@ -637,12 +635,7 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
 
     let next = never_minted(&reshaped);
     let unminted = wall_by(r.rod, next, PieceRole::Leg);
-    let never = |edit: DocEdit<ProfileProgram>| match apply(
-        &reshaped,
-        &edit,
-        tol(),
-        &editor_core::RefusingReach,
-    ) {
+    let never = |edit: DocEdit<ProfileProgram>| match apply(&reshaped, &edit, tol()) {
         Err(EditError::NameStepNeverMinted { name, step }) => {
             assert_eq!((name, step), (reshaped.spoken_name(&unminted), next));
         }
@@ -670,7 +663,6 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
                 to: unminted.clone(),
             },
             tol(),
-            &editor_core::RefusingReach,
         )
         .is_err_and(|e| matches!(e, EditError::NameStepNeverMinted { .. })),
         "a rebind onto a never-minted step refuses typed"
@@ -818,7 +810,6 @@ fn the_insert_door_mints_every_step_and_refuses_ids_of_the_callers() {
             fresh: Vec::new(),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .expect_err("ids are the door's to mint");
     assert!(
@@ -879,7 +870,6 @@ fn a_program_naming_an_undeclared_parameter_refuses_the_slot_doors_own_arm() {
             fresh: Vec::new(),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .expect_err("an undeclared parameter refuses at the slot door");
     let ids = keep_all(&doc, profile);
@@ -1301,7 +1291,6 @@ fn set_radius(
             fresh: Vec::new(),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .expect("the radius is a legal slot write")
 }
@@ -1374,7 +1363,6 @@ fn set_value(
             value: editor_core::FreeValue::Continuous(v),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .expect("the value lands")
 }
@@ -1495,7 +1483,6 @@ fn a_circle_splits_phase_edit_moves_its_pieces_and_renames_none() {
             fresh: Vec::new(),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .expect("the phase is a legal slot write");
 
@@ -1594,7 +1581,6 @@ fn a_sense_flip_moves_no_name() {
             fresh: Vec::new(),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .expect("the apex moves");
     assert_eq!(
@@ -2024,7 +2010,6 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
                 fresh: Vec::new(),
             },
             tol(),
-            &editor_core::RefusingReach,
         )
         .is_err(),
         "a circle_split's count is no slot of the profile"

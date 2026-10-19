@@ -47,7 +47,7 @@ fn try_step(
     doc: &ProfileDoc,
     edit: DocEdit<ProfileProgram>,
 ) -> Result<editor_core::Applied<ProfileProgram>, EditError> {
-    apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach)
+    apply(doc, &edit, Tol::witness())
 }
 
 fn step(doc: &ProfileDoc, edit: DocEdit<ProfileProgram>) -> editor_core::Applied<ProfileProgram> {
@@ -1600,8 +1600,7 @@ fn recording_insert_lowers_as_apply_does() {
             fresh: Vec::new(),
         },
     );
-    let mut recording =
-        editor_core::Recording::start(&doc, Tol::witness(), &editor_core::RefusingReach);
+    let mut recording = editor_core::Recording::start(&doc, Tol::witness());
     let minted = recording.insert(node).expect("the recording inserts");
     assert_eq!(Some(minted), by_apply.record.minted);
     assert!(recording.doc().bit_eq(&by_apply.doc));

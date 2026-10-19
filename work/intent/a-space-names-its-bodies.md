@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-18
 priority: P0
 cost: M
-needs_ev: true
 refs: [a-placement-relates-two-frames]
 ---
 
@@ -29,3 +28,5 @@ Weighed by an Opus and a Fable designer (fork-log row 163). The clause is in the
 Built in stage 3 D′ (`a-placement-pins-by-written-values-without-a-mate`, filed on stage 3 D's branch), with spec §1.
 
 Seen, not taken: `RoleSeg::From`'s doc on D's branch says "a placement adds no name segment", which `name_placed*` contradicts. It becomes true when `Placed` retires. If D′ does not retire it, fix the comment.
+
+**Ev (PR 5315, 2026-10-19).** (1) The path to the first variable: "good, B is better/necessary then". (2) No preference, so two variables, as for a selection.

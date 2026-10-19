@@ -24,7 +24,7 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BodyRead, ConstraintId, ContactClass, Coord, DocEdit, EditError, EvalOptions, ExtrudeSide,
     Formula, Mate, MateFault, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId,
-    RefusingReach, SlideAxis, StableName, Target, Value, WorldRead,
+    SlideAxis, StableName, Target, Value, WorldRead,
 };
 use geom_core::Tol;
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
@@ -314,7 +314,6 @@ fn add_value(
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &RefusingReach,
     )?;
     let id = applied.record.minted_constraints[0];
     Ok((applied.doc, id))
@@ -769,7 +768,6 @@ fn a_mate_a_value_names_is_removed_only_after_it() {
                 constraint,
             },
             Tol::witness(),
-            &RefusingReach,
         )
     };
     match remove(&doc, mate) {
@@ -1459,7 +1457,6 @@ fn a_world_pin_stands_alone_in_its_bundle() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &RefusingReach,
     );
     let overconstrained = |result: Result<_, EditError>| match result {
         Err(EditError::MateRefused { fault, .. }) => {
@@ -1481,12 +1478,8 @@ fn a_world_pin_stands_alone_in_its_bundle() {
     );
     let (doc, _) = fixture::constrain_at(doc, placement, mate);
     overconstrained(
-        doc.apply(
-            &DocEdit::PinWhereItStands { placement },
-            Tol::witness(),
-            &RefusingReach,
-        )
-        .map(|_| ()),
+        doc.apply(&DocEdit::PinWhereItStands { placement }, Tol::witness())
+            .map(|_| ()),
     );
 }
 
@@ -1527,7 +1520,6 @@ fn an_inserted_placement_holding_a_world_pin_and_a_mate_refuses() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &RefusingReach,
     ) {
         Err(EditError::MateRefused { fault, .. }) => match *fault {
             MateFault::Overconstrained { constraints, .. } => {

@@ -267,7 +267,6 @@ fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Prof
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
     .doc
@@ -904,10 +903,25 @@ fn run_at<T: editor_core::EvalScalar>(
 /// three ε; the two overconstrained rows are written past the door and
 /// name every constraint the rest fix, and the two-pin and cross-pin
 /// rows, whose fold branches retired, left the corpus.
+///
+/// And again when a pose's frame became the decided shortest turn and
+/// the line across two directions stopped carrying the fold's arm (all
+/// three rows): only the pinned chain's two seats moved, by at most
+/// 8.9e-16 in any entry of their solved maps; every other solved pose is
+/// bit-identical.
+///
+/// And for slides along their chart's own axes (F's follow-ups, all
+/// three rows): a slide moves the copy by `axis · gap` rather than by
+/// the residual's projection of the axis, and no line between two
+/// slides is minted. Both reviews of PR 5314 measured the change
+/// against main before the line-across change above: only the pinned
+/// chain's two seats moved, at the rounding level (by at most 1.55e-15 m,
+/// and 1.99e-15 over every settle with a slide), and every rotation,
+/// fault and space was unchanged.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x637e_6536_d455_43b2),
-    (1e-6, 0x2a27_7f5b_9679_2692),
-    (1e-12, 0x0fa3_39ca_bb42_6aca),
+    (1e-9, 0x5a2f_5c16_6195_4bfe),
+    (1e-6, 0xd704_eca9_f5eb_46f0),
+    (1e-12, 0x3e01_809a_0ff3_11eb),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
@@ -1763,23 +1777,16 @@ fn fault_class<T: geom_core::Decide>(r: &NodeResult<T>) -> String {
 const INTERVAL_ESCALATIONS: [(f64, &str, &str); 1] =
     [(1e-12, "pinned-chain", "carrier_endpoint_start")];
 
-/// The escalation `id` fails with in `ev`, if its fault is one: a mate
-/// fault `Indeterminate` (the solve could not decide), or the first
-/// escalation its own log carries where it failed downstream of the
-/// solve (certifying the placed copy's edges).
+/// The escalation `id` fails with in `ev`, if its fault is one: the
+/// first escalation its own log carries (certifying the placed copy's
+/// edges, downstream of the solve). No mate fault carries one of its
+/// own.
 fn escalation<T: geom_core::Decide>(
     ev: &Evaluation<T>,
     id: RecipeNodeId,
 ) -> Option<geom_core::predicate::Indeterminate> {
-    use editor_core::{MateFault, NodeErrorKind};
     let error = ev.node_error(id)?;
-    match &error.kind {
-        NodeErrorKind::Mate(fault) => match &**fault {
-            MateFault::Indeterminate { diag, .. } => Some(**diag),
-            _ => None,
-        },
-        _ => error.escalations.first().map(|e| e.source),
-    }
+    error.escalations.first().map(|e| e.source)
 }
 
 /// **An interval lane's structure is the `f64` one's, or one of the

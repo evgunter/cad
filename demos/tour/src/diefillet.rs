@@ -45,7 +45,7 @@
 // whatever the picker shows.
 
 use pncad::document::ExtrudeSide;
-use pncad::document::{Bodies, BooleanValue, RefusingReach, save};
+use pncad::document::{Bodies, BooleanValue, save};
 use pncad::prelude::AuthoredNode;
 use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, DEG, Datum, Dimension, Doc, DocEdit, EntityKind,
@@ -199,7 +199,6 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
             fresh: Vec::new(),
         },
         tol,
-        &RefusingReach,
     )
     .expect("the edit applies");
     *doc = applied.doc;
@@ -514,7 +513,7 @@ pub fn corpus_text(tol: Tol) -> String {
         .collect();
     let mut replay = empty.clone();
     for edit in &edits {
-        replay = apply(&replay, edit, tol, &RefusingReach)
+        replay = apply(&replay, edit, tol)
             .expect("the derived log replays")
             .doc;
     }

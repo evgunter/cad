@@ -394,10 +394,16 @@ reads no walk, since every face is a value where it evaluates.
 *What the fold reads.* The fold's inputs are the poses its mates read,
 evaluated at the evaluation's own scalar over its own parameters, and
 its values' numbers. It reads one more number: the copy's REACH, an
-upper bound taken from the copy's own evaluated geometry, which enters
-only as the lever a value's chart is decided over —
-`R + max(‖on.origin‖ + ‖to.origin‖)`, no floor and no constant. The
-fold constructs its coset and places its values, deciding nothing about
+upper bound taken from the copy's own evaluated geometry. The reach
+enters as the lever a value's chart is decided over,
+`R + max(‖on.origin‖ + ‖to.origin‖)`, with no floor and no constant. The
+arm's one door (`Arm::of`) refuses a lever whose sixteenfold square
+overflows, so
+the bundle's meeting is always a finite length away. The reach is also
+the turn's lever in the placed copy's at-rest verdict (`rest_verdict`).
+Outside the fold, the unobservable report (`mate::unobservable`) reads
+the copies' reach again, as the lever of its own verdicts. The fold
+constructs its coset and places its values, deciding nothing about
 whether they hold, with no numeric fitting. At `f64` it is the nominal solve; in a seed run each
 solved pose carries its tangent, in a box run each is an enclosure over
 the box.

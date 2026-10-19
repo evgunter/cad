@@ -129,7 +129,6 @@ fn an_insert_reports_its_outputs_and_a_delete_takes_them_with_its_node() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("inserts");
     let node = applied.record.minted.expect("an insert mints its node");
@@ -167,7 +166,7 @@ fn no_door_but_a_rename_writes_an_output() {
     let (doc, _, _, extrude) = block("s2a-doors");
     let body = doc.output(extrude, 0).expect("an extrude defines its body");
     let refused = |edit: DocEdit<editor_core::ProfileProgram>, door: CarryForwardDoor| match doc
-        .apply(&edit, Tol::witness(), &editor_core::RefusingReach)
+        .apply(&edit, Tol::witness())
     {
         Err(EditError::VarIsAnOutput { var, node, door: d }) => {
             assert_eq!((var.id(), node.id(), d), (body, extrude, door));
@@ -219,7 +218,7 @@ fn a_formula_reading_a_body_refuses_naming_its_kind() {
         .into(),
         fresh: Vec::new(),
     };
-    match doc.apply(&edit, Tol::witness(), &editor_core::RefusingReach) {
+    match doc.apply(&edit, Tol::witness()) {
         Err(
             error @ EditError::SlotVarKind {
                 found: declared, ..

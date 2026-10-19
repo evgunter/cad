@@ -2454,6 +2454,7 @@ test_utils::f6_variants! {
     /// closes that.
     const NAMING_ERROR: NamingError = [
         Duplicate,
+        KindMismatch,
         Unnamed,
         MissingUpstream,
         Emission,
@@ -2464,7 +2465,6 @@ test_utils::f6_variants! {
         SharedRim,
         MergedChord,
         MergedChordOffRim,
-        MergedChordConstituents,
         MemberEdgeTied,
         ConventionalVertex,
         ClosedCarrierUnread,
@@ -2519,6 +2519,17 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 }),
             },
             vec!["minted twice"],
+        ),
+        (
+            NamingError::KindMismatch {
+                name: Box::new(StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId::new(0, tagged(7)),
+                    path: vec![RoleSeg::Cap(CapEnd::End)],
+                }),
+                found: EntityKind::Vertex,
+            },
+            vec!["names a face", "seated on a vertex"],
         ),
         (
             NamingError::Unnamed {
@@ -2591,18 +2602,10 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 rim: edge,
             },
             vec![
-                "merged faces",
+                "a merged face among them",
                 "operand node 00000000001d",
                 "does not lie within",
             ],
-        ),
-        (
-            NamingError::MergedChordConstituents {
-                edge,
-                face,
-                several: 2,
-            },
-            vec!["merged face", "holds 2 faces", "no rule picks"],
         ),
         (
             NamingError::ClosedCarrierUnread {

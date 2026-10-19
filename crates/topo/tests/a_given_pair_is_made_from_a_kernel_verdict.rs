@@ -66,7 +66,7 @@ fn a_rest_touch_is_the_unions_one_verdict_and_glues_as_given() {
         "the verdict is the cube's top against the brick's bottom, opposed"
     );
     let given = run(&BooleanInputs {
-        given: Some(vec![verdict.given_at(verdict.a())]),
+        given: Some(vec![verdict.given_at(topo::Operand::A, verdict.a())]),
         ..BooleanInputs::default()
     });
     assert!(

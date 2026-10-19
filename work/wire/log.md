@@ -6066,6 +6066,11 @@ it now asserts the multiset.
 
 Signed (WIRE orchestrator).
 
+- 2026-10-18 — PR 5303 fix passes adjudicated by the orchestrator's
+  read. One further item came from that read: two judged rows merged
+  whatever their sites, PR 5276's own dedup, the same class. Each
+  mutant reds its test. Merged on green; the fold-minted row closed.
+  (WIRE orchestrator)
 - 2026-10-18 — PR 5298 fix pass adjudicated by the orchestrator's read.
   `NodeStanding`'s Failed and Poisoned sentences match main again, and
   their entries stay filed against the WIREHOLD row. One category map
@@ -6151,3 +6156,11 @@ Signed (WIRE orchestrator).
   merged group is `Merged`. `[ev]` PR 5306 edits N2/N3, fork-log row
   162. Filed `a-section-faces-index-is-its-completion-order-not-its-identity`
   (P3, design). The build unit waits on Ev. (WIRE orchestrator)
+
+- 2026-10-18 — PR 5313 fix pass adjudicated by the orchestrator's read
+  of `rim_among`: one chooser, decided by name. A sole holding rim wins
+  over an escalated pair, which is sound because two distinct rims of a
+  valid body cannot overlap along a chord. The `(true,true)` arm is
+  pinned by unit rows on its extracted decision, since no model
+  reaches it. Merged on green; the spanning-chord row closed.
+  (WIRE orchestrator)

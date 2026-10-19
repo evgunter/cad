@@ -517,8 +517,7 @@ type Rows<T> = BTreeMap<(DocRef, u64), Result<PartValue<T>, PartFault>>;
 
 /// **The serial part store**: rows filled one at a time, by `&mut`,
 /// outside any node map — the top evaluation's census pass
-/// ([`Self::enter_census`]) and the edit door's lazy reach
-/// ([`super::PartReach`]). A running evaluation reads the [`Reached`]
+/// ([`Self::enter_census`]). A running evaluation reads the [`Reached`]
 /// table the pass hands over, never this.
 pub(crate) struct PartStore<'a, T: Decide> {
     resolver: Option<&'a Arc<dyn PartResolver>>,
@@ -607,8 +606,8 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
     /// **The top's census, entered**: one row per distinct reference
     /// `doc` instantiates ([`instantiated`]), in document order, each
     /// taken from `prior`'s carried rows or evaluated once
-    /// ([`Self::row`]). Serial, and run before the evaluation's mate
-    /// solve and node map, so which part is evaluated, and where its
+    /// ([`Self::row`]). Serial, and run before the evaluation's node
+    /// map, so which part is evaluated, and where its
     /// samples land, is a property of the document and not of a
     /// schedule. The store's rows ARE the table it hands over, so it is
     /// consumed, and is called on a store fresh from [`Self::new`].
@@ -738,9 +737,11 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             // arguments), which the unseeded nested run states exactly:
             // every tangent it carries is zero.
             seed: None,
-            // Never true here: a symbolic run carries no resolver
-            // (`ParamBoxError::SymbolsAcrossAPartSeam`), because a
-            // part's variable ids collide with another document's.
+            // Inherited, unlike the box and the seed: a symbolic run
+            // binds EVERY variable a symbol (D10), a part's too, each
+            // keyed by its own document as well as its id
+            // (`analysis::var_env_symbolic`), so two documents' ids never
+            // name one symbol.
             symbols: self.symbols,
         };
         // No profile lift is set here, because none is inherited: it is
@@ -749,7 +750,8 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
         // no box and no seed a referenced document runs at its own
         // nominal, so it is built as its instantiator's build would build
         // it — pinned, with its own variables' values.
-        let evaluation = super::evaluate_nested::<T>(doc, cancel, &opts, Reached(reached), tol);
+        let evaluation =
+            super::evaluate_nested::<T>(doc, cancel, &opts, Reached(reached), &doc_ref.pin, tol);
         // A2's uniformity: what a document MEANS is its product, one
         // rule everywhere. A failed node inside the part surfaces
         // through the product door's own typed refusal — and its

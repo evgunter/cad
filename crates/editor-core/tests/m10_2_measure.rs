@@ -45,7 +45,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
 }
 
 fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
+    apply(doc, edit, Tol::witness())
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
@@ -61,7 +61,6 @@ fn mint(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, Recip
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap_or_else(|e| panic!("edit refused: {e}"));
     let id = applied.record.minted.expect("an insert mints an id");
@@ -1019,7 +1018,6 @@ fn a_whole_body_is_no_distance_reference() {
             b: whole[0].clone(),
         }],
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     assert!(
         matches!(

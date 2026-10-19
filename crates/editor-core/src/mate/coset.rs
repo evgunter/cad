@@ -530,16 +530,13 @@ impl Arm {
 /// ONE mint. The margin is the sine of the angle between them — which
 /// the cross product's length IS because both are witnesses — levered
 /// by `arm` into the displacement it induces there, spelled as the
-/// length of the levered vector `(u × v) · arm` so that the direction
-/// the non-parallel verdict hands out is minted by the very decision
-/// that made it: `None` when parallel, `Some((line, sine))` when not
-/// — `line` the unit direction of `u × v`, the line two planes with
-/// these normals meet in, and `sine` the levered vector's length, in
-/// metres, which the door decided at least `K·ε`. A second decision
-/// of the same number at a mint would be spelled a rounding apart and
-/// could land in the band where this one did not; the length handed
-/// out is the door's own measure of that vector (`Vec3::norm`, which
-/// is deterministic).
+/// length of the levered vector `(u × v) · arm` and decided by the door
+/// that mints the direction the non-parallel verdict hands out
+/// ([`UnitVec3::new_scaled`]): `None` when parallel, `Some(line)` when
+/// not — `line` the unit direction of `u × v`, the line two planes with
+/// these normals meet in. It does not carry the arm, so a map built
+/// along it is a function of its poses alone at every scalar, and the
+/// arm stays opaque to the decision it levers.
 ///
 /// The direction door's arms in this predicate's vocabulary: a
 /// decided-zero length is the parallel verdict, and so is a levered
@@ -549,17 +546,15 @@ impl Arm {
 /// witnesses at any arm the reach bounds). A length that is no number
 /// has no input to come from: the arm is an [`Arm`].
 ///
-/// `lever` is that arm in `T` ([`Arm::lever`]), which the sine is
-/// levered by.
+/// `lever` is that arm in `T` ([`Arm::lever`]), the decision's alone.
 fn parallel<T: SolveScalar>(
     u: UnitVec3<T>,
     v: UnitVec3<T>,
     band: Band,
     lever: T,
-) -> Result<Option<(UnitVec3<T>, T)>, Indeterminate> {
-    let levered = u.get().cross(v.get()) * lever;
-    match UnitVec3::new(levered, "mate_axes_parallel", band) {
-        Ok(line) => Ok(Some((line, levered.norm()))),
+) -> Result<Option<UnitVec3<T>>, Indeterminate> {
+    match UnitVec3::new_scaled(u.get().cross(v.get()), lever, "mate_axes_parallel", band) {
+        Ok(line) => Ok(Some(line)),
         Err(UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength) => Ok(None),
         Err(UnitVec3Error::Escalated(diag)) => Err(diag),
         Err(UnitVec3Error::NonFiniteLength) => unreachable!(
@@ -737,22 +732,6 @@ pub(crate) fn after_turn<T: Real>(g: Subgroup<T>) -> Option<Subgroup<T>> {
         | Subgroup::PlaneTranslation { .. }
         | Subgroup::Trivial => None,
     }
-}
-
-/// **The line across two directions** — their cross product minted at
-/// `arm`'s lever, as [`parallel`] decides it — or `None` where they are
-/// parallel.
-///
-/// # Errors
-///
-/// [`Indeterminate`] when the verdict lands in the band.
-pub(crate) fn across<T: SolveScalar>(
-    u: UnitVec3<T>,
-    v: UnitVec3<T>,
-    band: Band,
-    arm: Arm,
-) -> Result<Option<UnitVec3<T>>, Indeterminate> {
-    Ok(parallel(u, v, band, arm.lever())?.map(|(line, _)| line))
 }
 
 /// **Whether two directions are parallel**, decided over `arm`
