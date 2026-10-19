@@ -38,3 +38,18 @@ reading's passes disagree on its sign. The likely subject is the slit's
 0° tip at (1.5, 1, 1), where the sector pass reads a corner whose two
 edges coincide (`crates/topo/src/sector_shape.rs`, rung 3). Not traced:
 read the raising site before building on that.
+
+## A second witness (PR 5357's review, 2026-10-19)
+
+The review of PR 5357 found that `union(flipped cusp result, line)`
+still escalates `Corner(Straight)` on a definite `Positive`. That is the
+review's witness in its own words: the cusp result is a `tool ∖ line`
+cell of sweep's `a_difference_leaving_a_cusp_along_the_ruling_builds`
+(not traced further here). It is the same mis-typing that PR 5357
+fixed in the line reader (`census::line_wedges` now types `sector_straight`'s
+definite rejection of a cusp as `WedgeRefusal::WedgeEnd`, not as an
+escalation). Here the `Corner(Straight)` decision reaches the
+Boolean's sector reading (`sector_shape` rung 3) and is reported as
+`Escalated`, so its lever offers a move no tolerance answers. Type the
+definite rejection there as a wedge end too (D1: a consumer with no
+wedge-0/2π answer refuses typed).

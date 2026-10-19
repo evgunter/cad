@@ -4670,6 +4670,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join_carrier_unsupported",
             "join_desync",
             "join_undecided",
+            "line_wedges",
             "lineage_row",
             "merge",
             "mixed_seam",

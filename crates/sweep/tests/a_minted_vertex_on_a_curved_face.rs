@@ -194,40 +194,61 @@ fn two_wedges_sharing_the_tangent_plane_face_refuse_unpaired_loose_ends() {
     }
 }
 
-/// **A difference leaving a zero-angle cusp along the ruling refuses at
-/// `sector_straight`**, today
-/// (`work/tangtail/a-difference-leaving-a-cusp-along-a-wall-ruling-refuses-sector-straight.md`),
-/// its rejected margin the z-overlap along the ruling. Pins the refusal,
-/// so it flips when fixed.
+/// **A difference leaving a zero-angle cusp along the ruling builds.**
+/// Cell A: the piece `50°..90°` over `z ∈ [0.5, 1.5]` and the tool
+/// `60°..120°` over `z ∈ [0.7, 1.2]`; cell B, its mirror in `y = 0`, both
+/// over `z ∈ [0.2, 1.8]`. `tool ∖ line` keeps the tool's part outside the
+/// cylinder and the piece: a sliver under the tool's far side between
+/// the piece's face `x = 1` and the wall, meeting along the ruling at a
+/// zero angle (a cusp edge, D1's wedge end, which tier 3 reads), and a
+/// triangle beyond the piece's far side by the tool's `60°` side. It
+/// builds at the closed form, tier 3 clean: no two of the result's
+/// edges lie on the ruling, so the result gate reads no wedge there
+/// (`work/tangtail/a-difference-leaving-a-cusp-along-a-wall-ruling-refuses-sector-straight.md`).
 #[test]
-fn a_difference_leaving_a_cusp_along_the_ruling_refuses_sector_straight() {
+fn a_difference_leaving_a_cusp_along_the_ruling_builds() {
+    // The tool's far side stands `LEN · sin 60°` off the ruling's plane.
+    let h = LEN * 60f64.to_radians().sin();
+    // Between `x = 1` and the wall `x = √(1 − y²)`, up to `y = h`.
+    let cusp = h - (h * (1.0 - h * h).sqrt() + h.asin()) / 2.0;
+    // The triangle cut from the tool's far corner by the piece's far side.
+    let at = |deg: f64| {
+        let r = deg.to_radians();
+        (1.0 + LEN * r.cos(), LEN * r.sin())
+    };
+    let meet = |(p, q): ((f64, f64), (f64, f64)), (r, u): ((f64, f64), (f64, f64))| {
+        let d = (p.0 - q.0) * (r.1 - u.1) - (p.1 - q.1) * (r.0 - u.0);
+        let k = ((p.0 - r.0) * (r.1 - u.1) - (p.1 - r.1) * (r.0 - u.0)) / d;
+        (p.0 + k * (q.0 - p.0), p.1 + k * (q.1 - p.1))
+    };
+    let far_side = (at(50.0), at(90.0));
+    let corner = at(60.0);
+    let q1 = meet(far_side, ((0.0, h), (2.0, h)));
+    let q2 = meet(far_side, ((1.0, 0.0), corner));
+    let triangle =
+        0.5 * ((q1.0 - corner.0) * (q2.1 - corner.1) - (q2.0 - corner.0) * (q1.1 - corner.1)).abs();
     let cells = [
-        // Piece 50°..90° over z ∈ [0.5, 1.5]; tool 60°..120° over
-        // z ∈ [0.7, 1.2].
-        ("A", (50.0, 90.0, 0.5, 1.0), (60.0, 120.0, 0.7, 0.5), "0.5"),
-        // Piece −90°..−50° and tool −120°..−60°, both over z ∈ [0.2, 1.8].
-        (
-            "B",
-            (-90.0, -50.0, 0.2, 1.6),
-            (-120.0, -60.0, 0.2, 1.6),
-            "1.6",
-        ),
+        ("A", (50.0, 90.0, 0.5, 1.0), (60.0, 120.0, 0.7, 0.5)),
+        ("B", (-90.0, -50.0, 0.2, 1.6), (-120.0, -60.0, 0.2, 1.6)),
     ];
-    for (cell, (pa, pb, pz, ph), (ta, tb, tz, th), overlap) in cells {
+    for (cell, (pa, pb, pz, ph), (ta, tb, tz, th)) in cells {
         let line = line_body(pa, pb, pz, ph);
         let tool = wedge(ta, tb, tz, th);
-        let Err(e) = topo::subtract(&tool, &line, t()) else {
-            panic!("cell {cell}: tool ∖ line builds, where it refused")
+        let BooleanResult::Body(r) =
+            topo::subtract(&tool, &line, t()).unwrap_or_else(|e| panic!("cell {cell}: {e:?}"))
+        else {
+            panic!("cell {cell}: empty");
         };
-        let got = format!("{e:?}");
-        for want in [
-            "Escalated { decision: LineWedges".to_owned(),
-            format!(
-                "MarginDiag(Value({overlap}, Some(Rejection {{ sign: Positive, passes: Negative }})"
-            ),
-            "predicate: Some(\"sector_straight\")".to_owned(),
-        ] {
-            assert!(got.contains(&want), "cell {cell}: {got} lacks {want}");
-        }
+        let v = topo::mass_properties(&r.body, t()).unwrap().volume;
+        let want = (cusp + triangle) * th;
+        assert!(
+            (v - want).abs() < 1e-9,
+            "cell {cell}: volume {v}, closed form {want}"
+        );
+        assert_eq!(
+            topo::validate_geometric(&r.body, t()),
+            Ok(()),
+            "cell {cell}: tier 3"
+        );
     }
 }
