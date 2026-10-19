@@ -13,10 +13,11 @@
 //! ordinary ellipse) and must never read one curve, nor escalate the
 //! one-curve reading; moved by a few `ε` they must never read one
 //! curve. What a pair past the one-curve reading answers is the
-//! coplanar arm's, not these rows'. Every row runs at three named ε with
-//! the run's K, independent of the run's ε: the failures these rows pin
-//! were measured at all three, and a row per ε of the battery would run
-//! each at one.
+//! coplanar arm's, not these rows'. The rows run at named ε with the
+//! run's K, independent of the run's ε: the locus rows at three, as their
+//! failures were measured at all three, and the rounding rows at the
+//! 1e-12 their witnesses were built for; a row per ε of the battery would
+//! run each at one.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -217,5 +218,87 @@ fn two_coplanar_ellipses_a_few_band_widths_apart_are_not_one_curve() {
                 assert_two(&label("turned"), &e, &turn, band, definite);
             }
         }
+    }
+}
+
+/// Two conics from their bits: `centre, normal, u_ref` and the two
+/// semi-axes of each, 22 `f64` bit patterns in hex.
+fn from_bits(line: &str) -> (Curve3<f64>, Curve3<f64>) {
+    let x: Vec<f64> = line
+        .split_whitespace()
+        .map(|h| f64::from_bits(u64::from_str_radix(h, 16).unwrap()))
+        .collect();
+    assert_eq!(x.len(), 22, "two conics of eleven numbers: {line}");
+    let conic = |x: &[f64]| Curve3::Ellipse {
+        center: Point3::new(x[0], x[1], x[2]),
+        axis: Vec3::new(x[3], x[4], x[5]),
+        u_ref: Vec3::new(x[6], x[7], x[8]),
+        semi_u: x[9],
+        semi_v: x[10],
+    };
+    (conic(&x[..11]), conic(&x[11..]))
+}
+
+/// Never one curve, at the zero's own ε: the pair's Hausdorff distance
+/// is past it.
+fn assert_not_one(label: &str, e: &Curve3<f64>, f: &Curve3<f64>, band: Band) {
+    for (k, got) in read(e, f, band).iter().enumerate() {
+        assert!(
+            !matches!(got, Ok(Pose::Coincident { .. })),
+            "{label}, order {k}: two loci past the zero are not one curve: {got:?}"
+        );
+    }
+}
+
+/// **The gap's rounding is charged.** Each pair is an ellipse of
+/// semi-axes about 100 against itself with `u_ref` one ulp off in one
+/// component, chosen so the computed semi-axis vectors agree bit for
+/// bit while the exact ones do not, then moved in its plane until the
+/// computed gap is just under ε = 1e-12. Their Hausdorff distance
+/// (mpmath) is up to `1.0105·ε`: read on the bare gap each is one
+/// curve.
+#[test]
+fn ellipses_whose_computed_frames_agree_past_their_exact_ones_are_not_one_curve() {
+    const PAIRS: [&str; 8] = [
+        "3f2346ac31b63b00 bf3c2fa15606776c bf4c9bea8b69546d 3fea07585466e9ed bfc7864f8531e30a bfe1a9468c17bae2 bfb2cd38a443b356 bfef27fe7d671bbd 3fcba52b9634056c 405a6d57d8e39cc9 4055931b9ec20ef6 3f2346ac318ce29d bf3c2fa157188502 bf4c9bea8b4aeeff 3fea07585466e9ed bfc7864f8531e30a bfe1a9468c17bae2 bfb2cd38a443b356 bfef27fe7d671bbd 3fcba52b9634056d 405a6d57d8e39cc9 4055931b9ec20ef6",
+        "bf37094be99039a6 3f20c57274810b00 3f457fec1935a520 bfe8a8d4b4ba7851 bfac1fdecd669c63 3fe45165cc901ced bfd4c2611c110575 3fec8648f38f0085 bfd44275b624bb16 4059513e4006f2de 405340ab2c08857a bf37094be9eb8689 3f20c5727676da28 3f457fec190917fb bfe8a8d4b4ba7851 bfac1fdecd669c63 3fe45165cc901ced bfd4c2611c110575 3fec8648f38f0086 bfd44275b624bb16 4059513e4006f2de 405340ab2c08857a",
+        "bf399adc7a7f4312 bf12a9704450e118 3f40d966bdfba7ea 3fe024283b52ad9b 3fe9ba34788cbeea bfd427dcd0c5a6f2 3fdb70c0b80bf0d9 3fb5580d3752b457 3fecc93b5b0fa59c 4059ae973d14abbf 4045950b7e8c9797 bf399adc7af7f243 bf12a97044aec03f 3f40d966bd7d0db1 3fe024283b52ad9b 3fe9ba34788cbeea bfd427dcd0c5a6f2 3fdb70c0b80bf0d9 3fb5580d3752b456 3fecc93b5b0fa59c 4059ae973d14abbf 4045950b7e8c9797",
+        "bf11f5437e3ee158 3f4f69255ff97718 3f42b67eb319a9bc bfef226f6a8e907c bfc8752a28ad2745 3fc09dbb7ebbe8a9 bfcbecec5e4ef714 3fee3ba493839609 bfcf4c96954987d8 40591687b3e40019 404302d60e99675a bf11f5437f3483f0 3f4f6925607e6e67 3f42b67eb2f73fcd bfef226f6a8e907c bfc8752a28ad2745 3fc09dbb7ebbe8a9 bfcbecec5e4ef714 3fee3ba49383960a bfcf4c96954987d8 40591687b3e40019 404302d60e99675a",
+        "bf48ebdcf65929f0 3f4b1aadb6483e6c bf2af648158dd580 bfd39eafeb31d66a 3fe7db5cbd00e6d5 3fe2efe6a48bf545 bfed5e376c58169d bfd95f1d2b281694 3f9893c25f9d1e9b 4059861f5731f920 404c9241ca1374b0 bf48ebdcf5d80079 3f4b1aadb6800954 bf2af648159b586e bfd39eafeb31d66a 3fe7db5cbd00e6d5 3fe2efe6a48bf545 bfed5e376c58169d bfd95f1d2b281694 3f9893c25f9d1e9a 4059861f5731f920 404c9241ca1374b0",
+        "3f46fe138fc0acc8 bf0747a8a3469c70 3f149d9a26a11ca0 bfca1ba89da3e732 bfeee92ba96f7fb3 bfc45d467ad76e57 bfd7407b4fc7e241 3fcce05b1d4f65e7 bfeced1823f27eb0 405d3a34ee144569 4047ce01c82e8d43 3f46fe138f8d8b23 bf0747a8a14a9cbd 3f149d9a22a75d08 bfca1ba89da3e732 bfeee92ba96f7fb3 bfc45d467ad76e57 bfd7407b4fc7e241 3fcce05b1d4f65e8 bfeced1823f27eb0 405d3a34ee144569 4047ce01c82e8d43",
+        "bef992054080cd00 bf4ce2ba2049d840 bf24844f0c70ac20 3fb0610d6327ee18 bfe71ff5b97329c1 3fe6061ad2158e23 bfe659647594be73 3fdd73d1f43704b5 3fe18a3f0688df9b 405a69c1be055b4a 405584fe7e2f4538 bef992054cca2b66 bf4ce2ba20091403 bf24844f0b3c1ae1 3fb0610d6327ee18 bfe71ff5b97329c1 3fe6061ad2158e23 bfe659647594be73 3fdd73d1f43704b6 3fe18a3f0688df9b 405a69c1be055b4a 405584fe7e2f4538",
+        "3f253978e49120b0 bf4c35c55c563f77 3f30fe5037ad22c4 3fef6513213b6ed7 bfc11378eb9d0cc5 bfc1f388a8e745d4 3fa656ebc57b71d1 bfe1b6156d61279e 3fea9d74e4546842 405aca01697a0a6c 4053810faa29a473 3f253978e4a9b0b5 bf4c35c55ca42493 3f30fe5038973e90 3fef6513213b6ed7 bfc11378eb9d0cc5 bfc1f388a8e745d4 3fa656ebc57b71d2 bfe1b6156d61279e 3fea9d74e4546842 405aca01697a0a6c 4053810faa29a473",
+    ];
+    let band = band_at(1e-12);
+    for (k, line) in PAIRS.iter().enumerate() {
+        let (e, f) = from_bits(line);
+        assert_not_one(&format!("pair {k}"), &e, &f, band);
+    }
+}
+
+/// **An ellipse a hair off round against a circle**: semi-axes
+/// `100 + 1e-12` and `100` in the `xy` plane with `u_ref` one ulp off
+/// unit, `(0.6⁺, 0.8)`, which `v̂ = n̂ × û` repeats, against the circle of
+/// radius `100` on its centre. The ellipse's radius runs from `100·|û|`
+/// to `(100 + 1e-12)·|û|`, so the pair's Hausdorff distance is exactly
+/// `1.0036e-12`, past ε = 1e-12: read on the bare gap it is one curve.
+#[test]
+fn an_ellipse_with_its_frame_an_ulp_off_unit_past_the_zero_of_a_circle_is_not_one_curve() {
+    let band = band_at(1e-12);
+    let circle = Curve3::Circle {
+        center: Point3::origin(),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 100.0,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    for (a, b) in [(100.0 + 1e-12, 100.0), (100.0, 100.0 + 1e-12)] {
+        let e = Curve3::Ellipse {
+            center: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(0.6f64.next_up(), 0.8, 0.0),
+            semi_u: a,
+            semi_v: b,
+        };
+        assert_not_one(&format!("a {a}, b {b}"), &e, &circle, band);
     }
 }

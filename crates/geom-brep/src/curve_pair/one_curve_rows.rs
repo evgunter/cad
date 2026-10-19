@@ -339,3 +339,36 @@ fn a_conic_read_twice_is_one_curve_at_interval() {
         }
     }
 }
+
+/// **A near-circle at radius `10³` past the zero is not one curve.**
+/// Semi-axes `1000` and `1000 − 3e-11`, re-framed and moved: the gap
+/// read bare is `9.69e-13`, under ε = 1e-12, while the pair's Hausdorff
+/// distance (mpmath) is `1.071e-12`. Charged, the reading escalates.
+/// (The pose itself escalates earlier, on the planes' offset; this row
+/// holds the one-curve reading, which every caller of the pose shares.)
+#[test]
+fn a_near_circle_at_radius_a_thousand_past_the_zero_is_not_one_curve() {
+    let bits = "3fb999999999999c 3fc9999999999998 3fd3333333333332 3fef06032db7307e bfcef0485ef0c38b 3fa4f97e65b8a6ac 3fc3612ad532465a 3fdd5e6d2519bc63 bfec0416b5d5c693 408f3fffffffffff 408f3fffffffe0c0 3fb999999999c92d 3fc999999999f9d1 3fd3333333333585 3fef06032db73081 bfcef0485ef0c38c 3fa4f97e65b8a6b5 3fc3612ad5324668 3fdd5e6d2519bc73 bfec0416b5d5c68f 408f3ffffffffffd 408f3fffffffe0c0";
+    let x: Vec<f64> = bits
+        .split_whitespace()
+        .map(|h| f64::from_bits(u64::from_str_radix(h, 16).unwrap()))
+        .collect();
+    let conic = |x: &[f64]| Conic {
+        center: Point3::new(x[0], x[1], x[2]),
+        axis: Vec3::new(x[3], x[4], x[5]),
+        u_ref: Vec3::new(x[6], x[7], x[8]),
+        semi_u: x[9],
+        semi_v: x[10],
+    };
+    let (e, f) = (conic(&x[..11]), conic(&x[11..]));
+    let b = Band::linear_at(Tol::witness(), 1e-12).unwrap();
+    for (order, got) in [
+        ("e, f", one_curve(&e, &f, b)),
+        ("f, e", one_curve(&f, &e, b)),
+    ] {
+        assert!(
+            !matches!(got, Ok(true)),
+            "{order}: a pair 1.071e-12 apart is not one curve at 1e-12: {got:?}"
+        );
+    }
+}
