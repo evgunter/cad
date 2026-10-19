@@ -6445,3 +6445,17 @@ Signed (WIRE orchestrator).
   - The dispatch premise was corrected: the gui cells were main's own
     stale copies, retired by the `ciw` procedure.
   (WIRE orchestrator)
+
+- 2026-10-19 — Build unit 1, PR 5352 (`wire/boolean-rows-every-decision`),
+  opened green. Every margined decision is now a row: the pencil's step
+  records 2, and the (a, c) wedges publish 2.
+  - It also fixed a latent bug the filter had hidden: a sphere cut-in's
+    rows named clone-only cells.
+  - Policy provenance is agent text (`53ec9087fe`, `cdafc97bad`).
+  - Four CLEAVE rows filed: the `glue::touched` filter; `SplitOn`'s
+    two-run filter; the re-chart arm; a pre-existing Villarceau fuzz
+    seed.
+  - FULL review dispatched.
+  - Unit 2 must drop `wire_combine`'s #4323 citing filter: the pencil
+    union still publishes only judged rows.
+  (WIRE orchestrator)
