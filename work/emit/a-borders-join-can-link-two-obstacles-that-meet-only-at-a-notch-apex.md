@@ -116,26 +116,39 @@ probe naming alike.
 ## Closed
 
 Built in `names/borders.rs` (`Obstacles`), branch `emit/borders-closure`.
+Closure is two channels; each goes red without it.
 
-- **Vertex link.** Each `Discard` keeps `ends`: every key its step
-  holds for the points its bordered and held stretches end at
-  (`points`: the step's `null_copies`, B's through `graft_vertices`;
-  `cone_splits`' rows; and the zip's `vertex_merges`). `Obstacles::walls`
-  joins discards of one parent that share a key. Identity only; no
-  point is compared.
-  - Two departures from the prototype, both measured on the
-    wall-through-the-apex fixture. Keeping only each class's least key
-    fixed 5 of 6 orders: order (plate, s2, m) failed, since a later
-    step's least key for the apex is not the earlier step's. Keeping
-    the whole class works, because operand A's keys are the result's,
-    so a later step's class holds the key the earlier result held.
-    Without the zip's fusions, order (s2, plate, m) failed.
-- **Seam link.** A discard whose stretch ends at a live vertex on a
-  piece of an earlier step's seam touches that seam's discard (the
-  `touches` walk now also starts from the edges at each live stretch
-  end). Without it, the corner-touching boss below failed at order
-  (plate, slab, boss): the slab's footprint was recorded a step
-  earlier, and its stretch ends are the seam's ends, not the corner.
+- **A point the result holds as a vertex** (`Discard::touches`). Each
+  stretch end is settled through the step's `Settler` (the zip's
+  fusions and cone copies, the output stage's join and merge) to the
+  live vertices it lies at. An edge at one of those that is, or descends
+  from, a seam of this step or an earlier one touches that seam's
+  discard. Identity only; no point is compared.
+  - Restricted to earlier steps' seams, `a_boss_whose_corner_touches_the_divider_is_part_of_it`
+    and `a_wall_through_a_notch_apex_names_alike_in_every_order` go red
+    (two discards of one step meeting at the point).
+  - Read off the raw stretch-end keys instead of the settled vertices,
+    the same two go red.
+  - Without it at all, the same two go red.
+- **A point the output stage joined away** (`Obstacles::joined_from`,
+  the chase from a piece edge to every edge a join made it of).
+  Without it, `two_members_regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle`,
+  `emit_union_rim_piece_ranks`' flush-union and two-orders rows and
+  `union_member_orders_decide_alike`'s emit-corpus row go red.
+- **Not kept: a key link with key classes.** The first build joined
+  discards sharing a stretch-end key, each key widened to every key
+  the step held for the point (`null_copies`, `cone_splits`,
+  `vertex_merges`). Dropping the classes, or any one source of them,
+  turned nothing red, and the vertex channel above, read across all
+  steps, covers what the key link did within one. The key link also
+  compared keys across steps, which holds only while each step's
+  result is in operand A's keys.
+- **A result without operand A** (`(Absent, Direct)`: a member that
+  engulfs the accumulation) resets the record: none of the earlier
+  region survives, and its keys are another arena's. Without the reset,
+  `a_member_engulfing_the_others_reads_only_what_follows_it` trips
+  `note_split`'s check: an edge key of the new arena collides with an
+  earlier one ("recorded with two parents").
 - **Fixtures** (`editor-core/tests/emit_union_borders.rs`):
   - `a_wall_through_a_notch_apex_names_alike_in_every_order`: all six
     orders give left {`m:y=1.20`, `s2:x=1.50`}, right {`m:x=2.00`,
@@ -145,11 +158,14 @@ Built in `names/borders.rs` (`Obstacles`), branch `emit/borders-closure`.
     Ev accepted): a diamond boss whose corner rests on the slab's wall.
     The left piece cites the diamond's four walls beside `slab:x=1.40`
     in all six orders.
+  - `a_member_engulfing_the_others_reads_only_what_follows_it`: 24
+    orders, one table.
   - `regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle` and
     `two_members_regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle`
     lose `_today`. Unchanged.
-- **Measured, nothing moved:** `emit_union_borders` 21/21 (+2 new, 1
-  ignored as before), `name_words_corpus` 7/7,
-  `emit_union_rim_piece_ranks` 8/8, `emit_union_flush_names` 7/7,
-  `emit_shared_rim_several` 6/6, `union_member_orders_decide_alike` 6/6.
-- N2 on main already states closure; the README is unchanged.
+- **Measured, nothing moved:** `emit_union_borders` 22/22 (+3 new, 1
+  ignored as before), `name_words_corpus`, `emit_union_rim_piece_ranks`,
+  `emit_union_flush_names`, `emit_shared_rim_several` and
+  `union_member_orders_decide_alike`: 56/56 with the slow set.
+- N2 (`names/README.md`) states the cost: a boss or notch on one piece
+  is cited when a point of it touches a divider.
