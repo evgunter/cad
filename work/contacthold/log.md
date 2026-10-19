@@ -350,3 +350,4 @@ the text-only option's wording. Both found
 - 2026-10-19 `a-rim-locus-tangency-through-two-faces-interiors-mints-no-face-face-row` parked behind TANG's `dev1-cylinder-sphere-circle-locus-arm`: no circle witness locus exists, and the rim arm's `Ok(false)` is a theorem of its routing; probe poses recorded on the row; the touch-only consumer noted on TANG's row.
 - 2026-10-19 PR 5389 merged (two tubes in the zero band answer alike in either order: a covered circle with no end on the carrier defers to the settle stage): its row closed.
 - 2026-10-19 PR 5390 merged (a face–face record on divided faces lands on the piece pair holding its line; line-then-table held by type): its row closed. The bore row it filed waits on the `[ev]` pinch-crescent fork (needs_ev).
+- 2026-10-19 Track handed back (`ready`, P2): no dispatchable P0 or P1 (the P1 waits on `[ev]` PR 5395; the P0s on intent stage 4). Plan slate rewritten.
