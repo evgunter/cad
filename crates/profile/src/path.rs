@@ -2919,7 +2919,10 @@ fn via_quarter_tan<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> T {
 /// `ρ = |d|² / (2·across)`, the radius `|ρ|`, with `d = b − a` resolved
 /// along and across `u` — no root. Δθ = 4·atan(X) with X the tangent of
 /// half the angle δ from `u` to the chord (the arc turns 2δ, so X is
-/// tan(θ/4)), spelled `across / (|d| + along)`.
+/// tan(θ/4)), spelled `2·across / (|d|·|u + d̂|²)`: `|d| + along`
+/// through `1 + cos δ = |u + d̂|²/2`, a sum of squares that does not
+/// cancel as the target goes behind the tip (δ → ±π, a near full turn)
+/// and is never negative, so X keeps across's sign at every scalar.
 ///
 /// **Its endpoint facts are theorems** ([`crate::Facts::Registered`]):
 /// `‖a − c‖ = |ρ|` because n̂ is a unit normal, and
@@ -2928,8 +2931,9 @@ fn via_quarter_tan<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> T {
 /// angle about it is 2δ, whose quarter-tangent X is.
 fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>) -> BuiltArc<T> {
     let d = b - a;
-    let (along, across) = (u.dot(d), u.perp_dot(d));
-    let x = across / (d.norm() + along);
+    let across = u.perp_dot(d);
+    let len = d.norm();
+    let x = T::from_f64(2.0) * across / (len * (u + d / len).norm_squared());
     let rho = d.norm_squared() / (T::from_f64(2.0) * across);
     BuiltArc {
         arc: Arc2 {
@@ -6099,6 +6103,89 @@ mod tests {
         assert_eq!(named(Point2::new(0.0, 0.0), 0.0), own_leg);
         // An arc never rides a ray, whatever its ends.
         assert_eq!(named(Point2::new(3.0, 0.0), 0.3), own_leg);
+    }
+
+    /// **The tangent arc's sweep against a 60-digit oracle**: one JSON
+    /// line per case — the tip `a`, the director's components, the target
+    /// `b`, and the arc [`tangent_arc`] stores at `f64` and at `Interval`
+    /// — over turns from 1e-12 to 2π − 1e-12 in both windings, at scales
+    /// 1e-6 to 1e6. `scripts/oracles/tangent_arc_sweep_mpmath.py` re-derives
+    /// each sweep from the dumped inputs and checks the `f64` error, the
+    /// stored arc's miss of `b`, and the enclosure. Run:
+    /// `cargo nextest run -p profile --lib --run-ignored only
+    /// dump_tangent_arcs_for_the_mpmath_oracle --no-capture | sed -n
+    /// 's/^TADUMP //p' > /tmp/ta.jsonl`, then
+    /// `python3 scripts/oracles/tangent_arc_sweep_mpmath.py /tmp/ta.jsonl`.
+    #[test]
+    #[ignore = "an oracle dump; run command in the docs"]
+    #[allow(clippy::print_stdout)]
+    fn dump_tangent_arcs_for_the_mpmath_oracle() {
+        use geom_core::{Bounds, Interval};
+        let tau = core::f64::consts::TAU;
+        let mut turns: Vec<f64> = (0..=24)
+            .map(|k| 10f64.powf(-12.0 + 0.5 * f64::from(k)))
+            .collect();
+        turns.retain(|&t| t < core::f64::consts::PI);
+        let near_full: Vec<f64> = turns.iter().map(|&g| tau - g).collect();
+        turns.extend(near_full);
+        turns.push(core::f64::consts::PI);
+        let directors = [(1.0, 0.0), (3.0, -4.0), (1.234, -0.567)];
+        for &(cx, cy) in &directors {
+            for scale in [1e-6, 1e-4, 1e-2, 1.0, 1e2, 1e4, 1e6] {
+                for at in [
+                    Point2::new(0.0, 0.0),
+                    Point2::new(0.7 * scale, -1.3 * scale),
+                ] {
+                    for &theta in &turns {
+                        for w in [1.0, -1.0] {
+                            let n = (cx * cx + cy * cy).sqrt();
+                            let (ux, uy) = (cx / n, cy / n);
+                            let (s, c1) = (theta.sin(), 1.0 - theta.cos());
+                            let b = Point2::new(
+                                at.x + scale * (s * ux - w * c1 * uy),
+                                at.y + scale * (s * uy + w * c1 * ux),
+                            );
+                            // The departure-line gate's floor: the
+                            // smallest band of any gated ε row.
+                            let u = Vec2::new(cx, cy) / n;
+                            if u.perp_dot(b - at).abs() <= 1e-11 {
+                                continue;
+                            }
+                            let f = tangent_arc(at, u, b).arc;
+                            let lift = Interval::from_f64;
+                            let (ci, cj) = (lift(cx), lift(cy));
+                            let ni = (ci * ci + cj * cj).sqrt();
+                            let i = tangent_arc(
+                                Point2::new(lift(at.x), lift(at.y)),
+                                Vec2::new(ci, cj) / ni,
+                                Point2::new(lift(b.x), lift(b.y)),
+                            )
+                            .arc;
+                            println!(
+                                "TADUMP {{\"a\":[{:e},{:e}],\"c\":[{:e},{:e}],\"b\":[{:e},{:e}],\
+                                 \"turn\":{:e},\"w\":{w},\"f\":[{:e},{:e},{:e},{:e}],\
+                                 \"i\":[{:e},{:e},{:e},{:e}]}}",
+                                at.x,
+                                at.y,
+                                cx,
+                                cy,
+                                b.x,
+                                b.y,
+                                theta,
+                                f.centre.x,
+                                f.centre.y,
+                                f.radius,
+                                f.sweep,
+                                i.sweep.lo(),
+                                i.sweep.hi(),
+                                i.radius.lo(),
+                                i.radius.hi(),
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

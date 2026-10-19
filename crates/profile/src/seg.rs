@@ -485,11 +485,14 @@ fn classify<T: Decide, E: From<ShapeIssue<T>>>(
             let apex = arc.apex(a, b);
             let span_chord = a.distance(apex);
             // 2r − |a − apex| with |a − apex| = 2r·sin(|Δθ|/4), spelled
-            // on the carrier: the chord-scale apex carries tan(|Δθ|/4),
-            // whose relative error grows as 1/(2π − |Δθ|) near a full
-            // turn, while 1 − sin(|Δθ|/4) is flat there.
-            let clearance =
-                (arc.radius + arc.radius) * (T::one() - (span * T::from_f64(0.25)).sin());
+            // on the carrier as 4r·sin²((2π − |Δθ|)/8): the chord-scale
+            // apex carries tan(|Δθ|/4), whose relative error grows as
+            // 1/(2π − |Δθ|) near a full turn, and 2r·(1 − sin(|Δθ|/4))
+            // cancels there: its rounding is ~r·2⁻⁵², its value
+            // r·(2π − |Δθ|)²/16.
+            let clearance = T::from_f64(4.0)
+                * arc.radius
+                * ((T::tau() - span) * T::from_f64(0.125)).sin().powi(2);
             match decide("arc_diameter_clearance", Margin::of(clearance), band)
                 .map_err(escalated)?
             {
