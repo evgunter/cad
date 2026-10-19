@@ -18,7 +18,7 @@ use geom_core::{BandError, Indeterminate};
 use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, SettleError, SplitLineageCycle, VertexKey};
 
 use super::role::{EntityKind, StableName};
-use super::table::{DuplicateName, EntityKey, EntityRef, NameTable};
+use super::table::{EntityKey, EntityRef, NameTable, SeatingRefusal};
 use crate::node::RecipeNodeId;
 
 /// Typed failure of name emission (spec D4's loud assertions, as
@@ -27,7 +27,7 @@ use crate::node::RecipeNodeId;
 /// **Four kinds of thing live here, and the reader is told which.**
 ///
 /// 1. An emission BUG — a mint-time fact inconsistent with the result
-///    body. [`Self::Duplicate`], [`Self::Unnamed`],
+///    body. [`Self::Duplicate`], [`Self::KindMismatch`], [`Self::Unnamed`],
 ///    [`Self::MissingUpstream`], [`Self::Emission`],
 ///    [`Self::SplitLineage`], [`Self::Settle`].
 /// 2. An honest in-band escalation: [`Self::Escalated`].
@@ -76,11 +76,19 @@ use crate::node::RecipeNodeId;
 #[derive(Debug)]
 pub enum NamingError {
     /// A would-be duplicate name outside the tie path (the
-    /// no-silent-aliasing guarantee N1 rests on), or a kind/entity
+    /// no-silent-aliasing guarantee N1 rests on), or an entity
     /// collision at insertion.
     Duplicate {
         /// The colliding name.
         name: Box<StableName>,
+    },
+    /// A row seated on an entity of another kind than its name's
+    /// ([`super::table::KindMismatch`]).
+    KindMismatch {
+        /// The name the row was to be seated under.
+        name: Box<StableName>,
+        /// The offered entity's kind.
+        found: EntityKind,
     },
     /// A live boundary entity the emission failed to cover — a
     /// kernel-emission gap surfaced (spec D4: never guessed around).
@@ -355,6 +363,7 @@ pub enum NamingError {
 /// fact's consistency with the body, an acyclic lineage — found broken.
 /// Each speaks it followed by what it caught —
 /// [`NamingError::Duplicate`] the name minted twice,
+/// [`NamingError::KindMismatch`] the name seated on another kind,
 /// [`NamingError::Unnamed`] the entity left uncovered,
 /// [`NamingError::MissingUpstream`] the upstream table that missed,
 /// [`NamingError::Emission`] a fact, [`NamingError::SplitLineage`] the
@@ -425,6 +434,16 @@ impl crate::spoken::Say for NamingError {
                  alias silently only over the kernel's dead body",
                 by.name(name),
                 name.path
+            ),
+            Self::KindMismatch { name, found } => write!(
+                f,
+                "{EMISSION_FRAMING}: {} names {} {} and was seated on {} {} — a \
+                 name denotes only entities of its own kind",
+                by.name(name),
+                name.kind.article(),
+                name.kind.noun(),
+                found.article(),
+                found.noun()
             ),
             Self::Unnamed { kind, body } => write!(
                 f,
@@ -606,6 +625,7 @@ impl NamingError {
     pub(crate) fn category(&self) -> Option<Category> {
         match self {
             Self::Duplicate { .. }
+            | Self::KindMismatch { .. }
             | Self::Unnamed { .. }
             | Self::MissingUpstream { .. }
             | Self::Emission { .. }
@@ -657,9 +677,15 @@ impl From<SettleError> for NamingError {
     }
 }
 
-impl From<DuplicateName> for NamingError {
-    fn from(e: DuplicateName) -> Self {
-        Self::Duplicate { name: e.name }
+impl From<SeatingRefusal> for NamingError {
+    fn from(e: SeatingRefusal) -> Self {
+        match e {
+            SeatingRefusal::Duplicate(d) => Self::Duplicate { name: d.name },
+            SeatingRefusal::KindMismatch(k) => Self::KindMismatch {
+                name: k.name,
+                found: k.found,
+            },
+        }
     }
 }
 
@@ -1787,7 +1813,7 @@ mod display_tests {
         let rows: Vec<(NamingError, Vec<&str>)> = vec![
             (
                 NamingError::Duplicate {
-                    name: Box::new(name),
+                    name: Box::new(name.clone()),
                 },
                 vec!["the end cap", "7", "Cap"],
             ),
@@ -1957,6 +1983,13 @@ mod display_tests {
                 }),
                 vec!["5e-324"],
             ),
+            (
+                NamingError::KindMismatch {
+                    name: Box::new(name.clone()),
+                    found: EntityKind::Edge,
+                },
+                vec!["the end cap", "names a face", "seated on an edge"],
+            ),
         ];
         // The category is `NamingError::category`'s, which also chooses
         // the ending. Which framing each arm's `Display` interpolates is
@@ -1989,6 +2022,7 @@ mod display_tests {
                 NamingError::Settle(_) => 15,
                 NamingError::CarrierUnplaced { .. } => 16,
                 NamingError::PartnerUnread { .. } => 17,
+                NamingError::KindMismatch { .. } => 18,
             }
         };
         let covered: std::collections::BTreeSet<usize> =

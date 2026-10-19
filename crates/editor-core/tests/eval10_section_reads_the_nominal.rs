@@ -95,7 +95,6 @@ fn loft_doc_of(
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, nominal)),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;

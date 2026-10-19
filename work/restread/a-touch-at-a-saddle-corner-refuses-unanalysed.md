@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-25
 priority: P2
 cost: D
+rides_with: a-pinch-point-the-census-reads-as-mixed-touch-where-the-body-holds-no-overlap
 ---
 
 
@@ -38,3 +39,9 @@ face crosses, each decision a point deviation
 (`a_saddle_corner_reads_as_its_polygon_cone`). It classes directions,
 not cones against cones; interior-disjointness of two cones still needs
 the crossing test between their links.
+
+## 2026-10-18 — rides the pinch row (RESTREAD)
+
+Moved from INSIDE by `git mv`: the same missing reading as
+`a-pinch-point-the-census-reads-as-mixed-touch-where-the-body-holds-no-overlap` (a solid's whole link at a point, decided by one complete test of two
+polygonal cones). Decided there; one unit closes all three.

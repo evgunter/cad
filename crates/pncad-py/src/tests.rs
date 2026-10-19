@@ -89,7 +89,6 @@ fn insert(
             fresh: Vec::new(),
         },
         pncad::tolerance::Tol::witness(),
-        &pncad::document::RefusingReach,
     )
     .expect("the edit is accepted");
     let minted = applied.record.minted.expect("an insert mints an id");
@@ -128,7 +127,6 @@ fn box_doc(
         &doc,
         &pncad::document::DocEdit::PinWhereItStands { placement },
         pncad::tolerance::Tol::witness(),
-        &pncad::document::RefusingReach,
     )
     .expect("the world pin is admitted")
     .doc;
@@ -1295,14 +1293,9 @@ fn resolution_status_tags_are_stable() {
 
     // FAILED: the minting node is gone from the document, so the name
     // is stranded and the repair is an explicit rebind.
-    let pruned = apply(
-        &doc,
-        &DocEdit::DeleteNode { id: extrude },
-        tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the leaf deletes")
-    .doc;
+    let pruned = apply(&doc, &DocEdit::DeleteNode { id: extrude }, tol)
+        .expect("the leaf deletes")
+        .doc;
     let after = run(&pruned, &live);
     let verdict = resolve(
         RunCtx {
@@ -1665,7 +1658,6 @@ fn expression_evaluation_tags_are_stable() {
                 def: pncad::document::VarDecl::Free(param),
             },
             tol,
-            &pncad::document::RefusingReach,
         )
         .expect("a parameter declaration applies")
         .doc
@@ -1800,8 +1792,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
         node: Box::new(xy_frame()),
         fresh: Vec::new(),
     };
-    let framed =
-        apply(&doc, &frame, tol, &pncad::document::RefusingReach).expect("the frame inserts");
+    let framed = apply(&doc, &frame, tol).expect("the frame inserts");
     let plane = framed.record.minted.expect("a frame id");
     let profile = DocEdit::InsertNode {
         node: Box::new(Node::Profile(ProfileProgram {
@@ -1811,8 +1802,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
         })),
         fresh: Vec::new(),
     };
-    apply(&framed.doc, &profile, tol, &pncad::document::RefusingReach)
-        .expect("the profile inserts");
+    apply(&framed.doc, &profile, tol).expect("the profile inserts");
     // Saved as its edit log over the empty document: a slot holds a
     // variable's id in a snapshot, and the edits carry the formulas as
     // written — the literals the load door rebuilds.
@@ -5274,6 +5264,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "duplicate",
             "emission",
             "escalated",
+            "kind_mismatch",
             "member_edge_tied",
             "merged_chord",
             "merged_chord_off_rim",
@@ -5901,7 +5892,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "degenerate_section",
             "domain_not_unit",
             "fit",
-            "incompatible_at_enclosure",
             "knot_algebra",
             "no_parameter_step",
             "path_tangent_reversal",

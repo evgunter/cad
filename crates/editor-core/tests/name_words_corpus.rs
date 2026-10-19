@@ -898,7 +898,7 @@ fn a_run_of_seams_says_each_seam_by_its_faces() {
 fn respoken_after_a_dropped_step() {
     use crate::corpus::reshaped_rod::{CREASE, bump_ids, lateral_edge, rod_ids, rod_loop};
     use editor_core::{
-        DocEdit, Node, ProfileDoc, ProfileProgram, ProfileVertexRef, RefusingReach, RoleSeg, apply,
+        DocEdit, Node, ProfileDoc, ProfileProgram, ProfileVertexRef, RoleSeg, apply,
     };
 
     let tol = fixture::tol();
@@ -952,7 +952,6 @@ fn respoken_after_a_dropped_step() {
                 fresh: Vec::new(),
             },
             tol,
-            &RefusingReach,
         )
         .expect("the reshaping applies")
         .doc

@@ -64,7 +64,6 @@ fn insert(doc: &TDoc, node: Node<FakeProfile, Formula>) -> (TDoc, RecipeNodeId) 
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap();
     let id = applied.record.minted.unwrap();
@@ -115,14 +114,9 @@ fn every_step_of_the_order_is_accepted_by_the_delete_door() {
     let order = cascade_delete_order(&doc, profile);
     assert_eq!(order.len(), 4);
     for id in order {
-        doc = apply(
-            &doc,
-            &TEdit::DeleteNode { id },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("the cone's order never dangles a reference")
-        .doc;
+        doc = apply(&doc, &TEdit::DeleteNode { id }, Tol::witness())
+            .expect("the cone's order never dangles a reference")
+            .doc;
     }
     assert!(doc.ids().is_empty(), "the whole cone is gone");
 }
@@ -154,13 +148,7 @@ fn an_absent_node_has_an_empty_cascade() {
     let absent = RecipeNodeId::new(0, 9_999);
     assert!(cascade_delete_order(&doc, absent).is_empty());
     assert_eq!(
-        apply(
-            &doc,
-            &TEdit::DeleteNode { id: absent },
-            Tol::witness(),
-            &editor_core::RefusingReach
-        )
-        .unwrap_err(),
+        apply(&doc, &TEdit::DeleteNode { id: absent }, Tol::witness()).unwrap_err(),
         EditError::UnknownNode {
             id: SpokenNode::absent(absent)
         }
@@ -176,13 +164,8 @@ fn an_absent_node_has_an_empty_cascade() {
 fn deleting_a_read_node_strands_its_reader_and_reports_it() {
     let (doc, [profile, body, ..]) = fork();
     let read = doc.output(profile, 0).expect("the profile's output");
-    let applied = apply(
-        &doc,
-        &TEdit::DeleteNode { id: profile },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("a read node deletes");
+    let applied = apply(&doc, &TEdit::DeleteNode { id: profile }, Tol::witness())
+        .expect("a read node deletes");
     assert_eq!(
         applied.maintenance,
         vec![editor_core::Maintenance::StrandedRead {

@@ -93,7 +93,7 @@ use pncad::analysis::{
 };
 use pncad::document::{
     CancelToken, DocEdit, EvalOptions, Evaluation, FreeValue, Observed, ProfileDoc, RecipeNodeId,
-    RefusingReach, ValuePayload, VarId, apply, evaluate,
+    ValuePayload, VarId, apply, evaluate,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
@@ -192,7 +192,6 @@ fn replay(base: &Plate, samples: usize, config: &McConfig, tol: Tol) -> Vec<Samp
                         value: FreeValue::Continuous(value + offset),
                     },
                     tol,
-                    &RefusingReach,
                 )
                 .expect("a nominal moves to a drawn value");
                 doc = applied.doc;

@@ -205,9 +205,6 @@ let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0
     .expect("finite corners");
 
 let doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
-// `apply`'s last argument is the mated parts' REACH — what inserting
-// a mate with a clocking rider levers the rider's admission through.
-// This document inserts no mate, so the refusing reach is never asked.
 // The frame the square is drawn on — a dependency of the profile
 // exactly as the profile is a dependency of the extrude.
 let applied = apply(&doc, &DocEdit::InsertNode {
@@ -217,23 +214,23 @@ let applied = apply(&doc, &DocEdit::InsertNode {
         v: [scl(0.0), scl(1.0), scl(0.0)],
     })),
     fresh: Vec::new(),
-}, tol, &pncad::document::RefusingReach)?;
+}, tol)?;
 let (doc, frame) = (applied.doc, applied.record.minted.expect("minted"));
 let applied = apply(&doc, &DocEdit::InsertNode {
     node: Box::new(Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() })),
     fresh: Vec::new(),
-}, tol, &pncad::document::RefusingReach)?;
+}, tol)?;
 let (doc, profile) = (applied.doc, applied.record.minted.expect("minted"));
 let applied = apply(&doc, &DocEdit::InsertNode {
     node: Box::new(Node::Extrude { profile: profile.into(), distance: len(1.0), side: ExtrudeSide::Along }),
     fresh: Vec::new(),
-}, tol, &pncad::document::RefusingReach)?;
+}, tol)?;
 let (doc, body) = (applied.doc, applied.record.minted.expect("minted"));
 
 let refused = apply(&doc, &DocEdit::InsertNode {
     node: Box::new(Node::Extrude { profile: body.into(), distance: len(1.0), side: ExtrudeSide::Along }),
     fresh: Vec::new(),
-}, tol, &pncad::document::RefusingReach);
+}, tol);
 assert!(matches!(refused, Err(EditError::SlotVarKind { .. })));
 assert_eq!(doc.len(), 3, "the refused edit changed nothing");
 # Ok::<(), Box<dyn std::error::Error>>(())

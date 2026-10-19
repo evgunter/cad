@@ -487,7 +487,6 @@ fn row4b_removing_the_placing_constraint_leaves_the_orphan_loose() {
             constraint: joint.id,
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the constraint is removed");
     assert!(
@@ -528,13 +527,8 @@ fn row4b_removing_the_placing_constraint_leaves_the_orphan_loose() {
 fn row4c_deleting_the_target_strands_the_constraint_on_it() {
     let (doc, ids, joint, kit) = stacked_pair("asm-r2a-row4c");
     let before = doc.clone();
-    let applied = apply(
-        &doc,
-        &DocEdit::DeleteNode { id: ids[0] },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("the target deletes");
+    let applied = apply(&doc, &DocEdit::DeleteNode { id: ids[0] }, Tol::witness())
+        .expect("the target deletes");
     assert!(
         fixture::bundle(&applied.doc, ids[1])
             .iter()
@@ -818,7 +812,6 @@ fn row6b_a_constraint_add_and_remove_place_nothing() {
                 constraint: mate_ref.id,
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("removing a constraint is admitted");
     assert!(
@@ -921,7 +914,6 @@ fn row6f_the_slot_door_repairs_a_stranded_side() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("a pose is re-pointed by its slot door");
     let mut members = fixture::mate_members(&applied.doc);
@@ -964,7 +956,6 @@ fn row6h_the_constraint_door_refuses_a_head_naming_no_node() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect_err("the head names no node");
     assert!(
@@ -1041,8 +1032,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_any_payload_name() {
                 ContactClass::Rest
             )),
             &ev,
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .is_ok(),
         "the instance-qualified heads resolve in the instance's own table"
@@ -1065,7 +1055,6 @@ fn row6j_the_name_door_reads_a_mates_heads_like_any_payload_name() {
         &add(rest(on, head(bogus.clone()), ContactClass::Rest)),
         &ev,
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap_err();
     assert_eq!(
@@ -1136,7 +1125,6 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect_err("a value on a fixed freedom refuses");
         let EditError::MateRefused { fault, .. } = &err else {
@@ -1206,7 +1194,6 @@ fn row7e_a_mate_not_on_its_copy_refuses_at_the_door() {
     let (doc, ids, kit) = assembly("asm-r2a-row7e-self", 2);
     let refused = fixture::at_the_door_of(
         &doc,
-        &editor_core::RefusingReach,
         ids[1],
         rest(
             head(kit.cap(ids[0], CapEnd::Start)),

@@ -517,8 +517,7 @@ type Rows<T> = BTreeMap<(DocRef, u64), Result<PartValue<T>, PartFault>>;
 
 /// **The serial part store**: rows filled one at a time, by `&mut`,
 /// outside any node map — the top evaluation's census pass
-/// ([`Self::enter_census`]) and the edit door's lazy reach
-/// ([`super::PartReach`]). A running evaluation reads the [`Reached`]
+/// ([`Self::enter_census`]). A running evaluation reads the [`Reached`]
 /// table the pass hands over, never this.
 pub(crate) struct PartStore<'a, T: Decide> {
     resolver: Option<&'a Arc<dyn PartResolver>>,
@@ -607,8 +606,8 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
     /// **The top's census, entered**: one row per distinct reference
     /// `doc` instantiates ([`instantiated`]), in document order, each
     /// taken from `prior`'s carried rows or evaluated once
-    /// ([`Self::row`]). Serial, and run before the evaluation's mate
-    /// solve and node map, so which part is evaluated, and where its
+    /// ([`Self::row`]). Serial, and run before the evaluation's node
+    /// map, so which part is evaluated, and where its
     /// samples land, is a property of the document and not of a
     /// schedule. The store's rows ARE the table it hands over, so it is
     /// consumed, and is called on a store fresh from [`Self::new`].

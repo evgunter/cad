@@ -2,7 +2,8 @@
 id: naming-refusal-census-skips-ten-arms
 kind: issue
 title: wire: the feature-tree refusal census skips nine of NamingError's arms
-status: open
+status: dispatched
+branch: wire/naming-census
 opened: 2026-10-18
 priority: P3
 cost: E

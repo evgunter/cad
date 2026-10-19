@@ -2543,10 +2543,6 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
                 margin: geom_core::MarginDiag::enclosure(-0.25, 0.5),
             },
         ),
-        (
-            "IncompatibleAtEnclosure",
-            E::IncompatibleAtEnclosure { section: 1 },
-        ),
         ("NoParameterStep", E::NoParameterStep { section: 2 }),
         (
             "Fit",
@@ -3585,6 +3581,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "Duplicate",
             NamingError::Duplicate {
                 name: Box::new(name()),
+            },
+        ),
+        (
+            "KindMismatch",
+            NamingError::KindMismatch {
+                name: Box::new(name()),
+                found: EntityKind::Vertex,
             },
         ),
         (

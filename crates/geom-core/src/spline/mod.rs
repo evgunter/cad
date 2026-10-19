@@ -57,6 +57,7 @@ pub mod knots;
 pub mod locate;
 pub mod net;
 pub mod pieces;
+pub mod plan_inputs;
 pub mod projective;
 pub mod range;
 pub mod weight_scale;
@@ -83,6 +84,7 @@ pub use knots::{
 };
 pub use locate::{SpanLocate, SpanSet, poison_from, structure_ascends, structure_nonzero};
 pub use net::{TensorChannels, TensorCoeffs, TensorNet};
+pub use plan_inputs::{point_inputs, point_knots};
 pub use projective::{ProjectivePoint, ProjectiveScalar, ProjectiveSplit};
 pub use range::{Param, ParamRange, last_at_or_below};
 pub use weights::Weights;

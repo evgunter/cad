@@ -6240,3 +6240,12 @@ Signed (WIRE orchestrator).
     the change scope.
   - Merged main to resolve one slow-set conflict; merge on green.
   (WIRE orchestrator)
+
+- 2026-10-19 — PR 5316 merged on green; three of its rows closed. The
+  fold-steps row stays open. Dispatched:
+  - `wire/naming-census`: the nine unrostered `NamingError` arms plus
+    `a-short-tie-refuses-as-a-duplicate-name`, STYLE review.
+  - `wire/fold-steps-end-pass`: publish the two fold-minted seam
+    crossings under the names the finished table holds, per DM4, and
+    add the fixture to the guard as its acceptance. FULL review.
+  (WIRE orchestrator)

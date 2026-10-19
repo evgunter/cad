@@ -219,7 +219,6 @@ impl Scene {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
         .doc;
@@ -474,10 +473,8 @@ fn a_lever_out_of_range_refuses_typed_through_the_fold() {
 #[test]
 fn a_lever_whose_distance_overflows_is_admitted_and_refused_at_evaluation() {
     let mut s = scene("msolve11-range-door");
-    let reach = editor_core::mate_reach::<f64>(&s.opts, Tol::witness());
     let (doc, rest) = fixture::at_the_door_of(
         &s.doc,
-        &reach,
         s.other,
         fixture::mate(
             fixture::plane(s.bottom(s.other)),

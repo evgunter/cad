@@ -315,6 +315,20 @@ pub trait SpanLocate: sealed::Sealed + Real {
         self.value_channel() > 0.0
     }
 
+    /// **The homogeneous knot algebra's step**, `x + (y − x)·t`
+    /// ([`CurvePlan::apply_homogeneous`](super::CurvePlan::apply_homogeneous),
+    /// C6 S4): `t` is an insertion's or an elevation's blend coefficient,
+    /// in `[0, 1]`, or a removal's unblend `1/a` or `1/(1 − a)`, above
+    /// `1`. The expression, at every scalar but `Interval`. There, a
+    /// blend's `t` inside `[0, 1]` takes the hull of the step at its
+    /// box's corners, which meets the inputs' widths, so a chain of
+    /// blends does not multiply the widths it inherits (the expression
+    /// does: `x` enters twice); an unblend's `t` takes the expression, as
+    /// the ring applier does.
+    fn homogeneous_step(x: Self, y: Self, t: Self) -> Self {
+        x + (y - x) * t
+    }
+
     /// **Which side of the projective partition this scalar is on**,
     /// answered by running one of `arm`'s two halves: its
     /// [`projective`](super::ProjectiveSplit::projective) half, which

@@ -60,7 +60,6 @@ fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     let profile = a.record.minted.unwrap();
@@ -77,7 +76,6 @@ fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     (b.doc, profile, b.record.minted.unwrap())
@@ -105,7 +103,6 @@ fn expr_path_survives_edits_to_other_expressions() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     let datum = c.record.minted.unwrap();
@@ -119,7 +116,6 @@ fn expr_path_survives_edits_to_other_expressions() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     assert_eq!(d.doc.expr_at(&path).unwrap(), before);
@@ -149,7 +145,6 @@ fn expr_path_survives_edits_to_unrelated_subtrees() {
                 expr: len(0.020),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     assert_eq!(e.doc.expr_at(&second).unwrap(), before);
@@ -180,17 +175,12 @@ fn recipe_node_ids_are_never_reused() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     let first = a.record.minted.unwrap();
     let b = a
         .doc
-        .apply(
-            &TEdit::DeleteNode { id: first },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
+        .apply(&TEdit::DeleteNode { id: first }, Tol::witness())
         .unwrap();
     let c = b
         .doc
@@ -200,7 +190,6 @@ fn recipe_node_ids_are_never_reused() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     let second = c.record.minted.unwrap();
@@ -224,7 +213,6 @@ fn dangling_ref_rejected() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap_err();
     assert_eq!(
@@ -254,7 +242,6 @@ fn self_reference_cannot_forge_the_next_id() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap_err();
     assert_eq!(
@@ -272,11 +259,7 @@ fn delete_of_referenced_node_strands_its_reader() {
     let (doc, profile, extrude) = profile_and_extrude();
     let read = doc.output(profile, 0).expect("the profile's output");
     let applied = doc
-        .apply(
-            &TEdit::DeleteNode { id: profile },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
+        .apply(&TEdit::DeleteNode { id: profile }, Tol::witness())
         .expect("a read node deletes");
     assert_eq!(
         applied.maintenance,
@@ -301,7 +284,6 @@ fn structural_and_continuous_edit_arms_are_disjoint() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap_err();
     assert_eq!(
@@ -320,7 +302,6 @@ fn structural_and_continuous_edit_arms_are_disjoint() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap_err();
     assert_eq!(
@@ -348,7 +329,6 @@ fn set_expression_path_off_tree_rejected() {
                 expr: len(0.01),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap_err();
     assert_eq!(

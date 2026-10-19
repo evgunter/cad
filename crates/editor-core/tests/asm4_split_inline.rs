@@ -168,7 +168,7 @@ fn placed_bodies(doc: &ProfileDoc) -> Vec<RecipeNodeId> {
 /// edits ARE the result" comparator undo leans on.
 fn replay(mut doc: ProfileDoc, edits: &[DocEdit<editor_core::ProfileProgram>]) -> ProfileDoc {
     for edit in edits {
-        doc = editor_core::apply(&doc, edit, Tol::witness(), &editor_core::RefusingReach)
+        doc = editor_core::apply(&doc, edit, Tol::witness())
             .expect("the recorded edit replays")
             .doc;
     }
