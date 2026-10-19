@@ -1534,8 +1534,10 @@ pub fn conic_torus_implicit<T: Real>(
 /// Every term is read at the point, so it is no larger than `F`'s own
 /// scale there (`|q|` near the tube is at most `R + 2r`, and `E`, `E′`
 /// enter at the carrier's speed, one power per derivative): the bound is
-/// `u` of those magnitudes plus the point's own rounding (`u` of
-/// `|C₀| + |c|`) carried through. The harmonics' evaluation sums terms as
+/// `u` of those magnitudes plus the point's own rounding carried through.
+/// `q` is formed as `(C₀ − c) + E`, not in [`Conic::point`]'s order, so
+/// that rounding is `u` of `|C₀ − c|` and `|E|`, not of the frame's
+/// `|C₀|`. The harmonics' evaluation sums terms as
 /// large as `F`'s amplitude round the whole carrier, `~ρ⁴` for a circle
 /// of radius `ρ` far larger than the torus, which cancel to the small
 /// values `F` takes near the tube. `theta`, the frames and the radii are
@@ -1563,8 +1565,8 @@ pub fn conic_torus_jet<T: Real>(
     let c = exact_vec(Vec3::new(conic.center.x, conic.center.y, conic.center.z));
     let tc = exact_vec(Vec3::new(t_center.x, t_center.y, t_center.z));
     let (ac, bs, as_, bc) = (a * cos, b * sin, a * sin, b * cos);
-    let q: [Rounded<T>; 3] = core::array::from_fn(|i| c[i] + u[i] * ac + v[i] * bs - tc[i]);
     let e: [Rounded<T>; 3] = core::array::from_fn(|i| u[i] * ac + v[i] * bs);
+    let q: [Rounded<T>; 3] = core::array::from_fn(|i| (c[i] - tc[i]) + e[i]);
     let e1: [Rounded<T>; 3] = core::array::from_fn(|i| v[i] * bc - u[i] * as_);
     let axis = exact_vec(t_axis);
     let (two, three) = (

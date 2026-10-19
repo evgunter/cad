@@ -47,8 +47,11 @@
 //! The jet ([`geom_brep::conic_torus_jet`]) reads `F`, `F′`, `F″` and
 //! `F‴` at the carrier point, by the chain rule through `|q|²` and
 //! `q·â`: every term is at the point's own scale (`|q| ≤ R + 2r` near the
-//! tube, one power of the carrier's speed per derivative), and its
-//! running bound carries the point's own rounding, `u` of `|C₀| + |c|`.
+//! tube, one power of the carrier's speed per derivative). Its point is
+//! formed as `(C₀ − c) + E`, the torus's offset first, so it rounds at
+//! its own scale rather than the frame's `|C₀|`: `C₀ − c` is exact
+//! wherever the two centres agree within a factor two per coordinate
+//! (Sterbenz), and `|E|` is at most the carrier's size.
 //! Nothing is truncated: Taylor's remainder takes the one global bound on
 //! `|F⁗|` the harmonics give, `Σ k⁴Aₖ` with their noise charged, which is
 //! rounded only relative to the amplitudes it bounds. What the walk's
@@ -57,12 +60,16 @@
 //! ([`super::circle_roots`], "The half-angle ladder, and the subdivision
 //! that answers").
 //!
-//! What remains at large `ρ` is the point's own rounding: at `ρ = 1000`
-//! a crossing as shallow as a `1.6e-8` m dip is placed `u·|C|` over its
-//! slope from the truth, past the default band, and its root slack
-//! refuses (`no_wrong_certified_answer_across_circle_radii`); a torus far
-//! from the origin is read the same way
-//! (`a_graze_in_a_far_frame_is_answered_truly_or_not_at_all`).
+//! What remains is the residual read at the point in [`geom_brep::Conic`]'s
+//! own order, which the walk's piece ends and the root slack take: it
+//! rounds at `u·|C|`. At `ρ = 1000` a crossing as shallow as a `1.6e-8` m
+//! dip is placed that over its slope from the truth, past the default
+//! band, and its root slack refuses
+//! (`no_wrong_certified_answer_across_circle_radii`), as a graze of a
+//! torus at the box's edge does
+//! (`a_graze_in_a_far_frame_is_answered_truly_or_not_at_all`). The jet's
+//! own charge is pinned on thin tori inside the box
+//! (`a_thin_torus_is_answered_truly_or_not_at_all_inside_the_box`).
 //!
 //! # The lever
 //!
@@ -346,10 +353,13 @@ pub(super) fn circle_torus_roots<T: Decide>(
 
     // `F` along the carrier from the torus's one home along a conic
     // ([`geom_brep::ConicTorusHarmonics`]): of degree two on a circle, its
-    // third and fourth harmonics no more than the frame's rounding, which
-    // the noise carries. The walk's bound on `|F⁗|` charges `2⁴·noise`
-    // (Bernstein at degree two), and theirs is up to `4⁴·dropped`, so they
-    // are charged sixteen-fold.
+    // third and fourth harmonics no more than the frame's rounding. The
+    // walk's bound on `|F⁗|` charges `2⁴·noise` (Bernstein at degree two),
+    // and theirs as computed is up to `4⁴·dropped`, so they are charged
+    // sixteen-fold. The rounding share covers the rest of the degree-four
+    // `F` the jet reads: the exact third and fourth harmonics against the
+    // computed ones, and the jet's exact `v̂ = n̂ × û` against the rounded
+    // `v_ref` the harmonics are built from.
     let conic = geom_brep::Conic::circle(center, axis, radius, u_ref);
     let h = geom_brep::conic_torus_harmonics(&conic, t_center, t_axis, major_radius, minor_radius);
     let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
@@ -1392,8 +1402,9 @@ mod tests {
     /// executed): `ρ = 100` dipping 9.8e-8 m into the tube at `θ = 0`.
     /// `F`'s coefficients are `~ρ⁴`, so its `f64` rounding is about
     /// `ρ⁴·u` — a residual noise near 1e-7 m, above the dip — and the
-    /// unmetered door certified `Miss`. The noise meter must refuse
-    /// instead (or answer the truth).
+    /// unmetered door certified `Miss`. Read at the point (module docs,
+    /// "The harmonics' noise, and the jet"), the walk answers the dip's
+    /// two roots or refuses, on both lanes.
     #[test]
     fn a_large_circles_dip_below_its_own_noise_is_not_certified_away() {
         let pose = Pose {
@@ -1495,8 +1506,8 @@ mod tests {
 
     /// [`graze_answers`] with the torus and the carrier moved to `far`.
     /// The carrier's centre rounds there, and the oracle reads the pose
-    /// it rounded to, moved back exactly (Sterbenz: `far` dwarfs the
-    /// pose).
+    /// it rounded to, moved back exactly (Sterbenz: each of `far`'s
+    /// coordinates is zero or at least twice the pose's).
     fn graze_answers_at(
         far: [f64; 3],
         rho: f64,
@@ -1612,17 +1623,154 @@ mod tests {
         }
     }
 
-    /// **A far frame's rounding is charged.** A torus `3·10⁵` m from the
-    /// origin rounds the carrier's points by some `3·10⁻¹¹` m, past the
-    /// band at `ε = 1e-12`. Circles grazing it by ±{2e-11, 5e-11, 2e-10}
-    /// m are answered truly or refused ([`graze_answers_at`]): read
-    /// uncharged, a dip of `2e-11` m at `ρ = 10` was a certified miss.
+    /// **A graze at the box's edge** (D4: no coordinate past 1 km): the
+    /// torus at `(800, −600, 450)`, circles grazing it by ±{2e-11, 5e-11,
+    /// 2e-10} m at `ε = 1e-12` are answered truly or refused
+    /// ([`graze_answers_at`]). The dips refuse on their root slack, read
+    /// at the point's `u·|C|`; the jet's charge is pinned by
+    /// [`JET_CHARGE_POSES`].
     #[test]
     fn a_graze_in_a_far_frame_is_answered_truly_or_not_at_all() {
         let band = Band::new(1e-12, 1e-11).unwrap();
         let depths = [-2e-10, -5e-11, -2e-11, 2e-11, 5e-11, 2e-10];
         for rho in [1.0, 10.0, 100.0] {
-            graze_answers_at([3e5, 1e5, 0.0], rho, &depths, band);
+            let (answered, refused) = graze_answers_at([800.0, -600.0, 450.0], rho, &depths, band);
+            assert_eq!(answered, 12, "ρ {rho}: refused {refused:?}");
+            assert!(
+                refused
+                    .iter()
+                    .all(|&(d, why)| d < 0.0 && why == Some(Unsettled::Meter)),
+                "ρ {rho}: refused {refused:?}"
+            );
+        }
+    }
+
+    /// Poses inside D4's 1 km box, each as `[ε, ρ | centre | axis | u_ref
+    /// | torus centre | torus axis | R, r | t0, t1]` with its true
+    /// crossings round the whole carrier, within `π` of the arc's
+    /// midpoint (mpmath on these inputs' exact binary values,
+    /// `v̂ = n̂ × û` exact, `F` solved as an octic in `e^{iθ}`).
+    const JET_CHARGE_POSES: [(&str, [f64; 21], &[f64]); 3] = [
+        (
+            "a thin torus a kilometre out, missed by a unit circle",
+            [
+                1e-12,
+                1.0,
+                507.003_018_189_937_7,
+                1_002.336_424_722_685_6,
+                347.627_288_738_176_45,
+                -0.330_415_993_805_077_9,
+                -0.657_387_389_811_559_4,
+                0.677_249_651_719_768_4,
+                -0.387_114_112_182_133_43,
+                -0.560_028_469_704_868_1,
+                -0.732_468_959_935_820_4,
+                505.195_595_650_155_84,
+                999.541_120_017_644_7,
+                345.582_532_419_900_9,
+                0.523_514_970_858_270_3,
+                -0.604_127_346_080_746_4,
+                0.600_801_319_077_029_6,
+                3.0,
+                0.002,
+                -2.286_650_806_909_016,
+                0.937_455_736_282_058_8,
+            ],
+            &[],
+        ),
+        (
+            "a unit circle grazing a 10 µm tube off its arc",
+            [
+                1e-12,
+                1.0,
+                -0.611_225_538_923_048,
+                1.096_155_308_198_281_8,
+                2.121_348_753_093_851,
+                -0.102_888_123_316_417_13,
+                -0.633_027_011_128_100_4,
+                0.767_261_909_169_645_7,
+                0.837_661_056_997_784,
+                0.360_830_676_764_738_5,
+                0.410_030_701_649_103_5,
+                -2.241_119_860_598_858_3,
+                0.401_977_901_178_566,
+                1.308_154_963_926_711_8,
+                0.714_488_144_006_292_8,
+                -0.563_692_229_621_536,
+                -0.414_436_680_735_121,
+                1.0,
+                1e-5,
+                -0.822_786_698_571_043_9,
+                -0.025_732_322_349_077_186,
+            ],
+            &[-3.366_017_259_199_048_8, -3.366_017_245_046_99],
+        ),
+        (
+            "a 2.4 m circle grazing a 10 µm tube 19 m out",
+            [
+                1e-12,
+                2.432_373_458_132_554_2,
+                -10.756_577_737_356_77,
+                -10.029_223_315_682_913,
+                8.303_334_310_974_376,
+                0.878_683_474_850_792_9,
+                0.017_333_233_125_561_884,
+                0.477_090_043_968_170_56,
+                0.448_109_665_837_044_7,
+                0.314_735_191_338_378,
+                -0.836_743_381_638_962_8,
+                -14.331_002_187_632_686,
+                -8.526_749_186_199_282,
+                9.002_118_538_301_69,
+                0.001_328_256_357_129_369_8,
+                -0.629_207_234_375_604_4,
+                0.777_236_445_326_937,
+                3.0,
+                1e-5,
+                0.238_173_809_235_491_47,
+                4.148_659_795_226_928,
+            ],
+            &[1.820_029_089_088_455_8, 1.820_029_093_191_118],
+        ),
+    ];
+
+    /// **The jet is read at the torus's offset, and charged**: on every
+    /// [`JET_CHARGE_POSES`] row the door's answer is the truth, each root
+    /// within `ε` of arc of one, or a refusal — and the far thin torus's
+    /// miss is answered. Formed at the frame's coordinates, the jet's
+    /// point charged `u·|C|` and that miss refused `Tangency`. With the
+    /// jet's charge cut to `0.07×` or less, the last row is a certified
+    /// miss; at `0.1×` none of the box's thin grazes found one.
+    #[test]
+    fn a_thin_torus_is_answered_truly_or_not_at_all_inside_the_box() {
+        for (label, v, truth) in JET_CHARGE_POSES {
+            let p = |i: usize| Point3::new(v[i], v[i + 1], v[i + 2]);
+            let w = |i: usize| Vec3::new(v[i], v[i + 1], v[i + 2]);
+            let (eps, rho) = (v[0], v[1]);
+            let torus = geom::Surface::Torus {
+                center: p(11),
+                axis: w(14),
+                major_radius: v[17],
+                minor_radius: v[18],
+                u_ref: w(14).orthonormal_basis().0,
+            };
+            let band = Band::new(eps, 10.0 * eps).unwrap();
+            match roots_of(p(2), w(5), rho, w(8), v[19], v[20], &torus, band) {
+                Ok(Ok(CircleRoots::Miss)) => assert!(truth.is_empty(), "{label}: a false miss"),
+                Ok(Ok(CircleRoots::Certified(found))) => {
+                    let mut got = found.roots()[..found.count()].to_vec();
+                    got.sort_by(f64::total_cmp);
+                    assert_eq!(got.len(), truth.len(), "{label}: {got:?} vs {truth:?}");
+                    for (a, b) in got.iter().zip(truth) {
+                        assert!((a - b).abs() * rho <= eps, "{label}: root {a} vs {b}");
+                    }
+                }
+                Ok(Ok(CircleRoots::On(_))) => panic!("{label}: not on the torus"),
+                Ok(Err(_)) | Err(BooleanError::Escalated { .. }) => {
+                    assert!(!truth.is_empty(), "{label}: the miss refused");
+                }
+                Err(e) => panic!("{label}: {e:?}"),
+            }
         }
     }
 
