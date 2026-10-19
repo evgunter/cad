@@ -58,6 +58,14 @@ pub(crate) const CARRIERS: &[NameCarrier] = &[
     // `seg::coincident` answers point-coincidence questions under the
     // name its caller supplies.
     NameCarrier::Call("coincident"),
+    // `seg::junction_turn` reads a junction's turn under the name its
+    // caller supplies: `path_junction_turn`, or the declared seam
+    // arrival's `path_seam_arrival_turn`.
+    NameCarrier::Call("junction_turn"),
+    // `seg::joint_tangency` reads a joint's turn under the name its
+    // caller supplies: validation's `path_junction_turn`, or the door's
+    // stored-form read's `path_fillet_joint_turn`.
+    NameCarrier::Call("joint_tangency"),
 ];
 
 /// The `decide*` calls whose name the reader cannot read at the site,
@@ -68,7 +76,14 @@ const INDIRECT: &[(&str, &str)] = &[
         "the advance and reach gates' `travel` result (two calls, one key)",
     ),
     ("path/verbs.rs: name", "`gate_positive`'s own parameter"),
-    ("seg.rs: name", "`seg::coincident`'s own parameter"),
+    (
+        "seg.rs: name",
+        "`seg::coincident`'s and `seg::junction_turn`'s own parameter",
+    ),
+    (
+        "seg.rs: ( turn_name, prev.heading_at(prev.b), next.heading_at(next.a), arm, TurnSense::Unsigned, band, )",
+        "`seg::joint_tangency`'s `turn_name`, which its callers spell",
+    ),
 ];
 
 fn census() -> PredicateCensus {

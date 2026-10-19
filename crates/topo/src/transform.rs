@@ -617,17 +617,17 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
             old.carrier(),
             (param_start, param_end),
         );
-        let mapped = crate::policy_lane::certify(spec, start, end, surfaces, reach, band).map_err(
-            |refusal| match refusal {
-                crate::policy_lane::ByPolicy::NoLane { scalar } => {
-                    TransformError::NurbsLaneUnsupported { edge: ek, scalar }
-                }
-                crate::policy_lane::ByPolicy::Refused(source) => TransformError::Certify {
-                    edge: ek,
-                    source: crate::policy_lane::kernels_own(source, "transform_rigid"),
-                },
-            },
-        )?;
+        let origin =
+            crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::RigidTransform);
+        let mapped = crate::policy_lane::certify(origin, spec, start, end, surfaces, reach, band)
+            .map_err(|refusal| match refusal {
+            crate::policy_lane::ByPolicy::NoLane { scalar } => {
+                TransformError::NurbsLaneUnsupported { edge: ek, scalar }
+            }
+            crate::policy_lane::ByPolicy::Refused(source) => {
+                TransformError::Certify { edge: ek, source }
+            }
+        })?;
         out.curves[curve_key] = CurveGeom::Certified(mapped);
         rewritten.insert(curve_key);
     }
