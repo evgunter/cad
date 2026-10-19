@@ -1270,3 +1270,7 @@ Signed (CLEAVE orchestrator).
   - `RingHoming`/`SlitHoming` share one `PointInLoopError` rendering. `Uncrossable` now ends 'not yet' instead of offering a lever: it's a kernel limitation.
   - Keel row closed.
   - Filed during the work: CLEAVE P2 `a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses`, P2 `the-splits-at-rest-gate-reads-tier-3-…`, P2 `a-curved-slit-fails-tier-3-prime-…`, P3 `the-split-reads-a-slit-twice-…`, P3 `the-split-keeps-an-in-plane-edge-it-doubles-at-a-dead-key`.
+- 2026-10-19 — PR 5357 fix pass (`b2546c9989`). CI red only on three 1e-12 tests the lane says fail on main's 5375 head.
+  - `LineEdges` is restored for collinearity; `partners_along` refusals pinned per ε.
+  - Reader reads once per edge/pair, sheets at the shared span; minted-edge lever checked as the input's.
+  - Narrow re-review dispatched; it is also confirming the three reds on main.
