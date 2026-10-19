@@ -12,7 +12,7 @@ Found by reviewer B's delta-read of C6 S5b (PR 5322). The INLANE orchestrator ru
 
 ## Finding
 
-A plan decided against a stand-in (`CurvePlan::is_reference() == false`, `crates/geom-core/src/spline/algebra.rs:342`) is refused in two shapes:
+A plan decided against a stand-in (`CurvePlan::is_reference() == false`, `crates/geom-core/src/spline/algebra.rs:341`) is refused in two shapes:
 - **The `f64` appliers answer in-band.** `CurvePlan::apply_points` (`algebra.rs:373`, the check at `:380`) returns a poison polygon. `CurvePlan::apply_certified` (`algebra.rs:558`, the check at `:559`) returns NaI. A caller that does not check the result reads a value.
 - **The projective arm refuses typed.** `PlanChain::projective` (`crates/geom/src/curves/nurbs.rs:740-742`) returns `KnotAlgebraError::StandInPlan`.
 

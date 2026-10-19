@@ -13,11 +13,22 @@
 //! its identity with the dense solve, and its stability, are facts about
 //! these rows and are not claimed for any other matrix.
 //!
+//! At an enclosure scalar a row may instead enclose a family of such
+//! rows (C6 S5c, `fit::unit_row_in`): a parameter over more than one
+//! span gives a row hulled over those spans, wider than `p + 1`, and
+//! every row is then widened to the widest with exact zeros, its window
+//! shifted left where it would pass the last column (`fit::banded_rows`).
+//! Each entry encloses every member's, which lies in `[0, 1]`. The
+//! stability argument below is about each member's matrix; over the
+//! hull the elimination encloses every member's factor by inclusion and
+//! claims no tightness, and a pivot it leaves undecided refuses.
+//!
 //! # Shape
 //!
 //! `first` never decreases from one row to the next (the
 //! **first-nonzero property**): at ascending parameters the span never
-//! moves left. It is checked, and a row that breaks it refuses typed
+//! moves left, and a widened window shifted left at the last column
+//! starts at most where the rows after it do. It is checked, and a row that breaks it refuses typed
 //! ([`LsqError::BandShape`]). Under the property Doolittle without
 //! pivoting creates no fill outside the windows: `L[i][q]` is zero for
 //! `q < first[i]`, and `U[i][j]` is zero for `j ≥ first[i] + width`,

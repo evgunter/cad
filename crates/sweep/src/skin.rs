@@ -857,7 +857,10 @@ fn chord_length_parameters<T: SpanLocate>(
 /// [`SkinError::TooFewSections`], [`SkinError::BadDegree`],
 /// [`SkinError::SectionShapeMismatch`] for sections that did not come
 /// out of [`make_compatible`], [`SkinError::NoParameterStep`],
-/// [`SkinError::Fit`] for a degenerate collocation system, and
+/// [`SkinError::Fit`] for a degenerate collocation system (at an
+/// enclosure scalar, also one whose elimination over the sections'
+/// enclosures leaves a pivot undecided, though every member's system is
+/// regular), and
 /// [`SkinError::Structure`] — notably a non-positive interpolated
 /// weight, refused at the door because the convex-hull invariant every
 /// C9 bound stands on requires `w > 0`.
