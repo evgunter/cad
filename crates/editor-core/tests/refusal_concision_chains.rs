@@ -220,6 +220,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MeasureUnsupported",
     "MissingInput",
     "ParamBox/AxisUnrepresentable",
+    "ParamBox/SymbolsOverABox",
     "ParamBox/UnknownParam",
     // work/wirehold/placement-rule-refusals-state-no-recourse.md
     "FaceFrameNotPlanar",
@@ -690,37 +691,115 @@ fn every_node_refusal_renders_within_the_budget() {
     }
 }
 
-/// **Every `NamingError` arm has a row.** The roster is
-/// `display_contract`'s `NAMING_ERROR` census, whose `match` rustc holds
-/// exhaustive, and each `Naming/` row is named by its own payload's
-/// variant, so an arm added to the enum or a row taken out reds here.
+use editor_core::{EvalError, ParamBoxError, PlacementRuleFault, ResolveError, SeedError};
+
+test_utils::f6_variants! {
+    /// `EvalError`'s arms, the roster the `Expr/` rows are welded to.
+    const EVAL_ERROR: EvalError = [
+        UnresolvedVar,
+        OutputRead,
+        DefinitionRefused,
+        VarKindMismatch,
+        CountExprInContinuousEval,
+        ContinuousExprInCountEval,
+        CountOverflow,
+        CountToScalarOutOfRange,
+        NonFiniteResult,
+        Unlowered,
+    ];
+}
+
+test_utils::f6_variants! {
+    /// `ParamBoxError`'s arms, for the `ParamBox/` rows.
+    const PARAM_BOX_ERROR: ParamBoxError = [UnknownParam, AxisUnrepresentable, SymbolsOverABox];
+}
+
+test_utils::f6_variants! {
+    /// `SeedError`'s arms, for the `Seed/` rows.
+    const SEED_ERROR: SeedError = [UnknownVar, CountVar, SeedOnNonFreeVar, TangentUnrepresentable];
+}
+
+test_utils::f6_variants! {
+    /// `PlacementRuleFault`'s arms, for the `PlacementRule/` rows.
+    const PLACEMENT_RULE_FAULT: PlacementRuleFault = [
+        CountSpelling,
+        NoPlacements,
+        NonFiniteFrame,
+        ImproperFrame,
+        NonRigidFrame,
+    ];
+}
+
+test_utils::f6_variants! {
+    /// `ResolveError`'s arms, for the `SelectResolve/` rows.
+    const RESOLVE_ERROR: ResolveError = [Vanished, Ambiguous, ReadGone, NodeGone];
+}
+
+/// The arm of the forwarded payload a row of `editor_payloads` carries,
+/// with the family its row name opens with.
+fn forwarded_arm(kind: &NodeErrorKind) -> Option<(&'static str, String)> {
+    use test_utils::f6::variant_identifier as arm;
+    Some(match kind {
+        NodeErrorKind::Expr { source, .. } => ("Expr", arm(source)),
+        NodeErrorKind::ParamBox { source } => ("ParamBox", arm(source)),
+        NodeErrorKind::Seed { source } => ("Seed", arm(source)),
+        NodeErrorKind::PlacementRule(e) => ("PlacementRule", arm(e)),
+        NodeErrorKind::Naming(e) => ("Naming", arm(e)),
+        NodeErrorKind::SelectResolve { error, .. } => ("SelectResolve", arm(error)),
+        _ => return None,
+    })
+}
+
+/// **Every arm of every editor-core payload `NodeErrorKind` forwards
+/// has a row.** Each roster is an `f6_variants!` census, whose `match`
+/// rustc holds exhaustive (`NamingError`'s is `display_contract`'s),
+/// and each row is named by its own payload's arm, so an arm added to
+/// an enum or a row taken out reds here.
 #[test]
-fn every_naming_arm_has_a_row() {
-    let rendered: Vec<String> = editor_payloads()
+fn every_forwarded_editor_arm_has_a_row() {
+    let rosters: [(&str, &[&str]); 6] = [
+        ("Expr", EVAL_ERROR.identifiers()),
+        ("ParamBox", PARAM_BOX_ERROR.identifiers()),
+        ("Seed", SEED_ERROR.identifiers()),
+        ("PlacementRule", PLACEMENT_RULE_FAULT.identifiers()),
+        (
+            "Naming",
+            crate::display_contract::NAMING_ERROR.identifiers(),
+        ),
+        ("SelectResolve", RESOLVE_ERROR.identifiers()),
+    ];
+    let rows: Vec<(&str, String)> = editor_payloads()
         .into_iter()
         .filter_map(|(name, kind)| {
-            let NodeErrorKind::Naming(e) = kind else {
-                return None;
-            };
-            let arm = test_utils::f6::variant_identifier(&e);
-            assert_eq!(
-                name,
-                format!("Naming/{arm}"),
-                "a naming row is named by its arm"
+            let (family, arm) = forwarded_arm(&kind)?;
+            let label = name
+                .strip_prefix(&format!("{family}/"))
+                .unwrap_or_else(|| panic!("{name}: a {family} row opens with {family}/"));
+            assert!(
+                label == arm || label.starts_with(&format!("{arm}(")),
+                "{name}: a row is named by its payload's arm, {arm}"
             );
-            Some(arm)
+            Some((family, arm))
         })
         .collect();
-    let rendered: Vec<&str> = rendered.iter().map(String::as_str).collect();
-    if let Some(report) = test_utils::census::set_difference(
-        crate::display_contract::NAMING_ERROR.identifiers(),
-        &rendered,
-        "NamingError's arms and the feature tree's naming rows disagree",
-        "rendered by a row and not an arm of the census",
-        "an arm with no feature-tree row: give it one in `editor_payloads`",
-    ) {
-        panic!("{report}");
-    }
+    let reports: Vec<String> = rosters
+        .into_iter()
+        .filter_map(|(family, roster)| {
+            let rendered: Vec<&str> = rows
+                .iter()
+                .filter(|(f, _)| *f == family)
+                .map(|(_, arm)| arm.as_str())
+                .collect();
+            test_utils::census::set_difference(
+                roster,
+                &rendered,
+                &format!("the {family}/ rows and their payload's arms disagree"),
+                "rendered by a row and not an arm of the census",
+                "an arm with no feature-tree row: give it one in `editor_payloads`",
+            )
+        })
+        .collect();
+    assert!(reports.is_empty(), "{}", reports.join("\n"));
 }
 
 /// A failure as the feature tree draws it: the failed node's own line,
@@ -3591,6 +3670,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 hi: 0.0,
             },
         ),
+        ("SymbolsOverABox", ParamBoxError::SymbolsOverABox),
     ];
     let seed = [
         (
@@ -3662,6 +3742,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "Duplicate",
             NamingError::Duplicate {
                 name: Box::new(name()),
+            },
+        ),
+        (
+            "EntityNamed",
+            NamingError::EntityNamed {
+                name: Box::new(name()),
+                held: Box::new(stable(EntityKind::Face, 4)),
             },
         ),
         (
