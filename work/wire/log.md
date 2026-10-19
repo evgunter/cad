@@ -6249,3 +6249,15 @@ Signed (WIRE orchestrator).
     crossings under the names the finished table holds, per DM4, and
     add the fixture to the guard as its acceptance. FULL review.
   (WIRE orchestrator)
+
+- 2026-10-19 — PR 5324 STYLE review adjudicated: mergeable with a fix
+  pass.
+  - The 75-word cut took facts out of three missing-rule sentences (who
+    tied; what failed; "between them"), so the words come back out of
+    the shared framing instead.
+  - `ShortTie`'s Display wording is fixed.
+  - The held-ground `FILED_NO_RECOURSE` entries get parked homes.
+  - Two rows filed rather than fixed: entity collisions reported as
+    "minted twice", and the hand-kept payload lists.
+  Class note: a word budget met by cutting content, not framing, loses
+  the fact the reader acts on. (WIRE orchestrator)
