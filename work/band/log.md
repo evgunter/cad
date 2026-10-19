@@ -1138,3 +1138,15 @@ and `a-cup-leaning-off-the-spine-under-a-fillet-is-charged-its-boxs-diagonal`.
 - 2026-10-15 — **No live row is at or above this track's own band (P0).** The 51 rows left are 5 at P2, 36 at P3, 3 at P4, 7 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
   Band the 7 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
   (tracker sweep)
+
+## 2026-10-19 — the blend arms place their centres at their inputs' scale (`band/arms-centre-placement`)
+
+`sheet_center`'s round × round arm reads `geom_core::Circles` for the
+offset circles' radical foot and half-chord, and `corner_ball` solves
+for the centre's offset from its first vertex. Rows in
+`blend_arms_centre_placement.rs` hold both at a few ulps of scale at
+`f64` and `Interval` (main: about `ratio` ulps / NaN past 1e8, and
+`u·|p|/det`). Closed `sheet-center-circle-pair-cancels-at-unequal-offsets`
+and `blend-corner-ball-cramer-anchors-at-the-world-origin`. Filed
+`plane-sphere-blend-spine-radius-by-differences-of-squares` here and
+`work/shell/topo-planar-offset-cramer-anchors-at-the-world-origin.md`.
