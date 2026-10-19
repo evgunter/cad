@@ -151,13 +151,47 @@ impl<'a> PlaneSection<'a> {
         domain: SsiDomain,
         band: Band,
     ) -> Result<Self, SsiError> {
-        Self::within(plane, wall, domain, band, SSI_MAX_STEPS)
+        Self::within(
+            plane,
+            (wall, ChartedNurbs::mint),
+            domain,
+            band,
+            SSI_MAX_STEPS,
+        )
     }
 
-    /// [`PlaneSection::of`] under a step budget of `max_steps` a branch.
+    /// [`PlaneSection::of`] with the wall's chart had from `chart`,
+    /// called where [`PlaneSection::of`] mints it (after the operands and
+    /// the domain are checked, so the refusals come in the same order):
+    /// [`ChartedNurbs::mint`] itself, or a chart a caller minted once for
+    /// the operation and hands to every section of that wall. **The
+    /// chart must be of `wall`**, as a mint of it is; a debug build
+    /// asserts that it is the same surface.
+    ///
+    /// # Errors
+    ///
+    /// As [`PlaneSection::of`], with the chart's own refusals where it
+    /// mints.
+    pub fn of_charted(
+        plane: &'a Surface<f64>,
+        (wall, chart): (
+            &'a NurbsSurface<f64>,
+            impl FnOnce(&'a NurbsSurface<f64>) -> Result<ChartedNurbs<'a, f64>, SsiError>,
+        ),
+        domain: SsiDomain,
+        band: Band,
+    ) -> Result<Self, SsiError> {
+        Self::within(plane, (wall, chart), domain, band, SSI_MAX_STEPS)
+    }
+
+    /// [`PlaneSection::of_charted`] under a step budget of `max_steps` a
+    /// branch.
     pub(super) fn within(
         plane: &'a Surface<f64>,
-        wall: &'a NurbsSurface<f64>,
+        (wall, chart): (
+            &'a NurbsSurface<f64>,
+            impl FnOnce(&'a NurbsSurface<f64>) -> Result<ChartedNurbs<'a, f64>, SsiError>,
+        ),
         domain: SsiDomain,
         band: Band,
         max_steps: usize,
@@ -195,7 +229,11 @@ impl<'a> PlaneSection<'a> {
         // the parameter reach — the safe side of a floor. Each floor is
         // minted once over the wall's domain, which refuses one the
         // domain cannot resolve, the proof obligation's first.
-        let charted = ChartedNurbs::mint(wall)?;
+        let charted = chart(wall)?;
+        debug_assert!(
+            core::ptr::eq(charted.surface(), wall),
+            "a chart handed to `PlaneSection::of_charted` is of another surface"
+        );
         let speed = charted.speeds().max();
         let account_floor =
             SweepFloor::chart(root, domain.floor(band), speed, FloorKind::Accounting)?;
@@ -361,6 +399,34 @@ mod tests {
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// **A plane section of a chart minted once reads as of a fresh
+    /// mint.** [`PlaneSection::of_charted`] handed the wall's chart,
+    /// minted once and shared by two sections in turn (the second reads
+    /// every cell the first formed), answers both seeds with the same
+    /// branches and tubes as [`PlaneSection::of`], bit for bit.
+    #[test]
+    fn a_plane_section_of_a_chart_minted_once_reads_as_a_fresh_mint() {
+        let (plane, wall) = (level(0.1), net(&|i, _| [0.25, -0.25, 0.25][i]));
+        let r = 0.1_f64.sqrt();
+        let read = |mut section: PlaneSection<'_>| {
+            for x in [0.5 - r, 0.5 + r] {
+                section.branch_at(Point3::new(x + 1e-3, 0.4, 0.1)).unwrap();
+            }
+            format!("{:?} {:?}", section.banked.branches, section.banked.tubes)
+        };
+        let fresh = read(PlaneSection::of(&plane, &wall, domain(), band()).unwrap());
+        let chart = super::ChartedNurbs::mint(&wall).unwrap();
+        for turn in 0..2 {
+            let charted =
+                PlaneSection::of_charted(&plane, (&wall, |_| Ok(chart.clone())), domain(), band())
+                    .unwrap();
+            assert!(
+                read(charted) == fresh,
+                "turn {turn}: the charted section reads otherwise"
+            );
+        }
     }
 
     /// **Each seed is answered by the branch through it.** The trough
