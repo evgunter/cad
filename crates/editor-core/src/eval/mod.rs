@@ -1215,13 +1215,11 @@ pub(crate) mod family {
 /// `TRANSFORM_AXIS_ROLE` and `PATTERN_DIRECTION_ROLE` share no family
 /// word with anything here, so they are not that row.
 pub(crate) mod phrase {
-    /// A frame datum: [`crate::node::Datum::Frame`] or
-    /// [`crate::node::Datum::FaceFrame`], the two nodes that carry a
-    /// [`super::PoseValue::Frame`].
+    /// A frame pose: a read that carries a [`super::PoseValue::Frame`].
     pub(crate) const DATUM_FRAME: &str = concat!(family_word!(datum), " frame");
-    /// A 3-D axis datum ([`crate::node::Datum::Axis`]).
+    /// An axis pose ([`super::PoseValue::Axis`]).
     pub(crate) const DATUM_AXIS: &str = concat!(family_word!(datum), " axis");
-    /// A plane datum ([`crate::node::Datum::Plane`]).
+    /// A plane pose ([`super::PoseValue::Plane`]).
     pub(crate) const DATUM_PLANE: &str = concat!(family_word!(datum), " plane");
     /// What a placer places: one body, or a list of placed ones.
     pub(crate) const BODY_OR_INSTANCES: &str =

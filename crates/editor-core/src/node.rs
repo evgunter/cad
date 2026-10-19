@@ -2015,9 +2015,9 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// **A pattern of an upstream value** with a STRUCTURAL
     /// Count-typed index expression (spec D3/A8; N1 `Instance(i)`
     /// will index it): the input is the MASTER, placed WHOLE at every
-    /// placement. It takes the same operand [`Node::Transform`] does
+    /// placement. It takes the same operand a [`Node::Place`] does
     /// (`eval::wire`'s `placeable_operand`), but it is not
-    /// shape-preserving the way a transform is — the value is
+    /// shape-preserving the way a placement is — the value is
     /// `Instances` whatever the master was: N bodies for a one-body
     /// master, N·M placement-major for an `Instances` master of M.
     Pattern {
@@ -2960,10 +2960,9 @@ pub struct OutputPort {
 pub enum PortKind {
     /// This kind.
     Of(crate::VarKind),
-    /// A [`Node::Transform`]'s value, which has the shape of the
-    /// variable it reads: `Bodies` over a `Bodies`, `Body` otherwise;
-    /// and a [`Node::Place`]'s, which has its one shape's shape, and is
-    /// `Bodies` over several (their copies, keyed by read).
+    /// A [`Node::Place`]'s value, which has its one shape's shape
+    /// (`Bodies` over a `Bodies`, `Body` otherwise), and is `Bodies`
+    /// over several (their copies, keyed by read).
     ///
     /// Read off the operand once, at the insert that mints the output;
     /// from then on the output's stored kind is the fact (VR3: a kind
@@ -2988,10 +2987,9 @@ impl<P, S: Slot> Node<P, S> {
     /// order, possibly none. The insert door mints one variable per
     /// port ([`crate::Doc::output`]).
     ///
-    /// A [`Node::Transform`]'s one port has its operand's shape:
-    /// `Bodies` over a `Bodies`, `Body` otherwise ([`PortKind::Placed`]),
-    /// and so has a [`Node::Place`]'s over one shape; over several it is
-    /// their copies keyed by read. An instance defines one `copies`, the
+    /// A [`Node::Place`]'s one port has its one shape's shape: `Bodies`
+    /// over a `Bodies`, `Body` otherwise ([`PortKind::Placed`]); over
+    /// several it is their copies keyed by read. An instance defines one `copies`, the
     /// part's world copies keyed by their identity in the part
     /// ([`crate::CopyKey`]). No port count depends on a list.
     ///
