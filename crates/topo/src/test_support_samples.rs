@@ -487,6 +487,15 @@ fn certify_errors() -> Vec<CertifyError> {
             verdict: negative_verdict(-1e-3),
         },
         CertifyError::WindingExceeded,
+        // A door's input interval, of no length and past a full turn.
+        CertifyError::StatedInterval {
+            refused: geom_brep::StatedSpan::Forward(geom_brep::ForwardReading::Decided(
+                zero_verdict(0.0),
+            )),
+        },
+        CertifyError::StatedInterval {
+            refused: geom_brep::StatedSpan::Winding(geom_brep::WindingReading::Exceeded),
+        },
         CertifyError::ResidualExceeded {
             check: CertCheck::SurfaceResidual { surface: key },
             sample: 4,
@@ -1506,7 +1515,10 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     ));
     s.push((
         "VolumeSignUnresolved".to_owned(),
-        ValidationError::VolumeSignUnresolved { solid },
+        ValidationError::VolumeSignUnresolved {
+            solid,
+            limit: crate::props::SignLimit::Scalar,
+        },
     ));
     s.push((
         "ShellRoleUndecided".to_owned(),
@@ -1514,8 +1526,20 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             solid,
             error: crate::ShellClassifyError::Straddles {
                 shell: ShellKey::default(),
+                low: geom_core::MarginDiag::value(-1e-12),
+                high: geom_core::MarginDiag::value(1e-12),
             },
-            sliver: None,
+        },
+    ));
+    s.push((
+        "OrientationUndecided".to_owned(),
+        ValidationError::OrientationUndecided {
+            solid,
+            reading: crate::OrientationUnread::Volume {
+                margin: None,
+                aimed: 0,
+                set_aside: Vec::new(),
+            },
         },
     ));
 

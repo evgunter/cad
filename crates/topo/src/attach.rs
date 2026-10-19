@@ -919,7 +919,11 @@ impl<T: Decide> Body<T> {
                         }
                     }
                     crate::policy_lane::ByPolicy::Refused(error) => {
-                        EulerOpError::RechartFalsifies { door, edge, error }
+                        EulerOpError::RechartFalsifies {
+                            door,
+                            edge,
+                            error: crate::policy_lane::kernels_own(error, "a re-description"),
+                        }
                     }
                 })?;
             written.push((edge, sides, curve));
