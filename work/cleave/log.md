@@ -1204,3 +1204,10 @@ Signed (CLEAVE orchestrator).
   - CLEAVE P1 `a-boolean-builds-a-reflex-edge-lying-inside-a-face`;
   - RESTREAD `census-passes-a-face-inside-an-edges-material-wedge`.
 - 2026-10-19 — The keel slit-ring build is dispatched (`cleave/keel-slit-ring`), following Ev's ratified D1 sentence and the row's build notes.
+- 2026-10-19 — The keel ring is up as PR 5350 (`3b57bbb11b`, gate ok).
+  - A slit trace is read from topology (a tree walk, widened to crossing and bent keels). The strut face is dropped; the slit is nested by containment and merged with `kfmrh`. New `SlitUnplaced` refusal. Volumes 15.7/16; the brief's 12.65 was wrong.
+  - Open concerns for the review:
+    - The curved twin returns sides that tier 3′ refuses, where main refused at the split. Is this a new invalid Ok?
+    - The straight ring fails mesh `NonManifoldEdge`.
+  - Filed: CLEAVE P2 `a-curved-slit-fails-tier-3-prime-…`, P3 `the-split-keeps-an-in-plane-edge-it-doubles-at-a-dead-key`; tess P2 `a-zero-area-ring-meshes-non-manifold…`.
+  - Full review dispatched.
