@@ -868,21 +868,23 @@ fn profile_of(doc: ProfileDoc, steps: LoopProgram<Formula>) -> (ProfileDoc, Reci
     )
 }
 
-/// **A profile junction no constructor made is a row on its profile**
-/// (§11 row 21, at the document). A line meets an arc at a turn
-/// `φ = √ε` the lattice reads as a corner (`sin φ · arm`, far past the
-/// band) and validation's carrier clearance (`r(1 − cos φ) ≈ ε/2`)
-/// reads Zero: the profile builds, its node holds one
-/// `Tangent { aligned: true }` row decided at `ProfileJunction` over
-/// the line's piece and the arc's, and the check reports it unproven,
-/// the two pieces being two constructions. A circle, whose joints its
-/// form constructs, holds none.
+/// **A profile junction the lattice reads as a corner is no row on its
+/// profile** (§11 row 21, at the document). A line meets an arc at a
+/// turn `φ = √ε`: `sin φ · arm`, far past the band, which the lattice
+/// reads as a corner, and so does validation's joint pass, which reads
+/// the same turn (`path_junction_turn`). The profile builds with no
+/// tangent joint, so it carries no `ProfileJunction` row and the check
+/// reports nothing; a circle, whose joints its form constructs, holds
+/// none either. A junction a document's profile could decide tangent
+/// would have to read Zero at validation's arm, which is at least the
+/// lattice's, and the lattice refuses an undeclared Zero junction, so
+/// no document reaches that arm
+/// (`work/coincide/a-profile-junction-row-has-no-reaching-document.md`).
 ///
-/// Red if the junction refuses, or its row is not carried onto the
-/// profile's value (no row), or a constructed joint is recorded (the
-/// circle has one).
+/// Red if the junction refuses, or a row is recorded for it or for the
+/// circle.
 #[test]
-fn a_profile_junction_decided_tangent_is_one_unproven_row_on_its_profile() {
+fn a_profile_junction_the_lattice_reads_as_a_corner_is_no_row() {
     let phi = Tol::witness().eps().sqrt();
     let c = [1.0 - phi.sin(), phi.cos()];
     let doc = ProfileDoc::empty_derived("g_profile_junction", Tol::witness());
@@ -907,55 +909,17 @@ fn a_profile_junction_decided_tangent_is_one_unproven_row_on_its_profile() {
         },
     );
     let ev = run(&doc);
-    let got = rows(&ev, p);
-    assert_eq!(got.len(), 1, "one decided junction: {got:?}");
-    assert_eq!(
-        (got[0].relation, got[0].site),
-        (
-            Relation::Tangent { aligned: true },
-            DecisionSite::ProfileJunction
-        )
+    assert!(
+        rows(&ev, p).is_empty(),
+        "the junction is a corner: {:?}",
+        rows(&ev, p)
     );
-    match &got[0].cells {
-        [
-            NamedCell::Piece {
-                profile: a,
-                piece: line,
-            },
-            NamedCell::Piece {
-                profile: b,
-                piece: arc,
-            },
-        ] => {
-            assert_eq!((*a, *b), (p, p), "both cells are the profile's own pieces");
-            assert_ne!(line, arc, "the arriving and leaving pieces are two");
-        }
-        cells => panic!("a junction's cells are two pieces: {cells:?}"),
-    }
     assert!(
         rows(&ev, circle).is_empty(),
         "a circle's joints are constructed"
     );
     let findings = unproven(&doc, &ev);
-    assert_eq!(findings.len(), 1, "{findings:?}");
-    assert_eq!(findings[0].subject, FindingSubject::Node(p));
-    let CheckEvidence::UnprovenCoincidence { row, recourse, .. } = &findings[0].evidence else {
-        panic!("{:?}", findings[0].evidence)
-    };
-    assert_eq!(**row, got[0]);
-    assert_eq!(
-        *recourse,
-        coincide::Recourse::OneConstruction,
-        "the junction's margin keeps no opaque atom: drawing the two pieces as one \
-         construction would make it hold"
-    );
-    let said = spoken_by(&findings[0], &doc);
-    assert!(
-        said.contains("continues tangent into")
-            && said.contains("a profile junction no constructor made")
-            && said.contains("the two cells are two constructions"),
-        "{said}"
-    );
+    assert!(findings.is_empty(), "{findings:?}");
 }
 
 /// **A same-carrier junction no constructor made is recorded
