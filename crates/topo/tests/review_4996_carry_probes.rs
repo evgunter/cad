@@ -1,6 +1,6 @@
 //! The carry by lineage through an op that keeps a cell's key while
-//! moving its geometry: the cell is reshaped, and a record on it is
-//! confirmed.
+//! moving its geometry: the cell's image no longer holds its geometry,
+//! and a record on it is confirmed.
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
 use crate::common;
@@ -44,9 +44,9 @@ fn point(body: &Body<f64>, c: Cell) -> geom_core::Point3<f64> {
 }
 
 /// **An offset that moves one kissing corner off the kiss consumes the
-/// record.** The offset door keeps every key, and states the cells it
-/// moved reshaped (`Lineage::reshaping`): the moved face, its edges and
-/// corners, and the faces and edges around them. The kiss record on a
+/// record.** The offset door keeps every key and hands its lineage a
+/// snapshot of the input's geometry; the moved face, its edges and
+/// corners, and the faces and edges around them no longer hold it. The kiss record on a
 /// moved corner goes to the census's confirm, reads apart, and is
 /// consumed, as a record on a divided cell with its remainder removed
 /// is. Red on the carry that read the moved corner as kept: the record
