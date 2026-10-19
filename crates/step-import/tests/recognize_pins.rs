@@ -334,7 +334,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
                 panic!("a seam's chart image is the wall's boundary iso line: {stored:?}");
             };
             assert_eq!(pl.x, 0.0, "a seam image holds u constant: {pl:?}");
-            let (du0, du1) = wall.knots_u().domain();
+            let (du0, du1) = wall.knots_u_f64_interim().domain();
             assert!(
                 p0.x == du0 || p0.x == du1,
                 "on the chart's OWN boundary column, not a [0, 1] literal: \
@@ -458,7 +458,7 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
                     _ => None,
                 })
                 .expect("the arc wall stays NURBS at every band");
-            let (du0, du1) = wall.knots_u().domain();
+            let (du0, du1) = wall.knots_u_f64_interim().domain();
             let images: Vec<_> = body
                 .edges()
                 .flat_map(|(_, e)| [e.he_plus, e.he_minus])
@@ -538,11 +538,14 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
         Tol::witness(),
     )
     .expect("the arc prism exports");
-    // #127 is the middle control point of #129, the B-spline carrier
-    // of EDGE_CURVE #130 — the seam this unit certifies.
+    // #121 is the middle control point of #123, the B-spline carrier
+    // of EDGE_CURVE #124 — the seam this unit certifies. (The ids are
+    // emission order: they moved from #127 / #129 / #130 when C6's
+    // sub-arc η made the prism's quarter arc one span, three control
+    // points a row where there were five.)
     let doctored = text.replace(
-        "#127 = CARTESIAN_POINT('', (1.0, 1.0, 1.0));",
-        "#127 = CARTESIAN_POINT('', (1.001, 1.0, 1.0));",
+        "#121 = CARTESIAN_POINT('', (1.0, 1.0, 1.0));",
+        "#121 = CARTESIAN_POINT('', (1.001, 1.0, 1.0));",
     );
     assert_ne!(text, doctored, "the falsifier applied");
 
@@ -551,7 +554,7 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
     else {
         panic!("a carrier displaced 1e-3 m off the locus is NEVER trusted");
     };
-    assert_eq!(id, 130, "the doctored seam, named");
+    assert_eq!(id, 124, "the doctored seam, named");
     let msg = format!("{:?}", attempts);
     let measured = attempts.iter().find_map(|a| match a.refusal {
         topo::EulerOpError::Certification {

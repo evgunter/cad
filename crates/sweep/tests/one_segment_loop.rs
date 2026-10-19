@@ -1216,8 +1216,8 @@ fn a_one_segment_strut_runs_its_column_back_on_the_negated_knots() {
         };
         assert_eq!(c.params(), (-1.0, 0.0), "{z:?}: the strut's interval");
         assert_eq!(
-            carrier.knots().knots(),
-            chart.knots_v().negated().knots(),
+            carrier.knots_f64_interim().knots(),
+            chart.knots_v_f64_interim().negated().knots(),
             "{z:?}: the strut's knots are the column's, negated"
         );
     }

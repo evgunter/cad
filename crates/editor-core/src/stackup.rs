@@ -127,7 +127,7 @@ use std::sync::Arc;
 use geom_core::{Dual64, Readable, Tol};
 use topo::Body;
 
-use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
+use crate::analysis::{AnalyzedBox, MeasureUnavailable, ParamBox};
 use crate::doc::Doc;
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
 use crate::eval::measure::Observed;
@@ -950,9 +950,16 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
                 d.body(b);
             }
         }
-        // 20 is retired (`RETIRED_VALUE_DIGEST_TAGS`).
-        ValuePayload::Mate(_) => d.u64(21),
-        ValuePayload::Gauge => d.u64(26),
+        // 20, 21 and 26 are retired (`RETIRED_VALUE_DIGEST_TAGS`).
+        // The material the table indexes; its copies are the same
+        // material read copy by copy.
+        ValuePayload::Copies(copies) => {
+            d.u64(29);
+            d.u64(copies.bodies.len() as u64);
+            for b in &copies.bodies {
+                d.body(b);
+            }
+        }
         ValuePayload::Measure { value, .. } => {
             d.u64(22);
             d.scalar(*value);
@@ -987,7 +994,8 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
 /// The tag numbers [`payload_digest`]'s arms may not use: retired with
 /// the payloads that held them, and dead for good.
 #[cfg(test)]
-const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[(20, "Declarations")];
+const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] =
+    &[(20, "Declarations"), (21, "Mate"), (26, "Gauge")];
 
 // ------------------------------------------------- the verdict's tie
 
@@ -1915,15 +1923,10 @@ fn worst_case(
     // Read-only and shared, so the parallel schedule sees exactly what
     // the sequential one does; the memo serves bit-equal inputs only,
     // so the hull is the same with or without it.
-    let nominal_box = ParamBox::from_axes_in(
-        verdict
-            .root()
-            .axes()
-            .keys()
-            .map(|n| (*n, BoxAxis::Fixed))
-            .collect(),
-        verdict.root().order(),
-    );
+    // The root collapsed to the nominal (`ParamBox::at_nominal`): it
+    // varies the leaves' axes, so its profile lift is theirs (guided) and
+    // a node outside every axis's cone keys alike in prior and leaf.
+    let nominal_box = verdict.root().at_nominal();
     // The hull runs on the lane the drive ran on
     // (`ParamBoxVerdict::symbolic`), for the tie's reason: a leaf the
     // symbolic tier certified may carry a node a numeric-only replay

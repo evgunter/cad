@@ -186,28 +186,21 @@ fn a_disc_on_its_hosts_plane_refuses_as_not_maximal() {
 
 /// **(c)**: a circle that spans less than the band still leaves the
 /// orientation undecided: a disc whose diameter lies in the middle of
-/// the run's ambiguity band. The refusal is
-/// the gate's orientation rung, with its lever and no tolerance. No
-/// public door reaches it: the at-rest gate's own dihedral read on a
-/// circle that short is undecided too, so the body does not finish
-/// (asserted), and the row asks the gate itself
-/// (`test_support::maximal_faces_gate`).
+/// the run's ambiguity band. The refusal is the gate's orientation
+/// rung, with its lever and no tolerance, and the public door reaches
+/// it: the at-rest gate reads the circle's dihedral at its faces'
+/// extent, the 1 m top's, so the body finishes (asserted).
 #[test]
 fn an_edge_spanning_less_than_the_band_still_refuses_undecided() {
-    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
     let diameter = (band.zero() + band.escalate()) / 2.0;
     let (body, top, _) = disc_in_top(1.0, diameter / 2.0);
-    let (rested, circle) = circle_at_rest(&body, top, 1.0, diameter / 2.0);
-    let errors = topo::AtRestBody::validate(rested.clone(), Tol::witness())
-        .expect_err("a circle that short does not finish");
-    assert!(
-        matches!(
-            errors[..],
-            [topo::ValidationError::SliverDihedral { edge, .. }] if edge == circle
-        ),
-        "the at-rest gate's own dihedral read on the circle is undecided: {errors:?}"
-    );
-    let err = common::maximal_faces_gate(&rested, Operand::A, Tol::witness())
+    let (rested, _) = circle_at_rest(&body, top, 1.0, diameter / 2.0);
+    let rested = topo::AtRestBody::validate(rested, tol)
+        .expect("the circle's dihedral reads smooth at the top's extent");
+    let far = common::brick::<f64>((10.0, 11.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let err = topo::union(&rested, &common::finished("the far brick", far, tol), tol)
         .expect_err("the gate refuses the pair");
     let BooleanError::Escalated {
         decision: BooleanDecision::Neighbours(PlaneRung::Orientation),

@@ -71,9 +71,7 @@ fn close(got: f64, want: f64, what: &str) {
 }
 
 fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(d, e, Tol::witness(), &editor_core::RefusingReach)
-        .expect("edit applies")
-        .doc
+    apply(d, e, Tol::witness()).expect("edit applies").doc
 }
 
 /// The frame a tube on the spine axis `axis` with reference `u_ref`
@@ -742,7 +740,6 @@ fn a_tube_reading_no_frame_refuses_at_the_door() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     match refused {
         Err(editor_core::EditError::SlotVarKind {
@@ -777,11 +774,10 @@ fn both_kinds_mint_a_total_name_table_through_the_revolve_emitter() {
         let ev = eval::<f64>(&d.doc);
         assert!(failures(&ev).is_empty(), "{what}: {:?}", failures(&ev));
         let id = d.result.expect("a result node");
-        let value = ev.value(id).expect("a value");
         let body = body_of(&ev, id);
         let entities = body.faces().count() + body.edges().count() + body.vertices().count() + 1;
         assert_eq!(
-            value.name_table.len(),
+            ev.table_at(id).expect("a table").len(),
             entities,
             "{what}: every face, edge and vertex plus the body itself is named — an \
              emitter that skipped one would leave a silent naming dead end"
@@ -859,55 +855,33 @@ fn both_kinds_round_trip_through_persistence() {
 }
 
 /// **A document that never names the two kinds loads.** The
-/// additive-growth direction of the one door, on real bytes the tour
-/// writes rather than bytes built here: `corpus/tour/die_composed_tour.pncad`
-/// names neither kind.
-///
-/// ε is re-stamped to the process's before the load, because a saved
-/// document records the ε it was decided at and `load` refuses a
-/// mismatch (`ToleranceConflict`) — without the re-stamp this row
-/// would pass vacuously on every CI ε row but one, asserting the
-/// tolerance door rather than the vocabulary one.
+/// additive-growth direction of the one door: a document whose recipe
+/// predates the tube vocabulary — the die tool's, a revolve placed in
+/// copies — saved in today's format and read back through the same
+/// load door a tube document goes through, with its log replayed.
 #[test]
 fn a_document_written_before_the_tube_vocabulary_still_loads() {
-    const OLDER: &str = include_str!("corpus/tour/die_composed_tour.pncad");
+    let older = corpus::die_tool::document();
+    let empty = ProfileDoc::empty_derived("lib-tube-older", Tol::witness());
+    let mut expected = empty.clone();
+    for edit in &older.edits {
+        expected = editor_core::apply_replayed(&expected, edit, Tol::witness())
+            .expect("a corpus edit applies")
+            .doc;
+    }
+    let text = save(&empty, &older.edits, Tol::witness()).expect("the older document saves");
     assert!(
-        !OLDER.contains("\"Tube\"") && !OLDER.contains("\"HollowTube\""),
+        !text.contains("\"Tube\"") && !text.contains("\"HollowTube\""),
         "the fixture must predate the tube vocabulary to say anything here"
     );
-    let probe = save(
-        &ProfileDoc::empty_derived("lib-tube-eps-probe", Tol::witness()),
-        &[],
-        Tol::witness(),
-    )
-    .expect("an empty document saves");
-    let wanted = probe
-        .lines()
-        .map(str::trim_start)
-        .find(|l| l.starts_with("\"epsilon\":"))
-        .expect("a saved document records its ε")
-        .trim_end_matches(',');
-    let text: String = OLDER
-        .lines()
-        .map(|l| {
-            if l.trim_start().starts_with("\"epsilon\":") {
-                let (indent, tail) = l.split_at(l.len() - l.trim_start().len());
-                let comma = if tail.trim_end().ends_with(',') {
-                    ","
-                } else {
-                    ""
-                };
-                format!("{indent}{wanted}{comma}")
-            } else {
-                l.to_owned()
-            }
-        })
-        .collect::<Vec<String>>()
-        .join("\n");
     let loaded = load(&text, Tol::witness()).expect("an older document loads");
     assert!(
-        !loaded.doc.ids().is_empty() || !loaded.edits.is_empty(),
+        !loaded.doc.ids().is_empty() && !loaded.edits.is_empty(),
         "a vacuous document would prove nothing about growth"
+    );
+    assert!(
+        loaded.doc.bit_eq(&expected),
+        "the older document replays to itself"
     );
     assert!(
         loaded.doc.ids().iter().all(|&id| !matches!(
@@ -929,7 +903,7 @@ fn bumping_the_wall_moves_the_stored_inner_radius() {
     let after = hollow_tube_elbow::inner(hollow_tube_elbow::WALL_BUMPED);
     assert_ne!(before.to_bits(), after.to_bits());
 
-    let bumped = apply(&d.doc, &d.bump, Tol::witness(), &editor_core::RefusingReach)
+    let bumped = apply(&d.doc, &d.bump, Tol::witness())
         .expect("the bump applies")
         .doc;
     let ev = eval::<f64>(&bumped);

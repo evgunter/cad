@@ -1,12 +1,13 @@
 ---
 id: the-pinned-profile-lift-launders-at-sym
 kind: issue
-title: The loft's enclosure arm re-enters its sections' f64 canonical form as constants (ValidatedProfile::lift_onto), the last half of the pinned profile lift's laundering at Sym
-status: open
+title: The pinned profile lift enters profile geometry as constants at Sym, and the re-valuation rows run it, so profile's generic code never reaches them
+status: closed
 opened: 2026-10-10
 priority: P2
 cost: M
 refs: [the-from-f64-gate-reads-every-generic-crate]
+closed: 2026-10-17
 ---
 
 `ProfileLift::Pinned`, the `EvalOptions` default (`eval/mod.rs`), lifts the
@@ -48,60 +49,44 @@ launders the way an extrude does. A `Dual` seed on a parameter a
 section reads gives a zero derivative where main refused typed
 (`SeedPinnedSection`, retired), and a box over a section lofts the
 nominal. Under the guided lift both are correct: the seed rides to the
-walls, and the box refuses `SectionNotAPoint`
+walls, and the box lofts the family it spans
 (`crates/editor-core/tests/eval10_section_reads_the_nominal.rs`).
 
 
-## The plane's half of the lift moved door (2026-10-14, PATHS' `the-sketch-plane-is-its-frame`)
+## Closed
 
-The pinned lift's sketch plane no longer crosses by
-`placement.map(T::from_f64)` in `eval/wire.rs`: the plane is a frame,
-and it crosses through `SketchPlane::embed` (`RigidMotion::embed`,
-`from_f64` per component). So the `from-f64-sites.tsv` entry that
-tracks this row moved from `crates/editor-core/src/eval/wire.rs` to
-`crates/geom-core/src/linalg/rigid_motion.rs`, under the same owed
-class; the loops' half is unchanged (`ValidatedProfile::lift_onto`).
-`RigidMotion::embed_computed` (`from_computed`) is the frame's door for
-a computed frame, if this row decides the pinned plane is one.
+Closed by ruling A of the INLANE orchestrator: the evaluator derives the lift, and `ProfileLift` leaves `EvalOptions`.
 
+**The lift.** `EvalOptions::profile_lift_over(env)` reads it off what the evaluation binds, and the evaluator takes exactly that:
+- **Guided** when the evaluation's box varies an axis (`[0, 0]` included), it carries a seed, it binds every variable a symbol, or its environment binds any variable as a parameter symbol: an ANALYSIS. `EvalOptions::profile_lift()` is the options' half of this.
+- **Pinned** otherwise, at any scalar: the build.
 
-## Narrowed: the pinned lift is gone (2026-10-14, Ev's ruling A on #5068)
+The rule reads what the environment binds. An empty or all-`Fixed` box holds every variable it names at its nominal: at every numeric scalar it is the build, and an unused box seam changes no decision. At `Sym`, a `Fixed` axis binds a CONSTANT (`analysis::var_env_over` sends only a VARYING axis through the identified door), the INLANE orchestrator's option (d), adopted after PR 5248's review found the all-`Fixed` box laundering at `Sym`. A toleranced variable the box does not name stays its id's symbol there (VR8). The environment records whether it binds any symbol (`VarEnv::binds_symbols`), and one that does is guided whatever the box's shape. A consumer that wants the nominal as a symbol asks for it with `Varying { lo: 0, hi: 0 }` (`ParamBox::at_nominal`) or with `symbols`. The M10 harness's `nominal_box`, stackup's worst-case hull prior and the M10.7 evidence probes are restated that way.
 
-Ev ruled that `ProfileLift` retires: every evaluation elaborates profile
-geometry at its own scalar, guided by the `f64` pass's record, and the
-`f64` lane takes the first pass's validated form through a sealed
-per-scalar fact (`editor_core::ProfileLane`), so no lane enters the
-`f64` elaboration through `from_f64`. A frame crosses no scalar upward:
-`RigidMotion::embed`/`embed_computed` and `SketchPlane::embed` are gone,
-and the plane is minted at the lane (`frame_plane_lane`). Built on
-PATHS' `the-sketch-plane-is-its-frame` (#5068).
+**Where analyses meet the build:**
+- `ParamBox::at_nominal()` (every varying axis spanning `[0, 0]`) makes three evaluations read the document as their leaves do:
+  - the drive's witness;
+  - Monte Carlo's nominal build;
+  - stackup's unseeded base.
+- A part runs at its own nominal, so it is pinned under an analysis.
+- The coincidence door and the revalue instrument share one replay session (PR 5247), whose replays are guided: they bind every variable a symbol or vary a box.
 
-What that closes here:
+**What else changed with the field:**
+- PP6 (`crates/editor-core/README.md`) says the evaluator chooses.
+- The Python surface loses the field.
+- The two `from-f64-sites.tsv` sites that were `launders(...)` are `constant`: the build's `f64` elaboration, run only where every variable is bound at its nominal.
 
-- **The plane's half**: closed. The `from-f64-sites.tsv` entry for
-  `crates/geom-core/src/linalg/rigid_motion.rs` is gone with the door.
-- **The evaluator's loops half**: closed. editor-core no longer calls
-  `ValidatedProfile::lift_onto`; the `f64` lane takes the first pass's
-  form at the same scalar (`ValidatedProfile::on_plane`), crossing
-  nothing.
-- **"The pinned lift refuses, or is not offered, at an analysis
-  scalar"**: done, by not existing.
-- **"The gating rows and the census run Guided"**: done, because the
-  default IS the lane's elaboration. `revalue_corpus` and the rows this
-  file named (`pinned_lift_validates_once`, now
-  `f64_lane_validates_once`; the `m10_*_interval` rows;
-  `e6_drive_over_a_loft_at_interval`'s pinned half) run Guided; what
-  moved is in #5068's body under "Ruling applied".
+**What the guided reading turned up** (each filed, each row naming its item):
+- The revalue rows' findings: PR 5247's three items.
+- `work/carve/the-guided-derived-frame-extrude-escalates-as-a-kernel-defect.md`.
 
-What remains, and is now this row's whole subject:
-`ValidatedProfile::lift_onto` keeps one production consumer, sweep's
-loft at an enclosure scalar (`crates/sweep/src/loft.rs`, the
-`enclosure` arm): it lifts the `f64` canonical form of its sections'
-value channel onto its lane planes through `from_f64`. At
-`Sym<Interval>` that canonical form is a function of the variables, so
-it launders exactly as the pinned lift did, for a loft. The
-`from-f64-sites.tsv` entry for `crates/profile/src/validate.rs` (four
-sites) stays owed to this row, its reason re-pointed at the loft. The
-fix this row owes: the enclosure arm reads its sections at the lane
-(as its planes already are), or enters the canonical form through
-`Real::from_computed` (`ConstructedLoop::lift_computed`'s convention).
+## After Ev's ruling A on #5068 (2026-10-14, merged 2026-10-19)
+
+Ev ruled that the pinned lift retires outright: every evaluation elaborates
+profile geometry at its own scalar, guided by the `f64` record, and the `f64`
+lane over the nominal takes the first pass's validated form internally
+(`editor_core::ProfileLane`). The derived lift above (`profile_lift_over`) left
+with it, and so did the frame's way up (`RigidMotion::embed`), so no evaluator
+site enters the `f64` elaboration through `from_f64`. The one residue,
+`ValidatedProfile::lift_onto` in sweep's loft at an enclosure scalar, is filed
+as `the-loft-enclosure-arm-re-enters-its-sections-canonical-form-as-constants`.

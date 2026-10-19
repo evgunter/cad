@@ -987,6 +987,39 @@ They pool with nothing: the region is read by the point-in-solid door
 at points on a sphere, a population apart from the planar walk's and
 the boolean's boundary pre-pass's.
 
+**Roster change (RESTREAD): a torus face's region.** Seventeen names from
+`topo/src/boolean/torus_region.rs`, which replaces the torus chart
+windows: `bool_torus_trim`, `bool_torus_trim_major_period`,
+`bool_torus_trim_minor_period`, `bool_torus_chart_affine`,
+`bool_torus_chart_box` and `bool_torus_chart_closure` leave the roster,
+and `bool_torus_frame_radius` moves into the region. Seven are its paths'
+bare literals, four a `FirstHarmonicRows` value (`ROOT_ROWS`), two a
+`ConicRows` value (`BOUNDARY`) and four a `SpiricRows` value (`SPIRIC`)
+for its boundary pre-pass:
+
+| name | carrier |
+|---|---|
+| `bool_torus_region_component` | a bare literal: which of a plane's two curves a root lies on, in metres (a meridian plane's `(y − c)·ρ̂`, a parallel plane's `ρ − R` against the edge's decided side, a circle's distance from its mirror and from itself, an oval's `(y − c)·m`); and whether an edge in a leg's plane is on the leg's own circle (a meridian's centre against the leg's `ρ̂`, a parallel's radius less the leg's) |
+| `bool_torus_region_family` | a bare literal: whether a circle edge is a parallel (the sine between its axis and the torus's, at its radius) off the top and bottom circles (`ρ − R`, metres): a class selection between two readings, each sound |
+| `bool_torus_region_span` | a bare literal: a root's parameter against its edge's span ends, at the circle's radius or the tube's |
+| `bool_torus_region_at` | a bare literal: a crossing's place along its leg from the leg's start, at the leg's radius |
+| `bool_torus_region_corner` | a bare literal: a first leg's crossing, or an end of an edge on its circle, against its corner |
+| `bool_torus_region_order` | a bare literal: two crossings' places along the path |
+| `bool_torus_region_cross` | a bare literal: the leg's heading against the face side at the closest crossing, at the tube's radius |
+| `bool_torus_region_roots_noise` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_torus_region_roots_coaxial` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_torus_region_roots_extreme` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_torus_region_roots_slack` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_torus_region_arc_span` | `ConicRows` field (`BOUNDARY`): a circle edge's gap to a whole turn |
+| `bool_torus_region_arc_straddle` | `ConicRows` field (`BOUNDARY`): an ellipse's straddle; a circle never mints it, and it never reaches the funnel |
+| `bool_torus_region_spiric_end` | `SpiricRows` field (`SPIRIC`): the distance to either end of an oval arc |
+| `bool_torus_region_spiric_clear` | `SpiricRows` field (`SPIRIC`): a piece's ball's clearance from the point |
+| `bool_torus_region_spiric_on` | `SpiricRows` field (`SPIRIC`): the distance to a point of the arc |
+| `bool_torus_region_spiric_leaf` | `SpiricRows` field (`SPIRIC`): a piece's ball's radius |
+
+They pool with nothing: the region is read by the point doors at points
+on a torus.
+
 **Roster addition (TRIM-2 PR-1): the trim piece's monotonicity.** ONE
 name, carried by a bare literal at its `decide` site (blind spot #1 of
 the crate scan — the same carrier shape `chart_bound_gap` has):
@@ -1058,7 +1091,6 @@ the value). The names that reach the funnel through them today:
 | `sketch_plane_frame_norm` | `crates/pncad-py/src/py/doc.rs`, the binding's own | no — the binding is not in the sweep's roster |
 | `mate_axes_parallel` | `crates/editor-core/src/mate/coset.rs`'s `parallel`, a name the mate solve already recorded by a bare `decide` | as before — the mate solve is not in the sweep's roster; see the MSOLVE-8 paragraph below |
 | `mate_coset_inverse` | `crates/editor-core/src/mate/solve.rs`'s `invert`, the solve's own | no — the mate solve is not in the sweep's roster |
-| `mate_residual_quote` | `crates/editor-core/src/mate/solve.rs`'s `quoted_residual`, the solve's own: an UNDER refusal's residual quoted at `f64` on an analysis lane, each direction re-minted | no — the mate solve is not in the sweep's roster, and the `f64` lane names its residual without re-minting it |
 | `mate_frame_offset_axis` | `crates/editor-core/src/mate/solve.rs`'s `compose_offset`: a mate side's axis re-minted from the frame its base and offset compose, once per side whose offset is not the identity — every authored side, which is the part base with one literal step | no — the mate solve is not in the sweep's roster |
 | `fixture_mate_axis` | `crates/editor-core/tests/fixture/mod.rs`, a const the mate suites own | no — a test-owned name, as `fixture_frame_axis` |
 | `pncad_py_test_normal` | `crates/pncad-py/src/tests.rs`, the bindings' own arm table | no — a test-owned name |
@@ -2033,10 +2065,9 @@ axis output and decides the lifted 3-D vector under `datum_unit_norm`
 (`wire/pose.rs`'s `datum_unit(u * dir.x + v * dir.y, …)`), while
 `sweep`'s revolve takes the
 UNLIFTED sketch pair and decides it again under
-`revolve_axis_direction` (`revolve/axis.rs`) — same authored numbers,
-two names, because the frame's axes are orthonormal and
-`|lift(d)| = |d|`. `Revolve`'s field doc says why it carries both
-spellings. So "one length, two funnel names, split by road" is a
+`revolve_axis_direction` (`revolve/axis.rs`) — one authored heading,
+its `(cos h, sin h)` decided under two names, because the frame's axes
+are orthonormal and `|lift(d)| = |d|`. So "one length, two funnel names, split by road" is a
 SHAPE in this workspace rather than a one-off, and the ruling below is
 about which layer names a decision, not about ever having only one
 name for a value.
@@ -3120,7 +3151,7 @@ for this addendum, so no population count is claimed.
   nothing.
 - **`sweep_path_turn` is added**, decided inside
   `RigidMotion::turned_between` through `decide_flagged` under ledger
-  row F21 (`docs/predicate-dimension-audit.md`): the divisor
+  row F22 (`docs/predicate-dimension-audit.md`): the divisor
   `1 + t₀·tᵢ` of the minimal rotation carrying the start tangent onto
   station `i`'s, dimensionless against the linear band, evaluated as
   `|t₀ + tᵢ|²/2` so that it holds to a few ulps relative to its own
@@ -3135,3 +3166,26 @@ The evaluation layer's `datum_unit_norm` under `DATUM_AXIS_ROLE`
 (`editor-core`'s axis port, `eval/wire/pose.rs`) is asked once per
 axis read instead of twice: the sketch direction is decided, and the
 placed one is the frame's turn of it.
+
+## RESTREAD addendum (2026-10-18): the crossing lane's two-bound readings
+
+The census crossing lane decides each reach and the lines' gap off an
+enclosure, so a pair sharing no point key records two decides where it
+recorded one (`census::enclosure_reading`). Measured at ε = 1e-12 with
+the Band 4 corpus and the tour scenes, main against the branch:
+`pm_census_ee_span` 2 361 → 4 722 samples and `pm_census_ee_gap` 14 → 28,
+nothing else moving. `pm_census_ee_span`'s largest zero-classified |m|
+rose from 4.44089e-16 to 3.06422e-15 (both on demo/az), the upper bound
+carrying its rounding charge; that is under M7's 5.32907e-15 and 3.3×
+under `band_zero/100`. Rule 1's rows are the same on both sides (41
+`chart_bound_outer_span` invalid, 2 `props_quad_converged` in band), and
+the population's zero-side ceiling, on both, is
+`bool_circle_torus_root_slack` at 3.14912e-13 (demo/lily_walls), which
+no census name approaches
+(`work/germ/circle-torus-root-slack-crowds-the-zero-band-at-1e-12.md`;
+the invalid rows are `work/chart/chart-bound-outer-span-decides-a-poisoned-margin.md`).
+The full lint fails at the branch on definite-arm flags, none a census
+name and so the same at main (`curve_pair_pose_parallel`, `curve_pair_pose_clear`,
+`curve_pair_pose_travel` on demo/projectbox_cutaway, `bool_pair_gap` on
+demo/tiltedcut), and the nightly's sweep stops before it in the
+plain-suite prelude, so these figures are a local reading.

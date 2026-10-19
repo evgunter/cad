@@ -380,8 +380,8 @@ fn the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll() {
     for (j, wall) in other.walls[0].iter().enumerate() {
         let want = &base.walls[0][(j + n - 1) % n];
         assert!(
-            wall.knots_u().knots() == want.knots_u().knots()
-                && wall.knots_v().knots() == want.knots_v().knots()
+            wall.knots_u_f64_interim().knots() == want.knots_u_f64_interim().knots()
+                && wall.knots_v_f64_interim().knots() == want.knots_v_f64_interim().knots()
                 && wall.weights() == want.weights()
                 && wall
                     .control()

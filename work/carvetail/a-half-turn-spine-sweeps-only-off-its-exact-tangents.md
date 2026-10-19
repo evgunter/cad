@@ -73,7 +73,7 @@ the half-turn build as intended behaviour rather than as a knife edge.
 
 `sweep_places` turns the start frame by `RigidMotion::turned_between`
 and decides its divisor `1 + t₀·tᵢ` under the band (`sweep_path_turn`,
-ledger row F21) instead of testing `sin > 0.0` exactly. The scene's
+ledger row F22) instead of testing `sin > 0.0` exactly. The scene's
 interpolant (|u₀ × u₁| ≈ 3.1e-11) now decides that divisor zero and
 refuses `PathTangentReversal` at its last station, as the exact spine
 does; `review_m5_pr10`'s knife-edge row became

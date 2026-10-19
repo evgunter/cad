@@ -45,8 +45,8 @@ fn poly(pts: &[(f64, f64)], start: usize, reversed: bool) -> ProfileLoop<f64> {
 }
 
 fn same_bits(a: &NurbsSurface<f64>, b: &NurbsSurface<f64>) -> bool {
-    a.knots_u().knots() == b.knots_u().knots()
-        && a.knots_v().knots() == b.knots_v().knots()
+    a.knots_u_f64_interim().knots() == b.knots_u_f64_interim().knots()
+        && a.knots_v_f64_interim().knots() == b.knots_v_f64_interim().knots()
         && a.weights() == b.weights()
         && a.control().len() == b.control().len()
         && a.control()

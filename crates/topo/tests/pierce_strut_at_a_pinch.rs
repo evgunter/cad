@@ -18,6 +18,11 @@
 //!   above π at the pinch;
 //! - the pinch standing on a face: its two lower vertices land on the
 //!   face at one point, each minting a ring there.
+//!
+//! In the bare pinch and the reflex corner, `B − pinch` keeps the pinch
+//! line inside `B`, where the complement of the pinch's two wedges pairs
+//! its sheets across the two solids. ∖ does not build that re-pairing,
+//! so those two rows refuse `BooleanError::Revert`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -25,8 +30,8 @@ use crate::common;
 use common::{brick, finished};
 use geom_core::Tol;
 use topo::{
-    AtRestBody, Body, BooleanResult, intersect, subtract, union, validate_geometric,
-    validate_pseudomanifold,
+    AtRestBody, Body, BooleanError, BooleanResult, Operand, intersect, subtract, union,
+    validate_geometric, validate_pseudomanifold,
 };
 
 /// An op on the pair.
@@ -64,6 +69,21 @@ fn keyed_pinch(r: BooleanResult<f64>) -> AtRestBody<f64> {
 
 fn t() -> Tol {
     Tol::witness()
+}
+
+/// `b − pinch` refuses the pinch's revert (module docs).
+fn b_less_pinch_refuses(label: &str, b: &AtRestBody<f64>, pinch: &AtRestBody<f64>) {
+    let got = subtract(b, pinch, t());
+    assert!(
+        matches!(
+            got,
+            Err(BooleanError::Revert {
+                operand: Operand::B,
+                ..
+            })
+        ),
+        "{label}: B − pinch: {got:?}, not the revert's refusal"
+    );
 }
 
 type Point = (i64, i64, i64);
@@ -283,7 +303,7 @@ fn a_pinch_through_a_face_builds_in_every_op() {
     let b = block((-0.5, 0.5), (-0.5, 0.5), (0.0, 1.0));
     // B holds a quarter of each brick's lower half.
     let both = 2.0 * 0.25 * 0.5;
-    let rows: [Row; 6] = [
+    let rows: [Row; 5] = [
         (
             "pinch ∪ B",
             Kind::Union,
@@ -316,17 +336,10 @@ fn a_pinch_through_a_face_builds_in_every_op() {
             2.0 + 1.0 - both,
             true,
         ),
-        (
-            "B − pinch",
-            Kind::Subtract,
-            true,
-            [13, 30, 19],
-            1.0 - both,
-            true,
-        ),
         ("B ∩ pinch", Kind::Intersect, true, [12, 24, 16], both, true),
     ];
     every_op("pinch", &pinch, &b, &rows);
+    b_less_pinch_refuses("pinch", &b, &pinch);
 }
 
 /// **A wedge in an L's reflex corner, against a face their shared line
@@ -362,7 +375,7 @@ fn a_wedge_in_a_reflex_corner_through_a_face_builds_in_every_op() {
     // B holds three quarters of its top's square of the L and all of the
     // wedge, over z ∈ [0.5, 1].
     let both = (0.75 + wedge_area) * 0.5;
-    let rows: [Row; 6] = [
+    let rows: [Row; 5] = [
         (
             "pinch ∪ B",
             Kind::Union,
@@ -395,17 +408,10 @@ fn a_wedge_in_a_reflex_corner_through_a_face_builds_in_every_op() {
             pinch_volume + 1.0 - both,
             true,
         ),
-        (
-            "B − pinch",
-            Kind::Subtract,
-            true,
-            [13, 30, 19],
-            1.0 - both,
-            true,
-        ),
         ("B ∩ pinch", Kind::Intersect, true, [13, 27, 18], both, true),
     ];
     every_op("reflex", &pinch, &b, &rows);
+    b_less_pinch_refuses("reflex", &b, &pinch);
 }
 
 /// **A pinch standing on a face, every op both ways round.** The two

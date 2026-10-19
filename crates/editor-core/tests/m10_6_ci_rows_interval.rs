@@ -53,7 +53,7 @@ use crate::corpus;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
-use editor_core::analysis::{AnalysisPolicy, analyzed_box};
+use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_vector, drive};
 use editor_core::report::{MassBasis, MassBudget};
 use editor_core::{
@@ -814,8 +814,9 @@ fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
         let ev = editor_core::evaluate::<f64>(
             d,
             None,
-            &editor_core::CancelToken::new(),
-            &EvalOptions::default(),
+            &CancelToken::new(),
+            // The witness's own options, as the drive builds them.
+            &editor_core::drive::witness_options(&analyzed_box(d, &AnalysisPolicy::default())),
             Tol::witness(),
         );
         let full = VerdictVector::of(&ev);

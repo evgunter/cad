@@ -14,7 +14,7 @@ use crate::fixture::{insert, len, on_frame, step};
 use editor_core::{
     Axis3, CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation,
     ExtrudeSide, Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId,
-    StableName, evaluate, resolve_with_prior,
+    StableName, evaluate,
 };
 use geom_core::Tol;
 
@@ -110,9 +110,8 @@ fn failed<'a>(res: &'a Resolution, what: &str) -> &'a editor_core::ResolutionFai
 /// The vertex rows of `node` that cite a line by a `Crossing`, with the
 /// line each cites.
 fn crossings(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<(StableName, StableName)> {
-    ev.value(node)
+    ev.table_at(node)
         .expect("the node evaluates")
-        .name_table
         .iter()
         .filter_map(|(n, _)| match n.path.first() {
             Some(RoleSeg::Crossing { edge, .. }) => Some((n.clone(), (**edge).clone())),
@@ -150,7 +149,7 @@ fn a_cascades_through_line_resolved_on_its_own_reads_the_lines_inside_it() {
         doc: &doc2,
         eval: &ev2,
     };
-    let res = resolve_with_prior(now, prior, &crossing);
+    let res = crate::fixture::resolve_with_prior_at_mint(now, prior, &crossing);
     let f = failed(&res, "the crossing");
     let ResolveError::Vanished { diagnosis, .. } = &f.error else {
         panic!("the crossing vanished: {:?}", f.error);
@@ -162,7 +161,7 @@ fn a_cascades_through_line_resolved_on_its_own_reads_the_lines_inside_it() {
         },
         "the crossing vanished through the line at M"
     );
-    let res = resolve_with_prior(now, prior, &line);
+    let res = crate::fixture::resolve_with_prior_at_mint(now, prior, &line);
     let f = failed(&res, "the line");
     let ResolveError::Vanished {
         diagnosis,
@@ -200,8 +199,8 @@ fn a_vanished_piece_is_offered_the_pieces_of_its_line() {
     let ev1 = run(&doc, None);
     let ev2 = run(&doc2, Some(&ev1));
     let (t1, t2) = (
-        &ev1.value(n).expect("the slot's cut evaluates").name_table,
-        &ev2.value(n).expect("the slot's cut evaluates").name_table,
+        ev1.table_at(n).expect("the slot's cut evaluates"),
+        ev2.table_at(n).expect("the slot's cut evaluates"),
     );
     let halves: Vec<StableName> = t1
         .iter()
@@ -250,7 +249,7 @@ fn a_vanished_piece_is_offered_the_pieces_of_its_line() {
         "the notch's two pieces pass through whole: {survivors:?}"
     );
     for half in &halves {
-        let res = resolve_with_prior(
+        let res = crate::fixture::resolve_with_prior_at_mint(
             RunCtx {
                 doc: &doc2,
                 eval: &ev2,
@@ -293,7 +292,7 @@ fn a_union_reads_a_cited_member_line_by_its_rows() {
         "the union evaluates: {:?}",
         crate::blocks::failure(&ev, u)
     );
-    let bar_rows = &ev.value(notched).unwrap().name_table;
+    let bar_rows = ev.table_at(notched).unwrap();
     let bar_read = crate::fixture::out(&doc, notched);
     let cited: Vec<StableName> = crossings(&ev, u)
         .into_iter()

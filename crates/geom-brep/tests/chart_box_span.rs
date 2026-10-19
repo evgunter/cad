@@ -17,12 +17,7 @@ type Coeffs = ([f64; 2], [f64; 2], [f64; 2], [f64; 2]);
 fn pcurve<T: Real>(c: &Coeffs) -> Pcurve<T> {
     let f = T::from_f64;
     let v = |x: [f64; 2]| Vec2::new(f(x[0]), f(x[1]));
-    Pcurve::Harmonic {
-        p0: Point2::new(f(c.0[0]), f(c.0[1])),
-        pa: v(c.1),
-        pb: v(c.2),
-        pl: v(c.3),
-    }
+    Pcurve::free_harmonic(Point2::new(f(c.0[0]), f(c.0[1])), v(c.1), v(c.2), v(c.3))
 }
 
 /// One image and span. Each channel independently carries a linear

@@ -93,7 +93,7 @@ use crate::tolerance::Tol;
 pub enum SymRegistration {
     /// Recorded: from here on the two nodes denote one function of the
     /// parameters in this session's EARLY normal form, and a decision
-    /// that rests on the record is counted [`crate::SymCounts::registered`].
+    /// that rests on the record is counted `crate::SymCounts::registered`.
     Recorded,
     /// Already recorded — the same two nodes, or two nodes the registry
     /// already resolves to one. Idempotent, and cheap: nothing is

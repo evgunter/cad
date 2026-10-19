@@ -1,18 +1,14 @@
 //! **The E6 drive over a loft at `Interval`, with the box elsewhere.**
-//! A loft whose sections read no boxed parameter certifies when every
-//! section value is a point (polygons on an unrotated frame), and
-//! bisects to its leaf budget when one is a few ulps wide with no box
-//! at all: an arc's sweep, or the plane of a rotated authored frame.
-//! The loft refuses `SectionNotAPoint` / `PlacementNotAPoint` at every
-//! leaf, which a smaller box cannot lift, and the drive has no terminal
-//! class for it.
-//!
-//! Measured against the merge base of PR 4741 with the same documents:
-//! main certified none of the three, refusing each in one leaf as a
-//! `FlipCrossing` on a predicate-count divergence at the loft (no
-//! verdict flipped). Both refusing rows wait on
-//! `work/inlane/the-skin-at-interval-encloses-the-nominal-skin.md`,
-//! and move the day it lands.
+//! A loft whose sections read no boxed parameter certifies in one leaf
+//! when its sections are polygons, on an unrotated frame (every value a
+//! point) or a rotated one (the plane a few ulps wide, which the loft
+//! skins at the lane scalar). An arc section is a few ulps wide with no
+//! box at all, and an arc's weight is no point at `Interval`: its sweep
+//! is certified (a full turn, four sub-arcs) and the carrier's door
+//! refuses the weight (`SplineError::CarrierWeightNotAPoint`, C6's
+//! interim until S4/S5) at every leaf, which a smaller box cannot lift,
+//! and the drive bisects to its leaf budget
+//! (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -131,9 +127,8 @@ fn assert_bisected_to_budget(label: &str, (receipt, reasons): (Receipt, Vec<Refu
     );
 }
 
-#[test]
-fn a_point_polygon_loft_certifies_under_a_box_elsewhere() {
-    let (receipt, reasons) = drive_loft(|| rect(len(1.0)), [1.0, 0.0, 0.0]);
+/// One leaf certifies, nothing splits.
+fn assert_certified_in_one_leaf(label: &str, (receipt, reasons): (Receipt, Vec<RefusalReason>)) {
     assert_eq!(
         receipt,
         Receipt {
@@ -141,9 +136,14 @@ fn a_point_polygon_loft_certifies_under_a_box_elsewhere() {
             refused: 0,
             splits: 0
         },
-        "{:?}",
+        "{label}: {:?}",
         reasons.first()
     );
+}
+
+#[test]
+fn a_point_polygon_loft_certifies_under_a_box_elsewhere() {
+    assert_certified_in_one_leaf("point", drive_loft(|| rect(len(1.0)), [1.0, 0.0, 0.0]));
 }
 
 #[test]
@@ -152,19 +152,19 @@ fn an_arc_loft_bisects_to_its_budget_under_a_box_elsewhere() {
 }
 
 #[test]
-fn a_rotated_frame_loft_bisects_to_its_budget_under_a_box_elsewhere() {
-    assert_bisected_to_budget("rotated", drive_loft(|| rect(len(1.0)), [0.6, 0.8, 0.0]));
+fn a_rotated_frame_loft_certifies_under_a_box_elsewhere() {
+    assert_certified_in_one_leaf("rotated", drive_loft(|| rect(len(1.0)), [0.6, 0.8, 0.0]));
 }
 
-/// The refusal behind each budget row, one evaluation at `Interval`
-/// with no box: the profile is elaborated at the lane, so the arc
-/// section and the rotated plane are a few ulps wide and refuse by
-/// name.
+/// What each row's loft does, one evaluation at `Interval` with no
+/// box: the profile is elaborated at the lane, so the arc section and
+/// the rotated plane are a few ulps wide. The arc's weight is no point
+/// and refuses by name; the rotated plane lofts in `T`.
 #[test]
-fn with_no_box_an_arc_section_and_a_rotated_plane_refuse() {
+fn with_no_box_an_arc_section_refuses_and_a_rotated_plane_lofts() {
     use editor_core::NodeErrorKind;
     use geom_core::Interval;
-    use sweep::LoftError;
+    use sweep::SkinError;
     let run = |doc: &editor_core::ProfileDoc| {
         editor_core::evaluate::<Interval>(
             doc,
@@ -177,11 +177,15 @@ fn with_no_box_an_arc_section_and_a_rotated_plane_refuse() {
     let (arc, arc_loft) = loft_doc(circle, [1.0, 0.0, 0.0]);
     let (rotated, rotated_loft) = loft_doc(|| rect(len(1.0)), [0.6, 0.8, 0.0]);
     match run(&arc).node_error(arc_loft).map(|e| &e.kind) {
-        Some(NodeErrorKind::Loft(LoftError::SectionNotAPoint { section: 0 })) => {}
-        other => panic!("the arc section is no point at Interval, got {other:?}"),
+        Some(NodeErrorKind::Skin(SkinError::Structure(
+            geom_core::spline::SplineError::CarrierWeightNotAPoint { .. },
+        ))) => {}
+        other => panic!("the arc's weight is no point at Interval, got {other:?}"),
     }
-    match run(&rotated).node_error(rotated_loft).map(|e| &e.kind) {
-        Some(NodeErrorKind::Loft(LoftError::PlacementNotAPoint { section: 0 })) => {}
-        other => panic!("the rotated plane is no point at Interval, got {other:?}"),
-    }
+    let rotated_run = run(&rotated);
+    assert!(
+        rotated_run.node_error(rotated_loft).is_none(),
+        "the rotated plane lofts in T: {:?}",
+        rotated_run.node_error(rotated_loft)
+    );
 }

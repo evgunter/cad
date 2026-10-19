@@ -240,15 +240,18 @@ pass 2.
   lane scalar, as an extrude reads its profile: the loops and plane the
   profile node produced, and its pass-1 pieces for naming. Nothing is
   re-resolved and no section has a second placement path. The skin's
-  structure is selected on the sections' value channel
+  structure is selected on the sections' value channel where its values are
+  points, and over a range is what every value shares or a typed refusal
   (`sweep::loft_profiles`). At a projective scalar the walls are computed
   from the section values themselves, so a seed on a parameter a section
-  reads rides to the walls. At `Interval` the loft is the `f64` skin of that
-  value channel, enclosed, so a section or plane with any value wider than a
-  point refuses typed (`LoftError::SectionNotAPoint`,
-  `LoftError::PlacementNotAPoint`) rather than standing for the nominal over
-  its box. That includes values a few ulps wide with no box at all: an arc's
-  sweep, and the plane of a rotated authored frame.
+  reads rides to the walls. At `Interval` the loft encloses the family its
+  sections stand for: sections and planes whose values are points loft as the
+  `f64` skin of that value channel, enclosed, and wider ones (a box over the
+  section, or values a few ulps wide with no box at all, as the plane of a
+  rotated or derived frame) are skinned at the lane scalar. An arc's weight is
+  no point at `Interval`, so an arc section there refuses typed at the
+  carrier's door (`SplineError::CarrierWeightNotAPoint`, until C6's S4/S5)
+  rather than standing for the nominal over its box.
 - **The sketch plane is minted at the lane.** A frame crosses no scalar
   upward, so every profile is placed on its frame's value at the lane scalar
   (`frame_plane_lane`). An authored frame's f64 read (`mint_frame_placement`,

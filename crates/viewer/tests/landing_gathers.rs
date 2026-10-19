@@ -174,13 +174,14 @@ fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
     let tol = Tol::witness();
     let bench = common::asm::bench("landed-body-refused-gate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
+    common::asm::unpin(&mut session, bench.post_b);
     common::commit_mate(
         &mut session,
         common::asm::seat_op(
             &bench,
             bench.post_b,
             ContactClass::Tangent,
-            common::asm::middle_seat_alignment(),
+            common::asm::middle_seat_values(),
         ),
     );
     assert!(
@@ -326,7 +327,7 @@ fn a_document_with_no_body_lands_a_clean_report() {
     assert!(
         matches!(
             session.product_fault(),
-            Some(ProductError::EmptyProduct { unplaced }) if unplaced.is_empty()
+            Some(ProductError::EmptyProduct { unplaced, loose }) if unplaced.is_empty() && loose.is_empty()
         ),
         "the gather's own answer: {:?}",
         session.product_fault()
@@ -340,11 +341,11 @@ fn a_document_with_no_body_lands_a_clean_report() {
     assert!(session.at_rest().is_none(), "and there is no badge");
 }
 
-/// **An unplaced ASSEMBLY takes no at-rest badge either.** An
-/// instance no placement reads is not in the world — the measure read
-/// at it places nothing — so the gather says `EmptyProduct`, naming the
-/// instance's body, while the document still holds an
-/// `InstantiatePart`.
+/// **A loose ASSEMBLY takes no at-rest badge either.** An instance
+/// whose bundle pins nothing is a loose copy, not in the world — the
+/// measure read at it places nothing — so the gather says
+/// `EmptyProduct`, naming the loose instance, while the document still
+/// holds an `InstantiatePart`.
 /// The landing reads that refusal as an absence for the registry, and
 /// the A5 badge agrees with it: there is no product for the gate to
 /// judge, and an at-rest badge reading "at rest: product: …" would
@@ -361,7 +362,7 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     let tol = Tol::witness();
     let bench = common::asm::bench("body-less-assembly", tol);
     let mut asm = ProfileDoc::empty(DocumentId::derive("body-less-assembly"), tol);
-    let post = common::insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
+    let post = common::insert_into(&mut asm, crate::fixture::mated_instance(bench.post), tol);
     let top = common::asm::in_part(post, &bench.post_top);
     common::insert_into(
         &mut asm,
@@ -383,9 +384,10 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     assert!(
         matches!(
             session.product_fault(),
-            Some(ProductError::EmptyProduct { unplaced }) if unplaced.len() == 1
+            Some(ProductError::EmptyProduct { unplaced, loose })
+                if unplaced.is_empty() && loose == &vec![post]
         ),
-        "the premise: nothing places the instance, and the gather names its body: {:?}",
+        "the premise: nothing pins the instance, and the gather names it loose: {:?}",
         session.product_fault()
     );
     assert!(
@@ -395,7 +397,7 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     assert_eq!(
         session.at_rest(),
         None,
-        "and the A5 badge agrees: an unplaced assembly is not a refusal"
+        "and the A5 badge agrees: a loose assembly is not a refusal"
     );
 }
 
@@ -418,7 +420,8 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
     let bench = common::asm::bench("refused-gather-assembly", tol);
     let asm = ProfileDoc::empty(DocumentId::derive("refused-gather-assembly"), tol);
     let (mut asm, profile) = common::framed_square(&asm, 0.04, tol);
-    let post = common::insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
+    // The instance stands on the world by its own pin.
+    common::insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
     let extrude = common::insert_into(
         &mut asm,
         Node::Extrude {
@@ -429,7 +432,7 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
         },
         tol,
     );
-    let asm = common::placed(&common::placed(&asm, post, tol).0, extrude, tol).0;
+    let asm = common::placed(&asm, extrude, tol).0;
     let path = Workspace::open(&bench.dir)
         .expect("the bench's workspace opens")
         .create(&asm, tol)

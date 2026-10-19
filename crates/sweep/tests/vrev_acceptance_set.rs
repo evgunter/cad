@@ -104,7 +104,7 @@ fn lofted_wall_verdict(k: usize) -> (Vec<f64>, bool) {
         Some(Surface::Nurbs(n)) => (**n).clone(),
         other => panic!("a lofted wall is a NURBS chart: {other:?}"),
     };
-    let knots = n.knots_v().knots().to_vec();
+    let knots = n.knots_v_f64_interim().knots().to_vec();
     (knots, n.reversed_v().is_ok())
 }
 

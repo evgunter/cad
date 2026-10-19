@@ -5,7 +5,7 @@
 //! # Shape
 //!
 //! The mate tool's pattern one vocabulary over: single-select stays
-//! ruled, so the tool holds its pick in tool state and consumes the
+//! ruled (GQ7), so the tool holds its pick in tool state and consumes the
 //! ordinary selection stream — a tree click is a node pick directly, a
 //! viewport face or edge pick reaches the node whose drawn body the ray
 //! met (`Selection::seat_node`). The seat is not a body, so in practice
@@ -85,7 +85,7 @@ impl RevolveTool {
 
     /// **The one committed edit**: the session op that inserts the
     /// revolve node through the ordinary commit door, about the axis
-    /// line through `axis_origin` along `axis_direction` in the
+    /// line through `axis_through` at `axis_heading` in the
     /// profile's own coordinates, by `angle` (the chrome's default is a
     /// full turn about the profile's +y).
     ///
@@ -96,14 +96,14 @@ impl RevolveTool {
     /// typed.
     pub fn op(
         &self,
-        axis_origin: [Formula; 2],
-        axis_direction: [Formula; 2],
+        axis_through: [Formula; 2],
+        axis_heading: Formula,
         angle: Formula,
     ) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddRevolve {
             profile: self.seats.require(0)?,
-            axis_origin,
-            axis_direction,
+            axis_through,
+            axis_heading,
             angle,
         })
     }

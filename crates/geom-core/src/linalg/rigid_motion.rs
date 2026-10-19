@@ -955,7 +955,7 @@ impl<T: Decide> RigidMotion<T> {
     /// degrades as the pair turns toward opposed, where every axis
     /// perpendicular to them is a minimal rotation and none is THE
     /// one. A dimensionless margin against the linear band (ledger row
-    /// F21). The carry needs no threshold of its own: the miss is a
+    /// F22). The carry needs no threshold of its own: the miss is a
     /// few `u` plus `(|a| − |b|)²/(2|a × b|)`, of order `u²/√ε` for a
     /// margin the band decides positive, far below `ε`.
     ///
@@ -982,9 +982,9 @@ impl<T: Decide> RigidMotion<T> {
         let h = a + b;
         let d = h.dot(h) / two;
         let k = a.cross(h);
-        // Ledger row F21: `1 + a·b` is a dimensionless defect of the
+        // Ledger row F22: `1 + a·b` is a dimensionless defect of the
         // pair against the metre band; the turn has no arm of its own.
-        match crate::k_stats::decide_flagged(site, d, band, "F21") {
+        match crate::k_stats::decide_flagged(site, d, band, "F22") {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => return Err(TurnError::Opposed),
             Err(source) => return Err(TurnError::Undecided(source)),

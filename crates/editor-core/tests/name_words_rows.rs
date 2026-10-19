@@ -35,7 +35,7 @@ use crate::fixture::{self, len, scl};
 use editor_core::{
     CapEnd, Datum, EntityKey, EntityKind, EntityRef, EvalOptions, ExtrudeSide, MeasurePrimitive,
     NameRef, NameTable, NameTables, Node, NodeResult, PieceRole, ProfileEdgeRef, Qualifier,
-    RecipeNodeId, RoleSeg, Speaker, SplitHalf, StableName, StepId, VarId,
+    RecipeNodeId, RoleSeg, Speaker, StableName, StepId, VarId,
 };
 use test_utils::fuzz;
 
@@ -99,8 +99,12 @@ fn bordering(name: StableName, walls: Vec<StableName>) -> StableName {
 struct One(NameTable);
 
 impl NameTables for One {
-    fn table(&self, node: RecipeNodeId) -> Option<&NameTable> {
-        (node == OP).then_some(&self.0)
+    fn tables(&self, node: RecipeNodeId) -> Vec<&NameTable> {
+        if node == OP {
+            vec![&self.0]
+        } else {
+            Vec::new()
+        }
     }
 }
 
@@ -248,13 +252,6 @@ fn random_rich(rng: &mut fuzz::Rng, depth: u32, pool: usize) -> StableName {
     };
     let inner = |rng: &mut fuzz::Rng| NameRef::new(random_rich(rng, depth - 1, pool));
     let node = |rng: &mut fuzz::Rng| RecipeNodeId::new(0, (8 + rng.below(3) as u64) << 16);
-    let half = |rng: &mut fuzz::Rng| {
-        if rng.below(2) == 0 {
-            SplitHalf::Above
-        } else {
-            SplitHalf::Below
-        }
-    };
     let face = |node: RecipeNodeId, seg: RoleSeg| StableName {
         kind: EntityKind::Face,
         node,
@@ -297,16 +294,7 @@ fn random_rich(rng: &mut fuzz::Rng, depth: u32, pool: usize) -> StableName {
                 },
             )
         }
-        8 => {
-            let side = half(rng);
-            face(
-                node(rng),
-                RoleSeg::SplitFragment {
-                    parent: inner(rng),
-                    side,
-                },
-            )
-        }
+        8 => face(node(rng), RoleSeg::SplitFragment { parent: inner(rng) }),
         9 => {
             let i = rng.below(2) as u32;
             face(node(rng), RoleSeg::Instance { i, of: inner(rng) })
@@ -339,9 +327,8 @@ fn unsaid_nodes_erased(name: &StableName) -> StableName {
                 read: READ,
                 of: erase(of),
             },
-            RoleSeg::SplitFragment { parent, side } => RoleSeg::SplitFragment {
+            RoleSeg::SplitFragment { parent } => RoleSeg::SplitFragment {
                 parent: erase(parent),
-                side: *side,
             },
             RoleSeg::Instance { i, of } => RoleSeg::Instance {
                 i: *i,
@@ -703,16 +690,15 @@ fn a_resolve_row_names_the_slot_that_failed() {
 /// Subtract, which minted the name, not only the block its words say.
 #[test]
 fn a_strand_row_names_the_node_the_delete_took() {
-    use editor_core::{Attr, DocEdit, RefusingReach, Rgba8, apply};
+    use editor_core::{Attr, DocEdit, Rgba8, apply};
     let mut r = Recorder::new();
     let (block, cut) = block_and_cut(&mut r);
     let doc = r.doc;
     let from_read = fixture::out(&doc, block);
     let ev = fixture::run(&doc, &EvalOptions::default());
     let painted = ev
-        .value(cut)
+        .table_at(cut)
         .expect("the cut evaluates")
-        .name_table
         .iter()
         .map(|(n, _)| n.clone())
         .find(|n| {
@@ -727,16 +713,15 @@ fn a_strand_row_names_the_node_the_delete_took() {
     let doc = apply(
         &doc,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc, &painted),
             name: painted,
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         tol,
-        &RefusingReach,
     )
     .expect("paint")
     .doc;
-    let applied = apply(&doc, &DocEdit::DeleteNode { id: cut }, tol, &RefusingReach)
-        .expect("the delete applies");
+    let applied = apply(&doc, &DocEdit::DeleteNode { id: cut }, tol).expect("the delete applies");
     let rows: Vec<String> = applied.maintenance.iter().map(|m| m.to_string()).collect();
     let deleted = format!(
         "this edit deleted {}, which minted the name",
@@ -778,9 +763,8 @@ fn a_resolve_row_names_a_payload_slot_above_zero() {
     let ev = fixture::run(&r.doc, &EvalOptions::default());
     let unheld_edge = unheld(&r, block, EntityKind::Edge);
     let mut edges: Vec<StableName> = ev
-        .value(block)
+        .table_at(block)
         .expect("the block evaluates")
-        .name_table
         .iter()
         .map(|(n, _)| n.clone())
         .filter(|n| n.kind == EntityKind::Edge)
@@ -827,7 +811,7 @@ fn a_resolve_row_names_a_payload_slot_above_zero() {
 /// painted, and the union deleted.
 #[test]
 fn a_strand_row_names_a_deleted_union() {
-    use editor_core::{Attr, DocEdit, RefusingReach, Rgba8, apply};
+    use editor_core::{Attr, DocEdit, Rgba8, apply};
     let mut r = Recorder::new();
     let (block, _) = block_and_split(&mut r);
     let q = r.profile(
@@ -847,9 +831,8 @@ fn a_strand_row_names_a_deleted_union() {
     let doc = r.doc;
     let ev = fixture::run(&doc, &EvalOptions::default());
     let painted = ev
-        .value(union)
+        .table_at(union)
         .expect("the union evaluates")
-        .name_table
         .iter()
         .map(|(n, _)| n.clone())
         .find(|n| n.kind == EntityKind::Face && n.node == union)
@@ -858,21 +841,15 @@ fn a_strand_row_names_a_deleted_union() {
     let doc = apply(
         &doc,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc, &painted),
             name: painted,
             attr: Attr::Color(Rgba8::opaque(1, 2, 3)),
         },
         tol,
-        &RefusingReach,
     )
     .expect("paint")
     .doc;
-    let applied = apply(
-        &doc,
-        &DocEdit::DeleteNode { id: union },
-        tol,
-        &RefusingReach,
-    )
-    .expect("the delete applies");
+    let applied = apply(&doc, &DocEdit::DeleteNode { id: union }, tol).expect("the delete applies");
     let rows: Vec<String> = applied.maintenance.iter().map(|m| m.to_string()).collect();
     let deleted = format!(
         "this edit deleted {}, which minted the name",

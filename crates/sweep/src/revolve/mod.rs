@@ -556,8 +556,8 @@ pub enum RevolveError {
     /// ([`topo::insert_void`]). The evidence and destination arms are
     /// unreachable from this construction (every hole shell is
     /// certified from the profile's own validation before the call, into
-    /// the solid the build minted); the revert arm surfaces a torn
-    /// cavity typed.
+    /// the solid the build minted); the revert arm refuses a cavity two
+    /// of whose edges lie on one line ([`topo::RevertError`]).
     VoidInsertion {
         /// Canonical index of the hole loop whose insertion refused.
         loop_index: usize,

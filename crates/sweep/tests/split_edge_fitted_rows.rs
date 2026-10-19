@@ -137,7 +137,11 @@ fn describe<T: AtRestPolicy>(body: &mut Body<T>, edge: EdgeKey, s1: SurfaceKey, 
 /// interior columns.
 fn widened<T: Real + geom_core::SpanLocate>(n: &NurbsSurface<T>) -> Surface<T> {
     let (nu, nv) = n.control_counts();
-    assert_eq!((nu, n.knots_u().degree()), (2, 1), "the loft wall's u span");
+    assert_eq!(
+        (nu, n.knots_u_f64_interim().degree()),
+        (2, 1),
+        "the loft wall's u span"
+    );
     let ku = geom_core::spline::Knots::from(
         KnotVector::clamped(vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0], 1).unwrap(),
     )

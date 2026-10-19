@@ -34,20 +34,20 @@
 //! |---|---|---|---|---|
 //! | 1–4 | `Interval` | refuses | `carrier_endpoint_start`, `[0, 9.0e-5]` | <0.01 s |
 //! | 1 | `Sym<Interval>` | **CERTIFIES** | — | 0.13 s |
-//! | 2 | `Sym<Interval>` | refuses | `dihedral_wedge`: no tangent plane | 0.22 s |
-//! | 3 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.33 s |
-//! | 4 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.42 s |
+//! | 2 | `Sym<Interval>` | refuses | `dihedral_wedge`: no tangent plane | 0.47 s |
+//! | 3 | `Sym<Interval>` | refuses | `dihedral_wedge`: no tangent plane | 0.72 s |
+//! | 4 | `Sym<Interval>` | refuses | `dihedral_wedge`: no tangent plane | 1.12 s |
 //!
 //! **That column is the first refusal at the WHOLE study, which is a
 //! different question from what bounds the certifiable box.**
-//! Evaluation order decides which refusal is reported first, and at
-//! the whole study the `dihedral_arm` straddle happens to come first
-//! at three and four links. Just above the WALL the first refusal is
-//! the wedge on `EdgeKey(1v1)` at sample 4 at two, three and four links
-//! (nodes 14, 21, 30): **the wedge is what bounds the box**, as the
-//! next section says. The arm's straddle is a second, ε-independent
-//! refusal that is first only over the whole study
-//! (`work/sym/a-chain-of-three-joints-straddles-dihedral-arm`).
+//! Evaluation order decides which refusal is reported first. Over the
+//! whole study it is the wedge on `EdgeKey(1v1)` at sample 4 at two,
+//! three and four links, as it is just above the WALL: **the wedge is
+//! what bounds the box**, as the next section says. The `dihedral_arm`
+//! straddle is a second, ε-independent refusal, which came first at
+//! three and four links while each link was placed by a world-pin mate
+//! holding a literal placement, and no longer does with the link pinned
+//! where it stands (`work/sym/a-chain-of-three-joints-straddles-dihedral-arm`).
 //!
 //! **The plain interval lane carries the widened rotation, and stops
 //! one step later.** Each joint's rotation is a rigid motion by
@@ -484,11 +484,7 @@ fn assert_row(row: &Row) {
             );
         }
         (Lane::Symbolic, _) => {
-            let predicate = if links == 2 {
-                "dihedral_wedge"
-            } else {
-                "dihedral_arm"
-            };
+            let predicate = "dihedral_wedge";
             assert!(
                 !row.certifies,
                 "the header says the symbolic tier stops at two links over the whole \
@@ -787,8 +783,9 @@ mod tests {
 
     /// **What BOUNDS the certifiable box is `dihedral_wedge`.**
     ///
-    /// Not `dihedral_arm`, which is what the first refusal over the
-    /// WHOLE study is at three and four links and what this cell's
+    /// Not `dihedral_arm`, which was the first refusal over the WHOLE
+    /// study at three and four links while each link was placed by a
+    /// world-pin mate holding a literal placement, and what this cell's
     /// header claimed for a while. The question the box answers is
     /// asked just above the wall, and this is that question executed:
     /// at `1.02×` and `1.10×` of each link count's certifiable

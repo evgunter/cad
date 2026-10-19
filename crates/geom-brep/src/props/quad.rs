@@ -1146,7 +1146,7 @@ fn require_holes_wound_against(
 /// diagonal; any other `t` is the extension ([`de_boor_on`]).
 fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
     let span = win.span();
-    let kv = span.knots();
+    let kv = span.knots_f64_interim();
     de_boor_on(
         kv.knots(),
         kv.degree(),
@@ -6574,8 +6574,9 @@ mod tests {
     }
 
     /// The SAME quarter cylinder built from TWO 45° sub-arcs (an
-    /// interior double knot): the multi-span structure every arc wider
-    /// than `MAX_SUB_ARC` actually has.
+    /// interior double knot): the multi-span structure an arc wider
+    /// than the skin's `MAX_SUB_ARC` has. A quarter arc itself is one
+    /// span there (C6's η).
     #[test]
     fn rational_two_span_quarter_cylinder() {
         let band = Band::linear(Tol::witness()).unwrap();

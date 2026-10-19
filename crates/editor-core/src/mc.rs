@@ -435,8 +435,13 @@ pub fn monte_carlo(
     }
     // The nominal build, first: a document that does not build has no
     // replay, and finding that out once beats finding it out `samples`
-    // times.
-    let nominal: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &lane_opts(), tol);
+    // times. Over the box collapsed to the nominal, so it reads the
+    // document as the samples do (`ParamBox::at_nominal`).
+    let nominal_opts = EvalOptions {
+        param_box: Some(Arc::new(ParamBox::of(analyzed).at_nominal())),
+        ..lane_opts()
+    };
+    let nominal: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &nominal_opts, tol);
     if let Some(standing) = nominal
         .order
         .iter()

@@ -1134,3 +1134,22 @@ now built); rows witness the disk count, the piece radius and the
 plane reading's slack; C8 says an absorbed island's voids are filled.
 Filed `a-feature-inside-a-region-that-is-no-disk-or-annulus-is-not-carved`
 and `a-cup-leaning-off-the-spine-under-a-fillet-is-charged-its-boxs-diagonal`.
+
+- 2026-10-15 — **No live row is at or above this track's own band (P0).** The 51 rows left are 5 at P2, 36 at P3, 3 at P4, 7 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
+  Band the 7 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
+  (tracker sweep)
+
+## 2026-10-19 — the slate re-banded for the hand-back
+
+Ev (in chat): finish what matters, then hand the tail back rather than
+working through it. The eight unbanded items now carry a band and a
+cost (the Interval oblique cut-off's `BodyNotIntact`, a normal fillet
+refusing on the certified scalar, P2; the precision and funnel items
+P2; the overrun and dependent-normals refusals P3).
+`ruled-cut-off-builds-a-bore-wholly-inside-the-removed-sliver` closes:
+its four steps are built and its void residue is the concave item's
+step 4. `blend-reach-never-meters-the-bands-of-one-chain-against-each-other`
+drops to P3 (no door reaches it while every chain is straight). Being
+finished before the hand-back: step 3b (strip-mouth cups), the two
+`arms.rs` centre placements, and the Interval oblique cut-off. Step 4
+(whole shells and the seal) and the P3 tail stay on the slate.

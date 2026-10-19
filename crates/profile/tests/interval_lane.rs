@@ -331,3 +331,103 @@ fn vesica_near_pick_agrees_with_the_f64_lane_at_interval() {
         }
     }
 }
+
+/// **A canonical form's value channel is minted only where every value
+/// is a point.** A quad validated at `Interval` with one corner a point
+/// gives its `f64` form, value for value. Widen that corner, or the
+/// plane's height, and the mint refuses by name, naming where, rather
+/// than handing out a validated profile holding NaN.
+#[test]
+fn the_value_channel_refuses_a_value_with_no_single_point() {
+    use geom_core::Point3;
+    use profile::test_support::bulge_loop;
+    use profile::{Profile, SketchPlane, ValueNotAPoint};
+    let quad = |corner: Interval, z: Interval| {
+        let p = |x: f64, y: f64| Point2::new(Interval::from_f64(x), Interval::from_f64(y));
+        let lp = bulge_loop(vec![
+            (p(0.0, 0.0), Interval::zero()),
+            (p(2.0, 0.0), Interval::zero()),
+            (
+                Point2::new(corner, Interval::from_f64(1.0)),
+                Interval::zero(),
+            ),
+            (p(0.0, 1.0), Interval::zero()),
+        ]);
+        let plane = SketchPlane::xy_at(Point3::new(Interval::zero(), Interval::zero(), z));
+        Profile::new(plane, vec![lp])
+            .validate(Tol::witness())
+            .expect("the quad validates at Interval")
+    };
+    let w = Tol::witness().eps() / 256.0;
+    let point = quad(Interval::from_f64(2.5), Interval::from_f64(1.0))
+        .value_channel()
+        .expect("a form of points has a value channel");
+    let corner = point.loops()[0]
+        .vertices()
+        .iter()
+        .find(|v| v.y == 1.0 && v.x > 0.0)
+        .expect("the moving corner");
+    assert_eq!(
+        (corner.x, point.plane().origin().z),
+        (2.5, 1.0)
+    );
+    let wide = Interval::from_bounds(2.5 - w, 2.5 + w);
+    match quad(wide, Interval::from_f64(1.0)).value_channel() {
+        Err(ValueNotAPoint::Vertex {
+            loop_index: 0,
+            vertex: 2,
+        }) => {}
+        other => panic!(
+            "a wide corner refuses at its vertex, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+    match quad(
+        Interval::from_f64(2.5),
+        Interval::from_bounds(1.0 - w, 1.0 + w),
+    )
+    .value_channel()
+    {
+        Err(ValueNotAPoint::Plane) => {}
+        other => panic!(
+            "a wide plane refuses as the plane, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+}
+
+/// **An arc whose carrier is no single point refuses at its segment.**
+/// A half-disc validated at `Interval` with its arc's bulge a point
+/// still holds a carrier computed from the bulge, a radius and sweep
+/// from `atan` that are enclosures: the mint names the arc's segment
+/// (canonical loop 0), where its vertices, both points, pass.
+#[test]
+fn the_value_channel_refuses_an_arc_carrier_at_its_segment() {
+    use profile::test_support::bulge_loop;
+    use profile::{Profile, ValueNotAPoint};
+    let p = |x: f64, y: f64| Point2::new(Interval::from_f64(x), Interval::from_f64(y));
+    let form = Profile::new(
+        profile::SketchPlane::xy(),
+        vec![bulge_loop(vec![
+            (p(0.0, 0.0), Interval::zero()),
+            (p(2.0, 0.0), Interval::from_f64(0.5)),
+        ])],
+    )
+    .validate(Tol::witness())
+    .expect("the arc-capped chord validates at Interval");
+    let arc = form.loops()[0]
+        .segments()
+        .iter()
+        .position(|s| matches!(s.kind, SegmentKind::Arc { .. }))
+        .expect("the bulge is an arc");
+    match form.value_channel() {
+        Err(ValueNotAPoint::Segment {
+            loop_index: 0,
+            segment,
+        }) => assert_eq!(segment, arc, "the refusal names the arc's segment"),
+        other => panic!(
+            "an arc carrier with no point refuses at its segment, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+}

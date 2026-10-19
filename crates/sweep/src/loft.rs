@@ -59,11 +59,14 @@
 //!
 //! # Scalar posture (C6)
 //!
-//! The sections and placements arrive in the body's scalar `T`.
-//! Structure — each section's canonical form, the skin's degrees,
-//! multiplicities and parameter order — is selected once, at `f64`, on
-//! their value channel, so every lane builds the SAME body. The values
-//! then depend on which side of the projective partition `T` is on
+//! The sections and placements arrive in the body's scalar `T`. A
+//! section or placement holding a value that is not finite refuses
+//! first, at every scalar. Structure — each section's canonical form,
+//! the skin's degrees, multiplicities and parameter order — is
+//! selected once, on the sections' value channel where every value is
+//! a point, so every lane builds the SAME body; over a family it is
+//! what every member shares, or a typed refusal. The values then
+//! depend on which side of the projective partition `T` is on
 //! ([`fn@build`]):
 //!
 //! - at `f64`, `Probe`, and `Dual` and `Sym` over them, the sections
@@ -71,16 +74,20 @@
 //!   skinned in `T` ([`fn@crate::skin`]), so a wall, a cap and the
 //!   stacking fold's margins are the functions of the sections'
 //!   variables the sections are;
-//! - at `Interval`, and the wrappers over it, the `f64` skin of the
-//!   sections' value channel is the definition, and the body encloses
-//!   it: the walls' control points, knots and weights are lifted
-//!   through `from_computed`, a seam column both walls end on lifted
-//!   once and shared, and the placements the skin was selected on are
-//!   lifted the same way, so the caps (the `f64` canonical form lifted
-//!   onto them), the rims and the fold read the one loft the body
-//!   encloses. A section or placement wider than a point has no `f64`
-//!   skin and refuses
-//!   (`work/inlane/the-skin-at-interval-encloses-the-nominal-skin.md`).
+//! - at `Interval`, and the wrappers over it, the body encloses the
+//!   family its sections stand for. Sections and placements that are
+//!   points are a family of one: the `f64` skin of their value channel
+//!   is the definition, its walls are lifted through `from_computed`
+//!   (a seam column both walls end on lifted once and shared), and the
+//!   placements the skin was selected on are lifted the same way, so
+//!   the caps (the `f64` canonical form lifted onto them), the rims and
+//!   the fold read the one loft the body encloses. Wider sections or
+//!   placements are validated and skinned in `T`, as at a projective
+//!   scalar, and the walls enclose the family. The skin's structure is
+//!   then what every value of the family shares, and a carrier's
+//!   weights and knots are points, so an arc section, or an interior
+//!   knot wider than a point, refuses typed
+//!   (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`).
 
 use core::fmt;
 use std::sync::Arc;
@@ -90,7 +97,7 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::spline::{ProjectiveScalar, ProjectiveSplit, SplineError};
 use geom_core::{
-    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
+    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
 };
 use profile::{CanonicalStructure, SketchPlane, ValidatedProfile};
 use topo::{
@@ -100,7 +107,7 @@ use topo::{
 
 use crate::skin::{
     Section, SectionLoop, SkinError, check_counts, check_shapes, skin_validated, sweep_places,
-    validate_guided, validate_loft,
+    validate_at_t, validate_guided, validate_loft,
 };
 use crate::swept::{
     CapEnd, CapPlaneError, SweptSeg, cap_plane, cap_points, describe_face_rim_at_rest,
@@ -133,7 +140,7 @@ pub struct Lofted<T: Real> {
     /// wall `j − 1 mod n`'s `u = 1`).
     pub seam_edges: Vec<Vec<EdgeKey>>,
     /// **The v-parameter each input section sits at** —
-    /// [`LoftGeometry::section_params`] carried out to the caller
+    /// [`LoftGeometry::section_params`](crate::skin::LoftGeometry::section_params) carried out to the caller
     /// (`[0] = 0`, `[k − 1] = 1`) instead of dropped with the
     /// geometry, so "what spacing did the skin choose for my
     /// sections?" is answered by the result rather than re-derived by
@@ -144,8 +151,10 @@ pub struct Lofted<T: Real> {
     /// — the produced surface IS the definition (DESIGN Q8), so no
     /// residual pad accompanies it. It is [`crate::loft_parameters`]'
     /// answer for the body's sections, askable BEFORE the body is built
-    /// (a [`sweep_body`]'s sections are its stations').
-    pub section_params: Vec<f64>,
+    /// (a [`sweep_body`]'s sections are its stations'). Each is held in
+    /// `T`, so at an enclosure scalar an interior parameter over a box
+    /// reads as its bracket.
+    pub section_params: Vec<T>,
 }
 
 /// Typed refusal of the loft/sweep body assembly (closed enum, D4 ¶3).
@@ -184,19 +193,17 @@ pub enum LoftError {
     /// unreachable when they all come from the same inputs; surfaced
     /// rather than swallowed.
     SectionStructure,
-    /// Section `section`'s canonical form holds a value with no one
-    /// `f64` (poison, or an enclosure wider than a point), so the loft
-    /// has no `f64` section to select its structure on (C6), and at an
-    /// enclosure scalar no `f64` skin to enclose
-    /// (`work/inlane/the-skin-at-interval-encloses-the-nominal-skin.md`).
-    SectionNotAPoint {
+    /// Section `section` holds a value that is not finite for every
+    /// value it stands for: poison, an infinity, or an enclosure
+    /// reaching one.
+    SectionNotFinite {
         /// The section.
         section: usize,
     },
-    /// Section `section`'s placement has an entry with no one `f64`
-    /// value (poison, or an enclosure wider than a point), so there is
-    /// no placement for the loft's structure to be selected on (C6).
-    PlacementNotAPoint {
+    /// Section `section`'s placement has an entry that is not finite
+    /// for every value it stands for: poison, an infinity, or an
+    /// enclosure reaching one.
+    PlacementNotFinite {
         /// The section whose placement it is.
         section: usize,
     },
@@ -295,21 +302,15 @@ impl fmt::Display for LoftError {
                 "a section's loop or segment structure disagrees with the skinned \
                  geometry or with another section (kernel bug, not an input fault)"
             ),
-            Self::SectionNotAPoint { section } => write!(
+            Self::SectionNotFinite { section } => write!(
                 f,
-                "section {section} is not a single point in every value, so the loft has no \
-                 section to select its structure on. A range comes from a parameter box over \
-                 the section, or from rounding alone (an arc's sweep at an interval scalar). \
-                 Recourse: evaluate the loft at a point scalar; a section over a range of \
-                 values is not lofted yet"
+                "section {section} holds a value that is not finite, so it has no locus to \
+                 loft. Recourse: give the section finite values"
             ),
-            Self::PlacementNotAPoint { section } => write!(
+            Self::PlacementNotFinite { section } => write!(
                 f,
-                "section {section}'s placement is not a single point, so the loft has no \
-                 placement to select its structure on. A range comes from a parameter box \
-                 over the placement, or from rounding alone (a rotated or derived frame at an \
-                 interval scalar). Recourse: evaluate the loft at a point scalar; a placement \
-                 over a range is not lofted yet"
+                "section {section}'s placement is not finite, so the section has no place in \
+                 space. Recourse: give the placement finite values"
             ),
             Self::ReversedStacking { slab } => write!(
                 f,
@@ -428,7 +429,7 @@ fn world<T: Real>(place: &Affine3<T>, p: geom_core::Point2<T>) -> Point3<T> {
 ///
 /// `None` when the section has no loops at all, which the caller
 /// reports as [`LoftError::SectionStructure`]: a section that reached
-/// here without an outer loop is a corrupt [`LoftGeometry`], not an
+/// here without an outer loop is a corrupt [`LoftGeometry`](crate::skin::LoftGeometry), not an
 /// input fault.
 fn outer_world<T: Real>(
     profile: &ValidatedProfile<T>,
@@ -525,44 +526,38 @@ fn stacking_fold<T: Decide>(
     Ok(())
 }
 
-/// The shared engine of [`loft_body`] and [`sweep_body`] (whose
-/// sections are loops; [`loft_profiles`] enters the same two halves
-/// with sections already validated): validate the
-/// sections, decide the stacking fold, skin, assemble — in that order.
+/// The shared engine of [`loft_body`], [`sweep_body`] and
+/// [`loft_profiles`]: refuse the counts, then a section or placement
+/// with no finite value, then run the half of the projective partition `T` is on
+/// ([`SpanLocate::split_projective`](geom_core::spline::SpanLocate::split_projective)),
+/// which [`LoftBuild`]'s two halves state.
 ///
-/// The sections' structure is decided once, on their value channel at
-/// `f64` ([`validate_loft`]): the canonical form, its record, and every
-/// count the skin checks. What happens at `T` then depends on which
-/// side of the projective partition `T` is on
-/// ([`SpanLocate::split_projective`](geom_core::spline::SpanLocate::split_projective)), which [`LoftBuild`]'s two halves
-/// state.
-///
-/// The fold runs BEFORE the skin because it is the one decision about
-/// whether two adjacent sections are apart, banded under the run's
-/// tolerance; a pair it accepts is definitely apart, and a pair it
-/// refuses (down to exact coincidence) never reaches the skin's
-/// parameterization.
+/// Each half decides the stacking fold BEFORE the skin, because it is
+/// the one decision about whether two adjacent sections are apart,
+/// banded under the run's tolerance; a pair it accepts is definitely
+/// apart, and a pair it refuses (down to exact coincidence) never
+/// reaches the skin's parameterization.
 fn build<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>>(
-    sections: &[Section<L>],
+    sections: SectionsAtT<'_, T, L>,
     places: &[SketchPlane<T>],
-    channel_places: &[SketchPlane<f64>],
+    channel_places: Option<&[SketchPlane<f64>]>,
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
-    let channel_sections: Vec<Section<L::Channel>> = sections
+    check_counts(sections.len(), places.len(), v_degree).map_err(LoftError::Skin)?;
+    if let Some(section) = places
         .iter()
-        .map(|s| s.iter().map(SectionLoop::channel).collect())
-        .collect();
-    let (canonical, structures) =
-        validate_loft(&channel_sections, channel_places, v_degree, tol).map_err(LoftError::Skin)?;
+        .position(|p| !p.placement().components().iter().all(|c| c.is_bounded()))
+    {
+        return Err(LoftError::PlacementNotFinite { section });
+    }
+    if let Some(section) = sections.first_not_finite() {
+        return Err(LoftError::SectionNotFinite { section });
+    }
     T::split_projective(LoftBuild {
-        at_t: SectionsAtT::Guided {
-            sections,
-            structures,
-        },
+        sections,
         places,
         channel_places,
-        canonical,
         v_degree,
         tol,
     })
@@ -570,103 +565,212 @@ fn build<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>>(
 
 /// Where a loft's sections at `T` come from.
 enum SectionsAtT<'a, T: Real, L> {
-    /// Loops, validated at `T` along their `f64` records
-    /// ([`validate_guided`]).
-    Guided {
-        sections: &'a [Section<L>],
-        structures: Vec<CanonicalStructure>,
-    },
+    /// Loops: [`loft_body`]'s and [`sweep_body`]'s.
+    Loops(&'a [Section<L>]),
     /// Canonical forms the caller validated at `T`
     /// ([`loft_profiles`]).
     Validated(&'a [ValidatedProfile<T>]),
 }
 
-/// The two halves of [`fn@build`] and [`loft_profiles`], after the
-/// sections' structure is decided.
+impl<T: Decide, L: SectionLoop<T>> SectionsAtT<'_, T, L> {
+    fn len(&self) -> usize {
+        match self {
+            Self::Loops(s) => s.len(),
+            Self::Validated(s) => s.len(),
+        }
+    }
+
+    /// The first section holding a value that is not finite for every
+    /// value it stands for ([`Real::is_bounded`]): poison, an
+    /// infinity, or an enclosure reaching one. A value wider than a
+    /// point is finite.
+    fn first_not_finite(&self) -> Option<usize> {
+        match self {
+            Self::Loops(sections) => sections.iter().position(|loops| {
+                !loops
+                    .iter()
+                    .all(|lp| loop_all(lp.as_profile_loop(), T::is_bounded))
+            }),
+            Self::Validated(sections) => {
+                sections.iter().position(|p| !profile_all(p, T::is_bounded))
+            }
+        }
+    }
+
+    /// Whether every input to the skin is a point: each placement
+    /// (`channel_places`, its point value, which [`sweep_body`] carries
+    /// in `f64`, present only where every placement has one) and each
+    /// section value.
+    fn all_points(&self, channel_places: Option<&[SketchPlane<f64>]>) -> bool {
+        let point = |v: T| v.point_value().is_some();
+        channel_places.is_some()
+            && match self {
+                Self::Loops(sections) => sections
+                    .iter()
+                    .all(|loops| loops.iter().all(|lp| loop_all(lp.as_profile_loop(), point))),
+                Self::Validated(sections) => sections.iter().all(|p| p.value_channel().is_ok()),
+            }
+    }
+
+    /// The sections' value channel at `f64`, validated: the canonical
+    /// form, and for loops the record each is validated along at `T`
+    /// ([`validate_guided`]). Read only where [`Self::all_points`]
+    /// holds.
+    #[allow(clippy::type_complexity)]
+    fn channel(
+        &self,
+        channel_places: &[SketchPlane<f64>],
+        v_degree: usize,
+        tol: Tol,
+    ) -> Result<(Vec<ValidatedProfile<f64>>, Vec<CanonicalStructure>), LoftError> {
+        match self {
+            Self::Loops(sections) => {
+                let channel: Vec<Section<L::Channel>> = sections
+                    .iter()
+                    .map(|s| s.iter().map(SectionLoop::channel).collect())
+                    .collect();
+                validate_loft(&channel, channel_places, v_degree, tol).map_err(LoftError::Skin)
+            }
+            Self::Validated(sections) => {
+                let canonical: Vec<ValidatedProfile<f64>> = sections
+                    .iter()
+                    .map(ValidatedProfile::value_channel)
+                    .collect::<Result<_, _>>()
+                    .unwrap_or_else(|site| {
+                        unreachable!(
+                            "{site}: every value is a point here, by `all_points` at an \
+                             enclosure scalar and by `build`'s finite check at a projective one"
+                        )
+                    });
+                check_shapes(&canonical)
+                    .map(|()| (canonical, Vec::new()))
+                    .map_err(LoftError::Skin)
+            }
+        }
+    }
+}
+
+/// The two halves of [`fn@build`], after the counts and the finite
+/// check.
 struct LoftBuild<'a, T: Real, L> {
-    at_t: SectionsAtT<'a, T, L>,
+    sections: SectionsAtT<'a, T, L>,
     places: &'a [SketchPlane<T>],
-    channel_places: &'a [SketchPlane<f64>],
-    canonical: Vec<ValidatedProfile<f64>>,
+    channel_places: Option<&'a [SketchPlane<f64>]>,
     v_degree: usize,
     tol: Tol,
+}
+
+impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
+    /// **The loft in `T`**, over `canonical`, the sections validated at
+    /// `T`: the fold, the skin ([`skin_validated`]: the section curves,
+    /// their compatibility, the parameters and the solve) and the caps
+    /// all read those, so a section or placement value that is a
+    /// function of the variables gives walls and caps that are
+    /// functions of them, and one wider than a point gives walls and
+    /// caps that enclose its family.
+    fn in_t(&self, canonical: Vec<ValidatedProfile<T>>) -> Result<Lofted<T>, LoftError> {
+        let band = Band::linear(self.tol).map_err(LoftError::Band)?;
+        stacking_fold(self.places, &canonical, band)?;
+        let geometry =
+            skin_validated(canonical, self.places, self.v_degree).map_err(LoftError::Skin)?;
+        assemble(
+            self.places,
+            &geometry.walls,
+            &geometry.canonical,
+            geometry.section_params,
+            self.tol,
+        )
+    }
 }
 
 impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for LoftBuild<'_, T, L> {
     type Out = Result<Lofted<T>, LoftError>;
 
-    /// **The loft in `T`.** Each section is validated at `T` along its
-    /// `f64` record ([`validate_guided`]), or arrives so validated
-    /// ([`loft_profiles`]), so its canonical form is the one decided
-    /// and its values are the caller's; the fold, the skin
-    /// ([`skin_validated`]: the section curves, their compatibility,
-    /// the parameters and the solve) and the caps all read those, so a
-    /// section or placement value that is a function of the variables
-    /// gives walls and caps that are functions of them.
+    /// **At a projective scalar** every finite value is a point, so the
+    /// structure is selected on the sections' value channel at `f64`
+    /// ([`validate_loft`]), each section of loops is validated at `T`
+    /// along its `f64` record ([`validate_guided`]) or arrives so
+    /// validated ([`loft_profiles`]), and the loft is built in `T`
+    /// ([`Self::in_t`]).
     fn projective(self) -> Self::Out
     where
         T: ProjectiveScalar,
     {
-        let band = Band::linear(self.tol).map_err(LoftError::Band)?;
-        let canonical = match self.at_t {
-            SectionsAtT::Guided {
-                sections,
-                structures,
-            } => validate_guided(sections, self.places, &structures, self.tol)
-                .map_err(LoftError::Skin)?,
+        // Every finite value at a projective scalar is a point, and
+        // `build` refused the placements that are not finite.
+        let channel_places = self.channel_places.unwrap_or_else(|| {
+            unreachable!("a finite placement at a projective scalar has a point value")
+        });
+        let (_, structures) = self
+            .sections
+            .channel(channel_places, self.v_degree, self.tol)?;
+        let canonical = match self.sections {
+            SectionsAtT::Loops(sections) => {
+                validate_guided(sections, self.places, &structures, self.tol)
+                    .map_err(LoftError::Skin)?
+            }
             SectionsAtT::Validated(sections) => sections.to_vec(),
         };
-        stacking_fold(self.places, &canonical, band)?;
-        let geometry =
-            skin_validated(canonical, self.places, self.v_degree).map_err(LoftError::Skin)?;
-        let params = geometry
-            .section_params
-            .iter()
-            .map(|u| u.value_channel())
-            .collect();
-        assemble(
-            self.places,
-            &geometry.walls,
-            &geometry.canonical,
-            params,
-            self.tol,
-        )
+        self.in_t(canonical)
     }
 
-    /// **The loft at an enclosure scalar**: the `f64` loft its sections'
-    /// value channel describes, enclosed. The knot algebra the skin
-    /// runs does not typecheck at an enclosure scalar
-    /// ([`ProjectiveScalar`]), and the averaged knots a solve there
-    /// would form are no single points, which a carrier's knots must be
-    /// ([`geom_core::spline::Knots::new`]). So the skin is the `f64`
-    /// one, the walls are lifted ([`lift_loop_walls`]), and the caps
-    /// and the fold read the `f64` canonical form lifted onto the
-    /// lane's own placements ([`ValidatedProfile::lift_onto`]), whose
-    /// value channel is the planes the skin was selected on. A section
-    /// whose values are wider than a point refuses before this half
-    /// runs: at the `f64` validation in [`fn@build`], whose value
-    /// channel is then NaN, or
-    /// as [`LoftError::SectionNotAPoint`] in [`loft_profiles`]; a
-    /// placement wider than a point refuses in both
-    /// ([`LoftError::PlacementNotAPoint`]).
+    /// **At an enclosure scalar** the body encloses the family its
+    /// sections stand for.
+    ///
+    /// - Sections and placements that are points are a family of one,
+    ///   and the body encloses its `f64` loft. The skin is the `f64`
+    ///   one, the walls are lifted ([`lift_loop_walls`]), and the caps
+    ///   and the fold read the `f64` canonical form lifted onto the
+    ///   lane's own placements ([`ValidatedProfile::lift_onto`]), whose
+    ///   point values are the planes the skin was selected on.
+    /// - Otherwise the loft is built in `T` ([`Self::in_t`]), each
+    ///   section of loops validated at `T` with its decisions certified
+    ///   there. The skin's structure is what every value of the family
+    ///   shares, and where it is not (an arc, whose weights are no
+    ///   points; an interior knot wider than a point) the skin refuses
+    ///   typed ([`SkinError`]).
     fn enclosure(self) -> Self::Out {
+        let Some(channel_places) = self
+            .channel_places
+            .filter(|_| self.sections.all_points(self.channel_places))
+        else {
+            let canonical = match self.sections {
+                SectionsAtT::Loops(sections) => {
+                    validate_at_t(sections, self.places, self.tol).map_err(LoftError::Skin)?
+                }
+                SectionsAtT::Validated(sections) => sections.to_vec(),
+            };
+            check_shapes(&canonical).map_err(LoftError::Skin)?;
+            return self.in_t(canonical);
+        };
+        let (canonical, _) = self
+            .sections
+            .channel(channel_places, self.v_degree, self.tol)?;
         let band = Band::linear(self.tol).map_err(LoftError::Band)?;
         let places = self.places;
-        let lifted: Vec<ValidatedProfile<T>> = self
-            .canonical
+        let lifted: Vec<ValidatedProfile<T>> = canonical
             .iter()
             .zip(places)
-            .map(|(c, place)| c.clone().lift_onto(*place))
+            .map(|(c, place)| {
+                c.clone().lift_onto(*place).unwrap_or_else(|e| {
+                    unreachable!("{e}: these placements are points, by `all_points`")
+                })
+            })
             .collect();
         stacking_fold(places, &lifted, band)?;
-        let geometry = skin_validated(self.canonical, self.channel_places, self.v_degree)
-            .map_err(LoftError::Skin)?;
+        let geometry =
+            skin_validated(canonical, channel_places, self.v_degree).map_err(LoftError::Skin)?;
         let walls = geometry
             .walls
             .iter()
             .map(|w| lift_loop_walls(w))
             .collect::<Result<Vec<_>, _>>()?;
-        assemble(places, &walls, &lifted, geometry.section_params, self.tol)
+        let params = geometry
+            .section_params
+            .iter()
+            .map(|u| T::from_computed(*u))
+            .collect();
+        assemble(places, &walls, &lifted, params, self.tol)
     }
 }
 
@@ -680,7 +784,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     places: &[SketchPlane<T>],
     walls_t: &[Vec<Arc<NurbsSurface<T>>>],
     canonical: &[ValidatedProfile<T>],
-    section_params: Vec<f64>,
+    section_params: Vec<T>,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
     let band = Band::linear(tol).map_err(LoftError::Band)?;
@@ -1083,15 +1187,15 @@ pub fn loft_body<T: Decide + topo::AtRestPolicy>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
-    let channel = places
-        .iter()
-        .enumerate()
-        .map(|(section, p)| {
-            p.point_value()
-                .ok_or(LoftError::PlacementNotAPoint { section })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    build(sections, places, &channel, v_degree, tol)
+    let channel: Option<Vec<SketchPlane<f64>>> =
+        places.iter().map(|p| p.point_value()).collect();
+    build(
+        SectionsAtT::Loops(sections),
+        places,
+        channel.as_deref(),
+        v_degree,
+        tol,
+    )
 }
 
 /// **The loft body over sections already validated at `T`** — each a
@@ -1100,62 +1204,61 @@ pub fn loft_body<T: Decide + topo::AtRestPolicy>(
 /// canonical forms in the lane scalar: a document's profile values,
 /// which its own (guided) validation produced.
 ///
-/// The structure is selected on the sections' value channel
-/// ([`ValidatedProfile::value_channel`]); no section is validated
-/// again, and at a projective scalar the walls, caps and fold read the
-/// given forms themselves. Everything else is [`loft_body`]'s.
+/// No section is validated again: the walls, caps and fold read the
+/// given forms themselves, with the structure selected on their value
+/// channel ([`ValidatedProfile::value_channel`]) where it is a point.
+/// Everything else is [`loft_body`]'s.
 ///
 /// # Errors
 ///
-/// [`loft_body`]'s, with a section or placement whose values are no
-/// single points refused as [`LoftError::SectionNotAPoint`] or
-/// [`LoftError::PlacementNotAPoint`].
+/// [`loft_body`]'s.
 pub fn loft_profiles<T: Decide + topo::AtRestPolicy>(
     sections: &[ValidatedProfile<T>],
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
     let places: Vec<SketchPlane<T>> = sections.iter().map(|s| *s.plane()).collect();
-    let canonical = sections
-        .iter()
-        .enumerate()
-        .map(|(section, s)| {
-            s.value_channel()
-                .ok_or(LoftError::PlacementNotAPoint { section })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let channel_places: Vec<SketchPlane<f64>> = canonical.iter().map(|c| *c.plane()).collect();
-    check_counts(sections.len(), places.len(), v_degree).map_err(LoftError::Skin)?;
-    if let Some(section) = canonical.iter().position(|c| !profile_is_finite(c)) {
-        return Err(LoftError::SectionNotAPoint { section });
-    }
-    check_shapes(&canonical).map_err(LoftError::Skin)?;
-    T::split_projective(LoftBuild::<T, profile::ProfileLoop<T>> {
-        at_t: SectionsAtT::Validated(sections),
-        places: &places,
-        channel_places: &channel_places,
-        canonical,
+    let channel_places: Option<Vec<SketchPlane<f64>>> =
+        places.iter().map(|p| p.point_value()).collect();
+    build(
+        SectionsAtT::<T, profile::ProfileLoop<T>>::Validated(sections),
+        &places,
+        channel_places.as_deref(),
         v_degree,
         tol,
-    })
+    )
 }
 
-/// Whether every value of an `f64` canonical form is finite.
-fn profile_is_finite(profile: &ValidatedProfile<f64>) -> bool {
-    let point = |p: &geom_core::Point2<f64>| p.x.is_finite() && p.y.is_finite();
+/// Whether `holds` of every value of `lp`.
+fn loop_all<T: Real>(lp: &profile::ProfileLoop<T>, holds: impl Fn(T) -> bool + Copy) -> bool {
+    lp.vertices().iter().all(|p| point_all(p, holds))
+        && lp.segments().iter().all(|s| match s {
+            profile::Segment::Line => true,
+            profile::Segment::Arc(arc) => arc_all(arc, holds),
+        })
+}
+
+/// [`loop_all`] for a canonical form.
+fn profile_all<T: Real>(profile: &ValidatedProfile<T>, holds: impl Fn(T) -> bool + Copy) -> bool {
     profile.loops().iter().all(|lp| {
-        lp.vertices().iter().all(point)
+        lp.vertices().iter().all(|p| point_all(p, holds))
             && lp.segments().iter().all(|s| {
-                point(&s.start)
-                    && point(&s.end)
-                    && match s.kind {
+                point_all(&s.start, holds)
+                    && point_all(&s.end, holds)
+                    && match &s.kind {
                         profile::SegmentKind::Line => true,
-                        profile::SegmentKind::Arc { arc, .. } => {
-                            point(&arc.centre) && arc.radius.is_finite() && arc.sweep.is_finite()
-                        }
+                        profile::SegmentKind::Arc { arc, .. } => arc_all(arc, holds),
                     }
             })
     })
+}
+
+fn point_all<T: Real>(p: &Point2<T>, holds: impl Fn(T) -> bool) -> bool {
+    holds(p.x) && holds(p.y)
+}
+
+fn arc_all<T: Real>(arc: &geom_core::Arc2<T>, holds: impl Fn(T) -> bool + Copy) -> bool {
+    point_all(&arc.centre, holds) && holds(arc.radius) && holds(arc.sweep)
 }
 
 /// **The path-swept body** (§10.4 as a solid): places rigid copies of
@@ -1201,16 +1304,23 @@ pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
-    // The stations' structure is selected on the start frame's value
-    // channel, carried in `f64`; the stations in `T` carry the
-    // caller's frame along the same path.
-    let start = plane
+    // The stations' structure is selected on the start frame's point
+    // value carried along the path in `f64`, where it has one; the
+    // stations in `T` carry the caller's frame along the same path.
+    let channel = plane
         .point_value()
-        .ok_or(LoftError::PlacementNotAPoint { section: 0 })?;
-    let channel = sweep_places(start, path, stations, tol).map_err(LoftError::Skin)?;
+        .map(|start| sweep_places(start, path, stations, tol))
+        .transpose()
+        .map_err(LoftError::Skin)?;
     let places = sweep_places(plane, path, stations, tol).map_err(LoftError::Skin)?;
     let sections: Vec<Section<_>> = core::iter::repeat_n(profile.to_vec(), places.len()).collect();
-    build(&sections, &places, &channel, v_degree, tol)
+    build(
+        SectionsAtT::Loops(&sections),
+        &places,
+        channel.as_deref(),
+        v_degree,
+        tol,
+    )
 }
 
 #[cfg(test)]

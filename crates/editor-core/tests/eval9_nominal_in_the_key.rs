@@ -65,7 +65,6 @@ fn doc_with(nominal: f64, u_y_of: fn(Formula) -> Formula) -> ProfileDoc {
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, nominal)),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;
@@ -84,7 +83,6 @@ fn doc_with(nominal: f64, u_y_of: fn(Formula) -> Formula) -> ProfileDoc {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the frame inserts")
         .doc;
@@ -97,7 +95,6 @@ fn doc_with(nominal: f64, u_y_of: fn(Formula) -> Formula) -> ProfileDoc {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the profile inserts")
     .doc
@@ -146,7 +143,6 @@ mod over_a_param_box {
                 value: FreeValue::Continuous(value),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the value edit applies")
         .doc
@@ -227,7 +223,7 @@ mod over_a_param_box {
         // The harm: what the second evaluation reports as the
         // profile's placement.
         assert_eq!(
-            plane_bits(&first, &hit),
+            plane_bits(&first, &prior),
             plane_bits(&first, &cold),
             "the served profile is the cold run's"
         );

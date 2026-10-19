@@ -5,12 +5,12 @@ describes a solid by its boundary — faces on surfaces, edges on curves,
 vertices at points — linked by a **half-edge** structure (each edge is two
 antiparallel half-edges, one per bounding face). `Body<T>` holds that in
 typed generational arenas: scalar-free topology plus `T`-valued geometry
-arenas, built only through the Euler operators (`docs/DESIGN.md` D1).
+arenas, built only through the Euler operators (`docs/DESIGN.md` `[topology]`).
 Above the arenas the crate carries the validation tiers, plane splitting,
 the booleans and their declared-contact lanes, the at-rest coincidence
 census, the contact vocabulary, shell/offset surgery and the kernel query
 seat. Orientation conventions are stated once, in `src/entity.rs`.
-Determinism (D9): arena iteration is slot-index order, no hash container
+Determinism (DESIGN `[determinism]`): arena iteration is slot-index order, no hash container
 feeds a decision, every walk is bounded.
 
 ## Where in the code
@@ -198,61 +198,6 @@ The claim earned is *certified everywhere within ε*, never exact
 equals its skeleton; a contact of order k > 1 has no record type and
 refuses. Area sampling is rejected (it can miss a trim hole).
 
-**C4 — Declared contact as data.** A declaration names two faces by
-stable name on the mate that declares it and asserts a `ContactClass`:
-
-- `Rest` — same carrier, opposed senses, gap ≡ 0;
-- `Tangent` — curve or point touch, non-crossing;
-- `Fit { gap }` — carrier-parallel at a signed nominal gap; specified,
-  not built (`FIT_DEFERRAL`).
-
-A declaration is verified, never trusted. Each class states a list of
-facts that must verify DEFINITE, the triggers that contradict it, and a
-bridged residue; the declaration bridges only the residue
-(`ContactVerdict::{Definite, Bridged}`; `ContactRefusal::{Contradicted,
-Escalated, Undeclared, NotCertifiable}`).
-
-- *`Rest`.* Must verify: carrier non-contradiction through the kind
-  ladder (`carrier_eq`: plane, sphere, cylinder, torus), the pair read as
-  one displacement over the consumed extent — position data at a pivot,
-  plus the angular data levered from it to the extent's far reach, plus
-  the radius differences; senses opposed as an exact bit; overlap
-  definitely positive on C3's chart authority. Bridged only where that
-  displacement's upper bound is in band at every consumed point.
-  Contradicted by a consumed point (a face vertex, or the whole extent)
-  definitely off the other carrier, by aligned senses, or by definite
-  separation on the patch. Escalated between.
-- *`Tangent`.* Must verify: the two surfaces' separation along the
-  shared normal within ε at every sample (the touch), first-order
-  tangency along the witnessed locus, and the witness within ε of each
-  surface (C7's jet readings). Definite separation and definite
-  crossing are read on the separation; a witness off a surface is a bad
-  witness, not a gap. Contradicted by definite
-  normal independence, definite crossing (as far as the sampled κ_rel
-  sees it, C1), or definite separation. Bridged: in-band κ_rel
-  *including exact zeros at isolated points* (a G1 tube chain's neutral
-  meridians) — deliberately weaker than a jet certificate.
-
-The two doors are coupled: Door 2 receives Door 1's verdict. The planar
-interior-witness rung runs only on `Definite` (a precondition may not be
-discharged by the claim under test), and the cylinder enclosure halves
-its zero band on `Bridged`.
-
-A boolean's face pairs are the glue its margins decide (`boolean::glue`),
-or, at a step of an n-ary union's fold, the verdicts that union's pairwise
-judgement decided (`BooleanInputs::given`, each pair made from a
-`GlueVerdict` some boolean returned, which nothing ties to the operands
-it is handed to); declarations live on mate
-nodes alone (`crates/editor-core/ASSEMBLY.md`). Bodies carry only verified records,
-in the `BooleanBody` wrapper, never persisted. Replay is scalar-generic;
-an indeterminate verification at an interval scalar aborts.
-
-Failures, all typed: `UnrecordedContact` (the census);
-`ContactContradicted` (at use and
-at rest); `ContinuationContradicted` (at use);
-`StaleContactDeclaration`; `CensusEscalated`. Invariant: every definite
-verdict wins over every declaration.
-
 **Continuation.** Two faces, one from each operand, on one carrier with
 their senses ALIGNED are a *continuation*: one surface carried on,
 whether the two abut along a boundary curve or overlap on a patch. The
@@ -423,7 +368,551 @@ pair the witness lane has a locus for is glued, so it never meets
 NURBS↔analytic same-locus recognition; kinematics (records are
 geometric; mate solving is not here).
 
-## At-rest census identity (CENSUS-REST-CLOSURE)
+## The body, its operators and its tiers
+
+How `topo` keeps DESIGN `[topology]`. This is the text DESIGN held
+before the rules and the mechanics were split (2026-10-17), verbatim
+except for its profile, sweep and parameterization paragraphs, which
+went to those crates' pages, and the wired-arm list, which went to
+`docs/KERNEL-VERBS.md`. Bracketed ids (`[topology]`, `[coincidence]` …) are `docs/DESIGN.md`'s clauses.
+
+- Topology entities (`Solid / Shell / Face / Loop / HalfEdge / Edge /
+  Vertex`) live in generational arenas and reference each other by
+  typed IDs — never pointers. A B-rep is a plain value: cheaply
+  cloneable, serializable, diffable, validatable. Realized as Mäntylä's
+  half-edge structure in typed arenas: an `Edge` is two antiparallel
+  half-edges, the mate computed and never stored; the empty loop is a
+  typed `LoopBoundary::Empty | Cycle`, so every half-edge field is
+  non-optional and the sole `Option` in topology is the vertex's
+  emanating half-edge. A face's outer loop is excluded from its ring
+  list (`outer ∉ rings`), so rings coincide with the Euler–Poincaré
+  r-term.
+- **Manifold solids only.** Non-manifold (radial-edge) topology is added
+  only if sheet/wire bodies demand it.
+- Topology is built **exclusively through Euler operators**: a small
+  closed set of primitives that provably preserve the Euler–Poincaré
+  invariant. Each operator debug-asserts its postcondition — a per-call
+  instance of the soundness theorem, never a semantic gate on
+  intermediate states. The postcondition has two halves and they are
+  paid at different rates: the operator's declared arena delta is O(1)
+  and is checked at **every call**, while the whole-body tier-1
+  re-derivation is O(body) and is checked **once per public door**, at
+  the door's end, over the state the caller will see
+  (`work/perf/d1-per-op-tier1-sweep-price`, Ev, PR 2305). An operator a
+  consumer calls directly is itself a door and sweeps there; one inside
+  a composing door's surgery scope leaves the sweep to that door. The
+  guarantee is unchanged — every public mutation path preserves tier 1,
+  checked at every observable boundary — and an opt-in
+  `topo/per-op-postcondition` feature restores the per-operator sweep
+  to name the operator behind a door-level failure. **One class needs
+  the scalpel rather than merely benefiting from it**: a corruption an
+  operator introduces and a later operator in the same door repairs is
+  invisible at the door, because the state the door hands back is
+  sound. The door-level check is a claim about that state, not about
+  every state the door passed through, and the ruling's "caught one
+  door later" is exactly that trade. "Exclusively" is
+  realized: the operator set is the only public construction path; raw
+  insertion is crate-internal test scaffolding.
+- **Touching via distinct entities is a typed success** validating at
+  tier 3′ ([topology]'s representability boundary). Silent splitting into separate manifold bodies is rejected as
+  inexplicit; any future split behavior is an explicit ratified
+  operation the user invokes, never a fallback.
+
+**Topology conventions.**
+One rule, from which everything else is a
+corollary: walking any loop in `next` order with the face's outward
+normal toward the viewer, the face interior lies to the **left** of
+every half-edge. Corollaries: outer loops run counterclockwise viewed
+from outside and rings clockwise; an edge's two half-edges are
+antiparallel (`end(he) = start(mate(he))`); `Edge::he_plus` defines the
+edge's intrinsic direction, and curve geometry MUST agree — increasing
+curve parameter runs from `start(he_plus)` to `end(he_plus)`, pcurves
+and per-face traversal senses derived from that, never stored as peers;
+the vertex-orbit step `next(mate(he))` visits a vertex's outgoing
+half-edges **clockwise** viewed from outside. Transcription hazard:
+GWB/Mäntylä's diagrams orient face boundaries clockwise viewed from
+outside — mirrored relative to us — so figures, argument orders and
+traversal idioms from the book are rederived from the interior-left
+rule and pinned by construction tests, never transcribed. The normative
+derivations live in `crates/topo/src/entity.rs`.
+
+**Face orientation sense.** A face carries `Face::sense: bool`: `true`
+iff the face's material side agrees with its surface's chart normal, so
+the outward normal at a point is `n(u, v)` where `sense` is `true` and
+`−n(u, v)` where it is `false`. The analytic
+chart normals admit no reversal by reparameterization (cylinder, cone
+and torus normals are odd in the radius; the sphere's is even and
+outward under the `radius > 0` convention — a negative-radius sphere is
+rejected as a representation), so the bit on the face is the
+representation of reversal. Normative consequences:
+- The interior-left rule is stated against the sense-signed chart
+  normal.
+- Orientation reversal is **exact structure**, never a numeric decide:
+  `revert` flips `sense` on every face carried by a non-plane surface,
+  negates the stored normal of `Plane`-carried faces, and inverts every
+  joint element, moving it onto its source predecessor (a joint's
+  element read from the other side is its inverse — `topo`'s
+  `JointElement`); no loop's anchor moves. The two normal encodings are
+  exclusive by surface kind, so every outward normal is negated exactly
+  once, inverting an element is exact integer arithmetic, and
+  `revert ∘ revert` is bit-identical at every scalar backend.
+- A face's `sense` is decided where its chart is decided. An Euler
+  operator minting a face on its parent's chart (`same_chart`: one
+  key, or keys sharing one payload) derives the bit from its own
+  topology: a `mef` fragment is a piece of the parent's region and
+  takes the parent's bit; the ring `mfkrh` promotes was wound
+  clockwise about the parent's outward normal and now bounds its face
+  counter-clockwise, so that face takes the parent's bit negated
+  (`kfmrh` demotes the other way). A face minted or re-charted onto
+  any other chart carries the bit its caller states beside the
+  surface (`FaceSurface::New`, `Shared`); a stated bit that
+  contradicts the derived one on the parent's chart is refused, typed,
+  before mutating. Never a numeric compare, and never a default. Where
+  the parent bounds no region yet, its bit and so the derived one are
+  provisional, and the constructor states the honest bit when it
+  charts the face.
+- Every "which way is out" consumer (tier gates, mass-properties flux,
+  boolean classification, tessellation and export winding) reads the
+  signed normal, or documents in place why it is sense-invariant.
+- The bit is exactly STEP's `advanced_face.same_sense`, so the exporter
+  consumes it rather than deriving it. Bodies are not serialized ([determinism]),
+  so persistence is unaffected.
+
+**The operator set.** `[topology.operators]`
+Ten operators in five make/kill pairs —
+`mvfs`/`kvfs`, `mev`/`kev`, `mef`/`kef`, `kemr`/`mekr`, `kfmrh`/`mfkrh`
+— plus the `ring_move` reparenting helper, deliberately **not** an
+Euler operator (`mef` does not reclassify rings, after GWB's `ringmv`).
+Addressing is by half-edge key plus per-op **site enums** whose
+variants are the degenerate cases (`MevSite::{Fan, Lone}`): degenerate
+sites live in the argument types, not behind null checks. GWB's id-scan
+layer is dropped; arena keys are the stable O(1) handles. The uniform
+per-op contract: **atomic** (typed-error preconditions fully resolve
+before an infallible mutation phase; a failed op consumes no key
+slots), **deterministic minting order** (documented per op — [determinism]
+lineage replay), and a **debug-asserted postcondition** — the declared
+arena delta at every call, the whole-body tier-1 re-derivation once per
+public door ([topology]).
+Association convention: **the given/first half-edge's side is the new
+or affected thing** — `mef`'s `he1` side becomes the new face's outer
+loop, `kemr`'s `he1` side becomes the ring, `kef` kills the given
+half-edge's face, `kev` the vertex it points at. Cross-shell `kfmrh` is
+the shell-fusion form (same solid), `mfkrh` its inverse; `ring_move`
+reparents only within one shell (`EulerOpError::CrossShell`).
+
+**Validity tiers.** `[topology.tiers]`
+
+1. **Tier 1 "euler-valid"** — the structural invariant of every
+   Euler-reachable state, construction scaffolding included (empty
+   loops, struts, self-loop edges, laminae are mandatory
+   intermediates); what each operator debug-asserts. The checklist:
+   referential integrity across all arenas (orphan geometry is an
+   error); half-edge chain coherence; mate involution/antiparallelism;
+   vertex anchoring (every vertex is referenced by ≥ 1 half-edge XOR is
+   the lone vertex of exactly one Empty loop); vertex-orbit closure
+   (manifoldness — watertightness is structural in the half-edge
+   form); the ownership/back-pointer partition; shell-partition/
+   edge-adjacency coherence; arity floors; bidirectional [identity] provenance;
+   and the **component-aware per-shell Euler–Poincaré**: per connected
+   component of a shell's incidence complex, v − e + f − r = 2(1 − g)
+   with g a non-negative integer, summing per shell to 2(c − Σgᵢ) over
+   its c components. The naive per-body form is wrong for tier-1
+   bodies — `mfkrh` on a detached ring disconnects a shell's surface
+   while a single shell entity remains.
+2. **Tier 2 "closed solid"** (`validate_closed`) — tier 1 plus: no
+   empty loops, no valence-1 vertices, and c = 1 per shell (the third
+   ban is independent: a promoted detached cycle ring disconnects a
+   shell with neither an empty loop nor a strut).
+3. **Tier 3 "geometric"** — [tolerance.residuals] residual certification, plus the
+   **material wedge-angle predicate**: at every edge the material wedge
+   ∈ (0, 2π), bounded away from the ends by θ = ε/r; wedge = π is the
+   legal smooth-seam case; and the ends carry a **second-order arm**:
+   wedge = 0 (a cusp) and wedge = 2π (a knife slit, an isolated cusp's
+   `revert` image — legal together or not at all) are legal iff the tangency is
+   **jet-determinate**: quadratic transverse separation with κ_rel
+   bounded away from zero — `TangentIntersection`'s own margin, so the
+   cusp edge's honest description IS `TangentIntersection` wherever the
+   tangent certificate's lane reaches. The ends are derived from the
+   body exactly as the π seam is: a cusp and a smooth seam are the same
+   tangent junction on one shared edge, told apart only by the sign of
+   the two faces' outward normals, which the body already certifies.
+   The shared edge is the structural record. A tangency is constructed
+   (the profile's cusp joint, a tangency construction, [coincidence]) or decided
+   Zero by its margin where an op meets it, and a tangency decided from
+   values is recorded and checked by the `unproven-coincidence` lint
+   like any coincidence. In-band κ_rel escalates; osculation
+   refuses (`LaminaWedge`). The
+   arm admits no laminae, so zero-volume bodies stay geometric defects.
+   Where more than two sheets meet on a line, the material decides the
+   edges, as the manifold boundary of the material rather than of its
+   surface: each creased material sector between two consecutive
+   sheets is one edge, bounding that wedge alone; a sector of exactly π
+   is a face continuing, with no edge there; and the material sectors
+   on one line are disjoint, so no face passes through an edge's
+   material wedge. So a doubled cusp (two material wedges on one
+   tangent line) and a reflex edge lying in one of its own faces are
+   two coincident distinct edges, each classifying separately; an edge
+   touching a face from outside its wedge stays one edge, in contact
+   with that face; and where no edge lies on the line, the wedges are a
+   touch between faces, recorded like any touch, and no op cuts edges
+   to make a junction of it. Where the line ends inside a face, that
+   face carries its edges as a zero-area ring, which bounds no hole and
+   whose winding is exempt; where it reaches the face's boundary, as a
+   slit of that loop. The complement pairs the sheets differently, so
+   a door that complements material across such a line re-pairs there.
+   Tier 3′ reads every touch for sides, the coincident edges on one
+   line included: touching cells' material lies on opposite sides of
+   each other. Consumers with no wedge-0/2π answer (fillet, offset,
+   mesh sizing, sector classification), and none for a body's
+   curve-touch records, refuse typed at the consumer.
+   Also at tier 3: **maximal edges** (a joinable vertex at rest is a
+   construction that stopped half-way, `JoinableVertexAtRest`; a
+   vertex whose regularity reading lands in the sliver band, so that
+   whether it is joinable is undecided, refuses too, with the
+   tighten-the-tolerance recourse: a size the run's ε cannot tell from
+   a pole or apex), **prefer-intrinsic enforcement** ([edges]) and the
+   **orientation invariant** (a solid's faces leave infinity outside
+   it, read by the reader of a shell's role, [coincidence.booleans]: a ray
+   aimed at one of its faces, the certified signed volume only where no
+   face offers an aim; definitely inside-out ⇒ invalid, and a solid
+   whose side no reading decides refuses — an orientation probe, not a
+   thinness gate, at every door). Laminae live here, not at
+   tier 2: two faces glued along their whole shared boundary is a
+   two-hemisphere ball's incidence structure, so a zero-volume lamina
+   is a geometric defect, not a topological one. Global
+   self-intersection / minimum clearance is the interval clearance
+   engine's: its body-level half — cell subdivision over
+   `Body<Interval>` — lives in `editor-core` today and moves into
+   `topo` (SHELL-3, ruled at #1737), with the
+   parameter-box outer half above it in `editor-core`, so a verb that
+   must certify a boundary embedded (`shell`'s cavity clone) runs the
+   same engine at a certifying scalar and refuses typed at the door.
+
+   A **finished body** (`AtRestBody`) passes tier 3′ against its own
+   contact records: none, for a body that touches nothing, where the
+   census must find no coincidence at all. Every door that returns or
+   consumes one pays that gate once, at the door that built it.
+   The Boolean door's result meets tier 3 without the census: its
+   contact records, each citing the coincidence that backs it, ride
+   beside it (`BooleanBody::contacts`), and the
+   census over them is parked on CONTACT's cross-solid curved lane
+   (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
+   Construction state (tier 1, or tier 2 without geometric
+   certification) is what Euler operators hand back, and becomes a
+   finished body only through the at-rest gate.
+4. **Tier 3′ "pseudomanifold"** (`validate_pseudomanifold`) — the
+   honest at-rest tier for boolean results that *touch*: contacts
+   limited to entirely-coincident-but-distinct edges, edge-on-face,
+   vertex-on-face, vertex-on-edge/vertex — touching allowed, proper
+   self-intersection not. Composition: tier 3's local battery
+   verbatim (shared extraction) plus a **global coincidence census**
+   plus **two-directional contact-record certification**:
+   - The census is exact on the planar inventory and admits every
+     carrier kind: same-key opposed-sense curved pairs certify through
+     the conformal arm, face–face records through the patch
+     certifier on one carrier or two planes and the jet schedule
+     along the closed-form tangent line on two other carriers,
+     cross-solid pairs with a curved
+     side in reach refuse as undecidable, and same-solid distinct-key
+     curved pairs stay undetected until C9/C6 (`topo::census` module
+     docs). A record or candidate outside a certifier's lane refuses
+     typed `CensusUnsupported`, never samples. Every comparison is a
+     named trilean ([verdicts]); indeterminates surface as typed
+     `CensusEscalated`, never a silent skip.
+   - A census finding decides one number per pair of cells (two edges,
+     an edge and a face, a vertex and a face, two faces), read between
+     the cells themselves, never between the infinite lines or planes
+     they lie on, and signed where a face gives a side. For cells that
+     share nothing it is their minimum distance. Cells that share a
+     vertex, a point key or an edge meet there by construction, and the
+     question is whether they meet anywhere else: the number is their
+     largest distance over the shorter cell, beyond what they share. For
+     straight cells it falls at the shorter cell's far end, its length
+     times the sine of the angle between them ([tolerance.epsilon]'s d = r·θ, with
+     the cell's own extent as the arm). The verdict's three arms ([verdicts]) read it: a
+     definite number is a legal configuration, however thin; one in the
+     sliver band refuses; a Zero is a coincidence (the cells are one
+     over their extent), which the op that made the body glues and
+     records ([coincidence]), so a census Zero no record backs is that op's
+     defect. Near what two cells share, every pair is within the band
+     whatever its angle. That neighbourhood is not a coincidence, and
+     its extent is not a number the census reads.
+   - Certification runs **both directions and never scans-to-bless in
+     either**: a census finding with no backing record is never
+     silently blessed ((iii) below); a record with no geometric witness
+     is stale and refuses typed. Structural sharing (same surface or
+     point key) needs no record. Vertices an op knows or decides to be
+     one point share one point key, whether they stay in one solid or
+     lie in two: an op that cuts one vertex into copies hands each copy
+     the original's point, as it hands a cut face's fragments one
+     surface; vertices whose gap an op decided Zero share the key it
+     keeps, and the op records that decision (a `VertexFusion` row,
+     cited by the pair's vertex-vertex record) for the lint, not for
+     the census. A Zero-gap vertex pair on two point keys in a finished
+     body is its producer's defect.
+   - A contact record is a pair of cells, one from each touching
+     shell (or each side of a shell's pinch, whose two sides touch
+     within one shell, recorded as between shells), whose interiors meet, plus its backing: a
+     coincidence an op decided Zero, recorded ([coincidence]). The record is
+     that pair and nothing else: an unordered pair of the body's own
+     cells, in canonical order, in one list a citation addresses by
+     position. It carries no operand label, no stored granularity and
+     no witness. Its kind (vertex–vertex, vertex–edge, vertex–face,
+     edge–edge, edge–face, face–face) is the two cells' dimensions, and
+     whether it touches at a point, along a curve or over a patch is
+     read from the two cells' geometry by the census (CONTACT-DESIGN
+     C3), whose rungs back a subordinate vertex event. An operation's
+     own working vocabulary (the boolean's operand-tagged cells) stays
+     inside it and is dropped at its carry. Every pair whose interiors
+     meet is recorded, an edge lying in a face or along an edge
+     included; only how the census confirms a record depends on its
+     geometry. A straight edge in a plane, or two collinear lines, is
+     confirmed by reconstruction from its bounding vertex records
+     (between two backed bounds, two lines sharing two points are one
+     line; a missing bounding record is an unbacked contact, never
+     inferred), a curved one as a curve touch; a crossing of two edge
+     interiors has no bound, and its edge-edge record backs it. Every op carries the records through
+     one lineage, which states for each cell what the op made of it:
+     kept; substituted by a cell that holds its interior (a merge's
+     face, a join's edge, a seam); divided, into its pieces and the
+     cells the op minted between them, the division exhaustive or with
+     its remainder removed; or removed. One carry, for the boolean and
+     every surgery verb alike, lands a record whose two cells the op kept
+     or substituted on their images by lineage, unread, their geometry
+     unchanged and the record read where it was minted; it puts each
+     pair drawn from a divided cell's images to the census's record
+     confirm, and the record lands on every such pair whose interiors
+     meet, each landing citing it. Two
+     cells an op minted on a record's two cells and that meet at a point
+     meet where the record puts them when one cut made both, as the
+     split's one plane does, and the landing cites the record alone; an
+     op that cuts with many surfaces (the boolean's tool) decides every
+     such meeting at its door ([coincidence]), and the landing cites the decision
+     beside the record; any other op refuses one. A record
+     that lands on no pair, every pair read definitely, is consumed
+     where one of its cells was removed or divided with its remainder
+     removed, and is stale otherwise; a cell the lineage does not cover
+     refuses. A cell that replaces another without holding its interior
+     (a blend face for the edge it rounds) takes no record from it.
+   - **Certification strength equals its skeleton**: a curve touch is
+     certified at its jet samples plus hull bounds, a patch by
+     definitely-positive region overlap in the shared chart, a
+     vertex-granularity area contact via its corner/segment records.
+     Nested-shell pure containment (a void, zero coincidences) is
+     census-invisible and certifies — the voids story below, not a
+     gap.
+
+   **Touching is always recorded**: (i) operand coincidences are
+   decided by margined verdicts ([coincidence]) — a Zero margin is a coincidence,
+   and a sliver-band one is an escalated typed error, never contact;
+   (ii) result-side touching arises only from those coincidences
+   propagated through the op's lineage, from the op's own decision
+   where two cells it minted on one meet at a point, or from an op's
+   copies of one vertex at such a coincidence, which share its point; the result carries
+   machine-checkable contact records (the ON-set survivors, carried
+   across seam-zip/merge mints by a descendant map, never re-derived),
+   each citing the coincidence ([coincidence]) that backs it, which the
+   `unproven-coincidence` lint checks; (iii) a contact the
+   census discovers that no record backs is never silently blessed:
+   between copies at rest it is an `unproven-coincidence` finding
+   ([coincidence]), and inside one op's result it is that op's defect, refused
+   typed.
+
+   **Validity class rides the result wrapper, never a mutable `Body`
+   field**: a boolean result is `BooleanBody` — body + contacts — whose
+   at-rest gate is `validate_pseudomanifold(&body, &contacts)` over its
+   own contact list, empty or not; with the list empty, the census must
+   find nothing.
+
+   **Representability boundary**: pseudomanifold touching via
+   *distinct* entities (two vertices at one point, two edges on one
+   segment) is representable in the half-edge structure and is a typed
+   *success* carrying its 3′ records. A single edge with >2 faces, or a
+   wedge fan sharing one entity, assembles faces into something that is
+   not a solid; the half-edge structure does not represent it.
+
+**Structural conventions.**
+
+- **Sweeps emit single-shell primary boundaries; every CAVITY is born
+  through the shared void-insertion door.** A cavity's boundary is a
+  disconnected interior shell, and its bookkeeping — orientation,
+  census participation, containment evidence — has exactly one home:
+  `topo::insert_void`, the door the boolean owns, callable without the
+  SSI pipeline for provably-no-crossing cases with caller-certified
+  containment. Four producers: boolean subtraction (its probe
+  verdicts); `shell`'s sealed hollow (its offset margin, OFFSET-DESIGN
+  O4); the full revolve of a holed profile, DEFINED as
+  `revolve(outer) − revolve(hole-as-outer)` and executed through the
+  degenerate no-crossing arm (the profile's validated 2-D margins); and
+  a concave blend's fill sealing a blind hole's mouth, DEFINED by the
+  blend's Boolean semantics (`S ∪ F`) and executed by its surgery (the
+  mouth's cycle on the face the fill covers).
+  Recipe-layer sugar may wrap any of these; the door stays the one
+  birthplace. `UnsupportedToroid` is permanent: a [surfaces] ring-torus
+  boundary — spindle tori have no representation.
+- **∅, disjoint, and voids are typed results.** ∅ is a typed success
+  value (`BooleanResult::Empty`), not an error. **A solid is one piece
+  of material**: the `Outer` shell around it and the `Void` shells of
+  the cavities in its material, which together bound that material and
+  nothing else. A cavity belongs to the piece whose material surrounds
+  it, so an island inside a cavity is a solid of its own, and a cavity
+  inside that island is the island's. Pieces that only touch (at a
+  corner, along an edge, or across a face that contact records hold
+  apart) are distinct solids, because touching is between distinct
+  entities (tier 3′). A piece that touches itself stays one solid. A
+  body is any number of solids, so a disjoint union is a body of
+  several solids. Booleans, `shell` and `split` take bodies and return
+  bodies, and each sorts its result into solids, so every output is an
+  operand. A product (the copies its world placements define, [placement]) is
+  not a boolean operand: the editor refuses it, naming the explicit union
+  of the copies that makes them one body
+  (`crates/editor-core/ASSEMBLY.md`, A2). Which solids are one part stays recipe
+  structure, never body state (`crates/editor-core/ASSEMBLY.md`, A2).
+  The extrude/full-revolve
+  hole asymmetry is structural: extruded holes are cap-to-cap tunnels
+  (one shell, genus); full-revolve holes are cavities (a second shell,
+  through the door); partial revolve is extrude-shaped and carries
+  holes in its one shell.
+- **Coincidence discipline in the reduction.** Every
+  reduction/classification comparison is a trilean ([verdicts]): definitely-off
+  ⇒ clean side, decided Zero ⇒ ON, in-band ⇒ escalated typed error (a
+  genuine sliver: the operand pair is ill-conditioned at this ε). An
+  ON verdict that only places topology is derived; one that would make
+  pieces of one result touch (a split vertex whose orbit has two or
+  more runs on one side) is a coincidence decided from values, built,
+  recorded and reported by the `unproven-coincidence` lint unless it is
+  structural ([coincidence]). No snapping beyond the Zero verdict: a merged face
+  keeps one operand's description, and nothing in the sliver band is
+  moved. Booleans on independently modeled nearly-touching bodies fail
+  loudly rather than guess — the design thesis; the resolution is one
+  construction or an explicit [import]-style repair/adoption op.
+- **Maximal-faces precondition and the merge stage.** Booleans
+  precondition no two adjacent coplanar faces (`NonMaximalFaces`); the
+  explicit opt-in normalization op is `merge_coplanar_faces` (merging
+  is never silent), and boolean *outputs* run it as a documented final
+  stage of the op's contract — the seam zip manufactures coplanar
+  pairs by construction; the recipe records one boolean node, not
+  hidden healing. A sweep mints no same-key adjacency to merge: it
+  builds one wall per run of profile pieces on one carrier
+  (`crates/sweep/README.md`, "Walls"). Merge glues on a Zero verdict
+  between the carriers ([coincidence]), never on bit-equality: a boolean merges a
+  cross-operand coplanar pair its margins decide a continuation, records
+  it for the `unproven-coincidence` lint, and keeps one description. A boolean whose output
+  stage cannot glue a planar group its verdicts decided a continuation refuses
+  the step with the merge's own typed reason, so every boolean output
+  is a legal boolean operand; only a curved group's skip is recorded
+  and shipped. Every op's output also has **maximal edges**: no
+  *joinable* vertex, meaning valence 2 with two distinct edges on one
+  structural carrier between the same two faces. Two edges are on one
+  structural carrier when both lie on one locus of the faces' surface
+  pair, or on one iso family of one surface's chart, and that locus is
+  one regular curve at their shared vertex: the surfaces are transverse
+  there (tangent arms one order up), or the chart is regular there.
+  Distinct components of one locus never share a point, so the vertex
+  decides the branch, and nothing is compared between the two edges. A
+  pole, a cone's apex or any point where the locus is not one curve is
+  never joinable; a reading of the vertex in the margin band refuses
+  typed. A closed edge the join makes keeps one *conventional vertex*:
+  a vertex whose only edge is that one closed edge, at both its ends.
+  Its position, and the edge's parameter origin and witness that hang
+  on it, are conventional data the kernel owns, like a seam's place.
+  The vertex has no identity of its own. It mints no name a reference
+  binds to; a reference or a pick there resolves to the edge, and a
+  record, census reading or later cut at its point reads the edge's
+  interior. A sweep builds one rim
+  edge per run, as it builds one wall, and a boolean's output stage joins
+  every joinable vertex after the merge, whatever drew it. A body is then
+  the unique complex with maximal faces and maximal edges over its face
+  partition, up to the position of each closed edge's conventional
+  vertex, so a union's body does not depend on its member order, and
+  the form is checked at rest on the result alone, with no history, by
+  the one predicate the join takes a vertex by: every door that
+  finishes a body, import included, ends with the join, and a vertex
+  whose regularity reading lands in the sliver band refuses at rest,
+  naming the tolerance below which it would be decided.
+  Load-bearing dependency: `merge_coplanar_faces` **never fuses two
+  vertices into one**. A contact record is a pair of cells, one from each
+  touching shell (vertex, edge or face), whose interiors meet, plus its
+  backing. A vertex resting on an edge's interior is the record
+  (vertex, edge). The output stage deletes a vertex in two shapes, both
+  recorded in `killed_vertices`:
+  - the free end of a seam edge the glue left dangling inside the
+    merged face, which goes together with its edge;
+  - a joinable vertex, whose two edges become one.
+
+  The join carries every record citing the three cells it replaces to
+  the edge it makes, by substitution with its backing unchanged, so
+  records are written by the op that changes their entities and never
+  re-derived at the gate (F1). Tier 3′'s strict record-drop rule (a
+  contact record whose vertex pair fused into one vertex is consumed and
+  drops) is correct *because* nothing is fused. Any future fusing
+  re-opens the record-carriage class.
+
+## Until the intent refactor lands
+
+These clauses describe declared contact as the code still has it: a
+mate's `ContactClass`, its minted declaration and the declared rungs
+that back census events. DESIGN `[coincidence]` and `[assertions]`
+replace them, and INTENT stage 4 (a mate's contact class) and stage 5
+(the at-rest check) delete them as they land. C2's and C3's mentions of
+a declared rung and a declared pair belong to the same model.
+
+**C4 — Declared contact as data.** A declaration names two faces by
+stable name on the mate that declares it and asserts a `ContactClass`:
+
+- `Rest` — same carrier, opposed senses, gap ≡ 0;
+- `Tangent` — curve or point touch, non-crossing;
+- `Fit { gap }` — carrier-parallel at a signed nominal gap; specified,
+  not built (`FIT_DEFERRAL`).
+
+A declaration is verified, never trusted. Each class states a list of
+facts that must verify DEFINITE, the triggers that contradict it, and a
+bridged residue; the declaration bridges only the residue
+(`ContactVerdict::{Definite, Bridged}`; `ContactRefusal::{Contradicted,
+Escalated, Undeclared, NotCertifiable}`).
+
+- *`Rest`.* Must verify: carrier non-contradiction through the kind
+  ladder (`carrier_eq`: plane, sphere, cylinder, torus), the pair read as
+  one displacement over the consumed extent — position data at a pivot,
+  plus the angular data levered from it to the extent's far reach, plus
+  the radius differences; senses opposed as an exact bit; overlap
+  definitely positive on C3's chart authority. Bridged only where that
+  displacement's upper bound is in band at every consumed point.
+  Contradicted by a consumed point (a face vertex, or the whole extent)
+  definitely off the other carrier, by aligned senses, or by definite
+  separation on the patch. Escalated between.
+- *`Tangent`.* Must verify: the two surfaces' separation along the
+  shared normal within ε at every sample (the touch), first-order
+  tangency along the witnessed locus, and the witness within ε of each
+  surface (C7's jet readings). Definite separation and definite
+  crossing are read on the separation; a witness off a surface is a bad
+  witness, not a gap. Contradicted by definite
+  normal independence, definite crossing (as far as the sampled κ_rel
+  sees it, C1), or definite separation. Bridged: in-band κ_rel
+  *including exact zeros at isolated points* (a G1 tube chain's neutral
+  meridians) — deliberately weaker than a jet certificate.
+
+The two doors are coupled: Door 2 receives Door 1's verdict. The planar
+interior-witness rung runs only on `Definite` (a precondition may not be
+discharged by the claim under test), and the cylinder enclosure halves
+its zero band on `Bridged`.
+
+A boolean's face pairs are the glue its margins decide (`boolean::glue`),
+or, at a step of an n-ary union's fold, the verdicts that union's pairwise
+judgement decided (`BooleanInputs::given`, each pair made from a
+`GlueVerdict` some boolean returned, which nothing ties to the operands
+it is handed to); declarations live on mate
+nodes alone (`crates/editor-core/ASSEMBLY.md`). Bodies carry only verified records,
+in the `BooleanBody` wrapper, never persisted. Replay is scalar-generic;
+an indeterminate verification at an interval scalar aborts.
+
+Failures, all typed: `UnrecordedContact` (the census);
+`ContactContradicted` (at use and
+at rest); `ContinuationContradicted` (at use);
+`StaleContactDeclaration`; `CensusEscalated`. Invariant: every definite
+verdict wins over every declaration.
+
+### At-rest census identity (CENSUS-REST-CLOSURE)
 
 **Vertex-on-edge at rest.** The boolean lane refines every vertex-on-edge
 event to vertex-vertex before records exist; at rest nothing refines. So
@@ -457,7 +946,7 @@ the `Uncertified` frontier, and any other is a hard `AtRest` error
 mate relates is no finding there: the gather's census records it
 (`record_at_rest`).
 
-## Crossing backability (MATE-4B-CROSSING)
+### Crossing backability (MATE-4B-CROSSING)
 
 A **crossing** here is the census event `EdgeEdgeCross`: two coplanar
 boundary edges crossing at a point. A *backing rung* decides whether a
@@ -531,9 +1020,9 @@ left).
 
 ## Related pages
 
-`docs/DESIGN.md` (D1, D9, the tier ladder); `crates/verbs/README.md`
+`docs/DESIGN.md` (`[topology]`, `[determinism]`); `crates/verbs/README.md`
 (VERB-SEAT-DESIGN, query doors at topo); `docs/MATE-7-TANGENCY-DESIGN.md`
-(rim tangency routing); `docs/DISCIPLINES-DESIGN.md`;
+(rim tangency routing); `crates/editor-core/CHECKS.md`;
 `crates/geom-brep/README.md` (curved geometry, offsets, shelling);
 `crates/editor-core/ASSEMBLY.md` (mates and the at-rest door);
 `docs/guide/assembly.md`.

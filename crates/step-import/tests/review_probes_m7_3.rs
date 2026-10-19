@@ -124,8 +124,8 @@ fn probe_refit_seam_refuses_typed() {
             );
             assert!(
                 rendered.ends_with(
-                    "the declared carrier is not on both surfaces. There is no way through: this \
-                     is a kernel defect or a damaged file; report it"
+                    "the carrier is not on both surfaces. There is no way through: this is a \
+                     kernel defect or a damaged file; report it"
                 ),
                 "a miss past ε_in ends at rest at the import door: {rendered}"
             );

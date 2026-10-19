@@ -142,11 +142,17 @@ pub fn datum_distance_sign<T: Decide>(
     ))
 }
 
-/// **A pose definition** (D10; FORK-S3P, FORK-1b): how a pose
-/// variable is defined, since no pose is free and none is defined from
-/// nothing. Each arm states its result kind ([`Self::kind`]), and the
-/// doors check each read and scalar at the kind it admits
+/// **A pose definition** (D10; FORK-S3P, FORK-1b, FORK-MOVE): how a
+/// pose variable is defined, since no pose is free and none is defined
+/// from nothing. Each arm states its result kind ([`Self::kind`]), and
+/// the doors check each read and scalar at the kind it admits
 /// ([`Self::reads`], [`Self::scalars`]).
+///
+/// Every number a definition holds is a `Length` along one direction or
+/// an `Angle` about one axis ([`Self::Slide`], [`Self::Spin`]): no slot
+/// holds a component of a direction or of a frame's axis, so a zero
+/// direction, an axis that is not orthogonal and a normalisation cannot
+/// be written.
 ///
 /// Generic over its read form `R` and its scalar form `S`: the stored
 /// definition reads variables by id (`PoseDef<VarId, VarId>`); the
@@ -154,6 +160,10 @@ pub fn datum_distance_sign<T: Decide>(
 /// reads operands and writes formulas, which the edit door lowers.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(bound(
+    serialize = "R: serde::Serialize, S: serde::Serialize",
+    deserialize = "R: serde::Deserialize<'de>, S: serde::Deserialize<'de>"
+))]
 pub enum PoseDef<R = crate::VarId, S = crate::VarId> {
     /// **A face read as a plane**: its carrier's plane, with the face's
     /// outward normal (DM1a). A non-planar carrier refuses typed (DM1b).
@@ -175,101 +185,345 @@ pub enum PoseDef<R = crate::VarId, S = crate::VarId> {
         /// The face, edge or vertex.
         of: R,
     },
-    /// **A pose written by coordinates in a frame** the definition
-    /// reads, each coordinate a scalar variable. The frame is itself a
-    /// definition, so this never starts from nothing.
-    InFrame {
-        /// The frame, a `Frame` read.
-        frame: R,
-        /// The coordinates, in the frame's axes; their shape is the
-        /// result's kind.
-        coords: PoseCoords<S>,
+    /// **A pose slid** along a direction by a length: a point, an axis,
+    /// a plane or a frame moved, its kind kept. A direction has no
+    /// position to slide, so its slide is no variant. A chain is
+    /// nesting, in the order the author wrote it.
+    Slide {
+        /// The pose slid.
+        pose: RoleRead<R>,
+        /// The direction it slides along, a `Direction` read, or an
+        /// `Axis` read for its direction.
+        along: RoleRead<R>,
+        /// How far (Length).
+        by: S,
+    },
+    /// **A pose spun** about an axis by an angle, right-handed: any
+    /// pose turned about the line, its kind kept.
+    Spin {
+        /// The pose spun.
+        pose: RoleRead<R>,
+        /// The axis it spins about, an `Axis` read.
+        about: RoleRead<R>,
+        /// How far (Angle).
+        by: S,
     },
     /// **The frame through an axis and a point** (FORK-1b): origin the
     /// foot of the point on the axis, `z` the axis, `x` towards the
     /// point. A point on the axis refuses typed at evaluation.
     Through {
         /// The axis, an `Axis` read.
-        axis: R,
+        axis: RoleRead<R>,
         /// The point, a `Point` read.
-        point: R,
+        point: RoleRead<R>,
     },
     /// **The axis two planes meet in** (FORK-1b), along `a.n × b.n`,
     /// through the line's point nearest `a`'s origin. Parallel planes
     /// refuse typed at evaluation.
     Meet {
         /// The first plane.
-        a: R,
+        a: RoleRead<R>,
         /// The second plane.
-        b: R,
+        b: RoleRead<R>,
     },
     /// **The opposite sense** of a direction, axis, plane or frame (a
     /// frame turned a half-turn about its `x`). A flip of a flip is the
-    /// pose itself: the edit door normalises it to that pose, so a
-    /// document never stores one ([`PoseFault::DoubleFlip`] at the load
-    /// door).
+    /// pose itself: the edit door normalises one whose inner flip reads
+    /// plainly to that pose, and refuses one whose inner flip reads
+    /// through a role (the pose read through the role is the one
+    /// spelling), so a document never stores one
+    /// ([`PoseFault::DoubleFlip`] at the load door).
     Flip {
         /// The pose flipped.
-        pose: R,
+        pose: RoleRead<R>,
     },
-    /// **A plane moved along its own normal** by a length.
-    Standoff {
-        /// The plane.
-        plane: R,
-        /// How far, along the normal.
-        by: S,
-    },
-    /// **A coarser pose of a finer one**: a frame's xy-plane, z-axis or
-    /// origin, or a plane's or an axis's direction.
-    Project {
-        /// The pose projected.
-        of: R,
-        /// The kind it is projected to.
-        to: crate::VarKind,
+    /// **A pose of a copied shape as the copy carries it** (FORK-S3M):
+    /// `pose`, read off a shape a placement copies, moved by the motion
+    /// that placement's bundle solved to, keyed by the placement whose
+    /// copies `copy` reads. Its kind is its pose's.
+    Carried {
+        /// The placement's copies, a `Body` or `Bodies` read of a
+        /// placement's output.
+        copy: R,
+        /// The pose carried.
+        pose: RoleRead<R>,
     },
 }
 
-/// **The coordinates of an [`PoseDef::InFrame`]**, one shape per pose
-/// kind, each component a scalar slot in the frame's axes: lengths for
-/// a position, scalars for a direction (normalized at evaluation, where
-/// a degenerate one refuses).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub enum PoseCoords<S = crate::VarId> {
-    /// A point at `position`.
-    Point {
-        /// Its position (Length).
-        position: [S; 3],
-    },
-    /// A direction along `direction`.
-    Direction {
-        /// The direction (Scalar).
-        direction: [S; 3],
-    },
-    /// An axis through `origin` along `direction`.
-    Axis {
-        /// A point on it (Length).
-        origin: [S; 3],
-        /// Its direction (Scalar).
-        direction: [S; 3],
-    },
-    /// A plane through `origin` with normal `normal`.
-    Plane {
-        /// A point on it (Length).
-        origin: [S; 3],
-        /// Its normal (Scalar).
-        normal: [S; 3],
-    },
-    /// A frame at `origin` spanned by `u` and `v`, orthonormalized at
-    /// evaluation.
-    Frame {
-        /// Its origin (Length).
-        origin: [S; 3],
-        /// Its x direction (Scalar).
-        u: [S; 3],
-        /// Its y direction (Scalar), orthogonalized against `u`.
-        v: [S; 3],
-    },
+/// **The role a finer pose is read through** at a coarser read (D10:
+/// "a finer value is read through its projection, and the role it is
+/// read through is part of the read"): a frame's x, y or z axis, its
+/// origin or one of its coordinate planes; a plane's normal; an axis's
+/// direction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum PoseRole {
+    /// A frame's x axis: through its origin along `u`.
+    X,
+    /// A frame's y axis: through its origin along `v`.
+    Y,
+    /// A frame's z axis: through its origin along its normal.
+    Z,
+    /// A frame's origin.
+    Origin,
+    /// A frame's xy plane: through its origin, normal its z.
+    Xy,
+    /// A frame's yz plane: through its origin, normal its x.
+    Yz,
+    /// A frame's zx plane: through its origin, normal its y.
+    Zx,
+    /// A plane's normal.
+    Normal,
+    /// An axis's direction.
+    Direction,
+}
+
+impl PoseRole {
+    /// Every role, in the order a reader lists them.
+    pub const ALL: [Self; 9] = [
+        Self::X,
+        Self::Y,
+        Self::Z,
+        Self::Origin,
+        Self::Xy,
+        Self::Yz,
+        Self::Zx,
+        Self::Normal,
+        Self::Direction,
+    ];
+
+    /// The kind of pose that offers this role.
+    #[must_use]
+    pub fn of(self) -> crate::VarKind {
+        use crate::VarKind as K;
+        match self {
+            Self::X | Self::Y | Self::Z | Self::Origin | Self::Xy | Self::Yz | Self::Zx => K::Frame,
+            Self::Normal => K::Plane,
+            Self::Direction => K::Axis,
+        }
+    }
+
+    /// The kind a read through this role reads.
+    #[must_use]
+    pub fn kind(self) -> crate::VarKind {
+        use crate::VarKind as K;
+        match self {
+            Self::X | Self::Y | Self::Z => K::Axis,
+            Self::Origin => K::Point,
+            Self::Xy | Self::Yz | Self::Zx => K::Plane,
+            Self::Normal | Self::Direction => K::Direction,
+        }
+    }
+
+    /// The role as a reader says it: `x axis`, `xy plane`.
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::X => "x axis",
+            Self::Y => "y axis",
+            Self::Z => "z axis",
+            Self::Origin => "origin",
+            Self::Xy => "xy plane",
+            Self::Yz => "yz plane",
+            Self::Zx => "zx plane",
+            Self::Normal => "normal",
+            Self::Direction => "direction",
+        }
+    }
+
+    /// **`value` read through this role**, `None` where its kind offers
+    /// no such role (a read the door refuses).
+    #[must_use]
+    pub fn read<T: Real>(self, value: &PoseValue<T>) -> Option<PoseValue<T>> {
+        Some(match (value, self) {
+            (PoseValue::Frame(f), Self::X | Self::Y | Self::Z) => PoseValue::Axis {
+                origin: f.origin(),
+                dir: Self::frame_axis(f, self),
+            },
+            (PoseValue::Frame(f), Self::Origin) => PoseValue::Point {
+                position: f.origin(),
+            },
+            (PoseValue::Frame(f), Self::Xy | Self::Yz | Self::Zx) => PoseValue::Plane {
+                origin: f.origin(),
+                normal: Self::frame_axis(
+                    f,
+                    match self {
+                        Self::Xy => Self::Z,
+                        Self::Yz => Self::X,
+                        _ => Self::Y,
+                    },
+                ),
+            },
+            (PoseValue::Plane { normal: dir, .. }, Self::Normal)
+            | (PoseValue::Axis { dir, .. }, Self::Direction) => PoseValue::Direction { dir: *dir },
+            _ => return None,
+        })
+    }
+
+    /// A frame's axis direction for an axis role.
+    fn frame_axis<T: Real>(f: &RigidMotion<T>, axis: Self) -> UnitVec3<T> {
+        match axis {
+            Self::X => f.u(),
+            Self::Y => f.v(),
+            _ => f.w(),
+        }
+    }
+}
+
+impl core::fmt::Display for PoseRole {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.label())
+    }
+}
+
+/// **A read of a pose, through the role it is read through where it
+/// reads a finer pose at a coarser seat** (D10; VR4). A plain read
+/// carries no role, and is serialized as the bare read; a read through
+/// a role as `{"read": …, "role": …}`.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RoleRead<R> {
+    /// The variable read.
+    pub read: R,
+    /// The role it is read through, `None` for the pose itself.
+    pub role: Option<PoseRole>,
+}
+
+impl<R> RoleRead<R> {
+    /// A plain read of `read`.
+    #[must_use]
+    pub fn plain(read: impl Into<R>) -> Self {
+        Self {
+            read: read.into(),
+            role: None,
+        }
+    }
+
+    /// `read` read through `role`.
+    #[must_use]
+    pub fn through(read: impl Into<R>, role: PoseRole) -> Self {
+        Self {
+            read: read.into(),
+            role: Some(role),
+        }
+    }
+
+    /// This read in another form, its role kept.
+    ///
+    /// # Errors
+    ///
+    /// `f`'s.
+    pub fn try_map<R2, E>(&self, f: impl FnOnce(&R) -> Result<R2, E>) -> Result<RoleRead<R2>, E> {
+        Ok(RoleRead {
+            read: f(&self.read)?,
+            role: self.role,
+        })
+    }
+
+    /// **What the read's variable may be, at a seat admitting
+    /// `admits`**: the seat's own kinds read plainly, or through a role,
+    /// the kind that offers it.
+    #[must_use]
+    pub fn admits(&self, admits: crate::SlotKind) -> crate::SlotKind {
+        self.role
+            .map_or(admits, |role| crate::SlotKind::Is(role.of()))
+    }
+}
+
+impl<R: core::fmt::Debug> core::fmt::Debug for RoleRead<R> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // A plain read dumps as the bare read, as it serializes.
+        let Self { read, role } = self;
+        match role {
+            None => read.fmt(f),
+            Some(role) => f
+                .debug_struct("RoleRead")
+                .field("read", read)
+                .field("role", role)
+                .finish(),
+        }
+    }
+}
+
+impl From<crate::VarId> for RoleRead<crate::VarId> {
+    fn from(read: crate::VarId) -> Self {
+        Self::plain(read)
+    }
+}
+
+impl From<crate::Operand> for RoleRead<crate::Operand> {
+    fn from(read: crate::Operand) -> Self {
+        Self::plain(read)
+    }
+}
+
+impl From<crate::VarId> for RoleRead<crate::Operand> {
+    fn from(var: crate::VarId) -> Self {
+        Self::plain(var)
+    }
+}
+
+impl From<crate::RecipeNodeId> for RoleRead<crate::Operand> {
+    fn from(node: crate::RecipeNodeId) -> Self {
+        Self::plain(node)
+    }
+}
+
+impl<R: serde::Serialize> serde::Serialize for RoleRead<R> {
+    fn serialize<Z: serde::Serializer>(&self, ser: Z) -> Result<Z::Ok, Z::Error> {
+        use serde::ser::SerializeStruct as _;
+        let Some(role) = self.role else {
+            return self.read.serialize(ser);
+        };
+        let mut st = ser.serialize_struct("RoleRead", 2)?;
+        st.serialize_field("read", &self.read)?;
+        st.serialize_field("role", &role)?;
+        st.end()
+    }
+}
+
+impl<'de, R: serde::Deserialize<'de>> serde::Deserialize<'de> for RoleRead<R> {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        use crate::operand::{Prepended, Spelled};
+        use serde::de::value::MapAccessDeserializer;
+        use serde::de::{Error as _, MapAccess, Visitor};
+
+        /// Told apart by the first key, in one forward pass: a map whose
+        /// first key is `read` or `role` is the read through its role,
+        /// and anything else is the bare read, handed on whole.
+        struct Either<R>(core::marker::PhantomData<R>);
+
+        impl<'de, R: serde::Deserialize<'de>> Visitor<'de> for Either<R> {
+            type Value = RoleRead<R>;
+            fn expecting(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.write_str("a read, or a read through its role (`{\"read\": …, \"role\": …}`)")
+            }
+            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                R::deserialize(Spelled::<E>(v, core::marker::PhantomData)).map(RoleRead::plain)
+            }
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+                let first = map.next_key::<String>()?;
+                if !matches!(first.as_deref(), Some("read" | "role")) {
+                    let rest = Prepended { first, rest: map };
+                    return R::deserialize(MapAccessDeserializer::new(rest)).map(RoleRead::plain);
+                }
+                let (mut read, mut role) = (None, None);
+                let mut next = first;
+                while let Some(k) = next {
+                    match k.as_str() {
+                        "read" if read.is_none() => read = Some(map.next_value::<R>()?),
+                        "role" if role.is_none() => role = Some(map.next_value::<PoseRole>()?),
+                        "read" | "role" => return Err(A::Error::duplicate_field("read or role")),
+                        other => return Err(A::Error::unknown_field(other, &["read", "role"])),
+                    }
+                    next = map.next_key::<String>()?;
+                }
+                let read = read.ok_or_else(|| A::Error::missing_field("read"))?;
+                let role = role.ok_or_else(|| A::Error::missing_field("role"))?;
+                Ok(RoleRead::through(read, role))
+            }
+        }
+
+        de.deserialize_any(Either(core::marker::PhantomData))
+    }
 }
 
 /// **Which read of a pose definition** an error or a walk addresses.
@@ -277,11 +531,8 @@ pub enum PoseCoords<S = crate::VarId> {
 pub enum PoseRead {
     /// [`PoseDef::Plane`]'s face.
     Face,
-    /// The geometry a read off geometry reads, or what a projection
-    /// projects.
+    /// The geometry a read off geometry reads.
     Of,
-    /// [`PoseDef::InFrame`]'s frame.
-    Frame,
     /// [`PoseDef::Through`]'s axis.
     Axis,
     /// [`PoseDef::Through`]'s point.
@@ -290,10 +541,14 @@ pub enum PoseRead {
     A,
     /// [`PoseDef::Meet`]'s second plane.
     B,
-    /// What [`PoseDef::Flip`] flips.
+    /// What a move, a flip or a carried pose moves.
     Pose,
-    /// [`PoseDef::Standoff`]'s plane.
-    Plane,
+    /// [`PoseDef::Slide`]'s direction.
+    Along,
+    /// [`PoseDef::Spin`]'s axis.
+    About,
+    /// The copies a [`PoseDef::Carried`] pose is carried by.
+    Copy,
 }
 
 impl PoseRead {
@@ -303,33 +558,26 @@ impl PoseRead {
         match self {
             Self::Face => "face",
             Self::Of => "source",
-            Self::Frame => "frame",
             Self::Axis => "axis",
             Self::Point => "point",
             Self::A => "first plane",
             Self::B => "second plane",
             Self::Pose => "pose",
-            Self::Plane => "plane",
+            Self::Along => "direction",
+            Self::About => "axis",
+            Self::Copy => "copy",
         }
     }
 }
 
-/// **Which scalar of a pose definition**: a coordinate of an
-/// [`PoseDef::InFrame`] or a [`PoseDef::Standoff`]'s length.
+/// **Which scalar of a pose definition**: a slide's length or a spin's
+/// angle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum PoseSlot {
-    /// A position's or an origin's component (Length).
-    Origin(crate::node::Axis3),
-    /// A direction's component (Scalar).
-    Direction(crate::node::Axis3),
-    /// A plane's normal component (Scalar).
-    Normal(crate::node::Axis3),
-    /// A frame's x direction component (Scalar).
-    U(crate::node::Axis3),
-    /// A frame's y direction component (Scalar).
-    V(crate::node::Axis3),
-    /// A standoff's length.
-    By,
+    /// [`PoseDef::Slide`]'s length.
+    Slide,
+    /// [`PoseDef::Spin`]'s angle.
+    Spin,
 }
 
 impl PoseSlot {
@@ -338,26 +586,17 @@ impl PoseSlot {
     pub fn dimension(self) -> crate::expr::Dimension {
         use crate::expr::Dimension;
         match self {
-            Self::Origin(_) | Self::By => Dimension::Length,
-            Self::Direction(_) | Self::Normal(_) | Self::U(_) | Self::V(_) => Dimension::Scalar,
+            Self::Slide => Dimension::Length,
+            Self::Spin => Dimension::Angle,
         }
     }
 
-    /// The slot as a reader says it: `origin x`, `by`.
+    /// The slot as a reader says it.
     #[must_use]
-    pub fn label(self) -> String {
-        let axis = |a: crate::node::Axis3| match a {
-            crate::node::Axis3::X => "x",
-            crate::node::Axis3::Y => "y",
-            crate::node::Axis3::Z => "z",
-        };
+    pub fn label(self) -> &'static str {
         match self {
-            Self::Origin(a) => format!("origin {}", axis(a)),
-            Self::Direction(a) => format!("direction {}", axis(a)),
-            Self::Normal(a) => format!("normal {}", axis(a)),
-            Self::U(a) => format!("u {}", axis(a)),
-            Self::V(a) => format!("v {}", axis(a)),
-            Self::By => "by".to_owned(),
+            Self::Slide => "slide",
+            Self::Spin => "spin",
         }
     }
 }
@@ -371,8 +610,13 @@ pub enum PoseAdmits {
     Centre,
     /// A direction, an axis, a plane or a frame: what has a sense.
     Sensed,
-    /// A frame, a plane or an axis: what has a coarser projection.
-    Projected,
+    /// A point, an axis, a plane or a frame: what has a position to
+    /// slide.
+    Slid,
+    /// A direction or an axis: what a slide is along.
+    Heading,
+    /// Any pose: what a copy carries and a spin turns.
+    Any,
 }
 
 impl PoseAdmits {
@@ -384,7 +628,9 @@ impl PoseAdmits {
             Self::Carrier => &[K::Face, K::Edge],
             Self::Centre => &[K::Face, K::Edge, K::Vertex],
             Self::Sensed => &[K::Direction, K::Axis, K::Plane, K::Frame],
-            Self::Projected => &[K::Frame, K::Plane, K::Axis],
+            Self::Slid => &[K::Point, K::Axis, K::Plane, K::Frame],
+            Self::Heading => &[K::Direction, K::Axis],
+            Self::Any => &[K::Point, K::Direction, K::Axis, K::Plane, K::Frame],
         }
     }
 }
@@ -405,13 +651,17 @@ pub enum PoseFault {
     /// A flip of a flip: the pose itself, said a second way. The edit
     /// door normalises one; a file holding one refuses at load.
     DoubleFlip,
-    /// A projection the source kind has no arm to: a frame projects to
-    /// a plane, an axis or a point, a plane or an axis to a direction.
-    Projection {
-        /// The source's kind.
-        from: crate::VarKind,
-        /// The kind asked for.
-        to: crate::VarKind,
+    /// A read through a role its pose's kind does not offer, or whose
+    /// projection the read does not admit.
+    Role {
+        /// The read.
+        read: PoseRead,
+        /// The role it reads through.
+        role: PoseRole,
+        /// The kind of the pose it reads.
+        found: crate::VarKind,
+        /// What the read admits.
+        expected: crate::SlotKind,
     },
     /// A read or a scalar the document's mint log does not hold (a
     /// file's fault, never a door's).
@@ -426,7 +676,8 @@ pub enum PoseFault {
         /// The kind it holds.
         found: crate::VarKind,
     },
-    /// A flip stored at another kind than the pose it flips.
+    /// A move, a flip or a carried pose stored at another kind than the
+    /// pose it reads.
     Kind {
         /// The kind stored.
         stored: crate::VarKind,
@@ -435,6 +686,12 @@ pub enum PoseFault {
     },
     /// The definition reaches itself through the poses it reads.
     Cycle,
+    /// A carried pose's copy is no placement's output: only a
+    /// placement's copies carry a pose.
+    NotACopy {
+        /// The variable read as the copy.
+        var: crate::VarId,
+    },
 }
 
 impl core::fmt::Display for PoseFault {
@@ -450,9 +707,10 @@ impl core::fmt::Display for PoseFault {
                 read.label(),
                 crate::sentence::article(&found.to_string())
             ),
-            Self::DoubleFlip => {
-                f.write_str("it flips a flip, which is the unflipped pose: read that pose instead")
-            }
+            Self::DoubleFlip => f.write_str(
+                "it flips a flip, which is the unflipped pose: read that pose instead, through \
+                 the role the inner flip reads it through if it reads one",
+            ),
             Self::Unminted { var } => {
                 write!(
                     f,
@@ -469,70 +727,119 @@ impl core::fmt::Display for PoseFault {
             ),
             Self::Kind { stored, defined } => write!(
                 f,
-                "it is stored as {} {stored} and flips {} {defined}",
+                "it is stored as {} {stored} and reads {} {defined}",
                 crate::sentence::article(&stored.to_string()),
                 crate::sentence::article(&defined.to_string())
             ),
             Self::Cycle => f.write_str("it reaches itself through the poses it reads"),
-            Self::Projection { from, to } => write!(
+            Self::NotACopy { var } => write!(
                 f,
-                "{} {from} has no {to} to project to (a frame projects to its plane, axis or \
-                 origin; a plane or an axis to its direction)",
-                crate::sentence::article(&from.to_string())
+                "it carries its pose by {var}, which is no placement's copies"
+            ),
+            Self::Role {
+                read,
+                role,
+                found,
+                expected,
+            } if *found != role.of() => write!(
+                f,
+                "its {} reads {} {found} through its {role}, which only {} {} offers (a frame \
+                 its axes, origin and planes; a plane its normal; an axis its direction); \
+                 {expected} is read there",
+                read.label(),
+                crate::sentence::article(&found.to_string()),
+                crate::sentence::article(&role.of().to_string()),
+                role.of()
+            ),
+            Self::Role {
+                read,
+                role,
+                found,
+                expected,
+            } => write!(
+                f,
+                "its {} reads {} {found}'s {role}, which is {} {}, where {expected} is read",
+                read.label(),
+                crate::sentence::article(&found.to_string()),
+                crate::sentence::article(&role.kind().to_string()),
+                role.kind()
             ),
         }
     }
 }
 
-/// The projections a pose kind has (D10: a finer value is read through
-/// its projection).
-#[must_use]
-pub fn projects(from: crate::VarKind, to: crate::VarKind) -> bool {
-    use crate::VarKind as K;
-    matches!(
-        (from, to),
-        (K::Frame, K::Plane | K::Axis | K::Point) | (K::Plane | K::Axis, K::Direction)
-    )
-}
-
 impl<R, S> PoseDef<R, S> {
-    /// **The kind this definition defines**, `None` for a flip, whose
-    /// kind is its read's.
+    /// **The kind this definition defines**, `None` for a move, a flip
+    /// and a carried pose, whose kind is their pose read's.
     #[must_use]
     pub fn kind(&self) -> Option<crate::VarKind> {
         use crate::VarKind as K;
         Some(match self {
-            Self::Plane { .. } | Self::Standoff { .. } => K::Plane,
+            Self::Plane { .. } => K::Plane,
             Self::Axis { .. } | Self::Meet { .. } => K::Axis,
             Self::Point { .. } => K::Point,
             Self::Through { .. } => K::Frame,
-            Self::InFrame { coords, .. } => coords.kind(),
-            Self::Project { to, .. } => *to,
-            Self::Flip { .. } => return None,
+            Self::Slide { .. } | Self::Spin { .. } | Self::Flip { .. } | Self::Carried { .. } => {
+                return None;
+            }
         })
     }
 
-    /// **Its reads, each with the kind it admits**, in field order.
+    /// **The read whose kind this definition's is**, for a move, a flip
+    /// and a carried pose; `None` for an arm that states its kind.
     #[must_use]
-    pub fn reads(&self) -> Vec<(PoseRead, &R, crate::SlotKind)> {
+    pub fn kept(&self) -> Option<&RoleRead<R>> {
+        match self {
+            Self::Slide { pose, .. }
+            | Self::Spin { pose, .. }
+            | Self::Flip { pose }
+            | Self::Carried { pose, .. } => Some(pose),
+            Self::Plane { .. }
+            | Self::Axis { .. }
+            | Self::Point { .. }
+            | Self::Through { .. }
+            | Self::Meet { .. } => None,
+        }
+    }
+
+    /// **Its reads, each with the role it reads through and the kind it
+    /// admits**, in field order.
+    #[must_use]
+    pub fn reads(&self) -> Vec<(PoseRead, &R, Option<PoseRole>, crate::SlotKind)> {
         use crate::SlotKind::{Is, Pose};
         use crate::VarKind as K;
+        fn at<R>(
+            read: PoseRead,
+            r: &RoleRead<R>,
+            admits: crate::SlotKind,
+        ) -> (PoseRead, &R, Option<PoseRole>, crate::SlotKind) {
+            (read, &r.read, r.role, admits)
+        }
         match self {
-            Self::Plane { face } => vec![(PoseRead::Face, face, Is(K::Face))],
-            Self::Axis { of } => vec![(PoseRead::Of, of, Pose(PoseAdmits::Carrier))],
-            Self::Point { of } => vec![(PoseRead::Of, of, Pose(PoseAdmits::Centre))],
-            Self::InFrame { frame, .. } => vec![(PoseRead::Frame, frame, Is(K::Frame))],
+            Self::Plane { face } => vec![(PoseRead::Face, face, None, Is(K::Face))],
+            Self::Axis { of } => vec![(PoseRead::Of, of, None, Pose(PoseAdmits::Carrier))],
+            Self::Point { of } => vec![(PoseRead::Of, of, None, Pose(PoseAdmits::Centre))],
+            Self::Slide { pose, along, .. } => vec![
+                at(PoseRead::Pose, pose, Pose(PoseAdmits::Slid)),
+                at(PoseRead::Along, along, Pose(PoseAdmits::Heading)),
+            ],
+            Self::Spin { pose, about, .. } => vec![
+                at(PoseRead::Pose, pose, Pose(PoseAdmits::Any)),
+                at(PoseRead::About, about, Is(K::Axis)),
+            ],
             Self::Through { axis, point } => vec![
-                (PoseRead::Axis, axis, Is(K::Axis)),
-                (PoseRead::Point, point, Is(K::Point)),
+                at(PoseRead::Axis, axis, Is(K::Axis)),
+                at(PoseRead::Point, point, Is(K::Point)),
             ],
             Self::Meet { a, b } => vec![
-                (PoseRead::A, a, Is(K::Plane)),
-                (PoseRead::B, b, Is(K::Plane)),
+                at(PoseRead::A, a, Is(K::Plane)),
+                at(PoseRead::B, b, Is(K::Plane)),
             ],
-            Self::Flip { pose } => vec![(PoseRead::Pose, pose, Pose(PoseAdmits::Sensed))],
-            Self::Standoff { plane, .. } => vec![(PoseRead::Plane, plane, Is(K::Plane))],
-            Self::Project { of, .. } => vec![(PoseRead::Of, of, Pose(PoseAdmits::Projected))],
+            Self::Flip { pose } => vec![at(PoseRead::Pose, pose, Pose(PoseAdmits::Sensed))],
+            Self::Carried { copy, pose } => vec![
+                (PoseRead::Copy, copy, None, crate::SlotKind::Placeable),
+                at(PoseRead::Pose, pose, Pose(PoseAdmits::Any)),
+            ],
         }
     }
 
@@ -540,21 +847,22 @@ impl<R, S> PoseDef<R, S> {
     #[must_use]
     pub fn scalars(&self) -> Vec<(PoseSlot, &S)> {
         match self {
-            Self::InFrame { coords, .. } => coords.slots(),
-            Self::Standoff { by, .. } => vec![(PoseSlot::By, by)],
+            Self::Slide { by, .. } => vec![(PoseSlot::Slide, by)],
+            Self::Spin { by, .. } => vec![(PoseSlot::Spin, by)],
             Self::Plane { .. }
             | Self::Axis { .. }
             | Self::Point { .. }
             | Self::Through { .. }
             | Self::Meet { .. }
             | Self::Flip { .. }
-            | Self::Project { .. } => Vec::new(),
+            | Self::Carried { .. } => Vec::new(),
         }
     }
 
     /// **This definition in another form**: every read rewritten by
-    /// `read` (handed its role), every scalar by `scalar` (handed its
-    /// slot), in field order.
+    /// `read` (handed its role in the definition), every scalar by
+    /// `scalar` (handed its slot), in field order; each read's
+    /// projection role is kept.
     ///
     /// # Errors
     ///
@@ -564,6 +872,13 @@ impl<R, S> PoseDef<R, S> {
         read: &mut impl FnMut(PoseRead, &R) -> Result<R2, E>,
         scalar: &mut impl FnMut(PoseSlot, &S) -> Result<S2, E>,
     ) -> Result<PoseDef<R2, S2>, E> {
+        fn at<R, R2, E>(
+            read: &mut impl FnMut(PoseRead, &R) -> Result<R2, E>,
+            which: PoseRead,
+            r: &RoleRead<R>,
+        ) -> Result<RoleRead<R2>, E> {
+            r.try_map(|r| read(which, r))
+        }
         Ok(match self {
             Self::Plane { face } => PoseDef::Plane {
                 face: read(PoseRead::Face, face)?,
@@ -574,119 +889,74 @@ impl<R, S> PoseDef<R, S> {
             Self::Point { of } => PoseDef::Point {
                 of: read(PoseRead::Of, of)?,
             },
-            Self::InFrame { frame, coords } => PoseDef::InFrame {
-                frame: read(PoseRead::Frame, frame)?,
-                coords: coords.try_map(scalar)?,
+            Self::Slide { pose, along, by } => PoseDef::Slide {
+                pose: at(read, PoseRead::Pose, pose)?,
+                along: at(read, PoseRead::Along, along)?,
+                by: scalar(PoseSlot::Slide, by)?,
+            },
+            Self::Spin { pose, about, by } => PoseDef::Spin {
+                pose: at(read, PoseRead::Pose, pose)?,
+                about: at(read, PoseRead::About, about)?,
+                by: scalar(PoseSlot::Spin, by)?,
             },
             Self::Through { axis, point } => PoseDef::Through {
-                axis: read(PoseRead::Axis, axis)?,
-                point: read(PoseRead::Point, point)?,
+                axis: at(read, PoseRead::Axis, axis)?,
+                point: at(read, PoseRead::Point, point)?,
             },
             Self::Meet { a, b } => PoseDef::Meet {
-                a: read(PoseRead::A, a)?,
-                b: read(PoseRead::B, b)?,
+                a: at(read, PoseRead::A, a)?,
+                b: at(read, PoseRead::B, b)?,
             },
             Self::Flip { pose } => PoseDef::Flip {
-                pose: read(PoseRead::Pose, pose)?,
+                pose: at(read, PoseRead::Pose, pose)?,
             },
-            Self::Standoff { plane, by } => PoseDef::Standoff {
-                plane: read(PoseRead::Plane, plane)?,
-                by: scalar(PoseSlot::By, by)?,
-            },
-            Self::Project { of, to } => PoseDef::Project {
-                of: read(PoseRead::Of, of)?,
-                to: *to,
+            Self::Carried { copy, pose } => PoseDef::Carried {
+                copy: read(PoseRead::Copy, copy)?,
+                pose: at(read, PoseRead::Pose, pose)?,
             },
         })
     }
 }
 
-impl<S> PoseCoords<S> {
-    /// The kind these coordinates write.
+impl PoseDef<crate::Operand, crate::Formula> {
+    /// **The point at `(x, y, z)` in `frame`** (FORK-MOVE): the frame's
+    /// origin slid along its x, then its y, then its z axis, each by its
+    /// length, as an author would write it nested.
     #[must_use]
-    pub fn kind(&self) -> crate::VarKind {
-        use crate::VarKind as K;
-        match self {
-            Self::Point { .. } => K::Point,
-            Self::Direction { .. } => K::Direction,
-            Self::Axis { .. } => K::Axis,
-            Self::Plane { .. } => K::Plane,
-            Self::Frame { .. } => K::Frame,
-        }
-    }
-
-    /// Every component with its slot, in field order.
-    #[must_use]
-    pub fn slots(&self) -> Vec<(PoseSlot, &S)> {
-        use crate::node::Axis3;
-        fn row<S>(at: fn(Axis3) -> PoseSlot, xs: &[S; 3]) -> Vec<(PoseSlot, &S)> {
-            [Axis3::X, Axis3::Y, Axis3::Z]
-                .into_iter()
-                .zip(xs.iter())
-                .map(|(a, x)| (at(a), x))
-                .collect()
-        }
-        match self {
-            Self::Point { position } => row(PoseSlot::Origin, position),
-            Self::Direction { direction } => row(PoseSlot::Direction, direction),
-            Self::Axis { origin, direction } => {
-                let mut out = row(PoseSlot::Origin, origin);
-                out.extend(row(PoseSlot::Direction, direction));
-                out
-            }
-            Self::Plane { origin, normal } => {
-                let mut out = row(PoseSlot::Origin, origin);
-                out.extend(row(PoseSlot::Normal, normal));
-                out
-            }
-            Self::Frame { origin, u, v } => {
-                let mut out = row(PoseSlot::Origin, origin);
-                out.extend(row(PoseSlot::U, u));
-                out.extend(row(PoseSlot::V, v));
-                out
-            }
-        }
-    }
-
-    /// These coordinates in another scalar form.
-    ///
-    /// # Errors
-    ///
-    /// The first refusal of `scalar`.
-    pub fn try_map<S2, E>(
-        &self,
-        scalar: &mut impl FnMut(PoseSlot, &S) -> Result<S2, E>,
-    ) -> Result<PoseCoords<S2>, E> {
-        use crate::node::Axis3;
-        let mut row = |at: fn(Axis3) -> PoseSlot, xs: &[S; 3]| -> Result<[S2; 3], E> {
-            Ok([
-                scalar(at(Axis3::X), &xs[0])?,
-                scalar(at(Axis3::Y), &xs[1])?,
-                scalar(at(Axis3::Z), &xs[2])?,
-            ])
+    pub fn point_in(frame: &crate::Operand, at: [crate::Formula; 3]) -> Self {
+        let [x, y, z] = at;
+        let slide = |pose: RoleRead<crate::Operand>, along, by| PoseDef::Slide {
+            pose,
+            along: RoleRead::through(frame.clone(), along),
+            by,
         };
-        Ok(match self {
-            Self::Point { position } => PoseCoords::Point {
-                position: row(PoseSlot::Origin, position)?,
-            },
-            Self::Direction { direction } => PoseCoords::Direction {
-                direction: row(PoseSlot::Direction, direction)?,
-            },
-            Self::Axis { origin, direction } => PoseCoords::Axis {
-                origin: row(PoseSlot::Origin, origin)?,
-                direction: row(PoseSlot::Direction, direction)?,
-            },
-            Self::Plane { origin, normal } => PoseCoords::Plane {
-                origin: row(PoseSlot::Origin, origin)?,
-                normal: row(PoseSlot::Normal, normal)?,
-            },
-            Self::Frame { origin, u, v } => PoseCoords::Frame {
-                origin: row(PoseSlot::Origin, origin)?,
-                u: row(PoseSlot::U, u)?,
-                v: row(PoseSlot::V, v)?,
-            },
-        })
+        let nested = |def: Self| RoleRead::plain(crate::Operand::Pose(Box::new(def)));
+        let along_x = slide(
+            RoleRead::through(frame.clone(), PoseRole::Origin),
+            PoseRole::X,
+            x,
+        );
+        let along_y = slide(nested(along_x), PoseRole::Y, y);
+        slide(nested(along_y), PoseRole::Z, z)
     }
+}
+
+/// **The kind a read through `role` reads, where `found` offers it and
+/// `admits` admits it**; `None` otherwise: the one rule both doors
+/// check a role read by.
+#[must_use]
+pub fn role_kind(
+    found: crate::VarKind,
+    role: PoseRole,
+    admits: crate::SlotKind,
+) -> Option<crate::VarKind> {
+    let kind = role.kind();
+    let admitted = match admits {
+        crate::SlotKind::Is(is) => is == kind,
+        crate::SlotKind::Pose(set) => set.kinds().contains(&kind),
+        crate::SlotKind::Placeable | crate::SlotKind::Measured(_) => false,
+    };
+    (found == role.of() && admitted).then_some(kind)
 }
 
 /// **A carrier's kind**, surface or curve: what a pose read off
@@ -764,6 +1034,10 @@ pub enum PoseConstruction {
     Through,
     /// [`PoseDef::Meet`]: the planes are parallel.
     Meet,
+    /// A value's chart ([`crate::mate::reference_about`]): a mated
+    /// direction the band cannot tell from the body's own `−z`, where
+    /// no turn onto it is shortest.
+    Chart,
 }
 
 impl core::fmt::Display for PoseConstruction {
@@ -776,6 +1050,11 @@ impl core::fmt::Display for PoseConstruction {
             Self::Meet => {
                 "the planes are parallel, so they meet in no line. Recourse: read two planes \
                  that cross"
+            }
+            Self::Chart => {
+                "a value's chart cannot swing the body's frame onto the mated direction: the \
+                 direction lies too near the body's own −z to tell whether it is that axis. \
+                 Recourse: mate the opposite sense (a flip) or write the value on a frame mate"
             }
         })
     }

@@ -100,6 +100,9 @@
 //! - [`quadrature`] — the 7–15 Gauss–Kronrod panel the volume oracles
 //!   integrate with: a tool for deriving a truth without the kernel,
 //!   so beside [`oracles`];
+//! - [`enclosure`] — the box an `Interval` loft row lofts over, and
+//!   the check of the enclosing body against one member's `f64` loft:
+//!   a check of a body, so beside [`orient`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
 //!
@@ -283,6 +286,10 @@ pub mod touch_union;
 /// The 7–15 Gauss–Kronrod panel the volume oracles integrate with.
 pub mod quadrature;
 
+/// Whether a loft at `Interval` encloses one member of its family: a
+/// check of a body, so beside [`orient`].
+pub mod enclosure;
+
 /// A station cut back into a rim by hand, and the reader that finds a
 /// body's stations, curved carriers included. Body authoring plus the
 /// one reader the run-wall and blend rows check with, so it routes
@@ -354,10 +361,11 @@ pub fn chain(s: f64) -> Section {
 
 /// **The arc section**: a square of half-width `s` with a
 /// quarter-circle bulge on the `+x` side — the arc-bearing profile
-/// whose lofted wall is RATIONAL (weights `1, cos 22.5°, 1` over two
-/// 45° sub-arcs), and so the cheapest profile in this corpus that puts
-/// a body's enclosure on the QUADRATURE lane rather than a closed
-/// form.
+/// whose lofted wall is RATIONAL (weights `1, cos 45°, 1` over one 90°
+/// sub-arc: its sweep `4·atan(tan(π/8))` rounds just past π/2, which
+/// the sub-arc rule's η keeps at one; C6), and so the cheapest profile
+/// in this corpus that puts a body's enclosure on the QUADRATURE lane
+/// rather than a closed form.
 ///
 /// One copy for the crate. It was four — `m8_3_rational_volume`,
 /// `cert5_offgrid_knot_rational` and the certificate suite each held a

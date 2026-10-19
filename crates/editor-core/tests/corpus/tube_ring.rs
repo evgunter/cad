@@ -26,6 +26,7 @@
 //! it can be, by `lib_tube_node.rs`'s stored-bits rows reading
 //! `Surface::Torus`, not by anything in this file.
 
+use super::PlacePart;
 use editor_core::{Datum, DocEdit, Node, SlotId, TubeWindow};
 
 use super::super::fixture::{len, scl};
@@ -55,7 +56,7 @@ pub fn document() -> CorpusDoc {
         minor_radius: len(MINOR),
     });
 
-    r.place(ring);
+    r.place_part(ring);
 
     CorpusDoc {
         name: "tube_ring",

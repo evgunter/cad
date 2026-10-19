@@ -68,20 +68,15 @@ struct Tally {
 /// The pinned tally over the aim below (docs: re-derive with
 /// `--nocapture`).
 ///
-/// Last moved when a section ellipse came to be seamed at the principal
-/// vertex nearest its arc (PR 4861): from `(441198, 141261, 14088, 7230)`.
-/// A retessellation of the documents that cut such an ellipse; the rays
-/// per landing are unchanged.
-/// - `cut_cylinder`: 33 and 21 fewer grazes at its two landings, and
-///   516 and 1278 fewer refused candidates over 384 and 342 fewer rays.
-///   More of its wall triangles meet an axis ray at an exactly zero
-///   determinant, which is not a refusal, and 45 more `±z` rays lie in
-///   the wall at their aimed vertex (39 of them with every triangle
-///   there at a zero determinant) and answer beyond it. The lost
-///   refusals sat at conditioning `1e-18`..`1e-16`, as the remaining
-///   ones do.
-/// - `boss_union`: 3 fewer grazes at each landing; its refusals are
-///   unchanged.
+/// Last moved when every corpus placement came to be written by the
+/// named interim's world pin (INTENT stage 3 C), from the gesture's
+/// mates' `(441198, 141310, 13536, 7224)`, which had moved from
+/// `(441198, 141261, 14088, 7230)`. The rays are unchanged; against the
+/// mates' tally, 453 more are answered at the aimed vertex, and 1230
+/// more candidates over 690 more rays refuse at the determinant. The
+/// gallery ring's bumped landing is re-placed after the bump, whose
+/// partial revolve drops the seam its pin read
+/// (`common::repin_stranded`).
 ///
 /// No genuine crossing is refused either way.
 ///
@@ -132,7 +127,7 @@ struct Tally {
 /// unchanged.
 ///
 /// No genuine crossing is refused either way.
-const PINNED: (usize, usize, usize, usize) = (441_198, 141_201, 12_294, 6_504);
+const PINNED: (usize, usize, usize, usize) = (441_198, 141_763, 12_306, 6_534);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);

@@ -142,7 +142,6 @@ fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], 
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, lift)),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;
@@ -461,17 +460,17 @@ fn an_authored_frames_profile_places_at_the_boxed_lane() {
         },
         Tol::witness(),
     );
-    let (shifted, _, _, shifted_extrude) = shared_frame_doc(5.0);
-    let shifted = eval(&shifted, None);
+    let (moved, _, _, moved_extrude) = shared_frame_doc(5.0);
+    let moved = eval(&moved, None);
     assert_ne!(
-        point_bits(&boxed, extrude),
+        point_bits(&moved, moved_extrude),
         point_bits(&unboxed, extrude),
-        "the box moves the lane off the nominal, and the profile with it"
+        "the offset moves the body, so the equality below is not vacuous"
     );
     assert_eq!(
         point_bits(&boxed, extrude),
-        point_bits(&shifted, shifted_extrude),
-        "the profile is placed on the frame's value at the lane"
+        point_bits(&moved, moved_extrude),
+        "the boxed profile is placed at the lane, as the moved document places it"
     );
 }
 
@@ -494,7 +493,6 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, 0.0)),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;
@@ -621,7 +619,6 @@ fn the_carried_role_names_the_axis_that_refused_not_a_fixed_one() {
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, 0.0)),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;
@@ -694,7 +691,6 @@ fn a_frame_undecided_at_the_nominal_keeps_its_held_sentence() {
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, in_band)),
             },
             tol,
-            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;

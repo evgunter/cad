@@ -124,10 +124,21 @@ fn check_walls(
         if b.weights().iter().any(|w| (w - 1.0).abs() > 1e-9) {
             rational += 1;
         }
-        assert_eq!(a.knots_u(), b.knots_u(), "u knots moved");
-        assert_eq!(a.knots_v(), b.knots_v(), "v knots moved");
+        assert_eq!(
+            a.knots_u_f64_interim(),
+            b.knots_u_f64_interim(),
+            "u knots moved"
+        );
+        assert_eq!(
+            a.knots_v_f64_interim(),
+            b.knots_v_f64_interim(),
+            "v knots moved"
+        );
         assert_eq!(a.weights(), b.weights(), "the weight channel moved");
-        let (du, dv) = (b.knots_u().domain(), b.knots_v().domain());
+        let (du, dv) = (
+            b.knots_u_f64_interim().domain(),
+            b.knots_v_f64_interim().domain(),
+        );
         for i in 0..=8 {
             for j in 0..=8 {
                 let u = du.0 + (du.1 - du.0) * f64::from(i) / 8.0;
@@ -238,9 +249,9 @@ fn a_nurbs_carrier_maps_to_its_exact_image() {
             continue;
         };
         carriers += 1;
-        assert_eq!(a.knots(), b.knots(), "knots moved");
+        assert_eq!(a.knots_f64_interim(), b.knots_f64_interim(), "knots moved");
         assert_eq!(a.weights(), b.weights(), "the weight channel moved");
-        let d = b.knots().domain();
+        let d = b.knots_f64_interim().domain();
         for i in 0..=16 {
             let t = d.0 + (d.1 - d.0) * f64::from(i) / 16.0;
             let want = map.transform_point(b.eval(t));

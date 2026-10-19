@@ -230,13 +230,13 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
         panic!("the boundary seam on the reversed chart mints: {out:?}");
     };
     assert_eq!(pl.x, 0.0, "u stays banded-constant: {pl:?}");
-    let (du0, du1) = chart.knots_u().domain();
+    let (du0, du1) = chart.knots_u_f64_interim().domain();
     assert!(
         p0.x == du0 || p0.x == du1,
         "still a boundary column: u = {} of [{du0}, {du1}]",
         p0.x
     );
-    let (dv0, dv1) = chart.knots_v().domain();
+    let (dv0, dv1) = chart.knots_v_f64_interim().domain();
     assert!(
         (pl.y - (dv0 - dv1)).abs() < 1e-12,
         "the BACKWARD candidate wins on the reversed chart: slope {} on [{dv0}, {dv1}]",

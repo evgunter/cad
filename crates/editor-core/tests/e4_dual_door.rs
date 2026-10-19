@@ -69,6 +69,11 @@
 //! (`topo::AtRestPolicy::fitted_lane`), so the literal below is
 //! unchanged, and a dual's fitted-pcurve refusal is unchanged too:
 //! typed, at the fitted lane's check 4.
+//! 2026-10-18: the set gained `checks::at_rest::LocalizeLane`. A part's
+//! own at-rest verdict is now judged at the seam it crosses
+//! (`work/intent/a-part-drops-its-census-findings-at-the-seam.md`), so
+//! every evaluation scalar names how it localizes an overlap. A dual
+//! keeps the default, the decided overlap reported `Unlocalized::Lane`.
 
 use geom_core::Dual64;
 use geom_core::predicate::Decide;
@@ -88,7 +93,8 @@ where
         + editor_core::analysis::SeedScalar
         + editor_core::MinClearanceLane
         + editor_core::mate::SolveScalar
-        + editor_core::ProfileLane,
+        + editor_core::ProfileLane
+        + editor_core::checks::at_rest::LocalizeLane,
 {
 }
 
@@ -114,7 +120,8 @@ where
         + editor_core::analysis::SeedScalar
         + editor_core::MinClearanceLane
         + editor_core::mate::SolveScalar
-        + editor_core::ProfileLane,
+        + editor_core::ProfileLane
+        + editor_core::checks::at_rest::LocalizeLane,
 {
     let _ = editor_core::eval::evaluate::<T>;
 }
@@ -136,7 +143,8 @@ where
         + editor_core::analysis::SeedScalar
         + editor_core::MinClearanceLane
         + editor_core::mate::SolveScalar
-        + editor_core::ProfileLane,
+        + editor_core::ProfileLane
+        + editor_core::checks::at_rest::LocalizeLane,
 {
     requires_the_whole_eval_scalar_set::<T>();
 }

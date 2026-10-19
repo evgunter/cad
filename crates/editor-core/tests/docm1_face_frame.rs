@@ -80,7 +80,7 @@ fn washer_doc() -> (ProfileDoc, RecipeNodeId) {
         fixture::revolve_about(
             p,
             (0.0, 0.0),
-            (0.0, 1.0),
+            crate::fixture::along_y(),
             fixture::ang(std::f64::consts::TAU),
         ),
     )
@@ -107,7 +107,7 @@ fn ball_doc() -> (ProfileDoc, RecipeNodeId) {
         fixture::revolve_about(
             p,
             (0.0, 0.0),
-            (0.0, 1.0),
+            crate::fixture::along_y(),
             fixture::ang(std::f64::consts::TAU),
         ),
     )
@@ -123,7 +123,7 @@ fn kernel_kind(
     let Some(NodeResult::Ok(v)) = ev.nodes.get(&node) else {
         panic!("the node evaluated");
     };
-    let Some(Entry::Unique(e)) = v.name_table.lookup(name) else {
+    let Some(Entry::Unique(e)) = ev.table_at(node).expect("one table").lookup(name) else {
         panic!("a unique face");
     };
     let ValuePayload::Body(body) = &v.payload else {
@@ -238,7 +238,8 @@ fn face_frame_sense_matches_the_stored_flag_on_every_corpus_face() {
                 let Ok(pose) = face_frame(&ev, *node, &name) else {
                     continue;
                 };
-                let Some(Entry::Unique(e)) = v.name_table.lookup(&name) else {
+                let Some(Entry::Unique(e)) = ev.table_at(*node).expect("one table").lookup(&name)
+                else {
                     panic!("a materialized name is unique");
                 };
                 let EntityKey::Face(f) = e.key else {
@@ -267,7 +268,7 @@ fn kernel_edge_kind(
     let Some(NodeResult::Ok(v)) = ev.nodes.get(&node) else {
         panic!("the node evaluated");
     };
-    let Some(Entry::Unique(e)) = v.name_table.lookup(name) else {
+    let Some(Entry::Unique(e)) = ev.table_at(node).expect("one table").lookup(name) else {
         panic!("a unique edge");
     };
     let ValuePayload::Body(body) = &v.payload else {
@@ -444,10 +445,10 @@ fn name_of_key(
     node: RecipeNodeId,
     key: EntityKey,
 ) -> StableName {
-    let v = ev.value(node).expect("evaluated");
+    let t = ev.table_at(node).expect("evaluated");
     all_faces(ev, node)
         .into_iter()
-        .find(|n| matches!(v.name_table.lookup(n), Some(Entry::Unique(e)) if e.key == key))
+        .find(|n| matches!(t.lookup(n), Some(Entry::Unique(e)) if e.key == key))
         .expect("every face of a corpus body is named")
 }
 
@@ -602,7 +603,6 @@ fn a3_spin_rotates_about_the_outward_normal_and_is_a_continuous_angle_slot() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
     };
     let turned = set(ang(-theta)).expect("an angle goes in").doc;
@@ -695,7 +695,6 @@ fn a4_a_vanished_face_fails_the_frame_typed_and_poisons_the_sketch_and_rebind_re
                 to,
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("a rebind between face names applies")
         .doc
@@ -771,7 +770,12 @@ fn a7_a_derived_frame_serves_a_revolved_profile_by_value() {
     );
     let (doc, ring) = fixture::insert(
         doc,
-        fixture::revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
+        fixture::revolve_about(
+            profile,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            ang(std::f64::consts::TAU),
+        ),
     );
     let ev = eval(&doc);
     assert!(

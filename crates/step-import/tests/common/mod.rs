@@ -214,10 +214,11 @@ pub fn freecad_fixture(name: &str) -> String {
 
 /// **The arc section**: a square of half-width `s` with a
 /// quarter-circle bulge on the `+x` side — the arc-bearing profile
-/// whose lofted wall is RATIONAL (weights `1, cos 22.5°, 1` over two
-/// 45° sub-arcs), and so the cheapest profile these suites have that
-/// puts an imported body's enclosure on the QUADRATURE lane rather
-/// than on a closed form.
+/// whose lofted wall is RATIONAL (weights `1, cos 45°, 1` over one 90°
+/// sub-arc: its sweep `4·atan(tan(π/8))` rounds just past π/2, which
+/// the sub-arc rule's η keeps at one; C6), and so the cheapest profile
+/// these suites have that puts an imported body's enclosure on the
+/// QUADRATURE lane rather than on a closed form.
 ///
 /// One copy for this crate's suites. `sweep`'s own copy lives in
 /// `crates/sweep/tests/common/`; the two are not folded together

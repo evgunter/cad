@@ -119,7 +119,7 @@ fn two_param_web() -> ProfileDoc {
     let base = corpus::measured_web::document();
     let mut doc = base.doc;
     let push = |doc: &ProfileDoc, edit: DocEdit<ProfileProgram>| -> ProfileDoc {
-        editor_core::apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach)
+        editor_core::apply(doc, &edit, Tol::witness())
             .unwrap_or_else(|e| panic!("edit refused: {e}"))
             .doc
     };
@@ -223,7 +223,6 @@ fn with_count() -> ProfileDoc {
             def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a count parameter")
     .doc;
@@ -245,23 +244,40 @@ fn every_node_refuses_seed(ev: &Evaluation<impl geom_core::Decide>, expect: impl
 
 // --------------------------------------------------------- unseeded
 
-/// `seed: None` IS the default, and an explicit `None` is the default
-/// evaluation node for node — same keys, same reuse accounting. The
-/// corpus-wide bit-identity differential against the pre-seed build
-/// path is `m10_p_fence.rs`, which this unit leaves untouched.
+/// **An unseeded evaluation is the build.** The default options carry
+/// no seed, and holding every continuous variable `Fixed` at its
+/// nominal changes no node's key: a box seam that varies nothing is not
+/// an analysis. The corpus-wide bit-identity
+/// differential against the pre-seed build path is `m10_p_fence.rs`,
+/// which this unit leaves untouched.
 #[test]
-fn an_unseeded_evaluation_is_the_default_options_evaluation() {
+fn an_unseeded_evaluation_is_the_build() {
     assert!(EvalOptions::default().seed.is_none());
     for doc in corpus::documents() {
+        let held: std::collections::BTreeMap<_, _> = doc
+            .doc
+            .free_vars()
+            .filter(|(_, p)| matches!(p, editor_core::FreeVar::Continuous { .. }))
+            .map(|(id, _)| (id, editor_core::analysis::BoxAxis::Fixed))
+            .collect();
         let default = run::<f64>(&doc.doc, None, &EvalOptions::default());
-        let explicit = run::<f64>(&doc.doc, None, &opts(&doc.doc, None));
-        assert_eq!(default.order, explicit.order, "{}", doc.name);
+        let fixed = run::<f64>(
+            &doc.doc,
+            None,
+            &EvalOptions {
+                param_box: Some(std::sync::Arc::new(
+                    editor_core::analysis::ParamBox::from_axes(held),
+                )),
+                ..EvalOptions::default()
+            },
+        );
+        assert_eq!(default.order, fixed.order, "{}", doc.name);
         for id in &default.order {
-            let (a, b) = (default.value(*id), explicit.value(*id));
+            let (a, b) = (default.value(*id), fixed.value(*id));
             assert_eq!(
                 a.map(|v| v.content_key),
                 b.map(|v| v.content_key),
-                "{}: node {} keyed differently under an explicit `seed: None`",
+                "{}: node {} keyed differently under an all-`Fixed` box",
                 doc.name,
                 id.0
             );

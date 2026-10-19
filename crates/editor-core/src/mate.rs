@@ -1,41 +1,30 @@
 //! **Mates** — the A3 declaration node and its constructive solve
 //! (ASSEMBLY-DESIGN A3/A11; ASM-R2a spec D-1…D-5).
 //!
-//! A mate states one relation between two instances: which frames
-//! coincide, with which axis senses, at which clocking. That statement
-//! is BOTH the placement constraint and the contact declaration — one
-//! node kind, no second vocabulary to keep synced (A3).
+//! A mate equates two poses of one kind (D10, FORK-S3M): `on`, a pose
+//! read off the copied shapes' geometry in their own coordinates, and
+//! `to`, a pose read off geometry of the space the copy joins, or the
+//! world read through the pose reads the world offers
+//! ([`WorldRead`]). The kind is the primitive: `Frame`–`Frame`
+//! coincides, `Axis`–`Axis` is coaxial, `Plane`–`Plane` rests,
+//! `Point`–`Point` is a ball and `Direction`–`Direction` is parallel.
+//! A mate holds no number: its sense is a `Flip` on one side, a
+//! standoff a `Slide` on the target, and a freedom the bundle leaves is
+//! a value's (spec §1). It places and never checks.
 //!
-//! # What a mate is, structurally
-//!
-//! A mate reads two faces: each side is one `Face` variable, a
-//! selection of the body the side is read in (D10), so a mate depends
-//! on what it reads exactly as every other reader does and A9's
-//! relative-freedom partition runs over reads
-//! ([`relative_freedom_components`]). The MEMBER a side lands on is
-//! the walk from the selection's body down to its name's minting
-//! instance, past any number of transforms, `Part` instance selections
-//! and pattern levels (A11's member vocabulary, [`member`]),
-//! recomputed from the recipe at need and never stored. A mate defines
-//! nothing, so nothing reads it and no world placement places it.
+//! A copy standing where its body stands is pinned by the named
+//! interim's world pin ([`WorldPin`], spec §4), a constraint that reads
+//! nothing and holds no number, and stands alone in its bundle; a pose
+//! off the identity is pinned by a frame mate ([`pin_at`]) or placed by
+//! the gesture ([`place_at`]).
 //!
 //! # What a mate says, geometrically
 //!
-//! [`Alignment`] carries two mate frames — one per side, in that
-//! instance's OWN part coordinates — plus the primitive relating
-//! them, the axis sense, and the clocking rider. A frame is a base —
-//! the part frame, or the side's own head FACE, whose canonical pose
-//! the part's own evaluation answers at solve time — composed with an
-//! offset placement ([`MateFrame`]); the solve's inputs are the document plus its
-//! mated parts' evaluations, and the solve ALGORITHM is a
-//! decided-predicate computation over the resolved frames (A11's
-//! "coset intersection over decided predicates, no numeric fitting",
-//! with the two reads `ASSEMBLY.md` A11 rule 5 states — the lever,
-//! [`reach`], and a face base's pose, [`MateReach::face_pose`]).
-//!
-//! Each primitive pins the pair's relative pose to a COSET of an
-//! SE(3) subgroup, and multiple mates on one pair fold by exact coset
-//! intersection — [`coset`], whose table is the spec's binding one.
+//! Each kind pins the copy's relative pose to a COSET of an SE(3)
+//! subgroup, the target pose's own symmetry, carried onto the copy's
+//! pose ([`mate_coset`]), and the mates of one placement fold by exact
+//! coset intersection — [`coset`], whose table is the spec's binding
+//! one.
 //!
 //! # v1's admitted classes
 //!
@@ -58,28 +47,26 @@
 
 use crate::eval::NodeRefusal;
 use crate::node::RecipeNodeId;
-use crate::placement::Placement;
-use geom_core::Tol;
-use geom_core::linalg::frame::FrameError;
-use geom_core::linalg::{Point3, Vec3};
-use geom_core::predicate::{BandError, Indeterminate, Margin};
 
+pub mod anchor;
 pub mod coset;
 pub mod member;
+pub mod pin;
 pub mod reach;
 pub mod solve;
+pub mod unobservable;
+pub(crate) mod value;
 
+pub use anchor::Anchor;
 pub use coset::{Coset, PoseSymmetry, Subgroup, SubgroupFamily};
 pub use member::{Member, Placing, head_face, head_of, member_of, member_reading};
-pub use reach::{
-    FacePoseRefusal, MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach,
-};
-pub(crate) use solve::solve_with_env;
+pub use pin::{PinRefusal, Placed, PlacedBy, pin_at, pinned_at, place_at};
+pub use reach::{ReachRefusal, SurfaceKind, body_reach, part_reach};
 pub use solve::{
-    MateRole, PoseRefusal, SolveScalar, SolvedPoses, Space, UNPLACED_RECOURSE, Unplaced,
-    gauge_chain, groups, places, relative_freedom_components, root_of, solve_document,
-    solve_document_at,
+    PoseRefusal, SolveScalar, SolvedPoses, Space, mate_coset, relative_freedom_components,
+    solve_document, solve_document_at,
 };
+pub use unobservable::{Unobservable, unobservable};
 
 /// The kernel's contact vocabulary, re-exported (M9-1 PR-1: one enum,
 /// defined lowest). A mate's class IS a contact declaration.
@@ -91,446 +78,859 @@ pub use topo::ContactClass;
 )]
 #[serde(rename_all = "lowercase")]
 pub enum MateSide {
-    /// The `a` reference.
-    A,
-    /// The `b` reference.
-    B,
+    /// The copy's pose.
+    On,
+    /// The pose it is equated with.
+    To,
 }
 
 impl MateSide {
     /// The side's name, for messages.
     pub fn name(self) -> &'static str {
         match self {
-            Self::A => "a",
-            Self::B => "b",
+            Self::On => "on",
+            Self::To => "to",
         }
     }
 }
 
-/// **What a mate side's offset is written in** — the base of its
-/// [`MateFrame`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub enum FrameBase {
-    /// The side's part frame: the coordinates its part is modelled in.
-    Part,
-    /// The side's own head face's canonical pose (see [`MateFrame`]).
-    Face,
-}
-
-impl FrameBase {
-    /// The base's name, for messages.
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Part => "part",
-            Self::Face => "face",
-        }
-    }
-}
-
-/// One side's **mate frame**: a base composed with an offset, a
-/// [`Placement`] written in the base's frame (`ASSEMBLY.md` A3). The
-/// side's frame is `base ∘ offset`, folded step by step through
-/// [`Placement`]'s one chain fold, at the document's own parameters,
-/// so a parameter can drive where a side sits.
-///
-/// [`FrameBase::Part`] is the side's part frame. Three authored
-/// vectors — an origin, an axis, a roll reference — are the part base
-/// with one literal step, the frame [`MateFrame::authored`] builds.
-///
-/// [`FrameBase::Face`] names no face: it is the side's OWN HEAD
-/// face's CANONICAL POSE — the head's name with the member walk's
-/// qualifiers stripped ([`head_face`]), read off its surface
-/// parameters exactly, no tolerance (`topo::readback::face_pose`),
-/// through the mated part's own evaluation in the part's own
-/// coordinates ([`MateReach::face_pose`]): the pose's origin, its
-/// CHART axis as local +Z, and the carrier's own in-frame reference
-/// direction as the roll reference, through the witness ladder
-/// (`geom_core::linalg::frame::point_at`), which puts the
-/// reference on local +Y and their cross product on local +X. The head is the
-/// state and the frame is derived, so whatever moves or re-spells the
-/// head — a part edit, `Rebind`, split, inline — carries the frame
-/// with it, offset and all. The empty chain is the face's pose
-/// itself ([`MateFrame::from_face`]); an offset slides along the
-/// face, turns about its normal, or sets back from it.
-///
-/// **The offset is any rigid motion; the contact class says which
-/// offsets a mate admits.** A `Rest` side set back from its face
-/// declares a contact that is not there, and the at-rest gate refutes
-/// it.
-///
-/// **The pose's orientation sense is NOT folded into the axis.** The
-/// face base's axis is the CHART's direction, as the readback
-/// documents it (`Pose::axis`), whether the face's outward normal is
-/// `+axis` or `-axis`; which way the two sides point at each other is
-/// the mate's own [`AxisSense`]. An analytic carrier — plane,
-/// cylinder, cone, sphere, torus — resolves; a face with no canonical
-/// frame (a NURBS or approximating carrier) refuses typed at the mate,
-/// the side, the instance and the part ([`MateFault::FaceUnresolved`])
-/// and keeps taking a part base.
-///
-/// **A frame resolves on every lane.** A face base's pose is read off
-/// the part's evaluated product, and the offset folded onto it, at the
-/// evaluation's own scalar, as the solve runs at it (`ASSEMBLY.md` A11
-/// (5)): at `f64` the nominal, in a seed run the frame with its
-/// tangent, in a box run an enclosure — so a parameter an offset step
-/// reads moves the side in the run that binds it.
-///
-/// **No frame the doors admit is improper.** A rigid step is proper by
-/// construction, and a literal step is held to A6
-/// ([`crate::placement::Frame`]'s admission rule) at every door that
-/// writes a mate and at load, as a gauge's are.
-///
-/// On the wire the frame is `{"base": "Part" | "Face", "offset":
-/// <Placement>}`, closed over its two keys.
+/// **A pose of the world, read inside a mate** (spec Q7). The world
+/// defines no pose variable, so a mate's target reads it here: its
+/// frame, a role of it, and the target constructions — a slide along a
+/// direction or an axis, a spin about an axis, a flip. The read is part
+/// of the mate and nothing else can read it.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct MateFrame<S = crate::VarId> {
-    /// What the offset is written in.
-    pub base: FrameBase,
-    /// The offset, in the base's frame; the empty chain by default.
-    pub offset: Placement<S>,
+#[serde(rename_all = "snake_case", deny_unknown_fields, bound = "")]
+pub enum WorldRead<S: crate::Slot = crate::VarId> {
+    /// The world's own frame.
+    Frame,
+    /// A pose of the world read through a role its kind offers.
+    Role {
+        /// The pose read.
+        pose: Box<WorldRead<S>>,
+        /// The role.
+        role: crate::pose::PoseRole,
+    },
+    /// The pose slid along a direction by a length.
+    Slide {
+        /// The pose moved.
+        pose: Box<WorldRead<S>>,
+        /// The direction or axis it moves along.
+        along: Box<WorldRead<S>>,
+        /// How far.
+        by: S,
+    },
+    /// The pose spun about an axis by an angle, right-handed.
+    Spin {
+        /// The pose moved.
+        pose: Box<WorldRead<S>>,
+        /// The axis it turns about.
+        about: Box<WorldRead<S>>,
+        /// How far.
+        by: S,
+    },
+    /// The pose's opposite sense.
+    Flip {
+        /// The pose flipped.
+        pose: Box<WorldRead<S>>,
+    },
 }
 
-impl<S: Clone> MateFrame<S> {
-    /// The part base composed with `offset`.
-    pub fn on_part(offset: impl Into<Placement<S>>) -> Self {
-        Self {
-            base: FrameBase::Part,
-            offset: offset.into(),
+impl<S: crate::Slot> WorldRead<S> {
+    /// The world's frame read through `role`.
+    #[must_use]
+    pub fn through(role: crate::pose::PoseRole) -> Self {
+        Self::Role {
+            pose: Box::new(Self::Frame),
+            role,
         }
     }
 
-    /// The side's own head face, with no offset: the face's pose
-    /// itself.
-    pub fn from_face() -> Self {
-        Self::on_face(Placement::IDENTITY)
-    }
-
-    /// The side's own head face composed with `offset`, written in the
-    /// face's frame (origin on the face, +Z along its chart axis, +Y
-    /// along its reference direction).
-    pub fn on_face(offset: impl Into<Placement<S>>) -> Self {
-        Self {
-            base: FrameBase::Face,
-            offset: offset.into(),
+    /// `self` slid along `along` by `by`.
+    #[must_use]
+    pub fn slide(self, along: Self, by: S) -> Self {
+        Self::Slide {
+            pose: Box::new(self),
+            along: Box::new(along),
+            by,
         }
     }
 
-    /// **Three authored vectors as a frame**: the part base with one
-    /// literal step, the frame whose local +Z is `axis`, whose local
-    /// origin is `origin`, and whose roll is fixed by `reference`
-    /// (U4B's `point_at` convention, through the witness ladder). The
-    /// axis need not be unit and the reference need not be
-    /// perpendicular to it: only the axis's direction and the
-    /// reference's perpendicular part are read.
+    /// `self` spun about `about` by `by`.
+    #[must_use]
+    pub fn spin(self, about: Self, by: S) -> Self {
+        Self::Spin {
+            pose: Box::new(self),
+            about: Box::new(about),
+            by,
+        }
+    }
+
+    /// `self`'s opposite sense.
+    #[must_use]
+    pub fn flip(self) -> Self {
+        Self::Flip {
+            pose: Box::new(self),
+        }
+    }
+
+    /// **How many reads deep this read nests**: the world's frame is
+    /// one, and each construction is one more than the deepest read it
+    /// moves or reads along or about.
+    pub fn depth(&self) -> usize {
+        1 + match self {
+            Self::Frame => 0,
+            Self::Role { pose, .. } | Self::Flip { pose } => pose.depth(),
+            Self::Slide {
+                pose, along: line, ..
+            }
+            | Self::Spin {
+                pose, about: line, ..
+            } => pose.depth().max(line.depth()),
+        }
+    }
+
+    /// **The kind this read is**, or the first construction its kinds
+    /// refuse: a slide's along a direction or an axis and of no
+    /// direction, a spin's about an axis, a flip of no point, a role
+    /// its pose's kind offers. A read nested deeper than
+    /// [`MAX_WORLD_READ_DEPTH`] refuses before its kinds are read.
     ///
     /// # Errors
     ///
-    /// The ladder's [`FrameError`]: an axis with no definite
-    /// direction, a reference with no definite perpendicular offset
-    /// from it, or — asked before either sign — a length that is not a
-    /// finite number.
-    pub fn authored(
-        origin: [f64; 3],
-        axis: [f64; 3],
-        reference: [f64; 3],
-        tol: Tol,
-    ) -> Result<Self, FrameError> {
-        let eye = Point3::from_array(origin);
-        let frame = geom_core::linalg::frame::point_at(
-            eye,
-            eye + Vec3::from_array(axis),
-            Vec3::from_array(reference),
-            tol,
-        )?;
-        Ok(Self::on_part(Placement::literal(
-            &crate::placement::Frame::from_affine(frame.to_affine()),
-        )))
+    /// [`WorldReadFault`] naming the construction, or
+    /// [`WorldReadFault::TooDeep`].
+    pub fn kind(&self) -> Result<crate::VarKind, WorldReadFault> {
+        let depth = self.depth();
+        if depth > MAX_WORLD_READ_DEPTH {
+            return Err(WorldReadFault::TooDeep { depth });
+        }
+        self.kind_within()
     }
-}
 
-impl<S: crate::Slot> MateFrame<S> {
-    /// Bit-semantic equality (D7): the same base, and offsets equal by
-    /// [`Placement::bit_eq`], so `0.0` and `-0.0` are different frames.
-    #[must_use]
-    pub fn bit_eq(&self, other: &Self) -> bool {
-        self.base == other.base && self.offset.bit_eq(&other.offset)
+    fn kind_within(&self) -> Result<crate::VarKind, WorldReadFault> {
+        use crate::VarKind as K;
+        Ok(match self {
+            Self::Frame => K::Frame,
+            Self::Role { pose, role } => {
+                let found = pose.kind_within()?;
+                if role.of() != found {
+                    return Err(WorldReadFault::Role { role: *role, found });
+                }
+                role.kind()
+            }
+            Self::Slide { pose, along, .. } => {
+                if !matches!(along.kind_within()?, K::Direction | K::Axis) {
+                    return Err(WorldReadFault::Along);
+                }
+                match pose.kind_within()? {
+                    K::Direction => return Err(WorldReadFault::SlidDirection),
+                    kind => kind,
+                }
+            }
+            Self::Spin { pose, about, .. } => {
+                if about.kind_within()? != K::Axis {
+                    return Err(WorldReadFault::About);
+                }
+                pose.kind_within()?
+            }
+            Self::Flip { pose } => match pose.kind_within()? {
+                K::Point => return Err(WorldReadFault::FlippedPoint),
+                kind => kind,
+            },
+        })
     }
-}
 
-/// Which way the two sides' axes point at each other.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum AxisSense {
-    /// The axes point the same way (a shaft into a through-hole).
-    Aligned,
-    /// The axes point at each other (a rest: two outward normals
-    /// meeting). This is what kills every π-flip ambiguity — the
-    /// senses are authored, never inferred.
-    Opposed,
-}
+    /// Each scalar of the read in pre-order, with whether it is a
+    /// spin's angle (`true`) or a slide's length: the read's slots
+    /// ([`crate::SlotId::WorldSlide`], [`crate::SlotId::WorldSpin`]).
+    pub fn scalars(&self) -> Vec<(bool, &S)> {
+        let mut out = Vec::new();
+        self.walk(&mut out);
+        out
+    }
 
-/// The **mate primitive**: which coset of SE(3) this mate pins the
-/// pair's relative pose to (A11 rule 1; the spec's coset table).
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum MatePrimitive {
-    /// The two mate frames coincide outright — residual trivial.
-    FrameCoincidence,
-    /// The two axes coincide as a LINE — residual cylindrical (rotation
-    /// about + translation along it).
-    Coaxial,
-    /// `b`'s plane rests on `a`'s plane, displaced by `offset` along
-    /// `a`'s axis — residual planar. A zero offset is the flush rest;
-    /// a nonzero one is an authored standoff, not a `Fit`.
-    PlanarRest {
-        /// The signed standoff along `a`'s axis, in metres.
-        offset: f64,
-    },
-    /// Clocking with NO carrying primitive. Representable precisely so
-    /// it can be REFUSED: the table lacks the entry by design (a bare
-    /// angular relation pins no coset of the shapes the table closes
-    /// over), and an unrepresentable refusal is an untestable one.
-    /// Refused at the insert door and at every solve that reads the
-    /// datum ([`table_gap`]), not re-decided on replay.
-    Clocking,
-}
-
-impl MatePrimitive {
-    /// **Every LENGTH this primitive authors**, in metres — the one
-    /// home for "what does a primitive carry that has a scale", read
-    /// by the THREE doors that must account for one:
-    ///
-    /// - [`Alignment::lever_arm`], where a length left out LOOSENS the
-    ///   mate's angular threshold (a smaller lever admits a bigger
-    ///   angle for the same induced gap);
-    /// - [`Alignment::is_finite`], where one left unchecked lets a
-    ///   non-finite datum past the edit door;
-    /// - the evaluation's content key (`eval`'s `feed_alignment`),
-    ///   where one left unhashed makes two documents differing ONLY in
-    ///   that length share a memo entry.
-    ///
-    /// All three are the unsound direction, and none of them has a row
-    /// that goes red.
-    ///
-    /// The match is EXHAUSTIVE and the array is as wide as the widest
-    /// variant, so a primitive that grows a length cannot arrive here
-    /// unnoticed. **What that buys is a forced VISIT, not a correct
-    /// answer** — `[None]` still compiles for a variant that does
-    /// carry one, and nothing here can tell. What it does guarantee is
-    /// that the answer is given ONCE, so the three readers cannot
-    /// disagree about it; three hand-kept lists disagreeing is the
-    /// state this replaced.
-    ///
-    /// The width lives in this list rather than in the type: a bare
-    /// `Option<f64>` would say "at most one" in every reader's
-    /// signature, and a two-length variant would then move all three.
-    /// `None` means this variant carries fewer lengths than the widest
-    /// does — never a zero standing in for a length that is not there.
-    pub(crate) fn authored_lengths(self) -> [Option<f64>; 1] {
+    fn walk<'a>(&'a self, out: &mut Vec<(bool, &'a S)>) {
         match self {
-            Self::PlanarRest { offset } => [Some(offset)],
-            // Pure pose relations: their whole datum is the two mate
-            // frames, whose scale is the origins the lever arm folds
-            // in already.
-            Self::FrameCoincidence | Self::Coaxial | Self::Clocking => [None],
+            Self::Frame => {}
+            Self::Role { pose, .. } | Self::Flip { pose } => pose.walk(out),
+            Self::Slide { pose, along, by } => {
+                pose.walk(out);
+                along.walk(out);
+                out.push((false, by));
+            }
+            Self::Spin { pose, about, by } => {
+                pose.walk(out);
+                about.walk(out);
+                out.push((true, by));
+            }
         }
     }
 
-    /// The primitive's name, for messages.
-    pub fn name(self) -> &'static str {
+    /// [`Self::scalars`], writable, in the same order.
+    pub fn scalars_mut(&mut self) -> Vec<(bool, &mut S)> {
+        let mut out = Vec::new();
+        self.walk_mut(&mut out);
+        out
+    }
+
+    fn walk_mut<'a>(&'a mut self, out: &mut Vec<(bool, &'a mut S)>) {
         match self {
-            Self::FrameCoincidence => "frame-coincidence",
-            Self::Coaxial => "coaxial",
-            Self::PlanarRest { .. } => "planar-rest",
-            Self::Clocking => "clocking",
+            Self::Frame => {}
+            Self::Role { pose, .. } | Self::Flip { pose } => pose.walk_mut(out),
+            Self::Slide { pose, along, by } => {
+                pose.walk_mut(out);
+                along.walk_mut(out);
+                out.push((false, by));
+            }
+            Self::Spin { pose, about, by } => {
+                pose.walk_mut(out);
+                about.walk_mut(out);
+                out.push((true, by));
+            }
         }
     }
-}
 
-/// The A3 alignment datum: which frames coincide, the axis senses, and
-/// the clocking rider.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Alignment<S = crate::VarId> {
-    /// The `a` side's mate frame, in `a`'s part coordinates.
-    pub a: MateFrame<S>,
-    /// The `b` side's mate frame, in `b`'s part coordinates.
-    pub b: MateFrame<S>,
-    /// Which coset this mate pins.
-    pub primitive: MatePrimitive,
-    /// Which way the axes point at each other.
-    pub sense: AxisSense,
-    /// The clocking rider: the signed angle (radians) from `a`'s
-    /// reference to `b`'s about the shared axis. A RIDER, never a
-    /// primitive — on [`MatePrimitive::Coaxial`] it cuts the residual
-    /// to prismatic along the axis; on
-    /// [`MatePrimitive::FrameCoincidence`] it is redundant-or-
-    /// contradictory and gets decided over the mate's own lever — at
-    /// the insert door and at every solve that reads the datum, not
-    /// re-decided on replay; on a planar rest the table has no entry
-    /// ([`table_gap`]) and the same doors refuse typed.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub clocking: Option<f64>,
-}
-
-impl<S> Alignment<S> {
-    /// **This alignment in another slot form**: both frames' offsets
-    /// rewritten by `f`, side `a` first ([`Placement::try_map_slots`]).
+    /// This read in another slot form, each scalar mapped by `f` in
+    /// pre-order.
     ///
     /// # Errors
     ///
     /// `f`'s first.
-    pub fn try_map_slots<S2, E>(
+    pub fn try_map<S2: crate::Slot, E>(
         &self,
         f: &mut impl FnMut(&S) -> Result<S2, E>,
-    ) -> Result<Alignment<S2>, E> {
-        let Self {
-            a,
-            b,
-            primitive,
-            sense,
-            clocking,
-        } = self;
-        let frame = |side: &MateFrame<S>, f: &mut _| -> Result<MateFrame<S2>, E> {
-            Ok(MateFrame {
-                base: side.base,
-                offset: side.offset.try_map_slots(f)?,
-            })
-        };
-        Ok(Alignment {
-            a: frame(a, f)?,
-            b: frame(b, f)?,
-            primitive: *primitive,
-            sense: *sense,
-            clocking: *clocking,
+    ) -> Result<WorldRead<S2>, E> {
+        Ok(match self {
+            Self::Frame => WorldRead::Frame,
+            Self::Role { pose, role } => WorldRead::Role {
+                pose: Box::new(pose.try_map(f)?),
+                role: *role,
+            },
+            Self::Slide { pose, along, by } => WorldRead::Slide {
+                pose: Box::new(pose.try_map(f)?),
+                along: Box::new(along.try_map(f)?),
+                by: f(by)?,
+            },
+            Self::Spin { pose, about, by } => WorldRead::Spin {
+                pose: Box::new(pose.try_map(f)?),
+                about: Box::new(about.try_map(f)?),
+                by: f(by)?,
+            },
+            Self::Flip { pose } => WorldRead::Flip {
+                pose: Box::new(pose.try_map(f)?),
+            },
         })
-    }
-
-    /// **The datum's own contribution to the lever** this mate's angular
-    /// decisions turn on: both mate frames' distances from their parts'
-    /// origins, plus every length the primitive authors, all summed.
-    ///
-    /// The lever itself is formed in the solve (`mate/solve.rs`), as
-    ///
-    /// ```text
-    /// L  =  (R_a + ‖a.origin‖)  +  (R_b + ‖b.origin‖)  +  Σ |authored lengths|
-    /// ```
-    ///
-    /// where each `R` is the mated part's own reach from its origin
-    /// ([`MateReach`]) — an UPPER bound on the extent of the two parts
-    /// together from the datum, with no floor and no constant
-    /// (ERROR-DESIGN E3's amendment, ratified at revision E12, shipped
-    /// whole at this site). This function is the part of that sum the
-    /// datum answers over its two RESOLVED frames — `a` and `b` are
-    /// the sides' frame origins as the solve reads them, each its base
-    /// composed with its offset ([`MateFrame`]), so the term is formed
-    /// once per mate, after resolution, beside the reach read: `R +
-    /// ‖origin‖` bounds a part's reach from its mate frame by the
-    /// triangle inequality, and the authored lengths (a planar rest's
-    /// offset) are the separation the datum names between the two
-    /// frames once mated. Every term is an upper bound and none is
-    /// dropped, because over-refusal is the safe direction: a lever
-    /// larger than the truth prices a tilt higher and refuses sooner.
-    ///
-    /// Pure, and never a refusal: a datum at the origin with no length
-    /// contributes nothing, and that is not a degenerate case —
-    /// `Coaxial` on two origin frames is how an axis-to-axis mate is
-    /// ordinarily written. With a real part on each side the lever is
-    /// never zero, so no floor guards this door.
-    pub fn lever_arm(&self, a: [f64; 3], b: [f64; 3]) -> f64 {
-        let norm = |[x, y, z]: [f64; 3]| (x.powi(2) + y.powi(2) + z.powi(2)).sqrt();
-        self.lever_terms(norm(a), norm(b))
-    }
-
-    /// [`Self::lever_arm`] over the two sides' `‖origin‖` terms as the
-    /// solve holds them: `f64` upper bounds of the resolved origins'
-    /// distances at the solve's scalar ([`SolveScalar::upper`]), the
-    /// distances themselves at `f64`.
-    pub(crate) fn lever_terms(&self, a_origin: f64, b_origin: f64) -> f64 {
-        self.primitive
-            .authored_lengths()
-            .into_iter()
-            .flatten()
-            .fold(a_origin + b_origin, |lever, length| lever + length.abs())
-    }
-
-    /// Whether every number the alignment holds outside its frames is
-    /// finite — the rider and the primitive's lengths, the edit door's
-    /// admission test (a non-finite alignment could never decide
-    /// anything). A frame's offset is a placement, whose literal steps
-    /// the frame rule holds ([`crate::Node::placement_frame_fault`])
-    /// and whose expressions are slots.
-    pub fn is_finite(&self) -> bool {
-        self.clocking.is_none_or(f64::is_finite)
-            && self
-                .primitive
-                .authored_lengths()
-                .into_iter()
-                .flatten()
-                .all(f64::is_finite)
     }
 }
 
-impl Alignment {
-    /// **This alignment re-authored**: both frames' offsets formulas
-    /// reading what they read ([`Placement::authored`]).
-    #[must_use]
-    pub fn authored(&self) -> Alignment<crate::Formula> {
-        let frame = |side: &MateFrame| MateFrame {
-            base: side.base,
-            offset: side.offset.authored(),
-        };
-        Alignment {
-            a: frame(&self.a),
-            b: frame(&self.b),
-            primitive: self.primitive,
-            sense: self.sense,
-            clocking: self.clocking,
+/// **The deepest world read a mate holds** ([`WorldRead::depth`]):
+/// fifteen. The writers stay well inside it: the `place_at` gesture
+/// writes at most nine — the world's xy plane read through its role
+/// after three spins and three slides (`mate::pin`), each about or
+/// along an axis read two deep — and its values refuse a moved landing,
+/// so inline never moves it; `pin_at` writes the world's frame after at
+/// most six such moves, and inline at a landing off the identity folds
+/// a read's run of written moves into the motion it moves it by and
+/// writes one run again, so a pin flattened through any number of
+/// nested parts stays as deep as `pin_at` wrote it. Only a read whose
+/// moves read a variable gains a run per inline, and past this bound
+/// the edit door refuses it. A world read is written inside its mate,
+/// never as a variable (spec Q7), so this bound is what holds a saved
+/// mate within the load door's nesting limit
+/// (`persist::nesting::ENVELOPE`).
+pub const MAX_WORLD_READ_DEPTH: usize = 15;
+
+/// **Why a world read is no pose** ([`WorldRead::kind`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorldReadFault {
+    /// A role the read pose's kind does not offer.
+    Role {
+        /// The role asked.
+        role: crate::pose::PoseRole,
+        /// The kind read.
+        found: crate::VarKind,
+    },
+    /// A slide along what is no direction and no axis.
+    Along,
+    /// A slide of a direction, which has no position.
+    SlidDirection,
+    /// A spin about what is no axis.
+    About,
+    /// A flip of a point, which has no sense.
+    FlippedPoint,
+    /// A read nested deeper than [`MAX_WORLD_READ_DEPTH`]: the world
+    /// read is written inside the mate, so the depth a save writes is
+    /// bounded where the read is admitted, as an expression's is.
+    TooDeep {
+        /// The read's depth ([`WorldRead::depth`]).
+        depth: usize,
+    },
+}
+
+impl core::fmt::Display for WorldReadFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Role { role, found } => write!(
+                f,
+                "a world read through its {} role reads a {}, which offers none",
+                role.label(),
+                found
+            ),
+            Self::Along => f.write_str("a world read slides along what is no direction or axis"),
+            Self::SlidDirection => {
+                f.write_str("a world read slides a direction, which has no position")
+            }
+            Self::About => f.write_str("a world read spins about what is no axis"),
+            Self::FlippedPoint => f.write_str("a world read flips a point, which has no sense"),
+            Self::TooDeep { depth } => write!(
+                f,
+                "a world read nests {depth} reads deep, past the {MAX_WORLD_READ_DEPTH} a mate \
+                 holds; read a pose of the world's geometry, or move the world less"
+            ),
         }
     }
 }
 
-impl<S: crate::Slot> Alignment<S> {
-    /// **Bit-semantic equality** (D7), the one comparator every reader
-    /// of an alignment's equality asks: both frames by
-    /// [`MateFrame::bit_eq`], the primitive's lengths and the rider by
-    /// bits, so `0.0` and `-0.0` are different datums — as the content
-    /// key, which feeds the same fields by bits, already says.
-    #[must_use]
-    pub fn bit_eq(&self, other: &Self) -> bool {
-        let bits = |x: Option<f64>| x.map(f64::to_bits);
-        self.a.bit_eq(&other.a)
-            && self.b.bit_eq(&other.b)
-            && core::mem::discriminant(&self.primitive) == core::mem::discriminant(&other.primitive)
-            && self
-                .primitive
-                .authored_lengths()
-                .into_iter()
-                .zip(other.primitive.authored_lengths())
-                .all(|(x, y)| bits(x) == bits(y))
-            && self.sense == other.sense
-            && bits(self.clocking) == bits(other.clocking)
+/// **What a mate's `to` reads** (D10, spec Q7): a pose variable read
+/// off geometry of the space the copy joins, or the world.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case", bound = "")]
+pub enum Target<S: crate::Slot = crate::VarId> {
+    /// A pose variable of the space the copy joins.
+    Pose(S::Read),
+    /// The world, read inside the mate.
+    World(WorldRead<S>),
+}
+
+impl<S: crate::Slot> Target<S> {
+    /// The pose read, `None` for the world.
+    pub fn pose(&self) -> Option<&S::Read> {
+        match self {
+            Self::Pose(read) => Some(read),
+            Self::World(_) => None,
+        }
+    }
+
+    /// [`Self::pose`], writable.
+    pub fn pose_mut(&mut self) -> Option<&mut S::Read> {
+        match self {
+            Self::Pose(read) => Some(read),
+            Self::World(_) => None,
+        }
     }
 }
 
-/// **The A11 rule-4 recourse**, verbatim: what an author does about an
-/// under-determined tree mate.
-pub const UNDER_RECOURSE: &str = "add the complementary mate, or delete the mate if free relative \
-                                  motion was intended";
+/// **A mate** (D10, FORK-S3M): two poses of one kind, `on` read off
+/// the copied shapes' geometry and `to` off the space the copy joins
+/// or the world, with the contact class it declares. A mate holds no
+/// number, and is a constraint of the placement that holds it, never a
+/// node.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields, bound = "")]
+pub struct Mate<S: crate::Slot = crate::VarId> {
+    /// The copy's pose.
+    pub on: S::Read,
+    /// The pose the copy's is equated with.
+    pub to: Target<S>,
+    /// The declared contact class, the kernel vocabulary
+    /// ([`class_admission`] says how far each gets).
+    #[serde(with = "crate::persist::kernel_wire::contact_class")]
+    pub class: ContactClass,
+}
 
-/// **The recourse a [`MateFault::Contradictory`] ends on**: what an
-/// author does about two declarations that admit no common pose.
+impl<S: crate::Slot> Mate<S> {
+    /// Bit-semantic equality (D7): the reads equal, each scalar slot
+    /// equal.
+    #[must_use]
+    pub fn bit_eq(&self, other: &Self) -> bool {
+        self == other
+            && match (&self.to, &other.to) {
+                (Target::World(a), Target::World(b)) => a
+                    .scalars()
+                    .iter()
+                    .zip(b.scalars())
+                    .all(|((_, x), (_, y))| x.bit_eq(y)),
+                _ => true,
+            }
+    }
+
+    /// **This mate in another slot form**: each pose read mapped by
+    /// `read`, each world read's scalar by `slot`, `on` first.
+    ///
+    /// # Errors
+    ///
+    /// The first refusal of either.
+    pub fn try_map<S2: crate::Slot, E>(
+        &self,
+        mut read: impl FnMut(MateSide, &S::Read) -> Result<S2::Read, E>,
+        slot: &mut impl FnMut(&S) -> Result<S2, E>,
+    ) -> Result<Mate<S2>, E> {
+        Ok(Mate {
+            on: read(MateSide::On, &self.on)?,
+            to: match &self.to {
+                Target::Pose(r) => Target::Pose(read(MateSide::To, r)?),
+                Target::World(w) => Target::World(w.try_map(slot)?),
+            },
+            class: self.class,
+        })
+    }
+}
+
+/// **The two faces a mate rests**, when it equates two faces' planes:
+/// each side a face read as its plane, through any number of plain
+/// flips (a rest's faces face each other) — the face–face contact a
+/// `Rest` declares (A5), `on`'s face first. `None` for a mate of another
+/// kind, for a plane constructed off a face (a standoff), and for a
+/// world read: such a mate places, and declares no contact.
+pub(crate) fn rested_faces<P>(
+    doc: &crate::doc::Doc<P>,
+    mate: &Mate,
+) -> Option<(crate::VarId, crate::VarId)> {
+    let face = |mut var: crate::VarId| loop {
+        match doc.var(var).map(crate::Var::def)? {
+            crate::var::VarDef::Pose(crate::pose::PoseDef::Plane { face }) => return Some(*face),
+            crate::var::VarDef::Pose(crate::pose::PoseDef::Flip {
+                pose: crate::pose::RoleRead { read, role: None },
+            }) => var = *read,
+            _ => return None,
+        }
+    };
+    Some((face(mate.on)?, face(*mate.to.pose()?)?))
+}
+
+/// **A bundle's slots**: each world read's scalars, addressed by the
+/// constraint and the scalar's place in the read
+/// ([`crate::SlotId::WorldSlide`], [`crate::SlotId::WorldSpin`]), and
+/// each value's number ([`crate::SlotId::ValueSlide`],
+/// [`crate::SlotId::ValueSpin`]). A trait over the bundle so the node's
+/// slot table reads it through the borrow it holds.
+pub(crate) trait BundleRows<S> {
+    /// The rows, shared.
+    fn rows(&self) -> Vec<(crate::SlotId, &S)>;
+    /// The same rows, exclusive, in the same order.
+    fn rows_mut(&mut self) -> Vec<(crate::SlotId, &mut S)>;
+}
+
+impl<S: crate::Slot> BundleRows<S> for Vec<Constraint<S>> {
+    fn rows(&self) -> Vec<(crate::SlotId, &S)> {
+        let mut out = Vec::new();
+        for c in self {
+            match &c.kind {
+                ConstraintKind::Mate(Mate {
+                    to: Target::World(w),
+                    ..
+                }) => {
+                    for (step, (spin, e)) in w.scalars().into_iter().enumerate() {
+                        out.push((world_slot(c.id, step, spin), e));
+                    }
+                }
+                ConstraintKind::Mate(_) | ConstraintKind::WorldPin(_) => {}
+                ConstraintKind::Value(v) => out.push((value_slot(c.id, v.coord), &v.by)),
+            }
+        }
+        out
+    }
+
+    fn rows_mut(&mut self) -> Vec<(crate::SlotId, &mut S)> {
+        let mut out = Vec::new();
+        for c in self {
+            let id = c.id;
+            match &mut c.kind {
+                ConstraintKind::Mate(Mate {
+                    to: Target::World(w),
+                    ..
+                }) => {
+                    for (step, (spin, e)) in w.scalars_mut().into_iter().enumerate() {
+                        out.push((world_slot(id, step, spin), e));
+                    }
+                }
+                ConstraintKind::Mate(_) | ConstraintKind::WorldPin(_) => {}
+                ConstraintKind::Value(v) => {
+                    let coord = v.coord;
+                    out.push((value_slot(id, coord), &mut v.by));
+                }
+            }
+        }
+        out
+    }
+}
+
+/// The slot of a value's number.
+fn value_slot(constraint: crate::node::ConstraintId, coord: Coord) -> crate::SlotId {
+    match coord {
+        Coord::Slide(_) => crate::SlotId::ValueSlide { constraint },
+        Coord::Spin => crate::SlotId::ValueSpin { constraint },
+    }
+}
+
+/// The slot of a world read's `step`th scalar, a spin's or a slide's.
+fn world_slot(constraint: crate::node::ConstraintId, step: usize, spin: bool) -> crate::SlotId {
+    if spin {
+        crate::SlotId::WorldSpin { constraint, step }
+    } else {
+        crate::SlotId::WorldSlide { constraint, step }
+    }
+}
+
+/// **A constraint's address** (FORK-S3M): the placement that holds it
+/// and the id minted with it. What a fault about one mate names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct MateRef {
+    /// The placement holding the constraint.
+    pub placement: RecipeNodeId,
+    /// The constraint's minted id.
+    pub id: crate::node::ConstraintId,
+}
+
+impl MateRef {
+    /// The constraint `id` of `placement`.
+    #[must_use]
+    pub const fn new(placement: RecipeNodeId, id: crate::node::ConstraintId) -> Self {
+        Self { placement, id }
+    }
+}
+
+/// **A constraint of a placement** (D10, FORK-S3M): addressed by its
+/// placement and the id minted with it, never by its position. A
+/// constraint is a mate or a value.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields, bound = "")]
+pub struct Constraint<S: crate::Slot = crate::VarId> {
+    /// The id minted with it.
+    pub id: crate::node::ConstraintId,
+    /// What it states.
+    pub kind: ConstraintKind<S>,
+}
+
+/// **What a constraint states**: two poses equated, one freedom a
+/// mate leaves set to a number, or the named interim's world pin.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case", bound = "")]
+pub enum ConstraintKind<S: crate::Slot = crate::VarId> {
+    /// A mate.
+    Mate(Mate<S>),
+    /// A value.
+    Value(Value<S>),
+    /// A world pin ([`WorldPin`]): the named interim until a copy
+    /// standing where its body stands has a D10 spelling.
+    WorldPin(WorldPin),
+}
+
+/// **A world pin** (stage 3 C's named interim, the orchestrator's
+/// ruling; `work/intent/a-copy-standing-where-its-body-stands-has-no-d10-spelling.md`):
+/// a copy placed in the world with no read and no number. A mate reads
+/// a pose off the copy's geometry against numbers from one evaluation,
+/// so a copy whose body is built in world coordinates through a
+/// variable is pulled back toward that variable's nominal and widened
+/// by its width; a world pin reads nothing and places the copy where
+/// its body stands, in every lane, at every value. It stands alone in
+/// its bundle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorldPin {
+    /// The copy stands where its body stands: the identity of the
+    /// world's coordinates.
+    Identity,
+}
+
+impl<S: crate::Slot> Constraint<S> {
+    /// A mate, under `id`.
+    #[must_use]
+    pub fn of_mate(id: crate::node::ConstraintId, mate: Mate<S>) -> Self {
+        Self {
+            id,
+            kind: ConstraintKind::Mate(mate),
+        }
+    }
+
+    /// A value, under `id`.
+    #[must_use]
+    pub fn of_value(id: crate::node::ConstraintId, value: Value<S>) -> Self {
+        Self {
+            id,
+            kind: ConstraintKind::Value(value),
+        }
+    }
+
+    /// A world pin, under `id`.
+    #[must_use]
+    pub fn of_world_pin(id: crate::node::ConstraintId, pin: WorldPin) -> Self {
+        Self {
+            id,
+            kind: ConstraintKind::WorldPin(pin),
+        }
+    }
+
+    /// The mate it states, `None` for a value or a world pin.
+    #[must_use]
+    pub fn mate(&self) -> Option<&Mate<S>> {
+        match &self.kind {
+            ConstraintKind::Mate(mate) => Some(mate),
+            ConstraintKind::Value(_) | ConstraintKind::WorldPin(_) => None,
+        }
+    }
+
+    /// [`Self::mate`], writable.
+    pub fn mate_mut(&mut self) -> Option<&mut Mate<S>> {
+        match &mut self.kind {
+            ConstraintKind::Mate(mate) => Some(mate),
+            ConstraintKind::Value(_) | ConstraintKind::WorldPin(_) => None,
+        }
+    }
+
+    /// The value it states, `None` for a mate or a world pin.
+    #[must_use]
+    pub fn value(&self) -> Option<&Value<S>> {
+        match &self.kind {
+            ConstraintKind::Value(value) => Some(value),
+            ConstraintKind::Mate(_) | ConstraintKind::WorldPin(_) => None,
+        }
+    }
+
+    /// The world pin it states, `None` for a mate or a value.
+    #[must_use]
+    pub fn world_pin(&self) -> Option<WorldPin> {
+        match &self.kind {
+            ConstraintKind::WorldPin(pin) => Some(*pin),
+            ConstraintKind::Mate(_) | ConstraintKind::Value(_) => None,
+        }
+    }
+
+    /// Whether it places its copy on the world: a world pin, or a mate
+    /// whose target is a world read.
+    #[must_use]
+    pub fn reads_world(&self) -> bool {
+        match &self.kind {
+            ConstraintKind::WorldPin(_) => true,
+            ConstraintKind::Mate(mate) => matches!(mate.to, Target::World(_)),
+            ConstraintKind::Value(_) => false,
+        }
+    }
+
+    /// Bit-semantic equality (D7).
+    #[must_use]
+    pub fn bit_eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && match (&self.kind, &other.kind) {
+                (ConstraintKind::Mate(a), ConstraintKind::Mate(b)) => a.bit_eq(b),
+                (ConstraintKind::Value(a), ConstraintKind::Value(b)) => {
+                    a.mate == b.mate && a.coord == b.coord && a.by.bit_eq(&b.by)
+                }
+                (ConstraintKind::WorldPin(a), ConstraintKind::WorldPin(b)) => a == b,
+                _ => false,
+            }
+    }
+
+    /// **This constraint in another slot form**: a mate's pose reads
+    /// mapped by `read` ([`Mate::try_map`]), every scalar by `slot`, its
+    /// id kept.
+    ///
+    /// # Errors
+    ///
+    /// The first refusal of either.
+    pub fn try_map<S2: crate::Slot, E>(
+        &self,
+        read: impl FnMut(MateSide, &S::Read) -> Result<S2::Read, E>,
+        slot: &mut impl FnMut(&S) -> Result<S2, E>,
+    ) -> Result<Constraint<S2>, E> {
+        Ok(Constraint {
+            id: self.id,
+            kind: match &self.kind {
+                ConstraintKind::Mate(mate) => ConstraintKind::Mate(mate.try_map(read, slot)?),
+                ConstraintKind::Value(value) => ConstraintKind::Value(Value {
+                    mate: value.mate,
+                    coord: value.coord,
+                    by: slot(&value.by)?,
+                }),
+                ConstraintKind::WorldPin(pin) => ConstraintKind::WorldPin(*pin),
+            },
+        })
+    }
+}
+
+/// **A value** (FORK-S3M, ruling C-2): one freedom its mate leaves —
+/// a slide or a spin, charted on the two bodies' own coordinates as
+/// the placement carries them — set to a `Length` or an `Angle`.
 ///
-/// One sentence for both shapes the arm renders — a PAIR of mates and
-/// a mate contradicting itself through its own rider — because the
-/// repair is the same in both and a sentence naming "one of the two"
-/// is false of the second. The rung is the solve door: cosets are
-/// intersected exactly, so nothing here is a tolerance to widen and no
-/// pose is averaged out of the two.
-pub const CONTRADICTORY_RECOURSE: &str = "delete the mate that was not meant, or re-author the \
-                                          datum that is wrong; the solve intersects cosets \
-                                          exactly and never averages two declarations";
+/// The chart is the two bodies' own frames, each swung onto its side
+/// of the mate by the shortest turn carrying its own `z` to the mated
+/// direction ([`reference_about`]): a slide is the copy's origin
+/// measured from the target's along the target's swung `x`, `y` or
+/// `z`; a spin is the angle about the mated direction from the
+/// target's swung `x` to the copy's. Each is a function of the
+/// relative pose alone, so no order of the values is chosen, and zero
+/// says the two bodies' own coordinates agree as far as the mate
+/// allows.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields, bound = "")]
+pub struct Value<S: crate::Slot = crate::VarId> {
+    /// The mate whose freedom it sets, by its id in the same bundle.
+    pub mate: crate::node::ConstraintId,
+    /// Which freedom.
+    pub coord: Coord,
+    /// The number: a `Length` for a slide, an `Angle` for a spin.
+    pub by: S,
+}
+
+/// **Which freedom of its mate a value sets.**
+///
+/// The freedoms each kind of mate leaves: a plane mate slides along
+/// `x` and `y` and spins; an axis mate slides along `z` (its axis) and
+/// spins; a direction mate slides along all three and spins (its
+/// residual, `Parallel`); a point mate's rotation has no chart, and a
+/// frame mate leaves nothing.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum Coord {
+    /// A slide along the target's swung axis.
+    Slide(SlideAxis),
+    /// A spin about the mated direction.
+    Spin,
+}
+
+/// **The axis of the target's swung frame a slide runs along.**
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum SlideAxis {
+    /// The swung `x`.
+    X,
+    /// The swung `y`.
+    Y,
+    /// The swung `z`: the mated direction.
+    Z,
+}
+
+impl Coord {
+    /// The dimension of the number that sets it.
+    #[must_use]
+    pub fn dimension(self) -> crate::expr::Dimension {
+        match self {
+            Self::Slide(_) => crate::expr::Dimension::Length,
+            Self::Spin => crate::expr::Dimension::Angle,
+        }
+    }
+
+    /// Its name, for messages.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Slide(SlideAxis::X) => "slide along x",
+            Self::Slide(SlideAxis::Y) => "slide along y",
+            Self::Slide(SlideAxis::Z) => "slide along z",
+            Self::Spin => "spin",
+        }
+    }
+
+    /// **Whether a mate of `kind` leaves this freedom**, from the kind
+    /// alone (ruling C-2). `Err(NoChart)` for a point mate's rotation.
+    ///
+    /// # Errors
+    ///
+    /// [`FreedomRefusal`]: the kind leaves no such freedom, or leaves it
+    /// with no chart.
+    pub fn admitted_by(self, kind: crate::VarKind) -> Result<(), FreedomRefusal> {
+        use crate::VarKind as K;
+        match (kind, self) {
+            (K::Plane, Self::Slide(SlideAxis::X | SlideAxis::Y) | Self::Spin)
+            | (K::Axis, Self::Slide(SlideAxis::Z) | Self::Spin)
+            | (K::Direction, _) => Ok(()),
+            (K::Point, Self::Spin) => Err(FreedomRefusal::NoChart),
+            _ => Err(FreedomRefusal::NotAFreedom),
+        }
+    }
+}
+
+/// **Why a value's freedom has no chart** ([`MateFault::NoChart`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoChartWhy {
+    /// A point mate's rotation: three freedoms with no direction to
+    /// measure one about. A direction mate lowers it first.
+    PointRotation,
+    /// The mate's `to` reads two bodies: each has its own frame, and
+    /// the chart is the one body's.
+    TwoBodies,
+    /// A slide on a direction mate beside a ball mate: the ball fixes
+    /// every translation, so the slide could only fix the ball's turn
+    /// through the copy's lever, a circle meeting a plane at two points
+    /// or none, which the solve's structural settle does not choose
+    /// between.
+    SlideTurnsABall,
+}
+
+/// **Why a mate's kind leaves a value no freedom to set.**
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FreedomRefusal {
+    /// The kind fixes it.
+    NotAFreedom,
+    /// The kind leaves it, with no chart to measure it on: a lone point
+    /// mate's rotation.
+    NoChart,
+}
+
+/// **A body's frame swung onto a mate's direction** (ruling C-1): the
+/// shortest turn carrying the body's own `z` to `axis`, `axis` given in
+/// the body's own coordinates, as the turn's `x` column — the body's
+/// reference direction about `axis`. Its `z` is `axis` and its `y`
+/// is `axis × x`.
+///
+/// For `axis = (a, b, c)` the swung `x` is
+/// `(1 − a²/(1+c), −ab/(1+c), −a)`, with `1 + c` taken as
+/// `(a² + b²)/(1 − c)` where `c < 0`, so the antipode's neighbourhood
+/// loses no digit to cancellation. At the antipode itself (`axis = −z`)
+/// no turn is shortest, and the half-turn about the body's own `x` is
+/// taken: `x` stays. The only predicate is the decided sign of `1 + c`,
+/// read as the chord from `−z` levered over `arm`; a chord the band
+/// cannot decide refuses ([`crate::pose::PoseConstruction::Chart`]).
+///
+/// # Errors
+///
+/// The band's escalation, as [`crate::NodeErrorKind::PoseDegenerate`].
+pub fn reference_about<T: SolveScalar>(
+    axis: geom_core::UnitVec3<T>,
+    arm: f64,
+    band: geom_core::predicate::Band,
+) -> Result<geom_core::linalg::Vec3<T>, crate::NodeErrorKind> {
+    let d = axis.get();
+    let (a, b, c) = (d.x, d.y, d.z);
+    let one = T::one();
+    let across = a.powi(2) + b.powi(2);
+    // Which formula is a choice of arithmetic, not a verdict: the two
+    // are one number, and the first loses no digit near the antipode.
+    let one_plus_c = if c.quoted() < 0.0 {
+        across / (one - c)
+    } else {
+        one + c
+    };
+    // The chord from `−z`: |d + z| = √(2(1 + c)), levered over `arm`.
+    let chord = ((one + one) * one_plus_c).sqrt();
+    let sign = geom_core::k_stats::decide(
+        "mate_chart_reference_antipode",
+        geom_core::predicate::Margin::levered(chord, T::from_computed(arm)),
+        band,
+    )
+    .map_err(|_| crate::NodeErrorKind::PoseDegenerate {
+        construction: crate::pose::PoseConstruction::Chart,
+    })?;
+    if sign == geom_core::predicate::Sign::Zero {
+        return Ok(geom_core::linalg::Vec3::new(one, T::zero(), T::zero()));
+    }
+    Ok(geom_core::linalg::Vec3::new(
+        one - a.powi(2) / one_plus_c,
+        T::zero() - a * b / one_plus_c,
+        T::zero() - a,
+    ))
+}
+
+/// **The recourse a [`MateFault::Overconstrained`] ends on**: what an
+/// author does about a mate the rest of its bundle already fixes.
+pub const OVERCONSTRAINED_RECOURSE: &str = "delete one of the named constraints, and write what \
+     it held that the rest leave as a value (an axis mate with a spin is a prismatic joint); where \
+     the two copies also meet, an assertion says so";
 
 /// **The v1 class restriction, named.** `Fit` is specified and not
 /// built; a mate cannot declare a designed clearance until the kernel
@@ -603,33 +1003,6 @@ impl ClassAdmission {
     }
 }
 
-/// **The coset table's static gaps** — the primitive-and-rider pairs
-/// the table has no row for, refused on the datum alone with no
-/// geometry read and no lever formed: a clocking rider on a planar
-/// rest, and a standalone clocking with no carrying primitive. The
-/// sentence is the table's own, and is what
-/// [`MateFault::TableLacks`]'s `what` carries.
-///
-/// INVARIANT: every door that refuses a static gap reads it here —
-/// the coset table itself (`mate/solve.rs`'s `mate_coset`, at the
-/// arm each gap falls in, so a frame refusal still precedes it) and
-/// the viewer's mate tool, which refuses before any geometry — so no
-/// second match over the pair can drift from the table. `None` for
-/// every pair the table has a row for, decided or not: a rider on a
-/// coincidence is DECIDED over a lever, which is not a gap.
-pub fn table_gap(primitive: MatePrimitive, clocking: Option<f64>) -> Option<&'static str> {
-    match (primitive, clocking) {
-        (MatePrimitive::PlanarRest { .. }, Some(_)) => Some("a clocking rider on a planar rest"),
-        (MatePrimitive::Clocking, _) => Some("a standalone clocking with no carrying mate"),
-        (
-            MatePrimitive::FrameCoincidence
-            | MatePrimitive::Coaxial
-            | MatePrimitive::PlanarRest { .. },
-            _,
-        ) => None,
-    }
-}
-
 /// The class table itself ([`ClassAdmission`]).
 ///
 /// INVARIANT: every door that ENFORCES the class policy reads it
@@ -651,7 +1024,7 @@ pub fn class_admission(class: ContactClass) -> ClassAdmission {
 }
 
 /// Why a lever could not be formed for a mate: one of its parts' reach
-/// ([`MateReach::reach`]) is not in hand, the member stands on no
+/// is not in hand, the member stands on no
 /// instance, or the lever the two parts form is out of the format's
 /// range.
 #[derive(Debug, Clone, PartialEq)]
@@ -668,14 +1041,13 @@ pub enum LeverRefusal {
         /// Why the part's reach is not in hand.
         refusal: ReachRefusal,
     },
-    /// The member stands on a node that is not a live instantiate
-    /// node, so there is no part whose reach could be asked. The
-    /// member walk ends only on a live `InstantiatePart` (A11 rule 5),
-    /// so no door reaches this arm: it names the node rather than
-    /// assume the walk's rule.
-    NotAnInstance {
-        /// The node.
-        node: RecipeNodeId,
+    /// **A copied shape's reach**, refused: the body a placement
+    /// copies has no finite extent to lever an angle over.
+    Shape {
+        /// The node whose body it is.
+        shape: RecipeNodeId,
+        /// Why its reach is not in hand.
+        refusal: ReachRefusal,
     },
     /// Both parts' reach is in hand, but the lever they form with the
     /// datum's own terms is a length the format cannot decide a tilt
@@ -684,7 +1056,7 @@ pub enum LeverRefusal {
     OutOfRange {
         /// The two parts' reach, summed.
         parts: f64,
-        /// The datum's own terms ([`Alignment::lever_arm`]).
+        /// The poses' own distances from their origins.
         datum: f64,
     },
     /// The lever is formed, but it is no longer than the band's zero
@@ -711,13 +1083,9 @@ impl crate::spoken::Say for LeverRefusal {
             Self::Reach {
                 instance, refusal, ..
             } => write!(f, "{}'s part {refusal}", by.node_as(*instance, "instance")),
-            Self::NotAnInstance { node } => write!(
-                f,
-                "{} is not a live instantiate node, so it has no part whose extent \
-                 could lever a verdict. {}",
-                by.node(*node),
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
+            Self::Shape { shape, refusal } => {
+                write!(f, "the body {} copies {refusal}", by.node(*shape))
+            }
             Self::OutOfRange { parts, datum } => {
                 // A half that is not finite has no metre figure to print.
                 let length = |f: &mut core::fmt::Formatter<'_>, x: f64, of: &str| {
@@ -754,643 +1122,139 @@ impl core::fmt::Display for LeverRefusal {
     }
 }
 
-/// Why a face base could not be resolved to a pose: what the
-/// mated part's own evaluation answered about the head's face
-/// ([`MateReach::face_pose`]), named against the instance the solve
-/// was reading, the part it stands on and the face the head names in
-/// it — the subject a [`LeverRefusal`] adds to a reach refusal, and a
-/// face.
-#[derive(Debug, Clone, PartialEq)]
-pub enum FaceRefusal {
-    /// **The reach's own refusal of the face's pose**, named against
-    /// the instance, its part and the face the head names in that
-    /// part: the reach's vocabulary has its one home in
-    /// [`FacePoseRefusal`].
-    Reach {
-        /// The instance.
-        instance: RecipeNodeId,
-        /// Its part.
-        part: crate::ident::DocRef,
-        /// The face the head names, in the part's own spelling
-        /// ([`head_face`]).
-        face: crate::FaceName,
-        /// Why the face's pose is not in hand.
-        refusal: FacePoseRefusal,
-    },
-    /// The member stands on a node that is not a live instantiate
-    /// node, so there is no part whose face could be asked — the same
-    /// fact as [`LeverRefusal::NotAnInstance`], met by the reader of a
-    /// frame, and no door reaches it either.
-    NotAnInstance {
-        /// The node.
-        node: RecipeNodeId,
-    },
-    /// **The head names no face of its part**: below the member walk's
-    /// pattern qualifiers it is not one part face wrapped at the
-    /// member's instance ([`head_face`] answers `None`), so the part
-    /// has no row to read. A head an instance mints is always of that
-    /// shape; a document reaches this only written some other way.
-    NoPartFace {
-        /// The member's instance.
-        instance: RecipeNodeId,
-        /// The head, as the mate holds it.
-        head: crate::FaceName,
-    },
-}
-
-impl FaceRefusal {
-    /// The face the refusal is about, where it names one: the part's
-    /// face the reach refused, or the head that names none.
-    pub fn face(&self) -> Option<&crate::FaceName> {
-        match self {
-            Self::Reach { face, .. } => Some(face),
-            Self::NoPartFace { head, .. } => Some(head),
-            Self::NotAnInstance { .. } => None,
-        }
-    }
-}
-
-// The face is the part's name and the reach's refusal the part's, both
-// numbered in the part, so each is said by its own `Display`; the
-// instance and the node are this document's.
-impl crate::spoken::Say for FaceRefusal {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
-        match self {
-            Self::Reach {
-                instance,
-                face,
-                refusal,
-                ..
-            } => write!(
-                f,
-                "{}'s part answers none for {face}: {refusal}",
-                by.node_as(*instance, "instance")
-            ),
-            Self::NotAnInstance { node } => write!(
-                f,
-                "{} is not a live instantiate node, so it has no part whose face could \
-                 be read. {}",
-                by.node(*node),
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
-            Self::NoPartFace { instance, head } => write!(
-                f,
-                "the {head} is not a face of {}'s part under that instance's own \
-                 qualifier, so its part has no face to take the frame from. Recourse: delete \
-                 the mate, and insert it again on a face the instance places, or with authored \
-                 vectors",
-                by.node_as(*instance, "instance")
-            ),
-        }
-    }
-}
-
-/// The refusal where no document is at hand: each node by its tag.
-impl core::fmt::Display for FaceRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
-    }
-}
-
-/// **What a levered clash measured, and the arm that carried it to a
-/// length.** The product is the deviation; the halves are what the
-/// sentence prints, because a stored product beside them would assert
-/// an identity nothing enforces ([`Lever::deviation`] computes it).
-///
-/// A closed enum, and deliberately not a value beside a unit string:
-/// the two arms are the two kinds of number the solve levers, and a
-/// third kind is a new arm with its own sentence, never a free string
-/// a site could set to a length.
-///
-/// The arm is the one the predicate was decided over, and the two
-/// kinds are decided over different ones: a `Roll` is decided in the
-/// mate's own coset over that mate's lever, a `Residual` in the fold
-/// over the largest lever of the mates folded so far — so a pair can
-/// print one arm on a roll and a larger one on a residual, each the
-/// truth of its own decision.
-///
-/// The solve measures a residual at its own scalar `T` and decides it
-/// there; a refusal carries it at `f64` (the default).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Lever<T = f64> {
-    /// An authored roll, in radians (the clocking rider's
-    /// `mate_clocking_redundant`).
-    Roll {
-        /// The roll, in radians.
-        radians: f64,
-        /// The arm, in metres.
-        arm: f64,
-    },
-    /// A dimensionless residual — a sine, a cosine, a Frobenius
-    /// departure from the identity, a reachability defect — named by
-    /// the predicate that measured it.
-    Residual {
-        /// The residual, a pure number.
-        value: T,
-        /// The arm, in metres.
-        arm: f64,
-    },
-}
-
-impl<T> Lever<T> {
-    /// The arm, in metres, whichever kind of number it levered.
-    pub fn arm(self) -> f64 {
-        match self {
-            Self::Roll { arm, .. } | Self::Residual { arm, .. } => arm,
-        }
-    }
-}
-
-impl<T: geom_core::Real> Lever<T> {
-    /// **The margin this lever decides**: the pure number levered by
-    /// the arm through [`Margin::levered`] — the ONE home of that
-    /// multiplication for every levered predicate in the solve, at
-    /// whichever scalar it runs, so the number a refusal quotes and
-    /// the number the funnel decided are one value.
-    pub fn margin(self) -> Margin<T> {
-        match self {
-            Self::Roll { radians, arm } => Margin::levered(T::from_f64(radians), T::from_f64(arm)),
-            Self::Residual { value, arm } => Margin::levered(value, T::from_f64(arm)),
-        }
-    }
-}
-
-impl Lever {
-    /// The deviation the lever measured, in metres: [`Self::margin`]'s
-    /// value, computed here and nowhere stored.
-    pub fn deviation(self) -> f64 {
-        self.margin().value()
-    }
-}
-
-/// **What a contradictory refusal measured** — closed over the three
-/// ways a membership predicate refuses, so the refusal carries the
-/// measurement and nothing that could disagree with it: no metre
-/// figure stored beside the halves it is the product of, no sentinel
-/// read back out of a number.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Clash {
-    /// The predicate decided the empty intersection STRUCTURALLY
-    /// (`mate_member_empty`): the empty set holds nothing and no
-    /// margin decides that, so there is no measurement at all.
-    Structural,
-    /// A length the predicate measured outright.
-    Length {
-        /// The margin that should have been zero and was not, in
-        /// metres.
-        metres: f64,
-    },
-    /// A pure number the predicate levered by an arm; the deviation
-    /// is the product ([`Lever::deviation`]).
-    Levered(Lever),
-}
-
-impl Clash {
-    /// The deviation in metres, when the predicate measured one: a
-    /// length verbatim, a lever's product, and `None` for the
-    /// structural refusal.
-    pub fn deviation(self) -> Option<f64> {
-        match self {
-            Self::Structural => None,
-            Self::Length { metres } => Some(metres),
-            Self::Levered(lever) => Some(lever.deviation()),
-        }
-    }
-}
-
 /// A typed mate refusal (D9: fail loud, never a guess). Every arm names
 /// its subject — the mate, the pair, the predicate, the residual, or
 /// the two documents a mispaired read named.
 ///
 /// **Which mate an arm is about is read per arm by its two consumers,
-/// `viewer::tree::blamed_mates` and `pncad_py::MateFaultPayload`, and
-/// the two arms that name no mate are not the same case**: [`Self::Band`]
-/// names no mate and reaches EVERY row of the document —
-/// [`solve_document`] records the one fault against every `Node::Mate`
-/// and every `Node::InstantiatePart` before it reads a mate — while
-/// [`Self::PosesOfAnotherDocument`] names no mate and reaches NO row,
+/// `viewer::tree::blamed_mates` and `pncad_py::MateFaultPayload`.**
+/// [`Self::PosesOfAnotherDocument`] names no mate and reaches no row,
 /// being raised by [`SolvedPoses::placement`] and never inserted in a
-/// fault map. There is deliberately no `subject()` here: an
-/// `Option<RecipeNodeId>` answers `None` for both and erases that
-/// asymmetry, which is the one fact both consumers exist to carry.
+/// fault map.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MateFault {
     /// The solve is a solve of ANOTHER document (DI3). Names no mate
-    /// and reaches no row — the enum's own doc states which of the two
-    /// mate-less arms reaches what.
+    /// and reaches no row.
     PosesOfAnotherDocument {
         /// The document whose placement was asked for.
         expected: crate::ident::DocumentId,
         /// The document the solve is of.
         found: crate::ident::DocumentId,
     },
-    /// A side's frame has no definite frame on the witness ladder: the
-    /// pose its face base resolved to, or the axis of the frame its
-    /// offset composes.
-    Frame {
-        /// The mate whose datum refused.
-        mate: RecipeNodeId,
-        /// Which side.
-        side: MateSide,
-        /// The frame ladder's own refusal.
-        error: FrameError,
-    },
+
     /// A class outside v1's admitted vocabulary — `Fit { gap }` today,
     /// any later addition tomorrow. The message carries the kernel's
     /// own deferral sentence VERBATIM ([`topo::FIT_DEFERRAL`]) rather
     /// than a paraphrase of it.
     ClassNotAdmitted {
         /// The mate that declared it.
-        mate: RecipeNodeId,
+        mate: MateRef,
     },
-    /// The coset table has no entry for this combination, and the
-    /// refuse-any-missing-pair rule applies.
-    TableLacks {
-        /// The mate whose datum has no entry.
-        mate: RecipeNodeId,
-        /// What was asked for, in the table's own words.
-        what: &'static str,
+
+    /// **A constraint any of whose equations the rest of its bundle
+    /// already fixes** (D10; FORK-S3O): a mate places and never checks,
+    /// so none is verified and kept. Decided by subgroup algebra over
+    /// the families the bundle's definitions name, measuring nothing,
+    /// pinned or not: the edit doors refuse the constraint being
+    /// written, and the solve, for a state no door saw (a load, a
+    /// rebind), names every constraint whose equations the others
+    /// already fix. Constraints have no order, so none of them is "the
+    /// later one".
+    Overconstrained {
+        /// The placement.
+        placement: RecipeNodeId,
+        /// Every constraint an equation of which the rest of the bundle
+        /// already fixes.
+        constraints: Vec<crate::node::ConstraintId>,
+        /// How many of the copy's six freedoms the whole bundle leaves.
+        free: u8,
     },
-    /// A case-split predicate landed in the ambiguity band — the typed
-    /// escalation, never a silent pick.
-    Indeterminate {
-        /// The mate being folded when it fired.
-        mate: RecipeNodeId,
-        /// The predicate's diagnostics (it names itself).
-        diag: Box<Indeterminate>,
+    /// **A bundle relates its copy to two spaces**: its mates' targets
+    /// read geometry of two different spaces, or one the world and one
+    /// a space that does not reach it. A copy joins one space, so its
+    /// mates fold in that space's coordinates.
+    TargetsDiffer {
+        /// The placement.
+        placement: RecipeNodeId,
+        /// Its constraints, in bundle order.
+        constraints: Vec<crate::node::ConstraintId>,
     },
-    /// The pair's mates meet at a pose the floating-point format
-    /// cannot hold: the translation the fold solved for has no finite
-    /// length. The mates can both hold; the place they meet is past the
-    /// session's range.
-    PoseOutOfRange {
-        /// The mate already folded. **Equal to `added` when the pair
-        /// has no earlier mate**, as [`Self::Contradictory`] spells it.
-        held: RecipeNodeId,
-        /// The mate whose intersection named the meeting point.
-        added: RecipeNodeId,
-    },
-    /// The run's tolerance could not yield a band.
-    Band {
-        /// The band constructor's refusal.
-        error: BandError,
-    },
-    /// The pair's mates intersect to the EMPTY coset (A11 rule 1's
-    /// CONTRADICTORY): names both mates, the predicate that failed,
-    /// and the measured clash.
-    Contradictory {
-        /// The mate already folded. **Equal to `added` when one mate
-        /// contradicts ITSELF**: a mate whose own datum and rider admit
-        /// no common pose dies by the same rule, and naming it on both
-        /// sides is how that shape reaches this variant.
-        held: RecipeNodeId,
-        /// The mate whose intersection died against it.
-        added: RecipeNodeId,
-        /// The predicate that decided against them.
-        predicate: &'static str,
-        /// What it measured: a length outright, a pure number levered
-        /// by an arm, or nothing — the structural refusal.
-        ///
-        /// A lever's arm is the mate's lever as the solve forms it —
-        /// the two mated parts' own extent from the datum plus the
-        /// datum's own terms, `ASSEMBLY.md` A11 rule 5's qualifier
-        /// ([`Alignment::lever_arm`] states the sum; [`MateReach`] is
-        /// the parts' half) — and NOT a contact feature, so a message
-        /// that names it is naming the parts' scale and nothing in the
-        /// model.
-        clash: Clash,
-    },
-    /// A tree mate left a positive-dimensional residual (A11 rule 4's
-    /// UNDER): names the pair, the residual subgroup, and its
-    /// parameters.
-    Under {
-        /// The tree mate that failed to determine.
-        mate: RecipeNodeId,
-        /// The instance the tree was extending from.
-        parent: RecipeNodeId,
-        /// The instance it failed to place.
-        child: RecipeNodeId,
-        /// What survived the fold.
-        residual: Subgroup,
-    },
-    /// **A side reads no face of a live body** (D10: a reader left
-    /// unresolved, typed, never re-pointed): its selection, or the body
-    /// the selection is read in, was deleted, or the selection holds no
-    /// one face name. The mate's evaluation refuses in the read's own
-    /// words (`UnresolvedRead`, `SelectKind`); the solve, which runs
-    /// first, records this so the mate is no edge of the partition.
-    SideUnresolved {
+    /// **A mate's `on` does not read the copy** (D10): its pose reads
+    /// geometry other than the placement's shapes (or, for an instance,
+    /// its own output), so it pins nothing of that placement.
+    NotOnTheCopy {
         /// The mate.
-        mate: RecipeNodeId,
-        /// Which side.
-        side: MateSide,
-        /// The side's read.
-        read: crate::VarId,
+        mate: MateRef,
     },
-    /// **A mate's reference names no member of A11's vocabulary** —
-    /// N5's dangling reference. The insert door and every solve refuse
-    /// typed rather than pretending the mate is absent — at insert,
-    /// where the side resolves to no member as authored, and at
-    /// evaluation, where a later edit broke it.
-    ///
-    /// Exactly two causes, and both are about a copy or a node that
-    /// does not exist:
-    ///
-    /// - the WALK from the side's body down to its name's head stopped
-    ///   at a node that places no body of its own
-    ///   ([`crate::member_of`]);
-    /// - the copy the name says is at or beyond the pattern's
-    ///   evaluated count, so the named copy is not there.
-    ///
-    /// A placer that exists and whose pose merely could not be
-    /// DERIVED is [`MateFault::PlacerRefused`], which carries the
-    /// evaluation's own refusal. So this arm is about a node the
-    /// vocabulary does not reach or a copy that is not there — never
-    /// about arithmetic. It is still reported at a node that may be
-    /// perfectly live: a pattern the reference's name does not
-    /// qualify `Instance(i)` stops the walk, and the walk stops AT
-    /// that pattern.
-    DanglingHead {
-        /// The mate.
-        mate: RecipeNodeId,
-        /// Which side dangles.
-        side: MateSide,
-        /// **The node at which the reference resolves to no member**:
-        /// where the walk stopped, the first node outside the
-        /// vocabulary; or the pattern whose count the named copy is
-        /// past. Not in general the reference's own
-        /// head, which is often live and fine.
-        head: RecipeNodeId,
-    },
-    /// **A placer on the reference's chain refused to derive its
-    /// pose**, in the evaluation layer's own words.
-    ///
-    /// The member exists and the walk reached it; what did not exist
-    /// is the static offset a pattern copy or a transform on the way
-    /// contributes. Every such refusal is one the evaluation layer
-    /// already types — a slot that does not evaluate, a direction of
-    /// no definite length, an explicit-rule pattern, an axis operand
-    /// that is not an axis datum — so it is carried here UNALTERED
-    /// rather than relabelled as a dangling head.
-    ///
-    /// The sentence names the placer and never renders `error`, which
-    /// is the placer's refusal with its own recourse. Whether the fault
-    /// CARRIES it, as a line of its own under the mate's
-    /// ([`crate::NodeErrorKind::carried_chain`]), is `placer_row`'s:
-    ///
-    /// - **Raised while a group's fold derives an offset**, at a
-    ///   placer on the reference's chain: the fault reaches the
-    ///   instance under that placer, so the placer is POISONED, never
-    ///   evaluates and never states its own cause. This fault is the
-    ///   only place that cause appears, and it carries it
-    ///   ([`PlacerRow::Silent`]).
-    /// - **Raised where the solve reads one mate's references**, or at
-    ///   a node read off the chain (an axis datum, a transform on the
-    ///   way to it): the fault reaches the mate alone, and the placer
-    ///   evaluates and fails in its own right with the same refusal.
-    ///   Its own row states it, and the mate's sentence points there
-    ///   ([`PlacerRow::States`]).
-    PlacerRefused {
-        /// The mate.
-        mate: RecipeNodeId,
-        /// Which side's reference the placer is on.
-        side: MateSide,
-        /// **The node whose evaluation raised the refusal.** It lies
-        /// on the reference's derivation: a pattern or a transform on
-        /// the chain, a `Part` on it whose own index does not evaluate or
-        /// selects outside its value,
-        /// or a node one of those reads to derive its map — a circular
-        /// rule's axis DATUM, whose slot that does not evaluate is
-        /// reported under the datum's id, or a TRANSFORM on the way to
-        /// that datum, whose own operand refusal is reported under the
-        /// transform's — because that is the node an author goes and
-        /// fixes, and the node the evaluation itself fails.
-        placer: RecipeNodeId,
-        /// The evaluation layer's own typed refusal for it, unchanged.
-        error: NodeRefusal,
-        /// Whether the placer's own row states `error`.
-        placer_row: PlacerRow,
-    },
-    /// **A `Node::Part` selects a copy the reference's NAME does not
-    /// name.** The name is the authority on which copy a mate speaks
-    /// about; a `Part` standing above a pattern in the walk (with
-    /// nothing but transforms between) says which body of that
-    /// pattern's value the body below it is. A document where those
-    /// disagree would be PLACED by the name and GATHERED by the
-    /// `Part` — two different bodies for one declaration — so the
-    /// insert door and the solve refuse rather than choosing, and
-    /// report both indices in the `Part`'s index space.
-    ///
-    /// Raised per REFERENCE, where the solve reads each one, so it
-    /// reaches a declaring mate as surely as a tree edge's.
-    PartSelectsAnotherCopy {
-        /// The mate.
-        mate: RecipeNodeId,
-        /// Which side.
-        side: MateSide,
-        /// The `Part` node whose index expression disagrees.
-        part: RecipeNodeId,
-        /// The copy the reference's name names, as the body index
-        /// the `Part` selects by: the copy index itself over a
-        /// pattern of one body, the flat `j·M + i` over a nested one.
-        named: u32,
-        /// What the `Part`'s index expression evaluates to at the
-        /// document's parameter bindings: a copy the value has, since
-        /// an index outside it is the `Part`'s own refusal
-        /// ([`MateFault::PlacerRefused`]), judged first. `i64`, the
-        /// type the evaluated Count has.
-        selected: i64,
-    },
-    /// A mate names ONE instance on both sides. A pair is two
-    /// instances; a self-mate constrains nothing and is a recipe
-    /// mistake, refused rather than folded into a tautology.
-    SelfMate {
-        /// The mate.
-        mate: RecipeNodeId,
-        /// The instance it names twice.
-        instance: RecipeNodeId,
-    },
-    /// The mate's lever could not be formed: one of its parts' reach
-    /// ([`MateReach`]) is not in hand, so no verdict over the parts'
-    /// extent can be levered ([`Alignment::lever_arm`] for the sum).
+
+    /// The mate's lever could not be formed: the copy's reach is not in
+    /// hand, so no verdict over its extent can be levered.
     Unleverable {
         /// The mate.
-        mate: RecipeNodeId,
-        /// Why — boxed, as [`Self::FaceUnresolved`]'s is: the refusal
-        /// carries the instance, the part and the reach's own refusal,
+        mate: MateRef,
+        /// Why — boxed: the refusal carries the shape and the reach's
+        /// own refusal,
         /// and the fault's every other arm stays the size it is.
         refusal: Box<LeverRefusal>,
     },
-    /// **A checked offset disagrees with the solve** (A11 (2)): a
-    /// member of a placed group that is not its root carries an
-    /// offset, which states where it sits, and the solve places it
-    /// elsewhere. The statement is verified, never trusted and never
-    /// ignored, so the instance is faulted and the rest of its group
-    /// stands. Recourse: [`OFFSET_RECOURSE`].
-    OffsetDisagrees {
-        /// The instance whose offset disagrees.
-        instance: RecipeNodeId,
-        /// Its group's root, whose offset places the group.
-        root: RecipeNodeId,
-        /// The predicate that measured the disagreement.
-        predicate: &'static str,
-        /// What it measured.
-        clash: Clash,
+
+    /// **A mate equates poses of two kinds** (FORK-S3M): the kind is
+    /// the primitive, so a plane mated to an axis is no mate.
+    KindsDiffer {
+        /// The mate.
+        mate: MateRef,
+        /// The kind `on` reads.
+        on: crate::VarKind,
+        /// The kind `to` reads.
+        to: crate::VarKind,
     },
-    /// **A checked offset could not be checked** (A11 (2)): the
-    /// statement is neither confirmed nor refuted, so the instance is
-    /// faulted rather than trusted.
-    OffsetUnchecked {
-        /// The instance whose offset could not be checked.
-        instance: RecipeNodeId,
+    /// **A mate's world read is no pose** ([`WorldRead::kind`]).
+    WorldRead {
+        /// The mate.
+        mate: MateRef,
+        /// The construction its kinds refuse.
+        fault: WorldReadFault,
+    },
+    /// **A value names no mate of its bundle** (ruling C-2): the id is
+    /// no constraint of the placement, or a value's.
+    ValueNamesNoMate {
+        /// The value.
+        value: MateRef,
+        /// The id it names.
+        mate: crate::node::ConstraintId,
+    },
+    /// **A value sets a freedom its mate's kind does not leave**
+    /// (ruling C-2). A freedom the kind leaves and the rest of the bundle
+    /// fixes is [`Self::Overconstrained`].
+    NotAFreedom {
+        /// The value.
+        value: MateRef,
+        /// The freedom it sets.
+        coord: Coord,
+        /// The mate's kind.
+        kind: crate::VarKind,
+    },
+    /// **A value's freedom has no chart** (ruling C-1): a lone point
+    /// mate's rotation, a mate whose `to` reads two bodies, whose own
+    /// frames do not agree on which reference to measure from, or a
+    /// slide beside a ball, which leaves it no translation to measure.
+    NoChart {
+        /// The value.
+        value: MateRef,
         /// Why.
-        cause: Box<OffsetCheck>,
+        why: NoChartWhy,
     },
-    /// **A side's face base did not resolve to a pose**: the
-    /// mated part's own evaluation answered no pose for the face the
-    /// side's head names ([`MateReach::face_pose`]), in the resolver's
-    /// or the readback's own voice — the part not in hand, a name the
-    /// part's table lacks or ties, a carrier with no canonical frame —
-    /// or the head names no face of the part at all ([`FaceRefusal`]).
-    /// Raised
-    /// where the solve reads the side's frame, before the coset table
-    /// and before any lever is formed; the insert door raises it for
-    /// a mate being inserted, and the solve at every evaluation for a
-    /// state a part edit brings a mate to (a face that vanished or
-    /// changed carrier) — a load never refuses it, since replay
-    /// declines the read (`solve::admit_mate`).
-    FaceUnresolved {
+    /// **A mate's pose did not evaluate**, in the evaluation layer's
+    /// own words: the face it reads is gone or has no plane, a
+    /// construction is degenerate, a scalar refused.
+    SideUnevaluated {
         /// The mate.
-        mate: RecipeNodeId,
-        /// Which side's frame.
-        side: MateSide,
-        /// Why — boxed, as an escalation's diagnostics are: the
-        /// refusal names the part, the face and the readback's own
-        /// arm, and the fault's every other arm stays the size it is.
-        refusal: Box<FaceRefusal>,
-    },
-    /// **A side's frame offset did not evaluate** at the document's
-    /// parameters: a rigid step's rotation axis has no definite
-    /// direction, or one of its expressions refused — the evaluation
-    /// layer's own refusal, its slot named by the mate's own address
-    /// ([`crate::SlotId::MateFrameStep`]). Raised where the solve reads
-    /// the side's frame: at the edit doors that write a mate's datum
-    /// (the insert, and a slot edit at a frame step), and at
-    /// evaluation, where it is what the solve records against the mate
-    /// and its group. An expression that does not evaluate at the
-    /// document's parameters also fails the mate's own slot
-    /// evaluation, so the mate's row states it as its own
-    /// [`crate::NodeErrorKind::Expr`]; an axis of no direction
-    /// evaluates as numbers and is this fault alone.
-    FrameUnevaluated {
-        /// The mate.
-        mate: RecipeNodeId,
-        /// Which side's frame.
+        mate: MateRef,
+        /// Which pose.
         side: MateSide,
         /// The evaluation layer's refusal.
         refusal: Box<NodeRefusal>,
     },
-}
-
-/// The recourse a disagreeing checked offset names.
-pub const OFFSET_RECOURSE: &str = "clear the offset, or change the mate";
-
-/// **Why a checked offset could not be checked**
-/// ([`MateFault::OffsetUnchecked`]).
-#[derive(Debug, Clone, PartialEq)]
-pub enum OffsetCheck {
-    /// A placement the check reads did not evaluate at the document's
-    /// own parameters: the offset itself, the root's, or a gauge on
-    /// the chain.
-    Placement {
-        /// The instance or gauge whose placement refused.
-        node: RecipeNodeId,
-        /// The evaluation layer's own refusal, unchanged.
-        error: NodeRefusal,
-    },
-    /// The member's part reach — the lever the check is decided over —
-    /// is not in hand.
-    Unleverable(LeverRefusal),
-    /// The check landed in the ambiguity band.
-    Indeterminate(Box<Indeterminate>),
-    /// The solve gives the member no pose: `mate`, which welds its
-    /// group, refused, so the group's spanning tree does not reach it.
-    Unreached {
-        /// The group's first mate the solve refused.
-        mate: RecipeNodeId,
-    },
-    /// The offset and the solved pose are further apart than the
-    /// check can measure a distance: a length it would decide on
-    /// squares past the format.
-    OutOfRange,
-}
-
-impl crate::spoken::Say for OffsetCheck {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
-        match self {
-            Self::Placement { node, .. } => {
-                write!(f, "the placement at {} does not evaluate", by.node(*node))
-            }
-            Self::Unleverable(refusal) => write!(f, "{}", crate::spoken::Said(refusal, by)),
-            Self::Indeterminate(diag) => {
-                write!(f, "the check could not be decided — {}", diag.payload())
-            }
-            Self::Unreached { mate } => write!(
-                f,
-                "the solve gives it no pose, because {}, which welds its group, refused",
-                by.node_as(*mate, "mate")
-            ),
-            Self::OutOfRange => f.write_str(
-                "it and its solved pose are further apart than the check can measure a distance",
-            ),
-        }
-    }
-}
-
-/// The cause where no document is at hand: each node by its tag.
-impl core::fmt::Display for OffsetCheck {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
-    }
-}
-
-/// The measurement a refusal quotes, as the tail of its sentence:
-/// what was measured where `there` would have had to hold.
-fn write_clash(f: &mut core::fmt::Formatter<'_>, clash: Clash, there: &str) -> core::fmt::Result {
-    match clash {
-        Clash::Structural => write!(
-            f,
-            "found the cosets meet in the empty set — a structural refusal, with no margin to \
-             measure"
-        ),
-        Clash::Length { metres } if metres.is_finite() => {
-            write!(f, "measured a clash of {metres} m where {there}")
-        }
-        // A length that is not finite is not one.
-        Clash::Length { metres } => write!(
-            f,
-            "measured a clash that is not a finite length ({metres}) where {there}"
-        ),
-        Clash::Levered(lever @ Lever::Roll { radians, arm }) => write!(
-            f,
-            "measured a roll of {radians} rad on a {arm} m arm, a deviation of {} m where {there}",
-            lever.deviation()
-        ),
-        Clash::Levered(lever @ Lever::Residual { value, arm }) => write!(
-            f,
-            "measured a dimensionless residual of {value} on a {arm} m arm, a deviation of {} m \
-             where {there}",
-            lever.deviation()
-        ),
-    }
 }
 
 /// **The pairing predicate's finding, in this door's vocabulary.**
@@ -1412,8 +1276,6 @@ impl MateFault {
     /// **The refusal this fault carries, when it carries one**: the
     /// node that raised it and the refusal, which the sentence points
     /// at and never renders ([`crate::NodeErrorKind::carried_chain`]).
-    /// A placer whose own row states its refusal is pointed at and not
-    /// carried ([`PlacerRow`]).
     ///
     /// Exhaustive, so an arm that comes to carry another node's
     /// refusal says so here rather than being drawn as though it did
@@ -1421,40 +1283,18 @@ impl MateFault {
     #[must_use]
     pub fn carried(&self) -> Option<(RecipeNodeId, &NodeRefusal)> {
         match self {
-            Self::PlacerRefused {
-                placer,
-                error,
-                placer_row: PlacerRow::Silent,
-                ..
-            } => Some((*placer, error)),
-            Self::PlacerRefused {
-                placer_row: PlacerRow::States,
-                ..
-            }
-            | Self::PosesOfAnotherDocument { .. }
-            | Self::Frame { .. }
+            Self::SideUnevaluated { refusal, mate, .. } => Some((mate.placement, refusal)),
+            Self::PosesOfAnotherDocument { .. }
             | Self::ClassNotAdmitted { .. }
-            | Self::TableLacks { .. }
-            | Self::Indeterminate { .. }
-            | Self::PoseOutOfRange { .. }
-            | Self::Band { .. }
-            | Self::Contradictory { .. }
-            | Self::Under { .. }
-            | Self::SideUnresolved { .. }
-            | Self::DanglingHead { .. }
-            | Self::PartSelectsAnotherCopy { .. }
-            | Self::SelfMate { .. }
+            | Self::Overconstrained { .. }
+            | Self::TargetsDiffer { .. }
+            | Self::NotOnTheCopy { .. }
             | Self::Unleverable { .. }
-            | Self::FaceUnresolved { .. }
-            | Self::FrameUnevaluated { .. }
-            | Self::OffsetDisagrees { .. } => None,
-            Self::OffsetUnchecked { cause, .. } => match &**cause {
-                OffsetCheck::Placement { node, error } => Some((*node, error)),
-                OffsetCheck::Unleverable(_)
-                | OffsetCheck::Indeterminate(_)
-                | OffsetCheck::Unreached { .. }
-                | OffsetCheck::OutOfRange => None,
-            },
+            | Self::KindsDiffer { .. }
+            | Self::WorldRead { .. }
+            | Self::ValueNamesNoMate { .. }
+            | Self::NotAFreedom { .. }
+            | Self::NoChart { .. } => None,
         }
     }
 
@@ -1463,115 +1303,6 @@ impl MateFault {
     /// ([`crate::NodeErrorKind::carried_chain`]).
     pub fn carried_chain(&self) -> crate::CarriedChain<'_> {
         crate::CarriedChain::from_first(self.carried(), crate::CarriedIn::ThisDocument)
-    }
-}
-
-/// **Whether a [`MateFault::PlacerRefused`]'s placer states the
-/// refusal on its own row**, which decides whether the fault carries
-/// it. Read at the site that raises the fault, which is the one place
-/// that knows whether the placer is poisoned by it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PlacerRow {
-    /// The placer evaluates and fails with this refusal in its own
-    /// right: its row states it, and the mate points there.
-    States,
-    /// The placer's row cannot state it — the placer is poisoned
-    /// through the instance this fault reached, or is no node of the
-    /// document — so the mate carries it.
-    Silent,
-}
-
-/// The predicate that decides the EMPTY intersection. It is the one
-/// name in the membership vocabulary that reports no measurement — the
-/// empty set holds nothing and no margin decides that — so it is a
-/// shared constant rather than a literal at each site, and every door
-/// that needs to know reads THIS rather than inspecting a margin.
-pub(crate) const MATE_MEMBER_EMPTY: &str = "mate_member_empty";
-
-/// **A predicate the solve refuses a contradiction on: its funnel name
-/// and what refusing it found, in words, declared together.** Every
-/// site that decides one passes [`Refuted::name`], and the sentence
-/// says [`Refuted::found`] in its place, so a predicate cannot be
-/// decided under a name the sentence has no words for — both are arms
-/// of one exhaustive match. The structural empty intersection
-/// ([`MATE_MEMBER_EMPTY`]) is not here: no margin decides it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Refuted {
-    /// A coset admitting no rotation: the candidate's rotation is the
-    /// identity.
-    RotationIdentity,
-    /// A coset admitting no motion: the candidate's translation is zero.
-    TranslationZero,
-    /// A prismatic coset: the translation runs along its direction.
-    TranslationAlong,
-    /// A coset about an axis: the rotation fixes that axis.
-    AxisFixed,
-    /// A planar coset: the translation stays in the plane.
-    TranslationInPlane,
-    /// A cylindrical coset: the axis point stays on the axis.
-    PointOnAxis,
-    /// A revolute coset: the axis point stays put.
-    PointFixed,
-    /// Two one-axis rotation constraints: one rotation reaches both.
-    TwoAxisReachable,
-    /// A clocking rider on a coincidence: the rider is redundant.
-    ClockingRedundant,
-}
-
-impl Refuted {
-    /// Every predicate, once.
-    pub const ALL: [Self; 9] = [
-        Self::RotationIdentity,
-        Self::TranslationZero,
-        Self::TranslationAlong,
-        Self::AxisFixed,
-        Self::TranslationInPlane,
-        Self::PointOnAxis,
-        Self::PointFixed,
-        Self::TwoAxisReachable,
-        Self::ClockingRedundant,
-    ];
-
-    /// The funnel's name for it — routing, which a refusal carries in
-    /// its payload and never in its sentence.
-    #[must_use]
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::RotationIdentity => "mate_member_rotation_identity",
-            Self::TranslationZero => "mate_member_translation_zero",
-            Self::TranslationAlong => "mate_member_translation_along",
-            Self::AxisFixed => "mate_member_axis_fixed",
-            Self::TranslationInPlane => "mate_member_translation_in_plane",
-            Self::PointOnAxis => "mate_member_point_on_axis",
-            Self::PointFixed => "mate_member_point_fixed",
-            Self::TwoAxisReachable => "mate_rotation_two_axis_reachable",
-            Self::ClockingRedundant => "mate_clocking_redundant",
-        }
-    }
-
-    /// What refusing it found, as a clause of the contradiction's
-    /// sentence.
-    #[must_use]
-    pub const fn found(self) -> &'static str {
-        match self {
-            Self::RotationIdentity => "the relative rotation is not the identity",
-            Self::TranslationZero => "the relative translation is not zero",
-            Self::TranslationAlong => "the translation leaves the shared direction",
-            Self::AxisFixed => "the rotation moves the shared axis",
-            Self::TranslationInPlane => "the translation leaves the shared plane",
-            Self::PointOnAxis => "the axis point leaves the shared axis",
-            Self::PointFixed => "the shared point moves",
-            Self::TwoAxisReachable => "no one rotation aligns both axes",
-            Self::ClockingRedundant => {
-                "the clocking disagrees with the roll the coincidence already pins"
-            }
-        }
-    }
-
-    /// The predicate a refusal's payload names, when it is one of these.
-    #[must_use]
-    pub fn of(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|r| r.name() == name)
     }
 }
 
@@ -1587,20 +1318,19 @@ impl crate::spoken::Say for MateFault {
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
         use crate::spoken::Said;
-        let mate_ = |id: RecipeNodeId| by.node_as(id, "mate");
-        let instance_ = |id: RecipeNodeId| by.node_as(id, "instance");
+        let mate_ = |m: MateRef| by.mate(m);
+        let ids = |placement: RecipeNodeId, ids: &[crate::node::ConstraintId]| {
+            ids.iter()
+                .map(|&id| by.constraint_numeral(MateRef { placement, id }))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
         match self {
             // The two ids ride the payload; the sentence names the roles.
             Self::PosesOfAnotherDocument { .. } => f.write_str(
                 "a placement was asked of a solve of another document than the one it was \
                  asked for, so no frame is read. Recourse: solve the document whose placement \
                  is asked for, and read it off that solve",
-            ),
-            Self::Frame { mate, side, error } => write!(
-                f,
-                "{}'s {} frame has no definite placement: {error}",
-                mate_(*mate),
-                side.name()
             ),
             Self::ClassNotAdmitted { mate } => write!(
                 f,
@@ -1609,221 +1339,112 @@ impl crate::spoken::Say for MateFault {
                 mate_(*mate),
                 topo::FIT_DEFERRAL
             ),
-            Self::TableLacks { mate, what } => write!(
-                f,
-                "{}: the coset table has no entry for {what}, and refuses rather than \
-                 invent one. Recourse: delete the mate, and insert it again as a coaxial mate \
-                 carrying the clocking",
-                mate_(*mate)
-            ),
-            Self::Indeterminate { mate, diag } => write!(
-                f,
-                "{}: a case split could not be decided — {}. Recourse: {}",
-                mate_(*mate),
-                diag.payload(),
-                geom_core::COINCIDENCE_RECOURSE
-            ),
-            Self::PoseOutOfRange { held, added } => {
-                if held == added {
-                    write!(f, "{}'s constraints meet", mate_(*added))?;
-                } else {
-                    write!(f, "{} and {} meet", mate_(*held), mate_(*added))?;
-                }
+            Self::Overconstrained {
+                placement,
+                constraints,
+                free,
+            } => {
+                let which = match constraints.as_slice() {
+                    [_] => "constraint",
+                    _ => "each of constraints",
+                };
+                let left = match free {
+                    0 => "the bundle pins its copy".to_string(),
+                    1 => "the bundle leaves its copy one freedom".to_string(),
+                    n => format!("the bundle leaves its copy {n} freedoms"),
+                };
                 write!(
                     f,
-                    " at a point further away than the solve can measure a distance to. \
-                     Recourse: {}",
-                    geom_core::RANGE_RECOURSE
+                    "{}'s {which} {} fixes an equation the rest of its bundle already fixes \
+                     ({left}). Recourse: {OVERCONSTRAINED_RECOURSE}",
+                    by.node(*placement),
+                    ids(*placement, constraints),
                 )
             }
-            Self::Band { error } => write!(f, "the mate solve could not build a band: {error}"),
-            Self::Contradictory {
-                held,
-                added,
-                predicate,
-                clash,
-            } => {
-                // One mate named on BOTH sides is a mate contradicting
-                // itself, and "mate 6 and mate 6" reads as an indexing
-                // fault rather than as the shape the payload states.
-                if held == added {
-                    write!(
-                        f,
-                        "{} contradicts itself — the constraints it declares admit no \
-                         common pose",
-                        mate_(*held)
-                    )?;
-                } else {
-                    write!(f, "{} and {} cannot both hold", mate_(*held), mate_(*added))?;
-                }
-                // The predicate's name is routing and rides the
-                // payload; the sentence says what it found in words.
-                f.write_str(": ")?;
-                if let Some(refuted) = Refuted::of(predicate) {
-                    write!(f, "{} — ", refuted.found())?;
-                }
-                f.write_str("the solve ")?;
-                // WHETHER there is a measurement to report, and of
-                // which kind, is the predicate's fact and the type
-                // carries it: a levered clash prints the product of
-                // the two halves it shows, computed there, so the
-                // sentence cannot assert an identity the payload
-                // failed to keep.
-                write_clash(f, *clash, "the cosets would have had to meet")?;
-                // The repair is the same whichever measurement the
-                // predicate had to report, so it is stated once.
-                write!(f, ". Recourse: {CONTRADICTORY_RECOURSE}")
-            }
-            Self::Under {
-                mate,
-                parent,
-                child,
-                residual,
+            Self::TargetsDiffer {
+                placement,
+                constraints,
             } => write!(
                 f,
-                "{} does not determine {} from {}: {} survives. \
-                 Recourse: {UNDER_RECOURSE}",
-                mate_(*mate),
-                instance_(*child),
-                instance_(*parent),
-                residual.describe()
+                "{}'s constraints {} read targets in more than one space; a copy joins one \
+                 space, so its mates fold in that space's coordinates. Recourse: mate the copy \
+                 against poses of one space",
+                by.node(*placement),
+                ids(*placement, constraints)
             ),
-            Self::SideUnresolved { mate, side, read } => write!(
+            Self::NotOnTheCopy { mate } => write!(
                 f,
-                "{}'s {} side reads {}, which is no face of a live body. Recourse: \
-                 re-author the side, or delete the mate",
-                mate_(*mate),
-                side.name(),
-                read
-            ),
-            Self::DanglingHead { mate, side, head } => write!(
-                f,
-                "{}'s {} reference resolves through {}, which does not resolve to a \
-                 live member (an instance, or a pattern-placed instance). Recourse: rebind the \
-                 reference, or delete the mate",
-                mate_(*mate),
-                side.name(),
-                by.node(*head)
-            ),
-            // `error` is the placer's own refusal, drawn on a line of its
-            // own — the placer's row, or the mate's carried line — so
-            // this sentence names the placer and points.
-            Self::PlacerRefused {
-                mate, side, placer, ..
-            } => write!(
-                f,
-                "{}'s {} reference has no derived pose: {p}, on its derivation, \
-                 refuses. Recourse: repair {p}",
-                mate_(*mate),
-                side.name(),
-                p = by.node(*placer)
-            ),
-            Self::PartSelectsAnotherCopy {
-                mate,
-                side,
-                part,
-                named,
-                selected,
-            } => write!(
-                f,
-                "{}'s {} reference names copy {named}; the {p} above it selects \
-                 copy {selected}, and a document may not place one copy and gather another. \
-                 Recourse: set {p}'s index to copy {named}, or rebind the reference \
-                 to copy {selected}",
-                mate_(*mate),
-                side.name(),
-                p = by.node_as(*part, "part node")
-            ),
-            Self::SelfMate { mate, instance } => write!(
-                f,
-                "{} names one member on both sides (it stands on {}); a mate \
-                 relates a PAIR. Recourse: rebind one side to another member, or delete the \
-                 mate",
-                mate_(*mate),
-                instance_(*instance)
+                "{}'s `on` pose reads geometry other than the copy its placement defines, so \
+                 it pins nothing of it. Recourse: read `on` off the placement's shapes, or move \
+                 the constraint to the placement it pins",
+                mate_(*mate)
             ),
             Self::Unleverable { mate, refusal } => {
                 write!(f, "{}: {}", mate_(*mate), Said(&**refusal, by))
             }
-            Self::OffsetDisagrees {
-                instance,
-                root,
-                predicate,
-                clash,
-            } => {
-                write!(
-                    f,
-                    "{}'s offset disagrees with where its mates place it relative to \
-                     its group's root, {} — predicate `{predicate}` ",
-                    instance_(*instance),
-                    instance_(*root)
-                )?;
-                write_clash(
-                    f,
-                    *clash,
-                    "the offset and the solve would have had to agree",
-                )?;
-                write!(f, ". {}", crate::sentence::Recourse(OFFSET_RECOURSE))
-            }
-            Self::OffsetUnchecked { instance, cause } => {
-                write!(
-                    f,
-                    "{}'s offset could not be checked against where its mates place \
-                     it: {}",
-                    instance_(*instance),
-                    Said(&**cause, by)
-                )?;
-                // A lever refusal ends on its own recourse.
-                match &**cause {
-                    OffsetCheck::Placement { node, .. } => write!(
-                        f,
-                        ". {}",
-                        crate::sentence::Recourse(format_args!(
-                            "repair {}, or clear the offset",
-                            by.node(*node)
-                        ))
-                    ),
-                    OffsetCheck::Unleverable(_) => Ok(()),
-                    OffsetCheck::Unreached { mate } => write!(
-                        f,
-                        ". {}",
-                        crate::sentence::Recourse(format_args!(
-                            "repair {}, or clear the offset",
-                            mate_(*mate)
-                        ))
-                    ),
-                    OffsetCheck::Indeterminate(_) => {
-                        write!(f, ". {}", crate::sentence::Recourse("clear the offset"))
-                    }
-                    OffsetCheck::OutOfRange => write!(
-                        f,
-                        ". {}",
-                        crate::sentence::Recourse(geom_core::RANGE_RECOURSE)
-                    ),
-                }
-            }
-            Self::FaceUnresolved {
-                mate,
-                side,
-                refusal,
-            } => write!(
+            Self::KindsDiffer { mate, on, to } => write!(
                 f,
-                "{}'s {} frame is its head's face, which did not resolve to a pose: {}",
+                "{} equates an `on` pose of kind {} with a `to` pose of kind {}; a mate's two \
+                 poses are of one kind, which is its primitive. Recourse: read both poses as one kind, through a role where one \
+                 is finer",
                 mate_(*mate),
-                side.name(),
-                Said(&**refusal, by)
+                on,
+                to
             ),
-            Self::FrameUnevaluated {
-                mate,
-                side,
-                refusal,
+            Self::WorldRead { mate, fault } => write!(
+                f,
+                "{}: {fault}. Recourse: re-author the world read",
+                mate_(*mate)
+            ),
+            Self::ValueNamesNoMate { value, mate } => write!(
+                f,
+                "{} names constraint {mate}, which is no mate of its placement's bundle. \
+                 Recourse: name a mate the bundle holds",
+                mate_(*value)
+            ),
+            Self::NotAFreedom { value, coord, kind } => write!(
+                f,
+                "{} sets the {} of a {kind} mate, which the mate fixes. Recourse: set a freedom \
+                 the mate leaves",
+                mate_(*value),
+                coord.name()
+            ),
+            Self::NoChart {
+                value,
+                why: NoChartWhy::PointRotation,
             } => write!(
                 f,
-                "{}'s {} frame offset does not evaluate at the document's parameters: {}. \
-                 Recourse: repair the offset's expressions or the parameter they read",
+                "{} sets a point mate's rotation, which has no chart: no direction to measure \
+                 a spin about. Recourse: add a direction mate and set its spin",
+                mate_(*value)
+            ),
+            Self::NoChart {
+                value,
+                why: NoChartWhy::TwoBodies,
+            } => write!(
+                f,
+                "{} is charted on its mate's target body, and the mate's `to` reads two. \
+                 Recourse: read `to` off one body, or pin the copy by a frame mate",
+                mate_(*value)
+            ),
+            Self::NoChart {
+                value,
+                why: NoChartWhy::SlideTurnsABall,
+            } => write!(
+                f,
+                "{} sets a slide beside a ball mate, which fixes every translation, so the \
+                 slide could only turn the copy about the ball, and the solve does not settle \
+                 a turn from a slide. Recourse: set the turn as the direction mate's spin, or \
+                 pin the copy by a frame mate and its values",
+                mate_(*value)
+            ),
+            // The refusal is the pose's own, drawn on the carried line.
+            Self::SideUnevaluated { mate, side, .. } => write!(
+                f,
+                "{}'s `{}` pose did not evaluate, so the bundle is not folded. Recourse: \
+                 repair the pose's definition, or what it reads",
                 mate_(*mate),
-                side.name(),
-                Said(&**refusal, by)
+                side.name()
             ),
         }
     }

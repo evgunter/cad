@@ -18,6 +18,7 @@
 //! so its cone is exactly {master extrude, its Transform, the final
 //! Subtract} — the minimal-cone probe).
 
+use super::PlacePart;
 use editor_core::{DocEdit, SlotId};
 
 use super::{CorpusDoc, MassPin};
@@ -30,7 +31,7 @@ pub fn document() -> CorpusDoc {
         doc: d.doc,
         edits: d.edits,
     };
-    r.place(d.final_node);
+    r.place_part(d.final_node);
     CorpusDoc {
         name: "die",
         about: "M3 exact-oracle die: 21 declared pip subtracts (63 nodes), placed",

@@ -14,8 +14,8 @@
 use std::sync::Arc;
 
 use pncad::document::{
-    Dimension, Doc, DocEdit, Evaluation, FreeVar, PartReach, PartResolver, ProfileProgram,
-    RecipeNodeId, SlotId, VarId, apply,
+    Dimension, Doc, DocEdit, Evaluation, FreeVar, PartResolver, ProfileProgram, RecipeNodeId,
+    SlotId, VarId, apply,
 };
 use pncad::geom_core::Tol;
 use pncad::quantity::UnitDef;
@@ -110,16 +110,15 @@ pub(super) fn probe_bounds(
     // different memo state.
     let baseline = bounds::Verdict::of(&evaluate_beside(base, prior, resolver, tol));
     // A probe's edit is a slot value on one node — it never moves a
-    // group's root — but the door is the session's, so it levers
-    // through the session's own seam like every other edit.
-    let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), tol);
+    // group's root — and each candidate evaluates through the
+    // session's own seam like every other edit.
     let result = bounds::probe(
         bounds::BoundsProbe::new(origin, seed, integral),
         |candidate| {
             let Some(edit) = probe_edit(base, &target, candidate) else {
                 return false;
             };
-            match apply(base, &edit, tol, &reach) {
+            match apply(base, &edit, tol) {
                 Ok(applied) => {
                     let eval = evaluate_beside(&applied.doc, prior, resolver, tol);
                     bounds::Verdict::of(&eval).no_worse_than(&baseline)

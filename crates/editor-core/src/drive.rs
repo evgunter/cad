@@ -1281,6 +1281,20 @@ impl core::fmt::Display for DriveRefusal {
 
 impl core::error::Error for DriveRefusal {}
 
+/// **The WITNESS build's options**: the document at its nominals, over
+/// the analysed box collapsed to the nominal (`ParamBox::at_nominal`),
+/// the environment a leaf binds at the box's centre. At `f64` that is
+/// the build, and its profile nodes log both passes as a leaf's do
+/// (`ProfileLane`), so the two verdict vectors compare. [`drive`]
+/// evaluates its witness at f64 under exactly these.
+#[must_use]
+pub fn witness_options(analyzed: &AnalyzedBox) -> EvalOptions {
+    EvalOptions {
+        param_box: Some(Arc::new(ParamBox::of(analyzed).at_nominal())),
+        ..lane_opts()
+    }
+}
+
 /// **Drives the document over the analyzed box** (E6).
 ///
 /// Read-only: `doc` is shared, the result is a value, and nothing on
@@ -1315,8 +1329,13 @@ pub fn drive(
     // The WITNESS build: the document at its nominals, at f64. Its
     // profile nodes log both passes, as a leaf's do (`ProfileLane`), so
     // the two vectors compare.
-    let witness: Evaluation<f64> =
-        crate::eval::evaluate(doc, None, &CancelToken::new(), &lane_opts(), tol);
+    let witness: Evaluation<f64> = evaluate(
+        doc,
+        None,
+        &CancelToken::new(),
+        &witness_options(analyzed),
+        tol,
+    );
     if let Some(standing) = witness
         .order
         .iter()
@@ -2306,7 +2325,15 @@ mod tests {
             param_end: t1,
         };
         let bracket = Bracket::open();
-        let refused = EdgeCurve::certify(spec, p0, p1, |k| arena.get(k).cloned(), band()).is_err();
+        let refused = EdgeCurve::certify(
+            spec,
+            p0,
+            p1,
+            |k| arena.get(k).cloned(),
+            geom_core::Real::from_f64(1.0),
+            band(),
+        )
+        .is_err();
         assert!(refused, "the configuration is not a tangency");
         bracket.finish().escalations
     }

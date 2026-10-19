@@ -584,6 +584,13 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
     let (derived, _, _) = boss_on_widened_box(5.0e-2);
     let n = SymRules::none();
 
+    // With the profile elaborated at the lane the plain tier no longer
+    // reaches the side plane: it freezes twelve
+    // forms on the way and refuses earlier, at the boss extrude's
+    // start-endpoint certification, over an enclosure of [0, 0.32] —
+    // filed as a kernel defect reachable by input, with whether the
+    // freezes widen it the open question
+    // (`work/carve/the-guided-derived-frame-extrude-escalates-as-a-kernel-defect.md`).
     let (plain_fails, plain_counts) = sym_failures_under(&derived, n);
     assert_eq!(
         plain_fails.len(),
@@ -591,12 +598,13 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
         "plain form alone refuses: {plain_fails:?}"
     );
     assert!(
-        plain_fails[0].contains("carrier_endpoint_start"),
-        "with no rule what refuses is the attachment gate's start endpoint: {plain_fails:?}"
+        plain_fails[0].contains("EndpointStart")
+            && plain_fails[0].contains("carrier_endpoint_start"),
+        "with no rule, the guided boss refuses its start-endpoint certification: {plain_fails:?}"
     );
-    assert!(
-        plain_counts.frozen > 0,
-        "and the plain form freezes getting there: {plain_counts:?}"
+    assert_eq!(
+        plain_counts.frozen, 12,
+        "and freezes twelve forms getting there: {plain_counts:?}"
     );
 
     let a0 = SymRules {

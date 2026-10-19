@@ -3,7 +3,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{AssertionVerdict, RecipeNodeId, SpokenNode, UnevaluatedReason};
+use pncad::document::{AssertionVerdict, MateRef, RecipeNodeId, SpokenNode, UnevaluatedReason};
 
 use crate::app::{GLYPH_WORLD, ViewerBehavior, toned};
 use crate::frame;
@@ -98,11 +98,19 @@ pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egu
 /// instance row draws the hide toggle: a hidden instance stays IN this
 /// tree (that is the point — the tree is the document, the viewport is
 /// the display), and the checkbox is the display op's chrome.
+///
+/// `hide_refusal` is what `SessionOp::SetInstanceHidden` would refuse
+/// this row's node with
+/// ([`crate::session::DocSession::instance_hidden_refusal`]). The kind
+/// decides whether the toggle is drawn; the op's admission decides
+/// whether it is live, and a refused one carries the op's sentence on
+/// its hover.
 pub(crate) fn feature_row_ui(
     ui: &mut egui::Ui,
     row: &TreeRow,
     selected: bool,
     hidden: bool,
+    hide_refusal: Option<&Refusal>,
     theme: &Theme,
     notation: Notation,
 ) -> RowClicks {
@@ -114,7 +122,15 @@ pub(crate) fn feature_row_ui(
         }
         if row.spoken.kind() == Some("InstantiatePart") {
             let mut shown = !hidden;
-            if ui.checkbox(&mut shown, "shown").changed() {
+            let toggle = ui.add_enabled(
+                hide_refusal.is_none(),
+                egui::Checkbox::new(&mut shown, "shown"),
+            );
+            let toggle = match hide_refusal {
+                Some(refusal) => toggle.on_disabled_hover_text(refusal.to_string()),
+                None => toggle,
+            };
+            if toggle.changed() {
                 clicks.hide = Some(!shown);
             }
         }
@@ -128,8 +144,31 @@ pub(crate) fn feature_row_ui(
     {
         clicks.accept = Some(offer.accept());
     }
+    if let Some(mate) = constraint_lines(ui, row) {
+        clicks.remove = Some(mate);
+    }
     clicks
 }
+
+/// **A placement's constraints, drawn as its children**: one line per
+/// constraint, one step in, each with the button that removes it. The
+/// constraint whose button was clicked.
+fn constraint_lines(ui: &mut egui::Ui, row: &TreeRow) -> Option<MateRef> {
+    let mut clicked = None;
+    for child in &row.constraints {
+        ui.horizontal(|ui| {
+            ui.add_space(indent(row.depth + 1));
+            ui.label(&child.said);
+            if ui.small_button(REMOVE_CONSTRAINT).clicked() {
+                clicked = Some(child.mate);
+            }
+        });
+    }
+    clicked
+}
+
+/// The label on a constraint child's remove button.
+pub(crate) const REMOVE_CONSTRAINT: &str = "remove";
 
 /// **The accept a pin-mismatched instance row offers, drawn** under
 /// its failure: the question, and the button that is the edit the
@@ -160,6 +199,9 @@ pub(crate) struct RowClicks {
     /// The operation accepting the row's [`TreeRow::version_offer`],
     /// when its button was clicked.
     pub(crate) accept: Option<SessionOp>,
+    /// The constraint whose remove button was clicked, among the row's
+    /// [`TreeRow::constraints`].
+    pub(crate) remove: Option<MateRef>,
 }
 
 /// **The lines under a row that a failure writes, drawn** — and the
@@ -239,7 +281,7 @@ fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme, notation: Notatio
                 }
             }
             // Each is a sentence, drawn under the row.
-            Some(Readout::Unavailable(_) | Readout::Role(_)) | None => {}
+            Some(Readout::Unavailable(_)) | None => {}
         },
         RowStatus::Unevaluated | RowStatus::Poisoned { .. } | RowStatus::Failed { .. } => {
             ui.label(toned(row.status.badge(), theme, row.tone()));
@@ -249,8 +291,7 @@ fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme, notation: Notatio
 
 /// **Every line drawn under a row**, in order: a failure's
 /// ([`failure_lines`]), why a measure has no value or an assertion no
-/// verdict, what a mate did in the solve, and the node's standing
-/// caveat. Answers the node a click
+/// verdict, and the node's standing caveat. Answers the node a click
 /// selects, as [`failure_lines`] does.
 fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<RecipeNodeId> {
     let mut clicked = failure_lines(ui, row, theme);
@@ -258,7 +299,6 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
         Some(Readout::Unavailable(reason)) => {
             advisory_line(ui, row.depth, &reason.to_string(), theme);
         }
-        Some(Readout::Role(role)) => advisory_line(ui, row.depth, &role.to_string(), theme),
         Some(Readout::Asserted(asserted)) => match &asserted.verdict {
             AssertionVerdict::Unevaluated {
                 reason: UnevaluatedReason::MeasureUnavailable(_),
@@ -334,7 +374,16 @@ impl ViewerBehavior<'_> {
     /// clicks name.
     pub(crate) fn feature_row(&mut self, ui: &mut egui::Ui, row: &TreeRow, selected: bool) {
         let hidden = self.display.hidden.contains(&row.id);
-        let clicks = feature_row_ui(ui, row, selected, hidden, &self.theme, *self.notation);
+        let refusal = self.session.instance_hidden_refusal(row.id);
+        let clicks = feature_row_ui(
+            ui,
+            row,
+            selected,
+            hidden,
+            refusal.as_ref(),
+            &self.theme,
+            *self.notation,
+        );
         if let Some(to) = clicks.select {
             self.ops.push(SessionOp::Select(Selection::Node(to)));
         }
@@ -346,6 +395,9 @@ impl ViewerBehavior<'_> {
         }
         if let Some(accept) = clicks.accept {
             self.ops.push(accept);
+        }
+        if let Some(mate) = clicks.remove {
+            self.ops.push(SessionOp::RemoveConstraint { mate });
         }
     }
 }
@@ -468,6 +520,7 @@ mod tests {
             repair_at: None,
             readout: None,
             version_offer: None,
+            constraints: Vec::new(),
         }
     }
 
@@ -520,6 +573,7 @@ mod tests {
             repair_at: None,
             readout: None,
             version_offer: None,
+            constraints: Vec::new(),
         };
         let drawn = painted_text(|ui| {
             row_label(ui, &row, false);
@@ -572,6 +626,7 @@ mod tests {
             repair_at,
             readout: None,
             version_offer: None,
+            constraints: Vec::new(),
         }
     }
 
@@ -886,7 +941,7 @@ mod tests {
 
     /// [`feature_row_drawn`], read in `notation`.
     fn feature_row_drawn_in(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme, notation: Notation) {
-        feature_row_ui(ui, row, false, false, theme, notation);
+        feature_row_ui(ui, row, false, false, None, theme, notation);
     }
 
     /// **A measure with a value paints it on its own row**, in the
@@ -965,6 +1020,7 @@ mod tests {
             repair_at: None,
             readout: Some(Readout::Empty(readout)),
             version_offer: None,
+            constraints: Vec::new(),
         };
         for (emptiness, phrase) in [
             (tree::Emptiness::Whole, "empty"),
@@ -1058,18 +1114,17 @@ mod tests {
         );
     }
 
-    /// **A mate's row paints what it did in the solve under it, in the
-    /// kernel's sentence**, then its standing note — here a mate whose
-    /// class has no at-rest record, in the kernel's words — both
-    /// quietly and with no badge.
+    /// **A placement's row paints its standing note under it, then its
+    /// constraints as children one step in**, each with its remove
+    /// button — here a placement holding a mate whose class has no
+    /// at-rest record, in the kernel's words — quietly and with no
+    /// badge.
     ///
-    /// Red if `lines_under` drops `Readout::Role` or the note,
-    /// re-spells the kernel's sentence, draws either loud or off its
-    /// place under the row, or if `row_result` draws the role beside
-    /// the row as well.
+    /// Red if `lines_under` drops the note or draws it loud, or if the
+    /// constraint children stop drawing under the row, in bundle order.
     #[test]
-    fn a_mate_rows_role_and_standing_note_paint_under_it() {
-        use pncad::document::{ClassAdmission, MateRole, class_admission};
+    fn a_placement_rows_note_and_constraints_paint_under_it() {
+        use pncad::document::{ClassAdmission, ConstraintId, MateRef, MintId, class_admission};
         use pncad::select::ContactClass;
 
         let admission = class_admission(ContactClass::Tangent);
@@ -1078,32 +1133,72 @@ mod tests {
             "the premise: a Tangent mate has no at-rest record: {admission:?}"
         );
         let note = admission.no_record_reason();
-        for role in [MateRole::Determining, MateRole::Declaring] {
-            let sentence = role.to_string();
-            let row = TreeRow {
-                status: RowStatus::Ok,
-                note: Some(note.to_owned()),
-                readout: Some(Readout::Role(role)),
-                ..placer_refused_row(None)
-            };
-            let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
-                feature_row_drawn(ui, &row, theme)
-            });
-            let kind = find(&painted, "Mate 000000000007");
-            for said in [sentence.as_str(), note] {
-                let line = find(&painted, said);
-                assert_under(kind, line);
-                assert_eq!(
-                    line.ink,
-                    Some(voices.weak),
-                    "{role:?}: {said:?} said quietly"
-                );
-            }
-            assert_eq!(
-                texts(&painted),
-                vec!["Mate 000000000007", sentence.as_str(), note],
-                "{role:?}: the row, its role, its note, and no badge"
+        let placement = RecipeNodeId::new(0, test_utils::refusal::tagged(7));
+        let constraint = |n: u64| {
+            MateRef::new(
+                placement,
+                ConstraintId(MintId::new(0, test_utils::refusal::tagged(n))),
+            )
+        };
+        let row = TreeRow {
+            status: RowStatus::Ok,
+            note: Some(note.to_owned()),
+            constraints: vec![
+                tree::ConstraintRow {
+                    mate: constraint(8),
+                    said: "constraint 1: world mate".to_owned(),
+                },
+                tree::ConstraintRow {
+                    mate: constraint(9),
+                    said: "constraint 2: Tangent mate".to_owned(),
+                },
+            ],
+            ..placer_refused_row(None)
+        };
+        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+            feature_row_drawn(ui, &row, theme)
+        });
+        let kind = find(&painted, "Mate 000000000007");
+        let line = find(&painted, note);
+        assert_under(kind, line);
+        assert_eq!(line.ink, Some(voices.weak), "{note:?} said quietly");
+        let pin = find(&painted, "constraint 1: world mate");
+        let mate = find(&painted, "constraint 2: Tangent mate");
+        assert_under(line, pin);
+        assert_under(pin, mate);
+        assert_eq!(
+            texts(&painted),
+            vec![
+                "Mate 000000000007",
+                note,
+                "constraint 1: world mate",
+                super::REMOVE_CONSTRAINT,
+                "constraint 2: Tangent mate",
+                super::REMOVE_CONSTRAINT,
+            ],
+            "the row, its note, its constraints with their buttons, and no badge"
+        );
+        let clicks = row_clicked(&row, "constraint 2: Tangent mate", false);
+        assert_eq!(clicks.remove, None, "a constraint's words remove nothing");
+        for (nth, expected) in [(0, constraint(8)), (1, constraint(9))] {
+            let remove = core::cell::Cell::new(None);
+            crate::pane::headless::painted_after_clicking_nth(
+                super::REMOVE_CONSTRAINT,
+                nth,
+                |ui| {
+                    let clicks = feature_row_ui(
+                        ui,
+                        &row,
+                        false,
+                        false,
+                        None,
+                        &Theme::DEFAULT,
+                        Notation::DEFAULT,
+                    );
+                    remove.set(remove.get().or(clicks.remove));
+                },
             );
+            assert_eq!(remove.get(), Some(expected), "button {nth} removes its own");
         }
     }
 
@@ -1433,15 +1528,26 @@ mod tests {
     fn row_clicked(row: &TreeRow, target: &str, hidden: bool) -> super::RowClicks {
         let select = core::cell::Cell::new(None);
         let hide = core::cell::Cell::new(None);
+        let remove = core::cell::Cell::new(None);
         painted_after_clicking(target, |ui| {
-            let clicks = feature_row_ui(ui, row, false, hidden, &Theme::DEFAULT, Notation::DEFAULT);
+            let clicks = feature_row_ui(
+                ui,
+                row,
+                false,
+                hidden,
+                None,
+                &Theme::DEFAULT,
+                Notation::DEFAULT,
+            );
             select.set(select.get().or(clicks.select));
             hide.set(hide.get().or(clicks.hide));
+            remove.set(remove.get().or(clicks.remove));
         });
         super::RowClicks {
             select: select.get(),
             hide: hide.get(),
             accept: None,
+            remove: remove.get(),
         }
     }
 
@@ -1461,6 +1567,7 @@ mod tests {
             repair_at: None,
             readout: None,
             version_offer: None,
+            constraints: Vec::new(),
         }
     }
 
@@ -1557,7 +1664,15 @@ mod tests {
         let clicked = core::cell::RefCell::new(None);
         let mut selected = None;
         painted_after_clicking(VersionOffer::LABEL, |ui| {
-            let clicks = feature_row_ui(ui, &row, false, false, &Theme::DEFAULT, Notation::DEFAULT);
+            let clicks = feature_row_ui(
+                ui,
+                &row,
+                false,
+                false,
+                None,
+                &Theme::DEFAULT,
+                Notation::DEFAULT,
+            );
             selected = selected.or(clicks.select);
             if let Some(op) = clicks.accept {
                 *clicked.borrow_mut() = Some(op);

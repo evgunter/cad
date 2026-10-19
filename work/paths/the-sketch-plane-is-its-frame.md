@@ -85,7 +85,7 @@ decision record):
   narrowed to the loft's enclosure arm, `lift_onto`'s last production
   consumer.
 - `RigidMotion::turned_between` (one decision, `1 + a·b > 0`, ledger
-  row F21, site `sweep_path_turn`; built as the quaternion
+  row F22, site `sweep_path_turn`; built as the quaternion
   `(1 + a·b, a × b)`'s matrix rather than the Rodrigues-between form,
   which was not rigid within the band near opposed) and `translated` mint the station
   frames; the station tangents are `UnitVec3`s under

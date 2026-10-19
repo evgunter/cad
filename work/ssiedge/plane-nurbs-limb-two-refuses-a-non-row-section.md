@@ -95,7 +95,7 @@ Limb 2 now subdivides its composite before refusing, and reads the composite's c
 | vase cap rim (`shelling_the_vase_refuses_at_its_rims_certificate`) | 4.787e-4 m | ≥ 4.776e-4 m |
 | tilted prism, cap −0.05 (`a_tilted_caps_marched_rim_refuses_at_its_certificate`) | 3.743e-6 m | ≥ 3.016e-6 m |
 
-So `|S(P(t)) − C(t)|` is that large at a point of the carrier: the marched carrier and its fitted pcurve disagree by the stated amount, at a break of the composite. That quantity bounds the carrier's miss from the wall from above (C2 limb 1); it is not the miss, and the marched branch lies on both surfaces to ~5e-11 on the tilted prism. What is left is the stored pair itself (the pcurve fit, or the carrier the pcurve is evaluated against). Both rows now refuse as `SsiLimb::HullValueChart` (`CertCheck::PlaneNurbsHullValue`, a bound's ending).
+So `|S(P(t)) − C(t)|` is that large at a point of the carrier: the marched carrier and its fitted pcurve disagree by the stated amount, at a break of the composite. That quantity bounds the carrier's miss from the wall from above (C2 limb 1); it is not the miss, and the marched branch lies on both surfaces to ~5e-11 on the tilted prism. What is left is the stored pair itself (the pcurve fit, or the carrier the pcurve is evaluated against). Both rows refused as `SsiLimb::HullValueChart` (`CertCheck::PlaneNurbsHullValue`, a bound's ending) until PR 5160.
 
 The two exact-pair probes above, re-run on the same branch (debug build, default ε, band zero 1e-9; each wall alike) under its work budget (`SSI_HULL_WORK`, spans recomputed over the rounds):
 
@@ -105,3 +105,21 @@ The two exact-pair probes above, re-run on the same branch (debug build, default
 | at rest: the wall's top boundary row | refused, 3.231e-3 m | **certifies**: limb 2 clears at 7.72e-10 m, and limbs 1 and 3 pass |
 
 So the 3.3e-3 m on these pairs was the loose hull, which the "likely cause" above names. Subdividing brings it down fourfold a round, on two cuts a round around a peak two spans wide: 11 rounds, 22 cuts and 484 spans of work each. What this row still holds is the two shipped rows above, which refuse on a value at a break, not on the hull.
+
+## Answered: the pcurve misses, not the carrier (PCERT, PR 5160, 2026-10-15)
+
+PR 5160 adds a tell to limb 2. At the break where the composite reads
+past the band, it reads the carrier's own foot, as limb 1 does. When
+that decides Zero, the refusal names `SsiLimb::ImageMiss`: the
+pcurve's own miss. Both shipped rows now refuse that way. The
+carrier's own foot distance at the refusing break, at ε = 1e-9:
+
+| row | carrier's foot at the break | value at the break |
+|---|---|---|
+| vase cap rim (`shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_at_its_rims_certificate`) | 1.3e-14 m | ~4.8e-4 m |
+| tilted prism, cap −0.05 (`a_tilted_caps_marched_rim_refuses_at_its_certificate`) | 8.3e-17 m and 2.8e-17 m (two breaks) | ~3.0e-6 m |
+
+So the marched carrier is on the wall where the refusal reads, and the
+miss is the stored pcurve's, the fit against the marched carrier. The
+row's remaining question narrows to the pcurve fit of a non-row
+section on a rational wall.

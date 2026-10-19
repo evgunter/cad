@@ -28,7 +28,7 @@ emission asks a name for is not one the lens's table holds.
 
 This is the one construction known to leave a conventional vertex (the
 cap circle's, after its chart-meridian cut is glued away), so the
-naming half of `work/fuse/curved-joinable-vertices-are-left-unjoined`
+naming half of `curved-joinable-vertices-are-left-unjoined` (closed, PR 4233)
 has no document that reaches it until this names.
 
 ## Closed (branch `emit/naming-refusals`, 2026-10-13)
@@ -70,11 +70,11 @@ lens face. The same gap holds for the carry
 brick minus the lens refuse only
 `ConventionalVertex`. That is the circle's one vertex, after the output
 stage glued the cut away, and its edge-derived name is
-`work/fuse/a-conventional-vertex-mints-no-edge-derived-name`'s to
+`work/emit/a-conventional-vertex-mints-no-edge-derived-name`'s to
 build. The union and the lens minus the brick keep the cut as two edges
 between two pieces of one face. `emit_topo` refuses that edge
 explicitly (`Emission("a chart cut survives in the result")`). Filed as
-`work/fuse/a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick`.
+`work/hone/a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick`.
 All six are pinned in
 `a_sphere_cut_in_refuses_only_where_its_rows_are_filed`.
 

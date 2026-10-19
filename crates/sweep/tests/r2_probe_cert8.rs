@@ -53,8 +53,8 @@ fn sample_check(tag: &str, s: &Surface<f64>) {
     let root = (t * t - 4.0 * d).max(0.0).sqrt();
     let rho = (2.0 * d / (t + root)).sqrt().min(1.0);
     let (au, av) = (i.inf_u * rho, i.inf_v * rho);
-    let (u0, u1) = p.knots_u().domain();
-    let (v0, v1) = p.knots_v().domain();
+    let (u0, u1) = p.knots_u_f64_interim().domain();
+    let (v0, v1) = p.knots_v_f64_interim().domain();
     let h = 1e-6;
     let (mut min_su, mut min_sv, mut min_area, mut worst_ratio) =
         (f64::MAX, f64::MAX, f64::MAX, f64::MAX);

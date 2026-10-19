@@ -445,6 +445,26 @@ impl<T: Decide> UnitVec3<T> {
         decide_unit_direction(v, site, band).map(Self)
     }
 
+    /// **`v` normalized, its length decided at `scale`**: the decision
+    /// [`UnitVec3::new`] takes of `v · scale` (the same gates, the same
+    /// margin, one sample under `site`), and the direction of `v` itself.
+    /// A caller levering a pure number into a length over an arm it has
+    /// already decided keeps the arm out of the direction it mints, so
+    /// the direction is a function of `v` alone at every scalar (at
+    /// `Sym`, no factor of the arm to cancel under a square root).
+    ///
+    /// # Errors
+    ///
+    /// [`UnitVec3::new`]'s, of `v · scale`.
+    pub fn new_scaled(
+        v: Vec3<T>,
+        scale: T,
+        site: &'static str,
+        band: Band,
+    ) -> Result<Self, UnitVec3Error> {
+        decide_unit_direction(v * scale, site, band).map(|_| Self(v.normalize()))
+    }
+
     /// **The normalizing constructor for a dimensionless vector**: a
     /// carrier's unit-at-rest normal or axis, read as direction
     /// cosines. [`UnitVec3::new`]'s norm is a length; this one's is a

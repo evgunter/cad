@@ -98,7 +98,6 @@ fn saved_fillet(segments: &[u32]) -> String {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a canonical fillet inserts")
     .doc;
@@ -140,7 +139,6 @@ fn an_unsorted_selection_is_refused_at_the_insert_door() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::SelectionShape {
             fault: SelectionFault::NotCanonical { at: 0 },
@@ -157,7 +155,6 @@ fn an_unsorted_selection_is_refused_at_the_insert_door() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a canonical selection inserts");
 }
@@ -181,7 +178,6 @@ fn an_unsorted_chamfer_selection_is_refused_at_the_insert_door() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::SelectionShape {
             fault: SelectionFault::NotCanonical { at: 0 },
@@ -205,7 +201,6 @@ fn a_repeated_selection_entry_is_refused_at_the_insert_door() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::SelectionShape {
             fault: SelectionFault::NotCanonical { at: 0 },
@@ -304,7 +299,6 @@ fn an_empty_selection_is_canonical() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("an empty selection is not this door's refusal")
     .doc;
@@ -353,7 +347,6 @@ fn both_doors_forward_one_sentence() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(e @ EditError::SelectionShape { .. }) => e.to_string(),
         other => panic!("expected the edit door's refusal, got {other:?}"),
@@ -421,7 +414,6 @@ fn the_insert_door_reports_a_non_zero_position() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::SelectionShape {
             fault: SelectionFault::NotCanonical { at },
@@ -472,7 +464,6 @@ fn a_rebind_leaves_a_canonical_selection() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("a canonical three-edge fillet inserts");
         let id = applied.record.minted.expect("the fillet is minted");
@@ -487,7 +478,6 @@ fn a_rebind_leaves_a_canonical_selection() {
             to: edge(&doc, solid, 0),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the rebind applies")
     .doc;

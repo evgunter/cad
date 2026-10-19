@@ -105,7 +105,7 @@ fn widened_u_chart(n: &NurbsSurface<f64>) -> Surface<f64> {
         }
     }
     Surface::Nurbs(Arc::new(
-        NurbsSurface::new(ku, n.knots_v().clone(), control, weights).unwrap(),
+        NurbsSurface::new(ku, n.knots_v_f64_interim().clone(), control, weights).unwrap(),
     ))
 }
 
@@ -206,7 +206,10 @@ fn main() {
         Some(Surface::Nurbs(n)) => n.as_ref().clone(),
         _ => panic!(),
     };
-    println!("widened chart u domain = {:?}", chart.knots_u().domain());
+    println!(
+        "widened chart u domain = {:?}",
+        chart.knots_u_f64_interim().domain()
+    );
 
     // ---- Q2: the derivation, and the mint's own certification call. ----
     let out = topo::pcurve_of(&body, he_bowed, band);
