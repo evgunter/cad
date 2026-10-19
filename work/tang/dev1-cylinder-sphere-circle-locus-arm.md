@@ -60,3 +60,7 @@ designers agreed on this disposition:
 - The DEV-1 set's provenance is an orchestrator's acceptance of an
   implementer deviation (M9-1 PR-2, `docs/MODEL-AB-LOG.md`), so
   widening it later reverses nothing Ev ruled.
+
+## 2026-10-19 — a second consumer: the face–face record of a touch-only kiss (CONTACTHOLD)
+
+This row is parked because "its consumer mints the cusp edge". Since then C7 (`crates/topo/README.md`) says two operands touching only along a tangent line get no junction, the touch being a record (face–face where the line runs through an interior). If that reading carries to a circle — a torus on a plate, a ball in a bore of its own radius — a touch-only coaxial kiss would consume the circle locus as a face–face record, with no cusp edge; nested (overlapping) cases under ∖ and ∩ would still owe the wedge-0 junction. Extending C7 from lines to circles is a change to ratified text, so it is a question for whoever un-parks this row, not a decision recorded here. CONTACTHOLD's `a-rim-locus-tangency-through-two-faces-interiors-mints-no-face-face-row` is parked behind this row and carries the probe poses.
