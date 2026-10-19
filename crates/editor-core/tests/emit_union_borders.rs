@@ -1539,13 +1539,12 @@ fn notched_plate() -> Mem {
 /// side up to the apex, so the top loses a region on each side of the
 /// notch, the two touching at the apex alone, and the top's edge along
 /// `m`'s wall runs through the apex, joined there. The kernel discards
-/// both as one face. The left region and `s`'s footprint divide the
-/// top, so the right piece, which borders the right region only, cites
-/// `m`'s end wall `x = 2` beside it. Whether a region that meets itself
-/// only at a point is one obstacle is N2's open question
-/// (`work/emit/a-borders-join-can-link-two-obstacles-that-meet-only-at-a-notch-apex.md`).
+/// the two regions as two faces; meeting at a point, they are one
+/// obstacle through their closure (N2). It and `s`'s footprint divide
+/// the top, so the right piece, which borders the right region only,
+/// cites `m`'s end wall `x = 2` beside it.
 #[test]
-fn regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle_today() {
+fn regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle() {
     check(&u(
         "notch_apex",
         vec![
@@ -1573,13 +1572,13 @@ fn regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle_today() {
 }
 
 /// **Two members' discards that meet only at a notch's apex** are one
-/// obstacle too, as [`regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle_today`]:
+/// obstacle too, as [`regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle`]:
 /// `m` is two members abutting at the apex's `x`, so each region is its
 /// own member's discard, and what makes them one is the join at the
 /// apex, which makes one edge of both members' seams, and `s`'s later
 /// split of that edge, whose pieces lead back to it.
 #[test]
-fn two_members_regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle_today() {
+fn two_members_regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle() {
     check(&u(
         "notch_apex_two",
         vec![
@@ -1603,6 +1602,49 @@ fn two_members_regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle_tod
                     w(&["m1:y=1.20+m2:y=1.20", "s:x=0.60"]),
                 ],
             ),
+        ],
+    ));
+}
+
+/// **A wall through a notch's apex** names alike in every member order.
+/// `m` covers the notched plate's far side up to the apex, and `s2`'s
+/// footprint ends at the apex's `x`, so the left region beyond `m`'s
+/// wall, the right one and `s2`'s footprint all meet at the apex. That
+/// point is one obstacle's whether the apex survives as a vertex (when
+/// `s2` folds in first) or the output stage joins it away: the left
+/// piece borders `m`'s wall, and the right piece `m`'s end wall too.
+#[test]
+fn a_wall_through_a_notch_apex_names_alike_in_every_order() {
+    check(&u(
+        "notch_apex_wall",
+        vec![
+            ("plate", notched_plate()),
+            ("m", b((-1.0, 2.0), (1.2, 3.0), (0.5, 1.5))),
+            ("s2", b((1.5, 1.7), (-1.0, 1.3), (0.47, 1.53))),
+        ],
+        vec![
+            (
+                "plate:z=1.00",
+                vec![
+                    w(&["m:y=1.20", "s2:x=1.50"]),
+                    w(&["m:x=2.00", "m:y=1.20", "s2:x=1.70"]),
+                ],
+            ),
+            (
+                "m:y=1.20",
+                vec![
+                    w(&["plate:x=0.00", "plate:z=1.00", "s2:x=1.50"]),
+                    w(&["plate:z=1.00", "s2:x=1.70"]),
+                ],
+            ),
+            (
+                "s2:x=1.50",
+                vec![
+                    w(&["m:y=1.20", "plate:y=0.00", "plate:z=1.00"]),
+                    w(&["m:z=0.50", "plate:slant"]),
+                ],
+            ),
+            ("s2:z=0.47", vec![w(&["plate:slant"]), w(&["plate:y=0.00"])]),
         ],
     ));
 }

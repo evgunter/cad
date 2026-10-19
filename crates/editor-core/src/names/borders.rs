@@ -4,23 +4,28 @@
 //!
 //! A face the result holds as several pieces lost the rest of its
 //! region to the boolean. An OBSTACLE is a connected part of that lost
-//! region: one discarded fragment, or several joined where they border
-//! one edge of the result, where a later step discarded the region
-//! across an earlier step's seam, or where both sides of an edge that
-//! died with them were discarded region of the parent: two fragments of
-//! one face across a chord that cut it, or two of a corner's faces
-//! across an edge between them. Each piece edge is chased to the
-//! stretch a discard recorded along it, through the edge's split
-//! lineage (kept across the steps that killed its ancestors) and the
-//! edges a later step's join made it of, and so to its obstacle;
-//! discards one edge reaches are one obstacle. A face discarded where
-//! a coincident kept face holds part of its region borders that face
-//! where the held part ends (`topo::DiscardRow::held`). An obstacle that borders two
-//! or more pieces DIVIDES the face; a piece's qualifier is the set of
-//! walls — the faces across its edges — along which it meets a divider,
-//! each cited by its parent's name. Nothing beyond a piece's own
-//! boundary is read, so a boss standing on one piece, or a notch in it,
-//! is an obstacle that borders one piece and is never cited.
+//! region, connected through its closure: one discarded fragment, or
+//! several joined where they border one edge of the result, where a
+//! later step discarded the region across an earlier step's seam, where
+//! both sides of an edge that died with them were discarded region of
+//! the parent (two fragments of one face across a chord that cut it, or
+//! two of a corner's faces across an edge between them), or where they
+//! meet only at a point: both end a bordered or held stretch there,
+//! read by the keys the step holds for the point, or the output stage
+//! joined the point away into an edge both border. Each piece edge is
+//! chased to the stretch a discard recorded along it, through the
+//! edge's split lineage (kept across the steps that killed its
+//! ancestors) and the edges a later step's join made it of, and so to
+//! its obstacle; discards one edge reaches are one obstacle. A face
+//! discarded where a coincident kept face holds part of its region
+//! borders that face where the held part ends
+//! (`topo::DiscardRow::held`). An obstacle that borders two or more
+//! pieces DIVIDES the face; a piece's qualifier is the set of walls —
+//! the faces across its edges — along which it meets a divider, each
+//! cited by its parent's name. Nothing beyond a piece's own boundary is
+//! read, so a boss standing on one piece, or a notch in it, is an
+//! obstacle that borders one piece and is never cited; one whose corner
+//! touches a divider is part of that divider.
 //!
 //! An operand corner the result holds as several vertices is read the
 //! same way ([`Obstacles::split_corner`]): its parent is the corner's
@@ -56,6 +61,48 @@ struct Discard {
     /// the result has no key for them, and only two discards of one
     /// operand in one boolean can share one.
     bounds: Vec<(usize, topo::Operand, EdgeKey)>,
+    /// The points its bordered and held stretches end at, each as every
+    /// key its step holds for it ([`points`]). A discard of the parent
+    /// that ends a stretch at one of them meets this one there, so the
+    /// two are one obstacle through their closure (N2). A later step's
+    /// keys for a point include the one the earlier result held, since
+    /// operand A's keys are the result's.
+    ends: BTreeSet<VertexKey>,
+}
+
+/// Each vertex key one step holds for a point that has several → all
+/// of them: a classification null edge's two ends (in result keys, B's
+/// through the graft), a zip split's copy and the vertex it copies, and
+/// a zip fusion's two vertices. Each pair is one point by construction,
+/// so no position is read.
+fn points(naming: &topo::BooleanNaming) -> BTreeMap<VertexKey, Vec<VertexKey>> {
+    let grafted: BTreeMap<VertexKey, VertexKey> = naming.graft_vertices.iter().copied().collect();
+    let mut points = LeastRoot::new();
+    for &(op, u, w) in &naming.null_copies {
+        let key = |v: VertexKey| match op {
+            topo::Operand::A => Some(v),
+            topo::Operand::B => grafted.get(&v).copied(),
+        };
+        if let (Some(u), Some(w)) = (key(u), key(w)) {
+            points.join(u, w);
+        }
+    }
+    for &(u, w) in naming
+        .cone_splits
+        .rows()
+        .iter()
+        .chain(naming.vertex_merges.rows())
+    {
+        points.join(u, w);
+    }
+    let mut class: BTreeMap<VertexKey, Vec<VertexKey>> = BTreeMap::new();
+    for v in points.keys() {
+        class.entry(points.root(v)).or_default().push(v);
+    }
+    points
+        .keys()
+        .map(|v| (v, class[&points.root(v)].clone()))
+        .collect()
 }
 
 /// The discards of one boolean, or of each step of a union's fold.
@@ -180,6 +227,7 @@ impl<K: Ord + Clone> Obstacles<K> {
             .chain(&naming.graft_dead_edges)
             .copied()
             .collect();
+        let points = points(naming);
         for row in &naming.discards {
             let chains: Vec<Vec<EdgeKey>> = row
                 .boundary_chains
@@ -262,10 +310,18 @@ impl<K: Ord + Clone> Obstacles<K> {
                 .filter_map(|c| c.first().copied())
                 .map(|k| (self.records, row.operand, k))
                 .collect();
+            let ends = row
+                .bordered
+                .iter()
+                .chain(&row.held)
+                .flat_map(|&(u, w)| [u, w])
+                .flat_map(|v| points.get(&v).cloned().unwrap_or_else(|| vec![v]))
+                .collect();
             self.discards.push(Discard {
                 seams,
                 touches,
                 bounds,
+                ends,
             });
         }
         self.records += 1;
@@ -448,6 +504,19 @@ impl<K: Ord + Clone> Obstacles<K> {
             }
         }
         for ds in bound_of.values() {
+            for w in ds.windows(2) {
+                link.join(w[0], w[1]);
+            }
+        }
+        // Two discards that end a stretch at one point meet there, so
+        // they are one obstacle through their closure (N2).
+        let mut end_of: BTreeMap<VertexKey, Vec<usize>> = BTreeMap::new();
+        for &i in &mine {
+            for &v in &self.discards[i].ends {
+                end_of.entry(v).or_default().push(i);
+            }
+        }
+        for ds in end_of.values() {
             for w in ds.windows(2) {
                 link.join(w[0], w[1]);
             }
