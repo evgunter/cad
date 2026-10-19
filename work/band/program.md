@@ -10,7 +10,6 @@ tag: (BAND orchestrator)
 ab_band: 7800-7899
 paths: [crates/sweep/src/blend/*, crates/sweep/src/fillet.rs, crates/sweep/src/chamfer.rs]
 keep_out: [opened by CARVE's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - CARVE measured 73 budget points and was cut into three tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are CARVE BAND STRUT and they share crates/sweep by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR rather than drawing a fence, TANG owns the declared-tangency lane and ISO the rational carriers, topo/src is TOPO's and its cut siblings']
-priority: P2
 ---
 The band a roll builds over a rim, and the record it leaves. Its
 opening P0 and P1 rows are built (the D-hole crease, the slit name, the
