@@ -6583,3 +6583,5 @@ Signed (WIRE orchestrator).
 - 2026-10-19 (WIRE orchestrator) Triage: should-pair-seams-take-name-ordered-sides (P3 M, design), a-chord-between-two-merged-faces-within-no-rim-refuses (P3 M), a-split-merging-a-two-piece-wall-reads-its-seam-vertex-as-a-pinch-corner (P3 M). a-literal-placement-frame-crosses-scalars-by-closure… is D10 ground (placement): moved to work/wirehold, parked on transform-retires-into-a-placement.
 
 - 2026-10-19 (WIRE orchestrator) Dispatched wire-p4 (branch wire/p4-refusal-bundle): a-seated-entity-collision-refuses-as-a-name-minted-twice + editor-payload-lists-other-than-naming-are-kept-by-hand, one PR, STYLE review.
+
+- 2026-10-19 (WIRE orchestrator) Dispatched wire-chase (wire/one-chain-chase; STYLE review), for split-and-boolean-copy-chains-are-chased-three-ways. Dispatched wire-breaks (wire/eval-internal-breaks; FULL review), for eval-handles-internal-breaks-three-ways…. The breaks lane applies only a ratified rule for typed kernel-defect refusals vs D9 row 4 `unreachable!`. If none decides, it reports and a designer fork follows.
