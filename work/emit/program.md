@@ -10,7 +10,6 @@ tag: (EMIT orchestrator)
 ab_band: 8300-8399
 paths: [crates/editor-core/src/names/emit.rs, crates/editor-core/src/names/role.rs]
 keep_out: [opened by WIRE's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - WIRE measured 85.5 budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are WIRE EMIT GATHER and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR rather than drawing a fence, TOPO and its cut siblings own topo/src, EDIT owns the DocEdit vocabulary, CARVE and BAND own crates/sweep]
-priority: P0
 ---
 The emission half of D5's persistent naming: what a verb writes into the
 name table, and the two ways a name disappears from it without the
