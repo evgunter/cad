@@ -119,11 +119,14 @@ Code follow-up: `non-manifold-result-calls-a-buildable-solid-permanently-unrepre
 - The join reads a slit trace from topology before the area check: a
   loop that runs along each of its edges both ways (a tree walk; for one
   keel, two struts). That covers two crossing keels and a bent one too,
-  which refused the same way.
+  which refused the same way. A tree with a curved edge refuses typed
+  (`CurvedSlitTrace`), since its ring would fail tier 3′.
 - The finish drops the strut loop's face, a component of its own, and
   nests the slit as a ring of the section face containing it, read by
-  containment (`nest_slit`). A slit in no outline, or in or against a
-  hole, refuses `SlitUnplaced`.
+  containment: a vertex of it read against each loop on its own
+  carriers (`nest_slit`, `point_in_loop`). A reading that escalates or
+  cannot be made refuses `SlitHoming`; a definite contradiction refuses
+  `SlitUnplaced`.
 - `plane_section` skips slit traces.
 - Volumes: 15.7 above and 16 below. The 12.65 in 4795's round-1 report
   does not match the closed form, 16 − ½ · 1 · 0.6 · 1.
@@ -132,5 +135,5 @@ Code follow-up: `non-manifold-result-calls-a-buildable-solid-permanently-unrepre
     curved ring fails tier 3′, as 4622's one-end form already does;
   - `the-split-keeps-an-in-plane-edge-it-doubles-at-a-dead-key`:
     lineage;
-  - `work/tess/a-zero-area-ring-meshes-non-manifold-at-its-shared-ends`:
-    the mesh.
+  - the mesh: evidence added to
+    `work/tess/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`.

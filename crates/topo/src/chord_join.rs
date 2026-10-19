@@ -282,6 +282,14 @@ pub enum SplitJoinError {
         /// The completed null face.
         face: FaceKey,
     },
+    /// A slit trace whose tree holds an edge that is not a line: its
+    /// slit would be two coincident curved edges, which no contact record
+    /// backs and tier 3′ refuses
+    /// (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
+    CurvedSlitTrace {
+        /// The completed null face.
+        face: FaceKey,
+    },
     /// Ring re-homing could not decide: the walk escalated, exhausted
     /// its schedule, or met an edge of the divided face's outline it
     /// cannot cross ([`PointInLoopError::Uncrossable`]).
@@ -597,6 +605,14 @@ impl core::fmt::Display for SplitJoinError {
             Self::DegenerateSection { .. } => write!(
                 f,
                 "a section is degenerate: it bounds zero area. Recourse: {JOIN_RECOURSE}"
+            ),
+            Self::CurvedSlitTrace { .. } => write!(
+                f,
+                "an arc lying in the cut, wrapped round at both ends by the material \
+                 across it, would leave two coincident arcs that no contact record backs \
+                 (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`). \
+                 {}",
+                geom_core::NOT_YET_ENDING
             ),
             Self::RingHoming(e) => match e {
                 // The walk's decision is the question. The join asks it of

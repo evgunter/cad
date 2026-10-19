@@ -25,9 +25,12 @@ curve entries. Tier 3′ with no records refuses that side with one
 overlap its edge-edge record, and the split returns none. Measured at
 the default ε:
 
-- the ring: `crates/sweep/tests/a_curved_keel_in_the_plane.rs`,
-  `a_curved_keel_closed_at_both_ends_splits_with_its_keel_a_ring`,
-  pins the refusal, both normals, the V's tip at 0 and `±0.6 ε`;
+- the ring, on PR 5350's first head: both normals, the V's tip at 0
+  and `±0.6 ε`. The split now refuses that trace typed instead
+  (`SplitJoinError::CurvedSlitTrace`, pinned by
+  `crates/sweep/tests/a_curved_keel_in_the_plane.rs`,
+  `a_curved_keel_closed_at_both_ends_refuses_as_a_construction_gap`), so
+  the ring form builds only once this row is fixed;
 - the one-end slit on main: every row of
   `a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur`
   refuses the same way on the walls' side.
@@ -36,7 +39,8 @@ Straight slits and rings pass: two collinear edges whose bounds are one
 point key each are one line by the census's reconstruction rule
 (`census.rs` module docs, the D3 rule). Two arcs between two shared
 points need not be one arc. The split's door gates at tier 3, so it
-returns these sides.
+returns the one-end slit's sides
+(`the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime`).
 
 ## Owed
 
@@ -52,3 +56,5 @@ One of:
 
 Neighbour: `work/contacthold/two-coincident-curved-edges-touching-record-no-edge-edge-row.md`
 (the boolean's curved edge-edge rows).
+
+Once this lands, lift `CurvedSlitTrace` from `Sweep::section_kind`.

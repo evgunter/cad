@@ -51,9 +51,10 @@
 //! 2-loop null face comes back with its roles unresolved. This lane
 //! resolves them by membership of the null edges' above-end vertex set,
 //! and reads from the loops' topology whether the polygon is a **slit
-//! trace** ([`SectionKind::Slit`]: one loop made entirely of struts,
-//! which the finish kills whole and whose other loop it nests as a
-//! zero-area ring). Every other polygon it certifies definitely of
+//! trace** ([`SectionKind::Slit`]: one loop walks round a tree of
+//! straight edges, running along each both ways; the finish kills it
+//! whole and nests the other loop as a zero-area ring). Every other
+//! polygon it certifies definitely of
 //! positive area (**`split_section_area`**, margin 2·A/P) — a zero-area
 //! section polygon is refused typed,
 //! [`SplitJoinError::DegenerateSection`] — then reads its zero-width
@@ -100,15 +101,15 @@ pub(crate) struct CompletedSection {
 pub(crate) enum SectionKind {
     /// A polygon of positive area: both loops bound the section's region.
     Area,
-    /// The trace of an edge of the operand lying in the plane whose other
-    /// side's material wraps round both its ends. `strut` is the loop of
-    /// the side that holds the edge, running out along it and back, which
-    /// bounds nothing on that side and dies whole; the other loop is a
-    /// slit of that side's piece, two distinct edges over the line, which
-    /// the finish nests as a zero-area ring of the section face that
-    /// contains it.
+    /// The trace of a tree of straight edges of the operand lying in the
+    /// plane, whose other side's material wraps round its every end.
+    /// `strut` is the loop of the side that holds the tree, walking round
+    /// it along each edge both ways, which bounds nothing on that side
+    /// and dies whole; the other loop is a slit of that side's piece, two
+    /// distinct edges over each of the tree's, which the finish nests as
+    /// a zero-area ring of the section face that contains it.
     Slit {
-        /// The loop of struts.
+        /// The loop that walks round the tree.
         strut: LoopKey,
     },
 }
@@ -862,15 +863,22 @@ impl<T: Decide> Sweep<T> {
     /// other side's material joins round every end of the tree (one null
     /// edge at each): for one edge, a loop of two struts
     /// ([`strut_turn`]). The other loop runs round the same tree in
-    /// distinct edges, two over each of the tree's, one each side. Every
-    /// other polygon is an area polygon, certified next
-    /// ([`Self::certify_section_area`]).
+    /// distinct edges: as many halves as the walk, and over each of the
+    /// tree's edges exactly two of them, between the same two points (a
+    /// vertex's copies share its point key). Every other polygon is an
+    /// area polygon, certified next ([`Self::certify_section_area`]).
+    ///
+    /// A tree with an edge that is not a line refuses: its slit would be
+    /// two coincident curved edges, which no contact record backs and
+    /// tier 3′ refuses
+    /// (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
     ///
     /// # Errors
     ///
-    /// [`SplitJoinError::SectionInvariant`] where the other loop is not
-    /// as long as the tree's walk, which the two coincident loops of one
-    /// trace cannot be; corruption on a torn loop.
+    /// [`SplitJoinError::CurvedSlitTrace`];
+    /// [`SplitJoinError::SectionInvariant`] where the other loop does not
+    /// run twice over each of the tree's edges, which the two coincident
+    /// loops of one trace cannot fail to; corruption on a torn loop.
     fn section_kind(
         &self,
         body: &Body<T>,
@@ -901,11 +909,43 @@ impl<T: Decide> Sweep<T> {
             (false, true) => (below_loop, below, above),
             _ => return Ok(SectionKind::Area),
         };
-        if slit.len() != tree.len() {
+        // Each edge's ends as point keys, in key order.
+        let ends = |he: HalfEdgeKey| -> Result<(EdgeKey, [crate::PointKey; 2]), SplitJoinError> {
+            let data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
+            let end = body.half_edge_end(he).ok_or_else(|| corrupt_he(he))?;
+            let [Some(a), Some(b)] = [data.start, end].map(|v| body.get_vertex(v).map(|d| d.point))
+            else {
+                return Err(corrupt_he(he));
+            };
+            Ok((data.edge, [a.min(b), a.max(b)]))
+        };
+        let mut tree_edges: Vec<(EdgeKey, [crate::PointKey; 2])> = Vec::new();
+        for &he in &tree {
+            let (edge, pair) = ends(he)?;
+            if tree_edges.iter().any(|&(e, _)| e == edge) {
+                continue;
+            }
+            let data = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?;
+            if !matches!(
+                body.edge_curve_linked(edge, data),
+                CurveGeom::Certified(c) if matches!(c.carrier(), geom::Curve3::Line { .. })
+            ) {
+                return Err(SplitJoinError::CurvedSlitTrace { face });
+            }
+            tree_edges.push((edge, pair));
+        }
+        let mut slit_pairs = Vec::with_capacity(slit.len());
+        for &he in &slit {
+            slit_pairs.push(ends(he)?.1);
+        }
+        let twice = tree_edges
+            .iter()
+            .all(|(_, pair)| slit_pairs.iter().filter(|p| *p == pair).count() == 2);
+        if slit.len() != tree.len() || !twice {
             return Err(SplitJoinError::SectionInvariant {
                 face,
                 what: "a section loop walks round a tree of edges, and its coincident loop \
-                       is not as long",
+                       does not run twice over each of them",
             });
         }
         Ok(SectionKind::Slit { strut })

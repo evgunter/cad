@@ -1767,6 +1767,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             ("OrderEscalated", J::OrderEscalated { diag: diag() }),
             ("Escalated", J::Escalated { face, diag: diag() }),
             ("DegenerateSection", J::DegenerateSection { face }),
+            ("CurvedSlitTrace", J::CurvedSlitTrace { face }),
             (
                 "RingHoming",
                 J::RingHoming(topo::PointInLoopError::RayExhausted {
@@ -1994,6 +1995,15 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             F::SlitUnplaced {
                 slit: face,
                 in_hole: true,
+            },
+        ),
+        (
+            "SlitHoming",
+            F::SlitHoming {
+                slit: face,
+                error: topo::PointInLoopError::RayExhausted {
+                    r#loop: LoopKey::default(),
+                },
             },
         ),
         (
