@@ -156,6 +156,11 @@ impl NamedCoincidence {
     }
 }
 
+/// A coincidence row's cell is of an input the node read, and that
+/// input's table names no entity at its key ([`name_rows`]).
+pub(crate) const ROW_CELL_NOT_IN_TABLE: &str =
+    "a coincidence row names a cell its input's table does not name";
+
 /// A meeting that resolves to fewer than two cells.
 const MEET_OF_ONE: &str = "a coincidence meeting resolves to fewer than two cells";
 
@@ -805,7 +810,8 @@ pub(crate) struct RowInputs<'a> {
 ///
 /// [`NamingError::Emission`] for a cell no input of the node holds by
 /// one name: the kernel recorded a cell of a body it did not read, or
-/// one the input's table does not name, which is a kernel bug.
+/// ([`ROW_CELL_NOT_IN_TABLE`]) one the input's table does not name,
+/// which is a kernel bug.
 pub(crate) fn name_rows(
     rows: &[topo::Coincidence],
     inputs: &RowInputs<'_>,
@@ -833,9 +839,12 @@ pub(crate) fn name_rows(
                     topo::Cell::Edge(e) => EntityKey::Edge(e),
                     topo::Cell::Face(f) => EntityKey::Face(f),
                 };
-                let name = table
-                    .name_of(&EntityRef { body: 0, key })
-                    .ok_or_else(unnamed)?;
+                let name =
+                    table
+                        .name_of(&EntityRef { body: 0, key })
+                        .ok_or(NamingError::Emission {
+                            what: ROW_CELL_NOT_IN_TABLE,
+                        })?;
                 Ok(NamedCell::Entity {
                     input: node,
                     name: name.clone(),
