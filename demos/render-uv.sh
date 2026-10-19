@@ -24,4 +24,9 @@ cd "$(dirname "$0")"
 . ./hosted-render-guard.sh
 require_hosted_render "demos/render-uv.sh"
 
-exec python3 compose_uv_montage.py out renders-uv
+# The sheet is composed into a stage and published like every other
+# lane's cells (publish_lane.py), so a renamed sheet shows as a deletion.
+STAGE=out/stage/renders-uv
+rm -rf "$STAGE"
+python3 compose_uv_montage.py out "$STAGE"
+exec python3 publish_lane.py --frame=.svg --no-provenance "$STAGE" renders-uv montage-uv

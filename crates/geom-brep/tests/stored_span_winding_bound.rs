@@ -438,7 +438,7 @@ fn section_arc<T: Real>() -> LoopEdge<T> {
 /// `3π` rectangle plus an ellipse edge answered the `3π` area
 /// (`1.4685e-4` m²) — the ellipse steered `cone_face_closed_form` onto
 /// a branch that never reached the rim parse, and `loop_vector_area`
-/// reads `R²·Δt` — at `f64` and at the interval scalar alike. Every cone
+/// reads `R²·(Δt − sin Δt)` — at `f64` and at the interval scalar alike. Every cone
 /// face is now read by the one reader, which decides every span before
 /// anything integrates it: with a valid ellipse arc first or last in
 /// the loop, the rim past the bound is what refuses.

@@ -115,7 +115,7 @@ use crate::dihedral::{
     decide, decide_magnitude, decide_magnitude_reported, decide_nonzero, decide_reported,
 };
 use crate::extent::Reach;
-use crate::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
+use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use crate::torus_convention::TorusRefusal;
 use geom_core::Decide;
 use geom_core::k_stats::{Magnitude, NonzeroSign};
@@ -800,7 +800,7 @@ impl SectionRadius {
             lever,
             size: "radius",
             passes: SizedPass::Positive,
-            stored: StoredDefinite::Lever,
+            side: RefusedSide::Lever,
             no_size: None,
         }
     }

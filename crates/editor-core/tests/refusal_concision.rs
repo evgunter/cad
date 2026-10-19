@@ -31,7 +31,7 @@ fn cone_block_union_refusal() -> String {
     let cone = r.insert(revolve_about(
         cone_p,
         (0.0, 0.0),
-        (0.0, 1.0),
+        crate::fixture::along_y(),
         ang(std::f64::consts::TAU),
     ));
     let block_plane = r.insert(frame([0.0, 0.0, -0.25], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
@@ -434,14 +434,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 a_face: face,
                 b_face: face,
                 why: topo::NodeWhy::GermOnNode,
-            },
-        ),
-        (
-            "NodeUnbuilt (a rod against a bore)",
-            BooleanError::NodeUnbuilt {
-                a_face: face,
-                b_face: face,
-                why: topo::NodeWhy::OppositeSenses,
             },
         ),
         (

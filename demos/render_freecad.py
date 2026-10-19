@@ -56,6 +56,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import FreeCAD as App
 
+import lane_cells
 import manifest
 
 # THE WEDGE, AND WHY THIS IS THE FIRST THING THIS FILE DOES.
@@ -239,7 +240,7 @@ def render_scene(scene, objs, view, renderdir):
     Gui.updateGui()
     view.fitAll()
     Gui.updateGui()
-    target = renderdir / f"{scene.name}.png"
+    target = lane_cells.frame_path(renderdir, scene.name)
     view.saveImage(str(target), WIDTH, HEIGHT, "White")
     for obj in objs:
         obj.ViewObject.Visibility = False
@@ -281,7 +282,7 @@ def main():
     # deceiving of the two because it looks like a finished cell.
     for name, n in skipped.items():
         drew = len(by_scene[name])
-        (renderdir / f"{name}.note.txt").write_text(
+        lane_cells.note_path(renderdir, name).write_text(
             (
                 "no STEP — declared writer frontier\n"
                 if n == 1

@@ -112,7 +112,7 @@ fn a7_the_viewer_takes_a_derived_frame_by_value() {
     // The drawer reads the LANDED placement: sketch (0, 0) is the cap
     // plane's origin at the box's height.
     let placed = sketch::frame_placement(session.doc(), ev, frame).expect("a drawable frame");
-    assert!((placed.placement.translation.z - 0.01).abs() <= 1e-12);
+    assert!((placed.origin().z - 0.01).abs() <= 1e-12);
 }
 
 /// **The chrome mints the node the document door mints.** One
@@ -181,7 +181,7 @@ fn filleted(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
 /// fillet's emission owns.
 fn face_where(
     session: &DocSession,
-    at: RecipeNodeId,
+    at: impl Into<pncad::select::At> + Copy,
     want: impl Fn(SurfaceKind, &StableName) -> bool,
 ) -> StableName {
     let ev = session.evaluation().expect("the document evaluated");
@@ -365,7 +365,12 @@ fn several_bodies_is_no_seat_for_a_face_frame() {
         label: Some(pncad::document::Label::new("halves").expect("a label")),
     });
     session.pump();
-    let face = face_where(&session, split, |kind, _| kind == SurfaceKind::Plane);
+    // A face of the upper half, read in its port (NAMES N1).
+    let above = session
+        .committed_doc()
+        .output(split, 0)
+        .expect("a split's upper half");
+    let face = face_where(&session, above, |kind, _| kind == SurfaceKind::Plane);
     let picked = FaceSelection {
         name: face.clone(),
         node: split,

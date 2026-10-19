@@ -796,8 +796,25 @@ where
         }
     }
 
+    /// The value narrowed; the tangent `self`'s, which is the tangent of
+    /// every member the narrowed value is read for.
+    fn clip_to(self, lo: f64, hi: f64) -> Self {
+        Self {
+            value: self.value.clip_to(lo, hi),
+            deriv: self.deriv,
+        }
+    }
+
     fn point_value(self) -> Option<f64> {
         self.value.point_value()
+    }
+
+    fn structure_positive(self) -> bool {
+        self.value.structure_positive()
+    }
+
+    fn structure_bracket(self) -> Option<(f64, f64)> {
+        self.value.structure_bracket()
     }
 
     /// A constant only with a derivative of exactly zero: a value that
@@ -946,6 +963,23 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    /// **A dual's `clip_to` narrows the value and keeps the tangent (C6
+    /// S5c).** At `Dual<Interval>` the value is the intersection and the
+    /// derivative is the input's own: no tangent of the bounds is hulled
+    /// in, as a `max`/`min` envelope would.
+    #[test]
+    fn a_duals_clip_narrows_the_value_and_keeps_the_tangent() {
+        use crate::spline::SpanLocate;
+        use crate::{Bounds, Interval};
+        let t = Dual {
+            value: Interval::from_bounds(0.2, 0.8),
+            deriv: Interval::from_bounds(1.0, 1.0),
+        };
+        let c = t.clip_to(0.5, 1.0);
+        assert_eq!((Bounds::lo(c.value), Bounds::hi(c.value)), (0.5, 0.8));
+        assert_eq!((Bounds::lo(c.deriv), Bounds::hi(c.deriv)), (1.0, 1.0));
+    }
     use crate::predicate::{MarginDiag, Sign};
 
     // Global-state discipline (see `crate::tolerance`'s test module): all

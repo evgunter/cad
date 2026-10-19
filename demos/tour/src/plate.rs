@@ -31,7 +31,7 @@ use pncad::document::ExtrudeSide;
 use pncad::document::{
     AssertionRelation, CancelToken, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
     Evaluation, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc, ProfileProgram,
-    RecipeNodeId, RefusingReach, SitedRef, VarId, VarName, apply, evaluate,
+    RecipeNodeId, SitedRef, VarId, VarName, apply, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::AuthoredNode;
@@ -84,7 +84,6 @@ fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
             fresh: Vec::new(),
         },
         tol,
-        &RefusingReach,
     )
     .expect("the insert applies");
     *doc = applied.doc;
@@ -109,7 +108,6 @@ fn declare(
             )),
         },
         tol,
-        &RefusingReach,
     )
     .expect("the parameter applies");
     *doc = applied.doc;
@@ -303,8 +301,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
     } else {
         (blank, [(hole_a, face()), (hole_b, face())])
     };
-    let placement =
-        apply(&doc, &DocEdit::place(placed, None), tol, &RefusingReach).expect("the plate places");
+    let placement = crate::world::place_in_world(&doc, placed, tol);
     doc = placement.doc;
 
     // The wall names come from the SELECTION door, the way a user gets

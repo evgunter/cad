@@ -892,11 +892,20 @@ fn graft_solids_impl<T: geom_core::Decide>(
             param_end: curve.params().1,
         };
         let band = geom_core::Band::linear(tol)?;
+        // The graft copies the source's geometry verbatim, so the wedge's
+        // reach is the source's, read before `dst`'s curves are all in.
+        let reach = crate::wedge_reach(
+            src,
+            crate::edge_faces(src, src_edge_key),
+            curve.carrier(),
+            curve.params(),
+        );
         let recert = geom_brep::EdgeCurve::certify_via(
             spec,
             point(start_v),
             point(end_v),
             |sk| dst.surfaces.get(sk).cloned(),
+            reach,
             band,
             lane,
         )
@@ -1037,12 +1046,12 @@ mod recertify_lane_tests {
             let (start, end) = (point(he.start), point(dst.half_edges[he.next].start));
             let surfaces = |k| dst.surfaces.get(k).cloned();
             assert_eq!(
-                curve.recertify(start, end, surfaces, band).map(|_| ()),
+                curve.recertify(start, end, surfaces, 1.0, band).map(|_| ()),
                 Err(CertifyError::NurbsLaneNotSupplied),
                 "the grafted edge at a lane-free door"
             );
             curve
-                .recertify_via(start, end, surfaces, band, lane)
+                .recertify_via(start, end, surfaces, 1.0, band, lane)
                 .expect("the grafted edge re-certifies through the lane");
             spline_edges += 1;
         }

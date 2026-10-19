@@ -21,9 +21,7 @@ use fixture::{len, scl};
 use geom_core::Tol;
 
 fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(d, e, Tol::witness(), &editor_core::RefusingReach)
-        .expect("edit applies")
-        .doc
+    apply(d, e, Tol::witness()).expect("edit applies").doc
 }
 
 fn doc_with_axis_dir(

@@ -1,39 +1,38 @@
-//! **The mate solve reports the evaluation's own refusal.**
+//! **A placement whose mate reads a failing placer's copy points at
+//! the placer, and the placer states the cause.**
 //!
-//! A mate whose reference is placed by a pattern copy or a transform
-//! used to refuse `DanglingHead` for every way the pose failed to
-//! derive — a slot that does not evaluate, a direction of no definite
-//! length, an explicit rule — about a head that resolves and a placer
-//! that exists. The doc's justification was that the placer node
-//! names the cause in its own voice; it cannot, because the mate
-//! fault POISONS the document and that node evaluates to `Poisoned`
-//! instead.
+//! A mate whose target is read off a pattern copy or a transform reads
+//! that node's value: the placer is upstream of the placement, so when
+//! the placer refuses — a slot that does not evaluate, a direction of
+//! no definite length, a degenerate step — the placement is poisoned
+//! through it, and the placer's own row states its refusal in its own
+//! words, exactly as its evaluation raises it on the TWIN document (the
+//! same recipe with the mate left out). The nearest failed node is
+//! named, so a refusal raised by a datum the placer reads is pointed at
+//! that datum.
 //!
-//! These rows measure the replacement. `MateFault::PlacerRefused`
-//! carries the evaluation layer's own typed refusal UNALTERED, and
-//! the headline rows compare it against what the same node's own
-//! evaluation raises on the TWIN document — the same recipe with the
-//! mate left out, where nothing poisons it. `DanglingHead` keeps
-//! exactly its two causes.
+//! A target that stops resolving after the mate is in — a copy past a
+//! shrunk count, a placer deleted — is the placement's own refusal
+//! where it evaluates: the pose does not evaluate
+//! (`MateFault::SideUnevaluated`), or its read is unresolved.
 //!
 //! Every row goes through ordinary doors: `DocEdit::InsertNode`,
-//! `solve_document`, `evaluate`, `apply`.
+//! `evaluate`, `apply`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use std::sync::Arc;
 
 use editor_core::{
-    Alignment, Axis3, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EditError,
-    EvalOptions, Formula, Frame, MateFault, MateFrame, MatePrimitive, Node, NodeErrorClass,
-    NodeErrorKind, NodeResult, PatternKind, ProfileDoc, RecipeNodeId, SlotId, StableName,
+    Axis3, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EditError, EvalOptions, Formula,
+    Frame, MateFault, MateRef, MateSide, Node, NodeErrorClass, NodeErrorKind, NodeResult,
+    OperandSlot, PatternKind, ProfileDoc, RecipeNodeId, SlotId, StableName,
 };
 use fixture::resolver::{PartStore, in_part};
-use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step, step_with, xform};
+use fixture::{ang, in_copy, insert, insert_pinned, len, on_frame, run, scl, solve, step, xform};
 use geom_core::Tol;
 
 // ---- the scene ----
@@ -58,79 +57,45 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-/// The seat every row's mate declares.
-fn seat(a: StableName, b: StableName) -> AuthoredNode {
-    let frame = |origin: [f64; 3], axis: [f64; 3]| {
-        MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
-            .expect("a definite frame")
-    };
-    Node::Mate {
-        a: crate::fixture::head(a).into(),
-        b: crate::fixture::head(b).into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
-            a: frame([0.0, 0.0, 1.0], [0.0, 0.0, 1.0]),
-            b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Opposed,
-            clocking: None,
-        },
-    }
-}
-
-/// What every row builds: a part instance, whatever places it, a
-/// second instance, and a mate onto the placed body.
+/// What every row builds: a part instance pinned to the world, whatever
+/// places a copy of it, a second instance, and a mate in the second
+/// instance's bundle resting its start cap on the placed copy's face.
 ///
 /// `twin` is the same document with the mate left OUT, and its node
-/// ids are the mated document's because the mate is inserted last —
-/// so the node the twin evaluates is the node the mate names.
+/// ids are the mated document's because the mate is added last — so
+/// the node the twin evaluates is the node the mate reads.
 struct Scene {
     doc: ProfileDoc,
     twin: ProfileDoc,
     placer: RecipeNodeId,
-    mate: RecipeNodeId,
+    mate: MateRef,
     store: Arc<PartStore>,
 }
 
 impl Scene {
     /// The evaluation options every row runs through.
     fn opts(&self) -> EvalOptions {
-        EvalOptions {
-            resolver: Some(Arc::clone(&self.store) as Arc<dyn editor_core::PartResolver>),
-            ..EvalOptions::default()
+        options(&self.store)
+    }
+
+    /// **The failed node the mated placement is poisoned through.**
+    fn poisoned_through(&self) -> RecipeNodeId {
+        match run(&self.doc, &self.opts()).result(self.mate.placement) {
+            Some(NodeResult::Poisoned { through }) => *through,
+            other => panic!("the placement is poisoned through what it reads: {other:?}"),
         }
     }
 
-    /// The fault the solve records for the mate.
-    fn fault(&self) -> MateFault {
-        solve(&self.doc, &self.opts(), Tol::witness())
-            .fault(self.mate)
-            .cloned()
-            .expect("the placer refuses")
-    }
-
-    /// **What a node's OWN evaluation raises**, on the twin — the
-    /// comparison A1 is about, rendered through `Debug`, which is the
-    /// structural reading of a [`NodeErrorKind`]: the kernel refusals
-    /// it carries unaltered have no equality of their own.
-    fn own_refusal_of(&self, node: RecipeNodeId) -> String {
+    /// **What a node's OWN evaluation raises**, on the twin, rendered
+    /// through `Debug`, which is the structural reading of a
+    /// [`NodeErrorKind`]: the kernel refusals it carries unaltered have
+    /// no equality of their own; and its class.
+    fn own_refusal_of(&self, node: RecipeNodeId) -> (String, NodeErrorClass) {
         let ev = run(&self.twin, &self.opts());
         match ev.result(node) {
-            Some(NodeResult::Failed(err)) => format!("{:?}", err.kind),
+            Some(NodeResult::Failed(err)) => (format!("{:?}", err.kind), err.kind.class()),
             other => panic!("node {node:?} must fail on its own on the twin: {other:?}"),
         }
-    }
-
-    /// The refusal the placer itself raises on the twin.
-    fn own_refusal(&self) -> String {
-        self.own_refusal_of(self.placer)
-    }
-
-    /// The mated document's own row for the placer — `Poisoned`, by
-    /// the mate fault, which is why the cause cannot be read there.
-    fn placer_row(&self) -> String {
-        let ev = run(&self.doc, &self.opts());
-        format!("{:?}", ev.result(self.placer))
     }
 
     /// What `node`'s row in the MATED document fails with, when it
@@ -141,11 +106,37 @@ impl Scene {
             _ => None,
         }
     }
+
+    /// **The placement points at `failed` and `failed` states the
+    /// cause**: the placement is poisoned through it, and its own row
+    /// in the mated document is the twin's word for word. Answers the
+    /// refusal and its class.
+    fn points_at(&self, failed: RecipeNodeId, label: &str) -> (String, NodeErrorClass) {
+        assert_eq!(
+            self.poisoned_through(),
+            failed,
+            "{label}: the placement names the node that refused"
+        );
+        let (kind, class) = self.own_refusal_of(failed);
+        assert_eq!(
+            self.mated_refusal_of(failed).as_deref(),
+            Some(kind.as_str()),
+            "{label}: the node's own row in the mated document states the twin's refusal"
+        );
+        (kind, class)
+    }
+}
+
+/// The options that resolve `store`'s parts.
+fn options(store: &Arc<PartStore>) -> EvalOptions {
+    EvalOptions {
+        resolver: Some(Arc::clone(store) as Arc<dyn editor_core::PartResolver>),
+        ..EvalOptions::default()
+    }
 }
 
 /// A scene whose placer is a PATTERN of `kind` at `count`, mated onto
-/// copy `i` — the name carries the `Instance(i)` qualifier the walk
-/// consumes.
+/// copy `i` — the name carries the `Instance(i)` qualifier.
 fn patterned(label: &str, kind: PatternKind<Formula>, count: i64, i: u32) -> Scene {
     build(label, |doc, legs, leg_body| {
         let (doc, pattern) = insert(
@@ -170,9 +161,9 @@ fn unevaluable() -> Formula {
 }
 
 /// The scene builder both shapes share: two part documents, the
-/// placed instance, the placer with the name the mate reads it by,
-/// the capping instance, and the mate. `place` is handed the placed
-/// instance and its part's body.
+/// placed instance pinned to the world, the placer with the name the
+/// mate reads it by, the capping instance, and the mate. `place` is
+/// handed the placed instance and its part's body.
 fn build<F>(label: &str, place: F) -> (Scene, Vec<RecipeNodeId>)
 where
     F: FnOnce(
@@ -184,62 +175,41 @@ where
     let mut store = PartStore::new();
     let (leg, leg_body) = store.insert_part(block(&format!("{label}-leg")), Tol::witness());
     let (top, top_body) = store.insert_part(block(&format!("{label}-top")), Tol::witness());
+    let store = Arc::new(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, legs) = insert(doc, Node::instantiate_part(leg));
+    let (doc, legs) = insert_pinned(doc, Node::instantiate_part(leg), &options(&store));
     let (doc, placer, name, extra) = place(doc, legs, leg_body);
-    let (doc, cap) = insert(doc, Node::instantiate_part(top));
+    let (doc, cap) = insert(doc, fixture::mated_instance(top));
     let twin = doc.clone();
-    let mut node = seat(name, in_part(cap, top_body, CapEnd::Start));
-    if let Node::Mate { a, .. } = &mut node {
-        // The reference is read AT the placer: that operand is what
-        // puts the placer on the walk's chain.
-        *a = crate::fixture::head_at(placer, (*crate::fixture::authored_head(a).name).clone())
-            .into();
-    }
-    let (doc, mate) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(node),
-            fresh: Vec::new(),
-        },
+    // The target is read AT the placer: that read is what puts the
+    // placer upstream of the placement.
+    let mate = fixture::rest(
+        fixture::head(in_part(cap, top_body, CapEnd::Start)),
+        fixture::head_at(placer, name),
+        ContactClass::Rest,
     );
+    let (doc, mate) = fixture::constrain_at(doc, cap, mate);
     (
         Scene {
             doc,
             twin,
             placer,
-            mate: mate.expect("the mate mints"),
-            store: Arc::new(store),
+            mate,
+            store,
         },
         extra,
     )
 }
 
-/// The refusal a `PlacerRefused` carries, and the node it names.
-fn carried(fault: &MateFault) -> (RecipeNodeId, String) {
-    match fault {
-        MateFault::PlacerRefused { placer, error, .. } => (*placer, format!("{:?}", error.kind())),
-        other => panic!("expected PlacerRefused, got {other:?}"),
-    }
-}
-
-/// The class of the refusal a `PlacerRefused` carries.
-fn carried_class(fault: &MateFault) -> NodeErrorClass {
-    match fault {
-        MateFault::PlacerRefused { error, .. } => error.kind().class(),
-        other => panic!("expected PlacerRefused, got {other:?}"),
-    }
-}
-
 // ---- A1: the cause, in the placer's own words ----
 
 /// **The finding's own document.** A pattern direction of `1e200` has
-/// a LENGTH that overflows to infinity. The mate names copy 1; the
-/// solve refuses `PlacerRefused` naming the pattern and carrying
-/// `NonFiniteDirection { role: "pattern direction" }` — the SAME kind
-/// the pattern's own evaluation raises on the unpoisoned twin — while
-/// the pattern's row in the mated document reads `Poisoned`, so the
-/// mate's fault is the only place the cause appears.
+/// a LENGTH that overflows to infinity. The mate reads copy 1; the
+/// placement is poisoned through the pattern, and the pattern's own
+/// row states `NonFiniteDirection { role: "pattern direction" }` — the
+/// SAME kind its own evaluation raises on the unpoisoned twin: the
+/// mate is a constraint of the capping instance, downstream of the
+/// pattern, so it changes nothing the pattern reads.
 #[test]
 fn a1_a_non_finite_pattern_direction_names_the_direction() {
     let scene = patterned(
@@ -251,47 +221,14 @@ fn a1_a_non_finite_pattern_direction_names_the_direction() {
         4,
         1,
     );
-    let f = scene.fault();
-    let (placer, kind) = carried(&f);
-    assert_eq!(placer, scene.placer, "the fault names the pattern: {f:?}");
-    assert_eq!(
-        kind,
-        scene.own_refusal(),
-        "the carried refusal is the one the placer's own evaluation raises"
-    );
+    let (kind, class) = scene.points_at(scene.placer, "nonfinite");
     assert!(
-        carried_class(&f) == NodeErrorClass::NonFiniteDirection
-            && kind.contains("pattern direction"),
+        class == NodeErrorClass::NonFiniteDirection && kind.contains("pattern direction"),
         "and it is the direction door's own: {kind}"
-    );
-    // The fold path: the placer is poisoned, so the fault carries its
-    // refusal, one level, in the mate's own document.
-    let levels: Vec<_> = f
-        .carried_chain()
-        .map(|level| (level.document, level.node, level.line()))
-        .collect();
-    let [(document, node, line)] = levels.as_slice() else {
-        panic!("the fault carries the placer's refusal, one level: {levels:?}");
-    };
-    assert_eq!(
-        (*document, *node),
-        (editor_core::CarriedIn::ThisDocument, placer),
-        "the level is the placer, in the mate's document"
-    );
-    assert!(
-        line.contains("pattern direction") && !f.to_string().contains("pattern direction"),
-        "the carried line says which vector, and the mate's own sentence points at it: \
-         {line} / {f}"
-    );
-    assert!(
-        scene.placer_row().contains("Poisoned"),
-        "the placer's own row cannot state it: {}",
-        scene.placer_row()
     );
 }
 
-/// A DECIDED-ZERO direction is the other half of the same door, and
-/// it is the case the retired doc listed as a dangling head by name.
+/// A DECIDED-ZERO direction is the other half of the same door.
 #[test]
 fn a1_a_degenerate_pattern_direction_names_the_direction() {
     let scene = patterned(
@@ -303,12 +240,9 @@ fn a1_a_degenerate_pattern_direction_names_the_direction() {
         4,
         1,
     );
-    let f = scene.fault();
-    let (_, kind) = carried(&f);
-    assert_eq!(kind, scene.own_refusal(), "the twin raises the same kind");
+    let (kind, class) = scene.points_at(scene.placer, "degenerate");
     assert!(
-        carried_class(&f) == NodeErrorClass::DegenerateDirection
-            && kind.contains("pattern direction"),
+        class == NodeErrorClass::DegenerateDirection && kind.contains("pattern direction"),
         "{kind}"
     );
 }
@@ -328,18 +262,15 @@ fn a1_a_slot_that_does_not_evaluate_names_the_slot() {
         4,
         1,
     );
-    let f = scene.fault();
-    let (_, kind) = carried(&f);
-    assert_eq!(kind, scene.own_refusal(), "the twin raises the same kind");
+    let (kind, class) = scene.points_at(scene.placer, "slot");
     assert!(
-        carried_class(&f) == NodeErrorClass::Expr
-            && kind.contains(&format!("{:?}", SlotId::Spacing)),
+        class == NodeErrorClass::Expr && kind.contains(&format!("{:?}", SlotId::Spacing)),
         "the refusal names the slot it read: {kind}"
     );
 }
 
-/// A TRANSFORM on the chain refuses in its own role word: the same
-/// door, a different vector.
+/// A TRANSFORM read by the target refuses in its own role word: the
+/// same door, a different vector.
 #[test]
 fn a1_a_transform_with_a_non_finite_axis_names_its_axis() {
     let (scene, _) = build("msolve3-transform", |doc, legs, leg_body| {
@@ -348,28 +279,22 @@ fn a1_a_transform_with_a_non_finite_axis_names_its_axis() {
         // part's own face, read AT the transform.
         (doc, moved, in_part(legs, leg_body, CapEnd::End), Vec::new())
     });
-    let f = scene.fault();
-    let (placer, kind) = carried(&f);
-    assert_eq!(placer, scene.placer, "{f:?}");
-    assert_eq!(kind, scene.own_refusal(), "the twin raises the same kind");
+    let (kind, class) = scene.points_at(scene.placer, "transform");
     assert!(
-        carried_class(&f) == NodeErrorClass::NonFiniteDirection
-            && kind.contains("transform rotation axis"),
+        class == NodeErrorClass::NonFiniteDirection && kind.contains("transform rotation axis"),
         "{kind}"
     );
 }
 
 /// **A transform's CHAIN refuses in its own voice too.** A literal step
 /// then a rigid step whose motion does not derive — an axis of no
-/// definite length, or an angle that does not evaluate: the solve
-/// reaches the transform's motion through the one construction the
-/// node evaluation uses, over the node's slots from the evaluation's
-/// own door, so it refuses `PlacerRefused` naming the TRANSFORM and
-/// carrying exactly the kind the transform's own evaluation raises on
-/// the twin — the angle named at step 1's own address.
+/// definite length, or an angle that does not evaluate: the placement
+/// is poisoned through the TRANSFORM, whose own row carries exactly the
+/// kind its evaluation raises on the twin — the angle named at step
+/// 1's own address.
 #[test]
 fn a1_a_chain_whose_later_step_does_not_derive_names_the_transform() {
-    for (label, late, class) in [
+    for (label, late, want) in [
         (
             "msolve3-chain-axis",
             editor_core::Step::Rigid {
@@ -399,15 +324,8 @@ fn a1_a_chain_whose_later_step_does_not_derive_names_the_transform() {
             let (doc, moved) = insert(doc, Node::transform(legs, chain));
             (doc, moved, in_part(legs, leg_body, CapEnd::End), Vec::new())
         });
-        let f = scene.fault();
-        let (placer, kind) = carried(&f);
-        assert_eq!(placer, scene.placer, "{label}: names the transform: {f:?}");
-        assert_eq!(
-            kind,
-            scene.own_refusal(),
-            "{label}: the twin raises the same kind"
-        );
-        assert_eq!(carried_class(&f), class, "{label}: {kind}");
+        let (kind, class) = scene.points_at(scene.placer, label);
+        assert_eq!(class, want, "{label}: {kind}");
         if class == NodeErrorClass::Expr {
             assert!(
                 kind.contains(&format!(
@@ -418,30 +336,6 @@ fn a1_a_chain_whose_later_step_does_not_derive_names_the_transform() {
             );
         }
     }
-}
-
-/// **Two faults on one node, and the same winner on both roads.** A
-/// transform whose axis is degenerate AND whose angle does not
-/// evaluate: the node's slot order decides which refusal is reported,
-/// and the mate road must not report a different one from the node's
-/// own evaluation.
-#[test]
-fn a1_two_faults_on_one_placer_pick_the_same_winner() {
-    let (scene, _) = build("msolve3-two-faults", |doc, legs, leg_body| {
-        let mut t = xform(legs, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], 0.5);
-        if let Some(angle) = t.expr_mut(SlotId::RotationAngle) {
-            *angle = Formula::mul(ang(1e200), scl(1e200)).expect("angle times scalar");
-        }
-        let (doc, moved) = insert(doc, t);
-        (doc, moved, in_part(legs, leg_body, CapEnd::End), Vec::new())
-    });
-    let f = scene.fault();
-    let (_, kind) = carried(&f);
-    assert_eq!(
-        kind,
-        scene.own_refusal(),
-        "the two roads read the node's slots in one order"
-    );
 }
 
 /// **A circular rule whose `axis` reads no axis is refused at the
@@ -509,11 +403,10 @@ fn a1_a_circular_rule_over_a_non_axis_is_refused_at_the_door() {
 
 /// **A slot of the axis DATUM is reported at the datum.** The pattern
 /// has no `Direction(X)` slot, so naming the pattern here would blame
-/// a node for a slot it does not carry: the refusal names the node
-/// whose evaluation raised it, which is the node an author goes and
-/// fixes. On the twin the pattern is merely `Poisoned` through that
-/// datum, which is why the mate's fault is the only place the cause
-/// is legible.
+/// a node for a slot it does not carry: the placement is poisoned
+/// through the node whose evaluation raised it — the nearest FAILED
+/// node, past the pattern it poisons — which is the node an author
+/// goes and fixes.
 #[test]
 fn a1_an_axis_datums_slot_refusal_is_reported_at_the_datum() {
     let (scene, extra) = build("msolve3-circular-datum-slot", |doc, legs, leg_body| {
@@ -539,45 +432,15 @@ fn a1_an_axis_datums_slot_refusal_is_reported_at_the_datum() {
         (doc, pattern, name, vec![axis])
     });
     let datum = extra[0];
-    let f = scene.fault();
-    let (placer, kind) = carried(&f);
-    assert_eq!(
-        placer, datum,
-        "the datum raised it, so the datum is named: {f:?}"
-    );
-    assert_eq!(
-        kind,
-        scene.own_refusal_of(datum),
-        "word for word with the datum's own"
-    );
+    let (kind, _) = scene.points_at(datum, "datum slot");
     assert!(
         kind.contains(&format!("{:?}", SlotId::Direction(Axis3::X))),
         "{kind}"
     );
-    assert!(
-        f.to_string().contains(&format!(
-            "node {}",
-            test_utils::refusal::tag(datum.0.digest())
-        )),
-        "and the message names that node: {f}"
-    );
-    // Off the chain, the datum is not poisoned by the fault: its own
-    // row states the refusal, so the fault points there and carries
-    // nothing.
-    assert_eq!(
-        scene.mated_refusal_of(datum).as_deref(),
-        Some(kind.as_str()),
-        "the datum's own row in the mated document states it"
-    );
-    assert_eq!(
-        f.carried_chain().count(),
-        0,
-        "a refusal the placer's own row states is not carried: {f:?}"
-    );
 }
 
 /// The datum's DIRECTION, decided: the vector is the datum's, so the
-/// refusal is reported at the datum and carries the datum's role word.
+/// placement points at the datum, whose refusal carries its role word.
 #[test]
 fn a1_an_axis_datums_degenerate_direction_is_reported_at_the_datum() {
     let (scene, extra) = build("msolve3-circular-datum-zero", |doc, legs, leg_body| {
@@ -603,30 +466,19 @@ fn a1_an_axis_datums_degenerate_direction_is_reported_at_the_datum() {
         (doc, pattern, name, vec![axis])
     });
     let datum = extra[0];
-    let f = scene.fault();
-    let (placer, kind) = carried(&f);
-    assert_eq!(placer, datum, "{f:?}");
-    assert_eq!(
-        kind,
-        scene.own_refusal_of(datum),
-        "word for word with the datum's own"
-    );
+    let (kind, class) = scene.points_at(datum, "datum direction");
     assert!(
-        carried_class(&f) == NodeErrorClass::DegenerateDirection
-            && kind.contains("datum axis direction"),
+        class == NodeErrorClass::DegenerateDirection && kind.contains("datum axis direction"),
         "{kind}"
     );
 }
 
-/// **The derived offset refuses the value the evaluation refuses.** A
-/// negative or zero spacing, and a zero step or one past a full turn,
-/// reach the mate solve through the same operand constructor the
-/// pattern node steps by, so the fault carries the kind the twin's own
-/// evaluation raises, word for word. A mate onto copy 0 reads no step
-/// at all: the master is the identity on both roads, so its solve
-/// records no fault while the pattern itself still refuses.
+/// **A spacing or a step the pattern refuses is the pattern's refusal.**
+/// A negative or zero spacing, and a zero step or one past a full turn:
+/// the placement reading a copy is poisoned through the pattern, whose
+/// own row carries the kind its evaluation raises on the twin.
 #[test]
-fn a1_a_spacing_or_step_the_evaluation_refuses_the_solve_refuses() {
+fn a1_a_spacing_or_step_the_pattern_refuses_is_its_own_refusal() {
     let linear = |spacing: f64| PatternKind::Linear {
         direction: [scl(1.0), scl(0.0), scl(0.0)],
         spacing: len(spacing),
@@ -654,28 +506,12 @@ fn a1_a_spacing_or_step_the_evaluation_refuses_the_solve_refuses() {
         ),
     ] {
         let scene = kind.scene(label, 1);
-        let f = scene.fault();
-        let (placer, refused) = carried(&f);
-        assert_eq!(placer, scene.placer, "{label}: the pattern is named: {f:?}");
-        assert_eq!(refused, scene.own_refusal(), "{label}: the twin's own kind");
-        assert_eq!(carried_class(&f), class, "{label}: {refused}");
-
-        let master = kind.scene(&format!("{label}-copy-0"), 0);
-        assert!(
-            solve(&master.doc, &master.opts(), Tol::witness())
-                .fault(master.mate)
-                .is_none(),
-            "{label}: a mate onto copy 0 reads no step"
-        );
-        assert!(
-            master.own_refusal().contains(&format!("{class:?}")),
-            "{label}: the pattern refuses on its own all the same: {}",
-            master.own_refusal()
-        );
+        let (refused, got) = scene.points_at(scene.placer, label);
+        assert_eq!(got, class, "{label}: {refused}");
     }
 }
 
-/// A stepped rule [`a1_a_spacing_or_step_the_evaluation_refuses_the_solve_refuses`]
+/// A stepped rule [`a1_a_spacing_or_step_the_pattern_refuses_is_its_own_refusal`]
 /// mates through: a linear rule as written, or a circular one at a
 /// step about a z-axis datum the scene inserts.
 #[derive(Clone)]
@@ -721,12 +557,10 @@ impl Rule {
 /// **The explicit rule, measured where it can be reached.** A
 /// `Node::Pattern` carries its count as a slot, so an explicit
 /// placement list is a second spelling of the same number and the
-/// EDIT door refuses it — no document the solve reads can carry one,
-/// and `derived_offset`'s `PlacementRule(CountSpelling)` arm is the
-/// backstop for a hand-built one. This row pins the door that keeps
-/// it unreachable rather than claiming to exercise the arm.
+/// EDIT door refuses it — no document a mate reads through can carry
+/// one. This row pins the door that keeps it unreachable.
 #[test]
-fn an_explicit_pattern_rule_never_reaches_the_solve() {
+fn an_explicit_pattern_rule_never_reaches_a_mate() {
     let mut store = PartStore::new();
     let leg = store.insert(block("msolve3-explicit-leg").0, Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("msolve3-explicit"), Tol::witness());
@@ -745,7 +579,6 @@ fn an_explicit_pattern_rule_never_reaches_the_solve() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect_err("a pattern spells its count once");
     assert!(
@@ -755,13 +588,13 @@ fn an_explicit_pattern_rule_never_reaches_the_solve() {
     let _ = store;
 }
 
-// ---- what stays a dangling head ----
+// ---- a target that stops resolving after the mate is in ----
 
 /// A copy index at the pattern's count names a copy that does not
-/// exist — still `DanglingHead`, at the pattern. The mate names copy
-/// 2 of a count-3 pattern that then shrinks to two copies: a head at
-/// the count at insert is the edit door's to refuse, and this is how
-/// one arises after it.
+/// exist. The mate reads copy 2 of a count-3 pattern that then shrinks
+/// to two copies: the pattern still evaluates, and the placement's own
+/// evaluation refuses — its `to` pose does not evaluate
+/// (`SideUnevaluated`), carrying the read's own refusal.
 #[test]
 fn an_index_at_the_count_is_still_a_dangling_head() {
     let mut scene = patterned(
@@ -783,15 +616,25 @@ fn an_index_at_the_count_is_still_a_dangling_head() {
         },
     );
     scene.doc = doc;
-    let f = scene.fault();
     assert!(
-        matches!(&f, MateFault::DanglingHead { head, .. } if *head == scene.placer),
+        scene.mated_refusal_of(scene.placer).is_none(),
+        "the shrunk pattern evaluates"
+    );
+    let f = solve(&scene.doc, &scene.opts(), Tol::witness())
+        .fault(scene.mate.placement)
+        .cloned()
+        .expect("the placement refuses the pose it cannot read");
+    assert!(
+        matches!(
+            &f,
+            MateFault::SideUnevaluated { mate, side: MateSide::To, .. } if *mate == scene.mate
+        ),
         "{f:?}"
     );
 }
 
-/// A stranded body leaves the side unresolved — `SideUnresolved`,
-/// naming the side.
+/// A deleted placer leaves the target's read unresolved — the
+/// placement's own `UnresolvedRead`, at the mate's `to` seat.
 #[test]
 fn a_stranded_operand_is_still_a_dangling_head() {
     let scene = patterned(
@@ -803,48 +646,45 @@ fn a_stranded_operand_is_still_a_dangling_head() {
         4,
         1,
     );
-    let o = scene.opts();
-    // Deleting the placer strands the mate's operand and splits the
-    // group: the edit levers through the store's reach.
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let (doc, _) = step_with(scene.doc, DocEdit::DeleteNode { id: scene.placer }, &reach);
-    let f = solve(&doc, &o, Tol::witness())
-        .fault(scene.mate)
-        .cloned()
-        .expect("the stranded mate refuses");
-    assert!(
-        matches!(&f, MateFault::SideUnresolved { mate, .. } if *mate == scene.mate),
-        "{f:?}"
-    );
+    let (doc, _) = step(scene.doc.clone(), DocEdit::DeleteNode { id: scene.placer });
+    match run(&doc, &scene.opts()).result(scene.mate.placement) {
+        Some(NodeResult::Failed(err)) => assert!(
+            matches!(
+                err.kind,
+                NodeErrorKind::UnresolvedRead {
+                    slot: OperandSlot::Side {
+                        constraint,
+                        side: MateSide::To,
+                    },
+                    ..
+                } if constraint == scene.mate.id
+            ),
+            "{:?}",
+            err.kind
+        ),
+        other => panic!("the stranded placement refuses its read: {other:?}"),
+    }
 }
 
-// ---- the rider ----
+// ---- the placement axis ----
 
 /// **A degenerate placement axis refuses naming the AXIS.** The
 /// constructor decides the axis through the direction door, so an
-/// author who builds a frame and sets it reads the vector they
-/// authored — not the frame the constructor would have built.
+/// author who builds a frame and pins a copy at it reads the vector
+/// they authored — not the frame the constructor would have built.
 #[test]
 fn the_placement_axis_refuses_in_its_own_voice() {
     let mut store = PartStore::new();
-    let part = store.insert(block("msolve3-rider-part").0, Tol::witness());
-    let doc = ProfileDoc::empty(DocumentId::derive("msolve3-rider"), Tol::witness());
-    let (doc, instance) = insert(doc, Node::instantiate_part(part));
+    let part = store.insert(block("msolve3-placement-axis-part").0, Tol::witness());
+    let opts = options(&Arc::new(store));
+    let doc = ProfileDoc::empty(DocumentId::derive("msolve3-placement-axis"), Tol::witness());
+    let (doc, instance) = insert(doc, fixture::mated_instance(part));
 
-    // The natural spelling: build the frame, set it, one error type.
+    // The natural spelling: build the frame, pin the instance to the
+    // world at it, one error type.
     let set = |axis: [f64; 3]| -> Result<ProfileDoc, EditError> {
         let frame = Frame::rotate_then_translate(axis, 0.5, [1.0, 2.0, 3.0], fixture::band())?;
-        Ok(editor_core::apply(
-            &doc,
-            &DocEdit::SetOffset {
-                instance,
-                offset: Some(editor_core::Placement::literal(&frame)),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )?
-        .doc)
+        Ok(fixture::pin(doc.clone(), instance, &frame, &opts))
     };
 
     let refused = set([0.0, 0.0, 0.0]).expect_err("a zero axis has no direction");
@@ -902,5 +742,4 @@ fn the_placement_axis_refuses_in_its_own_voice() {
         .expect("a length clear of the band's escalation is a direction");
 
     set([0.0, 0.0, 1.0]).expect("a definite axis still goes through");
-    let _ = store;
 }

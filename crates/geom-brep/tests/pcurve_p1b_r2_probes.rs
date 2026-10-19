@@ -65,6 +65,7 @@ fn r2_a_secant_of_a_cylinder_is_refused_as_a_chart_image_of_it() {
         q0,
         q1,
         &lookup,
+        1.0,
         band(),
     )
     .expect_err("a 60-degree secant is half a radius off the wall");
@@ -117,6 +118,7 @@ fn r2_the_same_chord_certifies_in_a_plane_that_contains_it() {
         q0,
         q1,
         &lookup,
+        1.0,
         band(),
     )
     .expect("a chord of a plane lies in the plane");
@@ -156,6 +158,7 @@ fn r2_the_secant_refusal_is_metric_not_categorical() {
         q0,
         q1,
         &lookup,
+        1.0,
         band(),
     );
     // **(evidence — this row reports, it does not gate.)** Which way it
@@ -222,11 +225,12 @@ fn r2_the_rest_conversion_moves_only_the_description() {
         }
         _ => panic!("the carrier kind changed"),
     }
-    let edge = EdgeCurve::certify(at_rest, q0, q1, &lookup, band()).expect("it rests in the plane");
+    let edge =
+        EdgeCurve::certify(at_rest, q0, q1, &lookup, 1.0, band()).expect("it rests in the plane");
     assert!(matches!(edge.description(), EdgeDescription::Chart(_)));
     assert!(
         edge.authority().is_declared(),
-        "the pushforward became the authority record, so prefer-intrinsic still reads Declared"
+        "the pushforward became the authority record, which still reads Declared"
     );
 }
 
@@ -304,11 +308,12 @@ fn r2_restating_a_certified_edge_preserves_is_declared() {
         q0,
         q1,
         &lookup,
+        1.0,
         band(),
     )
     .expect("rests in the plane");
     assert!(declared.authority().is_declared());
-    let again = EdgeCurve::certify(declared.restated_spec(), q0, q1, &lookup, band())
+    let again = EdgeCurve::certify(declared.restated_spec(), q0, q1, &lookup, 1.0, band())
         .expect("a restatement re-certifies");
     assert!(
         again.authority().is_declared(),
@@ -328,12 +333,13 @@ fn r2_restating_a_certified_edge_preserves_is_declared() {
         q0,
         q1,
         &lookup,
+        1.0,
         band(),
     )
     .expect("rests in the plane");
     assert!(!derived.authority().is_declared());
     assert!(
-        !EdgeCurve::certify(derived.restated_spec(), q0, q1, &lookup, band())
+        !EdgeCurve::certify(derived.restated_spec(), q0, q1, &lookup, 1.0, band())
             .expect("re-certifies")
             .authority()
             .is_declared()
@@ -341,7 +347,7 @@ fn r2_restating_a_certified_edge_preserves_is_declared() {
 }
 
 /// **R2-G7.** Splitting a declared chart image leaves BOTH children
-/// declared — the prefer-intrinsic verdict cannot be shed by cutting
+/// declared — the declaration cannot be shed by cutting
 /// an edge in half.
 #[test]
 fn r2_splitting_a_declared_chart_image_keeps_both_children_declared() {
@@ -356,13 +362,15 @@ fn r2_splitting_a_declared_chart_image_keeps_both_children_declared() {
         q0,
         q1,
         &lookup,
+        1.0,
         band(),
     )
     .expect("rests in the plane");
     let mid = p(1.0, 0.0, 0.0);
     let (a, b) = parent.split_specs(1.0);
     for (spec, s, e) in [(a, q0, mid), (b, mid, q1)] {
-        let child = EdgeCurve::certify(spec, s, e, &lookup, band()).expect("the child certifies");
+        let child =
+            EdgeCurve::certify(spec, s, e, &lookup, 1.0, band()).expect("the child certifies");
         assert!(
             child.authority().is_declared(),
             "a split child kept its parent's declaration"
@@ -399,6 +407,7 @@ fn r2_a_param_span_refusal_says_it_is_not_a_sampled_check() {
         q,
         p(1.0, 0.0, 0.0),
         &lookup,
+        1.0,
         band(),
     )
     .expect_err("a decreasing interval is refused");
@@ -422,8 +431,15 @@ fn r2_a_param_span_refusal_says_it_is_not_a_sampled_check() {
 fn r2_the_scaffolding_door_certifies_with_no_surface_at_all() {
     let (_keys, lookup) = table::<f64>(vec![]);
     let (q0, q1) = (p(0.0, 0.0, 0.0), p(0.0, 0.0, 3.0));
-    let edge = EdgeCurve::certify(EdgeCurveSpec::line_between(q0, q1), q0, q1, &lookup, band())
-        .expect("scaffolding needs no chart");
+    let edge = EdgeCurve::certify(
+        EdgeCurveSpec::line_between(q0, q1),
+        q0,
+        q1,
+        &lookup,
+        1.0,
+        band(),
+    )
+    .expect("scaffolding needs no chart");
     assert!(edge.description().is_scaffold());
     assert!(
         matches!(
@@ -474,6 +490,7 @@ fn r2_a_die_scale_strut_chord_on_a_planar_support_certifies_exactly() {
         q0,
         q1,
         &lookup,
+        1.0,
         // The ε the PR names for the escalation.
         // Deliberately not `shared::tol::band()`: the zero threshold is
         // the fixed 1e-6 the PR names for this escalation, not the run's

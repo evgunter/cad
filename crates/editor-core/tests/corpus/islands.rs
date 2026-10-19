@@ -41,6 +41,7 @@
 //!   strictly inside both the tube's `[0.5,3]` and the pillar's
 //!   `[0.75,2.75]`, so the cross section is constant through it)
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, Node, RecipeNodeId, SlotId};
 
@@ -86,7 +87,7 @@ pub fn document_105() -> CorpusDoc {
     let u2 = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![u1.into(), pillar.into()]),
     });
-    r.place(u2);
+    r.place_part(u2);
 
     CorpusDoc {
         name: "nested_islands_105",
@@ -117,7 +118,7 @@ pub fn document_106_depth1() -> CorpusDoc {
     let cut = r.insert(Node::Intersect {
         members: editor_core::Bodies::Spelled(vec![u1.into(), slab.into()]),
     });
-    r.place(cut);
+    r.place_part(cut);
 
     CorpusDoc {
         name: "nested_islands_106_depth1",
@@ -153,7 +154,7 @@ pub fn document_106_depth2() -> CorpusDoc {
     let cut = r.insert(Node::Intersect {
         members: editor_core::Bodies::Spelled(vec![u2.into(), slab.into()]),
     });
-    r.place(cut);
+    r.place_part(cut);
 
     CorpusDoc {
         name: "nested_islands_106_depth2",

@@ -10,7 +10,7 @@
 
 use geom_core::{Band, Decided, Indeterminate};
 
-use crate::recourse::{Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
+use crate::recourse::{Reading, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 
 /// **A half of the ring-torus convention `R > r > 0`**, as a decision.
 /// A torus outside it (no tube, a horn, a spindle) has no
@@ -67,7 +67,7 @@ impl TorusConvention {
             lever,
             size,
             passes: SizedPass::Positive,
-            stored: StoredDefinite::Lever,
+            side: RefusedSide::Lever,
             no_size: None,
         }
     }
@@ -76,18 +76,22 @@ impl TorusConvention {
     /// colon or dash of its own.
     #[must_use]
     pub fn refused(self, whose: &str, verdict: Refused) -> String {
-        let margin = verdict.margin();
+        let margin = verdict.margin().readable();
         match (self, verdict) {
             (Self::Tube, Refused::Zero(_)) => {
-                format!("{whose} tube radius is not shown above zero (margin {margin:e} m)")
+                format!("{whose} tube radius is not shown above zero (margin {margin} m)")
             }
-            (Self::Tube, Refused::Negative { .. }) => format!("{whose} tube radius is negative"),
+            (Self::Tube, Refused::Negative { .. }) => {
+                format!("{whose} tube radius is below zero (margin {margin} m)")
+            }
             (Self::Ring, Refused::Zero(_)) => format!(
-                "{whose} tube radius is not shown smaller than its ring radius \
-                 (margin {margin:e} m)"
+                "{whose} tube radius is not shown smaller than its ring's (margin {margin} m)"
             ),
             (Self::Ring, Refused::Negative { .. }) => {
-                format!("{whose} tube radius is larger than its ring radius (a spindle torus)")
+                format!(
+                    "{whose} tube radius is larger than its ring's (margin {margin} m), so the \
+                     surface is a spindle"
+                )
             }
         }
     }
@@ -186,21 +190,55 @@ mod tests {
     /// **A zero verdict prints its reading and names no shape**: a
     /// positive difference inside the zero band does not make a horn,
     /// nor does a positive tube radius inside it make no tube, so the
-    /// clause says only what the band did.
+    /// clause says only what the band did, and an exact zero reads `0`.
+    /// A negative verdict was decided, and says what it decided.
     #[test]
     fn a_zero_verdict_prints_its_reading() {
         let band = Band::new(1e-9, 1e-8).expect("a valid band");
-        let zero = Refused::Zero(Classified {
-            margin: MarginDiag::value(5e-10),
-            band,
-        });
-        assert_eq!(
-            TorusConvention::Tube.refused("a torus face's", zero),
-            "a torus face's tube radius is not shown above zero (margin 5e-10 m)"
-        );
-        assert_eq!(
-            TorusConvention::Ring.refused("a torus face's", zero),
-            "a torus face's tube radius is not shown smaller than its ring radius (margin 5e-10 m)"
-        );
+        let zero = |m| {
+            Refused::Zero(Classified {
+                margin: MarginDiag::value(m),
+                band,
+            })
+        };
+        let negative = Refused::Negative {
+            margin: MarginDiag::value(-0.5),
+        };
+        let whose = "a torus face's";
+        let rows = [
+            (
+                TorusConvention::Tube.refused(whose, zero(5e-10)),
+                "a torus face's tube radius is not shown above zero (margin 5e-10 m)",
+            ),
+            (
+                TorusConvention::Tube.refused(whose, zero(0.0)),
+                "a torus face's tube radius is not shown above zero (margin 0 m)",
+            ),
+            (
+                TorusConvention::Tube.refused(whose, zero(-0.0)),
+                "a torus face's tube radius is not shown above zero (margin 0 m)",
+            ),
+            (
+                TorusConvention::Ring.refused(whose, zero(5e-10)),
+                "a torus face's tube radius is not shown smaller than its ring's (margin 5e-10 m)",
+            ),
+            (
+                TorusConvention::Tube.refused(whose, negative),
+                "a torus face's tube radius is below zero (margin -0.5 m)",
+            ),
+            (
+                TorusConvention::Ring.refused(whose, negative),
+                "a torus face's tube radius is larger than its ring's (margin -0.5 m), so the \
+                 surface is a spindle",
+            ),
+        ];
+        for (got, want) in rows {
+            assert_eq!(got, want);
+            assert_eq!(
+                crate::recourse::repeated_words(&got),
+                Vec::<String>::new(),
+                "a word said twice: {got}"
+            );
+        }
     }
 }

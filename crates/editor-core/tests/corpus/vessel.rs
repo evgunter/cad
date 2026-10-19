@@ -32,6 +32,7 @@
 //! docs): a dual has no shell door, and registry membership requires
 //! every document green at `Dual64`.
 
+use super::PlacePart;
 use editor_core::Formula;
 use editor_core::{
     DocEdit, LoopProgram, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramArcData,
@@ -104,7 +105,7 @@ pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>
     let pot = r.insert(revolve_about(
         profile,
         (0.0, 0.0),
-        (0.0, 1.0),
+        crate::fixture::along_y(),
         ang(std::f64::consts::TAU),
     ));
     let open = open(&r.doc, pot);
@@ -113,7 +114,7 @@ pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>
         len(WALL),
         open,
     ));
-    r.place(vessel);
+    r.place_part(vessel);
 
     CorpusDoc {
         name: "vessel",
@@ -185,7 +186,7 @@ pub fn capped_document() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let pot = r.insert(revolve_about(
         profile,
         (0.0, 0.0),
-        (0.0, 1.0),
+        crate::fixture::along_y(),
         ang(std::f64::consts::TAU),
     ));
     let cap = crate::fixture::piece(&r.doc, pot, 0, SEG_CAP as usize);

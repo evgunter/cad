@@ -36,6 +36,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use profile::SketchPlane;
 
 use common::{arc_section, stacked, sup_dist};
 use geom::{Curve3, Surface};
@@ -48,14 +49,14 @@ use sweep::{Section, loft_body};
 /// section is not an affine image of the ends, so the four walls are
 /// genuinely curved degree-2 nets rather than ruled strips — and, being
 /// polyline profiles, every weight is 1.
-fn walled_sections() -> (Vec<Section>, Vec<Affine3<f64>>) {
+fn walled_sections() -> (Vec<Section>, Vec<SketchPlane<f64>>) {
     (loft_prism_sections(), stacked_at(&PRISM_Z))
 }
 
 /// The arc-bearing profile at two scales: its quarter-circle side
 /// skins to a RATIONAL wall, which is the storage the map's
 /// correctness actually depends on.
-fn rational_sections() -> (Vec<Section>, Vec<Affine3<f64>>) {
+fn rational_sections() -> (Vec<Section>, Vec<SketchPlane<f64>>) {
     let sections = vec![arc_section(1.0), arc_section(1.4), arc_section(1.0)];
     (sections, stacked(&[0.0, 1.0, 2.0], 1.0))
 }
@@ -123,10 +124,21 @@ fn check_walls(
         if b.weights().iter().any(|w| (w - 1.0).abs() > 1e-9) {
             rational += 1;
         }
-        assert_eq!(a.knots_u(), b.knots_u(), "u knots moved");
-        assert_eq!(a.knots_v(), b.knots_v(), "v knots moved");
+        assert_eq!(
+            a.knots_u_f64_interim(),
+            b.knots_u_f64_interim(),
+            "u knots moved"
+        );
+        assert_eq!(
+            a.knots_v_f64_interim(),
+            b.knots_v_f64_interim(),
+            "v knots moved"
+        );
         assert_eq!(a.weights(), b.weights(), "the weight channel moved");
-        let (du, dv) = (b.knots_u().domain(), b.knots_v().domain());
+        let (du, dv) = (
+            b.knots_u_f64_interim().domain(),
+            b.knots_v_f64_interim().domain(),
+        );
         for i in 0..=8 {
             for j in 0..=8 {
                 let u = du.0 + (du.1 - du.0) * f64::from(i) / 8.0;
@@ -237,9 +249,9 @@ fn a_nurbs_carrier_maps_to_its_exact_image() {
             continue;
         };
         carriers += 1;
-        assert_eq!(a.knots(), b.knots(), "knots moved");
+        assert_eq!(a.knots_f64_interim(), b.knots_f64_interim(), "knots moved");
         assert_eq!(a.weights(), b.weights(), "the weight channel moved");
-        let d = b.knots().domain();
+        let d = b.knots_f64_interim().domain();
         for i in 0..=16 {
             let t = d.0 + (d.1 - d.0) * f64::from(i) / 16.0;
             let want = map.transform_point(b.eval(t));

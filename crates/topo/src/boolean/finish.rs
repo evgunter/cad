@@ -63,6 +63,15 @@ pub(super) struct FinishOut<T: geom_core::Real> {
     pub graft: GraftMap,
     /// The faces the selection discarded (`BooleanNaming::discards`).
     pub discards: Vec<DiscardRow>,
+    /// Under ∖, the edges of B's input the reverted part keeps a piece
+    /// of, read back through the reduction's splits: the clone's piece
+    /// ends sit on point keys of their own, and the clone holds
+    /// coincident edges of its own where the other operand's lie in its
+    /// faces, so ∖'s lines are read on the input and kept through these.
+    pub reverted_roots: BTreeSet<crate::entity::EdgeKey>,
+    /// The split records each operand's carve killed, A's then B's, in
+    /// clone keys (`BooleanNaming::carved_lineage`).
+    pub carved_lineage: [BTreeMap<crate::entity::EdgeKey, crate::entity::EdgeKey>; 2],
 }
 
 /// Which side each operand keeps (Eq. 15.1 as data).
@@ -270,10 +279,19 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         .map_err(|_| desync("carving the kept A component failed"))?;
     let mut b_kept = carve(&red.b, b_solid, &b_kept_shells)
         .map_err(|_| desync("carving the kept B component failed"))?;
+    let carved_lineage = [
+        super::discard::carved_lineage(&red.a, &a_kept),
+        super::discard::carved_lineage(&red.b, &b_kept),
+    ];
 
     // ---- ∖: revert the kept B side (Eq. 15.1's (BinA)⁻¹). ----
+    let mut reverted_roots = BTreeSet::new();
     if op == BooleanOp::Subtract {
-        b_kept = b_kept.revert();
+        reverted_roots = b_kept
+            .edges()
+            .map(|(edge, _)| red.edge_splits.root(Operand::B, edge))
+            .collect();
+        b_kept = b_kept.reverted();
     }
 
     // ---- The combine door. ----
@@ -410,6 +428,8 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         vertex_map,
         graft,
         discards,
+        reverted_roots,
+        carved_lineage,
     })
 }
 

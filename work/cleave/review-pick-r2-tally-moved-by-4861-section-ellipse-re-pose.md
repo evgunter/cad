@@ -35,6 +35,10 @@ This fits #4861 re-posing the ellipse carrier (`u_ref` on a principal axis), whi
 
 **Why it landed red:** `review_pick_r2` is in the slow set (`.config/nextest.toml`), which per-PR CI does not run.
 
+**Moved again by INTENT stage 3 A′** (PR 5243, measured 2026-10-17): main at `82d0f5c2b7` still answers (441198, 141201, 12294, 6504), and the A′ branch answers (441198, 141763, 12306, 6534). A′ gives a revolve's axis a heading, so the gallery ring (`crates/viewer/tests/gallery_ring.pncad`) turns about an axis whose quarter-turn cosine rounds to 6e-17, and its meridian vertices sit about 3e-19 off `y = 0`. 562 more rays are answered at the aimed vertex than on main, 12 more candidates are refused, and 30 more rays carry a refusal. A′ did not re-pin the row.
+
 ## What is open
 
 The owner decides whether the 60 lost aimed-vertex answers are acceptable, and re-pins with that reading stated, or fixes what lost them. Until then, every program's downstream run sees this row red on main.
+
+**Re-pinned, then moved again (2026-10-19).** INTENT stage 3 C (PR 5267) re-pinned the row to A′'s tally (441198, 141763, 12306, 6534). PR 5225 (`pcert/azimuth-placement`) then moved it to (441198, 141805, 13524, 6936), and the 2026-10-19 nightly is red at every ε. That movement is filed on PCERT's slate as `review-pick-r2-tally-moved-at-5225-azimuth-placement`. The question above about PR 4861's lost answers is still open.

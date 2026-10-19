@@ -253,7 +253,8 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
     } else {
         // Limb 2's hull value at a break on the rim: 1.5994e-6 m at 1e-9,
         // past the band, so it refuses outright; 1.02e-6 m at 1e-6, in the
-        // band, so it escalates. It moves when the rim's derivation does,
+        // band, so it escalates. The rim's own foot reads 2.2e-16 m at
+        // that break, so the miss is its pcurve's (`ImageMiss`). It moves when the rim's derivation does,
         // so the 1e-9 arm reads it within 5%.
         let ReplaceFaceError::Op {
             error: topo::EulerOpError::RechartFalsifies { edge, error, .. },
@@ -264,7 +265,7 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
         };
         if eps < 1e-7 {
             let geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                limb: geom_brep::ssi::SsiLimb::HullValueChart,
+                limb: geom_brep::ssi::SsiLimb::ImageMiss,
                 margin,
             }) = error
             else {
@@ -376,11 +377,11 @@ fn a_dual_scalar_refuses_the_spline_seam_re_anchor_by_name() {
     };
     let places = [0.0, 1.0]
         .iter()
-        .map(|z| geom_core::Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .map(|z| profile::SketchPlane::xy_at(geom_core::Point3::new(0.0, 0.0, *z)))
         .collect::<Vec<_>>();
     let body = sweep::loft_body::<Dual64>(
         &sweep::test_support::lift_sections::<Dual64>(&[square(), square()]),
-        &sweep::test_support::lift_places::<Dual64>(&places),
+        &sweep::test_support::lift_places::<Dual64>(&places, geom_core::Tol::witness()),
         1,
         Tol::witness(),
     )
@@ -411,7 +412,7 @@ fn vase() -> Body<f64> {
     };
     let places = [0.0, 1.0, 2.0]
         .iter()
-        .map(|z| geom_core::Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .map(|z| profile::SketchPlane::xy_at(geom_core::Point3::new(0.0, 0.0, *z)))
         .collect::<Vec<_>>();
     sweep::loft_body::<f64>(
         &[circle(1.0), circle(1.3), circle(1.0)],
@@ -430,9 +431,10 @@ fn vase() -> Body<f64> {
 /// plane's section of one is not exact structure as a row (its skinned
 /// weights differ along the stacking by an ulp), so the door marches
 /// it, and the plane × NURBS certificate refuses the marched rim on its
-/// rational wall, by its limb-2 composite's value at a break, the
-/// carrier read about 4.8e-4 m off the surface point its pcurve names,
-/// as the door re-charts the cap.
+/// rational wall, by its limb-2 composite's value at a break where the
+/// marched carrier's own foot is on the wall (1.3e-14 m there at 1e-9):
+/// its pcurve misses by about 4.8e-4 m (`ImageMiss`), as the door
+/// re-charts the cap.
 #[test]
 fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_at_its_rims_certificate() {
     let body = vase();
@@ -481,7 +483,7 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_at_its_rims_certifica
                 edge,
                 error:
                     geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                        limb: geom_brep::ssi::SsiLimb::HullValueChart,
+                        limb: geom_brep::ssi::SsiLimb::ImageMiss,
                         margin,
                     }),
                 ..
@@ -524,7 +526,7 @@ fn tilted_top_prism() -> Body<f64> {
         Vec3::unit_x(),
         0.2,
     ) * geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 1.0));
-    let places = [geom_core::Affine3::identity(), tilt];
+    let places = [profile::SketchPlane::xy(), crate::common::plane_of(&tilt)];
     sweep::loft_body::<f64>(&[square(), square()], &places, 1, Tol::witness())
         .expect("the tilted-top prism lofts")
         .body
@@ -533,9 +535,10 @@ fn tilted_top_prism() -> Body<f64> {
 /// The march arm builds nothing yet: the moved tilted cap's section of
 /// each polynomial wall is certified by the march, and the plane ×
 /// NURBS edge certificate's limb 2 reads its composite a few
-/// micrometres at a break — the carrier against the surface point its
-/// pcurve names, a bound on its miss — though the marched branch lies
-/// on both surfaces to ~5e-11
+/// micrometres at a break where the marched branch's own foot is on the
+/// wall (its foot reads 8.3e-17 and 2.8e-17 m at the two refusing
+/// breaks at 1e-9): the pcurve's own miss (`SsiLimb::ImageMiss`), the
+/// branch lying on both surfaces to ~5e-11
 /// (`work/ssiedge/plane-nurbs-limb-two-refuses-a-non-row-section.md`).
 /// The gap is a length, not a multiple of ε, so which verdict it earns
 /// is ε's: past the band it refuses, inside the band it escalates.
@@ -570,7 +573,7 @@ fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
         };
         match error {
             geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                limb: geom_brep::ssi::SsiLimb::HullValueChart,
+                limb: geom_brep::ssi::SsiLimb::ImageMiss,
                 margin,
             }) => {
                 let value = upper(*margin);
@@ -579,8 +582,17 @@ fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
                     "eps {eps:e}, d {d}: limb 2 read {margin:e} at a break"
                 );
             }
-            geom_brep::CertifyError::Escalated { check, .. } => {
-                assert_eq!(*check, geom_brep::ssi::SsiLimb::HullValueChart.check());
+            // The door's escalation carries the check and the cause, not
+            // the limb, and `ImageMiss` shares `HullValueChart`'s check and
+            // predicate, so this arm pins the break's value as what
+            // escalated; the limb is pinned where a refusal is definite.
+            geom_brep::CertifyError::Escalated { check, cause, .. } => {
+                assert_eq!(*check, geom_brep::ssi::SsiLimb::ImageMiss.check());
+                assert_eq!(
+                    cause.predicate,
+                    Some("ssi_hull_value_chart"),
+                    "eps {eps:e}, d {d}: the break's value escalated, not the bound"
+                );
                 assert!(
                     10.0 * eps > micrometres.start,
                     "eps {eps:e}, d {d}: limb 2 escalated with no micrometre in the band"
@@ -616,12 +628,12 @@ fn at_interval_the_prism_moves_by_the_shortcut_and_a_slanted_rim_refuses_by_name
     };
     let places = [0.0, 1.0]
         .iter()
-        .map(|z| geom_core::Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .map(|z| profile::SketchPlane::xy_at(geom_core::Point3::new(0.0, 0.0, *z)))
         .collect::<Vec<_>>();
     let loft = |turn: f64| {
         sweep::loft_body::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&[square(0.0), square(turn)]),
-            &sweep::test_support::lift_places::<Interval>(&places),
+            &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
             1,
             Tol::witness(),
         )
@@ -960,7 +972,9 @@ fn a_moved_fitted_cap_stands_its_corners_on_the_held_sides() {
 /// side planes' roots along the plane × fit sections, tier 3 refuses the
 /// cap's volume alone
 /// (`work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`),
-/// and the moved body maps rigidly. Tighter, the fit refuses first.
+/// and the moved body maps rigidly. Tighter, the fit refuses first; at
+/// 1e-9 the moved rim refuses at limb 2's value at a break where its own
+/// foot reads 1.4e-15 and 6.5e-16 m (`ImageMiss`).
 #[test]
 fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
     use crate::common::approx::{top_face, unit_box};
@@ -1023,7 +1037,7 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
                         error: topo::EulerOpError::RechartFalsifies {
                             error: geom_brep::CertifyError::PlaneNurbs(
                                 geom_brep::PlaneNurbsRefusal::Limb {
-                                    limb: geom_brep::ssi::SsiLimb::HullValueChart,
+                                    limb: geom_brep::ssi::SsiLimb::ImageMiss,
                                     ..
                                 }
                             ),

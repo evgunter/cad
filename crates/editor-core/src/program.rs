@@ -5,7 +5,7 @@
 //! `Node::Profile`'s payload: plane placement (stored `f64` in its own
 //! struct — the U4/VQ8 seam stays visible) plus one [`LoopProgram`] per
 //! loop. A loop-program is the constructor-call sequence as data — the
-//! chain vocabulary's steps with every CONTINUOUS argument an [`Expr`]
+//! chain vocabulary's steps with every CONTINUOUS argument an [`Expr`](crate::expr::Expr)
 //! (V2's dimension table) and every STRUCTURAL argument a literal tag
 //! (verb identity, winding, `Start`, the `circle_split` count).
 //!
@@ -192,7 +192,7 @@ pub enum ProgramTarget<S = crate::VarId> {
 }
 
 /// One Expr-bearing recorded verb — the document-layer mirror of
-/// [`profile::Step`], structural tags literal, continuous args [`Expr`]
+/// [`profile::Step`], structural tags literal, continuous args [`Expr`](crate::expr::Expr)
 /// (V2's table: coordinates/lengths/radii `Length`, angle/turn/phase
 /// `Angle`, bulge and director components `Scalar`).
 ///
@@ -212,7 +212,7 @@ pub enum ProgramTarget<S = crate::VarId> {
 /// be discharged in `from_recorded`'s error arm.
 ///
 /// Fields are public data (the node-slot pattern: dimensions are
-/// checked at the edit door via [`ProfilePayload::rows`] +
+/// checked at the edit door via `ProfilePayload::rows` +
 /// [`StepArg::dimension`], and at the persistence doors' shared
 /// validator — never trusted from a parsed file).
 ///
@@ -286,7 +286,7 @@ pub enum ProgramStep<S = crate::VarId> {
 }
 
 /// The document-layer mirror of [`profile::ArcData`] (§2c's unified
-/// arc-spec record): continuous fields [`Expr`], structural tags
+/// arc-spec record): continuous fields [`Expr`](crate::expr::Expr), structural tags
 /// literal (`side`, `winding`, `Start`).
 ///
 /// It is the arc-mode vocabulary's second spelling, and it has to be
@@ -427,7 +427,7 @@ pub enum LoopProgram<S = crate::VarId> {
 /// # Equality is BIT equality
 ///
 /// `PartialEq` compares the frame by NODE IDENTITY and expressions by
-/// [`Expr::bit_eq`] — the canonical payload's equality IS the D7
+/// `Expr::bit_eq` — the canonical payload's equality IS the D7
 /// replay-identity comparator. Comparing the id rather than the
 /// placement it resolves to is the same claim the rest of the DAG
 /// makes about its edges: two profiles on two frames that happen to
@@ -547,7 +547,7 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
         self.authored_with(&mut crate::Formula::var)
     }
     /// Whether any expression of this program reads the variable
-    /// `var` — over [`ProfilePayload::rows`], so every payload answers
+    /// `var` — over `ProfilePayload::rows`, so every payload answers
     /// it the one way.
     fn reads(&self, var: VarId) -> bool {
         self.rows().into_iter().any(|(_, &e)| e == var)
@@ -610,7 +610,7 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
     fn frame_read(&self) -> Option<VarId> {
         None
     }
-    /// [`ProfilePayload::plane_read`], writable: the read a re-point
+    /// `ProfilePayload::plane_read`, writable: the read a re-point
     /// rewrites.
     fn frame_read_mut(&mut self) -> Option<&mut VarId> {
         None
@@ -1238,7 +1238,7 @@ macro_rules! step_roles {
 /// The one declaration the three consumers of a role read:
 /// - the enumeration ([`LoopProgram::step_args`], [`LoopProgram::step_radii`])
 ///   reads the roles in order;
-/// - the addressing ([`ProfilePayload::rows`], and the recorded
+/// - the addressing (`ProfilePayload::rows`, and the recorded
 ///   program's notation) finds the row whose `(step, role)` is asked
 ///   for ([`find_row`]);
 /// - the resolution ([`res_chain_step`], and [`LoopProgram::resolve`]'s
@@ -2255,7 +2255,7 @@ where
     crate::expr::ExprTree<L>: crate::expr::Slot,
 {
     /// BIT equality (struct docs): the frame by node identity,
-    /// expressions by [`Expr::bit_eq`], structure structurally.
+    /// expressions by `Expr::bit_eq`, structure structurally.
     fn eq(&self, other: &Self) -> bool {
         // A field added to `ProfileProgram` is an E0027 at the two
         // patterns below. The vocabulary underneath is held the same
@@ -3057,7 +3057,7 @@ impl core::error::Error for RecordedProgramError {}
 /// Nothing stores a `RecordedNotation`. It is consumed at the lift, and
 /// what survives is the display unit on each literal, which round-trips
 /// through save and load exactly as every literal's does. Two recordings
-/// of one leg written in different units lift to [`Expr::bit_eq`]
+/// of one leg written in different units lift to `Expr::bit_eq`
 /// programs and evaluate to one geometry — the unit is presentation
 /// metadata (DESIGN.md D6), outside expression identity.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -3233,7 +3233,7 @@ impl LoopProgram<Formula> {
     /// document parameters reaches the builder rather than spelling
     /// the expansion out.
     ///
-    /// Infallible: every coordinate is already an [`Expr`], so there
+    /// Infallible: every coordinate is already an [`Expr`](crate::expr::Expr), so there
     /// is no literal left to refuse.
     ///
     /// This is the ONE expansion. [`LoopProgram::polygon`] is this
@@ -3429,7 +3429,7 @@ impl LoopProgram<Formula> {
     /// home, and the literal door reaches it by delegating to the
     /// expression door. `Circle` expands into nothing: it is a struct
     /// variant whose two fields are the whole program, so an author
-    /// holding [`Expr`] arguments writes
+    /// holding [`Expr`](crate::expr::Expr) arguments writes
     /// `LoopProgram::Circle { centre, radius }` (and
     /// `LoopProgram::CircleSplit { .. }`) directly. That literal IS
     /// the parametric door. A constructor over it would be a third

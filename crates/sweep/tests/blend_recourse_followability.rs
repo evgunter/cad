@@ -1282,9 +1282,12 @@ fn top_front_edge(body: &Body<f64>) -> [EdgeKey; 1] {
 /// `0.4` blend of the brick's top front edge puts there: its ring lies
 /// in the top face's strip and its wall runs down through the band. The
 /// blend defines the result (`S − R`) and does not build a crossing, so
-/// the request on the bored brick refuses under both verbs; the ring is
-/// a boundary feature of the support, so the clearance screen answers
-/// first and the caller reads the clearance sentence. Followed: the edge is re-picked on the brick, blended,
+/// the request on the bored brick refuses under both verbs: the ring
+/// lies wholly inside the strip, a mouth the band could take, so the
+/// screen stands down and the reach reads the wall, which runs out of
+/// the band's material through its far side with no boundary witness
+/// inside it, a bound (`FaceClearance`), and the caller reads the
+/// clearance sentence. Followed: the edge is re-picked on the brick, blended,
 /// and the bore subtracted after. The chamfer's band is a plane strip,
 /// which the Boolean serves against the bore's cylinder, so the
 /// reordered request builds, tier-3 valid. The fillet's band is a
@@ -1301,9 +1304,9 @@ fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
     for chamfer in [true, false] {
         let err = refusal(&bored, &edge, d, "the bore crosses the band", chamfer);
         assert!(
-            matches!(err, BlendError::FaceClearanceUncertified { .. }),
-            "chamfer {chamfer}: the bore's ring is in the strip, so the screen answers, \
-             got {err:?}"
+            matches!(err, BlendError::FaceClearance { bounded: true, .. }),
+            "chamfer {chamfer}: the bore's mouth is in the strip, so the reach reads its \
+             wall, got {err:?}"
         );
         carries(&err, FILLET3_CLEARANCE_RECOURSE, "a bore crossing the band");
     }
@@ -1434,35 +1437,38 @@ fn the_ring_recourses_reorder_leg_builds_on_a_parallel_bore() {
 }
 
 /// **A blind hole entering from a support face, wholly inside the
-/// band's removed material.** Its wall never meets an end face's
-/// plane: the hole's ring is a boundary feature of the support face,
-/// nearer the edge than the band sets back, so the clearance screen
-/// answers first under both verbs (`FaceClearanceUncertified`) and the
-/// caller reads the clearance recourse. Followed, the hole drilled
-/// after the blend lies in air: the rule's `S − R`.
+/// band's removed material, goes with it** (the rule's `S − R`): its
+/// ring lies inside the strip the band takes off the support, so the
+/// clearance screen stands down and the strip meter reads it inside,
+/// and its walls and floor lie inside the band's prism
+/// (`band_strip_mouth_cups`). No recourse is owed: the hole drilled
+/// after the blend would lie in air, and the blend's body is that one,
+/// `ΔV = −(2A − π·0.005²·0.03)` over the box's edge of length `2`.
 #[test]
-fn a_blind_hole_from_the_support_face_inside_the_region_refuses_at_the_screen() {
+fn a_blind_hole_from_the_support_face_inside_the_region_goes_with_the_band() {
     use crate::band_planar_cut_off::{Verb, edge, the_box};
+    use crate::band_strip_mouth_cups::post_faces;
     use crate::common::cavity::{cut, rod};
+    let (a, h) = (0.005, 0.03);
+    let body = cut(
+        "blind hole",
+        &the_box(),
+        &rod(Point2::new(1.0, 0.015), a, 1.0 - h, 1.5),
+    );
+    let e = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
+    let axis = (Point3::new(1.0, 0.015, 1.0), Vec3::new(0.0, 0.0, -1.0));
+    let cups = post_faces(&body, axis, a, (0.0, h));
+    assert_eq!(cups.len(), 3, "the hole's two half-walls and floor");
     for verb in [Verb::Chamfer, Verb::Fillet] {
-        let body = cut(
-            "blind hole",
-            &the_box(),
-            &rod(Point2::new(1.0, 0.015), 0.005, 0.97, 1.5),
-        );
-        let e = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
-        let err = verb
-            .run(&body, &[e])
-            .err()
-            .unwrap_or_else(|| panic!("{verb:?}: a blind hole inside the band refuses"));
-        assert!(
-            matches!(err, BlendError::FaceClearanceUncertified { .. }),
-            "{verb:?}: the blind hole refuses at the screen, got {err:?}"
-        );
-        carries(
-            &err,
-            FILLET3_CLEARANCE_RECOURSE,
-            "a blind hole inside the band",
+        let dv = -(2.0 * verb.section() - core::f64::consts::PI * a * a * h);
+        crate::band_one_cycle_members::assert_taken(
+            verb,
+            &body,
+            &[e],
+            crate::band_planar_cut_off::D,
+            (&cups, 1, 0),
+            (dv, 1.0),
+            "a blind hole from the support face",
         );
     }
 }

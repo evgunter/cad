@@ -9,9 +9,13 @@ The quieting rule's rows are Rust's
 pins what a Python caller reads.
 """
 
+import shutil
+import tempfile
 import unittest
+from pathlib import Path
 
-from pncad import Doc, Formula, Node, assemble, evaluate, m
+import pncad
+from pncad import Doc, DocRef, Formula, Node, Workspace, assemble, evaluate, m
 
 
 def block(doc, corner, side, elevation, height):
@@ -62,6 +66,74 @@ class TestInterferenceIsAFinding(unittest.TestCase):
         doc.place(block(doc, (0.0, 0.0), 1.0, 0.0, 1.0))
         doc.place(block(doc, (2.0, 0.0), 1.0, 0.0, 1.0))
         self.assertEqual(assemble(doc, evaluate(doc)).interference, [])
+
+
+class TestAPartsOverlapIsThePartsFinding(unittest.TestCase):
+    """A part crosses into the document instantiating it as one copy, so
+    an overlap between the part's own copies lies inside one copy there:
+    it is the part's finding, reported once on
+    `Assembly.carried_interference` with the route it came by, and never
+    raised (`work/intent/a-part-drops-its-census-findings-at-the-seam.md`)."""
+
+    def test_a_parts_overlap_is_reported_as_carried(self):
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        store = Workspace(str(directory))
+        part = Doc("pncad-carried-overlap-part")
+        part.place(block(part, (0.0, 0.0), 1.0, 0.0, 1.0))
+        part.place(block(part, (0.95, 0.2), 0.6, 0.25, 0.5))
+        (own,) = assemble(part, evaluate(part)).interference
+        store.create(part)
+        outer = Doc("pncad-carried-overlap")
+        instance = outer.insert(
+            Node.instantiate_part(DocRef(part.id, pncad.content_pin(part)), [])
+        )
+        outer.pin(instance, resolver=store)
+        assembly = assemble(outer, evaluate(outer, resolver=store))
+        self.assertEqual(assembly.interference, [], "not this document's overlap")
+        (carried,) = assembly.carried_interference
+        self.assertEqual(carried.of, part.id)
+        self.assertEqual(carried.through, instance)
+        self.assertEqual(carried.via, [instance])
+        finding = carried.finding
+        self.assertTrue(finding.loud)
+        self.assertEqual(
+            (finding.a.hex, finding.b.hex), (own.a.hex, own.b.hex),
+            "the part's own copies",
+        )
+        self.assertIsNone(finding.a.kind, "a variable of the part, not of this document")
+
+
+    def test_a_parts_own_refusal_is_raised_as_carried(self):
+        """A part whose two copies stand 3 nm apart, in the sliver band,
+        refuses its own gate; a document instantiating it raises
+        `AssemblyError` under `carried_at_rest`, each row the part's
+        finding with its route."""
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        store = Workspace(str(directory))
+        part = Doc("pncad-carried-at-rest-part")
+        part.place(block(part, (0.0, 0.0), 1.0, 0.0, 1.0))
+        part.place(block(part, (1.0 + 3e-9, 0.2), 0.6, 0.25, 0.5))
+        with self.assertRaises(pncad.AssemblyError) as own:
+            assemble(part, evaluate(part))
+        self.assertEqual(own.exception.variant, "at_rest")
+        store.create(part)
+        outer = Doc("pncad-carried-at-rest")
+        instance = outer.insert(
+            Node.instantiate_part(DocRef(part.id, pncad.content_pin(part)), [])
+        )
+        outer.pin(instance, resolver=store)
+        with self.assertRaises(pncad.AssemblyError) as carried:
+            assemble(outer, evaluate(outer, resolver=store))
+        err = carried.exception
+        self.assertEqual(err.variant, "carried_at_rest")
+        self.assertEqual(len(err.findings), len(own.exception.findings))
+        for row in err.findings:
+            self.assertEqual(row.of, part.id)
+            self.assertEqual(row.through, instance)
+            self.assertEqual(row.pin, pncad.content_pin(part))
+            self.assertIn("is not at rest by its own census", str(row))
 
 
 if __name__ == "__main__":

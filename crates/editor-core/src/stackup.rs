@@ -30,10 +30,7 @@
 //!    build. A fresh handed evaluation makes the rebuild a memo walk
 //!    that re-runs no op; a STALE one (the document edited between
 //!    builds) differs somewhere in its keys and gets the typed
-//!    [`PairingViolation`], never a sensitivity. A handed build made
-//!    with the guided lift keys differently at every profile node and
-//!    is refused the same way — over-strict for identical geometry,
-//!    and safe: the build of record is the build path.
+//!    [`PairingViolation`], never a sensitivity.
 //! 2. **The passes.** Each seeded `Dual64` pass is compared against
 //!    the anchor at EVERY node on its result arm (`Ok`/`Failed`/
 //!    `Poisoned`, same poison source) and, where both built, on a
@@ -130,13 +127,13 @@ use std::sync::Arc;
 use geom_core::{Dual64, Readable, Tol};
 use topo::Body;
 
-use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
+use crate::analysis::{AnalyzedBox, MeasureUnavailable, ParamBox};
 use crate::doc::Doc;
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
 use crate::eval::measure::Observed;
 use crate::eval::{
     BooleanValue, CancelToken, ContentKey, EvalOptions, EvalOutcome, Evaluation, NodeErrorKind,
-    NodeResult, PoseValue, ProfileLift, SplitSide, ValuePayload, evaluate,
+    NodeResult, PoseValue, SplitSide, ValuePayload, evaluate,
 };
 use crate::measure::AssertionVerdict;
 use crate::node::RecipeNodeId;
@@ -571,17 +568,15 @@ fn driver(
     })
 }
 
-/// The pass options: the profile lift GUIDED (a seed on a profile
-/// dimension must move profile geometry — the exact silent zero
-/// `ProfileLift`'s docs warn about), sequential inside (the driver's
-/// parallelism is per pass), the seed and the parts' resolver as
-/// given.
+/// The pass options: sequential inside (the driver's parallelism is
+/// per pass), the seed and the parts' resolver as given. A seed on a
+/// profile dimension moves profile geometry, which every evaluation
+/// elaborates at its own scalar (`eval::ProfileLane`).
 fn pass_opts(
     seed: Option<VarId>,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
 ) -> EvalOptions {
     EvalOptions {
-        profile_lift: ProfileLift::Guided,
         seed,
         resolver: resolver.cloned(),
         ..EvalOptions::default()
@@ -593,7 +588,6 @@ fn pass_opts(
 /// parts' resolver.
 fn leaf_opts(box_: ParamBox, resolver: Option<&Arc<dyn crate::part::PartResolver>>) -> EvalOptions {
     EvalOptions {
-        profile_lift: ProfileLift::Guided,
         param_box: Some(Arc::new(box_)),
         resolver: resolver.cloned(),
         ..EvalOptions::default()
@@ -956,9 +950,16 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
                 d.body(b);
             }
         }
-        // 20 is retired (`RETIRED_VALUE_DIGEST_TAGS`).
-        ValuePayload::Mate(_) => d.u64(21),
-        ValuePayload::Gauge => d.u64(26),
+        // 20, 21 and 26 are retired (`RETIRED_VALUE_DIGEST_TAGS`).
+        // The material the table indexes; its copies are the same
+        // material read copy by copy.
+        ValuePayload::Copies(copies) => {
+            d.u64(29);
+            d.u64(copies.bodies.len() as u64);
+            for b in &copies.bodies {
+                d.body(b);
+            }
+        }
         ValuePayload::Measure { value, .. } => {
             d.u64(22);
             d.scalar(*value);
@@ -993,7 +994,8 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
 /// The tag numbers [`payload_digest`]'s arms may not use: retired with
 /// the payloads that held them, and dead for good.
 #[cfg(test)]
-const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[(20, "Declarations")];
+const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] =
+    &[(20, "Declarations"), (21, "Mate"), (26, "Gauge")];
 
 // ------------------------------------------------- the verdict's tie
 
@@ -1737,8 +1739,8 @@ impl core::error::Error for StackupRefusal {}
 /// report is schedule-independent (D9).
 ///
 /// The worst case re-evaluates the measure over each certified leaf's
-/// environment ON THE LANE THE DRIVE RAN — the guided lift on, and the
-/// symbolic tier on or off exactly as `ParamBoxVerdict::symbolic` says,
+/// environment ON THE LANE THE DRIVE RAN — the symbolic tier on or off
+/// exactly as `ParamBoxVerdict::symbolic` says,
 /// because a leaf the tier certified can carry a node a numeric-only
 /// replay refuses. The numeric channel is the same either way, so the
 /// hulled brackets are the same bits; what the lane decides is which
@@ -1921,15 +1923,10 @@ fn worst_case(
     // Read-only and shared, so the parallel schedule sees exactly what
     // the sequential one does; the memo serves bit-equal inputs only,
     // so the hull is the same with or without it.
-    let nominal_box = ParamBox::from_axes_in(
-        verdict
-            .root()
-            .axes()
-            .keys()
-            .map(|n| (*n, BoxAxis::Fixed))
-            .collect(),
-        verdict.root().order(),
-    );
+    // The root collapsed to the nominal (`ParamBox::at_nominal`): it
+    // varies the leaves' axes, so its profile lift is theirs (guided) and
+    // a node outside every axis's cone keys alike in prior and leaf.
+    let nominal_box = verdict.root().at_nominal();
     // The hull runs on the lane the drive ran on
     // (`ParamBoxVerdict::symbolic`), for the tie's reason: a leaf the
     // symbolic tier certified may carry a node a numeric-only replay

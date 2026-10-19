@@ -68,7 +68,7 @@ pub fn cut_stations(
 /// carriers are one line or one circle, to 1e-9, between two faces on
 /// different surfaces. Curved carriers included, which
 /// `topo::joinable_vertices` does not yet read
-/// (`work/fuse/curved-joinable-vertices-are-left-unjoined.md`). Two
+/// (`curved-joinable-vertices-are-left-unjoined` (a closed FUSE row; `docs/doc-ledger/fuse-leaves-the-tracker.md`)). Two
 /// faces on ONE surface at such a vertex are a full revolve's two
 /// π-bands meeting at a pole, which keeps valence 2 by construction:
 /// a curved join that row owns, not a station.

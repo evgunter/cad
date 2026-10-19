@@ -35,10 +35,20 @@
 //!
 //! # Structure selection is f64 (C6/D9)
 //!
-//! Degrees, knot multiplicities, sub-arc counts, the degree raise, the
-//! merged knots and the parameters' order are chosen in `f64`,
-//! deterministically, on the value channel of the data
-//! ([`SpanLocate::point_value`]): same sections in, same structure out.
+//! Degrees, knot multiplicities, the degree raise, the merged knots and
+//! the parameters' order are chosen in `f64`, deterministically, on the
+//! value channel of the data ([`SpanLocate::point_value`]): same
+//! sections in, same structure out. An arc's sub-arc count and its turn
+//! and endpoint branches are decided over the brackets they read, for
+//! every member ([`SkinError::ArcSweepUndecided`]).
+//! A positivity the structure asks of a value (a chord that is not
+//! empty, a parameter step that ascends) holds for every value it
+//! stands for ([`SpanLocate::structure_positive`]), so at an enclosure
+//! scalar a value wider than a point passes where its whole bracket
+//! does. Where the answer selects a branch rather than refusing (a
+//! control row that abstains from the parameterization), a value whose
+//! members would not all take one branch refuses
+//! ([`SkinError::RowMotionUndecided`]).
 //!
 //! # The values are computed in the sections' scalar
 //!
@@ -50,19 +60,25 @@
 //! solve ([`skin_on`], `geom::curves::fit::interpolate_columns_in`). So
 //! a section whose arc sweep is a function of a document's variables
 //! gives a wall whose weights, knots and poles are functions of them
-//! too. At `f64` the arithmetic is the one this module has always run,
-//! operation for operation, with one exception: the arc conversion's
-//! sines and cosines are `Real`'s, the pure-Rust `libm` D9 prescribes,
-//! where they were `f64`'s inherent (platform libm) ones, so an arc's
-//! weight or tangent-intersection pole can differ from those builds by
-//! an ulp. The knot
-//! algebra is the projective one, so the generic doors that run it are
-//! bounded by [`ProjectiveScalar`]; at an enclosure scalar the loft
-//! body encloses the `f64` skin instead (`crate::loft`). No topology
-//! decision is made here, so nothing routes through `k_stats`; the raw
-//! `f64` comparisons below are structure selection under C6.
+//! too, and at an enclosure scalar a section over a box gives walls
+//! that enclose the box's family. The sines and cosines are `Real`'s,
+//! the pure-Rust `libm` D9 prescribes.
+//!
+//! A carrier's weights and knots are points at every scalar for now, so
+//! at an enclosure scalar an arc whose weight `cos(Δ/2)` is wider than a
+//! point refuses at the carrier's door
+//! (`SplineError::CarrierWeightNotAPoint`, until C6's S4/S5), as does an
+//! interior averaged knot wider than a point (`CarrierKnotNotAPoint`:
+//! the fit encloses over it, C6 S5c, and the wall's carrier refuses it
+//! until S5z). An arc's sweep structure
+//! (non-zero, its sub-arc count, a turn) is certified for every value
+//! it stands for ([`SkinError::ArcSweepUndecided`]). The knot algebra
+//! that makes sections compatible runs homogeneous at an enclosure
+//! scalar ([`make_compatible`], C6 S4), and its result enters through
+//! the same door. No topology decision is
+//! made here, so nothing routes through `k_stats`; the raw `f64`
+//! comparisons below are structure selection under C6.
 
-use core::f64::consts::TAU;
 use core::num::NonZeroUsize;
 use std::sync::Arc;
 
@@ -71,27 +87,75 @@ use geom::NurbsSurface;
 use geom::curves::fit::{FitError, interpolate_columns_in};
 use geom_brep::SketchSegment;
 use geom_core::Tol;
-use geom_core::spline::{KnotAlgebraError, Knots, ProjectiveScalar, SpanLocate, SplineError};
-use geom_core::{Affine3, Arc2, COINCIDENCE_RECOURSE, Decide, Point2, Point3, Real, Vec3};
+use geom_core::spline::{KnotAlgebraError, Knots, SpanLocate, SplineError};
+use geom_core::{
+    Affine3, Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag,
+    Point2, Point3, RANGE_RECOURSE, Real, RigidMotion, TurnError, UnitVec3, UnitVec3Error,
+};
 use profile::{
     CanonicalStructure, ConstructedLoop, ConstructedProfile, Profile, ProfileError, ProfileLoop,
     SketchPlane, ValidatedProfile,
 };
 
-/// The quarter-turn ceiling on one rational-quadratic arc span: every
+/// η, the slack above a quarter turn one sub-arc may take (C6's
+/// sub-arc rule): the count's breakpoints sit at `k·(π/2)(1 + η)`, off
+/// the multiples of π/2 where documents' sweeps sit, so an arc whose
+/// true sweep is `k·π/2` counts `k` for every value it stands for.
+/// `1/16` is exact, keeps `k·π/2` at count `k` for every `k ≤ 4` (a
+/// full turn: it needs `4/(1 + η) > 3`), and keeps a sub-arc's
+/// tangent-intersection point well conditioned.
+const SUB_ARC_ETA: f64 = 1.0 / 16.0;
+
+/// The ceiling on one rational-quadratic arc span, `(π/2)(1 + η)`: every
 /// sub-arc of a converted profile arc is at most this wide, so the
 /// tangent-intersection control point stays finite and well
-/// conditioned (`cos(Δ/2) ≥ cos(π/4)`).
-const MAX_SUB_ARC: f64 = core::f64::consts::FRAC_PI_2;
+/// conditioned (`cos(Δ/2) ≥ cos((π/4)(1 + η))`).
+const MAX_SUB_ARC: f64 = core::f64::consts::FRAC_PI_2 * (1.0 + SUB_ARC_ETA);
+
+/// Which of an arc's sweep decisions [`SkinError::ArcSweepUndecided`]
+/// names: each is structure read off the sweep, certified for every
+/// value it stands for (C6).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ArcSweepDecision {
+    /// That the sweep is not zero.
+    NonZero,
+    /// How many sub-arcs it takes: one sub-arc reaches `(π/2)(1 + η)`.
+    SubArcCount,
+    /// That an arc between two points stops short of a full turn.
+    TurnBetweenPoints,
+    /// That an arc back to its own start is one full turn, nearer one
+    /// than none or two.
+    TurnToItself,
+    /// Whether the arc ends where it starts (its endpoints' distance
+    /// is zero) or between two points: the branch the two turn checks
+    /// above select between.
+    Endpoints,
+}
+
+impl core::fmt::Display for ArcSweepDecision {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::NonZero => "whether its sweep is zero",
+            Self::SubArcCount => "how many sub-arcs its sweep takes",
+            Self::TurnBetweenPoints => "whether its sweep stops short of a full turn",
+            Self::TurnToItself => "whether its sweep is one full turn",
+            Self::Endpoints => "whether it ends where it starts",
+        })
+    }
+}
 
 /// Typed refusal of the §10.3/§10.4 constructions (closed enum, D4 ¶3).
 ///
-/// Every arm is a STRUCTURAL statement about the inputs — section
-/// counts, loop counts, degrees, weights, solvability. Structure
-/// selection is exact-`f64` (C6), so NO arm here has an in-band twin
-/// and the two-tolerance discipline does not apply within this module;
-/// [`SkinError::DegenerateSection`] documents where the banded half of
-/// its user situation actually lives and carries that door's recourse.
+/// Every arm but the path sweep's is a STRUCTURAL statement about the
+/// inputs — section counts, loop counts, degrees, weights,
+/// solvability. Structure selection is exact-`f64` (C6), so none of
+/// those has an in-band twin; [`SkinError::DegenerateSection`]
+/// documents where the banded half of its user situation actually
+/// lives and carries that door's recourse. The path sweep decides its
+/// station tangents and turns under the band ([`sweep_places`]), so
+/// [`SkinError::PathTangentVanishes`] and
+/// [`SkinError::PathTangentReversal`] have their in-band twin,
+/// [`SkinError::PathTangentUndecided`].
 #[derive(Clone, Debug, PartialEq)]
 pub enum SkinError {
     /// Fewer sections than a skin needs (≥ 2 always; ≥ `degree + 1`
@@ -141,10 +205,10 @@ pub enum SkinError {
     /// zero-radius arc.
     ///
     /// **Where the in-band twin lives** (M5 PR 10 fix pass, review
-    /// MIN-1): not here. This module makes no banded decisions — every
-    /// comparison in it is exact-`f64` structure selection (C6), so
-    /// there is no `Escalated` arm to pair with, and inventing one
-    /// would advertise a refusal nothing can produce. The banded half
+    /// MIN-1): not here. This module decides no section's degeneracy —
+    /// every comparison about a section is exact-`f64` structure
+    /// selection (C6), so there is no `Escalated` arm to pair with, and
+    /// inventing one would advertise a refusal nothing can produce. The banded half
     /// of the user's situation sits one layer UP, in
     /// `profile::validate`'s `vertex_separation` /
     /// `segment_straightness` / `arc_diameter_clearance` predicates,
@@ -179,27 +243,64 @@ pub enum SkinError {
         /// The sections available.
         sections: usize,
     },
-    /// The path has no usable tangent at a station, so no rigid frame
-    /// carries the profile through it.
-    ///
-    /// **What this actually catches** (M5 PR 10 fix pass, review
-    /// MIN-2): a VANISHING tangent — `|C'(t)|` not finite and positive
-    /// — plus the exactly-anti-parallel case, where the minimal
-    /// rotation is not unique because every axis perpendicular to the
-    /// tangent turns one into the other. The second case is a `f64`
-    /// knife edge and essentially unreachable: at an exact half-turn
-    /// `|t₀ × t₁|` does not evaluate to zero, so the frame is BUILT
-    /// from a numerically ill-conditioned axis rather than refused
-    /// (`review_m5_pr10::review_half_turn_path_builds_on_the_float_knife_edge`,
-    /// which is also the one home for that magnitude). Under Q8 that
-    /// surface is still the definition — it is whatever that frame produced,
-    /// not an approximation of something else — but it is not the
-    /// surface a reader of "reversing paths refuse" would expect, so
-    /// the claim is stated as it is rather than as it reads best. See
-    /// [`sweep_geometry`]'s C6 note for why no band is asserted.
+    /// The path's tangent at a station has no direction: its length
+    /// is not finite and decided positive ([`sweep_places`]).
+    PathTangentVanishes {
+        /// The station where the tangent vanished.
+        station: usize,
+    },
+    /// The path's tangent at a station doubles back on the start
+    /// tangent (`1 + t₀·tᵢ` decided zero), where every axis
+    /// perpendicular to the two is a minimal rotation and no stated
+    /// frame picks one ([`sweep_places`]).
     PathTangentReversal {
         /// The station where the frame failed.
         station: usize,
+    },
+    /// A station's tangent length, or whether it doubles back on the
+    /// start tangent, could not be decided under the band
+    /// ([`sweep_places`]).
+    PathTangentUndecided {
+        /// The station where the decision escalated.
+        station: usize,
+        /// The decision's own diagnostic.
+        source: Indeterminate,
+    },
+    /// A station's placement is not a finite number: the start frame
+    /// carried along the path overflowed.
+    StationNotFinite {
+        /// The station whose placement overflowed.
+        station: usize,
+    },
+    /// The tolerance gave no band for the path sweep's decisions.
+    Band(BandError),
+    /// Whether control row `row` moves between the sections is not
+    /// the same for every value they stand for: its chord-length total
+    /// is wider than a point and reaches zero. A row that never moves
+    /// abstains from the parameterization, so the members would not
+    /// share one, and the skin refuses rather than stand for those
+    /// whose row moves.
+    RowMotionUndecided {
+        /// The control row, counted down the rows the
+        /// parameterization reads.
+        row: usize,
+    },
+    /// Section `section` has an arc whose structure is not decided
+    /// over the values it stands for (C6): the bracket a decision reads
+    /// (`which` names it; the sweep's, or for [`ArcSweepDecision::Endpoints`]
+    /// the endpoints' distance) straddles that decision's breakpoint.
+    /// The margin is the bracket's distance to the breakpoint, as read;
+    /// inputs narrow enough that it clears zero lift the refusal. A
+    /// bracket may be wide from rounding alone: a constant sweep of
+    /// exactly a full turn between two points reads `T::tau()`'s own
+    /// enclosure, which no narrower input clears.
+    ArcSweepUndecided {
+        /// The section.
+        section: usize,
+        /// The decision.
+        which: ArcSweepDecision,
+        /// The sweep's distance to the breakpoint, as read.
+        margin: MarginDiag,
     },
     /// The v-direction interpolation refused.
     Fit(FitError),
@@ -210,6 +311,21 @@ pub enum SkinError {
     /// the convex-hull invariant every C9 bound stands on.
     Structure(SplineError),
 }
+
+/// The recourse a path sweep's vanishing tangent ends with.
+const PATH_RECOURSE: &str = "smooth the path there";
+
+/// The recourse a path sweep's reversed tangent ends with: a sweep
+/// turns every station from the start tangent, so no smoothing of a
+/// path that doubles back gives it a frame.
+const REVERSAL_RECOURSE: &str = "loft the section through planes stated at the stations \
+                                 (`loft_body`), or sweep the path in pieces that each turn \
+                                 less than a half turn";
+
+/// The recourse a path sweep's undecided tangent or turn ends with.
+const PATH_UNDECIDED_RECOURSE: &str = "smooth the path there; where it doubles back, loft the \
+                                       section through planes stated at the stations \
+                                       (`loft_body`)";
 
 impl core::fmt::Display for SkinError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -256,10 +372,48 @@ impl core::fmt::Display for SkinError {
                 "degree {degree} is not usable for {sections} sections (it must be at least 1 \
                  and below the section count)"
             ),
+            Self::PathTangentVanishes { station } => write!(
+                f,
+                "the path's tangent vanishes at station {station}, so no rigid frame carries \
+                 the profile through it. Recourse: {PATH_RECOURSE}"
+            ),
             Self::PathTangentReversal { station } => write!(
                 f,
-                "the path's tangent reverses or vanishes at station {station}, so no rigid \
-                 frame carries the profile through it. Recourse: smooth the path there"
+                "the path's tangent at station {station} doubles back on its start tangent, so \
+                 no one minimal rotation carries the start frame there. Recourse: \
+                 {REVERSAL_RECOURSE}"
+            ),
+            Self::PathTangentUndecided { station, source } => source
+                .undecided(
+                    format_args!(
+                        "whether the path's tangent vanishes or reverses at station {station}"
+                    ),
+                    source.lever_ending(PATH_UNDECIDED_RECOURSE),
+                )
+                .fmt(f),
+            Self::StationNotFinite { station } => write!(
+                f,
+                "the profile's placement at station {station} is not a finite number. \
+                 Recourse: {RANGE_RECOURSE}"
+            ),
+            Self::Band(e) => write!(f, "{e}"),
+            Self::RowMotionUndecided { row } => write!(
+                f,
+                "whether control row {row} moves between the sections is not decided over the \
+                 values they stand for, so the skin's parameterization is not one for them \
+                 all. Recourse: narrow the range, or evaluate the loft at a point scalar"
+            ),
+            Self::ArcSweepUndecided {
+                section,
+                which,
+                margin,
+            } => write!(
+                f,
+                "section {section} has an arc that leaves {which} undecided over the values it \
+                 stands for: what it reads is {margin} from the breakpoint. Recourse: narrow the \
+                 range of that sweep or those endpoints until it clears the breakpoint; the width \
+                 may be rounding alone (a constant sweep of exactly a full turn), and then \
+                 evaluate at a point scalar"
             ),
             Self::Fit(e) => write!(f, "{e}"),
             Self::KnotAlgebra(e) => write!(f, "{e}"),
@@ -297,9 +451,10 @@ impl From<FitError> for SkinError {
 /// - **Line** → degree 1, two control points, unit weights: the chord,
 ///   with the segment's own affine parameter.
 /// - **Arc** → the standard rational-quadratic circular representation
-///   (Book §7.5 / A7.1), split into `⌈|θ| / (π/2)⌉` equal sub-arcs so
-///   every tangent-intersection control point stays finite and the
-///   interior weights `cos(Δ/2)` stay ≥ `cos(π/4)`. Exact in ℝ: the
+///   (Book §7.5 / A7.1), split into `⌈|θ| / ((π/2)(1+η))⌉` equal
+///   sub-arcs, η = 1/16 (`MAX_SUB_ARC`), so every tangent-intersection
+///   control point stays finite and the interior weights `cos(Δ/2)`
+///   stay ≥ `cos((π/4)(1+η))`. Exact in ℝ: the
 ///   locus IS the carrier circle, not a fit of it. The circle is the
 ///   one [`SketchSegment::eval`] describes — `a` turned about the
 ///   centre through the sweep — so the control points are `a − centre`
@@ -318,8 +473,12 @@ impl From<FitError> for SkinError {
 /// distance from its centre, an arc between two points sweeping a full
 /// turn or more, or an arc back to its own start that is not one full
 /// turn (D1's full turn, one segment at one vertex, is the one that
-/// converts); [`SkinError::Structure`] if validated construction
-/// refuses.
+/// converts); [`SkinError::ArcSweepUndecided`] for an arc whose sweep
+/// or endpoints leave one of those decisions, or its sub-arc count,
+/// undecided over the values they stand for;
+/// [`SkinError::Structure`] if validated construction refuses
+/// (`CarrierWeightNotAPoint` for a weight wider than a point, C6's
+/// interim until S4/S5).
 // `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
 // geom-core::spline::algebra note): a poisoned coordinate must take
 // the refusal arm, not slip through a negated comparison.
@@ -337,7 +496,7 @@ pub fn segment_curve<T: SpanLocate>(
     );
     match seg {
         SketchSegment::Line { a, b } => {
-            if !(a.distance(b).value_channel() > 0.0) {
+            if !a.distance(b).structure_positive() {
                 return Err(degenerate("zero-length chord"));
             }
             let knots = Knots::new(vec![(T::zero(), two), (T::one(), two)], 1)?;
@@ -353,37 +512,104 @@ pub fn segment_curve<T: SpanLocate>(
                 sweep: theta,
                 ..
             } = arc;
-            let sweep = theta.value_channel();
-            if !sweep.is_finite() || sweep == 0.0 {
+            // The arc's structure is decided for every value it stands
+            // for (C6), over |θ|'s bracket: that it is not zero, how many
+            // sub-arcs it takes, and that it is short of a turn (an arc
+            // between two points) or one turn (an arc back to its start);
+            // and over the endpoints' distance, which of those two it is.
+            // A bracket that straddles a breakpoint refuses typed, with
+            // the margin a narrower box lifts.
+            let undecided = |which, lo: f64, hi: f64| SkinError::ArcSweepUndecided {
+                section,
+                which,
+                margin: MarginDiag::enclosure(lo, hi),
+            };
+            let Some((lo, hi)) = theta.abs().structure_bracket() else {
+                return Err(degenerate("zero or non-finite sweep"));
+            };
+            // A sweep with no finite member, or none but zero, is
+            // degenerate for every member; one some of whose members are
+            // finite and others not straddles every count's breakpoint
+            // and refuses below as the count undecided.
+            if !lo.is_finite() || hi == 0.0 {
                 return Err(degenerate("zero or non-finite sweep"));
             }
-            // An arc that ends where it starts lands there after whole
-            // turns, and converts only as ONE (D1's full turn): its
-            // sweep is nearer one turn than none or two. An arc between
-            // two points stops short of a turn.
-            if a.distance(b).value_channel() > 0.0 {
-                if !(sweep.abs() < TAU) {
-                    return Err(degenerate("a full turn or more between two points"));
-                }
-            } else if !(sweep.abs() > TAU / 2.0 && sweep.abs() < 1.5 * TAU) {
-                return Err(degenerate(
-                    "an arc from a point back to itself that is not one full turn",
-                ));
-            }
-            let spoke = a - centre;
-            let rim = spoke.norm().value_channel();
-            if !(rim > 0.0) || !rim.is_finite() {
-                return Err(degenerate(
-                    "arc start is not a finite, positive distance from its centre",
-                ));
+            if lo == 0.0 {
+                return Err(undecided(ArcSweepDecision::NonZero, lo, hi));
             }
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let m = ((sweep.abs() / MAX_SUB_ARC).ceil() as usize).max(1);
+            let count = |x: f64| ((x / MAX_SUB_ARC).ceil() as usize).max(1);
+            let m = count(lo);
+            if count(hi) != m {
+                #[allow(clippy::cast_precision_loss)]
+                let at = m as f64 * MAX_SUB_ARC;
+                return Err(undecided(ArcSweepDecision::SubArcCount, lo - at, hi - at));
+            }
             #[allow(clippy::cast_precision_loss)]
             let steps = m as f64;
             let delta = theta / T::from_f64(steps);
             let half = T::from_f64(0.5);
+            // The weight `cos(Δ/2)` is held in `T`; where it is no point
+            // (at an enclosure scalar, by rounding alone), the carrier's
+            // door refuses it (`CarrierWeightNotAPoint`) until C6's S4/S5.
             let (_, half_w) = (delta * half).sin_cos();
+            // An arc that ends where it starts lands there after whole
+            // turns, and converts only as ONE (D1's full turn): its
+            // sweep is nearer one turn than none or two. An arc between
+            // two points stops short of a turn. Both read the true 2π's
+            // bracket.
+            let Some((tau_lo, tau_hi)) = T::tau().structure_bracket() else {
+                unreachable!("τ is a number at every scalar")
+            };
+            let chord = a.distance(b);
+            let between = chord.structure_positive();
+            if !between
+                && let Some((chord_lo, chord_hi)) = chord.structure_bracket()
+                && chord_hi > 0.0
+            {
+                return Err(undecided(ArcSweepDecision::Endpoints, chord_lo, chord_hi));
+            }
+            if between {
+                if lo >= tau_hi {
+                    return Err(degenerate("a full turn or more between two points"));
+                }
+                if hi >= tau_lo {
+                    return Err(undecided(
+                        ArcSweepDecision::TurnBetweenPoints,
+                        lo - tau_lo,
+                        hi - tau_lo,
+                    ));
+                }
+            } else {
+                let (half_lo, half_hi) = (0.5 * tau_lo, 0.5 * tau_hi);
+                let (three_lo, three_hi) = (1.5 * tau_lo, 1.5 * tau_hi);
+                if hi <= half_lo || lo >= three_hi {
+                    return Err(degenerate(
+                        "an arc from a point back to itself that is not one full turn",
+                    ));
+                }
+                if lo <= half_hi {
+                    return Err(undecided(
+                        ArcSweepDecision::TurnToItself,
+                        lo - half_hi,
+                        hi - half_hi,
+                    ));
+                }
+                if hi >= three_lo {
+                    return Err(undecided(
+                        ArcSweepDecision::TurnToItself,
+                        lo - three_lo,
+                        hi - three_lo,
+                    ));
+                }
+            }
+            let spoke = a - centre;
+            let rim = spoke.norm();
+            if !rim.structure_positive() || !rim.is_bounded() {
+                return Err(degenerate(
+                    "arc start is not a finite, positive distance from its centre",
+                ));
+            }
             // The on-arc control points are the evaluation's own points
             // ([`Arc2::point_from`], `a` itself at the start); the
             // tangent-intersection points are the spoke `a − centre`
@@ -438,12 +664,21 @@ pub fn segment_curve<T: SpanLocate>(
 /// same knots, and therefore the same control-point count — which is
 /// what makes a tensor-product skin possible at all.
 ///
+/// They are the knot algebra, at every scalar: projective at an
+/// evaluation scalar, homogeneous at an enclosure scalar (C6 S4: the
+/// net as `(w·P, w)`, no weight quotient formed). At an enclosure
+/// scalar the result enters through the carrier's door, so a rational
+/// section, whose refined weights are enclosures from rounding alone,
+/// refuses there ([`SplineError::CarrierWeightNotAPoint`], C6's interim
+/// until S5), while a polynomial one keeps its unit weights exactly and
+/// is admitted.
+///
 /// # Errors
 ///
 /// [`SkinError::TooFewSections`], [`SkinError::DomainNotUnit`] for a
 /// section off the unit domain, and the propagated knot-algebra /
 /// structure refusals.
-pub fn make_compatible<T: ProjectiveScalar>(
+pub fn make_compatible<T: SpanLocate>(
     sections: &[NurbsCurve3<T>],
 ) -> Result<Vec<NurbsCurve3<T>>, SkinError> {
     if sections.len() < 2 {
@@ -531,25 +766,26 @@ fn control_row<T: SpanLocate>(sections: &[NurbsCurve3<T>], i: usize) -> Vec<Poin
 ///
 /// [`SkinError::NoParameterStep`] when every row is pinned or the
 /// parameters do not strictly ascend.
-// `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
-// geom-core::spline::algebra note): a poisoned coordinate must take
-// the refusal arm, not slip through a negated comparison.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
 fn chord_length_parameters<T: SpanLocate>(
     k: usize,
     rows: impl IntoIterator<Item = Vec<Point3<T>>>,
 ) -> Result<Vec<T>, SkinError> {
     let mut shares: Vec<Vec<T>> = vec![Vec::new(); k];
     let mut counted = 0usize;
-    for row in rows {
+    for (index, row) in rows.into_iter().enumerate() {
         let chords: Vec<T> = row.windows(2).map(|w| w[0].distance(w[1])).collect();
         // Summed from `+0`: every chord is a length, `+0` or above, so
         // this is `f64`'s `Sum` (which starts at `-0`) bit for bit.
         let total = chords.iter().fold(T::zero(), |acc, c| acc + *c);
         // A row that never moves (a corner pinned across every
         // section) carries no parameterization information — it is not
-        // an error, it simply abstains from the average.
-        if !(total.value_channel() > 0.0) {
+        // an error, it simply abstains from the average. A row that
+        // moves for some values its bracket stands for and not others
+        // would abstain for some members only, so it refuses.
+        if !total.structure_positive() {
+            if total.point_value().is_none() && !total.is_poison() {
+                return Err(SkinError::RowMotionUndecided { row: index });
+            }
             continue;
         }
         counted += 1;
@@ -584,7 +820,7 @@ fn chord_length_parameters<T: SpanLocate>(
     params[0] = T::zero();
     params[k - 1] = T::one();
     for j in 1..k {
-        if !(params[j - 1].value_channel() < params[j].value_channel()) {
+        if !geom_core::spline::structure_ascends(params[j - 1], params[j]) {
             return Err(SkinError::NoParameterStep { section: j });
         }
     }
@@ -632,7 +868,7 @@ fn chord_length_parameters<T: SpanLocate>(
 /// the value it was supposed to have (a silent heal, which would also
 /// leave the control points divided by the pre-snap denominator).
 /// `integral` is decided by `==` on the input's own bits — its weights'
-/// value channel ([`NurbsCurve3::weight_channel`]): C6 structure
+/// value channel ([`NurbsCurve3::weights_f64_interim`]): C6 structure
 /// selection about what the caller handed in, never a predicate, never
 /// a tolerance. The integral lane's output weights are the constant
 /// `1`: every weight it read was exactly `1`, and the lane does not
@@ -670,7 +906,10 @@ fn chord_length_parameters<T: SpanLocate>(
 /// [`SkinError::TooFewSections`], [`SkinError::BadDegree`],
 /// [`SkinError::SectionShapeMismatch`] for sections that did not come
 /// out of [`make_compatible`], [`SkinError::NoParameterStep`],
-/// [`SkinError::Fit`] for a degenerate collocation system, and
+/// [`SkinError::Fit`] for a degenerate collocation system (at an
+/// enclosure scalar, also one whose elimination over the sections'
+/// enclosures leaves a pivot undecided, though every member's system is
+/// regular), and
 /// [`SkinError::Structure`] — notably a non-positive interpolated
 /// weight, refused at the door because the convex-hull invariant every
 /// C9 bound stands on requires `w > 0`.
@@ -688,10 +927,10 @@ pub fn skin<T: SpanLocate>(
             sections: k,
         });
     }
-    let knots_u = sections[0].knots().clone();
+    let knots_u = sections[0].knots_f64_interim().clone();
     let n = sections[0].control().len();
     for (i, c) in sections.iter().enumerate().skip(1) {
-        if c.control().len() != n || c.knots().knots() != knots_u.knots() {
+        if c.control().len() != n || c.knots_f64_interim().knots() != knots_u.knots() {
             return Err(SkinError::SectionShapeMismatch {
                 section: i,
                 expected: n,
@@ -730,7 +969,9 @@ pub fn skin_on<T: SpanLocate>(
     let knots_u = sections[0].knot_values().clone();
     let n = sections[0].control().len();
     for (i, c) in sections.iter().enumerate().skip(1) {
-        if c.control().len() != n || c.knots().knots() != knots_u.structure().knots() {
+        if c.control().len() != n
+            || c.knots_f64_interim().knots() != knots_u.structure_f64_interim().knots()
+        {
             return Err(SkinError::SectionShapeMismatch {
                 section: i,
                 expected: n,
@@ -746,7 +987,7 @@ pub fn skin_on<T: SpanLocate>(
     // predicate.
     let integral = sections
         .iter()
-        .all(|c| c.weight_channel().iter().all(|w| *w == 1.0));
+        .all(|c| c.weights_f64_interim().iter().all(|w| *w == 1.0));
     // Rows of data: one row per section. Homogeneous `(w·x, w·y, w·z,
     // w)` quadruples (`4·n` wide) for a rational input; plain
     // Cartesian triples (`3·n` wide) when the input is integral, where
@@ -860,6 +1101,9 @@ pub trait SectionLoop<T: Decide = f64>: Clone {
     /// enclosure), which validation refuses.
     fn channel(&self) -> Self::Channel;
 
+    /// The loop's vertices and segments, as authored.
+    fn as_profile_loop(&self) -> &ProfileLoop<T>;
+
     /// Validates `loops` as one section on `plane`, by their
     /// provenance, keeping the structure record.
     ///
@@ -894,6 +1138,10 @@ impl<T: Decide> SectionLoop<T> for ProfileLoop<T> {
         self.map_scalar(SpanLocate::value_channel)
     }
 
+    fn as_profile_loop(&self) -> &ProfileLoop<T> {
+        self
+    }
+
     fn validate_recording(
         plane: SketchPlane<T>,
         loops: Vec<Self>,
@@ -917,6 +1165,10 @@ impl<T: Decide> SectionLoop<T> for ConstructedLoop<T> {
 
     fn channel(&self) -> ConstructedLoop<f64> {
         self.value_channel()
+    }
+
+    fn as_profile_loop(&self) -> &ProfileLoop<T> {
+        self.as_loop()
     }
 
     fn validate_recording(
@@ -953,20 +1205,38 @@ fn vertex_segment<T: Real>(lp: &profile::ValidatedLoop<T>, j: usize) -> SketchSe
 /// loops (outer counterclockwise first, holes clockwise, canonical
 /// start vertex) are what the skin consumes, so the walls and the
 /// body assembly's caps read the same traversal by construction.
-fn validate_sections<L: SectionLoop>(
+fn validate_sections<T: Decide, L: SectionLoop<T>>(
     sections: &[Section<L>],
-    places: &[Affine3<f64>],
+    places: &[SketchPlane<T>],
     tol: Tol,
-) -> Result<Vec<(ValidatedProfile<f64>, CanonicalStructure)>, SkinError> {
+) -> Result<Vec<(ValidatedProfile<T>, CanonicalStructure)>, SkinError> {
     sections
         .iter()
         .zip(places)
         .enumerate()
         .map(|(i, (loops, place))| {
-            L::validate_recording(SketchPlane::new(*place), loops.clone(), tol)
+            L::validate_recording(*place, loops.clone(), tol)
                 .map_err(|source| SkinError::SectionProfile { section: i, source })
         })
         .collect()
+}
+
+/// Each section validated at `T`, its decisions taken there: the door
+/// for sections with no `f64` value to select a record on (values wider
+/// than a point, at an enclosure scalar).
+///
+/// # Errors
+///
+/// [`SkinError::SectionProfile`] for a section that does not validate.
+pub(crate) fn validate_at_t<T: Decide, L: SectionLoop<T>>(
+    sections: &[Section<L>],
+    places: &[SketchPlane<T>],
+    tol: Tol,
+) -> Result<Vec<ValidatedProfile<T>>, SkinError> {
+    Ok(validate_sections(sections, places, tol)?
+        .into_iter()
+        .map(|(validated, _)| validated)
+        .collect())
 }
 
 /// Each section at `T`, validated guided by `structures[i]`, the record
@@ -980,7 +1250,7 @@ fn validate_sections<L: SectionLoop>(
 /// cannot validate along the record.
 pub(crate) fn validate_guided<T: Decide, L: SectionLoop<T>>(
     sections: &[Section<L>],
-    places: &[Affine3<T>],
+    places: &[SketchPlane<T>],
     structures: &[CanonicalStructure],
     tol: Tol,
 ) -> Result<Vec<ValidatedProfile<T>>, SkinError> {
@@ -990,7 +1260,7 @@ pub(crate) fn validate_guided<T: Decide, L: SectionLoop<T>>(
         .zip(structures)
         .enumerate()
         .map(|(i, ((loops, place), structure))| {
-            L::validate_guided(SketchPlane::new(*place), loops.clone(), tol, structure)
+            L::validate_guided(*place, loops.clone(), tol, structure)
                 .map_err(|source| SkinError::SectionProfile { section: i, source })
         })
         .collect()
@@ -1042,7 +1312,7 @@ pub(crate) fn validate_guided<T: Decide, L: SectionLoop<T>>(
 /// [`segment_curve`], [`make_compatible`] and [`skin_on`] carry.
 pub fn loft_geometry<L: SectionLoop>(
     sections: &[Section<L>],
-    places: &[Affine3<f64>],
+    places: &[SketchPlane<f64>],
     v_degree: usize,
     params: &[f64],
     tol: Tol,
@@ -1057,7 +1327,7 @@ pub fn loft_geometry<L: SectionLoop>(
 /// between the parameters and the walls.
 pub(crate) fn loft_geometry_by_chord_length<L: SectionLoop>(
     sections: &[Section<L>],
-    places: &[Affine3<f64>],
+    places: &[SketchPlane<f64>],
     v_degree: usize,
     tol: Tol,
 ) -> Result<LoftGeometry, SkinError> {
@@ -1079,7 +1349,7 @@ pub(crate) fn loft_geometry_by_chord_length<L: SectionLoop>(
 #[allow(clippy::type_complexity)]
 pub(crate) fn validate_loft<L: SectionLoop>(
     sections: &[Section<L>],
-    places: &[Affine3<f64>],
+    places: &[SketchPlane<f64>],
     v_degree: usize,
     tol: Tol,
 ) -> Result<(Vec<ValidatedProfile<f64>>, Vec<CanonicalStructure>), SkinError> {
@@ -1126,7 +1396,7 @@ pub(crate) fn check_counts(k: usize, places: usize, v_degree: usize) -> Result<(
 ///
 /// [`SkinError::SectionShapeMismatch`] naming the disagreeing section
 /// and count.
-pub(crate) fn check_shapes(validated: &[ValidatedProfile<f64>]) -> Result<(), SkinError> {
+pub(crate) fn check_shapes<T: Real>(validated: &[ValidatedProfile<T>]) -> Result<(), SkinError> {
     let loops = validated[0].loops().len();
     for (i, s) in validated.iter().enumerate().skip(1) {
         if s.loops().len() != loops {
@@ -1154,9 +1424,9 @@ pub(crate) fn check_shapes(validated: &[ValidatedProfile<f64>]) -> Result<(), Sk
 /// The compatible section curves of every strip, `[loop][segment]`,
 /// each strip one curve per section.
 #[allow(clippy::type_complexity)]
-fn compatible_strips<T: ProjectiveScalar>(
+fn compatible_strips<T: SpanLocate>(
     validated: &[ValidatedProfile<T>],
-    places: &[Affine3<T>],
+    places: &[SketchPlane<T>],
 ) -> Result<Vec<Vec<Vec<NurbsCurve3<T>>>>, SkinError> {
     (0..validated[0].loops().len())
         .map(|l| {
@@ -1167,7 +1437,7 @@ fn compatible_strips<T: ProjectiveScalar>(
                         .zip(places)
                         .enumerate()
                         .map(|(i, (s, place))| {
-                            segment_curve(i, vertex_segment(&s.loops()[l], j), *place)
+                            segment_curve(i, vertex_segment(&s.loops()[l], j), place.placement())
                         })
                         .collect::<Result<_, _>>()?;
                     make_compatible(&raw)
@@ -1227,9 +1497,9 @@ fn skin_strips<T: SpanLocate>(
 /// [`validate_loft`] already accepted, at [`loft_parameters`]' answer —
 /// one pass over the compatible strips serves both the parameters and
 /// the walls.
-pub(crate) fn skin_validated<T: ProjectiveScalar>(
+pub(crate) fn skin_validated<T: SpanLocate>(
     validated: Vec<ValidatedProfile<T>>,
-    places: &[Affine3<T>],
+    places: &[SketchPlane<T>],
     v_degree: usize,
 ) -> Result<LoftGeometry<T>, SkinError> {
     let compat = compatible_strips(&validated, places)?;
@@ -1270,8 +1540,8 @@ pub(crate) fn skin_validated<T: ProjectiveScalar>(
 /// [`make_compatible`] and [`skin_parameters`] carry.
 ///
 /// ```
-/// use geom_core::{Affine3, Point2, Tol, Vec3};
-/// use profile::{Open, Start};
+/// use geom_core::{Point2, Point3, Tol};
+/// use profile::{Open, SketchPlane, Start};
 /// use sweep::{ProfileLoop, Section, loft_parameters};
 ///
 /// let tol = Tol::witness();
@@ -1296,9 +1566,9 @@ pub(crate) fn skin_validated<T: ProjectiveScalar>(
 ///     quad([(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
 ///     quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
 /// ];
-/// let places: Vec<Affine3<f64>> = [0.0, 1.0, 3.0]
+/// let places: Vec<SketchPlane<f64>> = [0.0, 1.0, 3.0]
 ///     .iter()
-///     .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+///     .map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, *z)))
 ///     .collect();
 ///
 /// let params = loft_parameters(&sections, &places, 2, tol).expect("the sections skin");
@@ -1312,7 +1582,7 @@ pub(crate) fn skin_validated<T: ProjectiveScalar>(
 /// ```
 pub fn loft_parameters<L: SectionLoop>(
     sections: &[Section<L>],
-    places: &[Affine3<f64>],
+    places: &[SketchPlane<f64>],
     v_degree: usize,
     tol: Tol,
 ) -> Result<Vec<f64>, SkinError> {
@@ -1331,61 +1601,33 @@ pub fn loft_parameters<L: SectionLoop>(
 ///
 /// The frame is path-FOLLOWING: at each station the profile is turned
 /// by the minimal rotation carrying the path's tangent at station 0 to
-/// its tangent there, then translated onto the path. A VANISHING
-/// tangent has no such rotation and refuses typed
-/// ([`SkinError::PathTangentReversal`]) rather than picking one.
+/// its tangent there, then translated onto the path ([`sweep_places`]).
 ///
-/// `place` — the STARTING frame the rest is carried from — is the
+/// `plane` — the STARTING frame the rest is carried from — is the
 /// caller's, and `geom_core::linalg::frame::path_start_frame` is where
-/// a caller gets it: the plane through the path's start point whose
+/// a caller gets it: the frame through the path's start point whose
 /// local +Z is the start tangent, its roll off a reference ladder
 /// decided under the band. A caller wanting a different roll composes
 /// a rotation about the tangent onto that frame; there is no second
 /// door.
-///
-/// # C6: the anti-parallel knife edge, stated honestly
-///
-/// The turn is selected from `sin = |t₀ × tᵢ|` and `cos = t₀ · tᵢ` by
-/// EXACT `f64` comparison — structure selection, not a predicate: no
-/// topology depends on it, so it never routes through `k_stats`. The
-/// consequence is that `sin > 0.0` separates only the exactly-zero
-/// case. At a genuine half-turn `sin` does not evaluate to `0`, so the
-/// anti-parallel arm does not fire and the frame is built from an axis
-/// whose DIRECTION is decided by cancellation
-/// (`review_m5_pr10::review_half_turn_path_builds_on_the_float_knife_edge`,
-/// which states the magnitude and executes the build).
-///
-/// No band is asserted here, deliberately (D4 ¶1: a band needs a
-/// margin with a stated meaning and a stated lever arm). `sin` is a
-/// dimensionless sine, not a length, so the linear band does not apply
-/// to it; converting it to a length would need a lever arm this
-/// construction does not have — the profile's extent is not the
-/// conditioning scale of the cross product, and asserting one would be
-/// a derived threshold nobody derived. Banding this correctly means
-/// giving the frame choice a named angular predicate with a real
-/// margin, which is a design change, not a fix-pass edit.
 ///
 /// Under Q8 the produced skin is not an approximation of a swept
 /// locus — it IS the sweep (crate-module docs).
 ///
 /// # Errors
 ///
-/// [`SkinError::TooFewSections`] for `stations < 2`,
-/// [`SkinError::PathTangentReversal`] naming the station, plus every
-/// refusal [`loft_geometry`] carries.
-// `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
-// geom-core::spline::algebra note): a poisoned coordinate must take
-// the refusal arm, not slip through a negated comparison.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
+/// [`SkinError::TooFewSections`] for `stations < 2`, every refusal
+/// [`sweep_places`] makes, plus every refusal [`loft_geometry`]
+/// carries.
 pub fn sweep_geometry<L: SectionLoop>(
     profile: &[L],
-    place: Affine3<f64>,
+    plane: SketchPlane<f64>,
     path: &NurbsCurve3<f64>,
     stations: usize,
     v_degree: usize,
     tol: Tol,
 ) -> Result<LoftGeometry, SkinError> {
-    let places = sweep_places(place, path, stations)?;
+    let places = sweep_places(plane, path, stations, tol)?;
     let sections: Vec<Section<L>> = core::iter::repeat_n(profile.to_vec(), stations).collect();
     // v is the loft's chord-length rule ([`loft_parameters`]), not the
     // path parameter: the frame spins the section about its tangent
@@ -1395,69 +1637,74 @@ pub fn sweep_geometry<L: SectionLoop>(
     loft_geometry_by_chord_length(&sections, &places, v_degree, tol)
 }
 
-/// A path derivative normalised to the unit tangent, or the station's
-/// [`SkinError::PathTangentReversal`] when it has no direction (zero,
-/// infinite or poisoned length).
-// `!(x > 0)` is deliberate NaN-catching (the geom-core::spline::algebra
-// note): a poisoned coordinate must take the refusal arm.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
-fn unit_tangent(station: usize, d: Vec3<f64>) -> Result<Vec3<f64>, SkinError> {
-    let n = d.norm();
-    if !(n > 0.0) || !n.is_finite() {
-        return Err(SkinError::PathTangentReversal { station });
-    }
-    Ok(d / n)
-}
+/// The K funnel name of a path sweep's station tangent: the path's
+/// derivative decided into a direction witness.
+pub(crate) const SWEEP_PATH_TANGENT: &str = "sweep_path_tangent";
 
-/// The rigid section placements of a §10.4 path sweep — the
-/// path-following frame of [`sweep_geometry`], factored so the BODY
-/// assembly (M6-3, `crate::loft`) rides the exact same machinery with
-/// no semantic fork. All the docs (and the C6 anti-parallel knife
-/// edge) above apply verbatim: this IS that function's frame, moved.
+/// The K funnel name of a path sweep's station turn: `1 + t₀·tᵢ`, the
+/// margin of the minimal rotation carrying the start tangent onto the
+/// station's ([`RigidMotion::turned_between`]).
+pub(crate) const SWEEP_PATH_TURN: &str = "sweep_path_turn";
+
+/// The rigid section planes of a §10.4 path sweep — the path-following
+/// frame of [`sweep_geometry`], factored so the BODY assembly (M6-3,
+/// `crate::loft`) rides the exact same machinery with no semantic fork.
 ///
-/// `place` — the STARTING frame every other placement is carried from
-/// — is the caller's, and `geom_core::linalg::frame::path_start_frame`
-/// is where a caller gets it: the plane through the path's start point
-/// whose local +Z is the start tangent, its roll off a reference
-/// ladder decided under the band. A different roll is a rotation
-/// composed about the tangent onto that frame; there is no second
-/// door.
+/// Station `i`'s plane is `plane`'s frame turned about its own origin
+/// by the minimal rotation carrying the start tangent `t₀` onto the
+/// station's tangent `tᵢ` ([`RigidMotion::turned_between`]: the
+/// quaternion `(1 + t₀·tᵢ, t₀ × tᵢ)`'s matrix, no normalized axis and
+/// no angle), then
+/// translated by the path's displacement from its start point. A
+/// rotation of a frame is a frame, so no station is decided again.
+///
+/// Two decisions per station, each under the band:
+///
+/// - **the tangent** — the path's derivative decided into a
+///   [`UnitVec3`] (`sweep_path_tangent`): a vanishing, overflowed or
+///   poisoned derivative has no direction;
+/// - **the turn** — `1 + t₀·tᵢ > 0` (`sweep_path_turn`): a tangent
+///   that doubles back on the start tangent has every axis
+///   perpendicular to the two as a minimal rotation, and no stated
+///   frame picks one. Where the path doubles back exactly, the turn
+///   refuses decided; within the band of doubling back, undecided.
+///
+/// At station 0, and at every station whose tangent is `t₀` bit for
+/// bit, the turn is the identity with no rounding.
+///
+/// # At a lane scalar
+///
+/// `plane` is the caller's, in `T`, and the turn's centre is its
+/// origin. What the path contributes — each station's tangent and its
+/// offset from the start point — is computed in `f64` from the path
+/// and enters `T` as the computed values it is
+/// ([`Real::from_computed`]); the tangents and the turn are decided
+/// there, at `T`.
 ///
 /// # Errors
 ///
 /// [`SkinError::TooFewSections`] for `stations < 2`,
-/// [`SkinError::PathTangentReversal`] naming the station.
-///
-/// # At a lane scalar
-///
-/// `place` is the caller's, in `T`, and composes into every station as
-/// it is: the turn's centre is its origin, and it is the last factor.
-/// What the path contributes — each station's offset from the start
-/// point, the turn's axis and its angle — is computed in `f64` from the
-/// path and enters `T` as the computed values it is
-/// ([`Real::from_computed`]). The frame's arms are chosen on those
-/// `f64` values, and at `f64` the composition is the one this door
-/// always made, bit for bit.
-// `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
-// geom-core::spline::algebra note).
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
-pub fn sweep_places<T: Real>(
-    place: Affine3<T>,
+/// [`SkinError::Band`] for a tolerance with no band,
+/// [`SkinError::PathTangentVanishes`] naming the station whose
+/// tangent vanishes, [`SkinError::PathTangentReversal`] the station
+/// whose tangent doubles back, [`SkinError::PathTangentUndecided`]
+/// naming the station where either could not be decided, and
+/// [`SkinError::StationNotFinite`] for a station whose placement
+/// overflows.
+pub fn sweep_places<T: Decide>(
+    plane: SketchPlane<T>,
     path: &NurbsCurve3<f64>,
     stations: usize,
-) -> Result<Vec<Affine3<T>>, SkinError> {
+    tol: Tol,
+) -> Result<Vec<SketchPlane<T>>, SkinError> {
     if stations < 2 {
         return Err(SkinError::TooFewSections {
             have: stations,
             need: 2,
         });
     }
+    let band = Band::linear(tol).map_err(SkinError::Band)?;
     let (lo, hi) = path.domain();
-    let origin = Point3::new(
-        place.translation.x,
-        place.translation.y,
-        place.translation.z,
-    );
     #[allow(clippy::cast_precision_loss)]
     let last = (stations - 1) as f64;
     let t_of = |i: usize| {
@@ -1465,39 +1712,42 @@ pub fn sweep_places<T: Real>(
         let s = i as f64 / last;
         (hi - lo).mul_add(s, lo)
     };
-    let (base_point, base_d) = path.ders1(t_of(0));
-    let base_tangent = unit_tangent(0, base_d)?;
-    let mut places = Vec::with_capacity(stations);
-    for i in 0..stations {
-        let (p, d) = path.ders1(t_of(i));
-        let tangent = unit_tangent(i, d)?;
-        let axis = base_tangent.cross(tangent);
-        let sin = axis.norm();
-        let cos = base_tangent.dot(tangent);
-        let turn = if sin > 0.0 {
-            Affine3::rotation_about_axis(
-                origin,
-                (axis / sin).map(T::from_computed),
-                T::from_computed(sin.atan2(cos)),
-            )
-        } else if cos > 0.0 {
-            Affine3::identity()
-        } else {
-            // Anti-parallel: the minimal rotation is not unique (every
-            // axis perpendicular to the tangent turns one into the
-            // other). Refuse rather than pick one — a sweep whose path
-            // doubles back needs a stated frame, not a guess.
-            //
-            // C6 knife edge (see the fn docs): `sin > 0.0` is an exact
-            // structure comparison, so this arm fires only on an
-            // EXACT zero. A float half-turn gives a NONZERO sin and
-            // takes the branch above instead, building from an
-            // ill-conditioned axis
-            // (`review_m5_pr10::review_half_turn_path_builds_on_the_float_knife_edge`).
-            // Pinned as executed behaviour, not asserted as intent.
-            return Err(SkinError::PathTangentReversal { station: i });
-        };
-        places.push(Affine3::translation((p - base_point).map(T::from_computed)) * turn * place);
-    }
-    Ok(places)
+    let tangents = (0..stations)
+        .map(|station| {
+            let (p, d) = path.ders1(t_of(station));
+            UnitVec3::new(d.map(T::from_computed), SWEEP_PATH_TANGENT, band)
+                .map(|t| (p, t))
+                .map_err(|e| match e {
+                    UnitVec3Error::Escalated(source) => {
+                        SkinError::PathTangentUndecided { station, source }
+                    }
+                    UnitVec3Error::Degenerate
+                    | UnitVec3Error::NonFiniteLength
+                    | UnitVec3Error::UnderflowedLength => {
+                        SkinError::PathTangentVanishes { station }
+                    }
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let start = plane.frame();
+    let (base_point, base) = tangents[0];
+    tangents
+        .into_iter()
+        .enumerate()
+        .map(|(station, (p, tangent))| {
+            let turn =
+                RigidMotion::turned_between(base, tangent, start.origin(), SWEEP_PATH_TURN, band)
+                    .map_err(|e| match e {
+                    TurnError::Opposed => SkinError::PathTangentReversal { station },
+                    TurnError::Undecided(source) => {
+                        SkinError::PathTangentUndecided { station, source }
+                    }
+                    TurnError::NonFinite(_) => SkinError::StationNotFinite { station },
+                })?;
+            turn.compose(start)
+                .and_then(|f| f.translated((p - base_point).map(T::from_computed)))
+                .map(SketchPlane::from_frame)
+                .map_err(|_| SkinError::StationNotFinite { station })
+        })
+        .collect()
 }

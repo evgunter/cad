@@ -49,8 +49,8 @@ use pncad::tolerance::Tol;
 /// or `InvalidLeverArm`.
 ///
 /// The classifier half is [`crate::escalation::escalation`] rather
-/// than a fork written here: the mate door publishes the SAME
-/// escalation under these same words, and one projection is what
+/// than a fork written here: [`orthonormalize_err`] publishes the
+/// SAME escalation under these same words, and one projection is what
 /// keeps the two from drifting.
 pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> PyErr {
     use pncad::geom_core::{BandError, FrameError as E};
@@ -94,8 +94,7 @@ pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> P
                 ..
             } => {
                 // The margin's fork is `crate::escalation`'s, shared
-                // with the mate door that publishes the same
-                // escalation under these same words.
+                // with the frame witness mint's refusal.
                 let e = crate::escalation::escalation(i);
                 (
                     none(),
@@ -332,7 +331,7 @@ impl Frame {
             pncad::authoring::v3(roll_reference.0, roll_reference.1, roll_reference.2),
             tol,
         )
-        .map(|a| Self(d::Frame::from_affine(a)))
+        .map(|f| Self(d::Frame::from_affine(f.to_affine())))
         .map_err(|err| frame_err(py, &err))
     }
 
@@ -357,7 +356,7 @@ impl Frame {
             pncad::authoring::v3(tangent.0, tangent.1, tangent.2),
             tol,
         )
-        .map(|a| Self(d::Frame::from_affine(a)))
+        .map(|f| Self(d::Frame::from_affine(f.to_affine())))
         .map_err(|err| frame_err(py, &err))
     }
 
@@ -479,14 +478,14 @@ impl PatternKind {
     }
 
     /// Instances stepped `step` apart around `axis`, an upstream
-    /// `datum_axis` node.
+    /// `datum_axis` node, or a frame's axis read through its role.
     ///
     /// The step is signed by the right-hand rule about the axis and
     /// lies within a turn: a zero step refuses at `evaluate`
     /// (`degenerate_step`), and so does one at or past a full turn
     /// (`full_range_step`), wherever a second copy reads it.
     #[staticmethod]
-    fn circular(py: Python<'_>, axis: super::doc::OperandArg, step: SlotArg) -> PyResult<Self> {
+    fn circular(py: Python<'_>, axis: super::pose::PoseArg, step: SlotArg) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Circular {
             axis: axis.read(),
             step: super::doc::slot_expr(py, d::SlotId::Step, &step)?,

@@ -4,8 +4,9 @@ kind: issue
 title: A diff that seeds sweep runs the per-PR test job for over 21 minutes, past the 15-minute bar
 status: open
 opened: 2026-10-11
-needs_ev: true
 refs: [5001, 5011]
+cost: M
+priority: P3
 ---
 
 ## Measured
@@ -131,3 +132,7 @@ directory, in sequence:
 | a one-function body edit in `geom-core/src/spline/knots.rs` | 11m10s | 16 |
 | then a one-line edit in `topo/src/readback.rs` | 8m43s | 11 |
 | no change | 2 s | 0 |
+
+## Ev's answer (#5011, 2026-10-14)
+
+Ev took (A): a PR whose diff seeds geom-core, geom, geom-brep or topo gets a 25-min bar, and every other PR keeps 15 min. NURBS merged it at b8c3aa52. Ev also asked for a build-time investigation, which landed #5104 (−335 s median build hosted). `needs_ev` is cleared. What stays open is the deferred split of `test` into two package-group jobs, to be re-measured with the queue included, against nightly 61's `PR CI latency (alarm)` (median 32.6 min, p90 52.1 over 256 PR runs). (CIW orchestrator)

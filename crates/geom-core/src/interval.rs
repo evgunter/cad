@@ -853,6 +853,48 @@ impl crate::real::CertifiedEnclosure for Interval {
 /// through to whichever reader certifies. A NaI (NaN ends) or an empty
 /// enclosure (inverted ends) is no bracket, so it locates nothing.
 impl crate::spline::SpanLocate for Interval {
+    /// A blend's `t` inside `[0, 1]` over finite `x` and `y`: the hull
+    /// of the step at the eight corners. `x + (y − x)·t` is linear in
+    /// `x`, in `y` and in `t` separately, so its range over the box is
+    /// attained at a corner, and each corner, a step of three points,
+    /// is enclosed outward; the inputs' widths are met, not multiplied
+    /// (the expression reads `x` twice). The hull carries the
+    /// expression's decoration, the weakest of its inputs' and steps':
+    /// corners built from fresh points are `Com`, and an input that is
+    /// not certified must not come out certified. Otherwise (an
+    /// unblend's `t` above `1`, an unbounded or poison input) the
+    /// expression.
+    fn homogeneous_step(x: Self, y: Self, t: Self) -> Self {
+        let plain = x + (y - x) * t;
+        let (xl, xh, yl, yh) = (Bounds::lo(x), Bounds::hi(x), Bounds::lo(y), Bounds::hi(y));
+        let (tl, th) = (Bounds::lo(t), Bounds::hi(t));
+        let finite = [xl, xh, yl, yh].iter().all(|v| v.is_finite());
+        if !(finite && tl >= 0.0 && th <= 1.0) {
+            return plain;
+        }
+        let corner = |a: f64, b: f64, s: f64| {
+            let (a, b, s) = (
+                Self(DInterval::point(a)),
+                Self(DInterval::point(b)),
+                Self(DInterval::point(s)),
+            );
+            a + (b - a) * s
+        };
+        let mut acc = corner(xl, yl, tl);
+        for (a, b, s) in [
+            (xl, yl, th),
+            (xl, yh, tl),
+            (xl, yh, th),
+            (xh, yl, tl),
+            (xh, yl, th),
+            (xh, yh, tl),
+            (xh, yh, th),
+        ] {
+            acc = Self(enclosure_hull_of(acc.0, corner(a, b, s).0));
+        }
+        Self(cap_decoration(acc.0, plain.0.decoration()))
+    }
+
     fn locate_spans<'a>(
         self,
         knots: &'a crate::spline::KnotVector,
@@ -870,6 +912,23 @@ impl crate::spline::SpanLocate for Interval {
         Self(enclosure_hull_of(self.0, other.0))
     }
 
+    fn clip_to(self, lo: f64, hi: f64) -> Self {
+        // A narrowing that keeps the decoration: the rebuilt bounds are
+        // capped at `self`'s, so an uncertified value stays uncertified.
+        let (l, h) = (Bounds::lo(self).max(lo), Bounds::hi(self).min(hi));
+        let meets = matches!(
+            l.partial_cmp(&h),
+            Some(core::cmp::Ordering::Less | core::cmp::Ordering::Equal)
+        );
+        if self.0.is_nai() || self.0.is_empty() || !meets {
+            return self;
+        }
+        Self(cap_decoration(
+            DInterval::from_bounds(l, h),
+            self.0.decoration(),
+        ))
+    }
+
     fn restrict_window(
         window: &[Self],
         span: crate::spline::Span<'_>,
@@ -877,10 +936,10 @@ impl crate::spline::SpanLocate for Interval {
         ends: (f64, f64),
         _held_ends: (Self, Self),
     ) -> Vec<Self> {
-        // A held knot at `Interval` is the point of its `f64` structure,
-        // so the certified restriction reads the structure; the held
-        // values are checked for length only, as at every scalar.
-        if held.len() != span.knots().knots().len() {
+        // The certified restriction reads the knots' `f64` vector (C6's
+        // interim), which a carrier's point knots have; the held values
+        // are checked for length only, as at every scalar.
+        if held.len() != span.structure().len() {
             return vec![Self::from_f64(f64::NAN); span.degree() + 1];
         }
         crate::spline::blossom::restrict_window(window, span, ends)
@@ -889,6 +948,15 @@ impl crate::spline::SpanLocate for Interval {
     fn point_value(self) -> Option<f64> {
         let (lo, hi) = (Bounds::lo(self), Bounds::hi(self));
         (lo == hi && !lo.is_nan()).then_some(lo)
+    }
+
+    fn structure_bracket(self) -> Option<(f64, f64)> {
+        let (lo, hi) = (Bounds::lo(self), Bounds::hi(self));
+        (!self.is_poison() && lo <= hi).then_some((lo, hi))
+    }
+
+    fn structure_positive(self) -> bool {
+        Bounds::lo(self) > 0.0 && !self.is_poison()
     }
 
     fn plain_constant(self) -> Option<f64> {
@@ -1337,6 +1405,27 @@ mod tests {
         for x in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             assert!(Interval::from_f64(x).0.is_nai(), "from_f64({x:e})");
         }
+    }
+
+    /// **`clip_to` intersects and keeps the decoration (C6 S5c).** A
+    /// value narrowed to `[lo, hi]` is the intersection; an uncertified
+    /// value stays uncertified; a value that misses `[lo, hi]`, and
+    /// poison, come back as they were.
+    #[test]
+    fn clip_to_intersects_and_keeps_the_decoration() {
+        use crate::spline::SpanLocate;
+        let x = Interval::from_bounds(0.2, 0.8);
+        let c = x.clip_to(0.5, 1.0);
+        assert_eq!((Bounds::lo(c), Bounds::hi(c)), (0.5, 0.8));
+        assert!(c.is_certified());
+        let uncertified = Interval::from_bounds(-1.0, 4.0).sqrt();
+        assert!(!uncertified.is_certified());
+        assert!(!uncertified.clip_to(0.5, 1.0).is_certified());
+        let missed = x.clip_to(0.9, 1.0);
+        assert_eq!((Bounds::lo(missed), Bounds::hi(missed)), (0.2, 0.8));
+        assert!(Real::is_poison(
+            Interval::from_f64(f64::NAN).clip_to(0.0, 1.0)
+        ));
     }
 
     #[test]

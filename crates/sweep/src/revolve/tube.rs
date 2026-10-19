@@ -490,12 +490,13 @@ fn build<T: Decide + topo::AtRestPolicy>(
         Mat3::from_cols(x_dir, axis, normal),
         center - Point3::origin(),
     );
-    let sketch_frame = AxisFrame::build(
+    let sketch_frame = AxisFrame::build_on(
         place,
         &RevolveAxis {
             origin: Point2::new(T::zero(), T::zero()),
             dir: Vec2::new(T::zero(), T::one()),
         },
+        frame.w(),
         band,
     )
     .map_err(TubeError::Revolve)?;

@@ -41,7 +41,7 @@ fn revolve_programs(loops: Vec<LoopProgram<Formula>>, angle: f64) -> (ProfileDoc
     );
     insert(
         doc,
-        fixture::revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(angle)),
+        fixture::revolve_about(p, (0.0, 0.0), crate::fixture::along_y(), ang(angle)),
     )
 }
 

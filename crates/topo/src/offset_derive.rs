@@ -378,7 +378,7 @@ fn normal_in_plane_along<T: Decide>(
         return false;
     };
     let row = |r: usize| r * nv..(r + 1) * nv;
-    let (ctl, w) = (net.control(), net.weight_channel());
+    let (ctl, w) = (net.control(), net.weights_f64_interim());
     let mut sense = None;
     ctl[row(first)]
         .iter()
@@ -411,7 +411,7 @@ fn normal_in_plane_along<T: Decide>(
 fn translates_along<T: Decide>(wall: &NurbsSurface<T>, n: Vec3<T>, reach: T, band: Band) -> bool {
     let zero = |name, value| held_zero(name, value, band);
     let (nu, nv) = wall.control_counts();
-    let (ctl, w) = (wall.control(), wall.weight_channel());
+    let (ctl, w) = (wall.control(), wall.weights_f64_interim());
     // `at(i, j)` reads the net with `j` the axis the translation runs.
     let along = |at: &dyn Fn(usize, usize) -> usize, (ni, nj): (usize, usize)| -> bool {
         for i in 0..ni {
@@ -482,10 +482,10 @@ fn nearest<T: Decide>(
     band: Band,
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
     let mid = old.mid_point(t0, t1);
-    let reach = |c: &Curve3<T>| {
-        c.param_near(mid, T::zero())
-            .map(|t| c.eval(t).distance(mid))
-    };
+    // The distance at the foot ([`Curve3::foot`]): the unit-coordinate
+    // angle alone reads an ellipse's point up to `(1 + a/b)` times
+    // farther off. A carrier with no closed-form parameter is refused.
+    let reach = |c: &Curve3<T>| c.param_near(mid, T::zero()).map(|t| c.foot(mid, t).gap());
     let mut best: Option<(Curve3<T>, T)> = None;
     for c in candidates {
         let Some(r) = reach(&c) else {
@@ -798,8 +798,8 @@ fn plane_wall_section(
                 Ok(SectionReading::Branch(branch)) => branch_carrier(branch),
                 Ok(SectionReading::Region(SsiBoundaryContact::Side { side, .. })) => {
                     let (lo, hi) = match side.fixed {
-                        ChartAxis::U => wall.knots_u().domain(),
-                        ChartAxis::V => wall.knots_v().domain(),
+                        ChartAxis::U => wall.knots_u_f64_interim().domain(),
+                        ChartAxis::V => wall.knots_v_f64_interim().domain(),
                     };
                     let at = if side.end == ChartEnd::High { hi } else { lo };
                     match wall_row(wall, side.fixed, at) {
@@ -953,7 +953,7 @@ fn level_row(
         }
         // `net`'s height depends on its `v` alone, so the plane's root
         // along one of its columns is the row the plane holds.
-        let (u0, _) = net.knots_u().domain();
+        let (u0, _) = net.knots_u_f64_interim().domain();
         let column = match geom_brep::interior_iso_u(&net, u0) {
             Ok(c) => c,
             Err(_) => continue,
@@ -1208,6 +1208,163 @@ mod holds {
             assert!(
                 !holds_beside_z0(Point3::new(0.0, e, 1.0), Point3::new(1.0, e, -1.0)),
                 "e = {e}"
+            );
+        }
+    }
+}
+
+/// **A held neighbour meets the moved surface square.** Every closed-form
+/// pose [`holds_the_move`] admits has the held surface contain the moved
+/// surface's normal along the edge, so the two meet at a right angle:
+/// the must-carry rule reads the pair `Intersection` there, never
+/// under-determined, and the pair routes and serves the pose. So an
+/// edge an offset door re-asks beside a held neighbour (`replace_face`'s
+/// chart and pair arms) stores the section, which `neighbour_section`'s
+/// route question is the precondition of, declared or derived alike.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod square {
+    use super::holds_the_move;
+    use crate::geometry::SurfaceKey;
+    use geom::{Curve3, Surface};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// A pose by name: the moved surface, the held one, and an edge on
+    /// both over its span.
+    type Pose = (
+        &'static str,
+        Surface<f64>,
+        Surface<f64>,
+        Curve3<f64>,
+        (f64, f64),
+    );
+
+    #[test]
+    fn every_held_pose_routes_and_reads_the_section() {
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let mut keys: slotmap::SlotMap<SurfaceKey, ()> = slotmap::SlotMap::with_key();
+        let (ka, kb) = (keys.insert(()), keys.insert(()));
+        let (x, y, z) = (Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z());
+        let o = Point3::origin();
+        let plane = |origin, normal: Vec3<f64>, u_ref| Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        };
+        let line = |origin, dir| Curve3::Line { origin, dir };
+        let circle = |center, axis, radius, u_ref| Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        };
+        let cylinder = Surface::Cylinder {
+            origin: o,
+            axis: z,
+            radius: 1.0,
+            u_ref: x,
+        };
+        let torus = Surface::Torus {
+            center: o,
+            axis: z,
+            major_radius: 3.0,
+            minor_radius: 1.0,
+            u_ref: x,
+        };
+        let s = std::f64::consts::FRAC_1_SQRT_2;
+        let poses: Vec<Pose> = vec![
+            (
+                "plane beside a plane holding its normal",
+                plane(o, z, x),
+                plane(o, x, y),
+                line(o, y),
+                (0.0, 1.0),
+            ),
+            (
+                "plane beside a cylinder along its normal",
+                plane(o, z, x),
+                cylinder.clone(),
+                circle(o, z, 1.0, x),
+                (0.0, 1.0),
+            ),
+            (
+                "cylinder beside a plane across its axis",
+                cylinder.clone(),
+                plane(o, z, x),
+                circle(o, z, 1.0, x),
+                (0.0, 1.0),
+            ),
+            (
+                "cylinder beside a plane holding its axis",
+                cylinder.clone(),
+                plane(o, x, y),
+                line(Point3::new(0.0, 1.0, 0.0), z),
+                (0.0, 1.0),
+            ),
+            (
+                "sphere beside a plane through its centre",
+                Surface::Sphere {
+                    center: o,
+                    radius: 1.0,
+                    axis: z,
+                    u_ref: x,
+                },
+                plane(o, z, x),
+                circle(o, z, 1.0, x),
+                (0.0, 1.0),
+            ),
+            (
+                "cone beside a plane holding its axis",
+                Surface::Cone {
+                    apex: o,
+                    axis: z,
+                    half_angle: std::f64::consts::FRAC_PI_4,
+                    u_ref: x,
+                },
+                plane(o, x, y),
+                line(o, Vec3::new(0.0, s, s)),
+                (0.5, 1.5),
+            ),
+            (
+                "torus beside a meridian plane",
+                torus.clone(),
+                plane(o, x, y),
+                circle(Point3::new(0.0, 3.0, 0.0), x, 1.0, y),
+                (0.0, 1.0),
+            ),
+            (
+                "torus beside its equatorial plane",
+                torus,
+                plane(o, z, x),
+                circle(o, z, 4.0, x),
+                (0.0, 1.0),
+            ),
+        ];
+        for (name, moved, held, carrier, (t0, t1)) in poses {
+            assert!(
+                holds_the_move(&moved, &held, None, 0.1, band),
+                "{name}: holds"
+            );
+            let reach = geom_brep::Reach::Span {
+                carrier: carrier.clone(),
+                t0,
+                t1,
+            };
+            let route = geom_brep::intersect::route_pose(&moved, &held, &reach, band)
+                .expect("the pose is decided");
+            assert!(route.implemented, "{name}: {}", route.note);
+            let read = geom_brep::reask_pair(
+                [(ka, &moved), (kb, &held)],
+                &carrier,
+                (t0, t1),
+                1.0,
+                None,
+                band,
+            )
+            .expect("the rule reads the pair");
+            assert!(
+                matches!(read, geom_brep::EdgeDescriptionSpec::Intersection { .. }),
+                "{name}: {read:?}"
             );
         }
     }

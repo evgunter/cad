@@ -2387,3 +2387,36 @@ The PR merged with `demos` red on that drift alone.
 - `work/origin/body-split-root-stops-at-a-parent-an-output-stage-killed` (with a sibling sweep).
 
 **Review.** The falsifier's A4 reading turned the remap design stop into a build. Without it, the stop would have become a third `[ev]` question.
+
+## 2026-10-15 — PRs 5107, 5174 and 5180
+
+**PR 5107: a union reads flush edges along a curved carrier.**
+- Closed `a-unions-flush-reading-is-straight-only` and `crossings-of-a-union-seam-of-several-curves-tie`.
+- `EdgeCarrier` (`Straight`, `Curved` or `Unread`, the last for a NURBS carrier) and `Track::runs_with` decide the flush lines. `least_per_line` is shared with the pair boolean.
+- The `Track::offset` start point is decided first.
+- Ev ratified (2026-10-14) the N2 / flush README re-wording, "line" = carrier. On ranking along a curved seam: "that can be a separate pr". It is filed as `a-union-seam-whose-pieces-lie-on-one-open-carrier-ranks-its-crossings-along-it`.
+- Re-baselined: the ball-brick refusal message.
+
+**PR 5174: split and inline keep step-id order; `remap_name` refuses typed; the carve keeps split records.**
+- Closed `a-remap-that-changes-a-ranked-runs-least-line-carries-it-uncanonical` under ASSEMBLY.md A4 Acceptance. The split's and inline's step maps keep id order, through a recorded `SetProgram` that mints nothing.
+- A ranked run across two profiles refuses typed. It is unreachable today.
+- `remap_name` returns `RemapError`, and `RankedRunReordered` is a new typed refusal.
+- Closed `a-booleans-carve-kills-a-split-record-its-discard-rows-do-not-copy` through `carved_lineage`, records only.
+- North-star `TestCrosslapGlued` now succeeds: audit row 37 flips NO→YES.
+
+**PR 5180: main red, fixed.** TANG #5111 added a `copysign` site that the Rule F census did not count, and main's own CI scoped geom-core out. 5107 and 5174, both at `TIER=all`, went red. The census was re-asked: the site makes no decision. The fix was merged into both, then into main.
+
+- 2026-10-15 — **No live row is at or above this track's own band (P0).** The 31 rows left are 2 at P2, 23 at P3, 5 at P4, 1 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
+  Band the 1 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
+  (tracker sweep)
+- 2026-10-18 — Seam note from FUSE, which closes (`docs/doc-ledger/fuse-leaves-the-tracker.md`): `a-conventional-vertex-mints-no-edge-derived-name`, `a-split-join-that-kills-a-split-child-has-no-row`, `boolean-naming-carries-the-join-rows-twice` and `a-discard-border-inside-a-merged-face-or-joined-edge-reads-as-no-border` (the last a naming-layer design question on `Borders`, beside this slate's other border rows) moved here by `git mv`, ids kept and bodies unchanged but for re-pointed `work/fuse/` citations. (FUSE close lane)
+- 2026-10-19 — Ev ruled on `[ev]` PR 5153. (1) The closure is taken, so the N2 sentence lands with this PR and the notch-apex row is buildable. (2) "No stopgap": the `HeldEdge` record is declined. Asked which program the imprint fits, I answered FLUSH: its corner-pair, L-prism and apex-edge rows are the same coincidence, closed with records. The imprint is filed there as `coincident-faces-are-not-imprinted-on-each-other-before-the-lump`, and the pocket-floor row is parked on it. Fork-log row 171 is filled: (1) B, (2) neither; byte 20, A = Opus.
+- 2026-10-19 — Banded FUSE's two seam rows. `a-conventional-vertex-mints-no-edge-derived-name` is P2/H: a document reaches its typed refusal (lens ∩ tilted brick, 2026-10-13), which is the band the sphere cut-in row it came out of held, and its build is the ruled vocabulary addition. `two-seam-runs-…-read-alike-within-the-evaluation` is P3/M: no case is measured, and the row opens with a measurement. Neither is at the track's P0 band, so the 10-15 wrap-up note stands. Plan agreed with Ev in chat: land the open-carrier seam rank, the notch-apex closure and the P2 covered-pair fork (designer pair dispatched today, fork `emit-pair-covered`), then close EMIT and re-home its P3/P4 tail.
+- 2026-10-19 — Dispatches and merges, in order:
+  - Merged [ev] PR 5153: the closure is ratified, and the imprint is filed on FLUSH.
+  - Merged PR 5341, which bands FUSE's rows.
+  - Opened [ev] PR 5345: fork `emit-pair-covered`, row 172. The pair agreed the premise is stale; waiting on Ev, with its pins lane `pcpin` dispatched after `srfix`.
+  - Merged PR 5347 at c246240ea0 (lane `srank`; full review; fold lane `srfix`). The open-carrier seam rank, including the two-gap arc read from the gap no group vertex bounds. That is the orchestrator's reading of Ev's 5107 approval of "one open curve (an arc)", told to Ev in chat. The filed two-gap design row closed with it.
+  - Opened PR 5356 (lane `nclos`): the notch-apex closure in `borders.rs`, under full review. A slow-set rename was fixed by the orchestrator.
+  - Filed `seam-rank-extents-compare-carrier-parameters-as-metres` (P3), found in `srfix`'s sweep.
+- 2026-10-19 — Ev approved [ev] PR 5345 ("sounds good"). The pair-boolean covered-pair row is closed as stale on main: pinned, with the README sentence. Its fork-log row is renumbered 172 → 173 → 174 at the main merges, because main took 172 and 173. Ev, match and A/B are filled: both designers, byte 142, A = Opus.

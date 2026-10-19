@@ -29,6 +29,7 @@
 //! D2 bump: the mover's `Distance` (mid-DAG — its cone is that
 //! extrude plus the second union; the kiss chain is reused).
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, Node, SlotId};
 
@@ -88,7 +89,7 @@ pub fn document() -> CorpusDoc {
         members: editor_core::Bodies::Spelled(vec![u1.into(), c.into()]),
     });
 
-    r.place(u2);
+    r.place_part(u2);
 
     CorpusDoc {
         name: "kiss_carry",

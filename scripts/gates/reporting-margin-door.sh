@@ -44,14 +44,15 @@
 # that owns the endings.
 #
 # THE DEFECT CHOICE IS A FOURTH LIST. A sized decision's caller may say
-# a decided refused sign contradicts the stored data its decision reads
-# (`RefusedReading::ContradictsStoredData`), which turns that reading's
-# ending into the kernel-or-file defect ending; and the sign-certain arm
-# asks the refused class's ending without a reading
-# (`SizedWords::sign_certain_recourse`). Both belong to the one table
-# that picks how a definite reading ends from its class and the
-# decision's kind, so the two routes there cannot drift: a spelling of
-# either anywhere else is a second table. The list counts the variant's
+# a reading certainly on the refused side contradicts the stored data
+# its decision reads (`RefusedReading::ContradictsStoredData`) or a
+# file's (`RefusedReading::DamagedFile`), which turns that reading's
+# ending into the kernel-or-file defect ending or the damaged-file one;
+# and the sign-certain arm asks the refused class's ending without a
+# reading (`SizedWords::sign_certain_recourse`). All belong to the one
+# table that picks how a definite reading ends from its class and the
+# decision's refused side, so the routes there cannot drift: a spelling
+# of any anywhere else is a second table. The list counts the variant's
 # spellings and the method's calls, not what the site does with them.
 #
 # WHAT A LISTED SITE OWES, and the gate checks none of it — it checks
@@ -115,6 +116,10 @@ DOOR_RE='diagnostic_f64_for_error_text'
 # definition home that mints a valued reading.
 MINT_ALLOWLIST=(
   'crates/geom-core/src/interval.rs 1 the interval classifier reports the enclosure it classified'
+  'crates/geom-core/src/spline/knot_values.rs 1 a knot run order the structure refuses undecided (C6) reports the step enclosure it read, in the refusal and nothing else'
+  'crates/geom-core/src/spline/weights.rs 1 a weight whose sign the structure refuses undecided (C6) reports the weight enclosure it read, in the refusal and nothing else'
+  'crates/geom-core/src/spline/plan_inputs.rs 1 a knot parameter whose place over a wide breakpoint the structure refuses undecided (C6 S5b) reports its distance to the breakpoint'"'"'s bracket, in the refusal and nothing else'
+  'crates/sweep/src/skin.rs 1 an arc sweep decision the structure refuses undecided (C6) reports the sweep'"'"'s distance to the breakpoint it read, in the refusal and nothing else'
   'crates/sweep/src/blend/battery.rs 2 the blend payload reports its companion quantities as its own scalar reads them (the M5 PR 12 seam)'
   'crates/topo/src/boolean/recl.rs 1 a grazing bisector between definite keys rides a record code that keeps no margin, so its On reports the zero band (residue on hand-minted-indeterminate-ratchet-gate)'
   'crates/topo/src/chart_region.rs 1 a definite deduction that cannot certify its outcome echoes the value it classified'
@@ -134,9 +139,9 @@ SIZED_RE='(sized_recourse|sized_recourse_in_file|miss_recourse_in_file)([^A-Za-z
 # `path count why` — production files outside the definition home that
 # spell the stored-contradiction choice or ask the sign-certain ending.
 DEFINITE_ALLOWLIST=(
-  'crates/geom-brep/src/recourse.rs 2 the sized-decision table: SizedDecision::words picks the stored-contradiction choice once for both routes, and the sign-certain arm asks the refused class ending through those words'
+  'crates/geom-brep/src/recourse.rs 3 the sized-decision table: SizedDecision::words picks the stored-contradiction and damaged-file choices once for every route, and the sign-certain arm asks the refused class ending through those words'
 )
-DEFINITE_RE='(RefusedReading::ContradictsStoredData|sign_certain_recourse)([^A-Za-z0-9_]|$)'
+DEFINITE_RE='(RefusedReading::(ContradictsStoredData|DamagedFile)|sign_certain_recourse)([^A-Za-z0-9_]|$)'
 
 # `path count why` — production files that may write the classifier's
 # verdict `terminal_sliver: true` on an escalation of their own. None:

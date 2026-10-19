@@ -38,9 +38,10 @@ outside the spline stack. Swept with a heuristic scan: an `f64` (or
 - `crates/editor-core/src/range.rs`: `RangeRefusal` (`[{lo}, {hi}]`).
 - `crates/geom-brep/src/offset_fit.rs`: `OffsetFitError` (`{d}`,
   `{tolerance}`, `{achieved}`, `{b}`, `{bound}`, the `(u, v)` pair).
-- `crates/geom-brep/src/offset_meters.rs`: `MeterError` (`{floor}`,
+- ~~`crates/geom-brep/src/offset_meters.rs`: `MeterError` (`{floor}`,
   `{speed_lever}`, `{thinness}`, `{reach}`, `{headroom}`, the
-  curvature pair).
+  curvature pair).~~ Done in PR 5157: every number `MeterError`'s
+  `Display` prints now goes through `Readable`.
 - `crates/geom-brep/src/ssi.rs`: `SsiError`'s foot point (`t = {t}`).
 - `crates/profile/src/validate.rs`: `FilletLegCarrier` (`{radius}`,
   `{angular_margin}`).

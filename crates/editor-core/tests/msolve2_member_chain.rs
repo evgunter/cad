@@ -1,21 +1,29 @@
-//! **The member chain** — nested copies through `Node::Part`, and
-//! sibling distinctness at every level of the nest.
+//! **Nested copies as a mate's target** — `Pattern` over `Part` over
+//! `Pattern`, and transforms between, read where the copy stands.
 //!
 //! A pattern's value is many bodies and a pattern's input is one, so
 //! a pattern OVER a pattern does not evaluate. The nested shape a
 //! user can build runs through `Node::Part { select: Instance(i) }`,
 //! which projects one body out of the instances carrying every name
-//! VERBATIM: `Pattern` over `Part` over `Pattern`. The walk from the
-//! body a mate's side reads passes the `Part` contributing nothing, consumes an
-//! `Instance(i)` qualifier at each pattern, and lands on the
-//! instance that minted the name — so a nested copy's member is that
-//! instance, the CHAIN of copies, and the body read.
+//! VERBATIM. A mate's target is a pose read off geometry of the space
+//! the copy joins: read at a nested copy, under the name that copy
+//! wears, it is that copy's face where the chain of placers put it —
+//! the evaluation of each placer composes the chain, and the fold
+//! reads the result. A pose is read off one body, so a target on a
+//! pattern's copy is read at a `Part` (or a placer over one) that
+//! projects it.
 //!
-//! Every row goes through ordinary doors — `DocEdit::InsertNode`,
-//! `solve_document`, `evaluate`, `product`, `assemble` — and the
-//! seating rows measure the PRODUCT's own face frames with the shared
-//! whole-frame oracle (`fixture::seat`), never a solved frame read by
-//! eye.
+//! Every row seats a `cap` instance, whose bundle the constraints
+//! join, on a nested copy of a `top` instance pinned to the world: the
+//! cap's bottom cap rests on the copy's top cap, and two of its lateral
+//! edges are coaxial with two of the copy's, each slid half the block's
+//! width across the copy so the cap overhangs it — three mates that pin
+//! the cap with no value. Every row goes through ordinary doors —
+//! `DocEdit::InsertNode`, `DocEdit::AddConstraint`, `solve_document`,
+//! `evaluate`, `product`, `assemble` — and the seating rows measure the
+//! PRODUCT's own face frames with the shared whole-frame oracle
+//! (`fixture::seat`) against a control seated on the top itself, never
+//! a solved frame read by eye.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -23,28 +31,24 @@ use crate::fixture;
 use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
-use std::collections::BTreeMap;
-
+use editor_core::pose::{PoseDef, RoleRead};
 use editor_core::{
-    Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, Datum, Dimension,
-    DocEdit, DocumentId, EvalOptions, Formula, FreeValue, FreeVar, MateFault, MateFrame,
-    MatePrimitive, MateRole, MateSide, Node, PartSelect, PatternKind, ProfileDoc, RecipeNodeId,
-    SitedFace, StableName, VarName, groups, member_of, product,
+    CapEnd, ContactClass, Datum, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
+    FreeValue, FreeVar, Mate, MateFault, MateRef, MateSide, NameRef, Node, NodeErrorKind,
+    NodeResult, Operand, PartSelect, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef,
+    Space, StableName, VarName, product,
 };
-use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::seat::{assert_seated as assert_seated_named, seat_map as seat_map_named};
-use fixture::{
-    ang, door_refusal, gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform,
-};
+use fixture::{ang, gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
 use geom_core::Tol;
 use geom_core::linalg::Affine3;
 
-// ---- the scene's two parts ----
+// ---- the scene's part ----
 
-/// The base's half-width and height: a `9x9x1` slab, wide enough that
-/// two declared seats stand clear of each other and of its edges.
-const BASE_WIDTH: f64 = 9.0;
-const BASE_HEIGHT: f64 = 1.0;
+/// The block's width and height: a `1x1x3` block, patterned as `top`
+/// and instantiated again as the `cap` seated on its copies.
+const TOP_WIDTH: f64 = 1.0;
 const TOP_HEIGHT: f64 = 3.0;
 
 /// A `w x w x h` block, as a whole part document, and its body.
@@ -67,61 +71,75 @@ fn part_doc(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-/// A `Rest`/`FrameCoincidence`/`Opposed` mate seating `b`'s bottom cap
-/// onto the point `a_origin` of `a`'s top cap, each frame authored in
-/// its own member's part coordinates.
-///
-/// The two outward normals and `Opposed` are what make this a
-/// physical seat: the block stands ON the slab. `a_origin` moves the
-/// declared contact point across the slab, which is how a second mate
-/// declares the seat a sibling copy actually lands in.
-fn seat_at(a: SitedFace, b: SitedFace, a_origin: [f64; 3]) -> AuthoredNode {
-    Node::Mate {
-        a: a.into(),
-        b: b.into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
-            a: MateFrame::authored(
-                a_origin,
-                [0.0, 0.0, 1.0],
-                [1.0, 0.0, 0.0],
-                geom_core::Tol::witness(),
-            )
-            .expect("a definite frame"),
-            b: MateFrame::authored(
-                [0.0, 0.0, 0.0],
-                [0.0, 0.0, -1.0],
-                [1.0, 0.0, 0.0],
-                geom_core::Tol::witness(),
-            )
-            .expect("a definite frame"),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Opposed,
-            clocking: None,
-        },
+/// **`name`, an entity of the part's body, as `instance` wears it**:
+/// under the placement the part's world copies the body by, inside the
+/// instance's `InPart` wrapper.
+fn worn(instance: RecipeNodeId, body: RecipeNodeId, name: StableName) -> StableName {
+    let placed = StableName {
+        kind: name.kind,
+        node: placement_of(body),
+        path: vec![RoleSeg::Placed {
+            of: NameRef::new(name),
+        }],
+    };
+    StableName {
+        kind: placed.kind,
+        node: instance,
+        path: vec![RoleSeg::InPart { of: placed.into() }],
     }
 }
 
+/// The part's own names for what a seat reads: two lateral edges, at
+/// the profile's first two vertices, and the rim edges of the first
+/// two profile segments, whose lines run along the block's two sides.
+#[derive(Clone)]
+struct PartNames {
+    lateral: [StableName; 2],
+    rim: [StableName; 2],
+    /// The cap vertices at corner 1, the start cap's then the end
+    /// cap's: where a corner frame up `lateral[0]` points its `x`.
+    corner: [StableName; 2],
+}
+
 /// **The world the product is** (A10): each of `bodies` placed, then
-/// each `(pattern, count)`'s copies placed through a `Part` per copy —
-/// what the old product roots were, the sinks of each row's chains.
-fn world(doc: ProfileDoc, bodies: &[RecipeNodeId], patterns: &[(RecipeNodeId, i64)]) -> ProfileDoc {
-    let doc = fixture::place_all(doc, bodies);
+/// each `(pattern, count)`'s copies placed through a `Part` per copy,
+/// each pinned at the identity over its own geometry. The instances
+/// are placements of their own and are never placed again here.
+fn world(
+    doc: ProfileDoc,
+    opts: &EvalOptions,
+    bodies: &[RecipeNodeId],
+    patterns: &[(RecipeNodeId, i64)],
+) -> ProfileDoc {
+    let place = |doc: ProfileDoc, body: RecipeNodeId| {
+        let read = fixture::body_read(&doc, body.into());
+        let (doc, placement) = insert(doc, Node::place(vec![editor_core::BodyRead::plain(read)]));
+        fixture::pinned(doc, placement, opts)
+    };
+    let doc = bodies.iter().fold(doc, |doc, &body| place(doc, body));
     patterns.iter().fold(doc, |doc, &(pattern, count)| {
         (0..count).fold(doc, |doc, i| {
             let (doc, copy) = insert(doc, part_of(pattern, i));
-            fixture::place(doc, copy).0
+            place(doc, copy)
         })
     })
 }
 
-/// **`name`'s world copy**: the one name in the gathered product's
-/// table that is a copy of `name` ([`StableName::copy_of`]) — what the
-/// product names a member's face by, under the placement that put it
-/// in the world.
-fn copy_name(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>, name: &StableName) -> StableName {
+/// **`name` as the product names it**: the name itself where the
+/// product's table holds it (an instance's own face), else the one
+/// name that is a copy of `name` ([`StableName::copy_of`]) — what the
+/// product names a placed member's face by, under the placement that
+/// put it in the world.
+fn world_name(
+    doc: &ProfileDoc,
+    ev: &editor_core::Evaluation<f64>,
+    name: &StableName,
+) -> StableName {
     let (_, names) =
         editor_core::product_named(doc, ev, Tol::witness()).expect("the product gathers");
+    if names.lookup(name).is_some() {
+        return name.clone();
+    }
     let copies: Vec<StableName> = names
         .iter()
         .map(|(n, _)| n.clone())
@@ -133,8 +151,8 @@ fn copy_name(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>, name: &StableN
     copy.clone()
 }
 
-/// [`fixture::seat::assert_seated`] over the world copies of `a` and
-/// `b` ([`copy_name`]).
+/// [`fixture::seat::assert_seated`] over the world names of `a` and
+/// `b` ([`world_name`]).
 fn assert_seated(
     doc: &ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
@@ -143,95 +161,18 @@ fn assert_seated(
     control: &Affine3<f64>,
     what: &str,
 ) {
-    let (a, b) = (copy_name(doc, ev, a), copy_name(doc, ev, b));
+    let (a, b) = (world_name(doc, ev, a), world_name(doc, ev, b));
     assert_seated_named(doc, ev, &a, &b, control, what);
 }
 
-/// [`fixture::seat::seat_map`] over the world copies of `a` and `b`.
+/// [`fixture::seat::seat_map`] over the world names of `a` and `b`.
 fn seat_map(
     doc: &ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
     a: &StableName,
     b: &StableName,
 ) -> Affine3<f64> {
-    seat_map_named(doc, ev, &copy_name(doc, ev, a), &copy_name(doc, ev, b))
-}
-
-/// The seat every row's first mate declares: the slab's top cap at
-/// `(1, 1)`.
-const FIRST_SEAT: [f64; 3] = [1.0, 1.0, BASE_HEIGHT];
-
-/// A document holding the two instances and their resolver, with each
-/// instance's part body.
-struct Scene {
-    doc: ProfileDoc,
-    opts: EvalOptions,
-    base: RecipeNodeId,
-    top: RecipeNodeId,
-    base_body: RecipeNodeId,
-    top_body: RecipeNodeId,
-}
-
-/// `base` (the wide slab) and `top` (the tall block), instantiated,
-/// with nothing between them yet.
-fn scene(label: &str) -> Scene {
-    let mut store = PartStore::new();
-    let (base_ref, base_body) = store.insert_part(
-        part_doc(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
-        Tol::witness(),
-    );
-    let (top_ref, top_body) = store.insert_part(
-        part_doc(&format!("{label}-top"), 1.0, TOP_HEIGHT),
-        Tol::witness(),
-    );
-    let opts = with_resolver(store);
-    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
-    // The top sits where its mates put it: the base roots every group
-    // the rows' mates make, and a mate moves the top's copies onto it.
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetOffset {
-            instance: top,
-            offset: None,
-            fresh: Vec::new(),
-        },
-    );
-    Scene {
-        doc,
-        opts,
-        base,
-        top,
-        base_body,
-        top_body,
-    }
-}
-
-/// **The seat this fixture's alignment asks for**, measured on the
-/// document that has no placer anywhere: the relative frame a seated
-/// row must reproduce. Derived, never transcribed — a constant
-/// written down here would be a second statement of what the
-/// alignment says, and the two could drift apart.
-fn control_seat(label: &str) -> Affine3<f64> {
-    let s = scene(&format!("{label}-control"));
-    let (base, top) = (s.base, s.top);
-    let (base_body, top_body) = (s.base_body, s.top_body);
-    let a = in_part(base, base_body, CapEnd::End);
-    let b = in_part(top, top_body, CapEnd::Start);
-    let (doc, _) = step(
-        world(s.doc, &[base, top], &[]),
-        DocEdit::InsertNode {
-            node: Box::new(seat_at(
-                crate::fixture::head(a.clone()),
-                crate::fixture::head(b.clone()),
-                FIRST_SEAT,
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let ev = run(&doc, &s.opts);
-    seat_map(&doc, &ev, &a, &b)
+    seat_map_named(doc, ev, &world_name(doc, ev, a), &world_name(doc, ev, b))
 }
 
 /// A linear pattern node over `input`.
@@ -293,54 +234,209 @@ fn circular(
 /// A quarter turn — the step every rotating rule here takes.
 const Q: f64 = std::f64::consts::FRAC_PI_2;
 
-/// **The partition the roots are read off and the partition the
-/// solve folds over are ONE partition.** `groups` and
-/// `solve_document` read which mates weld through one door
-/// (`read_mates`), so a document's group membership and its solved
-/// roots cannot disagree; this asserts that on whatever document it
-/// is handed.
-fn assert_partition_agrees(doc: &editor_core::ProfileDoc, opts: &EvalOptions, what: &str) {
-    let poses = solve(doc, opts, Tol::witness());
-    let mut from_solve: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
-    for c in groups(doc) {
-        for &i in &c {
-            let g = poses.root(i).expect("every live instance has a root");
-            from_solve.entry(g).or_default().push(i);
-        }
-    }
-    let mut from_solve: Vec<Vec<RecipeNodeId>> = from_solve.into_values().collect();
-    let mut from_groups = groups(doc);
-    for c in from_solve.iter_mut().chain(from_groups.iter_mut()) {
-        c.sort();
-    }
-    from_solve.sort();
-    from_groups.sort();
-    assert_eq!(from_solve, from_groups, "{what}: the partitions disagree");
+/// Half the block's width: how far each target edge is slid across the
+/// copy, so the cap overhangs it.
+const OVERHANG: f64 = 0.5 * TOP_WIDTH;
+
+/// The lift a rule whose copies stand clear of each other steps by.
+const LIFT: f64 = 10.0;
+
+/// A document holding the patterned instance `top`, pinned to the
+/// world, and the `cap` whose bundle is empty, with their resolver.
+struct Scene {
+    doc: ProfileDoc,
+    opts: EvalOptions,
+    top: RecipeNodeId,
+    cap: RecipeNodeId,
+    top_ref: editor_core::DocRef,
+    top_body: RecipeNodeId,
+    names: PartNames,
 }
 
-// ---- A1: a nested copy seats at the composed pose ----
+impl Scene {
+    /// The cap's bottom cap, as the copy side of its rest.
+    fn cap_bottom(&self) -> StableName {
+        in_part(self.cap, self.top_body, CapEnd::Start)
+    }
+
+    /// The top's top cap, as a nested copy's chain wears it.
+    fn top_cap(&self) -> StableName {
+        in_part(self.top, self.top_body, CapEnd::End)
+    }
+
+    /// `name`, an entity of the top's part, as the top wears it.
+    fn on_top(&self, name: &StableName) -> StableName {
+        worn(self.top, self.top_body, name.clone())
+    }
+
+    /// **The seat of `cap` on the copy read at `at` under `wrap`**: one
+    /// pin (FORK-S3O) equating the cap's corner frame at its bottom cap
+    /// (up its lateral edge 0, `x` towards corner 1) with the copy's at
+    /// its top cap, slid [`OVERHANG`] along both rim lines, so the cap
+    /// overhangs the copy — `wrap` spells a name of the top as the copy
+    /// read at `at` wears it.
+    fn seat(
+        &self,
+        cap: RecipeNodeId,
+        at: RecipeNodeId,
+        wrap: &dyn Fn(StableName) -> StableName,
+    ) -> Vec<Mate<Formula>> {
+        let read = |name: &StableName| SitedRef::new(at, wrap(self.on_top(name)));
+        let own = |name: &StableName| SitedRef::new(cap, worn(cap, self.top_body, name.clone()));
+        let slid = |pose: Operand, along: &StableName| {
+            Operand::Pose(Box::new(PoseDef::Slide {
+                pose: RoleRead::plain(pose),
+                along: RoleRead::plain(fixture::axis(read(along))),
+                by: len(OVERHANG),
+            }))
+        };
+        let target = slid(
+            slid(
+                fixture::corner_frame(read(&self.names.lateral[0]), read(&self.names.corner[1])),
+                &self.names.rim[0],
+            ),
+            &self.names.rim[1],
+        );
+        vec![fixture::mate(
+            fixture::corner_frame(own(&self.names.lateral[0]), own(&self.names.corner[0])),
+            target,
+            ContactClass::Rest,
+        )]
+    }
+}
+
+/// `mates` added to `cap`'s bundle in order; their addresses.
+fn seated(
+    doc: ProfileDoc,
+    cap: RecipeNodeId,
+    mates: Vec<Mate<Formula>>,
+) -> (ProfileDoc, Vec<MateRef>) {
+    mates
+        .into_iter()
+        .fold((doc, Vec::new()), |(doc, mut refs), mate| {
+            let (doc, m) = fixture::constrain_at(doc, cap, mate);
+            refs.push(m);
+            (doc, refs)
+        })
+}
+
+/// `top` (the tall block), instantiated and pinned to the world at the
+/// identity, and `cap`, an instance of the same part placed by nothing
+/// yet.
+fn scene(label: &str) -> Scene {
+    let mut store = PartStore::new();
+    let (part, body) = part_doc(&format!("{label}-top"), TOP_WIDTH, TOP_HEIGHT);
+    let lateral = |v| {
+        fixture::ename(
+            body,
+            RoleSeg::LateralEdge(fixture::vpiece(&part, body, 0, v)),
+        )
+    };
+    let rim = |k| fixture::rim_edge(body, CapEnd::End, fixture::piece(&part, body, 0, k));
+    let corner = |end| fixture::cap_vertex(body, end, fixture::vpiece(&part, body, 0, 1));
+    let names = PartNames {
+        lateral: [lateral(0), lateral(1)],
+        rim: [rim(0), rim(1)],
+        corner: [corner(CapEnd::Start), corner(CapEnd::End)],
+    };
+    let (top_ref, top_body) = store.insert_part((part, body), Tol::witness());
+    let opts = with_resolver(store);
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let (doc, top) = fixture::insert_pinned(doc, Node::instantiate_part(top_ref), &opts);
+    let (doc, cap) = insert(doc, fixture::mated_instance(top_ref));
+    Scene {
+        doc,
+        opts,
+        top,
+        cap,
+        top_ref,
+        top_body,
+        names,
+    }
+}
+
+/// **The seat the mates ask for**, measured on the document that has
+/// no placer anywhere: the cap seated on the top's own top cap, the
+/// relative frame a seated row must reproduce. Derived, never
+/// transcribed — a constant written down here would be a second
+/// statement of what the mates say, and the two could drift apart.
+fn control_seat(label: &str) -> Affine3<f64> {
+    let s = scene(&format!("{label}-control"));
+    let (a, b) = (s.top_cap(), s.cap_bottom());
+    let (doc, _) = seated(s.doc.clone(), s.cap, s.seat(s.cap, s.top, &|n| n));
+    let ev = run(&doc, &s.opts);
+    seat_map(&doc, &ev, &a, &b)
+}
+
+/// **The cap seated and in the world**: the solve records no fault for
+/// its placement, its copy is of the world's kind, and the product
+/// gathers.
+fn assert_placed(doc: &ProfileDoc, opts: &EvalOptions, cap: RecipeNodeId, what: &str) {
+    let poses = solve(doc, opts, Tol::witness());
+    assert!(
+        poses.fault(cap).is_none(),
+        "{what}: the solve refused: {:?}",
+        poses.fault(cap)
+    );
+    let ev = run(doc, opts);
+    assert_eq!(
+        ev.space(cap),
+        Space::World,
+        "{what}: the cap is in the world"
+    );
+    assert!(
+        product(doc, &ev, Tol::witness()).is_ok(),
+        "{what}: the product gathers"
+    );
+}
+
+/// **The cap's target does not resolve**: the placement refuses with
+/// its first mate's target unevaluated, on the selection's own refusal.
+fn assert_target_unresolved(ev: &Evaluation<f64>, cap: RecipeNodeId, what: &str) {
+    let refusal = match ev.result(cap) {
+        Some(NodeResult::Failed(e)) => match &e.kind {
+            NodeErrorKind::Mate(fault) => match &**fault {
+                MateFault::SideUnevaluated {
+                    side: MateSide::To,
+                    refusal,
+                    ..
+                } => refusal.kind(),
+                other => panic!("{what}: expected the target unevaluated, got {other:?}"),
+            },
+            other => panic!("{what}: expected a mate refusal, got {other:?}"),
+        },
+        other => panic!("{what}: expected the cap to refuse, got {other:?}"),
+    };
+    assert!(
+        matches!(refusal, NodeErrorKind::SelectResolve { .. }),
+        "{what}: the target's refusal is its selection's: {refusal:?}"
+    );
+}
+
+// ---- A1: a nested copy seats where its chain stands ----
 
 /// **A1.** `Pattern` over `Part { Instance(1) }` over `Pattern`, the
-/// mate read at the outer pattern under the name a nested copy
-/// actually wears — `Instance { 1, of: Instance { 1, of: … } }`. The
-/// copy seats on the slab at `M₂(1) ∘ M₁(1) ∘ placement`, measured on
-/// the product's own face frames against the placer-free control.
+/// target read at a `Part` projecting the outer pattern's copy 1, under
+/// the name a nested copy actually wears — `Instance { 1, of: Instance { 1, of: … } }`. The
+/// cap seats on that copy, measured on the product's own face frames
+/// against the placer-free control.
 ///
 /// **The two maps do not commute**, which is what makes the row an
 /// assertion about the ORDER and not only about the pair: the inner
 /// rule translates along `+x` and the outer one is a quarter turn
 /// about the document's `z` axis, so `M₂(1) ∘ M₁(1)` carries the
 /// master's origin to `(0, 4)` where `M₁(1) ∘ M₂(1)` carries it to
-/// `(4, 0)`. A solve that folded the chain the other way round would
-/// place the instance somewhere the named copy does not seat, and the
-/// whole-frame oracle sees it.
+/// `(4, 0)`. A target read anywhere but where the named copy stands
+/// would seat the cap somewhere else, and the whole-frame oracle sees
+/// it.
+///
+/// *Breaks if* a pose read at a nested copy is read off another copy,
+/// or composed in another order.
 #[test]
-fn a1_a_nested_copy_seats_at_the_composed_pose() {
+fn a1_a_nested_copy_seats_where_its_chain_stands() {
     let control = control_seat("msolve2-a1");
     let s = scene("msolve2-a1");
-    let (base, top) = (s.base, s.top);
-    let (base_body, top_body) = (s.base_body, s.top_body);
-    let (doc, inner) = insert(s.doc, linear(top, [1.0, 0.0, 0.0], 4.0, 2));
+    let (doc, inner) = insert(s.doc.clone(), linear(s.top, [1.0, 0.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(inner, 1));
     let (doc, axis) = insert(
         doc,
@@ -356,387 +452,85 @@ fn a1_a_nested_copy_seats_at_the_composed_pose() {
             count: Formula::count(2),
             kind: PatternKind::Circular {
                 axis: axis.into(),
-                step: ang(std::f64::consts::FRAC_PI_2),
+                step: ang(Q),
             },
         },
     );
-    let doc = world(doc, &[base], &[(outer, 2)]);
-    let a = in_part(base, base_body, CapEnd::End);
-    let b = in_copy(
-        outer,
-        1,
-        in_copy(inner, 1, in_part(top, top_body, CapEnd::Start)),
-    );
-    let (doc, mate) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat_at(
-                crate::fixture::head(a.clone()),
-                crate::fixture::head_at(outer, b.clone()),
-                FIRST_SEAT,
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let mate = mate.unwrap();
-
-    // The member the reference resolves to, read at the door the
-    // solve reads: the chain is OUTERMOST first and the instance is
-    // the one that minted the name.
-    let member = member_of(&doc, &crate::fixture::head_at(outer, b.clone()))
-        .expect("a nested copy is a member");
-    assert_eq!(member.instance, top, "the member stands on the instance");
-    assert_eq!(
-        member.copy(),
-        vec![(outer, 1), (inner, 1)],
-        "the copy chain is outermost first"
-    );
-    assert_eq!(
-        member.chain.first().map(|p| p.node()),
-        Some(outer),
-        "the placing chain starts at the outermost placer"
-    );
-
-    let poses = solve(&doc, &s.opts, Tol::witness());
-    assert!(
-        poses.fault(mate).is_none(),
-        "A1: the solve refused a nested copy: {:?}",
-        poses.fault(mate)
-    );
-    assert_eq!(poses.role(mate), Some(MateRole::Determining));
+    let doc = world(doc, &s.opts, &[], &[(outer, 2)]);
+    let wrap = |n| in_copy(outer, 1, in_copy(inner, 1, n));
+    let (doc, copy) = insert(doc, part_of(outer, 1));
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, copy, &wrap));
+    assert_placed(&doc, &s.opts, s.cap, "A1");
     let ev = run(&doc, &s.opts);
-    assert!(
-        product(&doc, &ev, Tol::witness()).is_ok(),
-        "A1: the product gathers"
+    assert_seated(
+        &doc,
+        &ev,
+        &wrap(s.top_cap()),
+        &s.cap_bottom(),
+        &control,
+        "A1 nested copy",
     );
-    assert_seated(&doc, &ev, &a, &b, &control, "A1 nested copy");
 }
 
-// ---- A2: loop closure, at each level of the nest ----
-
-/// **The loop-closure shape, asserted.** Two mates from one base to
-/// two DIFFERENT members over the same instance key as two pairs, so
-/// the first is the group's tree edge and the second closes a loop:
-/// it determines nothing and is carried to the at-rest gate as a pure
-/// declaration. The gate is therefore where a loop is verified — a
-/// consistent pair passes it, an inconsistent one is refused there
-/// and attributed to the declaration the geometry contradicts.
+/// **A2′.** A target whose OUTER copy carries a non-identity map
+/// seats: outer copy 1 of a quarter turn about a `+z` axis at
+/// `(-2, 5)`, over inner copy 1 of a linear rule, read at a `Part`
+/// projecting it — measured on the
+/// product against the placer-free control.
 ///
-/// Both halves are asserted for every row, because a fixture whose
-/// CONSISTENT pair the gate also refused would make the other half
-/// vacuous.
-fn assert_loop_closes(
-    doc: &ProfileDoc,
-    opts: &EvalOptions,
-    tree: RecipeNodeId,
-    closer: RecipeNodeId,
-    consistent: bool,
-    what: &str,
-) {
-    let poses = solve(doc, opts, Tol::witness());
-    assert!(
-        poses.fault(tree).is_none() && poses.fault(closer).is_none(),
-        "{what}: the solve places on the tree edge and never verifies the \
-         loop: {:?} / {:?}",
-        poses.fault(tree),
-        poses.fault(closer)
-    );
-    assert_eq!(
-        poses.role(tree),
-        Some(MateRole::Determining),
-        "{what}: the first member pair is the tree edge"
-    );
-    assert_eq!(
-        poses.role(closer),
-        Some(MateRole::Declaring),
-        "{what}: the second member pair closes a loop"
-    );
-    let ev = run(doc, opts);
-    assert!(
-        product(doc, &ev, Tol::witness()).is_ok(),
-        "{what}: the product gathers"
-    );
-    if consistent {
-        assert!(
-            gate(doc, &ev).is_ok(),
-            "{what}: the gate refused a consistent pair: {:?}",
-            gate(doc, &ev).err()
-        );
-        return;
-    }
-    let err = gate(doc, &ev).expect_err("the gate refuses the unmet declaration");
-    let AssemblyError::AtRest { findings } = &err else {
-        panic!("{what}: expected the at-rest gate's refusal, got {err:?}");
-    };
-    assert!(
-        findings
-            .iter()
-            .any(|f| matches!(f.attribution, Some(Attribution::Refuted(_)))),
-        "{what}: the refusal names the declaration the geometry \
-         contradicts, rather than only an unrecorded contact: {findings:?}"
-    );
-}
-
-/// The second seat, four units along `+y` from the first — where a
-/// sibling copy one inner or one outer step along that rule actually
-/// lands.
-const SECOND_SEAT: [f64; 3] = [1.0, 5.0, BASE_HEIGHT];
-
-/// **How an inconsistent pair is built here, and why not by moving
-/// the declared frame.** A declaring mate is verified against the
-/// GEOMETRY: the gate asks whether the two faces the mate names are
-/// in contact, and the mate frames the solve folds are not part of
-/// that question. So an unsatisfiable declaration is one whose named
-/// copy is somewhere else — a sibling the rule lifts ten units clear
-/// of the slab — and moving the authored `a` frame instead would
-/// change nothing the gate reads. (Measured: an `a` frame lifted
-/// three units off the slab leaves the gate green, because the copy
-/// it names still rests where the tree edge put it.)
-const LIFT: f64 = 10.0;
-/// The rule that lifts every sibling clear of the slab.
-const LIFTING: ([f64; 3], f64) = ([0.0, 0.0, 1.0], LIFT);
-/// The rule whose next sibling lands on the slab at [`SECOND_SEAT`].
-const ALONG: ([f64; 3], f64) = ([0.0, 1.0, 0.0], 4.0);
-
-/// **A2(b).** Two mates onto sibling copies of the OUTER pattern —
-/// the same inner copy, outer copies 0 and 1 of one chain. The two
-/// members differ only in the outer index, which is enough to make
-/// them different pairs.
+/// *Breaks if* an outer rotation about an axis off the origin is lost
+/// between the copy and the pose read off it.
 #[test]
-fn a2b_sibling_outer_copies_close_a_loop() {
-    let outer_siblings = |label: &str, rule: ([f64; 3], f64), second: [f64; 3]| {
-        let s = scene(label);
-        let (base, top) = (s.base, s.top);
-        let (base_body, top_body) = (s.base_body, s.top_body);
-        let (doc, inner) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
-        let (doc, part) = insert(doc, part_of(inner, 1));
-        let (doc, outer) = insert(doc, linear(part, rule.0, rule.1, 2));
-        let doc = world(doc, &[base], &[(outer, 2)]);
-        let a = in_part(base, base_body, CapEnd::End);
-        let master = in_part(top, top_body, CapEnd::Start);
-        let named = |i2: u32| in_copy(outer, i2, in_copy(inner, 1, master.clone()));
-        let (doc, m1) = step(
-            doc,
-            DocEdit::InsertNode {
-                node: Box::new(seat_at(
-                    crate::fixture::head(a.clone()),
-                    crate::fixture::head_at(outer, named(0)),
-                    FIRST_SEAT,
-                )),
-                fresh: Vec::new(),
-            },
-        );
-        let (doc, m2) = step(
-            doc,
-            DocEdit::InsertNode {
-                node: Box::new(seat_at(
-                    crate::fixture::head(a),
-                    crate::fixture::head_at(outer, named(1)),
-                    second,
-                )),
-                fresh: Vec::new(),
-            },
-        );
-        (doc, s.opts, m1.unwrap(), m2.unwrap())
-    };
-    // Consistent: the outer rule steps along the slab, so copy 1 rests
-    // exactly where the second mate declares it does.
-    let (doc, opts, m1, m2) = outer_siblings("msolve2-a2b-consistent", ALONG, SECOND_SEAT);
-    assert_loop_closes(&doc, &opts, m1, m2, true, "A2(b) consistent");
-    // Inconsistent: the outer rule lifts, so copy 1 floats clear of
-    // the slab while the second mate declares it rests on it.
-    let (doc, opts, m1, m2) = outer_siblings("msolve2-a2b-inconsistent", LIFTING, FIRST_SEAT);
-    assert_loop_closes(&doc, &opts, m1, m2, false, "A2(b) inconsistent");
-}
-
-/// **A2(a).** Two mates onto sibling copies of the INNER pattern.
-///
-/// A pattern takes ONE body, so an outer pattern stands over exactly
-/// one `Part` and one inner copy: two inner siblings are therefore
-/// two `Part`s under two outer patterns, and what the row holds
-/// constant is the outer INDEX.
-///
-/// **Say plainly what the key compares.** The chains are
-/// `[(outer_a, 0), (inner, 2)]` and `[(outer_b, 0), (inner, 1)]`, and
-/// a lexicographic comparison reaches the outer NODE ids first — so
-/// what separates these two members is the outer pattern node, not
-/// the inner index, and the inner index is never reached. What the
-/// row therefore shows is that the chain distinguishes members whose
-/// difference is at the inner level; the row that makes the INNER
-/// INDEX itself the deciding field is `a2b`, whose two members share
-/// one chain and differ only in an index.
-#[test]
-fn a2a_sibling_inner_copies_close_a_loop() {
-    let inner_siblings =
-        |label: &str, rule: ([f64; 3], f64), picks: (i64, i64), second: [f64; 3]| {
-            let s = scene(label);
-            let (base, top) = (s.base, s.top);
-            let (base_body, top_body) = (s.base_body, s.top_body);
-            let (doc, inner) = insert(s.doc, linear(top, rule.0, rule.1, 3));
-            let (doc, part_a) = insert(doc, part_of(inner, picks.0));
-            let (doc, outer_a) = insert(doc, linear(part_a, [0.0, 0.0, 1.0], LIFT, 2));
-            let (doc, part_b) = insert(doc, part_of(inner, picks.1));
-            let (doc, outer_b) = insert(doc, linear(part_b, [0.0, 0.0, 1.0], LIFT, 2));
-            let doc = world(doc, &[base], &[(outer_a, 2), (outer_b, 2)]);
-            let a = in_part(base, base_body, CapEnd::End);
-            let master = in_part(top, top_body, CapEnd::Start);
-            let (i1a, i1b) = (picks.0 as u32, picks.1 as u32);
-            let (doc, m1) = step(
-                doc,
-                DocEdit::InsertNode {
-                    node: Box::new(seat_at(
-                        crate::fixture::head(a.clone()),
-                        crate::fixture::head_at(
-                            outer_a,
-                            in_copy(outer_a, 0, in_copy(inner, i1a, master.clone())),
-                        ),
-                        FIRST_SEAT,
-                    )),
-                    fresh: Vec::new(),
-                },
-            );
-            let (doc, m2) = step(
-                doc,
-                DocEdit::InsertNode {
-                    node: Box::new(seat_at(
-                        crate::fixture::head(a),
-                        crate::fixture::head_at(
-                            outer_b,
-                            in_copy(outer_b, 0, in_copy(inner, i1b, master)),
-                        ),
-                        second,
-                    )),
-                    fresh: Vec::new(),
-                },
-            );
-            (doc, s.opts, m1.unwrap(), m2.unwrap())
-        };
-    // Consistent: the inner rule steps along the slab, so inner copy 1
-    // rests one step from inner copy 2.
-    let (doc, opts, m1, m2) = inner_siblings(
-        "msolve2-a2a-consistent",
-        ([0.0, -1.0, 0.0], 4.0),
-        (2, 1),
-        SECOND_SEAT,
+fn a2d_a_rotating_outer_map_seats() {
+    let control = control_seat("msolve2-a2d");
+    let s = scene("msolve2-a2d");
+    let (doc, inner) = insert(s.doc.clone(), linear(s.top, [0.0, -1.0, 0.0], 4.0, 2));
+    let (doc, part) = insert(doc, part_of(inner, 1));
+    let (doc, outer) = circular(doc, part, [-2.0, 5.0], Q, 3);
+    let doc = world(doc, &s.opts, &[], &[(outer, 3)]);
+    let wrap = |n| in_copy(outer, 1, in_copy(inner, 1, n));
+    let (doc, copy) = insert(doc, part_of(outer, 1));
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, copy, &wrap));
+    assert_placed(&doc, &s.opts, s.cap, "A2′");
+    let ev = run(&doc, &s.opts);
+    assert_seated(
+        &doc,
+        &ev,
+        &wrap(s.top_cap()),
+        &s.cap_bottom(),
+        &control,
+        "A2′ rotating outer map",
     );
-    assert_loop_closes(&doc, &opts, m1, m2, true, "A2(a) consistent");
-    // Inconsistent: the inner rule lifts, so inner copy 1 floats clear
-    // of the slab while the second mate declares it rests on it.
-    let (doc, opts, m1, m2) =
-        inner_siblings("msolve2-a2a-inconsistent", LIFTING, (0, 1), FIRST_SEAT);
-    assert_loop_closes(&doc, &opts, m1, m2, false, "A2(a) inconsistent");
 }
 
-/// **A2(c).** Two mates onto copies differing at BOTH levels —
-/// `(0, 1)` and `(1, 2)` — which is the case a chain compared
-/// lexicographically has to get right at more than its first element.
-#[test]
-fn a2c_copies_differing_at_both_levels_close_a_loop() {
-    let both_levels = |label: &str, outer_b_rule: ([f64; 3], f64), second: [f64; 3]| {
-        let s = scene(label);
-        let (base, top) = (s.base, s.top);
-        let (base_body, top_body) = (s.base_body, s.top_body);
-        let (doc, inner) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 3));
-        let (doc, part_a) = insert(doc, part_of(inner, 1));
-        let (doc, outer_a) = insert(doc, linear(part_a, [0.0, 0.0, 1.0], LIFT, 2));
-        let (doc, part_b) = insert(doc, part_of(inner, 2));
-        let (doc, outer_b) = insert(doc, linear(part_b, outer_b_rule.0, outer_b_rule.1, 2));
-        let doc = world(doc, &[base], &[(outer_a, 2), (outer_b, 2)]);
-        let a = in_part(base, base_body, CapEnd::End);
-        let master = in_part(top, top_body, CapEnd::Start);
-        let (doc, m1) = step(
-            doc,
-            DocEdit::InsertNode {
-                node: Box::new(seat_at(
-                    crate::fixture::head(a.clone()),
-                    crate::fixture::head_at(
-                        outer_a,
-                        in_copy(outer_a, 0, in_copy(inner, 1, master.clone())),
-                    ),
-                    FIRST_SEAT,
-                )),
-                fresh: Vec::new(),
-            },
-        );
-        let (doc, m2) = step(
-            doc,
-            DocEdit::InsertNode {
-                node: Box::new(seat_at(
-                    crate::fixture::head(a),
-                    crate::fixture::head_at(
-                        outer_b,
-                        in_copy(outer_b, 1, in_copy(inner, 2, master)),
-                    ),
-                    second,
-                )),
-                fresh: Vec::new(),
-            },
-        );
-        (doc, s.opts, m1.unwrap(), m2.unwrap())
-    };
-    // Consistent: the second chain's outer step carries inner copy 2
-    // back onto the slab, one seat along from the first.
-    let (doc, opts, m1, m2) = both_levels(
-        "msolve2-a2c-consistent",
-        ([0.0, 1.0, 0.0], 8.0),
-        SECOND_SEAT,
-    );
-    assert_loop_closes(&doc, &opts, m1, m2, true, "A2(c) consistent");
-    // Inconsistent: it lifts instead, so the named copy floats.
-    let (doc, opts, m1, m2) = both_levels("msolve2-a2c-inconsistent", LIFTING, FIRST_SEAT);
-    assert_loop_closes(&doc, &opts, m1, m2, false, "A2(c) inconsistent");
-}
-
-// ---- A3: the `Part` in the walk ----
+// ---- A3: the `Part` between ----
 
 /// **A3(a).** A `Part`-selected copy read AT the `Part`, with no
-/// outer pattern anywhere: the walk passes the `Part` contributing
-/// nothing, consumes the pattern's `Instance(1)` qualifier, and the
-/// copy seats. The `Part` IS the product root here, so what the row
-/// measures is the body a consumer gathers through that door.
+/// outer pattern anywhere: the `Part` carries the pattern's copy 1
+/// under that copy's own names, and the cap seats on it. The `Part` is
+/// what the world places here, so what the row measures is the body a
+/// consumer gathers through that door; the at-rest gate holds.
+///
+/// *Breaks if* a `Part`'s pass-through rows read as another copy.
 #[test]
-fn a3a_a_part_selected_copy_read_at_the_part_is_a_member() {
+fn a3a_a_part_selected_copy_read_at_the_part_seats() {
     let control = control_seat("msolve2-a3a");
     let s = scene("msolve2-a3a");
-    let (base, top) = (s.base, s.top);
-    let (base_body, top_body) = (s.base_body, s.top_body);
-    let (doc, pattern) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
+    let (doc, pattern) = insert(s.doc.clone(), linear(s.top, [0.0, -1.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(pattern, 1));
-    let doc = world(doc, &[base, part], &[]);
-    let a = in_part(base, base_body, CapEnd::End);
-    let b = in_copy(pattern, 1, in_part(top, top_body, CapEnd::Start));
-    let (doc, mate) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat_at(
-                crate::fixture::head(a.clone()),
-                crate::fixture::head_at(part, b.clone()),
-                FIRST_SEAT,
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let mate = mate.unwrap();
-    let member = member_of(&doc, &crate::fixture::head_at(part, b.clone())).expect("a member");
-    assert_eq!(member.instance, top);
-    assert_eq!(
-        member.copy(),
-        vec![(pattern, 1)],
-        "one level, through the Part"
-    );
-    assert_eq!(
-        member.chain.len(),
-        1,
-        "the Part places nothing: the pattern's copy is the whole chain"
-    );
-    let poses = solve(&doc, &s.opts, Tol::witness());
-    assert!(
-        poses.fault(mate).is_none(),
-        "A3(a): the solve refused: {:?}",
-        poses.fault(mate)
-    );
+    let doc = world(doc, &s.opts, &[part], &[]);
+    let wrap = |n| in_copy(pattern, 1, n);
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, part, &wrap));
+    assert_placed(&doc, &s.opts, s.cap, "A3(a)");
     let ev = run(&doc, &s.opts);
-    assert_seated(&doc, &ev, &a, &b, &control, "A3(a) part-selected copy");
+    assert_seated(
+        &doc,
+        &ev,
+        &wrap(s.top_cap()),
+        &s.cap_bottom(),
+        &control,
+        "A3(a) part-selected copy",
+    );
     assert!(
         gate(&doc, &ev).is_ok(),
         "A3(a): the gate refused: {:?}",
@@ -744,122 +538,34 @@ fn a3a_a_part_selected_copy_read_at_the_part_is_a_member() {
     );
 }
 
-/// **A3(b).** One copy, two bodies read: a mate read at the pattern
-/// under `Instance(1)` and a mate read at a `Part` selecting that
-/// same instance are one placement spelled two ways, so one member:
-/// the `Part` places nothing, and both walks pass the same copy. The
-/// two mates key as ONE pair and fold, both determining, and the gate
-/// holds both.
-#[test]
-fn a3b_two_operands_over_one_copy_are_one_member() {
-    let s = scene("msolve2-a3b");
-    let (base, top) = (s.base, s.top);
-    let (base_body, top_body) = (s.base_body, s.top_body);
-    let (doc, pattern) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
-    let (doc, part) = insert(doc, part_of(pattern, 1));
-    let doc = world(doc, &[base, part], &[]);
-    let a = in_part(base, base_body, CapEnd::End);
-    let b = in_copy(pattern, 1, in_part(top, top_body, CapEnd::Start));
-    let at_pattern = crate::fixture::head_at(pattern, b.clone());
-    let at_part = crate::fixture::head_at(part, b.clone());
-    let (doc, m1) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat_at(
-                crate::fixture::head(a.clone()),
-                at_pattern.clone(),
-                FIRST_SEAT,
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let (doc, m2) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat_at(
-                crate::fixture::head(a),
-                at_part.clone(),
-                FIRST_SEAT,
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let (m1, m2) = (m1.unwrap(), m2.unwrap());
-    let (mp, mq) = (
-        member_of(&doc, &at_pattern).expect("a member at the pattern"),
-        member_of(&doc, &at_part).expect("a member at the Part"),
-    );
-    assert_eq!(mp, mq, "one instance, one placing chain — one member");
-    let poses = solve(&doc, &s.opts, Tol::witness());
-    for m in [m1, m2] {
-        assert!(poses.fault(m).is_none(), "A3(b): {:?}", poses.fault(m));
-        assert_eq!(
-            poses.role(m),
-            Some(MateRole::Determining),
-            "A3(b): both mates fold onto the one pair"
-        );
-    }
-    let ev = run(&doc, &s.opts);
-    assert!(
-        gate(&doc, &ev).is_ok(),
-        "A3(b): the gate holds both: {:?}",
-        gate(&doc, &ev).err()
-    );
-}
-
 /// **A3(c).** `Transform` over `Part { Instance(1) }` over a pattern,
-/// the mate read at the TRANSFORM: the walk composes the transform's
-/// map onto the copy's, passing the `Part` in between, and the copy
-/// seats. This is the shape MSOLVE-1 could not build — a transform
-/// over ONE copy of a pattern — because nothing then projected a
-/// single body out of a pattern's instances.
+/// the target read at the TRANSFORM: the transform's map rides on the
+/// copy's, the `Part` in between passing it, and the cap seats. A
+/// transform over ONE copy of a pattern is a shape only a `Part` lets
+/// a user build.
+///
+/// *Breaks if* a pose read at a transform over a `Part` misses either
+/// map.
 #[test]
 fn a3c_transform_over_part_over_a_pattern_seats() {
     let control = control_seat("msolve2-a3c");
     let s = scene("msolve2-a3c");
-    let (base, top) = (s.base, s.top);
-    let (base_body, top_body) = (s.base_body, s.top_body);
-    let (doc, pattern) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
+    let (doc, pattern) = insert(s.doc.clone(), linear(s.top, [0.0, -1.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(pattern, 1));
-    let (doc, moved) = insert(
-        doc,
-        xform(
-            part,
-            [2.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0],
-            std::f64::consts::FRAC_PI_2,
-        ),
-    );
-    let doc = world(doc, &[base, moved], &[]);
-    let a = in_part(base, base_body, CapEnd::End);
-    let b = in_copy(pattern, 1, in_part(top, top_body, CapEnd::Start));
-    let (doc, mate) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat_at(
-                crate::fixture::head(a.clone()),
-                crate::fixture::head_at(moved, b.clone()),
-                FIRST_SEAT,
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let mate = mate.unwrap();
-    let member = member_of(&doc, &crate::fixture::head_at(moved, b.clone())).expect("a member");
-    assert_eq!(
-        member.copy(),
-        vec![(pattern, 1)],
-        "the transform contributes no copy — only the pattern does"
-    );
-    assert_eq!(member.chain.first().map(|p| p.node()), Some(moved));
-    let poses = solve(&doc, &s.opts, Tol::witness());
-    assert!(
-        poses.fault(mate).is_none(),
-        "A3(c): the solve refused: {:?}",
-        poses.fault(mate)
-    );
+    let (doc, moved) = insert(doc, xform(part, [2.0, 0.0, 0.0], [0.0, 0.0, 1.0], Q));
+    let doc = world(doc, &s.opts, &[moved], &[]);
+    let wrap = |n| in_copy(pattern, 1, n);
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, moved, &wrap));
+    assert_placed(&doc, &s.opts, s.cap, "A3(c)");
     let ev = run(&doc, &s.opts);
-    assert_seated(&doc, &ev, &a, &b, &control, "A3(c) transform over part");
+    assert_seated(
+        &doc,
+        &ev,
+        &wrap(s.top_cap()),
+        &s.cap_bottom(),
+        &control,
+        "A3(c) transform over part",
+    );
     assert!(
         gate(&doc, &ev).is_ok(),
         "A3(c): the gate refused: {:?}",
@@ -867,395 +573,153 @@ fn a3c_transform_over_part_over_a_pattern_seats() {
     );
 }
 
-// ---- A4: the `Part`'s index, checked against the name ----
+// ---- A4: the `Part`'s index against the name ----
 
-/// **A4.** A `Part` whose index expression evaluates to a copy the
-/// reference's NAME does not name refuses typed, and the refusal
-/// carries both numbers.
+/// **A4.** A `Part` whose index selects a copy the target's NAME does
+/// not name: the `Part` carries copy 2's rows and the name says
+/// copy 1. The door decides nothing that needs a value, so the mates enter;
+/// where the cap evaluates, its target resolves nothing, and the cap
+/// refuses with the selection's own refusal — the name is never
+/// re-read as the copy the `Part` happens to select.
 ///
-/// The name is the authority: a document where the two disagree would
-/// be PLACED by the name (which says which copy's master pose the
-/// alignment is authored against) and GATHERED by the `Part` (which
-/// says which body exists at all). The solve refuses rather than
-/// choosing, and the check runs where the offset already evaluates
-/// the pattern's own structural slots at the document's bindings —
-/// never in the walk, which decides admission on node kinds and name
-/// segments alone.
+/// *Breaks if* a name read at a `Part` resolves against a copy it
+/// does not name.
 #[test]
-fn a4_a_part_that_selects_another_copy_refuses_typed() {
+fn a4_a_part_that_selects_another_copy_leaves_the_target_unresolved() {
     let s = scene("msolve2-a4");
-    let (base, top) = (s.base, s.top);
-    let (base_body, top_body) = (s.base_body, s.top_body);
-    let (doc, pattern) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 3));
+    let (doc, pattern) = insert(s.doc.clone(), linear(s.top, [0.0, -1.0, 0.0], 4.0, 3));
     // The Part selects copy 2; the name below says copy 1.
     let (doc, part) = insert(doc, part_of(pattern, 2));
-    let a = in_part(base, base_body, CapEnd::End);
-    let b = in_copy(pattern, 1, in_part(top, top_body, CapEnd::Start));
-    let reference = crate::fixture::head_at(part, b.clone());
-    // ADMISSION is structural and evaluates nothing, so the walk
-    // still resolves this reference to a member: the disagreement is
-    // a fact about two numbers, which the per-reference check reads
-    // — and that check is the mate's own, so the edit door asks it
-    // where the mate is authored and refuses with the solve's fault.
-    assert!(
-        member_of(&doc, &reference).is_some(),
-        "the walk admits the reference; the number check is what refuses"
-    );
-    let err = doc
-        .apply(
-            &DocEdit::InsertNode {
-                node: Box::new(seat_at(
-                    crate::fixture::head(a),
-                    reference.clone(),
-                    FIRST_SEAT,
-                )),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect_err("a disagreeing Part refuses");
-    let editor_core::EditError::MateRefused { node, fault, .. } = err else {
-        panic!("expected MateRefused, got {err:?}");
-    };
-    let mate = node.id();
-    let fault = *fault;
-    let MateFault::PartSelectsAnotherCopy {
-        mate: at,
-        side,
-        part: named_part,
-        named,
-        selected,
-    } = &fault
-    else {
-        panic!("expected PartSelectsAnotherCopy, got {fault:?}");
-    };
-    assert_eq!((*at, *side, *named_part), (mate, MateSide::B, part));
-    assert_eq!((*named, *selected), (1, 2), "both indices are reported");
-    // ONE word for the index on both sides of the sentence: a reader
-    // comparing "copy 1" with "instance 2" has to be told they are
-    // the same kind of number.
-    let said = fault.to_string();
-    assert!(
-        said.contains("names copy 1") && said.contains("selects copy 2"),
-        "the message names both indices in one word: {said}"
-    );
+    let wrap = |n| in_copy(pattern, 1, n);
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, part, &wrap));
+    let ev = run(&doc, &s.opts);
+    assert_target_unresolved(&ev, s.cap, "A4");
 }
 
 // ---- the gate on a nested document ----
 
-/// **What the at-rest gate says for a mate read BELOW the outer
-/// pattern** — on a nested document. The SOLVE places such a mate;
-/// the gate mints nothing for it, because the side reads the `Part`,
-/// which no placement places — the outer pattern's copies are what the
-/// world holds. Reading the same
-/// document's mate AT the outer pattern (every other row here) holds,
-/// because there the name is a root's own row.
+/// **What the at-rest gate says for a seat read BELOW the outer
+/// pattern** — on a nested document. The cap seats on such a target;
+/// the gate mints nothing for its mates, because their targets read the
+/// `Part`, which no placement places — the outer pattern's copies are
+/// what the world holds.
+///
+/// *Breaks if* a mate whose target body has no world copy mints a
+/// declaration.
 #[test]
-fn the_gate_on_a_mate_read_below_the_outer_pattern_mints_nothing() {
+fn the_gate_on_a_seat_read_below_the_outer_pattern_mints_nothing() {
     let s = scene("msolve2-gate");
-    let (base, top) = (s.base, s.top);
-    let (base_body, top_body) = (s.base_body, s.top_body);
-    let (doc, inner) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
+    let (doc, inner) = insert(s.doc.clone(), linear(s.top, [0.0, -1.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(inner, 1));
     let (doc, outer) = insert(doc, linear(part, [0.0, 0.0, 1.0], LIFT, 2));
-    let doc = world(doc, &[base], &[(outer, 2)]);
-    let a = in_part(base, base_body, CapEnd::End);
+    let doc = world(doc, &s.opts, &[], &[(outer, 2)]);
     // Read at the `Part`, BELOW the outer pattern: the name stops at
     // the inner pattern's own `Instance(1)` row.
-    let b = in_copy(inner, 1, in_part(top, top_body, CapEnd::Start));
-    let (doc, mate) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat_at(
-                crate::fixture::head(a),
-                crate::fixture::head_at(part, b.clone()),
-                FIRST_SEAT,
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let mate = mate.unwrap();
-    let poses = solve(&doc, &s.opts, Tol::witness());
-    assert!(
-        poses.fault(mate).is_none(),
-        "the solve places a mate read below the outer pattern: {:?}",
-        poses.fault(mate)
-    );
-    assert_eq!(poses.role(mate), Some(MateRole::Determining));
+    let wrap = |n| in_copy(inner, 1, n);
+    let (doc, mates) = seated(doc, s.cap, s.seat(s.cap, part, &wrap));
+    assert_placed(&doc, &s.opts, s.cap, "a seat read below the outer pattern");
     let ev = run(&doc, &s.opts);
-    assert!(
-        product(&doc, &ev, Tol::witness()).is_ok(),
-        "the product gathers"
-    );
-    // No placement reads the `Part` the mate reads at, so the mate has
-    // no world copy to mint on.
-    crate::fixture::assert_mints_nothing(&doc, &ev, mate);
-    let _ = part;
-    assert!(
-        solve(&doc, &s.opts, Tol::witness()).fault(outer).is_none(),
-        "the outer pattern itself carries no fault"
-    );
+    // No placement reads the `Part` the targets are read at, so no
+    // mate has a world copy to mint on.
+    for mate in mates {
+        fixture::assert_mints_nothing(&doc, &ev, mate);
+    }
 }
 
 // ---- A1′: the chain, deeper and with transforms interleaved ----
 
 /// **A1′(a).** `Transform` over `Part(P₂, 2)` over `P₂` (linear)
 /// over `Transform` over `Part(P₁, 1)` over `P₁` (circular) over the
-/// instance, the mate read at the outermost transform.
+/// instance, the target read at the outermost transform.
 ///
 /// Every map in the chain is non-identity and no adjacent pair
-/// commutes, so the seat holds only if the fold composes all four
-/// outermost-first onto the instance's pose. A2's rows fold at most
-/// two; this one folds a chain that alternates the two placer kinds.
+/// commutes, so the seat holds only if the copy the target is read off
+/// stands where all four put it, outermost last.
+///
+/// *Breaks if* any map of the chain is dropped or reordered between
+/// the copy and the pose read off it.
 #[test]
 fn a1b_two_levels_with_transforms_between_and_above_seat() {
     let control = control_seat("msolve2-a1b");
     let s = scene("msolve2-a1b");
-    let (base, top) = (s.base, s.top);
-    let (base_body, top_body) = (s.base_body, s.top_body);
-    let (doc, p1) = circular(s.doc, top, [0.0, 0.0], Q, 4);
+    let (doc, p1) = circular(s.doc.clone(), s.top, [0.0, 0.0], Q, 4);
     let (doc, part1) = insert(doc, part_of(p1, 1));
     let (doc, t_mid) = insert(doc, xform(part1, [2.0, 0.0, 0.0], [0.0, 0.0, 1.0], Q));
     let (doc, p2) = insert(doc, linear(t_mid, [1.0, 0.0, 0.0], 4.0, 3));
     let (doc, part2) = insert(doc, part_of(p2, 2));
     let (doc, t_top) = insert(doc, xform(part2, [0.0, 3.0, 0.0], [0.0, 0.0, 1.0], Q));
-    let doc = world(doc, &[base, t_top], &[]);
-    let a = in_part(base, base_body, CapEnd::End);
-    let b = in_copy(p2, 2, in_copy(p1, 1, in_part(top, top_body, CapEnd::Start)));
-    let r = crate::fixture::head_at(t_top, b.clone());
-    let (doc, mate) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat_at(
-                crate::fixture::head(a.clone()),
-                r.clone(),
-                FIRST_SEAT,
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let mate = mate.unwrap();
-    let m = member_of(&doc, &r).expect("a member through both transforms");
-    assert_eq!(
-        (m.instance, m.chain.first().map(|p| p.node())),
-        (top, Some(t_top))
-    );
-    assert_eq!(
-        m.copy(),
-        vec![(p2, 2), (p1, 1)],
-        "the transforms contribute no copy — only the patterns do"
-    );
-    let poses = solve(&doc, &s.opts, Tol::witness());
-    assert!(poses.fault(mate).is_none(), "{:?}", poses.fault(mate));
-    assert_eq!(poses.role(mate), Some(MateRole::Determining));
+    let doc = world(doc, &s.opts, &[t_top], &[]);
+    let wrap = |n| in_copy(p2, 2, in_copy(p1, 1, n));
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, t_top, &wrap));
+    assert_placed(&doc, &s.opts, s.cap, "A1′(a)");
     let ev = run(&doc, &s.opts);
-    assert!(
-        product(&doc, &ev, Tol::witness()).is_ok(),
-        "the product gathers"
-    );
     assert_seated(
         &doc,
         &ev,
-        &a,
-        &b,
+        &wrap(s.top_cap()),
+        &s.cap_bottom(),
         &control,
         "A1′(a) two levels + transforms",
     );
-    assert_partition_agrees(&doc, &s.opts, "A1′(a)");
 }
 
 /// **A1′(b).** Three levels — circular, linear, circular — each with
-/// a non-identity map, the mate read at the outermost pattern. The
-/// member's chain is three pairs long and the fold composes three
-/// maps.
+/// a non-identity map, the target read at a `Part` projecting the
+/// outermost pattern's copy 2.
+///
+/// *Breaks if* the copy three levels down is read anywhere but where
+/// its chain stands.
 #[test]
 fn a1c_three_levels_deep_seat() {
     let control = control_seat("msolve2-a1c");
     let s = scene("msolve2-a1c");
-    let (base, top) = (s.base, s.top);
-    let (base_body, top_body) = (s.base_body, s.top_body);
-    let (doc, p1) = circular(s.doc, top, [0.0, 0.0], Q, 4);
+    let (doc, p1) = circular(s.doc.clone(), s.top, [0.0, 0.0], Q, 4);
     let (doc, part1) = insert(doc, part_of(p1, 1));
     let (doc, p2) = insert(doc, linear(part1, [1.0, 0.0, 0.0], 4.0, 2));
     let (doc, part2) = insert(doc, part_of(p2, 1));
     let (doc, p3) = circular(doc, part2, [5.0, 5.0], std::f64::consts::FRAC_PI_3, 4);
-    let doc = world(doc, &[base], &[(p3, 4)]);
-    let a = in_part(base, base_body, CapEnd::End);
-    let b = in_copy(
-        p3,
-        2,
-        in_copy(p2, 1, in_copy(p1, 1, in_part(top, top_body, CapEnd::Start))),
-    );
-    let r = crate::fixture::head_at(p3, b.clone());
-    let (doc, mate) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat_at(
-                crate::fixture::head(a.clone()),
-                r.clone(),
-                FIRST_SEAT,
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let mate = mate.unwrap();
-    let m = member_of(&doc, &r).expect("a member three levels down");
-    assert_eq!(m.copy(), vec![(p3, 2), (p2, 1), (p1, 1)]);
-    let poses = solve(&doc, &s.opts, Tol::witness());
-    assert!(poses.fault(mate).is_none(), "{:?}", poses.fault(mate));
+    let doc = world(doc, &s.opts, &[], &[(p3, 4)]);
+    let wrap = |n| in_copy(p3, 2, in_copy(p2, 1, in_copy(p1, 1, n)));
+    let (doc, copy) = insert(doc, part_of(p3, 2));
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, copy, &wrap));
+    assert_placed(&doc, &s.opts, s.cap, "A1′(b)");
     let ev = run(&doc, &s.opts);
-    assert!(
-        product(&doc, &ev, Tol::witness()).is_ok(),
-        "the product gathers"
+    assert_seated(
+        &doc,
+        &ev,
+        &wrap(s.top_cap()),
+        &s.cap_bottom(),
+        &control,
+        "A1′(b) three levels",
     );
-    assert_seated(&doc, &ev, &a, &b, &control, "A1′(b) three levels");
-    assert_partition_agrees(&doc, &s.opts, "A1′(b)");
 }
 
-// ---- A2′: a loop whose TREE EDGE carries a non-identity outer map ----
+// ---- A4′: per reference, and at the document's bindings ----
 
-/// `m1` names outer copy 1 and is the tree edge (the smaller member
-/// key); `m2` names copy 2 and closes the loop. The outer rule is a
-/// quarter turn about a `+z` axis at `axis_at`, so the tree edge's own
-/// fold composes a ROTATION at the outer level — which A2's rows,
-/// whose tree edges all name outer copy 0, never do.
+/// **A4′(a) — a `Part` mismatch is met per reference.**
 ///
-/// With the axis at `(-2, 5)` copy 2 lands on the slab where `m2`
-/// declares it; with it at `(-2, -4)` copy 2 swings clear and the
-/// declaration is unmet.
-fn rotating_outer_tree_edge(
-    label: &str,
-    axis_at: [f64; 2],
-) -> (
-    ProfileDoc,
-    EvalOptions,
-    RecipeNodeId,
-    RecipeNodeId,
-    StableName,
-    StableName,
-) {
-    let s = scene(label);
-    let (base, top) = (s.base, s.top);
-    let (base_body, top_body) = (s.base_body, s.top_body);
-    let (doc, inner) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
-    let (doc, part) = insert(doc, part_of(inner, 1));
-    let (doc, outer) = circular(doc, part, axis_at, Q, 3);
-    let doc = world(doc, &[base], &[(outer, 3)]);
-    let a = in_part(base, base_body, CapEnd::End);
-    let master = in_part(top, top_body, CapEnd::Start);
-    let named = |i2: u32| in_copy(outer, i2, in_copy(inner, 1, master.clone()));
-    let (doc, m1) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat_at(
-                crate::fixture::head(a.clone()),
-                crate::fixture::head_at(outer, named(1)),
-                FIRST_SEAT,
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let (doc, m2) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat_at(
-                crate::fixture::head(a.clone()),
-                crate::fixture::head_at(outer, named(2)),
-                [8.5, 8.5, BASE_HEIGHT],
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    (doc, s.opts, m1.unwrap(), m2.unwrap(), a, named(1))
-}
-
-/// **A2′.** Loop closure where the TREE EDGE's own member carries a
-/// non-identity map at the OUTER level.
+/// Two `Part`s over one pattern: the cap is seated on `part1`'s copy
+/// (selects 0, names 0); a second cap is seated on a transform over
+/// `part2` (selects 0 at insert, NAMES 0). `part2` is then re-pointed
+/// at copy 2, which is how a `Part` comes to disagree with a name after
+/// insert: the second cap's target no longer resolves, and the first
+/// cap's seat is untouched.
 ///
-/// A2(a)–(c) all give their tree edge outer copy 0, whose map is the
-/// identity by the stepped rule's construction — so the pose the
-/// spanning tree folds never has an outer map in it, and only the
-/// declaring side exercises the outer level. Here the tree edge is
-/// outer copy 1 of a rotating rule: the placed copy seats (measured
-/// on the product against the placer-free control), the second closes
-/// the loop, and the gate holds the consistent pair and refuses the
-/// inconsistent one.
+/// *Breaks if* one placement's unresolved target reaches another's.
 #[test]
-fn a2d_a_rotating_outer_map_on_the_tree_edge_seats_and_closes() {
-    let control = control_seat("msolve2-a2d");
-    for (label, axis, consistent) in [
-        ("msolve2-a2d-consistent", [-2.0, 5.0], true),
-        ("msolve2-a2d-inconsistent", [-2.0, -4.0], false),
-    ] {
-        let (doc, opts, m1, m2, a, b1) = rotating_outer_tree_edge(label, axis);
-        assert_loop_closes(&doc, &opts, m1, m2, consistent, label);
-        // And the TREE edge's own copy — the one whose chain carries
-        // the quarter turn — seats where the alignment asks.
-        let ev = run(&doc, &opts);
-        assert_seated(&doc, &ev, &a, &b1, &control, label);
-        assert_partition_agrees(&doc, &opts, label);
-    }
-}
-
-// ---- A4′: the check is per reference, not per tree edge ----
-
-/// **A4′(a) — a `Part` mismatch on a DECLARING mate refuses too.**
-///
-/// Two `Part`s over one pattern: `m1` (at `part1`, selects 0, names 0)
-/// takes the tree edge and seats copy 0; `m2` (read at a transform
-/// over `part2`, selects 2, NAMES 0) is a different member — a
-/// different placement, the transform on its chain — so its pair is
-/// not the tree edge and its offset is never derived.
-///
-/// While the check lived in the offset this document was SILENTLY
-/// GREEN: `m2` solved `Declaring` with no fault, the product gathered,
-/// and the gate said `Ok` because the copy `m2` NAMES really is seated
-/// — while the body `part2` actually gathers floats off the slab with
-/// a seat declared on it. Placed by the name, gathered by the `Part`.
-/// The check runs per reference now, so `m2` refuses at the solve.
-#[test]
-fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
+fn a4b_a_part_mismatch_is_met_per_reference() {
     let s = scene("msolve2-a4b");
-    let (base, top) = (s.base, s.top);
-    let (base_body, top_body) = (s.base_body, s.top_body);
-    let (doc, pattern) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 3));
+    let (doc, cap2) = insert(s.doc.clone(), fixture::mated_instance(s.top_ref));
+    let (doc, pattern) = insert(doc, linear(s.top, [0.0, -1.0, 0.0], 4.0, 3));
     let (doc, part1) = insert(doc, part_of(pattern, 0));
-    // `part2` agrees with the name at insert — the edit door refuses
-    // a disagreeing `Part` where the mate is authored — and is
-    // re-pointed at copy 2 below, which is how a `Part` comes to
-    // disagree after insert.
     let (doc, part2) = insert(doc, part_of(pattern, 0));
     let (doc, moved) = insert(doc, xform(part2, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0], 0.0));
-    let a = in_part(base, base_body, CapEnd::End);
-    let b = in_copy(pattern, 0, in_part(top, top_body, CapEnd::Start));
-    let (doc, m1) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat_at(
-                crate::fixture::head(a.clone()),
-                crate::fixture::head_at(part1, b.clone()),
-                FIRST_SEAT,
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let (doc, m2) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat_at(
-                crate::fixture::head(a),
-                crate::fixture::head_at(moved, b.clone()),
-                FIRST_SEAT,
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let (m1, m2) = (m1.unwrap(), m2.unwrap());
-    assert_ne!(
-        member_of(&doc, &crate::fixture::head_at(part1, b.clone())),
-        member_of(&doc, &crate::fixture::head_at(moved, b.clone())),
-        "the premise: two placements, two members"
+    let wrap = |n| in_copy(pattern, 0, n);
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, part1, &wrap));
+    let (doc, _) = seated(doc, cap2, s.seat(cap2, moved, &wrap));
+    assert!(
+        solve(&doc, &s.opts, Tol::witness()).fault(cap2).is_none(),
+        "the premise: the second cap seats while its `Part` agrees with the name"
     );
     let (doc, _) = step(
         doc,
@@ -1266,53 +730,37 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
             fresh: Vec::new(),
         },
     );
-    // Both references are members: admission is structural and the
-    // disagreement is about two numbers.
-    assert!(member_of(&doc, &crate::fixture::head_at(moved, b)).is_some());
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
-        poses.fault(m1).is_none(),
-        "the well-formed mate is untouched: {:?}",
-        poses.fault(m1)
+        poses.fault(s.cap).is_none(),
+        "the well-formed seat is untouched: {:?}",
+        poses.fault(s.cap)
     );
-    let fault = poses
-        .fault(m2)
-        .cloned()
-        .expect("a declaring mate's Part is checked too");
-    let MateFault::PartSelectsAnotherCopy {
-        part,
-        named,
-        selected,
-        ..
-    } = fault
-    else {
-        panic!("expected PartSelectsAnotherCopy, got {fault:?}");
-    };
-    assert_eq!((part, named, selected), (part2, 0, 2));
-    assert_eq!(poses.role(m2), Some(MateRole::Refused));
+    let ev = run(&doc, &s.opts);
+    assert_target_unresolved(&ev, cap2, "A4′(a) the re-pointed `Part`");
 }
 
 /// **A4′(b) — the index is EVALUATED, at the document's bindings.**
 /// The `Part`'s index is a document parameter: at `k = 1` it agrees
-/// with the name and the copy seats; setting `k = 2` refuses the same
-/// mate typed, naming both indices — and the MEMBER is unchanged
-/// across the edit, because admission is structural and a parameter
-/// is not part of it.
+/// with the name and the cap seats; setting `k = 2` leaves the same
+/// target unresolved, where the cap evaluates.
+///
+/// *Breaks if* the index is read anywhere but the document's own
+/// bindings, or the cap keeps a seat on a copy the `Part` no longer
+/// carries.
 #[test]
 fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
     let control = control_seat("msolve2-a4c");
     let s = scene("msolve2-a4c");
-    let (base, top) = (s.base, s.top);
-    let (base_body, top_body) = (s.base_body, s.top_body);
     let k = VarName::from_static("k");
     let (doc, _) = step(
-        s.doc,
+        s.doc.clone(),
         DocEdit::DeclareVar {
             name: k.clone(),
             def: editor_core::VarDecl::Free(FreeVar::Count { value: 1 }),
         },
     );
-    let (doc, pattern) = insert(doc, linear(top, [0.0, -1.0, 0.0], 4.0, 3));
+    let (doc, pattern) = insert(doc, linear(s.top, [0.0, -1.0, 0.0], 4.0, 3));
     let (doc, part) = insert(
         doc,
         Node::Part {
@@ -1320,27 +768,19 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
             select: PartSelect::Instance(Formula::named(k.clone(), Dimension::Count)),
         },
     );
-    let doc = world(doc, &[base, part], &[]);
-    let a = in_part(base, base_body, CapEnd::End);
-    let b = in_copy(pattern, 1, in_part(top, top_body, CapEnd::Start));
-    let r = crate::fixture::head_at(part, b.clone());
-    let (doc, mate) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat_at(
-                crate::fixture::head(a.clone()),
-                r.clone(),
-                FIRST_SEAT,
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let mate = mate.unwrap();
-    let before = member_of(&doc, &r).expect("a member at k = 1");
-    let poses = solve(&doc, &s.opts, Tol::witness());
-    assert!(poses.fault(mate).is_none(), "{:?}", poses.fault(mate));
+    let doc = world(doc, &s.opts, &[part], &[]);
+    let wrap = |n| in_copy(pattern, 1, n);
+    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, part, &wrap));
+    assert_placed(&doc, &s.opts, s.cap, "A4′(b) at k = 1");
     let ev = run(&doc, &s.opts);
-    assert_seated(&doc, &ev, &a, &b, &control, "A4′(b) at k = 1");
+    assert_seated(
+        &doc,
+        &ev,
+        &wrap(s.top_cap()),
+        &s.cap_bottom(),
+        &control,
+        "A4′(b) at k = 1",
+    );
 
     let (doc, _) = step(
         doc,
@@ -1349,126 +789,6 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
             value: FreeValue::Count(2),
         },
     );
-    let after = member_of(&doc, &r).expect("still a member at k = 2");
-    assert_eq!(
-        before, after,
-        "the member does not move with a parameter: admission is structural"
-    );
-    let fault = solve(&doc, &s.opts, Tol::witness())
-        .fault(mate)
-        .cloned()
-        .expect("the disagreement refuses at k = 2");
-    let MateFault::PartSelectsAnotherCopy {
-        part: p,
-        named,
-        selected,
-        side,
-        ..
-    } = fault
-    else {
-        panic!("expected PartSelectsAnotherCopy, got {fault:?}");
-    };
-    assert_eq!((p, named, selected, side), (part, 1, 2, MateSide::B));
-}
-
-// ---- the walk's fences, on the shapes `Part` brings ----
-
-/// **A `Part` over a pattern the NAME does not continue into stops
-/// the walk.** The `Part` is pose-neutral and passes every name
-/// through, but it passes through ITS OWN input's names: a name whose
-/// next segment belongs to a different pattern reaches that pattern's
-/// input node under a name headed elsewhere, and no member stands
-/// there.
-#[test]
-fn a3d_a_part_over_the_wrong_pattern_stops_the_walk() {
-    let s = scene("msolve2-a3d");
-    let (base, top) = (s.base, s.top);
-    let (base_body, top_body) = (s.base_body, s.top_body);
-    let (doc, inner_a) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
-    let (doc, inner_b) = insert(doc, linear(top, [1.0, 0.0, 0.0], 4.0, 2));
-    let (doc, part) = insert(doc, part_of(inner_b, 1));
-    let (doc, outer) = insert(doc, linear(part, [0.0, 0.0, 1.0], 10.0, 2));
-    // The name continues into `inner_a`; the chain runs through
-    // `inner_b`.
-    let b = in_copy(
-        outer,
-        1,
-        in_copy(inner_a, 1, in_part(top, top_body, CapEnd::Start)),
-    );
-    let r = crate::fixture::head_at(outer, b);
-    assert!(member_of(&doc, &r).is_none(), "no member stands there");
-    let fault = door_refusal(
-        &doc,
-        seat_at(
-            crate::fixture::head(in_part(base, base_body, CapEnd::End)),
-            r,
-            FIRST_SEAT,
-        ),
-    );
-    assert!(
-        matches!(fault, MateFault::DanglingHead { head, .. } if head == inner_b),
-        "the walk stops at the pattern it actually reached: {fault:?}"
-    );
-}
-
-// ---- what the gate reads, and what it does not ----
-
-/// **The measurement behind [`LIFT`], pinned.** A declaring mate is
-/// verified against the GEOMETRY: the gate asks whether the two faces
-/// the mate NAMES are in contact, and the mate frames the solve folds
-/// are no part of that question.
-///
-/// So lifting the authored `a` frame three units clear of the slab
-/// leaves the gate green — the copy the second mate names still rests
-/// where the tree edge put it. This is why every inconsistent variant
-/// above is built by naming a copy the rule puts elsewhere, and the
-/// row exists so that a later change making the gate read the frames
-/// reds it rather than quietly inverting the argument.
-#[test]
-fn a_lifted_declared_frame_does_not_move_what_the_gate_reads() {
-    let s = scene("msolve2-lifted");
-    let (base, top) = (s.base, s.top);
-    let (base_body, top_body) = (s.base_body, s.top_body);
-    let (doc, inner) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
-    let (doc, part) = insert(doc, part_of(inner, 1));
-    let (doc, outer) = insert(doc, linear(part, ALONG.0, ALONG.1, 2));
-    let doc = world(doc, &[base], &[(outer, 2)]);
-    let a = in_part(base, base_body, CapEnd::End);
-    let master = in_part(top, top_body, CapEnd::Start);
-    let named = |i2: u32| in_copy(outer, i2, in_copy(inner, 1, master.clone()));
-    let (doc, m1) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat_at(
-                crate::fixture::head(a.clone()),
-                crate::fixture::head_at(outer, named(0)),
-                FIRST_SEAT,
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    // The declaring mate's frame is authored THREE UNITS above the
-    // slab's face — a seat the geometry does not keep.
-    let (doc, m2) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat_at(
-                crate::fixture::head(a),
-                crate::fixture::head_at(outer, named(1)),
-                [SECOND_SEAT[0], SECOND_SEAT[1], SECOND_SEAT[2] + 3.0],
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let (m1, m2) = (m1.unwrap(), m2.unwrap());
-    let poses = solve(&doc, &s.opts, Tol::witness());
-    assert_eq!(poses.role(m1), Some(MateRole::Determining));
-    assert_eq!(poses.role(m2), Some(MateRole::Declaring));
     let ev = run(&doc, &s.opts);
-    assert!(
-        gate(&doc, &ev).is_ok(),
-        "MEASURED: the gate reads the named FACES, not the authored frames, \
-         so a frame lifted clear of the slab leaves it green: {:?}",
-        gate(&doc, &ev).err()
-    );
+    assert_target_unresolved(&ev, s.cap, "A4′(b) at k = 2");
 }

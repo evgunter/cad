@@ -19,8 +19,8 @@ use geom_core::interval::certification::Certification;
 use crate::shared::tol::{band, eps};
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve};
-use geom_core::{Point2, Point3, Vec2, Vec3};
+use geom_brep::{PcurveCache, PcurveCertifyError, chart_pcurve, chart_pcurve_over};
+use geom_core::{Point3, Vec3};
 
 /// **Deliberately not `shared::surf::sphere`.** This sphere is placed
 /// OFF the origin, at `(0.3, -0.2, 1.1)`: these rows are about a chart
@@ -73,8 +73,8 @@ fn probe_pole_crossing_meridian_arc_certifies() {
         radius: r,
         u_ref: Vec3::unit_x(),
     };
-    let p = chart_pcurve(&carrier, &s, band()).unwrap();
-    let Pcurve::Harmonic { p0, pl, .. } = p else {
+    let p = chart_pcurve_over(&carrier, FRAC_PI_4, 3.0 * FRAC_PI_4, &s, band()).unwrap();
+    let Some((p0, _, _, pl)) = p.harmonic_form() else {
         panic!("harmonic expected")
     };
     assert!(p0.y.abs() < 1e-12, "delta should be 0, got {}", p0.y);
@@ -109,7 +109,7 @@ fn probe_mirror_nappe_cone_rim_certifies_at_azimuth_plus_pi() {
         u_ref: Vec3::unit_x(),
     };
     let p = chart_pcurve(&carrier, &cone, band()).unwrap();
-    let Pcurve::Harmonic { p0, pl, .. } = p else {
+    let Some((p0, _, _, pl)) = p.harmonic_form() else {
         panic!("harmonic expected")
     };
     // Spatial azimuth of the t=0 point is 0; the mirror nappe's chart
@@ -174,7 +174,7 @@ fn probe_torus_inner_equator_certifies_at_v_pi() {
         u_ref: Vec3::unit_x(),
     };
     let p = chart_pcurve(&carrier, &torus, band()).unwrap();
-    let Pcurve::Harmonic { p0, .. } = p else {
+    let Some((p0, _, _, _)) = p.harmonic_form() else {
         panic!("harmonic expected")
     };
     assert!(
@@ -204,42 +204,29 @@ fn probe_sphere_envelope_dominates_a_corrupted_meridian() {
         radius: r,
         u_ref: Vec3::unit_x(),
     };
-    let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &s, band()).unwrap() else {
-        panic!("harmonic expected")
-    };
+    let image = chart_pcurve(&carrier, &s, band()).unwrap();
     let d = 1e-4;
     let (t0, t1) = (0.0, FRAC_PI_2);
-    for (ca, cb, cl, c0) in [
-        (d, -d, 0.0, 0.0),
-        (d, -d, 2.0 * d / PI, -d),
-        (-d, d, -2.0 * d / PI, d),
-        (0.0, 0.0, d, d),
-    ] {
-        let bad = Pcurve::Harmonic {
-            p0: Point2::new(p0.x, p0.y + c0),
-            pa: Vec2::new(pa.x, pa.y + ca),
-            pb: Vec2::new(pb.x, pb.y + cb),
-            pl: Vec2::new(pl.x, pl.y + cl),
-        };
+    // The polar channel is an angle (`geom_brep::Channel::Angle`): its
+    // slope is its windings and it has no `cos`/`sin` part, so the drift
+    // a stored row can carry there is its phase alone.
+    for c0 in [d, -d] {
+        let bad = image.translate(0.0, c0);
         // True sup of |S(P(t)) - C(t)| by dense sampling.
         let mut sup: f64 = 0.0;
         for i in 0..=2000 {
             let t = t0 + (t1 - t0) * (i as f64) / 2000.0;
-            let Pcurve::Harmonic { p0, pa, pb, pl } = bad else {
-                unreachable!()
-            };
-            let u = p0.x + pa.x * t.cos() + pb.x * t.sin() + pl.x * t;
-            let v = p0.y + pa.y * t.cos() + pb.y * t.sin() + pl.y * t;
-            let e = sphere_eval(&s, u, v) - carrier.eval(t);
+            let at = bad.eval(t);
+            let e = sphere_eval(&s, at.x, at.y) - carrier.eval(t);
             sup = sup.max(e.norm());
         }
         // The certificate's envelope statement for the snapped image:
-        // channel drifts at the polar arm r (all corruption is in the
+        // the phase drift at the polar arm r (all corruption is in the
         // v channel here).
-        let env = (c0.abs() + ca.abs() + cb.abs() + cl.abs() * t1.abs().max(t0.abs())) * r;
+        let env = c0.abs() * r;
         assert!(
             sup <= env * (1.0 + 1e-9),
-            "true sup {sup:e} beats the envelope bound {env:e} for ({ca},{cb},{cl},{c0})"
+            "true sup {sup:e} beats the envelope bound {env:e} for a phase drift {c0}"
         );
         assert!(
             PcurveCache::certify(bad, t0, t1, &carrier, &s, band()).is_err(),

@@ -33,9 +33,12 @@
 //! arm, so `arm = free` and `margin = free²/(2r) = 2·free²`, giving
 //! `free = √(margin/2)`:
 //!
-//! - **extrude** — a unit block with `r = 0.25` fillets, extruded to a
-//!   height `h`. The strut's extent IS `h`, and the fold is
-//!   `min(∞, r, h)`, so `h < r` makes the height the arm.
+//! - **extrude** — a prism whose profile joins a short line
+//!   tangentially to an arc of radius `r`, extruded a quarter of
+//!   `free`. The strut between those two walls levers its wedge at the
+//!   farther wall's extent from its middle (`topo::wedge_reach`), which
+//!   the fixture sets to `free`; the fold is `min(∞, r, free)`, so
+//!   `free < r` makes it the arm.
 //! - **revolve** — a bore cylinder of radius `R` meeting, tangentially
 //!   at its inner equator, a torus of minor radius `r` and major
 //!   radius `R + r`. The fold is `min(R, r, 2R)`, so `R < r` makes the
@@ -44,7 +47,11 @@
 //! The three rows per verb are then one geometry at three lengths:
 //! `margin = 0.125` (definitely positive at every ε the matrix runs),
 //! `margin = √(ε·Kε)` (the band's geometric mean — in-band at every ε),
-//! `margin = ε/100` (definitely zero at every ε).
+//! `margin = ε/100` (definitely zero at every ε). On the extrude the
+//! last two never reach the strut: a sagitta levered at the walls'
+//! extent is the profile's own separation of the arc from the line,
+//! which the profile door decides first, joining the two segments at
+//! zero and escalating in band.
 //!
 //! The stored-description differential these rows are read beside lives
 //! in `bitdump.rs`, which is the one home for a dump taken at two SHAs
@@ -57,7 +64,10 @@ use geom_brep::{
     EdgeDescription, LeverRung, MustCarryEscalation, MustCarryVerdict, must_carry_over_edge,
 };
 use geom_core::{Band, ErrorTextReading, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use profile::{
+    EscalationSite, Profile, ProfileError, SegmentRef, SketchPlane, ValidatedProfile,
+    test_support::bulge_loop,
+};
 use sweep::ExtrudeSide;
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
@@ -142,7 +152,53 @@ fn filleted_block(h: f64) -> Result<Body<f64>, ExtrudeError> {
 /// The eight smooth struts of [`filleted_block`] — the count is the
 /// fixture's own structure, asserted rather than assumed so a profile
 /// change that loses a fillet cannot quietly empty a row.
+#[cfg(feature = "probe")]
 const SMOOTH_STRUTS: usize = 8;
+
+/// A prism whose one smooth strut lies between two walls the farther of
+/// which reaches `free` from its middle: the profile runs along a line
+/// `free/3` long from the origin, tangentially into an arc of radius
+/// `MERIDIAN_R`, then up a unit wall, back across and down to the
+/// start, every other vertex a right-angled corner; it is extruded
+/// `h = free/4`, and the arc's chord is the one that puts its far end
+/// `free` from the strut's middle (`topo::wedge_reach`). So `free` is
+/// the wedge's arm while it is under `MERIDIAN_R`. The line is the
+/// short side because the profile door reads the arc's distance from
+/// the line segment, which an arc as short as the line would bring
+/// within the very band the in-band row poses.
+fn tangent_strut_prism(free: f64) -> Body<f64> {
+    let profile = tangent_strut_profile(free).expect("the tangent-strut prism is a valid profile");
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: free / 4.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the tangent-strut prism extrudes")
+    .body
+}
+
+/// [`tangent_strut_prism`]'s profile, or the profile door's refusal.
+fn tangent_strut_profile(free: f64) -> Result<ValidatedProfile<f64>, ProfileError> {
+    let r = MERIDIAN_R;
+    let (h, l) = (free / 4.0, free / 3.0);
+    let chord = (free * free - h * h / 4.0).sqrt();
+    let phi = 2.0 * (chord / (2.0 * r)).asin();
+    let end = Point2::new(l + r * phi.sin(), r * (1.0 - phi.cos()));
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(l, 0.0), (phi / 4.0).tan()),
+        (end, 0.0),
+        (Point2::new(end.x, 1.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
+    ]);
+    Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness())
+}
+
+/// [`tangent_strut_prism`]'s one smooth strut.
+const TANGENT_STRUTS: usize = 1;
 
 // ---------------------------------------------------------------
 // The revolve fixture: a bore cylinder tangent to a torus's inner
@@ -256,58 +312,59 @@ fn assert_in_band_payload(source: geom_core::Indeterminate) {
 
 /// Definitely positive: the surfaces determine the locus along the
 /// whole strut, so prefer-intrinsic demands `TangentIntersection` on
-/// every one of the block's eight smooth struts.
+/// the smooth strut.
 #[test]
 fn an_extrude_strut_with_a_definite_positive_margin_stores_the_intrinsic_tangency() {
-    let body = filleted_block(free_length_for(definite_positive_margin()))
-        .expect("a definitely-determinate join builds");
+    let body = tangent_strut_prism(free_length_for(definite_positive_margin()));
     assert_eq!(
         intrinsic_edges(&body),
-        SMOOTH_STRUTS,
-        "every smooth strut stores the intrinsic tangency"
+        TANGENT_STRUTS,
+        "the smooth strut stores the intrinsic tangency"
     );
 }
 
-/// Definitely zero: the surfaces under-determine the locus, so each
-/// strut keeps the conventional description — the pair of its two
-/// walls — and NO strut stores the intrinsic tangency.
+/// Definitely zero: at the walls' extent the sagitta is the profile's
+/// own separation of the arc from the line, so the profile door reads
+/// the two segments as one carrier first and joins them: the prism has
+/// no smooth strut, and NO edge stores the intrinsic tangency or the
+/// conventional pair. The extrude twin of the under-determined join is
+/// the revolve row's; the extrude strut's own pair arm has no row
+/// (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
-fn an_extrude_strut_with_a_definite_zero_margin_stores_the_conventional_description() {
-    let body = filleted_block(free_length_for(definite_zero_margin()))
-        .expect("an under-determined join builds");
+fn an_extrude_strut_with_a_definite_zero_margin_is_one_wall() {
+    let body = tangent_strut_prism(free_length_for(definite_zero_margin()));
     assert_eq!(
         intrinsic_edges(&body),
         0,
         "an under-determined join stores no intrinsic tangency"
     );
-    let (struts, pairs) = pairs_among(&body, is_strut);
     assert_eq!(
-        struts, SMOOTH_STRUTS,
-        "the fixture's eight struts are the edges this row is about"
-    );
-    assert_eq!(
-        pairs, SMOOTH_STRUTS,
-        "every under-determined STRUT is the conventional pair — not merely some edge of the body"
+        pairs_among(&body, is_strut),
+        (4, 0),
+        "the line and the arc are one wall: four corner struts and no pair"
     );
 }
 
-/// In-band: certifiable as neither, so the strut arm refuses typed.
-/// This is the contract half the revolve arm used to fold away.
+/// In-band: the profile door reads the same separation in band and
+/// escalates at the line–arc pair, before any strut exists; the
+/// extrude strut's own in-band arm has no row
+/// (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
-fn an_extrude_strut_with_an_in_band_margin_refuses_typed() {
-    match filleted_block(free_length_for(in_band_margin())) {
-        Err(ExtrudeError::SliverJoin {
-            reading, source, ..
-        }) => {
-            assert_eq!(
-                reading,
-                topo::DihedralReading::Bend,
-                "the strut's in-band station is the second-order bend's"
-            );
-            assert_in_band_payload(source);
-        }
-        Err(other) => panic!("the in-band strut must refuse as a sliver JOIN, not {other}"),
-        Ok(_) => panic!("an in-band second-order margin was built silently"),
+fn an_extrude_strut_with_an_in_band_margin_refuses_at_the_profile() {
+    let segment = |segment_index| SegmentRef {
+        loop_index: 0,
+        segment_index,
+    };
+    match tangent_strut_profile(free_length_for(in_band_margin())) {
+        Err(ProfileError::Escalated {
+            site: EscalationSite::SegmentPair(a, b),
+            ..
+        }) => assert_eq!(
+            (a, b),
+            (segment(0), segment(1)),
+            "the escalation is the line–arc joint's"
+        ),
+        other => panic!("an in-band line–arc joint must escalate at the profile, got {other:?}"),
     }
 }
 
