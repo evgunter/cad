@@ -3,6 +3,8 @@ id: two-seam-runs-whose-seams-differ-in-unopened-faces-can-read-alike-within-the
 kind: issue
 title: Two seam-run vertices whose seams differ only in faces the detail leaves unopened read alike within the evaluation
 status: open
+priority: P3
+cost: M
 opened: 2026-10-14
 ---
 
