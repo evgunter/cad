@@ -714,14 +714,18 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
 /// every ε row, and nothing else moved. Then `arc_onto`'s token-supplied
 /// `D` cap joined as `shared coverage corpus 15` (validating, joint 0
 /// constructed), renumbering the circle forms to `16` and `17`; no other
-/// row moved, at any ε row.
-const GOLDEN_DEFAULT: u64 = 0x071b_1490_d356_068e;
+/// row moved, at any ε row. Then a tangent arc past a half turn came to
+/// read its quarter-tangent as `(|d| − along)/across`: `shared coverage
+/// corpus 8`'s first arc, a half turn whose `along` rounds below zero,
+/// stores its sweep as `−π` (the nearest `f64`) rather than one ulp
+/// past it, at every ε row, and nothing else moved.
+const GOLDEN_DEFAULT: u64 = 0x1c63_6809_bdc2_006b;
 /// The same at `CAD_TOLERANCE_EPS=1e-6`, where `arc x arc c=0.3
 /// r=0.05` validates: its legs stand ≈ 1.5Kε apart across the carriers'
 /// shallow crossing, which their ends settle.
-const GOLDEN_1E6: u64 = 0x56d0_f437_54f4_6d7d;
+const GOLDEN_1E6: u64 = 0xec53_6292_dce1_7ec8;
 /// The same at `CAD_TOLERANCE_EPS=1e-12`.
-const GOLDEN_1E12: u64 = 0x8155_1084_037a_dc86;
+const GOLDEN_1E12: u64 = 0xa87e_cfbe_6574_6563;
 
 /// **The transition, bracketed.** Every other row here reads a turn a
 /// long way from the crossing; this one reads both sides of it at the
