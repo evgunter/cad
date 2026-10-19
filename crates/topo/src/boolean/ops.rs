@@ -786,8 +786,10 @@ fn line_edges((_, diag): ([crate::entity::EdgeKey; 2], Indeterminate)) -> Boolea
 ///
 /// # Errors
 ///
-/// [`BooleanError::LineWedges`]: an overlap, or a face with no sheet
-/// on the line; the re-pairing is not built.
+/// [`BooleanError::LineWedges`]: an overlap, whose re-pairing is not
+/// built; or a wedge the reading cannot take, a face with no sheet on
+/// the line or a cusp or slit edge (D1: a consumer with no wedge-end
+/// answer refuses typed).
 /// [`BooleanError::Escalated`] ([`BooleanDecision::LineWedges`]): a
 /// reading in band, of whether two of the result's edges lie on one
 /// line or of their wedges. The edges and the faces meeting on the line
@@ -810,6 +812,7 @@ fn coincident_wedges_disjoint<T: Decide + Bounds>(
             Ok(crate::census::LineWedges::Overlap(edges)) => LineWedgeFault::Overlap { edges },
             Err(crate::census::WedgeRefusal::Undecided(diag)) => return Err(escalated(diag)),
             Err(crate::census::WedgeRefusal::NoSheet(edge)) => LineWedgeFault::NoSheet { edge },
+            Err(crate::census::WedgeRefusal::WedgeEnd(edge)) => LineWedgeFault::WedgeEnd { edge },
         };
         return Err(BooleanError::LineWedges {
             fault,

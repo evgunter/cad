@@ -3614,6 +3614,13 @@ pub enum LineWedgeFault {
         /// The result's edge.
         edge: EdgeKey,
     },
+    /// This edge's faces meet at a zero angle or a full turn, a cusp or
+    /// a knife slit (D1's wedge ends), and the line's reading has no
+    /// answer for those.
+    WedgeEnd {
+        /// The result's edge.
+        edge: EdgeKey,
+    },
 }
 
 /// Which arm of [`BooleanError`] refused — the discriminant alone,
@@ -4844,6 +4851,12 @@ impl core::fmt::Display for BooleanError {
                     "a face meeting the line from {from} to {to}, where two of the result's edges \
                      lie, has no tangent plane there, so the material on its side has no \
                      reading. {NOT_YET_ENDING}"
+                ),
+                LineWedgeFault::WedgeEnd { .. } => write!(
+                    f,
+                    "an edge on the line from {from} to {to}, where two or more of the result's \
+                     edges lie, bounds a cusp or a knife slit, which the reading of the line's \
+                     material does not cover. {NOT_YET_ENDING}"
                 ),
             },
         }
@@ -8342,6 +8355,11 @@ mod tests {
             },
             BooleanError::LineWedges {
                 fault: LineWedgeFault::NoSheet { edge },
+                from: "(0.0, 1.0, 2.0)".to_owned(),
+                to: "(3.0, 4.0, 5.0)".to_owned(),
+            },
+            BooleanError::LineWedges {
+                fault: LineWedgeFault::WedgeEnd { edge },
                 from: "(0.0, 1.0, 2.0)".to_owned(),
                 to: "(3.0, 4.0, 5.0)".to_owned(),
             },

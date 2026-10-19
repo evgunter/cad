@@ -206,6 +206,18 @@ fn local(pose: &Pose, w: Vec3<f64>) -> [f64; 3] {
     cols.map(|cv| cv.x * w.x + cv.y * w.y + cv.z * w.z)
 }
 
+/// The scenes some of whose cells the result gate refuses
+/// (`BooleanError::LineWedges`), with how many over every pose and op:
+/// each such result carries coincident edges whose wedges overlap,
+/// which every tier passed. They return with the re-pairing
+/// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
+const OVERLAPPING: &[(&str, usize)] = &[
+    ("under the lying pyramid's ray", 5),
+    ("around the lying pyramid", 5),
+    ("inside the lying pyramid", 5),
+    ("continuing the lying pyramid's face", 5),
+];
+
 /// One scene's cells, over every pose and op: what refused, and each
 /// edge at `MEET` of a built result's operands, by its rows against the
 /// germ.
@@ -581,26 +593,29 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             .into_iter()
             .map(|(label, base)| (label, pyr(base)))
             .collect();
-        // A void in the lying pyramid with an edge on its ray: two
-        // partners along the top, one inside the other.
+        // A void in the lying pyramid with an edge on its ray refuses:
+        // the difference carries the ray as two edges of 30.6° and
+        // 356.1°, overlapping, which every tier passed. Its three scenes
+        // (over it, in its void, hanging below it) return with the
+        // re-pairing
+        // (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
         let lvoid = mix(
             lying(0.0),
             [[0.0, 0.0, 1.0], [0.2, 0.2, 0.6], [0.25, 0.15, 0.6]],
             0.7,
         );
-        let hollow_lying_b = built(
-            "a lying pyramid, a void on its ray",
-            union(
-                &plate_b,
-                &built(
-                    "a void on its ray",
-                    subtract(&p(lying(0.0)), &p(lvoid), t()),
-                ),
-                t(),
+        let got = subtract(&p(lying(0.0)), &p(lvoid), t());
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::LineWedges {
+                    fault: topo::LineWedgeFault::Overlap { .. },
+                    ..
+                })
             ),
+            "{}: a void on the lying pyramid's ray: {got:?}, not the overlap's refusal",
+            pose.label
         );
-        let hollow_lying = u(plate.clone(), dd(c(lying(0.0)), c(lvoid)));
-        let in_lvoid = pyr(nest(lvoid, 0.7));
         let mut scenes = vec![
             ("the arches", pick(&cone), (&arches_b, &arches)),
             ("one standing pyramid", pick(&cone), (&one_b, &one)),
@@ -799,21 +814,6 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
                 pick(&hang),
                 (&lying_b, &lying_g),
             ),
-            (
-                "over a lying pyramid, a void on its ray",
-                pick(&over),
-                (&hollow_lying_b, &hollow_lying),
-            ),
-            (
-                "in a void on a lying pyramid's ray",
-                pick(&in_lvoid),
-                (&hollow_lying_b, &hollow_lying),
-            ),
-            (
-                "hanging below a lying pyramid, a void on its ray",
-                pick(&hang),
-                (&hollow_lying_b, &hollow_lying),
-            ),
         ];
         scenes.extend(
             along
@@ -972,7 +972,16 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             "{label} | {} | {:?} | {} | {} | {} | {}",
             tally.built, tally.refused, tally.rows, tally.wrong, tally.missing, tally.doubled
         );
-        if !tally.refused.is_empty() || tally.wrong + tally.missing + tally.doubled > 0 {
+        let pinned = OVERLAPPING
+            .iter()
+            .find(|(scene, _)| scene == label)
+            .map(|&(_, n)| n);
+        let refused_else = tally
+            .refused
+            .iter()
+            .any(|(kind, &n)| kind != "LineWedges" || Some(n) != pinned);
+        let pinned_built = pinned.is_some() && !tally.refused.contains_key("LineWedges");
+        if refused_else || pinned_built || tally.wrong + tally.missing + tally.doubled > 0 {
             failures.push(format!("{label}: {tally:?}"));
         }
     }

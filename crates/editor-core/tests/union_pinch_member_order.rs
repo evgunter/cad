@@ -29,8 +29,9 @@
 //! - the plate intersected with the joined blocks, where the two
 //!   pierces stay in two faces and so stay two vertices;
 //! - the plate minus the joined blocks, and a slab less them, which
-//!   refuse `Revert`: the blocks' contact runs inside the other operand,
-//!   where the complement pairs one block's faces with the other's.
+//!   refuse `LineWedges`: the blocks' contact runs inside the other
+//!   operand, where the complement pairs one block's faces with the
+//!   other's, and the result's two edges there overlap.
 //!
 //! Each row also reads the result's contact record, its tier-3′ verdict
 //! and `check_mesh` on its tessellation: every result passes 3′, every
@@ -625,9 +626,10 @@ fn a_pinch_union_publishes_one_table_in_every_member_order() {
 
 /// **The plate against the joined blocks: a union both ways round
 /// builds the member-order body, an intersection keeps the two
-/// footprints apart, and a subtraction refuses `Revert`**: the blocks'
-/// contact runs inside the plate, and ∖ does not build the re-pairing
-/// its complement needs.
+/// footprints apart, and a subtraction refuses `LineWedges`**: the
+/// blocks' contact runs inside the plate, and ∖ does not build the
+/// re-pairing its complement needs, so the result's two edges there
+/// bound 270° each, overlapping.
 #[test]
 fn the_plate_against_the_joined_blocks_builds_in_every_op() {
     let (doc, m) = pinch(ProfileDoc::empty_derived("union_pinch", Tol::witness()));
@@ -673,8 +675,8 @@ fn the_plate_against_the_joined_blocks_builds_in_every_op() {
     // bound 270° each, overlapping.
     let refusal = failure(&ev, notched);
     assert!(
-        format!("{refusal:?}").contains("Revert {"),
-        "plate ∖ blocks: {refusal:?}, not the revert's refusal"
+        format!("{refusal:?}").contains("LineWedges { fault: Overlap"),
+        "plate ∖ blocks: {refusal:?}, not the overlap's refusal"
     );
 
     let o = checked(&ev, footprints, "plate ∩ blocks", NOTCHES);
@@ -694,7 +696,7 @@ fn the_plate_against_the_joined_blocks_builds_in_every_op() {
 /// keeps the blocks' contact inside the slab, where the complement pairs
 /// one block's faces with the other's. The result would carry the
 /// contact as two coincident edges bounding 270° each, overlapping, and
-/// ∖ refuses `Revert`. The six ops of that slab against the plate return
+/// the result gate refuses `LineWedges`. The six ops of that slab against the plate return
 /// with the re-pairing
 /// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
 #[test]
@@ -708,8 +710,8 @@ fn a_slab_holding_the_contact_refuses_to_be_cut() {
     let ev = run(&doc);
     let refusal = failure(&ev, x);
     assert!(
-        format!("{refusal:?}").contains("Revert {"),
-        "slab ∖ blocks: {refusal:?}, not the revert's refusal"
+        format!("{refusal:?}").contains("LineWedges { fault: Overlap"),
+        "slab ∖ blocks: {refusal:?}, not the overlap's refusal"
     );
 }
 

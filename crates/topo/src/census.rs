@@ -1507,6 +1507,10 @@ pub(crate) enum WedgeRefusal {
     /// A face of this edge has no tangent plane where it meets the
     /// line, so it has no sheet to read there.
     NoSheet(EdgeKey),
+    /// This edge's two sheets definitely meet at a zero angle or a full
+    /// turn: a cusp or a knife slit, D1's wedge ends, which this reading
+    /// has no interior direction for.
+    WedgeEnd(EdgeKey),
 }
 
 /// One edge's material wedge on the line: its two face sheets (the
@@ -1550,7 +1554,8 @@ struct Wedge<T: Real> {
 ///
 /// # Errors
 ///
-/// [`WedgeRefusal`]: an in-band reading, or a face with no sheet.
+/// [`WedgeRefusal`]: an in-band reading, a face with no sheet, or a
+/// cusp or slit edge.
 pub(crate) fn line_wedges<T: Decide>(
     body: &Body<T>,
     line: [Point3<T>; 2],
@@ -1609,6 +1614,10 @@ fn wedge<T: Decide>(body: &Body<T>, e: &EdgeGeo<T>, band: Band) -> Result<Wedge<
     let arm = e.len;
     let shape = crate::sector_shape::edge_wedge_shape(own * arm, next * arm, e.dir, band).map_err(
         |fault| match fault {
+            crate::sector_shape::SectorFault::Rung {
+                rung: crate::sector_shape::SectorRung::Straight { .. },
+                diag,
+            } if diag.margin.rejected_sign().is_some() => WedgeRefusal::WedgeEnd(e.key),
             crate::sector_shape::SectorFault::Rung { diag, .. } => WedgeRefusal::Undecided(diag),
             crate::sector_shape::SectorFault::NonFiniteChord
             | crate::sector_shape::SectorFault::UnderflowedChord => WedgeRefusal::NoSheet(e.key),

@@ -134,7 +134,8 @@ type Census = (usize, usize, usize, usize);
 /// `[v-v, v-f, curve, patch]` contact record counts.
 type Want = Option<(Census, [usize; 6])>;
 
-/// **The prism's edge on the wall builds every op undeclared.** Two
+/// **The prism's edge on the wall builds every op undeclared**, but
+/// `t ∖ b` on a seam ruling. Two
 /// poses off the seam rulings (`0.3` and `0.5` rad) and the two seam
 /// rulings themselves (`0` and `π`), each with the edge inside one wall
 /// face (`z ∈ [0.5, 1.5]`) and across the top rim (`z ∈ [1, 3]`).
@@ -147,7 +148,12 @@ type Want = Option<(Census, [usize; 6])>;
 /// edge-edge record of the prism's edge lying along that ruling. Across the rim, the prism's
 /// part above `z = H` is `b ∖ t`, and `t ∖ b` is a notch whose edge
 /// runs down the wall from the rim, its lower end recorded the same
-/// way and, on a seam ruling, the edge along it.
+/// way. On a seam ruling `t ∖ b` refuses `LineWedges`: its result keeps
+/// the seam edge (180°) and the void's edge along it (270°) on one line,
+/// overlapping, which every tier passed; the material there is two
+/// 45° wedges, each between a void face and the wall. It returns with
+/// the re-pairing
+/// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
 #[test]
 fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
     let tol = Tol::witness();
@@ -207,6 +213,19 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
             ];
             for ((op, r), (want, volume)) in six(&t, &b).into_iter().zip(wants) {
                 let label = format!("turn {turn}, {extent}: {op}");
+                if on_seam && op == "t ∖ b" {
+                    assert!(
+                        matches!(
+                            r,
+                            Err(BooleanError::LineWedges {
+                                fault: topo::LineWedgeFault::Overlap { .. },
+                                ..
+                            })
+                        ),
+                        "{label}: {r:?}, not the overlap's refusal"
+                    );
+                    continue;
+                }
                 let bb = match (r, want) {
                     (Ok(BooleanResult::Empty), None) => continue,
                     (Ok(BooleanResult::Body(bb)), Some(_)) => bb,

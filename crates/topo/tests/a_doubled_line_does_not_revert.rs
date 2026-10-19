@@ -316,11 +316,13 @@ fn a_tool_with_near_parallel_edges_standing_apart_builds() {
 /// only the move that builds.** The tool holds the bricks
 /// `[0, 1] × [0, 1] × [0.5, 1.5]` and `[−1, −g] × [−1, 0] × [0.5, 1.5]`,
 /// whose edges at the gap lie within `g = 4 ε` of one line inside the
-/// box `[−0.5, 0.5]² × [0, 2]`. Whether they share it is in band:
-/// ∖ refuses `LineEdges`, whose lever is the bricks clearly apart, not
-/// clearly on one line (which ∖ refuses as reversed wedges). Moved
+/// box `[−0.5, 0.5]² × [0, 2]`. Whether the result's two edges there
+/// share it is in band: the result gate refuses `LineWedges`, whose
+/// lever is the faces clearly parting, not clearly on one line (whose
+/// reversed wedges overlap, and refuse). Moved
 /// clearly apart, `g = 0.25`, it builds: the box's 2 less the two
-/// bricks inside it, `0.25 + 0.5 · (0.5 − g)`.
+/// bricks inside it, `0.25 + 0.5 · (0.5 − g)`. A box holding both
+/// bricks whole reads the gap on the cavity it reverts, as `LineEdges`.
 #[test]
 fn bricks_a_hair_apart_on_one_line_escalate_with_the_move_that_builds() {
     let tol = t();
@@ -344,7 +346,7 @@ fn bricks_a_hair_apart_on_one_line_escalate_with_the_move_that_builds() {
     let refusal = subtract(&a, &tool(4.0 * tol.eps()), tol).err();
     let Some(
         refusal @ BooleanError::Escalated {
-            decision: topo::BooleanDecision::LineEdges,
+            decision: topo::BooleanDecision::LineWedges,
             diag,
         },
     ) = refusal
@@ -354,9 +356,9 @@ fn bricks_a_hair_apart_on_one_line_escalate_with_the_move_that_builds() {
     assert_eq!(
         refusal.to_string(),
         format!(
-            "whether two straight edges of the subtracted solid lie on one line along a length \
+            "whether the material that the result's edges along one line bound overlaps there \
              is undecided: margin {:e} lies inside the ambiguity band ({:e}, {:e}). Recourse: move the \
-             geometry so the subtracted solid's straight edges clearly stand apart",
+             geometry so the faces meeting along that line clearly part there",
             diag.margin,
             diag.band.zero(),
             diag.band.escalate()
@@ -373,5 +375,25 @@ fn bricks_a_hair_apart_on_one_line_escalate_with_the_move_that_builds() {
     assert!(
         (v - closed).abs() < 1e-9,
         "moved apart: volume {v}, closed form {closed}"
+    );
+    // A box holding both bricks whole takes the containment fallback,
+    // which reads the cavity's own lines before reverting it: the same
+    // gap escalates there as `LineEdges`.
+    let around = posed_box(
+        "the box round them",
+        [(-2.0, 2.0), (-2.0, 2.0), (0.0, 2.0)],
+        &Pose::rest(),
+        tol,
+    );
+    let refusal = subtract(&around, &tool(4.0 * tol.eps()), tol).err();
+    assert!(
+        matches!(
+            refusal,
+            Some(BooleanError::Escalated {
+                decision: topo::BooleanDecision::LineEdges,
+                ..
+            })
+        ),
+        "the box round them: {refusal:?}, not the cavity line's escalation"
     );
 }
