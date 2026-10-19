@@ -117,6 +117,12 @@ side clears only
   directions that turn with the pair: the axis between the two faces'
   anchors, and either face's normal where it is planar
   (`boolean::separating::apart`), or
+- on a definitely-positive gap in depth (the distance from an axis
+  line, a centre or a circle that either face's carrier or a conic on
+  its boundary proposes) between one face's least depth and the
+  other's greatest, each bounded through rings and segments that cover
+  the face or its convex hull (`census::depth_gap`): the nested walls,
+  bores and plugs no direction separates, or
 - where the pair meets, by the touch analysis, which reads every curved
   face of a touch's star through that box (its corners' signed distances
   from the candidate plane): a box on its side certifies the Rest, and

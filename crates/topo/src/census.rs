@@ -4988,6 +4988,7 @@ const TOUCH_FOLD: &str = "census_touch_fold";
 /// The analysis's one levered reading: a Zero only skips a candidate.
 const TOUCH_SPAN: &str = "census_touch_span";
 
+mod curved;
 /// **The one door every verdict sign of the touch analysis comes
 /// through.** A [`Distance`] has a private field and one constructor,
 /// from a point and a plane, so a lever, a product or any other
@@ -4998,7 +4999,9 @@ const TOUCH_SPAN: &str = "census_touch_span";
 /// passes a normalized direction or a face's outward normal, and a
 /// normal scaled by a length would be a lever spelled as a plane; the
 /// source row states that blind spot.
-mod curved;
+mod depth_gap;
+#[cfg(test)]
+mod depth_gap_fuzz;
 mod point;
 #[cfg(test)]
 mod segment_fuzz;
@@ -6424,7 +6427,10 @@ fn backstop_apart<T: Decide>(
 ///    construction (`boxes`' ceiling rows pin that).
 ///
 /// Arm 1 clears a pair ONLY on a definitely-positive separation margin
-/// (`census_backstop_gap` — metre coordinate differences) and refuses
+/// (`census_backstop_gap` — metre coordinate differences — then the
+/// turned directions of [`backstop_apart`], then a gap in depth about
+/// an axis, a centre or a circle, `census_backstop_depth_gap`, for the
+/// nested walls no direction separates: [`depth_gap`]) and refuses
 /// anything weaker; arm 2's box clears only on a definitely-negative
 /// margin (`census_backstop_containment`) and hands anything weaker to
 /// the material test.
@@ -6797,6 +6803,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                 }
                 if !cleared
                     && !backstop_apart(body, (a.face, (alo, ahi)), (b.face, (blo, bhi)), band)
+                    && !depth_gap::apart_in_depth(body, a.face, b.face, band)
                 {
                     errors.push(ValidationError::CensusUndecidable {
                         a: EntityId::Face(a.face),

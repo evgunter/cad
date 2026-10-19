@@ -17,10 +17,10 @@
 //! - the tube under a box whose side face cuts its outer wall, so one
 //!   one-site loop lies beside matched segments in the same faces.
 //!
-//! Two classes no row here owns are pinned as known, by row: a box
-//! less a tube, which leaves a rod in the bore, fails tier 3′
-//! (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`),
-//! and a piece of the wall under a tilted plane is no legal operand: a
+//! A box less a tube leaves a rod in the bore, two solids the census
+//! clears on the rod's depth about the bore's axis. One class no row
+//! here owns is pinned as known, by row: a piece of the wall under a
+//! tilted plane is no legal operand: a
 //! ray from the far brick that meets nothing finds the wall's volume
 //! unmeasurable, and every ray aimed at a planar face crosses the
 //! one-face wall's carrier, where the wall's period guard cannot read it
@@ -111,8 +111,6 @@ fn below(at: Point3<f64>, turn: Affine3<f64>) -> Body<f64> {
 /// class sets false, the rest of the line sound.
 #[derive(Clone, Copy)]
 enum Known {
-    /// Tier 3′ refuses the result.
-    T3,
     /// The result does not unite with a far brick.
     Operand,
 }
@@ -184,10 +182,7 @@ fn every_op(what: &str, a: Body<f64>, b: Body<f64>, v: (f64, f64, f64), known: &
         }
         let line = outcome(r, m.volume, tol());
         let flags = ["t2=", "t3p=", "cert=", "operand="].map(|f| {
-            let named = matches!(
-                (f, k),
-                ("t3p=", Some(Known::T3)) | ("operand=", Some(Known::Operand))
-            );
+            let named = matches!((f, k), ("operand=", Some(Known::Operand)));
             format!("{f}{}", !named)
         });
         for f in &flags {
@@ -212,7 +207,7 @@ fn a_box_across_a_full_revolved_tube() {
         tube(0.3),
         block,
         (0.32 * PI, 9.0, 0.16 * PI),
-        &[("B ∖ A", Known::T3)],
+        &[],
     );
 }
 
@@ -307,7 +302,7 @@ fn a_one_site_loop_beside_matched_ones() {
         tube(0.3),
         block,
         (0.32 * PI, 5.7, 0.16 * PI - segment),
-        &[("B ∖ A", Known::T3)],
+        &[],
     );
 }
 
