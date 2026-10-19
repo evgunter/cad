@@ -50,6 +50,14 @@ Closes the placement half of `a-boxed-rotation-refuses-not-rigid-at-every-placer
 - **`name_words_corpus`:** re-bless it at the measured values, without hiding it. The PR body names the corpus document that sets the new max (196→366) and why its names grew: placed-copy wrapping under D's `stand`. An item owned by D′ (`name-words-budget-grew-under-placed-copy-wrapping`) records that retiring `RoleSeg::Placed`/`InPart` (PR 5315) should bring the budget back, and that D′ re-tightens it.
 - **Inline at a pose, for a copy in a construction's own space:** apply the fix in D if it stays inside inline/refactor and carries its own row. If it spreads, file it as a P1 item with the failing case and leave today's behaviour typed. Either way the row that shows it is never skipped or quarantined.
 
+**Triage lane, finished (2026-10-19; log `/home/user/triage-log.md`)**
+- All 22 rows classified and on the branch. Inline at a pose now carries a copy seated on a construction (`refactor.rs::inline`, `in_loose_space`), with its own row, `asm4_split_inline::inline_at_a_pose_carries_a_copy_seated_on_a_construction`. That leaves `InlineError::CopyPinnedToConstruction` with no reachable producer. It is kept, because it is in pncad-py's tags and the binding census; retire it in a follow-up.
+- Left for the kernel lane:
+  - `revalue_declared_tangency`: a real bug. `place_at` writes an antiparallel z as a spin by π, so the chart sits at the antipode by rounding. Proposed fix: spell it as a `Flip` on the copy's side.
+  - `m10_di_dual_corpus`: die_composed_tour has 10 undecided touches at Interval.
+  - `sym_9_retry_interval` ×2 and `sym11_exact_channel_rows`: receipts drift with the solve edits; re-take them once those settle. sym11's frozen column fell (two_hole_plate 729→161), which its text calls a finding.
+- `intent_s2_c_world` stays red until the viewer's `gallery_ring.pncad` is re-blessed (then take `FILES[3]` with `print_product_rows`).
+
 **Known reds at the full-suite run on `ea25544a9a`:** 68 editor-core failures, listed with their owners above. pncad's 2 are re-bless. The viewer `--test all` suite needs a re-run (the 17 gallery_ring goldens are re-bless). The viewer's 2 lib reds are the GPU tests (no adapter). `every_suite_file_is_aggregated` fails only because of the local `zz_*` probe roots.
 
 **Uncommitted, deliberately:** the `[[test]] zz_*` entries in `crates/editor-core/Cargo.toml` and the `tests/zz_*.rs` probe roots. Remove both before the PR (`git checkout crates/editor-core/Cargo.toml && rm crates/editor-core/tests/zz_*.rs`).
