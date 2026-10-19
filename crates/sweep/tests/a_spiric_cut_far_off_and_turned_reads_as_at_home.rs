@@ -115,3 +115,27 @@ fn every_spiric_face_meets_its_target_at_the_round_it_does_at_home() {
         assert_eq!(far, home, "{label}: the rounds far off and turned");
     }
 }
+
+/// **What a point of the shell buys: a far-off body's pads are its pads
+/// at home.** Read about a vertex of its shell, a face's lever is at
+/// most the shell's diameter, so a body centred on the world origin may
+/// carry up to twice the width it carried about the origin
+/// (`m8_3_rational_volume`'s ceiling states the cost) — and a body
+/// anywhere else carries the width it carries at home. Read about the
+/// world origin, this pose's spiric faces' widths grew with the
+/// placement's 990 m, to 35 times the target at 1e-12, and three ops
+/// refused. Far off and turned, every op's pad is its pad at home to the
+/// rounding of the moved coordinates: measured at most 0.21% more at
+/// 1e-12, 2e-6 relative at 1e-9 and 1e-6.
+#[test]
+fn every_op_far_off_and_turned_keeps_its_pads_at_home() {
+    let tol = Tol::witness();
+    for ((label, home), (_, far)) in built(0.0).into_iter().zip(built(100.0)) {
+        let pad = |b: &AtRestBody<f64>| topo::mass_properties(b, tol).unwrap().volume_pad;
+        let (home, far) = (pad(&home), pad(&far));
+        assert!(
+            home > 0.0 && far <= home * 1.01,
+            "{label}: the pad far off and turned {far:e} against at home {home:e}"
+        );
+    }
+}

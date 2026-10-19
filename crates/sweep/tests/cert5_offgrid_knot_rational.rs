@@ -314,9 +314,15 @@ fn row(
     );
     // PAD CEILING, pinned separately so a loosening enclosure cannot
     // absorb the accuracy row: the schedule is fixed, so the pad is
-    // what the schedule achieves, and it is never widened past the
-    // run's own target.
-    let ceiling = 2.0 * QUAD_TARGET_LEN_FACTOR * eps;
+    // what the schedule achieves. It is twice the `2·1024ε` it was
+    // while every face was read about the world origin: each face is
+    // read about a vertex of its shell (`topo::props`'
+    // `shell_reference`), whose lever is at most the shell's diameter,
+    // against about its radius from the origin these walls are centred
+    // on, and the quadrature's width scales with the lever
+    // (`m8_3_rational_volume`'s ceiling has the trade). blade-8 measured
+    // 2.127e-6 at 1e-9, 2.08 times the target.
+    let ceiling = 4.0 * QUAD_TARGET_LEN_FACTOR * eps;
     assert!(
         got.volume_pad < ceiling,
         "PAD CEILING {name}: volume pad {} vs {ceiling}",

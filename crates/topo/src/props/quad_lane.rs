@@ -138,15 +138,16 @@ fn chan<T: Decide + Bounds + CertifiedEnclosure>(
 /// face's flux about `centre`. A plane is taken about `centre` directly
 /// ([`planar_face_about`]).
 ///
-/// A quadrature face (`quadrature` is its lane's flux and area
-/// enclosures and the point `from` they are about, the walk's reference)
-/// arrives here only where the walk is carried to the world origin
-/// (`rederive`'s docs): the flux less `(centre − from) · A⃗`, with `A⃗` the
-/// face's vector area from its own loops — the same value, at the width
-/// the quadrature returned it with plus `A⃗`'s times the lever.
+/// A face already measured (`quadrature` is its flux and area
+/// enclosures and the point `from` they are about) is carried to
+/// `centre`: the flux less `(centre − from) · A⃗`, with `A⃗` the face's
+/// vector area from its own loops — the same value, at the width it was
+/// measured with plus `A⃗`'s times the lever. `rederive` hands a
+/// closed-form face here, read about the world origin where it refused
+/// about `centre`.
 ///
 /// The second half says whether the face was RECENTRED, its width the
-/// body's own: `false` for such a quadrature face, and for a closed-form face
+/// body's own: `false` for such a face, and for a closed-form face
 /// whose geometry has no translated twin here, whose flux is then the
 /// closed form about the world origin less `centre · A⃗`.
 pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
@@ -221,10 +222,8 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
 
 /// A face's vector area `A⃗ = ∫ n dA`, from its loops, each summed about
 /// a point of its own (a closed loop's does not depend on it). A
-/// spiric-bounded face has no closed form here and refuses, so a walk
-/// [`super::rederive`] carries to the world origin (its docs) refuses at
-/// that face: its enclosure is about the walk's reference and cannot be
-/// moved.
+/// spiric-bounded face has no closed form here and refuses; such a face
+/// is measured by its own lane, about the centre, and is never carried.
 fn loops_vector_area(
     loops: &[Vec<LoopEdge<Interval>>],
 ) -> Result<geom_core::Vec3<Interval>, PropsError> {

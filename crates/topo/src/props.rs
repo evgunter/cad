@@ -1040,8 +1040,8 @@ pub(crate) enum Certified {
 /// row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SignLimit {
-    /// A face its lane could not measure about the body kept the width
-    /// it was measured with about the world origin, so the enclosure's
+    /// A face that could not be read about its shell's own point kept
+    /// the width of its read about the world origin, so the enclosure's
     /// width may be the body's distance from the origin.
     WorldOrigin,
     /// A curved face's quadrature enclosure was still open at the last
@@ -1267,10 +1267,10 @@ fn rederived<T: Decide>(
 /// Taken about a point of its shell, no face's width is scaled by the
 /// body's distance from the world origin. A quadrature face whose lane
 /// refuses about `c` keeps the enclosure the walk measured, which is
-/// about `c` already; a walk with no faces, or with a closed-form face
-/// that refuses about `c` (its inventory read again there in band), is
-/// taken about the world origin, unrecentred, each quadrature face's
-/// enclosure carried there by its vector area.
+/// about `c` already; a closed-form face that refuses about `c` (its
+/// inventory read again there in band) is read about the world origin
+/// and carried to `c` by its vector area, unrecentred. A walk with no
+/// faces is the zero sum, unrecentred.
 ///
 /// # Errors
 ///
@@ -1287,41 +1287,31 @@ fn rederive<T: Decide>(
     tight: bool,
 ) -> Result<Rederived, MassPropsError> {
     if runs.is_empty() {
-        return rederive_about(body, band, tol, lane, runs, false, tight)?.ok_or(
-            MassPropsError::Corrupt {
-                what: "a walk about the world origin asked for a recentring",
-            },
-        );
+        return Ok(Rederived {
+            volume: Interval::zero(),
+            area: Interval::zero(),
+            recentred: false,
+            quadrature: false,
+        });
     }
     if let Some(polygons) = shell_polygons(body, lane, runs)? {
         return rederive_polygons(body, lane, &polygons, runs);
     }
-    match rederive_about(body, band, tol, lane, runs, true, tight)? {
-        Some(rederived) => Ok(rederived),
-        None => rederive_about(body, band, tol, lane, runs, false, tight)?.ok_or(
-            MassPropsError::Corrupt {
-                what: "a walk about the world origin asked for a recentring",
-            },
-        ),
-    }
+    rederive_faces(body, band, tol, lane, runs, tight)
 }
 
-/// [`rederive`] with each face about its shell's reference `c`
-/// ([`corner_of`]), which every run's enclosure is about
-/// (`recentre`), or about the world origin. `Ok(None)` when a
-/// closed-form face refuses about its `c`, and the walk is taken about
-/// the world origin instead.
-fn rederive_about<T: Decide>(
+/// [`rederive`] face by face, each about its shell's reference `c`
+/// ([`corner_of`]), which every run's enclosure is about already.
+fn rederive_faces<T: Decide>(
     body: &Body<T>,
     band: Band,
     tol: Tol,
     lane: QuadLane<T>,
     runs: &[FaceRun<T>],
-    recentre: bool,
     tight: bool,
-) -> Result<Option<Rederived>, MassPropsError> {
+) -> Result<Rederived, MassPropsError> {
     let (mut flux, mut area) = (Interval::zero(), Interval::zero());
-    let mut recentred = recentre;
+    let mut recentred = true;
     let mut quadrature = false;
     for run in runs {
         let (face, surface) = resolve_face(body, run.face);
@@ -1332,23 +1322,8 @@ fn rederive_about<T: Decide>(
             source,
         };
         let from = corner_of(body, lane, run.face)?;
-        let (f, a) = match (run.contribution.enclosure, recentre) {
-            // The walk's enclosure, carried from `from` to the world
-            // origin by the face's vector area.
-            (Some(enclosure), false) => {
-                quadrature = true;
-                let (c, _) = (lane.closed_form)(
-                    surface,
-                    &loops,
-                    face.sense,
-                    band,
-                    Point3::origin(),
-                    Some((enclosure, from)),
-                )
-                .map_err(refused)?;
-                (c.flux, c.area)
-            }
-            (Some(enclosure), true) => {
+        let (f, a) = match run.contribution.enclosure {
+            Some(enclosure) => {
                 // The quadrature again, about `from`, at the round the
                 // walk reached; failing that, the walk's own enclosure,
                 // which is about `from` already.
@@ -1371,36 +1346,52 @@ fn rederive_about<T: Decide>(
                     Err(_) => enclosure,
                 }
             }
-            (None, false) => {
-                let (c, _) =
-                    (lane.closed_form)(surface, &loops, face.sense, band, Point3::origin(), None)
-                        .map_err(refused)?;
-                (c.flux, c.area)
-            }
             // A closed form read again about `from` decides its
             // inventory again there, at the interval's rounding about
             // that point, and may read it in band where the walk decided
-            // it: the walk is then taken about the world origin, where a
-            // refusal the face itself earns refuses.
-            (None, true) => {
-                match (lane.closed_form)(surface, &loops, face.sense, band, from, None) {
-                    Ok((c, moved)) => {
-                        recentred &= moved;
-                        (c.flux, c.area)
-                    }
-                    Err(_) => return Ok(None),
+            // it: the face is then read about the world origin, where a
+            // refusal the face itself earns refuses, and carried to
+            // `from` by its vector area, at the world-origin width. A
+            // closed-form face is bounded by no spiric, so its loops'
+            // vector area has a closed form.
+            None => match (lane.closed_form)(surface, &loops, face.sense, band, from, None) {
+                Ok((c, moved)) => {
+                    recentred &= moved;
+                    (c.flux, c.area)
                 }
-            }
+                Err(_) => {
+                    let (origin, _) = (lane.closed_form)(
+                        surface,
+                        &loops,
+                        face.sense,
+                        band,
+                        Point3::origin(),
+                        None,
+                    )
+                    .map_err(refused)?;
+                    let (c, _) = (lane.closed_form)(
+                        surface,
+                        &loops,
+                        face.sense,
+                        band,
+                        from,
+                        Some(((origin.flux, origin.area), Point3::origin())),
+                    )
+                    .map_err(refused)?;
+                    recentred = false;
+                    (c.flux, c.area)
+                }
+            },
         };
         flux = flux + f;
         area = area + a;
     }
-    Ok(Some(Rederived {
+    Ok(Rederived {
         volume: flux / Interval::from_f64(3.0),
         area,
         recentred,
         quadrature,
-    }))
+    })
 }
 
 /// A face's loops as their vertex points, in traversal order, the outer
