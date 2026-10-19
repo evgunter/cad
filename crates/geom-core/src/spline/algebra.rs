@@ -2,7 +2,12 @@
 //! elevation, DECIDED as `f64` STRUCTURE on the weights' and knots'
 //! value channel (new knot vectors, the combination schedule, and
 //! every refusal), and applied to a net held at the caller's scalar by
-//! a tiny fold ([`CurvePlan::apply_rational`]).
+//! a tiny fold ([`CurvePlan::apply_rational`]). Where a carrier's held
+//! knots or weights are wider than a point, the channel is a stand-in
+//! (`super::plan_inputs`, C6 S5b) after the carrier's parameter
+//! decisions are certified for every member: the plan's structure and
+//! schedule are the operation's, its values and its weight refusals the
+//! stand-in's, and it is marked ([`CurvePlan::is_reference`]).
 //!
 //! # Why plans
 //!
@@ -105,9 +110,14 @@ pub enum KnotAlgebraError {
         u: f64,
         /// The run whose bracket holds it.
         run: usize,
-        /// `u`'s distance to that run's bracket, as read.
+        /// `u`'s distance to that run's bracket, rounded outward.
         margin: crate::MarginDiag,
     },
+    /// A plan decided against a stand-in for wide held knots or weights
+    /// (C6 S5b, [`CurvePlan::is_reference`]) reached an applier that
+    /// reads its `f64` values, which are the stand-in's and no value of
+    /// the carrier's.
+    StandInPlan,
     /// A plan wrote a non-positive or non-finite weight: a removal
     /// chain left the positive-weight regime, or an insertion's or
     /// elevation's combination of two positive weights rounded to zero
@@ -175,6 +185,12 @@ impl core::fmt::Display for KnotAlgebraError {
                  is {margin} from it. Recourse: supply knots narrow enough that the \
                  parameter clears that breakpoint, or a parameter that does",
                 Readable(*u)
+            ),
+            KnotAlgebraError::StandInPlan => write!(
+                f,
+                "a knot operation's plan, decided against a stand-in for knots or weights \
+                 wider than a point, reached an applier that reads its f64 values, which are \
+                 the stand-in's. Recourse: apply it over the held values (the enclosure arm)"
             ),
             KnotAlgebraError::WeightCollapse { index } => write!(
                 f,
@@ -303,7 +319,7 @@ pub struct CurvePlan {
     /// Whether the plan's `f64` values (its knot vector's values, its
     /// weights, each step's `λ` and ring ingredients) are its inputs'
     /// own. A plan decided against a stand-in vector for wide held knots
-    /// ([`super::Knots::plan_proxy`], C6 S5b) has the right schedule and
+    /// (`Knots::plan_proxy`, C6 S5b) has the right schedule and
     /// structure but a stand-in's values, so the appliers that read them
     /// ([`Self::apply_points`], [`Self::apply_certified`]) refuse it;
     /// the appliers at a scalar read the held values and run it.
@@ -326,13 +342,17 @@ impl CurvePlan {
         self.reference
     }
 
-    /// The knot vector after this plan.
+    /// The knot vector after this plan. For a plan that is no reference
+    /// ([`Self::is_reference`]) its structure is the operation's, its
+    /// values a stand-in's.
     pub fn knots(&self) -> &KnotVector {
         &self.knots
     }
 
     /// The weights after this plan (all strictly positive — checked at
-    /// plan construction).
+    /// plan construction). For a plan that is no reference
+    /// ([`Self::is_reference`]) they are the unit stand-in's, so the
+    /// check holds nothing about the carrier's weights: its door does.
     pub fn weights(&self) -> &[f64] {
         &self.weights
     }

@@ -16,9 +16,12 @@
 #   NurbsCurve{2,3}::weights_f64_interim, NurbsSurface::weights_f64_interim,
 #   Weights::weights_f64_interim (C6 S2)
 #   spline::plan_inputs::point_knots (C6 S4/S5b: a knot-vector merge
-#   takes a carrier's vector through it, refusing typed at a wide run; a
-#   caller of it is a reader like any other. The held plan constructors
-#   beside it decide over the held values and read no carrier's vector)
+#   and the surface's column builds take a carrier's vector through it,
+#   refusing typed at a wide run; a caller of it is a reader like any
+#   other. The held plan constructors beside it read the vectors only
+#   where every knot and weight is a point, through the accessors above,
+#   and elsewhere decide against a stand-in, `Knots::plan_proxy`, which
+#   is private to the spline module: no carrier reads it)
 #
 # Every caller is a reader that has not yet moved to the held values or
 # the combinatorial structure. C6's slices S2–S5 move them; S5 deletes

@@ -6,7 +6,7 @@
 //! `f64` vector. At point knots and weights that is their own vector, so
 //! the plans are today's bit for bit. Where a run or a weight is wider
 //! than a point, the plan is decided against a stand-in
-//! ([`Knots::plan_proxy`]: each wide run at its bracket's midpoint, unit
+//! (`Knots::plan_proxy`: each wide run at its bracket's midpoint, unit
 //! weights), after every decision that reads a value has been certified
 //! for every member against the held brackets: a parameter the operation
 //! inserts or removes is a breakpoint, or lies in one span, for all of
@@ -26,46 +26,46 @@ use super::knots::{KnotVector, SplineError};
 use super::locate::SpanLocate;
 use super::weights::Weights;
 
-/// The held knots and weights as the plan constructors read them: their
-/// own `f64` vectors where every one is a point, else the stand-in
-/// (module docs), and whether they are the inputs' own: borrowed where
-/// they are the inputs' own, so the point path copies nothing.
+/// The held knots and weights as the plan constructors read them: the
+/// vector the plans are decided against (`Knots::plan_proxy`, the
+/// knots' own where every breakpoint is a point), the weights' own where
+/// every knot and weight is a point and unit weights otherwise (module
+/// docs), and whether they are the inputs' own. Borrowed where they are,
+/// so the point path copies nothing.
 #[allow(clippy::type_complexity)]
 fn inputs<'a, T: SpanLocate>(
     knots: &'a Knots<T>,
     weights: &'a Weights<T>,
 ) -> Result<(Cow<'a, KnotVector>, Cow<'a, [f64]>, bool), KnotAlgebraError> {
+    let kv = knots.plan_proxy().map_err(KnotAlgebraError::Structure)?;
     if knots.is_point() && weights.is_point() {
-        return Ok((
-            Cow::Borrowed(knots.structure_f64_interim()),
-            Cow::Borrowed(weights.weights_f64_interim()),
-            true,
-        ));
+        return Ok((kv, Cow::Borrowed(weights.weights_f64_interim()), true));
     }
-    let index = knots.first_wide_run().unwrap_or(0);
-    let proxy =
-        knots
-            .plan_proxy()
-            .ok_or(KnotAlgebraError::Structure(SplineError::KnotIsPoison {
-                index,
-            }))?;
-    Ok((
-        Cow::Owned(proxy),
-        Cow::Owned(vec![1.0; weights.len()]),
-        false,
-    ))
+    Ok((kv, Cow::Owned(vec![1.0; weights.len()]), false))
 }
 
 /// That `u` is a breakpoint, or lies apart from every breakpoint, for
 /// every member of the held knots: a point run equal to `u` is the one
-/// breakpoint, and a wide run whose bracket holds `u` leaves undecided
-/// whether `u` is in it, beside it, or in which span.
+/// breakpoint, and a wide run whose bracket holds `u`, its ends
+/// included, leaves undecided whether `u` is in it, beside it, or in
+/// which span. Where the domain's first or last breakpoint is wide, a
+/// `u` at or past its bracket's outer end is outside every member's
+/// domain, which `outside` names: no narrower knots would decide it.
 ///
 /// # Errors
 ///
 /// [`KnotAlgebraError::ParameterUndecided`] at the first such run, with
-/// `u`'s distance to its bracket as the margin.
-fn certify_parameter<T: SpanLocate>(knots: &Knots<T>, u: f64) -> Result<(), KnotAlgebraError> {
+/// `u`'s distance to its bracket, rounded outward, as the margin;
+/// `outside(u)` past a wide end.
+fn certify_parameter<T: SpanLocate>(
+    knots: &Knots<T>,
+    u: f64,
+    outside: impl Fn(f64) -> KnotAlgebraError,
+) -> Result<(), KnotAlgebraError> {
+    if knots.is_point() {
+        return Ok(());
+    }
+    let last = knots.runs().count() - 1;
     for (run, (value, _)) in knots.runs().enumerate() {
         if value.point_value().is_some() {
             continue;
@@ -75,15 +75,22 @@ fn certify_parameter<T: SpanLocate>(knots: &Knots<T>, u: f64) -> Result<(), Knot
                 index: run,
             }));
         };
+        if (run == 0 && u <= lo) || (run == last && u >= hi) {
+            return Err(outside(u));
+        }
         if lo <= u && u <= hi {
             return Err(KnotAlgebraError::ParameterUndecided {
                 u,
                 run,
-                margin: crate::MarginDiag::enclosure(lo - u, hi - u),
+                margin: crate::MarginDiag::enclosure((lo - u).next_down(), (hi - u).next_up()),
             });
         }
     }
     Ok(())
+}
+
+fn outside_domain(u: f64) -> KnotAlgebraError {
+    KnotAlgebraError::ParameterOutsideDomain { u }
 }
 
 fn marked(plans: Vec<CurvePlan>, reference: bool) -> Vec<CurvePlan> {
@@ -109,7 +116,7 @@ pub fn insert_knot_plan<T: SpanLocate>(
     u: f64,
     times: usize,
 ) -> Result<Vec<CurvePlan>, KnotAlgebraError> {
-    certify_parameter(knots, u)?;
+    certify_parameter(knots, u, outside_domain)?;
     let (kv, w, reference) = inputs(knots, weights)?;
     Ok(marked(
         algebra::insert_knot_plan(&kv, &w, u, times)?,
@@ -128,7 +135,7 @@ pub fn refine_plan<T: SpanLocate>(
     add: &[f64],
 ) -> Result<Vec<CurvePlan>, KnotAlgebraError> {
     for &u in add {
-        certify_parameter(knots, u)?;
+        certify_parameter(knots, u, outside_domain)?;
     }
     let (kv, w, reference) = inputs(knots, weights)?;
     Ok(marked(algebra::refine_plan(&kv, &w, add)?, reference))
@@ -139,14 +146,15 @@ pub fn refine_plan<T: SpanLocate>(
 ///
 /// # Errors
 ///
-/// As [`insert_knot_plan`]; otherwise [`algebra::remove_knot_plan`]'s.
+/// As [`insert_knot_plan`], [`KnotAlgebraError::KnotNotPresent`] past a
+/// wide end; otherwise [`algebra::remove_knot_plan`]'s.
 pub fn remove_knot_plan<T: SpanLocate>(
     knots: &Knots<T>,
     weights: &Weights<T>,
     u: f64,
     times: usize,
 ) -> Result<Vec<RemovalStep>, KnotAlgebraError> {
-    certify_parameter(knots, u)?;
+    certify_parameter(knots, u, |u| KnotAlgebraError::KnotNotPresent { u })?;
     let (kv, w, reference) = inputs(knots, weights)?;
     let steps = algebra::remove_knot_plan(&kv, &w, u, times)?;
     Ok(if reference {
@@ -176,27 +184,91 @@ pub fn elevate_plan<T: SpanLocate>(
     Ok(marked(algebra::elevate_plan(&kv, &w)?, reference))
 }
 
-/// How many copies of `u` the held knots hold, decided for every member.
+/// The held value of the point breakpoint `u` names, or `None` where
+/// none does, decided for every member: a removal's reinsertion puts
+/// back the knot it took out as the curve's own value.
 ///
 /// # Errors
 ///
-/// As [`insert_knot_plan`].
-pub fn multiplicity<T: SpanLocate>(knots: &Knots<T>, u: f64) -> Result<usize, KnotAlgebraError> {
-    certify_parameter(knots, u)?;
-    let index = knots.first_wide_run().unwrap_or(0);
-    let proxy =
-        knots
-            .plan_proxy()
-            .ok_or(KnotAlgebraError::Structure(SplineError::KnotIsPoison {
-                index,
-            }))?;
+/// As [`remove_knot_plan`]'s certification of `u`.
+pub fn breakpoint_at<T: SpanLocate>(
+    knots: &Knots<T>,
+    u: f64,
+) -> Result<Option<T>, KnotAlgebraError> {
+    certify_parameter(knots, u, |u| KnotAlgebraError::KnotNotPresent { u })?;
+    // Certified apart from every wide bracket, so only a point run can
+    // be `u`, for every member.
+    Ok(knots
+        .runs()
+        .find(|(value, _)| value.point_value().map(f64::to_bits) == Some(u.to_bits()))
+        .map(|(value, _)| value))
+}
+
+/// Where a split at `u` falls in the held knots: how many copies of `u`
+/// they hold, decided for every member, `u` strictly inside the domain.
+///
+/// # Errors
+///
+/// [`KnotAlgebraError::ParameterOutsideDomain`] where `u` is not inside
+/// every member's domain; as [`insert_knot_plan`] where its place is
+/// not one for every member.
+pub fn split_multiplicity<T: SpanLocate>(
+    knots: &Knots<T>,
+    u: f64,
+) -> Result<usize, KnotAlgebraError> {
+    certify_parameter(knots, u, outside_domain)?;
+    // `u` is certified apart from every wide bracket, so the stand-in's
+    // ends place it as every member's do.
+    let proxy = knots.plan_proxy().map_err(KnotAlgebraError::Structure)?;
+    let (d0, d1) = proxy.domain();
+    if !u.is_finite() || !(u > d0 && u < d1) {
+        return Err(outside_domain(u));
+    }
     Ok(proxy.multiplicity_of(u).map_or(0, |(m, _)| m))
 }
 
-/// A carrier's held knots as a knot-vector merge reads them: their own
-/// `f64` vector. Merging decides which breakpoints of two vectors are
-/// one, which at a wide run is a decision across carriers this module
-/// does not make (C6 S5).
+/// The two children's knot structures of a split at `u`, over knots
+/// saturated there (`u` at full interior multiplicity, the degree): the
+/// first holds every knot below `u` and `degree + 1` copies of `u`, the
+/// second one copy of `u` and every knot from `u` on. With them, `f`,
+/// the first index of `u`, at which the control points part: the first
+/// child takes `0..f`, the second `f − 1..`. Each child's knots are
+/// breakpoints of the saturated ones, so
+/// [`Knots::restructure`] keeps every held value.
+///
+/// # Errors
+///
+/// [`KnotAlgebraError::KnotNotPresent`] where `u` is not a breakpoint
+/// of `saturated`; [`KnotAlgebraError::Structure`] where a child is no
+/// clamped vector.
+pub fn split_structures<T: SpanLocate>(
+    saturated: &Knots<T>,
+    u: f64,
+) -> Result<(usize, KnotVector, KnotVector), KnotAlgebraError> {
+    let p = saturated.degree();
+    let proxy = saturated
+        .plan_proxy()
+        .map_err(KnotAlgebraError::Structure)?;
+    let knots = proxy.knots();
+    let f = knots
+        .iter()
+        .position(|k| *k == u)
+        .ok_or(KnotAlgebraError::KnotNotPresent { u })?;
+    let mut k1: Vec<f64> = knots[..f + p].to_vec();
+    k1.push(u);
+    let mut k2: Vec<f64> = vec![u];
+    k2.extend_from_slice(&knots[f..]);
+    Ok((
+        f,
+        KnotVector::clamped(k1, p).map_err(KnotAlgebraError::Structure)?,
+        KnotVector::clamped(k2, p).map_err(KnotAlgebraError::Structure)?,
+    ))
+}
+
+/// A carrier's held knots as a reader of their `f64` vector takes them:
+/// a knot-vector merge, which decides which breakpoints of two vectors
+/// are one, and the surface's column builds. At a wide run that is a
+/// decision across carriers this module does not make (C6 S5).
 ///
 /// # Errors
 ///
@@ -217,7 +289,10 @@ pub fn point_knots<T: SpanLocate>(knots: &Knots<T>) -> Result<&KnotVector, KnotA
 mod tests {
     use core::num::NonZeroUsize;
 
-    use super::{elevate_plan, insert_knot_plan, multiplicity, refine_plan, remove_knot_plan};
+    use super::{
+        breakpoint_at, elevate_plan, insert_knot_plan, refine_plan, remove_knot_plan,
+        split_multiplicity,
+    };
     use crate::interval::Interval;
     use crate::real::{Bounds, Real};
     use crate::spline::algebra::{self, CurvePlan, KnotAlgebraError};
@@ -327,7 +402,7 @@ mod tests {
         for result in [
             insert_knot_plan(&knots, &weights, 0.42, 1).map(|_| ()),
             refine_plan(&knots, &weights, &[0.1, 0.42]).map(|_| ()),
-            multiplicity(&knots, 0.42).map(|_| ()),
+            split_multiplicity(&knots, 0.42).map(|_| ()),
             remove_knot_plan(&knots, &weights, 0.42, 1).map(|_| ()),
         ] {
             match result {
@@ -349,7 +424,7 @@ mod tests {
                 "a plan over a wide breakpoint is no reference"
             );
         }
-        assert_eq!(multiplicity(&knots, 0.5).unwrap(), 0);
+        assert_eq!(split_multiplicity(&knots, 0.5).unwrap(), 0);
     }
 
     /// **A plan over a wide breakpoint, applied over the held knots,
@@ -422,6 +497,308 @@ mod tests {
                     "{tag}: the ring applier refuses"
                 );
             }
+        }
+    }
+
+    fn next_up(x: f64) -> f64 {
+        f64::from_bits(x.to_bits() + 1)
+    }
+
+    fn next_down(x: f64) -> f64 {
+        f64::from_bits(x.to_bits() - 1)
+    }
+
+    /// **A bracket's ends are inside it, and past a wide domain end every
+    /// member is outside.** Over the interior breakpoint `[0.4, 0.45]`,
+    /// `u` at either end refuses `ParameterUndecided` (the member at that
+    /// end has `u` as its breakpoint, the others do not), and the next
+    /// float outside either end decides. Over a last breakpoint
+    /// `[0.99, 1.0]`, `u` inside it refuses undecided, but `u` at its
+    /// outer end is past every member's domain: an insertion and a split
+    /// refuse `ParameterOutsideDomain`, a removal `KnotNotPresent`, and no
+    /// narrowing would change that. Red where the bracket test is open,
+    /// or where an end bracket's outer side asks for narrower knots.
+    #[test]
+    fn a_brackets_ends_are_in_it_and_past_a_wide_domain_end_is_outside() {
+        let (knots, weights) = held(Interval::from_bounds(0.4, 0.45), &[1.0; 4]);
+        for u in [0.4, 0.45] {
+            assert!(
+                matches!(
+                    insert_knot_plan(&knots, &weights, u, 1),
+                    Err(KnotAlgebraError::ParameterUndecided { run: 1, .. })
+                ),
+                "u = {u}, a bracket end"
+            );
+            assert!(matches!(
+                split_multiplicity(&knots, u),
+                Err(KnotAlgebraError::ParameterUndecided { run: 1, .. })
+            ));
+        }
+        for u in [next_down(0.4), next_up(0.45)] {
+            assert!(
+                insert_knot_plan(&knots, &weights, u, 1).is_ok(),
+                "u = {u}, the next float outside"
+            );
+        }
+        let i = Interval::from_f64;
+        let end = Knots::new(
+            vec![
+                (i(0.0), m(3)),
+                (i(0.5), m(1)),
+                (Interval::from_bounds(0.99, 1.0), m(3)),
+            ],
+            2,
+        )
+        .unwrap();
+        let w = Weights::new(vec![i(1.0); 4]).unwrap();
+        for u in [0.99, 0.995] {
+            assert!(
+                matches!(
+                    insert_knot_plan(&end, &w, u, 1),
+                    Err(KnotAlgebraError::ParameterUndecided { run: 2, .. })
+                ),
+                "u = {u}, inside the end bracket"
+            );
+        }
+        for u in [1.0, 1.5] {
+            assert_eq!(
+                insert_knot_plan(&end, &w, u, 1).unwrap_err(),
+                KnotAlgebraError::ParameterOutsideDomain { u }
+            );
+            assert_eq!(
+                split_multiplicity(&end, u).unwrap_err(),
+                KnotAlgebraError::ParameterOutsideDomain { u }
+            );
+            assert_eq!(
+                remove_knot_plan(&end, &w, u, 1).unwrap_err(),
+                KnotAlgebraError::KnotNotPresent { u }
+            );
+        }
+    }
+
+    /// **A restructured wide carrier keeps no `f64` vector.** Inserting at
+    /// `0.7` over the interior breakpoint `[0.4, 0.45]`, the restructured
+    /// knots hold the wide run's value still, so they are not points and
+    /// keep no `f64` vector: the plan's vector there is the stand-in's
+    /// midpoint, no value of the knots. Over point knots the restructured
+    /// ones are points and their vector is the plan's; and with a weight
+    /// wider than a point the plan is marked all the same. Red where
+    /// `restructure` keeps the plan's vector as the knots' own, or where a
+    /// plan over wide weights passes for a reference.
+    #[test]
+    fn a_restructured_wide_carrier_keeps_no_f64_vector() {
+        let (knots, weights) = held(Interval::from_bounds(0.4, 0.45), &[1.0; 4]);
+        let plans = insert_knot_plan(&knots, &weights, 0.7, 1).unwrap();
+        let after = knots.restructure(plans[0].knots().clone(), Interval::from_f64);
+        assert!(!after.is_point(), "a wide run keeps no f64 vector");
+        assert_eq!(after.first_wide_run(), Some(1));
+        let wide = after.values()[3];
+        assert_eq!((wide.lo(), wide.hi()), (0.4, 0.45), "the run's held value");
+        let (knots, weights) = held(Interval::from_f64(0.4), &[1.0; 4]);
+        let plans = insert_knot_plan(&knots, &weights, 0.7, 1).unwrap();
+        let after = knots.restructure(plans[0].knots().clone(), Interval::from_f64);
+        assert!(after.is_point());
+        assert_eq!(
+            after.structure_f64_interim().knots(),
+            plans[0].knots().knots()
+        );
+        // Over point knots with a wide weight, the plan is decided at the
+        // stand-in's unit weights, so it is marked too.
+        let (knots, _) = held(Interval::from_f64(0.4), &[1.0; 4]);
+        let weights = Weights::new(vec![
+            Interval::from_f64(1.0),
+            Interval::from_bounds(1.0, 1.1),
+            Interval::from_f64(1.0),
+            Interval::from_f64(1.0),
+        ])
+        .unwrap();
+        let plans = insert_knot_plan(&knots, &weights, 0.7, 1).unwrap();
+        assert!(
+            plans.iter().all(|p| !p.is_reference()),
+            "a wide weight marks the plan"
+        );
+    }
+
+    /// **A removal's reinsertion reads the curve's own breakpoint.** Over
+    /// a cubic with the wide run `[0.4, 0.41]` beside the point
+    /// breakpoints `0.2` and `0.7`: `0.2` names the held `0.2`, `0.3`
+    /// names none, and `0.405` is undecided. Red where the reinsertion
+    /// still asks the knots for an `f64` vector they do not have.
+    #[test]
+    fn a_removals_reinsertion_reads_the_curves_own_breakpoint() {
+        let (knots, _) = cubic_with_a_wide_double_run();
+        let at = breakpoint_at(&knots, 0.2).unwrap().unwrap();
+        assert_eq!((at.lo(), at.hi()), (0.2, 0.2));
+        assert!(breakpoint_at(&knots, 0.3).unwrap().is_none());
+        assert!(matches!(
+            breakpoint_at(&knots, 0.405),
+            Err(KnotAlgebraError::ParameterUndecided { run: 2, .. })
+        ));
+    }
+
+    type Runs = Vec<(f64, usize)>;
+
+    /// A cubic whose breakpoints are `0.2`, the wide `[0.4, 0.41]` twice,
+    /// and `0.7`, at `Interval`, unit weights; and its members' runs.
+    fn cubic_with_a_wide_double_run() -> (Knots<Interval>, Vec<Runs>) {
+        let i = Interval::from_f64;
+        let knots = Knots::new(
+            vec![
+                (i(0.0), m(4)),
+                (i(0.2), m(1)),
+                (Interval::from_bounds(0.4, 0.41), m(2)),
+                (i(0.7), m(1)),
+                (i(1.0), m(4)),
+            ],
+            3,
+        )
+        .unwrap();
+        let members = [0.4, 0.405, 0.41]
+            .iter()
+            .map(|e| vec![(0.0, 4), (0.2, 1), (*e, 2), (0.7, 1), (1.0, 4)])
+            .collect();
+        (knots, members)
+    }
+
+    type Held<'a> = &'a dyn Fn(
+        &Knots<Interval>,
+        &Weights<Interval>,
+    ) -> Result<Vec<CurvePlan>, KnotAlgebraError>;
+    type Member<'a> = &'a dyn Fn(&KnotVector, &[f64]) -> Vec<CurvePlan>;
+
+    /// That the held plans, applied over the held knots, enclose each
+    /// member's own `f64` chain, step for step on the same structure.
+    fn encloses(tag: &str, knots: &Knots<Interval>, members: &[Runs], held: Held, member: Member) {
+        let p = knots.degree();
+        let n = knots.structure().control_count();
+        let w: Vec<f64> = (0..n).map(|k| 1.0 + 0.3 * k as f64).collect();
+        let x: Vec<f64> = (0..n).map(|k| ((k * 7) % 5) as f64).collect();
+        let i = Interval::from_f64;
+        let weights = Weights::new(w.iter().map(|v| i(*v)).collect()).unwrap();
+        let plans = held(knots, &weights).unwrap();
+        assert!(plans.iter().all(|q| !q.is_reference()), "{tag}: marked");
+        let xw: Vec<(Interval, Interval)> = x
+            .iter()
+            .zip(&w)
+            .map(|(x, w)| (i(*x) * i(*w), i(*w)))
+            .collect();
+        let got = run(&plans, knots, &xw);
+        for runs in members {
+            let kv = KnotVector::clamped(
+                runs.iter()
+                    .flat_map(|(v, k)| core::iter::repeat_n(*v, *k))
+                    .collect(),
+                p,
+            )
+            .unwrap();
+            let poly = member(&kv, &vec![1.0; kv.control_count()]);
+            assert_eq!(poly.len(), plans.len(), "{tag} at {runs:?}: chain length");
+            for (a, b) in poly.iter().zip(&plans) {
+                assert_eq!(
+                    a.knots().structure(),
+                    b.knots().structure(),
+                    "{tag} at {runs:?}: structure"
+                );
+            }
+            let mut fx: Vec<f64> = x.iter().zip(&w).map(|(x, w)| x * w).collect();
+            let mut fw = w.clone();
+            for q in &poly {
+                fx = q.apply_points(&fx, f64::NAN, |a, b, l| a + (b - a) * l);
+                fw = q.apply_points(&fw, f64::NAN, |a, b, l| a + (b - a) * l);
+            }
+            assert_eq!(got.len(), fx.len(), "{tag} at {runs:?}: extent");
+            for (k, ((gx, gw), (wx, ww))) in got.iter().zip(fx.iter().zip(&fw)).enumerate() {
+                let near = |g: Interval, f: f64| g.lo() - 1e-12 <= f && f <= g.hi() + 1e-12;
+                assert!(
+                    near(*gx, *wx) && near(*gw, *ww),
+                    "{tag} at {runs:?}: slot {k}"
+                );
+            }
+        }
+    }
+
+    fn removal_plans(steps: Vec<algebra::RemovalStep>) -> Vec<CurvePlan> {
+        steps.into_iter().map(|s| s.plan).collect()
+    }
+
+    /// **The enclosure holds at a wide domain end, at a wide run of
+    /// multiplicity two, and through removal.** Over a quadratic whose
+    /// last breakpoint is `[0.99, 1.0]`: an insertion, an elevation and a
+    /// removal of the point breakpoint beside it. Over a cubic with the
+    /// wide run `[0.4, 0.41]` twice: an elevation, a double insertion, a
+    /// refinement with values beside the bracket and a tie, and removals
+    /// on either side of it. In each, at members across the bracket, the
+    /// held plans over the held knots enclose the member's own chain, on
+    /// its structure step for step. Red where a step reads the stand-in
+    /// rather than the held values, or a decision differs by member.
+    #[test]
+    fn the_enclosure_holds_at_a_wide_end_at_multiplicity_and_through_removal() {
+        let i = Interval::from_f64;
+        let end = Knots::new(
+            vec![
+                (i(0.0), m(3)),
+                (i(0.5), m(1)),
+                (Interval::from_bounds(0.99, 1.0), m(3)),
+            ],
+            2,
+        )
+        .unwrap();
+        let members: Vec<Runs> = [0.99, 0.995, 1.0]
+            .iter()
+            .map(|e| vec![(0.0, 3), (0.5, 1), (*e, 3)])
+            .collect();
+        encloses(
+            "end: insert 0.7 twice",
+            &end,
+            &members,
+            &|k, w| insert_knot_plan(k, w, 0.7, 2),
+            &|kv, w| algebra::insert_knot_plan(kv, w, 0.7, 2).unwrap(),
+        );
+        encloses(
+            "end: elevate",
+            &end,
+            &members,
+            &|k, w| elevate_plan(k, w),
+            &|kv, w| algebra::elevate_plan(kv, w).unwrap(),
+        );
+        encloses(
+            "end: remove 0.5",
+            &end,
+            &members,
+            &|k, w| remove_knot_plan(k, w, 0.5, 1).map(removal_plans),
+            &|kv, w| removal_plans(algebra::remove_knot_plan(kv, w, 0.5, 1).unwrap()),
+        );
+        let (cubic, members) = cubic_with_a_wide_double_run();
+        let add = [0.3, 0.39, 0.42, 0.42, 0.9];
+        encloses(
+            "double: elevate",
+            &cubic,
+            &members,
+            &|k, w| elevate_plan(k, w),
+            &|kv, w| algebra::elevate_plan(kv, w).unwrap(),
+        );
+        encloses(
+            "double: insert 0.5 twice",
+            &cubic,
+            &members,
+            &|k, w| insert_knot_plan(k, w, 0.5, 2),
+            &|kv, w| algebra::insert_knot_plan(kv, w, 0.5, 2).unwrap(),
+        );
+        encloses(
+            "double: refine",
+            &cubic,
+            &members,
+            &|k, w| refine_plan(k, w, &add),
+            &|kv, w| algebra::refine_plan(kv, w, &add).unwrap(),
+        );
+        for u in [0.2, 0.7] {
+            encloses(
+                &format!("double: remove {u}"),
+                &cubic,
+                &members,
+                &|k, w| remove_knot_plan(k, w, u, 1).map(removal_plans),
+                &|kv, w| removal_plans(algebra::remove_knot_plan(kv, w, u, 1).unwrap()),
+            );
         }
     }
 }

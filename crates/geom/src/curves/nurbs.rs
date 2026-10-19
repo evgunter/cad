@@ -723,7 +723,12 @@ macro_rules! nurbs_curve {
             /// computed on the channel with the same operations, and
             /// whose every written weight the plan admitted
             /// (`geom_core::spline::algebra`'s written-weight check:
-            /// strictly positive and finite, or the plan refused).
+            /// strictly positive and finite, or the plan refused). That
+            /// holds of reference plans, the only ones a carrier at a
+            /// projective scalar makes (its knots and weights are points);
+            /// a plan decided against a stand-in refuses
+            /// [`KnotAlgebraError::StandInPlan`] rather than leave the
+            /// stand-in's unit weights as the channel.
             fn projective(self) -> Self::Out
             where
                 T: ProjectiveScalar,
@@ -732,6 +737,9 @@ macro_rules! nurbs_curve {
                 let Some(last) = plans.last() else {
                     return Ok(curve.clone());
                 };
+                if !plans.iter().all(spline::CurvePlan::is_reference) {
+                    return Err(KnotAlgebraError::StandInPlan);
+                }
                 let mut knots = curve.knots.clone();
                 let (mut control, mut weights) = (curve.control.clone(), curve.weights.values().to_vec());
                 for plan in plans {
@@ -861,53 +869,29 @@ macro_rules! nurbs_curve {
             /// ([`Self::insert_knot`]).
             pub fn split_at(&self, u: f64) -> Result<(Self, Self), KnotAlgebraError> {
                 let p = self.knots.degree();
-                // The decisions read `u` against the held knots, certified
-                // for every member (`spline::plan_inputs`); the domain's ends
-                // against the vector the plans are decided on.
-                let have = spline::plan_inputs::multiplicity(&self.knots, u)?;
-                let proxy = |k: &Knots<T>| {
-                    k.plan_proxy().ok_or(KnotAlgebraError::Structure(SplineError::KnotIsPoison {
-                        index: k.first_wide_run().unwrap_or(0),
-                    }))
-                };
-                let (d0, d1) = proxy(&self.knots)?.domain();
-                if !u.is_finite() || !(u > d0 && u < d1) {
-                    return Err(KnotAlgebraError::ParameterOutsideDomain { u });
-                }
+                // `u`'s place, the domain test included, decided for every
+                // member of the held knots (`spline::plan_inputs`).
+                let have = spline::plan_inputs::split_multiplicity(&self.knots, u)?;
                 let full = if have < p {
                     self.insert_knot(u, p - have)?
                 } else {
                     self.clone()
                 };
-                // First occurrence of `u` in the saturated vector
-                // (multiplicity is exactly `p` there). Present by
-                // construction; `ok_or` keeps the path total.
-                let saturated = proxy(&full.knots)?;
-                let knots = saturated.knots();
-                let f = knots
-                    .iter()
-                    .position(|k| *k == u)
-                    .ok_or(KnotAlgebraError::KnotNotPresent { u })?;
                 // Child 1: every knot below `u` plus `p + 1` copies of
                 // `u`; control points 0..f (C(u) is control index
                 // f − 1 of the saturated curve, shared by both).
-                // Each child's knots are breakpoints of the saturated
-                // curve, so each keeps its held value (`u` included:
-                // present at multiplicity `p`); nothing is entered fresh.
-                let mut k1: Vec<f64> = knots[..f + p].to_vec();
-                k1.push(u);
-                let k1 = KnotVector::clamped(k1, p).map_err(KnotAlgebraError::Structure)?;
+                // Child 2: one extra copy of `u`, then every knot from
+                // index f on; control points f − 1 onward. Each child's
+                // knots are breakpoints of the saturated curve, so each
+                // keeps its held value (`u` included: present at
+                // multiplicity `p`); nothing is entered fresh.
+                let (f, k1, k2) = spline::plan_inputs::split_structures(&full.knots, u)?;
                 let c1 = Self::new(
                     full.knots.restructure(k1, Self::inserted),
                     full.control[..f].to_vec(),
                     full.weights.values()[..f].to_vec(),
                 )
                 .map_err(KnotAlgebraError::Structure)?;
-                // Child 2: one extra copy of `u`, then every knot from
-                // index f on; control points f − 1 onward.
-                let mut k2: Vec<f64> = vec![u];
-                k2.extend_from_slice(&knots[f..]);
-                let k2 = KnotVector::clamped(k2, p).map_err(KnotAlgebraError::Structure)?;
                 let c2 = Self::new(
                     full.knots.restructure(k2, Self::inserted),
                     full.control[f - 1..].to_vec(),
@@ -998,10 +982,7 @@ macro_rules! nurbs_curve {
                     // out: its held value, so the bound reads the curve's
                     // own knot rather than a constant copy of it.
                     // The reinsertion brings in `u` alone.
-                    let held_u = cur
-                        .knots
-                        .value_at(u)
-                        .map_err(KnotAlgebraError::Structure)?
+                    let held_u = spline::plan_inputs::breakpoint_at(&cur.knots, u)?
                         .unwrap_or_else(|| Self::inserted(u));
                     let held = |v: f64| if v.to_bits() == u.to_bits() { held_u } else { Self::inserted(v) };
                     let reinserted =
