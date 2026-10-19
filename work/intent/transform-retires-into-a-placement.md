@@ -58,6 +58,25 @@ Closes the placement half of `a-boxed-rotation-refuses-not-rigid-at-every-placer
   - `sym_9_retry_interval` ×2 and `sym11_exact_channel_rows`: receipts drift with the solve edits; re-take them once those settle. sym11's frozen column fell (two_hole_plate 729→161), which its text calls a finding.
 - `intent_s2_c_world` stays red until the viewer's `gallery_ring.pncad` is re-blessed (then take `FILES[3]` with `print_product_rows`).
 
+**Re-bless lane, finished (2026-10-19; log `/home/user/rebless-log.md`, copy it into the PR body)**
+- **f64-neutrality proven.** 566f1b6fdc only removes scaffolding; the three box-lane fixes landed in 991bd0c655 behind env switches. With the fixes off, on, and at 566f1b6fdc, the left digests of `m10_p_fence` (f64 and ids masked) and of msolve14 a3 at ε 1e-9, 1e-6 and 1e-12 are identical. The guard digests moved only by D's re-spelling.
+- **Re-blessed by each file's own mechanism, each re-pin explained in its file:**
+  - `die_tool.pncad`, `wire_rv_bytes.json`, `mint_node_ids.txt`, `slot_tables.txt`;
+  - `golden.cad` and `m10_6_certifying_keys.txt` (`dropped=1` held);
+  - `plate_param.pncad`, `gallery_ring.pncad` (from `demo-tour gallery`);
+  - `edit_placement_corpus_bits` (51→118 rows), lib_g16, perf2, seat4/7/8, asm2b row5, m4_pr3, m4_pr4, the m4_pr8 manifest, switch_program_vocabulary, msolve14 a3, `m10_p_fence` (its header says the line-by-line dump against main was not taken), m10_sym_profile (box-lane values pinned after the kernel lane's edits; re-check once that lane lands);
+  - `name_words_corpus`, per the ruling: max 196→366, set by `nested_islands_106_depth2`, where each `Placed{of}` hop is spoken three times on an edge piece between two crossings. Item: `name-words-budget-grew-under-placed-copy-wrapping`.
+  - pncad's twin-fixture block re-synced, so pncad is 76/76.
+- **Refused, needs work:**
+  - `perf12_census_goldens` is a behaviour change. heat_sink's census findings went 125→157. kitchen_sink went from 29 to 52 findings and from 16 rows to 8; its zero contact margins became nonzero, and two `CensusUndecidable` findings are new (Solid1 against Solid4). Look at whether kitchen_sink's placements now leave a sliver contact where the datum frames were exact (`a-turn-by-the-nearest-quarter-turn-rounds`). The blessed copies for reference are in the scratchpad as `perf12_blessed_*.txt`.
+  - `msolve7_member_residue::a4`: `die_tool.pncad` now carries a genuine mate (from the `place_against` that replaced its Transform), so the row's premise "none carries a mate" needs restating.
+- **Viewer `--test all`: 760 pass, 10 fail.**
+  - **Probe/pick (7 rows):** `assembly_display::the_probe_gesture…`, `assembly_walk::the_exit_demo_walk`, `review_gui4_r1` ×3, `review_gui4_r2::a_rotating_probe_is_picked…`, `story_assembly::the_windmill_story`. They report "one probed part 0 != 1" or that the ray misses. This is likely the probe reading a placed copy in the wrong space, the same family as the `read_off` fix.
+  - **`creation_ops::the_ring_stream_reproduces_the_gallery_document_bit_for_bit`:** the viewer's ops no longer author the tour's ring.
+  - **Two goldens outside the lane's list:** `display_budget::the_budget_commits_the_delta…` and `review_pick_r2::the_certified_determinant…`.
+- **Not run:** pncad-py's `test_placed_union.py::TestTheDieTool`, which compares against the regenerated `die_tool.pncad`.
+- **Hazard:** a worktree built in the shared target dir can poison `/home/user/cad`'s build, because the artifact hashes are the same. If a mixed build is suspected, touch the `.rs` files. Disk was at about 2.4 GB free after the lane's cleanup.
+
 **Known reds at the full-suite run on `ea25544a9a`:** 68 editor-core failures, listed with their owners above. pncad's 2 are re-bless. The viewer `--test all` suite needs a re-run (the 17 gallery_ring goldens are re-bless). The viewer's 2 lib reds are the GPU tests (no adapter). `every_suite_file_is_aggregated` fails only because of the local `zz_*` probe roots.
 
 **Uncommitted, deliberately:** the `[[test]] zz_*` entries in `crates/editor-core/Cargo.toml` and the `tests/zz_*.rs` probe roots. Remove both before the PR (`git checkout crates/editor-core/Cargo.toml && rm crates/editor-core/tests/zz_*.rs`).

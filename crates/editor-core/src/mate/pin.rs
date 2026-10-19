@@ -437,8 +437,9 @@ pub struct Placed {
 /// **The "place part" gesture** (ruling, scope): the copy read through
 /// `body` placed at `pose`, as constraints its author can then move by
 /// their numbers — a plane mate on the copy's first planar face by id
-/// (`on` its plane, outward normal and all) to the world plane that
-/// face lies in at `pose`, and the three values (slides along the
+/// (`on` its plane, its outward normal flipped where it would look down
+/// the world's `z` at `pose`) to the world plane that face lies in at
+/// `pose`, and the three values (slides along the
 /// chart's `x` and `y`, and the spin) that put the copy at `pose` in
 /// that mate's chart ([`super::Value`]). The values are computed from
 /// `pose`, never assumed zero, so re-evaluating reproduces `pose` to
@@ -507,6 +508,12 @@ pub fn place_at_in(
         return pinned();
     };
     let at = pose.affine();
+    // The copy side carries a `Flip` where the face would look down the
+    // world's `z` at `pose`, so the world plane's normal is never the
+    // swing's pole: no half-turn is written on the world side, and a
+    // value is charted away from where the chart is discontinuous.
+    let flipped = (at.linear * normal.get()).z < 0.0;
+    let normal = if flipped { -normal } else { normal };
     let on = crate::pose::PoseValue::Plane { origin, normal };
     let to = crate::pose::PoseValue::Plane {
         origin: at.transform_point(origin),
@@ -568,6 +575,13 @@ pub fn place_at_in(
     let on = Operand::Pose(Box::new(PoseDef::Plane {
         face: Operand::select(body.clone(), vec![face]),
     }));
+    let on = if flipped {
+        Operand::Pose(Box::new(PoseDef::Flip {
+            pose: RoleRead::plain(on),
+        }))
+    } else {
+        on
+    };
     Ok(Placed {
         mate: Mate {
             on,

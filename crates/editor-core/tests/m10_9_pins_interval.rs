@@ -107,7 +107,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door, and the plate refuses nowhere the bisection
             // reaches.
             without_the_registry: None,
-            symbolic: [1003, 1003, 1003],
+            symbolic: [1009, 1009, 1009],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -118,7 +118,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // As the plate: the circles' stored carrier makes every rim
             // decision a theorem.
             without_the_registry: None,
-            symbolic: [539, 539, 539],
+            symbolic: [542, 542, 542],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -139,7 +139,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // decides 3 of the envelope's 9 terms on each of its two
             // reads.
             without_the_registry: Some(((782, 712), Some("pcurve_envelope"))),
-            symbolic: [827, 827, 827],
+            symbolic: [830, 830, 830],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -159,7 +159,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1387, 1387, 1387],
+            symbolic: [1393, 1393, 1393],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -174,7 +174,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
-            symbolic: [1311, 1311, 1311],
+            symbolic: [1314, 1314, 1314],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]

@@ -52,7 +52,9 @@
 //!    copy placed against its parent's copy plus three values, and the
 //!    spin's sense is the chart's: about the mated caps' outward
 //!    normal `−z`, so a turn of `joint_k` about `+z` is written
-//!    `−joint_k`.
+//!    `−joint_k` — except at the base, where the "place part" gesture
+//!    flips the start cap onto the world's `+z` and `joint_1` is written
+//!    as it is.
 //! 2. **The measure cannot reach the tip end face's centre.** The
 //!    closed form that gives a CENTRE exactly is cylinder × cylinder
 //!    (`eval::measure`'s `distance`, the axis distance); a planar end
@@ -399,18 +401,23 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     // copy, one link length along it and turned by `joint_k`. Each
     // link's placement reads its parent's copy, so joint `j` turns links
     // `j..n` and leaves links `1..j` where they were. A spin is charted
-    // about the mated start caps' outward normal, `−z`, so a turn of
-    // `joint` about `+z` is a spin of `−joint`.
+    // about the mated direction: against a parent, the start caps'
+    // outward normal `−z`, so a turn of `joint` about `+z` is a spin of
+    // `−joint`; in the world, the start cap flipped onto `+z`, so it is
+    // a spin of `joint`.
     let turned = |j: usize| {
         move |values: Vec<(Coord, Formula)>| {
             values
                 .into_iter()
                 .map(|(coord, by)| match coord {
-                    Coord::Spin => (
-                        coord,
-                        Formula::neg(Formula::named(joint_name(j), Dimension::Angle))
-                            .expect("an angle negates"),
-                    ),
+                    Coord::Spin => (coord, {
+                        let joint = Formula::named(joint_name(j), Dimension::Angle);
+                        if j == 1 {
+                            joint
+                        } else {
+                            Formula::neg(joint).expect("an angle negates")
+                        }
+                    }),
                     Coord::Slide(_) => (coord, by),
                 })
                 .collect()
