@@ -2,10 +2,11 @@
 id: the-declared-tangency-bracket-refuses-its-closing-junction-at-interval
 kind: issue
 title: A LineTo heading along -x from a computed point reads its direction off atan2's branch cut at Interval, so its turn encloses the whole circle (declared_tangency's bracket refuses at Interval)
-status: open
+status: dispatched
 opened: 2026-10-14
 priority: P2
 cost: E
+branch: paths/chord-director-components
 ---
 
 
