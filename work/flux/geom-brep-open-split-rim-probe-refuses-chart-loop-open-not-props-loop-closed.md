@@ -2,10 +2,11 @@
 id: geom-brep-open-split-rim-probe-refuses-chart-loop-open-not-props-loop-closed
 kind: issue
 title: geom-brep's rim_dim_review_probes open-split row is red: a loop open by 50eps now refuses ChartLoopOpen, not NotIsoRectangle props_loop_closed
-status: open
+status: review
 opened: 2026-10-15
 priority: P1
 cost: E
+branch: flux/main-reds-golden-and-split-rim
 ---
 
 
@@ -49,3 +50,20 @@ fires, the junction decide is pre-empting it and that is a FLUX fix.
 Found by CIW's `ciw/silent-fixed-predicates-probe` lane running the
 whole `run_plain` selection. The test file is TCOST/TINT ground; the
 behaviour that moved it is FLUX's.
+
+## Resolution (FLUX, `flux/main-reds-golden-and-split-rim`)
+
+`ChartLoopOpen` is the intended verdict. A loop open by 50ε is a
+genuine open junction, 50ε past the periodic charts' `3ε` junction
+slack, and since #4839 that junction decide is where an open loop on a
+cylinder refuses. The row's expected error is re-stated and its subject
+kept: the open loop refuses on its closure, it does not measure.
+
+The probe pre-pass on main plus this fix (every `plain` suite of the
+census roster at 1e-9, plus all of geom-brep with `--features probe`
+at 1e-6, 1e-9 and 1e-12) found one more stale FLUX expectation:
+`rim_dim_scale_twins::the_cone_flux_lane_decides_lengths_at_both_scales`.
+PR #5333 re-pointed its name list from `props_cone_loop_winding` to
+`props_chart_loop_turns` and `props_chart_loop_sense`, but none of its
+faces winds the axis, so `props_chart_loop_sense` never decided. A band
+between two whole rims now joins its faces. Everything else is green.
