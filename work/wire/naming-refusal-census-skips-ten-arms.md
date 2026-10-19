@@ -46,9 +46,15 @@ entry unused) both red.
 
 The rows held to the budget found five arms over 75 words
 (`SeamVertexPartners`, `MergedChordOffRim`, `ConventionalVertex`,
-`MemberEdgeTied`, `PartnerUnread`); their sentences are shortened in
-`names/emit.rs`. The seven missing-rule arms that print an arena key
+`MemberEdgeTied`, `PartnerUnread`). The words came out of the shared
+`UNRULED_FRAMING` that opens all ten missing-rule sentences ("no naming
+rule covers this construction; the recipe and its result are sound"),
+not out of what each sentence reports.
+The seven missing-rule arms that print an arena key
 print it as `SeamVertexParentage` does and have `KERNEL_KEYED` entries.
 The sweep's two siblings, `PlacementRuleFault::NonRigidFrame` and
 `ResolveError::ReadGone`, have rows too; the first states no recourse
-and is filed as `work/wirehold/placement-rule-refusals-state-no-recourse.md`.
+and is filed as `work/wirehold/placement-rule-refusals-state-no-recourse.md`,
+which also holds the other held placement, instance and face-frame
+entries. Welding the other four lists is
+`work/wire/editor-payload-lists-other-than-naming-are-kept-by-hand.md`.

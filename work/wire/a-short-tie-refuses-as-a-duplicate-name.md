@@ -39,3 +39,6 @@ into `NamingError::ShortTie` with the kernel-defect ending. It is wired
 into the category map, `display_tests`, the `NAMING_ERROR` census, the
 feature-tree census row, the Python tag `short_tie` and the binding
 census. Test: `names::table::carrying_door::a_short_tie_refuses_as_a_short_tie`.
+The sibling the sweep found, an entity already named refusing as a
+name minted twice, is
+`work/wire/a-seated-entity-collision-refuses-as-a-name-minted-twice.md`.
