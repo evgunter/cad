@@ -1209,14 +1209,15 @@ copy carries it. A space is defined by what is built and placed in it,
 and what reads it downstream reads the space's bodies, never a
 placement: a body of a space is the same to its readers whether it
 was built there, placed there, or placed through other spaces. A
-space's bodies are its variables: a construction's or an operation's
-output, or a **pick**, a `Body` variable defined as one copy a
+space's readers name its bodies by its variables: a construction's or
+an operation's output, or a **pick**, a `Body` variable defined as one copy a
 placement places there (a `Bodies` family, read by index, where the
 placement's reads reach an index, [repetition]). A pick's definition
 names its placement and the body's variable in the source, through
 the placements inside the source down to the first variable it
 reaches, which is its one spelling. Readers hold the pick, and nothing
-else reads a placement's copies. A copy's faces, edges and vertices
+else reads a placement's copies; a copy nobody picks is still a body of
+the space, carried and checked like any other. A copy's faces, edges and vertices
 keep their names in the source, and an operation reading two picks of
 one source keys each operand's names by the pick it read through. Like
 a selection, a pick authored at two sites is two variables (the GUI
