@@ -2,7 +2,8 @@
 id: three-member-coincidence-rows-may-not-be-order-free-once-a-fourth-member-covers-them
 kind: issue
 title: DM4's three-member coincidence row may not be one row in every member order once a fourth member covers the point (intersect pinches, union glues)
-status: open
+status: dispatched
+branch: wire/union-decision-log
 opened: 2026-10-18
 priority: P2
 cost: M
