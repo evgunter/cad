@@ -5861,6 +5861,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "props",
             "ray",
             "ray_in_band",
+            "sign_unresolved",
             "straddles",
             "zero_volume",
         ],

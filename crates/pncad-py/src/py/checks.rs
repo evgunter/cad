@@ -387,7 +387,8 @@ impl CheckEvidence {
 
     /// The shell door's own refusal, as a branchable word, on
     /// `escalated` and `unsupported`: `band`, `props`, `escalated`,
-    /// `zero_volume`, `straddles`, `ray_in_band`, `corner` or `ray`. `reason` is the
+    /// `zero_volume`, `straddles`, `ray_in_band`, `corner`, `ray` or
+    /// `sign_unresolved`. `reason` is the
     /// same refusal's
     /// sentence; this is the part a caller matches on.
     #[getter]

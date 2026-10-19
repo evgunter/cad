@@ -3078,8 +3078,9 @@ pub fn unexaminable_tag(why: Unexaminable) -> &'static str {
 /// it refused, so a caller reads it instead of substring-matching the
 /// sentence: the run's tolerance formed no band, a face refused in the
 /// props inventory, the sign read escalated, the signed volume (or an
-/// end of its bracket) is zero at this tolerance, or its certified
-/// bracket straddles zero, so there is no side to classify to.
+/// end of its bracket) is zero, or its certified bracket straddles zero,
+/// so there is no side to classify to; or the sign is unresolved by a
+/// limit of the measurement (`sign_unresolved`).
 ///
 /// `band` is the same word [`checks_error_tag`] mints for the
 /// registry's own band refusal, one namespace up, and means the same
@@ -3094,6 +3095,7 @@ pub fn shell_classify_error_tag(err: &ShellClassifyError) -> &'static str {
         ShellClassifyError::RayInBand { .. } => "ray_in_band",
         ShellClassifyError::Corner { .. } => "corner",
         ShellClassifyError::Ray { .. } => "ray",
+        ShellClassifyError::SignUnresolved { .. } => "sign_unresolved",
     }
 }
 

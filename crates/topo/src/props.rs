@@ -1070,14 +1070,12 @@ impl SignLimit {
 /// which measures those faces again about the vertex.
 pub(crate) fn certify_role<T: Decide>(
     reading: SignReading<T>,
-    interval: impl Fn(
-        bool,
-    ) -> Option<Result<(SignReading<Interval>, Option<SignLimit>), MassPropsError>>,
+    interval: impl Fn(bool) -> Option<IntervalRead>,
     rounding: impl FnOnce() -> Result<T, MassPropsError>,
     names: RoleNames,
     certified: RoleNames,
 ) -> Certified {
-    let read = |got: Option<Result<(SignReading<Interval>, Option<SignLimit>), MassPropsError>>| {
+    let read = |got: Option<IntervalRead>| {
         got.map(|got| match got {
             Err(source) => Certified::Refused(source),
             Ok((exact, limit)) => match (read_sign(exact, certified), limit) {
@@ -1176,6 +1174,10 @@ fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, M
     }
     Ok(bound * T::from_f64(ROUNDING_TERMS * f64::EPSILON * 0.5))
 }
+
+/// An interval re-derivation as a role read takes it: its volume, and
+/// what an enclosure of it holding zero is a limit of ([`Rederived`]).
+pub(crate) type IntervalRead = Result<(SignReading<Interval>, Option<SignLimit>), MassPropsError>;
 
 /// [`rounding_bound`]'s allowance for the rounded operations of one term.
 const ROUNDING_TERMS: f64 = 16.0;
