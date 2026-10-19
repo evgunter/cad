@@ -4,6 +4,8 @@ kind: issue
 title: blend: a turn overrun's arm (c) meters the far band's whole cut-off sliver, refusing features the overrun clears and adding no refusal the reach does not make
 status: open
 opened: 2026-10-13
+priority: P3
+cost: M
 ---
 
 

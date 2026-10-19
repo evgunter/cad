@@ -11995,9 +11995,8 @@ mod tests {
                         band,
                     }),
                 },
-                "a torus face's tube radius is not shown smaller than its ring radius \
-                 (margin 0e0 m). Recourse: make the tube radius clearly smaller than \
-                 the ring radius"
+                "a torus face's tube radius is not shown smaller than its ring's (margin 0 m). \
+                 Recourse: make the tube radius clearly smaller than the ring radius"
                     .to_owned(),
             ),
             (
@@ -12008,8 +12007,9 @@ mod tests {
                         margin: MarginDiag::value(-1e-3),
                     },
                 },
-                "a torus face's tube radius is larger than its ring radius (a spindle torus). \
-                 Recourse: make the tube radius clearly smaller than the ring radius"
+                "a torus face's tube radius is larger than its ring's (margin -0.001 m), so the \
+                 surface is a spindle. Recourse: make the tube radius clearly smaller than the \
+                 ring radius"
                     .to_owned(),
             ),
             (
