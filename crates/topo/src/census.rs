@@ -14929,6 +14929,68 @@ mod two_carrier_records {
                 assert!(!stale(&errors), "{s}");
             }
 
+            /// Ramps y = s(x - c), c = 0.9 L, the face below: the line is
+            /// inside over (c, L), clearance up to 0.1 s L.
+            #[test]
+            fn d5_ramps_at_many_slopes_and_lengths() {
+                let mut rows = Vec::new();
+                for l in [4.0, 40.0, 400.0] {
+                    for s in [1e-9, 3e-9, 1e-8, 3e-8, 1e-7, 3e-7, 1e-6] {
+                        let c = 0.9 * l;
+                        let ramp = [(0.0, -1.0), (l, -1.0), (l, s * (l - c)), (0.0, -s * c)];
+                        let Ok((body, top)) = std::panic::catch_unwind(|| top_of(&ramp)) else {
+                            eprintln!("d5 L {l} s {s:e}: fixture refused");
+                            continue;
+                        };
+                        let (read, oracle) = read_line(&body, top, 0.0, 1.0, (0.0, l));
+                        rows.push(verdict(&format!("d5 L {l} s {s:e}"), read, oracle));
+                    }
+                }
+                assert!(!rows.iter().any(|r| r.contains("DISAGREE")), "{rows:#?}");
+            }
+
+            /// Edges whose ends straddle the line by a fraction of the
+            /// band, and a far vertex whose projection lies within the
+            /// band of a slanted edge's real crossing.
+            #[test]
+            fn d6_straddles_and_near_vertices() {
+                let mut rows = Vec::new();
+                let e = esc();
+                for k in [0.3, 0.6, 0.9, 1.5, 3.0] {
+                    // ends at -k e and +k e: the face below
+                    let ramp = [(0.0, -1.0), (4.0, -1.0), (4.0, k * e), (0.0, -k * e)];
+                    if let Ok((body, top)) = std::panic::catch_unwind(|| top_of(&ramp)) {
+                        let (read, oracle) = read_line(&body, top, 0.0, 1.0, (0.0, 4.0));
+                        rows.push(verdict(&format!("d6 straddle {k}e"), read, oracle));
+                    } else {
+                        eprintln!("d6 straddle {k}e: fixture refused");
+                    }
+                }
+                for k in [0.0, 0.3, 0.9, 2.0] {
+                    // slanted tab edges crossing y = 0 at 1.1 and 1.4;
+                    // a notch vertex at (1.1 + k e, -0.7) off the line.
+                    let outline = [
+                        (0.0, -1.0),
+                        (4.0, -1.0),
+                        (4.0, -0.5),
+                        (1.3, -0.5),
+                        (1.5, 1.0),
+                        (1.0, 1.0),
+                        (1.2, -0.5),
+                        (1.2 - 0.2 / 3.0 + k * e, -0.7),
+                        (1.05, -0.5),
+                        (0.0, -0.5),
+                    ];
+                    if let Ok((body, top)) = std::panic::catch_unwind(|| top_of(&outline)) {
+                        let (read, oracle) = read_line(&body, top, 0.0, 1.0, (0.0, 4.0));
+                        rows.push(verdict(&format!("d6 near vertex {k}e"), read, oracle));
+                    } else {
+                        eprintln!("d6 near vertex {k}e: fixture refused");
+                    }
+                }
+                assert!(!rows.iter().any(|r| r.contains("DISAGREE")), "{rows:#?}");
+            }
+
             /// The unit half-disc cap (arc through +y, chord y = 0) and
             /// the line y = 1 - d: tangent to the arc at d = 0, a chord
             /// of depth d otherwise; and y = 0, along the chord.
