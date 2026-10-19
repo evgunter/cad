@@ -2,9 +2,11 @@
 id: the-villarceau-strip-oracle-finds-no-family-circle-for-seed-3d14ecd0
 kind: issue
 title: torus_region's Villarceau strip fuzz row panics in its own oracle (no family circle found) at seed 0x3d14ecd04e99c48b
-status: open
+status: closed
 opened: 2026-10-19
+closed: 2026-10-19
 priority: P2
+pr: 5363
 ---
 
 
@@ -27,3 +29,7 @@ kernel is not reached; the failure is the test's oracle.
   every family circle. Either the sampler must keep its points where the
   oracle's bracket scan is valid, or the oracle must find a tangential
   root (minimise `on` over φ rather than bracket `g`).
+
+## Closed
+
+PR 5363 fixes the same oracle defect as `villarceau-strip-fuzz-oracle-misses-a-root`. `fam` now computes the family parameter in closed form instead of scanning brackets for a sign change. Seed `0x3d14ecd04e99c48b` passes on that branch at ε 1e-9 and 1e-6 (replayed by the RESTREAD orchestrator).
