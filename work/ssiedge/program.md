@@ -10,7 +10,6 @@ tag: (SSIEDGE orchestrator)
 ab_band: 11100-11199
 paths: [crates/geom-brep/src/ssi.rs, crates/geom-brep/src/ssi/*]
 keep_out: [opened 2026-10-08 by SSI's close (Ev, in chat: wind down and open successor programs for the rest) - SSI's thirty open rows were split along the priority seam into SSIEDGE SSIARITH SSIMARCH, which share crates/geom-brep/src/ssi with each other and with the CHART PCERT ISO siblings by design - what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR rather than drawing a fence]
-priority: P2
 ---
 SSI's P2 tail. The plane × NURBS lane certifies what it marches;
 these rows are the poses at its edges where it ends in a refusal that

@@ -2,7 +2,9 @@
 id: an-interval-fillet-cut-off-at-an-oblique-end-reads-its-arc-backward
 kind: issue
 title: blend: a fillet cut-off at the sheared box's oblique end face refuses BodyNotIntact at Interval (its arc reads backward), where f64 builds
-status: open
+status: closed
+closed: 2026-10-19
+pr: 5346
 opened: 2026-10-13
 priority: P2
 cost: M
@@ -48,3 +50,27 @@ round rather than refuse. A fix closes both readers.
 `the_skewed_boxs_fillet_refuses_at_interval_as_its_plain_cut_off_does`;
 the fix flips it, and the overrun's `Interval` row should then take the
 skewed box too.
+
+## Closed
+
+Measured at the raising site: `ta = [−π, π]` (`Def`), `tb` the whole
+`[−2π, 2π]`. `foot_a`, on the top rim, is the end ellipse's major
+vertex half a turn from `u_ref`, and the `atan2` box read from the
+seam straddles its branch cut, which `Interval::atan2` answers with the
+hull. `f64` reads `±π` there and runs forward from either.
+
+`sweep::blend::surgery::arc_window` is now the one window read for both
+readers, `CapSliver::of` and `attach_contact`'s `Transverse` arm: it
+reads `p0` at the seam and, where that enclosure spans half a turn or
+more, again at the half turn, whose cut is half a turn away. Each
+mutant of one reader alone is caught (the description pass refuses at
+`interval_span_forward`, not the long way round).
+
+Rows: `band_planar_cut_off_interval`
+`a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar` (shears
+`±0.1, ±0.3, ±0.6`, convex and concave, both verbs, `Interval` against
+`f64`, tiers 3 and 3′), and the skewed box joins
+`band_turn_overrun_fillet::the_overrun_carves_at_the_certified_scalar`;
+the refusal pin is gone. Filed from the class sweep:
+`a-rim-split-at-its-carriers-anti-seam-refuses-at-interval` and
+`work/issues/a-seam-anchored-param-read-straddles-the-cut-at-interval.md`.

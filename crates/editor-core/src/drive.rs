@@ -1283,12 +1283,10 @@ impl core::error::Error for DriveRefusal {}
 
 /// **The WITNESS build's options**: the document at its nominals, over
 /// the analysed box collapsed to the nominal (`ParamBox::at_nominal`),
-/// so its profile lift is the leaves' (guided) and the two verdict
-/// vectors are comparable — guided elaboration at f64 IS plain
-/// elaboration at f64, bit for bit (the lift's own differential pin),
-/// so this changes the build it produces in no way and makes the two
-/// passes the same code. [`drive`] evaluates its witness at f64 under
-/// exactly these.
+/// the environment a leaf binds at the box's centre. At `f64` that is
+/// the build, and its profile nodes log both passes as a leaf's do
+/// (`ProfileLane`), so the two verdict vectors compare. [`drive`]
+/// evaluates its witness at f64 under exactly these.
 #[must_use]
 pub fn witness_options(analyzed: &AnalyzedBox) -> EvalOptions {
     EvalOptions {
@@ -1328,6 +1326,9 @@ pub fn drive(
         });
     }
 
+    // The WITNESS build: the document at its nominals, at f64. Its
+    // profile nodes log both passes, as a leaf's do (`ProfileLane`), so
+    // the two vectors compare.
     let witness: Evaluation<f64> = evaluate(
         doc,
         None,
@@ -1552,12 +1553,9 @@ fn clearance_measure(doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
 /// **Crate-visible because the clearance engine replays INSIDE a leaf**
 /// ([`crate::clearance`]) and must replay it the way this driver
 /// certified it. Two copies of these options are two lanes: a clearance
-/// query whose options drifted from the driver's would be certifying a
-/// body other than the one the leaf's verdict vector is about. The
-/// profile lift is not among them: a leaf's box makes it guided
-/// ([`EvalOptions::profile_lift`]), so profile geometry is a function of
-/// the leaf's parameters, and every structure decision is re-verified
-/// at the lane.
+/// query whose options drifted from the driver's would be
+/// certifying a body other than the one the leaf's verdict vector is
+/// about.
 ///
 /// The SCALAR is the other half of "the way this driver certified it",
 /// and it does not ride here: it rides on the verdict

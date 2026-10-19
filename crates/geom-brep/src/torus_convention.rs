@@ -8,7 +8,7 @@
 //! are decided in `geom` ([`geom::torus_tube`], [`geom::ring_torus`]),
 //! beside the type whose convention they state.
 
-use crate::recourse::{Refused, SizedDecision, SizedPass, StoredDefinite};
+use crate::recourse::{Refused, RefusedSide, SizedDecision, SizedPass};
 
 /// **A half of the ring-torus convention `R > r > 0`**, as a decision.
 /// A torus outside it (no tube, a horn, a spindle) has no
@@ -65,7 +65,7 @@ impl TorusConvention {
             lever,
             size,
             passes: SizedPass::Positive,
-            stored: StoredDefinite::Lever,
+            side: RefusedSide::Lever,
             no_size: None,
         }
     }

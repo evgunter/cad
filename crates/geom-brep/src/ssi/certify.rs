@@ -349,8 +349,8 @@ impl SsiLimb {
     /// carrier's on-locus residual and sup-norm bound; limb 2's value at
     /// a break is limb 1's residual against an analytic operand, and
     /// against a NURBS operand the sup-norm bound's quantity at a point,
-    /// a bound on the miss like it; limb 3's margin is the operands'
-    /// transversality over the box chain.
+    /// a bound on the miss like it; limb 3's margin is a lower bound on
+    /// the operands' transversality over the box chain.
     #[must_use]
     pub fn check(self) -> CertCheck {
         match self {
@@ -358,7 +358,7 @@ impl SsiLimb {
             Self::HullSup | Self::HullSupChart => CertCheck::PlaneNurbsHull,
             Self::HullValue => CertCheck::AnalyticBreakResidual,
             Self::HullValueChart | Self::ImageMiss => CertCheck::PlaneNurbsHullValue,
-            Self::Tube => CertCheck::Transversality,
+            Self::Tube => CertCheck::TransversalityTube,
         }
     }
 }

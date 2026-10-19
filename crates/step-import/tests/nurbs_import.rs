@@ -36,10 +36,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use geom_core::Point3;
+use profile::SketchPlane;
 
 use common::import_body;
+use geom_core::Point2;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
 use profile::test_support::bulge_loop;
 use step_import::{ImportOptions, import_step};
 use sweep::{Section, loft_body};
@@ -63,9 +65,9 @@ fn native_arc_loft() -> topo::Body<f64> {
     };
     let sections = vec![arc_section(1.0), arc_section(1.25), arc_section(1.0)];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
     ];
     loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the uniformly-spaced arc loft builds natively")
@@ -424,7 +426,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
             //   two orders: two orders of one sum may round apart by at
             //   most one ulp per addition, so the volumes must agree to
             //   within `faces − 1` ulps of each other, and the pad (a sum
-            //   of non-negative pads in the same fold, outward) must still
+            //   of non-negative pads in the same fold, rounded up) must still
             //   agree bit for bit at this body's values. Measured: 0 ulps
             //   before NURBS #4553 moved the rational wall's flux bits,
             //   1 at ε = 1e-6 and 2 at 1e-9 after it, and 1 and 0 since

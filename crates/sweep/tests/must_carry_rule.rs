@@ -329,7 +329,7 @@ fn an_extrude_strut_with_a_definite_positive_margin_stores_the_intrinsic_tangenc
 /// no smooth strut, and NO edge stores the intrinsic tangency or the
 /// conventional pair. The extrude twin of the under-determined join is
 /// the revolve row's; the extrude strut's own pair arm has no row
-/// (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
+/// (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
 fn an_extrude_strut_with_a_definite_zero_margin_is_one_wall() {
     let body = tangent_strut_prism(free_length_for(definite_zero_margin()));
@@ -348,7 +348,7 @@ fn an_extrude_strut_with_a_definite_zero_margin_is_one_wall() {
 /// In-band: the profile door reads the same separation in band and
 /// escalates at the line–arc pair, before any strut exists; the
 /// extrude strut's own in-band arm has no row
-/// (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
+/// (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
 fn an_extrude_strut_with_an_in_band_margin_refuses_at_the_profile() {
     let segment = |segment_index| SegmentRef {

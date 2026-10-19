@@ -63,7 +63,8 @@ fn aimed() -> Frame {
             Vec3::new(1.0, 0.0, 0.0),
             Tol::witness(),
         )
-        .expect("the aim is definite"),
+        .expect("the aim is definite")
+        .to_affine(),
     )
 }
 

@@ -1280,7 +1280,8 @@ enum Shows {
     /// No size: an exact zero, a reading in band reaching no side the
     /// decision passes, or a zero the symbolic tier proved. What a
     /// decision's note on a zero verdict asserts is established here and
-    /// in [`Shows::Refused`], and nowhere else.
+    /// in [`Shows::Refused`], and nowhere else; the two classes read
+    /// [`SizedWords::refused`], and no other does.
     NoSize,
     /// A nonzero size wholly on a side the decision passes, its nearer
     /// end away from zero, that only a tolerance at or below [`EPS_MIN`]
@@ -1294,9 +1295,7 @@ enum Shows {
     Past,
     /// Past the band wholly on sides the decision refuses: a decided sign
     /// it cannot use, which shows no size as [`Shows::NoSize`] does and
-    /// ends as it does, save where the caller's words say it contradicts
-    /// stored data ([`RefusedReading::ContradictsStoredData`]); the only
-    /// class that reads [`SizedWords::refused`].
+    /// ends as it does, by [`SizedWords::refused`].
     Refused,
     /// Poisoned.
     Unreadable,
@@ -1367,35 +1366,39 @@ pub struct SizedWords<'a> {
     /// What the decision passes on.
     pub passes: SizedPass,
     /// Appended to the lever as "; {note}" where the margin shows no
-    /// size: an exact zero, a reading wholly on zero or the refused side,
-    /// or a proved zero ([`MarginDiag::sized_recourse`]).
+    /// size — an exact zero, a reading wholly on zero or the refused side,
+    /// or a proved zero ([`MarginDiag::sized_recourse`]) — and
+    /// [`SizedWords::refused`] is [`RefusedReading::AsShown`].
     pub no_size: Option<&'a str>,
     /// Appended to the lever as "; {note}" instead where the margin is
     /// poisoned: the unreadable-margin note of the door reading it
     /// ([`UNREADABLE_MARGIN_NOTE`] at a build,
     /// [`UNREADABLE_STORED_MARGIN_NOTE`] over stored geometry).
     pub unreadable: &'a str,
-    /// What a decided sign the decision refuses means to the caller
-    /// ([`RefusedReading`]): read only where the reading shows one
-    /// ([`MarginDiag::sized_recourse`] past the band, and
+    /// What a reading certainly on the refused side means to the caller
+    /// ([`RefusedReading`]): read only where the reading shows no size,
+    /// in band or past it ([`MarginDiag::sized_recourse`], and
     /// [`SizedWords::sign_certain_recourse`]).
     pub refused: RefusedReading,
 }
 
-/// **What a decided sign its decision refuses means to the caller**
-/// ([`SizedWords::refused`]): the one choice a caller makes about such a
-/// reading's ending. The ending's words are geom-core's either way.
+/// **What a reading certainly on its decision's refused side means to
+/// the caller** ([`SizedWords::refused`]), whether the band, a number or
+/// a proof decided it: the one choice a caller makes about such a
+/// reading's ending (D4 ¶1 (iv)). The ending's words are geom-core's
+/// whichever it makes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RefusedReading {
-    /// Nothing more than its class shows: no size, so it ends as a
-    /// reading that shows none does, in the lever and
-    /// [`SizedWords::no_size`].
+    /// Nothing more than its class shows: no size, so it ends in the
+    /// lever and [`SizedWords::no_size`].
     AsShown,
-    /// The caller knows the decision's inputs are data it holds stored,
-    /// which no decided refused sign agrees with: the reading contradicts
-    /// that data, and it ends in [`KERNEL_OR_FILE_DEFECT_ENDING`]
-    /// (D4 ¶1 (iv)).
+    /// The decision's inputs are a stored body's, which no reading on
+    /// the refused side agrees with: the reading contradicts that data,
+    /// and it ends in [`KERNEL_OR_FILE_DEFECT_ENDING`].
     ContradictsStoredData,
+    /// The decision's inputs are a file's, read at the import door: the
+    /// reading names the file as damaged ([`DAMAGED_FILE_ENDING`]).
+    DamagedFile,
 }
 
 impl SizedWords<'_> {
@@ -1427,11 +1430,11 @@ impl Shows {
                  {} m",
                 Readable(v)
             ),
-            Self::Refused => match refused {
+            Self::NoSize | Self::Refused => match refused {
                 RefusedReading::AsShown => lever_recourse(lever, no_size),
                 RefusedReading::ContradictsStoredData => KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
+                RefusedReading::DamagedFile => DAMAGED_FILE_ENDING.to_owned(),
             },
-            Self::NoSize => lever_recourse(lever, no_size),
             Self::Floor => lever_recourse(lever, Some(&floor_note(size))),
             Self::Unresolved | Self::Past => lever_recourse(lever, None),
             Self::Unreadable => lever_recourse(lever, Some(unreadable)),
@@ -1838,9 +1841,10 @@ impl MarginDiag {
     /// - where a tolerance a run admits decides the margin passing, "or,
     ///   if this {size} is intended, tighten the tolerance below `|m|/K`",
     ///   `K` the band's multiplier, `m` the end nearer zero;
-    /// - where the margin shows no size — in band or past it, wholly on
-    ///   a side the decision refuses — [`SizedWords::no_size`]; past it,
-    ///   as [`SizedWords::refused`] says;
+    /// - where the margin shows no size — an exact or proved zero, or a
+    ///   reading in band or past it wholly on a side the decision
+    ///   refuses — [`SizedWords::no_size`], or the ending
+    ///   [`SizedWords::refused`] names in its place;
     /// - where only a tolerance at or below [`EPS_MIN`] decides it,
     ///   [`floor_note`];
     /// - where it is poisoned, [`SizedWords::unreadable`]
@@ -2168,6 +2172,13 @@ pub const KERNEL_DEFECT_ENDING: &str = crate::kernel_defect_ending!();
 /// [`KERNEL_DEFECT_ENDING`], since no file stands between them.
 pub const KERNEL_OR_FILE_DEFECT_ENDING: &str = crate::kernel_or_file_defect_ending!();
 
+/// The ending of a refusal the import door reads past the file's
+/// declared coincidence distance, where the file's own data contradicts
+/// itself or states what no construction produces: nothing the user
+/// changes in the model is a way through, and the file, not the kernel,
+/// is what the report is about.
+pub const DAMAGED_FILE_ENDING: &str = crate::damaged_file_ending!();
+
 /// The subject a door states for an escalation whose decision it has no
 /// words for — a name its table does not carry, or no name at all. One
 /// phrase for every door, so the refusal-shape guard can read it as no
@@ -2247,6 +2258,16 @@ macro_rules! kernel_limit_last_resort {
 macro_rules! kernel_or_file_defect_ending {
     () => {
         "There is no way through: this is a kernel defect or a damaged file; report it"
+    };
+}
+
+/// [`DAMAGED_FILE_ENDING`] as a literal, for `concat!`; see
+/// `kernel_defect_ending!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! damaged_file_ending {
+    () => {
+        "There is no way through: the file is damaged; report it to the program that wrote it"
     };
 }
 
@@ -3024,15 +3045,15 @@ mod tests {
         }
     }
 
-    /// **Only a refused reading reads [`SizedWords::refused`]**: over a
-    /// reading of every class, the words that say it contradicts stored
-    /// data change the ending of [`Shows::Refused`] alone, to
-    /// [`KERNEL_OR_FILE_DEFECT_ENDING`], and of the sign-certain arm
-    /// that is that class; every other class ends as it does without
-    /// them. Red if another class reads the choice, or the refused one
-    /// ignores it.
+    /// **Only a reading that shows no size reads [`SizedWords::refused`]**:
+    /// over a reading of every class, each choice other than
+    /// [`RefusedReading::AsShown`] changes the ending of
+    /// [`Shows::NoSize`] and [`Shows::Refused`] alone, to its own
+    /// ending, and of the sign-certain arm that is the refused class;
+    /// every other class ends as it does without it. Red if another
+    /// class reads the choice, or a no-size one ignores it.
     #[test]
-    fn only_a_refused_reading_reads_what_the_caller_knows_of_it() {
+    fn only_a_reading_with_no_size_reads_what_the_caller_knows_of_it() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let words = |refused| SizedWords {
             lever: "L",
@@ -3042,10 +3063,7 @@ mod tests {
             unreadable: "U",
             refused,
         };
-        let (plain, stored) = (
-            words(RefusedReading::AsShown),
-            words(RefusedReading::ContradictsStoredData),
-        );
+        let plain = words(RefusedReading::AsShown);
         let margins = [
             MarginDiag::value(5e-9),
             MarginDiag::value(-5e-10),
@@ -3057,18 +3075,27 @@ mod tests {
             MarginDiag::INVALID,
         ];
         let mut seen = Vec::new();
-        for margin in margins {
-            let shows = margin.shows(band, SizedPass::Positive);
-            seen.push(std::mem::discriminant(&shows));
-            let want = match shows {
-                Shows::Refused => KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
-                _ => margin.sized_recourse(band, plain),
-            };
-            assert_eq!(
-                margin.sized_recourse(band, stored),
-                want,
-                "{shows:?} over {margin:e}"
-            );
+        for (refused, ending) in [
+            (
+                RefusedReading::ContradictsStoredData,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (RefusedReading::DamagedFile, DAMAGED_FILE_ENDING),
+        ] {
+            for margin in margins {
+                let shows = margin.shows(band, SizedPass::Positive);
+                seen.push(std::mem::discriminant(&shows));
+                let want = match shows {
+                    Shows::NoSize | Shows::Refused => ending.to_owned(),
+                    _ => margin.sized_recourse(band, plain),
+                };
+                assert_eq!(
+                    margin.sized_recourse(band, words(refused)),
+                    want,
+                    "{refused:?}: {shows:?} over {margin:e}"
+                );
+            }
+            assert_eq!(words(refused).sign_certain_recourse(), ending);
         }
         for class in [
             Shows::Offer(0.0),
@@ -3085,13 +3112,12 @@ mod tests {
             );
         }
         assert_eq!(plain.sign_certain_recourse(), "Recourse: L; N");
-        assert_eq!(stored.sign_certain_recourse(), KERNEL_OR_FILE_DEFECT_ENDING);
     }
 
     /// **Within ε_in the import door ignores what the caller knows of a
     /// refused reading** ([`MarginDiag::sized_recourse_in_file`]): a
     /// reading whose every point lies within the file's coincidence
-    /// distance ends in the door's sentence and the lever, under either
+    /// distance ends in the door's sentence and the lever, under every
     /// [`RefusedReading`], with no note and no defect ending, whether it
     /// is refused past the band, in band showing no size, or past the
     /// band on the passing side; past ε_in the refused reading reads the
@@ -3114,6 +3140,7 @@ mod tests {
         for refused in [
             RefusedReading::AsShown,
             RefusedReading::ContradictsStoredData,
+            RefusedReading::DamagedFile,
         ] {
             for margin in [
                 MarginDiag::value(-5e-8),
@@ -3134,8 +3161,8 @@ mod tests {
             "Recourse: L; N"
         );
         assert_eq!(
-            past.sized_recourse_in_file(band, words(RefusedReading::ContradictsStoredData), file),
-            KERNEL_OR_FILE_DEFECT_ENDING
+            past.sized_recourse_in_file(band, words(RefusedReading::DamagedFile), file),
+            DAMAGED_FILE_ENDING
         );
     }
 

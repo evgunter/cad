@@ -914,8 +914,8 @@ impl OperandRecords {
 /// Every key is validated at the op door (live, and planar for a
 /// given face) — a dangling key is a typed refusal
 /// ([`BooleanError::InvalidInput`]), never a silent drop.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct BooleanInputs {
+#[derive(Clone, Debug)]
+pub struct BooleanInputs<T: Real = f64> {
     /// The carrier pairs whose verdicts are decided already: `Some`
     /// makes these the operation's only coincidences, and it decides
     /// none of its own; `None`, the default, has it decide every
@@ -929,84 +929,127 @@ pub struct BooleanInputs {
     /// re-keys or reuses one glues its pair here with nothing measured
     /// and no row recorded
     /// (`work/flush/a-glue-verdict-is-not-bound-to-the-bodies-it-judged.md`).
-    pub given: Option<Vec<GluedPair>>,
+    pub given: Option<Vec<GluedPair<T>>>,
     /// Operand A's own contact records, carried into the result.
     pub records_a: OperandRecords,
     /// Operand B's own contact records, carried into the result.
     pub records_b: OperandRecords,
 }
 
+impl<T: Real> Default for BooleanInputs<T> {
+    fn default() -> Self {
+        Self {
+            given: None,
+            records_a: OperandRecords::default(),
+            records_b: OperandRecords::default(),
+        }
+    }
+}
+
 /// **A face pair a boolean glued on its own decision**: a face of
-/// each operand, in that operation's operand keys, and the class its
-/// margin's relation glued them under. Only the kernel mints one
-/// ([`BooleanBody::verdicts`]), from the face-pair rows of the
-/// operation's own coincidences: it is what an n-ary union's pairwise
-/// judgement hands its fold steps (DM4).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct GlueVerdict {
+/// each operand, in that operation's operand keys, the class its
+/// margin's relation glued them under, and that margin; for a tangency
+/// verified along a line, that line, as the operation derived and
+/// placed it. Only the kernel mints one ([`BooleanBody::verdicts`]),
+/// from the face-pair rows of the operation's own coincidences: it is
+/// what an n-ary union's pairwise judgement hands its fold steps (DM4).
+#[derive(Clone, Copy, Debug)]
+pub struct GlueVerdict<T: Real = f64> {
     a: FaceKey,
     b: FaceKey,
     class: GlueClass,
+    margin: MarginDiag,
+    line: Option<DecidedLine<T>>,
 }
 
-impl GlueVerdict {
+/// A tangent line as decided: `origin + t·dir`.
+pub(crate) type DecidedLine<T> = (Point3<T>, geom_core::Vec3<T>);
+
+impl<T: Real> GlueVerdict<T> {
     /// The A-operand face.
-    pub fn a(self) -> FaceKey {
+    pub fn a(&self) -> FaceKey {
         self.a
     }
 
     /// The B-operand face.
-    pub fn b(self) -> FaceKey {
+    pub fn b(&self) -> FaceKey {
         self.b
     }
 
     /// The decided relation.
-    pub fn relation(self) -> crate::Relation {
+    pub fn relation(&self) -> crate::Relation {
         self.class.relation()
     }
 
     /// **This verdict, given to a fold step**: the pair of `at`, an
     /// accumulation face whose lineage holds the judged `held` face, and
     /// the judged face of the other operand, under the judged class
-    /// (every class is symmetric in its two faces). The fold passes each
+    /// (every class is symmetric in its two faces), carrying the
+    /// decision: its margin, and a tangency's line. The fold passes each
     /// such accumulation face, over the operand that other face belongs
-    /// to; nothing here checks either.
-    pub fn given_at(self, held: Operand, at: FaceKey) -> GluedPair {
+    /// to; nothing here checks either, since no body is in hand.
+    pub fn given_at(&self, held: Operand, at: FaceKey) -> GluedPair<T> {
         let other = match held {
             Operand::A => self.b,
             Operand::B => self.a,
         };
-        GluedPair::new(at, other, self.class)
+        GluedPair {
+            given: Some(GivenDecision {
+                margin: self.margin,
+                line: self.line,
+            }),
+            ..GluedPair::new(at, other, self.class)
+        }
     }
 
     /// The verdicts `rows` record: each row relating an A-operand face
-    /// and a B-operand face under a relation that glues, in row order.
-    pub(crate) fn of_rows(rows: &[crate::Coincidence]) -> Vec<Self> {
+    /// and a B-operand face under a relation that glues, in row order,
+    /// a tangency with the line `lines` holds for its pair.
+    pub(crate) fn of_rows(
+        rows: &[crate::Coincidence],
+        lines: &std::collections::BTreeMap<(FaceKey, FaceKey), DecidedLine<T>>,
+    ) -> Vec<Self> {
         rows.iter()
             .filter_map(|row| {
                 let (a, b) = row.face_pair()?;
+                let class = row.relation.glued_class()?;
                 Some(Self {
                     a,
                     b,
-                    class: row.relation.glued_class()?,
+                    class,
+                    margin: row.margin,
+                    line: match class {
+                        GlueClass::Tangent => lines.get(&(a, b)).copied(),
+                        GlueClass::Rest | GlueClass::Continuation => None,
+                    },
                 })
             })
             .collect()
     }
 }
 
+/// **The decision a given pair carries** ([`GlueVerdict::given_at`]):
+/// the margin the deciding operation read, and a tangency's line as it
+/// derived and placed it, which a fold step places against its pieces'
+/// faces, deciding nothing of the carriers.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct GivenDecision<T: Real> {
+    pub(crate) margin: MarginDiag,
+    pub(crate) line: Option<DecidedLine<T>>,
+}
+
 /// **The pairs one boolean glues**, and the records it carries: the
 /// operation's own decisions ([`glue::decided_declarations`]) or the
 /// pairs it was given ([`BooleanInputs::given`]), in arena keys, each
 /// pair under the class its relation makes it.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct Glue {
+#[derive(Clone, Debug)]
+pub(crate) struct Glue<T: Real> {
     /// Cross-operand glued face pairs, each with its class:
     /// classification treats a `Rest` or continuation pair's carriers as
     /// the same carrier ([`mod@carrier_eq`] rung 2), and the result's
     /// merge stage glues the pair's surviving coplanar-adjacent
     /// material (N3 `Merged`).
-    pub(crate) pairs: Vec<GluedPair>,
+    pub(crate) pairs: Vec<GluedPair<T>>,
     /// Operand A's records, carried.
     pub(crate) records_a: OperandRecords,
     /// Operand B's records, carried.
@@ -1085,15 +1128,21 @@ pub(crate) enum Verdicts {
     Given,
 }
 
-impl Glue {
+impl<T: Real> Glue<T> {
     /// Nothing glued and nothing carried.
     pub(crate) fn none() -> Self {
-        Self::default()
+        Self {
+            pairs: Vec::new(),
+            records_a: OperandRecords::default(),
+            records_b: OperandRecords::default(),
+            verdicts: Verdicts::Decided,
+            in_band: Vec::new(),
+        }
     }
 
     /// The glue `inputs` states: its given pairs under their classes,
     /// or none, to be decided ([`glue::decided_declarations`]).
-    pub(crate) fn of(inputs: &BooleanInputs) -> Self {
+    pub(crate) fn of(inputs: &BooleanInputs<T>) -> Self {
         let BooleanInputs {
             given,
             records_a,
@@ -1115,25 +1164,41 @@ impl Glue {
 
 /// **One glued cross-operand face pair and its class**: a pair an
 /// operation decided, or one it was given ([`BooleanInputs::given`]),
-/// whose one public mint is [`GlueVerdict::given_at`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct GluedPair {
+/// whose one public mint is [`GlueVerdict::given_at`]; a given pair
+/// carries the decision it was given on.
+#[derive(Clone, Copy, Debug)]
+pub struct GluedPair<T: Real = f64> {
     /// The A-operand face.
     pub(crate) a: FaceKey,
     /// The B-operand face.
     pub(crate) b: FaceKey,
     /// The coincidence the pair glues as.
     pub(crate) class: GlueClass,
+    /// The decision a given pair carries; none for a pair the operation
+    /// decided.
+    pub(crate) given: Option<GivenDecision<T>>,
 }
 
-impl GluedPair {
+impl<T: Real> GluedPair<T> {
     /// A glued pair, under `class`.
     pub(crate) fn new(a: FaceKey, b: FaceKey, class: impl Into<GlueClass>) -> Self {
         Self {
             a,
             b,
             class: class.into(),
+            given: None,
         }
+    }
+
+    /// Whether `row` restates this given pair's decision, as a fold step
+    /// records it for a face–face record to cite: its two faces, its
+    /// class's relation, its margin.
+    pub fn restated_by(&self, row: &crate::Coincidence) -> bool {
+        self.given.is_some_and(|given| {
+            row.face_pair() == Some((self.a, self.b))
+                && row.relation.glued_class() == Some(self.class)
+                && row.margin == given.margin
+        })
     }
 }
 
@@ -1155,7 +1220,7 @@ impl GluedPair {
 pub(crate) struct GluedPairs<T: Real> {
     map: std::collections::BTreeMap<(FaceKey, FaceKey), GlueClass>,
     /// What the declaration door VERIFIED, `(A face, B face)`.
-    verified: VerifiedGlue,
+    verified: VerifiedGlue<T>,
     /// The ORDERED one-sided cover ([`Self::cover`]): `(parent,
     /// target)`, where the parent face's carrier is certified to lie in
     /// one closed side of the target's, and which side. C4 states the
@@ -1487,8 +1552,8 @@ fn read_cover_side<T: Decide>(
 
 /// What [`verify_declared_contacts`] certified, per declared pair
 /// `(A face, B face)`: the certificates, not the claims.
-#[derive(Debug, Default)]
-pub(crate) struct VerifiedGlue {
+#[derive(Debug)]
+pub(crate) struct VerifiedGlue<T: Real> {
     /// `Rest` and continuation pairs the carrier ladder called ONE
     /// carrier, with the sense the class demands.
     pub(crate) one_carrier: std::collections::BTreeSet<(FaceKey, FaceKey)>,
@@ -1499,11 +1564,26 @@ pub(crate) struct VerifiedGlue {
     /// interiors: the reduction's face–face rows
     /// ([`ReductionContacts::ff`]).
     pub(crate) touches: Vec<GluedTouch>,
+    /// The line each tangency verified along a line was decided along
+    /// ([`GlueVerdict`]).
+    pub(crate) lines: std::collections::BTreeMap<(FaceKey, FaceKey), DecidedLine<T>>,
     /// The one-carrier pairs a margin decided, one row each in
     /// declaration order: a declaration's verification is a value
     /// decision, so its glue is recorded like any other
     /// ([`crate::coincidence`]).
     pub(crate) coincidences: Vec<crate::Coincidence>,
+}
+
+impl<T: Real> Default for VerifiedGlue<T> {
+    fn default() -> Self {
+        Self {
+            one_carrier: std::collections::BTreeSet::new(),
+            tangent: std::collections::BTreeMap::new(),
+            touches: Vec::new(),
+            lines: std::collections::BTreeMap::new(),
+            coincidences: Vec::new(),
+        }
+    }
 }
 
 /// A glued tangency through both faces' interiors
@@ -1532,8 +1612,8 @@ impl<T: Decide> GluedPairs<T> {
     /// [`unreadable_extent`] for a declared face whose extent does not
     /// read.
     pub(crate) fn build(
-        decls: &Glue,
-        verified: VerifiedGlue,
+        decls: &Glue<T>,
+        verified: VerifiedGlue<T>,
         a: &Body<T>,
         b: &Body<T>,
         band: Band,
@@ -1608,7 +1688,7 @@ impl<T: Real> GluedPairs<T> {
     /// verified `Tangent` and no operand struts.
     #[cfg(test)]
     pub(crate) fn without_struts(
-        decls: &Glue,
+        decls: &Glue<T>,
         one_carrier: std::collections::BTreeSet<(FaceKey, FaceKey)>,
     ) -> Self {
         Self::index(
@@ -1623,7 +1703,7 @@ impl<T: Real> GluedPairs<T> {
     /// The index over `decls` with the door's certificates and the
     /// cover they alone derive: [`Self::build`] without the operands'
     /// structural tangencies and without the extents.
-    fn index(decls: &Glue, verified: VerifiedGlue) -> Self {
+    fn index(decls: &Glue<T>, verified: VerifiedGlue<T>) -> Self {
         // Both directions for a verified one-carrier pair (one carrier:
         // each lies ON the other) and for a tangency along a line (the
         // witness lane's kinds, plane × cylinder along a ruling and
@@ -2167,14 +2247,16 @@ pub struct BooleanReduction<T: Real> {
     pub coincidences: Vec<crate::Coincidence>,
     /// The vertex identities the sweep decided, in decision order: the
     /// rows [`Self::contacts`] cite ([`crate::Backing::Decided`] names
-    /// an index here), emitted into the result's coincidences where a
-    /// record citing them survives or at a pinch the op made
-    /// ([`reduce::PendingRow`]).
+    /// an index here), each one decided with a margin emitted into the
+    /// result's coincidences ([`reduce::PendingRow`]).
     pub(crate) pending: Vec<reduce::PendingRow>,
     /// Each face–face row's decision in [`Self::pending`], with the
     /// index in [`Self::coincidences`] of the row the glue door
     /// recorded for it: one decision, one row.
     pub(crate) glued: Vec<(u32, u32)>,
+    /// The line each glued tangency verified along a line was decided
+    /// along, by its pair in operand keys ([`GlueVerdict::of_rows`]).
+    pub(crate) tangent_lines: std::collections::BTreeMap<(FaceKey, FaceKey), DecidedLine<T>>,
     /// Each pair of pierces one ring serves, decided one point
     /// ([`RingTie`]).
     pub(crate) ring_ties: Vec<RingTie>,
@@ -5192,7 +5274,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     op: BooleanOp,
     a_operand: &Body<T>,
     b_operand: &Body<T>,
-    decls: &Glue,
+    decls: &Glue<T>,
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
@@ -5200,7 +5282,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     validate_declarations(a_operand, b_operand, decls)?;
     let mut verified = match decls.verdicts {
         Verdicts::Decided => verify_declared_contacts(a_operand, b_operand, decls, band)?,
-        Verdicts::Given => given_verdicts(a_operand, b_operand, decls)?,
+        Verdicts::Given => given_verdicts(a_operand, b_operand, decls, band)?,
     };
     verified
         .coincidences
@@ -5801,6 +5883,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         unread_partners,
         coincidences,
         glued,
+        tangent_lines: declared.verified.lines.clone(),
         pending,
     })
 }
@@ -6113,14 +6196,15 @@ fn border_held<T: Real>(
 fn verify_declared_contacts<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
-    decls: &Glue,
+    decls: &Glue<T>,
     band: Band,
-) -> Result<VerifiedGlue, BooleanError> {
+) -> Result<VerifiedGlue<T>, BooleanError> {
     let mut verified = VerifiedGlue::default();
     for &GluedPair {
         a: fa,
         b: fb,
         class,
+        ..
     } in &decls.pairs
     {
         match class {
@@ -6141,6 +6225,9 @@ fn verify_declared_contacts<T: Decide>(
                 verified
                     .coincidences
                     .push(tangent_row(fa, fb, tangency.margin));
+                if let Some(line) = tangency.line {
+                    verified.lines.insert((fa, fb), line);
+                }
                 verified.tangent.insert(
                     (fa, fb),
                     TangentCert {
@@ -6163,46 +6250,76 @@ fn verify_declared_contacts<T: Decide>(
     Ok(verified)
 }
 
-/// **The given pairs as verified, with nothing measured** (DM4: a
-/// union's fold step decides no carrier pair again, so a piece is never
-/// judged at its own extent). Each pair enters the set its class names;
-/// the step records no row of its own for it, since the pair's row is
-/// the pairwise judgement's. A given tangency's locus is a line where
-/// the witness lane has one for its carriers' kinds, and a rim
-/// otherwise: the door reads no other.
+/// **The given pairs as verified** (DM4: a union's fold step decides no
+/// carrier pair again, so a piece is never judged at its own extent).
+/// Each pair enters the set its class names. A given tangency's locus
+/// is the line the deciding operation derived and placed, handed on
+/// whole ([`GivenDecision`]), or a rim where it decided none. Where that
+/// line runs through both of the step's faces' interiors
+/// ([`locus_through_both_faces`], over where the faces' extents along it
+/// meet, a placement), the touch is a face–face row
+/// ([`VerifiedGlue::touches`]), and the step records the given decision
+/// as its row, restated on its margin, for the record to cite. It
+/// records no other row for a given pair.
 ///
 /// # Errors
 ///
 /// [`BooleanError::ClassificationInvariant`] where a given face has no
-/// surface.
+/// surface or a given pair carries no decision; the placement's own
+/// refusal.
 fn given_verdicts<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
-    decls: &Glue,
-) -> Result<VerifiedGlue, BooleanError> {
+    decls: &Glue<T>,
+    band: Band,
+) -> Result<VerifiedGlue<T>, BooleanError> {
+    let invariant = |what| BooleanError::ClassificationInvariant { what };
     let kind = |body: &Body<T>, f| {
         body.get_face(f)
             .and_then(|face| body.get_surface(face.surface))
             .map(geom::Surface::kind)
-            .ok_or(BooleanError::ClassificationInvariant {
-                what: "a given pair's face has no surface",
-            })
+            .ok_or(invariant("a given pair's face has no surface"))
     };
+    let pad = witness_pad::<T>(band);
     let mut verified = VerifiedGlue::default();
     for &GluedPair {
         a: fa,
         b: fb,
         class,
+        given,
     } in &decls.pairs
     {
         match class {
             GlueClass::Tangent => {
                 let kinds = (kind(a, fa)?, kind(b, fb)?);
+                let given = given.ok_or(invariant("a given pair carries no decision"))?;
+                if let Some(line) = given.line {
+                    let (origin, dir) = line;
+                    let (_, overlap) = witness_span(a, fa, b, fb, (origin, dir), band, pad)?;
+                    if locus_through_both_faces(
+                        [(a, fa, Operand::A, kinds.0), (b, fb, Operand::B, kinds.1)],
+                        &geom::Curve3::Line { origin, dir },
+                        overlap,
+                        DeclarationRead::Spent(GlueClass::Tangent),
+                        band,
+                    )? {
+                        verified.touches.push(GluedTouch {
+                            a: fa,
+                            b: fb,
+                            margin: given.margin,
+                            row: verified.coincidences.len(),
+                        });
+                        verified
+                            .coincidences
+                            .push(tangent_row(fa, fb, given.margin));
+                        verified.lines.insert((fa, fb), line);
+                    }
+                }
                 verified.tangent.insert(
                     (fa, fb),
                     TangentCert {
                         kinds,
-                        line: glue::ruled(kinds),
+                        line: given.line.is_some(),
                     },
                 );
             }
@@ -6465,6 +6582,8 @@ pub(crate) struct Tangency<T: Real> {
     /// standing jointly for the locus it was read along (the line's gap,
     /// or the shared rim's identity).
     pub(crate) margin: MarginDiag,
+    /// The line locus as decided, to be handed on; none along a rim.
+    pub(crate) line: Option<DecidedLine<T>>,
 }
 
 /// What [`GluedPairs`] keeps of a glued tangency: its carriers' kinds
@@ -6513,9 +6632,9 @@ fn tangent_line<T: Decide>(
     // Each face's padded reach along a direction, read in the frame it
     // aims, so a face that does not reach the locus settles an in-band
     // reading of the carriers.
+    let pad = witness_pad::<T>(band);
     let extents = |across| {
         let frame = boxes::BoxFrame::aimed(across);
-        let pad = T::from_f64(boxes::sweep_pad(band));
         [(a, fa), (b, fb)].map(|(body, face)| {
             crate::census::face_reach_in(body, face, band, &frame)
                 .map(|(lo, hi)| (lo.x - pad, hi.x + pad))
@@ -6523,7 +6642,7 @@ fn tangent_line<T: Decide>(
     };
     match geom_brep::tangent_locus_of_faces(sa, sb, reach, band, extents) {
         Ok(geom_brep::TangentLocus::Line { origin, dir, gap }) => {
-            let (span, overlap) = witness_span(a, fa, b, fb, origin, dir)?;
+            let (span, overlap) = witness_span(a, fa, b, fb, (origin, dir), band, pad)?;
             Ok(Ok(TangentLine {
                 carrier: geom::Curve3::Line { origin, dir },
                 span,
@@ -6539,7 +6658,9 @@ fn tangent_line<T: Decide>(
 /// ([`tangent_pair_at_rest`]).
 pub(crate) enum RestTangent<T: Real> {
     /// The two faces' extents along their tangent line are definitely
-    /// disjoint: no point of the line is in both.
+    /// disjoint or meet at one point, as the glue door reads them
+    /// ([`locus_through_both_faces`]): no span of the line is in both,
+    /// so their interiors do not meet along it.
     Apart,
     /// The jet schedule verified the line over where both extents meet,
     /// `overlap`; whether the line lies in the two faces there is the
@@ -6564,8 +6685,8 @@ pub(crate) enum RestTangent<T: Real> {
 /// [`crate::contact::ContactRefusal::Contradicted`] where the pair is
 /// definitely not tangent, labelled with the row that refused it, or the
 /// table contradicts it; `Escalated` where a margin is in band; and
-/// `NotCertifiable` where no closed-form locus derives, a face cannot be
-/// read (naming why), or the extents meet at one point.
+/// `NotCertifiable` where no closed-form locus derives or a face cannot
+/// be read (naming why).
 pub(crate) fn tangent_pair_at_rest<T: Decide>(
     body: &Body<T>,
     fa: FaceKey,
@@ -6615,14 +6736,9 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
         }
     };
     let (t0, t1) = line.overlap;
-    match crate::validate::decide("pm_census_tangent_overlap", Margin::of(t1 - t0), band) {
-        Ok(Sign::Positive) => {}
-        Ok(Sign::Negative) => return Ok(RestTangent::Apart),
-        Ok(Sign::Zero) => {
-            return Err(ContactRefusal::NotCertifiable {
-                what: "the faces' extents along their tangent line meet at one point",
-            });
-        }
+    match tangent_extents_meet((t0, t1), band) {
+        Ok(true) => {}
+        Ok(false) => return Ok(RestTangent::Apart),
         Err(diag) => return Err(ContactRefusal::Escalated { diag }),
     }
     contact_verify::tangent_locus_relation(
@@ -6780,10 +6896,14 @@ fn verify_tangency<T: Decide>(
     let kinds = (sa.kind(), sb.kind());
     // 2. The witness locus.
     let mut overlap = None;
+    let mut decided = None;
     let (carrier, t0, t1, locus, located) =
         match tangent_line((a, fa, &sa), (b, fb, &sb), band).map_err(Refused)? {
             Ok(line) => {
                 overlap = Some(line.overlap);
+                if let geom::Curve3::Line { origin, dir } = line.carrier {
+                    decided = Some((origin, dir));
+                }
                 let locus = match line.carrier {
                     geom::Curve3::Line { origin, dir } => rim_wedge::Locus::Line {
                         origin,
@@ -6881,6 +7001,7 @@ fn verify_tangency<T: Decide>(
         locus,
         interiors,
         margin,
+        line: decided,
     })
 }
 
@@ -6957,27 +7078,57 @@ fn route_rim<T: Decide>(
     }
 }
 
-/// The parameter spans of the line `origin + t·dir` the two declared
-/// faces' boundary vertices project onto: their union, the extent a
-/// witness along it is metered over, and their overlap, where both
-/// faces' extents meet ([`locus_through_both_faces`]'s schedule).
+/// The pad a face's reach along a witness line is widened by: the
+/// band's sweep pad, a tolerance.
+fn witness_pad<T: Real>(band: Band) -> T {
+    T::from_f64(boxes::sweep_pad(band))
+}
+
+/// The parameter spans of the line `origin + t·dir` (`dir` unit) the
+/// two faces reach along it: their union, the extent a witness along
+/// it is metered over, and their overlap, where both faces' extents
+/// meet ([`locus_through_both_faces`]). Each face's span holds every
+/// point of the face: its boundary vertices' projections and, for a
+/// circle or ellipse edge, its carrier's whole reach along the line
+/// (an arc can bulge past its ends); a face with an edge of another
+/// kind spans its box along the line, padded by `pad`
+/// ([`crate::census::face_reach_in`]). So extents meeting at one point
+/// meet at an end of each, where no interiors meet.
 #[allow(clippy::type_complexity)]
 fn witness_span<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
-    origin: Point3<T>,
-    dir: geom_core::Vec3<T>,
+    (origin, dir): (Point3<T>, geom_core::Vec3<T>),
+    band: Band,
+    pad: T,
 ) -> Result<((T, T), (T, T)), BooleanError> {
+    let along = |p: Point3<T>| (p - origin).dot(dir);
     let span = |body: &Body<T>, f, operand| -> Result<(T, T), BooleanError> {
-        let mut ts = face_boundary_points(body, f, operand)?
+        let invalid = |what| BooleanError::InvalidInput { operand, what };
+        let mut ts: Vec<T> = face_boundary_points(body, f, operand)?
             .into_iter()
-            .map(|p| (p - origin).dot(dir));
-        let first = ts.next().ok_or(BooleanError::InvalidInput {
-            operand,
-            what: "declared face pair has no boundary vertex to meter the tangent witness",
-        })?;
+            .map(along)
+            .collect();
+        match conic_reach(body, f, along, dir) {
+            Some(extra) => ts.extend(extra),
+            None => {
+                let aim = geom_core::UnitVec3::new(dir, "bool_tangent_line_aim", band)
+                    .map_err(|_| invalid("the tangent line has no direction"))?;
+                let (lo, hi) =
+                    crate::census::face_reach_in(body, f, band, &boxes::BoxFrame::aimed(aim))
+                        .ok_or(invalid(
+                            "a face of the pair has no reach along its tangent line",
+                        ))?;
+                let at = along(Point3::origin());
+                ts.extend([lo.x + at - pad, hi.x + at + pad]);
+            }
+        }
+        let mut ts = ts.into_iter();
+        let first = ts.next().ok_or(invalid(
+            "declared face pair has no boundary vertex to meter the tangent witness",
+        ))?;
         Ok(ts.fold((first, first), |(lo, hi), t| (t.min(lo), t.max(hi))))
     };
     let (sa, sb) = (span(a, fa, Operand::A)?, span(b, fb, Operand::B)?);
@@ -6987,17 +7138,85 @@ fn witness_span<T: Decide>(
     ))
 }
 
-/// Whether a verified tangent line runs through both faces' interiors:
-/// some point of it, sampled on the certificate schedule over `overlap`
-/// (where both faces' extents along it meet, along a length), lies
-/// strictly inside each face ([`contain::face_placement`]). A line along a face's boundary is
-/// the edge form of the touch, which the edge records carry.
+/// The reach along `dir` (unit; `along` the parameter of a point) of
+/// each circle and ellipse edge of `f`'s boundary, its carrier's two
+/// extremes; `None` where an edge is neither one nor a line, or the
+/// boundary cannot be walked.
+fn conic_reach<T: Decide>(
+    body: &Body<T>,
+    f: FaceKey,
+    along: impl Fn(Point3<T>) -> T,
+    dir: geom_core::Vec3<T>,
+) -> Option<Vec<T>> {
+    let face = body.get_face(f)?;
+    let mut out = Vec::new();
+    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(lk)?.boundary else {
+            continue;
+        };
+        for he in body.loop_cycle(first)? {
+            let edge = body.get_edge(body.get_half_edge(he)?.edge)?;
+            let (center, reach) = match *body.get_curve_geom(edge.curve)?.certified()?.carrier() {
+                geom::Curve3::Line { .. } => continue,
+                geom::Curve3::Circle {
+                    center,
+                    axis,
+                    radius,
+                    ..
+                } => (center, radius * axis.cross(dir).norm()),
+                geom::Curve3::Ellipse {
+                    center,
+                    axis,
+                    semi_u,
+                    semi_v,
+                    u_ref,
+                } => (
+                    center,
+                    ((semi_u * u_ref.dot(dir)).powi(2)
+                        + (semi_v * axis.cross(u_ref).dot(dir)).powi(2))
+                    .sqrt(),
+                ),
+                _ => return None,
+            };
+            out.extend([along(center) - reach, along(center) + reach]);
+        }
+    }
+    Some(out)
+}
+
+/// Whether two faces' extents along their tangent line meet along a
+/// length: the one gate the op's interiors read
+/// ([`locus_through_both_faces`]) and the census's face–face confirm
+/// ([`tangent_pair_at_rest`]) pass before reading the line. Extents
+/// meeting at one point meet at an end of each, on both faces'
+/// boundaries, where the interiors do not meet: `false`, as for extents
+/// apart.
 ///
 /// # Errors
 ///
-/// The placement's refusal: a margin in band, the containment door's own
-/// refusal, or a curved trim the chart door gives no verdict for
-/// ([`BooleanError::CurvedBooleanUnsupported`]).
+/// The overlap's length in band.
+pub(crate) fn tangent_extents_meet<T: Decide>(
+    overlap: (T, T),
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    Ok(crate::validate::decide(
+        "bool_tangent_line_overlap",
+        Margin::of(overlap.1 - overlap.0),
+        band,
+    )? == Sign::Positive)
+}
+
+/// Whether a verified tangent line runs through both faces' interiors
+/// over `overlap`: the op's read, [`line_through_both_faces`] under the
+/// op's refusals. A line along a face's boundary is the edge form of
+/// the touch, which the edge records carry.
+///
+/// # Errors
+///
+/// The overlap's length in band ([`tangent_extents_meet`]), or what
+/// [`line_through_both_faces`] leaves unread: a placement margin in
+/// band, the containment door's own refusal, or a curved trim the chart
+/// door gives no verdict for ([`BooleanError::CurvedBooleanUnsupported`]).
 fn locus_through_both_faces<T: Decide>(
     faces: [(&Body<T>, FaceKey, Operand, geom::SurfaceKind); 2],
     locus: &geom::Curve3<T>,
@@ -7005,46 +7224,294 @@ fn locus_through_both_faces<T: Decide>(
     read: DeclarationRead,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    match crate::validate::decide(
-        "bool_tangent_line_overlap",
-        Margin::of(overlap.1 - overlap.0),
+    let refused = |diag| BooleanError::coincidence(Coincide::TangentLocus, read, diag);
+    if !tangent_extents_meet(overlap, band).map_err(refused)? {
+        return Ok(false);
+    }
+    line_through_both_faces(
+        faces.map(|(body, face, ..)| (body, face)),
+        locus,
+        overlap,
         band,
-    ) {
-        Ok(Sign::Positive) => {}
-        Ok(Sign::Negative | Sign::Zero) => return Ok(false),
-        Err(diag) => {
-            return Err(BooleanError::coincidence(
-                Coincide::TangentLocus,
-                read,
-                diag,
-            ));
+        |i, why, held: &mut Vec<BooleanError>| {
+            let (_, face, operand, kind) = faces[i];
+            held.push(match why {
+                FaceUnread::Trim => BooleanError::CurvedBooleanUnsupported {
+                    operand,
+                    face,
+                    kind,
+                },
+                FaceUnread::Placement(contain::PlacementError::OnPlane(diag)) => refused(diag),
+                FaceUnread::Placement(contain::PlacementError::Door(e)) => {
+                    reduce::esc(e, operand, face)
+                }
+            });
+        },
+    )
+    .map_err(|held| {
+        held.into_iter()
+            .next()
+            .unwrap_or(BooleanError::ClassificationInvariant {
+                what: "a held tangent-line station with nothing pushed",
+            })
+    })
+}
+
+/// Why one face left a point of a tangent line unread
+/// ([`line_through_both_faces`]).
+pub(crate) enum FaceUnread {
+    /// A curved trim the chart door gives no verdict for.
+    Trim,
+    /// The placement's own refusal.
+    Placement(contain::PlacementError),
+}
+
+/// **Whether a tangent line runs through two faces' interiors**: some
+/// point of it over `overlap` lies strictly inside both faces
+/// ([`contain::face_placement`], a point off a face's carrier out). The
+/// one reading the op's glue door ([`locus_through_both_faces`]) and
+/// the census's face–face confirm (`census::confirm_face_pair`) make
+/// of it.
+///
+/// The overlap is cut wherever either face's boundary can meet the line
+/// ([`boundary_cuts`]), so no boundary crosses the open run between two
+/// cuts and one station, its middle, answers for each run: the reading
+/// is exact wherever both trims' carriers meet the line in closed form.
+/// Where one does not (a spiric or spline edge), where a meeting could
+/// not be placed (its edge's swing or its conic's rise in band), or
+/// where the locus is not a line, the certificate schedule's parameters
+/// are cuts too, and a run of that face's interior shorter than their
+/// spacing can be missed.
+/// A run inside the zero band is one cut met twice and is not read; a
+/// run in band is read, and may hold.
+///
+/// Each station is read by both faces under [`crate::census::in_both`]:
+/// either face deciding it out settles it, both in answers `true`. A
+/// station neither decides out but one leaves unread is held, and only
+/// where no station answers are the first held station's refusals
+/// returned, so a run in band of one face's boundary does not stop the
+/// line answering at the next.
+///
+/// `unread(i, why, held)` pushes face `i`'s refusal at a station.
+///
+/// # Errors
+///
+/// The first held station's refusals, where no station answers `true`.
+pub(crate) fn line_through_both_faces<T: Decide, E>(
+    faces: [(&Body<T>, FaceKey); 2],
+    locus: &geom::Curve3<T>,
+    overlap: (T, T),
+    band: Band,
+    unread: impl Fn(usize, FaceUnread, &mut Vec<E>),
+) -> Result<bool, Vec<E>> {
+    use contain::CurvedPlacement;
+    let inside = |i: usize, p, held: &mut Vec<E>| {
+        let (body, face) = faces[i];
+        let why = match contain::face_placement(body, face, p, band, "bool_tangent_line_in_face") {
+            Ok(CurvedPlacement::Trim(Some(at))) => return Some(at == FaceContainment::In),
+            Ok(CurvedPlacement::OffCarrier) => return Some(false),
+            Ok(CurvedPlacement::Trim(None)) => FaceUnread::Trim,
+            Err(e) => FaceUnread::Placement(e),
+        };
+        unread(i, why, held);
+        None
+    };
+    let mut cuts = vec![overlap.0, overlap.1];
+    let exact = match *locus {
+        geom::Curve3::Line { origin, dir } => faces.iter().all(|&(body, face)| {
+            boundary_cuts(body, face, (origin, dir), overlap, band).is_some_and(|(ts, unsure)| {
+                cuts.extend(ts);
+                !unsure
+            })
+        }),
+        _ => false,
+    };
+    if !exact {
+        cuts.extend(
+            (0..geom_brep::CERT_SAMPLES).map(|s| geom_brep::sample_param(overlap.0, overlap.1, s)),
+        );
+    }
+    let mut cuts: Vec<T> = cuts
+        .into_iter()
+        .filter(|t| !t.is_poison())
+        .map(|t| t.max(overlap.0).min(overlap.1))
+        .collect();
+    // A compare-exchange sort: `min`/`max` order any scalar.
+    for i in 0..cuts.len() {
+        for j in (i + 1)..cuts.len() {
+            let (lo, hi) = (cuts[i].min(cuts[j]), cuts[i].max(cuts[j]));
+            cuts[i] = lo;
+            cuts[j] = hi;
         }
     }
-    let inside = |(body, face, operand, kind): (&Body<T>, FaceKey, Operand, _), p| {
-        use contain::{CurvedPlacement, PlacementError};
-        match contain::face_placement(body, face, p, band, "bool_tangent_line_in_face") {
-            Ok(CurvedPlacement::Trim(Some(at))) => Ok(at == FaceContainment::In),
-            Ok(CurvedPlacement::OffCarrier) => Ok(false),
-            Ok(CurvedPlacement::Trim(None)) => Err(BooleanError::CurvedBooleanUnsupported {
-                operand,
-                face,
-                kind,
-            }),
-            Err(PlacementError::OnPlane(diag)) => Err(BooleanError::coincidence(
-                Coincide::TangentLocus,
-                read,
-                diag,
-            )),
-            Err(PlacementError::Door(e)) => Err(reduce::esc(e, operand, face)),
+    let mut held = None;
+    for run in cuts.windows(2) {
+        // A run inside the zero band is one cut met twice.
+        if matches!(
+            crate::validate::decide("bool_tangent_line_run", Margin::of(run[1] - run[0]), band),
+            Ok(Sign::Zero | Sign::Negative)
+        ) {
+            continue;
+        }
+        let p = locus.eval((run[0] + run[1]) * T::from_f64(0.5));
+        let mut station = Vec::new();
+        match crate::census::in_both(|h| inside(0, p, h), |h| inside(1, p, h), &mut station) {
+            Some(true) => return Ok(true),
+            Some(false) => {}
+            None => {
+                held.get_or_insert(station);
+            }
+        }
+    }
+    held.map_or(Ok(false), Err)
+}
+
+/// Where `face`'s boundary can meet the line `origin + t·dir` (`dir`
+/// unit) over `span`: the parameters, and whether some edge's meeting
+/// could not be placed (the caller then reads the schedule over the
+/// span as well).
+///
+/// The parameters are the face's vertices' projections, and each
+/// edge's meeting with the line:
+/// - **A straight edge**, from its two ends: their offsets across the
+///   line, interpolated to where the offset is least, so no difference
+///   of nearly equal directions enters. An edge whose ends' offsets
+///   differ by less than the band stays within the band of the line
+///   wherever it meets it, and its ends' projections bound that; one
+///   in band of that is not placed.
+/// - **A circle or ellipse**, from its carrier: where the line meets
+///   its plane, the line leaving the plane by more than the band over
+///   `span`; where it meets the conic within the plane, the line within
+///   the band of the plane; neither placed, the rise in band.
+///
+/// A meeting within the band of one of the face's vertices is that
+/// vertex's own event read off its edge's carrier, which agrees with
+/// the vertex only to the band, and is not a parameter of its own. A
+/// parameter that is no meeting only cuts a run in two, so the list may
+/// hold more than the meetings and never fewer. `None` where the
+/// boundary cannot be walked or an edge's carrier (a spiric, a spline,
+/// null scaffolding) has no closed form here.
+fn boundary_cuts<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (origin, dir): (Point3<T>, geom_core::Vec3<T>),
+    span: (T, T),
+    band: Band,
+) -> Option<(Vec<T>, bool)> {
+    let along = |p: Point3<T>| (p - origin).dot(dir);
+    let across = |p: Point3<T>| (p - origin) - dir * along(p);
+    let sign = |name, x: T| crate::validate::decide(name, Margin::of(x.abs()), band);
+    let roots = |a: T, b: T, c: T, out: &mut Vec<T>| {
+        let r = (b.powi(2) - T::from_f64(4.0) * a * c).max(T::zero()).sqrt();
+        let q = (b + r.copysign(b)) * T::from_f64(-0.5);
+        out.extend([q / a, c / q]);
+    };
+    let (start, end) = (origin + dir * span.0, origin + dir * span.1);
+    let mut unsure = false;
+    // A conic's plane: where the line meets it, or whether the line
+    // lies within the band of it (its in-plane roots then cut); `None`
+    // where the line's rise across the plane is in band.
+    let conic = |center: Point3<T>, axis: geom_core::Vec3<T>, out: &mut Vec<T>| {
+        let (h0, h1) = ((start - center).dot(axis), (end - center).dot(axis));
+        match sign("bool_tangent_line_cut_plane", h1 - h0) {
+            Ok(Sign::Positive) => {
+                out.push((center - origin).dot(axis) / dir.dot(axis));
+                Some(false)
+            }
+            Ok(_) => Some(sign("bool_tangent_line_cut_plane", h0) != Ok(Sign::Positive)),
+            Err(_) => None,
         }
     };
-    for i in 0..geom_brep::CERT_SAMPLES {
-        let p = locus.eval(geom_brep::sample_param(overlap.0, overlap.1, i));
-        if inside(faces[0], p)? && inside(faces[1], p)? {
-            return Ok(true);
+    let point = |v| {
+        body.get_vertex(v)
+            .and_then(|v| body.get_point(v.point))
+            .copied()
+    };
+    let f = body.get_face(face)?;
+    let mut vertices = Vec::new();
+    let mut meetings = Vec::new();
+    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let first = match body.get_loop(lk)?.boundary {
+            crate::entity::LoopBoundary::Empty { vertex } => {
+                vertices.push(along(point(vertex)?));
+                continue;
+            }
+            crate::entity::LoopBoundary::Cycle { first } => first,
+        };
+        for he in body.loop_cycle(first)? {
+            let he = body.get_half_edge(he)?;
+            vertices.push(along(point(he.start)?));
+            let edge = body.get_edge(he.edge)?;
+            match *body.get_curve_geom(edge.curve)?.certified()?.carrier() {
+                geom::Curve3::Line { .. } => {
+                    let ends = [edge.he_plus, edge.he_minus]
+                        .map(|h| body.get_half_edge(h).and_then(|h| point(h.start)));
+                    let [Some(a), Some(b)] = ends else {
+                        return None;
+                    };
+                    let (oa, ob) = (across(a), across(b));
+                    let swing = ob - oa;
+                    match sign("bool_tangent_line_cut_swing", swing.norm()) {
+                        Ok(Sign::Positive) => {
+                            let s = -oa.dot(swing) / swing.dot(swing);
+                            meetings.push(along(a) + (along(b) - along(a)) * s);
+                        }
+                        Ok(_) => {}
+                        Err(_) => unsure = true,
+                    }
+                }
+                geom::Curve3::Circle {
+                    center,
+                    axis,
+                    radius,
+                    ..
+                } => {
+                    let in_plane = conic(center, axis, &mut meetings);
+                    unsure |= in_plane.is_none();
+                    if in_plane == Some(true) {
+                        let w = origin - center;
+                        roots(
+                            T::one(),
+                            w.dot(dir) + w.dot(dir),
+                            w.dot(w) - radius.powi(2),
+                            &mut meetings,
+                        );
+                    }
+                }
+                geom::Curve3::Ellipse {
+                    center,
+                    axis,
+                    semi_u,
+                    semi_v,
+                    u_ref,
+                } => {
+                    let in_plane = conic(center, axis, &mut meetings);
+                    unsure |= in_plane.is_none();
+                    if in_plane == Some(true) {
+                        let v_ref = axis.cross(u_ref);
+                        let w = origin - center;
+                        let (wu, wv) = (w.dot(u_ref) / semi_u, w.dot(v_ref) / semi_v);
+                        let (du, dv) = (dir.dot(u_ref) / semi_u, dir.dot(v_ref) / semi_v);
+                        roots(
+                            du.powi(2) + dv.powi(2),
+                            (wu * du + wv * dv) * T::from_f64(2.0),
+                            wu.powi(2) + wv.powi(2) - T::one(),
+                            &mut meetings,
+                        );
+                    }
+                }
+                _ => return None,
+            }
         }
     }
-    Ok(false)
+    meetings.retain(|&m| {
+        !m.is_poison()
+            && vertices
+                .iter()
+                .all(|&v| sign("bool_tangent_line_cut_vertex", m - v) == Ok(Sign::Positive))
+    });
+    vertices.extend(meetings);
+    Some((vertices, unsure))
 }
 
 /// The face's boundary vertex positions (outer loop then rings, cycle
@@ -7085,7 +7552,7 @@ fn face_boundary_points<T: Decide>(
 fn validate_declarations<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
-    decls: &Glue,
+    decls: &Glue<T>,
 ) -> Result<(), BooleanError> {
     let bad = |operand, what| BooleanError::InvalidInput { operand, what };
     // THE C8 boundary, stated once: a declared face must sit on a
@@ -7125,6 +7592,7 @@ fn validate_declarations<T: Decide>(
         a: fa,
         b: fb,
         class,
+        ..
     } in &decls.pairs
     {
         // A pair declared twice under DIFFERENT classes is a caller bug

@@ -386,10 +386,10 @@ impl PlaneNurbsRefusal {
             Self::Limb { limb, margin, .. } => {
                 (limb.check(), RefusedArm::SignCertain(Some(*margin)))
             }
-            // The tube's margin is the lane's transversality over the
-            // chain (`ssi_tube_transversality`), and this refusal is its
-            // decided verdict.
-            Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
+            // The tube's margin is a lower bound on the lane's
+            // transversality over the chain (`ssi_tube_transversality`),
+            // and this refusal is its decided verdict.
+            Self::TubeStraddles { verdict, .. } => (CertCheck::TransversalityTube, verdict.arm()),
             Self::Escalated { limb, cause } => (limb.check(), RefusedArm::Undecided(cause)),
             Self::ReportedTransversalityPoisoned(cause) => (
                 CertCheck::PlaneNurbsReportedTransversality,
@@ -951,7 +951,7 @@ pub enum IncidenceRefusal {
 ///   - **the image's arc is not checked to cover the edge's span**: the
 ///     certificate bounds the miss over the image's own arc, and only
 ///     its samples see an edge running past it
-///     (`work/tang/an-iso-arc-certificate-never-checks-the-edge-span-lies-in-its-arc.md`).
+///     (`work/select/an-iso-arc-certificate-never-checks-the-edge-span-lies-in-its-arc.md`).
 ///
 ///   An exact image that ESCALATES, at the pick or in its certificate,
 ///   refuses with that escalation
@@ -965,7 +965,7 @@ pub enum IncidenceRefusal {
 /// Incidence on an `Approx` wall's description is this bound plus the
 /// fit's own recorded distance from it, which the surface carries
 /// ([`geom::ApproxSurface`]); nothing here adds the two
-/// (`work/tang/an-approx-walls-edge-residual-is-recorded-against-its-fit.md`).
+/// (`work/tangtail/an-approx-walls-edge-residual-is-recorded-against-its-fit.md`).
 ///
 /// # Errors
 ///
@@ -1608,7 +1608,7 @@ impl AnalyticRung3Refusal {
                 (limb.check(), RefusedArm::SignCertain(Some(*margin)))
             }
             Self::Escalated { limb, cause, .. } => (limb.check(), RefusedArm::Undecided(cause)),
-            Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
+            Self::TubeStraddles { verdict, .. } => (CertCheck::TransversalityTube, verdict.arm()),
             // The one-arc proof is the SSI door's own decision, and
             // `ending` reads it there.
             Self::NoOffsetBound { .. }

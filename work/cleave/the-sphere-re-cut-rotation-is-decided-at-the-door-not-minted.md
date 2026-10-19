@@ -33,3 +33,9 @@ Rodrigues-between form, one decision `1 + a·b > 0`), decided on the
 directions as `UnitVec3` witnesses, the re-cut mints its motion and
 the door is not asked. Until then the door is the honest spelling.
 
+
+(2026-10-14, PATHS' PR 5068 fix pass) `turned_between` is built, as the
+matrix of the quaternion `(1 + a·b, a × b)` evaluated through `a + b`
+rather than the Rodrigues-between form: that form's entries carried
+about `u/(1 + a·b)` of error and were not rigid within the band near
+opposed. The one decision, `1 + a·b > 0`, is unchanged.

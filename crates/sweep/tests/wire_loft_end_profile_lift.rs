@@ -24,7 +24,7 @@
 //! instead of deciding again.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Point3, Real, Tol, Vec3};
+use geom_core::{Point2, Point3, Real, Tol};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Section, loft_body};
 use topo::{Body, EdgeKey};
@@ -40,12 +40,12 @@ fn circle(r: f64) -> ProfileLoop<f64> {
     ])
 }
 
-fn cone_sections() -> (Vec<Section>, Vec<Affine3<f64>>) {
+fn cone_sections() -> (Vec<Section>, Vec<SketchPlane<f64>>) {
     (
         vec![vec![circle(1.0)], vec![circle(0.625)]],
         vec![
-            Affine3::identity(),
-            Affine3::translation(Vec3::new(0.0, 0.0, 1.5)),
+            SketchPlane::xy(),
+            SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.5)),
         ],
     )
 }
@@ -54,14 +54,14 @@ type Bits = (u64, u64, u64);
 
 /// The world points of one section's CANONICAL loop 0, in canonical
 /// vertex order, taken straight from the profile door at `f64`.
-fn canonical_world_points(section: &Section, place: &Affine3<f64>) -> Vec<Point3<f64>> {
-    let validated = Profile::new(SketchPlane::new(*place), section.clone())
+fn canonical_world_points(section: &Section, place: &SketchPlane<f64>) -> Vec<Point3<f64>> {
+    let validated = Profile::new(*place, section.clone())
         .validate(Tol::witness())
         .expect("the section validates at f64");
     validated.loops()[0]
         .vertices()
         .iter()
-        .map(|v| place.transform_point(Point3::new(v.x, v.y, 0.0)))
+        .map(|v| place.to_world(*v))
         .collect()
 }
 
@@ -117,7 +117,7 @@ fn each_seam_strut_joins_its_canonical_vertexs_two_world_points() {
 /// profiles are lifted rather than re-derived at the scalar.
 mod interval {
     use super::{Bits, cone_sections, edge_points, expected_struts};
-    use geom_core::{Affine3, Bounds, Interval, Point2, Point3, Real, Tol, Vec3};
+    use geom_core::{Bounds, Interval, Point2, Point3, Tol};
     use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
     use sweep::{LoftError, Section, SkinError, loft_body};
 
@@ -144,12 +144,12 @@ mod interval {
         bulge_loop(vec![(Point2::new(-h, 0.0), b), (Point2::new(h, 0.0), b)])
     }
 
-    fn wide_arc_pair(h: f64, b: f64) -> (Vec<Section>, Vec<Affine3<f64>>) {
+    fn wide_arc_pair(h: f64, b: f64) -> (Vec<Section>, Vec<SketchPlane<f64>>) {
         (
             vec![vec![wide_arc(h, b)], vec![wide_arc(h * 0.625, b)]],
             vec![
-                Affine3::identity(),
-                Affine3::translation(Vec3::new(0.0, 0.0, h * 0.3)),
+                SketchPlane::xy(),
+                SketchPlane::xy_at(Point3::new(0.0, 0.0, h * 0.3)),
             ],
         )
     }
@@ -164,7 +164,7 @@ mod interval {
     /// instead, and a run where NOTHING separates fails loudly rather than
     /// passing vacuously: that would mean the behaviour this row exists
     /// for is unreachable at that ε, which is a finding, not a green.
-    fn separating_pair() -> (f64, f64, Vec<Section>, Vec<Affine3<f64>>) {
+    fn separating_pair() -> (f64, f64, Vec<Section>, Vec<SketchPlane<f64>>) {
         let s = Tol::witness().eps() * 1e9;
         let mut tried = Vec::new();
         for h in [0.5, 5.0, 50.0, 500.0, 5000.0] {
@@ -190,8 +190,8 @@ mod interval {
     }
 
     /// Does this section decide at `f64` and escalate at `Interval`?
-    fn separates(section: &Section, place: &Affine3<f64>) -> bool {
-        let raw = Profile::new(SketchPlane::new(*place), section.clone());
+    fn separates(section: &Section, place: &SketchPlane<f64>) -> bool {
+        let raw = Profile::new(*place, section.clone());
         if raw.validate(Tol::witness()).is_err() {
             return false;
         }
@@ -200,7 +200,15 @@ mod interval {
 
     fn interval_escalates(raw: &Profile<f64>) -> bool {
         matches!(
-            raw.map_scalar(Interval::from_f64).validate(Tol::witness()),
+            Profile::new(
+                sweep::test_support::lift_places::<Interval>(
+                    &[raw.plane],
+                    geom_core::Tol::witness()
+                )[0],
+                sweep::test_support::lift_sections::<Interval>(core::slice::from_ref(&raw.loops))
+                    .remove(0),
+            )
+            .validate(Tol::witness()),
             Err(profile::ProfileError::Escalated { .. })
         )
     }
@@ -234,7 +242,7 @@ mod interval {
         let (h, b, sections, places) = separating_pair();
         if let Err(e) = loft_body::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&sections),
-            &sweep::test_support::lift_places::<Interval>(&places),
+            &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
             1,
             Tol::witness(),
         ) {
@@ -251,7 +259,7 @@ mod interval {
         let (sections, places) = cone_sections();
         let lofted = loft_body::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&sections),
-            &sweep::test_support::lift_places::<Interval>(&places),
+            &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
             1,
             Tol::witness(),
         )

@@ -151,7 +151,7 @@ use core::fmt;
 
 use geom_brep::LeverRung;
 use geom_brep::recourse::{
-    Classified, LeverOnly, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
+    Classified, LeverOnly, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass,
 };
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, MarginDiag, MarginKind, Sign};
 use topo::{DihedralReading, EdgeKey, EntityId, FaceKey, VertexKey};
@@ -524,7 +524,7 @@ impl BlendDecision {
                 lever,
                 size,
                 passes,
-                stored: StoredDefinite::Lever,
+                side: RefusedSide::Lever,
                 no_size: None,
             }
             .recourse(arm, Reading::Build),
