@@ -787,7 +787,16 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// it; the chart readings take norms from the same cut
     /// ([`NurbsBoxes::speed_sup`]).
     pub(crate) fn deriv_box(&self, w: UvWindow, along_u: bool) -> Box3 {
-        self.deriv_hull(w, along_u, true)
+        self.deriv_hull(w, along_u, Some(BLOCK_PIECE_SPLITS))
+    }
+
+    /// [`NurbsBoxes::deriv_box`] with each cut read on one piece
+    /// ([`COARSE_PIECE_SPLITS`]): a sound enclosure of `S_d` over the
+    /// rectangle like the two-piece box, and at most as tight. For the
+    /// boundary pass's two shortcut readings only, which read no margin
+    /// off it ([`COARSE_PIECE_SPLITS`] says what each can lose).
+    pub(crate) fn coarse_deriv_box(&self, w: UvWindow, along_u: bool) -> Box3 {
+        self.deriv_hull(w, along_u, Some(COARSE_PIECE_SPLITS))
     }
 
     /// [`NurbsBoxes::deriv_box`] read off every touched cell's whole net,
@@ -795,18 +804,18 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// slack the sweep's seeding is pinned against
     /// (`work/ssiedge/the-chart-sweeps-first-order-box-reads-its-derivative-off-the-whole-span-cell.md`).
     pub(crate) fn cell_deriv_box(&self, w: UvWindow, along_u: bool) -> Box3 {
-        self.deriv_hull(w, along_u, false)
+        self.deriv_hull(w, along_u, None)
     }
 
     /// The derivative box over the rectangle, each touched cell's net cut
-    /// to it or read whole.
-    fn deriv_hull(&self, w: UvWindow, along_u: bool, cut: bool) -> Box3 {
+    /// to it on `cut` pieces per axis, or read whole.
+    fn deriv_hull(&self, w: UvWindow, along_u: bool, cut: Option<usize>) -> Box3 {
         // Both boxes enclose `S_d` over the window's part of the cell,
         // so their meet does, and it is never wider than the whole
         // cell's: a zero the whole cell reads exactly stays exact.
         self.fold_cells(
             w,
-            cut.then_some((along_u, !along_u)),
+            cut.map(|splits| ((along_u, !along_u), splits)),
             |net| net.derivative_box(along_u),
             Box3::meet_enclosure,
             Box3::hull,
@@ -828,7 +837,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     pub(crate) fn speed_sup(&self, w: UvWindow, along_u: bool) -> f64 {
         self.fold_cells(
             w,
-            Some((along_u, !along_u)),
+            Some(((along_u, !along_u), BLOCK_PIECE_SPLITS)),
             |net| net.derivative_norm_sup(along_u),
             min_bound,
             max_bound,
@@ -849,7 +858,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     ) -> (Interval, f64) {
         self.fold_cells(
             w,
-            Some((true, true)),
+            Some(((true, true), BLOCK_PIECE_SPLITS)),
             |net| net.transverse_readings(n, ex, ey),
             |(a, s), (b, t)| (a.meet(b), min_bound(s, t)),
             |(a, s), (b, t)| (Interval::hull(a, b), max_bound(s, t)),
@@ -858,15 +867,15 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     }
 
     /// `read` over every nonempty span cell the rectangle touches,
-    /// `join`ed across cells. With `cut` (the axes `read` reads), each
-    /// cell's net is also cut to the rectangle ([`CellNet::cut`]) and
-    /// the two readings `meet`:
+    /// `join`ed across cells. With `cut` (the axes `read` reads, and the
+    /// pieces per axis), each cell's net is also cut to the rectangle
+    /// ([`CellNet::cut`]) and the two readings `meet`:
     /// both hold over the rectangle's part of the cell. `None` for a
     /// malformed net.
     fn fold_cells<R>(
         &self,
         w: UvWindow,
-        cut: Option<(bool, bool)>,
+        cut: Option<((bool, bool), usize)>,
         read: impl Fn(&CellNet) -> R,
         meet: impl Fn(R, R) -> R,
         join: impl Fn(R, R) -> R,
@@ -885,7 +894,9 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                 }
                 let (whole, spans) = self.cell(su, sv)?;
                 let r = read(whole);
-                let r = match cut.and_then(|read| whole.cut(spans, range.clamped, read)) {
+                let r = match cut
+                    .and_then(|(axes, splits)| whole.cut(spans, range.clamped, axes, splits))
+                {
                     Some(net) => meet(r, read(&net)),
                     None => r,
                 };
@@ -1279,16 +1290,16 @@ impl CellNet {
         (span_u, span_v): (Span<'_>, Span<'_>),
         w: UvWindow,
         read: (bool, bool),
+        splits: usize,
     ) -> Option<Self> {
         let (cut_u, cut_v) = (inside(span_u, w.u), inside(span_v, w.v));
         if cut_u.is_none() && cut_v.is_none() {
             return None;
         }
-        let (u, v) = self.raised.as_ref()?.cut_pieces(
-            (cut_u, cut_v),
-            read,
-            (BLOCK_PIECE_SPLITS, BLOCK_PIECE_SPLITS),
-        );
+        let (u, v) = self
+            .raised
+            .as_ref()?
+            .cut_pieces((cut_u, cut_v), read, (splits, splits));
         Some(Self { raised: None, u, v })
     }
 
@@ -1388,6 +1399,24 @@ impl CellNet {
 /// (`tests::a_block_is_read_on_its_pieces` re-takes the two-piece
 /// reading; the one-piece `5.3e-9` is this measurement's alone).
 const BLOCK_PIECE_SPLITS: usize = 2;
+
+/// The cut's piece schedule for the boundary pass's two shortcut
+/// readings ([`NurbsBoxes::coarse_deriv_box`]; D9: structure, never a
+/// decision): one piece, the restricted quotient read whole. Halving it
+/// into [`BLOCK_PIECE_SPLITS`]² pieces is most of a cut's cost after the
+/// restriction, and neither reading takes a margin off the box:
+///
+/// - `boundary::beyond_reach` only skips work: it proves no zero of the
+///   side's cover lies within ε, so a wider box can only skip less, and
+///   the full read it hands on cannot certify the contrary.
+/// - `boundary::stretch_within`'s `clears` proves a piece of the stretch
+///   clears the plane, which outranks `Within`. A wider box can turn a
+///   `Clear` into `Within`, never the reverse.
+///
+/// Measured on r1, shelling and `m5_pr7_ssi` (`clears` at 38,224 reads,
+/// `beyond_reach` at 7,491), the one-piece box answered as the
+/// two-piece box at every read.
+const COARSE_PIECE_SPLITS: usize = 1;
 
 /// A span's knot vector held as points.
 fn held(span: Span<'_>) -> Vec<Interval> {
@@ -2252,7 +2281,8 @@ pub(super) mod tests {
     /// [`varied_nets`]: each
     /// sampled component lies in the box, and the chart speed and the
     /// window's [`NurbsBoxes::speed_sup`] are at least every sampled
-    /// speed. The chart probe's readings along a chart direction `e`
+    /// speed. The one-piece box ([`NurbsBoxes::coarse_deriv_box`]) holds
+    /// every sample too. The chart probe's readings along a chart direction `e`
     /// dominate too: `n·(S_u·e.x + S_v·e.y)` lies in their enclosure and
     /// `‖S_u·e.x + S_v·e.y‖` is at most their stretch. The true derivative is evaluated on
     /// the origin wall, so the samples carry no rounding of the far
@@ -2307,6 +2337,8 @@ pub(super) mod tests {
             for (u0, u1, v0, v1) in rects {
                 let du = boxes.deriv_box(win((u0, u1, v0, v1)), true);
                 let dv = boxes.deriv_box(win((u0, u1, v0, v1)), false);
+                let coarse = [true, false]
+                    .map(|along_u| boxes.coarse_deriv_box(win((u0, u1, v0, v1)), along_u));
                 let sup =
                     [true, false].map(|along_u| boxes.speed_sup(win((u0, u1, v0, v1)), along_u));
                 let (phi, stretch) = boxes.transverse_readings(
@@ -2336,6 +2368,20 @@ pub(super) mod tests {
                              {stretch} over [{u0}, {u1}]×[{v0}, {v1}]",
                             along.norm()
                         );
+                        for (which, b, d) in [
+                            ("coarse u", coarse[0], jet.du),
+                            ("coarse v", coarse[1], jet.dv),
+                        ] {
+                            for (c, x) in [(b.x, d.x), (b.y, d.y), (b.z, d.z)] {
+                                assert!(
+                                    c.lo() - slack(x) <= x && x <= c.hi() + slack(x),
+                                    "{name}: {which} box component {x} at ({u}, {v}) outside \
+                                     [{}, {}] over [{u0}, {u1}]×[{v0}, {v1}]",
+                                    c.lo(),
+                                    c.hi()
+                                );
+                            }
+                        }
                         for (which, b, d, s) in
                             [("u", du, jet.du, speeds.u), ("v", dv, jet.dv, speeds.v)]
                         {

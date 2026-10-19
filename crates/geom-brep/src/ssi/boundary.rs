@@ -1074,8 +1074,10 @@ pub(super) fn stretch_within<T: CertifiedBounds>(
         };
         if side_of_plane.is_some() {
             let q = cut_along(side, r, piece);
+            // The one-piece box (`enclose::COARSE_PIECE_SPLITS` says
+            // what it can lose here).
             let d = q.window().map_or_else(super::enclose::refused_box, |w| {
-                boxes.deriv_box(w, across_u)
+                boxes.coarse_deriv_box(w, across_u)
             });
             let across = normal[0] * d.x + normal[1] * d.y + normal[2] * d.z;
             if clears(side, side_of_plane, across) {
@@ -1104,7 +1106,9 @@ fn beyond_reach<T: CertifiedBounds>(
     let Some(w) = r.window() else {
         return false;
     };
-    let d = boxes.deriv_box(w, side.fixed == ChartAxis::U);
+    // It only skips work, so the one-piece box serves
+    // (`enclose::COARSE_PIECE_SPLITS`).
+    let d = boxes.coarse_deriv_box(w, side.fixed == ChartAxis::U);
     if ![d.x, d.y, d.z].iter().all(|i| i.is_certified()) {
         return false;
     }
