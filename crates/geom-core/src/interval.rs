@@ -248,6 +248,30 @@ impl Interval {
         self.0.decoration() >= Decoration::Def
     }
 
+    /// Whether `self` and `other` are the same stored enclosure: the
+    /// same bound bits and the same decoration ([`Interval::repr_bits`]
+    /// equal). Scalar plumbing for an arithmetic fast path that may hand
+    /// back one operand in place of an expression of both — the de
+    /// Casteljau step's equal neighbours (`spline::blossom`) — where
+    /// either answer is a sound enclosure and the operand is the
+    /// narrower. Never a coincidence decision (the no-`PartialEq`
+    /// rationale on the type stands): it picks between two sound
+    /// enclosures and decides nothing. The decoration is in the
+    /// comparison so the fast path cannot hand back a stronger claim
+    /// than the expression would carry: a refusal, or `Def` beside
+    /// `Com`, takes the expression.
+    #[must_use]
+    pub(crate) fn same_enclosure(self, other: Self) -> bool {
+        self.repr_bits() == other.repr_bits()
+    }
+
+    /// The decoration, for rows that pin which level an operation
+    /// carries.
+    #[cfg(test)]
+    pub(crate) fn decoration(self) -> Decoration {
+        self.0.decoration()
+    }
+
     /// Reads a scalar's bracket into certification arithmetic through
     /// the **certified** door, carrying the refusal in the DECORATION
     /// rather than in the endpoints — the crossing from a lane scalar
@@ -402,6 +426,17 @@ pub fn certified_hi(x: Interval) -> f64 {
 pub fn div_up(num: f64, den: f64) -> f64 {
     let q = Interval::from_bounds(num, num) / Interval::from_bounds(den, den);
     if q.is_certified() { q.hi() } else { num / den }
+}
+
+/// `a + b` rounded UP — an upper bound on the real sum, which is what a
+/// sum of upper bounds (half-widths, pads) has to stay. A sum rounded to
+/// nearest can land half an ulp below the real one. Refusals fall back to
+/// the bare sum exactly as [`div_down`]'s do; an exact sum (`0 + 0`
+/// among them) is returned exactly.
+#[must_use]
+pub fn add_up(a: f64, b: f64) -> f64 {
+    let s = Interval::from_bounds(a, a) + Interval::from_bounds(b, b);
+    if s.is_certified() { s.hi() } else { a + b }
 }
 
 impl Interval {

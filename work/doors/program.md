@@ -10,7 +10,6 @@ tag: (DOORS orchestrator)
 ab_band: 10600-10699
 paths: [crates/viewer/src/pane/create.rs, crates/viewer/src/forms.rs, crates/viewer/src/drafts.rs, crates/viewer/src/idpass.rs, crates/viewer/src/session.rs, crates/viewer/src/session/author.rs, crates/viewer/src/session/refuse.rs, crates/viewer/src/tree.rs]
 keep_out: [opened 2026-10-02 at AUTHOR's exit (Ev, in chat) as the blocked half of AUTHOR's cut — every row here is the GUI half of a kernel row on another program's slate and waits on it, per work/README.md a blocked track has no orchestrator, so this program stays blocked with nobody on it until a blocker closes - RECIPE holds extrude-distance-is-a-depth-and-a-side, names-render-a-faces-leaf-role-in-words and declared-pairs-are-a-booleans-own-payload, CLEAR holds clearance-refusal-names-one-face-twice-across-bodies, and a row here rides its kernel unit rather than reaching across, the unblocked AUTHOR residue is AUTHTAIL's on the same files, and app.rs and session.rs stay shared with CHROME VSEAM and VGEOM as they were under AUTHOR]
-priority: P1
 ---
 
 **The doors Ev's three AUTHOR rulings leave the viewer, and the

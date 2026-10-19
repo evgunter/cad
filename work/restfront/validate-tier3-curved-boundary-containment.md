@@ -5,7 +5,7 @@ title: validate tier 3 — face-boundary containment on curved surfaces (the las
 status: open
 opened: 2026-08-19
 github: 638
-refs: [226, 635]
+refs: [226, 635, cone-holes-outside-their-face-are-subtracted-silently]
 priority: P1
 cost: H
 ---
@@ -124,3 +124,13 @@ closed lift (`chord_join::run_azimuth_window`), and the 144-pose sweep
 of that cone is a row
 (`sweep/tests/reach_cone_split.rs`
 `an_upright_cone_splits_at_every_pose_through_its_apex_faces`).
+
+## A case the arm's rows should cover (FLUX, 2026-10-19)
+
+`work/flux/cone-holes-outside-their-face-are-subtracted-silently`: a
+cone face's correctly wound hole lying outside the loops that bound it
+is subtracted from the face's area with no refusal, on a band (P09: band
+`[1, 2]` less a window `[3, 3.3] × [1, 2]` measures `4.0654`), a cap
+(P47) and a window (P49). The probes and their values are in that row;
+by Ev's PR 4822 decision the check is this arm's, not the lane's.
+
