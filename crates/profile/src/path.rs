@@ -820,8 +820,9 @@ pub enum PathError<T: Real> {
     /// §4 item 1: the AUTHORED departure is within ε_input of the
     /// incoming TANGENT direction — one refusal, one recourse, for any
     /// sub-ε_input margin: if the tangency is intended onto a new
-    /// carrier, author it structurally (`.tangent()`, or the
-    /// tangent-arc / seam-fillet close at the seam), which makes it
+    /// carrier, author it structurally (`.tangent()` —
+    /// `.tangent().tangent_arc_to(p)` for an arc — or the tangent-arc /
+    /// seam-fillet close at the seam), which makes it
     /// exact by construction; if a straight continuation of the same
     /// line is intended, spell it `line(len)` off the directed point,
     /// where no junction exists to classify; otherwise move the
