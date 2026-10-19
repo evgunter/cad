@@ -416,6 +416,8 @@ mod review_4694_carry_probes;
 mod review_4730_divided_carry_probes;
 #[path = "review_4740_r1_probes.rs"]
 mod review_4740_r1_probes;
+#[path = "review_4996_r2_probes.rs"]
+mod review_4996_r2_probes;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
 #[path = "spline_reanchor_rows.rs"]
