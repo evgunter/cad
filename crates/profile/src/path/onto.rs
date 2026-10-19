@@ -252,16 +252,18 @@ fn close<T: Decide>(
     let start_pos = core.start_pos.ok_or(PathError::UnderdeterminedLeg {
         site: "close before the entry position is bound",
     })?;
-    let (how, arrival) = match arrival {
-        Some(arrival) => (SeamArrival::Undeclared, arrival),
-        None => (
-            SeamArrival::Supplied,
-            core.start_ang.ok_or(PathError::UnderdeterminedLeg {
-                site: "close before the entry direction is bound",
-            })?,
-        ),
-    };
     let pos = tip_pos(tip)?;
+    let (how, arrival) = match (arrival, core.start_ang) {
+        (Some(arrival), _) => (SeamArrival::Undeclared, arrival),
+        (None, Some(start_ang)) => (SeamArrival::Supplied, start_ang),
+        // `Start`'s direction is unbound only while the tip IS the
+        // entry, so the chord the token would close is the zero one.
+        (None, None) => {
+            return Err(PathError::DegenerateArcChord {
+                chord: (start_pos - pos.at).norm_squared().sqrt(),
+            });
+        }
+    };
     let (g, departure) = onto_arc_geom(pos.at, arrival, start_pos, tol)?;
     depart(&mut core, pos, departure, tol)?;
     let start_ang = *core.start_ang.get_or_insert(departure);

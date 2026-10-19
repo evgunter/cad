@@ -535,6 +535,12 @@ fn the_degeneracies_mirror_tangent_arc_to() {
         "Start targeted from the entry itself",
     );
     refuses(
+        &[Step::At(pt(0.0, 0.0)), Step::ArcOnto(Target::StartArriving)],
+        1,
+        PathErrorKind::DegenerateArcChord,
+        "the token targeted from the entry itself",
+    );
+    refuses(
         &with(leg_end(), &[onto(3.0, 1.0), toward(-1.0, -1.0)]),
         3,
         PathErrorKind::DegenerateArcChord,
