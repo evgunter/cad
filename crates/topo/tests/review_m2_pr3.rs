@@ -801,7 +801,9 @@ fn fixed_aliased_interval_refused_at_public_setter() {
         body.set_edge_curve(edge, mk(PI + 8.0 * TAU), Tol::witness())
             .unwrap_err(),
         EulerOpError::Certification {
-            error: geom_brep::CertifyError::WindingExceeded
+            error: geom_brep::CertifyError::StatedInterval {
+                refused: geom_brep::StatedSpan::Winding(geom_brep::WindingReading::Exceeded),
+            }
         }
     ));
     // The honest half-circle interval attaches through the gate. (Its

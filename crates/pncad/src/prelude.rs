@@ -205,8 +205,8 @@ pub use ::profile::{
 // half of the closed-carrier vocabulary a crate away.
 pub use ::profile::{
     ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ClosedLoop, ContinueTarget, CornerReason,
-    CornerRefusal, CornerWindow, LineTarget, Open, PartialPath, PathError, PathNoCornerReason,
-    Radius, Start, Sweep, TangentArcTarget, Via, circle, circle_split,
+    CornerRefusal, CornerWindow, LineTarget, OntoTarget, Open, PartialPath, PathError,
+    PathNoCornerReason, Radius, Start, Sweep, TangentArcTarget, Via, circle, circle_split,
 };
 // **The profile refusals' own payload vocabulary**, carried beside
 // the refusals for the reason the blend four ride in group 3: a

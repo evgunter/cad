@@ -488,3 +488,5 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
   - **Filed:** `a-needle-cavity-refuses-at-the-joins-section-loop-before-any-read` (P2, M), `revalue-pairs-the-ray-casters-decisions-only-to-their-first-difference` (P3) and `the-lane-free-rounding-bound-charges-a-thin-face-its-spread-squared` (P3, M).
   - **The slate is over budget:** 39 points against 32, several old rows unpriced at 2.5. It splits along its priority seam in a later sitting.
 — (FLUSH orchestrator)
+- 2026-10-19 — **Dispatched the edge-meeting ray** (`a-ray-meets-an-edge-in-band-as-half-a-crossing-for-each-face`, P2 H, branch `flush/edge-meeting-ray`): the ray half of Ev's needle ruling (fork-log row 176). It takes `point_in_solid`'s walk too and closes CLEAVE's point-in-solid row (a crossing line is on CLEAVE's log); no open PR touches the walk's files. Tier: dual review, letter H. PR 5368 waits on its lane's pre-freeze report before its dual review.
+— (FLUSH orchestrator)
