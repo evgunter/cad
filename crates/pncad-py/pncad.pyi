@@ -791,8 +791,7 @@ class InlineError(PncadError):
     variable its pin reads. `unplaceable_part`:
     `node` is the instance whose bundle does not carry its part;
     `construction_reads_copy`: `node` is the construction reading the
-    instance's copy; `copy_pinned_to_construction`: `node` is the part
-    placement, `by` the construction it is pinned against."""
+    instance's copy."""
 
 class UpdateError(PncadError):
     """A whole-document pin update produced no edit list.

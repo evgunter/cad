@@ -472,20 +472,6 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         | E::ConstructionReadsCopy { node: n } => {
             (id(n), none(), none(), none(), none(), none(), none())
         }
-        // The part placement is the subject; the construction it is
-        // pinned against rides `by`.
-        E::CopyPinnedToConstruction {
-            placement,
-            construction,
-        } => (
-            id(placement),
-            id(construction),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
         // The host node reading the instance rides `by`; why no one
         // body takes its read is in the message.
         E::InstanceReadUncarried { reader, why: _ } => {

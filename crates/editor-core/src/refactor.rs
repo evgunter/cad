@@ -1394,20 +1394,6 @@ pub enum InlineError {
         /// The construction, spoken from the referenced document.
         node: SpokenNode,
     },
-    /// **The part's world moves under the inline and one of its copies
-    /// is pinned against a construction**, the root of its own space
-    /// (D10), which the move leaves where it is: at a pose of the
-    /// instance's own,
-    /// or as the root that takes the instance's bundle, the part's
-    /// copies move and its constructions do not, so the copy would land
-    /// where the construction stays rather than where the instance put
-    /// it.
-    CopyPinnedToConstruction {
-        /// The part placement, spoken from the referenced document.
-        placement: SpokenNode,
-        /// The construction its bundle pins it against, likewise.
-        construction: SpokenNode,
-    },
     /// **The instance's pin reads a variable**: the part's world mates
     /// take the motion the pin solved to as numbers, so the variable
     /// would no longer move what it moved.
@@ -1599,19 +1585,6 @@ impl core::fmt::Display for InlineError {
                 Recourse(
                     "pin the instance to the world at the identity, or re-point the \
                      construction at a body, then inline"
-                )
-            ),
-            Self::CopyPinnedToConstruction {
-                placement,
-                construction,
-            } => write!(
-                f,
-                "inline: the instance does not sit at the identity, and the referenced \
-                 document's {placement} is pinned against {construction}, which would stay \
-                 where it is while the copy moves with the instance. {}",
-                Recourse(
-                    "pin the instance to the world at the identity, or pin the placement \
-                     against a copy, then inline"
                 )
             ),
             Self::PinReadsVariable { instance, var } => write!(
@@ -3791,29 +3764,6 @@ fn pose_leaves<P>(doc: &Doc<P>, var: VarId) -> Option<Vec<VarId>> {
     walk(doc, var, &mut out).then_some(out)
 }
 
-/// **The first construction a placement's target read reads**: a node
-/// that is no placement and not the world, read through `var`'s
-/// definition other than through a placement's carried copy. `None`
-/// where the target reads only copies and the world.
-fn construction_read<P>(doc: &Doc<P>, var: VarId) -> Option<RecipeNodeId> {
-    let placed = |node: RecipeNodeId| {
-        matches!(
-            doc.node(node),
-            Some(Node::Place { .. } | Node::InstantiatePart { .. } | Node::World)
-        )
-    };
-    match doc.var(var).map(crate::Var::def)? {
-        crate::var::VarDef::Pose(crate::pose::PoseDef::Carried { copy, .. }) => {
-            doc.read_operation(*copy).filter(|&node| !placed(node))
-        }
-        crate::var::VarDef::Pose(def) => def
-            .reads()
-            .into_iter()
-            .find_map(|(_, &read, _, _)| construction_read(doc, read)),
-        _ => doc.read_operation(var).filter(|&node| !placed(node)),
-    }
-}
-
 /// **`var` as it was written, with some reads replaced**: each read
 /// `leaf` answers for is that answer; each pose written in place is
 /// written again over its reads; any other read as
@@ -4130,35 +4080,6 @@ pub fn inline(
                 return Err(InlineError::ConstructionReadsCopy {
                     node: part.spoken(id),
                 });
-            }
-        }
-    }
-    // Wherever the part's world moves (a pose of the instance's own, or
-    // the root taking the instance's bundle), its constructions stay,
-    // so a part copy pinned against one would land beside it rather
-    // than where the instance put it.
-    let world_moves = match &landing {
-        Landing::Pinned(motion) => motion.is_some(),
-        Landing::Root(_) => true,
-    };
-    if world_moves {
-        for placement in part.placements() {
-            if in_loose_space(placement) {
-                continue;
-            }
-            let Some(bundle) = part.node(placement).and_then(crate::mate::solve::bundle_of) else {
-                continue;
-            };
-            for constraint in bundle {
-                let Some(to) = constraint.mate().and_then(|m| m.to.pose()) else {
-                    continue;
-                };
-                if let Some(construction) = construction_read(&part, *to) {
-                    return Err(InlineError::CopyPinnedToConstruction {
-                        placement: part.spoken(placement),
-                        construction: part.spoken(construction),
-                    });
-                }
             }
         }
     }

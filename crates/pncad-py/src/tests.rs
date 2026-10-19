@@ -5071,7 +5071,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "inline_error_tag",
         values: &[
             "construction_reads_copy",
-            "copy_pinned_to_construction",
             "epsilon_seam",
             "foreign_instance_name",
             "inline_edit",
@@ -6334,7 +6333,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // A coincidence: an operand seat that reads an axis, and a copy
     // placed on its own axis.
     ("axis", 2),
-    ("band", 16),
+    ("band", 17),
     ("body", 2),
     ("cap_plane", 3),
     ("certify", 2),

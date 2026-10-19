@@ -2546,7 +2546,6 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::InstanceOutputUncarried { .. } => "instance_output_uncarried",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         InlineError::ConstructionReadsCopy { .. } => "construction_reads_copy",
-        InlineError::CopyPinnedToConstruction { .. } => "copy_pinned_to_construction",
         InlineError::PinReadsVariable { .. } => "pin_reads_variable",
         InlineError::ValueOnAMovedWorld { .. } => "value_on_a_moved_world",
         InlineError::RepinRefused { .. } => "repin_refused",
