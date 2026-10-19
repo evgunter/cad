@@ -9,7 +9,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::fixture::{self, ang, insert, len, on_frame, plane_on};
+use crate::fixture::{self, ang, insert, len, on_frame};
 use editor_core::{
     CancelToken, EntityKey, EntityRef, Entry, EvalOptions, Evaluation, Formula, Node, ProfileDoc,
     Qualifier, RecipeNodeId, RoleSeg, SplitHalf, StableName, evaluate,
@@ -87,12 +87,7 @@ fn split_at_y1(
         },
     };
     let (doc, target) = insert(doc, operand);
-    let tool = plane_on(
-        &doc,
-        editor_core::Operand::output(target, 0),
-        [0.0, 1.0, 0.0],
-        [0.0, ny, 0.0],
-    );
+    let tool = plane_y1(&doc, target, ny);
     let (doc, sp) = insert(
         doc,
         Node::Split {
@@ -113,6 +108,61 @@ fn split_at_y1(
         ev.node_error(sp)
     );
     (ev, target, sp)
+}
+
+/// **The plane `y = 1` with normal `(0, ny, 0)`, read off `target`**
+/// exactly: every outline's first edge runs along `y = 0`, so the
+/// operand has a planar face there, its normal `−y` exactly; that face's
+/// plane slid 1 along its normal's reverse is `y = 1` facing `−y`, and
+/// flipped for a positive `ny`. No turn is written, so the plane is
+/// exact (a tool read through `frame_at` turns by the `f64` nearest a
+/// quarter turn, which rounds, and `y = 1` would pass the notch tip by
+/// rounding).
+fn plane_y1(
+    doc: &ProfileDoc,
+    target: RecipeNodeId,
+    ny: f64,
+) -> editor_core::pose::RoleRead<editor_core::Operand> {
+    use editor_core::Operand;
+    use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+    let ev = evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    let body = crate::corpus::body_of(&ev, target);
+    let at_y0: BTreeSet<_> = body
+        .vertex_points()
+        .filter(|(_, p)| p.y == 0.0)
+        .map(|(v, _)| v)
+        .collect();
+    let base = fixture::table(&ev, target)
+        .iter()
+        .find(|(name, entry)| {
+            name.kind == editor_core::EntityKind::Face
+                && matches!(entry, Entry::Unique(EntityRef { key: EntityKey::Face(f), .. })
+                    if fixture::face_vertices(body, *f).iter().all(|v| at_y0.contains(v)))
+        })
+        .map(|(name, _)| name.clone())
+        .expect("the operand has a face on y = 0");
+    let plane = Operand::Pose(Box::new(PoseDef::Plane {
+        face: Operand::select(Operand::output(target, 0), vec![base]),
+    }));
+    let normal = RoleRead::through(plane.clone(), PoseRole::Normal);
+    let below = Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(plane),
+        along: normal,
+        by: len(-1.0),
+    }));
+    if ny > 0.0 {
+        RoleRead::plain(Operand::Pose(Box::new(PoseDef::Flip {
+            pose: RoleRead::plain(below),
+        })))
+    } else {
+        RoleRead::plain(below)
+    }
 }
 
 /// `side`'s names, each spelled with the split's node read as `as_node`

@@ -1768,11 +1768,10 @@ fn fusions(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
 /// (`topo` `vtxfac::mint_ring`), and the intersection keeps both pierces
 /// as two vertices. It records the decision: one `VertexFusion`
 /// `OnCarrier` row, its two cells the two blocks' edges as the union
-/// names them, its margin the gap. The door leaves it unproven, and
-/// the check reports it. The blocks are copies placed on the plate,
-/// whose poses the door reads as opaque atoms, so the recourse is to
-/// assert the fusion
-/// (stage 4 H, `placed-carriers-compare-through-their-frames`). Red if
+/// names them, its margin the gap. The door leaves it unproven
+/// with the one-construction recourse, and the check reports it: the
+/// blocks are copies placed on the plate, which the door compares
+/// through their frames (stage 4 H). Red if
 /// the ring glues the two by a shared point key alone, which records
 /// nothing.
 ///
@@ -1841,8 +1840,8 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
     );
     assert_eq!(
         recourses(&proofs(&doc, common, &fused)),
-        vec![Some(coincide::Recourse::Assert)],
-        "unproven, with the assert recourse: the copies' poses are opaque to the door"
+        vec![Some(coincide::Recourse::OneConstruction)],
+        "unproven, with the one-construction recourse"
     );
     let reported: Vec<_> = unproven(&doc, &ev)
         .into_iter()
