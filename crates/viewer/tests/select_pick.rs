@@ -294,7 +294,7 @@ fn a_ray_onto_the_top_face_names_it_and_the_name_resolves() {
     let (doc, eval) = session.landed_pair().expect("a landed pair");
     assert!(
         matches!(
-            pncad::select::resolve(pncad::select::RunCtx { doc, eval }, &hit.name),
+            viewer::tree::pick_resolution(doc, eval, hit.node, hit.body, &hit.name),
             Resolution::Resolved(_)
         ),
         "a just-picked name resolves in the run it was picked from"

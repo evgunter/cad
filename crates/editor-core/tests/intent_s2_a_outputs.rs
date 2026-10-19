@@ -61,7 +61,7 @@ fn every_operation_defines_its_signature_at_insert() {
     let (doc, frame, profile, extrude) = block("s2a-signatures");
     let (doc, revolve) = insert(
         doc,
-        revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(1.0)),
+        revolve_about(profile, (0.0, 0.0), crate::fixture::along_y(), ang(1.0)),
     );
     let (doc, plane) = insert(
         doc,
@@ -129,7 +129,6 @@ fn an_insert_reports_its_outputs_and_a_delete_takes_them_with_its_node() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("inserts");
     let node = applied.record.minted.expect("an insert mints its node");
@@ -167,7 +166,7 @@ fn no_door_but_a_rename_writes_an_output() {
     let (doc, _, _, extrude) = block("s2a-doors");
     let body = doc.output(extrude, 0).expect("an extrude defines its body");
     let refused = |edit: DocEdit<editor_core::ProfileProgram>, door: CarryForwardDoor| match doc
-        .apply(&edit, Tol::witness(), &editor_core::RefusingReach)
+        .apply(&edit, Tol::witness())
     {
         Err(EditError::VarIsAnOutput { var, node, door: d }) => {
             assert_eq!((var.id(), node.id(), d), (body, extrude, door));
@@ -219,7 +218,7 @@ fn a_formula_reading_a_body_refuses_naming_its_kind() {
         .into(),
         fresh: Vec::new(),
     };
-    match doc.apply(&edit, Tol::witness(), &editor_core::RefusingReach) {
+    match doc.apply(&edit, Tol::witness()) {
         Err(
             error @ EditError::SlotVarKind {
                 found: declared, ..
@@ -409,8 +408,8 @@ fn the_up_to_ids_comparator_holds_a_document_and_refuses_each_mutant() {
         .as_object_mut()
         .unwrap()
         .values_mut()
-        .filter_map(|node| node.get_mut("PlaceInWorld"))
-        .map(|placement| &mut placement["body"])
+        .filter_map(|node| node.get_mut("Place"))
+        .map(|placement| &mut placement["shapes"][0])
         .collect();
     *reads[1] = reads[0].clone();
     let err = up_to_ids::equal_up_to_ids(&swapped, &new).expect_err("an inconsistent renaming");
@@ -522,8 +521,9 @@ fn every_node_shape_states_its_signature() {
         "Transform -> [body:placed]",
         "Transform -> [body:placed]",
         "Transform -> [body:placed]",
-        "PlaceInWorld -> [copy:Body]",
-        "PlaceInWorld -> [copy:Body]",
+        "Place -> [copies:placed]",
+        "Place -> [copies:placed]",
+        "World -> []",
         "Pattern -> [bodies:Bodies]",
         "PlacedUnion -> [body:Body]",
         "PlacedUnion -> [body:Body]",
@@ -534,9 +534,8 @@ fn every_node_shape_states_its_signature() {
         "PlacedUnion -> [body:Body]",
         "PlacedUnion -> [body:Body]",
         "Part -> [body:Body]",
-        "InstantiatePart -> [body:Body]",
-        "Gauge -> []",
-        "Mate -> []",
+        "InstantiatePart -> [copies:Bodies]",
+        "Place -> [copies:placed]",
         "Measure -> [value:Length]",
         "Assertion -> []",
     ];
@@ -607,7 +606,7 @@ fn a_datums_value_folds_the_subgroup_its_kind_names() {
             .var(doc.output(node, 0).expect("a datum defines its pose"))
             .unwrap()
             .kind();
-        assert_eq!(value.symmetry().family(), kind.symmetry(), "{kind:?}");
+        assert_eq!(Some(value.symmetry().family()), kind.symmetry(), "{kind:?}");
     }
 }
 

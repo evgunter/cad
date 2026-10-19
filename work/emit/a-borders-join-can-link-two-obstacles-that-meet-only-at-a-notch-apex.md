@@ -48,7 +48,7 @@ every member order and pin today's reading.
   - `s` = [0.6, 0.8] × [−1, 1.3] × [0.47, 1.53].
 - The kernel discards the top's two regions beyond `m`'s wall as **two
   faces** in every member order, neither loop passing the apex twice
-  (re-measured by both designers of fork-log row 142, 2026-10-14). What
+  (re-measured by both designers of fork-log row 171, 2026-10-14). What
   links them is the output stage's join at the apex: both regions'
   stretches settle on the one joined edge.
 - The top's right piece reads {`m:x=2.00`, `m:y=1.20`, `s:x=0.80`}.
@@ -76,7 +76,7 @@ obstacles takes both of:
    already read one, along a line by its own parameter) or a topo
    record of the vertex's point carried through later splits.
 
-## The question (to Ev, fork-log row 142)
+## The question (to Ev, fork-log row 171)
 
 N2 says "an obstacle is a connected part of the parent's region that no
 piece holds". Is a region that meets another only at a point connected

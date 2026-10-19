@@ -189,8 +189,9 @@ pub use swept::CapPlaneError;
 pub use geom_brep::SketchSegment;
 pub use profile::{ConstructedLoop, ProfileLoop};
 pub use skin::{
-    LoftGeometry, Section, SectionLoop, SkinError, loft_geometry, loft_parameters, make_compatible,
-    segment_curve, skin, skin_on, skin_parameters, sweep_geometry, sweep_places,
+    ArcSweepDecision, LoftGeometry, Section, SectionLoop, SkinError, loft_geometry,
+    loft_parameters, make_compatible, segment_curve, skin, skin_on, skin_parameters,
+    sweep_geometry, sweep_places,
 };
 
 pub mod blend;

@@ -45,7 +45,7 @@
 //! **`f64`-only**: the marcher is a candidate generator whose product is
 //! certified afterwards at any `T`, and the algorithm needs value
 //! branches (a zero Householder column, a zero Jacobi off-diagonal)
-//! that the comparison-free [`Real`](crate::real::Real) surface
+//! that the comparison-free [`Real`] surface
 //! deliberately cannot express. Nothing here decides topology; the C2
 //! certificate does, generically, downstream.
 //!

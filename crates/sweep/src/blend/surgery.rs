@@ -481,7 +481,7 @@ enum HostFoot {
 /// tier 3's check 11 refuses at rest, so no blend door takes the body
 /// (`fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_is_construction_state`).
 /// The half-band gate that refused it has no at-rest witness left
-/// (`work/fuse/door-arms-only-a-hand-split-operand-reached.md`).
+/// (`work/gauge/door-arms-only-a-hand-split-operand-reached.md`).
 ///
 /// A RINGED host is served under [`Self::Struts`]: the band's host trim
 /// becomes that face's new outer boundary, and each ring is admissible
@@ -778,25 +778,25 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     )?;
 
     // ---- The ring carry-through honesty check (module docs). ----
-    // A convex band's cap carries its crease: a cycle wholly inside that
-    // sliver goes with it (`reach::CapRing`).
-    let crease_of =
-        |l: &AdmittedOpen<'_, T>| (l.convexity() == Convexity::Convex).then(|| l.edge());
+    let cut_off = |sliver, l: &AdmittedOpen<'_, T>| CapMeter {
+        sliver,
+        convexity: l.convexity(),
+        origin: SliverOrigin::CutOff { crease: l.edge() },
+    };
     let slivers: Vec<CapMeter<'_, T>> = ruled_plans
         .iter()
         .flat_map(|p| {
             let l = p.link();
-            let crease = crease_of(&l);
-            p.slivers().map(move |s| (s, l.convexity(), crease))
+            p.slivers().map(move |s| cut_off(s, &l))
         })
-        .chain(
-            cut_offs
-                .iter()
-                .map(|c| (&c.end.sliver, c.link.convexity(), crease_of(&c.link))),
-        )
+        .chain(cut_offs.iter().map(|c| cut_off(&c.end.sliver, &c.link)))
         .chain(turns.iter().filter_map(|t| {
             let o = t.overrun.as_ref()?;
-            Some((&o.sliver, t.links[o.of.far].convexity(), None))
+            Some(CapMeter {
+                sliver: &o.sliver,
+                convexity: t.links[o.of.far].convexity(),
+                origin: SliverOrigin::Overrun,
+            })
         }))
         .collect();
     let unclear = ring_clearance_pass(source, &opens, &rims, &slivers, &supports, band)?;
@@ -807,7 +807,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     // and the reach's make one verdict (`reach::Unclear`).
     let consumed = super::reach::band_reach(source, &verdict.chains, radius, kind, band, unclear)?;
     // ---- A request whose verdict is inside takes each feature wholly
-    // inside a convex straight band's material, whole, or refuses
+    // inside a straight band's material, whole, or refuses
     // (`consume::plan`). ----
     let features = match &consumed {
         Some(consumed) => super::consume::plan(source, consumed)?,
@@ -2724,10 +2724,26 @@ pub fn ring_clearance_for_tests<T: Decide + Bounds>(
     ring_clearance(face, chain, margin, false, band)
 }
 
-/// One cut-off end face's sliver for the end-face meter: the sliver,
-/// its chain's convexity, and the crease of a convex band, whose
-/// cap gives up a cycle wholly inside the sliver to the carve.
-type CapMeter<'a, T> = (&'a CapSliver<T>, Convexity, Option<EdgeKey>);
+/// One end face's sliver for the end-face meter.
+struct CapMeter<'a, T: Real> {
+    sliver: &'a CapSliver<T>,
+    /// The chain's, for the meter's refusals.
+    convexity: Convexity,
+    origin: SliverOrigin,
+}
+
+/// What cut a [`CapMeter`]'s sliver off its end face, which decides
+/// where a cycle read wholly inside it goes.
+#[derive(Clone, Copy)]
+enum SliverOrigin {
+    /// A cut-off's band: the cap carries its crease, and a cycle wholly
+    /// inside the sliver goes with the material the band removes or
+    /// fills (`reach::CapRing`).
+    CutOff { crease: EdgeKey },
+    /// A turn's overrun: a cycle read inside it is never consumed
+    /// (`crates/sweep/README.md`, the planar cut-off, says why).
+    Overrun,
+}
 
 /// The pre-mutation honesty pass (module docs): every ring of every
 /// touched support face must clear every blend trimline by a definite
@@ -2831,7 +2847,12 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     // the witnesses are samples, so a cycle that crosses with no witness
     // on one side reads as a bound, never as inside.
     let mut unclear = Unclear::new();
-    for &(s, convexity, crease) in slivers {
+    for &CapMeter {
+        sliver: s,
+        convexity,
+        origin,
+    } in slivers
+    {
         let fd = body
             .get_face(s.cap)
             .ok_or_else(|| unresolved(EntityId::Face(s.cap), "a cut-off's end face"))?;
@@ -2892,8 +2913,8 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                         chain: convexity,
                         margin: super::battery::classified(decision, deep, band, sign),
                     };
-                    match crease {
-                        Some(crease) => unclear.cap_ring(
+                    match origin {
+                        SliverOrigin::CutOff { crease } => unclear.cap_ring(
                             CapRing {
                                 crease,
                                 cap: s.cap,
@@ -2903,7 +2924,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                             },
                             refusal,
                         ),
-                        None => unclear.unconsumed_inside(deep, refusal),
+                        SliverOrigin::Overrun => unclear.unconsumed_inside(deep, refusal),
                     }
                 }
                 CycleReading::Bound => unclear.bound(
@@ -5409,7 +5430,12 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
                 surfaces: [(s1, surf1), (s2, surf2)],
                 carrier: &curve,
                 interval: (t0, t1),
-                chord: p0.distance(p1),
+                reach: topo::wedge_reach(
+                    body,
+                    [sides.plus.face, sides.minus.face],
+                    &curve,
+                    (t0, t1),
+                ),
                 witness,
             },
             band,

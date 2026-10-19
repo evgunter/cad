@@ -1878,11 +1878,11 @@ fn arena_keys_can_be_stored_and_compared_through_the_widened_door() {
         .expect("no refusal")
         .expect("a hit");
     let (landed_doc, landed_eval) = session.landed_pair().expect("a pair");
-    let first = match pncad::select::resolve(
-        pncad::select::RunCtx {
-            doc: landed_doc,
-            eval: landed_eval,
-        },
+    let first = match viewer::tree::pick_resolution(
+        landed_doc,
+        landed_eval,
+        face.node,
+        face.body,
         &face.name,
     ) {
         Resolution::Resolved(resolved) => resolved,
@@ -1899,13 +1899,8 @@ fn arena_keys_can_be_stored_and_compared_through_the_widened_door() {
     });
     session.pump();
     let (doc2, eval2) = session.landed_pair().expect("a second pair");
-    let second = match pncad::select::resolve(
-        pncad::select::RunCtx {
-            doc: doc2,
-            eval: eval2,
-        },
-        &face.name,
-    ) {
+    let second = match viewer::tree::pick_resolution(doc2, eval2, face.node, face.body, &face.name)
+    {
         Resolution::Resolved(resolved) => resolved,
         other => panic!("the face survives a distance change: {other:?}"),
     };

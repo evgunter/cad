@@ -106,12 +106,18 @@ impl ToolKind {
         }
     }
 
-    /// **The one composition of a tool's sentence**: what the status
-    /// line shows when this tool has something to say, whether the tool
-    /// said it (a refusal at a commit button) or the frame did (a lost
-    /// pick). Two spellings of this prefix is how the two drift.
+    /// **A tool's sentence**: its name, then what it has to say — a
+    /// panel's prompt, or a tool event's words ([`ToolNotice`]). A
+    /// refusal at its commit button is [`ToolKind::refuses`], composed
+    /// by the same function, so the prefix has one spelling.
     pub fn says(self, what: &impl core::fmt::Display) -> String {
-        format!("{} tool: {what}", self.label())
+        compose(&Panel::Tool(self).name(), what)
+    }
+
+    /// **This tool's panel refusing its commit**, as the value
+    /// [`crate::frame::tool_news`] takes.
+    pub fn refuses(self, why: &impl core::fmt::Display) -> PanelRefusal {
+        PanelRefusal::new(Panel::Tool(self), why)
     }
 
     /// **The words on the button that opens this tool**: its name,
@@ -203,6 +209,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::Select(_)
         | SessionOp::Hover(_)
         | SessionOp::DeleteNode { .. }
+        | SessionOp::RemoveConstraint { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
@@ -247,6 +254,12 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
 /// declined — carrying which tool it was about, so the sentence a
 /// chrome shows is composed once ([`ToolKind::says`]) rather than at
 /// each call site.
+///
+/// **Not a [`PanelRefusal`], and not merged with one**: each arm
+/// answers [`crate::frame::Retold`] for itself, and a survival drop
+/// answers `Never` ([`crate::frame::tool_notice`]), where a panel's
+/// refusal is uniformly `Again`. One type would put both answers
+/// behind one door that could not tell them apart.
 #[derive(Debug)]
 pub enum ToolNotice {
     /// The mate tool lost a pick — its own event vocabulary, which
@@ -276,6 +289,112 @@ impl Say for ToolNotice {
             Self::Seated { tool, event } => tool.says(event),
         };
         f.write_str(&said)
+    }
+}
+
+/// The sentence a panel speaks: its name, then what it has to say.
+fn compose(name: &str, what: &impl core::fmt::Display) -> String {
+    format!("{name}: {what}")
+}
+
+vocabulary! {
+    /// **A panel or field that commits and is not one of the modal
+    /// tools** ([`ToolKind`]), named by what it does: the creation
+    /// pane's add-datum, add-profile and extrude forms, the profile
+    /// editor's apply and revert, and the label field a create form and
+    /// the properties pane each carry.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum FormKind {
+        /// The creation pane's add-datum form.
+        AddDatum,
+        /// The creation pane's add-profile form.
+        AddProfile,
+        /// The creation pane's extrude form.
+        Extrude,
+        /// The profile editor's apply.
+        EditProfile,
+        /// The profile editor's revert.
+        RevertProfile,
+        /// A node's label field, on a create form or in the properties
+        /// pane.
+        Label,
+    }
+
+    /// Every form, for the suites that sweep them.
+    pub const ALL;
+}
+
+impl FormKind {
+    /// The form's name, as its sentences open.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::AddDatum => "add datum",
+            Self::AddProfile => "add profile",
+            Self::Extrude => "extrude",
+            Self::EditProfile => "edit profile",
+            Self::RevertProfile => "revert profile",
+            Self::Label => "label",
+        }
+    }
+
+    /// **This form's button refusing**, as the value
+    /// [`crate::frame::tool_news`] takes.
+    pub fn refuses(self, why: &impl core::fmt::Display) -> PanelRefusal {
+        PanelRefusal::new(Panel::Form(self), why)
+    }
+}
+
+/// Which panel refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Panel {
+    Tool(ToolKind),
+    Form(FormKind),
+}
+
+impl Panel {
+    /// The name its sentences open with: a tool's noun, as a tool; a
+    /// form's name as it is.
+    fn name(self) -> String {
+        match self {
+            Self::Tool(kind) => format!("{} tool", kind.label()),
+            Self::Form(form) => form.label().to_owned(),
+        }
+    }
+}
+
+/// **What a panel's button refused, and which panel's it was** — the
+/// value [`crate::frame::tool_news`] takes. Built only by
+/// [`ToolKind::refuses`] and [`FormKind::refuses`].
+///
+/// **What the type pins**: the sentence opens with a panel's name, and
+/// the door it reaches answers [`crate::frame::Subject::Document`] and
+/// [`crate::frame::Retold::Again`]. **What it does not**: the words
+/// after the name — `refuses` takes any `Display`, so whether they are
+/// the panel's own refusal is the call site's.
+///
+/// **Not a [`ToolNotice`]**, and not merged with one: a panel's refusal
+/// is uniformly `Again` — the same click says it again — where a tool
+/// event answers [`crate::frame::Retold`] per arm and a survival drop
+/// answers `Never`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PanelRefusal {
+    panel: Panel,
+    why: String,
+}
+
+impl PanelRefusal {
+    fn new(panel: Panel, why: &impl core::fmt::Display) -> Self {
+        Self {
+            panel,
+            why: why.to_string(),
+        }
+    }
+}
+
+impl core::fmt::Display for PanelRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { panel, why } = self;
+        f.write_str(&compose(&panel.name(), why))
     }
 }
 
@@ -544,8 +663,8 @@ impl Tools {
     ///
     /// A selection is the only op a tool consumes, and the two
     /// vocabularies are the ones the tools were written against: the
-    /// mate tool takes the FACE (its alignment frames are derived from
-    /// face geometry, so an edge pick is not one of its picks), the
+    /// mate tool takes the FACE (its poses are read off the picked
+    /// faces, so an edge pick is not one of its picks), the
     /// blend tool takes the EDGE (it blends edges, and its target is
     /// the drawn body the edge was picked on rather than the feature
     /// that minted it), and every seated tool takes

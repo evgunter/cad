@@ -31,7 +31,6 @@ fn doc_with(params: &[(&'static str, FreeVar)]) -> ProfileDoc {
                 def: editor_core::VarDecl::Free(value.clone()),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("a valid parameter sets")
         .doc;
@@ -211,7 +210,6 @@ fn the_edit_door_refuses_each_broken_invariant() {
                 def: editor_core::VarDecl::Free(annotated(1.0, d)),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .map(|_| ())
     };
@@ -307,8 +305,7 @@ fn a_doubly_corrupt_param_names_the_same_fault_at_both_doors() {
                 name: name.clone(),
                 def: editor_core::VarDecl::Free(broken.clone())
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .map(|_| ()),
         Err(EditError::InvalidDistribution {
@@ -439,7 +436,6 @@ fn diff_reports_a_distribution_only_change() {
                 distribution: Some(Distribution::Normal { sigma }),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("an annotation applies")
         .doc

@@ -145,7 +145,7 @@ operand, as against the covered copy. That is step 2 of **Next**,
 still open, and the three-box reproducer's question above is the same
 one.
 
-## The designer pair's answer (to Ev, fork-log row 142)
+## The designer pair's answer (to Ev, fork-log row 171)
 
 **The premise above is wrong** (dumped by both designers). In the pair
 union and `[a, b]` the kernel does not carve `b`'s top along the

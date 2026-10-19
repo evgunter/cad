@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-30
 priority: P1
 cost: M
-refs: [a-split-half-loses-the-lineage-of-a-twice-crossed-edge, a-cylinder-split-refuses-missing-upstream-once-its-pieces-rank, join-desync-is-the-catch-all-for-cyclic-lineage-records]
+refs: [a-split-half-loses-the-lineage-of-a-twice-crossed-edge, a-cylinder-split-refuses-missing-upstream-once-its-pieces-rank, 5086]
 ---
 
 
@@ -50,13 +50,15 @@ Three naming tables copy `SplitEdge` records out of a body before a
 kill drops them:
 - `SplitNaming::joined_lineage`, written by `SplitNaming::record_joins`
   (`crates/topo/src/splitting/finish.rs`);
-- `BooleanNaming::joined_lineage`, written by `edge_join::join_stage`
-  (`crates/topo/src/boolean/edge_join.rs`);
+- `BooleanNaming::killed_lineage`, written by `edge_join::join_stage`
+  (`crates/topo/src/boolean/edge_join.rs`) and, for the edges the
+  merge kills, by `boolean::ops::finish_output`;
 - `DiscardRow::boundary_chains` (`crates/topo/src/boolean/discard.rs`).
 
-The two `joined_lineage` tables share one snapshot of the records
-(`edge_join::split_records`) and one writer, which asserts that an
-edge never gets two parents (`edge_join::record_joined_lineage`).
+The Split's `joined_lineage` and the Boolean's `killed_lineage` take
+their records the same way (`edge_join::split_records`) and share one
+writer, which asserts that an edge never gets two parents
+(`edge_join::record_killed_lineage`).
 None of the three is a list of mints, since each is written in kill order and a
 join can kill a child before its parent; each is as acyclic as the
 records it copies, and the argument is stated once, on
@@ -65,14 +67,15 @@ cycle refusals left in the readers belong to this row, and the one walk
 it asks for should take the copies as another record lookup:
 
 - `emit_topo::chase_edge_to_table` (~`emit_topo.rs:99`), which steps
-  through the chains' hops (`KilledSplits`) and refuses
+  through the chains' hops and the boolean's `killed_lineage`
+  (`KilledSplits`) and refuses
   `SplitLineageCycle` past its hop bound;
 - `emit_topo::chase_split_lineage` (~`emit_topo.rs:191`), which steps
   through `joined_lineage` where a half holds no record, and refuses
   `SplitLineageCycle` past its edge-count bound;
 - `borders.rs`'s `Obstacles::up_lineage` (~`borders.rs:280`), which
   reads `split_from` (each body's records merged with the chains' hops
-  and with each boolean's `joined_lineage`, in `Obstacles::record`)
+  and with each boolean's `killed_lineage`, in `Obstacles::record`)
   and refuses `bug("a piece edge's split lineage is cyclic")`.
 
-Inherited from `join-desync-is-the-catch-all-for-cyclic-lineage-records`, beyond the readers: nothing checks the `SplitEdge` records where `Body::split_edge` writes them, and the three copies (`SplitNaming::joined_lineage`, `BooleanNaming::joined_lineage`, `DiscardRow::boundary_chains`) are `pub` fields a caller can write. The fix checks acyclicity where the records are written, or says at the write site why it cannot. It also decides whether the copies stay writable from outside the kernel. The readers' bounds are unreachable only once both hold.
+Inherited from `join-desync-is-the-catch-all-for-cyclic-lineage-records`, beyond the readers: nothing checks the `SplitEdge` records where `Body::split_edge` writes them, and the three copies (`SplitNaming::joined_lineage`, `BooleanNaming::killed_lineage`, `DiscardRow::boundary_chains`) are `pub` fields a caller can write. The fix checks acyclicity where the records are written, or says at the write site why it cannot. It also decides whether the copies stay writable from outside the kernel. The readers' bounds are unreachable only once both hold.

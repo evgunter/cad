@@ -250,9 +250,11 @@ fn row4_appearance_edit_moves_pin() {
         node: extrude,
         path: vec![RoleSeg::Cap(CapEnd::End)],
     };
+    let read = crate::fixture::painted_in(&doc, &cap);
     let (painted, _) = step(
         doc,
         DocEdit::SetAppearance {
+            body: read,
             name: cap,
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
@@ -276,9 +278,11 @@ fn row4_metadata_edit_moves_pin() {
     };
     let mut m = std::collections::BTreeMap::new();
     m.insert("v".to_owned(), MetaValue::Int(1.into()));
+    let read = crate::fixture::painted_in(&doc, &body);
     let (annotated, _) = step(
         doc,
         DocEdit::SetAppearanceMeta {
+            body: read,
             name: body,
             key: "tool.example/pin-row".into(),
             value: MetaValue::map(m).expect("a shallow value"),

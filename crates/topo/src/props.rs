@@ -330,9 +330,7 @@ pub fn mass_properties<T: Decide + geom_core::CertifiedBounds>(
 /// walk, at the certified door's own signature and at plain
 /// `T: Decide`: no bracket is read anywhere on this path, so no bracket
 /// term is spelled. It IS `mass_properties_closed_form` with the band
-/// built inside from `tol`, the one public door onto that walk (the
-/// band-outside entry is `pub(crate)`, for the containment door's
-/// at-infinity probe, which holds a band already). Every closed-form face
+/// built inside from `tol`, the one public door onto that walk. Every closed-form face
 /// computes exactly as it does through the certified door, and a face
 /// that needs the certified quadrature refuses typed rather than
 /// passing unbounded, so on a closed-form body this door answers the
@@ -892,12 +890,33 @@ pub(crate) struct RoleUnread {
     /// `None` where no certified reading was taken, or it was not wholly
     /// in band.
     sliver: Option<CertifiedSliver>,
+    /// Whether the certified reading's ends both decided zero, where one
+    /// was taken.
+    certified_zero: Option<bool>,
+}
+
+/// Whether both ends decided zero.
+fn ends_zero(lo: Result<Decided, Indeterminate>, hi: Result<Decided, Indeterminate>) -> bool {
+    let zero = |end: Result<Decided, Indeterminate>| end.is_ok_and(|d| d.sign == Sign::Zero);
+    zero(lo) && zero(hi)
 }
 
 impl RoleUnread {
     /// The escalation either end hit, the high end's first.
     pub(crate) fn escalation(&self) -> Option<Indeterminate> {
         self.hi.err().or(self.lo.err())
+    }
+
+    /// Whether this read is a zero volume, a verdict: the certified
+    /// reading's ends both decided zero, where one was taken, and
+    /// otherwise the walk's, which then decide (a walk holding no lane,
+    /// [`certify_role`]). The true volume lies between the ends, so only
+    /// two ends in the zero band place it there; an end decided off zero
+    /// with no role read (a bracket straddling zero, or reaching from
+    /// zero to one side) is a volume left unmeasured, not a zero one.
+    pub(crate) fn reads_zero(&self) -> bool {
+        self.certified_zero
+            .unwrap_or_else(|| ends_zero(self.lo, self.hi))
     }
 
     /// The certified reading's verdict, where it lies wholly in band
@@ -917,13 +936,17 @@ impl RoleUnread {
     }
 
     /// This read, with what the certified reading `certified` (an exact
-    /// one: both ends one enclosure) says of the sliver band.
+    /// one: both ends one enclosure) says of the sliver band and of zero.
     fn certified_by(self, certified: &Self) -> Self {
         let sliver = match (certified.lo, certified.hi) {
             (Err(lo), Err(hi)) if lo == hi => CertifiedSliver::of(hi),
             _ => None,
         };
-        Self { sliver, ..self }
+        Self {
+            sliver,
+            certified_zero: Some(ends_zero(certified.lo, certified.hi)),
+            ..self
+        }
     }
 }
 
@@ -962,6 +985,7 @@ pub(crate) fn read_role<U: Decide>(
                     lo: one,
                     hi: one,
                     sliver: None,
+                    certified_zero: None,
                 },
             )
         }
@@ -977,6 +1001,7 @@ pub(crate) fn read_role<U: Decide>(
                     lo,
                     hi,
                     sliver: None,
+                    certified_zero: None,
                 },
             )
         }
@@ -1884,9 +1909,7 @@ impl<T: Real> fmt::Display for TargetUnreached<T> {
 }
 
 /// The closed-form-only walk against a caller-held band: plain
-/// `T: Decide`, no quadrature lane and no bracket read — the
-/// containment door's at-infinity probe (`at_infinity_side`)
-/// takes it with the band it already holds, and
+/// `T: Decide`, no quadrature lane and no bracket read —
 /// [`mass_properties_structural`] is this door with the band built
 /// inside, the public spelling of the same walk. On a conic-trimmed
 /// face the closed form refuses typed (fail-loud). The at-rest
@@ -1908,10 +1931,7 @@ pub(crate) fn mass_properties_closed_form<T: Decide>(
 /// [`mass_properties_closed_form`] over exactly `faces` — the enclosure
 /// those faces bound, summed in the order given. The whole-body door
 /// is this one handed the face arena in arena order, so its answer is
-/// bit-for-bit the same (`face_list_door_tests` pins it); the
-/// point-in-solid door's per-solid entry hands it one solid's faces so
-/// a no-hit ray reads THAT solid's at-infinity side and not the
-/// body's total.
+/// bit-for-bit the same (`face_list_door_tests` pins it).
 pub(crate) fn mass_properties_closed_form_of<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -4407,6 +4427,147 @@ where
 }
 
 #[cfg(test)]
+pub(crate) mod role_unread_rows {
+    #![allow(clippy::expect_used, clippy::panic)]
+    //! A role read that decided nothing is a zero volume only where both
+    //! ends of the reading that decides it read zero: the certified
+    //! reading where one is taken, else the walk's. A bracket with an end
+    //! off zero leaves the volume unmeasured.
+
+    use super::{Certified, RoleNames, RoleUnread, SignReading, VolumeEnclosure, certify_role};
+    use geom_core::{Band, Interval, Tol};
+
+    /// The witness band the rows read at.
+    pub(crate) fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the witness band builds")
+    }
+
+    /// `walk` read as a role, certified off the interval `certified`
+    /// (taken about the body) where one is given: a read that decides no
+    /// role.
+    pub(crate) fn unread(walk: SignReading<f64>, certified: Option<(f64, f64)>) -> RoleUnread {
+        let names = RoleNames::one("role_unread_rows");
+        let interval = |_| {
+            certified.map(|(lo, hi)| {
+                let volume = Interval::from_bounds(lo, hi);
+                Ok((
+                    SignReading::exact(volume, Interval::from_bounds(1.0, 1.0)),
+                    true,
+                ))
+            })
+        };
+        match certify_role(walk, interval, names, names, band()) {
+            Certified::Open(unread) | Certified::Unresolved(unread) => unread,
+            other => panic!("{walk:?} certified by {certified:?} read {other:?}"),
+        }
+    }
+
+    fn bracket(volume_lo: f64, volume_hi: f64) -> SignReading<f64> {
+        SignReading::Bracket(VolumeEnclosure {
+            volume_lo,
+            volume_hi,
+            surface_area: 1.0,
+        })
+    }
+
+    /// An interval wholly inside the band's sliver range.
+    fn sliver() -> (f64, f64) {
+        let (z, e) = (band().zero(), band().escalate());
+        let mid = 0.5 * (z + e);
+        (0.1f64.mul_add(-(e - z), mid), 0.1f64.mul_add(e - z, mid))
+    }
+
+    /// What a row's read is.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(crate) enum Read {
+        /// A zero volume.
+        Zero,
+        /// Certified wholly inside the sliver band.
+        Sliver,
+        /// Neither: the volume is unmeasured.
+        Unmeasured,
+    }
+
+    /// One row: its name, a walk, the certified interval if one is
+    /// taken, and what the read is.
+    pub(crate) type Row = (&'static str, SignReading<f64>, Option<(f64, f64)>, Read);
+
+    /// The rows.
+    pub(crate) fn rows() -> Vec<Row> {
+        let exact_zero = SignReading::exact(0.0, 1.0);
+        vec![
+            (
+                "an exact zero, no certificate",
+                exact_zero,
+                None,
+                Read::Zero,
+            ),
+            (
+                "a bracket inside the band",
+                bracket(-1e-15, 1e-15),
+                None,
+                Read::Zero,
+            ),
+            (
+                "a bracket straddling zero",
+                bracket(-1.0, 1.0),
+                None,
+                Read::Unmeasured,
+            ),
+            (
+                "a bracket from zero up",
+                bracket(0.0, 1.0),
+                None,
+                Read::Unmeasured,
+            ),
+            (
+                "a bracket from below up to zero",
+                bracket(-1.0, 0.0),
+                None,
+                Read::Unmeasured,
+            ),
+            (
+                "an exact zero certified zero",
+                exact_zero,
+                Some((-1e-15, 1e-15)),
+                Read::Zero,
+            ),
+            (
+                "an exact zero the certificate straddles",
+                exact_zero,
+                Some((-1.0, 1.0)),
+                Read::Unmeasured,
+            ),
+            (
+                "an exact zero certified a sliver",
+                exact_zero,
+                Some(sliver()),
+                Read::Sliver,
+            ),
+            (
+                "a wide bracket certified zero",
+                bracket(-1.0, 1.0),
+                Some((-1e-15, 1e-15)),
+                Read::Zero,
+            ),
+        ]
+    }
+
+    #[test]
+    fn a_read_is_a_zero_volume_only_where_its_deciding_ends_both_read_zero() {
+        for (what, walk, certified, read) in rows() {
+            let unread = unread(walk, certified);
+            assert_eq!(unread.reads_zero(), read == Read::Zero, "{what}: zero");
+            assert_eq!(
+                unread.sliver().is_some(),
+                read == Read::Sliver,
+                "{what}: sliver"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
 mod at_rest_policy_tests {
     #![allow(clippy::expect_used)]
     //! The certifying policy arms ARE the validation doors — pinned on
@@ -5010,7 +5171,13 @@ mod shell_role_refusal_tests {
         ];
         for (name, lo, hi) in rows {
             for sliver in [None, Some(certified)] {
-                let refusal = RoleUnread { lo, hi, sliver }.refusal(shell, band);
+                let refusal = RoleUnread {
+                    lo,
+                    hi,
+                    sliver,
+                    certified_zero: None,
+                }
+                .refusal(shell, band);
                 assert_eq!(
                     refusal.error,
                     shell_role_refusal(shell, lo, hi, band),
@@ -5036,11 +5203,13 @@ mod shell_role_refusal_tests {
             lo: 3e-9_f64.sign_within(band),
             hi: 3e-9_f64.sign_within(band),
             sliver: None,
+            certified_zero: None,
         };
         let one = |r: Result<Decided, Indeterminate>| RoleUnread {
             lo: r,
             hi: r,
             sliver: None,
+            certified_zero: None,
         };
         let rows = [
             ("wholly in band", one(read(2e-9, 4e-9)), true),
@@ -5064,6 +5233,7 @@ mod shell_role_refusal_tests {
                     lo: read(2e-9, 3e-9),
                     hi: read(3e-9, 4e-9),
                     sliver: None,
+                    certified_zero: None,
                 },
                 false,
             ),

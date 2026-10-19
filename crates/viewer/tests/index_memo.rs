@@ -905,6 +905,7 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
     let text = common::gallery_ring_at(tol);
     let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
     let doc = loaded.snapshot;
+    let opened = doc.clone();
     let (node, slot, expr) = ring_bump(&doc);
     let bump = Edit { node, slot, expr };
     let mut session = crate::common::inline_without_door(doc, tol);
@@ -916,9 +917,17 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
         outcome.refusal
     );
     session.pump();
+    // The bump stops the revolve short of a turn, so the seam the
+    // ring's pin read goes: the ring is re-placed where it stood.
+    common::repin_stranded(&mut session, &opened, tol);
     let index =
         common::index_at(&session, common::corpus_delta()).expect("the bumped ring indexes");
-    let corner = Point3::new(0.22558061449274294, 0.0, 0.0448707740637096);
+    // Its y is the rounding of the ring's quarter-turn axis heading.
+    let corner = Point3::new(
+        0.22558061449274294,
+        2.706_093_157_830_259_4e-19,
+        0.0448707740637096,
+    );
     let reach = REACH;
     let ray = aimed(corner, Vec3::new(0.0, 1.0, 0.0), REACH);
     let same = |p: &Point3<f64>, q: &Point3<f64>| {
@@ -1028,6 +1037,7 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     let text = common::gallery_ring_at(tol);
     let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
     let doc = loaded.snapshot;
+    let opened = doc.clone();
     let (node, slot, expr) = ring_bump(&doc);
     let bump = Edit { node, slot, expr };
     let mut session = crate::common::inline_without_door(doc, tol);
@@ -1039,9 +1049,17 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
         outcome.refusal
     );
     session.pump();
+    // The bump stops the revolve short of a turn, so the seam the
+    // ring's pin read goes: the ring is re-placed where it stood.
+    common::repin_stranded(&mut session, &opened, tol);
     let index =
         common::index_at(&session, common::corpus_delta()).expect("the bumped ring indexes");
-    let vertex = Point3::new(0.245_196_320_100_807_58, 0.0, 0.048_772_580_504_032_18);
+    // Its y is the rounding of the ring's quarter-turn axis heading.
+    let vertex = Point3::new(
+        0.245_196_320_100_807_58,
+        2.941_405_606_337_239e-19,
+        0.048_772_580_504_032_18,
+    );
     let reach = REACH;
     let ray = aimed(vertex, Vec3::new(0.0, -1.0, 0.0), REACH);
     assert!(

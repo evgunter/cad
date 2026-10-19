@@ -56,10 +56,9 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 fn band_trims(ev: &Evaluation<f64>) -> usize {
     ev.order
         .iter()
-        .filter_map(|id| ev.value(*id))
-        .map(|v| {
-            v.name_table
-                .iter()
+        .flat_map(|id| crate::fixture::tables(ev, *id))
+        .map(|t| {
+            t.iter()
                 .map(|(n, _)| match n.path.first() {
                     Some(RoleSeg::BandTrim { .. }) => 1,
                     Some(RoleSeg::Merged(cs)) => cs
@@ -158,7 +157,12 @@ fn lantern(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     );
     let (doc, revolve) = insert(
         doc,
-        revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
+        revolve_about(
+            profile,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            ang(std::f64::consts::TAU),
+        ),
     );
     (doc, revolve)
 }

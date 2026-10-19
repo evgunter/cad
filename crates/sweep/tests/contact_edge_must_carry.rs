@@ -610,9 +610,11 @@ fn a_contact_in_the_bands_octave_refuses_typed_with_the_predicate_and_the_lever(
 /// larger feature" is the clause that works — the rod and its blend
 /// scaled by two build; the past-the-peak direction is measured in
 /// `review_contact_edge_must_carry_r2_probes::r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it`.
-/// Slim corner arc: the wedge refused in band at `r` builds at `r/10`,
-/// its corner arcs stored as the conventional pair — the smaller
-/// radius leaves the join under-determined, as the sentence says.
+/// Slim corner arc: levered at the faces' extent its margin is the
+/// radius's, so the skew that put an arc levered at its own length in
+/// band builds at `r` and at `r/10`, no corner arc the conventional
+/// pair; the corner arc's in-band refusal has no row now
+/// (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
 fn the_contact_recourse_is_followable_at_each_site_kind() {
     let b = band();
@@ -650,27 +652,20 @@ fn the_contact_recourse_is_followable_at_each_site_kind() {
     let r = 8.7e-5 * scale;
     let theta = (1.5 * b.escalate() / r).sqrt();
     let (body, edges) = skewed_cavity_edges(theta, scale);
-    in_band_refusal(
-        fillet_edges(
+    for radius in [r, 0.1 * r] {
+        let out = fillet_edges(
             &sweep::test_support::at_rest(&body, tol()),
             &edges,
-            r,
+            radius,
             tol(),
-        ),
-        "the slim wedge at θ²·r/2 = 0.75·Kε",
-    );
-    let out = fillet_edges(
-        &sweep::test_support::at_rest(&body, tol()),
-        &edges,
-        0.1 * r,
-        tol(),
-    )
-    .unwrap_or_else(|e| panic!("the wedge at a tenth of the radius builds: {e}"));
-    assert_eq!(
-        corner_arc_pairs(&out),
-        4,
-        "the four corner arcs are stored as the conventional pair"
-    );
+        )
+        .unwrap_or_else(|e| panic!("the slim wedge at r = {radius:e} builds: {e}"));
+        assert_eq!(
+            corner_arc_pairs(&out),
+            0,
+            "r = {radius:e}: no corner arc is the conventional pair"
+        );
+    }
 }
 
 /// The edges between a blend face and a corner face — the corner balls'

@@ -133,7 +133,7 @@ macro_rules! nurbs_project {
             /// rule). Public for warm-start consumers and the planted
             /// wrong-branch fixtures; `project` = this + Newton.
             pub fn project_seed(&self, p: $Point<T>) -> f64 {
-                let kv = self.knots();
+                let kv = self.knots_f64_interim();
                 let mut best_t = kv.domain().0;
                 let mut best_d2 = f64::INFINITY;
                 for index in kv.first_span()..=kv.last_span() {

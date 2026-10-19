@@ -2,11 +2,12 @@
 id: the-census-crossing-lane-misplaces-a-shared-points-crossing-on-a-near-collinear-pair
 kind: issue
 title: The census's crossing lane reads a near-collinear pair's crossing through a closed form whose f64 error is ulp·|d|/θ: pairs meeting only at their shared point escalate pm_census_ee_span at ε = 1e-9 (982 escalations) and read a definite EdgeEdgeCross at ε = 1e-12 (845)
-status: open
+status: closed
 opened: 2026-10-08
 priority: P0
 cost: M
 refs: [4335]
+closed: 2026-10-17
 ---
 
 ## What
@@ -58,3 +59,31 @@ the closed form: a pair meeting at a shared point key has no interior
 crossing there. Or read the parameters from a nearby origin, so `|d|`
 is small. Either way, decide what the lane then owes the same-heading
 pairs above: today the arithmetic is all that keeps them from passing.
+
+## Closed
+
+2026-10-17, RESTREAD's crossing lane. `census::ee_lines_closest`
+reads the two lines' closest point from the ends the edges share on one
+point key (`EdgeGeo::points`), else from their starts. Read from a
+shared point the closed form's origins coincide, so the lines meet
+there exactly, at zero reach along each: an end of both, never an
+interior crossing. Measured on main `43cac0bf`: 1010 `b-arith`
+`pm_census_ee_span` escalations at ε = 1e-9 over the probe's default
+tilts; none on the branch, and no `EdgeEdgeCross` finding at 1e-12.
+Pinned by `census::edge_pairs_as_segments`
+`two_edges_ending_on_one_point_key_meet_only_there` (this row's witness
+at 1e-9 and 1e-12, and a pair main reads as a definite crossing at
+1e-12), and end to end by `topo` `sliver_shell_role`
+`a_needle_reads_every_pair_of_its_cells_definite`.
+
+**What the lane owes the same-heading pairs.** Nothing more than it
+reads. DESIGN.md tier 3′ (PR 4595) reads cells that share a point by
+their largest distance beyond it, over the shorter cell: for two
+straight edges, the shorter's far end, its length times the sine
+between them. That is the parallel screen's own margin, so a pair
+whose far ends part definitely is legal however thin, one in band
+escalates there (`pm_census_ee_parallel`), and a Zero goes to the
+collinear lane. The 321 `b-arith/sliver` pairs at ε = 1e-9 all read a
+definite far-end gap. INSIDE's
+`two-copies-of-a-pierce-carry-edges-that-run-within-the-band` carries
+the count.
