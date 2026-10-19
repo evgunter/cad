@@ -253,6 +253,9 @@ pub enum ProgramStep<S = crate::VarId> {
     ArcTo(ProgramArcData<S>),
     /// `tangent_arc_to(target)`.
     TangentArcTo(ProgramTarget<S>),
+    /// `arc_onto(target)` — the arc whose END tangent the following
+    /// director names; `Start.arrives_tangent()` closes at the verb.
+    ArcOnto(ProgramTarget<S>),
     /// `.fillet(r)` — line incoming, line arrival.
     Fillet(S),
     /// **§2c** `fillet_arc(r, spec)` — line incoming, arc arrival.
@@ -1206,7 +1209,9 @@ macro_rules! step_roles {
             P::Tangent | P::Cusp | P::CloseTo => {}
             P::Turn(e) => $out.push((A::TurnVal, e)),
             P::Line(e) => $out.push((A::Length, e)),
-            P::LineTo(t) | P::ContinueTo(t) | P::TangentArcTo(t) => target_roles!(t, false, $out),
+            P::LineTo(t) | P::ContinueTo(t) | P::TangentArcTo(t) | P::ArcOnto(t) => {
+                target_roles!(t, false, $out)
+            }
             P::ArcTo(spec) => spec_roles!(spec, false, $out),
             P::Fillet(radius) => $out.push((FILLET_RADIUS_ROLE, radius)),
             P::FilletArc { radius, spec } => {
@@ -1584,6 +1589,7 @@ where
         ProgramStep::ContinueTo(t) => Step::ContinueTo(res_target(t, res)?),
         ProgramStep::ArcTo(spec) => Step::ArcTo(res_spec(spec, res)?),
         ProgramStep::TangentArcTo(t) => Step::TangentArcTo(res_target(t, res)?),
+        ProgramStep::ArcOnto(t) => Step::ArcOnto(res_target(t, res)?),
         ProgramStep::Fillet(e) => Step::Fillet { radius: res(e)? },
         ProgramStep::FilletArc { radius, spec } => Step::FilletArc {
             radius: res(radius)?,
@@ -2428,7 +2434,8 @@ fn step_bit_eq<L: crate::expr::LeafSet>(
         (P::Tangent, P::Tangent) | (P::Cusp, P::Cusp) | (P::CloseTo, P::CloseTo) => true,
         (P::LineTo(x), P::LineTo(y))
         | (P::ContinueTo(x), P::ContinueTo(y))
-        | (P::TangentArcTo(x), P::TangentArcTo(y)) => target_bit_eq(x, y),
+        | (P::TangentArcTo(x), P::TangentArcTo(y))
+        | (P::ArcOnto(x), P::ArcOnto(y)) => target_bit_eq(x, y),
         (P::ArcTo(x), P::ArcTo(y)) => spec_bit_eq(x, y),
         (
             P::FilletArc {
@@ -2474,6 +2481,7 @@ fn step_bit_eq<L: crate::expr::LeafSet>(
             | P::ContinueTo(_)
             | P::ArcTo(_)
             | P::TangentArcTo(_)
+            | P::ArcOnto(_)
             | P::Fillet(_)
             | P::FilletArc { .. }
             | P::ArcFillet { .. }
@@ -2666,6 +2674,7 @@ impl<S> ProgramStep<S> {
             ProgramStep::ContinueTo(t) => ProgramStep::ContinueTo(t.try_map_slots(f)?),
             ProgramStep::ArcTo(spec) => ProgramStep::ArcTo(spec.try_map_slots(f)?),
             ProgramStep::TangentArcTo(t) => ProgramStep::TangentArcTo(t.try_map_slots(f)?),
+            ProgramStep::ArcOnto(t) => ProgramStep::ArcOnto(t.try_map_slots(f)?),
             ProgramStep::Fillet(r) => ProgramStep::Fillet(f(r)?),
             ProgramStep::FilletArc { radius, spec } => ProgramStep::FilletArc {
                 radius: f(radius)?,
@@ -3340,6 +3349,7 @@ impl LoopProgram<Formula> {
                 Step::ContinueTo(t) => ProgramStep::ContinueTo(target_lit(t)?),
                 Step::ArcTo(spec) => ProgramStep::ArcTo(spec_lit(spec)?),
                 Step::TangentArcTo(t) => ProgramStep::TangentArcTo(target_lit(t)?),
+                Step::ArcOnto(t) => ProgramStep::ArcOnto(target_lit(t)?),
                 Step::Fillet { radius } => ProgramStep::Fillet(len_lit(*radius)?),
                 Step::FilletArc { radius, spec } => ProgramStep::FilletArc {
                     radius: len_lit(*radius)?,

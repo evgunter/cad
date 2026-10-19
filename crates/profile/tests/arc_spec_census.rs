@@ -40,6 +40,7 @@ fn sample_step(verb: Verb) -> Option<Step<f64>> {
         Verb::LineTo => Step::LineTo(Target::Point(p)),
         Verb::ContinueTo => Step::ContinueTo(Target::Point(p)),
         Verb::TangentArcTo => Step::TangentArcTo(Target::Point(p)),
+        Verb::ArcOnto => Step::ArcOnto(Target::Point(p)),
         Verb::Fillet => Step::Fillet { radius: 1.0 },
         Verb::FarEndTo => Step::FarEndTo(p),
         Verb::CloseTo => Step::CloseTo,

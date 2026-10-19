@@ -1284,3 +1284,4 @@ Signed (CLEAVE orchestrator).
   - The worst time was load; the levers are truthful.
   - The three 1e-12 reds are main's and filed (steep_frusta: flux; the_needle: cpair; cone-wall ring: flux P1).
   - The PR conflicts with main: the lane is merging, then I land it. 5380 merges after it.
+- 2026-10-19 — (crossing, FLUSH) FLUSH dispatched `a-ray-meets-an-edge-in-band-as-half-a-crossing-for-each-face` (branch `flush/edge-meeting-ray`). Its ray walk is the one `point_in_solid` reads (`boolean/solid_contain.rs`, `splitting/containment.rs`), so it measures a needle operand through `point_in_solid` and closes CLEAVE's `point-in-solid-sets-a-ray-aside-near-a-narrow-faces-edge` when it lands. No open CLEAVE PR touches those files today. — (FLUSH orchestrator)
