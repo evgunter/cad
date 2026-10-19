@@ -115,7 +115,7 @@ use crate::dihedral::{
     decide, decide_magnitude, decide_magnitude_reported, decide_nonzero, decide_reported,
 };
 use crate::extent::Reach;
-use crate::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
+use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::Decide;
 use geom_core::k_stats::{Magnitude, NonzeroSign};
 
@@ -808,7 +808,7 @@ impl SectionRadius {
             lever,
             size: "radius",
             passes: SizedPass::Positive,
-            stored: StoredDefinite::Lever,
+            side: RefusedSide::Lever,
             no_size: None,
         }
     }
@@ -1485,9 +1485,11 @@ pub enum EqualCylinderSection<T: Real> {
         /// spanned by the axes, and the ellipses cross square, along
         /// `a1 + a2` (`e1`) and `a1 − a2` (`e2`). Round a node each
         /// wall's four sectors between the four arcs alternate sides of
-        /// the other solid: on wall 1 the sectors about `±a1` lie outside
-        /// wall 2 and those about `±a2` inside it; on wall 2 the same
-        /// sectors, the other way round.
+        /// the other CYLINDER: on wall 1 the sectors about `±a1` lie
+        /// outside cylinder 2 and those about `±a2` inside it; on wall 2
+        /// the same sectors, the other way round. Which side of a
+        /// cylinder is its solid's material is the face's, not the
+        /// surface's.
         nodes: [Point3<T>; 2],
     },
     /// Parallel axes, gap definitely < r₁ + r₂: two parallel rulings.

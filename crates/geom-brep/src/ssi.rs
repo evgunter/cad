@@ -142,7 +142,7 @@ use geom_core::{Band, Indeterminate, Margin, MarginDiag, NOT_YET_ENDING, Point3,
 
 use crate::certify::CertCheck;
 use crate::recourse::{
-    ReadAt, Reading, Refused, RefusedArm, SizedDecision, StoredDefinite, Unsized, defect_ending,
+    ReadAt, Reading, Refused, RefusedArm, RefusedSide, SizedDecision, Unsized, defect_ending,
 };
 
 pub use boundary::{
@@ -330,8 +330,8 @@ pub enum SsiError {
     ///
     /// The refused arm of the march's transversality decision
     /// (`ssi_transversality`), which passes on a positive sign; it ends
-    /// by [`CertCheck::Transversality`], as limb 3 and the edge
-    /// certifier's transversality do ([`SsiError::ending`]).
+    /// by [`CertCheck::Transversality`], as the edge certifier's
+    /// transversality does ([`SsiError::ending`]).
     TransversalityBand {
         /// The sine of the angle between the operand normals.
         sin_theta: f64,
@@ -955,7 +955,8 @@ impl core::fmt::Display for SsiError {
                  locus cusps or crosses itself, which is a degenerate operand pair"
             ),
             Self::CertificateLimb { limb, margin } => match limb {
-                SsiLimb::HullSup => write!(
+                // The chart arm's label says it reads through the pcurve.
+                SsiLimb::HullSup | SsiLimb::HullSupChart => write!(
                     f,
                     "ssi: {} bounds the fitted carrier's distance from the locus it claims by \
                      {margin:e} m, past the tolerance",
@@ -963,14 +964,30 @@ impl core::fmt::Display for SsiError {
                 ),
                 SsiLimb::HullValueChart => write!(
                     f,
-                    "ssi: the fitted carrier failed {} at {margin:e} m — the carrier is off \
-                     the surface point its pcurve names",
+                    "ssi: the fitted carrier failed {} at {margin:e} m — the carrier against \
+                     the surface point its pcurve names, which bounds the carrier's miss and is \
+                     not the miss",
                     limb.name()
                 ),
-                SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => write!(
+                SsiLimb::ImageMiss => write!(
+                    f,
+                    "ssi: the fitted carrier failed {} at {margin:e} m where the carrier is on \
+                     the surface — its pcurve misses the carrier's foot path there",
+                    limb.name()
+                ),
+                SsiLimb::OnLocus | SsiLimb::HullValue => write!(
                     f,
                     "ssi: the fitted carrier failed {} at {margin:e} m — the cache is not \
                      within tolerance of the locus it claims",
+                    limb.name()
+                ),
+                // No producer writes a `CertificateLimb` of limb 3: the
+                // tube refuses as `TubeStraddles` or `TubeNotOneArc`, or
+                // escalates.
+                SsiLimb::Tube => write!(
+                    f,
+                    "ssi: the fitted carrier failed {} at {margin:e} m — the certificate cannot \
+                     show the cache is its surfaces' one crossing",
                     limb.name()
                 ),
             },
@@ -1904,7 +1921,7 @@ const GRAZE: SizedDecision = SizedDecision {
     lever: "move the plane or the curve so they cross at a clear angle",
     size: "crossing angle",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -1933,7 +1950,7 @@ const fn short_branch(lever: &'static str) -> SizedDecision {
         lever,
         size: "branch length",
         passes: SizedPass::Positive,
-        stored: StoredDefinite::Lever,
+        side: RefusedSide::Lever,
         no_size: None,
     }
 }
@@ -1946,7 +1963,7 @@ const MARCH_STEP_BEND: SizedDecision = SizedDecision {
     lever: "move the plane or the wall so the branch bends less sharply where the march stalls",
     size: "bend",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -2024,8 +2041,8 @@ const STEP_BUDGET_CURVATURE_RECOURSE: &str = concat!(
 
 /// [`SsiError::StepBudget`]'s ending where the idealized step held the
 /// steps short: it is a thousandth of the caller's feature extent.
-const STEP_BUDGET_IDEALIZED_RECOURSE: &str = "Recourse: name a feature extent near the size of the feature traced; the idealized step is a \
-     thousandth of it";
+const STEP_BUDGET_IDEALIZED_RECOURSE: &str = "Recourse: name a feature extent near the size of the \
+     feature traced; the idealized step is a thousandth of it";
 
 const _: () = assert!(
     certify::SSI_TUBE_RADIUS_MAX * 8.0 == 1.0,
@@ -2041,7 +2058,7 @@ const TUBE_EXTENT: SizedDecision = SizedDecision {
             feature traced",
     size: "feature extent",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -2304,7 +2321,7 @@ const DOMAIN_SCALE: SizedDecision = SizedDecision {
             nearer the origin, where its coordinates resolve the tolerance",
     size: "scale",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -2317,7 +2334,7 @@ const OPEN_END: SizedDecision = SizedDecision {
             lands within a few tolerances of the slab",
     size: "boundary distance",
     passes: SizedPass::AnySign,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -2332,7 +2349,7 @@ const TUBE_ONE_ARC: SizedDecision = SizedDecision {
             holds one arc of the locus, end to end, and nothing else",
     size: "clearance",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -2344,7 +2361,7 @@ const REST_ONE_ARC: SizedDecision = SizedDecision {
             no second arc beside it",
     size: "clearance",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -2392,7 +2409,7 @@ const SELF_CROSSING: SizedDecision = SizedDecision {
     lever: "move the surfaces so their intersection does not cusp or cross itself",
     size: "closure angle",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -2408,7 +2425,7 @@ const STEP_SCALE: SizedDecision = SizedDecision {
             of the intersection",
     size: "scale",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -2418,7 +2435,7 @@ const PAIR_TANGENCY: SizedDecision = SizedDecision {
     lever: "separate the sphere and the cylinder, or move one so they are clearly not tangent",
     size: "near-tangency",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -3196,9 +3213,9 @@ mod ending_tests {
         });
         assert_eq!(
             escalated(TraceDecision::TransversalityArm).ending(Reading::Build),
-            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
-             there, or, if this length or the gap its faces open is intended, tighten the \
-             tolerance below 5e-10 m",
+            "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
+             tightly there, or, if this length or the gap its faces open is intended, \
+             tighten the tolerance below 5e-10 m",
             "the arm gate ends as a length, not the angle it guards"
         );
         let transversal = [
@@ -3408,7 +3425,7 @@ mod ending_tests {
             },
             samples: 10_221,
             refusal: Box::new(SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSupChart,
                 margin: MarginDiag::value(last),
             }),
             earlier: vec![
@@ -3419,7 +3436,7 @@ mod ending_tests {
                 },
                 RefusedRound {
                     samples: 7_400,
-                    limb: SsiLimb::HullSup,
+                    limb: SsiLimb::HullSupChart,
                     margin: RoundMargin::Over(MarginDiag::value(before)),
                 },
             ],
@@ -3485,7 +3502,7 @@ mod ending_tests {
             },
             samples: 18_299,
             refusal: Box::new(SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSupChart,
                 margin: MarginDiag::value(1.17e-14),
             }),
             earlier: Vec::new(),
@@ -3510,7 +3527,7 @@ mod ending_tests {
             refusal,
             earlier: vec![RefusedRound {
                 samples: 18_299,
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSupChart,
                 margin: RoundMargin::Over(MarginDiag::value(1.3e-14)),
             }],
         };
@@ -3528,13 +3545,13 @@ mod ending_tests {
                 },
                 samples: 348,
                 refusal: Box::new(SsiError::CertificateLimb {
-                    limb: SsiLimb::HullSup,
+                    limb: SsiLimb::HullSupChart,
                     margin: MarginDiag::value(2.4e-9),
                 }),
                 earlier: (0..earlier)
                     .map(|_| RefusedRound {
                         samples: 346,
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: RoundMargin::Over(MarginDiag::value(3.1e-9)),
                     })
                     .collect(),
@@ -3918,12 +3935,12 @@ mod ending_tests {
                     },
                     samples: 348,
                     refusal: Box::new(SsiError::CertificateLimb {
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: MarginDiag::value(2.4e-9),
                     }),
                     earlier: vec![RefusedRound {
                         samples: 346,
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: RoundMargin::Over(MarginDiag::value(3.1e-9)),
                     }],
                 },
@@ -3937,12 +3954,12 @@ mod ending_tests {
                     },
                     samples: 17_375,
                     refusal: Box::new(SsiError::CertificateLimb {
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: MarginDiag::value(2.15e-11),
                     }),
                     earlier: vec![RefusedRound {
                         samples: 10_337,
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: RoundMargin::Over(MarginDiag::value(1.30e-10)),
                     }],
                 },
@@ -3958,13 +3975,13 @@ mod ending_tests {
                     },
                     samples: 14_965,
                     refusal: Box::new(SsiError::CertificateEscalated {
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         cause: in_band,
                     }),
                     earlier: (0..4)
                         .map(|k| RefusedRound {
                             samples: 4_245 << k,
-                            limb: SsiLimb::HullSup,
+                            limb: SsiLimb::HullSupChart,
                             margin: RoundMargin::InBand(MarginDiag::value(1.6e-14)),
                         })
                         .collect(),
@@ -4024,7 +4041,7 @@ mod ending_tests {
             (
                 "limb",
                 SsiError::CertificateLimb {
-                    limb: SsiLimb::HullSup,
+                    limb: SsiLimb::HullSupChart,
                     margin: MarginDiag::value(3e-9),
                 },
             ),

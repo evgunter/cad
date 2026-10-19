@@ -47,6 +47,7 @@
 //! extrude and the group, which is the memoized-recompute claim
 //! `lib_placedunion.rs` pins.
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::{Dimension, DocEdit, Formula, FreeVar, Node, PatternKind, SlotId, VarName};
 
@@ -102,7 +103,7 @@ pub fn document() -> CorpusDoc {
         expr: Formula::named(VarName::from_static("fins"), Dimension::Count),
         fresh: Vec::new(),
     });
-    r.place(fins);
+    r.place_part(fins);
 
     CorpusDoc {
         name: "heat_sink_fins",

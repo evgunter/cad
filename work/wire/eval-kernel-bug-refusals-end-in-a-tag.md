@@ -2,8 +2,13 @@
 id: eval-kernel-bug-refusals-end-in-a-tag
 kind: issue
 title: editor-core: NodeErrorKind MissingSlot and VerbArity end in '(a kernel bug)', not the shared kernel-defect ending
-status: open
+status: closed
 opened: 2026-09-28
+priority: P4
+cost: E
+closed: 2026-10-17
+pr: 5262
+branch: wire/refusal-endings
 ---
 
 
@@ -26,3 +31,9 @@ through: this is a kernel defect; report it").
 ## Repair shape
 
 Replace each tag with ". {KERNEL_DEFECT_ENDING}".
+
+## Closed (2026-10-17)
+
+PR 5262 (merged `90a7974563`, branch `wire/refusal-endings`). See the PR body for the change; style review mergeable, fix pass taken.
+
+Signed (WIRE orchestrator).

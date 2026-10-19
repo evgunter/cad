@@ -42,13 +42,14 @@
 
 #![allow(dead_code)] // loaded once per consumer; each uses a subset
 
+use profile::SketchPlane;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_brep::keys::SurfaceKey;
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use sweep::Lofted;
 use topo::{Body, CurveGeom, EdgeKey, FaceKey, FaceSurface};
@@ -76,7 +77,7 @@ pub fn prism() -> Body<f64> {
     };
     let places = [0.0, 1.0]
         .iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, *z)))
         .collect::<Vec<_>>();
     sweep::loft_body::<f64>(&[square(), square()], &places, 1, Tol::witness())
         .expect("the square prism lofts")
@@ -132,8 +133,8 @@ pub fn twisted_lofted(theta: f64) -> Lofted<f64> {
         rv(0.0, 2.0),
     ])];
     let places = vec![
-        Affine3::translation(Vec3::new(0.0, 0.0, 0.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0)),
     ];
     sweep::loft_body::<f64>(&[square, rotated], &places, 1, Tol::witness())
         .expect("the twisted square lofts")
@@ -187,13 +188,13 @@ pub fn planar_patch(z: f64) -> NurbsSurface<f64> {
 /// exact on a plane, approximate (to `d·Δn`) on a saddle. See the
 /// module docs for why the base is the pull-back and not the wall.
 pub fn pulled_back(wall: &NurbsSurface<f64>, d: f64) -> NurbsSurface<f64> {
-    let (u0, u1) = wall.knots_u().domain();
-    let (v0, v1) = wall.knots_v().domain();
+    let (u0, u1) = wall.knots_u_f64_interim().domain();
+    let (v0, v1) = wall.knots_v_f64_interim().domain();
     let jet = wall.ders((u0 + u1) * 0.5, (v0 + v1) * 0.5);
     let n = jet.du.cross(jet.dv).normalize();
     NurbsSurface::new(
-        wall.knots_u().clone(),
-        wall.knots_v().clone(),
+        wall.knots_u_f64_interim().clone(),
+        wall.knots_v_f64_interim().clone(),
         wall.control().iter().map(|p| *p - n * d).collect(),
         wall.weights().to_vec(),
     )
@@ -453,7 +454,7 @@ pub fn try_approx_walls(
         let approx = geom_brep::approx_offset_surface_at(base, d, target, band())
             .unwrap_or_else(|e| panic!("d = {d}: the wall's offset must fit: {e}"));
         if let Surface::Approx(a) = &approx {
-            let kv = a.fit().knots_v().knots();
+            let kv = a.fit().knots_v_f64_interim().knots();
             fit_interior_v = kv[FIT_DEGREE + 1..kv.len() - (FIT_DEGREE + 1)].to_vec();
         }
         // Lifts RechartStrandsDescriptions: the Approx chart goes on first; the edges are re-described on it after.
@@ -489,9 +490,9 @@ pub fn try_approx_walls(
             .with_remapped_surfaces(|k| Some(remap.get(&k).copied().unwrap_or(k)))
             .expect("the remap answers for every key");
         let carrier = match re.carrier() {
-            Curve3::Nurbs(c) if c.knots().degree() < FIT_DEGREE => {
+            Curve3::Nurbs(c) if c.knots_f64_interim().degree() < FIT_DEGREE => {
                 let mut e = c
-                    .elevate_degree(FIT_DEGREE - c.knots().degree())
+                    .elevate_degree(FIT_DEGREE - c.knots_f64_interim().degree())
                     .expect("degree elevation of a clamped carrier");
                 if !fit_interior_v.is_empty() {
                     e = e
@@ -582,7 +583,15 @@ pub fn reattach_certifies_at(body: &Body<f64>, edge: EdgeKey, eps: f64) -> bool 
     let Ok(band) = geom_core::Band::linear_at(Tol::witness(), eps) else {
         return false;
     };
-    geom_brep::EdgeCurve::certify(spec, start, end, |k| body.get_surface(k).cloned(), band).is_ok()
+    geom_brep::EdgeCurve::certify(
+        spec,
+        start,
+        end,
+        |k| body.get_surface(k).cloned(),
+        1.0,
+        band,
+    )
+    .is_ok()
 }
 
 /// **A moved wall's seam with a held spline wall, its measured verdict.**

@@ -205,9 +205,6 @@ let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0
     .expect("finite corners");
 
 let doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
-// `apply`'s last argument is the mated parts' REACH — what inserting
-// a mate with a clocking rider levers the rider's admission through.
-// This document inserts no mate, so the refusing reach is never asked.
 // The frame the square is drawn on — a dependency of the profile
 // exactly as the profile is a dependency of the extrude.
 let applied = apply(&doc, &DocEdit::InsertNode {
@@ -217,23 +214,23 @@ let applied = apply(&doc, &DocEdit::InsertNode {
         v: [scl(0.0), scl(1.0), scl(0.0)],
     })),
     fresh: Vec::new(),
-}, tol, &pncad::document::RefusingReach)?;
+}, tol)?;
 let (doc, frame) = (applied.doc, applied.record.minted.expect("minted"));
 let applied = apply(&doc, &DocEdit::InsertNode {
     node: Box::new(Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() })),
     fresh: Vec::new(),
-}, tol, &pncad::document::RefusingReach)?;
+}, tol)?;
 let (doc, profile) = (applied.doc, applied.record.minted.expect("minted"));
 let applied = apply(&doc, &DocEdit::InsertNode {
     node: Box::new(Node::Extrude { profile: profile.into(), distance: len(1.0), side: ExtrudeSide::Along }),
     fresh: Vec::new(),
-}, tol, &pncad::document::RefusingReach)?;
+}, tol)?;
 let (doc, body) = (applied.doc, applied.record.minted.expect("minted"));
 
 let refused = apply(&doc, &DocEdit::InsertNode {
     node: Box::new(Node::Extrude { profile: body.into(), distance: len(1.0), side: ExtrudeSide::Along }),
     fresh: Vec::new(),
-}, tol, &pncad::document::RefusingReach);
+}, tol);
 assert!(matches!(refused, Err(EditError::SlotVarKind { .. })));
 assert_eq!(doc.len(), 3, "the refused edit changed nothing");
 # Ok::<(), Box<dyn std::error::Error>>(())
@@ -290,8 +287,9 @@ except EvaluationError as err:
 
 Flush, the same two slabs glue, and the union's value says what was
 decided to glue them: one coincidence row per pair of faces its
-margins decided one surface, each naming its two faces by the names
-their own operands gave them.
+margins decided one surface, and one per pair of corners decided one
+point, each naming its two cells by the names their own operands gave
+them.
 
 ```python
 from pncad import Doc, Formula, Node, evaluate, mm
@@ -323,11 +321,13 @@ body.validate()
 # 10 × 10 × 20 mm³ — one block, watertight.
 assert abs(body.mass_properties().volume - 2e-6) < 1e-15
 
-# The rest at z = 10 mm, and the four walls carried on across it.
+# The rest at z = 10 mm, the four walls carried on across it, and the
+# four corners where the slabs meet.
 relations = sorted(row.relation for row in ev.coincidences(glued))
-assert relations == ["same_opposite"] + ["same_oriented"] * 4
+assert relations == ["on_carrier"] * 4 + ["same_opposite"] + ["same_oriented"] * 4
 # Two slabs of separately typed heights: nothing proves the planes
-# one, so each row is unproven and says what separates its faces.
+# or the corners one, so each row is unproven and says what separates
+# its cells.
 assert all(row.rung is None for row in ev.coincidences(glued))
 ```
 
@@ -400,7 +400,7 @@ def revolved(x0, angle):
     )
     axis = (
         (Formula.length_in(0, m), Formula.length_in(0, m)),
-        (Formula.literal(0.0), Formula.literal(1.0)),
+        Formula.turn_over(4),
     )
     node = doc.insert(Node.revolve(doc.insert(Node.profile(square, plane=frame)), *axis, Formula.literal(angle)))
     try:

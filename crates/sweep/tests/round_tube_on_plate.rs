@@ -11,8 +11,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use geom_core::Point3;
 
-use geom_core::{Affine3, Point2, Tol, Vec3};
+use geom_core::{Point2, Tol};
 use profile::{ProfileLoop, SketchPlane, circle_split};
 use sweep::test_support::{brick, extruded, finished};
 use topo::{AtRestBody, BooleanError, BooleanResult};
@@ -33,7 +34,7 @@ fn tube() -> AtRestBody<f64> {
     let c = Point2::new(1.5, 1.0);
     let rim: ProfileLoop<f64> = circle_split(c, 0.6, 2, 0.0, tol()).unwrap().into();
     let bore: ProfileLoop<f64> = circle_split(c, 0.4, 3, 0.3, tol()).unwrap().into();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.5)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.5));
     finished(
         "the tube",
         extruded(plane, vec![rim, bore], 1.5, tol()),

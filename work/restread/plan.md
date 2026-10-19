@@ -24,6 +24,21 @@ points against 30 with its P0 units landed or parked (PRs 4363, 4368,
 | P1 | `torus-face-bounded-by-an-oblique-circle-refuses-point-classification` | H | A torus face bounded by a circle off both chart families refuses point classification (PartialTorusFace), where a sphere face so bounded is now read |
 | P3 | `census-face-reach-returns-a-nan-box-for-an-unclaimable-boundary-edge` | E | census::face_reach returns a NaN-ended Some for a cylinder or cone face with an unclaimable boundary edge, against its own None contract |
 
+## Read against the D10 hold (2026-10-17)
+
+Six rows stand on contact records, declared pairs or the shape of
+at-rest findings, which INTENT stages 4 and 5 rebuild (and the open
+[ev] PR 4666): they parked on `d10-one-way-to-say-intent-is-unbuilt`
+and moved to CONTACTHOLD — `an-escalated-census-finding-names-no-pair`,
+`census-face-rungs-for-a-collinear-overlap-are-unconfined`,
+`a-two-carrier-curve-touch-has-no-bounded-locus`,
+`an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane`,
+`census-face-pair-confirm-is-a-trial-ladder` and
+`the-two-carrier-face-pair-confirm-escalates-where-its-second-face-reads-the-point-out`.
+`census-cross-solid-curved-pairs-undecidable-on-shell-results` keeps
+only its certify-apart half (its body says so). The table above is the
+opening slate; `work.py status --program restread` is the live one.
+
 ## Order
 
 The five P0 rows first. They are near-band reads JOIN and TANG found in the census's straight lanes, and they batch into two lanes: the crossing lane (`…-crossing-lane-escalates-a-line-gap-…`, `…-crossing-lane-misplaces-…`, `…-parallel-test-reads-…`) and the edge-on-face lane (`…-edge-face-cut-escalates-…`, `…-edge-face-lane-escalates-a-plane-residual-…`). CONTACT-12's lesson stands for both: a Zero that abandons a reading and a Zero that is a verdict want different bounds, so each brief asks, per verdict, which bound makes it sound.

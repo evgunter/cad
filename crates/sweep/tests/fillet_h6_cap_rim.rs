@@ -9,24 +9,26 @@
 //! exactly, and a line leg's wall is a plane ruled in `w`, which the
 //! gates hold within a tilt of `1/K` of `n`. The cap–wall dihedral is
 //! therefore a right angle at every arc rim point and within `1/K` of
-//! one at every line rim point: at the shipped K, `classify_dihedral` decides
-//! `Transverse` wherever it decides at all, and the only other outcome
-//! is the typed escalation (`SliverRim`). At a K below the crossover
-//! the same doors admit a chord short enough for the wedge to read
-//! smooth, and the last two rows measure that body end to end.
+//! one at every line rim point. The wedge is levered at the faces'
+//! extent (`topo::wedge_reach`), at least the wall's distance to its
+//! far rim, and that distance times the dihedral's sine is the
+//! extrusion's height, which the gate decides past `K·ε`: so
+//! `classify_dihedral` decides `Transverse` at every rim and every K,
+//! and the last row measures that end to end on both sides of the
+//! crossover `K* = √φ` below which a rim levered at its own length
+//! would read smooth.
 //!
 //! Each row builds a body through the public door and reads BOTH
 //! instruments at every cap rim: the description the arm actually
 //! stored (`Intersection` iff the transverse arm ran) and
 //! `classify_dihedral` re-run on the arm's own inputs (the certified
-//! carrier's mid-parameter witness, `edge_extent` as the meter).
+//! carrier's mid-parameter witness, the faces' extent as the meter).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::cap_rims::{chart_counts, description, face_across, face_edges};
 use geom_brep::{
-    DihedralClass, EdgeDescription, MustCarryVerdict, classify_dihedral, edge_extent,
-    must_carry_over_edge,
+    DihedralClass, EdgeDescription, MustCarryVerdict, classify_dihedral, must_carry_over_edge,
 };
 use geom_core::{Band, Point2, Tol, Vec3};
 use profile::{
@@ -43,7 +45,7 @@ fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> Validated
 
 /// One cap rim's inputs as `upgrade_rim` reads them: the cap and wall
 /// surfaces, the certified carrier, its interval, the mid-parameter
-/// witness and the honest extent.
+/// witness and the faces' extent.
 struct RimInputs {
     s_cap: geom::Surface<f64>,
     s_wall: geom::Surface<f64>,
@@ -72,8 +74,7 @@ fn rim_inputs(body: &Body<f64>, cap: FaceKey, edge: EdgeKey) -> RimInputs {
         .clone();
     let (t0, t1) = curve.params();
     let witness = curve.carrier().eval(t0 + (t1 - t0) * 0.5);
-    let ends = curve.carrier().eval(t0).distance(curve.carrier().eval(t1));
-    let extent = edge_extent(curve.carrier(), t0, t1, ends);
+    let extent = topo::edge_wedge_reach(body, edge).expect("a certified rim");
     RimInputs {
         s_cap,
         s_wall,
@@ -331,7 +332,7 @@ fn every_extruded_cap_rim_is_transverse() {
         ),
         (
             // A near-closed arc rim, whose CHORD collapses: the meter
-            // is `edge_extent`'s carrier diameter instead.
+            // is the faces' extent, the cap's diameter.
             "near-closed single arc rim",
             validated(
                 plane,
@@ -459,7 +460,7 @@ fn only_line_walls_carry_the_admitted_tilt() {
 }
 
 // ---------------------------------------------------------------------
-// The arm below the crossover: reachable, built, and refused at rest.
+// The arm on both sides of the crossover: unreachable.
 // ---------------------------------------------------------------------
 
 /// The rectangle whose SHORT rim is the lever arm, extruded by the
@@ -569,88 +570,27 @@ fn at_k(k: &str, arm_factor: &str) -> String {
     text
 }
 
-/// **Whether the `Smooth` arm is reachable at all is a question about
-/// the run's K, and this is the measurement that pins both sides of
-/// it.**
+/// **The `Smooth` arm is unreachable on both sides of the crossover.**
 ///
 /// The gates bound the cap–wall tilt by `sin θ ≥ K/√(K² + 1)` against
-/// a `Smooth` ceiling of `1/K`; they close at `K⁴ = K² + 1` — the
-/// crossover `K* = √φ ≈ 1.272`, named here because this row is where
-/// the two sides of it are measured. So:
-///
-/// - at the shipped **K = 10** the cap-rim `Smooth` arm is unreachable,
-///   and this same body — the worst admitted tilt on the shortest
-///   admitted arm — builds with every cap rim `Intersection`;
-/// - at **K = 1.1**, below the crossover, the very same construction
-///   reaches the arm: the four short rims keep the conventional
-///   description, `extrude` hands the body back, and the at-rest gate
-///   refuses it with one `SliverDihedral { MaterialPairing }` per
-///   smooth rim — a smooth cap–wall pair has no material side.
-///
-/// The second row is the measurement `Tol`'s K doc rests on: no floor
-/// on K, and a below-crossover body refused at rest rather than at the
-/// door.
+/// a `Smooth` ceiling of `1/K`; levered at a rim's own length they
+/// close at `K⁴ = K² + 1`, the crossover `K* = √φ ≈ 1.272`, below which
+/// the shortest admitted rim under the worst admitted tilt read smooth.
+/// Levered at the faces' extent, at least the wall's distance to its
+/// far rim, the wedge is at least the extrusion's height, which the
+/// gate decides past `K·ε`: at K = 3 and at K = 1.1 alike this body —
+/// the worst admitted tilt on the shortest admitted arm — builds with
+/// every cap rim `Intersection` and is valid at rest.
 #[test]
-fn the_cap_rim_arm_is_unreachable_above_the_crossover_and_is_reached_below_it() {
-    // K = 3: comfortably above K* ≈ 1.272. (Not the default 10 — this
-    // asserts the CROSSOVER, so the pass row wants to be near it, not
-    // eight times past it.) The arm factor clears the in-band regime:
-    // the margin is `f · K · sin θ` against an escalation threshold of
-    // `K·ε`, so `f > 1/sin θ = √(K² + 1)/K` — 1.054 at K = 3, and 1.5
-    // is comfortably past it. `f = 1.002` at this same K lands IN the
-    // band (2.85ε), which is r2's second finding and not this row's
-    // subject.
-    let above = at_k("3", "1.5");
-    assert!(
-        above.contains("KPROBE extrude=Ok"),
-        "above K* the body must build:\n{above}",
-    );
-    assert!(
-        above.contains("KPROBE non_intersection_rims=0"),
-        "above K* every cap rim must be an Intersection:\n{above}",
-    );
-    assert!(
-        above.contains("KPROBE tier3=Ok"),
-        "above K* the built body must validate at rest:\n{above}",
-    );
-
-    // K = 1.1: below K*. The same construction reaches the arm — here
-    // at the tightest admitted arm, where `f · K · sin θ = 0.814 ≤ 1`
-    // puts the wedge margin under the coincidence threshold.
-    let below = at_k("1.1", "1.002");
-    assert!(
-        below.contains("KPROBE extrude=Ok"),
-        "below the crossover the body must still build:\n{below}",
-    );
-    assert!(
-        below.contains("KPROBE non_intersection_rims=4"),
-        "below the crossover the four short rims must keep the conventional \
-         description:\n{below}",
-    );
-    assert!(
-        below.contains("KPROBE pair_rims=4"),
-        "below the crossover each smooth rim is the cap–wall pair:\n{below}",
-    );
-    assert!(
-        below.contains("KPROBE chart_rims=0"),
-        "no smooth rim names a chart:\n{below}",
-    );
-    assert!(
-        below.contains("KPROBE rule_under_determined_rims=4"),
-        "the must-carry rule must read each smooth rim under-determined:\n{below}",
-    );
-    assert!(
-        below.contains("KPROBE tier3=Err n=4"),
-        "below the crossover the at-rest gate must refuse the four smooth rims:\n{below}",
-    );
-    assert_eq!(
-        below.matches("check: MaterialPairing").count(),
-        4,
-        "each at-rest refusal must be the smooth pair's missing material side:\n{below}",
-    );
-    assert_eq!(
-        below.matches("SliverDihedral").count(),
-        4,
-        "each at-rest refusal must be a SliverDihedral:\n{below}",
-    );
+fn the_cap_rim_arm_is_unreachable_on_both_sides_of_the_crossover() {
+    for (k, f) in [("3", "1.5"), ("1.1", "1.002")] {
+        let out = at_k(k, f);
+        for line in [
+            "KPROBE extrude=Ok",
+            "KPROBE non_intersection_rims=0",
+            "KPROBE tier3=Ok",
+        ] {
+            assert!(out.contains(line), "K = {k}: {line}:\n{out}");
+        }
+    }
 }

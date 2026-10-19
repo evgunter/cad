@@ -13,7 +13,7 @@ use crate::blocks::block;
 use crate::fixture::{ang, fname, insert, wall};
 use editor_core::{
     Applied, Attr, AttrKind, DocEdit, EditError, Maintenance, Node, ProfileDoc, ProfileProgram,
-    RecipeNodeId, Recorded, Recording, RefusingReach, Rgba8, StableName, apply,
+    RecipeNodeId, Recorded, Recording, Rgba8, StableName, apply,
 };
 use geom_core::Tol;
 
@@ -21,7 +21,7 @@ fn applied(
     doc: &editor_core::ProfileDoc,
     edit: DocEdit<ProfileProgram>,
 ) -> Applied<ProfileProgram> {
-    apply(doc, &edit, Tol::witness(), &RefusingReach).expect("the edit lands")
+    apply(doc, &edit, Tol::witness()).expect("the edit lands")
 }
 
 /// The net of `edits` recorded in order from `doc`, and the document
@@ -30,7 +30,7 @@ fn net_of(
     doc: &ProfileDoc,
     edits: Vec<DocEdit<ProfileProgram>>,
 ) -> (Vec<Maintenance>, Vec<Vec<Maintenance>>, ProfileDoc) {
-    let mut action = Recording::start(doc, Tol::witness(), &RefusingReach);
+    let mut action = Recording::start(doc, Tol::witness());
     let mut each = Vec::new();
     for edit in edits {
         each.push(crate::fixture::without_anonymous(
@@ -135,6 +135,7 @@ fn an_appearance_strand_a_later_clear_removes_is_not_reported() {
     let doc = applied(
         &doc,
         DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc, &painted),
             name: painted.clone(),
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
@@ -144,6 +145,7 @@ fn an_appearance_strand_a_later_clear_removes_is_not_reported() {
     assert_eq!(
         alone,
         vec![Maintenance::StrandedAppearance {
+            body: doc.spoken_var(crate::fixture::painted_in(&doc, &painted)),
             name: doc.spoken_name(&painted),
             took: editor_core::Took::Node
         }]
@@ -153,6 +155,7 @@ fn an_appearance_strand_a_later_clear_removes_is_not_reported() {
         vec![
             DocEdit::DeleteNode { id: victim },
             DocEdit::ClearAppearance {
+                body: crate::fixture::painted_in(&doc, &painted),
                 name: painted,
                 kind: AttrKind::Color,
             },
@@ -179,7 +182,7 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
         members: editor_core::Bodies::Spelled(vec![a.into(), c.into()]),
     };
 
-    let mut action = Recording::start(&doc, Tol::witness(), &RefusingReach);
+    let mut action = Recording::start(&doc, Tol::witness());
     assert!(action.is_empty(), "a started action has recorded nothing");
     let deleted = action.apply(DocEdit::DeleteNode { id: b });
     assert_eq!(deleted, Ok(None), "a delete mints nothing");
@@ -234,7 +237,7 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
         crate::fixture::without_anonymous(&first.maintenance)
     );
 
-    let idle = Recording::start(&doc, Tol::witness(), &RefusingReach)
+    let idle = Recording::start(&doc, Tol::witness())
         .finish()
         .expect("nothing was refused");
     assert!(idle.doc.bit_eq(&doc), "no edit, the start");
@@ -268,7 +271,7 @@ fn a_refusal_ends_the_action_even_when_the_caller_goes_on() {
         members: editor_core::Bodies::Spelled(vec![b.into(), c.into()]),
     };
 
-    let mut action = Recording::start(&doc, Tol::witness(), &RefusingReach);
+    let mut action = Recording::start(&doc, Tol::witness());
     action
         .apply(DocEdit::DeleteNode { id: a })
         .expect("the first delete lands");
@@ -281,7 +284,7 @@ fn a_refusal_ends_the_action_even_when_the_caller_goes_on() {
         },
     ] {
         assert!(
-            apply(&after_first, &edit, Tol::witness(), &RefusingReach).is_ok(),
+            apply(&after_first, &edit, Tol::witness()).is_ok(),
             "the premise: {edit:?} lands on its own where the refusal left the action"
         );
     }

@@ -49,11 +49,14 @@ import json
 import os
 import pathlib
 import re
-import struct
+import shutil
 import subprocess
 import sys
 import time
-import zlib
+
+import publish_lane
+from lane_cells import frame_path
+from strip_png_stamps import encode_chunk
 
 HERE = pathlib.Path(__file__).resolve().parent
 
@@ -90,6 +93,26 @@ def run(cmd, **kw):
         )
 
 
+NODE_ID = re.compile(r"(0|[1-9][0-9]*):([0-9a-f]{16})")
+
+
+def node_id_order(doc_path, key):
+    """A snapshot node key's sort key: its mint ordinal, then its digest.
+
+    A key is a node id as `crates/editor-core/src/mint.rs` spells it, the
+    ordinal in decimal, a colon, and the digest as 16 lowercase hex digits.
+    Ids order ordinal first, so this is creation order. Any other key is a
+    FAILURE, for the reason [`node_kinds`] gives.
+    """
+    m = NODE_ID.fullmatch(key)
+    if m is None:
+        sys.exit(
+            f"render_gui: {doc_path.name} has node key {key!r}, "
+            f"not an `ordinal:digest` node id"
+        )
+    return int(m.group(1)), int(m.group(2), 16)
+
+
 def node_kinds(doc_path):
     """The node kinds a `.pncad` snapshot holds, in document order.
 
@@ -106,7 +129,7 @@ def node_kinds(doc_path):
     except (ValueError, KeyError) as exc:
         sys.exit(f"render_gui: {doc_path.name} is not a readable snapshot: {exc}")
     out = []
-    for key in sorted(nodes, key=int):
+    for key in sorted(nodes, key=lambda k: node_id_order(doc_path, k)):
         node = nodes[key]
         out.append(next(iter(node)) if isinstance(node, dict) else str(node))
     return out
@@ -155,16 +178,6 @@ def cell_names(docs):
         doc: (f"{name}-{doc.stem[:8]}" if name in shared else name)
         for doc, name in shapes.items()
     }
-
-
-def encode_chunk(ctype, data):
-    """One PNG chunk, framed and CRC'd (strip_png_stamps.py's twin)."""
-    return (
-        struct.pack(">I", len(data))
-        + ctype
-        + data
-        + struct.pack(">I", zlib.crc32(ctype + data) & 0xFFFFFFFF)
-    )
 
 
 def stamp_author(path, author):
@@ -338,8 +351,8 @@ def main():
         )
 
     stage = out / "gui"
-    stage.mkdir(parents=True, exist_ok=True)
-    lane.mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(stage, ignore_errors=True)
+    stage.mkdir(parents=True)
 
     xvfb = subprocess.Popen(
         ["Xvfb", DISPLAY, "-screen", "0", GEOMETRY],
@@ -361,7 +374,7 @@ def main():
         names = cell_names(docs)
         for doc in docs:
             name = names[doc]
-            dest = stage / f"{name}.png"
+            dest = frame_path(stage, name)
             print(f"  [{name}] opening {doc.name[:8]}…", flush=True)
             photograph(viewer, doc, dest, env, name)
             stamp_author(dest, args.author)
@@ -374,8 +387,8 @@ def main():
         except subprocess.TimeoutExpired:
             xvfb.kill()
 
-    for cell in cells:
-        (lane / cell.name).write_bytes(cell.read_bytes())
+    publish_lane.publish(stage, lane, [c.stem for c in cells])
+    cells = [lane / c.name for c in cells]
 
     sheet = lane / "montage-gui.png"
     run(

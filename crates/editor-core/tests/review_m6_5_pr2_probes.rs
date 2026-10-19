@@ -34,14 +34,10 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     )
 }
 
-fn table_of(
-    ev: &editor_core::Evaluation<f64>,
-    node: RecipeNodeId,
-) -> std::sync::Arc<editor_core::NameTable> {
-    match ev.nodes.get(&node) {
-        Some(NodeResult::Ok(v)) => std::sync::Arc::clone(&v.name_table),
-        other => panic!("node {node:?} did not evaluate: {other:?}"),
-    }
+fn table_of(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> editor_core::NameTable {
+    ev.table_at(node)
+        .unwrap_or_else(|| panic!("node {node:?} did not evaluate: {:?}", ev.nodes.get(&node)))
+        .clone()
 }
 
 /// P1: the shrunk supports' `FromTarget` rows are a BIJECTION onto the
@@ -159,7 +155,7 @@ fn p2_surgery_supports_wrap_names_the_target_table_carries() {
 /// edges, 18 vertices; every entity named, every name resolves.
 #[test]
 fn p3_totality_holds_for_a_triangular_prism() {
-    use editor_core::resolve::{Resolution, RunCtx, resolve};
+    use editor_core::resolve::{Resolution, RunCtx};
     let doc = ProfileDoc::empty_derived("review_m6_5_pr2_probes", Tol::witness());
     let (doc, p) = fixture::on_frame(
         doc,
@@ -198,7 +194,7 @@ fn p3_totality_holds_for_a_triangular_prism() {
             doc: &doc,
             eval: &ev,
         };
-        match resolve(ctx, name) {
+        match crate::fixture::resolve_at_mint(ctx, name) {
             Resolution::Resolved { .. } => {}
             other => panic!("{name:?} did not resolve: {other:?}"),
         }

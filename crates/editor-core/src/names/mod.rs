@@ -48,23 +48,22 @@ mod table;
 pub(crate) mod words;
 
 pub use attribute::{NameOrigin, attribute};
+pub(crate) use canonical::Unrankable;
 pub(crate) use defer::CarriedRows;
 pub(crate) use discriminate::{
     CHORD_ON_RIM, DECISION_WORDS, FAMILY, ON_MEMBER_EDGE, ON_SEAM_LINE, ORDER_ALONG,
 };
 pub use emit::{NamingError, RimShare};
-pub(crate) use emit::{
-    check_total, empty, flat_body_index, name_pattern, name_placed_union, output_body, to_u32,
-};
-pub(crate) use emit::{name_in_part, name_placed};
+pub(crate) use emit::{check_total, empty, name_pattern, name_placed_union, output_body, to_u32};
+pub(crate) use emit::{name_in_part, name_in_part_copy, name_placed, name_placed_copies};
 pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_shell::name_shell;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{FaceDescent, OperandCtx, name_boolean, name_split};
 pub(crate) use emit_union::{
-    Fold as UnionFold, Links as UnionLinks, Member as UnionMember, collapse_table, member_view,
-    name_lone_member, name_union,
+    Fold as UnionFold, FoldCell, Links as UnionLinks, Member as UnionMember, collapse_table,
+    fold_cell, member_view, name_lone_member, name_union,
 };
 pub use geompred::{
     Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal, SurfaceKindSet,
@@ -88,7 +87,9 @@ pub(crate) use role::{FOLD_A, FOLD_B, read_edge};
 pub(crate) use role::{VerbatimEdge, verbatim_edge};
 pub(crate) use role::{edge_line, fragment_tail_start, name_free_seg, wrapped_edge};
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
-pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};
+pub use table::{
+    DuplicateName, EntityKey, EntityRef, Entry, KindMismatch, NameTable, SeatingRefusal, ShortTie,
+};
 /// The kernel's contact vocabulary, re-exported so a refusal the recipe
 /// layer renders quotes the kernel's own words.
 pub use topo::{
@@ -113,9 +114,9 @@ pub use words::{LeafRole, leaf_role, role_leaf};
 /// the emptiness surfaces there rather than here.
 pub fn all_edges<T: geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
-    node: crate::node::RecipeNodeId,
+    at: impl Into<crate::At>,
 ) -> Vec<StableName> {
-    all_of_kind(ev, node, EntityKind::Edge)
+    all_of_kind(ev, at.into(), EntityKind::Edge)
 }
 
 /// **Every face name of a node's output body, as of THIS evaluation**
@@ -123,44 +124,44 @@ pub fn all_edges<T: geom_core::Decide>(
 /// filter, sort, dedup; empty for a node with no value or no table.
 pub fn all_faces<T: geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
-    node: crate::node::RecipeNodeId,
+    at: impl Into<crate::At>,
 ) -> Vec<StableName> {
-    all_of_kind(ev, node, EntityKind::Face)
+    all_of_kind(ev, at.into(), EntityKind::Face)
 }
 
 /// **Every vertex name of a node's output body, as of THIS
 /// evaluation** — [`all_edges`]'s sibling, same contract.
 pub fn all_vertices<T: geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
-    node: crate::node::RecipeNodeId,
+    at: impl Into<crate::At>,
 ) -> Vec<StableName> {
-    all_of_kind(ev, node, EntityKind::Vertex)
+    all_of_kind(ev, at.into(), EntityKind::Vertex)
 }
 
 /// **Every body name a node's evaluation carries, as of THIS
 /// evaluation** — [`all_edges`]'s sibling, same contract. Usually one
 /// row (a body-producing op mints one [`RoleSeg::OutputBody`]); a
-/// split's two halves are the plural case.
+/// family's members are the plural case. A split's halves are two
+/// reads with a row each, and a split named alone has none.
 pub fn all_bodies<T: geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
-    node: crate::node::RecipeNodeId,
+    at: impl Into<crate::At>,
 ) -> Vec<StableName> {
-    all_of_kind(ev, node, EntityKind::Body)
+    all_of_kind(ev, at.into(), EntityKind::Body)
 }
 
 /// The one body of all four materializers (they differ only in the
 /// kind they keep): the node's table, filtered, in canonical order.
 fn all_of_kind<T: geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
-    node: crate::node::RecipeNodeId,
+    at: crate::At,
     kind: EntityKind,
 ) -> Vec<StableName> {
     // No value, no names: `select::select`'s doc.
-    let Some(value) = ev.value(node) else {
+    let Some(table) = ev.table_at(at) else {
         return Vec::new();
     };
-    let mut out: Vec<StableName> = value
-        .name_table
+    let mut out: Vec<StableName> = table
         .iter()
         .filter(|(name, _)| name.kind == kind)
         .map(|(name, _)| name.clone())

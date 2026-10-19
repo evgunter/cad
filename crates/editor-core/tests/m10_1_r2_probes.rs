@@ -71,7 +71,6 @@ fn doc_with(params: &[(&'static str, FreeVar)]) -> ProfileDoc {
                 def: editor_core::VarDecl::Free(value.clone()),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the fixture parameters are valid")
         .doc;
@@ -592,7 +591,6 @@ fn a_distribution_changes_no_content_key_naming_key_or_verdict() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("annotating an existing parameter is a legal edit")
     .doc;
@@ -646,7 +644,6 @@ fn a_distribution_changes_no_content_key_at_interval() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("legal edit")
     .doc;
@@ -707,7 +704,6 @@ fn rebuilding_a_param_from_dim_and_value_silently_drops_the_distribution() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the edit door accepts it — there is nothing to refuse")
     .doc;
@@ -752,7 +748,6 @@ fn the_value_door_carries_the_declaration_forward() {
             value: FreeValue::Continuous(0.004),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a value edit on a declared parameter applies")
     .doc;
@@ -786,7 +781,6 @@ fn the_value_door_carries_the_declaration_forward() {
             value: FreeValue::Count(7),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a count value edit applies")
     .doc;
@@ -802,8 +796,7 @@ fn the_value_door_carries_the_declaration_forward() {
                 var: p("never_declared").into(),
                 value: FreeValue::Continuous(1.0)
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         ),
         Err(EditError::UnknownVar {
             var: p("never_declared").into(),
@@ -820,8 +813,7 @@ fn the_value_door_carries_the_declaration_forward() {
                 var: p("hole_r").into(),
                 value: FreeValue::Count(2)
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         ),
         Err(EditError::VarValueKindMismatch {
             var: before.spoken_var(before.var_named("hole_r").expect("declared")),
@@ -836,8 +828,7 @@ fn the_value_door_carries_the_declaration_forward() {
                 var: p("ribs").into(),
                 value: FreeValue::Continuous(2.0)
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         ),
         Err(EditError::VarValueKindMismatch { .. })
     ));

@@ -38,7 +38,9 @@ some metered by `P`) — candidates for one home:**
   `abs`.
 - `crates/geom-brep/src/props/loop_area.rs`, `loop_vector_area` — the
   vector-area boundary integral `(1/2)∮(p − ref)×dp`, an exact home of
-  its own: conics spelled centre-based (`w×chord + axis·a·b·Δt`), and
+  its own: conics read as their chord's triangle plus the segment
+  (`(p0 − ref)×chord + axis·a·b·(Δ − sin Δ)`, the segment through
+  `geom_brep::props::arc_segment_term`, which `loop_winding` shares), and
   a NON-rational NURBS arm integrated exactly per knot span by fixed
   Gauss–Legendre (rational NURBS and spiric refuse). This is the
   strongest candidate for THE home, and it contradicts the old
@@ -79,3 +81,17 @@ move `split_section_area` and `loop_winding` (and, if the 2-D/3-D
 argument in `chart_region` is settled, `loop_measures`) onto it. That
 is a choice of home across crates (`geom-brep` vs `topo`), so it is
 worth an orchestrator's ruling before code.
+
+## Also a conditioning risk, not only a spelling (2026-10-19)
+
+(cleave/rigid-turn-sliver-volume, PR 5185's review) `certify_section_area`
+(`topo::splitting::join`) reads each conic edge's excess with the centre
+as lever, `(c_e − O)×(B − A)`, where `A`, `B` are the edge's VERTEX
+points rather than its carrier's ends. That is the shape PR 5185 retired
+from `loop_vector_area`: the two terms are the sector's size and cancel
+to the segment's, and here a vertex's offset from its carrier (within
+the band) is multiplied by `|c_e − O|` as well as the rounding. On a
+shallow arc of a large conic (a section ellipse of semi-major `1/sin ψ`)
+that lever is large. Unmeasured; a repair that reads the home should
+take the segment through `geom_brep::props::arc_segment_term` and the
+chord at the vertices' own lever.

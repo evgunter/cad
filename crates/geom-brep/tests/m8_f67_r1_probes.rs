@@ -211,6 +211,7 @@ fn certify_axis(carrier: Curve3<f64>, t0: f64, t1: f64) -> Result<EdgeCurve<f64>
         start,
         end,
         |k| arena.get(k).cloned(),
+        1.0,
         band(),
         Some(NurbsLane::certified()),
     )

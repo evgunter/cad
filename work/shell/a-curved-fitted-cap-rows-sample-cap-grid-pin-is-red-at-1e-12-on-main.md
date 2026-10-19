@@ -41,3 +41,7 @@ Reproduce with
 ## 2026-10-14 — still red at 1e-12 on main (NURBS, fresh target)
 
 Re-run alone with a fresh `CARGO_TARGET_DIR` per commit: red at `a71403e3` and still red on main at `307ed404`. Not moved by NURBS PR 4984 (red on both sides of it). (NURBS build A)
+
+## 2026-10-19 — bisected to PR 4551 (NURBS)
+
+CONTACTHOLD's nightly-red lane bisected it over first-parent merges from `61ee8bf5a4` (green, which includes PR 4672's pin) to `360cf55eb2` (the 2026-10-12 nightly, red), at ε 1e-12. It passes at `071a630b58` and fails at **`aa1f124298`**, the merge of PR 4551 (`nurbs/monotone-step-and-blossom`), with the same `(45, 48)` stop. The pin was right when PR 4672 wrote it, and PR 4551 moved the grid. `shell_general_door`'s curved spline cap row moved at the same merge. Still red in the 2026-10-19 nightly (run 39205007024).

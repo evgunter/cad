@@ -1,15 +1,15 @@
 //! **The nominal is an input to the key** — the rows for the rule at
 //! `eval::tag::slot`: a node's slot values are fixed at the evaluation
 //! scalar AND at the document's nominal f64, because the profile
-//! pre-pass and the pinned lift read the nominal whatever the
-//! evaluation scalar is.
+//! pre-pass reads the nominal whatever the evaluation scalar is.
 //!
 //! At `Interval` the bounds do not determine the nominal — a value
 //! edit under a compensating box leaves `(lo, hi, dec)` equal — so
 //! without the nominal in the key the second evaluation below hits the
-//! memo and serves a profile placed on the FIRST nominal's plane.
-//! Every interval row here is about that: the edit recomputes, the
-//! served plane is the cold run's, and the two neighbouring cases
+//! memo and serves a profile whose structure the FIRST nominal
+//! selected. Every interval row here is about that: the edit
+//! recomputes, the served profile is the cold run's, and the two
+//! neighbouring cases
 //! (same nominal under a different box; the same value re-applied
 //! under the same box) still key the way a box being a real input says
 //! they should.
@@ -65,7 +65,6 @@ fn doc_with(nominal: f64, u_y_of: fn(Formula) -> Formula) -> ProfileDoc {
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, nominal)),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;
@@ -84,7 +83,6 @@ fn doc_with(nominal: f64, u_y_of: fn(Formula) -> Formula) -> ProfileDoc {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the frame inserts")
         .doc;
@@ -97,7 +95,6 @@ fn doc_with(nominal: f64, u_y_of: fn(Formula) -> Formula) -> ProfileDoc {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the profile inserts")
     .doc
@@ -146,7 +143,6 @@ mod over_a_param_box {
                 value: FreeValue::Continuous(value),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the value edit applies")
         .doc
@@ -166,8 +162,7 @@ mod over_a_param_box {
         )
     }
 
-    /// The profile's placement, as BITS: the pinned lift embeds the f64
-    /// plane whole, so these twelve enclosures are what the pre-pass read.
+    /// The profile's placement, as BITS: the frame's value at the lane.
     /// Read through the public accessors and compared by bits, which is
     /// stricter than `==` on an interval and is the comparison these rows
     /// mean.
@@ -179,7 +174,7 @@ mod over_a_param_box {
         else {
             panic!("a profile value");
         };
-        let a = pv.validated.plane().placement;
+        let a = pv.validated.plane().placement();
         a.components()
             .into_iter()
             .map(|v: Interval| (v.lo().to_bits(), v.hi().to_bits()))
@@ -202,11 +197,10 @@ mod over_a_param_box {
     /// `p = 0` over `[-0.25, 0.25]`, then `p = 0.5` over `[-0.75, -0.25]`:
     /// the two boxes bind the SAME interval for `p`, so every bit the lane
     /// feed writes is equal, while the nominal — the value the pre-pass
-    /// resolves the plane at and the pinned lift embeds — moved from `0`
-    /// to `0.5`. The prior must not be served: the frame's key moves, the
-    /// profile's moves with it, the second run recomputes both, and the
-    /// plane it reports is the plane a cold run of the edited document
-    /// reports rather than the identity the prior held.
+    /// resolves the frame at — moved from `0` to `0.5`. The prior must
+    /// not be served: the frame's key moves, the profile's moves with
+    /// it, the second run recomputes both, and the plane it reports is
+    /// the plane a cold run of the edited document reports.
     #[test]
     fn a_nominal_edit_under_a_compensating_box_does_not_hit() {
         let first = doc_at(0.0);
@@ -217,20 +211,21 @@ mod over_a_param_box {
         let hit = run(&edited, Some(&prior), &narrow);
         let cold = run(&edited, None, &narrow);
 
-        // The plane really does move between the two nominals - `u` is
-        // the x axis at `p = 0` and normalized (1, 0.5, 0) at `p = 0.5` -
-        // so the row below is not vacuous.
-        assert_ne!(
+        // The plane is minted at the lane, over the box, so the two
+        // nominals under one enclosure place the profile on one plane;
+        // what the nominal moves is the first pass's frame, which the
+        // key must carry.
+        assert_eq!(
             plane_bits(&first, &prior),
             plane_bits(&first, &cold),
-            "the two nominals are two planes"
+            "the plane is the lane's, the box's frame under both nominals"
         );
         // The harm: what the second evaluation reports as the
         // profile's placement.
         assert_eq!(
-            plane_bits(&first, &hit),
+            plane_bits(&first, &prior),
             plane_bits(&first, &cold),
-            "the served profile is placed on the edited nominal's plane"
+            "the served profile is the cold run's"
         );
         // And the mechanism: the nominal is in the key, so nothing of the
         // edited document is served from the prior at all.

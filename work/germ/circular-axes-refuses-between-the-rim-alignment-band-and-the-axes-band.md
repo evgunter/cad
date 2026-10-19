@@ -7,7 +7,6 @@ opened: 2026-10-12
 priority: P3
 cost: M
 design: true
-needs_ev: true
 branch: germ/circular-axes-band-gap
 ---
 
@@ -72,57 +71,38 @@ carrier `PlaneCylinderSection::Rim`'s public contract excludes ("carrier
 axis is the CYLINDER axis, u_ref the cylinder's seam",
 `intersect.rs` `PlaneCylinderSection`).
 
-## The question
+## Decided (Ev, PR 5156, 2026-10-19)
 
-In the gap, the plane is decided off square to the axis, and the
-section is decided to be within ε of a circle. Which kind does the
-kernel mint there? That turns on what `Circle` is: the kind of a POSE
-(the plane decided square to the axis), or the kind of a CURVE (a locus
-within ε of a circle). Refusing is not a candidate. Both designers, and
-the measurements above, find a sound carrier at every gap pose, and no
-reader downstream needs the refusal.
+- **The pose decides the kind, once.** The table's tilt reading is the
+  only decision: square gives the rim `Circle`; definitely off square
+  gives the exact `Ellipse`, however near-circular. `Circle` is the
+  kind of the pose, not of the curve. Ev: "I am sure that we should
+  check only once and not twice". On the one-check comparison below,
+  "this makes sense!"
+- `Curve3::ellipse`'s `ellipse_axes_distinct` gate and
+  `EllipseInvalid::CircularAxes` go. The constructor keeps only its
+  positive-minor-axis check.
+- That decides all the sibling arms too: plane × cone, the
+  equal-cylinder bisector, and `cap_transverse`'s `CapEllipse`.
+- Every reader of a near-circular ellipse's major direction takes it
+  from the surface's axis (`Curve3::section_frame`), never from the
+  semi-axes. The coplanar-ellipse one-curve bound reads loci
+  (`coplanar-ellipses-one-curve-bound-compares-frames-not-loci`).
+- What remains refused is the pose's own band, with its own lever.
+- Text that moves with the implementation:
+  - the `Curve3::ellipse` and `EllipseInvalid` docs;
+  - the "double gate" sentences on `plane_cylinder_section` and
+    `plane_cone_section`;
+  - `crates/sweep/README.md`'s cut-off-cap clause;
+  - `docs/GERM-CONE-SECTOR-SPEC.md` row 7.
 
-- **Ellipse: `Circle` is the kind of the pose.** The pose reading alone
-  decides: square gives the rim `Circle`, off square gives the exact
-  `Ellipse`, however near-circular.
-  - `ellipse_axes_distinct`, `EllipseInvalid::CircularAxes` and the
-    "double gate" sentences on `plane_cylinder_section` and
-    `plane_cone_section` go.
-  - The carrier keeps C1's zero residual by construction.
-  - What remains refused is the pose's own band, with its own lever.
-  - Reading a near-circular ellipse's major direction off its semi-axes
-    is ill-conditioned (about u/sin θ). Every reader must take it from
-    the surface's axis (`Curve3::section_frame`, which the cone's
-    `FocalSection` already uses).
-  - Measured with the gate deleted: every gap pose splits at three ε,
-    and a tilted cylinder minus a box builds at every gap pose (volume
-    within 3.7e-14 relative).
-  - Text that moves:
-    - the `Curve3::ellipse` and `EllipseInvalid` docs;
-    - `crates/sweep/README.md`'s cut-off-cap clause ("the ellipse door's
-      own verdict on its axes is the second decision … `CapEllipse`");
-    - `docs/GERM-CONE-SECTOR-SPEC.md` row 7.
-- **Circle: `Circle` is the kind of the curve.** `ellipse_axes_distinct`
-  stays the one reading of a conic's kind, and on Zero the door mints
-  the `Circle` it decided (in the cutting plane, radius b).
-  - A circular locus then has one kind whatever cut it, compared by
-    centre, axis and radius.
-  - The carrier misses the section by a − b ≤ ε, the margin that
-    decided it.
-  - It moves C1 (`crates/geom-brep/README.md`: a tilted section is a
-    rung-2 `Ellipse` with zero residual by construction).
-  - The section variants' payload contracts change as well.
-  - The cone's chart has no image for a tilted circle
-    (`Grazer::ConeCircle` refuses it). That image would have to be
-    built.
-  - The in-band span a − b ∈ (ε, Kε) still escalates: 9–15 of 150
-    probe poses per ε.
+Why one check on the pose, not one check on the curve (a − b, which
+would serve a `Circle` in the cutting plane and fold the rim in):
 
-Either way, `curve_pair::pose`'s `Coplanar::Ellipses` one-curve bound
-(`frame_gap`) compares frames point by parameter, not loci. It already
-refuses two derivations of one ordinary tilted ellipse whose frames
-differ by rounding (r = 100, tilt 1e-4, ε = 1e-12, on main). That is
-filed as its own item and fixed independently of this decision.
+| | refuses (in band) | at r = 1, ε = 1e-9, K = 10 | carrier |
+|---|---|---|---|
+| pose check | ε/r < θ < Kε/r | 1e-9 – 1e-8 rad | exact (C1) |
+| curve check | √(2ε/r) < θ < √(2Kε/r) | 4.5e-5 – 1.4e-4 rad | within ε; C1 moves |
 
 ## Siblings (same shape, swept 2026-10-14)
 

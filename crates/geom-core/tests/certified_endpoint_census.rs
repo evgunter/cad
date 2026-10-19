@@ -343,12 +343,15 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/certify.rs",
-        11,
+        12,
         2,
         "the 2 that ask are the chart tube's span-hull window (`chart_tube_windows` \
          refuses either window hull by name before padding it — a refused hull is NaI, \
-         and its NaN ends name no window). The other 9 are `T: Bounds` reads on the \
+         and its NaN ends name no window). The other 10 are `T: Bounds` reads on the \
          evaluation scalar and not certification endpoints at all — blind spot 1: two \
+         are `nurbs_limbs`' projection seeds, limb 1's at each sample and the image-miss \
+         tell's at a refusing break, a parameter the foot search starts from (structure; \
+         the carried distance stays honest whatever the seed), two \
          of them are `probe_tube_chart`'s reads of the pcurve's tangent, which select \
          a direction (structure, not a bound) and whose norm the probe refuses unless \
          positive finite, and one is `probe_tube_analytic`'s midpoint of the box \
@@ -396,11 +399,11 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/ssi/section.rs", 2, 2, ""),
     (
         "crates/geom-core/src/interval.rs",
-        24,
-        5,
-        "the type's own body. The 5 that ask are the two refusal doors \
+        25,
+        6,
+        "the type's own body. The 6 that ask are the two refusal doors \
          (`certified_bracket`, `sign_within`) and the directed helpers `norm_sup`, \
-         `div_down` and `div_up`. The other 19 are not certification \
+         `div_down`, `div_up` and `add_up`. The other 19 are not certification \
          reads at all — blind spot 1: they are the evaluation scalar's own \
          implementation reads of the `DInterval` it wraps (the `Bounds` forwarders, \
          `repr_bits`, `copysign`, the kink selectors, the two `select_le_zero` \

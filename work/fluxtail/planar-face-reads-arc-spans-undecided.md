@@ -15,9 +15,10 @@ decides every conic span the cone's vector-area lane reads.
 `geom_brep::props::planar_face` (`crates/geom-brep/src/props/mod.rs`)
 sums `loop_vector_area` over every loop with no band and no decide;
 `loop_vector_area` (`crates/geom-brep/src/props/loop_area.rs`) reads a
-circle's span as `R²·Δt` and an ellipse's as `a·b·Δt`. A hand-built
-full circle stored over `[0, 2τ]` closes on itself and answers twice
-the disc. Every other reader of `loop_vector_area` decides the span
+circle's span through its segment term `R²·(Δt − sin Δt)` and an
+ellipse's through `a·b·(Δt − sin Δt)`, beside a chord that is zero for
+whole turns. A hand-built full circle stored over `[0, 2τ]` closes on
+itself and answers `(1/2)·R²·4π`, twice the disc. Every other reader of `loop_vector_area` decides the span
 first: the cylinder's rims are minted through `Rim::decided`, the
 sphere's arcs through `props_sphere_arc_span_*`, the torus through its
 classification, the cone through `require_cone_conic_spans`; and

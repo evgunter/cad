@@ -23,7 +23,8 @@ use crate::common::approx::band;
 use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache, SurfacePair};
 use geom_core::spline::KnotVector;
-use geom_core::{Affine3, Point2, Point3, Real, Tol, Vec3};
+use geom_core::{Point2, Point3, Real, Tol, Vec3};
+use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use std::sync::Arc;
 use topo::{AtRestPolicy, Body, EdgeKey, FaceKey, FaceSurface, HalfEdgeKey, Pcurve, SurfaceKey};
@@ -45,13 +46,13 @@ fn prism<T: AtRestPolicy>() -> Body<T> {
         ])]
     };
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.5 * SCALE, 0.0, SCALE)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0 * SCALE)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.5 * SCALE, 0.0, SCALE)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0 * SCALE)),
     ];
     sweep::loft_body::<T>(
         &sweep::test_support::lift_sections::<T>(&[square(), square(), square()]),
-        &sweep::test_support::lift_places::<T>(&places),
+        &sweep::test_support::lift_places::<T>(&places, geom_core::Tol::witness()),
         2,
         Tol::witness(),
     )
@@ -136,7 +137,11 @@ fn describe<T: AtRestPolicy>(body: &mut Body<T>, edge: EdgeKey, s1: SurfaceKey, 
 /// interior columns.
 fn widened<T: Real + geom_core::SpanLocate>(n: &NurbsSurface<T>) -> Surface<T> {
     let (nu, nv) = n.control_counts();
-    assert_eq!((nu, n.knots_u().degree()), (2, 1), "the loft wall's u span");
+    assert_eq!(
+        (nu, n.knots_u_f64_interim().degree()),
+        (2, 1),
+        "the loft wall's u span"
+    );
     let ku = geom_core::spline::Knots::from(
         KnotVector::clamped(vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0], 1).unwrap(),
     )

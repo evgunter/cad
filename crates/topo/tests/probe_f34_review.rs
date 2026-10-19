@@ -48,7 +48,7 @@ fn t2_wrong_component_hides_behind_large_area() {
     // gate also asks the dimension-free question — is the sign certain?
     // — against the exact bit-hairline band, where no epsilon enters.
     // Both defects above are decisively negative there, so both refuse.
-    let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).expect("exact band");
+    let exact = Band::least();
     assert_eq!(
         metered.sign_within(exact).map(|d| d.sign),
         Ok(Sign::Negative)

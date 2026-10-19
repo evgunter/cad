@@ -270,7 +270,6 @@ fn no_new_failure(doc: &editor_core::ProfileDoc, p: &'static str, value: f64) ->
             value: editor_core::FreeValue::Continuous(value),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .expect("a value edit applies")
     .doc;
@@ -303,8 +302,17 @@ fn standings_and_names(
         .nodes
         .iter()
         .filter_map(|(id, r)| {
-            r.value()
-                .map(|v| (*id, v.name_table.iter().map(|(n, _)| n.clone()).collect()))
+            r.value().map(|_| {
+                let tables = crate::fixture::tables(ev, *id);
+                (
+                    *id,
+                    tables
+                        .into_iter()
+                        .flat_map(|t| t.iter())
+                        .map(|(n, _)| n.clone())
+                        .collect(),
+                )
+            })
         })
         .collect();
     (standings, names)

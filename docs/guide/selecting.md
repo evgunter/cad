@@ -58,7 +58,7 @@ let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0
     .expect("finite corners");
 let mut doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol).expect("the edit applies");
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
@@ -175,7 +175,7 @@ let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0
     .expect("finite corners");
 let mut doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol).expect("the edit applies");
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
@@ -345,7 +345,7 @@ let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0
     .expect("finite corners");
 let mut doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol).expect("the edit applies");
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
@@ -419,8 +419,9 @@ assert!(matches!(
 ## Flush contact glues
 
 Two bodies that touch face-to-face glue where their margins decide
-the faces one surface, and the boolean records each such coincidence
-on the node's value (`NodeValue::coincidences`), each cell named in
+the faces one surface, and the boolean records each such coincidence,
+and each corner it decided on the other body, on the node's value
+(`NodeValue::coincidences`), each cell named in
 the table of the member it came from. Nothing is declared: a pair the
 margin leaves in the tolerance's ambiguity band refuses, and its
 recourse is the geometry.
@@ -431,7 +432,7 @@ use pncad::document::{Bodies, BooleanValue};
 
 let tol = Tol::witness();
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
@@ -476,5 +477,9 @@ let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else
     panic!("expected a body");
 };
 assert_eq!(mass_properties(body, tol).expect("mass").volume, 1.125);
-assert_eq!(value.coincidences.len(), 1, "the one resting pair of faces");
+assert_eq!(
+    value.coincidences.len(),
+    5,
+    "the one resting pair of faces, and the block's four corners on the cap"
+);
 ```

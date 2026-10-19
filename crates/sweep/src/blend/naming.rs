@@ -254,4 +254,11 @@ pub struct BlendNaming {
     /// dead, and its `kept` covers what `gone` did besides its own
     /// (`topo::join_covers`).
     pub edge_joins: Vec<topo::EdgeJoin>,
+
+    /// The source's geometry before the blend wrote
+    /// ([`topo::SourceGeometry`]): a record lands unread only on images
+    /// that hold it, so a cap a band's end carves, or a face whose
+    /// boundary the join or a trim redrew, is read. Empty on a naming no
+    /// blend made, and every record is then read.
+    pub source: topo::SourceGeometry,
 }

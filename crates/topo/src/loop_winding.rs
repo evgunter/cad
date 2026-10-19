@@ -92,7 +92,7 @@
 //! chart normal", the opposite statement on a reversed face.
 
 use geom::Curve3;
-use geom_brep::props::spiric;
+use geom_brep::props::{arc_segment_term, spiric};
 use geom_core::interval::Interval;
 use geom_core::{Decided, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
@@ -143,7 +143,7 @@ pub(crate) enum Unwound {
 pub(crate) type Winding = Result<Result<Decided, Indeterminate>, Unwound>;
 
 /// **The conic term of one traversed edge** ([`ConicFrame`],
-/// [`chord_bulge`]): `(axis · sa·sb · (Δ − sin Δ), |Δ|·max(|sa|, |sb|))`, the vector area between the
+/// [`chord_bulge`](geom_brep::props::chord_bulge)): `(axis · sa·sb · (Δ − sin Δ), |Δ|·max(|sa|, |sb|))`, the vector area between the
 /// arc and its chord (the cross-sum's `2A` convention, odd in the
 /// signed span `Δ`) and the edge's boundary length (exact for a
 /// circle, an upper bound for an ellipse: `|Δ|` times the larger
@@ -172,7 +172,7 @@ pub(crate) fn conic_segment_term<T: Real>(
     let conic = ConicFrame::of(carrier)?;
     let span = if forward { t1 - t0 } else { t0 - t1 };
     Some((
-        conic.axis * (conic.sa * conic.sb * chord_bulge(span)),
+        arc_segment_term(conic.axis, conic.sa * conic.sb, span),
         span.abs() * conic.reach,
     ))
 }
@@ -297,15 +297,6 @@ impl<T: Real> ConicFrame<T> {
     pub(crate) fn b(&self) -> Vec3<T> {
         self.axis.cross(self.u_ref) * self.sb
     }
-}
-
-/// **The bulge of an arc over its chord** — the one statement of it:
-/// `Δ − sin Δ` for the signed span `Δ`. Twice the area between a unit
-/// circle's arc and its chord; an arc of the conic `c + a·cos θ +
-/// b·sin θ` cuts off `(a × b)·(Δ − sin Δ)` of twice-area, for any
-/// signed `Δ` and any `a`, `b` (module docs).
-pub(crate) fn chord_bulge<T: Real>(span: T) -> T {
-    span - span.sin()
 }
 
 /// A curve as one traversal reads it: its carrier and the interval it

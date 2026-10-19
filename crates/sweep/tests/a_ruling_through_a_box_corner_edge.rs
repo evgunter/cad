@@ -155,7 +155,7 @@ fn checked(what: &str, r: Result<BooleanResult<f64>, BooleanError>, vf: usize) -
     // `w ∖ b`'s corner edge lies in the near wall piece, and D1 owes an
     // edge-face record for it beside its ends' rests; none is minted until
     // the census can confirm one (the named gap
-    // `work/fuse/a-line-edge-in-a-curved-faces-interior-is-recorded-at-its-ends-only.md`),
+    // `work/contacthold/a-line-edge-in-a-curved-faces-interior-is-recorded-at-its-ends-only.md`),
     // so this count moves when it lands.
     assert_eq!(
         bb.contacts.len(),
