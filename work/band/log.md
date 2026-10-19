@@ -1138,3 +1138,14 @@ and `a-cup-leaning-off-the-spine-under-a-fillet-is-charged-its-boxs-diagonal`.
 - 2026-10-15 — **No live row is at or above this track's own band (P0).** The 51 rows left are 5 at P2, 36 at P3, 3 at P4, 7 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
   Band the 7 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
   (tracker sweep)
+
+## 2026-10-19 — a cut-off arc at an oblique end reads off atan2's cut
+
+`an-interval-fillet-cut-off-at-an-oblique-end-reads-its-arc-backward`
+closed: a foot half a turn from its end ellipse's `u_ref` read the hull
+`[−π, π]` at `Interval`, so the sheared box's fillet refused where
+`f64` built. `surgery::arc_window` re-anchors at the half turn and is
+the one window read for `CapSliver::of` and `attach_contact`. A shear
+ladder of both signs, convex and concave, both verbs, at both scalars.
+Filed `a-rim-split-at-its-carriers-anti-seam-refuses-at-interval` and
+one issue for the seam-anchored reads in `topo`.
