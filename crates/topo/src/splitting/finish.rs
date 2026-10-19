@@ -594,11 +594,13 @@ pub enum SplitFinishError {
         /// The hole's section face (in the discarded scratch body).
         hole: FaceKey,
     },
-    /// A slit trace's slit, read definitely, lies in no section face of
-    /// its side: no outline holds a vertex of it, a hole does
-    /// (`in_hole`), or it lies on a loop. The slit lies on edges its
-    /// side's material wraps round, which a section face of that side
-    /// covers, so this is a kernel defect.
+    /// A slit trace's slit, read definitely, lies in no section region of
+    /// its side: no outline holds a vertex of it, or the innermost one
+    /// that does has it in a hole (`in_hole`), whether a ring of its own
+    /// or a hole the nesting rule left on a face of its own inside it, or
+    /// it lies on a loop. The slit lies on edges its side's material
+    /// wraps round, which a section region of that side covers, so this
+    /// is a kernel defect.
     SlitUnplaced {
         /// The slit's face (in the discarded scratch body).
         slit: FaceKey,
@@ -608,7 +610,9 @@ pub enum SplitFinishError {
     },
     /// Which section face holds a slit trace's slit cannot be read: a
     /// vertex of it read against a loop of its side's section escalated,
-    /// or the walk cannot read that loop ([`point_in_loop`]).
+    /// or the walk cannot read that loop ([`point_in_loop`]). No input is
+    /// known to reach it: a keel end within the band of a bore, the
+    /// near case, escalates in the operand's own Boolean first.
     SlitHoming {
         /// The slit's face (in the discarded scratch body).
         slit: FaceKey,
@@ -839,49 +843,12 @@ impl core::fmt::Display for SplitFinishError {
                  face around it. {}",
                 geom_core::KERNEL_DEFECT_ENDING
             ),
-            Self::SlitHoming { error, .. } => {
-                use crate::splitting::PointInLoopError as E;
-                const SUBJECT: &str = "which cut face holds a slit an edge in the cut leaves";
-                match error {
-                    E::Escalated {
-                        decision,
-                        escalation,
-                        diag,
-                        ..
-                    } => write!(
-                        f,
-                        "placing a slit an edge in the cut leaves: {}",
-                        diag.undecided(
-                            decision.subject(),
-                            crate::boolean::ContainDecision::Loop(*decision)
-                                .lever_ending(*escalation, diag),
-                        )
-                    ),
-                    E::RayExhausted { .. } => write!(
-                        f,
-                        geom_core::undecided!(
-                            "which cut face holds a slit an edge in the cut leaves",
-                            payload
-                        ),
-                        crate::ray_walk::NoRaySettled
-                    ),
-                    E::Uncrossable(u) => write!(
-                        f,
-                        "{SUBJECT} cannot be read: {u}. {}",
-                        geom_core::NOT_YET_ENDING
-                    ),
-                    E::OffPlane(o) => write!(
-                        f,
-                        "{SUBJECT} cannot be read: {o}. Recourse: {}",
-                        super::SPLIT_COINCIDENCE_RECOURSE
-                    ),
-                    E::CorruptLoop { .. } => write!(
-                        f,
-                        "{SUBJECT} cannot be read: {error}. {}",
-                        geom_core::KERNEL_DEFECT_ENDING
-                    ),
-                }
-            }
+            Self::SlitHoming { error, .. } => error.render_as(
+                f,
+                "placing a slit an edge in the cut leaves",
+                "which cut face holds a slit an edge in the cut leaves",
+                super::SPLIT_COINCIDENCE_RECOURSE,
+            ),
             Self::KnifeEdge(k) => write!(f, "{k}"),
             Self::EdgeJoin { side, refusal } => {
                 write!(
@@ -1193,8 +1160,10 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
 /// ring would pass it.
 ///
 /// **A hole the rule leaves unplaced, or the ring guard turns away,
-/// keeps its own face** — sound by cancellation (volumes and
-/// point-in-solid read it right; tier 3 passes it).
+/// keeps its own face** — sound by cancellation for volumes,
+/// point-in-solid and tier 3, though tier 3′ reads what lies inside it
+/// on both faces
+/// (`work/cleave/a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses.md`).
 ///
 /// # Errors
 ///
@@ -1300,20 +1269,27 @@ fn ring_into<T: Decide + crate::props::AtRestPolicy>(
 /// `side`'s piece, [`super::join::SectionKind::Slit`]) as a ring of the
 /// section face of `side` whose region holds it ([`ring_into`]). Its
 /// winding is zero, so its place is read by containment alone: a vertex
-/// of the slit, which lies inside its side's section region, is read
-/// against every loop of the side's section faces on their own carriers
-/// ([`point_in_loop`]). The face whose outline holds it and none of
-/// whose rings does is the one. A slit lies on edges its side's material
-/// wraps round, so it is clear of every loop, and exactly one face holds
-/// it.
+/// of the slit is read against the loops of the side's section faces on
+/// their own carriers ([`point_in_loop`]).
+///
+/// A face's region is its outline less its rings, and less every hole
+/// the nesting rule left on a face of its own ([`nest_hole_sections`]:
+/// `sense` false) inside that outline. So the holder is the innermost
+/// outline holding the vertex, none of whose rings holds it, unless a
+/// hole of its own holding the vertex lies inside it, which takes the
+/// vertex out of its region. Section loops are disjoint, so one loop
+/// lies inside another exactly when a vertex of it does. A slit lies on
+/// edges its side's material wraps round, so it lies in some section
+/// region, clear of every loop.
 ///
 /// # Errors
 ///
 /// - [`SplitFinishError::SlitHoming`] where a reading refuses: in band,
-///   or on an outline the walk does not read;
+///   or on a loop the walk does not read;
 /// - [`SplitFinishError::SlitUnplaced`] where every reading is definite
-///   and no face holds the vertex, a hole does, or it lies on a loop;
-///   [`SplitFinishError::NestingContradiction`] where two faces do;
+///   and the vertex lies in no region, or on a loop;
+///   [`SplitFinishError::NestingContradiction`] where no one holding
+///   outline lies inside the others;
 /// - [`SplitFinishError::Euler`] and [`SplitFinishError::Corrupt`] from
 ///   the surgery.
 fn nest_slit<T: Decide + crate::props::AtRestPolicy>(
@@ -1327,39 +1303,67 @@ fn nest_slit<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<(), SplitFinishError> {
     let corrupt = || SplitFinishError::Corrupt;
     let slit_loop = body.get_face(slit).ok_or_else(corrupt)?.outer;
-    let q = crate::chord_join::ring_representative(body, slit_loop).map_err(|_| corrupt())?;
+    let at = |l| crate::chord_join::ring_representative(body, l).map_err(|_| corrupt());
+    let q = at(slit_loop)?;
     let side_normal = section_loops::section_normal(normal, side);
-    let read = |l| {
-        point_in_loop(body, l, side_normal, q, band)
+    let read = |l, p| {
+        point_in_loop(body, l, side_normal, p, band)
             .map_err(|error| SplitFinishError::SlitHoming { slit, error })
     };
     let unplaced = |in_hole| Err(SplitFinishError::SlitUnplaced { slit, in_hole });
-    let (mut holders, mut in_hole) = (Vec::new(), false);
+    // The outlines whose own rings leave the vertex inside them, and the
+    // holes on faces of their own that hold it.
+    let (mut outlines, mut holes, mut in_hole) = (Vec::new(), Vec::new(), false);
     for face in side_sections(naming, side) {
         let data = body.get_face(face).ok_or_else(corrupt)?;
-        match read(data.outer)? {
+        match read(data.outer, q)? {
             LoopContainment::Out => continue,
             LoopContainment::OnBoundary => return unplaced(!data.sense),
-            LoopContainment::In if !data.sense => return unplaced(true),
+            LoopContainment::In if !data.sense => {
+                holes.push(data.outer);
+                continue;
+            }
             LoopContainment::In => {}
         }
         let mut held = true;
         for &ring in &data.rings {
-            match read(ring)? {
+            match read(ring, q)? {
                 LoopContainment::Out => {}
                 LoopContainment::In => (held, in_hole) = (false, true),
                 LoopContainment::OnBoundary => return unplaced(true),
             }
         }
         if held {
-            holders.push(face);
+            outlines.push((face, data.outer));
         }
     }
-    match holders[..] {
-        [parent] => ring_into(body, slit, parent, tol),
-        [] => unplaced(in_hole),
-        _ => Err(SplitFinishError::NestingContradiction { hole: slit }),
+    // Whether loop `inner` lies inside loop `outer`.
+    let inside = |inner, outer| -> Result<bool, SplitFinishError> {
+        Ok(read(outer, at(inner)?)? == LoopContainment::In)
+    };
+    let mut innermost = Vec::new();
+    for &(face, l) in &outlines {
+        let mut all = true;
+        for &(other, m) in &outlines {
+            if other != face && !inside(l, m)? {
+                all = false;
+            }
+        }
+        if all {
+            innermost.push((face, l));
+        }
     }
+    let (parent, outline) = match innermost[..] {
+        [one] => one,
+        [] if outlines.is_empty() => return unplaced(in_hole || !holes.is_empty()),
+        _ => return Err(SplitFinishError::NestingContradiction { hole: slit }),
+    };
+    for &hole in &holes {
+        if inside(hole, outline)? {
+            return unplaced(true);
+        }
+    }
+    ring_into(body, slit, parent, tol)
 }
 
 /// The re-descriptions a section face's re-chart takes: every edge of

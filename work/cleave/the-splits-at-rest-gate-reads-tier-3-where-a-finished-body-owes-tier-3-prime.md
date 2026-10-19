@@ -39,3 +39,5 @@ The curved slit's records (or its shared curve entry) come first, or the
 one-end curved slit starts refusing at the gate. Measure what else the
 3′ gate turns from `Ok` to a refusal across the split suites at three ε
 before landing it.
+
+A second witness: `a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses` (a hole left on a face of its own ships `Ok`; 3′ refuses).

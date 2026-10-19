@@ -614,44 +614,12 @@ impl core::fmt::Display for SplitJoinError {
                  {}",
                 geom_core::NOT_YET_ENDING
             ),
-            Self::RingHoming(e) => match e {
-                // The walk's decision is the question. The join asks it of
-                // many vertices, and a smaller tolerance moves the others'
-                // readings into the band as it decides one, so it ends in
-                // the decision's lever alone, as the Boolean's placement
-                // does (`refusal_routes`'s `Ending::Placement`).
-                crate::splitting::PointInLoopError::Escalated {
-                    decision,
-                    escalation,
-                    diag,
-                    ..
-                } => write!(
-                    f,
-                    "re-homing a hole loop: {}",
-                    diag.undecided(
-                        decision.subject(),
-                        crate::boolean::ContainDecision::Loop(*decision)
-                            .lever_ending(*escalation, diag),
-                    )
-                ),
-                // The rays are the walk's own, so the levers are its.
-                crate::splitting::PointInLoopError::RayExhausted { .. } => write!(
-                    f,
-                    geom_core::undecided!("which piece holds a hole loop", payload),
-                    crate::ray_walk::NoRaySettled
-                ),
-                crate::splitting::PointInLoopError::CorruptLoop { .. } => {
-                    write!(f, "re-homing a hole loop refused: {e}")
-                }
-                crate::splitting::PointInLoopError::Uncrossable(u) => write!(
-                    f,
-                    "which piece holds a hole loop cannot be read: {u}. Recourse: {JOIN_RECOURSE}"
-                ),
-                crate::splitting::PointInLoopError::OffPlane(o) => write!(
-                    f,
-                    "which piece holds a hole loop cannot be read: {o}. Recourse: {JOIN_RECOURSE}"
-                ),
-            },
+            Self::RingHoming(e) => e.render_as(
+                f,
+                "re-homing a hole loop",
+                "which piece holds a hole loop",
+                JOIN_RECOURSE,
+            ),
             Self::RingHomingAmbiguous { .. } => write!(
                 f,
                 "every vertex of a hole loop lies on the boundary of the piece being \
