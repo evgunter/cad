@@ -1811,7 +1811,7 @@
 <circle cx="349.29" cy="60.00" r="2.4" fill="#ffffff" stroke="#333" stroke-width="1"/>
 <text x="54" y="286" font-family="monospace" font-size="9.5" fill="#444">u &#8712; [0.00000, 6.28319] rad</text>
 <text x="54" y="298" font-family="monospace" font-size="9.5" fill="#444">v &#8712; [2.23774, 3.66519] rad</text>
-<text x="54" y="310" font-family="monospace" font-size="9.5" fill="#444">winding CW = sense(-n)  A=-8.9689   closure gap 4.5e-17 m</text>
+<text x="54" y="310" font-family="monospace" font-size="9.5" fill="#444">winding CW = sense(-n)  A=-8.9689   closure gap 5.7e-17 m</text>
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
