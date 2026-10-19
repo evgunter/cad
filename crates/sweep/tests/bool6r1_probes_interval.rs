@@ -12,9 +12,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Point3;
 use geom_core::predicate::{Band, Margin, Sign};
-use geom_core::{Affine3, Interval, Point2, Tol, Vec3};
+use geom_core::{Interval, Point2, Tol};
 use profile::RawLoop;
+use profile::SketchPlane;
 use sweep::{LoftError, ProfileLoop, loft_body};
 
 fn sq() -> sweep::Section {
@@ -29,9 +31,9 @@ fn sq() -> sweep::Section {
     )]
 }
 
-fn stacked(zs: &[f64]) -> Vec<Affine3<f64>> {
+fn stacked(zs: &[f64]) -> Vec<SketchPlane<f64>> {
     zs.iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, *z)))
         .collect()
 }
 
@@ -50,7 +52,7 @@ fn an_interior_slab_at_the_band_edges_decides_the_same_at_interval() {
         let places = stacked(&[0.0, 1.0, 1.0 + step, 2.0]);
         let got = loft_body::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&sections),
-            &sweep::test_support::lift_places::<Interval>(&places),
+            &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
             2,
             tol,
         )
@@ -78,7 +80,7 @@ fn a_forward_stack_builds_at_interval_at_every_station_count() {
         let sections = vec![sq(); k];
         let out = loft_body::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&sections),
-            &sweep::test_support::lift_places::<Interval>(&stacked(&zs)),
+            &sweep::test_support::lift_places::<Interval>(&stacked(&zs), geom_core::Tol::witness()),
             k.min(4) - 1,
             tol,
         );

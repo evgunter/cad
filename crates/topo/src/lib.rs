@@ -312,6 +312,13 @@ pub mod test_support {
     };
     pub use crate::test_support_impl::ArenaCounts;
 
+    /// The pad a face's reach box takes past the band, and each face's
+    /// share of the census's gaps (`boolean::boxes::sweep_pad`): the
+    /// spelling a test outside this crate reads it by.
+    pub fn sweep_pad(band: geom_core::Band) -> f64 {
+        crate::boolean::boxes::sweep_pad(band)
+    }
+
     /// **Restates the surface at `key`** as `surface`: a row that needs
     /// a datum no construction mints (a cone's seam off square to its
     /// axis) builds the body and then restates its carrier. Returns
@@ -891,7 +898,7 @@ pub use boolean::{
 pub use joint::{Deck, JointElement};
 pub use lineage::{
     ConeCopies, Division, FaceDivisions, Fate, Lineage, LineageError, LineageKey, LineageRows,
-    Minted, Remainder, RowDefect, RowRefusal, SplitEdgeDivisions, Substitutions,
+    Minted, Remainder, RowDefect, RowRefusal, SourceGeometry, SplitEdgeDivisions, Substitutions,
 };
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
@@ -945,6 +952,7 @@ pub use coherence::{
 };
 pub use coincidence::{
     Backing, Cited, Cites, Coincidence, DecisionSite, Discharge, Relation, RowCell,
+    UnspelledDecision,
 };
 pub use geom::Curve3;
 pub use geom::Surface;

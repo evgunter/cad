@@ -25,7 +25,7 @@ use std::collections::BTreeMap;
 use sweep::ExtrudeSide;
 
 use geom_core::k_stats::{self, Probe, SampleOutcome};
-use geom_core::{Affine3, Band, Point2, Point3, Sign, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, Sign, Tol};
 use profile::{Profile, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::point_in_solid;
@@ -47,7 +47,7 @@ fn margins_at(
     let tol = Tol::witness();
     let s = |v: f64| Probe(v * scale);
     let lp = profile::circle(Point2::new(s(0.0), s(0.0)), s(1.0), tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(s(0.0), s(0.0), s(-2.0))));
+    let plane = SketchPlane::xy_at(Point3::new(s(0.0), s(0.0), s(-2.0)));
     let vp = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     let body = extrude(
         &vp,
@@ -152,7 +152,7 @@ fn the_wall_arms_margins_scale_linearly_with_the_model() {
 fn bore_margins(scale: f64, name: &str) -> Vec<f64> {
     let tol = Tol::witness();
     let s = |v: f64| Probe(v * scale);
-    let at = |z: f64| SketchPlane::new(Affine3::translation(Vec3::new(s(0.0), s(0.0), s(z))));
+    let at = |z: f64| SketchPlane::xy_at(Point3::new(s(0.0), s(0.0), s(z)));
     let pipe = Profile::new(
         at(-2.0),
         vec![

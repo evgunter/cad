@@ -1251,7 +1251,8 @@ fn bridging(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 
 /// Where the bridge folds last, after the plate, its edge meets the
 /// line's two coincident edges at two points, which topo does not build.
-const TWO_GERMS: &str = "work/tang/an-edge-crossing-two-wedges-about-a-contact-line-is-unbuilt.md";
+const TWO_GERMS: &str =
+    "work/tangtail/an-edge-crossing-two-wedges-about-a-contact-line-is-unbuilt.md";
 
 /// A table, key-free: each row's name by where its entities stand —
 /// a vertex at its point, an edge at its ends, a face at its vertices.
@@ -1577,5 +1578,99 @@ fn a_prism_crossing_one_wedge_about_the_line_publishes_one_table_in_every_member
                 Some(f) => same_table(&here, f, &what),
             }
         }
+    }
+}
+
+/// Two boxes whose union has a concave seam along the z axis, and a
+/// prism whose diagonal face holds that seam over its height.
+fn pencil(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, a) = block(doc, (-1.0, 1.0), (-1.0, 0.0), 0.0, 2.0);
+    let (doc, b) = block(doc, (0.0, 1.0), (-1.0, 1.0), 0.3, 1.4);
+    let (doc, c) = prism(doc, &[(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5)], 0.6, 0.8);
+    (doc, vec![a, b, c])
+}
+
+/// **A face through a seam is decided by the step that meets it, and
+/// held unspelled**: folding the prism into the boxes' union decides
+/// the seam crossing each of the prism's two diagonal rim edges, one
+/// point each. Read back to the inputs, each crossing would be the seam
+/// edge on a rim edge, which says more than was decided, so the step
+/// publishes no row and holds both decisions
+/// (`BooleanNaming::unspelled`), each a point minted on the seam decided
+/// one with a point minted on a rim edge. Red if a crossing is
+/// published as an edge on an edge, or dropped.
+#[test]
+fn a_face_through_a_seam_is_held_unspelled_by_the_step_that_meets_it() {
+    for order in [[0, 1, 2], [1, 0, 2]] {
+        let (doc, m) = pencil(ProfileDoc::empty_derived("pencil", Tol::witness()));
+        let ev = run(&doc);
+        let operand = |i: usize| {
+            sweep::test_support::finished("member", body_of(&ev, m[i]).clone(), Tol::witness())
+        };
+        let joined = match topo::union(&operand(order[0]), &operand(order[1]), Tol::witness()) {
+            Ok(topo::BooleanResult::Body(out)) => out.body,
+            other => panic!("{order:?}: the boxes join: {other:?}"),
+        };
+        let Ok(topo::BooleanResult::Body(out)) =
+            topo::union(&joined, &operand(order[2]), Tol::witness())
+        else {
+            panic!("{order:?}: the prism folds in");
+        };
+        assert!(
+            out.coincidences.is_empty(),
+            "{order:?}: no row states the crossings: {:?}",
+            out.coincidences
+        );
+        let held = &out.naming.unspelled;
+        let [first, second] = held.as_slice() else {
+            panic!("{order:?}: the step holds both crossings: {held:?}");
+        };
+        for d in [first, second] {
+            assert!(
+                d.site == topo::DecisionSite::VertexFusion
+                    && d.relation == topo::Relation::OnCarrier
+                    && matches!(
+                        d.cells,
+                        [
+                            (topo::Operand::A, topo::Cell::Vertex(_)),
+                            (topo::Operand::B, topo::Cell::Vertex(_)),
+                        ]
+                    ),
+                "{order:?}: a point of the seam one with a point of a rim edge: {held:?}"
+            );
+        }
+        assert!(
+            first.cells != second.cells,
+            "{order:?}: two crossings: {held:?}"
+        );
+    }
+}
+
+/// **Two wedges overlapping about one line publish their apex rows**:
+/// each wedge's apex corner lies on the other's apex edge, and the
+/// two-member union records both, in either list order.
+#[test]
+fn two_wedges_overlapping_about_one_line_publish_their_apex_rows() {
+    for order in [[1, 3], [3, 1]] {
+        let (doc, m) = crossing_one_wedge(ProfileDoc::empty_derived("wedges", Tol::witness()));
+        let (doc, u) = crate::fixture::union_over(doc, &[m[order[0]], m[order[1]]]);
+        let ev = run(&doc);
+        if let Some(e) = failure(&ev, u) {
+            panic!("{order:?}: refused: {e:?}");
+        }
+        let rows: Vec<String> = ev
+            .value(u)
+            .expect("the union evaluates")
+            .coincidences
+            .iter()
+            .map(|r| format!("{:?} {:?} {:?}", r.site, r.relation, r.cells))
+            .collect();
+        assert!(
+            rows.len() == 2
+                && rows.iter().all(|r| r.starts_with("VertexFusion OnCarrier")
+                    && r.contains("CapVertex(")
+                    && r.contains("LateralEdge(")),
+            "{order:?}: each apex corner on the other's apex edge: {rows:#?}"
+        );
     }
 }

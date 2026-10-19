@@ -67,3 +67,4 @@ cleave-tangency)
   - The door inventory counts `edge_rule_box(` and turbofish calls; `census.rs` pins 10.
   - Test-only change in `boolean/conic_oracle/exact.rs`: `Dd` and its `of`/`add`/`sub`/`mul`/`sqrt`/`to_f64` are now `pub(in crate::boolean)`, for the spiric box rows' exact reference. Nothing else in the file moves.
   - (RESTREAD implementer)
+- 2026-10-19 — Seam note from RESTREAD: `villarceau-strip-fuzz-oracle-misses-a-root` moved to `work/restread/`. The fuzz it names tests RESTREAD's torus region reader (`boolean::torus_region`), so RESTREAD took it, riding with `main-red-torus-region-probe-fuzz-reads-on-boundary-near-the-tube` (branch `restread/torus-region-reds`). — (RESTREAD implementer)

@@ -584,9 +584,8 @@ impl<T: Real> Body<T> {
     /// its own records. The boolean's one caller (`zip::share_points`)
     /// passes the keys the seam correspondence ties, whose pairs the
     /// zips' scaffolding certifies coincident before any rebind, and the
-    /// keys its result's vertex-vertex records tie, each a pair it
-    /// decided one point or an operand's carried record its carry
-    /// confirmed (`boolean::ops::record_classes`).
+    /// keys its result's vertex-vertex records tie, each pair's gap
+    /// decided Zero there first (`boolean::ops::record_classes`).
     pub(crate) fn share_point(&mut self, vertices: &[VertexKey], onto: PointKey) -> Option<()> {
         self.points.get(onto)?;
         let old: Vec<PointKey> = vertices

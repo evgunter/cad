@@ -68,3 +68,25 @@ Neighbour: `work/frame/path-start-frame-is-the-only-frame-from-a-tangent-and-is-
 The klein bottle's wall 9 stops refusing — the exact spine sweeps —
 and `review_half_turn_path_builds_on_the_float_knife_edge` asserts
 the half-turn build as intended behaviour rather than as a knife edge.
+
+## The knife edge is gone; both spines refuse now (2026-10-14, PATHS' `the-sketch-plane-is-its-frame`)
+
+`sweep_places` turns the start frame by `RigidMotion::turned_between`
+and decides its divisor `1 + t₀·tᵢ` under the band (`sweep_path_turn`,
+ledger row F22) instead of testing `sin > 0.0` exactly. The scene's
+interpolant (|u₀ × u₁| ≈ 3.1e-11) now decides that divisor zero and
+refuses `PathTangentReversal` at its last station, as the exact spine
+does; `review_m5_pr10`'s knife-edge row became
+`review_half_turn_path_refuses_at_the_turns_decision`.
+
+The klein scene therefore no longer sweeps its loop. It lofts the same
+section through the same stations' normal planes, each frame stated by
+the user (`klein::lofted_loop`: local +Z the unit tangent, local +X
+the start frame's roll, which is the planar spine's normal), and wall 9
+pins `sweep_body` refusing on the exact spine. So the first ask above
+(carry the frame ALONG the path, or a planar path's own normal-plane
+frame through a door) is now what stands between the scene and
+`sweep_body`, and the "Done when" reads: the klein loop sweeps with
+`sweep_body` again. Untried here: whether `lofted_loop` builds on
+`exact_spine`, which would let the scene put its caps flat on the rims
+without any kernel change.
