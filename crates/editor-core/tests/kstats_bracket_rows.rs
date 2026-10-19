@@ -93,7 +93,7 @@ fn per_node(ev: &Evaluation<f64>) -> BTreeMap<RecipeNodeId, usize> {
 /// assembled profile. The plane's two axes are NOT among them — the
 /// frame node decides its own placement, at both scalars, and the
 /// precompute READS it (`NodeValue::placement`).
-const PRE_PASS: usize = 73;
+const PRE_PASS: usize = 76;
 /// The one-solid part's log sizes by node at `f64`: frame, profile,
 /// extrude. At `f64` the Profile node's op takes the pre-pass's
 /// validated form (`editor_core::ProfileLane`) and logs what the second
@@ -113,7 +113,7 @@ const FRAME_LOG: usize = 4;
 const EXTRUDE_LOG: usize = 655;
 /// The one-solid part's second pass: the op's own guided replay and
 /// validation, after the pre-pass in the Profile node's log.
-const LANE_OP: usize = 68;
+const LANE_OP: usize = 71;
 const PROFILE_LOG: usize = PRE_PASS + LANE_OP;
 /// A placement pinned where its body stands by the named interim's world
 /// pin ([`fixture::pin`] at the identity): it reads nothing, so its fold
@@ -371,9 +371,11 @@ fn the_profile_nodes_log_at_f64_opens_with_the_pre_pass() {
         !histogram.contains_key("datum_unit_norm"),
         "the plane's axes are the FRAME's decision, not the profile's: {histogram:?}"
     );
-    // Four from the replay's junctions, four from validation's joint
+    // Seven from the replay's junctions (each read at its arriving
+    // arm, and the three a departing leg follows read again at the
+    // shorter arm once it is stored), four from validation's joint
     // pass, which reads the same turn.
-    assert_eq!(histogram["path_junction_turn"], 8, "{histogram:?}");
+    assert_eq!(histogram["path_junction_turn"], 11, "{histogram:?}");
     assert_eq!(histogram["chord_side"], 28, "{histogram:?}");
     assert_eq!(histogram["line_span"], 8, "{histogram:?}");
     assert_eq!(
@@ -381,7 +383,7 @@ fn the_profile_nodes_log_at_f64_opens_with_the_pre_pass() {
         "the replay decides first"
     );
     assert_eq!(
-        log[4].predicate, "vertex_separation",
+        log[7].predicate, "vertex_separation",
         "then the f64 validation"
     );
 }

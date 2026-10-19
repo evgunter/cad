@@ -591,6 +591,12 @@ fn sym_9_what_each_retry_recovers() {
 /// bare and 1215/1324 → 1227/1312 with the ladder, its four recovered
 /// decisions held.
 ///
+/// The door reads each junction a departing leg follows again at the
+/// shorter leg's arm once that leg is stored (#5377's fix pass): the
+/// plate 939/690 → 939/693, the boss 468/398 → 468/399, the bracket
+/// 1311/1043 → 1311/1047, with the ladder and without it alike; no
+/// recovered decision moved.
+///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
 /// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
 /// defect in the ladder, not a re-baseline.
@@ -600,10 +606,10 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [939, 690], [939, 690], 0),
+        ("two_hole_plate", [939, 693], [939, 693], 0),
         ("r1_annulus", [475, 431], [475, 431], 0),
-        ("r1_segment_boss", [468, 398], [468, 398], 0),
-        ("r2_filleted_bracket", [1311, 1043], [1311, 1043], 0),
+        ("r1_segment_boss", [468, 399], [468, 399], 0),
+        ("r2_filleted_bracket", [1311, 1047], [1311, 1047], 0),
         ("r2_link", [767, 687], [767, 687], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
@@ -681,7 +687,10 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// the thirty-eight as discharges a second attempt reached. Without
 /// the ladder neither appears and the line is the one a drive wrote
 /// before the ladder existed. The thirty-eight move `symbolic`
-/// 1208 → 1246.
+/// 1208 → 1246. The junction's turn levered by the shorter leg's arm
+/// (#5377's fix pass) moves sixteen more of the leaf's decisions from
+/// `numeric` to `symbolic`: 1246/1294 → 1262/1278 with the ladder and
+/// 1208/1332 → 1224/1316 without it, the thirty-eight held.
 ///
 /// The row read the filleted bracket, then the link, then the pad as
 /// authored. Since the constructions store the carriers they build,
@@ -726,7 +735,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let d = shipped.decisions();
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1246, 1294, 38],
+        [1262, 1278, 38],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -738,7 +747,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         "the human form names the thirty-eight as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1208, 1332, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1224, 1316, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

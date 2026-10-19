@@ -42,3 +42,22 @@ should stay as the home for a decided junction a future door may mint
 `ValidatedLoop` from a raw `Profile` to keep its sentences reaching, or
 whether it retires with its reachability. Until one or the other, its
 speaking text has no test that reaches it.
+
+## The same-carrier relation too, since the shorter arm (2026-10-19)
+
+#5377's fix pass levers the lattice's junction turn by the SHORTER of
+the two legs' arms, once the leaving leg is stored, and validation's
+joint pass reads the same arm. The arm's other reaching row,
+`a_profile_junction_decided_on_one_carrier_is_one_same_oriented_row`
+(a 1 mm leg rising `ε/10` off a 10 m line: a corner at the 10 m
+arriving arm, one carrier continuing at validation), now refuses at the
+door, `JunctionTangent` at step 2 (`0.1ε` at the 1 mm arm), and is
+`a_profile_junction_on_one_carrier_refuses_at_the_door`. Validation's
+same-carrier read (`chord_side`, `crates/profile/src/seg.rs`, in
+`joint_tangency`) puts the leaving leg's far end against the arriving
+leg's line, `φ` times the leaving leg's length, at least `φ` times the
+shorter arm, so a junction the lattice builds as a corner cannot read
+as one carrier either. So neither of the
+`ProfileJunction` arm's relations, `Tangent` nor `SameOriented`, has a
+reaching document, and its "continues on one carrier with" sentence
+joins "continues tangent into" without a test that speaks it.

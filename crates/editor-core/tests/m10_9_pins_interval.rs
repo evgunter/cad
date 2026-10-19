@@ -126,6 +126,14 @@ pub(crate) struct Study {
 /// (718, 740) → (722, 736), still refusing at `pcurve_envelope`, the
 /// bracket (1250, 1099) → (1252, 1102) and the pad (1147, 1392) →
 /// (1157, 1382). No registrant moved and no verdict moved.
+///
+/// Its fix pass levers the turn by the shorter of the two legs' arms,
+/// and the path door reads each junction a departing leg follows again
+/// at that arm once the leg is stored: the bracket's door-shut numeric
+/// 1102 → 1106 (four more junction reads), and the pad 1373 → 1389
+/// symbolic, (1373, 1166) → (1389, 1150) shut: sixteen decisions move
+/// from `numeric` to `symbolic`, the total unchanged. No registrant
+/// moved and no verdict moved.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -185,7 +193,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // centre's algebra, so eight `dihedral_wedge` decisions are
             // registered rather than proved. The tangent certificate's
             // gap rows on the fillet's contact edges added ten (47 → 57).
-            without_the_registry: Some(((1252, 1102), None)),
+            without_the_registry: Some(((1252, 1106), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
@@ -209,11 +217,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // exact components, the tier proves what the door used to
             // discharge (64 decisions, `(1147, 1392)` shut against
             // `(1211, 1328)` shipped, when they were angles).
-            without_the_registry: Some(((1373, 1166), None)),
+            without_the_registry: Some(((1389, 1150), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
-            symbolic: [1373, 1373, 1373],
+            symbolic: [1389, 1389, 1389],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -652,7 +660,11 @@ fn m10_9_what_the_registry_buys() {
 /// forms the walks freeze rise, (1211, 1328, 4112) → (1373, 1166, 4298),
 /// at both dials alike. No decision is gained or lost. The same
 /// receipt holds at the pad's new `certifies_at` (its ceiling rose, see
-/// [`measured_studies`]).
+/// [`measured_studies`]). The junction's turn levered by the shorter
+/// leg's arm, and read again at the door once the leaving leg is
+/// stored: sixteen decisions move from `numeric` to `symbolic`, the
+/// total unchanged, and one more form freezes, (1373, 1166, 4298) →
+/// (1389, 1150, 4299).
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
@@ -686,7 +698,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1373, 1166, 4298), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1389, 1150, 4299), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

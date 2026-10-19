@@ -325,13 +325,11 @@ fn p2c_line_arc_enclosing_refuses_typed() {
                 Tol::witness(),
             )
         });
-    // At 1e-12 the close may escalate instead: a 3 mm carrier stored
-    // 2 km out has a heading good to about 7e-11 rad, and the stored
-    // fillet joint's turn is levered by the 2.5 m fillet's arm.
-    match closed.and_then(|b| b.line_to(Start, Tol::witness())) {
-        Ok(closed) => {
+    match closed {
+        Ok(b) => {
             // Decode: which tangency did the door serve, and does it
             // swallow the small carrier?
+            let closed = b.line_to(Start, Tol::witness()).unwrap();
             let lp = closed.loop_;
             let (t1, t2, bl) = fillet_arc(&lp, 2.5).expect("an emitted r=2.5 arc");
             let (pf, _) = circle_from_bulge(t1, t2, bl);

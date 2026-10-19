@@ -950,44 +950,56 @@ fn a_profile_junction_the_lattice_reads_as_a_corner_is_no_row() {
     assert!(findings.is_empty(), "{findings:?}");
 }
 
-/// **A same-carrier junction no constructor made is recorded
-/// `SameOriented`**, carrier identity, not a tangency between two
-/// carriers. A leg of `ε/10` turns off the line by its whole length,
-/// so the lattice (`sin φ · arm` over the long arriving leg) reads a
-/// corner while validation, reading the short leg's far end against
-/// the line, reads one carrier continuing: the node holds one
-/// `SameOriented` row at `ProfileJunction`, and the check says so.
+/// **A same-carrier junction no constructor made refuses at the
+/// door.** A leg of `ε/10` rise over 1 mm turns off the 10 m line by
+/// `1e-7` rad. Levered by the shorter leg's arm, the lattice reads that
+/// turn as `0.1ε`, Zero, and refuses the undeclared tangent junction at
+/// step 2, as validation reads the same leg's far end within ε of the
+/// line, one carrier continuing. Before the shorter-arm reading the
+/// lattice levered the 10 m arriving leg and built a corner validation
+/// recorded as one `SameOriented` row at `ProfileJunction`; with both
+/// reading the short leg, a document reaches neither of that arm's
+/// relations (`work/coincide/a-profile-junction-row-has-no-reaching-document.md`).
 ///
-/// Red if the same-carrier arm is recorded as `Tangent`, or not at all.
+/// Red if the junction builds, or refuses for anything but its turn.
 #[test]
-fn a_profile_junction_decided_on_one_carrier_is_one_same_oriented_row() {
+fn a_profile_junction_on_one_carrier_refuses_at_the_door() {
     let rise = 0.1 * Tol::witness().eps();
     let doc = ProfileDoc::empty_derived("g_profile_same_carrier", Tol::witness());
-    let (doc, p) = profile_of(
+    let (doc, plane) = insert(
         doc,
-        LoopProgram::Chain(vec![
+        crate::fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let node = Node::Profile(ProfileProgram {
+        frame: plane.into(),
+        loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At(len2([0.0, 0.0])),
             ProgramStep::LineTo(ProgramTarget::Point(len2([10.0, 0.0]))),
             ProgramStep::LineTo(ProgramTarget::Point(len2([10.001, rise]))),
             ProgramStep::LineTo(ProgramTarget::Point(len2([10.001, 5.0]))),
             ProgramStep::LineTo(ProgramTarget::Start),
-        ]),
-    );
-    let ev = run(&doc);
-    let got = rows(&ev, p);
-    assert_eq!(
-        got.iter().map(|r| (r.relation, r.site)).collect::<Vec<_>>(),
-        [(Relation::SameOriented, DecisionSite::ProfileJunction)],
-        "{got:?}"
-    );
-    let findings = unproven(&doc, &ev);
-    assert_eq!(findings.len(), 1, "{findings:?}");
-    let said = spoken_by(&findings[0], &doc);
-    assert!(
-        said.contains("continues on one carrier with")
-            && said.contains("a profile junction no constructor made"),
-        "{said}"
-    );
+        ])],
+        ids: Vec::new(),
+    });
+    match doc.apply(
+        &editor_core::DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    ) {
+        Err(editor_core::EditError::ProfileProgramRefused { refusal, .. }) => match *refusal {
+            editor_core::ProgramRefusal::Geometry {
+                loop_: 0,
+                step: 2,
+                kind: profile::PathErrorKind::JunctionTangent,
+                ..
+            } => {}
+            other => panic!("the junction refuses as tangent at step 2, got {other:?}"),
+        },
+        Ok(_) => panic!("the junction must refuse at the door"),
+        Err(other) => panic!("the junction must refuse at the door, got {other:?}"),
+    }
 }
 
 /// The names of `node`'s edges with both ends at height `z`.

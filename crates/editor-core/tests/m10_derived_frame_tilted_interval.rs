@@ -1331,7 +1331,10 @@ fn m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert(
 ///
 /// The profile's joint pass reads each corner's turn after identity
 /// (`path_junction_turn`, #5354's ruling): `numeric` +8 in every
-/// receipt (514 → 522, 300 → 308), the verdicts held.
+/// receipt (514 → 522, 300 → 308), the verdicts held. Its fix pass
+/// reads each junction a departing leg follows again at the shorter
+/// leg's arm once that leg is stored: `numeric` +6 more (522 → 528,
+/// 308 → 314), the verdicts held.
 #[test]
 fn m10_what_the_read_buys_on_the_tilted_caps() {
     let doc_of = |base, place| r2_document(1.0e-3, base, place);
@@ -1351,24 +1354,24 @@ fn m10_what_the_read_buys_on_the_tilted_caps() {
             "tiltU end cap",
             Base::TiltU,
             Place::Derived(1),
-            (928, 522),
-            (529, 308),
+            (928, 528),
+            (529, 314),
             Some("newell_plane_residual"),
         ),
         (
             "flipZ derived",
             Base::FlipZ,
             Place::Derived(1),
-            (928, 522),
-            (529, 308),
+            (928, 528),
+            (529, 314),
             Some("newell_plane_residual"),
         ),
         (
             "tiltU start-cap",
             Base::TiltU,
             Place::DerivedStartCap,
-            (928, 522),
-            (928, 522),
+            (928, 528),
+            (928, 528),
             None,
         ),
     ];

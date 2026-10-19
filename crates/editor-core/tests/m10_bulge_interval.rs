@@ -184,7 +184,9 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// decides each joint by `path_junction_turn` after carrier identity,
 /// so the two line/arc joints' `carrier_line_circle` reads move to it
 /// and the two line/line joints add one each: `carrier_line_circle`
-/// 0/5 -> 0/3, `path_junction_turn` 0/4 -> 0/8.
+/// 0/5 -> 0/3, `path_junction_turn` 0/4 -> 0/8. Its fix pass reads
+/// each junction a departing leg follows again at the shorter leg's
+/// arm once that leg is stored, three more: 0/8 -> 0/11.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
@@ -210,7 +212,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("line_span", [6, 4]),
     ("newell_plane_residual", [30, 0]),
     ("path_circle_radius", [0, 1]),
-    ("path_junction_turn", [0, 8]),
+    ("path_junction_turn", [0, 11]),
     ("pcurve_chart_cut_side", [0, 26]),
     ("pcurve_chart_orientation", [0, 12]),
     ("pcurve_chart_placement", [0, 52]),
@@ -308,7 +310,9 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
 ///
 /// **The joint pass reads its turn** (#5354's ruling): the two
 /// line/arc joints' `carrier_line_circle` reads move to
-/// `path_junction_turn`, 0/3 -> 0/1 and 0/2 -> 0/4.
+/// `path_junction_turn`, 0/3 -> 0/1 and 0/2 -> 0/4. Its fix pass reads
+/// each door junction again at the shorter leg's arm once the leaving
+/// leg is stored, one more for the boss's arc junction: 0/4 -> 0/5.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -340,7 +344,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("line_span", [2, 0]),
             ("newell_plane_residual", [18, 0]),
             ("path_circle_radius", [0, 1]),
-            ("path_junction_turn", [0, 4]),
+            ("path_junction_turn", [0, 5]),
             ("pcurve_chart_cut_side", [0, 26]),
             ("pcurve_chart_orientation", [0, 12]),
             ("pcurve_chart_placement", [0, 52]),
