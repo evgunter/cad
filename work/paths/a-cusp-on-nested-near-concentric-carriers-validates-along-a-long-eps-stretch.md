@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-15
 priority: P0
 cost: M
-needs_ev: true
 ---
 
 
@@ -76,3 +75,7 @@ The class is wider than nested carriers: any tangency reading with a long within
 - joint at (2.1187738322069234, 2.9987335279213676), closed by a line.
 
 mpmath gives d = 95ε and g = +0.005ε. The carriers cross, and the joint sits at one crossing. It is a cusp whose second arc stays within ε of the first for 0.13 rad (0.35 m). The title's "nested" should widen to "near-concentric".
+
+## Ruling (Ev, #5354, 2026-10-19)
+
+"that plan sounds good!" The profile is valid. No pass reads the stretch's length, and the far end is the line ([topology.census]). A tangent cusp's legality as an edge is the sweep's second-order arm. The joint pass decides tangency from the turn levered by the arm, now. The implementation unit closes this row as a contract note.
