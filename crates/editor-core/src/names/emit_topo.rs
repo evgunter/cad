@@ -671,6 +671,14 @@ enum Joined {
     /// The cover lies along several whole operand edges: the `Merged`
     /// set of their names.
     Set { name: StableName, tied: bool },
+    /// The cover lies along several operand edges, part of one or more
+    /// of them: a piece of their `Merged` set, qualified by its ends
+    /// where the half holds several.
+    SetPiece {
+        name: StableName,
+        tied: bool,
+        roots: Vec<EdgeKey>,
+    },
     /// The cover lies along section chords and whole operand edges,
     /// across a merged face: named from its two faces, as a seam is.
     Seam { name: StableName, tied: bool },
@@ -686,11 +694,8 @@ enum Joined {
 ///
 /// # Errors
 ///
-/// [`NamingError::Emission`] where a cover has no input-cell reading:
-/// a section chord joined to a piece of an operand edge, or pieces of
-/// several operand edges not one of which it holds whole. No `ci` row
-/// reaches either (`a-finished-body-holds-no-joinable-vertex` (a closed FUSE row; `docs/doc-ledger/fuse-leaves-the-tracker.md`),
-/// PR B); each is the ruling's stop case, refused rather than named.
+/// [`NamingError::Emission`] where a cover has no input-cell reading: a
+/// section chord joined to a piece of an operand edge.
 #[allow(clippy::too_many_arguments)]
 fn split_joined_readings<T: Decide>(
     node: RecipeNodeId,
@@ -763,20 +768,26 @@ fn split_joined_readings<T: Decide>(
                 out.insert(kept, Joined::Whole(up));
             }
             [_] => {} // a piece: the fragment pass names it
-            several if several.iter().all(|&r| whole(r)) => {
+            several => {
                 let mut names = Vec::with_capacity(several.len());
                 for &r in several {
                     let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(r)))?;
                     names.push(((*up.name).clone(), up.tied));
                 }
                 let (name, tied) = super::join_names::joined_name(node, names);
-                out.insert(kept, Joined::Set { name, tied });
-            }
-            _ => {
-                return Err(bug(
-                    "a split joined pieces of several operand edges, holding none of them \
-                     whole, which no input cell reads",
-                ));
+                // Along part of an operand edge whose other parts live
+                // on: a piece of the set, told from its siblings by its
+                // ends, as a union's flush rim is.
+                let joined = if several.iter().all(|&r| whole(r)) {
+                    Joined::Set { name, tied }
+                } else {
+                    Joined::SetPiece {
+                        name,
+                        tied,
+                        roots: several.to_vec(),
+                    }
+                };
+                out.insert(kept, joined);
             }
         }
     }
@@ -934,6 +945,17 @@ fn name_split_edges_vertices<T: Decide>(
                 }
                 Some(Joined::Set { name, tied } | Joined::Seam { name, tied }) => {
                     put(t, tie, *tied, name.clone(), ent(0, EntityKey::Edge(e)))?;
+                    continue;
+                }
+                Some(Joined::SetPiece { name, tied, roots }) => {
+                    // It holds the crossings at its ends of the operand
+                    // edges it lies along.
+                    for &r in roots {
+                        pieces_of.entry(r).or_default().push(e);
+                    }
+                    let group = edge_groups.entry((slot, name.clone())).or_default();
+                    group.0 |= *tied;
+                    group.1.push(e);
                     continue;
                 }
                 None => {}
@@ -1114,7 +1136,7 @@ fn name_split_edges_vertices<T: Decide>(
         // A lone section chord is the whole of the section line across
         // its face; an operand edge's fragment is always a piece of it.
         let lone = match base.path.first() {
-            Some(RoleSeg::SectionEdge { .. }) => Lone::Whole,
+            Some(RoleSeg::SectionEdge { .. } | RoleSeg::Merged(_)) => Lone::Whole,
             _ => Lone::Piece,
         };
         name_edge_pieces(
