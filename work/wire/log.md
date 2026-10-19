@@ -6585,3 +6585,9 @@ Signed (WIRE orchestrator).
 - 2026-10-19 (WIRE orchestrator) Dispatched wire-p4 (branch wire/p4-refusal-bundle): a-seated-entity-collision-refuses-as-a-name-minted-twice + editor-payload-lists-other-than-naming-are-kept-by-hand, one PR, STYLE review.
 
 - 2026-10-19 (WIRE orchestrator) Dispatched wire-chase (wire/one-chain-chase; STYLE review), for split-and-boolean-copy-chains-are-chased-three-ways. Dispatched wire-breaks (wire/eval-internal-breaks; FULL review), for eval-handles-internal-breaks-three-ways…. The breaks lane applies only a ratified rule for typed kernel-defect refusals vs D9 row 4 `unreachable!`. If none decides, it reports and a designer fork follows.
+
+- 2026-10-19 (WIRE orchestrator) PR 5405 (wire-chase) is green at 05e271e8da.
+  - One `names::chase::to_root` helper now runs four chases. A cycle past the bound is D9 row 4, consistent with ORIGIN's stated acyclicity argument on `Provenance::SplitEdge`.
+  - `Fused::origin` is total by `Minted` and stays as it is.
+  - Filed hone/split-null-pair-rows-…-minted-list (P4).
+  - STYLE review dispatched on the frozen head.
