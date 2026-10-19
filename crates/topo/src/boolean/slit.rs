@@ -43,6 +43,20 @@ use crate::live::proven;
 
 /// Why an edge of the result lying in one of its faces is not parted
 /// ([`BooleanError::EdgeInFace`]).
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// Every case but one is a construction gap with no lever, and
+/// [`EdgeInFaceGap::Crossed`] is a kernel defect: nothing a person does
+/// differs by case, and the refusal's sentence names it. A Rust caller
+/// can already name and match it, since `pncad` re-exports `topo`
+/// whole.
+///
+/// **The falsifier is a caller that acts on the case by itself**: a
+/// driver that moves an end off the face's boundary when it reads
+/// [`EdgeInFaceGap::EndOnBoundary`], say. Then carry it and delete this
+/// paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EdgeInFaceGap {
     /// One of the edge's own faces has no normal at the edge's midpoint

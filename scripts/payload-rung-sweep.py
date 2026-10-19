@@ -161,6 +161,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # beside the declaration.
     "NodeWhy": ("argued", "non-carriage with its falsifier, beside the declaration "
                 "in crates/topo/src/boolean/mod.rs"),
+    # `BooleanError::EdgeInFace`'s gap: why an edge lying in a face is not
+    # parted.
+    "EdgeInFaceGap": ("argued", "non-carriage with its falsifier, beside the declaration "
+                      "in crates/topo/src/boolean/slit.rs"),
     # `BooleanError::GermSectionSpiric`'s loops: `WedgeCheck`'s shape,
     # argued beside the declaration.
     "SpiricLoops": ("argued", "non-carriage with its falsifier, beside the declaration "
