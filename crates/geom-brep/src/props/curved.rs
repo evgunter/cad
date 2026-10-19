@@ -1102,7 +1102,7 @@ fn require_rims_at_extremes<T: Decide>(
 /// A linearly-leveled face's boundary, parsed once — **and the
 /// metering choice that goes with it**.
 ///
-/// The rims and levels are the parse; `arms` and `as_level` are the
+/// The rims and levels are the parse; `arms` and `cosines` are the
 /// decisions about *how a level is compared*, and they live here
 /// because S81 was two sites making that decision independently and
 /// drifting apart. The flux lane and [`boundary_material_sign`] each
@@ -1117,10 +1117,41 @@ struct LinearBoundary<T: Real> {
     levels: Vec<T>,
     /// The kind's lever arms ([`RimArms`]).
     arms: RimArms<T>,
-    /// Lifts a scalar extreme into the rims' own [`RimLevel`]
-    /// representation: `Length` for the cylinder and cone, the
-    /// latitude-sine `Unit` pair for the sphere.
-    as_level: fn(T) -> RimLevel<T>,
+    /// On the sphere, each level's latitude cosine, beside it in
+    /// `levels` and read where the level is found (a rim's `r_c/R`, a
+    /// meridian end's distance from the axis over `R`, a pole's zero):
+    /// a cosine completed from the sine as `√(1 − s²)` carries `√(2u)`
+    /// near a pole. Empty for the cylinder and the cone, whose levels
+    /// are lengths.
+    cosines: Vec<T>,
+}
+
+impl<T: Decide> LinearBoundary<T> {
+    /// The face's extreme levels `(lo, hi)` lifted into the rims' own
+    /// [`RimLevel`] representation: `Length` for the cylinder and cone,
+    /// the latitude `Unit` pair for the sphere, its cosine the one
+    /// carried beside the level at that extreme (selected by sine; the
+    /// interval scalar hulls the cosines of levels its sines cannot
+    /// tell apart, which near a pole are one latitude's).
+    fn ends(&self, (lo, hi): (T, T)) -> (RimLevel<T>, RimLevel<T>) {
+        let (Some((&s0, rest)), Some(&c0)) = (self.levels.split_first(), self.cosines.first())
+        else {
+            return (RimLevel::Length(lo), RimLevel::Length(hi));
+        };
+        let at = |toward: T| {
+            let (mut s, mut c) = (s0, c0);
+            for (&si, &ci) in rest.iter().zip(&self.cosines[1..]) {
+                // `≤ 0` when `si` is at least as far toward the extreme.
+                let d = (si - s) * toward;
+                (s, c) = (d.select_le_zero(si, s), d.select_le_zero(ci, c));
+            }
+            c
+        };
+        (
+            RimLevel::Unit(lo, at(T::one())),
+            RimLevel::Unit(hi, at(-T::one())),
+        )
+    }
 }
 
 /// `s_f` from `rim`'s level and the face's level range: the interior
@@ -1173,7 +1204,7 @@ fn unanimous_rim_side<T: Decide>(
     (lo, hi): (T, T),
     band: Band,
 ) -> Result<Option<Sign>, PropsError> {
-    require_rims_at_extremes(&b.rims, ((b.as_level)(lo), (b.as_level)(hi)), b.arms, band)?;
+    require_rims_at_extremes(&b.rims, b.ends((lo, hi)), b.arms, band)?;
     let mut answer: Option<Sign> = None;
     for rim in &b.rims {
         let s = rim_side(rim, lo, hi, b.arms, band)?;
@@ -1719,7 +1750,7 @@ fn cylinder_boundary<T: Decide>(
         rims,
         levels,
         arms: RimArms::uniform(radius),
-        as_level: RimLevel::Length,
+        cosines: Vec::new(),
     })
 }
 
@@ -2776,7 +2807,7 @@ fn cone_boundary<T: Decide>(
         rims,
         levels,
         arms,
-        as_level: RimLevel::Length,
+        cosines: Vec::new(),
     };
     if !generators && !b.rims.is_empty() {
         cone_apex_level(&mut b, edges, band)?;
@@ -3955,7 +3986,7 @@ fn sphere_meridian_span_levels<T: Decide>(
     radius: T,
     axis: Vec3<T>,
     n_c: Vec3<T>,
-    levels: &mut Vec<T>,
+    (levels, cosines): (&mut Vec<T>, &mut Vec<T>),
     band: Band,
 ) -> Result<(), PropsError> {
     for (m, extreme) in sphere_meridian_pole_margins(e, center, radius, axis, n_c, band)? {
@@ -3973,7 +4004,10 @@ fn sphere_meridian_span_levels<T: Decide>(
         // and level decides downstream refuse typed; a poisoned span
         // is refused upstream by certification before this parse.
         match decide("props_meridian_pole", Margin::levered(m, radius), band) {
-            Ok(Sign::Positive | Sign::Zero) | Err(_) => levels.push(extreme),
+            Ok(Sign::Positive | Sign::Zero) | Err(_) => {
+                levels.push(extreme);
+                cosines.push(T::zero());
+            }
             Ok(Sign::Negative) => {}
         }
     }
@@ -3992,7 +4026,14 @@ fn sphere_boundary<T: Decide>(
     band: Band,
 ) -> Result<LinearBoundary<T>, PropsError> {
     let mut rims: Vec<Rim<T>> = Vec::new();
-    let mut levels: Vec<T> = Vec::new();
+    let (mut levels, mut cosines): (Vec<T>, Vec<T>) = (Vec::new(), Vec::new());
+    // A point's latitude, its sine and cosine each off its own offset
+    // from the centre: along the axis, and out from it.
+    let latitude = |p: Point3<T>| {
+        let w = p - center;
+        let h = w.dot(axis);
+        (h / radius, (w - axis * h).norm() / radius)
+    };
     for e in edges {
         let Curve3::Circle {
             center: c_c,
@@ -4041,6 +4082,7 @@ fn sphere_boundary<T: Decide>(
                 let level = RimLevel::Unit(sin_v, cos_v);
                 rims.push(Rim::decided(e, rim_dir(s, e.forward), level, r_c, band)?);
                 levels.push(sin_v);
+                cosines.push(cos_v);
             }
             Sign::Zero => {
                 // Meridian great circle: centered at the sphere center
@@ -4051,28 +4093,37 @@ fn sphere_boundary<T: Decide>(
                     band,
                     Premise::Inventory,
                 )?;
-                levels.push((e.p0() - center).dot(axis) / radius);
-                levels.push((e.p1() - center).dot(axis) / radius);
+                for p in [e.p0(), e.p1()] {
+                    let (sin_p, cos_p) = latitude(p);
+                    levels.push(sin_p);
+                    cosines.push(cos_p);
+                }
                 // The arc's extent is its stored span's, not its
                 // endpoints': fold in the pole latitude(s) the span
                 // contains (see `sphere_meridian_span_levels`); the
                 // pole helper decides first that the span is one the
                 // fold may read.
-                sphere_meridian_span_levels(e, center, radius, axis, n_c, &mut levels, band)?;
+                sphere_meridian_span_levels(
+                    e,
+                    center,
+                    radius,
+                    axis,
+                    n_c,
+                    (&mut levels, &mut cosines),
+                    band,
+                )?;
             }
         }
     }
     // Sphere levels are latitude SINES; the rims carry the full
-    // `(sin v, cos v)` direction pair, so the lift completes a scalar
-    // extreme with its cosine (latitudes live in `[−π/2, π/2]`, so
-    // the cosine is the nonnegative root; the `max` keeps the sqrt
-    // in-domain when a folded extreme sits a rounding past ±1).
+    // `(sin v, cos v)` direction pair, so each level carries its cosine
+    // beside it, read where it is found ([`LinearBoundary::ends`]).
     // Metered at the sphere radius, which is also its azimuthal arm.
     Ok(LinearBoundary {
         rims,
         levels,
         arms: RimArms::uniform(radius),
-        as_level: |s| RimLevel::Unit(s, (T::one() - s.powi(2)).max(T::zero()).sqrt()),
+        cosines,
     })
 }
 
