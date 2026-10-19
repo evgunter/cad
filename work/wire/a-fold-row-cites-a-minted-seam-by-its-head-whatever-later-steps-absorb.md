@@ -44,3 +44,23 @@ member vertex on a fold-minted seam, and whose last member absorbs that
 stretch of the seam but not all of it. Then check the published row
 against the finished body's seam.
 
+## Where the row is published (PR 5328's review)
+
+This row is not published in every member order. PR 5328's review counted it
+in 8 of the 24 orders of `crossing_one_wedge`. Whether a fold row like this is
+published in only some orders is the three-member row's question, and the
+WIRE orchestrator has taken it there. This row does not decide it.
+
+## Why edges are not forwarded the way vertices are
+
+PR 5328 carries a minted vertex's key through every later step and reads the
+finished table's name for it. A vertex either stays one vertex, is
+consumed, or is split per cone, and the split is refused as a tie.
+
+An edge has no such single successor. A later step can cut it into
+pieces, each named by its ends (`Fragment(Ends)`), or absorb part of it.
+`names::fold_cell` spells a minted seam or `Merged` edge by its head, the
+parent, so the row names the whole seam, not one piece. Forwarding an
+edge would mean choosing a piece, for instance the one that holds the row's
+point. No naming rule says that yet, so that choice belongs to this row.
+

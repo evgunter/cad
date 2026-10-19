@@ -226,6 +226,8 @@ struct Held {
     member: usize,
     minted: usize,
     minted_vertex: usize,
+    /// Rows whose minted vertex was found at the other cell's entity.
+    sited: usize,
 }
 
 /// **Every cell of a union's published row denotes a live entity of the
@@ -234,7 +236,14 @@ struct Held {
 /// table for a cell the fold minted — of the cell's kind, whose key is
 /// an entity of that read's body. A fold row is named against the
 /// fold's intermediate tables, and a cell left in their terms would name
-/// nothing the document can resolve.
+/// nothing the document can resolve. A tie row is held where every
+/// candidate is live.
+///
+/// A row whose one cell is a vertex the fold minted states that it
+/// lies on its other cell: where that is a vertex or a straight edge,
+/// the minted vertex's point must lie there within ε ([`cell_at`]), so
+/// a name read off the wrong vertex reds here even though the table
+/// holds it.
 fn cells_are_held(ev: &Evaluation<f64>, union: RecipeNodeId, order: &[usize]) -> Held {
     use editor_core::{EntityKey, Entry, NamedCell};
     let value = ev.value(union).expect("the union evaluated");
@@ -251,21 +260,25 @@ fn cells_are_held(ev: &Evaluation<f64>, union: RecipeNodeId, order: &[usize]) ->
             let at = |why: &str| {
                 format!("{order:?}: a published row's cell {name:?} of {input:?} {why}: {r:?}")
             };
-            let Some(Entry::Unique(e)) = ev.table(*input).and_then(|t| t.lookup(name)) else {
-                panic!("{}", at("is no strict name of its read's table"));
+            let entities = match ev.table(*input).and_then(|t| t.lookup(name)) {
+                Some(Entry::Unique(e)) => vec![*e],
+                Some(Entry::Tied(es)) => es.clone(),
+                None => panic!("{}", at("is no name of its read's table")),
             };
-            assert_eq!(e.key.kind(), name.kind, "{}", at("denotes another kind"));
-            let body = ev
-                .read_body(*input, e.body)
-                .expect("the read evaluated")
-                .expect("the read holds the cell's body");
-            let live = match e.key {
-                EntityKey::Body => true,
-                EntityKey::Face(k) => body.faces().any(|(f, _)| f == k),
-                EntityKey::Edge(k) => body.edges().any(|(f, _)| f == k),
-                EntityKey::Vertex(k) => body.vertices().any(|(f, _)| f == k),
-            };
-            assert!(live, "{}", at("denotes no entity of its read's body"));
+            for e in entities {
+                assert_eq!(e.key.kind(), name.kind, "{}", at("denotes another kind"));
+                let body = ev
+                    .read_body(*input, e.body)
+                    .expect("the read evaluated")
+                    .expect("the read holds the cell's body");
+                let live = match e.key {
+                    EntityKey::Body => true,
+                    EntityKey::Face(k) => body.faces().any(|(f, _)| f == k),
+                    EntityKey::Edge(k) => body.edges().any(|(f, _)| f == k),
+                    EntityKey::Vertex(k) => body.vertices().any(|(f, _)| f == k),
+                };
+                assert!(live, "{}", at("denotes no entity of its read's body"));
+            }
             if *input == own {
                 held.minted += 1;
                 held.minted_vertex += usize::from(name.kind == editor_core::EntityKind::Vertex);
@@ -273,8 +286,92 @@ fn cells_are_held(ev: &Evaluation<f64>, union: RecipeNodeId, order: &[usize]) ->
                 held.member += 1;
             }
         }
+        let [a, b] = &r.cells;
+        for (minted, other) in [(a, b), (b, a)] {
+            let NamedCell::Entity { input, name } = minted else {
+                continue;
+            };
+            if *input != own || name.kind != editor_core::EntityKind::Vertex {
+                continue;
+            }
+            let points = cell_points(ev, minted);
+            if let Some(on) = cell_at(ev, other, &points) {
+                assert!(
+                    on,
+                    "{order:?}: a published row's minted vertex {name:?} at {points:?} \
+                     does not lie on its other cell: {r:?}"
+                );
+                held.sited += 1;
+            }
+        }
     }
     held
+}
+
+/// The points of the vertices a vertex cell's name denotes.
+fn cell_points(ev: &Evaluation<f64>, cell: &editor_core::NamedCell) -> Vec<geom_core::Point3<f64>> {
+    let editor_core::NamedCell::Entity { input, name } = cell else {
+        return Vec::new();
+    };
+    let Some(entry) = ev.table(*input).and_then(|t| t.lookup(name)) else {
+        return Vec::new();
+    };
+    let entities = match entry {
+        editor_core::Entry::Unique(e) => vec![*e],
+        editor_core::Entry::Tied(es) => es.clone(),
+    };
+    entities
+        .into_iter()
+        .filter_map(|e| {
+            let body = ev.read_body(*input, e.body).ok()?.ok()?;
+            match e.key {
+                editor_core::EntityKey::Vertex(v) => Some(crate::fixture::point(body, v)),
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+/// Whether one of `points` lies on `cell` within ε: at its vertex, or
+/// on its edge where that edge is a straight segment. `None` where the
+/// cell is of another shape, and nothing was checked.
+fn cell_at(
+    ev: &Evaluation<f64>,
+    cell: &editor_core::NamedCell,
+    points: &[geom_core::Point3<f64>],
+) -> Option<bool> {
+    let editor_core::NamedCell::Entity { input, name } = cell else {
+        return None;
+    };
+    let eps = Tol::witness().eps();
+    let Some(editor_core::Entry::Unique(e)) = ev.table(*input).and_then(|t| t.lookup(name)) else {
+        return None;
+    };
+    let body = ev.read_body(*input, e.body).ok()?.ok()?;
+    match e.key {
+        editor_core::EntityKey::Vertex(v) => {
+            let q = crate::fixture::point(body, v);
+            Some(points.iter().any(|p| (*p - q).norm() <= eps))
+        }
+        editor_core::EntityKey::Edge(k) => {
+            let edge = body.get_edge(k)?;
+            let straight = body
+                .get_curve_geom(edge.curve)
+                .and_then(|g| g.certified())
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
+            if !straight {
+                return None;
+            }
+            let [u, w] = crate::fixture::ends(body, k).map(|v| crate::fixture::point(body, v));
+            let d: geom_core::Vec3<f64> = w - u;
+            Some(points.iter().any(|p| {
+                let s = (*p - u).dot(d) / d.dot(d);
+                let off = (*p - u).cross(d).norm() / d.norm();
+                off <= eps && s * d.norm() >= -eps && (s - 1.0) * d.norm() <= eps
+            }))
+        }
+        _ => None,
+    }
 }
 
 fn built(ev: &Evaluation<f64>, union: RecipeNodeId) -> Decided {
@@ -802,15 +899,19 @@ fn flush_onto_an_edge(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 }
 
 /// **Every published row's cells denote entities of their reads, in
-/// every member order** ([`cells_are_held`]), on a fixture whose rows
-/// cite member cells (the plate pinch), one whose rows cite an edge the
-/// fold minted (a `Merged` edge, in the orders that fold the flush pair
-/// before the third block), and one whose rows cite a vertex the fold
-/// minted and a later step re-spelled (the plate's crossing of two
-/// wedges' seam, which the third wedge's edge makes a junction, in the
-/// orders that fold the seam's wedges, then the plate, then the third). Every order must publish rows, and each
-/// fixture cells of the kind it is here for, so neither half passes on
-/// nothing.
+/// every member order** ([`cells_are_held`]). Three fixtures:
+/// - the plate pinch, whose rows cite member cells;
+/// - a flush pair on an edge, whose rows cite a `Merged` edge the fold
+///   minted, in the orders that fold the flush pair before the third
+///   block;
+/// - a prism crossing one wedge, whose rows cite a vertex the fold
+///   minted and a later step re-spelled: the plate's crossing of two
+///   wedges' seam, which the third wedge's edge makes a junction, in the
+///   orders that fold the seam's wedges, then the plate, then the third.
+///   That vertex must lie on the row's other cell.
+///
+/// Every order must publish rows, and each fixture reach cells of the
+/// kind it is here for, so no fixture passes on nothing.
 #[test]
 fn published_row_cells_denote_entities_of_their_reads() {
     type Row = (&'static str, Members, fn(Held) -> bool);
@@ -823,7 +924,7 @@ fn published_row_cells_denote_entities_of_their_reads() {
         (
             "a prism crossing one wedge about the line, with the plate",
             crate::union_pinch_member_order::crossing_one_wedge,
-            |h| h.minted_vertex > 0,
+            |h| h.minted_vertex > 0 && h.sited > 0,
         ),
         ("a flush pair on an edge", flush_onto_an_edge, |h| {
             h.minted > 0
@@ -853,6 +954,7 @@ fn published_row_cells_denote_entities_of_their_reads() {
             total.member += held.member;
             total.minted += held.minted;
             total.minted_vertex += held.minted_vertex;
+            total.sited += held.sited;
         }
         assert!(reaches(total), "{what}: checked {total:?}");
     }

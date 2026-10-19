@@ -1579,3 +1579,42 @@ fn a_prism_crossing_one_wedge_about_the_line_publishes_one_table_in_every_member
         }
     }
 }
+
+/// [`crossing_one_wedge`] with a block over `x`, `y` and `z` (its low
+/// end and height) covering the junction where the plate's top meets
+/// the line.
+fn covered_junction(
+    doc: ProfileDoc,
+    (x, y, z): ((f64, f64), (f64, f64), (f64, f64)),
+) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, mut m) = crossing_one_wedge(doc);
+    let (doc, cover) = block(doc, x, y, z.0, z.1);
+    m.push(cover);
+    (doc, m)
+}
+
+/// **A block covering the junction a fold step mints builds in every
+/// member order.** The orders that fold the two wedges, the plate and
+/// the third prism before the block publish a row on a vertex the
+/// block's step then swallows, which the finished body does not hold.
+#[test]
+fn a_block_over_the_wedges_junction_builds_in_every_member_order() {
+    let covers = [
+        ("a small cover", ((1.4, 1.6), (0.9, 1.1), (0.9, 0.2))),
+        ("a wide cover", ((1.2, 1.8), (0.7, 1.3), (0.8, 0.4))),
+    ];
+    for (label, cover) in covers {
+        for order in orders(5) {
+            let (doc, m) =
+                covered_junction(ProfileDoc::empty_derived("covered", Tol::witness()), cover);
+            let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
+            let (doc, u) = crate::fixture::union_over(doc, &members);
+            let ev = run(&doc);
+            assert!(
+                failure(&ev, u).is_none(),
+                "{label}, member order {order:?}: refused: {:?}",
+                failure(&ev, u)
+            );
+        }
+    }
+}

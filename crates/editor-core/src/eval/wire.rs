@@ -3441,21 +3441,7 @@ fn in_member_space(
     let mut minted = Vec::new();
     let mut cell = |cell: NamedCell| match cell {
         NamedCell::Entity { input, name } if input == own_read => {
-            Ok(match names::fold_cell(&name)? {
-                names::FoldCell::Member { read, name: of } => {
-                    if !matches!(name.path.first(), Some(names::RoleSeg::From { .. })) {
-                        minted.push(name);
-                    }
-                    NamedCell::Entity {
-                        input: read,
-                        name: of,
-                    }
-                }
-                names::FoldCell::Minted(name) => NamedCell::Entity {
-                    input: own_read,
-                    name,
-                },
-            })
+            member_space_cell(name, own_read, &mut minted)
         }
         _ => Err(names::NamingError::Emission {
             what: UNION_FOLD_ROW_FOREIGN_CELL,
@@ -3465,6 +3451,33 @@ fn in_member_space(
     let cells = [cell(a)?, cell(b)?];
     minted.sort();
     Ok((crate::coincide::NamedCoincidence { cells, ..row }, minted))
+}
+
+/// One cell named in the node's own space, `own_read`, by `name`, in
+/// member space ([`names::fold_cell`]): the member cell it lies in, its
+/// name pushed to `minted` where the fold minted it, or the node's own
+/// cell where it lies in no one member cell.
+fn member_space_cell(
+    name: names::StableName,
+    own_read: crate::VarId,
+    minted: &mut Vec<names::StableName>,
+) -> Result<crate::coincide::NamedCell, names::NamingError> {
+    use crate::coincide::NamedCell;
+    Ok(match names::fold_cell(&name)? {
+        names::FoldCell::Member { read, name: of } => {
+            if !matches!(name.path.first(), Some(names::RoleSeg::From { .. })) {
+                minted.push(name);
+            }
+            NamedCell::Entity {
+                input: read,
+                name: of,
+            }
+        }
+        names::FoldCell::Minted(name) => NamedCell::Entity {
+            input: own_read,
+            name,
+        },
+    })
 }
 
 /// **The union's and the intersect's lowering** (DM4): the SAME pair
@@ -3702,7 +3715,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // Each fold row's vertex cell the fold minted (row, cell), at its
     // entity in the accumulation, carried through every later step
     // ([`fold_vertex_forward`]) to the finished body's.
-    let mut fold_vertices: Vec<(usize, usize, topo::VertexKey)> = Vec::new();
+    let mut fold_vertices: Vec<(usize, usize, u32, Forwarded)> = Vec::new();
     // Each step's fragment groups, in fold order (`FragmentGroups::folded`).
     let mut step_groups = Vec::with_capacity(rest.len());
     for step in 0..rest.len() {
@@ -3816,7 +3829,8 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                                 && *input == own_read
                                 && name.kind == names::EntityKind::Vertex
                             {
-                                fold_vertices.push((at, i, fold_vertex(&acc_view, step)?));
+                                let (body, v) = fold_vertex(&acc_view, step)?;
+                                fold_vertices.push((at, i, body, Forwarded::At(v)));
                             }
                         }
                         fold_rows.push((row, minted));
@@ -3876,8 +3890,10 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 fold.step(step + 1, &naming, &out.body)
                     .map_err(NodeErrorKind::Naming)?;
                 let settler = naming.settler(&out.body);
-                for (_, _, v) in &mut fold_vertices {
-                    *v = fold_vertex_forward(&naming, &settler, *v)?;
+                for (_, _, _, at) in &mut fold_vertices {
+                    if let Forwarded::At(v) = *at {
+                        *at = fold_vertex_forward(&naming, &settler, v)?;
+                    }
                 }
                 acc_table = emitted.table;
                 step_groups.push(emitted.groups);
@@ -3906,43 +3922,6 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             what: UNION_NO_STEP,
         }));
     };
-    // A vertex cell the fold minted is read under the name the finished
-    // table holds for its entity (DM4, "A row names member cells"): the
-    // end passes re-spell what the step that minted it named.
-    let unpublished = || {
-        NodeErrorKind::Naming(names::NamingError::Emission {
-            what: UNION_FOLD_VERTEX_UNPUBLISHED,
-        })
-    };
-    let published: BTreeMap<topo::VertexKey, &names::StableName> = table
-        .iter()
-        .filter_map(|(name, entry)| match entry {
-            names::Entry::Unique(r) => match r.key {
-                names::EntityKey::Vertex(v) => Some((v, name)),
-                _ => None,
-            },
-            names::Entry::Tied(_) => None,
-        })
-        .collect();
-    for &(row, cell, v) in &fold_vertices {
-        let name = *published.get(&v).ok_or_else(unpublished)?;
-        let (r, minted) = fold_rows.get_mut(row).ok_or_else(unpublished)?;
-        let at = r.cells.get_mut(cell).ok_or_else(unpublished)?;
-        *at = match names::fold_cell(name).map_err(NodeErrorKind::Naming)? {
-            names::FoldCell::Member { read, name: of } => {
-                minted.push(name.clone());
-                minted.sort();
-                crate::coincide::NamedCell::Entity {
-                    input: read,
-                    name: of,
-                }
-            }
-            names::FoldCell::Minted(_) => crate::coincide::NamedCell::Entity {
-                input: own_read,
-                name: name.clone(),
-            },
-        };
-    }
     // A fold row the node's records cite is the published row stating
     // the same thing where there is one (DM4: a judged row, or a fold
     // row an earlier citation published), the judged rows it restates
@@ -3951,6 +3930,40 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // rows they cite.
     let contacts = if pairwise {
         let used = contacts.decided();
+        // A vertex cell the fold minted, in a row a record cites, is read
+        // under the name the finished table holds for its entity (DM4,
+        // "A row names member cells"): the end passes re-spell what the
+        // step that minted it named. A row nothing cites is not
+        // published, and needs no name. A vertex the finished body no
+        // longer holds has no published name, and keeps its step's.
+        let fold_vertex_err = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
+        for (row, cell, body, at) in &fold_vertices {
+            let cited = u32::try_from(*row).is_ok_and(|r| used.binary_search(&r).is_ok());
+            if !cited {
+                continue;
+            }
+            let v = match at {
+                Forwarded::At(v) => *v,
+                Forwarded::Consumed => continue,
+                Forwarded::Split => return Err(fold_vertex_err(UNION_FOLD_VERTEX_SPLIT)),
+            };
+            let name = table
+                .name_of(&names::EntityRef {
+                    body: *body,
+                    key: names::EntityKey::Vertex(v),
+                })
+                .ok_or_else(|| fold_vertex_err(UNION_FOLD_VERTEX_UNPUBLISHED))?
+                .clone();
+            let (r, minted) = fold_rows
+                .get_mut(*row)
+                .ok_or_else(|| fold_vertex_err(UNION_FOLD_VERTEX_UNPUBLISHED))?;
+            let slot = r
+                .cells
+                .get_mut(*cell)
+                .ok_or_else(|| fold_vertex_err(UNION_FOLD_VERTEX_UNPUBLISHED))?;
+            *slot = member_space_cell(name, own_read, minted).map_err(NodeErrorKind::Naming)?;
+            minted.sort();
+        }
         let mut at = Vec::with_capacity(used.len());
         for &k in &used {
             let row = fold_rows
@@ -4061,49 +4074,76 @@ const SPLIT_HALF_UNNAMED: &str = "a split's value holds no name table for one of
 /// node's terms.
 const UNION_CARRY_UNCITED: &str = "a union fold step's record cites nothing in the node's terms";
 
-/// The accumulation vertex a fold row's minted vertex cell names, by
-/// that cell's name in the accumulation's view (`acc_view`).
+/// Where a later fold step left a vertex a fold row cites
+/// ([`fold_vertex_forward`]).
+#[derive(Clone, Copy, Debug)]
+enum Forwarded {
+    /// A vertex of the step's result.
+    At(topo::VertexKey),
+    /// No vertex of the result: the step absorbed it into an edge or a
+    /// face, the result never held its key, or the result holds no
+    /// material of the accumulation.
+    Consumed,
+    /// Several vertices of the result, one per cone a step split it
+    /// into: a tie no one name is read off.
+    Split,
+}
+
+/// The accumulation vertex a fold row's minted vertex cell names, and
+/// the output body it is in, by that cell's name in the accumulation's
+/// view (`acc_view`).
 fn fold_vertex(
     acc_view: &NameTable,
     name: &names::StableName,
-) -> Result<topo::VertexKey, NodeErrorKind> {
+) -> Result<(u32, topo::VertexKey), NodeErrorKind> {
     match acc_view.lookup(name) {
         Some(names::Entry::Unique(names::EntityRef {
+            body,
             key: names::EntityKey::Vertex(v),
-            ..
-        })) => Ok(*v),
+        })) => Ok((*body, *v)),
         _ => Err(NodeErrorKind::Naming(names::NamingError::Emission {
             what: UNION_FOLD_VERTEX_UNHELD,
         })),
     }
 }
 
-/// The result vertex an accumulation vertex `v` is after one fold step
-/// (`naming`, `settler` over its result): the vertex its key settles on
-/// ([`topo::Settler::settle`]). The accumulation is the step's operand
-/// A, whose keys are the result arena's.
+/// Where accumulation vertex `v` is after one fold step (`naming`,
+/// `settler` over its result), read as `names::Links::judged` places an
+/// operand key: the cells its key and each copy the step's splits per
+/// cone made of it settle on ([`topo::Settler::settle_cones`]). A key
+/// no fusion and no row moved, which the result does not hold, is a
+/// vertex the result never held.
 ///
 /// # Errors
 ///
-/// [`UNION_FOLD_VERTEX_LOST`] where the step left the vertex inside an
-/// edge or a face, or holds no material of the accumulation; the
-/// settle's own error where its rows are corrupt.
+/// [`UNION_FOLD_ACC_GRAFTED`] where the accumulation is not the step's
+/// arena; the settle's own error where its rows are corrupt.
 fn fold_vertex_forward<T: geom_core::Real>(
     naming: &topo::BooleanNaming,
     settler: &topo::Settler<'_, T>,
     v: topo::VertexKey,
-) -> Result<topo::VertexKey, NodeErrorKind> {
-    let lost = || {
-        NodeErrorKind::Naming(names::NamingError::Emission {
-            what: UNION_FOLD_VERTEX_LOST,
-        })
-    };
-    if naming.a_keys != topo::OperandKeys::Direct {
-        return Err(lost());
+) -> Result<Forwarded, NodeErrorKind> {
+    match naming.a_keys {
+        topo::OperandKeys::Direct => {}
+        topo::OperandKeys::Absent => return Ok(Forwarded::Consumed),
+        topo::OperandKeys::Grafted => {
+            return Err(NodeErrorKind::Naming(names::NamingError::Emission {
+                what: UNION_FOLD_ACC_GRAFTED,
+            }));
+        }
     }
-    match settler.settle(v) {
-        Ok(topo::Cell::Vertex(w)) => Ok(w),
-        Ok(topo::Cell::Edge(_) | topo::Cell::Face(_)) => Err(lost()),
+    match settler.settle_cones(v) {
+        Ok(cells) => Ok(match cells.as_slice() {
+            [topo::Cell::Vertex(w)] => Forwarded::At(*w),
+            [_] | [] => Forwarded::Consumed,
+            _ => Forwarded::Split,
+        }),
+        Err(topo::SettleError::Dead { vertex, reached })
+            if reached == topo::Cell::Vertex(vertex)
+                && naming.vertex_merges.survivor(vertex) == vertex =>
+        {
+            Ok(Forwarded::Consumed)
+        }
         Err(e) => Err(NodeErrorKind::Naming(names::NamingError::from(e))),
     }
 }
@@ -4113,14 +4153,18 @@ fn fold_vertex_forward<T: geom_core::Real>(
 const UNION_FOLD_VERTEX_UNHELD: &str =
     "a union fold row's vertex cell names no vertex the accumulation holds uniquely";
 
-/// A later fold step did not keep a fold row's minted vertex a vertex.
-const UNION_FOLD_VERTEX_LOST: &str =
-    "a union fold step does not keep a vertex an earlier step's row cites";
+/// A row a final record cites names a vertex the fold minted that a
+/// later fold step split per cone ([`Forwarded::Split`]).
+const UNION_FOLD_VERTEX_SPLIT: &str =
+    "a union fold step splits a vertex an earlier step's cited row names into several";
 
-/// The finished table holds no strict name for a fold row's minted
-/// vertex.
+/// The finished table holds no name for a fold row's minted vertex.
 const UNION_FOLD_VERTEX_UNPUBLISHED: &str =
-    "a union's published table holds no strict name for a vertex a fold row cites";
+    "a union's published table holds no name for a vertex a fold row cites";
+
+/// A union fold step's accumulation is not the step's result arena.
+const UNION_FOLD_ACC_GRAFTED: &str =
+    "a union fold step grafts its accumulation instead of keeping its arena";
 
 /// A union's or an intersect's fold of two members or more ran no step.
 const UNION_NO_STEP: &str = "a union fold of two members or more ran no step";
