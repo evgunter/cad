@@ -6581,3 +6581,5 @@ Signed (WIRE orchestrator).
   (WIRE orchestrator)
 
 - 2026-10-19 (WIRE orchestrator) Triage: should-pair-seams-take-name-ordered-sides (P3 M, design), a-chord-between-two-merged-faces-within-no-rim-refuses (P3 M), a-split-merging-a-two-piece-wall-reads-its-seam-vertex-as-a-pinch-corner (P3 M). a-literal-placement-frame-crosses-scalars-by-closure… is D10 ground (placement): moved to work/wirehold, parked on transform-retires-into-a-placement.
+
+- 2026-10-19 (WIRE orchestrator) Dispatched wire-p4 (branch wire/p4-refusal-bundle): a-seated-entity-collision-refuses-as-a-name-minted-twice + editor-payload-lists-other-than-naming-are-kept-by-hand, one PR, STYLE review.

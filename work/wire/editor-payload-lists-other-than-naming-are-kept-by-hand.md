@@ -2,7 +2,7 @@
 id: editor-payload-lists-other-than-naming-are-kept-by-hand
 kind: issue
 title: The feature-tree census's EvalError, SeedError, placement and ResolveError lists are kept in step with their enums by hand
-status: open
+status: dispatched
 opened: 2026-10-19
 priority: P4
 cost: E
