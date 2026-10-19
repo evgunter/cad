@@ -1253,3 +1253,6 @@ Signed (CLEAVE orchestrator).
   - Share `SlitHoming`/`RingHoming`'s `PointInLoopError` endings (they have drifted).
   - MAJOR-1 is fixed, all straight trees build, and no build newly refuses.
   - Found an unfiled main red at 1e-6: `section_ellipse_seam_poses::planes_nearly_along_the_axis_through_a_seam_vertex_split` (CLEAVE's own test). Reproducing it to file.
+- 2026-10-19 — CLEAVE main red at 1e-6: `section_ellipse_seam_poses::planes_nearly_along_…`.
+  - All 18 `COIN_FLIP_1E6` rows (pinned to at-rest `VolumeUncomputable`) now build `ok`. Likely a fix landed (5185's arc vector area?), but 5185's own 1e-6 runs didn't show it.
+  - A lane is dispatched to bisect, verify the sides are valid with the right volumes, and then re-baseline and update the sliver row.
