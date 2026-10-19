@@ -113,9 +113,7 @@ fn placements() -> Vec<([f64; 3], [f64; 3], f64)> {
 }
 
 fn step(doc: TDoc, log: &mut Vec<TEdit>, edit: TEdit) -> (TDoc, Option<RecipeNodeId>) {
-    let applied = doc
-        .apply(&edit, Tol::witness(), &editor_core::RefusingReach)
-        .unwrap();
+    let applied = doc.apply(&edit, Tol::witness()).unwrap();
     log.push(edit);
     (applied.doc, applied.record.minted)
 }
@@ -160,9 +158,7 @@ fn place_pip(
         mate: Box::new(mate),
         fresh: Vec::new(),
     };
-    let applied = doc
-        .apply(&edit, Tol::witness(), &editor_core::RefusingReach)
-        .unwrap();
+    let applied = doc.apply(&edit, Tol::witness()).unwrap();
     log.push(edit);
     let id = applied.record.minted_constraints[0];
     let doc = [

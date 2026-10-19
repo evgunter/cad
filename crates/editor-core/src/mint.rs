@@ -783,7 +783,6 @@ mod tests {
                     )),
                 },
                 geom_core::Tol::witness(),
-                &crate::RefusingReach,
             )
             .unwrap()
             .doc
@@ -802,7 +801,6 @@ mod tests {
                     fresh: Vec::new(),
                 },
                 geom_core::Tol::witness(),
-                &crate::RefusingReach,
             )
             .unwrap();
             applied.record.minted.unwrap()

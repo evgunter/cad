@@ -166,7 +166,7 @@ fn eval_pose_as<T: Decide>(
         }
     };
     assert_eq!(
-        value.symmetry().family(),
+        Some(value.symmetry().family()),
         held.kind().symmetry(),
         "a pose value's subgroup is its kind's"
     );

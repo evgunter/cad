@@ -34,6 +34,17 @@
 //! ([`Rung::MarginIdentity`]). A row no rung proves is
 //! [`Proof::Unproven`]: it holds at the current values, and the door
 //! has not shown that it holds across the family.
+//!
+//! **A row at rest** is read off the replay's copies, where
+//! [`REPLAYS_PLACED_COPIES`] is on. A placed copy is the construction
+//! its bundle states (D10, `[placement.placement]`), so the replay folds
+//! each bundle at `Sym` like any other operation, and the carrier
+//! verdict on the two copies' faces reads a mate-placed face, or a face
+//! built on one, as the construction it is. The census itself is not
+//! re-run, so a row at rest between anything but two faces has no form
+//! the door reads, and neither does one whose replay reads no verdict
+//! of the row's relation. Off (today), an at-rest row is not replayed,
+//! and the replay resolves no part.
 
 use core::fmt;
 
@@ -46,7 +57,7 @@ use crate::node::{Node, RecipeNodeId};
 
 mod replay;
 
-pub use replay::with_replay_session;
+pub use replay::{REPLAYS_PLACED_COPIES, with_replay_session};
 
 /// **What a contact record's positional input is**: the input a
 /// [`topo::Backing::Carried`] names by its position, as the value that
@@ -167,14 +178,16 @@ pub enum Unreplayed {
     /// budget: it is a coincidence of values, as far as the door can
     /// tell.
     Numeric,
-    /// The row stands on a part instance, and the replay resolves no
-    /// part: a symbolic run crosses no part seam
-    /// ([`crate::analysis::ParamBoxError::SymbolsAcrossAPartSeam`]).
+    /// The row stands on a part instance the replay resolves no part
+    /// for: the evaluation the door was handed resolved none, or the
+    /// replay builds no placed copies ([`REPLAYS_PLACED_COPIES`]).
     ThroughAPart,
-    /// The row is not replayed: the at-rest census's rows ride the
-    /// gathered product, which the door does not replay, and a
-    /// document of a payload the evaluator does not read is not
-    /// replayed either.
+    /// The row is not replayed: an at-rest census row while the replay
+    /// builds no placed copies ([`REPLAYS_PLACED_COPIES`]), or one the
+    /// replay reads no carrier verdict of the row's relation on (cells
+    /// other than two faces, a verdict that decides otherwise; the
+    /// census itself is not re-run), and every row of a document of a
+    /// payload the evaluator does not read.
     NotReplayed,
 }
 
@@ -400,12 +413,13 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
 
 /// **The door**: whether each row a node of `doc` decided holds
 /// structurally. `nodes` holds each deciding node with its rows in
-/// decision order, as its value carries them (a mate stands for the
-/// at-rest census's rows on its pair); the answer is one [`Proof`] per
+/// decision order, as its value carries them (a placement stands for
+/// the at-rest census's rows on its copies); the answer is one [`Proof`] per
 /// row, in the same shape. The rungs are tried in order (module docs)
 /// at the door's one strength ([`replay`]'s budget): the document is
 /// replayed once, at `tol`, only where a row the first rung leaves asks
-/// for it.
+/// for it, its parts resolved through `resolver` (the evaluation's own,
+/// [`crate::Evaluation::resolver`]).
 ///
 /// # Errors
 ///
@@ -414,6 +428,7 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
 pub fn prove<P: crate::ProfilePayload>(
     doc: &crate::doc::Doc<P>,
     nodes: &[(RecipeNodeId, &[NamedCoincidence])],
+    resolver: Option<&std::sync::Arc<dyn crate::part::PartResolver>>,
     tol: geom_core::Tol,
     cancel: &crate::CancelToken,
 ) -> Result<Vec<Vec<Proof>>, Canceled> {
@@ -423,7 +438,7 @@ pub fn prove<P: crate::ProfilePayload>(
         .collect();
     let asks = walked.iter().flatten().any(|c| !one_construction(c));
     let replayed = match P::evaluable(doc) {
-        Some(doc) if asks => replay::rungs(doc, nodes, tol, cancel)?,
+        Some(doc) if asks => replay::rungs(doc, nodes, resolver, tol, cancel)?,
         _ => nodes
             .iter()
             .map(|(_, rows)| {

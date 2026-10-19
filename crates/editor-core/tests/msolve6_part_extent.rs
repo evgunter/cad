@@ -19,17 +19,15 @@ use editor_core::Formula;
 use std::sync::Arc;
 
 use editor_core::mate::SurfaceKind;
-use editor_core::pose::{PoseRole, RoleRead};
+use editor_core::pose::PoseRole;
 use editor_core::{
-    CapEnd, Clash, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate,
-    MateFault, MateReach, MateRef, MateSide, Node, NodeErrorKind, NodeResult, OperandSlot,
-    PartFault, PartReach, PoseValue, ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFault,
-    SlideAxis, Target, Value, WorldRead, content_pin, mate_reach, product,
+    CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate,
+    MateFault, MateRef, Node, NodeErrorKind, NodeResult, PartFault, ProfileDoc, ReachRefusal,
+    RecipeNodeId, ResolveFault, SlideAxis, Target, Value, WorldRead, content_pin, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, insert, len, on_frame, revolve_about, run, solve, step};
-use geom_core::predicate::{Band, Sign};
-use geom_core::{Decide, Point3, Tol};
+use fixture::{ang, insert, len, on_frame, revolve_about, run, solve};
+use geom_core::{Point3, Tol};
 
 // ---- Substrate ----
 
@@ -63,43 +61,6 @@ fn box_part(label: &str, half: f64, height: f64) -> ProfileDoc {
         },
     );
     placed_part(doc, body)
-}
-
-/// `part` (a [`box_part`]) re-valued in place: its square's half-width
-/// and its extrude's height edited, every id kept — a later version of
-/// the same document.
-fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
-    let profile = part
-        .ids()
-        .iter()
-        .copied()
-        .find(|&id| matches!(part.node(id), Some(Node::Profile(_))))
-        .expect("a box part has one profile");
-    let Some(Node::Profile(program)) = part.node(profile) else {
-        unreachable!("found as a profile")
-    };
-    let ids = program.kept_in_place();
-    let loops = fixture::desc(vec![fixture::square(0.0, 0.0, half)]).loops;
-    let body = body_node(&part);
-    let (part, _) = fixture::step(
-        part,
-        DocEdit::SetProgram {
-            node: profile,
-            loops,
-            ids,
-            fresh: Vec::new(),
-        },
-    );
-    let (part, _) = fixture::step(
-        part,
-        DocEdit::SetParam {
-            node: body,
-            slot: editor_core::SlotId::Distance,
-            value: len(height).into(),
-            fresh: Vec::new(),
-        },
-    );
-    part
 }
 
 /// A cylinder part: a rectangle `radius × height` in the xy plane,
@@ -157,21 +118,10 @@ fn body_node(part: &ProfileDoc) -> RecipeNodeId {
     body
 }
 
-/// The reach of every instance in `ids`, through the public door:
-/// each instance's part, read off the document the way the solve
-/// reads it.
-fn reaches(doc: &editor_core::ProfileDoc, opts: &EvalOptions, ids: &[RecipeNodeId]) -> Vec<f64> {
-    let reach = mate_reach::<f64>(opts, Tol::witness());
-    ids.iter()
-        .map(|&id| {
-            let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(id) else {
-                panic!("node {} is not an instance", id.0);
-            };
-            reach
-                .reach(doc_ref)
-                .expect("the part resolves and its body is bounded")
-        })
-        .collect()
+/// A part's reach, read off its own body the way the fold reads a
+/// copy's.
+fn reach(part: &ProfileDoc) -> f64 {
+    editor_core::mate::part_reach(&body_of(part)).expect("the part's body is bounded")
 }
 
 /// `n` instances of `part` — the first pinned to the world at the
@@ -218,7 +168,6 @@ fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Prof
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
     .doc
@@ -262,209 +211,6 @@ fn floor() -> WorldRead<Formula> {
 /// moves no point of it.
 fn tilted_floor(theta: f64) -> WorldRead<Formula> {
     floor().spin(WorldRead::through(PoseRole::X), ang(theta))
-}
-
-/// A document holding one box body — a square of half-side `half` at
-/// the origin, extruded `height` along +z — and a loose copy of it,
-/// whose bottom cap rests on [`floor`] and on [`tilted_floor`]`(theta)`:
-/// two plane mates whose targets differ by `theta`, which the fold
-/// decides over the bundle's lever. Answers the document, the body,
-/// the copy and the two mates.
-fn tilted_copy(label: &str, half: f64, height: f64, theta: f64) -> TiltedCopy {
-    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, profile) = on_frame(
-        doc,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![fixture::square(0.0, 0.0, half)],
-    );
-    let (doc, body) = insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(height),
-        },
-    );
-    let (doc, copy) = insert(
-        doc,
-        Node::place(vec![editor_core::BodyRead::plain(
-            editor_core::Operand::Node(body),
-        )]),
-    );
-    let rest_on = |to| Mate {
-        on: fixture::plane(fixture::cap_ref(body, CapEnd::Start)),
-        to: Target::World(to),
-        class: ContactClass::Rest,
-    };
-    let (doc, first) = fixture::constrain_at(doc, copy, rest_on(floor()));
-    let (doc, second) = fixture::constrain_at(doc, copy, rest_on(tilted_floor(theta)));
-    TiltedCopy {
-        doc,
-        body,
-        copy,
-        mates: [first, second],
-    }
-}
-
-struct TiltedCopy {
-    doc: ProfileDoc,
-    body: RecipeNodeId,
-    copy: RecipeNodeId,
-    mates: [MateRef; 2],
-}
-
-impl TiltedCopy {
-    /// **The bundle's lever, as the formula spells it**, read off the
-    /// document's own evaluation: the copied body's reach
-    /// (`mate::part_reach`), plus the farthest any mate's two poses sit
-    /// from their origins — here the copy's bottom-cap plane, bound
-    /// where the fold binds it, and the world's two planes, which sit
-    /// on the origin. Grouped as the fold groups it.
-    fn lever(&self, ev: &Evaluation<f64>) -> f64 {
-        let Some(editor_core::ValuePayload::Body(body)) = ev.value(self.body).map(|v| &v.payload)
-        else {
-            panic!("the box evaluates to a body");
-        };
-        let reach = editor_core::mate::part_reach(&**body).expect("the box is bounded");
-        let from_origin = |m: MateRef| {
-            let on = fixture::constraint(&self.doc, m).on;
-            let pose = editor_core::eval::bound_pose(
-                &self.doc,
-                ev,
-                OperandSlot::Side {
-                    constraint: m.id,
-                    side: MateSide::On,
-                },
-                RoleRead::plain(on),
-                Tol::witness(),
-            )
-            .expect("the copy's cap reads as a plane");
-            let PoseValue::Plane { origin, .. } = pose else {
-                panic!("a cap reads as a plane, got {pose:?}");
-            };
-            (origin.x.powi(2) + origin.y.powi(2) + origin.z.powi(2)).sqrt() + 0.0
-        };
-        let datum = self
-            .mates
-            .iter()
-            .map(|&m| from_origin(m))
-            .fold(0.0_f64, f64::max);
-        reach + datum
-    }
-}
-
-/// The mate fault a placement's row carries, if it refused its bundle.
-fn bundle_fault(ev: &Evaluation<f64>, placement: RecipeNodeId) -> Option<MateFault> {
-    match ev.result(placement) {
-        Some(NodeResult::Failed(e)) => match &e.kind {
-            NodeErrorKind::Mate(fault) => Some((**fault).clone()),
-            other => panic!("expected a mate refusal, got {other:?}"),
-        },
-        Some(NodeResult::Ok(_)) => None,
-        other => panic!("the placement neither evaluated nor refused: {other:?}"),
-    }
-}
-
-/// **The lever of a bundle is the formula, to the bit**: a copy whose
-/// bottom cap rests on two planes of the world a quarter turn apart
-/// refuses CONTRADICTORY with a levered residual, and the lever it
-/// carries equals the copied body's reach plus its cap plane's distance
-/// from the origin, computed in the row from the same public reach and
-/// the pose bound where the fold binds it.
-///
-/// *Breaks if* the lever loses either half, gains a floor or a
-/// constant, or is grouped otherwise.
-#[test]
-fn a2_the_lever_is_the_formula_to_the_bit() {
-    let t = tilted_copy("msolve6-a2-lever", 0.5, 1.0, core::f64::consts::FRAC_PI_2);
-    let ev = run(&t.doc, &EvalOptions::default());
-    let fault = bundle_fault(&ev, t.copy).expect("a quarter turn apart, the planes contradict");
-    let MateFault::Contradictory {
-        clash: Clash::Levered(lever),
-        ..
-    } = &fault
-    else {
-        panic!("expected CONTRADICTORY with a lever, got {fault:?}");
-    };
-    assert_eq!(
-        lever.arm().to_bits(),
-        t.lever(&ev).to_bits(),
-        "the lever is the formula, bit for bit: {fault:?}"
-    );
-}
-
-// ---- A3: the lever decides at the copy's scale ----
-
-/// The measure site's own example, at the mate site: a copy of a box of
-/// half-side `half` and height `2 half`, resting on two planes of the
-/// world `1e-8` rad apart. The verdict the fold reaches must be the one
-/// the run's band gives for `1e-8 · L` at the COPY's lever `L` — and
-/// where the band separates that from the metre's verdict, the two
-/// differ.
-fn tilted(label: &str, half: f64) -> (Verdict, Verdict, Option<MateFault>, f64) {
-    let theta = 1e-8;
-    let t = tilted_copy(label, half, 2.0 * half, theta);
-    let ev = run(&t.doc, &EvalOptions::default());
-    let arm = t.lever(&ev);
-    let band = Band::linear(Tol::witness()).expect("the band");
-    let fault = bundle_fault(&ev, t.copy);
-    let found = match &fault {
-        None => Verdict::Parallel,
-        Some(MateFault::Contradictory {
-            clash: Clash::Levered(lever),
-            ..
-        }) => {
-            assert_eq!(
-                lever.arm().to_bits(),
-                arm.to_bits(),
-                "the refusal carries the copy's lever"
-            );
-            Verdict::Refused
-        }
-        Some(MateFault::Indeterminate { .. }) => Verdict::Indeterminate,
-        Some(other) => panic!("unexpected fault {other:?}"),
-    };
-    (found, verdict(band, theta, 1.0), fault, arm)
-}
-
-/// **A 10 mm copy tilted by 1e-8 rad is PARALLEL across its own
-/// extent**: the deviation is `1e-8 · L` with `L` a few centimetres,
-/// a few 1e-10 m — under the default ε, where a metre lever priced
-/// the same tilt at 1e-8 and refused it.
-///
-/// *Breaks if* the lever is anything but the copy's own scale.
-#[test]
-fn a3_a_10mm_copy_tilted_1e_8_decides_at_its_own_scale() {
-    let (found, metre, fault, arm) = tilted("msolve6-a3-10mm", 0.005);
-    let expected = verdict(Band::linear(Tol::witness()).expect("the band"), 1e-8, arm);
-    assert_eq!(found, expected, "at L = {arm}: {fault:?}");
-    assert!(
-        arm < 0.1,
-        "a 10 mm copy's lever is centimetres, not a metre: {arm}"
-    );
-    // At the default ε the copy's verdict is PARALLEL and the metre's
-    // is REFUSED; at every ε the run's verdict is the copy's, not the
-    // metre's, wherever the band tells them apart.
-    if Tol::witness().eps() == 1e-9 {
-        assert_eq!((found, metre), (Verdict::Parallel, Verdict::Refused));
-    }
-}
-
-/// **A 10 m copy tilted by 1e-8 rad is REFUSED**: across tens of
-/// metres the same tilt deviates by 1e-7 m, and the refusal names the
-/// copy-scale lever.
-///
-/// *Breaks if* the lever is anything but the copy's own scale.
-#[test]
-fn a3_a_10m_copy_tilted_1e_8_is_refused_at_its_scale() {
-    let (found, _, fault, arm) = tilted("msolve6-a3-10m", 5.0);
-    let expected = verdict(Band::linear(Tol::witness()).expect("the band"), 1e-8, arm);
-    assert_eq!(found, expected, "at L = {arm}: {fault:?}");
-    assert!(arm > 10.0, "a 10 m copy's lever is tens of metres: {arm}");
-    if Tol::witness().eps() == 1e-9 {
-        assert_eq!(found, Verdict::Refused);
-    }
 }
 
 // ---- A4: refusals typed ----
@@ -553,14 +299,9 @@ fn a4_an_unresolvable_part_fails_its_instance_in_the_resolvers_voice() {
 /// is that distance to the bit.
 #[test]
 fn a2_a_box_parts_reach_is_its_far_corner() {
-    let (half, height) = (0.5, 1.0);
-    let (doc, ids, opts, _) = instances(
-        "msolve6-a2-box",
-        box_part("msolve6-a2-box-part", half, height),
-        1,
-    );
+    let (half, height) = (0.5_f64, 1.0);
     let far = (2.0 * half * half + height * height).sqrt();
-    let r = reaches(&doc, &opts, &ids)[0];
+    let r = reach(&box_part("msolve6-a2-box-part", half, height));
     assert!(r >= far, "the reach {r} must bound the far corner {far}");
     // Every edge is a line, so the bound is the maximum over the
     // vertices — the corner itself, to the bit.
@@ -572,40 +313,15 @@ fn a2_a_box_parts_reach_is_its_far_corner() {
 /// which is `h + r ≥ sqrt(r² + h²)` — an upper bound, never under.
 #[test]
 fn a2_a_cylinder_parts_reach_is_at_least_its_far_rim() {
-    let (radius, height) = (0.3, 0.7);
-    let (doc, ids, opts, _) = instances(
-        "msolve6-a2-cyl",
-        cylinder_part("msolve6-a2-cyl-part", radius, height),
-        1,
-    );
+    let (radius, height) = (0.3_f64, 0.7);
     let far = (radius * radius + height * height).sqrt();
-    let r = reaches(&doc, &opts, &ids)[0];
+    let r = reach(&cylinder_part("msolve6-a2-cyl-part", radius, height));
     assert!(r >= far, "the reach {r} must bound the far rim {far}");
     assert!(
         r <= height + radius + 1e-12,
         "and it is the rim circle's own bound, not wider: {r} vs {}",
         height + radius
     );
-}
-
-/// What the run's own band says a levered tilt decides to.
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum Verdict {
-    Parallel,
-    Refused,
-    Indeterminate,
-}
-
-/// Through the predicate door itself (`Decide::sign_within`, the rule
-/// every metered predicate decides by), so a change to the band's
-/// strictness moves this expectation with the solve rather than
-/// leaving the row testing a copied rule.
-fn verdict(band: Band, theta: f64, arm: f64) -> Verdict {
-    match (theta * arm).sign_within(band).map(|d| d.sign) {
-        Ok(Sign::Zero) => Verdict::Parallel,
-        Ok(Sign::Positive | Sign::Negative) => Verdict::Refused,
-        Err(_) => Verdict::Indeterminate,
-    }
 }
 
 /// **A body with a face whose reach cannot be bounded refuses typed,
@@ -668,121 +384,10 @@ fn a5_a_mated_part_is_evaluated_exactly_once() {
     }
 }
 
-/// **A part whose content changes so that the verdict flips reaches
-/// the placement's memo**: the fold's lever is the copy's reach, and
-/// the placement's key is its reads' keys, so the placement that
-/// evaluated `Ok` over a 10 mm part is not served from the memo over a
-/// 10 m one — it refuses.
-///
-/// *Breaks if* a re-pinned part is served the placement's old answer.
-#[test]
-fn a5_a_part_change_that_flips_the_verdict_moves_the_placements_memo() {
-    let theta = 1e-8;
-    // Two versions of ONE part document, the later a value edit of the
-    // earlier: the same ids, so the reference can be re-pinned in
-    // place; different extents.
-    let small = box_part("msolve6-a5-memo-part", 0.005, 0.01);
-    let body = body_node(&small);
-    let large = resized(small.clone(), 5.0, 10.0);
-    let large_pin = content_pin(&large, Tol::witness()).unwrap();
-    let mut store_small = PartStore::new();
-    let small_ref = store_small.insert(small, Tol::witness());
-    let mut store_large = PartStore::new();
-    store_large.insert(large, Tol::witness());
-    let opts_small = with_resolver(store_small);
-    let opts_large = with_resolver(store_large);
-    let doc = ProfileDoc::empty(DocumentId::derive("msolve6-a5-memo"), Tol::witness());
-    let (doc, b) = insert(doc, fixture::mated_instance(small_ref));
-    let bottom = || fixture::plane(fixture::head(in_part(b, body, CapEnd::Start)));
-    let mut doc = doc;
-    for to in [floor(), tilted_floor(theta)] {
-        doc = fixture::constrain_at(
-            doc,
-            b,
-            Mate {
-                on: bottom(),
-                to: Target::World(to),
-                class: ContactClass::Rest,
-            },
-        )
-        .0;
-    }
-    let first = run(&doc, &opts_small);
-    // The row is about the flip, so it only runs where the band flips
-    // it: parallel at the small scale. Elsewhere the small part's own
-    // refusal is the band's verdict, and the row ends on it.
-    if let Some(fault) = bundle_fault(&first, b) {
-        assert!(
-            matches!(
-                fault,
-                MateFault::Contradictory { .. } | MateFault::Indeterminate { .. }
-            ),
-            "the small part's refusal is the band's verdict: {fault:?}"
-        );
-        eprintln!(
-            "a5 memo: the band refuses at the small scale at this ε ({fault:?}), so the flip \
-             is not reachable"
-        );
-        return;
-    }
-    let key_small = first
-        .value(b)
-        .map(|v| v.content_key)
-        .expect("the small part's placement evaluates");
-    let (re, _) = step(
-        doc,
-        DocEdit::UpdateReference {
-            node: b,
-            new_pin: large_pin,
-        },
-    );
-    let second = editor_core::evaluate::<f64>(
-        &re,
-        Some(&first),
-        &editor_core::CancelToken::new(),
-        &opts_large,
-        Tol::witness(),
-    );
-    match bundle_fault(&second, b) {
-        Some(fault) => assert!(
-            matches!(
-                fault,
-                MateFault::Contradictory { .. } | MateFault::Indeterminate { .. }
-            ),
-            "the re-pinned part flips the verdict and the memo cannot serve it: {fault:?}"
-        ),
-        None => {
-            // The band did not separate the two scales at this ε, so
-            // the fold's answer did not move. The key does: the
-            // placement copies a re-pinned part, so the memo cannot
-            // serve the old entry — it re-runs and answers the same.
-            let large = second
-                .value(b)
-                .expect("the large part's placement evaluates");
-            assert_ne!(
-                key_small, large.content_key,
-                "the placement reads the re-pinned part"
-            );
-        }
-    }
-}
-
 // ---- The edit door: no edit asks the store, and replay ----
 
-/// A reach that counts its asks and answers through the store's — the
-/// witness that an edit which adds no rider never consults the
-/// store.
-struct Counting<'a>(core::cell::Cell<usize>, PartReach<'a, f64>);
-
-impl MateReach for Counting<'_> {
-    fn reach(&self, part: &editor_core::DocRef) -> Result<f64, ReachRefusal> {
-        self.0.set(self.0.get() + 1);
-        self.1.reach(part)
-    }
-}
-
 /// Two instances of a box, the first pinned to the world and the
-/// second seated flush on it, through the counting door: the mated
+/// second seated flush on it, through the door: the mated
 /// document the edit rows work on, with its log as the file carries
 /// it, and the seat's constraints.
 #[allow(clippy::type_complexity)]
@@ -798,13 +403,10 @@ fn seated(
 ) {
     let (doc, ids, opts, body) = instances(label, box_part(&format!("{label}-part"), 0.5, 1.0), 0);
     debug_assert!(ids.is_empty());
-    let reach = mate_reach::<f64>(&opts, Tol::witness());
     let mut log = Vec::new();
     let mut doc = doc;
     let mut push = |doc: &mut ProfileDoc, edit: DocEdit<editor_core::ProfileProgram>| {
-        let applied = doc
-            .apply(&edit, Tol::witness(), &reach)
-            .expect("the edit applies");
+        let applied = doc.apply(&edit, Tol::witness()).expect("the edit applies");
         log.push(edit);
         *doc = applied.doc;
         (applied.record.minted, applied.record.minted_constraints)
@@ -886,18 +488,17 @@ fn seated(
 
 /// **A constraint edit is never refused for the placement it removes,
 /// and asks no store** (A11 (2)): no edit records a pose, so removing
-/// a mate from a placement whose part does not resolve applies through
-/// the store's reach and through no resolver alike, and leaves the
-/// copy it pinned loose — no row, no solve.
+/// a mate from a placement whose part does not resolve applies, and
+/// leaves the copy it pinned loose — no row, no solve.
 ///
-/// *Breaks if* a removal asks the store, or invents a constraint.
+/// *Breaks if* a removal is refused, or invents a constraint.
 #[test]
 fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
     let mut elsewhere = PartStore::new();
     let lost_part = box_part("msolve6-a6-elsewhere", 0.5, 1.0);
     let lost_body = body_node(&lost_part);
     let lost_ref = elsewhere.insert(lost_part, Tol::witness());
-    let (doc, ids, opts, body) = instances(
+    let (doc, ids, _, body) = instances(
         "msolve6-a6-unresolved",
         box_part("msolve6-a6-part", 0.5, 1.0),
         1,
@@ -912,16 +513,14 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
             ContactClass::Rest,
         ),
     );
-    let reach = mate_reach::<f64>(&opts, Tol::witness());
     let remove = DocEdit::RemoveConstraint {
         placement: mate.placement,
         constraint: mate.id,
     };
-    for applied in [
-        doc.apply(&remove, Tol::witness(), &reach),
-        doc.apply(&remove, Tol::witness(), &editor_core::RefusingReach),
-    ] {
-        let applied = applied.expect("removing a placing mate is never refused");
+    {
+        let applied = doc
+            .apply(&remove, Tol::witness())
+            .expect("removing a placing mate is never refused");
         assert!(
             crate::fixture::without_anonymous(&applied.maintenance).is_empty(),
             "{:?}",
@@ -939,20 +538,16 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
     }
 }
 
-/// **No edit asks the store**: the constraint door decides only what
-/// the recipe says, so on a mated document a seat added to a third
-/// instance, a world pin removed and re-added at another pose, an
+/// **No edit asks the store**: the edit door takes none and decides
+/// only what the recipe says, so on a mated document a seat added to a
+/// third instance, a world pin removed and re-added at another pose, an
 /// appearance, a union, a fourth instance and every removal — the
-/// seat's, the first instance's — consult the store's reach not once.
+/// seat's, the first instance's — each applies.
 ///
-/// *Breaks if* any edit door evaluates a part to admit an edit.
+/// *Breaks if* any of these edits is refused for a fact of the parts.
 #[test]
 fn a6_no_edit_asks_the_store() {
     let (doc, [a, b], seat_refs, opts, _log, body) = seated("msolve6-a6-preserving");
-    let counting = Counting(
-        core::cell::Cell::new(0),
-        mate_reach::<f64>(&opts, Tol::witness()),
-    );
     let tol = Tol::witness();
     let part_ref = match doc.node(a) {
         Some(Node::InstantiatePart { doc_ref, .. }) => *doc_ref,
@@ -971,7 +566,6 @@ fn a6_no_edit_asks_the_store() {
                 fresh: Vec::new(),
             },
             tol,
-            &counting,
         )
         .expect("a mate is added");
     assert!(
@@ -990,7 +584,6 @@ fn a6_no_edit_asks_the_store() {
                 constraint: pin.id,
             },
             tol,
-            &counting,
         )
         .expect("removing a world pin asks nothing")
         .doc;
@@ -1010,7 +603,6 @@ fn a6_no_edit_asks_the_store() {
                 fresh: Vec::new(),
             },
             tol,
-            &counting,
         )
         .expect("a world pin asks nothing")
         .doc;
@@ -1022,7 +614,6 @@ fn a6_no_edit_asks_the_store() {
                 attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(200, 30, 30)),
             },
             tol,
-            &counting,
         )
         .expect("an appearance asks nothing")
         .doc;
@@ -1038,7 +629,6 @@ fn a6_no_edit_asks_the_store() {
                 fresh: Vec::new(),
             },
             tol,
-            &counting,
         )
         .expect("a union asks nothing")
         .doc;
@@ -1049,7 +639,6 @@ fn a6_no_edit_asks_the_store() {
                 fresh: Vec::new(),
             },
             tol,
-            &counting,
         )
         .expect("a fourth instance asks nothing")
         .doc;
@@ -1078,17 +667,15 @@ fn a6_no_edit_asks_the_store() {
                     constraint: m.id,
                 },
                 tol,
-                &counting,
             )
             .expect("a removal is never refused for the placement it removes");
         stranding(&applied);
         unseated = applied.doc;
     }
     stranding(
-        &doc.apply(&DocEdit::DeleteNode { id: a }, tol, &counting)
+        &doc.apply(&DocEdit::DeleteNode { id: a }, tol)
             .expect("a removal is never refused for the placement it removes"),
     );
-    assert_eq!(counting.0.get(), 0, "no edit asked the store");
 }
 
 /// **A saved document whose seat is taken apart replays
@@ -1099,8 +686,7 @@ fn a6_no_edit_asks_the_store() {
 /// *Breaks if* replay consults a part, or re-pins what the log loosed.
 #[test]
 fn a6_a_saved_unseating_replays_bit_identically_with_no_store() {
-    let (doc, [a, b], seat_refs, opts, mut log, _) = seated("msolve6-a6-replay");
-    let reach = mate_reach::<f64>(&opts, Tol::witness());
+    let (doc, [a, b], seat_refs, _, mut log, _) = seated("msolve6-a6-replay");
     // The values first, then the mate they set the freedoms of.
     let mut live = doc;
     for m in seat_refs.iter().rev() {
@@ -1109,7 +695,7 @@ fn a6_a_saved_unseating_replays_bit_identically_with_no_store() {
             constraint: m.id,
         };
         live = live
-            .apply(&remove, Tol::witness(), &reach)
+            .apply(&remove, Tol::witness())
             .expect("the removal applies")
             .doc;
         log.push(remove);
@@ -1203,34 +789,23 @@ fn c5_every_checked_in_document_loads_with_no_store_and_re_saves_identically() {
     }
 }
 
-/// **At `Interval`, the door's reach is the bracket's `hi`, bit for
-/// bit**: the one `f64` read of a certified body's reach is the upper
-/// end of its bracket (an upper bound by definition), it bounds the
-/// `f64` lane's reach, and an assembly over the part — two instances,
-/// each pinned to the world over its own geometry — evaluates `Ok` at
-/// `Interval` with the part evaluated once.
+/// **At `Interval`, a certified body's reach is a bracket whose `hi`
+/// bounds the `f64` lane's**, and an assembly over the part — two
+/// instances, each pinned to the world over its own geometry —
+/// evaluates `Ok` at `Interval` with the part evaluated once.
 ///
-/// *Breaks if* the interval reach is read anywhere but the bracket's
-/// `hi`, or a placement's fold at `Interval` resolves the part again.
+/// *Breaks if* the interval bracket's `hi` falls below the `f64`
+/// reach, or a placement's fold at `Interval` resolves the part again.
 #[test]
-fn a5_at_interval_the_doors_reach_is_the_brackets_hi_bit_for_bit() {
+fn a5_at_interval_the_reach_brackets_the_f64_lanes() {
     use geom_core::{Bounds, Interval};
     let (doc, ids, opts, _) = instances(
         "msolve6-a5-interval",
         cylinder_part("msolve6-a5-interval-part", 0.3, 0.7),
         2,
     );
-    let doc_ref = match doc.node(ids[0]) {
-        Some(Node::InstantiatePart { doc_ref, .. }) => *doc_ref,
-        other => panic!("an instance, not {other:?}"),
-    };
     let doc = fixture::pin(doc, ids[1], &Frame::translation([2.0, 0.0, 0.0]), &opts);
-    let r64 = mate_reach::<f64>(&opts, Tol::witness())
-        .reach(&doc_ref)
-        .expect("bounded at f64");
-    let ri = mate_reach::<Interval>(&opts, Tol::witness())
-        .reach(&doc_ref)
-        .expect("bounded at Interval");
+    let r64 = reach(&cylinder_part("msolve6-a5-interval-part", 0.3, 0.7));
     // The bracket, read off the certified body directly.
     let part = cylinder_part("msolve6-a5-interval-part", 0.3, 0.7);
     let evi = editor_core::evaluate::<Interval>(
@@ -1242,11 +817,7 @@ fn a5_at_interval_the_doors_reach_is_the_brackets_hi_bit_for_bit() {
     );
     let body = editor_core::product(&part, &evi, Tol::witness()).expect("the interval product");
     let bracket = editor_core::mate::part_reach(&body).expect("bounded");
-    assert_eq!(
-        ri.to_bits(),
-        bracket.hi().to_bits(),
-        "the door reads the bracket's hi"
-    );
+    let ri = bracket.hi();
     assert!(
         ri >= r64 && ri.is_finite(),
         "hi {ri} bounds the f64 reach {r64}"
@@ -1368,17 +939,10 @@ fn a2_the_reach_bounds_the_true_maximum_over_every_fixture_part() {
         let body = body_of(&part);
         let (truth, circles) = true_reach(&body);
         let bound = editor_core::mate::part_reach(&body).expect("bounded");
-        let (doc, ids, opts, _) = instances(&format!("msolve6-p1-asm-{name}"), part.clone(), 1);
-        let via_door = reaches(&doc, &opts, &ids)[0];
         assert!(bound >= truth, "{name}: bound {bound} < true reach {truth}");
         assert!(
             bound >= analytic - 1e-15,
             "{name}: bound {bound} < analytic {analytic}"
-        );
-        assert_eq!(
-            via_door.to_bits(),
-            bound.to_bits(),
-            "{name}: the door is the bound"
         );
         if circles == 0 {
             assert_eq!(bound, truth, "{name}: all-line rims are exact");
@@ -1402,84 +966,67 @@ fn a2_the_reach_fold_propagates_a_poisoned_face_rather_than_dropping_it() {
     );
 }
 
-/// **A mate chained to an indeterminate one removes like any other**:
-/// a tilt priced inside the band leaves a placement with NO verdict,
-/// the copy seated on it is poisoned through it, and the removal of
-/// that seat neither asks for a verdict nor refuses — no edit records a
-/// pose.
+/// **A mate chained to a refused one removes like any other**: a
+/// placement whose bundle its fold refuses (two rests, the second
+/// beside the first past the door, as a doctored save leaves it) leaves
+/// the copy seated on it poisoned through it, and the removal of that
+/// seat neither asks for a verdict nor refuses — no edit records a pose.
 ///
-/// The middle copy rests on the world's floor and on the floor tilted
-/// by `t`; the table's parallel split decides `|n₁ × n₂|` over the
-/// bundle's lever, and the tilt that lands inside the band is found by
-/// stepping `t` by a fraction of the band's own width, so some step
-/// falls in it whatever the lever.
-///
-/// *Breaks if* an indeterminate placement's reader evaluates, or a
-/// removal decides anything.
+/// *Breaks if* a refused placement's reader evaluates, or a removal
+/// decides anything.
 #[test]
-fn a6_a_mate_chained_to_an_indeterminate_one_removes_like_any_other() {
-    let band = Band::linear(Tol::witness()).expect("band");
-    let step_by = (band.escalate() / band.zero()).powf(0.25);
-    let build = |theta: f64| {
-        let part = box_part("msolve6-p3c-part", 5.0, 10.0);
-        let body = body_node(&part);
-        let mut store = PartStore::new();
-        let doc_ref = store.insert(part, Tol::witness());
-        let opts = with_resolver(store);
-        let doc = ProfileDoc::empty(DocumentId::derive("msolve6-p3c"), Tol::witness());
-        let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
-        let (doc, c) = insert(doc, fixture::mated_instance(doc_ref));
-        let mut doc = doc;
-        for to in [floor(), tilted_floor(theta)] {
-            doc = fixture::constrain_at(
-                doc,
-                b,
-                Mate {
-                    on: fixture::plane(fixture::head(in_part(b, body, CapEnd::Start))),
-                    to: Target::World(to),
-                    class: ContactClass::Rest,
-                },
-            )
-            .0;
-        }
-        // One rest, no value names it: the mate this row removes.
-        let (doc, m2) = fixture::constrain_at(
-            doc,
-            c,
-            fixture::rest(
-                fixture::head(in_part(c, body, CapEnd::Start)),
-                fixture::head(in_part(b, body, CapEnd::End)),
-                ContactClass::Rest,
-            ),
-        );
-        (doc, opts, b, c, m2)
+fn a6_a_mate_chained_to_a_refused_one_removes_like_any_other() {
+    let part = box_part("msolve6-p3c-part", 5.0, 10.0);
+    let body = body_node(&part);
+    let mut store = PartStore::new();
+    let doc_ref = store.insert(part, Tol::witness());
+    let opts = with_resolver(store);
+    let doc = ProfileDoc::empty(DocumentId::derive("msolve6-p3c"), Tol::witness());
+    let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
+    let (doc, c) = insert(doc, fixture::mated_instance(doc_ref));
+    let rest_on = |to| Mate {
+        on: fixture::plane(fixture::head(in_part(b, body, CapEnd::Start))),
+        to: Target::World(to),
+        class: ContactClass::Rest,
     };
-    let (doc, opts, b, c, m2) = (0..48)
-        .map(|j| band.zero() * 1e-4 * step_by.powi(j))
-        .map(build)
-        .find(|(doc, opts, b, ..)| {
-            matches!(
-                solve(doc, opts, Tol::witness()).fault(*b),
-                Some(MateFault::Indeterminate { .. })
-            )
-        })
-        .expect("some tilt lands its levered sine inside the band");
+    let (doc, _) = fixture::constrain_at(doc, b, rest_on(floor()));
+    let (doc, _) = editor_core::test_support::beside_past_the_bundle_rule(
+        &doc,
+        b,
+        rest_on(tilted_floor(0.25)),
+        Tol::witness(),
+    );
+    // One rest, no value names it: the mate this row removes.
+    let (doc, m2) = fixture::constrain_at(
+        doc,
+        c,
+        fixture::rest(
+            fixture::head(in_part(c, body, CapEnd::Start)),
+            fixture::head(in_part(b, body, CapEnd::End)),
+            ContactClass::Rest,
+        ),
+    );
+    assert!(
+        matches!(
+            solve(&doc, &opts, Tol::witness()).fault(b),
+            Some(MateFault::Overconstrained { .. })
+        ),
+        "the premise: the two rests' bundle refuses"
+    );
     let ev = run(&doc, &opts);
     assert!(
         matches!(ev.result(c), Some(NodeResult::Poisoned { through }) if *through == b),
         "the copy seated on the undecided one is poisoned through it: {:?}",
         ev.result(c)
     );
-    let reach = mate_reach::<f64>(&opts, Tol::witness());
     let remove = DocEdit::RemoveConstraint {
         placement: m2.placement,
         constraint: m2.id,
     };
-    for applied in [
-        doc.apply(&remove, Tol::witness(), &reach),
-        doc.apply(&remove, Tol::witness(), &editor_core::RefusingReach),
-    ] {
-        let applied = applied.expect("removing a mate is never refused");
+    {
+        let applied = doc
+            .apply(&remove, Tol::witness())
+            .expect("removing a mate is never refused");
         assert!(crate::fixture::without_anonymous(&applied.maintenance).is_empty());
     }
 }

@@ -185,13 +185,24 @@ fn node_error_payload(e: &pncad::document::NodeErrorKind) {
     }
 }
 
-// `DuplicateName` — the refusal of `NameTable::insert` — is
+// `SeatingRefusal` — the refusal of `NameTable::insert` — is
 // re-exported at `editor_core`'s root and carried beside `NameTable`
-// by `pncad::select`. Destructuring it by a `pncad::` path is
-// what "nameable" means here; the field's type is named too, so the
-// whole payload has a writable path and not just the outer struct.
-fn duplicate_name_payload(e: &pncad::select::DuplicateName) {
-    named::<&StableName>(&e.name);
+// by `pncad::select`, with both its payloads. Destructuring it by a
+// `pncad::` path is what "nameable" means here; the fields' types are
+// named too, so the whole payload has a writable path and not just
+// the outer type.
+fn seating_refusal_payload(e: &pncad::select::SeatingRefusal) {
+    match e {
+        pncad::select::SeatingRefusal::Duplicate(d) => {
+            named::<&pncad::select::DuplicateName>(d);
+            named::<&StableName>(&d.name);
+        }
+        pncad::select::SeatingRefusal::KindMismatch(k) => {
+            named::<&pncad::select::KindMismatch>(k);
+            named::<&StableName>(&k.name);
+            named::<&pncad::select::EntityKind>(&k.found);
+        }
+    }
 }
 
 // The display/export crates carry topo entity keys.
@@ -1007,7 +1018,7 @@ fn cross_crate_error_payloads_are_nameable_through_the_facade() {
     named(skin_payload as fn(&pncad::sweep::SkinError));
     named(fit_payload as fn(&pncad::geom::FitError));
     named(node_error_payload as fn(&pncad::document::NodeErrorKind));
-    named(duplicate_name_payload as fn(&pncad::select::DuplicateName));
+    named(seating_refusal_payload as fn(&pncad::select::SeatingRefusal));
     named(tessellate_payload as fn(&TessellateError));
     named(step_export_payload as fn(&StepExportError));
     named(step_import_payload as fn(&StepImportError));
@@ -2103,7 +2114,6 @@ fn applied(
         doc,
         &edit,
         pncad::tolerance::Tol::witness(),
-        &pncad::document::RefusingReach,
     )
     .unwrap_or_else(|e| panic!("the edit is accepted: {e}"))
 }
@@ -2598,14 +2608,9 @@ fn the_document_export_door_refuses_a_stranded_placement() {
     use pncad::export::ExportError;
     let (doc, _, body) = box_doc("world-doc-export-stranded");
     let placement = doc.placements()[0];
-    let doc = pncad::document::apply(
-        &doc,
-        &DocEdit::DeleteNode { id: body },
-        Tol::witness(),
-        &pncad::document::RefusingReach,
-    )
-    .expect("deleting a placed body is accepted")
-    .doc;
+    let doc = pncad::document::apply(&doc, &DocEdit::DeleteNode { id: body }, Tol::witness())
+        .expect("deleting a placed body is accepted")
+        .doc;
     let ev = doors_evaluate(&doc);
     match pncad::export::export_document_step(&ev, &doc, &StepOptions::default(), Tol::witness()) {
         Err(ExportError::Product(ProductError::StrandedPlacement { placement: at })) => {
@@ -2732,7 +2737,6 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
         },
         Tol::witness(),
-        &pncad::document::RefusingReach,
     )
     .expect("the parameter edit applies")
     .doc;
@@ -3095,7 +3099,6 @@ fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
             def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.75)),
         },
         Tol::witness(),
-        &pncad::document::RefusingReach,
     )
     .expect("the edit applies")
     .doc;
@@ -3282,14 +3285,9 @@ fn workspace_resolve_pins_replayed_state_not_snapshot() {
     let text = pncad::document::save(&origin, std::slice::from_ref(&edit), Tol::witness())
         .expect("the logged document saves");
     dir.write("logged.pncad", &text);
-    let replayed = pncad::document::apply(
-        &origin,
-        &edit,
-        Tol::witness(),
-        &pncad::document::RefusingReach,
-    )
-    .expect("the edit applies")
-    .doc;
+    let replayed = pncad::document::apply(&origin, &edit, Tol::witness())
+        .expect("the edit applies")
+        .doc;
     let replayed_pin =
         pncad::document::content_pin(&replayed, Tol::witness()).expect("the pin computes");
     let snapshot_pin =
@@ -3400,7 +3398,6 @@ fn workspace_save_at_the_scanned_path_is_a_resave() {
             def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.9)),
         },
         Tol::witness(),
-        &pncad::document::RefusingReach,
     )
     .expect("the edit applies")
     .doc;
@@ -3567,7 +3564,6 @@ fn asm2a_constrain(
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &pncad::document::RefusingReach,
     )
     .unwrap_or_else(|e| panic!("the constraint is admitted: {e}"));
     let id = applied.record.minted_constraints[0];
@@ -3637,7 +3633,6 @@ fn asm2a_unpin(
                 constraint,
             },
             Tol::witness(),
-            &pncad::document::RefusingReach,
         )
         .expect("a constraint is removed")
         .doc
@@ -3972,7 +3967,6 @@ fn asm_r2a_mated_assembly(
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &pncad::document::RefusingReach,
         )
         .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
         .doc
@@ -4577,7 +4571,6 @@ fn asm_upd_resave_part(
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &pncad::document::RefusingReach,
     )
     .expect("the height edit is admitted")
     .doc;
@@ -4634,7 +4627,7 @@ fn asm_upd_row3_update_to_store_picks_up_the_resaved_part() {
     assert_eq!(edits.len(), 2, "one edit per site, computed not supplied");
     let mut updated = doc.clone();
     for e in &edits {
-        updated = d::apply(&updated, e, Tol::witness(), &pncad::document::RefusingReach)
+        updated = d::apply(&updated, e, Tol::witness())
             .expect("the group applies")
             .doc;
     }
@@ -4726,9 +4719,7 @@ fn asm_upd_child_update_probe() {
         .expect("the elaboration holds");
     let mut updated = doc;
     for e in &edits {
-        updated = d::apply(&updated, e, Tol::witness(), &pncad::document::RefusingReach)
-            .expect("applies")
-            .doc;
+        updated = d::apply(&updated, e, Tol::witness()).expect("applies").doc;
     }
     let ev = asm2a_eval(&updated, &ws);
     let volume = pncad::topo::mass_properties(
@@ -6457,7 +6448,6 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
                 def: pncad::document::VarDecl::Free(value),
             },
             Tol::witness(),
-            &pncad::document::RefusingReach,
         )
         .expect("the parameter declaration applies")
         .doc
@@ -6958,9 +6948,8 @@ fn a_facade_slot_shares_an_unnamed_variable_only_once_it_is_named() {
     use pncad::document::{
         Dimension, DocEdit, EditError, Formula, Node, ProfileDoc, RecipeNodeId, SlotId, VarName,
     };
-    let apply = |doc: &ProfileDoc, edit: &DocEdit<_>| {
-        pncad::document::apply(doc, edit, Tol::witness(), &pncad::document::RefusingReach)
-    };
+    let apply =
+        |doc: &ProfileDoc, edit: &DocEdit<_>| pncad::document::apply(doc, edit, Tol::witness());
     let doc = ProfileDoc::empty_derived("facade-fork7", Tol::witness());
     let (doc, profile) = insert(doc, square(1.0));
     let extrude = |profile: RecipeNodeId, distance: Formula| DocEdit::InsertNode {

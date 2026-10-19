@@ -63,9 +63,9 @@ pub mod value_channel;
 use editor_core::AuthoredNode;
 use editor_core::{
     AssemblyError, CancelToken, CapEnd, Dimension, DocEdit, EntityKey, EntityKind, Entry,
-    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MateReach, NameTable, Node, ProfileDoc,
-    ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef, RecipeNodeId, RefusingReach,
-    RoleSeg, SitedRef, SolvedPoses, StableName, VarId, VarName, assemble, evaluate, solve_document,
+    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, NameTable, Node, ProfileDoc,
+    ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg,
+    SitedRef, SolvedPoses, StableName, VarId, VarName, assemble, evaluate, solve_document,
 };
 use geom_core::{Point3, Tol};
 use std::collections::HashSet;
@@ -291,7 +291,7 @@ pub fn placed_by(doc: &ProfileDoc, mate: &editor_core::Mate<Formula>) -> RecipeN
 }
 
 /// **`mate` added to the bundle of the copy it places** ([`placed_by`]),
-/// through the refusing reach ([`step`]); the constraint by its address.
+/// the constraint by its address.
 pub fn constrain(
     doc: ProfileDoc,
     mate: editor_core::Mate<Formula>,
@@ -314,33 +314,16 @@ pub fn constrain_at(
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &RefusingReach,
     )
     .unwrap_or_else(|e| panic!("the constraint is admitted: {e}"));
     let id = applied.record.minted_constraints[0];
     (applied.doc, editor_core::MateRef::new(placement, id))
 }
 
-/// [`constrain`] through `reach`, the door's reach parameter: the door
-/// reads none today
-/// (`work/intent/the-edit-door-takes-a-reach-it-never-reads.md`).
-pub fn constrain_with(
-    doc: ProfileDoc,
-    reach: &dyn MateReach,
-    mate: editor_core::Mate<Formula>,
-) -> (ProfileDoc, editor_core::MateRef) {
-    match at_the_door(&doc, reach, mate) {
-        Ok(admitted) => admitted,
-        Err((at, fault)) => panic!("the constraint is admitted, got {at:?}: {fault}"),
-    }
-}
-
-/// **The mate solve, through the ordinary door** — levered by the
-/// parts `o`'s resolver reaches, built through the evaluation's own
-/// public door (`mate_reach`) at `f64` and the witness tolerance. A
-/// row that solves with a store it does not hand here levers nothing:
-/// every mate on a part faults in the resolver's voice, which is the
-/// kernel's answer and not a fixture default.
+/// **The mate solve, through the ordinary door**, over the parts `o`'s
+/// resolver reaches. A row that solves with a store it does not hand
+/// here levers nothing: every mate on a part faults in the resolver's
+/// voice, which is the kernel's answer and not a fixture default.
 pub fn solve(doc: &editor_core::ProfileDoc, o: &EvalOptions, tol: Tol) -> SolvedPoses {
     solve_document(doc, o, tol)
 }
@@ -749,10 +732,10 @@ pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<editor_core::Worl
         .ok()
 }
 
-/// Applies an edit, returning the new doc and any minted id, through
-/// the REFUSING reach ([`step_with`] hands another).
+/// Applies an edit, returning the new doc and any minted id.
 pub fn step(doc: ProfileDoc, edit: DocEdit<ProfileProgram>) -> (ProfileDoc, Option<RecipeNodeId>) {
-    step_with(doc, edit, &RefusingReach)
+    let applied = doc.apply(&edit, Tol::witness()).unwrap();
+    (applied.doc, applied.record.minted)
 }
 
 /// `doc` with every node labelled `text`. Labels are outside every
@@ -772,17 +755,6 @@ pub fn label_every_node(doc: ProfileDoc, text: &str) -> ProfileDoc {
         )
         .0
     })
-}
-
-/// [`step`] through `reach`, the door's reach parameter
-/// (`work/intent/the-edit-door-takes-a-reach-it-never-reads.md`).
-pub fn step_with(
-    doc: ProfileDoc,
-    edit: DocEdit<ProfileProgram>,
-    reach: &dyn MateReach,
-) -> (ProfileDoc, Option<RecipeNodeId>) {
-    let applied = doc.apply(&edit, Tol::witness(), reach).unwrap();
-    (applied.doc, applied.record.minted)
 }
 
 /// **A copy of `body` slid by `by` in `target`'s own coordinates**
@@ -914,8 +886,7 @@ pub fn measure<R: Clone + Into<editor_core::Operand>>(
     refs: &[R],
 ) -> (ProfileDoc, editor_core::Measured) {
     let sited: Vec<_> = primitives.iter().map(|&p| sited(p, refs)).collect();
-    let out = editor_core::measure(&doc, &sited, Tol::witness(), &RefusingReach)
-        .expect("the measures insert");
+    let out = editor_core::measure(&doc, &sited, Tol::witness()).expect("the measures insert");
     (out.doc, out.measured)
 }
 
@@ -1113,7 +1084,6 @@ pub fn insert_refused(doc: &ProfileDoc, node: AuthoredNode) -> editor_core::Edit
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Ok(_) => panic!("the insert door accepted a node this row expects it to refuse"),
         Err(refusal) => refusal,
@@ -1177,50 +1147,29 @@ pub fn built_bits(ev: &Evaluation<f64>, id: RecipeNodeId) -> String {
     }
 }
 
-/// **The constraint door's verdict on a mate**, through `reach`: the
-/// door asks the solve's own per-constraint admission — a frame with no
+/// **The constraint door's verdict on a mate**: the door asks the solve's own per-constraint admission — a frame with no
 /// definite direction, the table's gaps, a face-based side resolved from
 /// the part's own face, a rider on a coincidence decided over the mated
 /// parts' extent, a mate beyond the pin — so a mate the solve refuses on
 /// its own datum comes out of the door as its fault. The mate is added
 /// to the bundle of the copy it places ([`placed_by`]). `Ok` is the
 /// document with the constraint and its address; `Err` the placement
-/// the door named and the solve's fault. A face side and a rider need
-/// the store's reach, since both read the parts; everything else
-/// decides on the datum alone, so [`RefusingReach`] serves.
+/// the door named and the solve's fault.
 // The pair is matched by value at every call site; a test's refusal
 // path is no hot `Err`.
 #[allow(clippy::result_large_err)]
 pub fn at_the_door(
     doc: &ProfileDoc,
-    reach: &dyn MateReach,
     mate: editor_core::Mate<Formula>,
 ) -> Result<(ProfileDoc, editor_core::MateRef), (RecipeNodeId, editor_core::MateFault)> {
     let placement = placed_by(doc, &mate);
-    at_the_door_of(doc, reach, placement, mate)
-}
-
-/// **`mate` added to `placement`'s bundle through `reach`**: the door
-/// [`at_the_door_of`] admits it at, panicking on a refusal. For a bundle
-/// whose fold needs the parts' lever, which [`constrain_at`]'s refusing
-/// reach cannot give.
-pub fn constrain_through(
-    doc: ProfileDoc,
-    reach: &dyn MateReach,
-    placement: RecipeNodeId,
-    mate: editor_core::Mate<Formula>,
-) -> (ProfileDoc, editor_core::MateRef) {
-    match at_the_door_of(&doc, reach, placement, mate) {
-        Ok(admitted) => admitted,
-        Err((at, fault)) => panic!("the constraint is admitted, got {at:?}: {fault}"),
-    }
+    at_the_door_of(doc, placement, mate)
 }
 
 /// [`at_the_door`] onto `placement` as named.
 #[allow(clippy::result_large_err)]
 pub fn at_the_door_of(
     doc: &ProfileDoc,
-    reach: &dyn MateReach,
     placement: RecipeNodeId,
     mate: editor_core::Mate<Formula>,
 ) -> Result<(ProfileDoc, editor_core::MateRef), (RecipeNodeId, editor_core::MateFault)> {
@@ -1231,7 +1180,6 @@ pub fn at_the_door_of(
             fresh: Vec::new(),
         },
         Tol::witness(),
-        reach,
     ) {
         Ok(applied) => {
             let id = applied.record.minted_constraints[0];
@@ -1242,13 +1190,13 @@ pub fn at_the_door_of(
     }
 }
 
-/// [`at_the_door`] for a mate the door refuses on the datum alone,
-/// through the refusing reach: the fault it carries.
+/// [`at_the_door`] for a mate the door refuses on the datum alone: the
+/// fault it carries.
 pub fn door_refusal(
     doc: &editor_core::ProfileDoc,
     mate: editor_core::Mate<Formula>,
 ) -> editor_core::MateFault {
-    match at_the_door(doc, &RefusingReach, mate) {
+    match at_the_door(doc, mate) {
         Err((_, fault)) => fault,
         Ok(_) => panic!("the door admitted a mate it refuses on its own datum"),
     }
@@ -1481,8 +1429,8 @@ impl Recorder {
     /// Applies an edit (the doors refusing is a loud test failure)
     /// and records it; returns any minted id.
     pub fn push(&mut self, edit: DocEdit<ProfileProgram>) -> Option<RecipeNodeId> {
-        let applied = editor_core::apply(&self.doc, &edit, Tol::witness(), &RefusingReach)
-            .expect("recorded edit must apply");
+        let applied =
+            editor_core::apply(&self.doc, &edit, Tol::witness()).expect("recorded edit must apply");
         self.edits.push(edit);
         self.doc = applied.doc;
         applied.record.minted
@@ -1497,8 +1445,8 @@ impl Recorder {
         refs: &[R],
     ) -> editor_core::Measured {
         let sited: Vec<_> = primitives.iter().map(|&p| sited(p, refs)).collect();
-        let out = editor_core::measure(&self.doc, &sited, Tol::witness(), &RefusingReach)
-            .expect("the measures insert");
+        let out =
+            editor_core::measure(&self.doc, &sited, Tol::witness()).expect("the measures insert");
         self.edits.extend(out.edits);
         self.doc = out.doc;
         out.measured
@@ -1619,8 +1567,8 @@ impl Recorder {
             mate: Box::new(mate),
             fresh: Vec::new(),
         };
-        let applied = editor_core::apply(&self.doc, &edit, Tol::witness(), &RefusingReach)
-            .expect("recorded edit must apply");
+        let applied =
+            editor_core::apply(&self.doc, &edit, Tol::witness()).expect("recorded edit must apply");
         let mate = applied.record.minted_constraints[0];
         self.edits.push(edit);
         self.doc = applied.doc;
@@ -2889,5 +2837,64 @@ fn glued_block(
             profile: p.into(),
             distance: len(dz),
         },
+    )
+}
+
+/// **`name` read at `at`**, of any entity kind: a one-name selection of
+/// `at`'s body.
+pub fn read_at(at: RecipeNodeId, name: StableName) -> editor_core::Operand {
+    editor_core::Operand::select(at, vec![name])
+}
+
+/// [`read_at`] at the node that minted `name`.
+pub fn read_minted(name: StableName) -> editor_core::Operand {
+    let at = name.node;
+    read_at(at, name)
+}
+
+/// **A block's corner frame** (`PoseDef::Through`): `z` along the
+/// lateral edge `edge`, its origin on the edge level with the cap
+/// vertex `corner`, `x` towards it.
+pub fn corner_frame(
+    edge: impl Into<editor_core::Operand>,
+    corner: impl Into<editor_core::Operand>,
+) -> editor_core::Operand {
+    let r = editor_core::pose::RoleRead::plain;
+    editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Through {
+        axis: r(axis(edge)),
+        point: r(point_of(corner)),
+    }))
+}
+
+/// **A frame slid `x` along its own `x`, then `y` along its own `y`.**
+pub fn slid_across(frame: editor_core::Operand, x: f64, y: f64) -> editor_core::Operand {
+    use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+    let slide = |pose: editor_core::Operand, role, by: f64| {
+        if by == 0.0 {
+            return pose;
+        }
+        editor_core::Operand::Pose(Box::new(PoseDef::Slide {
+            pose: RoleRead::plain(pose.clone()),
+            along: RoleRead::through(pose, role),
+            by: len(by),
+        }))
+    };
+    slide(slide(frame, PoseRole::X, x), PoseRole::Y, y)
+}
+
+/// **A block seated on another by one pin** (FORK-S3O): `top`'s corner
+/// frame equated with `base`'s, slid `(x, y)` across it. The seat three
+/// plane mates — a rest and two walls — used to state, which fix one
+/// rotation twice and which the bundle rule refuses.
+pub fn frame_seat(
+    top: editor_core::Operand,
+    base: editor_core::Operand,
+    x: f64,
+    y: f64,
+) -> editor_core::Mate<Formula> {
+    mate(
+        top,
+        slid_across(base, x, y),
+        editor_core::ContactClass::Rest,
     )
 }

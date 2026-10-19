@@ -421,7 +421,6 @@ pub fn mate_into(
             fresh: Vec::new(),
         },
         tol,
-        &pncad::document::RefusingReach,
     )
     .expect("the mate is admitted");
     let [id] = applied.record.minted_constraints[..] else {

@@ -295,27 +295,17 @@ impl Scene {
         };
         let target = slid(
             slid(
-                corner_frame(read(&self.names.lateral[0]), read(&self.names.corner[1])),
+                fixture::corner_frame(read(&self.names.lateral[0]), read(&self.names.corner[1])),
                 &self.names.rim[0],
             ),
             &self.names.rim[1],
         );
         vec![fixture::mate(
-            corner_frame(own(&self.names.lateral[0]), own(&self.names.corner[0])),
+            fixture::corner_frame(own(&self.names.lateral[0]), own(&self.names.corner[0])),
             target,
             ContactClass::Rest,
         )]
     }
-}
-
-/// **A block's corner frame** (`PoseDef::Through`): `z` along the
-/// lateral edge `edge`, its origin on the edge level with the cap
-/// vertex `corner`, `x` towards it.
-fn corner_frame(edge: impl Into<Operand>, corner: impl Into<Operand>) -> Operand {
-    Operand::Pose(Box::new(PoseDef::Through {
-        axis: RoleRead::plain(fixture::axis(edge)),
-        point: RoleRead::plain(fixture::point_of(corner)),
-    }))
 }
 
 /// `mates` added to `cap`'s bundle in order; their addresses.

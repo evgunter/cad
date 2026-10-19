@@ -35,7 +35,7 @@ use editor_core::{
     RecipeNodeId, RoleSeg, SplitError, StableName, apply, inline, split,
 };
 use fixture::resolver::{PartStore, in_part};
-use fixture::{insert, on_frame, step, step_with};
+use fixture::{insert, on_frame, step};
 use geom_core::Tol;
 
 /// A one-block part document — the part every row below instantiates —
@@ -227,9 +227,7 @@ fn the_insert_door_refuses_a_record_whose_outer_is_not_live() {
         "while the `outer`'s node is live the door accepts the record whole"
     );
 
-    let opts = fixture::resolver::with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
-    let (doc, _) = step_with(doc, DocEdit::DeleteNode { id: target }, &reach);
+    let (doc, _) = step(doc, DocEdit::DeleteNode { id: target });
     match apply(
         &doc,
         &DocEdit::InsertNode {
@@ -237,7 +235,6 @@ fn the_insert_door_refuses_a_record_whose_outer_is_not_live() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::DeclareNamesMissingNode { name }) => assert_eq!(
             name.name(),
@@ -361,15 +358,8 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
     };
     let (doc, instance) = with_record(doc, doc_ref, record, None);
 
-    let opts = fixture::resolver::with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
-    let applied = apply(
-        &doc,
-        &DocEdit::DeleteNode { id: target },
-        Tol::witness(),
-        &reach,
-    )
-    .expect("a name reference is not a DAG edge, so the delete is legal");
+    let applied = apply(&doc, &DocEdit::DeleteNode { id: target }, Tol::witness())
+        .expect("a name reference is not a DAG edge, so the delete is legal");
     let strands: Vec<(RecipeNodeId, StableName)> = applied
         .maintenance
         .iter()

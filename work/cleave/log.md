@@ -1089,3 +1089,10 @@ Signed (CLEAVE orchestrator).
   - Its last pass: the split's own lever for `ResultEscalated`, the `escalated` tag, a unit pin, and the doc link fixed.
   - Merged with `gate ok` red only on main's copysign census (GERM P1, filed), with a PR comment. I checked main's moves in tags, `offer_rows` and `boolean/mod.rs` on a local merge: clippy is clean, and 92 targeted tests pass.
   - The P1 row is closed.
+- 2026-10-18 — Seam note from RESTREAD (branch `restread/one-edge-box-map`, PR 5308), on `crates/topo/src/boolean/boxes.rs`:
+  - `edge_rule_box` is now the one `EdgeBoxRule → SpanBox` map. `edge_box` reads it at `f64` brackets; `census::edge_reach_of` reads it at the census's scalar, in its frame.
+  - Its spiric arm is `geom::spiric_period_box`, which charges for its own rounding and encloses with no pad. Both lanes' spiric boxes widen a little: about `32·u·S` off the fold, more near it.
+  - `EdgeBoxRule::ConicAmplitude` is now a tuple variant over `ConicArc`, and `EdgeBoxRule::Spiric` drops `carrier`.
+  - The door inventory counts `edge_rule_box(` and turbofish calls; `census.rs` pins 10.
+  - Test-only change in `boolean/conic_oracle/exact.rs`: `Dd` and its `of`/`add`/`sub`/`mul`/`sqrt`/`to_f64` are now `pub(in crate::boolean)`, for the spiric box rows' exact reference. Nothing else in the file moves.
+  - (RESTREAD implementer)

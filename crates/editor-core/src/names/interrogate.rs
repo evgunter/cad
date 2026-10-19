@@ -137,34 +137,44 @@ impl crate::spoken::Say for InterrogateError {
         f: &mut core::fmt::Formatter<'_>,
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
+        use crate::sentence::Recourse;
         match self {
             Self::Standing(standing) => write!(f, "{}", crate::spoken::Said(standing, by)),
-            Self::NoSuchName => f.write_str(
-                "nothing in this node answers to that name — the selection is \
-                 stale (an upstream edit removed what it named) or the name belongs to another \
-                 node",
+            Self::NoSuchName => write!(
+                f,
+                "nothing in this node answers to that name — the selection is stale (an \
+                 upstream edit removed what it named) or the name belongs to another node. {}",
+                Recourse("rebind the selection, or read the name at its own node")
             ),
             Self::Ambiguous { candidates } => write!(
                 f,
-                "{candidates} entities answer to that name equally well, so there \
-                 is no single geometry to report — a tie is recorded, never broken silently"
+                "{candidates} entities answer to that name equally well, so there is no single \
+                 geometry to report — a tie is recorded, never broken silently. {}",
+                Recourse("refine the reference until one candidate remains")
             ),
             Self::WrongKind { wanted, found } => write!(
                 f,
-                "kind mismatch — this door reads {}, and the name denotes {}; \
-                 ask the door for the kind the name actually names",
+                "kind mismatch — this door reads {}, and the name denotes {}. {}",
                 wanted.noun(),
-                found.noun()
+                found.noun(),
+                Recourse(format_args!(
+                    "name {} {} here, or ask for the {} it names",
+                    wanted.article(),
+                    wanted.noun(),
+                    found.noun()
+                ))
             ),
-            Self::WholeBody => f.write_str(
-                "the name denotes a whole body, which has no single frame — ask \
-                 about one of its faces, edges, or vertices instead",
+            Self::WholeBody => write!(
+                f,
+                "the name denotes a whole body, which has no single frame. {}",
+                Recourse("ask about one of its faces, edges, or vertices instead")
             ),
             Self::NoBodies { payload } => write!(
                 f,
                 "this node's value is {} {payload} value and carries no bodies at all, \
-                 so there is no geometry to read",
-                crate::sentence::article(payload)
+                 so there is no geometry to read. {}",
+                crate::sentence::article(payload),
+                Recourse("name an entity of a node whose value is a body")
             ),
             Self::NoSuchBody { index } => write!(
                 f,
@@ -174,9 +184,9 @@ impl crate::spoken::Say for InterrogateError {
             ),
             Self::SeveralOutputs { node } => write!(
                 f,
-                "{} defines several outputs, each with names of its own — read one by its \
-                 output (a split's half by its port)",
-                by.node(*node)
+                "{} defines several outputs, each with names of its own. {}",
+                by.node(*node),
+                Recourse("read one by its output (a split's half by its port)")
             ),
             Self::Readback(error) => write!(f, "{error}"),
         }

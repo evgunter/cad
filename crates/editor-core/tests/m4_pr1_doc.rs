@@ -49,9 +49,7 @@ type TEdit = DocEdit<FakeProfile>;
 /// Applies an edit, records it in the replay log, returns the doc
 /// (and the minted id for inserts).
 fn step(doc: TDoc, log: &mut Vec<TEdit>, edit: TEdit) -> (TDoc, Option<RecipeNodeId>) {
-    let applied = doc
-        .apply(&edit, Tol::witness(), &editor_core::RefusingReach)
-        .unwrap();
+    let applied = doc.apply(&edit, Tol::witness()).unwrap();
     log.push(edit);
     (applied.doc, applied.record.minted)
 }
@@ -226,7 +224,6 @@ fn die_authors_replays_and_diffs() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(!variant.record.structural, "continuous edit");
@@ -259,7 +256,6 @@ fn die_authors_replays_and_diffs() {
                 value: editor_core::FreeValue::Continuous(0.003),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     let d2 = die.doc.diff(&variant2.doc);

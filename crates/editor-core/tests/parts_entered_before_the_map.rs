@@ -18,7 +18,7 @@
 use crate::fixture;
 use editor_core::{
     CancelToken, CapEnd, ContactClass, DocRef, DocumentId, EvalOptions, Evaluation, ExtrudeSide,
-    Frame, Node, NodeResult, ProfileDoc, RecipeNodeId, evaluate, mate_reach,
+    Frame, Node, NodeResult, ProfileDoc, RecipeNodeId, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{at_the_door, insert, len, on_frame, on_pool, square};
@@ -85,7 +85,7 @@ enum Rest {
 fn assembly(
     label: &str,
     lead: bool,
-    (opts, part, body): &(EvalOptions, DocRef, RecipeNodeId),
+    (_, part, body): &(EvalOptions, DocRef, RecipeNodeId),
     n: usize,
     rest: Rest,
 ) -> ProfileDoc {
@@ -109,7 +109,7 @@ fn assembly(
             fixture::head(in_part(ids[0], *body, CapEnd::End)),
             ContactClass::Rest,
         );
-        doc = at_the_door(&doc, &mate_reach::<f64>(opts, Tol::witness()), mate)
+        doc = at_the_door(&doc, mate)
             .unwrap_or_else(|(_, fault)| panic!("the door admits the mate: {fault}"))
             .0;
     }

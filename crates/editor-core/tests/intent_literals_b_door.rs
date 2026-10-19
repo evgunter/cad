@@ -15,8 +15,7 @@ use crate::fixture::{ang, len, scl};
 use editor_core::{
     AuthoredNode, CapEnd, ContactClass, CountMismatch, Dimension, DocEdit, DocRef, DocumentId,
     EditError, Formula, Frame, FreeVar, LoopProgram, Node, PatternKind, ProfileDoc, ProfileProgram,
-    RecipeNodeId, RefusingReach, RoleSeg, TubeWindow, VarDecl, VarName, WorldRead, apply,
-    content_pin,
+    RecipeNodeId, RoleSeg, TubeWindow, VarDecl, VarName, WorldRead, apply, content_pin,
 };
 use geom_core::Tol;
 use std::collections::BTreeSet;
@@ -26,7 +25,7 @@ fn name(text: &'static str) -> VarName {
 }
 
 fn edit(doc: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> Result<ProfileDoc, EditError> {
-    apply(doc, e, Tol::witness(), &RefusingReach).map(|a| a.doc)
+    apply(doc, e, Tol::witness()).map(|a| a.doc)
 }
 
 fn body() -> (ProfileDoc, RecipeNodeId) {
@@ -167,7 +166,6 @@ fn a_refused_insert_speaks_one_id_by_name_or_by_id() {
             ))),
         },
         Tol::witness(),
-        &RefusingReach,
     )
     .expect("w declares");
     let w = applied.record.minted_var.expect("a declare mints");
@@ -457,7 +455,6 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
         &edge_doc,
         &insert(crate::fixture::mated_instance(reference(&edge_doc))),
         Tol::witness(),
-        &RefusingReach,
     )
     .expect("an instance inserts");
     let target = instance.record.minted.expect("an insert mints");
@@ -557,7 +554,6 @@ fn a_formula_no_row_addresses_refuses_at_the_payload() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &RefusingReach,
         )
         .expect_err("nope is unheld");
     assert!(

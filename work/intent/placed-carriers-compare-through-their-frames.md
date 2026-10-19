@@ -6,7 +6,9 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [a-mate-relates-two-poses]
+branch: intent/s4-h-placed-carriers-compare-through-their-frames
+pr: 5300
+blocked_on: [a-mate-placed-seat-is-unproven-at-the-doors-budget]
 ---
 
 INTENT stage 4, PR H. Spec: `docs/INTENT-STAGE4-SPEC.md` §9. FORK-S4-5 is settled by FORK-S3O (fork log row 96, PR 4325), below.
@@ -29,3 +31,14 @@ After the stage 3 re-spec (2026-10-09), H waits on stage 3 C (`a-mate-relates-tw
 - 2026-10-18 (INTENT stage 3 D): D places every second construction by a mate, where it used to sit on a datum frame written in numbers. The replay read those numbers as symbols. It keeps the solved pose as an opaque atom, so a row between two constructions now ends `Recourse::Assert` instead of `OneConstruction`, and its residual reads `placed: [World(..)]`. Two rows pin today's state and go red when H lands, to be re-pinned to the proof or to the one-construction recourse:
   - `coincidence_door::a_ring_serving_two_pierces_records_their_fusion_unproven`;
   - `glue_on_zero_rows::a_flush_rest_glues_and_records_one_unproven_row`.
+
+## 2026-10-18 — infrastructure landed by PR 5300; parked on the seat item
+
+PR 5300 lands what the replay needs. It does not switch on reading placed copies, because that costs the door 10–20× on mated assemblies and proves no seat today (orchestrator's ruling, option 2).
+
+- **The fold's map is a function of its poses alone.** The line two planes meet in carries no lever arm (`mate/coset.rs` `parallel`, `UnitVec3::new_scaled`). A pose's frame is the decided shortest turn, inverted by transpose (`mate/solve.rs` `frame_of`).
+- **A symbolic run resolves parts.** Each document version's variables are its own symbols, keyed by document, pin and id (`analysis::symbol_scope`, `var_env_symbolic_pinned`), so `SymbolsAcrossAPartSeam` retires. `Evaluation::resolver` is the run's resolver, and `DoorJob` and `coincide::prove` carry it.
+- **A mated census row names each face in its copy** (`checks/at_rest.rs` `copy_cell`).
+- **One switch for the rest.** `coincide::REPLAYS_PLACED_COPIES` is off. Turning it on resolves parts in the door's replay and reads an at-rest row by the carrier verdict on the copies' faces. The code is in `coincide/replay.rs` `prove_row`. Pinned off by `mate6_gather_mints::a_mated_record_cites_the_census_row_the_lint_reports` and `asm2a_instantiate::a_symbolic_run_builds_a_part_and_the_door_leaves_a_row_on_one_unreplayed`.
+
+What remains is the row's outcome: a mated seat proven, so the tour bench's three findings go quiet. That waits on `a-mate-placed-seat-is-unproven-at-the-doors-budget`, which carries the measurement and the cost its fix must beat.

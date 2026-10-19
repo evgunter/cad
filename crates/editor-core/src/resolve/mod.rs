@@ -217,16 +217,17 @@ impl ResolveError {
                     f,
                     " no longer resolves in this evaluation: {}",
                     Said(diagnosis, by)
-                )
+                )?;
+                diagnosis.end(f)
             }
             Self::Ambiguous { name, tie, .. } => {
                 lead(f, name)?;
                 write!(
                     f,
                     " is tie-marked: {} equally-admissible candidates at its recorded site — a \
-                     tie is never broken by picking; refine the reference until one candidate \
-                     remains",
-                    tie.width
+                     tie is never broken by picking. {}",
+                    tie.width,
+                    crate::sentence::Recourse("refine the reference until one candidate remains")
                 )
             }
             Self::ReadGone { name, read, edit } => {
@@ -795,6 +796,33 @@ impl crate::spoken::Say for Diagnosis {
                 Said(cause, by),
                 by.node(*node)
             ),
+        }
+    }
+}
+
+impl Diagnosis {
+    /// How a vanished name's sentence ends after this diagnosis: a
+    /// diagnosis that states its own repair has already ended it, a
+    /// cascade's repair is the name upstream it derives from, and any
+    /// other change to the derivation is repaired by rebinding the name.
+    fn end(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use crate::sentence::Recourse;
+        match self {
+            Self::WitnessBifurcation(_) => Ok(()),
+            Self::Cascade { through } => write!(
+                f,
+                ". {}",
+                Recourse(format_args!(
+                    "repair the {} it derives from first",
+                    through.kind.noun()
+                ))
+            ),
+            Self::PredicateFlip { .. }
+            | Self::BorderDelta { .. }
+            | Self::GroupResized { .. }
+            | Self::StructuralParam { .. }
+            | Self::RecipeEdit { .. }
+            | Self::Upstream { .. } => write!(f, ". {}", Recourse("rebind it")),
         }
     }
 }
@@ -2589,7 +2617,6 @@ pub fn apply_with_names<T: Decide>(
     edit: &crate::edit::DocEdit<ProfileProgram>,
     eval: &Evaluation<T>,
     tol: Tol,
-    reach: &dyn crate::mate::MateReach,
 ) -> Result<crate::edit::Applied<ProfileProgram>, crate::edit::EditError> {
     use crate::edit::{DocEdit, EditError};
     // The pairing, before any name is read (why: this fn's docs).
@@ -2664,7 +2691,7 @@ pub fn apply_with_names<T: Decide>(
             });
         }
     }
-    crate::edit::apply(doc, edit, tol, reach)
+    crate::edit::apply(doc, edit, tol)
 }
 
 /// The nodes a name's derivation passes through: its minting node,

@@ -222,8 +222,8 @@ fn a_refused_bundle_names_its_placement_and_reads_every_chained_row_downstream()
     assert!(tree::has_faults(&rows), "the shelf refused: {rows:?}");
     let status_of = |id| common::status_of(&rows, id);
 
-    // The shelf, whose bundle holds the pair, is the cause, and the only
-    // row that is.
+    // The shelf, whose bundle refused, is the cause, and the only row
+    // that is.
     let RowStatus::Failed { message, .. } = status_of(bench.shelf_i) else {
         panic!(
             "the refused placement carries the cause: {:?}",
@@ -231,7 +231,7 @@ fn a_refused_bundle_names_its_placement_and_reads_every_chained_row_downstream()
         );
     };
     assert!(
-        message.contains(pncad::document::CONTRADICTORY_RECOURSE),
+        message.contains("did not evaluate, so the bundle is not folded"),
         "the kernel's own words on the placement's row: {message}"
     );
     let causes: Vec<_> = rows
@@ -259,7 +259,7 @@ fn a_refused_bundle_names_its_placement_and_reads_every_chained_row_downstream()
             assert!(
                 !message
                     .unwrap_or_default()
-                    .contains(pncad::document::CONTRADICTORY_RECOURSE),
+                    .contains("did not evaluate, so the bundle is not folded"),
                 "post_b must not recite the refusal a user reads once, on the shelf"
             );
         }
@@ -272,25 +272,21 @@ fn a_refused_bundle_names_its_placement_and_reads_every_chained_row_downstream()
     std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
 }
 
-/// **A contradiction inside one bundle blames its placement, whichever
-/// constraint evaluated first.**
+/// **A refused bundle blames its placement though it evaluated before.**
 ///
-/// Two rests on ONE bundle at incompatible offsets: the fold names
-/// `held` and `added` together, because neither is the wrong one on the
-/// fault's own telling, and both are the shelf's. `held` EVALUATED
-/// before `added` broke the bundle, and the shelf's row still reports
-/// the refusal: a placement's content key carries the solve's answer,
-/// so the memo cannot serve last evaluation's `Ok` into the run whose
-/// fault names it.
+/// A rest leaves the shelf loose and EVALUATES — the memo now holds an
+/// `Ok` for the shelf — and then the rest is taken off and a mate the
+/// evaluation refuses put in its place. The shelf's row reports the
+/// refusal: a placement's content key carries its bundle, so the memo
+/// cannot serve last evaluation's `Ok` into the run whose fault names
+/// it.
 #[test]
-fn a_contradiction_badges_the_placement_that_evaluated_before_it() {
+fn a_refused_bundle_badges_the_placement_that_evaluated_before_it() {
     let tol = Tol::witness();
     let bench = common::asm::bench("badge-contradiction", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     common::asm::unpin(&mut session, bench.shelf_i);
 
-    // The first rest lands and EVALUATES — the memo now holds an `Ok`
-    // for the shelf — and only then does the second one contradict it.
     let held = common::commit_mate(
         &mut session,
         common::asm::shelf_rest_op(&bench, bench.post_a, 0.0),
@@ -300,11 +296,13 @@ fn a_contradiction_badges_the_placement_that_evaluated_before_it() {
         RowStatus::Ok,
         "the premise: one rest leaves the shelf loose, which is no refusal"
     );
+    let removed = session.perform(SessionOp::RemoveConstraint { mate: held });
+    assert!(removed.refusal.is_none(), "{:?}", removed.refusal);
     let added = common::commit_mate(
         &mut session,
-        common::asm::shelf_rest_op(&bench, bench.post_a, 0.01),
+        common::asm::no_centre_op(&bench, bench.post_a),
     );
-    assert_eq!(held.placement, added.placement, "one bundle holds the pair");
+    assert_eq!(held.placement, added.placement, "one bundle held each");
 
     let rows = session.tree_rows();
     let status_of = |id| common::status_of(&rows, id);
@@ -316,12 +314,77 @@ fn a_contradiction_badges_the_placement_that_evaluated_before_it() {
     assert_eq!(
         failing,
         vec![bench.shelf_i],
-        "the placement holding the pair is the one cause: {rows:?}"
+        "the placement whose bundle refused is the one cause: {rows:?}"
     );
     // The posts are in no chain from the shelf: independent subgraphs
     // complete, exactly as GQ2 says.
     assert_eq!(status_of(bench.post_a), RowStatus::Ok);
     assert_eq!(status_of(bench.post_b), RowStatus::Ok);
+
+    std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
+}
+
+/// **Two different faults in succession on one placement never serve
+/// a stale one, and the repair re-runs on the faulted run as prior.**
+///
+/// The shelf's bundle refuses one mate where it evaluates, then, that
+/// mate removed, another against the other post. The memo serves only
+/// `Ok` priors, so the second fault is the second mate's and never the
+/// first's again; removing it returns the shelf to `Ok`, re-run.
+#[test]
+fn two_faults_in_succession_on_one_placement_never_serve_a_stale_one() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("badge-succession", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    common::asm::unpin(&mut session, bench.shelf_i);
+    let fault = |session: &DocSession| match session
+        .evaluation_arc()
+        .expect("a result landed")
+        .result(bench.shelf_i)
+    {
+        Some(NodeResult::Failed(err)) => format!("{:?}", err.kind),
+        other => panic!("the shelf refuses, got {other:?}"),
+    };
+
+    let first = common::commit_mate(
+        &mut session,
+        common::asm::no_centre_op(&bench, bench.post_a),
+    );
+    let f1 = fault(&session);
+    let removed = session.perform(SessionOp::RemoveConstraint { mate: first });
+    assert!(removed.refusal.is_none(), "{:?}", removed.refusal);
+    let second = common::commit_mate(
+        &mut session,
+        common::asm::no_centre_op(&bench, bench.post_b),
+    );
+    assert_ne!(first, second);
+    let f2 = fault(&session);
+    assert_ne!(
+        f1, f2,
+        "a second, different fault, not the first served again"
+    );
+    assert!(matches!(
+        common::status_of(&session.tree_rows(), bench.shelf_i),
+        RowStatus::Failed { .. }
+    ));
+
+    let removed = session.perform(SessionOp::RemoveConstraint { mate: second });
+    assert!(removed.refusal.is_none(), "{:?}", removed.refusal);
+    session.pump();
+    let ev = session.evaluation_arc().expect("a result landed");
+    assert!(
+        matches!(ev.result(bench.shelf_i), Some(NodeResult::Ok(_))),
+        "repaired: {:?}",
+        ev.result(bench.shelf_i)
+    );
+    assert!(
+        ev.recomputed >= 1,
+        "the prior was Failed, so the placement re-ran"
+    );
+    assert_eq!(
+        common::status_of(&session.tree_rows(), bench.shelf_i),
+        RowStatus::Ok
+    );
 
     std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
 }

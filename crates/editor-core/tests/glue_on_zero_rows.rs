@@ -60,19 +60,19 @@ fn a_flush_rest_glues_and_records_one_unproven_row() {
             coincide::prove(
                 &doc,
                 &[(union, &rows[..])],
+                None,
                 Tol::witness(),
                 &editor_core::CancelToken::new()
             )
             .expect("an uncanceled door")[0][0],
             Proof::Unproven {
-                recourse: coincide::Recourse::Assert,
+                recourse: coincide::Recourse::OneConstruction,
                 ..
             }
         ),
-        "two constructions, no proof; the plate stands where its placement's solve put \
-         it, a value computed apart from the variables (an opaque atom), so the recourse \
-         is to assert the rest \
-         (until stage 4 H, placed-carriers-compare-through-their-frames)"
+        "two constructions, no proof; the offset's form freezes at the door's budget \
+         (declared-rest-rows-are-two-values-or-too-big-to-close), which is no value \
+         computed apart from the variables, so the recourse is to build one construction"
     );
 }
 

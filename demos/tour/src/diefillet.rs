@@ -44,7 +44,7 @@
 // is exactly the shape a GUI form has, where the draft is canonical
 // whatever the picker shows.
 
-use pncad::document::{Bodies, BooleanValue, Frame, Operand, RefusingReach, save};
+use pncad::document::{Bodies, BooleanValue, Frame, Operand, save};
 use pncad::prelude::AuthoredNode;
 use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, DEG, Dimension, Doc, DocEdit, EntityKind, EvalOptions,
@@ -219,7 +219,7 @@ impl Author {
             node: Box::new(node),
             fresh: Vec::new(),
         };
-        let applied = apply(&self.doc, &edit, tol, &RefusingReach).expect("the edit applies");
+        let applied = apply(&self.doc, &edit, tol).expect("the edit applies");
         self.doc = applied.doc;
         self.log.push(edit);
         applied.record.minted.expect("insert mints an id")
@@ -469,7 +469,7 @@ pub fn corpus_text(tol: Tol) -> String {
     let mut edits = die.log;
     let mut replay = empty.clone();
     for edit in &edits {
-        replay = apply(&replay, edit, tol, &RefusingReach)
+        replay = apply(&replay, edit, tol)
             .expect("the recorded log replays")
             .doc;
     }

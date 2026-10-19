@@ -27,7 +27,7 @@ use editor_core::{
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::round_trip::{composed, same_up_to_ids};
-use fixture::{head, in_copy, insert, len, run, scl, solve, step, step_with};
+use fixture::{head, in_copy, insert, len, run, scl, solve, step};
 use geom_core::Tol;
 
 // ---- substrate ----
@@ -619,14 +619,12 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
     assert_ne!(new_body, base_body, "the cap is renamed");
     let new_ref = store.insert(rebuilt, Tol::witness());
     let o = with_resolver(store.clone());
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let (doc, _) = step_with(
+    let (doc, _) = step(
         doc,
         DocEdit::UpdateReference {
             node: base,
             new_pin: new_ref.pin,
         },
-        &reach,
     );
     // The base's own pin read the old body's edges, which the rebuild
     // renamed too: pinned afresh, so only the mate's head is stranded.
@@ -645,14 +643,13 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
     );
 
     let base_out = doc.output(base, 0).expect("the base's body");
-    let (doc, _) = step_with(
+    let (doc, _) = step(
         doc,
         DocEdit::Rebind {
             body: Some(base_out),
             from: old_head,
             to: in_part(base, new_body, CapEnd::End),
         },
-        &reach,
     );
     let ev = run(&doc, &o);
     assert!(
@@ -702,8 +699,7 @@ fn a_head_rebound_onto_another_parts_instance_reads_the_new_heads_face() {
         "on the low cap: {on_low:?}"
     );
 
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let (doc, _) = step_with(
+    let (doc, _) = step(
         doc,
         DocEdit::SetParam {
             node: m.placement,
@@ -718,7 +714,6 @@ fn a_head_rebound_onto_another_parts_instance_reads_the_new_heads_face() {
             ))))),
             fresh: Vec::new(),
         },
-        &reach,
     );
     let ev = run(&doc, &o);
     assert!(

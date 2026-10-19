@@ -65,7 +65,6 @@ fn a_program_failing_validate_loads_clean_and_refuses_typed_at_evaluation() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::ProfileProgramRefused { refusal, .. }) => match *refusal {
             ProgramRefusal::Validate(e) => assert!(

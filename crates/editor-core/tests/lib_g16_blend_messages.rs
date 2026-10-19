@@ -122,7 +122,7 @@ fn the_fillets_selection_refusals_are_byte_frozen_and_the_op_row_prefix_pinned()
             "resolve",
             "this fillet's edge 0 no longer resolves in this evaluation: the recorded reference \
              disagrees with the recipe as it stands on the derivation path (Extrude {cube}'s \
-             payload differs)",
+             payload differs). Recourse: rebind it",
         ),
     ];
     let (_, cube) = cube_doc();

@@ -299,9 +299,7 @@ fn a_loft_section_stands_at_its_station() {
     let points = vertices(&slid, loft);
     let mut expect: Vec<[f64; 3]> = [0.0, 1.0]
         .into_iter()
-        .flat_map(|z| {
-            [(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)].map(|(x, y)| [x, y, z])
-        })
+        .flat_map(|z| [(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)].map(|(x, y)| [x, y, z]))
         .collect();
     expect.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
     assert_eq!(points, expect);
@@ -331,8 +329,7 @@ fn a_loft_section_stands_at_its_station() {
     for p in &top {
         assert!((p[2] - 1.0).abs() < 1e-12, "{p:?}");
         assert!(
-            (p[0].hypot(p[1]) - r).abs() < 1e-12
-                && (p[0].abs() < 1e-12 || p[1].abs() < 1e-12),
+            (p[0].hypot(p[1]) - r).abs() < 1e-12 && (p[0].abs() < 1e-12 || p[1].abs() < 1e-12),
             "the spun square's corners lie on the axes: {p:?}"
         );
     }
@@ -366,7 +363,10 @@ fn a_boolean_copy_stands_over_its_bodys_reach() {
         },
     );
     let half = |side: editor_core::SplitHalf| {
-        Operand::Var(doc.output(split, side.port()).expect("a split defines its halves"))
+        Operand::Var(
+            doc.output(split, side.port())
+                .expect("a split defines its halves"),
+        )
     };
     let members = vec![
         BodyRead::plain(half(editor_core::SplitHalf::Above)),
@@ -421,7 +421,6 @@ fn a_sketch_on_a_face_stands_on_the_face_it_names() {
         len(0.5),
         Formula::zero(editor_core::Dimension::Angle),
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the gesture lands");
     let doc = sketched.doc;
@@ -443,7 +442,11 @@ fn a_sketch_on_a_face_stands_on_the_face_it_names() {
         },
     )
     .0;
-    assert_eq!(top_z(&raised), 2.5, "the boss rides up with the face it names");
+    assert_eq!(
+        top_z(&raised),
+        2.5,
+        "the boss rides up with the face it names"
+    );
 }
 
 /// A full revolve about its own y, the bore of a ring: no face of it lies
@@ -519,7 +522,10 @@ fn an_instance_stands_on_its_parts_base() {
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(editor_core::DocumentId::derive("d-host"), Tol::witness());
     let (doc, instance) = insert(doc, Node::instantiate_part(post_ref));
-    let copies = Operand::Var(doc.output(instance, 0).expect("an instance defines its copies"));
+    let copies = Operand::Var(
+        doc.output(instance, 0)
+            .expect("an instance defines its copies"),
+    );
     let stood = editor_core::stand(&doc, &copies, &opts, Tol::witness())
         .expect("the instance stands over its part's geometry");
     let names: Vec<_> = fixture::selections_in(&stood.mate.on)

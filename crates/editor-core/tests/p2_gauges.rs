@@ -28,8 +28,8 @@ use editor_core::{
     CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation,
     Formula, Frame, FreeValue, FreeVar, Maintenance, MateRef, MeasurePrimitive, Node,
     NodeErrorKind, Operand, PartResolver, PersistError, PoseRefusal, ProfileDoc, ProfileProgram,
-    RecipeNodeId, RefusingReach, SitedFace, SitedRef, SlideAxis, Space, StableName, Target, Value,
-    ValuePayload, VarName, WorldRead, apply, apply_replayed, evaluate, load, product, save,
+    RecipeNodeId, SitedFace, SitedRef, SlideAxis, Space, StableName, Target, Value, ValuePayload,
+    VarName, WorldRead, apply, apply_replayed, evaluate, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, offset_of, on_frame, run, solve, step};
@@ -203,8 +203,8 @@ pub(crate) fn seat_edits(
         mate: Box::new(fixture::rest(mover, onto, ContactClass::Rest)),
         fresh: Vec::new(),
     };
-    let applied = apply(&doc, &rest, Tol::witness(), &RefusingReach)
-        .unwrap_or_else(|e| panic!("the rest is admitted: {e}"));
+    let applied =
+        apply(&doc, &rest, Tol::witness()).unwrap_or_else(|e| panic!("the rest is admitted: {e}"));
     let mate = MateRef::new(placement, applied.record.minted_constraints[0]);
     let mut edits = vec![rest];
     let doc = [
@@ -501,8 +501,7 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
         [1.0, 1.0],
     );
     let applied = seat.iter().fold(doc.clone(), |doc, edit| {
-        let applied =
-            apply(&doc, edit, Tol::witness(), &RefusingReach).expect("a constraint asks no store");
+        let applied = apply(&doc, edit, Tol::witness()).expect("a constraint asks no store");
         assert_eq!(
             applied.maintenance,
             Vec::<Maintenance>::new(),
@@ -595,7 +594,7 @@ fn removing_what_pins_a_copy_is_never_refused_and_leaves_it_loose() {
             vec![(top, top)],
         ),
     ] {
-        let applied = apply(&doc, &edit, Tol::witness(), &RefusingReach)
+        let applied = apply(&doc, &edit, Tol::witness())
             .unwrap_or_else(|e| panic!("removing {what} is never refused: {e}"));
         // The only maintenance is the silent retirement of the
         // anonymous variables the removed constraint's numbers read.

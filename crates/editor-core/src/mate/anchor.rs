@@ -82,9 +82,10 @@ impl<'a> Anchors<'a> {
             [RoleSeg::InPart { of }] => self.carried_unmoved(name.node) && part_start_cap(of),
             // A copy's entity stands where its placement moved it, and a
             // pattern's where its rule did.
-            [RoleSeg::Placed { .. } | RoleSeg::Instance { .. } | RoleSeg::InPart { .. }, ..] => {
-                false
-            }
+            [
+                RoleSeg::Placed { .. } | RoleSeg::Instance { .. } | RoleSeg::InPart { .. },
+                ..,
+            ] => false,
             _ => self.carried_unmoved(name.node) && !self.minted_reads(name),
         }
     }
@@ -135,9 +136,9 @@ impl<'a> Anchors<'a> {
     fn carries(&self, at: RecipeNodeId, minted: RecipeNodeId) -> bool {
         match self.doc.node(at) {
             Some(Node::Place { shapes, .. }) => shapes.iter().any(|shape| {
-                self.doc.operation_of(shape.read).is_some_and(|of| {
-                    of == minted || self.upstream_of(of).contains(&minted)
-                })
+                self.doc
+                    .operation_of(shape.read)
+                    .is_some_and(|of| of == minted || self.upstream_of(of).contains(&minted))
             }),
             _ => self.upstream_of(at).contains(&minted),
         }

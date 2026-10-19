@@ -67,7 +67,7 @@ fn pair_node(op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::Au
 use topo::{Body, ContactRecords};
 
 /// The plate and the two blocks, in a document of their own.
-fn pinch(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn pinch(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
     let (doc, p1) = block_on(doc, plate, (1.0, 1.5), (-1.0, 1.0), 0.5, 1.5);
     let (doc, p2) = block_on(doc, plate, (1.5, 2.0), (1.0, 3.0), 0.47, 1.23);
@@ -1543,5 +1543,71 @@ fn side_node(side: &StableName) -> RecipeNodeId {
     match side.path.as_slice() {
         [RoleSeg::From { of, .. }, ..] => of.name().node,
         _ => panic!("a union seam side cites a member face: {side:?}"),
+    }
+}
+
+/// [`three_on_a_line`] with the third prism over 30°–60°: it crosses the
+/// first's wedge about the line and touches the second's edge along it.
+fn crossing_one_wedge(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
+    let (doc, a) = sector_prism(doc, Stand::On(plate), 0.0, 50.0, (0.5, 2.0));
+    let (doc, b) = sector_prism(doc, Stand::On(plate), 120.0, 170.0, (0.47, 1.7));
+    let (doc, c) = sector_prism(doc, Stand::On(plate), 30.0, 60.0, (0.44, 1.81));
+    (doc, vec![plate, a, b, c])
+}
+
+/// [`crossing_one_wedge`] without the plate.
+fn crossing_one_wedge_prisms(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, m) = crossing_one_wedge(doc);
+    (doc, m[1..].to_vec())
+}
+
+/// **A prism crossing one wedge about the contact line publishes one
+/// table in every member order** (N2, N4), with the plate and alone. The
+/// first wedge's bottom apex lies on the crossing prism's edge along the
+/// line, beside the second wedge's coincident edge there: it is that
+/// wedge's own start-cap vertex, cited once, never a crossing of the
+/// edge it lies on.
+#[test]
+fn a_prism_crossing_one_wedge_about_the_line_publishes_one_table_in_every_member_order() {
+    type Fixture = fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>);
+    let rows: [(&str, Fixture, bool); 2] = [
+        ("with the plate", crossing_one_wedge, false),
+        ("prisms alone", crossing_one_wedge_prisms, true),
+    ];
+    let apex = (1_500_000, 1_000_000, 500_000);
+    for (label, fixture, apex_kept) in rows {
+        let mut first: Option<NamedShape> = None;
+        let n = fixture(ProfileDoc::empty_derived("crossing", Tol::witness()))
+            .1
+            .len();
+        for order in orders(n) {
+            let (doc, m) = fixture(ProfileDoc::empty_derived("crossing", Tol::witness()));
+            let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
+            let (doc, u) = crate::fixture::union_over(doc, &members);
+            let what = format!("{label}, member order {order:?}");
+            let ev = run(&doc);
+            if let Some(e) = failure(&ev, u) {
+                panic!("{what}: refused: {e:?}");
+            }
+            let names = names_at(&ev, u, apex);
+            if apex_kept {
+                assert!(
+                    matches!(names.as_slice(), [n] if n.contains("CapVertex(Start")
+                        && !n.contains("Crossing")),
+                    "{what}: the apex is the first wedge's start-cap vertex: {names:?}"
+                );
+            } else {
+                assert!(
+                    names.is_empty(),
+                    "{what}: the plate holds the apex: {names:?}"
+                );
+            }
+            let here = named_shape(&ev, u);
+            match &first {
+                None => first = Some(here),
+                Some(f) => same_table(&here, f, &what),
+            }
+        }
     }
 }

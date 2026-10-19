@@ -8,7 +8,7 @@ use crate::corpus;
 use crate::corpus::body_of;
 use crate::emit_shared_rim_several::{construction, own_name};
 use crate::fixture;
-use crate::fixture::{Recorder, flush_segs, fname, insert, len, member_face, table};
+use crate::fixture::{Recorder, flush_segs, insert, len, member_face, table};
 
 use editor_core::{
     EntityKind, Entry, NameTable, Node, ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx,

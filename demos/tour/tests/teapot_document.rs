@@ -35,8 +35,7 @@ use pncad::prelude::AuthoredNode;
 use pncad::document::{
     CancelToken, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, Frame,
     LoopProgram, Node, NodeErrorClass, Operand, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, RefusingReach, Value, ValuePayload, apply, evaluate, place_at,
-    split,
+    ProgramTarget, RecipeNodeId, Value, ValuePayload, apply, evaluate, place_at, split,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
@@ -101,7 +100,6 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
             fresh: Vec::new(),
         },
         tol,
-        &pncad::document::RefusingReach,
     )
     .expect("the edit applies");
     *doc = applied.doc;
@@ -125,7 +123,7 @@ fn place_in_world(doc: &mut Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) {
     )
     .unwrap_or_else(|refusal| panic!("the copy places over its geometry: {refusal}"));
     let mut step = |edit: DocEdit<ProfileProgram>| {
-        let applied = apply(doc, &edit, tol, &RefusingReach)
+        let applied = apply(doc, &edit, tol)
             .unwrap_or_else(|err| panic!("the placement's edit applies: {err}"));
         *doc = applied.doc;
         applied.record.minted_constraints
@@ -477,7 +475,6 @@ fn the_rolled_names_are_one_set_at_two_radii() {
                 fresh: Vec::new(),
             },
             tol,
-            &pncad::document::RefusingReach,
         )
         .expect("the radius edit applies")
         .doc;

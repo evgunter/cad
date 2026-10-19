@@ -36,7 +36,6 @@ fn circle_doc(r: f64) -> ProfileDoc {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc
@@ -97,7 +96,6 @@ fn set_param_on_a_program_slot_moves_geometry() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("a legal radius edit applies");
     assert!(
@@ -142,7 +140,6 @@ fn set_expression_and_expr_at_route_into_programs() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -163,7 +160,6 @@ fn set_expression_and_expr_at_route_into_programs() {
                 expr: len(0.375),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("sub-path edit applies")
         .doc;
@@ -192,7 +188,6 @@ fn program_slots_refuse_wrong_dimensions() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::SlotDimensionMismatch {
             expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
@@ -218,7 +213,6 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::ProfileProgramRefused { node, refusal }) => {
             assert_eq!(node.id(), doc.ids()[0]);
@@ -249,7 +243,6 @@ fn define_var_never_refuses_for_downstream_profiles() {
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.5)),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -266,7 +259,6 @@ fn define_var_never_refuses_for_downstream_profiles() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -279,7 +271,6 @@ fn define_var_never_refuses_for_downstream_profiles() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("DefineVar never refuses for downstream profile breakage (VQ9)")
         .doc;
@@ -326,7 +317,6 @@ fn insert_node_checks_program_dimensions() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::SlotDimensionMismatch {
             expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
@@ -483,7 +473,6 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         ) {
             Err(EditError::ProfileProgramRefused { refusal, .. }) => match *refusal {
                 ProgramRefusal::Transition {

@@ -30,7 +30,7 @@
 use pncad::document::{
     AssertionRelation, CancelToken, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
     Evaluation, Formula, Frame, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarId, VarName, apply, evaluate,
+    ProfileProgram, RecipeNodeId, SitedRef, VarId, VarName, apply, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::AuthoredNode;
@@ -79,7 +79,6 @@ fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
             fresh: Vec::new(),
         },
         tol,
-        &RefusingReach,
     )
     .expect("the insert applies");
     *doc = applied.doc;
@@ -104,7 +103,6 @@ fn declare(
             )),
         },
         tol,
-        &RefusingReach,
     )
     .expect("the parameter applies");
     *doc = applied.doc;

@@ -42,8 +42,12 @@ When stage 3 has rewritten the two files, type the representatives and
 inverses as `RigidMotion` (products of witnesses are witnesses, the
 inverse is the transpose), so `Motion` carries the solve's poses as
 `Motion::Rigid` and the decided door is asked only of literal frames.
-Leave `member_of` and `check_offsets` themselves to stage 3, which
-retires them.
+Stage 3 F retired `candidate_rotation`, `candidate_translation`,
+`clocking_about` and `member_of` (the fold is now the structural meet,
+`mate/coset.rs`'s `intersect`), so the sites today are `mate_coset`'s
+representative (`frame_of(to) * frame_of(on).inverse()`,
+`mate/solve.rs`), the meeting `ball_meets` builds (`mate/coset.rs`), and
+`value.rs`'s settle.
 
 MSOLVE's `a-box-over-a-solved-clocking-widens-thirty-thousandfold` is
 the measurement to re-take then: the transpose inverse does not reach

@@ -1350,9 +1350,10 @@ fn a_curved_divider_names_as_the_pair_boolean_does() {
 /// qualified by the slab wall it borders (N2) rather than both
 /// publishing the parent's bare name.
 ///
-/// Each seam chord where a slab wall meets a merged face cites the boss
-/// piece it lies on ([`assert_wall_chords_cite_their_piece`]). The boss
-/// is joined by a pair boolean and by a union in both member orders.
+/// Each seam chord where a slab wall meets a merged face cites the
+/// merged face's parent ([`assert_wall_chords_cite_the_merged_parent`]).
+/// The boss is joined by a pair boolean and by a union in both member
+/// orders.
 #[test]
 fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
     let doc = ProfileDoc::empty_derived("sunk-boss-slot", Tol::witness());
@@ -1396,67 +1397,51 @@ fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
             "{label}: the slot names: {:?}",
             failure(&ev, cut)
         );
-        assert_wall_chords_cite_their_piece(&label, &ev, boss, cut, 4);
+        assert_wall_chords_cite_the_merged_parent(&label, &ev, boss, cut, 4);
     }
 }
 
-/// **A seam chord on the boss wall cites the piece it lies on.** The
-/// boss of [`cylinder`] about (1.5, 1.5), radius 0.3, keeps its wall as
-/// two semicircular pieces, one each side of y = 1.5. Every edge of
+/// **A seam chord on the boss wall cites the merged wall's parent.**
+/// The boss of [`cylinder`] about (1.5, 1.5), radius 0.3, keeps its
+/// wall as two pieces, read off the boss's own table. Every edge of
 /// `out`'s table running up that wall (both ends on it, at one x and y)
-/// is a seam chord against a wall of the other operand. One of its
-/// seam's two faces is the boss piece on its own side of y = 1.5, read
-/// off the boss's own table and body, and neither is the other piece;
+/// is a seam chord against a wall of the other operand, and the merged
+/// face beside it is cited by its parent, which lists both pieces,
+/// never by the piece the chord lies on (N3). The chords on one slot
+/// wall are two pieces of one seam, told apart by their `Ends` (N2);
 /// `chords` of them stand.
-fn assert_wall_chords_cite_their_piece(
+fn assert_wall_chords_cite_the_merged_parent(
     label: &str,
     ev: &Evaluation<f64>,
     boss: RecipeNodeId,
     out: RecipeNodeId,
     chords: usize,
 ) {
-    use crate::fixture::{ends, face_edges, point};
+    use crate::fixture::{ends, point};
     let on_wall = |p: geom_core::Point3<f64>| ((p.x - 1.5).hypot(p.y - 1.5) - 0.3).abs() < 1e-9;
     let boss_body = body_of(ev, boss);
-    // A wall piece's side of y = 1.5, read off the middles of its arcs:
-    // its corners all sit on the line.
-    let arc_side = |e: topo::EdgeKey| {
-        let c = boss_body
-            .get_edge(e)
-            .and_then(|d| boss_body.get_curve_geom(d.curve))
-            .and_then(topo::CurveGeom::certified)
-            .expect("a boss edge has a certified curve");
-        let (t0, t1) = c.params();
-        c.carrier().mid_point(t0, t1).y > 1.5
-    };
-    let mut pieces: Vec<(bool, String)> = Vec::new();
-    for (name, entry) in table(ev, boss).iter() {
-        let Entry::Unique(ent) = entry else { continue };
-        let EntityKey::Face(f) = ent.key else {
-            continue;
-        };
-        if topo::query::face_surface_kind(boss_body, f) != Some(geom::SurfaceKind::Cylinder) {
-            continue;
-        }
-        let sides: BTreeSet<bool> = face_edges(boss_body, f)
-            .into_iter()
-            .filter(|&e| {
-                topo::query::edge_carrier_kind(boss_body, e) != Some(topo::query::CurveKind::Line)
-            })
-            .map(arc_side)
-            .collect();
-        let [upper] = sides.into_iter().collect::<Vec<_>>()[..] else {
-            panic!("{label}: a wall piece's arcs lie on one side of y = 1.5: {name}");
-        };
-        pieces.push((upper, name.to_string()));
-    }
+    let pieces: Vec<String> = table(ev, boss)
+        .iter()
+        .filter_map(|(name, entry)| match entry {
+            Entry::Unique(ent) => match ent.key {
+                EntityKey::Face(f)
+                    if topo::query::face_surface_kind(boss_body, f)
+                        == Some(geom::SurfaceKind::Cylinder) =>
+                {
+                    Some(name.to_string())
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
     assert_eq!(
-        pieces.iter().map(|(u, _)| *u).collect::<BTreeSet<_>>(),
-        BTreeSet::from([false, true]),
-        "{label}: the boss wall is one piece each side of y = 1.5: {pieces:?}"
+        pieces.len(),
+        2,
+        "{label}: the boss wall is two pieces: {pieces:?}"
     );
     let body = body_of(ev, out);
-    let mut seen = 0;
+    let mut seams: BTreeMap<RoleSeg, usize> = BTreeMap::new();
     for (name, entry) in table(ev, out).iter() {
         let Entry::Unique(ent) = entry else { continue };
         let EntityKey::Edge(e) = ent.key else {
@@ -1467,24 +1452,32 @@ fn assert_wall_chords_cite_their_piece(
         {
             continue;
         }
-        seen += 1;
-        let upper = p0.y > 1.5;
-        let Some(RoleSeg::Seam { a, b }) = name.path.first() else {
-            panic!("{label}: a chord up the boss wall is a seam: {name}");
+        let [
+            head @ RoleSeg::Seam { a, b },
+            RoleSeg::Fragment(Qualifier::Ends(_)),
+        ] = name.path.as_slice()
+        else {
+            panic!("{label}: a chord up the boss wall is a piece of a seam, by its ends: {name}");
         };
-        let shown = format!("{a} / {b}");
-        for (piece_upper, piece) in &pieces {
-            assert_eq!(
-                shown.contains(piece.as_str()),
-                *piece_upper == upper,
-                "{label}: the chord at ({:.3}, {:.3}) cites the boss piece on its side, \
-                 {piece}, and only that one: {shown}",
-                p0.x,
-                p0.y
-            );
-        }
+        let cites_both = |side: &StableName| pieces.iter().all(|p| side.to_string().contains(p));
+        assert!(
+            cites_both(a) != cites_both(b),
+            "{label}: the chord at ({:.3}, {:.3}) cites, on one side, the merged wall's \
+             parent over both pieces: {name}",
+            p0.x,
+            p0.y
+        );
+        *seams.entry(head.clone()).or_default() += 1;
     }
-    assert_eq!(seen, chords, "{label}: the chords up the boss wall");
+    assert_eq!(
+        seams.values().sum::<usize>(),
+        chords,
+        "{label}: the chords up the boss wall"
+    );
+    assert!(
+        seams.values().all(|&n| n == 2),
+        "{label}: each slot wall's seam with the merged wall is two pieces: {seams:?}"
+    );
 }
 
 /// **A slot across a sunk boss, turned 90°, names.** The boss of

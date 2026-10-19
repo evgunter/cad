@@ -194,67 +194,32 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/wire/wire-refusals-short-of-the-shape-guard.md
     "AssertionDimension",
     "BlendSelectionEmpty",
-    "SelectResolve/Ambiguous",
-    "SelectResolve/Vanished",
     "CrossingUnverified",
     "CurvedSolidFrontier",
     "DegenerateDirection",
     "EmptyHalf",
     "EmptyOperand",
-    "Expr",
-    "Expr/ContinuousExprInCountEval",
-    "Expr/CountExprInContinuousEval",
-    "Expr/CountOverflow",
-    "Expr/CountToScalarOutOfRange",
-    "Expr/NonFiniteResult",
-    "Expr/Unlowered",
-    "Expr/UnresolvedVar",
-    "Expr/VarKindMismatch",
-    "SelectResolve/Ambiguous",
-    "SelectResolve/Vanished",
     "InstanceOutOfRange",
     "MeasureClearanceRefused",
-    "MeasureNonFinite",
     "MeasureNotParallel",
-    "SelectResolve/Ambiguous",
-    "SelectResolve/Vanished",
-    "MeasureRefUnreadable/Ambiguous",
-    "MeasureRefUnreadable/NoBodies",
-    "MeasureRefUnreadable/NoSuchName",
-    "MeasureRefUnreadable/NodeFailed",
-    "MeasureRefUnreadable/NodeNotEvaluated",
-    "MeasureRefUnreadable/NodePoisoned",
     "MeasureRefUnreadable/Readback",
-    "MeasureRefUnreadable/WholeBody",
-    "MeasureRefUnreadable/WrongKind",
+    // `NodeStanding`'s failed and poisoned repairs, which a mate
+    // cluster's refusal makes false:
+    // work/wirehold/kernel-standing-names-a-cluster-refused-node-as-its-own-failure.md
+    "MeasureRefUnreadable/NodeFailed",
+    "MeasureRefUnreadable/NodePoisoned",
     "MeasureUnsupported",
     "MissingInput",
-    "Naming/Duplicate",
-    "Naming/Emission",
-    "Naming/MissingUpstream",
-    "Naming/SeamVertexParentage",
-    "Naming/SharedRim",
-    "Naming/SplitLineage",
-    "Naming/Unnamed",
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
-    "PayloadExpr",
     "PlacementRule/CountSpelling",
     "PlacementRule/ImproperFrame",
     "PlacementRule/NoPlacements",
     "PlacementRule/NonFiniteFrame",
     "PlacementsUncertified",
-    "ProfileLaneReplay(Flipped)",
-    "ProfileLaneReplay(None)",
-    "Seed/CountVar",
-    "Seed/TangentUnrepresentable",
-    "Seed/UnknownVar",
     "ShellLaneUnsupported",
-    "SelectResolve/Ambiguous",
-    "SelectResolve/Vanished",
     "ToleranceConflict",
     "UnschedulableCycle",
-    "WitnessBifurcation",
     "WrongOperand",
     // work/paths/paths-refusals-short-of-the-shape-guard.md
     "Profile/DegenerateSegment",
@@ -266,7 +231,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Profile/NonSimple",
     "Profile/RayCastingExhausted",
     "Profile/SliverLoop",
-    "Profile/Structure",
     "Profile/TangencyContradicted",
     "ProfileReplay/Path/ArcCenterNotEquidistant",
     "ProfileReplay/Path/ArcLegOnOpenFillet",
@@ -285,7 +249,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/OverdeterminedJunction",
     "ProfileReplay/Path/PolygonTooFewVertices",
     "ProfileReplay/Path/SeamRetrimsArcFirstSide",
-    "ProfileReplay/Path/Structure",
     "ProfileReplay/Path/UnderdeterminedLeg",
     "ProfileReplay/Path/ZeroDirection",
     "ProfileReplay/Transition",
@@ -429,6 +392,37 @@ fn the_bare_recourses_are_geom_cores_constants() {
             geom_core::COINCIDENCE_RECOURSE,
         ]
     );
+}
+
+/// A vanished name's sentence ends as its diagnosis says: a cascade
+/// sends the reader to the name upstream, and a diagnosis that states
+/// its own repair (the sketch's branch selection) is not followed by a
+/// second one.
+#[test]
+fn a_vanished_names_ending_is_its_diagnosiss() {
+    let rows: std::collections::BTreeMap<String, String> = editor_payloads()
+        .into_iter()
+        .map(|(name, kind)| (name, as_the_viewer_shows_it(kind)))
+        .collect();
+    let cascade = &rows["SelectResolve/Vanished(Cascade)"];
+    assert!(
+        cascade.ends_with(
+            "a face it derives from vanished upstream first, and that is the root cause. \
+             Recourse: repair the face it derives from first"
+        ),
+        "{cascade}"
+    );
+    let witness = &rows["SelectResolve/Vanished(WitnessBifurcation)"];
+    assert!(
+        witness.ends_with(
+            "Recourse: move the sketch off the near-singular configuration, or re-solve to \
+             record a fresh witness"
+        ),
+        "{witness}"
+    );
+    for text in [cascade, witness] {
+        assert_eq!(text.matches("Recourse:").count(), 1, "{text}");
+    }
 }
 
 /// `test_utils::refusal::GENERIC_SUBJECTS` restates the doors' shared
@@ -2528,10 +2522,13 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
         ),
         ("PathTangentReversal", E::PathTangentReversal { station: 4 }),
         ("RowMotionUndecided", E::RowMotionUndecided { row: 1 }),
-        ("ArcWeightNotAPoint", E::ArcWeightNotAPoint { section: 1 }),
         (
-            "IncompatibleAtEnclosure",
-            E::IncompatibleAtEnclosure { section: 1 },
+            "ArcSweepUndecided",
+            E::ArcSweepUndecided {
+                section: 1,
+                which: sweep::ArcSweepDecision::SubArcCount,
+                margin: geom_core::MarginDiag::enclosure(-0.25, 0.5),
+            },
         ),
         ("NoParameterStep", E::NoParameterStep { section: 2 }),
         (
@@ -3439,6 +3436,19 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "OutputRead",
+            EvalError::OutputRead {
+                var: editor_core::VarId::new(0, tagged(7)),
+            },
+        ),
+        (
+            "DefinitionRefused",
+            EvalError::DefinitionRefused {
+                var: editor_core::VarId::new(0, tagged(7)),
+                source: Box::new(EvalError::NonFiniteResult),
+            },
+        ),
+        (
             "VarKindMismatch",
             EvalError::VarKindMismatch {
                 var: editor_core::VarId::new(0, tagged(7)),
@@ -3515,6 +3525,15 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "SeedOnNonFreeVar",
+            SeedError::SeedOnNonFreeVar {
+                var: editor_core::SpokenVar::new(
+                    editor_core::VarId::new(0, tagged(7)),
+                    Some(VarName::from_static("area")),
+                ),
+            },
+        ),
+        (
             "TangentUnrepresentable",
             SeedError::TangentUnrepresentable {
                 var: editor_core::SpokenVar::new(
@@ -3549,6 +3568,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "Duplicate",
             NamingError::Duplicate {
                 name: Box::new(name()),
+            },
+        ),
+        (
+            "KindMismatch",
+            NamingError::KindMismatch {
+                name: Box::new(name()),
+                found: EntityKind::Vertex,
             },
         ),
         (
@@ -3602,6 +3628,36 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     ];
     let resolve = || {
         [
+            (
+                "Vanished(Cascade)",
+                ResolveError::Vanished {
+                    name: name(),
+                    diagnosis: Diagnosis::Cascade { through: name() },
+                    last_good: None,
+                },
+            ),
+            (
+                "Vanished(WitnessBifurcation)",
+                ResolveError::Vanished {
+                    name: name(),
+                    diagnosis: Diagnosis::WitnessBifurcation(Box::new(
+                        editor_core::WitnessBifurcation {
+                            kind: editor_core::BifurcationKind::AmbiguousBasin,
+                            margin: editor_core::BranchMarginEvidence {
+                                margin: 3.0e-10,
+                                band_zero: 1.0e-9,
+                                band_escalate: 1.0e-8,
+                            },
+                            implicated: vec![editor_core::Implicated::Constraint(2)],
+                            witness_age: editor_core::WitnessAge {
+                                solved_under: Vec::new(),
+                                at_solve: Vec::new(),
+                            },
+                        },
+                    )),
+                    last_good: None,
+                },
+            ),
             (
                 "Vanished",
                 ResolveError::Vanished {
@@ -3800,6 +3856,12 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
                 through: RecipeNodeId::new(0, tagged(2)),
             }),
         ),
+        (
+            "NodeNotInDocument",
+            InterrogateError::Standing(NodeStanding::NotInDocument {
+                node: RecipeNodeId::new(0, tagged(3)),
+            }),
+        ),
         ("NoSuchName", InterrogateError::NoSuchName),
         ("Ambiguous", InterrogateError::Ambiguous { candidates: 2 }),
         (
@@ -3815,6 +3877,12 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             InterrogateError::NoBodies { payload: "profile" },
         ),
         ("NoSuchBody", InterrogateError::NoSuchBody { index: 2 }),
+        (
+            "SeveralOutputs",
+            InterrogateError::SeveralOutputs {
+                node: RecipeNodeId::new(0, tagged(3)),
+            },
+        ),
         (
             "Readback",
             InterrogateError::Readback(ReadbackError::NoCarrier),
@@ -4030,10 +4098,8 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
 
 fn mate() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
-        Clash, Coord, DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, SlideAxis,
-        Subgroup, VarKind,
+        Coord, DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, SlideAxis, VarKind,
     };
-    use payloads::*;
     let n = |id| RecipeNodeId::new(0, tagged(id));
     let c = |id: u32| editor_core::ConstraintId(editor_core::MintId::new(id, 0));
     // Constraint `id` of placement 7, the copy every row's bundle places.
@@ -4048,34 +4114,11 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
         ),
         ("ClassNotAdmitted", M::ClassNotAdmitted { mate: r(9) }),
         (
-            "Indeterminate",
-            M::Indeterminate {
-                mate: r(9),
-                diag: Box::new(diag()),
-            },
-        ),
-        (
-            "PoseOutOfRange",
-            M::PoseOutOfRange {
-                held: r(8),
-                added: r(9),
-            },
-        ),
-        (
-            "Contradictory",
-            M::Contradictory {
-                held: r(8),
-                added: r(9),
-                predicate: "mate_coaxial",
-                clash: Clash::Length { metres: 0.002 },
-            },
-        ),
-        (
             "Overconstrained",
             M::Overconstrained {
                 placement: n(7),
                 constraints: vec![c(8), c(9)],
-                held: Subgroup::Trivial,
+                free: 0,
             },
         ),
         (
@@ -4116,15 +4159,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
             M::NotAFreedom {
                 value: r(9),
                 coord: Coord::Slide(SlideAxis::Z),
-                kind: Some(VarKind::Plane),
-            },
-        ),
-        (
-            "NotAFreedom/FixedByTheBundle",
-            M::NotAFreedom {
-                value: r(9),
-                coord: Coord::Spin,
-                kind: None,
+                kind: VarKind::Plane,
             },
         ),
         (

@@ -873,7 +873,6 @@ impl Digest {
         self.scalar(p.z);
     }
 
-
     fn body<T: ValueChannel>(&mut self, body: &Body<T>) {
         self.u64(body.solids().count() as u64);
         self.u64(body.faces().count() as u64);

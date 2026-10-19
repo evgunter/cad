@@ -2,12 +2,13 @@
 id: a-mate-on-a-pinned-copy-refuses
 kind: issue
 title: D10 stage 3 PR F: a constraint any of whose equations the bundle already fixes refuses as an overconstraint, pinned or not, by subgroup algebra; Contradictory and the membership re-measures retire
-status: parked
+status: closed
 opened: 2026-10-08
 priority: P0
 cost: M
-blocked_on: [a-mate-relates-two-poses]
 refs: [intent-stage3-is-built, mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion]
+closed: 2026-10-18
+branch: intent/s3-f-a-mate-on-a-pinned-copy-refuses
 ---
 
 INTENT stage 3, PR F. Spec: `docs/INTENT-STAGE3-SPEC.md` §7. Built on FORK-S3O (fork log row 96, PR 4325), with FORK-S3M's values on equal footing (row 97, PR 4326).
@@ -66,3 +67,35 @@ recorded here so that F's rows pin the close.
     `MateFault::Under` refused it.
   - Spec §1 decides kinds from the recipe. F's codimension rule decides
     determination by codimension alone, which ends this.
+
+## Closed (INTENT stage 3 F)
+
+The bundle rule is built: `mate::solve::overconstrained` reads each
+constraint's equations off its definitions (`Equations`: a mate's
+kind's symmetry family, a value's mate and freedom) and refuses
+`MateFault::Overconstrained { placement, constraints, free }` where
+any constraint's equations the others already fix, by the families'
+general-position meet (`SubgroupFamily::meet`, `transverse`), measuring
+nothing. Every edit door that writes a constraint or a bundle asks it
+(`edit.rs`'s `admit_bundle_make_up`: `AddConstraint`, `AddValue`, an
+inserted placement, a re-pointed side), and the fold asks it again for
+a state no door saw (`solve_bundle`). Determination is by codimension
+(`pins`).
+
+- C's interim C-3 is lifted: `Overconstrained` and a value's freedom
+  the bundle fixes are door refusals; `NotAFreedom`'s kind is no longer
+  optional. The chart's band stays an evaluation fault
+  (`PoseDegenerate { Chart }`), as a construction's degenerate case is.
+- msolve11's fold-only row is restated: `each_decision_is_on_the_log_of_the_node_that_made_it`
+  seats the cap by one `Axis`–`Axis` mate plus `Slide(Z)` and `Spin`.
+- B's two interims end: the rule is order-free (a frame after a
+  coaxial and a coaxial after a frame both refuse), and a copy's space
+  is decided by codimension, never by a value.
+- Retired: `MateFault::Contradictory`, `Clash`, `Lever`, `Refuted`,
+  `CONTRADICTORY_RECOURSE`, `MATE_MEMBER_EMPTY`, `Subgroup::Empty`,
+  `coset::member_of`, `intersect_subgroups`, the table's measured case
+  splits and the representative's measured stages (`candidate_*`,
+  `clocking_about`, `ball_on_line`, `ball_pair`), `FoldStop`; the
+  Python `Subgroup` class and `MateFault.residual`, `.clash`,
+  `.lever_residual`, `.lever_arm` (replaced by `MateFault.free`).
+- A11 (1), (3), (4) and (5) re-read as the rule (`ASSEMBLY.md`).

@@ -376,9 +376,9 @@ rebound, and across a split or an inline. A value's number may read a
 document parameter, so a parameter can drive where a copy sits. The
 mate's contact class says what is declared: a `Rest` on two faces
 declares they touch, and where the values set them apart, the at-rest
-gate refutes it. The solve's *algorithm* is coset intersection over
-decided predicates, no numeric fitting, and its inputs are the
-document plus its mated parts' evaluations.
+gate refutes it. The solve constructs each copy's pose from its mates
+and values, checking nothing and fitting nothing, and its inputs are
+the document plus its mated parts' evaluations.
 
 **The constraint door is structural.** A mate whose `on` does not read
 the copy it places (`mate_not_on_the_copy`), whose two poses are of
@@ -386,13 +386,14 @@ two kinds (`mate_kinds_differ`), whose world read's moves do not
 compose (`mate_world_read`), or whose class is outside the vocabulary
 is refused where it is added; so is a value on a freedom its mate's
 kind fixes (`mate_not_a_freedom`) or on a point mate's rotation, which
-has no chart (`mate_no_chart`). `Doc.constrain`, `Doc.add_value` and
-their `DocEdit` twins raise `EditError` with variant `mate_refused`,
-`fault` carrying the `MateFault` whole. Everything that needs the
-poses' values — two mates that contradict each other, a bundle whose
-mates fix one equation twice (`mate_overconstrained`), a face that is
-gone (`mate_side_unevaluated`), a verdict the band cannot decide — is
-the placement's own refusal where it evaluates, met as below. A bundle
+has no chart (`mate_no_chart`), and so is a constraint any of whose
+equations the rest of its bundle already fixes, pinned or not
+(`mate_overconstrained`): two plane mates fix a normal twice, whatever
+their faces' angle. `Doc.constrain`, `Doc.add_value` and their
+`DocEdit` twins raise `EditError` with variant `mate_refused`, `fault`
+carrying the `MateFault` whole. What needs the poses' values — a face
+that is gone (`mate_side_unevaluated`), a chart the band cannot swing —
+is the placement's own refusal where it evaluates, met as below. A bundle
 that pins less than its copy needs is no verdict at all: that copy is
 loose (§5).
 
@@ -911,13 +912,12 @@ except EvaluationError as refusal:
 shelf_volume = SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS
 assert abs(product(doc, ev).mass_properties().volume - shelf_volume) < 1e-12
 
-# 2. OVERCONSTRAINED. Three plane mates pin a post where it is drawn —
-#    its underside on the world's floor, two sides on the world's two
-#    walls — and a fourth, its top on the floor raised by its height,
-#    is an equation they already fix. The door is structural and
-#    admits it; the placement refuses where it evaluates, naming every
-#    constraint whose removal leaves the copy as pinned as it was, and
-#    ending on the recourse.
+# 2. OVERCONSTRAINED. A post rests on the world's floor by its
+#    underside, and a second plane mate, a side on one of the world's
+#    walls, fixes a normal the first already fixes. The door reads the
+#    two mates' kinds, measures nothing, and refuses the second where it
+#    is authored, naming both and ending on the recourse; the document
+#    is as it was. One mate and its values pin the post instead.
 doc = Doc("bench-overconstrained")
 post_i = doc.insert(Node.instantiate_part(post_ref))
 ev = evaluate(doc, resolver=store)
@@ -935,20 +935,20 @@ def facing(normal):
 
 floor = doc.constrain(post_i, Mate(facing((0.0, 0.0, -1.0)),
                                    WorldRead.through("xy").flip(), ContactClass.Rest))
-for normal, wall in (((-1.0, 0.0, 0.0), "yz"), ((0.0, -1.0, 0.0), "zx")):
-    doc.constrain(post_i, Mate(facing(normal), WorldRead.through(wall).flip(),
+try:
+    doc.constrain(post_i, Mate(facing((-1.0, 0.0, 0.0)), WorldRead.through("yz").flip(),
                                ContactClass.Rest))
-assert solve_document(doc, resolver=store).fault(post_i) is None
-raised = WorldRead.through("xy").slide(WorldRead.through("z"), POST_HEIGHT * m)
-top = doc.constrain(post_i, Mate(facing((0.0, 0.0, 1.0)), raised, ContactClass.Rest))
-fault = solve_document(doc, resolver=store).fault(post_i)
+    raise AssertionError("expected a typed refusal")
+except EditError as refusal:
+    fault = refusal.fault
 assert fault.variant == "mate_overconstrained"
 assert fault.placement == post_i
-assert sorted(fault.constraints) == sorted([floor, top])
+assert floor in fault.constraints and fault.free == 1
 assert OVERCONSTRAINED_RECOURSE in str(fault)
-# The repair is the one the recourse names: remove one of them, and
-# the bundle pins the post again.
-doc.remove_mate(top)
+# The repair the recourse names: the floor mate's three freedoms set,
+# the post stands where it is drawn, pinned.
+for coord in (Coord.slide("x"), Coord.slide("y"), Coord.spin()):
+    doc.add_value(floor, coord, 0)
 assert solve_document(doc, resolver=store).fault(post_i) is None
 assert evaluate(doc, resolver=store).space(post_i) == "world"
 

@@ -931,8 +931,7 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
                 fresh: Vec::new()
             },
             &ev,
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .is_ok(),
         "a selection the tables carry passes"
@@ -950,7 +949,6 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
         },
         &ev,
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap_err();
     assert_eq!(

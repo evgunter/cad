@@ -1580,8 +1580,7 @@ fn edit(
     // The scene's document has no instance, and its constraints place
     // the plate against the world, which reads no part: the refusing
     // reach is never asked.
-    let applied =
-        apply(&doc, &edit, tol, &pncad::document::RefusingReach).map_err(SceneDocError::Edit)?;
+    let applied = apply(&doc, &edit, tol).map_err(SceneDocError::Edit)?;
     Ok((applied.doc, applied.record))
 }
 

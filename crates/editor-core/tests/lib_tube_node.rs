@@ -71,9 +71,7 @@ fn close(got: f64, want: f64, what: &str) {
 }
 
 fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(d, e, Tol::witness(), &editor_core::RefusingReach)
-        .expect("edit applies")
-        .doc
+    apply(d, e, Tol::witness()).expect("edit applies").doc
 }
 
 /// A document holding one tube node, `build`: a tube reads no frame,
@@ -751,7 +749,7 @@ fn bumping_the_wall_moves_the_stored_inner_radius() {
     let after = hollow_tube_elbow::inner(hollow_tube_elbow::WALL_BUMPED);
     assert_ne!(before.to_bits(), after.to_bits());
 
-    let bumped = apply(&d.doc, &d.bump, Tol::witness(), &editor_core::RefusingReach)
+    let bumped = apply(&d.doc, &d.bump, Tol::witness())
         .expect("the bump applies")
         .doc;
     let ev = eval::<f64>(&bumped);

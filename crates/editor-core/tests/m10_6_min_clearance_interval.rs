@@ -529,7 +529,6 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_at_the_door() {
         &r.doc,
         &[MeasurePrimitive::MinClearance { a: edge, b: face }],
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     let Err(err) = refused else {
         panic!("an edge is no min_clearance reference, so the insert refuses");

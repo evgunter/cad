@@ -28,7 +28,6 @@ use fixture::resolver::with_resolver;
 use fixture::round_trip::{composed, same_up_to_ids};
 use fixture::{
     ang, constrain_at, flip, gate, head, insert, insert_pinned, len, plane, rest, run, solve, step,
-    step_with,
 };
 use geom_core::Tol;
 
@@ -38,14 +37,13 @@ fn slide() -> VarName {
     VarName::from_static("slide")
 }
 
-/// **`edit` applied through the refusing reach**, panicking on a
-/// refusal: the document and the constraint ids it minted.
+/// **`edit` applied**, panicking on a refusal: the document and the constraint ids it minted.
 fn applied(
     doc: &ProfileDoc,
     edit: &DocEdit<ProfileProgram>,
 ) -> (ProfileDoc, Vec<editor_core::ConstraintId>) {
-    let out = apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
-        .unwrap_or_else(|e| panic!("the edit is admitted: {e}"));
+    let out =
+        apply(doc, edit, Tol::witness()).unwrap_or_else(|e| panic!("the edit is admitted: {e}"));
     (out.doc, out.record.minted_constraints)
 }
 
@@ -194,14 +192,12 @@ fn a_rest_with_an_in_plane_value_follows_the_face_through_a_part_edit() {
     );
     let new_ref = p.store.insert(grown, Tol::witness());
     let o = with_resolver(p.store.clone());
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let (doc, _) = step_with(
+    let (doc, _) = step(
         doc,
         DocEdit::UpdateReference {
             node: base,
             new_pin: new_ref.pin,
         },
-        &reach,
     );
     assert_eq!(
         top_corner(&doc, &o, top),
@@ -299,7 +295,6 @@ fn a_parameter_drives_a_value_and_the_solved_pose_moves() {
                 Formula::named(VarName::from_static(name), Dimension::Length),
             ),
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect_err("the value refuses")
     };

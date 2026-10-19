@@ -50,7 +50,7 @@
 use core::f64::consts::{PI, SQRT_2};
 use pncad::prelude::AuthoredNode;
 
-use pncad::document::{Operand, RefusingReach};
+use pncad::document::Operand;
 use pncad::geom_core::Tol;
 use pncad::prelude::{
     CancelToken, Dimension, Doc, DocEdit, EntityKind, EvalOptions, Evaluation, Formula,
@@ -112,7 +112,6 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
             fresh: Vec::new(),
         },
         tol,
-        &RefusingReach,
     )
     .expect("the edit applies");
     *doc = applied.doc;

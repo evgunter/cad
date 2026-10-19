@@ -87,7 +87,6 @@ fn a_retyped_extrude_distance_is_refused_at_both_doors() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::SlotDimensionMismatch {
             slot,
@@ -146,7 +145,6 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::VarName) {
             )),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a well-formed length parameter declares")
     .doc;
@@ -159,7 +157,6 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::VarName) {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a length parameter drives a length slot")
     .doc;
@@ -182,7 +179,6 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::SlotUnknownVarName {
             name: n,
@@ -228,7 +224,6 @@ fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() 
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::VarKindFixed { var, kind, offered }) => {
             assert_eq!(var.name(), Some(&name));

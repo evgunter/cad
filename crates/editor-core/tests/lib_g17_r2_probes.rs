@@ -124,7 +124,6 @@ fn p2_raw_variant_with_a_repeat_is_refused_at_the_insert_door() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(editor_core::EditError::SelectionShape {
             fault: editor_core::SelectionFault::Repeated { first: 0, again: 2 },
@@ -178,7 +177,6 @@ fn p3_rebind_keeps_the_earlier_position() {
             to: a.clone(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("rebind")
     .doc;
@@ -193,7 +191,6 @@ fn p3_rebind_keeps_the_earlier_position() {
             to: c.clone(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("rebind")
     .doc;
@@ -216,7 +213,6 @@ fn p4_thick_wall_bump_refuses_typed_with_numbers() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -268,7 +264,6 @@ fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
                 }),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;
@@ -353,7 +348,6 @@ fn p6_rebinding_the_designation_moves_the_rim() {
             to: cup::bottom(blank),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc;

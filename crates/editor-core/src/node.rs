@@ -2,7 +2,6 @@
 //! here evaluates anything — the evaluation service interprets this
 //! data against the kernel ops.
 
-
 use std::collections::BTreeMap;
 
 use crate::expr::{Dimension, Slot};
@@ -138,7 +137,6 @@ pub enum Axis3 {
     /// The z component.
     Z,
 }
-
 
 /// A profile-program step's ARGUMENT ROLE — the closed per-verb enum
 /// that, with a loop and step index, addresses one expression inside a
@@ -1009,10 +1007,22 @@ macro_rules! station_rows {
         for (step, m) in $station.into_iter().enumerate() {
             match m {
                 StationMove::Slide { along: _, by } => {
-                    $out.push((SlotId::StationSlide { section: $section, step }, by));
+                    $out.push((
+                        SlotId::StationSlide {
+                            section: $section,
+                            step,
+                        },
+                        by,
+                    ));
                 }
                 StationMove::Spin { about: _, by } => {
-                    $out.push((SlotId::StationSpin { section: $section, step }, by));
+                    $out.push((
+                        SlotId::StationSpin {
+                            section: $section,
+                            step,
+                        },
+                        by,
+                    ));
                 }
             }
         }
@@ -2005,9 +2015,9 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// **A pattern of an upstream value** with a STRUCTURAL
     /// Count-typed index expression (spec D3/A8; N1 `Instance(i)`
     /// will index it): the input is the MASTER, placed WHOLE at every
-    /// placement. It takes the same operand [`Node::Transform`] does
+    /// placement. It takes the same operand a [`Node::Place`] does
     /// (`eval::wire`'s `placeable_operand`), but it is not
-    /// shape-preserving the way a transform is — the value is
+    /// shape-preserving the way a placement is — the value is
     /// `Instances` whatever the master was: N bodies for a one-body
     /// master, N·M placement-major for an `Instances` master of M.
     Pattern {
@@ -2624,7 +2634,7 @@ impl<P> Node<P> {
                 v.extend(side_rows_mut(constraints));
                 v
             }
-            | Node::World
+            Node::World
             | Node::Assertion {
                 value: _,
                 bound: _,
@@ -2834,7 +2844,6 @@ impl<P> Node<P> {
         }
         hits
     }
-
 }
 
 impl<P, L> Node<P, crate::expr::ExprTree<L>>
@@ -2869,8 +2878,6 @@ pub(crate) fn map_array<S, S2, E, const N: usize>(
         Err(_) => unreachable!("{N} values in, {N} out"),
     }
 }
-
-
 
 impl<S> TubeWindow<S> {
     /// **This window in another slot form** ([`Node::try_map_slots`]'s
@@ -2953,10 +2960,9 @@ pub struct OutputPort {
 pub enum PortKind {
     /// This kind.
     Of(crate::VarKind),
-    /// A [`Node::Transform`]'s value, which has the shape of the
-    /// variable it reads: `Bodies` over a `Bodies`, `Body` otherwise;
-    /// and a [`Node::Place`]'s, which has its one shape's shape, and is
-    /// `Bodies` over several (their copies, keyed by read).
+    /// A [`Node::Place`]'s value, which has its one shape's shape
+    /// (`Bodies` over a `Bodies`, `Body` otherwise), and is `Bodies`
+    /// over several (their copies, keyed by read).
     ///
     /// Read off the operand once, at the insert that mints the output;
     /// from then on the output's stored kind is the fact (VR3: a kind
@@ -2981,10 +2987,9 @@ impl<P, S: Slot> Node<P, S> {
     /// order, possibly none. The insert door mints one variable per
     /// port ([`crate::Doc::output`]).
     ///
-    /// A [`Node::Transform`]'s one port has its operand's shape:
-    /// `Bodies` over a `Bodies`, `Body` otherwise ([`PortKind::Placed`]),
-    /// and so has a [`Node::Place`]'s over one shape; over several it is
-    /// their copies keyed by read. An instance defines one `copies`, the
+    /// A [`Node::Place`]'s one port has its one shape's shape: `Bodies`
+    /// over a `Bodies`, `Body` otherwise ([`PortKind::Placed`]); over
+    /// several it is their copies keyed by read. An instance defines one `copies`, the
     /// part's world copies keyed by their identity in the part
     /// ([`crate::CopyKey`]). No port count depends on a list.
     ///
@@ -3052,10 +3057,7 @@ impl<P, S: Slot> Node<P, S> {
         use crate::OperandSlot as O;
         Ok(match self {
             Node::Profile(p) => Node::Profile(payload(p, f)?),
-            Node::Extrude {
-                profile,
-                distance,
-            } => Node::Extrude {
+            Node::Extrude { profile, distance } => Node::Extrude {
                 profile: read(O::Profile, profile)?,
                 distance: f(distance)?,
             },
@@ -3220,7 +3222,7 @@ impl<P, S: Slot> Node<P, S> {
             Node::Subtract { from, tool, .. } => vec![(O::From, from), (O::Cut, tool)],
             Node::Union { members, .. } | Node::Intersect { members, .. } => members.rows(),
             Node::Place { shapes, .. } => shapes.rows(),
-            | Node::Profile(_)
+            Node::Profile(_)
             | Node::Extrude { .. }
             | Node::Revolve { .. }
             | Node::Tube { .. }
@@ -3531,7 +3533,7 @@ impl<P, S: Slot> Node<P, S> {
                 },
                 kind,
             )),
-            | Node::Profile(..)
+            Node::Profile(..)
             | Node::Extrude { .. }
             | Node::Revolve { .. }
             | Node::Tube { .. }
@@ -3759,7 +3761,7 @@ impl<P> Node<P, crate::Formula> {
             Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => vec![selection],
             Node::Shell { open, .. } => vec![open],
             Node::Measure { primitive } => primitive.refs().to_vec(),
-            | Node::Profile(_)
+            Node::Profile(_)
             | Node::Extrude { .. }
             | Node::Revolve { .. }
             | Node::Tube { .. }

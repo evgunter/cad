@@ -750,14 +750,13 @@ class TestAssemblyRefusals(BenchWorkspace):
             solved.placement(doc, shelf_i)
         self.assertEqual(caught.exception.kind, "space_mismatch")
 
-    def test_two_seats_at_different_heights_on_one_copy_contradict(self):
+    def test_two_seats_at_different_heights_on_one_copy_refuse_at_the_door(self):
         """The tour's second refusal, from Python. Two rests in ONE
-        bundle intersect their cosets exactly, so a plane rest and the
-        same rest on the post's top set back 10 mm along its normal (a
-        standoff) meet nowhere, and the placement refuses where it
-        evaluates naming both mates, the predicate that decided, and
-        the measured clash — ending on the recourse, which is the
-        repair rather than the diagnosis."""
+        bundle fix one normal twice, whatever their heights: a plane
+        rest and the same rest on the post's top set back 10 mm along
+        its normal (a standoff) are refused where the second is
+        authored, naming both, measuring nothing — ending on the
+        recourse, which is the repair rather than the diagnosis."""
         doc = Doc("pncad-two-heights")
         post_a = self.pinned(doc, self.post_ref)
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref, []))
@@ -774,43 +773,20 @@ class TestAssemblyRefusals(BenchWorkspace):
         )
         seat = PoseDef.flip(PoseDef.plane(post_a, a_top))
         lower = PoseDef.slide(seat, RoleRead(seat, "normal"), 0.01 * m)
-        clash = doc.constrain(
-            shelf_i,
-            Mate(PoseDef.plane(shelf_i, s_bottom), lower, ContactClass.Rest),
-            resolver=self.ws,
-        )
-        fault = solve_document(doc, resolver=self.ws).fault(shelf_i)
-        self.assertEqual(fault.variant, "mate_contradictory")
-        self.assertEqual((fault.held, fault.added), (held, clash))
-        self.assertAlmostEqual(abs(fault.clash.meters), 0.01, delta=1e-12)
-        self.assertIn(pncad.CONTRADICTORY_RECOURSE, str(fault))
-
-    def test_a_refused_solve_poisons_its_bundle_and_no_more(self):
-        doc = Doc("pncad-two-heights-poisons")
-        post_a = self.pinned(doc, self.post_ref)
-        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref, []))
-        a_top = self.instance_face(doc, post_a, CapEnd.End)
-        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
-        for standoff in (0.0, 0.01):
-            seat = PoseDef.flip(PoseDef.plane(post_a, a_top))
+        with self.assertRaises(pncad.EditError) as caught:
             doc.constrain(
                 shelf_i,
-                Mate(
-                    PoseDef.plane(shelf_i, s_bottom),
-                    PoseDef.slide(seat, RoleRead(seat, "normal"), standoff * m),
-                    ContactClass.Rest,
-                ),
+                Mate(PoseDef.plane(shelf_i, s_bottom), lower, ContactClass.Rest),
                 resolver=self.ws,
             )
-        solved = solve_document(doc, resolver=self.ws)
-        self.assertEqual(solved.fault(shelf_i).variant, "mate_contradictory")
-        # A refusal reaches the refusing bundle and no further: the post
-        # it reads still stands, and a second document is untouched,
-        # which is the whole reason the solve is total.
-        self.assertIsNone(solved.fault(post_a))
-        other = Doc("elsewhere")
-        lone = self.pinned(other, self.post_ref)
-        self.assertIsNone(solve_document(other, resolver=self.ws).fault(lone))
+        fault = caught.exception.fault
+        self.assertEqual(fault.variant, "mate_overconstrained")
+        self.assertIn(held, fault.constraints)
+        self.assertEqual(fault.free, 1)
+        self.assertIn(pncad.OVERCONSTRAINED_RECOURSE, str(fault))
+        # The refused edit leaves the document as it was: the first
+        # rest alone, the shelf loose on the post.
+        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(shelf_i))
 
     def test_a_mate_reading_its_own_copy_on_both_sides_refuses(self):
         """A mate equates the copy's pose with a pose of the space it
@@ -1113,14 +1089,7 @@ class TestMateFaultPayload(BenchWorkspace):
     attribute, present on every arm and `None` where the arm carries
     none — so each row below reads the attributes its arm CARRIES and
     then reads attributes of other arms off the same value, which must
-    be `None` rather than raise.
-
-    Two attributes have no row that carries them here and that is a
-    fact about the DOORS, not a gap: `margin_low`/`margin_high` are the
-    interval scalar's enclosure, which no f64 solve produces.
-    `crates/pncad-py/src/tests.rs`'s arm table builds them directly;
-    the rows here own the other half, that they are present and `None`
-    on the arms an author can reach."""
+    be `None` rather than raise."""
 
     def two_instances(self):
         """A loose post, which a mate places, and a shelf pinned to the
@@ -1130,73 +1099,29 @@ class TestMateFaultPayload(BenchWorkspace):
         shelf_i = self.pinned(doc, self.shelf_ref)
         return doc, post_i, shelf_i
 
-    def test_a_mate_that_does_not_measure_a_lever_carries_neither_half(self):
-        """Both are `None`, not zeroes: an arm whose decision
-        measured no lever names no lever at all — here a mate the rest
-        of its bundle already fixes, refused over-constrained where the
-        placement evaluates. Three plane mates pin the post where it
-        stands, and a fourth on its top is an equation they fix."""
+    def test_an_overconstrained_bundle_names_its_placement_and_what_it_leaves(self):
+        """A mate the rest of its bundle already fixes is refused where
+        it is authored: two plane mates fix a normal twice. The fault
+        names the placement and its constraints and how many freedoms
+        the bundle would leave, and no single mate."""
         doc = Doc("payload-over")
         post = doc.insert(Node.instantiate_part(self.post_ref, []))
 
         def facing(normal):
             return PoseDef.plane(post, bench_scene.face_facing(self.ws, doc, post, normal))
 
-        for normal, role in (
-            ((0.0, 0.0, -1.0), "xy"),
-            ((-1.0, 0.0, 0.0), "yz"),
-            ((0.0, -1.0, 0.0), "zx"),
-        ):
-            doc.constrain(
-                post, Mate(facing(normal), WorldRead.through(role).flip(), ContactClass.Rest)
-            )
+        doc.constrain(
+            post, Mate(facing((0.0, 0.0, -1.0)), WorldRead.through("xy").flip(), ContactClass.Rest)
+        )
         raised = WorldRead.through("xy").slide(WorldRead.through("z"), POST_HEIGHT * m)
-        doc.constrain(post, Mate(facing((0.0, 0.0, 1.0)), raised, ContactClass.Rest))
-        fault = solve_document(doc, resolver=self.ws).fault(post)
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.constrain(post, Mate(facing((0.0, 0.0, 1.0)), raised, ContactClass.Rest))
+        fault = caught.exception.fault
         self.assertEqual(fault.variant, "mate_overconstrained")
         self.assertEqual(fault.placement, post)
-        self.assertEqual(fault.residual.variant, "trivial")
+        self.assertEqual(fault.free, 1)
         self.assertIsNone(fault.mate)
-        self.assertIsNone(fault.lever_residual)
-        self.assertIsNone(fault.lever_arm)
-        self.assertIsNone(fault.clash)
         self.assertIn(pncad.OVERCONSTRAINED_RECOURSE, str(fault))
-
-    def test_a_residual_clash_carries_its_pure_number_and_its_arm(self):
-        """A membership margin that levers a PURE NUMBER — here a
-        second rest whose plane is turned a quarter off the first, so no
-        one rotation aligns both normals — crosses as `lever_residual`,
-        a bare float, beside the arm.
-        `clash` is the product, to the kernel's own rounding, and the
-        message says the number is dimensionless rather than calling it
-        radians."""
-        doc, post_i, shelf_i = self.two_instances()
-        a_top = self.instance_face(doc, post_i, CapEnd.End)
-        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
-        side = bench_scene.face_facing(self.ws, doc, shelf_i, (1.0, 0.0, 0.0))
-        held = doc.constrain(
-            post_i,
-            Mate(PoseDef.plane(post_i, a_top), PoseDef.flip(PoseDef.plane(shelf_i, s_bottom)), ContactClass.Rest),
-            resolver=self.ws,
-        )
-        added = doc.constrain(
-            post_i,
-            Mate(PoseDef.plane(post_i, a_top), PoseDef.flip(PoseDef.plane(shelf_i, side)), ContactClass.Rest),
-            resolver=self.ws,
-        )
-        fault = solve_document(doc, resolver=self.ws).fault(post_i)
-        self.assertEqual(fault.variant, "mate_contradictory")
-        self.assertEqual((fault.held, fault.added), (held, added))
-        self.assertIsNotNone(fault.predicate)
-        self.assertIsInstance(fault.lever_residual, float)
-        self.assertGreater(fault.lever_residual, 0.0)
-        self.assertIsNotNone(fault.lever_arm)
-        self.assertEqual(
-            fault.clash.meters,
-            fault.lever_residual * fault.lever_arm.meters,
-        )
-        self.assertIn("dimensionless residual", str(fault))
-        self.assertNotIn(" rad", str(fault))
 
     def test_a_solve_read_for_another_document_names_both(self):
         """`SolvedPoses.placement` must answer with a frame or not at
@@ -1232,7 +1157,7 @@ class TestMateFaultPayload(BenchWorkspace):
         self.assertEqual(fault.variant, "mate_no_chart")
         self.assertEqual(fault.why, "point_rotation")
         self.assertEqual(fault.value_ref.placement, post_i)
-        for absent in ("mate", "side", "coord", "named", "lever_arm"):
+        for absent in ("mate", "side", "coord", "named", "free"):
             self.assertIsNone(getattr(fault, absent), absent)
 
 

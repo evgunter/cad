@@ -37,13 +37,7 @@ impl Rec {
             node: Box::new(node),
             fresh: Vec::new(),
         };
-        let applied = apply(
-            &self.doc,
-            &edit,
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("edit applies");
+        let applied = apply(&self.doc, &edit, Tol::witness()).expect("edit applies");
         self.doc = applied.doc;
         applied.record.minted.expect("minted id")
     }

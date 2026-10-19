@@ -143,7 +143,6 @@ fn wired() -> (
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         ) {
             Ok(applied) => {
                 rows.push(Row {

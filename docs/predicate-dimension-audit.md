@@ -268,23 +268,42 @@ measurement, absent from the alternation while being named in this
 file's own first paragraph. That residue is this table's standing cost,
 disclosed rather than discovered.
 
-**Twelve names carry the K vocabulary and never reach the funnel**, so
+**These names carry the K vocabulary and never reach the funnel**, so
 they are correctly outside the 250 and a reader who greps for one
 should know why. They live only in an `Indeterminate.predicate`:
 - six through `predicate: Some("…")`: `carrier_kind`,
   `contact_tangent_independent`, `contact_rest_senses_opposed`,
   `contact_rest_ladder_invariant`, `transversality`, `validate_probe`;
-- five as the name argument of a `k_stats::straddle` call, two decided
-  bounds on one quantity straddling the band:
+- the name argument of each shipped `k_stats::straddle` call, two
+  decided bounds on one quantity straddling the band (the call sites
+  are the list: `grep -rn 'straddle(' crates/ --include=*.rs`, outside
+  `#[cfg(test)]`, whose `lane_straddle`, `finish_straddle` and
+  `rh_straddle` are fixtures):
   - an ellipse's lower and upper bound on one distance, or on its span's
     overlap, under each caller's conic rows: `bool_contact_arc_straddle`,
-    `point_in_arc_loop_conic_straddle`, `pm_census_ef_cross_arc_straddle`
-    and `bool_sphere_region_arc_straddle` (whose arcs are circles, whose
-    two bounds are one, so it is never raised);
+    `point_in_arc_loop_conic_straddle`, `pm_census_ef_cross_arc_straddle`,
+    and `bool_sphere_region_arc_straddle` and
+    `bool_torus_region_arc_straddle` (each a circle edge's rows, whose
+    two bounds are one, so neither is raised);
   - `pc_axis_plane_parallel_straddle`, a plane×cylinder section on the
     declared-tangency path read in the rulings' lane over a wall face's
     reach measured over each edge's span and in the conic lane over it
     measured round each edge's whole turn (`chord_join::agreed_section`);
+  - `pm_census_ee_span_straddle` and `pm_census_ee_gap_straddle`, the
+    lower and upper bound of a reach or of the lines' gap that the
+    census's crossing lane reads off the closed form's rounding
+    (`crossing_reading`);
+  - `curve_carrier_straddle`, `geom`'s on-carrier reading of a point
+    whose lower bound on the distance from a conic and the gap at its
+    foot straddle (`curves::on_carrier`);
+  - `curve_pair_span_end_straddle`, a span end's side read Zero against
+    the point's chord to that end, and `curve_pair_span_past_straddle`,
+    a kept piece's clearance read near against that chord
+    (`curve_pair::span`);
+  - `curve_pair_meet_stretch`, two meetings of one stretch read apart
+    with a point between them read on (`curve_pair::meet`);
+  - and a blend's battery straddle, which carries its decision's own
+    funnel row, so it adds no name here;
 - one, `plane_nurbs_transversality_reported`, as the name argument of a
   `k_stats::gate_measured` call.
 
@@ -469,6 +488,9 @@ which is what actually moves the number.
 | boolean/sphere_region.rs (`SphereFaceRegion::contains`'s boundary pass, through `splitting::containment::ConicArc::hit` on the arc's circle) | bool_sphere_region_arc_span | `(τ − w)` levered by the radius; where the point sits against the arc is `ConicArc::hit`'s two readings (the row above) | m | OK |
 | boolean/sphere_region.rs (the rays) | bool_sphere_region_arm / bool_sphere_region_span / bool_sphere_region_at / bool_sphere_region_order / bool_sphere_region_cross | a ray direction's tangential fraction `\|raw\|/\|toward\|` × the sphere's radius; a root's parameter less a span end × the arc's radius (arc length); a crossing's angle along the great circle × the sphere's radius (geodesic length), and two such lengths' difference; the heading's sine against the face side × the sphere's radius | m | OK |
 | boolean/sphere_region.rs (`ray_roots`, through `circle_roots::first_harmonic_roots_in_band`) | bool_sphere_region_roots_noise / _coaxial / _extreme / _slack | the first-harmonic door's rows, as `bool_conic_quadric_first_*`'s: the arc's signed distance off the ray's plane through the centre, `ĝ·(C − c) + ρ(ĝ·û) cos θ + ρ(ĝ·v̂) sin θ`, its rounding charge, its extremes, and a root's arc slack at the arc's radius | m | OK |
+| boolean/torus_region.rs (`TorusFaceRegion::contains`'s boundary pass, through `splitting::containment::ConicArc::hit` on a circle edge and `SpiricArc::contact` on an oval arc) | bool_torus_region_arc_span / bool_torus_region_spiric_end / _clear / _on / _leaf | `(τ − w)` levered by the radius; an oval arc's end distance, a piece ball's clearance, a point distance and a ball radius | m | OK |
+| boolean/torus_region.rs (the paths) | bool_torus_frame_radius / bool_torus_region_family / bool_torus_region_component / bool_torus_region_span / bool_torus_region_at / bool_torus_region_corner / bool_torus_region_order / bool_torus_region_cross | the point's distance from the axis; a circle edge's axis sine × its radius and its radius less `R` (class selection); a root's separation from the plane's other curve (`(y − c)·ρ̂` on a meridian plane, `ρ − R` on a parallel plane, a circle's distance from its mirror and from itself, `(y − c)·m` on an oval's plane), and an edge in a leg's plane against the leg's own circle (a meridian's centre against `ρ̂`, a parallel's radius less the leg's); a root's parameter less a span end × the circle's radius or the tube's (arc length, or a lower bound on it); a crossing's angle along its leg × the leg's radius, against the leg's start, its corner, or another crossing; the heading's sine against the face side × the tube's radius | m | OK |
+| boolean/torus_region.rs (`circle_roots`, `plane_roots`, through `circle_roots::first_harmonic_roots_in_band`) | bool_torus_region_roots_noise / _coaxial / _extreme / _slack | the first-harmonic door's rows: a circle edge's signed distance off a meridian leg's plane in its own parameter, or a leg's signed distance off an edge's plane in the leg's parameter; its rounding charge, its extremes, and a root's arc slack at the circle's radius | m | OK |
 | boolean/insert.rs (`strut_order`) | bool_strut_side | `n̂·(ĝ × ê)`: the sine of a strut germ's angle from the arrival edge, × the shared entry's arm — its distance at that arm from the arrival edge's line; a decided zero is placed by `bool_dir_same` (`sectors::direction_sense`) | m | OK (JOIN reflex corner) |
 | boolean/insert.rs (`strut_order`) | bool_strut_order | `n̂·(ĝ₀ × ĝ₁)`: the sine of the angle between two strut germs in one half-turn, × the shared entry's arm; a decided zero refuses (`decide_nonzero`) | m | FIXED (JOIN reflex corner: was the cosine difference `(ĝ₀ − ĝ₁)·ê` × arm, second order in the spacing beside 0 and π, with a decided zero read as an order; before that, dimensionless) |
 | boolean/vtxfac.rs (`germ_order`) | bool_strut_side | `n̂·(ĝ × ĝ₀)`: the sine of a pierce germ's angle from the ring's first germ, × each arm a reading of it uses (its own pair's, the shorter of the two arms, and every comparison's, the shortest of three) — its distance at that arm from the first germ's line; in band with its sense along (`bool_dir_same`) at any of them, the two germs coincide and it refuses as a `Coincide::Sectors` coincidence, so `strut_order`'s zero arm never places a germ at the first; the order itself is `strut_order`'s rows above | m | OK |

@@ -49,7 +49,6 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                     fresh: Vec::new(),
                 },
                 Tol::witness(),
-                &editor_core::RefusingReach,
             )
             .unwrap();
         *doc = applied.doc;

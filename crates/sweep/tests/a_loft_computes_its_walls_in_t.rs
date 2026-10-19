@@ -333,7 +333,8 @@ fn an_enclosure_reaching_an_infinity_refuses_as_not_finite() {
 /// weights and knots are points at every scalar
 /// (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`):
 /// - an arc's weight `cos(Δ/2)` is an enclosure at `Interval`, from a
-///   wide bulge or from rounding alone, so an arc section refuses;
+///   wide bulge or from rounding alone, so an arc section refuses at the
+///   carrier's door (`CarrierWeightNotAPoint`, until C6's S4/S5);
 /// - three sections at v-degree 1 put their middle parameter in the
 ///   knot vector, and the fit refuses a wide one as a carrier's knot.
 #[test]
@@ -353,7 +354,9 @@ fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
         ),
     ] {
         match loft_body::<Interval>(&[section(b), section(b)], &places, 1, Tol::witness()) {
-            Err(LoftError::Skin(SkinError::ArcWeightNotAPoint { section: 0 })) => {}
+            Err(LoftError::Skin(SkinError::Structure(SplineError::CarrierWeightNotAPoint {
+                ..
+            }))) => {}
             other => panic!(
                 "{what}: expected section 0's arc refusal, got {:?}",
                 other.map(|_| ())
@@ -427,16 +430,22 @@ fn point_inputs_loft_as_the_lifted_f64_skin_at_interval() {
     }
 }
 
-/// At an enclosure scalar curves that differ in degree are not made
-/// compatible: degree elevation is the projective knot algebra, which
-/// `Interval` does not run, so the second curve refuses by name. Curves
-/// already compatible come back as themselves.
+/// **At an enclosure scalar the knot algebra runs homogeneous (C6 S4).**
+/// A line and an integral quadratic at `Interval` are made compatible:
+/// the line is elevated to degree 2 as `(w·P, w)`, so its unit weights
+/// stay exactly 1 and its new middle pole is the exact midpoint, the
+/// `f64` elevation lifted; the carrier's door admits it. A rational
+/// section whose refinement writes a weight wider than a point (from
+/// rounding alone) refuses at the door, typed, at that weight. Curves
+/// already compatible come back as themselves. Red where the enclosure
+/// branch refuses what the algebra can do, forms a weight quotient that
+/// widens a unit weight, or admits a wide weight.
 #[test]
-fn make_compatible_at_interval_refuses_what_needs_the_knot_algebra() {
+fn make_compatible_at_interval_runs_the_knot_algebra_homogeneous() {
     use core::num::NonZeroUsize;
     use geom::NurbsCurve3;
-    use geom_core::spline::Knots;
-    use geom_core::{Interval, Point3};
+    use geom_core::spline::{Knots, SplineError};
+    use geom_core::{Bounds, Interval, Point3};
     use sweep::{SketchSegment, SkinError, make_compatible, segment_curve};
     let i = Interval::from_f64;
     let p = |x: f64, y: f64| Point2::new(i(x), i(y));
@@ -450,19 +459,67 @@ fn make_compatible_at_interval_refuses_what_needs_the_knot_algebra() {
     )
     .expect("a line converts at Interval");
     let three = NonZeroUsize::new(3).expect("three");
-    let quadratic = NurbsCurve3::new(
-        Knots::new(vec![(i(0.0), three), (i(1.0), three)], 2).expect("clamped quadratic knots"),
+    let quadratic = |w: f64| {
+        NurbsCurve3::new(
+            Knots::new(vec![(i(0.0), three), (i(1.0), three)], 2).expect("clamped quadratic knots"),
+            vec![
+                Point3::new(i(0.0), i(0.0), i(1.0)),
+                Point3::new(i(0.5), i(0.5), i(1.0)),
+                Point3::new(i(1.0), i(0.0), i(1.0)),
+            ],
+            vec![i(1.0), i(w), i(1.0)],
+        )
+        .expect("a quadratic")
+    };
+    let both = make_compatible(&[line.clone(), quadratic(1.0)]).expect("the line elevates");
+    let elevated = &both[0];
+    assert_eq!(elevated.degree(), 2);
+    let want: Vec<[f64; 3]> = vec![[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [1.0, 0.0, 0.0]];
+    let got: Vec<[f64; 3]> = elevated
+        .control()
+        .iter()
+        .map(|q| {
+            let pt = |v: Interval| {
+                assert_eq!(v.lo(), v.hi(), "a pole of the elevated line is a point");
+                v.lo()
+            };
+            [pt(q.x), pt(q.y), pt(q.z)]
+        })
+        .collect();
+    assert_eq!(got, want, "the elevated line's poles");
+    for w in elevated.weights() {
+        assert_eq!(
+            (w.lo(), w.hi()),
+            (1.0, 1.0),
+            "a unit weight stays exactly 1"
+        );
+    }
+    // A rational section refined onto an interior knot writes a weight
+    // that rounds: the door refuses it.
+    let with_knot = NurbsCurve3::new(
+        Knots::new(
+            vec![
+                (i(0.0), three),
+                (i(0.3), NonZeroUsize::MIN),
+                (i(1.0), three),
+            ],
+            2,
+        )
+        .expect("knots with one interior"),
         vec![
             Point3::new(i(0.0), i(0.0), i(1.0)),
-            Point3::new(i(0.5), i(0.5), i(1.0)),
+            Point3::new(i(0.25), i(0.5), i(1.0)),
+            Point3::new(i(0.75), i(0.5), i(1.0)),
             Point3::new(i(1.0), i(0.0), i(1.0)),
         ],
-        vec![i(1.0); 3],
+        vec![i(1.0); 4],
     )
-    .expect("an integral quadratic");
-    match make_compatible(&[line.clone(), quadratic]) {
-        Err(SkinError::IncompatibleAtEnclosure { section: 1 }) => {}
-        other => panic!("expected section 1's refusal, got {:?}", other.map(|_| ())),
+    .expect("an integral quadratic with an interior knot");
+    match make_compatible(&[quadratic(0.7), with_knot]) {
+        Err(SkinError::KnotAlgebra(geom_core::spline::KnotAlgebraError::Structure(
+            SplineError::CarrierWeightNotAPoint { .. },
+        ))) => {}
+        other => panic!("a rational refinement at Interval: {:?}", other.map(|_| ())),
     }
     let same = make_compatible(&[line.clone(), line.clone()]).expect("two lines are compatible");
     for c in &same {

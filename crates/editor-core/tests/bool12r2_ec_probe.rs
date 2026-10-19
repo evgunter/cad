@@ -15,7 +15,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::Formula;
-use editor_core::{LoopProgram, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId};
+use editor_core::{LoopProgram, ProfileProgram, ProgramStep, ProgramTarget};
 use geom_core::{Point2, Tol};
 use profile::{Open, Start};
 use std::f64::consts::FRAC_PI_2;

@@ -431,8 +431,7 @@ fn one_seat_puts_a_loose_stack_in_the_world_and_the_target_stays() {
         [1.0, 1.0],
     );
     let applied = edits.iter().fold(doc.clone(), |doc, edit| {
-        let applied = editor_core::apply(&doc, edit, Tol::witness(), &editor_core::RefusingReach)
-            .expect("the seat is admitted");
+        let applied = editor_core::apply(&doc, edit, Tol::witness()).expect("the seat is admitted");
         assert!(applied.maintenance.is_empty(), "{:?}", applied.maintenance);
         applied.doc
     });

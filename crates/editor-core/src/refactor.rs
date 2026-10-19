@@ -2228,9 +2228,7 @@ fn remap_node(
             then: (1u32..)
                 .zip(then)
                 .map(|(i, section)| {
-                    section.try_map(|&p| rd(crate::OperandSlot::Section(i), p), &mut |&v| {
-                        Ok(v)
-                    })
+                    section.try_map(|&p| rd(crate::OperandSlot::Section(i), p), &mut |&v| Ok(v))
                 })
                 .collect::<Result<_, _>>()?,
             v_degree: *v_degree,
@@ -2381,8 +2379,7 @@ struct VarCarry<'s> {
 fn reads_a_number(source: &ProfileDoc, var: VarId) -> bool {
     match source.var(var).map(crate::Var::def) {
         Some(VarDef::Free(crate::doc::FreeVar::Continuous {
-            distribution: None,
-            ..
+            distribution: None, ..
         })) => source.var_name(var).is_none(),
         Some(VarDef::Defined(_)) => source.definition_reads(var).is_empty(),
         _ => false,
@@ -2805,9 +2802,7 @@ pub fn split(
         }
     }
     // Which copies are the world's: a part delivers only its world
-    // (A10), so a cut copy in a loose space crosses nowhere. The solve
-    // levers through the caller's seam, as the part's inserts do.
-    let part_reach = crate::eval::PartReach::<f64>::with_resolver(resolver, tol);
+    // (A10), so a cut copy in a loose space crosses nowhere.
     let opts = crate::eval::EvalOptions {
         resolver: resolver.cloned(),
         ..crate::eval::EvalOptions::default()
@@ -3288,7 +3283,7 @@ pub fn split(
     }
     // ---- The part document, as recorded edits from empty ----
     let empty = Doc::empty(part_id, tol);
-    let mut part = Recording::start(&empty, tol, &part_reach);
+    let mut part = Recording::start(&empty, tol);
     let part_refused = |error: EditError| SplitError::PartEdit {
         error: Box::new(error),
     };
@@ -3510,8 +3505,7 @@ pub fn split(
     // ---- The remainder, as recorded edits from the input ----
     // The remainder inserts one instance pinned to the world, rebinds,
     // re-points and deletes: no edit of it levers a pair.
-    let rem_reach = crate::mate::RefusingReach;
-    let mut remainder = Recording::start(doc, tol, &rem_reach);
+    let mut remainder = Recording::start(doc, tol);
     let rem_refused = |error| SplitError::RemainderEdit {
         error: Box::new(error),
     };
@@ -3543,8 +3537,13 @@ pub fn split(
         .output(instance, 0)
         .ok_or(SplitError::InstanceUnstood)
         .and_then(|copies| {
-            crate::mate::stand(remainder.doc(), &crate::Operand::Var(copies), &with_part, tol)
-                .map_err(|_| SplitError::InstanceUnstood)
+            crate::mate::stand(
+                remainder.doc(),
+                &crate::Operand::Var(copies),
+                &with_part,
+                tol,
+            )
+            .map_err(|_| SplitError::InstanceUnstood)
         })?;
     let mate = remainder
         .apply_recorded(DocEdit::AddConstraint {
@@ -3927,7 +3926,6 @@ pub fn inline(
     resolver: &std::sync::Arc<dyn PartResolver>,
     tol: Tol,
 ) -> Result<InlineOutcome, InlineError> {
-    let reach = crate::eval::PartReach::<f64>::with_resolver(Some(resolver), tol);
     let Some(node) = doc.node(instance) else {
         return Err(InlineError::UnknownNode {
             id: SpokenNode::absent(instance),
@@ -4068,7 +4066,9 @@ pub fn inline(
         // numbers is pinned again at its copy's moved pose; one reading
         // a variable cannot be, and refuses.
         for placement in part.placements() {
-            let Some(node) = part.node(placement) else { continue };
+            let Some(node) = part.node(placement) else {
+                continue;
+            };
             let Some(bundle) = crate::mate::solve::bundle_of(node) else {
                 continue;
             };
@@ -4256,7 +4256,7 @@ pub fn inline(
         let first = placements.next()?;
         placements.all(|p| p == first).then_some(first)
     };
-    let mut current = Recording::start(doc, tol, &reach);
+    let mut current = Recording::start(doc, tol);
     let refused = |error| InlineError::Edit {
         error: Box::new(error),
     };

@@ -770,7 +770,6 @@ fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect_err("the outer mate never enters the document");
     assert!(
@@ -1599,15 +1598,15 @@ fn a_carried_attribution_says_the_parts_label_and_this_documents_own_is_spoken()
 
 // ---- A carried level is spoken from the part only where the part is held ----
 
-/// A stand whose second constraint contradicts its first: the top
-/// cube rests on the base's top cap, and a second rest then seats it
-/// half a unit higher. Both are the top cube's bundle, in a document
-/// named `id`, the top cube labelled `label`. The door decides what the
-/// recipe does and nothing measured, so it admits the second; the solve
-/// finds the pair holds nowhere. Every document's mint starts at the
-/// zero chain, so two such stands mint the same ids. Answers the
-/// document and its two constraints.
-fn contradicted(
+/// A stand whose second constraint fixes what its first does: the top
+/// cube rests on the base's top cap, and a second rest beside it, past
+/// the door (the state a doctored save leaves), seats it half a unit
+/// higher. Both are the top cube's bundle, in a document named `id`,
+/// the top cube labelled `label`; the solve refuses the pair
+/// overconstrained. Every document's mint starts at the zero chain, so
+/// two such stands mint the same ids. Answers the document and its two
+/// constraints.
+fn overconstrained(
     store: &PartStore,
     cube: DocRef,
     cube_body: RecipeNodeId,
@@ -1626,7 +1625,9 @@ fn contradicted(
         )
     };
     let (doc, held) = fixture::constrain_at(doc, c1, rest(0.0));
-    let (doc, added) = fixture::constrain_at(doc, c1, rest(0.5));
+    let (doc, added) =
+        editor_core::test_support::beside_past_the_bundle_rule(&doc, c1, rest(0.5), Tol::witness());
+    let added = MateRef::new(c1, added);
     let (doc, _) = step(
         doc,
         DocEdit::SetLabel {
@@ -1639,7 +1640,7 @@ fn contradicted(
 
 /// **A part's nodes are said as the pinned part holds them, never as
 /// the outer document holds the same ids.** The part and the outer
-/// document both hold a contradicted pair of mates under the same ids,
+/// document both hold an overconstrained pair of mates under the same ids,
 /// labelled apart. The outer document's own failure speaks both of its
 /// mates from the outer document and names its failing node once; the
 /// instance's fault and its carried level say the part's labels in a
@@ -1649,10 +1650,10 @@ fn contradicted(
 fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids() {
     let mut store = PartStore::default();
     let (cube, cube_body) = store.insert_part(cube_part("speak-c-cube"), Tol::witness());
-    let (inner, _) = contradicted(&store, cube, cube_body, "speak-c-inner", "inner top");
+    let (inner, _) = overconstrained(&store, cube, cube_body, "speak-c-inner", "inner top");
     let inner_ref = store.insert(inner.clone(), Tol::witness());
     let (outer, [held, _added]) =
-        contradicted(&store, cube, cube_body, "speak-c-outer", "outer top");
+        overconstrained(&store, cube, cube_body, "speak-c-outer", "outer top");
     assert_eq!(
         inner.ids(),
         outer.ids(),
@@ -1669,10 +1670,10 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
     assert_eq!(
         own.spoken(&outer, &ev),
         format!(
-            "InstantiatePart \"outer top\" ({tt}) failed: the mate solve refused: constraint 1 \
-             of this node and constraint 2 of this node cannot both hold: {}",
+            "InstantiatePart \"outer top\" ({tt}) failed: the mate solve refused: this node's \
+             each of constraints 1, 2 fixes an equation {}",
             own.to_string()
-                .split_once(" cannot both hold: ")
+                .split_once(" fixes an equation ")
                 .expect("the pair's sentence")
                 .1
         ),
@@ -1740,7 +1741,7 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
 fn a_part_fault_says_the_labels_its_pin_fixes() {
     let mut store = PartStore::default();
     let (cube, cube_body) = store.insert_part(cube_part("speak-d-cube"), Tol::witness());
-    let (inner, [held, _]) = contradicted(&store, cube, cube_body, "speak-d-inner", "inner top");
+    let (inner, [held, _]) = overconstrained(&store, cube, cube_body, "speak-d-inner", "inner top");
     let (relabelled, _) = step(
         inner.clone(),
         DocEdit::SetLabel {
@@ -1887,7 +1888,6 @@ fn a_mate_refused_at_the_door_speaks_the_nodes_its_fault_names() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect_err("the mate's `on` reads another copy");
     let editor_core::EditError::MateRefused { node, fault, .. } = &err else {

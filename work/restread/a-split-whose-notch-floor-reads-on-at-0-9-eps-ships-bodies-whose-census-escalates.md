@@ -2,11 +2,12 @@
 id: a-split-whose-notch-floor-reads-on-at-0-9-eps-ships-bodies-whose-census-escalates
 kind: issue
 title: A split whose notch floor is read On 0.9 ε off the plane ships pieces whose tier-3′ census escalates pm_census_ef_cut_gap at 1.4–2.4 ε
-status: open
+status: closed
 opened: 2026-10-11
 priority: P2
 cost: M
 refs: [the-census-edge-face-cut-escalates-a-line-gap-at-a-boundary-vertex-beyond-the-edge, a-split-recharts-an-edge-at-a-vertex-read-on-off-the-plane-into-the-band]
+closed: 2026-10-18
 ---
 
 Found by CLEAVE while checking that the split's witness P123 builds
@@ -72,3 +73,14 @@ for a segment, not a near-touch between the lobes. It is the shape of
 and `the-census-crossing-lane-escalates-a-line-gap-where-the-segments-lie-far-apart`.
 Re-run once those land. If tier 3′ is then `Ok`, tighten the assertion
 to `Ok(())` and close this row.
+
+## Closed
+
+Re-run 2026-10-18 on main `ae4f89d4` (PR 5259 and PR 5261 both merged)
+and on `restread/no-shared-key-crossing`: at δ = 0.9 ε, every pose,
+either way up, both pieces pass tier 3′ with no contact records at
+ε = 1e-6, 1e-9 and 1e-12. The two edges through the floor share its
+point key, so PR 5259's shared-point reading and its in-band parallel
+settle (`settle_in_band`) answer them.
+`a_notch_floor_in_the_band_splits_sound` now asserts
+`validate_pseudomanifold(..) == Ok(())`.

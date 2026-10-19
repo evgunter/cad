@@ -27,11 +27,9 @@ symbol beside them; the symbol is the stable half.
   store: the pin IS the referenced content.
 - **Determinism** (D9): same build, same inputs, same outputs. The store is
   an input of an evaluation only where the evaluation crosses the seam.
-- **Free-move is display state** (G3, over loose spaces by DI5): a display
-  frame over a loose space's picture, no solver, admitted for a loose space
-  and keyed by its root (DI5). The viewer still admits and keys by
-  instance, for an instance no mate names (`display.rs`;
-  `work/intent/free-move-admits-a-loose-space.md`).
+- **Free-move is display state** (G3, over shown spaces by DI5): a display
+  frame over one shown space's picture, no solver, keyed by that space
+  (DI5; `crates/viewer/src/display.rs`).
 
 ## DI1 — A node id names one authored node wherever it is minted
 
@@ -145,27 +143,26 @@ save the store can serve. Two acts, both typed:
 existing, requested }`, and `Workspace::save_as_new_document`, with a random
 id.*
 
-## DI5 — A free-move frame belongs to the loose space it was drawn for
+## DI5 — A free-move frame belongs to the space it was drawn for
 
-Releasing a free-move gesture writes nothing to the document. A free-move
-moves the picture of a loose space (D10: a copy whose bundle pins less than
-its body needs, with everything pinned to it), which D10 draws from display
-state no logic reads; the release ends the gesture and leaves the display
-frame where it is. The frame is a held value like any other on this page, so
-it names the world it was drawn for: it is keyed by the loose space's root,
-and it is dropped when that key stops naming a loose space — a placement pins
-the copy, an undo or an edit removes the root (`DisplayState::prune`).
+Several spaces can be shown at once in the GUI, overlapping. A free-move
+repositions the picture of one shown space and changes no geometry in any
+space: releasing the gesture writes nothing to the document, and the
+release leaves the display frame where it is. The frame is a held value
+like any other on this page, so it names the space it was drawn for: it is
+keyed by that space, and it is dropped when that key stops naming a shown
+space (an undo or an edit removes it; `DisplayState::prune`).
 Consequences:
 
-- Keeping a position means stating it: a placement's mates read poses off
+- Keeping a relation means stating it: a placement's mates read poses off
   geometry and its values are numbers the user types. No edit reads the
-  display frame, and no gesture writes one into the document.
-- A reopened document draws its loose spaces at a default pose, since display
-  state ends with the session. If that layout is ever kept, it is viewer data
-  outside the canonical bytes, never hashed into a `ContentPin` and never read
-  by evaluation.
-- G3's "hiding and free-move are display state, never persisted" stands, over
-  loose spaces.
+  display frame, and no gesture writes one into the model.
+- A free-move may write display metadata (Ev, PR 5312), so a layout can
+  outlive the session. It is viewer data outside the canonical bytes, never
+  hashed into a `ContentPin` and never read by evaluation; without it, a
+  reopened document draws its shown spaces at a default pose.
+- G3's "hiding and free-move are display state, never persisted" stands,
+  over shown spaces.
 
 ## What this doc does not touch
 

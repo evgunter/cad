@@ -18,7 +18,7 @@ use editor_core::{
     Bodies, BooleanValue, CancelToken, EntityKind, EvalOptions, Evaluation, Node, Operand,
     ProfileDoc, RecipeNodeId, RoleSeg, StableName, ValuePayload, VarId, evaluate,
 };
-use fixture::{insert, len, on_frame, scl, table};
+use fixture::{insert, len, on_frame, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {

@@ -35,7 +35,6 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, x0)),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -56,7 +55,6 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -69,7 +67,6 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc
@@ -185,7 +182,6 @@ fn circle_radius_edit_keeps_names() {
                     fresh: Vec::new(),
                 },
                 Tol::witness(),
-                &editor_core::RefusingReach,
             )
             .unwrap()
             .doc;
@@ -198,7 +194,6 @@ fn circle_radius_edit_keeps_names() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc
@@ -217,7 +212,6 @@ fn circle_radius_edit_keeps_names() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -325,7 +319,6 @@ fn hole_circle_anchor_recovers_reversal() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -339,7 +332,6 @@ fn hole_circle_anchor_recovers_reversal() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;

@@ -298,7 +298,6 @@ fn a_measure_reference_of_another_kind_refuses_at_the_door() {
                 b: SitedRef::at_mint(face),
             }],
             Tol::witness(),
-            &editor_core::RefusingReach,
         );
         let Err(err) = refused else {
             panic!("{what}: the insert refuses");

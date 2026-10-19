@@ -2,11 +2,13 @@
 id: free-move-admits-a-loose-space
 kind: issue
 title: viewer: free-move admits a loose space and keys its frame by the space's root (DI5), not an instance no mate names
-status: open
+status: closed
 opened: 2026-10-17
 priority: P2
 cost: M
 blocked_on: [a-mate-relates-two-poses]
+pr: 5296
+closed: 2026-10-18
 ---
 
 
@@ -73,3 +75,43 @@ One thing the build should re-check: the value-gesture overlap argument at
 being a function of the node graph. A space is a function of the solve,
 which decides pinning by structure (A11's subgroup algebra), not by a
 slot's value. The argument should hold, but the build should state why.
+
+## Built
+
+`free_move_check` reads the space off an evaluation that answers the
+document, `DocSession::space_evaluation`: the landed one when it answers the
+committed document or the shown scratch. It refuses typed with `InTheWorld`,
+`NotEvaluated` or `NoSpace`, and `MateConstrained` is gone. `space_evaluation`
+accepts the scratch's landing too, because a value gesture leaves the node
+graph alone and pinning is structural (the overlap argument at
+`permitted_during_value_gesture` now says so). The one value-dependent answer
+is a refused placement.
+
+The probe slot and the `moves` map are keyed by root. `view` draws a frame over
+every placement in its space, so a pattern's copies pinned to the world no
+longer move with a probed instance, though a hide still reaches them.
+`prune(doc, eval)` runs at the edit with no evaluation and again at the landing
+with one. The landing's withdrawals wait in
+`DocSession::take_landed_withdrawals` until the app shows them as notices.
+
+The owed rows are `two_copies_mated_to_each_other_free_move_as_one`, which
+also drops the frame when a world pin goes back on, and
+`free_move_accepts_only_a_loose_space`, both in
+`crates/viewer/tests/assembly_display.rs`. The fixtures probe after
+`asm::unpin`, with `asm::where_b_stood` frames.
+
+A frame whose space joins another loose space, because its root's copy was mated
+onto another loose copy, goes at the landing with `MovedSpace`, which names
+the space it now lives in. The probe still admits the copy to that space
+(`a_frame_whose_space_joins_another_goes_saying_so`). An in-flight gesture is
+re-asked by the copy it was opened on as well as by its root
+(`gesture_check`): a delete kills it at the edit, and a split kills it at the
+landing (`deleting_a_gestures_copy_kills_it_at_the_edit`,
+`a_gesture_whose_copy_leaves_the_space_dies_at_the_landing`). The landing prune
+runs only on a landing of the committed document, so a value gesture's preview
+cannot discard committed display state. Review findings not
+taken in this PR have items of their own:
+`a-fused-instances-held-frame-has-no-reset`,
+`sync-scene-landing-notices-have-no-row`,
+`space-evaluation-compares-whole-docs-per-frame` and
+`gallery-probe-may-probe-nothing-under-di5`.
