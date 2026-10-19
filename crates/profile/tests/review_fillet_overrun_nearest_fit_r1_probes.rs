@@ -90,10 +90,10 @@ fn following_the_reported_deficit_can_leave_the_same_corner_refusing() {
     // so this bound does not move with ε; what can move is a gate
     // DOWNSTREAM of the fillet — at `CAD_TOLERANCE_EPS=1e-6` the closing
     // junction's side classification is in-band on this loop and the
-    // build escalates there instead of finishing, and at 1e-9 the arc
-    // leg's 5e-6 m remnant past the fillet is stored as its chord, which
-    // the fillet's joint reads as a corner. Either way the corner no
-    // longer refuses on the anchor fit.
+    // build escalates there instead of finishing, and the arc leg's
+    // 5e-6 m remnant past the fillet is stored as its chord, whose joint
+    // with the fillet the door may read in band. Either way the corner
+    // no longer refuses on the anchor fit.
     match arc_arc(CASE_120, R_120 - 0.0482) {
         Ok(_) => {}
         Err(e) => assert!(

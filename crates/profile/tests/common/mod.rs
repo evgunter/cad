@@ -1211,28 +1211,22 @@ pub fn grid_a(
 ///   classify in-band or tangent, a fact about the closing junction;
 /// - the fillet's own stored joint, where the arc leg's remnant past
 ///   the fillet is short enough to be stored as its chord. That chord
-///   turns from the fillet by half its sweep, a corner at the fillet's
-///   arm, so the door refuses the declared tangency, or escalates it on
-///   `path_junction_turn`, the closer's name too. The refusal blames the
-///   scene's resolution
-///   (`work/paths/a-short-run-outs-stored-chord-reads-a-declared-fillet-joint-transversal.md`).
+///   turns from the fillet by half its sweep over its own length, about
+///   four times its sagitta, and where that reads in band the door
+///   escalates on `path_fillet_joint_turn`.
 ///
 /// Neither is the fillet corner's fit, whose gates classify on the
 /// exact band.
 pub fn past_the_corner(e: &PathError<f64>) -> Option<&'static str> {
     match e {
         PathError::Escalated { source }
-            if source
-                .predicate
-                .is_some_and(|p| p.starts_with("path_junction_")) =>
+            if source.predicate.is_some_and(|p| {
+                p.starts_with("path_junction_") || p == "path_fillet_joint_turn"
+            }) =>
         {
             Some(source.predicate.unwrap_or("<unnamed>"))
         }
         PathError::JunctionTangent { .. } => Some("JunctionTangent"),
-        PathError::FilletCarrierBelowSceneResolution {
-            predicate: "path_junction_turn",
-            ..
-        } => Some("remnant chord"),
         _ => None,
     }
 }
@@ -1242,7 +1236,7 @@ pub fn past_the_corner(e: &PathError<f64>) -> Option<&'static str> {
 /// that bucket unnoticed. A row CI does not gate has no pin.
 pub fn past_the_corner_pin() -> Option<usize> {
     match format!("{:e}", tol().eps()).as_str() {
-        "1e-6" => Some(34),
+        "1e-6" => Some(16),
         "1e-9" => Some(4),
         "1e-12" => Some(0),
         _ => None,

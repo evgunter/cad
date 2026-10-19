@@ -338,17 +338,17 @@ fn short(s: &str) -> String {
 
 /// **What the stored-form read costs the K stream, guarded.**
 ///
-/// The read fires only names the verify layer already fires on the same
-/// loop — no new predicate — and it fires a FIXED number of them per
+/// The read fires the verify layer's own classifications on the same
+/// loop — the joint's turn under the read's own name, so its in-band
+/// refusal names the stored form's levers — and it fires a FIXED number of them per
 /// fillet, which this row pins per corner kind so a read that grew a
 /// classification cannot slip in unpriced.
 ///
 /// The read is three calls — `build_seg` on the fillet and on each
 /// constructed joint's neighbour, `joint_tangency` on each joint, which
-/// asks carrier identity of an arc/arc joint and then its turn
-/// (`path_junction_turn`). The door asks `path_junction_turn` of the
-/// two junctions it authors too, so the count holds those two as well:
-/// the funnel names one question, not who asked it.
+/// asks carrier identity of an arc/arc joint and then its turn under the
+/// read's own name (`path_fillet_joint_turn`), so the door's own
+/// junction turns are not in its share.
 #[test]
 fn the_stored_form_read_costs_a_fixed_k_count_per_fillet() {
     use geom_core::k_stats::Bracket;
@@ -412,24 +412,24 @@ fn the_stored_form_read_costs_a_fixed_k_count_per_fillet() {
         );
         // The read's own share: `build_seg`'s three gates on the fillet
         // and on each constructed joint's neighbour, plus the joint
-        // classification itself, and the door's two junction turns
-        // (this row's docs). Every name below is one the verify layer
-        // fires on this loop already.
+        // classification itself. Every name below is one the verify
+        // layer fires on this loop already, the turn under the read's
+        // own name.
         let share: usize = [
             "vertex_separation",
             "segment_straightness",
             "arc_diameter_clearance",
             "chord_side",
             "carrier_circles_identity",
-            "path_junction_turn",
+            "path_fillet_joint_turn",
         ]
         .iter()
         .map(|n| by.get(n).copied().unwrap_or(0))
         .sum();
         let expected = match name {
-            "line x line" => 11,
-            "line x arc" => 13,
-            "arc x arc" => 15,
+            "line x line" => 9,
+            "line x arc" => 11,
+            "arc x arc" => 13,
             other => panic!("unpriced corner kind {other}"),
         };
         assert_eq!(

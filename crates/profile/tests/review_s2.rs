@@ -703,14 +703,14 @@ enum IntervalLane {
 /// The predicates that judge a fillet's tangency: the decisions that
 /// call its offset carriers tangent, and the stored-form read of each
 /// joint the fillet declares (`Core::fillets_carry_their_tangency`,
-/// which re-runs validation's joint reading, `path_junction_turn`, on
-/// the loop the door is about to store). On a decided corner the
+/// which re-runs validation's joint reading on the loop the door is
+/// about to store, under its own name `path_fillet_joint_turn`). On a decided corner the
 /// turn's margin is a rim's error levered by the joint's arm.
 const TANGENCY_PREDICATES: [&str; 4] = [
     "fillet_offset_circles_external",
     "fillet_offset_circles_internal",
     "fillet_offset_line_circle",
-    "path_junction_turn",
+    "path_fillet_joint_turn",
 ];
 
 /// Whether `lane` admits an `Interval` escalation where `f64` built: a
