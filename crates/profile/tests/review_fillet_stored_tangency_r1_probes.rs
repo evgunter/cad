@@ -338,20 +338,17 @@ fn short(s: &str) -> String {
 
 /// **What the stored-form read costs the K stream, guarded.**
 ///
-/// The read fires only names the verify layer already fires on the same
-/// loop — no new predicate — and it fires a FIXED number of them per
+/// The read fires the verify layer's own classifications on the same
+/// loop — the joint's turn under the read's own name, so its in-band
+/// refusal names the stored form's levers — and it fires a FIXED number of them per
 /// fillet, which this row pins per corner kind so a read that grew a
 /// classification cannot slip in unpriced.
 ///
-/// The line × arc count has two legitimate values and the row takes
-/// either: the arc/arc funnel stops at `carrier_circles_external` when
-/// that clearance answers `Zero` (externally tangent carriers) and goes
-/// on to `carrier_circles_internal` when it does not, so the door's
-/// share is 11 or 12 decisions depending on which side of its leg the
-/// fillet sits. Both are the same three calls — `build_seg` on the
-/// fillet and on each constructed joint's neighbour, `joint_tangency` on
-/// each joint — and the row says so by branch rather than by pinning
-/// the one it happens to meet.
+/// The read is three calls — `build_seg` on the fillet and on each
+/// constructed joint's neighbour, `joint_tangency` on each joint, which
+/// asks carrier identity of an arc/arc joint and then its turn under the
+/// read's own name (`path_fillet_joint_turn`), so the door's own
+/// junction turns are not in its share.
 #[test]
 fn the_stored_form_read_costs_a_fixed_k_count_per_fillet() {
     use geom_core::k_stats::Bracket;
@@ -416,30 +413,28 @@ fn the_stored_form_read_costs_a_fixed_k_count_per_fillet() {
         // The read's own share: `build_seg`'s three gates on the fillet
         // and on each constructed joint's neighbour, plus the joint
         // classification itself. Every name below is one the verify
-        // layer fires on this loop already.
+        // layer fires on this loop already, the turn under the read's
+        // own name.
         let share: usize = [
             "vertex_separation",
             "segment_straightness",
             "arc_diameter_clearance",
             "chord_side",
-            "carrier_line_circle",
             "carrier_circles_identity",
-            "carrier_circles_external",
-            "carrier_circles_internal",
+            "path_fillet_joint_turn",
         ]
         .iter()
         .map(|n| by.get(n).copied().unwrap_or(0))
         .sum();
-        let expected: &[usize] = match name {
-            "line x line" => &[9],
-            // Two values, one situation: see this row's docs.
-            "line x arc" => &[11, 12],
-            "arc x arc" => &[15],
+        let expected = match name {
+            "line x line" => 9,
+            "line x arc" => 11,
+            "arc x arc" => 13,
             other => panic!("unpriced corner kind {other}"),
         };
-        assert!(
-            expected.contains(&share),
-            "{name}: the stored-form read fired {share} classifications, not {expected:?} \
+        assert_eq!(
+            share, expected,
+            "{name}: the stored-form read fired {share} classifications, not {expected} \
              — the K stream's price per fillet moved: {by:?}"
         );
         // Three segments read, always: the fillet and its two declared

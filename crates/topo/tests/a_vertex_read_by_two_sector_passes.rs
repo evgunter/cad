@@ -383,6 +383,52 @@ fn builds_along(
     builds_where(label, x, y, pose, along, ray, None)
 }
 
+/// The cells whose result the result gate refuses
+/// (`BooleanError::LineWedges`), by scene label and op, at every pose:
+/// each carries coincident edges whose wedges overlap, which every tier
+/// passed. They return with the re-pairing
+/// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
+const OVERLAPPING: &[&str] = &[
+    "around the lying pyramid, mirrored into the void, x ∩ y",
+    "around the lying pyramid, mirrored into the void, y ∩ x",
+    "around the lying pyramid, x − y",
+    "continuing the lying pyramid's face, mirrored into the void, x ∪ y",
+    "continuing the lying pyramid's face, mirrored into the void, y ∪ x",
+    "continuing the lying pyramid's face, the pyramid lying -0.5ε off the top, y − x",
+    "continuing the lying pyramid's face, the pyramid lying 0.5ε off the top, y − x",
+    "continuing the lying pyramid's face, y − x",
+    "inside the lying pyramid, y − x",
+    "on the lying pyramid's ray, beside it, mirrored into the void, y − x",
+    "under the lying pyramid's ray, mirrored into the void, x ∪ y",
+    "under the lying pyramid's ray, mirrored into the void, y ∪ x",
+    "under the lying pyramid's ray, the pyramid lying -0.5ε off the top, y − x",
+    "under the lying pyramid's ray, the pyramid lying 0.5ε off the top, y − x",
+    "under the lying pyramid's ray, y − x",
+];
+
+/// Whether `e` is the result gate's refusal of overlapping wedges in a
+/// cell [`OVERLAPPING`] names.
+fn overlap_pinned(label: &str, op: &str, e: &BooleanError) -> bool {
+    let overlap = matches!(
+        e,
+        BooleanError::LineWedges {
+            fault: topo::LineWedgeFault::Overlap { .. },
+            ..
+        }
+    );
+    let key = format!("{label}, {op}");
+    overlap && OVERLAPPING.contains(&key.as_str())
+}
+
+/// A cell [`OVERLAPPING`] names that builds is a pin gone stale.
+fn not_pinned(label: &str, op: &str) {
+    let key = format!("{label}, {op}");
+    assert!(
+        !OVERLAPPING.contains(&key.as_str()),
+        "{key}: builds, where the result gate refuses its overlapping wedges"
+    );
+}
+
 /// [`builds_along`], where `glued` names the faces two blocks of `y`
 /// share ([`three_prime`]).
 fn builds_where(
@@ -395,7 +441,7 @@ fn builds_where(
     glued: Option<[[f64; 3]; 4]>,
 ) -> usize {
     let mut held = 0;
-    let mut v = [0.0; 6];
+    let mut v = [Some(0.0); 6];
     // Each op's keep over (in x, in y).
     let probes: Vec<_> = samples(x, y, pose)
         .into_iter()
@@ -416,33 +462,43 @@ fn builds_where(
     .into_iter()
     .enumerate()
     {
+        let op = what;
         let what = format!("{label}, {}, {what}", pose.label);
         v[k] = match r {
             Ok(BooleanResult::Body(r)) => {
+                not_pinned(label, op);
                 assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
                 material_holds(&what, keep, Some(&r.body), &probes);
                 classes_hold(&what, &r, a, b, pose);
                 held += usize::from(three_prime(&what, &r, pose, along, ray, glued));
-                volume(&r.body)
+                Some(volume(&r.body))
             }
             Ok(BooleanResult::Empty) => {
+                not_pinned(label, op);
                 material_holds(&what, keep, None, &probes);
-                0.0
+                Some(0.0)
             }
+            Err(e) if overlap_pinned(label, op, &e) => None,
             Err(e) => panic!("{what}: builds, got {e:?}"),
         };
     }
+    let [xy, yx, u, u2, i, i2] = v;
     let (vx, vy) = (volume(x), volume(y));
     let what = format!("{label}, {}", pose.label);
-    let [xy, yx, u, u2, i, i2] = v;
-    // Each sum, which every result enters.
+    let add = |a: Option<f64>, b: Option<f64>| Some(a? + b?);
+    // Each sum, which every result enters, over the ops that built: a
+    // cell the result gate refuses ([`OVERLAPPING`]) leaves out the sums
+    // it enters, and the rest still hold.
     for (sum, want, which) in [
-        (u + i, vx + vy, "|x ∪ y| + |x ∩ y|"),
-        (xy + i, vx, "|x − y| + |x ∩ y|"),
-        (yx + i, vy, "|y − x| + |x ∩ y|"),
+        (add(u, i), Some(vx + vy), "|x ∪ y| + |x ∩ y|"),
+        (add(xy, i), Some(vx), "|x − y| + |x ∩ y|"),
+        (add(yx, i), Some(vy), "|y − x| + |x ∩ y|"),
         (u2, u, "|y ∪ x|"),
         (i2, i, "|y ∩ x|"),
     ] {
+        let (Some(sum), Some(want)) = (sum, want) else {
+            continue;
+        };
         assert!(
             (sum - want).abs() < 1e-9,
             "{what}: {which} {sum}, want {want}"
@@ -1502,7 +1558,11 @@ fn builds_or_refuses(
     .into_iter()
     .enumerate()
     {
+        let op = what;
         let what = format!("{label}, {}, {what}", pose.label);
+        if r.is_ok() {
+            not_pinned(label, op);
+        }
         let r = match r {
             Ok(BooleanResult::Body(r)) => r,
             Ok(BooleanResult::Empty) => {
@@ -1513,7 +1573,10 @@ fn builds_or_refuses(
                 continue;
             }
             Err(e) => {
-                assert!(typed(&e), "{what}: builds or refuses typed, got {e:?}");
+                assert!(
+                    typed(&e) || overlap_pinned(label, op, &e),
+                    "{what}: builds or refuses typed, got {e:?}"
+                );
                 continue;
             }
         };

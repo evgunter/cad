@@ -461,10 +461,11 @@ fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> CornerOutcom
                 },
             })
         }
-        // Carriers meeting tangentially at the derived corner: the same
-        // situation `path_corner_turn` names on the straight pair, and
-        // a statement about the PAIR rather than about one crossing.
-        ArcTrimRefusal::AlreadyTangent { .. } => {
+        // The corner's turn does not clear the band at the derived
+        // corner: the same situation `path_corner_turn` names on the
+        // straight pair, and a statement about the PAIR rather than
+        // about one crossing.
+        ArcTrimRefusal::TurnInBand { .. } => {
             CornerOutcome::Whole(no_corner(PathNoCornerReason::CarriersParallel, radius))
         }
         ArcTrimRefusal::NoCorner { reason, .. } => {

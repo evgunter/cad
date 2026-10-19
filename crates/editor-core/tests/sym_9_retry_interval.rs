@@ -582,6 +582,21 @@ fn sym_9_what_each_retry_recovers() {
 /// falls because the decisions are gone, not because a retry took
 /// them.
 ///
+/// The profile's joint pass reads each joint's turn
+/// (`path_junction_turn`, #5354's ruling) after carrier identity: a
+/// line/line corner decides once more and a line/arc joint's clearance
+/// becomes a turn the tier proves. The plate 939/686 → 939/690, the
+/// bracket 1307/1042 → 1311/1043, the link 763/691 → 767/687, with the
+/// ladder and without it alike; the pad's leaf 1211/1328 → 1223/1316
+/// bare and 1215/1324 → 1227/1312 with the ladder, its four recovered
+/// decisions held.
+///
+/// The door reads each junction a departing leg follows again at the
+/// shorter leg's arm once that leg is stored (#5377's fix pass): the
+/// plate 939/690 → 939/693, the boss 468/398 → 468/399, the bracket
+/// 1311/1043 → 1311/1047, with the ladder and without it alike; no
+/// recovered decision moved.
+///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
 /// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
 /// defect in the ladder, not a re-baseline.
@@ -591,11 +606,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [939, 686], [939, 686], 0),
+        ("two_hole_plate", [939, 693], [939, 693], 0),
         ("r1_annulus", [475, 431], [475, 431], 0),
-        ("r1_segment_boss", [468, 398], [468, 398], 0),
-        ("r2_filleted_bracket", [1307, 1042], [1307, 1042], 0),
-        ("r2_link", [763, 691], [763, 691], 0),
+        ("r1_segment_boss", [468, 399], [468, 399], 0),
+        ("r2_filleted_bracket", [1311, 1047], [1311, 1047], 0),
+        ("r2_link", [767, 687], [767, 687], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -659,26 +674,36 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 }
 
 /// **The DRIVE carries the ladder, and its receipt says so**: one
-/// whole-box leaf of R2's rounded pad at `1e1·ε` under
-/// `SymbolicDials::default()` — the shipped ladder, through the drive's
-/// own door (`sym::with_session_memo_retry`, with the drive's plain
-/// memo installed) — against the same leaf with `SymRetry::none()`.
+/// whole-box leaf of R2's rounded pad, its first straight leg spelled
+/// as an angle and a length
+/// (`m10_8_r2_probes_interval::pad_first_leg_by_angle`), at `1e1·ε`
+/// under `SymbolicDials::default()` — the shipped ladder, through the
+/// drive's own door (`sym::with_session_memo_retry`, with the drive's
+/// plain memo installed) — against the same leaf with
+/// `SymRetry::none()`.
 ///
 /// It reads both receipts the drive writes: the goldening line carries
-/// `retried=4` after the discharge columns, and the human form names
-/// the four as discharges a second attempt reached. Without the ladder
-/// neither appears and the line is the one a drive wrote before the
-/// ladder existed. The four move `symbolic` 1311 → 1315.
+/// `retried=38` after the discharge columns, and the human form names
+/// the thirty-eight as discharges a second attempt reached. Without
+/// the ladder neither appears and the line is the one a drive wrote
+/// before the ladder existed. The thirty-eight move `symbolic`
+/// 1208 → 1246. The junction's turn levered by the shorter leg's arm
+/// (#5377's fix pass) moves sixteen more of the leaf's decisions from
+/// `numeric` to `symbolic`: 1246/1294 → 1262/1278 with the ladder and
+/// 1208/1332 → 1224/1316 without it, the thirty-eight held.
 ///
-/// The row read the filleted bracket, then the link. Since the
-/// constructions store the carriers they build, the first attempt
-/// discharges on both what their ladder used to, so neither retries,
-/// and the pad is the one measured document whose leaf still does. It
-/// is the heaviest of them: this row costs minutes in a debug build.
+/// The row read the filleted bracket, then the link, then the pad as
+/// authored. Since the constructions store the carriers they build,
+/// the first attempt discharges on the first two what their ladder
+/// used to; since a chord's director is its components, it does on the
+/// pad as authored too (it retried four). Spelling the pad's one
+/// point-target leg as an angle puts a `sin_cos(π/2)` round trip back,
+/// and the ladder reaches thirty-eight. It is the heaviest leaf here:
+/// this row costs minutes in a debug build.
 #[test]
 fn sym_9_the_drive_writes_the_ladders_receipt() {
     let tol = Tol::witness();
-    let doc = document("r2_rounded_pad", 1.0e1 * tol.eps(), tol);
+    let doc = crate::m10_8_r2_probes_interval::pad_first_leg_by_angle(1.0e1 * tol.eps(), tol).0;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let run = |symbolic: editor_core::drive::SymbolicDials| {
         editor_core::drive::drive(
@@ -710,19 +735,19 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let d = shipped.decisions();
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1215, 1324, 4],
+        [1262, 1278, 38],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains(" retried=4\n"),
+        line.contains(" retried=38\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
-        human.contains("; 4 of those discharges reached only by a second attempt"),
-        "the human form names the four as the ladder's: {human}"
+        human.contains("; 38 of those discharges reached only by a second attempt"),
+        "the human form names the thirty-eight as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1211, 1328, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1224, 1316, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

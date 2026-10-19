@@ -62,8 +62,8 @@ pub(crate) use emit_shell::name_shell;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{FaceDescent, OperandCtx, name_boolean, name_split};
 pub(crate) use emit_union::{
-    Fold as UnionFold, FoldCell, Links as UnionLinks, Member as UnionMember, collapse_table,
-    fold_cell, member_view, name_lone_member, name_union,
+    Fold as UnionFold, Links as UnionLinks, Member as UnionMember, collapse_table, member_cells,
+    member_view, name_lone_member, name_union,
 };
 pub use geompred::{
     Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal, SurfaceKindSet,

@@ -77,6 +77,8 @@ pub enum StepShape {
     ArcTo(ArcShape),
     /// `tangent_arc_to`.
     TangentArcTo(TargetShape),
+    /// `arc_onto`.
+    ArcOnto(TargetShape),
     /// `fillet`.
     Fillet,
     /// `fillet_arc`, and its arrival spec.
@@ -114,6 +116,7 @@ impl StepShape {
             Self::ContinueTo(_) => Verb::ContinueTo,
             Self::ArcTo(_) => Verb::ArcTo,
             Self::TangentArcTo(_) => Verb::TangentArcTo,
+            Self::ArcOnto(_) => Verb::ArcOnto,
             Self::Fillet => Verb::Fillet,
             Self::FilletArc(_) => Verb::FilletArc,
             Self::ArcFillet(_) => Verb::ArcFillet,
@@ -163,6 +166,7 @@ impl StepShape {
             Step::ContinueTo(t) => Self::ContinueTo(target_of_recorded(t)),
             Step::ArcTo(spec) => Self::ArcTo(arc_of_recorded(spec)),
             Step::TangentArcTo(t) => Self::TangentArcTo(target_of_recorded(t)),
+            Step::ArcOnto(t) => Self::ArcOnto(target_of_recorded(t)),
             Step::Fillet { .. } => Self::Fillet,
             Step::FilletArc { spec, .. } => Self::FilletArc(arc_of_recorded(spec)),
             Step::ArcFillet { spec, .. } => Self::ArcFillet(arc_of_recorded(spec)),
@@ -189,6 +193,7 @@ impl StepShape {
             ProgramStep::ContinueTo(t) => Self::ContinueTo(target_of_program(t)),
             ProgramStep::ArcTo(spec) => Self::ArcTo(arc_of_program(spec)),
             ProgramStep::TangentArcTo(t) => Self::TangentArcTo(target_of_program(t)),
+            ProgramStep::ArcOnto(t) => Self::ArcOnto(target_of_program(t)),
             ProgramStep::Fillet(_) => Self::Fillet,
             ProgramStep::FilletArc { spec, .. } => Self::FilletArc(arc_of_program(spec)),
             ProgramStep::ArcFillet { spec, .. } => Self::ArcFillet(arc_of_program(spec)),

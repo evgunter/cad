@@ -85,10 +85,8 @@
 //! refusal is the kernel's own, under the member that step folds in
 //! (`NodeErrorKind::UnionFoldStep`). A coincidence row a step decides
 //! is read against the collapsed accumulation ([`collapse_table`]) and
-//! spelled by the member cells it lies in ([`fold_cell`]), as the
-//! pairwise judgement's rows are. A cell the fold minted keeps the
-//! spelling of the step that minted it
-//! (`work/wire/a-fold-row-names-a-vertex-the-fold-minted-by-the-step-that-minted-it.md`).
+//! spelled by the member cells that meet there ([`member_cells`]), as
+//! the pairwise judgement's rows are.
 //!
 //! # How an intermediate row is told from a member's row
 //!
@@ -669,7 +667,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         };
         // An edge on a carrier that places no point covers nothing, and
         // the fold's name for it stands
-        // (`work/emit/a-unions-flush-reading-cannot-follow-a-nurbs-carrier.md`).
+        // (`work/seamrank/a-unions-flush-reading-cannot-follow-a-nurbs-carrier.md`).
         if let EdgeCarrier::Unread = EdgeCarrier::of_edge(self.body, k)? {
             return Ok(none);
         }
@@ -1374,7 +1372,7 @@ fn member_faces(name: &StableName, out: &mut BTreeSet<MemberEntity>) {
 /// The member entity a name of this shape is a piece of — `From(m, x)`,
 /// then nothing but `Fragment` qualifiers — and those qualifiers. The
 /// one reader of that shape: [`member_edge_piece`] narrows it to an
-/// edge's pieces, [`fold_cell`] reads a fold row's cell through it.
+/// edge's pieces, [`member_cells`] reads a fold row's cell through it.
 fn member_piece(name: &StableName) -> Option<(VarId, &NameRef, &[RoleSeg])> {
     let (RoleSeg::From { read, of }, tail) = name.path.split_first()? else {
         return None;
@@ -2579,82 +2577,78 @@ pub(crate) fn collapse_name(
     collapse(node, name)
 }
 
-/// One cell of a fold row, read off its collapsed name ([`fold_cell`]).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum FoldCell {
-    /// A member's entity: the member's read and its name in that read's
-    /// table.
-    Member {
-        /// The member's read.
-        read: VarId,
-        /// The entity's name in the member's table.
-        name: StableName,
-    },
-    /// A cell the fold minted, in the node's own space.
-    Minted(StableName),
-}
-
-/// **A fold row's cell, by the member cell it lies in** (DM4, "A row
+/// **The member cells a fold row's cell is made of** (DM4, "A row
 /// names member cells"): `name` is a collapsed fold name
-/// ([`collapse_table`]), a head and the `Fragment`s the fold accumulated
-/// ([`member_piece`]). Under a member's `From` head its entity is a
-/// piece of the member entity the head names, and the cell is that
-/// entity. A `Crossing` vertex lies inside its crossed edge, and where
-/// that edge is a member's the cell is that member edge, as the pair
-/// verb reads a vertex it minted on an edge (`topo`'s `input_cell`).
+/// ([`collapse_table`]), each member cell by its member's read and its
+/// name in that read's table, sorted, each once. Under a member's
+/// `From` head the cell is a piece of the member entity the head names,
+/// and is that entity. A cell the fold minted is the member cells it is
+/// made of, read the same way down every name it holds:
 ///
-/// Every other head the fold minted lies in no one member cell: a seam
-/// lies in a face of each of its two members, a junction's run
-/// (`EdgeCrossing`) in several member edges and seams, a `Merged` edge
-/// along several member edges, and a `Crossing` of a seam in two
-/// members' faces. Such a cell is that head in the node's own space,
-/// its pieces' qualifiers dropped, and a junction's run kept whole.
+/// - a `Crossing` vertex, its edge and its face;
+/// - a `Seam` edge, its two faces;
+/// - a junction's run of `Seam` lines, or an `EdgeCrossing` run, each
+///   line;
+/// - a `Merged` face or edge, each constituent.
 ///
 /// # Errors
 ///
 /// [`NamingError::Emission`] for a head followed by anything but
-/// `Fragment`s (a junction's run aside), or a head no fold step mints.
-pub(crate) fn fold_cell(name: &StableName) -> Result<FoldCell, NamingError> {
-    let bug = |what| NamingError::Emission { what };
-    if let Some((read, of, _)) = member_piece(name) {
-        return if is_fold_side(read) {
-            Err(bug(FOLD_CELL_FOREIGN))
-        } else {
-            Ok(FoldCell::Member {
-                read,
-                name: of.name().clone(),
-            })
-        };
-    }
-    if is_junction(name) {
-        return Ok(FoldCell::Minted(name.clone()));
-    }
-    if let Some((RoleSeg::Crossing { edge, .. }, tail)) = name.path.split_first()
-        && tail.iter().all(|s| matches!(s, RoleSeg::Fragment(_)))
-        && let FoldCell::Member { read, name } = fold_cell(edge.name())?
-    {
-        return Ok(FoldCell::Member { read, name });
-    }
-    match name.path.split_first() {
-        Some((
-            RoleSeg::Seam { .. }
-            | RoleSeg::Crossing { .. }
-            | RoleSeg::EdgeCrossing(_)
-            | RoleSeg::Merged(_),
-            tail,
-        )) if tail.iter().all(|s| matches!(s, RoleSeg::Fragment(_))) => {
-            Ok(FoldCell::Minted(without_tail(name, |_| true)))
+/// `Fragment`s (a junction's run aside), a head no fold step mints, or
+/// a fold side's read under a `From`.
+pub(crate) fn member_cells(name: &StableName) -> Result<Vec<(VarId, StableName)>, NamingError> {
+    fn walk(name: &StableName, out: &mut Vec<(VarId, StableName)>) -> Result<(), NamingError> {
+        let bug = |what| NamingError::Emission { what };
+        if let Some((read, of, _)) = member_piece(name) {
+            if is_fold_side(read) {
+                return Err(bug(FOLD_CELL_FOREIGN));
+            }
+            out.push((read, of.name().clone()));
+            return Ok(());
         }
-        Some((
-            RoleSeg::From { .. }
-            | RoleSeg::Seam { .. }
-            | RoleSeg::Crossing { .. }
-            | RoleSeg::EdgeCrossing(_)
-            | RoleSeg::Merged(_),
-            _,
-        )) => Err(bug(FOLD_CELL_UNSTRIPPED)),
-        _ => Err(bug(FOLD_CELL_FOREIGN)),
+        if is_junction(name) {
+            for seg in &name.path {
+                if let RoleSeg::Seam { a, b } = seg {
+                    walk(a.name(), out)?;
+                    walk(b.name(), out)?;
+                }
+            }
+            return Ok(());
+        }
+        let Some((head, tail)) = name.path.split_first() else {
+            return Err(bug(FOLD_CELL_FOREIGN));
+        };
+        if !tail.iter().all(|s| matches!(s, RoleSeg::Fragment(_))) {
+            return Err(bug(match head {
+                RoleSeg::From { .. }
+                | RoleSeg::Seam { .. }
+                | RoleSeg::Crossing { .. }
+                | RoleSeg::EdgeCrossing(_)
+                | RoleSeg::Merged(_) => FOLD_CELL_UNSTRIPPED,
+                _ => FOLD_CELL_FOREIGN,
+            }));
+        }
+        match head {
+            RoleSeg::Crossing { edge, face, .. } => {
+                walk(edge.name(), out)?;
+                walk(face.name(), out)
+            }
+            RoleSeg::Seam { a, b } => {
+                walk(a.name(), out)?;
+                walk(b.name(), out)
+            }
+            RoleSeg::EdgeCrossing(run) => {
+                run.iter().try_for_each(|line| walk(line.line.name(), out))
+            }
+            RoleSeg::Merged(set) => set.iter().try_for_each(|n| walk(n, out)),
+            _ => Err(bug(FOLD_CELL_FOREIGN)),
+        }
     }
+    let mut out = Vec::new();
+    walk(name, &mut out)?;
+    out.sort();
+    out.dedup();
+    Ok(out)
 }
 
 /// A fold row's cell carries a segment past its head that is not a

@@ -835,6 +835,204 @@ fn a_compound_joint_escalates_only_where_its_readings_disagree() {
     }
 }
 
+/// **A tangent cusp's far end draws its line, and nothing reads how
+/// long its ε-stretch runs.** The carriers of `d = 17ε`, `g = −0.5ε`
+/// are nested and meet only at the joint, and stay within ε of each
+/// other out to about 0.24 rad either side of it. The second arc leaves
+/// the joint back the way the first came and stops at `sweep`; the
+/// line home starts at its far end. That end's gap to the first arc is
+/// about `(0.5 + 8.5·sweep²)ε`, so the pair (first arc, line home)
+/// touches while it is within ε, escalates while it is in band and
+/// validates once it is definite: the three arms of
+/// `[topology.census]`, at every ε, whatever the stretch before it.
+#[test]
+fn a_tangent_cusps_far_end_draws_its_line() {
+    let eps = tol().eps();
+    let touch = ProfileError::NonSimple {
+        first: sref(0, 0),
+        second: sref(0, 2),
+        kind: ContactKind::Touch,
+    };
+    for (sweep, want) in [
+        (0.05, Err(Ok(touch.clone()))),
+        (0.1, Err(Ok(touch.clone()))),
+        (0.15, Err(Ok(touch.clone()))),
+        (0.2, Err(Ok(touch.clone()))),
+        (0.3, Err(Err("line_span"))),
+        (0.5, Err(Err("line_span"))),
+        (0.7, Err(Err("line_span"))),
+        (1.0, Err(Err("circle_side"))),
+        (1.3, Ok(())),
+        (1.4, Ok(())),
+        (1.5, Ok(())),
+        (1.6, Ok(())),
+    ] {
+        let p = joint_loop(near_concentric(17.0 * eps, -0.5 * eps), 0.0, -sweep);
+        let label = format!("second arc through −{sweep}");
+        match (validate_both(&p), want) {
+            (Ok(()), Ok(())) => {}
+            (Err(got), Err(Ok(want))) => assert_eq!(got, want, "{label}"),
+            (Err(ProfileError::Escalated { site, source }), Err(Err(predicate))) => {
+                assert_eq!(
+                    site,
+                    EscalationSite::SegmentPair(sref(0, 0), sref(0, 2)),
+                    "{label}"
+                );
+                assert_eq!(source.predicate, Some(predicate), "{label}");
+            }
+            (got, _) => panic!("{label}: {got:?}"),
+        }
+    }
+}
+
+/// **A tangent cusp on near-concentric carriers validates however long
+/// its ε-stretch** (Ev's ruling on #5354). Each loop is `joint_loop`'s:
+/// the second arc runs back past the stretch, so its far end is
+/// definite, and the joint is a decided tangent cusp, its turn read
+/// Zero. `g = 0` is pinned at 1e-6 only: at 1e-9 and 1e-12 the stored
+/// radius rounds `g` to a few ulps, which the pair pass reads as a
+/// chord in band or a crossing.
+#[test]
+fn a_tangent_cusp_on_near_concentric_carriers_validates_its_long_stretch() {
+    let eps = tol().eps();
+    let mut rows = vec![
+        (17.0 * eps, -0.5 * eps, -1.6, "d = 17ε, g = −0.5ε"),
+        (0.1, -0.5 * eps, -0.5, "d = 0.1, g = −0.5ε"),
+    ];
+    if format!("{eps:e}") == "1e-6" {
+        rows.push((17.0 * eps, 0.0, -1.6, "d = 17ε, g = 0"));
+    }
+    for (d, g, sweep, label) in rows {
+        let p = joint_loop(near_concentric(d, g), 0.0, sweep);
+        assert_eq!(validate_both(&p), Ok(()), "{label}");
+        let v = p.validate(tol()).expect("validated above");
+        let lp = &v.loops()[0];
+        assert_eq!(
+            (lp.tangent_joints(), lp.cusp_joints()),
+            (&[1][..], &[1][..]),
+            "{label}: the joint is a tangent cusp"
+        );
+    }
+}
+
+/// **A cusp on crossing carriers 95ε apart validates at 1e-12** (Ev's
+/// ruling on #5354: the profile is valid). The third review of #5175's
+/// witness: two arcs of radius 2.71 whose centres stand 95ε apart and
+/// whose radii differ by about as much, joined at one of the carriers'
+/// crossings, the second arc running back within ε of the first for
+/// 0.13 rad. The joint's turn levered by the shorter leg's arm reads
+/// about 0.01ε, a tangent cusp, at `f64` and `Interval`; whether it is
+/// a legal edge is the sweep's to say.
+#[test]
+fn a_cusp_on_crossing_carriers_95_eps_apart_validates() {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    if format!("{:e}", tol().eps()) != "1e-12" {
+        test_utils::vacuity::stood_down(
+            "the 95ε witness",
+            "its numbers are 1e-12's; at a wider ε its carriers are one, so no turn is read",
+        );
+        return;
+    }
+    let arc = |centre: Point2<f64>, radius, sweep| {
+        Segment::Arc(Arc2 {
+            centre,
+            radius,
+            sweep,
+        })
+    };
+    let (c1, r1) = (
+        Point2::new(0.8339940436193314, 0.6128195379062746),
+        2.709842185979272,
+    );
+    let (c2, r2) = (
+        Point2::new(0.8339940436636458, 0.6128195379906916),
+        2.709842185883936,
+    );
+    let (start, sweep1, sweep2) = (-5.195849007589949, 6.272685487203751, -1.409459670080262);
+    let joint = rim((c1, r1), start + sweep1);
+    let from = (joint.y - c2.y).atan2(joint.x - c2.x);
+    let p = profile(vec![ProfileLoop::new([
+        (rim((c1, r1), start), arc(c1, r1, sweep1)),
+        (joint, arc(c2, r2, sweep2)),
+        (rim((c2, r2), from + sweep2), Segment::Line),
+    ])]);
+    assert_eq!(validate_both(&p), Ok(()), "the 95ε witness validates");
+    let v = p.validate(tol()).expect("validated above");
+    let lp = &v.loops()[0];
+    assert_eq!(
+        (lp.tangent_joints(), lp.cusp_joints()),
+        (&[1][..], &[1][..]),
+        "the joint is a tangent cusp"
+    );
+}
+
+/// One loop: an arc of `one` from `at − 1` into the joint at its polar
+/// angle `at`, an arc of `two` out of it through `sweep`, and a line
+/// home; the second arc starts at the joint's own polar angle about
+/// `two`'s centre, so `at` may stand anywhere on both carriers.
+fn crossing_loop(
+    (one, two): ((Point2<f64>, f64), (Point2<f64>, f64)),
+    at: f64,
+    sweep: f64,
+) -> profile::Profile<f64> {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let arc = |(centre, radius): (Point2<f64>, f64), sweep| {
+        Segment::Arc(Arc2 {
+            centre,
+            radius,
+            sweep,
+        })
+    };
+    let joint = rim(one, at);
+    let from = (joint.y - two.0.y).atan2(joint.x - two.0.x);
+    profile(vec![ProfileLoop::new([
+        (rim(one, at - 1.0), arc(one, 1.0)),
+        (joint, arc(two, sweep)),
+        (rim(two, from + sweep), Segment::Line),
+    ])])
+}
+
+/// **A joint at a crossing of near-concentric carriers is a corner, not
+/// a tangent cusp.** Carriers `d` apart with internal clearance
+/// `g = 0.5ε` cross where a vertex on both turns by about
+/// `√(2gd)`: 3e-7 rad at `d = 1e-4` to 2e-5 rad at `d = 0.3`, a
+/// definite displacement at the unit arm. The carriers' clearance is
+/// within ε, which once recorded these joints as decided tangent cusps
+/// (back the way the first arc came) or smooth tangent joints; the
+/// joint pass reads the turn, so each validates with no tangent joint,
+/// both ways out. The rows are the default ε's; at 1e-6 the turn at
+/// `d = 1e-4` reads in band, and at 1e-12 the pair pass reads the
+/// `d = 0.1` and `0.3` cusps' chord in band, so each row runs only
+/// where it holds.
+#[test]
+fn a_joint_at_a_crossing_of_near_concentric_carriers_is_a_corner() {
+    let eps = tol().eps();
+    let row = format!("{eps:e}");
+    let ds: &[f64] = match row.as_str() {
+        "1e-9" => &[0.1, 0.3, 0.01, 1e-4],
+        "1e-6" => &[0.1, 0.3, 0.01],
+        "1e-12" => &[0.01, 1e-4],
+        _ => &[0.01],
+    };
+    for &d in ds {
+        let (one, two) = near_concentric(d, 0.5 * eps);
+        let at = -((1.0 + d * d - two.1 * two.1) / (2.0 * d)).acos();
+        for sweep in [-0.8, 0.8] {
+            let label = format!("d = {d}, joint at {at:e} rad, second arc through {sweep}");
+            let p = crossing_loop((one, two), at, sweep);
+            assert_eq!(validate_both(&p), Ok(()), "{label}");
+            let v = p.validate(tol()).expect("validated above");
+            assert!(
+                v.loops()[0].tangent_joints().is_empty(),
+                "{label}: the joint is a corner, got tangent joints {:?}",
+                v.loops()[0].tangent_joints()
+            );
+        }
+    }
+}
+
 /// **A cusp whose crossing one arc's span reads in band escalates.**
 /// Carriers 0.015 apart cut a chord whose sagitta, 1.5ε, is within the
 /// band, so the crossings stand `√(3ε)` rad either side of the tangency

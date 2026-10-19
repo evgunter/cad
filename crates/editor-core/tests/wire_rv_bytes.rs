@@ -98,6 +98,7 @@ fn steps() -> Vec<ProgramStep<Formula>> {
         steps.push(ProgramStep::LineTo(target.clone()));
         steps.push(ProgramStep::ContinueTo(target.clone()));
         steps.push(ProgramStep::TangentArcTo(target.clone()));
+        steps.push(ProgramStep::ArcOnto(target.clone()));
     }
     for spec in every_spec() {
         steps.push(ProgramStep::ArcTo(spec.clone()));

@@ -1356,3 +1356,57 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
         );
     }
 }
+
+/// **A fused incoming's start tangent is the arc's, derived another
+/// way.** The leg arrives at the arc's start along a tangent computed
+/// independently of the door — for `Bulge`, the angle `atan2(chord) −
+/// θ/2` with `θ = 4·atan(b)`; for `Center`, the radius at the start
+/// turned a quarter in the winding's sense — so the junction is
+/// tangent, and the door must refuse it as one. A start tangent turned
+/// the wrong way, or by the wrong fraction of the sweep, reads a
+/// definite turn there instead.
+#[test]
+fn a_fused_incomings_start_tangent_is_the_arcs() {
+    let t = Tol::witness();
+    let at = Point2::new(1.0, 2.0);
+    let arriving = |dir: (f64, f64)| {
+        Open.at(Point2::new(at.x - 3.0 * dir.0, at.y - 3.0 * dir.1))
+            .toward(dir.0, dir.1, t)
+            .expect("the arriving director")
+            .line(3.0, t)
+            .expect("the leg into the arc's start")
+    };
+    let mut wrong = Vec::new();
+    for (p, b) in [(Point2::new(4.0, 3.0), 0.5), (Point2::new(-1.0, 4.0), -0.3)] {
+        let d = p - at;
+        let start = d.y.atan2(d.x) - 2.0 * f64::atan(b);
+        let got = arriving((start.cos(), start.sin()))
+            .arc_fillet(profile::Bulge { p, b }, 0.25, t)
+            .map(|_| ());
+        if !matches!(got, Err(PathError::JunctionTangent { .. })) {
+            wrong.push(format!("Bulge to {p:?}, b = {b}: {got:?}"));
+        }
+    }
+    for (c, winding, p) in [
+        (Point2::new(1.0, 0.0), ArcSweep::Ccw, Point2::new(3.0, 0.0)),
+        (Point2::new(2.0, 2.0), ArcSweep::Cw, Point2::new(2.0, 1.0)),
+    ] {
+        let v = at - c;
+        let r = (v.x * v.x + v.y * v.y).sqrt();
+        let s = if matches!(winding, ArcSweep::Ccw) {
+            1.0
+        } else {
+            -1.0
+        };
+        let got = arriving((-s * v.y / r, s * v.x / r))
+            .arc_fillet(profile::Center { c, winding, p }, 0.25, t)
+            .map(|_| ());
+        if !matches!(got, Err(PathError::JunctionTangent { .. })) {
+            wrong.push(format!("Center {c:?} {winding:?} to {p:?}: {got:?}"));
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "each start tangent is the arc's: {wrong:#?}"
+    );
+}

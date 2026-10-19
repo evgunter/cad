@@ -94,3 +94,22 @@ typed where its reading does not decide.
 - The question above is whether check 7 should read a sliver's
   orientation by a ray, so that `AtRestBody` never carries one. That
   would retire the Boolean's read.
+
+## Measured (FLUSH `flush/shell-role-reader`, 2026-10-14)
+
+Ev ruled check 7 onto the reader of a shell's role (PR 4990; DESIGN D1
+tier 3). On that branch `AtRestBody::validate(slab(t).revert())`
+refuses `[NegativeVolume { solid }]` at ε 1e-9 and 1e-6 for every
+`t ∈ {10, 10.5, 12, 15, 19}ε`: a ray aimed at 60° at one of its faces
+crosses its two faces `2t` apart and enters its material first.
+`crates/topo/tests/shell_role_reader.rs`
+`a_lone_slab_is_outer_and_inside_out_refuses_at_rest` pins it;
+`missed_ray_side.rs` `an_inside_out_slab_refuses_at_rest` replaces the
+`Validated` pin. The Boolean's operand gate for slivers
+(`gate_sliver_orientation`) is retired with it. A dual's operand gate
+reads the same check 7 (`AtRestBody::gate_unverdicted`'s
+`wound_negative`), and refuses the slab `InsideOutOperand { NegativeVolume }`.
+
+This row closes with that PR; RESTFRONT closes it. Its "still open"
+note about other doors that take an at-rest operand no longer applies:
+no inside-out slab finishes at rest.

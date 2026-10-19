@@ -51,6 +51,8 @@ import tomllib
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from slow_set import is_new
+
 PROFILE = "ci"
 BAR = 1.0
 NEW_BAR = 0.5
@@ -135,12 +137,6 @@ def new_since(base: str) -> int:
     ).stdout
     print(" ".join(sorted(added_tokens(diff, Path.cwd()))))
     return 0
-
-
-def is_new(binary_id: str, name: str, tokens: set[str]) -> bool:
-    pkg = binary_id.split("::")[0]
-    *mods, leaf = name.split("::")
-    return f"{pkg}:{leaf}" in tokens or any(f"{pkg}:mod:{m}" in tokens for m in mods)
 
 
 # --- the report ----------------------------------------------------------------

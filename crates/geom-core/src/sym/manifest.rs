@@ -85,7 +85,13 @@
 //! apex-reach decision has already made definite on that arm (no
 //! measured document reaches it);
 //! `geom-brep/src/quartic.rs`'s `cbrt` and the Cardano
-//! root's sign transfer from `Q`. That list is not
+//! root's sign transfer from `Q`;
+//! `geom-brep/src/intersect.rs`'s plane × cone graze (the tangent
+//! generator's half turn, signed by the axis lean `c`), re-asked on
+//! the seven documents with rule F on and shut when it was minted: no
+//! `copysign` atom stood in a decided residual on any of them, the
+//! jet's on the bracket and the link included, which (1) counts from
+//! an earlier head. That list is not
 //! prose: `sym_rule_f_rows`'s
 //! `the_copysign_mint_sites_the_tree_holds_are_these` greps the
 //! shipped sources and reds when a site appears or goes, so the day a

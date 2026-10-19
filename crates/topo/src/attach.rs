@@ -364,6 +364,7 @@ impl<T: Decide> Body<T> {
                 (spec.param_start, spec.param_end),
             );
             let curve = crate::policy_lane::certify(
+                crate::policy_lane::Origin::Callers,
                 spec.clone(),
                 p_start,
                 p_end,
@@ -910,18 +911,21 @@ impl<T: Decide> Body<T> {
                 &spec.carrier,
                 (spec.param_start, spec.param_end),
             );
-            let curve = crate::policy_lane::certify(spec, p_start, p_end, resolve, reach, band()?)
-                .map_err(|refusal| match refusal {
-                    crate::policy_lane::ByPolicy::NoLane { scalar } => {
-                        EulerOpError::NurbsLaneUnsupported {
-                            edge: Some(edge),
-                            scalar,
+            let origin =
+                crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::ReDescription);
+            let curve =
+                crate::policy_lane::certify(origin, spec, p_start, p_end, resolve, reach, band()?)
+                    .map_err(|refusal| match refusal {
+                        crate::policy_lane::ByPolicy::NoLane { scalar } => {
+                            EulerOpError::NurbsLaneUnsupported {
+                                edge: Some(edge),
+                                scalar,
+                            }
                         }
-                    }
-                    crate::policy_lane::ByPolicy::Refused(error) => {
-                        EulerOpError::RechartFalsifies { door, edge, error }
-                    }
-                })?;
+                        crate::policy_lane::ByPolicy::Refused(error) => {
+                            EulerOpError::RechartFalsifies { door, edge, error }
+                        }
+                    })?;
             written.push((edge, sides, curve));
         }
         let keeps = landing.after == Slot::Kept(old) || refusals_lifted();
@@ -1252,7 +1256,15 @@ impl<T: Decide> Body<T> {
         self.check_description_adjacent(edge, &curve.description)?;
 
         let faces = crate::edge_faces(self, edge);
-        let certified = self.certify_edge_spec(Some(edge), curve, p_start, p_end, faces, tol)?;
+        let certified = self.certify_edge_spec(
+            crate::policy_lane::Origin::Callers,
+            Some(edge),
+            curve,
+            p_start,
+            p_end,
+            faces,
+            tol,
+        )?;
         let rows = self.description_rows(&[(edge, &certified)], |_| Ok(Vec::new()), tol)?;
 
         // ---- Mutation (infallible from here on). ----

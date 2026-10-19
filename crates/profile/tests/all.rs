@@ -57,6 +57,8 @@ mod common;
 mod arc_fillet;
 #[path = "arc_leg_full_turn.rs"]
 mod arc_leg_full_turn;
+#[path = "arc_onto.rs"]
+mod arc_onto;
 #[path = "arc_spec_census.rs"]
 mod arc_spec_census;
 #[path = "blend7_review_probes.rs"]
@@ -174,6 +176,8 @@ mod sketch_plane;
 mod table_arcs_inside_scene_resolution;
 #[path = "table_guided_validation.rs"]
 mod table_guided_validation;
+#[path = "tangent_arc_on_the_ray.rs"]
+mod tangent_arc_on_the_ray;
 #[path = "tangent_joints.rs"]
 mod tangent_joints;
 #[path = "validate_ok.rs"]
