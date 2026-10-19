@@ -35,7 +35,9 @@ const FILES: [&str; 5] = [
 /// from B's branch record with main's blend change (`d5a518b1b2`).
 /// `kitchen_sink`'s row moved when a revolve's turned vertex came to
 /// turn its offset from the axis: 8 of its points, by at most 2 ulps
-/// (`m10_p_fence`'s header has the dump).
+/// (`m10_p_fence`'s header has the dump). `declared_tangency`'s row
+/// moved when a chord's director became its components: 4 of its
+/// points, by at most `3.3e-16` (the same header).
 const PRE_C: [(&str, &str); 34] = [
     ("die", "fa9ad86b30e8d844/532"),
     ("corner_table", "1b26e7ae1ba4a066/100"),
@@ -44,7 +46,7 @@ const PRE_C: [(&str, &str); 34] = [
     ("nested_islands_105", "07eda6db4f12636d/100"),
     ("nested_islands_106_depth1", "32fed3f5e12387ee/52"),
     ("nested_islands_106_depth2", "3a7999e85a64a33b/76"),
-    ("declared_tangency", "ea1ce7f968a62d47/88"),
+    ("declared_tangency", "89b46a31a322fc03/88"),
     ("kitchen_sink", "86db5c9ee0cedea5/196"),
     ("cut_cylinder", "cb8ccadf87044e7f/28"),
     ("measured_web", "f556ab19f06e9f9e/28"),
