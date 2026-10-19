@@ -1171,3 +1171,7 @@ Signed (CLEAVE orchestrator).
   - Ev asked on 4795 'any update here?'. I had put the radial-edges reports into the body without commenting. Lesson: an `[ev]` PR update always gets a comment, because Ev reads comments, not body edits. Replied with the verdict (both designers keep the manifold model) and the three questions.
   - Resolved 4795's merge conflict: fork rows renumbered 141/142 → 149/150. The PR body's headings still cite 141/142; fix them with Ev's answer.
   - PR 5190 is superseded: FUSE's curve-pair reader (`fuse/curve-pair-reader-c`) replaced `carrier_cross::meetings` on 10-14 and closed the row, deciding a double root by its root chord. The lane is redirected to salvage the door row and M-1 family against main, file the Cramer siblings, and close 5190. Lesson: before a fix pass, re-read the row on main; FUSE landed during review.
+- 2026-10-19 — PR 5190 closed unmerged, superseded by FUSE's curve-pair reader. Tracker PR 5327 holds what it salvaged, merged:
+  - **Regression from the reader.** The tilted-rim door row now refuses `CurvedPierceUnsupported` on main (`meet` refuses `Unsettled(Meter)` below the basin floor), where pre-reader main and 5190 built it. It refuses typed, never misanswers. Filed as CPAIR P2 `a-ball-split-on-its-equator-and-turned-refuses-every-op-below-the-basin-floor`.
+  - **M-1 family.** No silent misses on main.
+  - **Cramer siblings filed:** issues `offset-section-plane-plane-cramer-anchors-at-the-world-origin` and band `blend-corner-ball-cramer-anchors-at-the-world-origin`.
