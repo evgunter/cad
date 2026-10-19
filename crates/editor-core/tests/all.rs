@@ -633,6 +633,8 @@ mod trim_3_windows_interval;
 mod u8a_parse;
 #[path = "union_flush_onto_edge_contact.rs"]
 mod union_flush_onto_edge_contact;
+#[path = "union_fold_face_face_touch.rs"]
+mod union_fold_face_face_touch;
 #[path = "union_pinch_member_order.rs"]
 mod union_pinch_member_order;
 #[path = "unreadable_by_this_build.rs"]
@@ -726,6 +728,8 @@ mod wire_rv_unknown;
 #[path = "wire_selection_kind_doors.rs"]
 mod wire_selection_kind_doors;
 
+#[path = "a_keel_ring_names_its_two_edges.rs"]
+mod a_keel_ring_names_its_two_edges;
 #[path = "a_mate_on_a_full_turn_bore_names.rs"]
 mod a_mate_on_a_full_turn_bore_names;
 #[path = "decide_1_self_dot_interval.rs"]

@@ -241,8 +241,9 @@ The qualifier depends on what was split:
   are one obstacle, whether that point survives as a vertex or the output
   stage joins it away, so a name reads nothing off where a dead vertex sat;
   it divides the parent when it borders two or more pieces, so a boss or notch
-  on one piece is never cited and nothing in a piece's name lies beyond its
-  own boundary. Pieces with equal sets are N4's tie.
+  on one piece is never cited unless a point of it touches a divider, which
+  makes it part of that divider, and nothing in a piece's name lies beyond
+  its own boundary. Pieces with equal sets are N4's tie.
 - **The Split op's pieces** are told apart by their tool plane's side, which
   is the output variable that holds them (N1, the scope), so
   `SplitFragment` spells no side: there the plane is what the author drew. A

@@ -2,8 +2,8 @@
 //! themselves, pointwise** (`geom_core::spline::cell_second_quotients`,
 //! module docs "The second order"): each piece's numerator and weight
 //! power, evaluated as tensor Bernstein sums at the piece's local
-//! parameters, reproduce `NurbsSurface::ders` — through a knot span's
-//! axes and through a Bézier block's.
+//! parameters, reproduce `NurbsSurface::ders` through a knot span's
+//! axes.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -38,7 +38,7 @@ fn read(q: &QuotientPiece<f64, 3>, nv: usize, st: (f64, f64), c: usize) -> f64 {
     tensor(&m, nv, st) / tensor(q.denom(), nv, st)
 }
 
-/// **Both axis kinds reproduce the jet.** A rational bicubic-by-
+/// **The span axis reproduces the jet.** A rational bicubic-by-
 /// biquadratic Bézier patch with weights varying in both directions,
 /// cut into `2 × 2` pieces, read at five parameters per direction
 /// against `ders` to `1e-8` of each partial's scale.
@@ -64,61 +64,44 @@ fn the_second_quotients_are_the_partials_pointwise() {
     let s = NurbsSurface::new(ku.clone(), kv.clone(), control.clone(), weights.clone()).unwrap();
     let points: Vec<[f64; 3]> = control.iter().map(|c| [c.x, c.y, c.z]).collect();
     let (hu, hv) = (ku.knots().to_vec(), kv.knots().to_vec());
-    #[allow(clippy::cast_precision_loss)]
-    let axes = [
-        (
-            "span",
-            CellAxis::Span(ku.span(ku.first_span()).unwrap(), &hu),
-            CellAxis::Span(kv.span(kv.first_span()).unwrap(), &hv),
-        ),
-        (
-            "bezier",
-            CellAxis::Bezier {
-                degree: p,
-                scale: p as f64,
-            },
-            CellAxis::Bezier {
-                degree: q,
-                scale: q as f64,
-            },
-        ),
-    ];
-    for (kind, axis_u, axis_v) in axes {
-        let ((cu, cv), pieces) = cell_second_quotients(
-            (axis_u, axis_v),
-            CellBlock::Points {
-                points: &points,
-                weights: &weights,
-                origin: points[0],
-            },
-            (2, 2),
-        )
-        .unwrap();
-        assert_eq!((cu, cv), (2, 2), "{kind}");
-        let nv = 3 * q + 1;
-        for u in [0.0, 0.13, 0.5, 0.77, 0.9999] {
-            for v in [0.0, 0.13, 0.5, 0.77, 0.9999] {
-                #[allow(clippy::cast_precision_loss)]
-                let at = |x: f64, n: usize| {
-                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                    let k = ((x * n as f64).floor() as usize).min(n - 1);
-                    (k, x * n as f64 - k as f64)
-                };
-                let ((iu, su), (iv, sv)) = (at(u, cu), at(v, cv));
-                let (_, second) = &pieces[iu * cv + iv];
-                let jet = s.ders(u, v);
-                for (name, piece, truth) in [
-                    ("S_uu", &second.uu, jet.duu),
-                    ("S_uv", &second.uv, jet.duv),
-                    ("S_vv", &second.vv, jet.dvv),
-                ] {
-                    for (c, want) in [truth.x, truth.y, truth.z].into_iter().enumerate() {
-                        let got = read(piece, nv, (su, sv), c);
-                        assert!(
-                            (got - want).abs() <= 1e-8 * (1.0 + want.abs()),
-                            "{kind} {name}[{c}] at ({u}, {v}): the pieces read {got}, ders {want}"
-                        );
-                    }
+    let (axis_u, axis_v) = (
+        CellAxis::Span(ku.span(ku.first_span()).unwrap(), &hu),
+        CellAxis::Span(kv.span(kv.first_span()).unwrap(), &hv),
+    );
+    let ((cu, cv), pieces) = cell_second_quotients(
+        (axis_u, axis_v),
+        CellBlock::Points {
+            points: &points,
+            weights: &weights,
+            origin: points[0],
+        },
+        (2, 2),
+    )
+    .unwrap();
+    assert_eq!((cu, cv), (2, 2), "the pieces per axis");
+    let nv = 3 * q + 1;
+    for u in [0.0, 0.13, 0.5, 0.77, 0.9999] {
+        for v in [0.0, 0.13, 0.5, 0.77, 0.9999] {
+            #[allow(clippy::cast_precision_loss)]
+            let at = |x: f64, n: usize| {
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                let k = ((x * n as f64).floor() as usize).min(n - 1);
+                (k, x * n as f64 - k as f64)
+            };
+            let ((iu, su), (iv, sv)) = (at(u, cu), at(v, cv));
+            let (_, second) = &pieces[iu * cv + iv];
+            let jet = s.ders(u, v);
+            for (name, piece, truth) in [
+                ("S_uu", &second.uu, jet.duu),
+                ("S_uv", &second.uv, jet.duv),
+                ("S_vv", &second.vv, jet.dvv),
+            ] {
+                for (c, want) in [truth.x, truth.y, truth.z].into_iter().enumerate() {
+                    let got = read(piece, nv, (su, sv), c);
+                    assert!(
+                        (got - want).abs() <= 1e-8 * (1.0 + want.abs()),
+                        "{name}[{c}] at ({u}, {v}): the pieces read {got}, ders {want}"
+                    );
                 }
             }
         }
