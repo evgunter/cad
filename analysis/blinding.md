@@ -13,3 +13,8 @@ Deviations: none at dispatch.
 - A moved to B's round-1 position: a pending director after the spec; fused rows refused (no concrete need identified). Cites `ViaArrival`'s director as exact precedent; a field would be the director vocabulary twice.
 - B moved to A's round-1 position: the direction inside the mode (a two-variant end); fused rows required by §2c "converting sharp→filleted is an edit at the same call site" and round 9 "every admissible pair ships".
 - A crossover. Round 3: each shown the other's round-2 report, asked what moved it, whether its own earlier argument is answered, and specifically whether §2c/round 9 make the fused rows owed.
+
+## Round 3 (each shown the other's round-2 report; asked about §2c round 7 / round 9 and a third shape)
+- A: direction in the spec as a two-variant end over ONE shared `Director` type (the steps project it); fused rows owed under round 9 (sure); "no concrete need" was use-case gating.
+- B: same design, leaning (b) likely; holds that round 9 reaching a new mode's fused sites is its extension (likely, not sure), and names that reading as Ev's.
+- Converged on the design; residual: how far round 9 binds, stated for Ev. To the [ev] PR.
