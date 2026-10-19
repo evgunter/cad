@@ -9,10 +9,10 @@
 //!
 //! Refused: two `Outer` shells under one solid, side by side, nested
 //! with no `Void` between, or an island inside a `Void`
-//! (`SolidOuterShells`); and, behind one `Outer`, a `Void` outside it
-//! or a `Void` inside a `Void` (`ShellWinding`), each with a positive
-//! per-solid total so check 7 passes it. Certified: an ordinary hollow
-//! solid.
+//! (`SolidOuterShells`); and, behind one `Outer`, a `Void` inside a
+//! `Void` (`ShellWinding`). A `Void` outside its `Outer` leaves infinity
+//! inside the material its faces bound, and check 7's aimed ray reads
+//! that first (`NegativeVolume`). Certified: an ordinary hollow solid.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -103,7 +103,10 @@ fn positive_total(body: &Body<f64>) {
 /// **A `Void` outside every `Outer` of its solid** — winding `-1` in
 /// the cavity. A hollow cube's cavity keeps its solid while the cube's
 /// own outer wall moves to a solid of its own, and a larger block far
-/// away is grafted onto the solid so its total stays positive.
+/// away is grafted onto the solid so its total stays positive. Check 7
+/// refuses it before check 10 winds it: a ray aimed from beyond the
+/// solid at the cavity's wall crosses into the material that wall alone
+/// bounds, so the solid's faces leave infinity inside its material.
 #[test]
 fn a_void_outside_every_outer_refuses() {
     let mut body = hollow(0.0, 3.0, 1.0);
@@ -127,18 +130,13 @@ fn a_void_outside_every_outer_refuses() {
 
     assert_eq!(
         topo::validate_geometric(&body, tol()),
-        Err(vec![ValidationError::ShellWinding {
-            solid,
-            shell: cavity,
-            winding: 0,
-            bounded: -1,
-        }]),
-        "the cavity sits where the solid's only other shell winds 0"
+        Err(vec![ValidationError::NegativeVolume { solid }]),
+        "the cavity's wall leaves infinity inside the solid's material"
     );
     assert_eq!(
         topo::validate_geometric_structural(&body, tol()),
         topo::validate_geometric(&body, tol()),
-        "the structural door makes check 10 too, through the closed form"
+        "the structural door reads check 7 the same way"
     );
 }
 

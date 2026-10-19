@@ -1768,7 +1768,7 @@ fn an_earlier_seam_split_and_joined_away_in_one_step_names_alike() {
 /// run should publish one set of names; the pair union and the union
 /// `[a, b]` refuse that a piece borders no recorded discard, and the
 /// union `[b, a]` builds
-/// (`work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`).
+/// (`work/borders/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`).
 #[test]
 #[ignore = "refuses by member order: cargo nextest run -p editor-core --run-ignored only -E 'test(pocket_floor)'"]
 fn a_pocket_floor_held_inside_a_dropped_face_names_alike() {
@@ -1880,7 +1880,7 @@ fn splits_by_order(
 }
 
 /// The refusal of a union whose member orders decide differently
-/// (`work/emit/a-union-over-a-stepped-plate-refuses-in-the-orders-that-fold-the-plate-early.md`).
+/// (`work/borders/a-union-over-a-stepped-plate-refuses-in-the-orders-that-fold-the-plate-early.md`).
 const NO_DISCARD_BETWEEN: &str =
     "a piece of a face held as several borders no recorded discard between them";
 
@@ -1950,7 +1950,7 @@ fn a_corner_touching_the_far_half_of_a_joined_seam_is_not_cited() {
 ///
 /// Orders (plate, m, t) and (m, plate, t) link `t`'s discard to `m`'s
 /// through its chain along the joined edge and cite the merged wall
-/// (`work/emit/borders-records-a-join-twice-and-reads-lineage-three-ways.md`);
+/// (`work/borders/borders-records-a-join-twice-and-reads-lineage-three-ways.md`);
 /// they are held apart here, so a fix or a further order turns it red.
 #[test]
 fn a_divider_beside_a_joined_seam_does_not_reach_across_it() {
@@ -2000,7 +2000,7 @@ fn a_divider_beside_a_joined_seam_does_not_reach_across_it() {
 /// join is made before the diamond's step and nothing in the record
 /// says which half of the joined edge its corner lies on, so the corner
 /// meets no discard and the right piece does not cite it
-/// (`work/emit/borders-records-a-join-twice-and-reads-lineage-three-ways.md`).
+/// (`work/borders/borders-records-a-join-twice-and-reads-lineage-three-ways.md`).
 /// Those orders are held apart here; the orders that fold the plate
 /// before `m` or `t` refuse.
 #[test]

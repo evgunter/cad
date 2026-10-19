@@ -27,8 +27,8 @@
 use crate::common;
 
 use common::meeting::{
-    MEET, PLATE, Pose, along_lying_ray, apex_pyramid, at, bearing, corners, fin, lying, mix,
-    near_flat, nest, nest_polygon, posed_box, posed_crown, poses,
+    MEET, PLATE, Pose, along_lying_ray, apex_pyramid, apex_pyramid_kept, at, bearing, corners, fin,
+    lying, mix, near_flat, nest, nest_polygon, posed_box, posed_crown, poses,
 };
 use geom_core::{Band, Tol, Vec3};
 use std::collections::BTreeMap;
@@ -212,7 +212,11 @@ fn local(pose: &Pose, w: Vec3<f64>) -> [f64; 3] {
 #[derive(Default, Debug)]
 struct Tally {
     built: usize,
+    /// The cells that built, by pose.
+    built_by_pose: BTreeMap<String, usize>,
     refused: BTreeMap<String, usize>,
+    /// Each refused cell, `"<pose>, <op>: <kind>"`.
+    refused_cells: Vec<String>,
     rows: usize,
     wrong: usize,
     missing: usize,
@@ -248,11 +252,20 @@ fn check(
             Err(e) => {
                 let kind = format!("{e:?}");
                 let kind = kind.split([' ', '{', '(']).next().unwrap_or("").to_owned();
+                let cell = what
+                    .strip_prefix(label)
+                    .unwrap_or(&what)
+                    .trim_start_matches(", ");
+                tally.refused_cells.push(format!("{cell}: {kind}"));
                 *tally.refused.entry(kind).or_default() += 1;
                 continue;
             }
         };
         tally.built += 1;
+        *tally
+            .built_by_pose
+            .entry(pose.label.to_string())
+            .or_default() += 1;
         assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
         for (op, own, other) in [(Operand::A, a, bg), (Operand::B, b, ag)] {
             for (v, _) in own.vertices() {
@@ -325,24 +338,32 @@ fn crown() -> Vec<[f64; 3]> {
         .collect()
 }
 
-/// The refusals [`every_edge_a_vertex_read_again_reads_is_classed_against_the_germ`]
-/// reads, as `(scene, kind, cells)`; every other scene refuses none.
-///
-/// A pyramid on the void's face, in the arch or round its island: `y −
+/// **Refused, a parting not built**: the scenes whose cells refuse
+/// `EdgeInFace`, each pose's `y − x`. A pyramid on the void's face, in the arch or round its island: `y −
 /// x` leaves the pyramid's edge in the void's face along part of its
 /// length, and the material about it (at its midpoint, from the face's
 /// own direction round into it: solid to 20°, empty to 90°, solid to
 /// 180°, empty beyond) parts it in two, which is not built where it runs
 /// on past the face's boundary: `EdgeInFace`, at every pose. Main built
 /// the one edge, its wedge a reflex 290° through the empty half-space.
-const REFUSED: &[(&str, &str, usize)] = &[
-    ("on the void's face in the arch", "EdgeInFace", 5),
-    ("on the void's face, the island in it", "EdgeInFace", 5),
+const UNPARTED: [(&str, [&str; 5]); 2] = [
+    ("on the void's face in the arch", ON_THE_VOIDS_FACE),
+    ("on the void's face, the island in it", ON_THE_VOIDS_FACE),
+];
+
+/// [`UNPARTED`]'s cells.
+const ON_THE_VOIDS_FACE: [&str; 5] = [
+    "at rest, y − x: EdgeInFace",
+    "turned about z, y − x: EdgeInFace",
+    "turned, y − x: EdgeInFace",
+    "flipped, y − x: EdgeInFace",
+    "flipped and turned, y − x: EdgeInFace",
 ];
 
 /// **Every edge a vertex read again reads is classed, against the
 /// germ**, in every scene at every pose (module docs), and refuses only
-/// as [`REFUSED`] says. Prints each scene's tally, then asserts it.
+/// as [`KNOWN_INSIDE_OUT`] and [`UNPARTED`] say. Prints each scene's
+/// tally, then asserts it.
 #[test]
 fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
     let mut tallies: BTreeMap<&'static str, Tally> = BTreeMap::new();
@@ -984,21 +1005,116 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
         let tally = &tallies[label];
         rows += tally.rows;
         eprintln!(
-            "{label} | {} | {:?} | {} | {} | {} | {}",
-            tally.built, tally.refused, tally.rows, tally.wrong, tally.missing, tally.doubled
+            "{label} | {} | {:?} | {} | {} | {} | {} | {:?}",
+            tally.built,
+            tally.refused,
+            tally.rows,
+            tally.wrong,
+            tally.missing,
+            tally.doubled,
+            tally.refused_cells
         );
-        let refused: BTreeMap<String, usize> = REFUSED
+        // The fin crown holds a region that winds −1 at rest, before any
+        // join (`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`):
+        // which of its unions refuses is face order's choice, not the
+        // region's. Pinned exactly, both what refuses and what builds
+        // holding the region, so the row's fix shows here.
+        let refused = KNOWN_INSIDE_OUT
             .iter()
-            .filter(|&&(l, _, _)| l == *label)
-            .map(|&(_, kind, n)| (kind.to_owned(), n))
-            .collect();
-        if tally.refused != refused || tally.wrong + tally.missing + tally.doubled > 0 {
+            .find(|(l, _)| l == label)
+            .map(|(_, cells)| &cells[..])
+            .or_else(|| {
+                UNPARTED
+                    .iter()
+                    .find(|(l, _)| l == label)
+                    .map(|(_, cells)| &cells[..])
+            })
+            .unwrap_or(&[][..]);
+        if tally.refused_cells != refused || tally.wrong + tally.missing + tally.doubled > 0 {
             failures.push(format!("{label}: {tally:?}"));
+        }
+        if let Some((_, built)) = KNOWN_WRONG.iter().find(|(l, _)| l == label) {
+            let known: BTreeMap<String, usize> = built
+                .iter()
+                .map(|&(pose, n)| (pose.to_owned(), n))
+                .collect();
+            if tally.built_by_pose != known {
+                failures.push(format!(
+                    "{label}: built by pose {:?}, known wrong (the crown's −1 region) {known:?}",
+                    tally.built_by_pose
+                ));
+            }
         }
     }
     assert!(failures.is_empty(), "{failures:#?}");
     assert!(rows > 0, "rows were read");
 }
+
+/// The fin scenes whose union check 7 reads inside out
+/// (`ResultInvalid { NegativeVolume }`), cell by cell: `x ∪ y` at three
+/// poses of five. The region it reads is the fin crown's own
+/// (`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`);
+/// the aimed ray that finds it is the first in face order that decides,
+/// so `y ∪ x` and the two flipped poses' `x ∪ y` take another ray, read
+/// `Out`, and build.
+const KNOWN_INSIDE_OUT: [(&str, [&str; 3]); 2] = [
+    (
+        "a fin, probe 2",
+        [
+            "at rest, x ∪ y: ResultInvalid",
+            "turned about z, x ∪ y: ResultInvalid",
+            "turned, x ∪ y: ResultInvalid",
+        ],
+    ),
+    (
+        "a fin, probe 4",
+        [
+            "at rest, x ∪ y: ResultInvalid",
+            "turned about z, x ∪ y: ResultInvalid",
+            "turned, x ∪ y: ResultInvalid",
+        ],
+    ),
+];
+
+/// **Known wrong**: the fin scenes whose results build and pass tier 3
+/// holding the crown's −1 region (an independent winding count reads it
+/// in every union with probes 1, 2 and 4, in both orders, and in the
+/// crown alone: review R1, PR 5119), with the cells that build at each
+/// pose, so a new pose adds a row rather than moving a count. Check 7
+/// and the census pass a body with a −1 region today; the row owns it
+/// (`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`).
+const KNOWN_WRONG: [(&str, &[(&str, usize)]); 3] = [
+    (
+        "a fin, probe 1",
+        &[
+            ("at rest", 4),
+            ("turned about z", 4),
+            ("turned", 4),
+            ("flipped", 4),
+            ("flipped and turned", 4),
+        ],
+    ),
+    (
+        "a fin, probe 2",
+        &[
+            ("at rest", 5),
+            ("turned about z", 5),
+            ("turned", 5),
+            ("flipped", 6),
+            ("flipped and turned", 6),
+        ],
+    ),
+    (
+        "a fin, probe 4",
+        &[
+            ("at rest", 5),
+            ("turned about z", 5),
+            ("turned", 5),
+            ("flipped", 6),
+            ("flipped and turned", 6),
+        ],
+    ),
+];
 
 /// A probe cell's tally beside [`Tally`]: what built, what was empty or
 /// refused, and each result that read wrong against the germ.
@@ -1207,7 +1323,24 @@ fn partners_along_the_face_build_sound_against_the_germ() {
             }
             for (plabel, base, above) in &partners {
                 let ylabel = format!("{plabel}, scale {scale}");
-                let yp = p(*base);
+                // A partner whose orientation no reading decides at this ε
+                // (a sliver face within the band) is no finished body.
+                let yp = match apex_pyramid_kept(&base.map(|c| c.map(|x| x * scale)), pose, t()) {
+                    Ok(yp) => yp,
+                    Err(errors) => {
+                        let kind = format!("{errors:?}");
+                        let kind = kind
+                            .split([' ', '{', '(', '['])
+                            .nth(1)
+                            .unwrap_or("")
+                            .to_owned();
+                        *probe
+                            .refused
+                            .entry(format!("partner at rest: {kind}"))
+                            .or_default() += 1;
+                        continue;
+                    }
+                };
                 let made = if *above {
                     union(&plate_b, &yp, t())
                 } else {
@@ -1310,6 +1443,23 @@ fn partners_along_the_face_build_sound_against_the_germ() {
                 ];
                 for (xl, xb) in xs {
                     let label = format!("{ylabel} | {xl}");
+                    // A corner within twice the band of the apex is no
+                    // pyramid the fixture can make: its strut's span
+                    // escalates. "An edge inside the along face" puts one
+                    // there beside a half-turn partner whose two along
+                    // corners nearly oppose (δ 1e-3), which reaches here
+                    // since its orientation reads at rest.
+                    let near = |c: &[f64; 3]| {
+                        (c[0] * c[0] + c[1] * c[1] + c[2] * c[2]).sqrt() * scale
+                            <= 2.0 * t().k() * eps
+                    };
+                    if xb.iter().any(near) {
+                        *probe
+                            .refused
+                            .entry("x: a corner within the band of the apex".to_owned())
+                            .or_default() += 1;
+                        continue;
+                    }
                     let x_b = p(xb);
                     let x_g = c(xb);
                     let before = (germ.wrong, germ.missing, germ.doubled);

@@ -225,22 +225,6 @@ fn assemble_census_verdicts_match_f64_at_interval() {
         let ev_i = eval::<Interval>(&doc.doc);
         let f = assemble(&doc.doc, &ev_f, tol);
         let i = assemble(&doc.doc, &ev_i, tol);
-        // Its profile refuses a junction at `Interval`, so its product
-        // has a poisoned placement there: the census never runs, and
-        // the row has nothing to compare
-        // (`work/paths/the-declared-tangency-bracket-refuses-its-closing-junction-at-interval.md`,
-        // pinned in `m4_pr8_corpus_interval`).
-        if doc.name == "declared_tangency" {
-            assert!(
-                f.is_ok()
-                    && i.as_ref()
-                        .is_err_and(|e| e.to_string().contains("poisoned")),
-                "declared_tangency: the census runs at f64, and at Interval meets the \
-                 profile's refusal: {:?}",
-                i.as_ref().err().map(|e| e.to_string())
-            );
-            continue;
-        }
         assert_eq!(
             f.is_ok(),
             i.is_ok(),

@@ -428,3 +428,177 @@ fn the_value_channel_refuses_an_arc_carrier_at_its_segment() {
         ),
     }
 }
+
+/// **A chord heading along −x from a computed point reads its turn as an
+/// enclosure of the nominal's.** `line(2.9)` along `π/2` from `(1, 0.1)`
+/// lands on a thin enclosure of `(1, 3)`, so every chord from it to an
+/// authored point on `y = 3` runs along −x with a `y` component
+/// straddling zero — `atan2`'s branch cut, where an angle enclosure is
+/// the whole circle. The chord's director is its components, so each
+/// door below classifies the junction it reaches from a narrow ray: the
+/// line and arc legs, the fused arc incomings and the closing chord
+/// construct (a definite left turn), and the leg arriving along −x
+/// refuses as the tangent it is, with a margin narrow around zero.
+#[test]
+fn a_chord_along_minus_x_from_a_computed_point_reads_a_narrow_turn() {
+    use geom_core::Bounds;
+    use std::f64::consts::{FRAC_PI_2, PI};
+    let t = Tol::witness();
+    let one = |v: f64| Interval::from_f64(v);
+    let up_then_along = |from: Point2<Interval>| {
+        profile::Open
+            .at(from)
+            .angle(one(FRAC_PI_2), t)
+            .expect("the director up")
+            .line(one(2.9), t)
+            .expect("the computed point beside (1, 3)")
+    };
+
+    let mut wrong = Vec::new();
+    if let Err(e) = up_then_along(ip2(1.0, 0.1)).line_to(ip2(0.0, 3.0), t) {
+        wrong.push(format!("the line leg along -x: {e:?}"));
+    }
+    if let Err(e) = up_then_along(ip2(1.0, 0.1)).arc_to(
+        profile::Bulge {
+            p: ip2(0.0, 3.0),
+            b: one(0.2),
+        },
+        t,
+    ) {
+        wrong.push(format!("the arc leg whose chord runs along -x: {e:?}"));
+    }
+    if let Err(e) = up_then_along(ip2(1.0, 0.1)).arc_fillet(
+        profile::Bulge {
+            p: ip2(0.0, 3.0),
+            b: one(0.2),
+        },
+        one(0.1),
+        t,
+    ) {
+        wrong.push(format!(
+            "the fused bulge incoming whose chord runs along -x: {e:?}"
+        ));
+    }
+    if let Err(e) = up_then_along(ip2(1.0, 0.1)).arc_fillet(
+        profile::Center {
+            c: ip2(0.5, 2.0),
+            winding: profile::ArcSweep::Ccw,
+            p: ip2(0.0, 3.0),
+        },
+        one(0.1),
+        t,
+    ) {
+        wrong.push(format!(
+            "the fused centre incoming whose chord runs along -x: {e:?}"
+        ));
+    }
+    let closing = profile::Open
+        .at(ip2(0.0, 3.0))
+        .line_to(ip2(1.0, 0.0), t)
+        .expect("the first leg")
+        .line_to(ip2(1.0, 0.1), t)
+        .expect("the leg up")
+        .tangent()
+        .line(one(2.9), t)
+        .expect("the computed point beside (1, 3)")
+        .line_to(profile::Start, t);
+    if let Err(e) = closing {
+        wrong.push(format!("the closing chord along -x: {e:?}"));
+    }
+    assert!(
+        wrong.is_empty(),
+        "each chord's junction turns definitely left: {wrong:#?}"
+    );
+
+    let err = profile::Open
+        .at(ip2(2.0, 3.0))
+        .angle(one(PI), t)
+        .expect("the director along -x")
+        .line(one(1.0), t)
+        .expect("the computed point beside (1, 3)")
+        .line_to(ip2(0.0, 3.0), t)
+        .expect_err("a chord continuing the incoming direction is a tangent junction");
+    let profile::PathError::JunctionTangent { margin, .. } = err else {
+        panic!("expected the tangent refusal, got {err:?}");
+    };
+    assert!(
+        margin.lo() <= 0.0 && 0.0 <= margin.hi() && margin.hi() - margin.lo() < 1e-12,
+        "the tangent junction's turn margin encloses zero narrowly, got {margin:?}"
+    );
+}
+
+/// **A direction a later step turns is turned as a ray, never rebuilt
+/// from an angle read back off it.** Each case ends a leg heading −x at
+/// `Interval`, where an angle read off that ray by `atan2` straddles its
+/// branch cut and encloses the whole circle, and then turns it: `.turn`
+/// after a bulge arc whose end tangent heads −x (`b` = 1, ½ and 2, the
+/// chord `2·unit(π − 2·atan b)`), the `Sweep` extension after the same
+/// arc with a leg following, and `.turn` after a chord along −x from a
+/// computed point. Each junction then reads a definite turn.
+#[test]
+fn a_turn_after_a_ray_along_minus_x_turns_the_ray() {
+    use std::f64::consts::{FRAC_PI_2, PI};
+    let t = Tol::witness();
+    let one = |v: f64| Interval::from_f64(v);
+    let mut wrong = Vec::new();
+    for b in [1.0, 0.5, 2.0] {
+        let gamma = PI - 2.0 * f64::atan(b);
+        let arc = || {
+            profile::Open
+                .at(ip2(0.0, 0.0))
+                .arc_to(
+                    profile::Bulge {
+                        p: ip2(2.0 * gamma.cos(), 2.0 * gamma.sin()),
+                        b: one(b),
+                    },
+                    t,
+                )
+                .expect("the arc")
+        };
+        match arc().turn(one(0.5), t) {
+            Ok(p) => {
+                if let Err(e) = p.line(one(1.0), t) {
+                    wrong.push(format!("b = {b}: the leg after .turn: {e:?}"));
+                }
+            }
+            Err(e) => wrong.push(format!("b = {b}: .turn after the arc: {e:?}")),
+        }
+        let sweep = arc().tangent().arc_to(
+            profile::Sweep {
+                r: one(1.0),
+                side: profile::ArcSide::Left,
+                angle: one(0.5),
+            },
+            t,
+        );
+        match sweep {
+            Ok(p) => {
+                if let Err(e) = p.line_to(ip2(-10.0, 5.0), t) {
+                    wrong.push(format!("b = {b}: the leg after the Sweep extension: {e:?}"));
+                }
+            }
+            Err(e) => wrong.push(format!("b = {b}: the Sweep extension after the arc: {e:?}")),
+        }
+    }
+    let chord_then_turn = profile::Open
+        .at(ip2(1.0, 0.1))
+        .angle(one(FRAC_PI_2), t)
+        .expect("the director up")
+        .line(one(2.9), t)
+        .expect("the computed point beside (1, 3)")
+        .line_to(ip2(0.0, 3.0), t)
+        .expect("the chord along -x")
+        .turn(one(1.0), t);
+    match chord_then_turn {
+        Ok(p) => {
+            if let Err(e) = p.line(one(1.0), t) {
+                wrong.push(format!("the leg after .turn after the chord: {e:?}"));
+            }
+        }
+        Err(e) => wrong.push(format!(".turn after the chord: {e:?}")),
+    }
+    assert!(
+        wrong.is_empty(),
+        "every turned ray reads a definite turn: {wrong:#?}"
+    );
+}
