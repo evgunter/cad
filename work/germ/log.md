@@ -1444,3 +1444,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The three paused reviewers (r5172a, r5172b, r5173) are resumed.
   - **Ev's direction (chat, 2026-10-19):** finish what is important, not the whole tail. At hand-back, leave GERM `ready` (not `active`) with the correct program priority.
   - **Plan:** land the in-flight PRs 5172 and 5173 and the circle-torus and flat-frustum lanes, and carry PR 5156 to Ev's answer if it comes. Dispatch nothing new from the P3/P4 tail. Then hand back: `status: ready`, `priority: P1` (no open P0 row remains; the top live row is c5, P1, held by D10), and refresh the program body's stale P0 rationale.
+- 2026-10-19 15:25 — **Ev on PR 5156: "this makes sense!"**, in reply to the one-check table. Recorded as the decision for the pose check: the exact Ellipse, `Circle` as the kind of the pose. I said on the PR that I read it that way, so Ev can correct me.
+  - The item now has "Decided (Ev, PR 5156, 2026-10-19)" and `needs_ev` is cleared. Main merged into the branch. The DESIGN-FORK-LOG row was renumbered 142 → **176** (main took 142–175) and its Ev/match/A-B columns filled: match is B's first recommendation; byte 83, A = Fable, B = Opus.
+  - PR 5156 retitled `germ: …` and its body made a decision lead.
+  - **Implementation dispatched** on the same branch: session_01EVAAebxyccbanNKYYd9EgK. Its scope: the axes gate and `CircularAxes` go; downstream arms removed; a readers audit (major direction off the axis); sweep README and spec-row text; gap rows red on main; old pinned rows re-pinned.
+  - This completes the important in-flight set. Review per tiers when it hands back.
