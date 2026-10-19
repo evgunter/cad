@@ -5527,13 +5527,17 @@ fn the_root_readers_read_statements_not_lines() {
 ///   revolve, loft). A modeller asks a validated loop through its own
 ///   `ValidatedLoop::is_full_turn`, which the façade carries with the
 ///   type.
+/// - `PINNED_UNDER_GUIDANCE`, the predicates a guided validation does
+///   not run: what the evaluator's `f64` lane logs in the second pass's
+///   place is read off it. A fact between the profile layer and the
+///   evaluator, which a modeller never asks.
 ///
 /// The list is checked in both directions — a future interior root
 /// export is a finding, and a stale entry fails. It once held
 /// `RawLoop`, the minting tier, which left the shipped root surface
 /// behind that crate's `test-support` feature instead
 /// ([`code_without_cfg_gated`] is what makes the scan agree).
-const PROFILE_NOT_CARRIED: [&str; 2] = ["decision_subject", "is_full_turn"];
+const PROFILE_NOT_CARRIED: [&str; 3] = ["PINNED_UNDER_GUIDANCE", "decision_subject", "is_full_turn"];
 
 /// **The document layer's guard, for the other layer curated the same
 /// way.**
