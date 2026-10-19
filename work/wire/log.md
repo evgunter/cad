@@ -6322,3 +6322,22 @@ Signed (WIRE orchestrator).
   - PR 5328's merge is held until the fork settles: both answers retire
     its published-name mechanism. Its fix pass (the BLOCKER) continues.
   (WIRE orchestrator)
+
+- 2026-10-19 — FORK-ROWPRESENCE, round 2 crossed.
+  - The second designer measured that every order-dependent statement
+    is implied by judged rows, but only 2 of 6 through lineage; 4 need
+    line and plane theorems. Every step decision is cited (106/0). The
+    pencil records nothing even in `topo`.
+  - It then moved to "every decision is a row, presence follows order".
+    The first designer moved to "order-free via a closure over judged
+    carrier identities", with a proof that surviving coincidences are
+    met in every order.
+  - Round 3 asks each to answer the other, plus the question beneath
+    both: who reads published coincidence rows, and is it one product
+    (the door's per-evaluation log) or two (that log, and an order-free
+    fact set)?
+  - Filings once the fork settles: `topo` records no coincidence for a
+    face through a seam (the pencil); the (a, c) pair records no row for
+    colinear apex edges; `cite_rows`' citing filter; the guard pins
+    `minted > 0`.
+  (WIRE orchestrator)
