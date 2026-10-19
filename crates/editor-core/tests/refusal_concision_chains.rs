@@ -61,6 +61,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Finish/TornComponent",
     "Split/Finish/UnclassifiableComponent",
     "Split/Finish/NestingContradiction",
+    "Split/Finish/SlitUnplaced",
     "Split/Finish/ResultInvalid",
     "Split/Pcurves",
     "Transform/Pcurve",
@@ -1766,6 +1767,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             ("OrderEscalated", J::OrderEscalated { diag: diag() }),
             ("Escalated", J::Escalated { face, diag: diag() }),
             ("DegenerateSection", J::DegenerateSection { face }),
+            ("CurvedSlitTrace", J::CurvedSlitTrace { face }),
             (
                 "RingHoming",
                 J::RingHoming(topo::PointInLoopError::RayExhausted {
@@ -1987,6 +1989,22 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "NestingContradiction",
             F::NestingContradiction { hole: face },
+        ),
+        (
+            "SlitUnplaced",
+            F::SlitUnplaced {
+                slit: face,
+                in_hole: true,
+            },
+        ),
+        (
+            "SlitHoming",
+            F::SlitHoming {
+                slit: face,
+                error: topo::PointInLoopError::RayExhausted {
+                    r#loop: LoopKey::default(),
+                },
+            },
         ),
         (
             "EdgeJoin",

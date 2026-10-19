@@ -22,7 +22,7 @@
 
 use geom_core::{Decide, Indeterminate, Point2, Point3, Real, Vec2, Vec3};
 
-use super::join::{Spur, spur_tips};
+use super::join::{SectionKind, Spur, spur_tips};
 use super::section_loops::{self, NestFault, SenseFault};
 use super::{KnifeEdge, PlaneSide, SplitError, SplitPlane, SplitReduceError, split_scratch};
 use crate::body::Body;
@@ -271,7 +271,8 @@ impl<T: Real> std::error::Error for SectionError<T> {}
 /// winds counter-clockwise in `(u, v)`, a hole clockwise. Each hole is
 /// placed in the outline that immediately encloses it by the section
 /// nesting rule (`section_loops::nest`), which `split` nests its
-/// holed section faces with.
+/// holed section faces with. A slit trace bounds no region and is not
+/// read: its slit lies inside an outline.
 ///
 /// # Frame semantics
 ///
@@ -310,6 +311,10 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut outlines = Vec::new();
     let mut holes = Vec::new();
     for section in &completed {
+        // A slit trace bounds no region: its slit lies inside an outline.
+        if section.kind != SectionKind::Area {
+            continue;
+        }
         let halves = section_walk(&red.body, section.below_loop)?;
         // The caller's plane, which the frame is reported on: the below
         // loop's first chord, as the split's section face reads it.

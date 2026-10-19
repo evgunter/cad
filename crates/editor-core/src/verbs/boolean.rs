@@ -58,7 +58,7 @@ pub(crate) struct PairVerb<T: Decide> {
     /// **Op selector + kernel inputs → the kernel verb.** The one
     /// place a document's op selector and its lowered inputs become a
     /// [`verbs::Verb`] payload, per instance.
-    pub(crate) build: fn(BooleanOp, BooleanInputs) -> Verb<T>,
+    pub(crate) build: fn(BooleanOp, BooleanInputs<T>) -> Verb<T>,
     /// This verb's naming emitter.
     pub(crate) emitter: PairEmitter<T>,
     /// **This family's arm of the closed record channel**, as a
@@ -87,7 +87,7 @@ pub(crate) struct BooleanRecord {
 
 /// The boolean's kernel payload. A named function rather than a
 /// closure so it can be a plain `fn` pointer in the struct above.
-fn build_boolean<T: geom_core::Real>(op: BooleanOp, inputs: BooleanInputs) -> Verb<T> {
+fn build_boolean<T: geom_core::Real>(op: BooleanOp, inputs: BooleanInputs<T>) -> Verb<T> {
     Verb::Boolean {
         op,
         inputs: Box::new(inputs),
