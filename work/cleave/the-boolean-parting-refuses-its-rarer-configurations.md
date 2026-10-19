@@ -31,8 +31,9 @@ rather than keep the rider form, where:
   or spline, whose bend off its tangent plane is not read;
 - `NoNormal`: a wall has no normal at the edge's midpoint.
 
-None is reached by the topo, sweep or editor-core suites at default,
-1e-6 or 1e-12. Each is a configuration the ratified sentence decides;
+None is reached by the per-PR set of the topo, sweep and editor-core
+suites at default, 1e-6 or 1e-12 (the slow set, at default, in part).
+Each is a configuration the ratified sentence decides;
 each is a construction gap, with no lever.
 
 ## Fix
