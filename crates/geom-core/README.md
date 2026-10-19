@@ -236,11 +236,11 @@ unresolved enclosure, a straddle) ends in the lever whatever the side.
 |---|---|---|---|
 | `Lever` | the lever and the note | the lever and the note | the lever and the note |
 | `StoredContradiction` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
-| `Unminted` | a panic | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
+| `Unminted` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
 
 Within ε_in the import door ends every band-decided reading in its one
-sentence and the lever, whatever the side. An unminted side panics at a
-build because no public door returns a refusal that reads so. Every
+sentence and the lever, whatever the side. No public door returns a
+refusal on an unminted side read at a build: every
 public certification door (`geom_brep::EdgeCurve::certify`,
 `EdgeCurve::recertify` and their `_via` forms) reports a span check's
 reading certainly on its refused side as its input's
@@ -252,7 +252,9 @@ kernel holds, re-minted or re-certified at the run's one band (a rigid
 motion, a graft, a re-description in place, a split child, a re-based
 run), `topo` panics at the call site (`policy_lane::kernels_own`): a
 kernel bug. Only a refusal built by hand reaches `CertCheck::ParamSpan`'s
-or `CertCheck::ParamWinding`'s own ending at a build. The table departs from
+or `CertCheck::ParamWinding`'s own ending at a build; rendering it is
+input, so it ends there as the door's own refusal does, in the lever,
+and the kernel-bug panic is `kernels_own`'s alone. The table departs from
 clause (iv) in one cell, typed until the door that would keep input
 from it exists, and scheduled by its row: the at-rest column, which the
 validator also reads at the import gate (`[import]` step 4) and so a
