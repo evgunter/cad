@@ -436,9 +436,9 @@ fn the_value_channel_refuses_an_arc_carrier_at_its_segment() {
 /// straddling zero — `atan2`'s branch cut, where an angle enclosure is
 /// the whole circle. The chord's director is its components, so each
 /// door below classifies the junction it reaches from a narrow ray: the
-/// line and arc legs and the closing chord construct (a quarter turn
-/// left), and the leg arriving along −x refuses as the tangent it is,
-/// with a margin narrow around zero.
+/// line and arc legs, the fused arc incomings and the closing chord
+/// construct (a definite left turn), and the leg arriving along −x
+/// refuses as the tangent it is, with a margin narrow around zero.
 #[test]
 fn a_chord_along_minus_x_from_a_computed_point_reads_a_narrow_turn() {
     use geom_core::Bounds;
@@ -467,6 +467,31 @@ fn a_chord_along_minus_x_from_a_computed_point_reads_a_narrow_turn() {
     ) {
         wrong.push(format!("the arc leg whose chord runs along -x: {e:?}"));
     }
+    if let Err(e) = up_then_along(ip2(1.0, 0.1)).arc_fillet(
+        profile::Bulge {
+            p: ip2(0.0, 3.0),
+            b: one(0.2),
+        },
+        one(0.1),
+        t,
+    ) {
+        wrong.push(format!(
+            "the fused bulge incoming whose chord runs along -x: {e:?}"
+        ));
+    }
+    if let Err(e) = up_then_along(ip2(1.0, 0.1)).arc_fillet(
+        profile::Center {
+            c: ip2(0.5, 2.0),
+            winding: profile::ArcSweep::Ccw,
+            p: ip2(0.0, 3.0),
+        },
+        one(0.1),
+        t,
+    ) {
+        wrong.push(format!(
+            "the fused centre incoming whose chord runs along -x: {e:?}"
+        ));
+    }
     let closing = profile::Open
         .at(ip2(0.0, 3.0))
         .line_to(ip2(1.0, 0.0), t)
@@ -482,7 +507,7 @@ fn a_chord_along_minus_x_from_a_computed_point_reads_a_narrow_turn() {
     }
     assert!(
         wrong.is_empty(),
-        "each chord turns a definite quarter turn (less an arc's half sweep): {wrong:#?}"
+        "each chord's junction turns definitely left: {wrong:#?}"
     );
 
     let err = profile::Open

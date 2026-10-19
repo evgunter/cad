@@ -4095,6 +4095,13 @@ fn chord_director<T: Real>(d: Vec2<T>) -> Result<Dir<T>, PathError<T>> {
     Ok(Dir::from_unit(d / len))
 }
 
+/// The unit ray `u` turned by `by` radians: unit over the reals wherever
+/// `u` is, and to its rounding in the floats ([`Dir::from_unit`]).
+fn turned<T: Real>(u: Vec2<T>, by: T) -> Dir<T> {
+    let (s, c) = by.sin_cos();
+    Dir::from_unit(Vec2::new(u.x * c - u.y * s, u.x * s + u.y * c))
+}
+
 /// The kernel behind the table's circle row: the lowered loop (the
 /// row supplies the one-step program).
 fn circle_kernel<T: Decide>(
@@ -4945,10 +4952,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
     ) -> Result<(Dir<T>, Dir<T>, T), PathError<T>> {
         let d = target - at;
         let c = chord_director(d)?.unit;
-        let half = unit(sweep_of(leg) / T::from_f64(2.0));
-        let turned =
-            |s: T| Dir::from_unit(Vec2::new(c.x * half.x - c.y * s, c.x * s + c.y * half.x));
-        Ok((turned(-half.y), turned(half.y), d.norm_squared().sqrt()))
+        let half = sweep_of(leg) / T::from_f64(2.0);
+        Ok((turned(c, -half), turned(c, half), d.norm_squared().sqrt()))
     }
 
     pub(super) fn arc_to_point(
