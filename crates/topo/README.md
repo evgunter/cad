@@ -128,8 +128,11 @@ side clears only
   from the candidate plane): a box on its side certifies the Rest, and
   anything else refuses — it never decides a crossing;
 
-and refuses `CensusUndecidable` otherwise. Same-solid distinct-key curved
-pairs are not detected; they are their constructor's obligation.
+and refuses `CensusUndecidable` otherwise. Within one solid, two
+distinct-key curved faces touching along a tangent locus through both
+interiors are discovered like any touch, and refuse `UnrecordedContact`
+where no record backs them; that discovery is the C9 exclusion ring
+for same-solid pairs, unbuilt (Open).
 
 A declaration licenses a coincidence, never a side. Every meeting between
 two solids — found undeclared by a sweep, named by a record, or backed by
@@ -223,8 +226,9 @@ materials: whether the pair is a contact (a void crescent between the
 sheets), an overlap (a crescent both materials fill), a seam or a nested
 touch is read where it is consumed, by the lump and by the wedge of the
 result's junction (C7). `ContactClass::Tangent`, the record's and the
-mate's class, keeps its material claim, and a shared crescent
-contradicts it.
+mate's class, keeps its material claim; a crescent the materials of two
+distinct solids share is interference between them (C6), not a
+contradicted contact.
 
 Verification is `Rest`'s carrier rung with the sense bit reversed:
 carrier non-contradiction through the kind ladder, senses aligned as an
