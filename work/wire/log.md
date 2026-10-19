@@ -6356,6 +6356,123 @@ Signed (WIRE orchestrator).
     the build.
   (WIRE orchestrator)
 
+- 2026-10-19 — PR 5328 fix pass, green at 67b0dcd469.
+  - The blocker is fixed: forwarding follows `Links::judged`'s `place`,
+    with `settle_cones`, and the 120-order cover test builds in every
+    order.
+  - Deviation accepted. A cited fold row whose vertex a later step
+    swallows keeps its step's spelling, as main does, so no order
+    refuses. Filed as
+    `a-cited-fold-row-on-a-vertex-a-later-step-swallows-keeps-its-step-spelling`
+    (P2).
+  - Merge held pending Ev on `[ev]` PR 5329. Both converged answers
+    replace 5328's published-name mechanism with member-cell spelling.
+    If Ev declines 5329, 5328 merges as is; if Ev approves, the 5329
+    build carries over 5328's cover test and guard site check.
+  (WIRE orchestrator)
+
+- 2026-10-19 — Ruling for `wire/split-maximal-halves`. A split's merge
+  group with no section face (a cylinder's two half-walls on one
+  carrier, merged across the profile seam once the cut opens the turn)
+  is `Merged` of the parent operand faces, with `Keeps` for several
+  pieces of one parent, as the boolean names the same shape
+  (`a_slot_across_a_sunk_boss…`). This is a faithful elaboration of N3:
+  a merged face is `Merged` of its constituents, and the boolean already
+  does it. Rejected:
+  - merge only section groups: DESIGN's maximal faces;
+  - name pre-merge pieces: no finished body holds them.
+  The lane adds one N3 sentence and re-baselines the two edge-lineage
+  pins whose pieces now merge. The `Joined::Seam` spelling is flagged
+  for review. The lane crossed CLEAVE (`finish.rs`, `mod.rs`) and TOPO
+  (`euler_ring.rs`, `merge_faces.rs`); the TOPO crossing was forced by
+  the revolved half's `RechartStrandsDescriptions{RingMove}`.
+  (WIRE orchestrator)
+
+- 2026-10-19 — Second ruling for `wire/split-maximal-halves`. Once a
+  cylinder's half-walls merge, the join joins the rim across the
+  profile seam, covering pieces of several operand edges and none
+  whole. It is named as the union names a flush rim along several
+  member edges: `Merged` of those edges, with `Ends` to tell pieces
+  apart.
+  - The README's "pieces of several operand edges, is refused, not
+    named" is agent text (100587fd5d, an implementation commit; `git
+    log -S` finds no Ev ratification). It was a stop case, so it is
+    re-worded, not waited on.
+  - The refusal stays for a chord joined to a piece.
+  - Faces are linked per half, not across halves, because the merges
+    are recorded per half.
+  (WIRE orchestrator)
+
+- 2026-10-19 — Ev approved PR 5329 ("sure, i don't have much intuition
+  about this but it seems fine"). DM4 merged (72a204ff73). The fork-log
+  row was renumbered 167 → 169 and filled with byte 128 (even):
+  A = Opus, B = Fable.
+  - PR 5328 closed unmerged as superseded, with a comment. Its two filed
+    rows were copied here, and its cover test, site check and
+    `settle_cones` reading carry into the build.
+  - Build unit 1 dispatched: `wire/boolean-rows-every-decision` (CLEAVE's
+    `cite_rows` row, crossed by WIRE as the row invites), FULL review.
+  - Unit 2, `wire`'s k-ary rows with an origin mark plus re-pinned order
+    tests, follows it.
+  (WIRE orchestrator)
+
+- 2026-10-19 — PR 5334 (split maximal halves) opened. `gate ok` is red
+  on two eps-1e-12 sweep rows:
+  - `band_turn_overrun_fillet::the_needle…`, also red on the 10-18
+    nightly;
+  - `reach_cone_split::steep_frusta…`, which panics before any split
+    runs. Its presence on main is unconfirmed.
+  A FULL review is dispatched, with the CI-origin check as claim 6. The
+  review also covers:
+  - the lane's assumption that a joined edge runs with the operand edges
+    it covers;
+  - the re-pinned tests whose subject the merge removed;
+  - the seven gui render cells the lane `git rm`'d as stale renames.
+  (WIRE orchestrator)
+
+- 2026-10-19 — PR 5334 FULL review adjudicated: mergeable after a fix
+  pass, with no wrong answer shown. Both 1e-12 reds are not this PR's:
+  they appear identically on the 2026-10-19 nightly. `steep_frusta` was
+  filed on FLUX (likely PR 5038); the needle was already filed.
+  - MAJOR: the skip record was dropped, unlike the boolean.
+  - MAJOR: a new `PinchCornerEscalated` acceptance with no row.
+  - MAJOR: the TOPO design row and door census are stale for
+    `ring_move_unasked`.
+  - Minors: `SetPiece` sense when operand edges run opposite ways; bare
+    `Seam` joins colliding; re-pinned test names; a lost non-vacuity
+    guard; the `volume_pad` ceiling; a possible lineage `minted`
+    mislisting.
+  - The dispatch premise was corrected: the gui cells were main's own
+    stale copies, retired by the `ciw` procedure.
+  (WIRE orchestrator)
+
+- 2026-10-19 — Build unit 1, PR 5352 (`wire/boolean-rows-every-decision`),
+  opened green. Every margined decision is now a row: the pencil's step
+  records 2, and the (a, c) wedges publish 2.
+  - It also fixed a latent bug the filter had hidden: a sphere cut-in's
+    rows named clone-only cells.
+  - Policy provenance is agent text (`53ec9087fe`, `cdafc97bad`).
+  - Four CLEAVE rows filed: the `glue::touched` filter; `SplitOn`'s
+    two-run filter; the re-chart arm; a pre-existing Villarceau fuzz
+    seed.
+  - FULL review dispatched.
+  - Unit 2 must drop `wire_combine`'s #4323 citing filter: the pencil
+    union still publishes only judged rows.
+  (WIRE orchestrator)
+
+- 2026-10-19 — PR 5352 FULL review adjudicated: not mergeable as is.
+  The filter and its renumbering hold.
+  - MAJOR: two clone-to-input cell maps (`ChartCuts::input_cell`'s
+    meridian arm, and `ops::input_cell` for minted vertices) widen a
+    cell but keep the relation. So the PR publishes false rows: a cap
+    face OnCarrier a brick face, twice, and the pencil's seam OnCarrier
+    rim, where the truth is a crossing at a point.
+  - Fix pass: publish only rows whose input spelling is true. Hold
+    widened decisions as typed "decided, not yet spelled" entries, for
+    unit 2's k-ary meeting-dimension spelling to publish. Put both maps
+    in one function.
+  Class note: a cell map that changes a cell's dimension must own the
+  relation, or it turns a crossing into a coincidence. (WIRE orchestrator)
 - 2026-10-19 — PR 5334 fix pass adjudicated by the orchestrator's read;
   merged over the two known main reds (the needle, `steep_frusta`, both
   on the 2026-10-19 nightly), with a comment.
@@ -6385,4 +6502,32 @@ Signed (WIRE orchestrator).
     - re-pin the order tests;
     - carry over the closed PR 5328's 120-order cover test and site
       check.
+  (WIRE orchestrator)
+
+- 2026-10-19 — PR 5352 merged; CLEAVE's citing-filter row closed.
+  Dispatched unit 2, `wire/union-decision-log`:
+  - k-ary member-cell rows with an origin mark;
+  - spelling the held `UnspelledDecision`s;
+  - dropping #4323's citing filter;
+  - the door proving k-ary rows;
+  - re-pinned order tests, and 5328's carried tests.
+  Re-triaged to the DUAL review tier: it changes the published
+  `NamedCoincidence` type (Python's `coincidences`) and the door's proof
+  shape, which is broad and hard to reverse. The lane stops if a
+  truthful meeting relation needs more than `CoincidenceRelation`
+  states. (WIRE orchestrator)
+
+- 2026-10-19 — Ruling for unit 2. The lane stopped at the brief's step 2:
+  `OnCarrier` needs a distinguished point cell, and a fold-minted
+  point's member-cell spelling has none. Ruled option A: a new
+  `topo::Relation::Meet`, unordered and k-ary ("the cells' carriers
+  share one point"). It applies where the point was widened, or where a
+  set has three or more cells; two-cell rows with a member vertex keep
+  `OnCarrier`.
+  - Why the orchestrator rules it: DM4, approved on PR 5329, already
+    says "the set of member cells that meet". No design page lists the
+    relation set (checked DESIGN.md and the crate READMEs). B, keeping
+    the point apart, spells one point two ways by order, against DM4.
+  - `Meet` also publishes topo's held `UnspelledDecision`s and CLEAVE's
+    15 cited misstatements truthfully.
   (WIRE orchestrator)
