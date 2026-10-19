@@ -6604,3 +6604,13 @@ Signed (WIRE orchestrator).
   - Filed a-kernel-defect-is-a-panic-or-a-typed-refusal-and-nothing-says-which (P2 M, design).
   - Drew FORK-DEFECT on the analysis branch, unread; the designer pair is dispatched.
   - FULL review of 5406 dispatched. 5406 closes only Part 2 and the defaults, and Part 1 moves to the new row.
+
+- 2026-10-19 (WIRE orchestrator) PR 5405 STYLE review at 05e271e8da: MERGEABLE AFTER MINORS.
+  - MINOR-1 (demonstrated): `reached`'s seen-stop absorbed a within-walk cycle. To be fixed.
+  - MINOR-3/4 and NIT-1/2/4: to be fixed.
+  - NIT-3, the helper's shape, is taste and is skipped.
+  - MINOR-2, a panic in editor-core vs typed `SplitLineageCycle` in topo for one fact: the PR follows D9 row 4 as ratified and notes FORK-DEFECT, which may move topo's arm.
+  - Fix pass sent back to the wire-chase lane.
+  - The reviewer's off-scope find, a mate Flip-chain walk with no guard, is filed parked in wirehold on a-mate-relates-two-poses.
+  - Class note: a dedup in a walk's stop closure can absorb a cycle the walk itself was meant to refuse.
+- 2026-10-19 (WIRE orchestrator) FORK-DEFECT crossover round 1: Designer O converged on the rule, the at-rest ending, the rename and the provenance. It reconciled the Emission count at ~135 non-test raises; most samples are row 0/4. Waiting on the other designer's round.
