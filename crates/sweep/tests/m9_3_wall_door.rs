@@ -16,7 +16,7 @@
 use crate::common::operands::{slab as plate, three_arc_cylinder};
 use crate::common::three_arc;
 use geom_core::k_stats::Bracket;
-use geom_core::{Affine3, Mat3, Point2, Point3, Sign, Tol, Vec3};
+use geom_core::{Point2, Point3, Sign, Tol};
 use profile::SketchPlane;
 use sweep::test_support::{extruded, finished};
 use topo::{AtRestBody, BooleanError, BooleanResult};
@@ -125,10 +125,8 @@ fn rest_two_peg_reaches_downstream_of_classification() {
 fn lying_cyl(zc: f64) -> AtRestBody<f64> {
     // Sketch frame: sketch x → world z, sketch y → world x, normal
     // (extrusion) +y. Disc centre at world (x = 2, z = zc).
-    let plane = SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_z(), Vec3::unit_x(), Vec3::unit_y()),
-        Point3::new(0.0, 0.5, 0.0) - Point3::origin(),
-    ));
+    let plane =
+        SketchPlane::from_frame(geom_core::RigidMotion::axes_zx(Point3::new(0.0, 0.5, 0.0)));
     let cyl = extruded(
         plane,
         vec![three_arc(Point2::new(zc, 2.0), 0.5, 60.0)],

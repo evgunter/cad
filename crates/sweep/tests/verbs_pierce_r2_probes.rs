@@ -13,9 +13,10 @@
 
 use crate::common::operands::three_arc_cylinder;
 use core::f64::consts::PI;
+use geom_core::Point3;
 use sweep::ExtrudeSide;
 
-use geom_core::{Affine3, Point2, Tol, Vec3};
+use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
@@ -29,7 +30,7 @@ fn washer(r: f64, rh: f64, z0: f64, z1: f64) -> AtRestBody<f64> {
         (Point2::new(rh, 0.0), 1.0),
         (Point2::new(-rh, 0.0), 1.0),
     ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let profile = Profile::new(plane, vec![outer.into(), hole])
         .validate(tol)
         .unwrap();
@@ -115,7 +116,7 @@ fn r2_a_box_through_a_lens_cap_measures_the_all_arc_remainder() {
         (Point2::new(-1.0, 0.0), 0.6),
         (Point2::new(1.0, 0.0), 0.6),
     ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.0));
     let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
     let a = extrude(
         &profile,
@@ -179,7 +180,7 @@ fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
             (Point2::new(1.0, 0.0), 0.0),
             (Point2::new(-1.0, 0.0), bulge),
         ]);
-        let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
+        let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.0));
         let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
         let a = extrude(
             &profile,
@@ -242,7 +243,7 @@ fn r2_a_box_buried_in_a_pancake_cylinder_attacks_the_ray_cap_trim() {
     let tol = Tol::witness();
     let cyl = {
         let lp = profile::circle(Point2::new(0.0, 0.0), 5.0, tol).unwrap();
-        let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
+        let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.0));
         let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
         extrude(
             &profile,

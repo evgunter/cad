@@ -9,8 +9,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Point3;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec2, Vec3};
+use geom_core::{Point2, Vec2};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::ExtrudeSide;
 use sweep::{
@@ -138,9 +139,9 @@ fn both_loft_caps_read_off_the_result_s_own_handles() {
     };
     let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
     let sections = vec![quad(square), quad(square), quad(square)];
-    let places: Vec<Affine3<f64>> = [0.0, 1.0, 2.5]
+    let places: Vec<SketchPlane<f64>> = [0.0, 1.0, 2.5]
         .iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, *z)))
         .collect();
     let loft = loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("it lofts");
 

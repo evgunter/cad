@@ -12,7 +12,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Tol, Vec3};
+use geom_core::Point3;
+use geom_core::{Point2, Tol};
 use profile::{Open, Profile, SketchPlane, Start};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
@@ -43,7 +44,7 @@ fn lune() -> profile::ClosedLoop<f64> {
 fn r2_cusp_profile_extrudes_and_passes_at_rest() {
     let tol = Tol::witness();
     let loops = vec![profile::ProfileLoop::from(lune())];
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.0));
     let validated = Profile::new(plane, loops)
         .validate(tol)
         .expect("the .cusp() profile validates: the joint is DECLARED");

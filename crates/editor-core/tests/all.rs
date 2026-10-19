@@ -209,6 +209,8 @@ mod eval6_placers_over_instances;
 mod eval6_placers_over_instances_interval;
 #[path = "eval9_nominal_in_the_key.rs"]
 mod eval9_nominal_in_the_key;
+#[path = "f64_lane_validates_once.rs"]
+mod f64_lane_validates_once;
 #[path = "face_face_touch_carry.rs"]
 mod face_face_touch_carry;
 #[path = "fix_loop_polygon_expr.rs"]
@@ -540,8 +542,6 @@ mod perf2_name_keying_differential;
 mod pick3_early_out;
 #[path = "pierce_ring_engraving.rs"]
 mod pierce_ring_engraving;
-#[path = "pinned_lift_validates_once.rs"]
-mod pinned_lift_validates_once;
 #[path = "pirad_wire.rs"]
 mod pirad_wire;
 #[path = "place_mate_frame_offset.rs"]

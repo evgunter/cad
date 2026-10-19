@@ -110,20 +110,17 @@ fn step_area(r: f64, h: f64, delta: f64) -> f64 {
 
 /// Small body, split 50ε (ε ambient), the split left OPEN: the honest
 /// verdict is a typed refusal, and it is the loop's closure that
-/// refuses — the cylinder's Green form checks it, because its sum is
-/// anchor-free only over a closed boundary.
+/// refuses — the periodic charts' junction decide, a gap of 50ε past
+/// its `3ε` slack ([`geom_brep::props::PropsError::ChartLoopOpen`]),
+/// because the Green form's sum is anchor-free only over a closed
+/// boundary.
 #[test]
 fn small_body_rims_50eps_apart_refuse() {
     let eps = geom_core::Tol::witness().get().eps;
     let (surface, edges) = split_rim_patch(1e-4, 1e-3, 50.0 * eps, false);
     let got = curved_face(&surface, &edges, true, band());
     assert!(
-        matches!(
-            got,
-            Err(geom_brep::props::PropsError::NotIsoRectangle {
-                what: "props_loop_closed"
-            })
-        ),
+        matches!(got, Err(geom_brep::props::PropsError::ChartLoopOpen)),
         "a loop open by 50eps must refuse on its closure, not measure: {got:?}"
     );
 }

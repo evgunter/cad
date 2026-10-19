@@ -1160,6 +1160,16 @@ The screen and arm (a) read a ring through one piece set
 goes too. `consume` needed nothing new. The followability row's blind
 hole from the support face now builds. Filed
 `a-cup-on-a-strip-beside-a-band-not-cut-off-at-both-ends-is-not-carved`.
+## 2026-10-19 — a cut-off arc at an oblique end reads off atan2's cut
+
+`an-interval-fillet-cut-off-at-an-oblique-end-reads-its-arc-backward`
+closed: a foot half a turn from its end ellipse's `u_ref` read the hull
+`[−π, π]` at `Interval`, so the sheared box's fillet refused where
+`f64` built. `surgery::arc_window` re-anchors at the half turn and is
+the one window read for `CapSliver::of` and `attach_contact`. A shear
+ladder of both signs, convex and concave, both verbs, at both scalars.
+Filed `a-rim-split-at-its-carriers-anti-seam-refuses-at-interval` and
+one issue for the seam-anchored reads in `topo`.
 
 ## 2026-10-19 — the blend arms place their centres at their inputs' scale (`band/arms-centre-placement`)
 

@@ -26,7 +26,7 @@ use topo::Body;
 pub fn cyl(r: f64, h: f64) -> Body<f64> {
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(0.0, 0.0), r, tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -h)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, -h));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     extrude(
         &profile,

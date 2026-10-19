@@ -79,3 +79,14 @@ The rule reads what the environment binds. An empty or all-`Fixed` box holds eve
 **What the guided reading turned up** (each filed, each row naming its item):
 - The revalue rows' findings: PR 5247's three items.
 - `work/carve/the-guided-derived-frame-extrude-escalates-as-a-kernel-defect.md`.
+
+## After Ev's ruling A on #5068 (2026-10-14, merged 2026-10-19)
+
+Ev ruled that the pinned lift retires outright: every evaluation elaborates
+profile geometry at its own scalar, guided by the `f64` record, and the `f64`
+lane over the nominal takes the first pass's validated form internally
+(`editor_core::ProfileLane`). The derived lift above (`profile_lift_over`) left
+with it, and so did the frame's way up (`RigidMotion::embed`), so no evaluator
+site enters the `f64` elaboration through `from_f64`. The one residue,
+`ValidatedProfile::lift_onto` in sweep's loft at an enclosure scalar, is filed
+as `the-loft-enclosure-arm-re-enters-its-sections-canonical-form-as-constants`.

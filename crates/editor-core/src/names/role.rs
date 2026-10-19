@@ -1092,9 +1092,9 @@ pub enum Qualifier {
     /// A Split's same-side face piece or vertex copy, by what it keeps
     /// of its parent: for a face piece, the parent face's boundary edges
     /// it holds a stretch of; for a vertex copy, the operand vertex's
-    /// own edges it is an end of a piece of, an edge lying in the tool
-    /// plane included. Each cited by its name without piece qualifiers,
-    /// sorted and deduplicated (N2). Equal sets are N2's tie.
+    /// own edges it is an end of a piece of. Both read by descent alone.
+    /// Each cited by its name without piece qualifiers, sorted and
+    /// deduplicated (N2). Equal sets are N2's tie.
     Keeps(Vec<StableName>),
     /// The names of an edge piece's two end vertices as the node
     /// publishes them, sorted, a repeat kept (N2): the qualifier of
@@ -1302,7 +1302,11 @@ pub enum RoleSeg {
     /// In a UNION's published table they are not: a union has no A
     /// and B, so the two sides are in name order (`names::canonical`,
     /// at the collapse and after any rewrite), and `a` is only the
-    /// lesser name.
+    /// lesser name. A split mints one too: an edge its join made over
+    /// section chords and whole operand edges across a merged face,
+    /// between that face's `Merged` set and the operand face across it,
+    /// its sides in name order as a union's are; several of one pair in
+    /// a half carry a `Fragment(Ends)`.
     Seam {
         /// The A-side crossing entity's name (the lesser name, in a
         /// union's table).

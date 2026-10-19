@@ -34,9 +34,12 @@ fn extrude_in(
     y0: f64,
     depth: f64,
 ) -> AtRestBody<f64> {
-    let plane = SketchPlane::new(Affine3::from_parts(
-        geom_core::Mat3::from_cols(cu, cv, Vec3::unit_y()),
-        origin + Vec3::new(0.0, y0, 0.0),
+    let plane = SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(
+            geom_core::Mat3::from_cols(cu, cv, Vec3::unit_y()),
+            origin + Vec3::new(0.0, y0, 0.0),
+        ),
+        geom_core::Tol::witness(),
     ));
     let profile = Profile::new(plane, vec![bulge_loop(vertices)])
         .validate(Tol::witness())

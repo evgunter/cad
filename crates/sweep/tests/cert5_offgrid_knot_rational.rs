@@ -38,8 +38,8 @@
 
 use crate::common::arc_section;
 use geom_brep::PropsError;
+use geom_core::Point3;
 use geom_core::Tol;
-use geom_core::{Affine3, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::ExtrudeSide;
 use sweep::{Section, loft_body};
@@ -79,9 +79,9 @@ const BLADE_HEIGHT: f64 = 2.0;
 fn blade(n: usize, v_degree: usize) -> sweep::Lofted<f64> {
     let sections: Vec<Section> = (0..n).map(|_| arc_section(1.0)).collect();
     #[allow(clippy::cast_precision_loss)]
-    let places: Vec<Affine3<f64>> = (0..n)
+    let places: Vec<SketchPlane<f64>> = (0..n)
         .map(|k| {
-            Affine3::translation(Vec3::new(
+            SketchPlane::xy_at(Point3::new(
                 0.0,
                 0.0,
                 BLADE_HEIGHT * k as f64 / (n - 1) as f64,

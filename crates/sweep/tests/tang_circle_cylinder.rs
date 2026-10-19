@@ -36,7 +36,7 @@ use topo::{Body, BooleanError, BooleanOp, SweepStrategy};
 fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(cx, cy), r, tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     extrude(
         &profile,
@@ -55,7 +55,7 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
 fn d_prism(d: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let tol = Tol::witness();
     let lp = bulge_loop(vec![(Point2::new(d, -r), 1.0), (Point2::new(d, r), 0.0)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
     extrude(
         &profile,

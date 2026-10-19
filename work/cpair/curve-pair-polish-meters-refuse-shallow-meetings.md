@@ -76,12 +76,24 @@ every op `CurvedPierceUnsupported` at `θ ≤ 10³·Kε`. The cause is
 main built this door at 1e-9. Filed as
 `a-ball-split-on-its-equator-and-turned-refuses-every-op-below-the-basin-floor`.
 
-## Evidence: a ruled cap-ring row at ε 1e-12 is red on main (2026-10-19)
+## Evidence: three ε-1e-12 nightly reds, bisected to PR 5227 (2026-10-19)
 
+The 2026-10-17, 2026-10-18 and 2026-10-19 nightlies fail three `sweep` rows at ε 1e-12 only, each on this row's refusal ("the meeting reading of two curved edges could not settle a count", on two or four edges):
+- `band_turn_overrun_fillet::the_needle_builds_then_refuses_at_the_turn_as_it_flattens` (above);
+- `band_turn_overrun_fillet::leaning_prisms_build_at_the_oracle_over_leans_radii_and_scales`, at `lean -2 scale 100 r 0.05 order [0, 1]`;
+- `band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval`, at `Interval`. This row is not listed above.
+
+CONTACTHOLD's nightly-red lane built `sweep`'s `all` binary on both sides of PR 5227's merge. All three pass at its first parent `f4ebb63a56` and fail at `37edb540a9`.
+
+## Evidence: more fillet joints at ε 1e-12 (2026-10-19, PR 5346)
+
+On `main`'s blend code at `CAD_TOLERANCE_EPS=1e-12`,
+`band_turn_overrun_fillet::leaning_prisms_build_at_the_oracle_over_leans_radii_and_scales`
+("lean -2 scale 100 r 0.05") and
 `band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval`
-fails tier 3′ at `CAD_TOLERANCE_EPS=1e-12` on `origin/main`
-(`88f431ad6`), with the same `CensusUnsupported { ContactLane(NotCertifiable
-{ what: "the meeting reading of two curved edges could not settle a count" }) }`
-on its edges; `band_turn_overrun_fillet::leaning_prisms_build_at_the_oracle_over_leans_radii_and_scales`
-fails the same way there (lean −2, scale 100, r 0.05). Found by PR 5338's
-1e-12 subset run, reproduced on a clean checkout of that main.
+fail tier 3′ on the same `CensusUnsupported { ContactLane(NotCertifiable("the meeting reading of two curved edges could not settle a count")) }`.
+So does every fillet row of PR 5346's
+`band_planar_cut_off_interval::a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar`
+at `Interval`: the sheared box's top edge, shears `±0.1 … ±0.6`, convex
+and concave. That row admits exactly this finding below `ε = 1e-9`
+(its `tier_3_prime`), so its tolerance comes out when this item is fixed.

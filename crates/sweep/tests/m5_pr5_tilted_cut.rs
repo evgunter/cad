@@ -465,9 +465,11 @@ fn wall_contained_ellipse_spans(part: &Body<f64>, height: f64) -> Vec<f64> {
 ///
 /// The chord now takes the arc the split's conic walk entered the face
 /// along (`chord_join::Leave`), reading no sample and no window. This
-/// row asserts what that produces: a two-sided split whose eight
-/// section arcs are the SHORT ones, each staying on the finite wall over
-/// its whole stored interval.
+/// row asserts what that produces: a two-sided split whose section
+/// arcs are the SHORT ones, each staying on the finite wall over its
+/// whole stored interval. Each half's two wall pieces merge across the
+/// profile's seam, so its two arcs there join: two arcs per side, each
+/// the ≈17.5° and ≈44.4° arcs of one wall piece end to end.
 ///
 /// ---- The defect's evidence, kept as a history note ----
 ///
@@ -507,11 +509,11 @@ fn tilted_belly_cut_mints_wall_contained_section_arcs() {
     let result = split(&body, &plane, Tol::witness()).unwrap();
     let (above, below) = assert_two_sided(&result);
     for part in [&above, &below] {
-        // Four section arcs per side: the two short ones per wall
-        // piece, NOT their ≈342.5°/≈315.6° complements.
+        // Two section arcs per side, each the two short ones of the
+        // wall pieces joined, NOT their ≈342.5°/≈315.6° complements.
         let spans = wall_contained_ellipse_spans(part, 1.0);
-        assert_eq!(spans.len(), 4, "{spans:?}");
-        for (got, want) in spans.iter().zip([0.304693, 0.304693, 0.775397, 0.775397]) {
+        assert_eq!(spans.len(), 2, "{spans:?}");
+        for (got, want) in spans.iter().zip([1.080090, 1.080090]) {
             assert!((got - want).abs() < 1e-6, "{spans:?}");
         }
         // The two wall pieces' arcs sum to the section's total sweep on
@@ -560,8 +562,9 @@ fn rotated_belly_cut_is_seam_placement_independent() {
     let result = split(&body, &plane, Tol::witness()).unwrap();
     let (above, below) = assert_two_sided(&result);
     for part in [&above, &below] {
+        // The wall pieces merge across the seams, so the arcs join.
         let spans = wall_contained_ellipse_spans(part, 1.0);
-        assert_eq!(spans.len(), 3, "{spans:?}");
+        assert_eq!(spans.len(), 2, "{spans:?}");
         let sum: f64 = spans.iter().sum();
         assert!(
             (sum - 2.160180).abs() < 1e-6,

@@ -660,7 +660,14 @@ BOUNDS_ALLOWLIST=(
   # and `strip_clearance` is the ring carry-through pass's planar-strip
   # arm, reading brackets only where `ring_clearance`, `piece_along` and
   # `boxed_reach` already do, as `support_boundary_clearance` does.
-  'crates/sweep/src/blend/surgery.rs 17 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 17 -> 18: `arc_window` is the cut-off arc's window read that
+  # `CapSliver::of` and `attach_contact` share, its one bracket read the
+  # anchor pick: re-read at the half turn where the seam's read spans
+  # half a turn. Both anchors answer a parameter of the same point, so
+  # it is a representation pick (DL5(b), as `seam_split_param`'s branch
+  # shift); its other bracket read refuses a non-finite read, and
+  # whether the window runs forward stays each caller's.
+  'crates/sweep/src/blend/surgery.rs 18 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # reach.rs 9 -> 14: `sign` decides a reference point's side of a
   # bound past its bracket (`±1` decided, `0` -- a vacuous bound --
   # where not), replacing the self-division `x/|x|` that gave the
