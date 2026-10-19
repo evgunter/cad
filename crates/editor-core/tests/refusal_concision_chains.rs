@@ -2211,8 +2211,18 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                 }),
             },
             "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
-             tightly there; faces of no extent or a cone's point leave no angle to measure; \
-             a radius below zero is a defect",
+             tightly there; faces of no extent or a cone's point leave no angle to measure",
+        ),
+        (
+            "negative lever arm",
+            CertifyError::ArmCollapsed {
+                sample: 4,
+                verdict: geom_brep::recourse::Refused::Negative {
+                    margin: MarginDiag::value(-1e-3),
+                },
+            },
+            "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
+             tightly there; faces of no extent or a cone's point leave no angle to measure",
         ),
         (
             "spline meter turns back",
