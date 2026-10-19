@@ -60,6 +60,8 @@ mod seam_region_common;
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
 #[path = "a_curved_keel_in_the_plane.rs"]
 mod a_curved_keel_in_the_plane;
+#[path = "a_curved_keel_on_the_floor_subtracts_as_a_slit.rs"]
+mod a_curved_keel_on_the_floor_subtracts_as_a_slit;
 #[path = "a_face_off_the_tangent_ruling.rs"]
 mod a_face_off_the_tangent_ruling;
 #[path = "a_flank_touch_at_a_shared_corner.rs"]

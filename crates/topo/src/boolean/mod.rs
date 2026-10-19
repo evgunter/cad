@@ -130,6 +130,8 @@ mod rim_wedge;
 pub(crate) mod sectors;
 pub(crate) mod separating;
 mod shell_witness;
+mod slit;
+pub use slit::EdgeInFaceGap;
 pub mod solid_contain;
 pub(crate) mod sphere_region;
 mod surface_group;
@@ -251,10 +253,16 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         }
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
         "bool_line_cylinder_clearance" => Coincide::EdgeOnCurvedFace.subject(),
-        "bool_sector_within" | "bool_flank_offset" | "bool_wedge_reflex" | "bool_cone_arc"
-        | "bool_cone_arc_span" | "bool_cone_within" | "bool_cone_facing" | "bool_cone_apart" => {
-            Coincide::Sectors.subject()
-        }
+        "bool_sector_within"
+        | "bool_flank_offset"
+        | "bool_wedge_reflex"
+        | "bool_cone_arc"
+        | "bool_cone_arc_span"
+        | "bool_cone_within"
+        | "bool_cone_facing"
+        | "bool_cone_apart"
+        | "bool_rider_wall_side"
+        | "bool_rider_wall_bend" => Coincide::Sectors.subject(),
         "bool_cone_pointed" => "whether a corner's link leans to one side of its vertex",
         // The census's edge-edge reading, which ∖ takes of the operand it
         // reverts (`census::collinear_overlaps`).
@@ -3584,6 +3592,19 @@ pub enum BooleanError {
         /// wedges are read on the result, and where the line runs.
         source: crate::revert::RevertError,
     },
+    /// An edge of the result lies in one of its own faces, and the
+    /// material parts it into two edges, face | wall each
+    /// ([`EdgeInFaceGap`]): a parting the kernel does not build there,
+    /// or ([`EdgeInFaceGap::Crossed`]) a face crossing the edge's
+    /// material, which is the kernel's own defect.
+    EdgeInFace {
+        /// The edge, in the result's keys.
+        edge: crate::entity::EdgeKey,
+        /// The face it lies in.
+        face: FaceKey,
+        /// Why it is not parted.
+        gap: EdgeInFaceGap,
+    },
 }
 
 /// Which arm of [`BooleanError`] refused — the discriminant alone,
@@ -3768,6 +3789,8 @@ pub enum BooleanErrorKind {
     Pieces,
     /// [`BooleanError::Revert`].
     Revert,
+    /// [`BooleanError::EdgeInFace`].
+    EdgeInFace,
 }
 
 /// Which of the volume backstop's three bodies a refusal is about.
@@ -3979,6 +4002,7 @@ impl BooleanError {
             Self::GraftRecertify(_) => BooleanErrorKind::GraftRecertify,
             Self::Pieces(_) => BooleanErrorKind::Pieces,
             Self::Revert { .. } => BooleanErrorKind::Revert,
+            Self::EdgeInFace { .. } => BooleanErrorKind::EdgeInFace,
         }
     }
 }
@@ -4798,6 +4822,23 @@ impl core::fmt::Display for BooleanError {
                     "the subtraction reverses the {operand} solid's kept part, and {source}"
                 )
             }
+            Self::EdgeInFace {
+                edge,
+                face,
+                gap: gap @ EdgeInFaceGap::Crossed,
+            } => write!(
+                f,
+                "edge {edge:?} of the result lies in face {face:?}, and {}. {}",
+                gap.words(),
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
+            Self::EdgeInFace { edge, face, gap } => write!(
+                f,
+                "edge {edge:?} of the result lies in face {face:?}, whose material parts it into \
+                 two edges, and the parting is not built where {}. {}",
+                gap.words(),
+                geom_core::NOT_YET_ENDING
+            ),
         }
     }
 }
@@ -8393,6 +8434,7 @@ mod tests {
                 BooleanErrorKind::GraftRecertify => "GraftRecertify",
                 BooleanErrorKind::Pieces => "Pieces",
                 BooleanErrorKind::Revert => "Revert",
+                BooleanErrorKind::EdgeInFace => "EdgeInFace",
             }
         }
         /// The variant name `Debug` opens with.

@@ -48,3 +48,17 @@ wall-to-wall case returns two solids. Nearest row:
 
 
 **Unblocked (CLEAVE, 2026-10-19).** `[ev]` PR 4795 merged (`0a702a9bc1`). Ev ratified the D1 sentence in `crates/topo/README.md` tier 3: where more than two sheets meet on a line, the material decides the edges, and the complement re-pairs. Radial edges were declined.
+
+**Built (CLEAVE lane, 2026-10-19).** `topo::boolean::slit` parts every
+edge of a Boolean result lying in one of its faces whose material both
+the edge's faces leave the line into: a ring, a slit, or a divided face
+and parted ends, on the seam path and the containment fallback (the
+cavity twin, a trench inside the slab resting its keel on the floor,
+had the same rider form across two shells). The three extents agree
+with the split (one end and wall to wall on main, closed on PR 5350's
+branch). Where the parting is not built it refuses
+`BooleanError::EdgeInFace`, typed, never the rider form; filed:
+`a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted` (p12's
+`A ∖ B`), `a-boolean-edge-lying-in-a-curved-face-is-not-read`,
+and `the-boolean-parting-refuses-its-rarer-configurations`. The editor
+names all three extents, the two keel edges apart.

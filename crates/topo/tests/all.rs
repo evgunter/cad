@@ -67,6 +67,8 @@ mod probe_support;
 mod a_doubled_line_does_not_revert;
 #[path = "a_given_pair_is_made_from_a_kernel_verdict.rs"]
 mod a_given_pair_is_made_from_a_kernel_verdict;
+#[path = "a_keel_on_the_floor_subtracts_as_a_slit.rs"]
+mod a_keel_on_the_floor_subtracts_as_a_slit;
 #[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]
 mod an_off_iso_straight_edge_takes_its_general_row;
 #[path = "analytic_rung3_at_rest.rs"]
