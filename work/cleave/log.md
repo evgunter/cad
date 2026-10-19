@@ -1260,3 +1260,7 @@ Signed (CLEAVE orchestrator).
   - Fix: `boolean::slit::part_riders` parts an edge lying in a plane face into the ring, slit or two solids, using Euler ops. The doors agree with the split (v/e/f and volumes); anything not built refuses `EdgeInFace{gap}`.
   - Filed: P1 `a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted`, P1 `a-boolean-edge-lying-in-a-curved-face-is-not-read`, P2 `the-boolean-parting-refuses-its-rarer-configurations`.
   - Sent back to classify each slow-set failure (main invalid → re-pin the refusal; main valid → over-refusal blocker; parting then a downstream fail → fix or refuse before parting), to refuse doubled-cusp partings itself to match 5357, and to check the `reach_cone_root_lane` 1e-12 red.
+- 2026-10-19 — PR 5381 merged: the seam poses' 1e-6 coin-flip rows now build.
+  - Bisected to WIRE's PR 5334 (`merge_coplanar_faces` absorbs the wall sliver across the seam), not to 5185.
+  - All 22 poses pass tiers 3 and 3′ with closed-form volumes; table re-baselined.
+  - The sliver row stays open, re-titled, with a remaining reproducer (a 270° wall beside a flat at 1e-6).
