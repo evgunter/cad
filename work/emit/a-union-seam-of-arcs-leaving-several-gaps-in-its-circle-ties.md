@@ -2,13 +2,13 @@
 id: a-union-seam-of-arcs-leaving-several-gaps-in-its-circle-ties
 kind: issue
 title: A union seam whose arcs leave several gaps in their circle ties: no rule picks which gap the seam starts after
-status: open
+status: closed
 opened: 2026-10-19
-design: true
----
-
+closed: 2026-10-19
 priority: P3
 cost: S
+design: true
+---
 
 ## What
 
@@ -51,3 +51,34 @@ Should a seam whose arcs leave several gaps rank, and from where?
 - **The longest gap.** Purely geometric, but a near-equal pair of gaps
   is decided by the band and may escalate, and the rule has no reading
   in terms of the seam's own history.
+
+## Closed (branch `emit/seam-rank-open-carrier`, PR 5347)
+
+Settled by Ev's approval on PR 5107 (2026-10-14, "makes sense; that
+can be a separate pr"): the approved recommendation ranks along "one
+open curve (an arc)" and names "a wall crossing an arc seam twice" as
+the fixture, which is this case. The second option above is that
+approval's reading, and is built: a periodic seam whose pieces leave
+several gaps reads from the end of the one gap no vertex of the group
+bounds, where the arc ran before the cuts that made the group's
+vertices. One such gap ranks; none, or two or more, tie. A gap is
+bounded by a vertex when the end of a piece beside it is that vertex,
+by key, never by place. One gap in all still reads from its end.
+
+- `emit_topo::Track::open_offsets` / `seam_start`; the tie carries its
+  reason, `NoStart` (`OffCarrier`, `WholePeriod`, `EveryGapBounded`,
+  `SeveralFreeGaps`).
+- `tests/emit_union_seam_rank.rs`,
+  `crossings_of_an_arc_cut_twice_rank_from_the_gap_they_leave_free_in_every_member_order`:
+  the only seam of the run that reads is `w`'s arc, cut by `x` between
+  the crossings and by `y`'s side elsewhere; `x`'s arc leaves two gaps
+  free of the crossings and ties, and the walls meet on two lines. The
+  crossings rank alike in all six member orders. Reading from the gap
+  between the crossings instead swaps the two ranks, and the test goes
+  red; so does reading from the reading piece's start.
+- Same file, `crossings_of_seams_with_no_start_tie_in_every_member_order`:
+  with `w`'s wall cut where `y`'s side falls inside its half, its arc
+  too leaves two free gaps, and the crossings tie in every order.
+- `emit_topo::track_cover` unit tests: the two-gap arc reads alike from
+  either piece, in either order, either way round and across the cut;
+  each tie asserts its reason.

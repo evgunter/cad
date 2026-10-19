@@ -44,18 +44,27 @@ run whose pieces lie on one open carrier through every vertex of the
 group. A straight seam is read as before (`rank_crossings` along its
 first piece). A curved seam whose pieces are all curved and readable
 goes through `Track::open_offsets` (`emit_topo.rs`): each piece's
-stretch along the first piece's carrier, and each vertex's offset in
-the carrier's direction. On an open carrier the offset is from that
+span along the first piece's carrier, and each vertex's offset in the
+carrier's direction. On an open carrier the offset is from that
 piece's start. On a periodic one it is from the end of the one gap the
-pieces leave. `rank_along_track` then ranks the offsets, oriented as
-`crossed_edge_orientation` orients the seam, as the straight case is.
-These tie: pieces that cover the whole period (a closed carrier),
-pieces or vertices off the carrier (several carriers), a spline
-carrier (`EdgeCarrier::Unread`), a seam mixing straight and curved
-pieces, and pieces that leave two or more gaps. The last case has no
-settled start, and is filed as
-`a-union-seam-of-arcs-leaving-several-gaps-in-its-circle-ties`
-(`design: true`).
+pieces leave, or, where they leave several, of the one gap no vertex
+of the group bounds (closed with
+`a-union-seam-of-arcs-leaving-several-gaps-in-its-circle-ties`).
+`rank_along_track` then ranks the offsets through the tail
+`rank_crossings` uses (`rank_reads`), oriented as
+`crossed_edge_orientation` orients the seam. These tie, each with its
+reason (`NoStart`): pieces that cover the whole period (a closed
+carrier), pieces or vertices off the carrier (several carriers), and
+several gaps of which none, or more than one, is free of the group's
+vertices; so do a spline first piece (`EdgeCarrier::Unread`) and a
+seam mixing straight and curved pieces. The seam ranked along is the
+first of the run, in its name order, that reads, straight or curved.
+
+Every verdict along a curved carrier (`Track::sign`: the flush cover,
+`holds`, `runs_with` and the seam's gaps) meters a parameter stretch by
+the carrier's greatest speed (`geom::carrier_speed::speed_range`), not
+by the reading edge's speed at its middle, so which piece reads cannot
+change a verdict on an ellipse.
 
 N2's clause in `names/README.md` now reads "a seam in it whose pieces
 lie on one open carrier". `RoleSeg::EdgeCrossing`'s doc and
@@ -63,25 +72,22 @@ lie on one open carrier". `RoleSeg::EdgeCrossing`'s doc and
 
 Evidence:
 
-- `tests/emit_union_seam_rank.rs`,
-  `crossings_of_one_open_arc_rank_along_it_in_every_member_order`: a
-  disc's wall crosses the arc where a second disc's wall leaves a
-  block's top, twice. All six member orders publish one table, and the
-  two crossings share one run name with ranks 0 and 1 of 2. With
-  `rank_along_seam` as it was on main, the test fails on order [0, 1, 2]
-  with the two crossings in one tied row.
-- Same file, `crossings_of_seams_with_no_start_tie_in_every_member_order`:
-  with the block cut back so every seam of the run leaves two gaps or
-  lies on two lines, the crossings tie in all six orders.
+- `tests/emit_union_seam_rank.rs`: three scenes, each in all six
+  member orders. One open arc ranks; an arc cut twice ranks from the
+  gap its crossings leave free, the only seam of its run that reads;
+  and a run whose arcs each leave two free gaps ties. The ranking tests
+  pin which crossing takes rank 0; reading from the wrong gap, or from
+  the reading piece's start, turns them red.
 - `emit_topo::track_cover` unit tests: one gap reads from its start,
-  across the parameter cut and from either piece; a whole circle, one
-  closed piece, and two gaps give no offsets; a piece on another circle,
-  or a point off the circle, gives none.
+  across the parameter cut and from either piece; two gaps read from
+  the free one; each tie asserts its reason; and on the ellipse of
+  semi-axes 3 and 0.5 with one gap at the fast end, all three pieces
+  read alike at every gap width from 1e-10 to 1e-7 (with the old
+  per-reader speed, at 5e-10 two escalate and one ties).
 - Measured, with a probe counting every call of `rank_along_seam` by
-  outcome: the whole default editor-core suite (2998 tests) and the
-  suites `name_words_corpus`, `emit_union_member_order`,
-  `emit_union_rim_piece_ranks`, `emit_union_curved_flush`,
-  `union_pinch_member_order` and `wire_legal_union_refusals` with the
-  slow set included (51 tests) reach it only from the two new fixtures:
-  6 groups ranked along a curve, 6 tied. No other group reached it, so
-  no stored name moved.
+  outcome over the whole editor-core suite, slow set included (3001
+  tests): only the three seam-rank fixtures reach it, 18 groups: 12
+  ranked along a curve (one of them a two-gap arc read from its free
+  gap in 6), 6 tied, every curved seam that tied for
+  `SeveralFreeGaps`. No other group reached it, no curved seam that
+  tied before now refuses, and no stored name moved.

@@ -4391,7 +4391,16 @@ pub(super) fn rank_crossings<T: Decide>(
             None => Read::Unread(param_span(body, edge)?, p, body, edge),
         });
     }
-    rank_reads(t, tie, from_tie, base, &keys, &reads, way.unwrap_or(true), bnd)
+    rank_reads(
+        t,
+        tie,
+        from_tie,
+        base,
+        &keys,
+        &reads,
+        way.unwrap_or(true),
+        bnd,
+    )
 }
 
 /// **Ranks the crossings of a union seam by their `offsets` along its
@@ -7061,7 +7070,11 @@ mod track_cover {
         for (t0, t1) in [(5.5, 6.0), (6.0, 7.0), (5.5 - TAU, 6.0 - TAU)] {
             let read = offsets(t0, t1, &pieces, &[], &[5.8, TAU, 6.5])
                 .unwrap_or_else(|why| panic!("on the arc from {t0}: one stretch, got {why:?}"));
-            assert_offsets(&read, &[0.3, TAU - 5.5, 1.0], &format!("on the arc from {t0}"));
+            assert_offsets(
+                &read,
+                &[0.3, TAU - 5.5, 1.0],
+                &format!("on the arc from {t0}"),
+            );
         }
     }
 
@@ -7074,7 +7087,12 @@ mod track_cover {
     fn a_seam_with_two_gaps_reads_from_the_one_its_group_leaves_free() {
         let (head, tail) = (piece(5.0, 6.0, 0, 1), piece(6.5, 7.5, 2, 3));
         let flip = |(a, [v0, v1]): (CarrierArc<f64>, [u8; 2])| {
-            let CarrierArc { p0, mid, p1, closed } = a;
+            let CarrierArc {
+                p0,
+                mid,
+                p1,
+                closed,
+            } = a;
             (
                 CarrierArc {
                     p0: p1,
@@ -7150,7 +7168,13 @@ mod track_cover {
             closed: false,
         };
         assert_eq!(
-            offsets(1.0, 2.0, &[piece(1.0, 2.0, 0, 1), (other, [2, 3])], &[], &[1.5]),
+            offsets(
+                1.0,
+                2.0,
+                &[piece(1.0, 2.0, 0, 1), (other, [2, 3])],
+                &[],
+                &[1.5]
+            ),
             Err(NoStart::OffCarrier),
             "two carriers"
         );
