@@ -4997,10 +4997,10 @@ pub fn chart_boundary<T: AtRestPolicy>(
 ///    against its carrier and chart, on a complete face and a
 ///    half-minted one alike. The stored certificate is never consulted
 ///    (re-certification re-derives, it does not trust, exactly as
-///    [`geom_brep::EdgeCurve::recertify`]), and no branch enters what a
-///    row is measured against: a loop's images may stand a whole period
-///    over, or on a sphere's involution twin, from the derivation and
-///    describe the same face.
+///    [`geom_brep::EdgeCurve::recertify`]). A row is its placed image
+///    (C4), or on a sphere its involution twin; where a loop's walk reads
+///    it a whole period over, that is the row with its joint's deck
+///    element, never a stored row of its own.
 /// 4. **Each joint's element is re-decided, and the winding is their
 ///    sum.** At every joint of every loop — the one into the cycle's
 ///    `first` read as every other — the element is decided between the
@@ -7937,7 +7937,7 @@ pub(crate) mod pole_slit_tests {
     ///
     /// Each mints, re-mints from every anchor where it is the slit cap,
     /// and reads clean. Check 4 reads no offset here: each stored image is
-    /// its own re-derivation, its fidelity branch zero.
+    /// its own placed re-derivation.
     #[test]
     fn a_carrier_stated_periods_off_its_azimuth_mints() {
         let band = Band::linear(Tol::witness()).unwrap();
@@ -8781,11 +8781,13 @@ mod villarceau_joint_tests {
 
     /// **A whole turn of a Villarceau row is one period on each channel**
     /// (the reviewers' probe, PR 4227): on either family and traversal,
-    /// from four centres and two starts, and with its image moved by
-    /// `k` azimuth periods and `−k` tube periods, the joint carrying the
-    /// row's exit onto its own entry decides
+    /// from four centres and two starts, the joint carrying the row's
+    /// exit onto its own entry decides
     /// `Shift(Deck { u: sense, v: vl, twin: false })` — the `(±1, ±1)`
-    /// winding the loop invariant admits.
+    /// winding the loop invariant admits. The same holds on the row's
+    /// lift by `k` azimuth periods and `−k` tube periods, which is the row
+    /// with that deck element (`Deck::apply`), never a row of its own: as
+    /// a row it refuses at its azimuth's fidelity term (C4).
     #[test]
     fn a_whole_turn_decides_one_period_on_each_channel() {
         let band = Band::linear(Tol::witness()).unwrap();
@@ -8815,24 +8817,53 @@ mod villarceau_joint_tests {
                             radius: big,
                             u_ref: d * psi.cos() + lean * psi.sin(),
                         };
+                        let (t0, t1) = (0.3, 0.3 + TAU);
+                        let row = geom_brep::PcurveCache::certify(
+                            geom_brep::chart_pcurve_over(&carrier, t0, t1, &surface, band).unwrap(),
+                            t0,
+                            t1,
+                            &carrier,
+                            &surface,
+                            band,
+                        )
+                        .unwrap();
+                        let Pcurve::FocalSection(focal) = *row.pcurve() else {
+                            panic!("a Villarceau row is a focal section")
+                        };
                         for k in [-1, 0, 2] {
-                            let image = geom_brep::chart_pcurve(&carrier, &surface, band)
-                                .unwrap()
-                                .shift_branch(k, Period::new(TAU));
-                            let image = shift_polar_branch(&image, -k, Period::new(TAU));
-                            let (t0, t1) = (0.3, 0.3 + TAU);
-                            let row = geom_brep::PcurveCache::certify(
-                                image, t0, t1, &carrier, &surface, band,
-                            )
-                            .unwrap();
-                            let Pcurve::FocalSection(focal) = *row.pcurve() else {
-                                panic!("a Villarceau row is a focal section")
+                            let lift = Deck {
+                                u: k,
+                                v: -k,
+                                twin: false,
                             };
+                            let lifted = lift.apply(row.pcurve(), &surface).unwrap();
+                            if k != 0 {
+                                assert!(
+                                    matches!(
+                                        geom_brep::PcurveCache::certify(
+                                            lifted.clone(),
+                                            t0,
+                                            t1,
+                                            &carrier,
+                                            &surface,
+                                            band,
+                                        ),
+                                        Err(geom_brep::PcurveCertifyError::ResidualExceeded {
+                                            check: geom_brep::PcurveCheck::EnvelopeTerm(
+                                                geom_brep::EnvelopeTerm::FidelityU
+                                            ),
+                                            ..
+                                        })
+                                    ),
+                                    "phi {phi}, family {family}, traversal {traversal}, \
+                                     psi {psi}, k {k}: the lifted copy is no row"
+                                );
+                            }
                             let joint = decide_joint(
                                 chart,
-                                row.pcurve(),
+                                &lifted,
                                 t0,
-                                row.pcurve().eval(t1),
+                                lifted.eval(t1),
                                 carrier.eval(t0),
                                 Some(geom_brep::Period::new(TAU)),
                                 band,

@@ -4,7 +4,7 @@ kind: issue
 title: step-import's outerness unwrap reads a whole-period integer off a value by rounding
 status: open
 opened: 2026-10-17
-priority: P3
+priority: P4
 cost: E
 ---
 
@@ -31,11 +31,13 @@ them into lengths only through `Period::times`.
 
 ## What it costs today
 
-Probably nothing that changes a verdict. The read sits between a
-step that refuses a jump past a quarter turn (`SeamDependent`, `:354`)
-and import-time outerness inference, which refuses rather than
-guesses. A sample whose gap sits on a half-period mark rounds one
-way silently, though, where the marks would escalate.
+Nothing a reader sees. A step whose gap sits on a half-period mark
+lifts, either way the rounding falls, to about `π` from `prev`, past
+the quarter turn the very next line refuses as `SeamDependent`
+(`:353`). So a silent pick on a mark never reaches outerness
+inference; every step that does is within a quarter turn, where the
+rounding has one answer. What is left is the spelling: the integer is
+read off a value, where C4 decides it by the marks.
 
 ## The fix
 

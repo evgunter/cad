@@ -338,8 +338,6 @@ fn a_tampered_branch_is_refused_at_rest() {
             .clone()
     };
     let band = Band::linear(Tol::witness()).unwrap();
-    // A window wide enough that trim containment is not what fires —
-    // the finding must be the BRANCH, not the box.
     // A cache is built only through certification, and the shifted
     // pcurve is a lifted copy of the row, not its placed image (C4), so
     // certification refuses it at check 4, the whole period read as the

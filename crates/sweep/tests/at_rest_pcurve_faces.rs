@@ -363,15 +363,11 @@ fn is_a_lifted_copy(row: &Result<PcurveCache<f64>, geom_brep::PcurveCertifyError
 /// still evaluate to its edge's vertices. It is a lifted copy of the
 /// row, not its placed image, so certification refuses it at check 4,
 /// the whole period read as the azimuth's offset (C4), and it is never
-/// stored for the loop's continuity to see. (Before placement it
-/// certified, and tier 3 named the discontinuity at every cycle
-/// position, complete, half-minted and reversed.)
+/// stored for the loop's continuity to see.
 ///
-/// Adopted from the PCERT delta reviewer's probe on PR 3759, where the
-/// row at cycle position 0 with its successor detached read only the
-/// gap.
+/// Adopted from the PCERT delta reviewer's probe on PR 3759.
 #[test]
-fn a_row_shifted_a_whole_period_is_refused_at_every_position() {
+fn a_row_restated_a_whole_period_over_is_no_row() {
     let base =
         crate::common::operands::n_arc_boss::<f64>(geom_core::Point2::new(0.0, 0.0), 3, 0.0, 1.0);
     let (wall, cycle) = base
@@ -422,7 +418,7 @@ fn a_row_shifted_a_whole_period_is_refused_at_every_position() {
         }
     }
     assert!(
-        cases >= 2,
+        cases >= 6,
         "the boss wall has arc rows to shift: {cases} cases"
     );
 }
@@ -430,13 +426,11 @@ fn a_row_shifted_a_whole_period_is_refused_at_every_position() {
 /// **A loop moved a whole period over is no rows.** Every row of the
 /// boss wall's loop restated one period over, consistently, is a lifted
 /// copy of its row: certification refuses each one at check 4 (C4: a row
-/// is its placed image), so no such loop is stored. (Before placement
-/// the moved loop certified and read clean at every gap.)
+/// is its placed image), so no such loop is stored.
 ///
-/// Adopted from the PCERT delta reviewer's round-2 probe on PR 3759,
-/// where the gap at cycle position 0 read a spurious `LoopDiscontinuity`.
+/// Adopted from the PCERT delta reviewer's round-2 probe on PR 3759.
 #[test]
-fn a_loop_moved_a_period_over_reads_only_its_gap_at_every_position() {
+fn a_loop_moved_a_period_over_is_no_rows() {
     let base =
         crate::common::operands::n_arc_boss::<f64>(geom_core::Point2::new(0.0, 0.0), 3, 0.0, 1.0);
     let (wall, cycle) = base

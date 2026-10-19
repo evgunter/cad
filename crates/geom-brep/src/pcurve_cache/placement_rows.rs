@@ -996,3 +996,77 @@ fn placement_on_a_generic_axis_certifies_at_interval_from_either_start() {
         assert_one_image(name, &samples[0], &samples[1]);
     }
 }
+
+/// **A lifted copy is no row on any lane** (C4: a row is its placed
+/// image). The focal-section, spiric and projected lanes state check 4
+/// in space, where `S` is periodic in each angular channel, so their
+/// envelopes alone meet a copy a whole period off exactly; their
+/// placement terms (`placement_terms`) read it. Each arm's placed image
+/// certifies at `f64` and at `Interval`; the image moved a whole period
+/// either way along `u`, and along `v` where `v` is an angle (torus,
+/// sphere), refuses at that channel's fidelity term at both scalars.
+#[test]
+fn a_lifted_copy_refuses_as_its_channels_term_on_every_lane() {
+    use super::{EnvelopeTerm, Pcurve, PcurveCertifyError, PcurveCheck};
+    use geom_core::{Interval, Real};
+    let band = band();
+    let f = <Interval as Real>::from_f64;
+    let read = |r: Result<(), PcurveCertifyError>| match r {
+        Ok(()) => None,
+        Err(PcurveCertifyError::ResidualExceeded {
+            check: PcurveCheck::EnvelopeTerm(term),
+            ..
+        }) => Some(Ok(term)),
+        Err(e) => Some(Err(format!("{e:?}"))),
+    };
+    let mut lanes = Vec::new();
+    for (name, surface, carrier, (t0, t1)) in arms() {
+        let base = chart_pcurve_over(&carrier, t0, t1, &surface, band)
+            .unwrap_or_else(|e| panic!("{name}: derives: {e:?}"));
+        if matches!(base, Pcurve::Harmonic { .. } | Pcurve::IsoLine { .. }) {
+            continue;
+        }
+        lanes.push(name);
+        let (ci, si) = (carrier.map_scalar(f), surface.map_scalar(f));
+        let base_i = chart_pcurve_over(&ci, f(t0), f(t1), &si, band)
+            .unwrap_or_else(|e| panic!("{name}: derives at Interval: {e:?}"));
+        let at = |du: f64, dv: f64| {
+            let r64 =
+                PcurveCache::certify(base.translate(du, dv), t0, t1, &carrier, &surface, band)
+                    .map(|_| ());
+            let ri =
+                PcurveCache::certify(base_i.translate(f(du), f(dv)), f(t0), f(t1), &ci, &si, band)
+                    .map(|_| ());
+            (read(r64), read(ri))
+        };
+        assert_eq!(
+            at(0.0, 0.0),
+            (None, None),
+            "{name}: the placed image certifies"
+        );
+        let v_angle = matches!(surface, Surface::Torus { .. } | Surface::Sphere { .. });
+        let mut shifts = vec![(TAU, 0.0, EnvelopeTerm::FidelityU)];
+        shifts.push((-TAU, 0.0, EnvelopeTerm::FidelityU));
+        if v_angle {
+            shifts.push((0.0, TAU, EnvelopeTerm::FidelityV));
+            shifts.push((0.0, -TAU, EnvelopeTerm::FidelityV));
+        }
+        for (du, dv, term) in shifts {
+            assert_eq!(
+                at(du, dv),
+                (Some(Ok(term)), Some(Ok(term))),
+                "{name}: the copy moved ({du}, {dv}) refuses at {term:?} at both scalars"
+            );
+        }
+    }
+    assert_eq!(
+        lanes,
+        [
+            "cone focal section",
+            "torus Villarceau",
+            "torus spiric wall",
+            "sphere general circle (projected)",
+        ],
+        "every non-harmonic lane is read"
+    );
+}

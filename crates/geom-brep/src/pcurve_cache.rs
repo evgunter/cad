@@ -149,10 +149,10 @@
 //! [`crate::CertifyError::WindingExceeded`]) and its windings are at
 //! most one per carrier period.
 //!
-//! No caller's window enters the certificate, and nothing here tells a
-//! row from the same row a whole period over: both certify
-//! identically. Which branch (`α + kτ`) a half-edge takes is the
-//! loop's fact, decided in `topo::pcurves`: at each joint the walk
+//! No caller's window enters the certificate. A row is its placed
+//! image (C4), and the same row a whole period over is a lifted copy,
+//! which certifies as no row: check 4 reads the period as its offset.
+//! Which lift (`α + kτ`) a half-edge's walk reads is the loop's fact, decided in `topo::pcurves`: at each joint the walk
 //! decides the deck element as an integer ([`Period::decide`]), with
 //! half the step to the next orbit point as room (half a period, or a
 //! quarter on a sphere, whose twin sits half a period over), and each
@@ -1548,21 +1548,20 @@ impl<T: SpanLocate> Pcurve<T> {
     }
 
     /// The azimuth channel shifted by `k` whole periods, as a length
-    /// only through [`Period::times`] — the only
-    /// branch freedom a pcurve on a periodic chart has (module docs:
-    /// the branch is chosen once, by the face's loop walk, and never
-    /// per sample). [`Pcurve::map_affine`] with the first channel of
+    /// only through [`Period::times`]: a lift of the row, which is what a
+    /// joint's deck element applies (`topo`'s `Deck::apply`). A lift is
+    /// the row with that element, never a row of its own (C4: a row is
+    /// its placed image), so certification refuses a lifted image as a
+    /// row. [`Pcurve::map_affine`] with the first channel of
     /// every POINT translated by `k·period` and every vector left as
     /// it is: a whole-period shift is a translation of the chart, so
     /// a harmonic image's constant term, an iso image's start and a
     /// NURBS image's control net move, while the `cos`/`sin`/linear
     /// coefficients, an iso velocity or displacement, knots, weights
     /// and the parameter do not. Exact and structure-preserving, and
-    /// it moves the branch WITHOUT touching the parameter — the same
-    /// one-branch contract every arm keeps, and the reason the shift
-    /// is not a re-derivation: silently handing the loop walk a
-    /// branch it did not ask for is what "the branch is chosen once
-    /// and never guessed" forbids.
+    /// it moves the lift WITHOUT touching the parameter, which is why the
+    /// shift is not a re-derivation: the row stays the placed one, and
+    /// only the walk's deck element names a lift.
     ///
     /// The iso lane lives on NURBS charts, which have no periodic
     /// azimuth, so no minted iso line or arc rim is ever shifted; the
@@ -1681,11 +1680,12 @@ pub enum EnvelopeTerm {
     /// decided Zero), and a still class's whole pair `σ(a, b)`, axial
     /// part included (its winding decided Zero).
     Drift,
-    /// The stored image's azimuth channel against the re-derived one,
-    /// up to a whole period, metered at the chart's azimuth arm.
+    /// The stored image's azimuth channel against the placed one it
+    /// re-derives, its offset read as it is, metered at the chart's
+    /// azimuth arm: a whole period off is a lifted copy, no row.
     FidelityU,
-    /// The stored image's second channel against the re-derived one —
-    /// up to a whole period where it is an angle — metered at its arm.
+    /// The stored image's second channel against the placed one it
+    /// re-derives, its offset read as it is, metered at its arm.
     FidelityV,
     /// The chart's frame is not orthonormal: its distance from its
     /// Gram–Schmidt twin over the stored image, levered by the radius
@@ -2529,9 +2529,10 @@ pub enum EnvelopeStatement {
     /// **Fidelity** meters the stored image against `P_d` through the
     /// chart's sup stretch along the chart segment between them, each
     /// channel's sup bounded by its coefficients as above, an angular
-    /// channel's constant read up to a whole period (and a sphere's
-    /// image against `P_d`'s involution twin `(u + π, π − v)` where its
-    /// azimuth sits off `P_d`'s). On the cylinder, the sphere and the
+    /// channel's constant read as it is, with no whole period taken off
+    /// (a row is its placed image, C4; and a sphere's image against
+    /// `P_d`'s involution twin `(u + π, π − v)` where its azimuth sits
+    /// nearer the twin's). On the cylinder, the sphere and the
     /// torus `S_u ⊥ S_v` everywhere, so the segment's image is no longer
     /// than `√((arm_u·sup|Δu|)² + (arm_v·sup|Δv|)²)`. The cone's
     /// azimuth arm is read along a chord at the nearer slant, which is
@@ -5151,8 +5152,8 @@ pub struct WalkStop {
 /// orbit (whose twin sits half a period over), and the first-channel
 /// period a loop walk decides its joints in. Two questions go through
 /// it:
-/// - a joint's deck element, and check 4's branch, decided by the
-///   half-period marks ([`Period::decide`]);
+/// - a joint's deck element, decided by the half-period marks
+///   ([`Period::decide`]);
 /// - a deck element's shift, `k` periods as a length ([`Period::times`]).
 ///
 /// No whole-period integer is read off a value: [`Period::decide`]
@@ -5775,12 +5776,92 @@ mod period_rows {
     }
 }
 
+/// Check 4's **placement** terms on the lanes whose envelope is a 3-D
+/// statement — the focal-section, spiric and projected ones. Their
+/// envelopes compare `S(P(t))` with `C(t)` in space, and `S` is periodic
+/// in each angular channel, so a row stored a whole period off its placed
+/// image (a lifted copy, no row: C4) meets the carrier exactly and those
+/// envelopes cannot see it. So the stored row is compared in the chart
+/// with the image the mint places over the same span
+/// ([`chart_pcurve_over`], `Placement::over`): the two chart points at
+/// `t₀`, each channel's offset read **past half a period**,
+/// `(|Δ| − π)⁺`, metered at the chart's sup stretch, as
+/// `(FidelityU, FidelityV)` in metres. Below half a period a stored
+/// row's drift moves its point in space, which the lane's own envelope
+/// already reads, so this term reads none of it and no drift is counted
+/// twice. At a whole period or more the point does not move, the lane's
+/// envelope reads nothing, and this term reads at least `π` times the
+/// channel's arm. No whole-period integer is read: the term is a
+/// continuous function of the offset.
+///
+/// On a sphere a point has two names, `P_d` and its involution twin
+/// `(u + π, π − v)`, and each channel reads the nearer of the two. On a
+/// plane no channel is periodic and there is no lifted copy to read:
+/// both terms are zero, and nothing is derived.
+fn placement_terms<T: Decide>(
+    stored: &Pcurve<T>,
+    (t0, t1): (T, T),
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<(T, T), PcurveCertifyError> {
+    if matches!(surface, Surface::Plane { .. }) {
+        return Ok((T::zero(), T::zero()));
+    }
+    let (arm_u, arm_v) = match chart_stretch_sup(surface) {
+        Ok((u, v)) => (u.get(), v.get()),
+        // `S(u, v) = apex + v·g(u)`: the azimuth's metre rate is the
+        // slant's, read at the stored image's farthest slant.
+        Err(NoChartSup::ConeAzimuthGrowsWithV) => (
+            azimuth_lever(surface, stored.chart_box(t0, t1).v_reach()),
+            T::one(),
+        ),
+        Err(NoChartSup::Placeholder) => return Err(PcurveCertifyError::PlaceholderChart),
+    };
+    let derived = chart_pcurve_over(carrier, t0, t1, surface, band)?;
+    let at = stored.eval(t0);
+    let past_half = |d: T| (d.abs() - T::pi()).max(T::zero());
+    let offsets = |image: &Pcurve<T>| {
+        let p = image.eval(t0);
+        (past_half(at.x - p.x), past_half(at.y - p.y))
+    };
+    let (mut du, mut dv) = offsets(&derived);
+    if matches!(surface, Surface::Sphere { .. })
+        && let Ok(twin) = derived.map_affine(ChartMap::sphere_involution())
+    {
+        let (tu, tv) = offsets(&twin);
+        du = du.min(tu);
+        dv = dv.min(tv);
+    }
+    Ok((du * arm_u, dv * arm_v))
+}
+
+/// The check a lane's refused envelope names when it carries
+/// [`placement_terms`]: the placement term over the band alone, the `u`
+/// channel's first, else the lane's own `fallback`.
+fn placement_check<T: Decide>((fu, fv): (T, T), band: Band, fallback: PcurveCheck) -> PcurveCheck {
+    let over = |x: T| {
+        !matches!(
+            decide("pcurve_envelope_term", Margin::of(x), band),
+            Ok(Sign::Zero)
+        )
+    };
+    if over(fu) {
+        PcurveCheck::EnvelopeTerm(EnvelopeTerm::FidelityU)
+    } else if over(fv) {
+        PcurveCheck::EnvelopeTerm(EnvelopeTerm::FidelityV)
+    } else {
+        fallback
+    }
+}
+
 /// Check 4's **fidelity** terms: the stored image `P` against the
 /// re-derived `P_d`, channel by channel, metered at the chart's sup
 /// stretch — `|S(P(t)) − S(P_d(t))| ≤ arm_u·sup|Δu| + arm_v·sup|Δv|`
-/// along the chart segment between the two (`S` is periodic in an
-/// angular channel, so each angular offset is read up to a whole
-/// period). A sphere point has two harmonic names, `P_d` and its
+/// along the chart segment between the two. Each offset is read as it
+/// is: a row is its placed image (C4), so a row a whole period off is a
+/// lifted copy and its term reads the period. A sphere point has two
+/// harmonic names, `P_d` and its
 /// involution twin `(u + π, π − v)`, and the stored image is measured
 /// against the one its azimuth sits nearer.
 fn fidelity<T: Decide>(
@@ -5829,10 +5910,19 @@ fn fidelity<T: Decide>(
     // winds (a meridian), the windings say which name the row is, as
     // structure: the twin's polar winding is the derivation's negated.
     // Where it does not (a parallel), which name is nearer is one sign,
-    // the cosine of the azimuth offset (`pcurve_fidelity_twin`, levered at
-    // the azimuth's arm): near `0` the row is `P_d`, near `π` its twin,
-    // and in band neither, read as `P_d` (D9), where an offset that
-    // mattered refuses as its term.
+    // the cosine of the azimuth offset `Δ` (`pcurve_fidelity_twin`):
+    // positive, the row is `P_d`; negative, its twin. The cosine is
+    // levered at the azimuth's arm (metres per radian), and its unit holds
+    // there: `|cos Δ|` lies between `(2/π)·d` and `d`, `d` the angular
+    // distance from `Δ` to the nearest half-way mark `π/2 + kπ`, so the
+    // levered cosine is that distance in metres to within `2/π`, and with
+    // a positive arm its decided sign is the cosine's own.
+    // - Decided `Zero`, the row sits on a half-way mark, a quarter turn
+    //   off both names: it is read as `P_d` (D9's tie-break), and the
+    //   quarter turn refuses as its azimuth's term at either name, so the
+    //   tie-break names no row.
+    // - Undecided, the twin read escalates typed, at the azimuth's term:
+    //   no name is guessed, so the refusal names its own cause.
     let sphere = matches!(surface, Surface::Sphere { .. });
     let involution = ChartMap::sphere_involution();
     let named_twin = match (sv.winding(), dv.winding()) {
@@ -5843,17 +5933,22 @@ fn fidelity<T: Decide>(
     };
     let twin = match named_twin {
         Some(twin) => twin,
-        None => {
-            sphere
-                && matches!(
-                    decide(
-                        "pcurve_fidelity_twin",
-                        Margin::levered((p0.x - q0.x).cos(), arm_u.get()),
-                        band,
-                    ),
-                    Ok(Sign::Negative)
-                )
-        }
+        None if sphere => match decide(
+            "pcurve_fidelity_twin",
+            Margin::levered((p0.x - q0.x).cos(), arm_u.get()),
+            band,
+        ) {
+            Ok(Sign::Negative) => true,
+            Ok(Sign::Positive | Sign::Zero) => false,
+            Err(cause) => {
+                return Err(PcurveCertifyError::Escalated {
+                    check: PcurveCheck::EnvelopeTerm(EnvelopeTerm::FidelityU),
+                    sample: 0,
+                    cause,
+                });
+            }
+        },
+        None => false,
     };
     // The twin is the derived row under the sphere's involution
     // (`ChartMap::sphere_involution`, the map `topo`'s walk names a twin
@@ -6039,17 +6134,27 @@ fn run_focal_section_checks<T: Decide>(
     };
 
     // ---- Check 4: the closed-form envelope over the whole span. ----
+    // The 3-D envelope cannot see a whole period of either channel, so
+    // the row's placement is its own pair of terms (`placement_terms`).
+    let placement = placement_terms(pcurve, (t0, t1), carrier, surface, band)?;
     let envelope =
-        focal_section_envelope(&image, carrier_form, surface, v_sup, t0.abs().max(t1.abs()));
-    let mut envelope_margin = T::zero();
-    check_residual(
-        "pcurve_envelope",
-        PcurveCheck::Envelope,
-        0,
-        Margin::of(envelope),
-        band,
-        &mut envelope_margin,
-    )?;
+        focal_section_envelope(&image, carrier_form, surface, v_sup, t0.abs().max(t1.abs()))
+            + placement.0
+            + placement.1;
+    match decide("pcurve_envelope", Margin::of(envelope), band) {
+        Ok(Sign::Zero) => {}
+        refused => {
+            let check = placement_check(placement, band, PcurveCheck::Envelope);
+            return Err(match refused {
+                Err(cause) => PcurveCertifyError::Escalated {
+                    check,
+                    sample: 0,
+                    cause,
+                },
+                Ok(_) => PcurveCertifyError::ResidualExceeded { check, sample: 0 },
+            });
+        }
+    }
 
     Ok(PcurveCertificate::closed(
         samples,
@@ -6578,15 +6683,25 @@ fn run_spiric_checks<T: Decide>(
                 + chart_drift
         }
     };
-    let mut envelope_margin = T::zero();
-    check_residual(
-        "pcurve_envelope",
-        PcurveCheck::Envelope,
-        0,
-        Margin::of(envelope),
-        band,
-        &mut envelope_margin,
-    )?;
+    // The wall's identity cannot see a whole period of either channel,
+    // so the row's placement is its own pair of terms
+    // (`placement_terms`); the cap's plane has none to read.
+    let placement = placement_terms(pcurve, (t0, t1), carrier, surface, band)?;
+    let envelope = envelope + placement.0 + placement.1;
+    match decide("pcurve_envelope", Margin::of(envelope), band) {
+        Ok(Sign::Zero) => {}
+        refused => {
+            let check = placement_check(placement, band, PcurveCheck::Envelope);
+            return Err(match refused {
+                Err(cause) => PcurveCertifyError::Escalated {
+                    check,
+                    sample: 0,
+                    cause,
+                },
+                Ok(_) => PcurveCertifyError::ResidualExceeded { check, sample: 0 },
+            });
+        }
+    }
 
     Ok(PcurveCertificate::closed(
         CERT_SAMPLES,
@@ -8285,10 +8400,11 @@ fn stable_azimuth<T: Decide>(y: T, x: T, start: T, band: Band) -> T {
 /// certification fails loudly rather than a guess (the established
 /// posture — nothing here decides what certification can check).
 ///
-/// The azimuth branch is the **principal** one; a face that needs
-/// another branch shifts it by whole periods exactly once, through
-/// [`Pcurve::shift_branch`] (the loop walk in `topo::pcurves`). No
-/// per-sample unwrapping exists anywhere in this lane.
+/// The image is **placed** over the edge's span in the chart's
+/// principal window (C4). A face's walk that reads it another whole
+/// period over reads the row with a deck element (`topo::pcurves`),
+/// never a second row. No per-sample unwrapping exists anywhere in
+/// this lane.
 ///
 /// # Errors
 ///
@@ -10002,6 +10118,104 @@ mod tests {
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// **A sphere parallel's twin read is one sign, and undecided it
+    /// escalates typed.** A parallel of radius 0.5 on a sphere, its
+    /// stored azimuth moved `Δ` off the placed image's, at `f64` and at
+    /// `Interval`:
+    /// - `Δ = π/2 + 3·zero/r`: the levered cosine sits in the band, so the
+    ///   twin read escalates at the azimuth's term, naming
+    ///   `pcurve_fidelity_twin`, rather than guess a name;
+    /// - `Δ = π/2`: decided `Zero` on the half-way mark, read as `P_d`
+    ///   (D9), and the quarter turn refuses as the azimuth's term;
+    /// - `Δ = π`: the twin's azimuth, `v` left as it is, so the row is the
+    ///   twin's quarter of a latitude off and refuses at the latitude's
+    ///   term.
+    #[test]
+    fn a_sphere_parallels_twin_read_escalates_typed_in_band() {
+        use geom_core::Interval;
+        let (r, lat) = (0.5, 0.4_f64);
+        let sphere = Surface::Sphere {
+            center: Point3::origin(),
+            radius: r,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let parallel = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, r * lat.sin()),
+            axis: Vec3::unit_z(),
+            radius: r * lat.cos(),
+            u_ref: Vec3::unit_x(),
+        };
+        let span = (0.2, 2.9);
+        let f = <Interval as Real>::from_f64;
+        let at = |du: f64| {
+            let row = chart_pcurve_over(&parallel, span.0, span.1, &sphere, band()).unwrap();
+            let a = PcurveCache::certify(
+                row.translate(du, 0.0),
+                span.0,
+                span.1,
+                &parallel,
+                &sphere,
+                band(),
+            )
+            .map(|_| ());
+            let (ci, si) = (parallel.map_scalar(f), sphere.map_scalar(f));
+            let row = chart_pcurve_over(&ci, f(span.0), f(span.1), &si, band()).unwrap();
+            let b = PcurveCache::certify(
+                row.translate(f(du), f(0.0)),
+                f(span.0),
+                f(span.1),
+                &ci,
+                &si,
+                band(),
+            )
+            .map(|_| ());
+            [a, b]
+        };
+        let azimuth = PcurveCheck::EnvelopeTerm(EnvelopeTerm::FidelityU);
+        let map_residual = |got: &Result<(), PcurveCertifyError>| {
+            matches!(
+                got,
+                Err(PcurveCertifyError::ResidualExceeded {
+                    check: PcurveCheck::MapResidual,
+                    ..
+                })
+            )
+        };
+        // At `f64` the schedule (check 3) samples the quarter turn first.
+        let [f64_row, interval] = at(FRAC_PI_2 + 3.0 * band().zero() / r);
+        assert!(map_residual(&f64_row), "in band, f64: {f64_row:?}");
+        assert!(
+            matches!(
+                interval,
+                Err(PcurveCertifyError::Escalated { check, ref cause, .. })
+                    if check == azimuth && cause.predicate == Some("pcurve_fidelity_twin")
+            ),
+            "in band, Interval: {interval:?}"
+        );
+        let [f64_row, interval] = at(FRAC_PI_2);
+        assert!(map_residual(&f64_row), "on the mark, f64: {f64_row:?}");
+        assert!(
+            matches!(interval, Err(PcurveCertifyError::ResidualExceeded { check, .. }) if check == azimuth),
+            "on the mark, Interval: {interval:?}"
+        );
+        let [f64_row, interval] = at(PI);
+        assert!(
+            map_residual(&f64_row),
+            "the twin's azimuth, f64: {f64_row:?}"
+        );
+        assert!(
+            matches!(
+                interval,
+                Err(PcurveCertifyError::ResidualExceeded {
+                    check: PcurveCheck::EnvelopeTerm(EnvelopeTerm::FidelityV),
+                    ..
+                })
+            ),
+            "the twin's azimuth, Interval: {interval:?}"
+        );
     }
 
     /// `(p0, pa, pb, pl, t0, t1)` — harmonic images over spans that

@@ -2271,7 +2271,14 @@ pub(super) fn run_projected_checks<T: Decide>(
     };
 
     // ---- Check 4: the envelope, the whole certified statement. ----
-    let terms = projected_envelope(image, t0, t1, &boxed, carrier, surface, band, lane)?;
+    let mut terms = projected_envelope(image, t0, t1, &boxed, carrier, surface, band, lane)?;
+    // The projected envelope reads the image through the chart's
+    // periodic map, so it cannot see a whole period of either channel:
+    // the row's placement is its own pair of terms
+    // (`super::placement_terms`).
+    let (fu, fv) = super::placement_terms(pcurve, (t0, t1), carrier, surface, band)?;
+    terms.add(EnvelopeTerm::FidelityU, fu);
+    terms.add(EnvelopeTerm::FidelityV, fv);
     let envelope = terms.total();
     match decide("pcurve_envelope", Margin::of(envelope), band) {
         Ok(Sign::Zero) => {}
