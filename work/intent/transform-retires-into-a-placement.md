@@ -98,7 +98,7 @@ Closes the placement half of `a-boxed-rotation-refuses-not-rigid-at-every-placer
 
 **Known reds at the full-suite run on `ea25544a9a`:** 68 editor-core failures, listed with their owners above. pncad's 2 are re-bless. The viewer `--test all` suite needs a re-run (the 17 gallery_ring goldens are re-bless). The viewer's 2 lib reds are the GPU tests (no adapter). `every_suite_file_is_aggregated` fails only because of the local `zz_*` probe roots.
 
-**Uncommitted, deliberately:** the `[[test]] zz_*` entries in `crates/editor-core/Cargo.toml` and the `tests/zz_*.rs` probe roots. Remove both before the PR (`git checkout crates/editor-core/Cargo.toml && rm crates/editor-core/tests/zz_*.rs`).
+**Uncommitted:** nothing. The local `zz_*` probe roots and their `Cargo.toml` entries were removed at handoff, so `every_suite_file_is_aggregated` passes again.
 
 **Next, for a fresh lane**
 1. `git fetch origin && git checkout intent/s3-d-transform-retires-into-a-placement && git pull`, then `export CARGO_TARGET_DIR=<one target dir> CARGO_INCREMENTAL=0`, then `cargo nextest run -p editor-core --test all --no-fail-fast` and `cargo nextest run -p viewer --features app,test-support --test all --no-fail-fast`. Settle each red per the three lane logs. The logs live in `/home/user` and do not survive the container, so this section names what each said.
