@@ -10,7 +10,6 @@ tag: (PROBE orchestrator)
 ab_band: 6700-6799
 paths: [crates/topo/src/seqgen.rs, crates/topo/src/seqgen/*, crates/topo/src/review_d18.rs, crates/topo/src/review_d18_probes.rs]
 keep_out: [opened by TOPO's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - TOPO keeps the Euler operators proper and its band 2700-2799, the sibling cuts are ORIGIN ATREST TQUERY WALKS PROBE, a row here that has to edit another of the six announces the seam in the PR that lands it rather than drawing a second fence]
-priority: P3
 ---
 TINT's class, on TOPO's ground and left here rather than added to a
 slate already three budgets over: a fuzz row that draws from entropy

@@ -1047,7 +1047,7 @@ fn split_edge_sites(body: &Body<f64>, tol: Tol) -> impl Iterator<Item = OpChoice
 /// `(n, 0.5, 0.25)`, so the midpoint of the chord from `n` to `n + 2`
 /// is vertex `n + 1`'s own point exactly: a midpoint split would
 /// manufacture coordinate-coincident vertices, which `mef_chord` then
-/// refuses on the zero-length chord (`IntervalNotForward`) and which
+/// refuses on the zero-length chord (`StatedInterval`) and which
 /// sit inside the isomorphism oracle's documented twin blind spot.
 /// The nearest `f64` to `(√5 − 1)/2` is of course rational, so this
 /// constant is a way of MISSING the lattice, not a proof that it

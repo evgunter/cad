@@ -49,9 +49,10 @@
 //!
 //! **Role resolution and side-specific certification are the callers'**
 //! — that is what makes this core side-agnostic. The split lane
-//! resolves roles by membership of its null edges' above-end set and
-//! certifies the section area (`split_section_area`, refusing a
-//! zero-area polygon as [`SplitJoinError::DegenerateSection`]); the
+//! resolves roles by membership of its null edges' above-end set, reads
+//! a slit trace from the loops' topology, and certifies every other
+//! section's area (`split_section_area`, refusing a zero-area polygon
+//! as [`SplitJoinError::DegenerateSection`]); the
 //! boolean lane resolves them from its own germ records. Neither
 //! posture is visible here.
 //!
@@ -268,13 +269,24 @@ pub enum SplitJoinError {
     /// A section loop that closes on one vertex bounds nothing however
     /// large the section it should be
     /// (`work/cleave/a-revolved-tube-split-across-its-axis-refuses-a-degenerate-section.md`).
-    /// A pinch does not reach it: the split's reduction keeps one vertex
-    /// per piece round a vertex on each side, so pieces meeting there do
-    /// not share one. A plane tangent to a curved wall does not reach it
-    /// either: rule (b) classifies a convex graze with its material,
-    /// and rule (a) refuses a concave one
-    /// ([`crate::SplitReduceError::KnifeEdge`]).
+    /// A pinch at a vertex does not reach it: the split's reduction keeps
+    /// one vertex per piece round a vertex on each side, so pieces
+    /// meeting there do not share one. A pinch along an edge in the
+    /// plane, wrapped round at both ends by the other side's material,
+    /// would: its trace is a polygon of its own, which the split reads as
+    /// a slit trace from its topology before its area, and builds. A
+    /// plane tangent to a curved wall does not reach it either: rule (b)
+    /// classifies a convex graze with its material, and rule (a) refuses
+    /// a concave one ([`crate::SplitReduceError::KnifeEdge`]).
     DegenerateSection {
+        /// The completed null face.
+        face: FaceKey,
+    },
+    /// A slit trace whose tree holds an edge that is not a line: its
+    /// slit would be two coincident curved edges, which no contact record
+    /// backs and tier 3′ refuses
+    /// (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
+    CurvedSlitTrace {
         /// The completed null face.
         face: FaceKey,
     },
@@ -594,44 +606,20 @@ impl core::fmt::Display for SplitJoinError {
                 f,
                 "a section is degenerate: it bounds zero area. Recourse: {JOIN_RECOURSE}"
             ),
-            Self::RingHoming(e) => match e {
-                // The walk's decision is the question. The join asks it of
-                // many vertices, and a smaller tolerance moves the others'
-                // readings into the band as it decides one, so it ends in
-                // the decision's lever alone, as the Boolean's placement
-                // does (`refusal_routes`'s `Ending::Placement`).
-                crate::splitting::PointInLoopError::Escalated {
-                    decision,
-                    escalation,
-                    diag,
-                    ..
-                } => write!(
-                    f,
-                    "re-homing a hole loop: {}",
-                    diag.undecided(
-                        decision.subject(),
-                        crate::boolean::ContainDecision::Loop(*decision)
-                            .lever_ending(*escalation, diag),
-                    )
-                ),
-                // The rays are the walk's own, so the levers are its.
-                crate::splitting::PointInLoopError::RayExhausted { .. } => write!(
-                    f,
-                    geom_core::undecided!("which piece holds a hole loop", payload),
-                    crate::ray_walk::NoRaySettled
-                ),
-                crate::splitting::PointInLoopError::CorruptLoop { .. } => {
-                    write!(f, "re-homing a hole loop refused: {e}")
-                }
-                crate::splitting::PointInLoopError::Uncrossable(u) => write!(
-                    f,
-                    "which piece holds a hole loop cannot be read: {u}. Recourse: {JOIN_RECOURSE}"
-                ),
-                crate::splitting::PointInLoopError::OffPlane(o) => write!(
-                    f,
-                    "which piece holds a hole loop cannot be read: {o}. Recourse: {JOIN_RECOURSE}"
-                ),
-            },
+            Self::CurvedSlitTrace { .. } => write!(
+                f,
+                "an arc lying in the cut, wrapped round at both ends by the material \
+                 across it, would leave two coincident arcs that no contact record backs \
+                 (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`). \
+                 {}",
+                geom_core::NOT_YET_ENDING
+            ),
+            Self::RingHoming(e) => e.render_as(
+                f,
+                "re-homing a hole loop",
+                "which piece holds a hole loop",
+                JOIN_RECOURSE,
+            ),
             Self::RingHomingAmbiguous { .. } => write!(
                 f,
                 "every vertex of a hole loop lies on the boundary of the piece being \

@@ -1055,6 +1055,38 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .line_to(Start, Tol::witness())
         .unwrap();
 
+    // 17. The arc known by how it ARRIVES (`arc_onto`): Ev's `B`,
+    //     entered at the spine's foot. The upper bump's departure is
+    //     known; the lower bump's arrival is, and it closes at the
+    //     sharp seam with no departure angle written.
+    let b_shape = Open
+        .at(Point2::new(0.0, 0.0))
+        .toward(0.0, 1.0, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .toward(1.0, 0.0, Tol::witness())
+        .unwrap()
+        .tangent_arc_to(Point2::new(0.25, 1.0), Tol::witness())
+        .unwrap()
+        .arc_onto(Start, Tol::witness())
+        .unwrap()
+        .toward(-1.0, 0.0, Tol::witness())
+        .unwrap();
+
+    // 18. The tangent closer the token SUPPLIES: a `D` whose cap leaves
+    //     a corner and arrives along the entry's own direction.
+    let d_cap = Open
+        .at(Point2::new(0.0, 0.0))
+        .toward(0.0, 1.0, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .line_to(Point2::new(1.0, 2.0), Tol::witness())
+        .unwrap()
+        .arc_onto(Start.arrives_tangent(), Tol::witness())
+        .unwrap();
+
     // 10/11. The complete-loop program forms.
     let circle = profile::circle(Point2::new(1.0, 2.0), 0.75, Tol::witness()).unwrap();
     let split = profile::circle_split(Point2::new(0.0, 0.0), 1.0, 5, 0.3, Tol::witness()).unwrap();
@@ -1074,6 +1106,8 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         d_shape,
         stadium,
         radius_arrival,
+        b_shape,
+        d_cap,
         circle,
         split,
     ]

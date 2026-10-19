@@ -439,9 +439,11 @@ fn r2_the_new_door_mints_a_solid_with_no_outer_shell() {
         .filter(|c| c.solid == minted)
         .map(|c| c.role)
         .collect();
+    // Its one shell is outer by arity; that it is wound inside out is
+    // check 7's finding above.
     assert_eq!(
         minted_roles,
-        vec![ShellRole::Void],
-        "the minted solid is all cavity and no material"
+        vec![ShellRole::Outer],
+        "the minted solid's only shell is its outer shell"
     );
 }

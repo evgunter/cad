@@ -9,7 +9,6 @@ prefix: sect/
 tag: (SECT orchestrator)
 paths: [crates/topo/src/boolean/join.rs, crates/topo/src/splitting/join.rs]
 keep_out: [opened 2026-10-10 by JOIN's close (Ev approved the plan in chat 2026-10-10) - the rows moved by git mv with ids and bodies unchanged and JOIN's directory left the tracker (docs/doc-ledger/join-leaves-the-tracker.md), FLUSH holds JOIN's planar and declared-flush residue on the same join.rs - SECT owns the curved section-frame and lane rows outright, so a per-pair section frame or join lane is built here as an instance of the section-first join and nowhere else as a stopgap, coincident and tangent sections are decided at the section door and wait on INTENT stage 4 PR E (booleans-glue-on-zero), crates/topo/src/boolean/* is shared ground with FLUSH ZIP FUSE GERM CONTACTHOLD TANG CLEAVE BOXES PIN by design and RESTFRONT owns validate.rs, so run scripts/work.py territory on your branch and announce the seam in the PR]
-priority: P1
 budget: 31
 ---
 **The section-first join.** Ev ratified it in `[ev]` PR 4313

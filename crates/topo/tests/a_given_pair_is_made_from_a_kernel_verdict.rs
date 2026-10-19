@@ -53,7 +53,7 @@ fn a_rest_touch_is_the_unions_one_verdict_and_glues_as_given() {
         BooleanResult::Empty => panic!("a union of two bodies is not empty"),
     };
     let decided = run(&BooleanInputs::default());
-    let [verdict] = decided.verdicts[..] else {
+    let [verdict] = &decided.verdicts[..] else {
         panic!("one verdict, the touch: {:?}", decided.verdicts);
     };
     assert_eq!(
