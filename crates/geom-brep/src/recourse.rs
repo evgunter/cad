@@ -369,7 +369,9 @@ pub enum RefusedSide {
     /// ([`crate::CertifyError::StatedInterval`]), and where that input is
     /// data the kernel holds, the kernel's call site panics on it. A
     /// refusal built by hand and rendered ends as a stored contradiction
-    /// does at every door: at a build in the lever and the note.
+    /// does at every door: at a build in the lever and the note. What
+    /// sets it apart from [`Self::StoredContradiction`] is that mapping
+    /// at the doors, not its ending.
     Unminted,
 }
 

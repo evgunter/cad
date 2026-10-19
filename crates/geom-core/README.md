@@ -254,8 +254,10 @@ run), `topo` panics at the call site (`policy_lane::kernels_own`): a
 kernel bug. Only a refusal built by hand reaches `CertCheck::ParamSpan`'s
 or `CertCheck::ParamWinding`'s own ending at a build; rendering it is
 input, so it ends there as the door's own refusal does, in the lever,
-and the kernel-bug panic is `kernels_own`'s alone. The table departs from
-clause (iv) in one cell, typed until the door that would keep input
+and the kernel-bug panic is `kernels_own`'s alone. So the `Unminted`
+build cell keeps clause (iv)'s panic where the kernel constructs, the
+only place such a reading arises; the cell names what a hand-built
+value renders. The table departs from clause (iv) in one cell, typed until the door that would keep input
 from it exists, and scheduled by its row: the at-rest column, which the
 validator also reads at the import gate (`[import]` step 4) and so a
 damaged file reaches until adoption checks everything the validator
