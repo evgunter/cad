@@ -727,7 +727,10 @@ impl crate::finding::Finding for SaidFinding<'_> {
                 match restated.len() {
                     0 => Ok(()),
                     1 => f.write_str("; a fold step's row at its cells is reported with it"),
-                    n => write!(f, "; {n} fold steps' rows at its cells are reported with it"),
+                    n => write!(
+                        f,
+                        "; {n} fold steps' rows at its cells are reported with it"
+                    ),
                 }
             }
         }

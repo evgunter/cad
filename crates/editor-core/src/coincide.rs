@@ -370,7 +370,8 @@ impl Residual {
                 write!(f, "the second cell is not read to a construction: {why}")
             }
             (all, []) => {
-                let walked: Vec<&Construction> = all.iter().filter_map(|c| c.as_ref().ok()).collect();
+                let walked: Vec<&Construction> =
+                    all.iter().filter_map(|c| c.as_ref().ok()).collect();
                 let mut origins: Vec<&Origin> = Vec::new();
                 for c in &walked {
                     if !origins.contains(&&c.origin) {
@@ -390,7 +391,11 @@ impl Residual {
                     if k > 0 {
                         f.write_str("; ")?;
                     }
-                    write!(f, "cell {} of {n} is not read to a construction: {why}", i + 1)?;
+                    write!(
+                        f,
+                        "cell {} of {n} is not read to a construction: {why}",
+                        i + 1
+                    )?;
                 }
                 Ok(())
             }
@@ -559,18 +564,20 @@ fn constructions<P>(
     doc: &crate::doc::Doc<P>,
     row: &NamedCoincidence,
 ) -> Vec<Result<Construction, Unwalked>> {
-    row.cells.iter().map(|cell| match cell {
-        NamedCell::Entity { input, name } => construction(doc, *input, name),
-        NamedCell::Tool { input, role } => doc
-            .operation_of(*input)
-            .ok_or(Unwalked::Unread(*input))
-            .and_then(|at| datum(doc, at, *role, Vec::new())),
-        NamedCell::Piece { profile, piece } => Ok(Construction {
-            origin: Origin::Piece(*profile, *piece),
-            placed: Vec::new(),
-        }),
-    })
-    .collect()
+    row.cells
+        .iter()
+        .map(|cell| match cell {
+            NamedCell::Entity { input, name } => construction(doc, *input, name),
+            NamedCell::Tool { input, role } => doc
+                .operation_of(*input)
+                .ok_or(Unwalked::Unread(*input))
+                .and_then(|at| datum(doc, at, *role, Vec::new())),
+            NamedCell::Piece { profile, piece } => Ok(Construction {
+                origin: Origin::Piece(*profile, *piece),
+                placed: Vec::new(),
+            }),
+        })
+        .collect()
 }
 
 /// The first rung: every cell one construction, read as many times.

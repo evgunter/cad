@@ -321,7 +321,10 @@ minted are that step's rows (above).
 so its row sites both of its sides at member cells, and a row a fold step
 decided is spelled as the set of member cells that meet: a cell the fold
 minted (a seam, a crossing, a junction, a `Merged` edge) is the member cells
-it is made of. No row names a cell the fold minted, such as a `Fragment`.
+it is made of. Such a row's relation is `Meet`, the cells' carriers sharing
+one point: a point decided on a cell keeps the two cells and `OnCarrier`
+only where the point is one member vertex and the cell one member cell. No
+row names a cell the fold minted, such as a `Fragment`.
 
 *Built: the node, its naming and `SetMembers`, DOCM-3 (PR 1803); the flat
 `Merged` mint, DOCM-8 (PR 2073); the pairwise contact rule (#3200, built in

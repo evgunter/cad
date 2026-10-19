@@ -294,9 +294,11 @@ fn the_cap_states_its_meridian_crossings_as_meetings() {
         };
         assert!(
             met.len() == 2
-                && met.iter().all(|r| r.site == topo::DecisionSite::VertexFusion
-                    && face_of(r.cells[0], false)
-                    && face_of(r.cells[1], true)),
+                && met
+                    .iter()
+                    .all(|r| r.site == topo::DecisionSite::VertexFusion
+                        && face_of(r.cells[0], false)
+                        && face_of(r.cells[1], true)),
             "lens first {lens_first}: both crossings, the lens's face meeting the brick's: {met:?}"
         );
     }

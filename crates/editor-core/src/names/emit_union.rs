@@ -2637,7 +2637,9 @@ pub(crate) fn member_cells(name: &StableName) -> Result<Vec<(VarId, StableName)>
                 walk(a.name(), out)?;
                 walk(b.name(), out)
             }
-            RoleSeg::EdgeCrossing(run) => run.iter().try_for_each(|line| walk(line.line.name(), out)),
+            RoleSeg::EdgeCrossing(run) => {
+                run.iter().try_for_each(|line| walk(line.line.name(), out))
+            }
             RoleSeg::Merged(set) => set.iter().try_for_each(|n| walk(n, out)),
             _ => Err(bug(FOLD_CELL_FOREIGN)),
         }

@@ -242,11 +242,7 @@ pub(crate) struct Held {
 /// Each row's cells must also share a point where the fixture's
 /// geometry lets that be read ([`shared_point`]), so a row spelled from
 /// the wrong member cells reds here though every name is held.
-pub(crate) fn cells_are_held(
-    ev: &Evaluation<f64>,
-    union: RecipeNodeId,
-    order: &[usize],
-) -> Held {
+pub(crate) fn cells_are_held(ev: &Evaluation<f64>, union: RecipeNodeId, order: &[usize]) -> Held {
     use editor_core::{EntityKey, Entry, NamedCell};
     let value = ev.value(union).expect("the union evaluated");
     let own = ev.output_var(union, 0).expect("a union defines its output");
@@ -281,11 +277,14 @@ pub(crate) fn cells_are_held(
             held.cells += 1;
         }
         held.meetings += usize::from(r.cells.len() > 2);
-        if r.relation == topo::Relation::OnCarrier || r.relation == topo::Relation::Meet {
-            if let Some(on) = shared_point(ev, &r.cells) {
-                assert!(on, "{order:?}: a published row's cells share no point: {r:?}");
-                held.sited += 1;
-            }
+        if matches!(r.relation, topo::Relation::OnCarrier | topo::Relation::Meet)
+            && let Some(on) = shared_point(ev, &r.cells)
+        {
+            assert!(
+                on,
+                "{order:?}: a published row's cells share no point: {r:?}"
+            );
+            held.sited += 1;
         }
     }
     held
@@ -325,7 +324,9 @@ fn carrier(ev: &Evaluation<f64>, cell: &editor_core::NamedCell) -> Option<Carrie
         editor_core::EntityKey::Face(f) => {
             let (_, face) = body.faces().find(|&(k, _)| k == f)?;
             match body.get_surface(face.surface)? {
-                topo::Surface::Plane { origin, normal, .. } => Some(Carrier::Plane(*origin, *normal)),
+                topo::Surface::Plane { origin, normal, .. } => {
+                    Some(Carrier::Plane(*origin, *normal))
+                }
                 _ => None,
             }
         }
@@ -339,7 +340,10 @@ fn carrier(ev: &Evaluation<f64>, cell: &editor_core::NamedCell) -> Option<Carrie
 /// on every cell's carrier. `None` where some cell has a carrier the
 /// check does not read, or no point is fixed.
 fn shared_point(ev: &Evaluation<f64>, cells: &[editor_core::NamedCell]) -> Option<bool> {
-    let carriers: Vec<Carrier> = cells.iter().map(|c| carrier(ev, c)).collect::<Option<_>>()?;
+    let carriers: Vec<Carrier> = cells
+        .iter()
+        .map(|c| carrier(ev, c))
+        .collect::<Option<_>>()?;
     let eps = Tol::witness().eps();
     let on = |p: geom_core::Point3<f64>, c: &Carrier| match c {
         Carrier::Point(q) => (p - *q).norm() <= eps,
@@ -724,19 +728,20 @@ fn statement(
     format!("{origin} {:?} {:?} {}", r.site, r.relation, cells.join(" "))
 }
 
-/// **A vertex row is one row of the union in every member order, once**
-/// (DM4: the union's rows are its member pairs', and a fold row a judged
-/// row states cites it): the L-prism and the cube pinching at its
-/// corner, alone, with a far third member, and with a third member
-/// filling the pinch, whose pair still decided it; two blocks kissing at
-/// a corner, whose touch a record cites, with a far third member and
-/// with one block read twice; two blocks pinching on a plate
-/// (`union_pinch_member_order`), where a fold step meets a vertex an
-/// earlier step minted. Every order that builds decides alike,
-/// and the first that builds publishes exactly the statements listed, so a row
-/// published twice or not at all is red. The orders that fold the far
-/// member last after the pinch refuse [`CARRIED_PINCH`] and are
-/// excluded, each checked to refuse that way.
+/// **A judged vertex row is one row of the union in every member
+/// order, once** (DM4: the judged rows are the union's order-free rows,
+/// and a fold row stating what a judged row states is that row): the
+/// L-prism and the cube pinching at its corner, alone, with a far third
+/// member, and with a third member filling the pinch, whose pair still
+/// decided it; two blocks kissing at a corner, whose touch a record
+/// cites, with a far third member and with one block read twice; two
+/// blocks pinching on a plate (`union_pinch_member_order`), where a fold
+/// step meets a vertex an earlier step minted. Every order that builds
+/// judges alike, and the first that builds logs exactly the statements
+/// listed, its fold steps' with them, so a row published twice or not
+/// at all is red. The orders that fold the far member last after the
+/// pinch refuse [`CARRIED_PINCH`] and are excluded, each checked to
+/// refuse that way.
 #[test]
 fn a_vertex_row_is_the_unions_once_in_every_member_order() {
     type Row = (
@@ -745,48 +750,49 @@ fn a_vertex_row_is_the_unions_once_in_every_member_order() {
         fn(&[usize]) -> bool,
         &'static [&'static str],
     );
-    const PINCH: &[&str] = &["VertexFusion OnCarrier Face@m1 Vertex@m0"];
+    const PINCH: &[&str] = &["judged VertexFusion OnCarrier Face@m1 Vertex@m0"];
     // The kiss: the three walls through the corner, each against the
     // other block's, and the corner itself.
     const KISS: &[&str] = &[
-        "PlaneLadder SameOpposite Face@m0 Face@m1",
-        "PlaneLadder SameOpposite Face@m0 Face@m1",
-        "PlaneLadder SameOpposite Face@m0 Face@m1",
-        "VertexFusion OnCarrier Vertex@m0 Vertex@m1",
+        "judged PlaneLadder SameOpposite Face@m0 Face@m1",
+        "judged PlaneLadder SameOpposite Face@m0 Face@m1",
+        "judged PlaneLadder SameOpposite Face@m0 Face@m1",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m1",
     ];
     // Read twice: each of the block's six faces and eight corners
     // against its twin (DM5), and the kiss once, though two pairs state
     // it.
     const TWICE: &[&str] = &[
-        "PlaneLadder SameOpposite Face@m0 Face@m2",
-        "PlaneLadder SameOpposite Face@m0 Face@m2",
-        "PlaneLadder SameOpposite Face@m0 Face@m2",
-        "PlaneLadder SameOriented Face@m0 Face@m0",
-        "PlaneLadder SameOriented Face@m0 Face@m0",
-        "PlaneLadder SameOriented Face@m0 Face@m0",
-        "PlaneLadder SameOriented Face@m0 Face@m0",
-        "PlaneLadder SameOriented Face@m0 Face@m0",
-        "PlaneLadder SameOriented Face@m0 Face@m0",
-        "VertexFusion OnCarrier Vertex@m0 Vertex@m0",
-        "VertexFusion OnCarrier Vertex@m0 Vertex@m0",
-        "VertexFusion OnCarrier Vertex@m0 Vertex@m0",
-        "VertexFusion OnCarrier Vertex@m0 Vertex@m0",
-        "VertexFusion OnCarrier Vertex@m0 Vertex@m0",
-        "VertexFusion OnCarrier Vertex@m0 Vertex@m0",
-        "VertexFusion OnCarrier Vertex@m0 Vertex@m0",
-        "VertexFusion OnCarrier Vertex@m0 Vertex@m0",
-        "VertexFusion OnCarrier Vertex@m0 Vertex@m2",
+        "judged PlaneLadder SameOpposite Face@m0 Face@m2",
+        "judged PlaneLadder SameOpposite Face@m0 Face@m2",
+        "judged PlaneLadder SameOpposite Face@m0 Face@m2",
+        "judged PlaneLadder SameOriented Face@m0 Face@m0",
+        "judged PlaneLadder SameOriented Face@m0 Face@m0",
+        "judged PlaneLadder SameOriented Face@m0 Face@m0",
+        "judged PlaneLadder SameOriented Face@m0 Face@m0",
+        "judged PlaneLadder SameOriented Face@m0 Face@m0",
+        "judged PlaneLadder SameOriented Face@m0 Face@m0",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m2",
     ];
     // Two blocks on a plate, touching along the line through the
     // plate's corner: their two walls on that line, and each block's end
-    // of the line on the other's edge. Folded after the plate, the
-    // second block meets the point the first one's edge made on the
-    // plate's top, which those two rows already put on its edge.
+    // of the line on the other's edge. Folded last, in the first order
+    // (the blocks, then the plate), the plate's step decides the points
+    // its top made on the two blocks' legs one: the legs' meeting.
     const PLATE: &[&str] = &[
-        "PlaneLadder SameOpposite Face@m1 Face@m2",
-        "PlaneLadder SameOpposite Face@m1 Face@m2",
-        "VertexFusion OnCarrier Edge@m1 Vertex@m2",
-        "VertexFusion OnCarrier Edge@m2 Vertex@m1",
+        "fold 2 VertexFusion Meet Edge@m1 Edge@m2",
+        "judged PlaneLadder SameOpposite Face@m1 Face@m2",
+        "judged PlaneLadder SameOpposite Face@m1 Face@m2",
+        "judged VertexFusion OnCarrier Edge@m1 Vertex@m2",
+        "judged VertexFusion OnCarrier Edge@m2 Vertex@m1",
     ];
     let rows: [Row; 6] = [
         ("prism and cube", prism_and_cube, |_| false, PINCH),
@@ -856,16 +862,19 @@ fn a_vertex_row_is_the_unions_once_in_every_member_order() {
     assert!(failures.is_empty(), "{failures:#?}");
 }
 
-/// **A record the fold re-cites cites the judged rows that state its
-/// contact** (DM4, "A row names member cells"): in every order of
-/// [`crate::union_pinch_member_order::pinch`], the blocks' touching legs
-/// are one edge-edge record citing the two judged rows that put an end of
-/// each leg on the other, and the end below the plate's top one
-/// vertex-edge record citing the row that puts it there. Folded after
-/// the plate, a block's leg meets the point the other's made on the
-/// plate's top, and that step's decision is cited as those rows.
+/// **A record the fold re-cites cites the rows its steps decided**
+/// (DM4: the union's rows are its evaluation's decisions): in every
+/// order of [`crate::union_pinch_member_order::pinch`], the blocks'
+/// touching legs are one edge-edge record and the end below the plate's
+/// top one vertex-edge record citing the judged row that puts it there.
+/// Folded after the plate, a block's leg meets the point the other's
+/// made on the plate's top, and the edge-edge record cites that step's
+/// decision, the two legs and the plate's top meeting there, beside the
+/// judged row putting the first block's end on the second's leg. Folded
+/// before it, the step's decisions are the judged rows, and it cites
+/// the two that put an end of each leg on the other.
 #[test]
-fn a_re_cited_record_cites_the_judged_rows_in_every_member_order() {
+fn a_re_cited_record_cites_the_rows_its_steps_decided_in_every_member_order() {
     let fixture = crate::union_pinch_member_order::pinch;
     let mut failures = Vec::new();
     for order in orders(3) {
@@ -918,19 +927,28 @@ fn a_re_cited_record_cites_the_judged_rows_in_every_member_order() {
             })
             .collect();
         cited.sort();
+        let legs = if order[2] == 0 {
+            "judged VertexFusion OnCarrier Edge@m2 Vertex@m1"
+        } else {
+            "fold 2 VertexFusion Meet Edge@m1 Edge@m2 Face@m0"
+        };
         let want = vec![
             (
                 "EdgeEdge".to_string(),
                 vec![
-                    "VertexFusion OnCarrier Edge@m1 Vertex@m2".to_string(),
-                    "VertexFusion OnCarrier Edge@m2 Vertex@m1".to_string(),
+                    legs.to_string(),
+                    "judged VertexFusion OnCarrier Edge@m1 Vertex@m2".to_string(),
                 ],
             ),
             (
                 "VertexEdge".to_string(),
-                vec!["VertexFusion OnCarrier Edge@m1 Vertex@m2".to_string()],
+                vec!["judged VertexFusion OnCarrier Edge@m1 Vertex@m2".to_string()],
             ),
         ];
+        let mut want = want;
+        for (_, rows) in &mut want {
+            rows.sort();
+        }
         if cited != want {
             failures.push(format!("{order:?}: the records cite {cited:#?}"));
         }

@@ -1617,7 +1617,10 @@ fn a_face_through_a_seam_is_the_meeting_the_step_that_meets_it_decides() {
             panic!("{order:?}: the prism folds in");
         };
         let [first, second] = out.coincidences.as_slice() else {
-            panic!("{order:?}: the step states both crossings: {:?}", out.coincidences);
+            panic!(
+                "{order:?}: the step states both crossings: {:?}",
+                out.coincidences
+            );
         };
         for r in [first, second] {
             assert!(

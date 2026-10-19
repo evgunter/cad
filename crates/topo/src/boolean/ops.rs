@@ -7156,7 +7156,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 null_copies: super::null_copy_rows(&red.null_edges),
                 edge_joins,
                 killed_lineage,
-                        ..BooleanNaming::default()
+                ..BooleanNaming::default()
             };
             Ok(BooleanResult::Body(BooleanBody {
                 body,

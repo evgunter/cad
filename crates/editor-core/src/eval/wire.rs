@@ -3380,7 +3380,8 @@ fn in_member_space(
             _ => Err(bug(UNION_FOLD_ROW_FOREIGN_CELL)),
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let entity = |(input, name): (crate::VarId, names::StableName)| NamedCell::Entity { input, name };
+    let entity =
+        |(input, name): (crate::VarId, names::StableName)| NamedCell::Entity { input, name };
     let single = |cells: &[(crate::VarId, names::StableName)]| match cells {
         [one] => Some(one.clone()),
         _ => None,
@@ -3388,8 +3389,7 @@ fn in_member_space(
     let (cells, relation) = match (row.relation, spelled.as_slice()) {
         (topo::Relation::OnCarrier, [p, x])
             if let (Some(p), Some(x)) = (single(p), single(x))
-                && p.1.kind == names::EntityKind::Vertex
-                && p != x =>
+                && p.1.kind == names::EntityKind::Vertex =>
         {
             (vec![entity(p), entity(x)], row.relation)
         }
@@ -3442,6 +3442,14 @@ fn in_member_space(
 /// member that step folds in ([`NodeErrorKind::UnionFoldStep`]). Two
 /// members are one pair: their one step is the judgement, run and
 /// logged once, its refusals the pair's own.
+///
+/// **The node's rows are its evaluation's decisions** (DM4): the
+/// judged rows, each marked by its pair ([`crate::coincide::RowOrigin`]),
+/// then every row each fold step decided, in fold order, spelled as the
+/// member cells that meet ([`in_member_space`]); a fold row stating what
+/// a judged row states is that row. The judged rows are the same in
+/// every member order, and the fold's follow the order, as a step's
+/// refusal does.
 ///
 /// **Nothing ∅-absorbing is invented** (D3). A member that evaluates to
 /// an empty boolean refuses `EmptyOperand` naming that member. An
@@ -3539,7 +3547,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     };
     let own: Vec<(crate::VarId, &NameTable)> =
         members.iter().map(|m| (m.read, m.table.as_ref())).collect();
-    // The node's own read: the space a fold row is published in.
+    // The node's own read: the space a fold step's rows are read in.
     let own_read =
         doc.output(id, 0)
             .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
@@ -3744,7 +3752,8 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     .map_err(NodeErrorKind::Naming)?
                     {
                         fold_rows.push(
-                            in_member_space(row, own_read, member).map_err(NodeErrorKind::Naming)?,
+                            in_member_space(row, own_read, member)
+                                .map_err(NodeErrorKind::Naming)?,
                         );
                     }
                 }
@@ -3847,12 +3856,16 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             .collect();
         let refuse = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
         Arc::new((*contacts).clone().try_recited(
-            |b| match b {
-                topo::Backing::Decided(k) => at
-                    .get(k as usize)
-                    .map(|&i| vec![topo::Backing::Decided(u32::try_from(i).unwrap_or(u32::MAX))])
-                    .ok_or_else(|| refuse(UNION_STEP_UNDECIDED_CITE)),
-                carried @ topo::Backing::Carried { .. } => Ok(vec![carried]),
+            |b| {
+                match b {
+                    topo::Backing::Decided(k) => at
+                        .get(k as usize)
+                        .map(|&i| {
+                            vec![topo::Backing::Decided(u32::try_from(i).unwrap_or(u32::MAX))]
+                        })
+                        .ok_or_else(|| refuse(UNION_STEP_UNDECIDED_CITE)),
+                    carried @ topo::Backing::Carried { .. } => Ok(vec![carried]),
+                }
             },
             |_| refuse(UNION_CARRY_UNCITED),
         )?)
@@ -3911,8 +3924,7 @@ const UNION_FOLD_ROW_FOREIGN_CELL: &str =
 
 /// A union fold step decided a relation other than a point's on a cell
 /// between cells that are not one member cell each.
-const UNION_FOLD_ROW_UNSTATED: &str =
-    "a union fold step decided a relation other than a point's between cells made of several member cells";
+const UNION_FOLD_ROW_UNSTATED: &str = "a union fold step decided a relation other than a point's between cells made of several member cells";
 
 /// A union fold step's record cites a row the step did not decide.
 const UNION_STEP_UNDECIDED_CITE: &str = "a union fold step's record cites a row it did not decide";
@@ -4979,14 +4991,21 @@ mod union_row_tests {
             let cap = member(2, EntityKind::Face, end);
             let r = in_member_space(
                 row(
-                    in_own(crossing(from(union, 1, e.clone()), from(union, 2, cap.clone()))),
+                    in_own(crossing(
+                        from(union, 1, e.clone()),
+                        from(union, 2, cap.clone()),
+                    )),
                     in_own(from(union, 3, c.clone())),
                 ),
                 own,
                 2,
             )
             .unwrap();
-            assert_eq!(r.relation, topo::Relation::Meet, "a crossing is no member point");
+            assert_eq!(
+                r.relation,
+                topo::Relation::Meet,
+                "a crossing is no member point"
+            );
             assert_eq!(
                 r.cells,
                 sorted(vec![cell(1, e.clone()), cell(2, cap), cell(3, c.clone())]),
@@ -5021,12 +5040,20 @@ mod union_row_tests {
             (r.relation, r.cells),
             (
                 topo::Relation::Meet,
-                sorted(vec![cell(1, fa), cell(2, fb), cell(3, top), cell(4, v.clone())])
+                sorted(vec![
+                    cell(1, fa),
+                    cell(2, fb),
+                    cell(3, top),
+                    cell(4, v.clone())
+                ])
             ),
             "a member vertex on a seam's crossing meets the seam's faces and the face"
         );
         let r = in_member_space(
-            row(in_own(from(union, 4, v.clone())), in_own(from(union, 1, e.clone()))),
+            row(
+                in_own(from(union, 4, v.clone())),
+                in_own(from(union, 1, e.clone())),
+            ),
             own,
             1,
         )

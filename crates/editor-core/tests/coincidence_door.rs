@@ -1526,12 +1526,13 @@ fn an_unproven_row_says_why_the_replay_left_it() {
 /// **What the door proves on the tour's composed dies**: the blend
 /// joints whose `fillet3_chain_g1` margin is the zero polynomial. One of
 /// `die_composed`'s two and 21 of `die_composed_tour`'s 42 prove as
-/// theorems, and the rest stay unproven. The dies' unions decide vertex
-/// identities too, which their inputs' cells cannot spell yet and they
-/// hold unspelled (`topo::BooleanNaming::unspelled`).
+/// theorems, and the rest stay unproven. The dies' booleans decide
+/// vertex identities too, as many as the joints: each a point minted on
+/// an edge, published as a `Meet` of the cells it lies in, and left
+/// unproven, a coincidence of values as far as the door can tell.
 #[test]
 fn the_door_proves_half_the_composed_dies_joints() {
-    for (name, proved, rows) in [("die_composed", 1, 2), ("die_composed_tour", 21, 42)] {
+    for (name, proved, rows) in [("die_composed", 1, 4), ("die_composed_tour", 21, 84)] {
         let cd = crate::corpus::documents()
             .into_iter()
             .find(|cd| cd.name == name)
@@ -1559,6 +1560,12 @@ fn the_door_proves_half_the_composed_dies_joints() {
             .filter(|p| matches!(p, Proof::Structural(Rung::MarginIdentity)))
             .count();
         let replayed = replays(&all);
+        let met = nodes
+            .iter()
+            .flat_map(|(_, rows)| rows.iter())
+            .filter(|r| r.relation == Relation::Meet)
+            .count();
+        assert_eq!(met, rows / 2, "{name}: one meeting per joint");
         assert_eq!((theorems, replayed.len()), (proved, rows), "{name}");
         assert!(
             replayed
@@ -1839,8 +1846,9 @@ fn fusions(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
 /// and not bit for bit. The plate's top mints one ring for both
 /// (`topo` `vtxfac::mint_ring`), and the intersection keeps both pierces
 /// as two vertices. It records the decision: one `VertexFusion`
-/// `OnCarrier` row, its two cells the two blocks' edges as the union
-/// names them, its margin the gap. The door leaves it unproven
+/// `Meet` row, its two cells the two blocks' edges as the union names
+/// them, sharing the point each pierce was minted at, its margin the
+/// gap. The door leaves it unproven
 /// with the one-construction recourse, and the check reports it. Red if
 /// the ring glues the two by a shared point key alone, which records
 /// nothing.
@@ -1888,7 +1896,11 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
     let fused = fusions(&ev, common);
     assert_eq!(fused.len(), 1, "one recorded fusion: {fused:?}");
     let row = &fused[0];
-    assert_eq!(row.relation, Relation::OnCarrier);
+    assert_eq!(
+        row.relation,
+        Relation::Meet,
+        "two points minted on edges, decided one, are the edges' meeting"
+    );
     let gap = format!("{:?}", row.margin);
     assert!(
         row.margin.kind() == geom_core::MarginKind::Value
