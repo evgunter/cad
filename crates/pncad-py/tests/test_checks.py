@@ -558,13 +558,15 @@ if __name__ == "__main__":
 
 
 class TestAProfileJunctionDecidedTangent(unittest.TestCase):
-    """D1's profile tangency: a junction no constructor made, which
-    validation decides tangent from its carriers, builds and is one
-    coincidence on the profile's own node, its cells the profile's two
-    pieces. A line meets an arc at a turn of `sqrt(eps)` at the default
-    eps: a corner to the lattice, Zero to the carrier clearance."""
+    """D1's profile junctions, as `coincidence_door`'s twins state them:
+    validation decides a joint by the turn the path lattice reads
+    (`path_junction_turn`), so a junction the lattice reads as a corner
+    is a corner to validation too and carries no row, and an undeclared
+    junction the lattice reads as Zero refuses where it is authored
+    (`work/coincide/a-profile-junction-row-has-no-reaching-document.md`)."""
 
-    def test_the_junction_is_one_row_on_its_profile(self):
+    def test_a_junction_the_lattice_reads_as_a_corner_is_no_row(self):
+        # A line meets an arc at a turn of `sqrt(eps)` at the default eps.
         phi = math.sqrt(1e-9)
         cx, cy = 1.0 - math.sin(phi), math.cos(phi)
         loop = (
@@ -577,32 +579,17 @@ class TestAProfileJunctionDecidedTangent(unittest.TestCase):
         node = doc.insert(Node.profile(loop))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(node))
-        rows = ev.coincidences(node)
-        self.assertEqual(len(rows), 1)
-        (row,) = rows
-        self.assertEqual((row.relation, row.site), ("tangent", "profile_junction"))
-        self.assertIsNone(row.rung)
-        self.assertEqual([at for at, _ in row.cells], [node, node])
-        (_, line), (_, arc) = row.cells
-        self.assertNotEqual(line, arc)
+        self.assertEqual(ev.coincidences(node), [])
 
-    def test_a_junction_on_one_carrier_is_same_oriented(self):
-        # A leg of 1e-10 m turns off the line by its whole length: a
-        # corner to the lattice, one carrier continuing to validation,
-        # so the row is carrier identity, not a tangency of two.
-        loop = (
-            Open.at((0 * m, 0 * m))
-            .line_to((10 * m, 0 * m))
-            .line_to((10.001 * m, 1e-10 * m))
-            .line_to((10.001 * m, 5 * m))
-            .line_to(Start)
-        )
-        doc = Doc()
-        node = doc.insert(Node.profile(loop))
-        ev = evaluate(doc)
-        self.assertTrue(ev.succeeded(node))
-        rows = ev.coincidences(node)
-        self.assertEqual(
-            [(r.relation, r.site) for r in rows],
-            [("same_oriented", "profile_junction")],
-        )
+    def test_a_junction_on_one_carrier_refuses_where_it_is_written(self):
+        # A leg of 1e-10 m rise over 1 mm turns off the 10 m line by
+        # 1e-7 rad; levered by the shorter leg's arm the lattice reads
+        # that turn as 0.1 eps, Zero, and refuses the undeclared tangent
+        # junction.
+        with self.assertRaises(pncad.PathError) as refused:
+            (
+                Open.at((0 * m, 0 * m))
+                .line_to((10 * m, 0 * m))
+                .line_to((10.001 * m, 1e-10 * m))
+            )
+        self.assertEqual(refused.exception.variant, "junction_tangent")

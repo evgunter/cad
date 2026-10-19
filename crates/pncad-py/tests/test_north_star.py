@@ -3127,21 +3127,19 @@ class TestTeapot(unittest.TestCase):
         # better handle than a segment index: the name asks for the end
         # rather than for a position in a meridian a re-order could
         # move. Both are annuli, because the sections are. Read at the
-        # placement, which names the copy's caps under itself.
-        def one_cap(node, end):
-            found = ev.select(
-                node,
-                Selector.of(
-                    NamePat.of_kind(EntityKind.Face).seg(
-                        SegPat.tag(SegTag.Cap).side(end)
-                    )
-                ),
-            )
+        # placement, which names the copy's caps under itself: each is
+        # the loft's cap name worn under `Placed`.
+        def one_cap(node, end, placed=False):
+            cap = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap).side(end))
+            if placed:
+                cap = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Placed).of([cap]))
+            found = ev.select(node, Selector.of(cap))
             self.assertEqual(len(found), 1, "a loft has exactly one cap per end")
             return found[0]
 
         root, tip = one_cap(spout_body, CapEnd.Start), one_cap(spout_body, CapEnd.End)
-        placed_root, placed_tip = one_cap(spout, CapEnd.Start), one_cap(spout, CapEnd.End)
+        placed_root = one_cap(spout, CapEnd.Start, placed=True)
+        placed_tip = one_cap(spout, CapEnd.End, placed=True)
         # The loft's own coordinates are its first section's; the
         # scene's view of the unplaced spout is `to_spout_frame` of them.
         before = self.to_spout_frame(ev.face_frame(spout_body, tip).origin)

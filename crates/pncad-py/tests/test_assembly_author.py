@@ -816,24 +816,25 @@ class TestAssemblyRefusals(BenchWorkspace):
 
     def test_a_pose_read_off_a_failed_node_names_its_own_cause(self):
         """The pose's face is read off a copy whose placement cannot be
-        solved: its bundle mates one face to two parallel planes a
-        metre apart. The door admits the mate, which is structural;
-        where the placement evaluates, it is poisoned through the pose
-        it reads, and the refusal names the placement that failed and
-        carries its own refusal in its own words."""
+        solved: its one mate rests the shelf on the floor slid up by
+        `1 m / gap`, and `gap` is 0, so the world read it mates to does
+        not evaluate. The door admits the mate, which is structural;
+        where the post's placement evaluates, it is poisoned through the
+        pose it reads, and the refusal names the placement that failed
+        and carries its own refusal in its own words."""
         doc = Doc("pncad-placer-refused")
         post_a = doc.insert(Node.instantiate_part(self.post_ref, []))
         shelf_i = self.pinned(doc, self.shelf_ref)
         a_top = self.instance_face(doc, post_a, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        doc.apply(DocEdit.declare_var(VarName("gap"), FreeVar.scalar(0.0)))
         floor = WorldRead.through("xy")
         lifted = doc.place(
             shelf_i,
             [
-                Mate(PoseDef.plane(shelf_i, s_bottom), floor, ContactClass.Rest),
                 Mate(
                     PoseDef.plane(shelf_i, s_bottom),
-                    floor.slide(WorldRead.through("z"), 1 * m),
+                    floor.slide(WorldRead.through("z"), doc.parse_formula("1 m / gap")),
                     ContactClass.Rest,
                 ),
             ],
@@ -856,7 +857,8 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(raised.reason, "poisoned")
         self.assertEqual(raised.through, lifted)
         self.assertIn(f'Place "lift" ({tag(lifted)})', str(raised))
-        self.assertTrue(raised.kind.startswith("mate_"), raised.kind)
+        self.assertEqual(raised.kind, "expr")
+        self.assertIn("world read slide", str(raised))
 
     def test_a_non_finite_world_move_refuses_where_it_is_written(self):
         """A world read's moves are numbers, and a number that is not

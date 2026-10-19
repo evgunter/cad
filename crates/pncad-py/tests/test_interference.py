@@ -80,8 +80,8 @@ class TestAPartsOverlapIsThePartsFinding(unittest.TestCase):
         self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
         store = Workspace(str(directory))
         part = Doc("pncad-carried-overlap-part")
-        part.place(block(part, (0.0, 0.0), 1.0, 0.0, 1.0))
-        part.place(block(part, (0.95, 0.2), 0.6, 0.25, 0.5))
+        block(part, (0.0, 0.0), 1.0, 0.0, 1.0)
+        block(part, (0.95, 0.2), 0.6, 0.25, 0.5)
         (own,) = assemble(part, evaluate(part)).interference
         store.create(part)
         outer = Doc("pncad-carried-overlap")
@@ -113,8 +113,8 @@ class TestAPartsOverlapIsThePartsFinding(unittest.TestCase):
         self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
         store = Workspace(str(directory))
         part = Doc("pncad-carried-at-rest-part")
-        part.place(block(part, (0.0, 0.0), 1.0, 0.0, 1.0))
-        part.place(block(part, (1.0 + 3e-9, 0.2), 0.6, 0.25, 0.5))
+        block(part, (0.0, 0.0), 1.0, 0.0, 1.0)
+        block(part, (1.0 + 3e-9, 0.2), 0.6, 0.25, 0.5)
         with self.assertRaises(pncad.AssemblyError) as own:
             assemble(part, evaluate(part))
         self.assertEqual(own.exception.variant, "at_rest")

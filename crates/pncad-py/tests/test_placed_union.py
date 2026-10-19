@@ -271,9 +271,12 @@ def die_tool_document():
     # on the revolve axis — the chart the retired equator workaround
     # existed to dodge, and the whole Revolve half of this document.
     # The revolve axis is written in the profile's own plane: the
-    # meridian's pole-to-pole line is its own +y through its origin.
+    # meridian's pole-to-pole line is its own +y through its origin,
+    # which is the constant zero (`Formula.zero`), not a written 0 m:
+    # the axis passes through the origin by construction and reads no
+    # number, as the corpus document writes it.
     axis = (
-        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.zero("length"), Formula.zero("length")),
         Formula.turn_over(4),
     )
     half_disc = (
