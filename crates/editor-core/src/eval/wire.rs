@@ -563,12 +563,12 @@ fn body_reach<T: crate::mate::SolveScalar>(
         .map_err(|refusal| crate::mate::LeverRefusal::Shape { shape: at, refusal })
 }
 
-/// **Whether placement `id`'s bundle reads a variable**: a free
-/// variable reached from its constraints' numbers or its mates' reads,
-/// through definitions and through the operations whose outputs they
-/// read (a target copy's own placement among them). The shapes it
-/// copies are not the bundle: a body's own parameters move the body,
-/// not its copy's motion.
+/// **Whether placement `id`'s bundle reads a variable**: a declared or
+/// toleranced free variable reached from its constraints' numbers or
+/// its mates' reads, through definitions and through the operations
+/// whose outputs they read: a target copy's own placement, and a face
+/// or axis of the copy a mate reads where its own parameters move it.
+/// The copied shapes themselves are not the bundle.
 fn bundle_reads_a_variable(doc: &crate::doc::Doc<ProfileProgram>, id: RecipeNodeId) -> bool {
     let Some(node) = doc.node(id) else {
         return false;
@@ -584,11 +584,38 @@ fn bundle_reads_a_variable(doc: &crate::doc::Doc<ProfileProgram>, id: RecipeNode
         std::collections::BTreeSet::new(),
         std::collections::BTreeSet::new(),
     );
+    let copied: std::collections::BTreeSet<crate::VarId> = node
+        .operand_rows()
+        .into_iter()
+        .filter(|(slot, _)| matches!(slot, crate::OperandSlot::Shape(_)))
+        .map(|(_, var)| var)
+        .collect();
+    // A selection of the copied body's own entities that the recipe
+    // decides no variable moves (`mate::anchor`) reads nothing.
+    let unmoved = |var: crate::VarId| match doc.var(var).map(crate::Var::def) {
+        Some(crate::VarDef::Select(sel)) if copied.contains(&sel.body) => {
+            doc.operation_of(sel.body).is_some_and(|op| {
+                let anchors = crate::mate::anchor::Anchors::of(doc, op);
+                sel.names.iter().all(|name| anchors.fixed(name))
+            })
+        }
+        _ => false,
+    };
     while let Some(var) = stack.pop() {
-        if !seen.insert(var) {
+        if !seen.insert(var) || unmoved(var) {
             continue;
         }
-        if doc.free(var).is_some() {
+        // A written number is an anonymous free variable no lane
+        // varies unless it carries a tolerance; a declared one, or a
+        // toleranced one, is what a box or a seed moves.
+        let varies = match doc.free(var) {
+            Some(crate::FreeVar::Continuous { distribution, .. }) => {
+                distribution.is_some() || doc.var_name(var).is_some()
+            }
+            Some(crate::FreeVar::Count { .. }) => doc.var_name(var).is_some(),
+            None => false,
+        };
+        if varies {
             return true;
         }
         stack.extend(doc.definition_reads(var));
