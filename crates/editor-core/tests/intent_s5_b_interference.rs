@@ -687,25 +687,47 @@ fn a_pin_bottoming_through_a_blind_bore_stays_loud() {
 }
 
 /// **(B) A clearance fit the census cannot decide still refuses.** A
-/// pin of radius 0.49 in the same bore: the census decides no overlap
-/// and leaves the curved pairs undecided, and the gate refuses them as
-/// it always did.
+/// pin one box pad (`escalate + 2·zero`) inside the same bore: wide
+/// enough that every vertex and edge reads definitely clear of the
+/// other part, so the census decides no contact and no overlap, and
+/// narrower than the two pads the depth gap takes, so it cannot part
+/// the curved pairs either. The gate refuses them as it always did.
 ///
 /// Red if undecided pairs between copies are reported as interference
 /// without a decided overlap.
 #[test]
 fn a_clearance_fit_the_census_cannot_decide_stays_refused() {
-    let (doc, ..) = bore_and_pin(0.49);
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let (doc, ..) = bore_and_pin(0.5 - (band.escalate() + 2.0 * band.zero()));
     let run = corpus::eval::<f64>(&doc);
     match assemble(&doc, &run, Tol::witness()) {
         Err(editor_core::AssemblyError::AtRest { findings }) => assert!(
-            findings
-                .iter()
-                .all(|f| matches!(f.error, ValidationError::CensusUndecidable { .. })),
+            !findings.is_empty()
+                && findings
+                    .iter()
+                    .all(|f| matches!(f.error, ValidationError::CensusUndecidable { .. })),
             "the census's undecided pairs: {findings:?}"
         ),
         other => panic!("the undecided pair refuses: {other:?}"),
     }
+}
+
+/// **(B) A clearance fit apart past the band assembles.** A pin of
+/// radius 0.49 in the same bore: the census parts the curved pairs on
+/// the gap in depth about the common axis, so the copies stand apart
+/// with no finding.
+///
+/// Red if a clearance the census can measure is refused or reported
+/// as interference.
+#[test]
+fn a_clearance_fit_apart_in_depth_assembles() {
+    let (doc, ..) = bore_and_pin(0.49);
+    let assembly = assembled(&doc);
+    assert!(
+        assembly.interference.is_empty(),
+        "a 0.01 clearance is no interference: {:?}",
+        assembly.interference
+    );
 }
 
 /// **(B) A quiet finding carries no verdict nothing checked.** The
