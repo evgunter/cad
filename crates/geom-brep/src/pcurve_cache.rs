@@ -2579,16 +2579,21 @@ pub enum EnvelopeStatement {
     /// - **Cone, rim** (slant `v = h·cos α + n·‖a_r‖·sin α`, the rim's
     ///   projection on its generators, `n` the nappe; `rad(u)·v` flips
     ///   with the nappe, so the image's radial is `ρ·â_r` on either,
-    ///   `ρ = n·v·sin α`, at height `v·cos α`): `e·(v·cos α − h) − w_r +
-    ///   (a_r·(1 + k) − a)·cos t + (β·e×a_r·(1 + k) − b)·sin t − l·t` ⇒
-    ///   **centre** `‖w_r‖` + **radius** `|v·cos α − h| + σ(a_r·(1 + k) −
-    ///   a, β·e×a_r·(1 + k) − b)` + **line** `‖l‖·T`.
+    ///   `ρ = n·v·sin α`, at height `v·cos α`): `e·λ − w_r + (a_r·(1 +
+    ///   k) − a)·cos t + (β·e×a_r·(1 + k) − b)·sin t − l·t`, the lift `λ
+    ///   = v·cos α − h = sin α·(n·‖a_r‖·cos α − h·sin α)` ⇒ **centre**
+    ///   `‖w_r‖` + **radius** the lift and the pair at
+    ///   [`constant_and_pair`]'s sup — `√(λ² + σ²)` for a carrier in a
+    ///   plane normal to the axis, where the pair is radial — + **line**
+    ///   `‖l‖·T`.
     /// - **Cone, ruling** (a line; `q` the radial of whichever datum
     ///   the nappe was read off — the anchor `w` or the direction `l` —
     ///   signed by it, and `ĝ = cos α·e + sin α·q̂` the generator at
     ///   `rad(α_d) = q̂`): the image is `apex + ((w + l·t)·ĝ)·ĝ`, so
     ///   `−(w − (w·ĝ)·ĝ) − (l − (l·ĝ)·ĝ)·t` ⇒ **radius** `‖w − (w·ĝ)·ĝ‖`,
-    ///   the anchor off the generator, + **line** `‖l − (l·ĝ)·ĝ‖·T`.
+    ///   the anchor off the generator, + **line** `‖l − (l·ĝ)·ĝ‖·T`. A
+    ///   datum `h·e + p·q̂ + m·e×q̂` is `√((p·cos α − h·sin α)² + m²)`
+    ///   off it; the reference datum's is `||h|·sin α − ‖q‖·cos α|`.
     /// - **Sphere, parallel** (`ρ = √(r² − h²)` is `r·cos asin(h/r)`):
     ///   the cone rim's form with `ρ`, `k` spelled over `r² − h² −
     ///   a_r·a_r` ⇒ **centre** + **radius** + **line**.
@@ -4827,9 +4832,12 @@ fn constant_and_pair<T: Real>(c: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
 /// (the carrier's)`, so neither repeats the carrier's coefficient and a
 /// bracketed scalar pays each part's own width. `axial` is false where
 /// the chart's axial channel is the carrier's own and cancels (the
-/// cylinder, whose `(a, b)` arrive radial). A winding decided Zero reads
+/// cylinder, whose `(a, b)` arrive radial). `lift`, where the image
+/// stands off the carrier's plane by a constant `axis·lift`, is read
+/// with the pair at [`constant_and_pair`]'s sup: the two are legs of one
+/// displacement where the pair is radial. A winding decided Zero reads
 /// the image's constant radial at its full length and the carrier's
-/// pair as drift.
+/// pair as drift, the lift beside them.
 fn class_circle<T: Decide>(
     terms: &mut EnvelopeTerms<T>,
     beta: i32,
@@ -4837,6 +4845,7 @@ fn class_circle<T: Decide>(
     (a, b): (Vec3<T>, Vec3<T>),
     axis: Vec3<T>,
     axial: bool,
+    lift: Option<T>,
 ) {
     let (a_r, b_r, aa, bb) = if axial {
         let (aa, bb) = (a.dot(axis), b.dot(axis));
@@ -4846,7 +4855,7 @@ fn class_circle<T: Decide>(
     };
     match beta {
         0 => {
-            terms.add(EnvelopeTerm::Radius, rho);
+            terms.add(EnvelopeTerm::Radius, rho + lift.map_or(T::zero(), T::abs));
             let drift = harmonic_sup(a, b);
             #[cfg(test)]
             let drift = mutants::zero_winding(a_r, b_r, (aa, bb)).unwrap_or(drift);
@@ -4855,10 +4864,20 @@ fn class_circle<T: Decide>(
         _ => {
             let k = stretch(rho, rho_sq, a_r);
             let turn = axis.cross(a_r) * angle_rate::<T>(beta);
-            let pair = harmonic_sup(a_r * k - axis * aa, turn * k + (turn - b_r) - axis * bb);
+            let (cos_part, sin_part) = (a_r * k - axis * aa, turn * k + (turn - b_r) - axis * bb);
+            let pair = harmonic_sup(cos_part, sin_part);
             #[cfg(test)]
             let pair =
                 mutants::class_circle((rho, rho_sq), a_r, b_r, turn, (aa, bb)).unwrap_or(pair);
+            let pair = match lift {
+                Some(lift) => {
+                    let c = axis * lift;
+                    let two = T::one() + T::one();
+                    let cross = harmonic_sup_scalar(c.dot(cos_part), c.dot(sin_part));
+                    (c.norm_squared() + pair.powi(2) + two * cross).sqrt()
+                }
+                None => pair,
+            };
             terms.add(EnvelopeTerm::Radius, pair);
         }
     }
@@ -4901,6 +4920,7 @@ fn incidence<T: Decide>(
                         (a_r, b_r),
                         axis,
                         false,
+                        None,
                     );
                 }
                 _ => {
@@ -4926,20 +4946,53 @@ fn incidence<T: Decide>(
                 Derivation::ConeRuling { anchored, nappe } => {
                     // The image is `apex + ((w + l·t)·ĝ)·ĝ`, so its miss
                     // is the anchor's and the direction's parts off the
-                    // generator.
-                    let r_ref = if anchored { w_r } else { radial(l) };
-                    let g = ruling_generator(axis, half_angle, r_ref * nappe.value());
-                    let off = |x: Vec3<T>| (x - g * x.dot(g)).norm();
-                    terms.add(Radius, off(w));
-                    terms.add(Line, off(l) * reach);
+                    // generator, each read in the frame `(ĝ, N̂, e × q̂)`
+                    // with `N̂ = cos α·q̂ − sin α·e`: a datum `h·e + p·q̂
+                    // + m·(e × q̂)` is `√((p·cos α − h·sin α)² + m²)` off
+                    // it, its parts radial-sized rather than its whole
+                    // length. The reference datum has `m = 0` and `p =
+                    // n·‖q‖`, `n·h = |h|`, so its own is the polynomial
+                    // gap `||h|·sin α − ‖q‖·cos α|`.
+                    let datum = |x: Vec3<T>| (x.dot(axis), radial(x));
+                    let (anchor, direction) = (datum(w), datum(l));
+                    let ((h_ref, r_ref), other) = if anchored {
+                        (anchor, direction)
+                    } else {
+                        (direction, anchor)
+                    };
+                    let rise = h_ref * nappe.value() * s_ha;
+                    let own = norm_gap(rise, rise.powi(2), r_ref * c_ha);
+                    let q = r_ref * nappe.value();
+                    let q_len = q.norm();
+                    let (h_o, r_o) = other;
+                    let off = harmonic_sup_scalar(
+                        r_o.dot(q) / q_len * c_ha - h_o * s_ha,
+                        r_o.cross(q).norm() / q_len,
+                    );
+                    let (w_off, l_off) = if anchored { (own, off) } else { (off, own) };
+                    terms.add(Radius, w_off);
+                    terms.add(Line, l_off * reach);
                 }
                 Derivation::ConeRim { nappe, beta } => {
-                    let v0 = rim_slant(h, radial(a).norm(), half_angle, nappe);
+                    let r = radial(a).norm();
+                    let v0 = rim_slant(h, r, half_angle, nappe);
                     let rho = v0 * nappe.value() * s_ha;
+                    // The image's height `v0·cos α` less the carrier's,
+                    // `sin α·(n·r·cos α − h·sin α)` with no `h`-sized
+                    // difference; it stands along the axis, normal to
+                    // the radial pair.
+                    let lift = s_ha * (r * c_ha * nappe.value() - h * s_ha);
                     terms.add(Centre, w_r.norm());
-                    terms.add(Radius, (v0 * c_ha - h).abs());
                     terms.add(Line, l.norm() * reach);
-                    class_circle(terms, beta, (rho, rho.powi(2)), (a, b), axis, true);
+                    class_circle(
+                        terms,
+                        beta,
+                        (rho, rho.powi(2)),
+                        (a, b),
+                        axis,
+                        true,
+                        Some(lift),
+                    );
                 }
                 _ => unreachable!("incidence: the cone arm matched its own derivations"),
             }
@@ -4964,7 +5017,7 @@ fn incidence<T: Decide>(
                     let rho_sq = radius.powi(2) - h.powi(2);
                     let rho = rho_sq.sqrt();
                     terms.add(Centre, w_r.norm());
-                    class_circle(terms, beta, (rho, rho_sq), (a, b), axis, true);
+                    class_circle(terms, beta, (rho, rho_sq), (a, b), axis, true, None);
                 }
                 Derivation::SphereMeridian { pole, sigma, far } => {
                     // The image turns `(1 + k)·(a′·cos t + σ·b′·sin t)` with

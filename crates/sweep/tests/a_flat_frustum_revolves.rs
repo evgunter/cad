@@ -10,6 +10,8 @@
 //! across, and its return half ends `r·2·(π − fl(π))` from its start
 //! vertex, past the band at ε = 1e-12
 //! (`a-full-revolves-return-half-rim-misses-its-start-by-two-rounded-half-turns`).
+//! Below its least ε the row asserts that refusal, the rim's
+//! `EndpointEnd` escalation, so it goes red when that item lands.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -34,12 +36,6 @@ fn a_flat_frustum_revolves_at_every_eps() {
         (1.55, 100.0, 1e-9),
     ] {
         let what = format!("alpha {alpha}, S {scale}");
-        if eps < builds_from {
-            println!(
-                "SKIPPED at ε {eps:e}: {what}: the operand does not revolve below ε {builds_from:e}"
-            );
-            continue;
-        }
         let r1 = 0.5 * scale;
         let r0 = r1 + scale * f64::tan(alpha);
         let lp = ProfileLoop::polygon(
@@ -47,7 +43,21 @@ fn a_flat_frustum_revolves_at_every_eps() {
                 .into_iter()
                 .map(|(x, y)| Point2::new(x, y)),
         );
-        match revolve(&validated(vec![lp]), axis_y(), Revolution::Full, tol) {
+        let got = revolve(&validated(vec![lp]), axis_y(), Revolution::Full, tol);
+        if eps < builds_from {
+            // The return-half rim's own refusal, and no other.
+            match got {
+                Err(e) if format!("{e:?}").contains("EndpointEnd") => {}
+                Err(e) => wrong.push(format!(
+                    "{what}: at ε {eps:e} refuses other than its return-half rim: {e:?}"
+                )),
+                Ok(_) => wrong.push(format!(
+                    "{what}: revolves at ε {eps:e}, below {builds_from:e}: lower its least ε"
+                )),
+            }
+            continue;
+        }
+        match got {
             Ok(r) => {
                 if let Err(e) = validate(&r.body).and_then(|()| validate_closed(&r.body)) {
                     wrong.push(format!("{what}: {e:?}"));
