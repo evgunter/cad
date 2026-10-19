@@ -881,11 +881,7 @@ pub trait Real:
 ///   propagates `NaN` but not infinity, so a `min` hides an
 ///   OVERFLOWED chord behind a finite one;
 /// - `profile`'s two 2-D director doors (`unit_from_components`,
-///   `arc_fillet::carrier_tangent`), and its chord director
-///   (`path::chord_director`), which decides no length and refuses
-///   nothing — the lever gates and shape validation own a leg's length
-///   — and asks this, [`is_underflowed_length`] and [`is_zero_length`]
-///   only to choose how to divide.
+///   `arc_fillet::carrier_tangent`).
 ///
 /// Each refuses with its own typed arm, naming the recourse its own
 /// caller can reach: the question is one question, but what a caller
@@ -894,8 +890,8 @@ pub trait Real:
 /// is not.
 ///
 /// **This roster is hand-kept and nothing enforces it.** It is a
-/// six-door cross-crate claim living in a leaf crate that cannot see
-/// five of them, so it is exactly as current as the last person to
+/// five-door cross-crate claim living in a leaf crate that cannot see
+/// four of them, so it is exactly as current as the last person to
 /// edit it. Treat it as a reading aid, not as a census; the census
 /// that is checked is `docs/K-REPORT.md`'s, and it is about decided
 /// names rather than about this question.
@@ -910,6 +906,12 @@ pub trait Real:
 /// caller-supplied arm and then normalizes a `dir` whose own length is
 /// never asked about — a `pub` door. Filed as
 /// `work/fix/normalize-without-the-length-question-two-more-sites`.
+/// `profile`'s `path::chord_director` is one by design: a leg's length
+/// is decided by the gates that read it as a lever and as a segment, so
+/// the chord door decides none and refuses nothing. It asks this of the
+/// chord's largest component only to choose how to divide (a component
+/// past the range keeps `atan2`'s heading), and prescales by that
+/// component, so no finite chord overflows or flushes its squares.
 pub fn is_finite_length<T: Real>(x: T) -> bool {
     #[allow(clippy::eq_op)]
     let residual = x - x;
@@ -971,9 +973,7 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 ///   its own and which an underflowed chord always wins, so asking the
 ///   arm would refuse without ever naming the cause.
 /// - `profile`'s `path::arc_fillet::carrier_tangent`, of the anchor's
-///   displacement from the arc centre; and `path::chord_director`, of
-///   a leg's chord, which divides an underflowed chord by its largest
-///   component rather than refusing it.
+///   displacement from the arc centre.
 ///
 /// `profile`'s OTHER 2-D director door, `unit_from_components`, asks
 /// [`is_finite_length`] and deliberately not this: the pair it refuses
@@ -1023,9 +1023,6 @@ pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
 ///   length (that is [`decide_unit_direction`](crate::decide_unit_direction)'s
 ///   job, metered and band-relative): a datum is asked whether it is
 ///   the zero vector, not whether it is short.
-/// - `profile`'s `path::chord_director`, of a leg's chord: a chord of
-///   no length names no ray and stands in `+x`; its length is decided
-///   by the gates that read it as a lever and as a segment, not here.
 pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
     !is_finite_length(len / witness)
 }

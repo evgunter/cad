@@ -2137,9 +2137,9 @@ impl<T: Real> Dir<T> {
     /// `path_arc_center_radius` — or normalized a chord whose length
     /// other gates decide ([`chord_director`]), or holds a ray that is
     /// unit by construction: [`Dir::reversed`]'s exact negation, and
-    /// [`reflected_across`]'s reflection and an arc leg's chord ray
-    /// turned by half its sweep (`arc_angles`), each of a unit ray,
-    /// unit over the reals and to its rounding in the floats. A
+    /// [`reflected_across`]'s reflection and [`turned`]'s rotation,
+    /// each of a unit ray, unit over the reals and to its rounding in
+    /// the floats. A
     /// second decision here would either re-ask a question already
     /// answered (a second name in the K census for one length) or,
     /// worse, re-derive the ray and lose the exactness this type
@@ -5254,10 +5254,10 @@ mod tests {
     /// **The cusp door's exactness guard.**
     ///
     /// [`Dir::reversed`] promises the departure ray is the incoming ray
-    /// NEGATED, never re-derived as `ang + π` — and that promise is the
+    /// NEGATED, never re-derived as `θ + π` — and that promise is the
     /// reason a declared cusp is a structural fact rather than a value
     /// coincidence. Until this row existed the promise was held by
-    /// prose alone: the `ang + π` mutant passed every suite in the
+    /// prose alone: the `θ + π` mutant passed every suite in the
     /// workspace, because every downstream check reads the junction
     /// through a TOLERANCE and the two spellings differ by ulps.
     ///
@@ -5265,11 +5265,11 @@ mod tests {
     /// level, at the door itself, and it asserts both halves:
     ///
     /// 1. the reversed ray is bit-exactly the negation, and
-    /// 2. the `ang + π` spelling would NOT be — on every case here,
+    /// 2. the `θ + π` spelling would NOT be — on every case here,
     ///    axis-aligned and axis-oblique alike. Both parts of (2) matter:
     ///    on an axis the mutant leaks the quantization of π into the
     ///    zero component (`sin π = 1.22e-16`), and off-axis it lands
-    ///    ulps away in BOTH components because the sum `ang + π` rounds
+    ///    ulps away in BOTH components because the sum `θ + π` rounds
     ///    before `sin_cos` ever sees it.
     ///
     /// This is a unit row rather than an authored-path row on purpose:
@@ -5303,7 +5303,7 @@ mod tests {
             assert!(
                 via_angle.unit.x.to_bits() != reversed.unit.x.to_bits()
                     || via_angle.unit.y.to_bits() != reversed.unit.y.to_bits(),
-                "`ang + π` must NOT reproduce the negation ({u:?}) — if it does, this \
+                "`θ + π` must NOT reproduce the negation ({u:?}) — if it does, this \
                  guard is vacuous and the door's promise is untestable here"
             );
         }

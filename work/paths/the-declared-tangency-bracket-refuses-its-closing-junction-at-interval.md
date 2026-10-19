@@ -65,8 +65,8 @@ length under their own names (a band question here pre-empted
 `SeamArrivalLeverTooShort` on a sub-ε closing leg), and geometry past the
 format's range is refused where its vertex is validated or drawn (a
 `NonFiniteDirection` refusal here reddened eight `viewer` rows built on
-that layering). An over- or underflowed length divides by the largest
-component first; the zero chord stands in `+x`; a component past the
+that layering). The chord is divided by its largest component before it is
+normalized, at every scale; the zero chord stands in `+x`; a component past the
 range keeps `atan2`'s heading.
 `line_to_point` and `line_to_start` take it; `arc_angles` and the fused
 `Bulge` and `Center` incomings (`path/family.rs`) turn its ray by half the
@@ -87,8 +87,11 @@ is re-baselined with its note, and the drive's ladder-receipt row takes
 the pad with its first leg spelled as an angle, the measured document
 no longer retrying.
 
-Filed: `a-turn-reads-its-incoming-angle-off-atan2s-branch-cut-at-interval`
-(`.turn(δ)` and the `Sweep` extension still build a ray from the stored
-angle; measured for `.turn`), and
+The review's fix pass (MAJOR-1) took the class whole: `.turn(δ)` and the
+`Sweep` extension rotate the ray instead of rebuilding it from a stored
+angle, and `Dir` carries no angle, which closes
+`a-turn-reads-its-incoming-angle-off-atan2s-branch-cut-at-interval`.
+Filed: `chord-and-component-directors-could-share-one-normalizing-core`
+(P3), and
 `a-zero-length-line-leg-refuses-as-a-tangent-junction` (kept bit for
 bit here).

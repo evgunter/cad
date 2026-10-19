@@ -2,8 +2,10 @@
 id: a-turn-reads-its-incoming-angle-off-atan2s-branch-cut-at-interval
 kind: issue
 title: A .turn(δ) after a chord along -x reads its incoming angle off atan2's branch cut at Interval, so the turned ray encloses the whole circle
-status: open
+status: closed
+closed: 2026-10-19
 opened: 2026-10-19
+priority: P1
 ---
 
 
@@ -41,3 +43,23 @@ reads that difference two angles into a swept length:
 `corner_angle` / `far_angle` and `angle` (`crates/profile/src/sugar.rs`),
 and `path::arc_fillet::about`. A point due −x of its centre with a
 computed `y` reads the whole circle there; none was probed.
+
+## Scope, corrected by #5370's review
+
+The class was wider than the row said. Once `arc_angles` stored
+`atan2(ray)` as its angle, an ARC whose end tangent heads −x stored the
+whole circle at `Interval` too, not only a chord: `Open.at((0, 0))
+.arc_to(Bulge { p: 2·unit(π − 2·atan b), b }).turn(0.5)` escalated over
+`±1.0 .. ±1.25` for `b` ∈ {1, ½, 2}, and the `Sweep` extension
+reproduces once a leg follows it (`….tangent().arc_to(Sweep { r: 1,
+Left, 0.5 }).line_to((−10, 5))`, over `±0.62`). And ratified VQ4
+(`crates/profile/README.md`) does not name `.turn`, so there was no
+contract question.
+
+## Outcome
+
+Fixed in #5370's fix pass. `.turn(δ)` and the `Sweep` extension rotate
+the RAY (`path::turned`, over the one rotation `path::rotated`); nothing
+reads a direction's angle any more, so `Dir` carries none.
+`interval_lane::a_turn_after_a_ray_along_minus_x_turns_the_ray` pins the
+arc, `Sweep` and chord cases, red before and green after.
