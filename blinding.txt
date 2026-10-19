@@ -1,0 +1,5 @@
+fork: emit-pair-covered (row a-pair-boolean-names-a-declared-covered-pair-by-operand-order)
+dispatched: 2026-10-19T06:14:29Z
+byte: 142
+mapping: A=Opus B=Fable
+protocol: 26db1af89e
