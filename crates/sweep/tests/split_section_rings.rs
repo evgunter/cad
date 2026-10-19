@@ -451,7 +451,7 @@ fn outline_len(half: &Body<f64>, face: topo::FaceKey) -> usize {
 /// section comes back as the whole ellipse plus two clockwise 2-gons
 /// cancelling it.
 #[test]
-fn a_steep_cut_through_both_seams_is_one_six_vertex_section_face() {
+fn a_steep_cut_through_both_seams_is_one_four_vertex_section_face() {
     let cylinder = turned_cylinder(core::f64::consts::FRAC_PI_2 + 0.05, 2.5);
     for flip in [false, true] {
         let plane = tilted(1.25, 1.1, flip);
@@ -877,7 +877,7 @@ fn plane_section_puts_a_hole_in_an_island_in_the_islands_region() {
 
 /// **The steep cut through both seams slices to one region.** The
 /// turned cylinder of
-/// `a_steep_cut_through_both_seams_is_one_six_vertex_section_face`:
+/// `a_steep_cut_through_both_seams_is_one_four_vertex_section_face`:
 /// `plane_section` reads one region, its outline the six crossings, with
 /// no holes. (Chording a wall face across the arc outside it makes two
 /// clockwise polygons touching the outline, which no region can state,

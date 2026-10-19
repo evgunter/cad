@@ -50,10 +50,12 @@
 //! section faces of one side can meet along an operand edge lying in
 //! the plane (a pinch's tip line). Each side therefore ends with
 //! [`Body::merge_coplanar_faces`] ([`end_maximal`]), which ends with
-//! the join, so a side has maximal faces and maximal edges
-//! (`docs/DESIGN.md`) and is an operand any boolean accepts. The merge
-//! is not silent: its groups and its joins are recorded in
-//! [`SplitNaming::merge_groups`] and [`SplitNaming::edge_joins`].
+//! the join, so a side has maximal faces, except where a recorded skip
+//! leaves a curved run unglued, and maximal edges (`docs/DESIGN.md`),
+//! and is an operand any boolean accepts. The merge is not silent: its
+//! groups, its skips and its joins are recorded in
+//! [`SplitNaming::merge_groups`], [`SplitNaming::merge_skipped`] and
+//! [`SplitNaming::edge_joins`].
 //!
 //! A face-coplanar cut also lands OPERAND edges on the section
 //! boundary with their transverse partner faces reassigned to the
@@ -346,6 +348,12 @@ pub struct SplitNaming {
     /// `kept` face holds them. A section face a group absorbed keeps
     /// its row in [`Self::sections`].
     pub merge_groups: Vec<(PlaneSide, crate::merge_faces::MergedGroup)>,
+    /// The curved groups each side's merge left unglued as outside its
+    /// inventory ([`crate::MergeCoplanarOutcome::skipped`]), with their
+    /// side: a run that would close its chart's full period, such as a
+    /// two-piece cylinder wall cut across its axis. Those faces stay as
+    /// the cut left them, their boundaries re-described ([`end_maximal`]).
+    pub merge_skipped: Vec<(PlaneSide, crate::merge_faces::SkippedMerge)>,
 }
 
 impl SplitNaming {
@@ -378,14 +386,21 @@ impl SplitNaming {
     }
 }
 
-/// Ends `side`'s `body` with maximal faces and maximal edges (module
-/// docs, *Maximal faces*): [`Body::merge_coplanar_faces`], which ends
-/// with the join, its groups and joins recorded in `naming`.
+/// Ends `side`'s `body` with maximal faces, except where a recorded skip
+/// leaves a curved run unglued, and maximal edges (module docs,
+/// *Maximal faces*): [`Body::merge_coplanar_faces`], which ends with the
+/// join, its groups, skips and joins recorded in `naming`. A skipped
+/// group's faces have their boundaries re-described against the
+/// adjacency they keep, as the boolean's output stage re-describes its
+/// skipped groups' boundaries.
 ///
 /// # Errors
 ///
 /// [`SplitFinishError::EdgeJoin`] where the merge's join refuses, and
-/// [`SplitFinishError::Merge`] for every other refusal of the merge.
+/// [`SplitFinishError::Merge`] for every other refusal of the merge or
+/// of the skipped faces' re-description. [`SplitFinishError::Corrupt`]
+/// where the merge names a placeholder face: a side carved from a
+/// finished operand has none.
 pub(super) fn end_maximal<T: crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     side: PlaneSide,
@@ -402,9 +417,32 @@ pub(super) fn end_maximal<T: crate::props::AtRestPolicy>(
             }
             error => SplitFinishError::Merge { side, error },
         })?;
+    if !merged.placeholders.is_empty() {
+        return Err(SplitFinishError::Corrupt);
+    }
+    let skipped_faces = merged.skipped.iter().flat_map(|s| s.faces.iter().copied());
+    let boundary =
+        crate::boolean::boundary_edges(body, skipped_faces).ok_or(SplitFinishError::Corrupt)?;
+    if !boundary.is_empty() {
+        let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
+        crate::boolean::describe_edges(
+            body,
+            boundary.iter().map(|&(_, e)| e),
+            &merged.skipped,
+            band,
+            tol,
+        )
+        .map_err(|refusal| SplitFinishError::Merge {
+            side,
+            error: crate::MergeCoplanarError::of_kept_boundary(&boundary, refusal),
+        })?;
+    }
     naming
         .merge_groups
         .extend(merged.groups.into_iter().map(|g| (side, g)));
+    naming
+        .merge_skipped
+        .extend(merged.skipped.into_iter().map(|s| (side, s)));
     naming.record_joins(side, &split_from, merged.joins);
     Ok(())
 }
@@ -424,6 +462,7 @@ impl Default for SplitNaming {
             edge_joins: Default::default(),
             joined_lineage: Default::default(),
             merge_groups: Default::default(),
+            merge_skipped: Default::default(),
         }
     }
 }
@@ -853,6 +892,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         edge_joins: Vec::new(),
         joined_lineage: Default::default(),
         merge_groups: Vec::new(),
+        merge_skipped: Vec::new(),
     };
 
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;

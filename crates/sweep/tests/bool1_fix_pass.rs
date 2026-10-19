@@ -89,7 +89,7 @@ fn faces_of(body: &Body<f64>, e: topo::EdgeKey) -> (FaceKey, FaceKey) {
 /// sections and the notch floor are one face and the tip edge is gone:
 /// no edge of below lies between two coplanar records.
 #[test]
-fn tip_edge_rests_in_the_first_of_its_coplanar_section_charts() {
+fn a_coplanar_split_leaves_no_edge_between_two_coplanar_records() {
     let body = extruded(vec![notched(0.0)], 1.0);
     let body = sweep::test_support::finished("the body", body, Tol::witness());
     let result = topo::split(&body, &plane_y1(), Tol::witness()).expect("the coplanar split runs");
@@ -121,8 +121,11 @@ fn tip_edge_rests_in_the_first_of_its_coplanar_section_charts() {
 /// revolution split at its own annulus plane — would rest between the
 /// flush annulus and the section below. Each half ends with maximal
 /// faces, so the two are one face and the joint circle is gone there.
+/// The merged face's outer rim, the plate's circle at `r = 2`, is a
+/// kept boundary the merge re-describes: it keeps its carrier and
+/// interval bitwise.
 #[test]
-fn conic_section_boundary_restates_on_its_own_carrier() {
+fn a_split_at_an_annulus_plane_merges_it_keeping_its_rims_carrier_bits() {
     // Plate r=2 for y in [0,1], boss r=1 for y in [1,2], as one solid
     // of revolution about the y axis.
     let profile = ProfileLoop::polygon([
@@ -150,7 +153,7 @@ fn conic_section_boundary_restates_on_its_own_carrier() {
     let body = sweep::test_support::finished("the body", body, Tol::witness());
     // The operand's circle carriers at the boss joint (r = 1, y = 1),
     // as bit-printed (carrier, interval) records.
-    let joint_circles = |b: &Body<f64>| -> Vec<String> {
+    let circles_at = |b: &Body<f64>, r: f64| -> Vec<String> {
         let mut v: Vec<String> = b
             .edges()
             .filter_map(|(_, e)| {
@@ -158,7 +161,7 @@ fn conic_section_boundary_restates_on_its_own_carrier() {
                 let geom::Curve3::Circle { center, radius, .. } = *c.carrier() else {
                     return None;
                 };
-                (center.y == 1.0 && radius == 1.0).then(|| {
+                (center.y == 1.0 && radius == r).then(|| {
                     let (t0, t1) = c.params();
                     format!("{:?} [{:x},{:x}]", c.carrier(), t0.to_bits(), t1.to_bits())
                 })
@@ -167,7 +170,7 @@ fn conic_section_boundary_restates_on_its_own_carrier() {
         v.sort();
         v
     };
-    let before = joint_circles(&body);
+    let before = circles_at(&body, 1.0);
     assert!(
         !before.is_empty(),
         "the operand has circle carriers at the boss joint"
@@ -188,9 +191,22 @@ fn conic_section_boundary_restates_on_its_own_carrier() {
     // section disc inside it are one face, so no joint circle survives
     // there to rest between two coplanar records.
     assert!(
-        joint_circles(below).is_empty(),
+        circles_at(below, 1.0).is_empty(),
         "below's annulus and section disc merge across the joint circle"
     );
+    let (rim_before, rim_after) = (circles_at(&body, 2.0), circles_at(below, 2.0));
+    assert!(
+        !rim_after.is_empty(),
+        "the plate's rim bounds below's merged top"
+    );
+    for rec in &rim_after {
+        assert!(
+            rim_before.contains(rec),
+            "the merge's re-description moved the rim's carrier or interval:\n\
+             after:  {rec}\n\
+             before: {rim_before:?}"
+        );
+    }
 }
 
 /// Row 3: the near-flush ladder's regimes, asserted per band at

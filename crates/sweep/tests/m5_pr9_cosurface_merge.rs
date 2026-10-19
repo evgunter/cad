@@ -158,3 +158,47 @@ fn distinct_key_curved_neighbors_stay_unmerged() {
     assert!(out.groups.is_empty(), "no rung licenses: {:?}", out.groups);
     assert!(out.skipped.is_empty());
 }
+
+/// **A split across a two-piece wall records its skip on each side.**
+/// The disc cylinder cut by `z = 0.5`: each side keeps both half-walls
+/// whole, which together close the chart's full period, so the merge the
+/// split ends with leaves them unglued and records a `PeriodClosure`
+/// skip per side; their boundaries are re-described and each side
+/// stays tier-3 valid.
+#[test]
+fn a_split_across_a_two_piece_wall_records_its_skip_per_side() {
+    let body = disc_cylinder();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 0.5),
+        Vec3::new(0.0, 0.0, 1.0),
+        geom_core::Tol::witness(),
+    );
+    let parts = split(&body, &plane, Tol::witness()).expect("the cross cut splits it");
+    for (side, part) in [
+        (topo::splitting::PlaneSide::Above, parts.above.body()),
+        (topo::splitting::PlaneSide::Below, parts.below.body()),
+    ] {
+        let part = part.expect("both sides hold material");
+        let skips: Vec<_> = parts
+            .naming
+            .merge_skipped
+            .iter()
+            .filter(|(s, _)| *s == side)
+            .map(|(_, k)| k)
+            .collect();
+        assert!(
+            matches!(skips.as_slice(), [k] if k.faces.len() == 2
+                && matches!(k.reason, topo::MergeCoplanarError::PeriodClosure { .. })),
+            "{side:?}: one period-closure skip over the two half-walls: {skips:?}"
+        );
+        assert_eq!(
+            wall_count(part),
+            2,
+            "{side:?}: the half-walls stay two faces"
+        );
+        if let Err(errs) = topo::validate_geometric(part, Tol::witness()) {
+            panic!("{side:?}: the side stays tier-3 valid: {errs:?}");
+        }
+    }
+}

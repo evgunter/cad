@@ -1076,9 +1076,11 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// ([`SplitResult`]), with a side the plane misses entirely as the
 /// typed [`SplitPart::Empty`] (never an empty body value).
 ///
-/// Each side ends with maximal faces and maximal edges: an operand face
-/// lying IN the plane and the section faces beside it are one face, its
-/// merge recorded in [`SplitNaming::merge_groups`].
+/// Each side ends with maximal faces, except where a recorded skip
+/// ([`SplitNaming::merge_skipped`]) leaves a curved run unglued, and
+/// maximal edges: an operand face lying IN the plane and the section
+/// faces beside it are one face, its merge recorded in
+/// [`SplitNaming::merge_groups`].
 ///
 /// Determinism (D9): every stage sweeps in arena/list order; the
 /// joining order is the total lexicographic sort (`order` module) —

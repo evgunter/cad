@@ -154,6 +154,14 @@ fn halves(what: &str, body: &Body<f64>) -> [Body<f64>; 2] {
         pad += m.volume_pad;
         half
     });
+    eprintln!("{what}: the halves' volume pads sum to {pad:e}");
+    // Measured (PR 5334): 1.0e-10 at ε = 1e-12, 1.9e-7 at 1e-9, 5.0e-6
+    // at 1e-6; the curved faces are integrated by quadrature.
+    let ceiling = (400.0 * tol().eps()).min(1e-5);
+    assert!(
+        pad <= ceiling,
+        "{what}: the quadrature's pads sum to {pad:e}, past {ceiling:e}"
+    );
     assert!(
         (sum - v).abs() < 1e-9 + pad,
         "{what}: the halves partition the volume ({sum} against {v})"

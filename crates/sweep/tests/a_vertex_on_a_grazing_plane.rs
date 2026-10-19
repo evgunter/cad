@@ -37,6 +37,15 @@ fn moved(body: &AtRestBody<f64>, by: Affine3<f64>) -> AtRestBody<f64> {
     )
 }
 
+/// The most the two halves' certified volume pads may sum to: a half
+/// whose wall pieces merged across the seam is integrated by
+/// quadrature, and its pad is the bound the volume checks allow.
+/// Measured (PR 5334): at most 1.9e-9 at ε = 1e-12, 1.25e-6 at 1e-9 and
+/// 4.8e-5 at 1e-6.
+fn pad_ceiling() -> f64 {
+    (4000.0 * tol().eps()).min(1e-4)
+}
+
 fn volume(body: &Body<f64>) -> f64 {
     mass_properties(body, tol()).unwrap().volume
 }
@@ -157,6 +166,12 @@ fn the_split_reads_a_grazing_vertex_against_its_section() {
                     })
                 };
                 let ((a, pa), (b, pb)) = (vol(r.above.body()), vol(r.below.body()));
+                eprintln!("{label}: volume pads {pa:e} above, {pb:e} below");
+                assert!(
+                    pa + pb <= pad_ceiling(),
+                    "{label}: the quadrature's pads {pa:e} + {pb:e} pass {:e}",
+                    pad_ceiling()
+                );
                 (a, b, pa + pb)
             };
             let base = parts(0.0, &format!("φ {phi} ψ {name} on the plane"));

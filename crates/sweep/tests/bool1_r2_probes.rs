@@ -154,7 +154,7 @@ fn transverse_resplit_of_a_restated_product_stays_tier3() {
 /// now ends with maximal faces, which merge those records into one face
 /// and take the three edges with them, so none is left to check.
 #[test]
-fn restated_edges_keep_carrier_bits() {
+fn a_coplanar_split_leaves_no_restated_operand_edge() {
     let notched = ProfileLoop::polygon(
         [
             (0.0, 0.0),

@@ -1302,7 +1302,11 @@ pub enum RoleSeg {
     /// In a UNION's published table they are not: a union has no A
     /// and B, so the two sides are in name order (`names::canonical`,
     /// at the collapse and after any rewrite), and `a` is only the
-    /// lesser name.
+    /// lesser name. A split mints one too: an edge its join made over
+    /// section chords and whole operand edges across a merged face,
+    /// between that face's `Merged` set and the operand face across it,
+    /// its sides in name order as a union's are; several of one pair in
+    /// a half carry a `Fragment(Ends)`.
     Seam {
         /// The A-side crossing entity's name (the lesser name, in a
         /// union's table).

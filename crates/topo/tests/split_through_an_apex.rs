@@ -554,14 +554,16 @@ fn germs_within_the_band_or_on_one_line_refuse_typed() {
     }
 }
 
-/// **A split leaves no edge between two planes in band of one carrier.**
-/// Random base 2 of [`random_bases_with_corners_in_the_band_split_sound`]
-/// cuts a section whose coincidence with a base face the carrier ladder
-/// reads in band; each half ends with maximal faces, so the merge takes
-/// the pair into one face and no conventional edge (`OnPair`, or an
-/// image in one plane's chart) is left between two distinct planes.
+/// **A split leaves no edge between a section and a base face it lies
+/// flush with.** Random base 2 of
+/// [`random_bases_with_corners_in_the_band_split_sound`] cuts a section
+/// lying on a base face's plane within the tolerance, which the merge's
+/// plane ladder decides one carrier (Zero); each half ends with maximal
+/// faces, so the merge takes the pair into one face, at least one group
+/// per half, and no conventional edge (`OnPair`, or an image in one
+/// plane's chart) is left between two distinct planes.
 #[test]
-fn a_split_merges_a_section_in_band_of_a_base_face() {
+fn a_split_merges_a_section_flush_with_a_base_face() {
     let corners = [
         (0.0069, -0.1705, false),
         (0.1677, 0.0167, false),
@@ -580,8 +582,16 @@ fn a_split_merges_a_section_in_band_of_a_base_face() {
         let u = apex_pyramid(&base, &pose, t());
         for up in [true, false] {
             let r = split(&u, &plane_at(&pose, up), t()).expect("random base 2 splits");
-            for part in [&r.above, &r.below] {
+            for (side, part) in [
+                (topo::splitting::PlaneSide::Above, &r.above),
+                (topo::splitting::PlaneSide::Below, &r.below),
+            ] {
                 let SplitPart::Body(b) = part else { continue };
+                assert!(
+                    r.naming.merge_groups.iter().any(|(s, _)| *s == side),
+                    "{}, up {up}: the {side:?} half merges the flush pair",
+                    pose.label
+                );
                 let plane = |f: topo::FaceKey| {
                     matches!(
                         b.get_surface(b.get_face(f).unwrap().surface),
