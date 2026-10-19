@@ -2,11 +2,10 @@
 id: census-passes-a-face-inside-an-edges-material-wedge
 kind: issue
 title: Tiers 3 and 3′ pass a face lying inside an edge's material wedge
-status: parked
+status: open
 opened: 2026-10-12
 priority: P2
 cost: M
-blocked_on: [4795]
 ---
 
 Found by the keel design fork (`[ev]` PR 4795), measured on main
@@ -92,6 +91,8 @@ Unverified, from PR 5106's review diagnostic (to be measured):
 `touch_reread` rows, the `offer_rows` sliver cavities, and
 `a_vertex_read_again_classes_every_edge`.
 
+
+**Unblocked (CLEAVE, 2026-10-19).** `[ev]` PR 4795 merged (`0a702a9bc1`). Ev ratified the D1 sentence in `crates/topo/README.md` tier 3: where more than two sheets meet on a line, the material decides the edges, and the complement re-pairs. Radial edges were declined.
 ## Seam note from CLEAVE (2026-10-19): the Boolean gate refuses the coincident-edge class
 
 `cleave/gate-refuses-overlapping-wedges` runs `census::line_wedges` at

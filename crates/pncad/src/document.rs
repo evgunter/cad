@@ -491,11 +491,16 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
 // `InterferenceFinding` on `Assembly::interference` (D10): its copies
 // (`CopyRef`), its `Overlap` (the bounding faces as `FaceSite`s, or
 // `Unlocalized` with why), and the assertion that quiets it, if any.
+// A part's own census findings cross the seam with it, each reported
+// once, as the part's: `CarriedInterference` is an overlap between the
+// part's copies on `Assembly::carried_interference`, and
+// `CarriedAtRestFinding` a row of `AssemblyError::CarriedAtRest`, the
+// outermost gate's refusal over what the part's own gate refuses.
 pub use editor_core::{
-    Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    CarriedRefusal, CopyRef, FaceSite, InterferenceFinding, MintRefusal, MintedDeclaration,
-    NO_AT_REST_RECORD_RECOURSE, Overlap, RefusedRef, Relation, Route, Unlocalized, assemble,
-    assemble_gathered,
+    Assembly, AssemblyError, AtRestFinding, Attribution, CarriedAtRestFinding, CarriedDeclaration,
+    CarriedDeclarations, CarriedInterference, CarriedRefusal, CopyRef, FaceSite,
+    InterferenceFinding, MintRefusal, MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, Overlap,
+    RefusedRef, Relation, Route, Unlocalized, assemble, assemble_gathered,
 };
 
 // Split and inline: the first-class

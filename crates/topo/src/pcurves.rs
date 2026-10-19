@@ -192,14 +192,15 @@
 //! [`crate::graft_disjoint`] through it) remaps each row onto the
 //! transplanted half-edge's fresh key and DROPS any row whose key the
 //! graft walk did not reach, which is exactly the staleness test.
-//! [`crate::Body::split_edge`] holds the same posture at a parameter
-//! split: a [`geom_brep::Pcurve`] is a function of the carrier
-//! parameter, so each child's chart image IS the parent's restricted
-//! to the child's sub-interval. The op re-certifies both restrictions
-//! before it mutates ([`split_cache`]) and writes them onto the parent
-//! halves and the two new halves, deriving nothing and minting nothing
-//! where there was nothing (projected and fitted-grade rows restrict
-//! like the rest). The carry is exact on every chart; two readers of
+//! [`crate::Body::split_edge`] carries rows across a parameter split:
+//! each child's row is its own edge's, so a closed-form or projected
+//! image is derived again over the child's sub-interval and placed in
+//! the chart's principal window as the mint places it (C4), and a
+//! fitted or general image is the parent's restricted to the
+//! sub-interval. The op certifies both children and decides the joints
+//! they make before it mutates ([`split_cache`]), and writes them onto
+//! the parent halves and the two new halves, minting nothing where
+//! there was nothing. The carry is exact on every chart; two readers of
 //! the split body are narrower, both stated at [`split_cache`]. On a
 //! described-NURBS wall [`mint_pcurves`] — the recovery step this
 //! module's caveats name for a face left rowless — refuses, because
@@ -1825,7 +1826,7 @@ fn v_meter<T: Real>(chart: DescribedChart<'_, T>) -> SupSpeed<T> {
 /// identity, so every image form takes it exactly
 /// ([`Pcurve::map_affine`]); the walk and the lift read the one map.
 pub(crate) fn shift_polar_branch<T: Real>(pcurve: &Pcurve<T>, k: T, period: T) -> Pcurve<T> {
-    pcurve.map_affine(|p| geom_core::Point2::new(p.x, p.y + k * period), |v| v)
+    pcurve.translate(T::zero(), k * period)
 }
 
 /// The sphere chart's INVOLUTION twin of an image: `S(u + π, π − v) =
@@ -1838,19 +1839,20 @@ pub(crate) fn shift_polar_branch<T: Real>(pcurve: &Pcurve<T>, k: T, period: T) -
 /// chart mints takes exactly ([`Pcurve::map_affine`]).
 ///
 /// `None` off a sphere chart — the torus has no such twin (R > 0 breaks
-/// the symmetry), and neither does the cone (cos α > 0) — and for a
-/// spiric image, which no sphere chart mints and whose wall form has no
-/// image of a map negating one channel. The walk reads `None` as no
-/// second candidate, the lift as an element that does not apply.
+/// the symmetry), and neither does the cone (cos α > 0) — and where
+/// [`Pcurve::map_affine`] refuses the involution: a spiric wall image,
+/// which no sphere chart mints and whose form has no image of a map
+/// negating one channel (`WallReflected`), and a harmonic row whose
+/// polar count has no negation in `i32` (`WindingUnnegatable`), which
+/// no derivation mints. The walk reads `None` as no second candidate,
+/// the lift as an element that does not apply.
 pub(crate) fn sphere_twin<T: Real>(surface: &Surface<T>, pcurve: &Pcurve<T>) -> Option<Pcurve<T>> {
-    if !matches!(surface, Surface::Sphere { .. }) || matches!(pcurve, Pcurve::Spiric { .. }) {
+    if !matches!(surface, Surface::Sphere { .. }) {
         return None;
     }
-    let pi = T::pi();
-    Some(pcurve.map_affine(
-        |p| geom_core::Point2::new(p.x + pi, pi - p.y),
-        |v| geom_core::Vec2::new(v.x, T::zero() - v.y),
-    ))
+    pcurve
+        .map_affine(geom_brep::ChartMap::sphere_involution())
+        .ok()
 }
 
 /// One half-edge's minted chart curve, before certification: the
@@ -2244,14 +2246,22 @@ pub(crate) struct CarriedRows<T: Real> {
     /// point: the identity, the two children being one image — a reset
     /// where that point is on the chart's singular set.
     pub(crate) joint: JointElement,
+    /// Where a child's row was placed again over its own span: the
+    /// element of the joint into the child the parent's incoming joint
+    /// fed (the first child on a plus half, the second on a minus one),
+    /// decided against the half before it.
+    pub(crate) entering: Option<JointElement>,
+    /// Likewise, the element of the joint out of the child whose exit is
+    /// the parent's, into the half after it.
+    pub(crate) leaving: Option<JointElement>,
 }
 
-/// Why [`split_cache`] could not state a restriction, for one parent
+/// Why [`split_cache`] could not state a child's row, for one parent
 /// half-edge. Raised, never swallowed: the split leaves nothing it
 /// could not state.
 #[derive(Clone, Debug)]
 pub(crate) struct SplitRowError {
-    /// The parent half-edge whose row was being restricted.
+    /// The parent half-edge whose children's rows were being stated.
     pub(crate) half_edge: HalfEdgeKey,
     /// What refused.
     pub(crate) refusal: SplitRefusal,
@@ -2260,12 +2270,17 @@ pub(crate) struct SplitRowError {
 /// The two refusals of [`split_cache`].
 #[derive(Clone, Debug)]
 pub(crate) enum SplitRefusal {
-    /// The parent's image, restricted to one child's sub-interval,
-    /// failed the closed-form certification the whole image passed. A
+    /// A child's row refused over its sub-interval: the derivation that
+    /// places a closed-form or projected child there, or the
+    /// certification of the child's row (derived, or a fitted or
+    /// general parent's restricted), which the whole image passed. A
     /// covered lane that refuses here is a genuine defect.
     Certify(PcurveCertifyError),
-    /// The one decider decided no element for the joint between the
-    /// two children ([`decide_joint`]). The gap there is zero, and a
+    /// The one decider decided no element for a joint the split makes
+    /// ([`decide_joint`]): between the two children, or one of the
+    /// parent's end joints decided again against its neighbour (or, on a
+    /// one-edge loop, its own other child). At the children's joint the
+    /// gap is zero, and a
     /// zero gap meets the image's own orbit point at any lever
     /// ([`lever_periods`]), even a point off a narrow cone's apex by
     /// more than the band whose lever is under it: what refuses is a
@@ -2274,22 +2289,25 @@ pub(crate) enum SplitRefusal {
     Joint(Option<Indeterminate>),
 }
 
-/// The **restriction of an edge's two half-edge rows to the two
+/// The **rows of an edge's two half-edges stated over the two
 /// children of a parameter split** — [`crate::Body::split_edge`]'s
 /// pcurve limb, and the reason that op carries its rows across the
 /// surgery instead of staling them. The answer holds one entry per
 /// given half-edge: that half-edge's [`CarriedRows`], or `None` where
 /// there is nothing to carry.
 ///
-/// A [`Pcurve`] is a function of the **carrier parameter** and carries
-/// no interval of its own ([`Pcurve::eval`]), exactly as an
-/// [`geom_brep::EdgeCurve`]'s carrier does: the children of a split at
-/// `t` have the parent's chart image, restricted to `[t₀, t]` and
-/// `[t, t₁]`. So this re-certifies the parent's own image over each
-/// sub-interval, through the image's own door ([`restate`], with the
-/// scalar's [`crate::AtRestPolicy::fitted_lane`] for a projected row's
-/// hull terms and a fitted-grade row's check 4), rather than deriving
-/// anything.
+/// A row is its image placed over its own edge's span in the chart's
+/// principal window (C4), so a child of a split at `t` is stated over
+/// `[t₀, t]` or `[t, t₁]` as the mint would state it: a closed-form or
+/// projected image is derived there ([`geom_brep::chart_pcurve_over`]),
+/// and a fitted or general image, which has no angular placement, is
+/// the parent's restricted to the sub-interval. Each is certified
+/// through the image's own door ([`restate`], with the scalar's
+/// [`crate::AtRestPolicy::fitted_lane`] for a projected row's hull
+/// terms and a fitted-grade row's check 4). Children placed again can
+/// sit whole turns from each other and from the parent's image, so the
+/// joint between them and the parent's joints into and out of them are
+/// decided here, as every joint is ([`CarriedRows`]).
 ///
 /// **A fitted-grade row's check 4 reads the WHOLE carrier**, not the
 /// child's span: its hull bounds the image's whole domain against the
@@ -2411,18 +2429,107 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
                 }
             })
         };
-        // Every image is a function of the carrier's parameter, and the
-        // children keep the parent's carrier, so each child's image is
-        // the parent's restricted to its sub-interval.
-        let (first, second) = (image.clone(), image);
-        // The children meet at the first's point at `t`, so the joint is
-        // decided there as every joint is, which reads whether the split
-        // point is on the chart's singular set.
-        let joint = pin(&second, t, first.eval(t))?;
+        // C4 places a row over its own edge's span, in the chart's
+        // principal window, so a child's row is the placement over its
+        // sub-interval: a closed-form or projected image is derived
+        // there, exactly as the mint derives it. A fitted, general or iso
+        // image has no angular placement, and its children restrict the
+        // parent's (`Pcurve::is_placed`).
+        let placed_again = image.is_placed();
+        // A derivation that refuses over a child's span refuses the split
+        // (fail-loud): the parent's image is not the child's row there.
+        let child = |a: T, b: T| {
+            if placed_again {
+                geom_brep::chart_pcurve_over(&carrier, a, b, &surface, band).map_err(refused)
+            } else {
+                Ok(image.clone())
+            }
+        };
+        let (first, second) = (child(t0, t)?, child(t, t1)?);
+        // The children meet at `t`, so the joint is decided there as every
+        // joint is, which reads whether the split point is on the chart's
+        // singular set. It runs the way the half does: from the first
+        // child into the second on a plus half, the other way on a minus
+        // one, the two children being placed apart where their spans
+        // straddle the window's cut.
+        let joint = if is_plus(body, half_edge) {
+            pin(&second, t, first.eval(t))?
+        } else {
+            pin(&first, t, second.eval(t))?
+        };
+        // A child placed again over its own span may sit whole turns from
+        // the parent's image, so the joints the parent's ends made are
+        // decided again against their neighbours' rows, as every joint
+        // is. A neighbour with no row, or one of this edge's own halves
+        // (a strut's tip), keeps its element.
+        let neighbour = |he: HalfEdgeKey| -> Option<(Pcurve<T>, T, T)> {
+            if halves.contains(&he) {
+                return None;
+            }
+            let row = body.pcurve(he)?;
+            let (a, b) = row.params();
+            let (entry, exit) = if is_plus(body, he) { (a, b) } else { (b, a) };
+            Some((row.pcurve().clone(), entry, exit))
+        };
+        let record = half_edge_record(body, half_edge);
+        let (entering, leaving) = if placed_again {
+            let plus = is_plus(body, half_edge);
+            let (fed, entry) = if plus { (&first, t0) } else { (&second, t1) };
+            let (out, exit) = if plus { (&second, t1) } else { (&first, t0) };
+            // A one-edge loop is its own neighbour: the split makes its
+            // closing joint, out of the child whose exit is the parent's
+            // into the one the parent's entry fed, and it is decided
+            // between the two children. On a plus half that joint lands
+            // on the parent half (`next(hp)` is `hp`), so it is both the
+            // element into the fed child and the one out of the other; on
+            // a minus half it lands on the new half alone, and `hm`'s old
+            // `next` is `hm`, whose element is the children's own joint.
+            if record.next == half_edge {
+                let closing = pin(fed, entry, out.eval(exit))?;
+                rows[slot] = Some(CarriedRows {
+                    parent_half: certify(t0, t, first)?,
+                    new_half: certify(t, t1, second)?,
+                    joint,
+                    entering: Some(closing),
+                    leaving: plus.then_some(closing),
+                });
+                continue;
+            }
+            let entering = match neighbour(record.prev) {
+                Some((before, _, before_exit)) => Some(pin(fed, entry, before.eval(before_exit))?),
+                None => None,
+            };
+            let leaving = match neighbour(record.next) {
+                Some((after, after_entry, _)) => Some(
+                    decide_joint(
+                        chart,
+                        &after,
+                        after_entry,
+                        out.eval(exit),
+                        carrier.eval(exit),
+                        period,
+                        band,
+                    )
+                    .map_err(|miss| SplitRowError {
+                        half_edge,
+                        refusal: SplitRefusal::Joint(match miss {
+                            PinMiss::Escalated(cause) => Some(cause),
+                            PinMiss::Discontinuity => None,
+                        }),
+                    })?,
+                ),
+                None => None,
+            };
+            (entering, leaving)
+        } else {
+            (None, None)
+        };
         rows[slot] = Some(CarriedRows {
             parent_half: certify(t0, t, first)?,
             new_half: certify(t, t1, second)?,
             joint,
+            entering,
+            leaving,
         });
     }
     Ok(rows)
@@ -5962,12 +6069,7 @@ mod stretch_meter {
         use geom_core::{Point2, Vec2};
         let zero = Vec2::new(0.0, 0.0);
         let at = Point2::new(0.4, 0.5);
-        let image = Pcurve::Harmonic {
-            p0: at,
-            pa: zero,
-            pb: zero,
-            pl: zero,
-        };
+        let image = Pcurve::free_harmonic(at, zero, zero, zero);
         for (span, reset) in [(1e-12, true), (5e-9, true), (100.0, false)] {
             let s = flat_chart(span);
             let vertex = Point3::new(0.4 * span, 0.5 * span, 0.0);
@@ -6001,15 +6103,12 @@ mod stretch_meter {
     fn a_narrow_cone_loop_joint_clear_of_the_apex_takes_a_lift_of_its_point() {
         use super::{Deck, JointElement, NearRead, Orbit, decide_joint, near_pole_gap_closes};
         use geom_brep::Pcurve;
-        use geom_core::{Point2, Vec2};
-        let zero = Vec2::new(0.0, 0.0);
+        use geom_core::Point2;
         let tau = std::f64::consts::TAU;
         let at_gap = |surface: &Surface<f64>, vertex, v: f64, gap: f64| {
             let image = Pcurve::Harmonic {
-                p0: Point2::new(0.0, v),
-                pa: zero,
-                pb: zero,
-                pl: zero,
+                u: geom_brep::Channel::fixed_angle(0.0),
+                v: geom_brep::Channel::constant(v),
             };
             let prev = Point2::new(gap, v);
             decide_joint(chart(surface), &image, 0.0, prev, vertex, Some(tau), band())
@@ -6144,7 +6243,7 @@ mod stretch_meter {
     fn a_half_turn_gap_answers_by_the_band_at_every_turn_count() {
         use super::{JointElement, decide_joint};
         use geom_brep::Pcurve;
-        use geom_core::{Point2, Vec2};
+        use geom_core::Point2;
         let alpha = 0.01f64;
         let cone: Surface<f64> = Surface::Cone {
             apex: Point3::new(0.0, 0.0, 0.0),
@@ -6157,12 +6256,9 @@ mod stretch_meter {
         let at = |lever: f64, gap: f64| {
             let d = lever / alpha.sin();
             let vertex = Point3::new(lever, 0.0, d * alpha.cos());
-            let flat = Vec2::new(0.0, 0.0);
             let image = Pcurve::Harmonic {
-                p0: Point2::new(0.0, d),
-                pa: flat,
-                pb: flat,
-                pl: flat,
+                u: geom_brep::Channel::fixed_angle(0.0),
+                v: geom_brep::Channel::constant(d),
             };
             let prev = Point2::new(gap, d);
             match decide_joint(chart(&cone), &image, 0.0, prev, vertex, Some(tau), band()) {
@@ -6640,13 +6736,17 @@ mod polar_shift_tests {
         );
         assert_eq!([pm.x, pm.y, pa.x, pa.y], [1.0, 0.0, 0.0, 0.0703125]);
 
-        let harmonic = Pcurve::Harmonic {
-            p0: Point2::new(0.3, 0.4),
-            pa: Vec2::new(1.0, 0.25),
-            pb: Vec2::new(-0.5, 1.0),
-            pl: Vec2::new(0.125, -0.375),
-        };
-        let Pcurve::Harmonic { p0, pa, pb, pl } = shift_polar_branch(&harmonic, 3.0, period) else {
+        // Every coefficient live, on no chart: the row is of the map,
+        // which takes a free channel's four coefficients alike on any
+        // axis, so the shape is the point and no chart certifies it.
+        let harmonic = Pcurve::free_harmonic(
+            Point2::new(0.3, 0.4),
+            Vec2::new(1.0, 0.25),
+            Vec2::new(-0.5, 1.0),
+            Vec2::new(0.125, -0.375),
+        );
+        let Some((p0, pa, pb, pl)) = shift_polar_branch(&harmonic, 3.0, period).harmonic_form()
+        else {
             panic!("the harmonic arm keeps its variant");
         };
         assert_eq!(p0.y, 0.4 + 3.0 * period);
@@ -6812,6 +6912,17 @@ pub(crate) mod pole_slit_tests {
     /// covers, a ruling up `u = π`, the top arc back to `u = 0` and a
     /// ruling down. Minted, or the minting pass's refusal.
     pub(crate) fn cylinder_patch_below(periods: f64) -> Result<Body<f64>, super::PcurveMintError> {
+        cylinder_patch_turned(periods, 0.0)
+    }
+
+    /// [`cylinder_patch_below`] on a cylinder whose `u_ref` is turned by
+    /// `turn` about its axis: the same patch in the world, its chart
+    /// azimuth `turn` less, so its left meridian (the world's `x` axis)
+    /// sits at chart `u = −turn`.
+    pub(crate) fn cylinder_patch_turned(
+        periods: f64,
+        turn: f64,
+    ) -> Result<Body<f64>, super::PcurveMintError> {
         let tol = Tol::witness();
         let p = |u: f64, z: f64| Point3::new(u.cos(), u.sin(), z);
         let mut body = Body::<f64>::new();
@@ -6824,7 +6935,7 @@ pub(crate) mod pole_slit_tests {
                         origin: Point3::new(0.0, 0.0, 0.0),
                         axis: Vec3::unit_z(),
                         radius: 1.0,
-                        u_ref: Vec3::unit_x(),
+                        u_ref: Vec3::new(turn.cos(), turn.sin(), 0.0),
                     },
                     sense: true,
                 },
@@ -6900,6 +7011,108 @@ pub(crate) mod pole_slit_tests {
                 he2: bottom.he_plus,
             },
             EdgeCurveSpec::line_between(p(0.0, 1.0), p(0.0, 0.0)),
+            FaceSurface::Inherit,
+            tol,
+        )
+        .unwrap();
+        crate::mint_pcurves(&mut body, tol)?;
+        Ok(body)
+    }
+
+    /// A half-turn patch of the cone of half-angle `0.4` about `z`, apex
+    /// at the origin, between the rims at heights `1` and `2`, over the
+    /// world azimuths `[0, π]`, on a chart whose `u_ref` is turned by
+    /// `turn`: its left ruling (the world's `x` side) at chart `u = −turn`.
+    pub(crate) fn cone_patch_turned(turn: f64) -> Result<Body<f64>, super::PcurveMintError> {
+        let alpha: f64 = 0.4;
+        let (z0, z1) = (1.0, 2.0);
+        let tol = Tol::witness();
+        let p =
+            |u: f64, z: f64| Point3::new(z * alpha.tan() * u.cos(), z * alpha.tan() * u.sin(), z);
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0, z0), true).unwrap();
+        let cone = body
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: Surface::Cone {
+                        apex: Point3::new(0.0, 0.0, 0.0),
+                        axis: Vec3::unit_z(),
+                        half_angle: alpha,
+                        u_ref: Vec3::new(turn.cos(), turn.sin(), 0.0),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+        let rim = |body: &mut Body<f64>, z: f64, t0: f64, t1: f64| {
+            let plane = body.add_surface(Surface::Plane {
+                origin: Point3::new(0.0, 0.0, z),
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            });
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(cone, plane),
+                    witness: p(0.5 * (t0 + t1), z),
+                },
+                carrier: Curve3::Circle {
+                    center: Point3::new(0.0, 0.0, z),
+                    axis: Vec3::unit_z(),
+                    radius: z * alpha.tan(),
+                    u_ref: Vec3::unit_x(),
+                },
+                param_start: t0,
+                param_end: t1,
+            }
+        };
+        let bottom_spec = rim(&mut body, z0, 0.0, PI);
+        let bottom = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(PI, z0),
+                bottom_spec,
+                tol,
+            )
+            .unwrap();
+        let up = body
+            .mev(
+                MevSite::Fan {
+                    he1: bottom.he_minus,
+                    he2: bottom.he_minus,
+                },
+                p(PI, z1),
+                EdgeCurveSpec::line_between(p(PI, z0), p(PI, z1)),
+                tol,
+            )
+            .unwrap();
+        // The top arc, from `u = π` back to `u = 0`.
+        let mut top_spec = rim(&mut body, z1, 0.0, PI);
+        top_spec.carrier = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, z1),
+            axis: Vec3::new(0.0, 0.0, -1.0),
+            radius: z1 * alpha.tan(),
+            u_ref: Vec3::new(-1.0, 0.0, 0.0),
+        };
+        let top = body
+            .mev(
+                MevSite::Fan {
+                    he1: up.he_minus,
+                    he2: up.he_minus,
+                },
+                p(0.0, z1),
+                top_spec,
+                tol,
+            )
+            .unwrap();
+        body.mef(
+            MefSite::Chords {
+                he1: top.he_minus,
+                he2: bottom.he_plus,
+            },
+            EdgeCurveSpec::line_between(p(0.0, z1), p(0.0, z0)),
             FaceSurface::Inherit,
             tol,
         )
@@ -7085,6 +7298,499 @@ pub(crate) mod pole_slit_tests {
                 assert!(
                     (lo + 0.3).abs() < 1e-12 && (hi - 0.3).abs() < 1e-12,
                     "the patch spans the seam: {us:?}"
+                );
+            }
+        }
+    }
+
+    /// **A meridian on the window's cut reads the same either side of
+    /// it.** A generic cut makes an image on it rare, not impossible: a
+    /// half-turn cylinder patch and a half-turn cone patch on charts
+    /// turned so the left meridian sits at `u = −1`, the principal
+    /// window's start, within an ulp either way and a hundred band
+    /// widths either way (radius 1, so the band is in radians).
+    /// Within an ulp the placement's mark is in band and its tie-break
+    /// names one copy whichever side the rounding fell (the first
+    /// premise); a hundred band widths off it is decided, and names `−1` on one side and
+    /// `τ − 1` on the other (the second, both read off the stored rows).
+    /// Nothing downstream tells the copies apart: each body validates,
+    /// bounds its faces, reads the same polygon modulo a turn, and
+    /// overlaps itself with the same answer.
+    #[test]
+    fn a_meridian_on_the_windows_cut_reads_the_same_either_side_of_it() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let tau = core::f64::consts::TAU;
+        // The window's cut, pinned as the literal it is (`−1`), so a row
+        // that moved the window would go red here rather than follow it.
+        let turn = 1.0;
+        assert_eq!(
+            geom_brep::ANGLE_WINDOW_START,
+            -turn,
+            "the cut this row sits on"
+        );
+        // Far enough off the cut that the placement's mark is decided at
+        // every ε row: past the escalation band, which is ten band zeros.
+        let far = 100.0 * band.zero();
+        let turns = [
+            turn.next_down(),
+            turn,
+            turn.next_up(),
+            turn - far,
+            turn + far,
+        ];
+        type Build = fn(f64) -> Body<f64>;
+        let builds: [(&str, Build); 2] = [
+            ("cylinder", |t| cylinder_patch_turned(0.0, t).unwrap()),
+            ("cone", |t| cone_patch_turned(t).unwrap()),
+        ];
+        for (name, build) in builds {
+            let bodies: Vec<Body<f64>> = turns.iter().map(|&t| build(t)).collect();
+            let mut copies: Vec<Vec<f64>> = Vec::new();
+            for (t, body) in turns.iter().zip(&bodies) {
+                let mut here = Vec::new();
+                assert_eq!(
+                    super::validate_pcurves(body, band),
+                    vec![],
+                    "{name}, turned {t}: validates"
+                );
+                for (f, face) in body.faces() {
+                    let s = body.get_surface(face.surface).unwrap().clone();
+                    super::chart_boundary(body, f, &s, band)
+                        .unwrap_or_else(|e| panic!("{name}, turned {t}, {f:?}: bounds: {e:?}"));
+                }
+                // The left meridian's stored image: the constant azimuth
+                // one copy of which is `−1`.
+                for (he, _) in body.half_edges() {
+                    if let Some(geom_brep::Pcurve::Harmonic {
+                        u: geom_brep::Channel::Angle { phase, winding: 0 },
+                        ..
+                    }) = body.pcurve(he).map(|c| c.pcurve())
+                    {
+                        let off = (phase + 1.0).rem_euclid(tau);
+                        if off < 2.0 * far || tau - off < 2.0 * far {
+                            here.push(*phase);
+                        }
+                    }
+                }
+                assert!(
+                    !here.is_empty(),
+                    "{name}, turned {t}: the meridian is stored"
+                );
+                copies.push(here);
+            }
+            // The tie-break takes the lower branch, which names the
+            // midpoint at the window's closed end, `τ − 1`: pinned as that
+            // copy, so an upper tie-break goes red.
+            let near: Vec<f64> = copies[..3].concat();
+            assert!(
+                near.iter().all(|u| (u - (tau - 1.0)).abs() < 1e-12),
+                "{name}: the first premise, one copy, τ − 1, within an ulp of the cut: {near:?}"
+            );
+            let all = copies.concat();
+            assert!(
+                all.iter().any(|u| (u + 1.0).abs() < 2.0 * far)
+                    && all.iter().any(|u| (u - (tau - 1.0)).abs() < 2.0 * far),
+                "{name}: the second premise, the meridian named on both sides of the cut: {copies:?}"
+            );
+            let faces: Vec<FaceKey> = bodies[0].faces().map(|(f, _)| f).collect();
+            let outcome = |a: usize, b: usize, f: FaceKey| {
+                crate::declared_pair_overlap(
+                    &bodies[a],
+                    f,
+                    &bodies[b],
+                    f,
+                    crate::contact::ContactVerdict::Definite,
+                    band,
+                )
+            };
+            // Each face's polygon, read modulo a turn in `u`, is the same
+            // across the cut.
+            let corners = |body: &Body<f64>, f: FaceKey| {
+                let s = body
+                    .get_surface(body.get_face(f).unwrap().surface)
+                    .unwrap()
+                    .clone();
+                let bound = super::chart_boundary(body, f, &s, band).unwrap();
+                bound
+                    .loops
+                    .iter()
+                    .flat_map(|l| &l.edges)
+                    .map(|e| (e.a().x.rem_euclid(tau), e.a().y))
+                    .collect::<Vec<(f64, f64)>>()
+            };
+            for &f in &faces {
+                let first = corners(&bodies[0], f);
+                for a in 1..turns.len() {
+                    let other = corners(&bodies[a], f);
+                    assert_eq!(first.len(), other.len(), "{name}, {f:?}");
+                    for p in &first {
+                        let near = |q: &(f64, f64)| {
+                            let du = (p.0 - q.0).abs();
+                            du.min(tau - du) < 2.0 * far && (p.1 - q.1).abs() < 2.0 * far
+                        };
+                        assert!(
+                            other.iter().any(near),
+                            "{name}, {f:?}: turned {} reads {other:?} against {first:?}",
+                            turns[a]
+                        );
+                    }
+                }
+            }
+            // Each body against itself: the copies the rounding named
+            // are the only difference across the cut (bodies turned an
+            // ulp apart differ in geometry too, which a near-flush seat
+            // reads as such).
+            for &f in &faces {
+                let first = outcome(0, 0, f);
+                for a in 1..turns.len() {
+                    assert_eq!(
+                        outcome(a, a, f),
+                        first,
+                        "{name}, {f:?}: turned {} against turned {}",
+                        turns[a],
+                        turns[0]
+                    );
+                }
+            }
+        }
+    }
+
+    /// **A sphere patch anywhere in latitude reads in the chart's
+    /// region.** A patch between two meridians and two parallels, below
+    /// latitude −1 rad, south and north of the equator and across it, its
+    /// meridians' carriers started on the near half of their great circles
+    /// and on the far half (the frame negated, the span moved by `π`: PR
+    /// 5225's delta review, `d3`, where the far start stored the twin), is
+    /// minted, validates, stores every latitude in `[−π/2, π/2]` (the
+    /// chart's own latitudes, inside the latitude window `geom_brep`'s
+    /// `Window::Latitude` places them in), and overlaps itself with
+    /// positive area. Placed in the angular window instead, a
+    /// meridian below latitude −1 was stored a turn up, which the chart
+    /// region's sphere arm refuses (PR 5225's first review, P2).
+    #[test]
+    fn a_sphere_patch_anywhere_in_latitude_reads_in_the_charts_region() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (o, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::unit_z());
+        let circle =
+            |center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>| Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            };
+        let p = |u: f64, v: f64| Point3::new(v.cos() * u.cos(), v.cos() * u.sin(), v.sin());
+        let rhat = |u: f64| Vec3::new(u.cos(), u.sin(), 0.0);
+        let bands = [(-1.4_f64, -1.1_f64), (-0.9, -0.3), (0.3, 1.3), (-0.2, 0.4)];
+        for (far, (va, vb)) in [false, true]
+            .into_iter()
+            .flat_map(|far| bands.map(|b| (far, b)))
+        {
+            let (flip, sh) = if far { (-1.0, PI) } else { (1.0, 0.0) };
+            let (u0, u1) = (0.0_f64, 1.0_f64);
+            let mut body = Body::<f64>::new();
+            let seed = body.mvfs(p(u0, va), true).unwrap();
+            body.set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: Surface::Sphere {
+                        center: o,
+                        radius: 1.0,
+                        axis: z,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+            let bottom = EdgeCurveSpec::arc_of_circle(
+                circle(Point3::new(0.0, 0.0, va.sin()), z, va.cos(), rhat(u0)),
+                0.0,
+                u1 - u0,
+            )
+            .unwrap();
+            let b = body
+                .mev(
+                    MevSite::Lone {
+                        r#loop: seed.r#loop,
+                    },
+                    p(u1, va),
+                    bottom,
+                    tol,
+                )
+                .unwrap();
+            let right = EdgeCurveSpec::arc_of_circle(
+                circle(o, rhat(u1).cross(z), 1.0, rhat(u1) * flip),
+                va + sh,
+                vb + sh,
+            )
+            .unwrap();
+            let r = body
+                .mev(
+                    MevSite::Fan {
+                        he1: b.he_minus,
+                        he2: b.he_minus,
+                    },
+                    p(u1, vb),
+                    right,
+                    tol,
+                )
+                .unwrap();
+            let top = EdgeCurveSpec::arc_of_circle(
+                circle(Point3::new(0.0, 0.0, vb.sin()), -z, vb.cos(), rhat(u1)),
+                0.0,
+                u1 - u0,
+            )
+            .unwrap();
+            let tp = body
+                .mev(
+                    MevSite::Fan {
+                        he1: r.he_minus,
+                        he2: r.he_minus,
+                    },
+                    p(u0, vb),
+                    top,
+                    tol,
+                )
+                .unwrap();
+            let left = EdgeCurveSpec::arc_of_circle(
+                circle(o, z.cross(rhat(u0)), 1.0, rhat(u0) * flip),
+                -vb + sh,
+                -va + sh,
+            )
+            .unwrap();
+            body.mef(
+                MefSite::Chords {
+                    he1: tp.he_minus,
+                    he2: b.he_plus,
+                },
+                left,
+                FaceSurface::Inherit,
+                tol,
+            )
+            .unwrap();
+            super::mint_pcurves(&mut body, tol).unwrap();
+            let label = format!("far {far} [{va}, {vb}]");
+            assert_eq!(super::validate_pcurves(&body, band), vec![], "{label}");
+            for (he, c) in body.pcurves() {
+                let (a, b) = c.params();
+                let mid = c.pcurve().eval(0.5 * (a + b));
+                assert!(
+                    mid.y.abs() <= core::f64::consts::FRAC_PI_2 + 1e-12,
+                    "{label}, {he:?}: a latitude in the chart's region: {mid:?}"
+                );
+            }
+            for (f, _) in body.faces() {
+                let o = crate::declared_pair_overlap(
+                    &body,
+                    f,
+                    &body,
+                    f,
+                    crate::contact::ContactVerdict::Definite,
+                    band,
+                );
+                assert!(
+                    matches!(o, Ok(crate::ChartOverlap::PositiveArea)),
+                    "{label}, {f:?}: {o:?}"
+                );
+            }
+        }
+    }
+
+    /// **A one-edge loop's split closes on its own children.** A sheet
+    /// bounded by one whole-turn circle (a cylinder's rim, a sphere's
+    /// parallel, a torus's parallel) is split at `t ∈ {1, 3, 5, 5.5, 6}`.
+    /// Past about `t = 4.28` the second child's midpoint is past the
+    /// window's cut, so it is placed a turn below the first and the
+    /// loop's closing joint, from the second child back into the first,
+    /// changes; the edge is its own neighbour, so the split decides that
+    /// joint between its children. Each split body validates and its rows
+    /// and elements are byte for byte a fresh mint's (PR 5225's first
+    /// review, P1).
+    #[test]
+    fn a_one_edge_loops_split_closes_on_its_children() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (o, z, x) = (Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x());
+        let circle = |center: Point3<f64>, radius: f64| Curve3::Circle {
+            center,
+            axis: z,
+            radius,
+            u_ref: x,
+        };
+        let lat: f64 = 0.5;
+        let cases = [
+            (
+                "cylinder rim",
+                Surface::Cylinder {
+                    origin: o,
+                    axis: z,
+                    radius: 1.0,
+                    u_ref: x,
+                },
+                circle(Point3::new(0.0, 0.0, 0.5), 1.0),
+            ),
+            (
+                "sphere parallel",
+                Surface::Sphere {
+                    center: o,
+                    radius: 1.0,
+                    axis: z,
+                    u_ref: x,
+                },
+                circle(Point3::new(0.0, 0.0, lat.sin()), lat.cos()),
+            ),
+            (
+                "torus parallel",
+                Surface::Torus {
+                    center: o,
+                    axis: z,
+                    major_radius: 2.0,
+                    minor_radius: 0.5,
+                    u_ref: x,
+                },
+                circle(Point3::new(0.0, 0.0, 0.5), 2.0),
+            ),
+        ];
+        let rows = |body: &Body<f64>| {
+            let mut out: Vec<String> = body
+                .pcurves()
+                .map(|(he, c)| {
+                    format!(
+                        "{he:?} {:?} {:?} {:?} {:?}",
+                        c.params(),
+                        c.pcurve(),
+                        c.certificate(),
+                        body.joint(he)
+                    )
+                })
+                .collect();
+            out.sort();
+            out
+        };
+        for (name, surface, carrier) in cases {
+            for t in [1.0, 3.0, 5.0, 5.5, 6.0] {
+                let mut body = Body::<f64>::new();
+                let seed = body.mvfs(carrier.eval(0.0), true).unwrap();
+                body.set_face_surface(
+                    seed.face,
+                    FaceSurface::New {
+                        surface: surface.clone(),
+                        sense: true,
+                    },
+                )
+                .unwrap();
+                let spec = EdgeCurveSpec::arc_of_circle(carrier.clone(), 0.0, 2.0 * PI).unwrap();
+                let made = body
+                    .mef(
+                        MefSite::Lone {
+                            r#loop: seed.r#loop,
+                        },
+                        spec,
+                        FaceSurface::Inherit,
+                        tol,
+                    )
+                    .unwrap();
+                super::mint_pcurves(&mut body, tol).unwrap();
+                let edge = body.get_half_edge(made.he_plus).unwrap().edge;
+                body.split_edge(edge, t, tol)
+                    .unwrap_or_else(|e| panic!("{name} at {t}: splits: {e:?}"));
+                assert_eq!(
+                    super::validate_pcurves(&body, band),
+                    vec![],
+                    "{name} at {t}: validates"
+                );
+                let mut fresh = body.clone();
+                super::mint_pcurves(&mut fresh, tol).unwrap();
+                assert_eq!(rows(&body), rows(&fresh), "{name} at {t}: the mint's rows");
+            }
+        }
+    }
+
+    /// **A split's children are the mint's rows, and the loop still
+    /// closes.** The cylinder patch, its bottom arc's carrier stated 0,
+    /// ±1, 5 and 10 periods off, is split on that arc, and the split
+    /// body's rows, their intervals, certificates and joint elements
+    /// are byte for byte what a fresh `mint_pcurves` of the same body
+    /// writes; it validates and bounds both faces. Two turns of the
+    /// chart: one where both children sit inside the window, and one
+    /// turned so the arc straddles the window's cut at `−1`, where the
+    /// first child is placed a whole turn from the second and the joint
+    /// between them is a decided `±1` (the premise, read off the stored
+    /// element). Dropping the split's re-decision of the parent's end
+    /// joints (`CarriedRows::entering`, `::leaving`) leaves the
+    /// straddling patch's joints the parent's, and it no longer
+    /// validates (`LoopDiscontinuity` on both halves the re-placed child
+    /// meets); `sweep`'s `the_site_rows_are_the_passs_on_every_revolved_chart`
+    /// goes red the same way on the full cone.
+    #[test]
+    fn a_split_of_an_edge_stated_periods_off_is_the_mints_and_closes() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let rows = |body: &Body<f64>| {
+            let mut out: Vec<String> = body
+                .pcurves()
+                .map(|(he, c)| {
+                    format!(
+                        "{he:?} {:?} {:?} {:?} {:?}",
+                        c.params(),
+                        c.pcurve(),
+                        c.certificate(),
+                        body.joint(he)
+                    )
+                })
+                .collect();
+            out.sort();
+            out
+        };
+        // Inside the window, and straddling its cut: the arc covers
+        // chart `u ∈ [−turn, π − turn]`, split an eighth of a turn in.
+        for (turn, straddles) in [(0.0, false), (1.0 + PI / 4.0, true)] {
+            for periods in [0.0, 1.0, -1.0, 5.0, 10.0] {
+                let label = format!("turned {turn}, {periods} periods off");
+                let mut body = cylinder_patch_turned(periods, turn).unwrap();
+                let bottom = body
+                    .edges()
+                    .map(|(e, _)| e)
+                    .find(|&e| {
+                        let he = body.get_edge(e).unwrap().he_plus;
+                        matches!(
+                            super::half_edge_carrier(&body, he),
+                            Ok((Curve3::Circle { center, .. }, _, _)) if center.z == 0.0
+                        )
+                    })
+                    .expect("the bottom arc");
+                let he = body.get_edge(bottom).unwrap().he_plus;
+                let (_, t0, t1) = super::half_edge_carrier(&body, he).unwrap();
+                let t = t0.min(t1) + PI / 4.0;
+                let made = body
+                    .split_edge(bottom, t, tol)
+                    .unwrap_or_else(|e| panic!("{label}: splits: {e:?}"));
+                assert_eq!(
+                    super::validate_pcurves(&body, band),
+                    vec![],
+                    "{label}: validates"
+                );
+                for (f, face) in body.faces() {
+                    let s = body.get_surface(face.surface).unwrap().clone();
+                    super::chart_boundary(&body, f, &s, band)
+                        .unwrap_or_else(|e| panic!("{label}, {f:?}: bounds: {e:?}"));
+                }
+                let mut fresh = body.clone();
+                super::mint_pcurves(&mut fresh, tol).unwrap();
+                assert_eq!(
+                    rows(&body),
+                    rows(&fresh),
+                    "{label}: the split's rows are the mint's"
+                );
+                let new = body.get_edge(made.new_edge).unwrap();
+                let apart = [new.he_plus, new.he_minus, he].into_iter().any(
+                    |h| matches!(body.joint(h), Some(crate::JointElement::Shift(d)) if d.u != 0),
+                );
+                assert_eq!(
+                    apart, straddles,
+                    "{label}: the premise, the children a whole turn apart where the arc \
+                     straddles the cut"
                 );
             }
         }
@@ -7507,7 +8213,7 @@ mod lift_rows {
     use crate::joint::{Deck, JointElement};
     use geom::Surface;
     use geom_brep::Pcurve;
-    use geom_core::{Band, Decide, Interval, Point2, Point3, Vec2, Vec3};
+    use geom_core::{Band, Decide, Interval, Point2, Point3, Vec3};
 
     const EPS: f64 = 1e-9;
 
@@ -7536,16 +8242,14 @@ mod lift_rows {
         }
     }
 
-    /// A row that sits at one chart point: what a joint reads of it is
+    /// A row that sits at one chart point of a sphere or torus chart,
+    /// both of whose channels are angles: what a joint reads of it is
     /// its entry, and its twin.
     fn at<T: Decide>(u: f64, v: f64) -> Pcurve<T> {
         let f = T::from_f64;
-        let zero = Vec2::new(f(0.0), f(0.0));
         Pcurve::Harmonic {
-            p0: Point2::new(f(u), f(v)),
-            pa: zero,
-            pb: zero,
-            pl: zero,
+            u: geom_brep::Channel::fixed_angle(f(u)),
+            v: geom_brep::Channel::fixed_angle(f(v)),
         }
     }
 
@@ -7957,11 +8661,18 @@ mod room_fence_tests {
     /// The fence at `vertex`, on the orbit a harmonic image on
     /// `surface` walks (a sphere's, half periods with its twin).
     fn room(surface: &Surface<f64>, vertex: Point3<f64>) -> bool {
+        // A rim winding once: the second channel is an angle on a
+        // sphere, a length on a cone.
+        let v = match surface {
+            Surface::Sphere { .. } | Surface::Torus { .. } => geom_brep::Channel::fixed_angle(0.0),
+            _ => geom_brep::Channel::constant(0.0),
+        };
         let image = geom_brep::Pcurve::Harmonic {
-            p0: geom_core::Point2::new(0.0, 0.0),
-            pa: geom_core::Vec2::new(0.0, 0.0),
-            pb: geom_core::Vec2::new(0.0, 0.0),
-            pl: geom_core::Vec2::new(1.0, 0.0),
+            u: geom_brep::Channel::Angle {
+                phase: 0.0,
+                winding: 1,
+            },
+            v,
         };
         joint_has_room(
             DescribedChart::of(surface).unwrap(),

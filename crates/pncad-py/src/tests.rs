@@ -4540,6 +4540,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "assembly_error_tag",
         values: &[
             "at_rest",
+            "carried_at_rest",
             "carried_mint_refusal",
             "own_space",
             "uncertified",
@@ -5273,6 +5274,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "partner_unread",
             "seam_vertex_parentage",
             "seam_vertex_partners",
+            "short_tie",
             "split_lineage_cycle",
             "unnamed",
             "unsettled_vertex",

@@ -413,10 +413,8 @@ went to those crates' pages, and the wired-arm list, which went to
   door later" is exactly that trade. "Exclusively" is
   realized: the operator set is the only public construction path; raw
   insertion is crate-internal test scaffolding.
-- **Non-manifold boolean results are typed errors** — "non-manifold"
-  meaning **non-representable** ([topology]'s representability boundary).
-  Touching via distinct entities is a typed success validating at tier
-  3′. Silent splitting into separate manifold bodies is rejected as
+- **Touching via distinct entities is a typed success** validating at
+  tier 3′ ([topology]'s representability boundary). Silent splitting into separate manifold bodies is rejected as
   inexplicit; any future split behavior is an explicit ratified
   operation the user invokes, never a fallback.
 
@@ -529,8 +527,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    **material wedge-angle predicate**: at every edge the material wedge
    ∈ (0, 2π), bounded away from the ends by θ = ε/r; wedge = π is the
    legal smooth-seam case; and the ends carry a **second-order arm**:
-   wedge = 0 (a cusp) and wedge = 2π (a knife slit, the cusp's `revert`
-   image — legal together or not at all) are legal iff the tangency is
+   wedge = 0 (a cusp) and wedge = 2π (a knife slit, an isolated cusp's
+   `revert` image — legal together or not at all) are legal iff the tangency is
    **jet-determinate**: quadratic transverse separation with κ_rel
    bounded away from zero — `TangentIntersection`'s own margin, so the
    cusp edge's honest description IS `TangentIntersection` wherever the
@@ -545,11 +543,26 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    like any coincidence. In-band κ_rel escalates; osculation
    refuses (`LaminaWedge`). The
    arm admits no laminae, so zero-volume bodies stay geometric defects.
-   A doubled cusp (two material wedges on one tangent line) is the
-   coincident-distinct-edges class, each edge classifying separately;
-   where no edge lies on the line, the two wedges are a touch between
-   faces, recorded like any touch, and no op cuts edges to make a
-   junction of it. Consumers with no wedge-0/2π answer (fillet, offset,
+   Where more than two sheets meet on a line, the material decides the
+   edges, as the manifold boundary of the material rather than of its
+   surface: each creased material sector between two consecutive
+   sheets is one edge, bounding that wedge alone; a sector of exactly π
+   is a face continuing, with no edge there; and the material sectors
+   on one line are disjoint, so no face passes through an edge's
+   material wedge. So a doubled cusp (two material wedges on one
+   tangent line) and a reflex edge lying in one of its own faces are
+   two coincident distinct edges, each classifying separately; an edge
+   touching a face from outside its wedge stays one edge, in contact
+   with that face; and where no edge lies on the line, the wedges are a
+   touch between faces, recorded like any touch, and no op cuts edges
+   to make a junction of it. Where the line ends inside a face, that
+   face carries its edges as a zero-area ring, which bounds no hole and
+   whose winding is exempt; where it reaches the face's boundary, as a
+   slit of that loop. The complement pairs the sheets differently, so
+   a door that complements material across such a line re-pairs there.
+   Tier 3′ reads every touch for sides, the coincident edges on one
+   line included: touching cells' material lies on opposite sides of
+   each other. Consumers with no wedge-0/2π answer (fillet, offset,
    mesh sizing, sector classification), and none for a body's
    curve-touch records, refuse typed at the consumer.
    Also at tier 3: **maximal edges** (a joinable vertex at rest is a
@@ -714,10 +727,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    **Representability boundary**: pseudomanifold touching via
    *distinct* entities (two vertices at one point, two edges on one
    segment) is representable in the half-edge structure and is a typed
-   *success* carrying its 3′ records. Genuine non-manifoldness — a
-   single edge with >2 faces, a shared-entity wedge fan — is
-   unrepresentable and stays a typed error at the site that would have
-   needed it. "Non-manifold" means non-representable.
+   *success* carrying its 3′ records. A single edge with >2 faces, or a
+   wedge fan sharing one entity, assembles faces into something that is
+   not a solid; the half-edge structure does not represent it.
 
 **Structural conventions.**
 

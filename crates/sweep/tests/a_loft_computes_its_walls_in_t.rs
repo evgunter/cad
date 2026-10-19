@@ -336,7 +336,9 @@ fn an_enclosure_reaching_an_infinity_refuses_as_not_finite() {
 ///   wide bulge or from rounding alone, so an arc section refuses at the
 ///   carrier's door (`CarrierWeightNotAPoint`, until C6's S4/S5);
 /// - three sections at v-degree 1 put their middle parameter in the
-///   knot vector, and the fit refuses a wide one as a carrier's knot.
+///   knot vector: the fit encloses over a wide one (C6 S5c), and the
+///   wall's carrier refuses it at its door (`CarrierKnotNotAPoint`,
+///   until C6's S5z).
 #[test]
 fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
     use geom_core::Interval;
@@ -371,9 +373,9 @@ fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
         1,
         Tol::witness(),
     ) {
-        Err(LoftError::Skin(SkinError::Fit(geom::curves::fit::FitError::Structure(
-            SplineError::CarrierKnotNotAPoint { index: 1 },
-        )))) => {}
+        Err(LoftError::Skin(SkinError::Structure(SplineError::CarrierKnotNotAPoint {
+            index: 1,
+        }))) => {}
         other => panic!(
             "expected the wide interior knot's refusal, got {:?}",
             other.map(|_| ())

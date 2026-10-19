@@ -107,9 +107,9 @@ pub use appearance::{
     AppearanceResolution, Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use assembly::{
-    Assembly, AssemblyError, AtRestBy, AtRestFinding, AtRestRow, Attribution, CarriedDeclaration,
-    CarriedDeclarations, CarriedRefusal, MintRefusal, MintedDeclaration, RefusedRef, Relation,
-    Route, assemble, assemble_gathered,
+    Assembly, AssemblyError, AtRestBy, AtRestFinding, AtRestRow, Attribution, CarriedAtRestFinding,
+    CarriedDeclaration, CarriedDeclarations, CarriedInterference, CarriedRefusal, MintRefusal,
+    MintedDeclaration, RefusedRef, Relation, Route, assemble, assemble_gathered,
 };
 pub use checks::at_rest::{CopyRef, FaceSite, InterferenceFinding, Overlap, Unlocalized};
 pub use checks::{
@@ -183,9 +183,9 @@ pub use names::{
     LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NameTextError, NamingError,
     NotAFaceName, OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier,
     RimShare, RimSupport, RolePath, RoleSeg, RunLine, SEL_DATUM_DISTANCE, SeatingRefusal,
-    SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, Side, SplitHalf, StableName,
-    SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, band,
-    band_pi, band_rim, band_rim_pi, carried, denotation, edge_carrier_kind, edge_frame,
+    SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, ShortTie, Side, SplitHalf,
+    StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
+    band, band_pi, band_rim, band_rim_pi, carried, denotation, edge_carrier_kind, edge_frame,
     face_carrier_kind, face_frame, leaf_role, meridian_vertex, role_leaf, select, select_where,
     vertex_position,
 };

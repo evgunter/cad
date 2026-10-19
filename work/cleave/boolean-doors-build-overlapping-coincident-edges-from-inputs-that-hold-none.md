@@ -73,6 +73,6 @@ Census (topo, sweep, editor-core, slow set included, ε default, 1e-6,
 1e-12): every newly refusing op reads overlapping wedges on main, the
 same set at all three ε. The row's witnesses are pinned at their
 refusals beside their fixtures. What stays owed is this row's re-pairing
-(the material decides the edges, `[ev]` PR 4795); the pins that return
-with it are listed on
+in the join and the finish (the material decides the edges, ratified on
+`[ev]` PR 4795); the pins that return with it are listed on
 `work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`.

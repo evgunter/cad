@@ -1849,7 +1849,7 @@ FAMILIES: dict[str, str] = {
 #: hands `Node.profile` a `ClosedLoop` and the program is built inside
 #: Rust, so no Python value is ever one of these. The naming table and
 #: its provenance payloads (`NameTable`, `SeatingRefusal`,
-#: `DuplicateName`, `KindMismatch`,
+#: `DuplicateName`, `KindMismatch`, `ShortTie`,
 #: `ProfileEdgeRef`, `ProfileVertexRef`, `edge_name`, `face_name` —
 #: key-to-name inversions with no key to invert), the declared-contact
 #: interior (`DeclaredContact`, `ContactVerdict`, `ContactRefusal`,
@@ -2853,6 +2853,7 @@ NOT_BOUND = {
     "DuplicateName": INTERIOR,
     "KindMismatch": INTERIOR,
     "SeatingRefusal": INTERIOR,
+    "ShortTie": INTERIOR,
     # What an edge's locus IS, read back off a certified carrier.
     # Python holds an opaque `Body` handle and no door on it answers a
     # description, so nothing here is a thing Python can read.
@@ -3622,6 +3623,7 @@ MEMBERS_BOUND_AS = {
     "AssemblyError::Space": "AssemblyError.variant",
     "AssemblyError::Mint": "AssemblyError.variant",
     "AssemblyError::CarriedMintRefusal": "AssemblyError.variant",
+    "AssemblyError::CarriedAtRest": "AssemblyError.variant",
     "AssemblyError::AtRest": "AssemblyError.variant",
     "AssemblyError::Uncertified": "AssemblyError.variant",
     # The two mint arms answer with a LIST, so the word a caller
@@ -3636,6 +3638,11 @@ MEMBERS_BOUND_AS = {
     # The refusal's nodes as the document below holds them: what the
     # row's `refusal` says them from (`str(row.refusal)`).
     "CarriedRefusal::held": "CarriedRefusal.refusal",
+    # A part's own census findings, carried: the same route spelling,
+    # and the finding's nodes said from the part's (`str(row.finding)`).
+    "CarriedAtRestFinding::route": "CarriedAtRestFinding.of",
+    "CarriedAtRestFinding::held": "CarriedAtRestFinding.finding",
+    "CarriedInterference::route": "CarriedInterference.of",
     # A VALUE's arms, not a refusal's, and the word is `relation` because
     # what the walk answers is how a declaration stands to the document
     # it was gathered from.
