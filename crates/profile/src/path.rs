@@ -1235,21 +1235,23 @@ pub enum PathError<T: Real> {
     },
     /// A vector a direction is derived from has **no finite length**:
     /// its components overflow the norm (past ~1e154), or one of them
-    /// is not a number. Two doors raise it — the components director
-    /// ([`PartialPath::toward`]) and the arc carrier's tangent, whose
-    /// vector is the anchor's displacement from the centre.
+    /// is not a number. Three doors raise it — the components director
+    /// ([`PartialPath::toward`]), the arc carrier's tangent, whose
+    /// vector is the anchor's displacement from the centre, and a leg's
+    /// chord ([`chord_director`]), the displacement from the tip to the
+    /// leg's target.
     ///
     /// Distinct from [`PathError::ZeroDirection`] on purpose: the
     /// direction is **not** zero, and that arm's recourse — scale the
     /// components UP — is exactly backwards here.
     ///
     /// **The recourse is the ratio, not the geometry, wherever the
-    /// caller holds the numbers.** Both doors read only the ratio of
+    /// caller holds the numbers.** Every door reads only the ratio of
     /// the components, so dividing the pair through by a common
     /// factor is free and always sufficient. At
     /// [`PartialPath::toward`] the caller spells the components and
-    /// can do exactly that; at the arc carrier's tangent they are a
-    /// displacement the caller does not hold directly, and moving the
+    /// can do exactly that; at the arc carrier's tangent and a leg's
+    /// chord they are a displacement the caller does not hold directly, and moving the
     /// authored geometry into range is the way to reach the same
     /// division. Naming only the second would send a `toward` caller
     /// to move geometry that does not need moving — the
@@ -1275,8 +1277,9 @@ pub enum PathError<T: Real> {
     /// the wrong cause, and no tolerance lever reaches it — the squared
     /// norm is zero at every ε.
     ///
-    /// **One door raises it today**: the arc carrier's tangent, whose
-    /// vector is the anchor's displacement from the centre.
+    /// **Two doors raise it today**: the arc carrier's tangent, whose
+    /// vector is the anchor's displacement from the centre, and a leg's
+    /// chord ([`chord_director`]).
     /// [`PartialPath::toward`]'s components director deliberately does
     /// NOT — a pair spelled `(1e-200, 0)` is refused
     /// [`PathError::ZeroDirection`], whose sentence ("within tolerance
@@ -2139,10 +2142,12 @@ impl<T: Real> Dir<T> {
     /// again.** Every caller either normalized against the funnel on
     /// its own band — `unit_from_components` under
     /// `path_director_norm`, [`arc_fillet::carrier_tangent`] under
-    /// `path_arc_center_radius` — or holds a ray that is unit by
-    /// construction: [`Dir::reversed`]'s exact negation, and
-    /// [`reflected_across`]'s reflection of a unit ray, unit over the
-    /// reals and to its rounding in the floats. A
+    /// `path_arc_center_radius` — or normalized a chord whose length
+    /// other gates decide ([`chord_director`]), or holds a ray that is
+    /// unit by construction: [`Dir::reversed`]'s exact negation, and
+    /// [`reflected_across`]'s reflection and an arc leg's chord ray
+    /// turned by half its sweep (`arc_angles`), each of a unit ray,
+    /// unit over the reals and to its rounding in the floats. A
     /// second decision here would either re-ask a question already
     /// answered (a second name in the K census for one length) or,
     /// worse, re-derive the ray and lose the exactness this type
@@ -4073,10 +4078,9 @@ fn unit_from_components<T: Decide>(dx: T, dy: T, tol: Tol) -> Result<Dir<T>, Pat
 /// one about the same length, and would pre-empt the refusals that
 /// name a short leg for what it is. What it asks is only whether the
 /// division is a number: an overflowed or underflowed length refuses
-/// as [`unit_from_components`] and [`arc_fillet::carrier_tangent`] do,
-/// and a chord of no length at all (the authored point IS the tip)
-/// names no ray and stands in `+x` for one, which those later gates
-/// refuse.
+/// as [`arc_fillet::carrier_tangent`]'s does, and a chord of no length
+/// at all (the authored point IS the tip) names no ray and stands in
+/// `+x` for one; the segment's shape validation refuses that leg.
 fn chord_director<T: Real>(d: Vec2<T>) -> Result<Dir<T>, PathError<T>> {
     let len = d.norm_squared().sqrt();
     if !is_finite_length(len) {
@@ -4085,7 +4089,7 @@ fn chord_director<T: Real>(d: Vec2<T>) -> Result<Dir<T>, PathError<T>> {
     if geom_core::is_underflowed_length(len, d.norm_witness()) {
         return Err(PathError::UnderflowedDirection { dx: d.x, dy: d.y });
     }
-    if crate::is_exact_zero(len) {
+    if geom_core::is_zero_length(len, d.norm_witness()) {
         return Ok(Dir::from_unit(Vec2::new(T::one(), T::zero())));
     }
     Ok(Dir::from_unit(d / len))
@@ -5358,6 +5362,35 @@ mod tests {
             (r.unit.norm() - 1.0).abs() <= 2.0 * f64::EPSILON,
             "a reflection keeps the length: {:?}",
             r.unit
+        );
+    }
+
+    /// **The chord door asks whether its division is a number, and
+    /// nothing about how long the chord is.** Its ray is exact where the
+    /// quotients are (3-4-5, and an axis chord along −x, whose angle
+    /// round-trip lands `1.2e-16` off the axis); a chord far below ε still names its
+    /// ray, because the lever gates and the shape validation own that
+    /// length; the zero chord stands in `+x`; and an overflowed or
+    /// underflowed length refuses typed.
+    #[test]
+    fn the_chord_director_divides_without_deciding_its_length() {
+        let ray = |x: f64, y: f64| chord_director(Vec2::new(x, y)).map(|d| (d.unit.x, d.unit.y));
+        assert_eq!(ray(-3.0, 4.0).ok(), Some((-0.6, 0.8)), "a 3-4-5 chord");
+        assert_eq!(ray(-1.5, 0.0).ok(), Some((-1.0, 0.0)), "an axis chord");
+        assert_eq!(ray(0.0, 1e-13).ok(), Some((0.0, 1.0)), "a sub-ε chord");
+        assert_eq!(ray(0.0, 0.0).ok(), Some((1.0, 0.0)), "the zero chord");
+        for (x, y) in [(1e200, 0.0), (f64::NAN, 1.0)] {
+            assert!(
+                matches!(ray(x, y), Err(PathError::NonFiniteDirection { .. })),
+                "({x}, {y})"
+            );
+        }
+        assert!(
+            matches!(
+                ray(1e-200, 0.0),
+                Err(PathError::UnderflowedDirection { .. })
+            ),
+            "an underflowed chord"
         );
     }
 

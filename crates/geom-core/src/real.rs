@@ -881,7 +881,11 @@ pub trait Real:
 ///   propagates `NaN` but not infinity, so a `min` hides an
 ///   OVERFLOWED chord behind a finite one;
 /// - `profile`'s two 2-D director doors (`unit_from_components`,
-///   `arc_fillet::carrier_tangent`).
+///   `arc_fillet::carrier_tangent`), and its chord director
+///   (`path::chord_director`), which normalizes a leg's chord without
+///   deciding its length — the lever gates and shape validation decide
+///   that — and asks this, [`is_underflowed_length`] and
+///   [`is_zero_length`] before it divides.
 ///
 /// Each refuses with its own typed arm, naming the recourse its own
 /// caller can reach: the question is one question, but what a caller
@@ -890,8 +894,8 @@ pub trait Real:
 /// is not.
 ///
 /// **This roster is hand-kept and nothing enforces it.** It is a
-/// five-door cross-crate claim living in a leaf crate that cannot see
-/// four of them, so it is exactly as current as the last person to
+/// six-door cross-crate claim living in a leaf crate that cannot see
+/// five of them, so it is exactly as current as the last person to
 /// edit it. Treat it as a reading aid, not as a census; the census
 /// that is checked is `docs/K-REPORT.md`'s, and it is about decided
 /// names rather than about this question.
@@ -967,7 +971,8 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 ///   its own and which an underflowed chord always wins, so asking the
 ///   arm would refuse without ever naming the cause.
 /// - `profile`'s `path::arc_fillet::carrier_tangent`, of the anchor's
-///   displacement from the arc centre.
+///   displacement from the arc centre, and `path::chord_director`, of
+///   a leg's chord from the tip to its target.
 ///
 /// `profile`'s OTHER 2-D director door, `unit_from_components`, asks
 /// [`is_finite_length`] and deliberately not this: the pair it refuses
@@ -1017,6 +1022,9 @@ pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
 ///   length (that is [`decide_unit_direction`](crate::decide_unit_direction)'s
 ///   job, metered and band-relative): a datum is asked whether it is
 ///   the zero vector, not whether it is short.
+/// - `profile`'s `path::chord_director`, of a leg's chord: a chord of
+///   no length names no ray, and its length is decided by the gates
+///   that read it as a lever and as a segment, not here.
 pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
     !is_finite_length(len / witness)
 }
