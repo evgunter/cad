@@ -154,14 +154,22 @@ impl<T: Decide> Blended<T> {
     /// [`super::naming::BlendNaming::slits`]) and the vertices that split
     /// it, the carved span removed; a support face is divided into itself
     /// and the trimlines and feet the blend minted in it, the strip it
-    /// carved away removed. A body with no birth records names no
-    /// carve, and every cell is kept.
+    /// carved away removed. Every other cell whose geometry the blend
+    /// changed under its key is reshaped ([`topo::Lineage::reshaping`]).
+    ///
+    /// # Panics
+    ///
+    /// Where the body has no birth records: the surgery is their only
+    /// producer and always writes them ([`Self::naming`]), so a body
+    /// without them names no cell's fate, and every cell read as kept
+    /// would land records unread on cells the blend may have reshaped.
     #[must_use]
     pub fn lineage(&self) -> topo::Lineage {
         use topo::{Cell, Division, Fate, Remainder};
-        let Some(n) = self.naming.as_ref() else {
-            return topo::Lineage::new();
-        };
+        let n = self
+            .naming
+            .as_ref()
+            .expect("a blended body carries the surgery's birth records (kernel bug)");
         let mut lineage = topo::Lineage::new().through_joins(&n.edge_joins);
         let removed = n
             .blends
@@ -246,7 +254,7 @@ impl<T: Decide> Blended<T> {
                 }),
             );
         }
-        lineage
+        lineage.reshaping(&n.reshaped)
     }
 }
 

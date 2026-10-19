@@ -254,4 +254,9 @@ pub struct BlendNaming {
     /// dead, and its `kept` covers what `gone` did besides its own
     /// (`topo::join_covers`).
     pub edge_joins: Vec<topo::EdgeJoin>,
+
+    /// The source cells the blend kept the key of and changed the
+    /// geometry of ([`topo::reshaped_cells`]): a cap a band's end carves,
+    /// a face whose boundary the join or a trim redrew.
+    pub reshaped: Vec<topo::Cell>,
 }

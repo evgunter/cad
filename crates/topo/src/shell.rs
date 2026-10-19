@@ -936,7 +936,8 @@ impl<T: Real> Shelled<T> {
     /// ([`ShellNaming::dead`]) into the rims, the rest removed. On a
     /// void, the designated faces are removed, the rim being their
     /// cavity twin's. The cavity twins are new cells and no operand
-    /// record names one.
+    /// record names one. Any other operand cell whose geometry the shell
+    /// changed under its key is reshaped ([`crate::Lineage::reshaping`]).
     #[must_use]
     pub fn lineage(&self) -> crate::Lineage {
         use crate::boolean::Cell;
@@ -1030,7 +1031,7 @@ impl<T: Real> Shelled<T> {
                 );
             }
         }
-        lineage
+        lineage.reshaping(&naming.reshaped)
     }
 }
 
@@ -1088,6 +1089,9 @@ pub struct ShellNaming {
     /// but listed here, not there, and its `kept` covers what `gone` did
     /// besides its own ([`crate::join_covers`]).
     pub edge_joins: Vec<crate::EdgeJoin>,
+    /// The operand cells the shell kept the key of and changed the
+    /// geometry of ([`crate::reshaped_cells`]).
+    pub reshaped: Vec<crate::boolean::Cell>,
 }
 
 impl ShellNaming {
@@ -2153,6 +2157,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             refusal: crate::boolean::JoinRefusal::of(&refusal),
         })?;
     validate_geometric(&out_body, tol).map_err(|errors| ShellError::NotValid { errors })?;
+    naming.reshaped = crate::reshaped_cells(body, &out_body, &naming.edge_joins);
     Ok(Shelled {
         body: out_body,
         naming,

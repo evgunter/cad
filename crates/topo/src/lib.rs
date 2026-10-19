@@ -855,6 +855,7 @@ pub use boolean::{
 pub use joint::{Deck, JointElement};
 pub use lineage::{
     Division, FaceDivisions, Fate, Lineage, LineageError, LineageRows, Remainder, RowDefect,
+    reshaped_cells,
     RowRefusal, Substitutions,
 };
 pub use surgery::Surgery;

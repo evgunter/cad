@@ -1379,7 +1379,9 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     d: T,
     tol: Tol,
 ) -> Result<OffsetOutcome, ReplaceFaceError<T>> {
-    replace_faces_offset_staged(body, faces, d, tol, true).map(|joins| OffsetOutcome { joins })
+    let before = body.clone();
+    let joins = replace_faces_offset_staged(body, faces, d, tol, true)?;
+    Ok(OffsetOutcome::of(&before, body, joins))
 }
 
 /// **Each boundary edge's planned verdict** for moving one non-cone
@@ -1618,9 +1620,24 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
 pub struct OffsetOutcome {
     /// The joins, in the order made.
     pub joins: Vec<crate::boolean::EdgeJoin>,
+    /// The cells the door kept the key of and moved
+    /// ([`crate::reshaped_cells`]): the moved faces, their edges and
+    /// vertices, and every cell a moved vertex or edge bounds.
+    pub reshaped: Vec<crate::boolean::Cell>,
 }
 
 impl OffsetOutcome {
+    /// The outcome of a door that made `after` from `before`, ending with
+    /// `joins`.
+    pub(crate) fn of<T: geom_core::Real>(
+        before: &Body<T>,
+        after: &Body<T>,
+        joins: Vec<crate::boolean::EdgeJoin>,
+    ) -> Self {
+        let reshaped = crate::reshaped_cells(before, after, &joins);
+        Self { joins, reshaped }
+    }
+
     /// `records`, the moved body's before the door, carried onto
     /// `result`, the body after it, through [`Self::lineage`]
     /// ([`crate::ContactRecords::carried_through`], at `band` through `region`).
@@ -1639,11 +1656,14 @@ impl OffsetOutcome {
     }
 
     /// **What the door made of each cell** (D1): it keeps every key and
-    /// kills only what its joins name, so each cell is itself or the
+    /// kills only what its joins name, so each cell is itself, reshaped
+    /// where the door moved it ([`crate::Lineage::reshaping`]), or the
     /// edge a join made of it.
     #[must_use]
     pub fn lineage(&self) -> crate::Lineage {
-        crate::Lineage::new().through_joins(&self.joins)
+        crate::Lineage::new()
+            .reshaping(&self.reshaped)
+            .through_joins(&self.joins)
     }
 }
 

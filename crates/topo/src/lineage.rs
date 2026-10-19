@@ -94,8 +94,11 @@ pub enum LineageError {
 
 /// **One op's lineage** (D1): the [`Fate`] of each input cell it
 /// touched, read through the joins it ended with. A cell no row names
-/// is kept under its key; where the result does not hold it there, the
-/// lineage does not cover it and the carry refuses
+/// is kept under its key, geometry and all: the carry lands a record on
+/// kept cells unread, so an op that keeps a cell's key and changes its
+/// geometry states it reshaped ([`Self::reshaping`], over
+/// [`reshaped_cells`]). Where the result does not hold a cell no row
+/// names, the lineage does not cover it and the carry refuses
 /// ([`crate::CarryRefusal::Unmapped`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Lineage {
@@ -184,6 +187,27 @@ impl Lineage {
         };
         self.rows.insert(cell, merged);
         Ok(self)
+    }
+
+    /// The lineage with each of `cells` whose fate no row states read as
+    /// **reshaped**: the op kept its key and changed its carrier, extent
+    /// or region ([`reshaped_cells`]), so it is divided into its own
+    /// image, the rest removed. A record on it goes to the census's
+    /// confirm and lands where the reshaped cell still meets the other,
+    /// and is consumed where it no longer does: its touch went with the
+    /// geometry the op moved.
+    #[must_use]
+    pub fn reshaping(mut self, cells: &[Cell]) -> Self {
+        for &cell in cells {
+            self.rows.entry(cell).or_insert_with(|| {
+                Fate::Divided(Division {
+                    pieces: vec![cell],
+                    minted: Vec::new(),
+                    remainder: Remainder::Removed,
+                })
+            });
+        }
+        self
     }
 
     /// The lineage read through `joins`, the joins the op ended with:
@@ -292,6 +316,92 @@ impl Fate {
                 })
         )
     }
+}
+
+/// **The cells an op reshaped**: each cell of `before` that `after`
+/// holds under its key with its geometry changed, read through `joins`,
+/// the joins the op ended with. An op writes new geometry under a new
+/// key, so a changed key is a changed carrier or point:
+///
+/// - a vertex whose point key changed;
+/// - an edge whose curve key changed, or either of whose ends is
+///   another point now;
+/// - a face whose surface key or sense changed, whose boundary is
+///   other edges now (read through the joins), or one of whose boundary
+///   vertices or edges is another point or curve now.
+///
+/// A cell the op kept under its key and none of these is geometrically
+/// itself, so a record on it lands by lineage unread; every other cell
+/// an op keeps the key of is stated reshaped ([`Lineage::reshaping`]).
+#[must_use]
+pub fn reshaped_cells<T: geom_core::Real>(
+    before: &crate::Body<T>,
+    after: &crate::Body<T>,
+    joins: &[EdgeJoin],
+) -> Vec<Cell> {
+    use crate::entity::{EdgeKey, PointKey};
+    let point = |body: &crate::Body<T>, v| body.get_vertex(v).map(|d| d.point);
+    let ends = |body: &crate::Body<T>, e: EdgeKey| -> Option<[Option<PointKey>; 2]> {
+        let edge = body.get_edge(e)?;
+        Some([edge.he_plus, edge.he_minus].map(|h| {
+            body.get_half_edge(h)
+                .and_then(|h| point(body, h.start))
+        }))
+    };
+    let boundary = |body: &crate::Body<T>| {
+        let mut out: BTreeMap<FaceKey, BTreeSet<EdgeKey>> = BTreeMap::new();
+        for (_, h) in body.half_edges() {
+            if let Some(f) = body.get_loop(h.parent_loop).map(|l| l.face) {
+                out.entry(f).or_default().insert(h.edge);
+            }
+        }
+        out
+    };
+    let mut out = Vec::new();
+    for (v, d) in before.vertices() {
+        if point(after, v).is_some_and(|p| p != d.point) {
+            out.push(Cell::Vertex(v));
+        }
+    }
+    for (e, d) in before.edges() {
+        let Some(now) = after.get_edge(e) else {
+            continue;
+        };
+        if now.curve != d.curve || ends(after, e) != ends(before, e) {
+            out.push(Cell::Edge(e));
+        }
+    }
+    let (was, is) = (boundary(before), boundary(after));
+    for (f, d) in before.faces() {
+        let Some(now) = after.get_face(f) else {
+            continue;
+        };
+        let edges = was.get(&f).cloned().unwrap_or_default();
+        let joined: BTreeSet<EdgeKey> = edges
+            .iter()
+            .map(|&e| match crate::boolean::joined_cell(joins, Cell::Edge(e)) {
+                Cell::Edge(k) => k,
+                _ => e,
+            })
+            .collect();
+        let held = |e: &EdgeKey| after.get_edge(*e).is_some();
+        let reshaped = now.surface != d.surface
+            || now.sense != d.sense
+            || is.get(&f).cloned().unwrap_or_default() != joined
+            || edges.iter().filter(|e| held(e)).any(|e| {
+                after.get_edge(*e).map(|n| n.curve) != before.get_edge(*e).map(|o| o.curve)
+            })
+            || edges
+                .iter()
+                .filter_map(|&e| before.get_edge(e))
+                .flat_map(|o| [o.he_plus, o.he_minus])
+                .filter_map(|h| before.get_half_edge(h).map(|h| h.start))
+                .any(|v| point(after, v).is_some_and(|p| Some(p) != point(before, v)));
+        if reshaped {
+            out.push(Cell::Face(f));
+        }
+    }
+    out
 }
 
 /// **A cell's descent**: the cell and every cell the division rows

@@ -462,8 +462,9 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<crate::replace_face::OffsetOutcome, ReplaceFaceError<T>> {
-    offset_charts_together_staged(body, moves, band, tol, true)
-        .map(|joins| crate::replace_face::OffsetOutcome { joins })
+    let before = body.clone();
+    let joins = offset_charts_together_staged(body, moves, band, tol, true)?;
+    Ok(crate::replace_face::OffsetOutcome::of(&before, body, joins))
 }
 
 /// [`offset_charts_together`], ending with the join where `join` is set. Unset, the
