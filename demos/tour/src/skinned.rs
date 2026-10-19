@@ -127,8 +127,8 @@ pub fn narration(tol: Tol) {
         let (nu, nv) = wall.control_counts();
         println!(
             "   wall {j}: degree {}x{} NURBS, {nu}x{nv} control points, weights {}",
-            wall.knots_u().degree(),
-            wall.knots_v().degree(),
+            wall.knots_u_f64_interim().degree(),
+            wall.knots_v_f64_interim().degree(),
             if wall.weights().iter().all(|w| *w == 1.0) {
                 "all 1 (integral)"
             } else {

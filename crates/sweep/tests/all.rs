@@ -68,6 +68,8 @@ mod a_flank_touch_at_a_shared_corner;
 mod a_flipped_shallow_dimple;
 #[path = "a_loft_computes_its_walls_in_t.rs"]
 mod a_loft_computes_its_walls_in_t;
+#[path = "a_minted_vertex_on_a_curved_face.rs"]
+mod a_minted_vertex_on_a_curved_face;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
 mod a_move_through_a_neighbour_inverts_the_body;
 #[path = "a_pierce_held_in_a_curved_face.rs"]
@@ -82,6 +84,8 @@ mod a_plane_holding_a_conic_tangent_at_a_vertex;
 mod a_plane_moved_to_a_cone_apex;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
+#[path = "a_rim_in_a_face_beside_a_resting_ridge.rs"]
+mod a_rim_in_a_face_beside_a_resting_ridge;
 #[path = "a_ring_on_a_cone_face.rs"]
 mod a_ring_on_a_cone_face;
 #[path = "a_ring_on_a_sphere_face.rs"]
@@ -94,6 +98,8 @@ mod a_ruling_through_a_box_corner_edge;
 mod a_seam_region_carrying_both_poles;
 #[path = "a_seam_region_covering_the_sphere_twice.rs"]
 mod a_seam_region_covering_the_sphere_twice;
+#[path = "a_short_shallow_strut_between_wide_walls_is_a_corner.rs"]
+mod a_short_shallow_strut_between_wide_walls_is_a_corner;
 #[path = "a_split_through_a_wrap_edges_vertex.rs"]
 mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]
@@ -116,6 +122,8 @@ mod an_annular_tube_through_a_plate;
 mod an_arc_rim_picks_the_row_it_lies_on;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
 mod an_arc_tangent_at_a_boolean_vertex;
+#[path = "an_arcs_sweep_structure_is_certified_for_every_member.rs"]
+mod an_arcs_sweep_structure_is_certified_for_every_member;
 #[path = "an_inside_out_thin_tube_operand.rs"]
 mod an_inside_out_thin_tube_operand;
 #[path = "at_rest_pcurve_faces.rs"]
@@ -194,6 +202,8 @@ mod offset_restates_a_neighbour_chart_rim;
 mod one_door_for_coincident_sections;
 #[path = "one_segment_loop.rs"]
 mod one_segment_loop;
+#[path = "onpair_rim_pcurves.rs"]
+mod onpair_rim_pcurves;
 #[path = "operand_gate_pose.rs"]
 mod operand_gate_pose;
 #[path = "operand_gate_support_plates.rs"]
@@ -286,6 +296,8 @@ mod topo_ring_nesting;
 mod torax_axial;
 #[path = "torax_interval.rs"]
 mod torax_interval;
+#[path = "torus_region_probe.rs"]
+mod torus_region_probe;
 #[path = "transform_nurbs_walls.rs"]
 mod transform_nurbs_walls;
 #[path = "trim_3_chart_bound_bodies.rs"]
@@ -303,6 +315,8 @@ mod verbs_shell;
 
 #[path = "a_thin_wall_bounds_the_band.rs"]
 mod a_thin_wall_bounds_the_band;
+#[path = "a_tiny_lune_on_a_wide_sphere_reads_its_own_extent.rs"]
+mod a_tiny_lune_on_a_wide_sphere_reads_its_own_extent;
 #[path = "axis_lap.rs"]
 mod axis_lap;
 #[path = "band_annulus_host_boundary.rs"]
@@ -879,6 +893,8 @@ mod mate2_r2_probes;
 mod mate7a_r1_probes;
 #[path = "mate7a_torus_rest.rs"]
 mod mate7a_torus_rest;
+#[path = "near_tangent_census_edge_face_lane.rs"]
+mod near_tangent_census_edge_face_lane;
 #[path = "near_tangent_pierce_poses.rs"]
 mod near_tangent_pierce_poses;
 #[path = "pi_seam_and_kiss_through_the_boolean.rs"]

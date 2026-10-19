@@ -21,7 +21,10 @@ and a `GlueVerdict` only by the kernel from its own face-pair rows
 boolean decided. What the verdict does not carry is which bodies it
 judged:
 
-- `given_at(a)` takes the A face from the caller. The union fold
+- `given_at(held, a)` takes the A face from the caller, and since
+  PR 5303 also `held`, which side of the verdict that face stands for
+  (a union's judged pair may have the joining member as operand A).
+  The union fold
   passes the accumulation faces whose lineage holds the judged face
   (`given_pairs` in `crates/editor-core/src/eval/wire.rs`), and the
   kernel cannot check that claim: the lineage lives in

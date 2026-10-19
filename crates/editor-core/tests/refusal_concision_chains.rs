@@ -97,8 +97,9 @@ pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
     ("Check/", "check connectedness"),
     ("Check/", "check chart-coherence"),
     ("Check/", "placement 000000000004 output 0"),
-    // The mate solve names the mate it refused (`mate 9: …`).
-    ("Mate/", "mate 000000000009"),
+    // The mate solve names the constraint it refused (`constraint #9 of
+    // node 7: …`).
+    ("Mate/", "constraint #9 of node 000000000007"),
     // A pair's corner list names each corner it could not fillet.
     ("ProfileReplay/Path/NoCornerOfPair(", "at corner"),
 ];
@@ -195,81 +196,37 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/wire/wire-refusals-short-of-the-shape-guard.md
     "AssertionDimension",
     "BlendSelectionEmpty",
-    "SelectKind",
-    "SelectResolve/Ambiguous",
-    "SelectResolve/Vanished",
     "CrossingUnverified",
     "CurvedSolidFrontier",
     "DegenerateDirection",
     "EmptyHalf",
     "EmptyOperand",
-    "Expr",
-    "Expr/ContinuousExprInCountEval",
-    "Expr/CountExprInContinuousEval",
-    "Expr/CountOverflow",
-    "Expr/CountToScalarOutOfRange",
-    "Expr/NonFiniteResult",
-    "Expr/Unlowered",
-    "Expr/UnresolvedVar",
-    "Expr/VarKindMismatch",
-    "SelectKind",
     "FaceFrameNotPlanar",
     "FaceFrameReadback/Dangling",
     "FaceFrameReadback/NoCanonicalFrame",
     "FaceFrameReadback/NoCarrier",
-    "SelectResolve/Ambiguous",
-    "SelectResolve/Vanished",
     "FrameDirection/Degenerate",
     "InstanceOutOfRange",
     "MeasureClearanceRefused",
-    "MeasureNonFinite",
     "MeasureNotParallel",
-    "SelectResolve/Ambiguous",
-    "SelectResolve/Vanished",
-    "MeasureRefUnreadable/Ambiguous",
-    "MeasureRefUnreadable/NoBodies",
-    "MeasureRefUnreadable/NoSuchBody",
-    "MeasureRefUnreadable/NoSuchName",
-    "MeasureRefUnreadable/NodeFailed",
-    "MeasureRefUnreadable/NodeNotEvaluated",
-    "MeasureRefUnreadable/NodePoisoned",
     "MeasureRefUnreadable/Readback",
-    "MeasureRefUnreadable/WholeBody",
-    "MeasureRefUnreadable/WrongKind",
+    // `NodeStanding`'s failed and poisoned repairs, which a mate
+    // cluster's refusal makes false:
+    // work/wirehold/kernel-standing-names-a-cluster-refused-node-as-its-own-failure.md
+    "MeasureRefUnreadable/NodeFailed",
+    "MeasureRefUnreadable/NodePoisoned",
     "MeasureUnsupported",
     "MissingInput",
-    "MissingSlot",
-    "Naming/Duplicate",
-    "Naming/Emission",
-    "Naming/MissingUpstream",
-    "Naming/SeamVertexParentage",
-    "Naming/SharedRim",
-    "Naming/SplitLineage",
-    "Naming/Unnamed",
-    "NonPositiveCount",
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
-    "PayloadExpr",
     "PlacementRule/CountSpelling",
     "PlacementRule/ImproperFrame",
     "PlacementRule/NoPlacements",
     "PlacementRule/NonFiniteFrame",
     "PlacementsUncertified",
-    "ProfileAnchor",
-    "ProfileLaneReplay(Flipped)",
-    "ProfileLaneReplay(None)",
-    "ProfilePieces",
-    "Seed/CountVar",
-    "Seed/TangentUnrepresentable",
-    "Seed/UnknownVar",
     "ShellLaneUnsupported",
-    "SelectKind",
-    "SelectResolve/Ambiguous",
-    "SelectResolve/Vanished",
     "ToleranceConflict",
     "UnschedulableCycle",
-    "VerbArity",
-    "WitnessBifurcation",
     "WrongOperand",
     // work/paths/paths-refusals-short-of-the-shape-guard.md
     "Profile/DegenerateSegment",
@@ -281,7 +238,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Profile/NonSimple",
     "Profile/RayCastingExhausted",
     "Profile/SliverLoop",
-    "Profile/Structure",
     "Profile/TangencyContradicted",
     "ProfileReplay/Path/ArcCenterNotEquidistant",
     "ProfileReplay/Path/ArcLegOnOpenFillet",
@@ -300,7 +256,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/OverdeterminedJunction",
     "ProfileReplay/Path/PolygonTooFewVertices",
     "ProfileReplay/Path/SeamRetrimsArcFirstSide",
-    "ProfileReplay/Path/Structure",
     "ProfileReplay/Path/UnderdeterminedLeg",
     "ProfileReplay/Path/ZeroDirection",
     "ProfileReplay/Transition",
@@ -444,6 +399,37 @@ fn the_bare_recourses_are_geom_cores_constants() {
             geom_core::COINCIDENCE_RECOURSE,
         ]
     );
+}
+
+/// A vanished name's sentence ends as its diagnosis says: a cascade
+/// sends the reader to the name upstream, and a diagnosis that states
+/// its own repair (the sketch's branch selection) is not followed by a
+/// second one.
+#[test]
+fn a_vanished_names_ending_is_its_diagnosiss() {
+    let rows: std::collections::BTreeMap<String, String> = editor_payloads()
+        .into_iter()
+        .map(|(name, kind)| (name, as_the_viewer_shows_it(kind)))
+        .collect();
+    let cascade = &rows["SelectResolve/Vanished(Cascade)"];
+    assert!(
+        cascade.ends_with(
+            "a face it derives from vanished upstream first, and that is the root cause. \
+             Recourse: repair the face it derives from first"
+        ),
+        "{cascade}"
+    );
+    let witness = &rows["SelectResolve/Vanished(WitnessBifurcation)"];
+    assert!(
+        witness.ends_with(
+            "Recourse: move the sketch off the near-singular configuration, or re-solve to \
+             record a fresh witness"
+        ),
+        "{witness}"
+    );
+    for text in [cascade, witness] {
+        assert_eq!(text.matches("Recourse:").count(), 1, "{text}");
+    }
 }
 
 /// `test_utils::refusal::GENERIC_SUBJECTS` restates the doors' shared
@@ -708,18 +694,32 @@ fn drawn_lines(kind: NodeErrorKind) -> Vec<String> {
 }
 
 /// **Every line a carried refusal draws fits where it is drawn.** A
-/// part whose root failed and a mate whose placer refused each name
-/// that node and point at it; the refusal they carry is drawn as its
-/// own line, one per document level, and never inside theirs.
+/// part whose root failed and a mate whose pose did not evaluate each
+/// name that node and point at it; the refusal they carry is drawn as
+/// its own line, one per document level, and never inside theirs.
 ///
 /// Held on the payloads that stress it: the longest refusal on this
 /// roster, carried one document down, three documents down, and under
-/// a mate's placer. Each carrying line is held to the budget and must
-/// not quote what it carries; the carried line is the roster row's own
-/// text, so it keeps that row's name and its filed allowances.
+/// a mate's unevaluated pose. Each carrying line is held to the budget
+/// and must not quote what it carries; the carried line is the roster
+/// row's own text, so it keeps that row's name and its filed
+/// allowances.
+///
+/// *Breaks if* a carrying line quotes what it carries, outgrows the
+/// budget, or a mate's carried level is numbered outside its part.
 #[test]
 fn every_carried_refusal_draws_within_the_budget_at_every_line() {
     use editor_core::{MateFault, MateSide, PartFault};
+    let unevaluated = |refusal: NodeErrorKind| {
+        NodeErrorKind::Mate(Box::new(MateFault::SideUnevaluated {
+            mate: editor_core::MateRef::new(
+                RecipeNodeId::new(0, tagged(9)),
+                editor_core::ConstraintId(editor_core::MintId::new(1, 0)),
+            ),
+            side: MateSide::To,
+            refusal: Box::new(refusal.into()),
+        }))
+    };
     let longest = node_refusals()
         .into_iter()
         .map(|(name, kind)| {
@@ -758,17 +758,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
             3,
             part(7, part(4, part(3, inner()))),
         ),
-        (
-            "Carried/PlacerRefused",
-            1,
-            NodeErrorKind::Mate(Box::new(MateFault::PlacerRefused {
-                mate: RecipeNodeId::new(0, tagged(9)),
-                side: MateSide::B,
-                placer: RecipeNodeId::new(0, tagged(4)),
-                error: inner().into(),
-                placer_row: editor_core::PlacerRow::Silent,
-            })),
-        ),
+        ("Carried/SideUnevaluated", 1, unevaluated(inner())),
     ];
     let mut rows = Vec::new();
     for (case, depth, kind) in cases {
@@ -795,25 +785,9 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
     let problems = over_budget(&rows);
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 
-    // A placer whose own row states its refusal is pointed at and not
-    // carried: the refusal is drawn once, on the placer's row.
-    let placer = |placer_row| {
-        NodeErrorKind::Mate(Box::new(MateFault::PlacerRefused {
-            mate: RecipeNodeId::new(0, tagged(9)),
-            side: MateSide::B,
-            placer: RecipeNodeId::new(0, tagged(4)),
-            error: inner().into(),
-            placer_row,
-        }))
-    };
-    assert_eq!(
-        drawn_lines(placer(editor_core::PlacerRow::States)).len(),
-        1,
-        "a placer that states its own refusal is not carried"
-    );
     // A mate's carried level inside a part is numbered in that part, as
     // the part's own level is.
-    let in_part = part(7, placer(editor_core::PlacerRow::Silent));
+    let in_part = part(7, unevaluated(inner()));
     let documents: Vec<_> = in_part
         .carried_chain()
         .map(|level| (level.document.doc_ref(), level.node))
@@ -823,9 +797,9 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
         documents,
         vec![
             (Some(&part_ref), RecipeNodeId::new(0, tagged(7))),
-            (Some(&part_ref), RecipeNodeId::new(0, tagged(4))),
+            (Some(&part_ref), RecipeNodeId::new(0, tagged(9))),
         ],
-        "the placer's level is in the part the mate is in"
+        "the mate's carried level is in the part the mate is in"
     );
 }
 
@@ -951,7 +925,6 @@ fn node_refusals() -> Vec<(String, NodeErrorKind)> {
     rows.extend(document_arms());
     rows.extend(mate());
     rows.extend(shell());
-    rows.extend(found_arms());
     rows
 }
 
@@ -982,7 +955,15 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
                 structure: None,
             },
         ),
-        row("ProfileAnchor", NodeErrorKind::ProfileAnchor { loop_: 0 }),
+        row("ProfileAnchor", NodeErrorKind::ProfileAnchor),
+        row(
+            "ProfileRecordMissing(None)",
+            NodeErrorKind::ProfileRecordMissing { loop_: None },
+        ),
+        row(
+            "ProfileRecordMissing(Some)",
+            NodeErrorKind::ProfileRecordMissing { loop_: Some(1) },
+        ),
         row(
             "ProfilePieces",
             NodeErrorKind::ProfilePieces {
@@ -1087,6 +1068,50 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
+            "NoSuchCopy",
+            NodeErrorKind::NoSuchCopy {
+                input: RecipeNodeId::new(0, tagged(3)),
+                key: Box::new(editor_core::CopyKey::Read(editor_core::VarId::new(
+                    0,
+                    tagged(2),
+                ))),
+            },
+        ),
+        row(
+            "CopiesShareAKey",
+            NodeErrorKind::CopiesShareAKey {
+                key: Box::new(editor_core::CopyKey::Read(editor_core::VarId::new(
+                    0,
+                    tagged(2),
+                ))),
+            },
+        ),
+        row(
+            "CopyShape/Family",
+            NodeErrorKind::CopyShape {
+                input: RecipeNodeId::new(0, tagged(3)),
+                key: Box::new(editor_core::CopyKey::Part {
+                    placement: RecipeNodeId::new(0, tagged(4)),
+                    within: Box::new(editor_core::CopyKey::Read(editor_core::VarId::new(
+                        0,
+                        tagged(2),
+                    ))),
+                }),
+                family: true,
+            },
+        ),
+        row(
+            "CopyShape/OneBody",
+            NodeErrorKind::CopyShape {
+                input: RecipeNodeId::new(0, tagged(3)),
+                key: Box::new(editor_core::CopyKey::Read(editor_core::VarId::new(
+                    0,
+                    tagged(2),
+                ))),
+                family: false,
+            },
+        ),
+        row(
             "DegenerateDirection",
             NodeErrorKind::DegenerateDirection {
                 role: "extrude direction",
@@ -1148,8 +1173,12 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "NonPositiveCount",
-            NodeErrorKind::NonPositiveCount { count: 0 },
+            "CountOutOfRange",
+            NodeErrorKind::CountOutOfRange {
+                slot: SlotId::VDegree,
+                count: -1,
+                admits: 0..=i64::MAX,
+            },
         ),
         row(
             "NegativeSpacing",
@@ -2115,9 +2144,9 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "lever arm",
             escalated(CertCheck::TransversalityArm, in_band),
-            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
-             there, or, if this length or the gap its faces open is intended, tighten the \
-             tolerance below 5e-10 m",
+            "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
+             tightly there, or, if this length or the gap its faces open is intended, \
+             tighten the tolerance below 5e-10 m",
         ),
         (
             "lever arm, enclosure",
@@ -2125,9 +2154,9 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                 CertCheck::TransversalityArm,
                 MarginDiag::enclosure(2.0e-9, 5.0e-9),
             ),
-            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
-             there, or, if this length or the gap its faces open is intended, tighten the \
-             tolerance below 2e-10 m",
+            "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
+             tightly there, or, if this length or the gap its faces open is intended, \
+             tighten the tolerance below 2e-10 m",
         ),
         (
             "no lever arm",
@@ -2138,9 +2167,9 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                     band,
                 }),
             },
-            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
-             there; an edge of no length or a cone's point leaves no angle to measure; a radius \
-             below zero is a defect",
+            "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
+             tightly there; faces of no extent or a cone's point leave no angle to measure; \
+             a radius below zero is a defect",
         ),
         (
             "spline meter turns back",
@@ -2211,8 +2240,9 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
                 text,
                 "node 000000000005 failed: the transform op refused: an edge the map moved failed \
                  re-certification: the transversality margin at sample 4 escalated: margin 5e-9 \
-                 lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the surfaces cross at a clearer \
-                 angle, or, if this angle is intended, tighten the tolerance below 5e-10 m"
+                 lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the \
+                 surfaces cross at a clearer angle, or, if this angle is intended, tighten the \
+                 tolerance below 5e-10 m"
             );
         }
         assert_eq!(
@@ -2504,6 +2534,15 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
             },
         ),
         ("PathTangentReversal", E::PathTangentReversal { station: 4 }),
+        ("RowMotionUndecided", E::RowMotionUndecided { row: 1 }),
+        (
+            "ArcSweepUndecided",
+            E::ArcSweepUndecided {
+                section: 1,
+                which: sweep::ArcSweepDecision::SubArcCount,
+                margin: geom_core::MarginDiag::enclosure(-0.25, 0.5),
+            },
+        ),
         ("NoParameterStep", E::NoParameterStep { section: 2 }),
         (
             "Fit",
@@ -2556,8 +2595,8 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("SectionStructure", E::SectionStructure),
-        ("PlacementNotAPoint", E::PlacementNotAPoint { section: 1 }),
-        ("SectionNotAPoint", E::SectionNotAPoint { section: 1 }),
+        ("PlacementNotFinite", E::PlacementNotFinite { section: 1 }),
+        ("SectionNotFinite", E::SectionNotFinite { section: 1 }),
         ("ReversedStacking", E::ReversedStacking { slab: 1 }),
         ("DegenerateStacking", E::DegenerateStacking { slab: 1 }),
         ("FarSectionNotForward", E::FarSectionNotForward { slab: 1 }),
@@ -2930,6 +2969,7 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
     [
         ("Band", E::Band(band_error())),
         ("EmptyProfile", E::EmptyProfile),
+        ("PlaneNotFinite", E::PlaneNotFinite),
         ("EmptyLoop", E::EmptyLoop { loop_index: 0 }),
         ("DegenerateSegment", E::DegenerateSegment(a)),
         ("NearFullArc", E::NearFullArc(a)),
@@ -3409,6 +3449,19 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "OutputRead",
+            EvalError::OutputRead {
+                var: editor_core::VarId::new(0, tagged(7)),
+            },
+        ),
+        (
+            "DefinitionRefused",
+            EvalError::DefinitionRefused {
+                var: editor_core::VarId::new(0, tagged(7)),
+                source: Box::new(EvalError::NonFiniteResult),
+            },
+        ),
+        (
             "VarKindMismatch",
             EvalError::VarKindMismatch {
                 var: editor_core::VarId::new(0, tagged(7)),
@@ -3485,6 +3538,15 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "SeedOnNonFreeVar",
+            SeedError::SeedOnNonFreeVar {
+                var: editor_core::SpokenVar::new(
+                    editor_core::VarId::new(0, tagged(7)),
+                    Some(VarName::from_static("area")),
+                ),
+            },
+        ),
+        (
             "TangentUnrepresentable",
             SeedError::TangentUnrepresentable {
                 var: editor_core::SpokenVar::new(
@@ -3519,6 +3581,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "Duplicate",
             NamingError::Duplicate {
                 name: Box::new(name()),
+            },
+        ),
+        (
+            "KindMismatch",
+            NamingError::KindMismatch {
+                name: Box::new(name()),
+                found: EntityKind::Vertex,
             },
         ),
         (
@@ -3572,6 +3641,36 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     ];
     let resolve = || {
         [
+            (
+                "Vanished(Cascade)",
+                ResolveError::Vanished {
+                    name: name(),
+                    diagnosis: Diagnosis::Cascade { through: name() },
+                    last_good: None,
+                },
+            ),
+            (
+                "Vanished(WitnessBifurcation)",
+                ResolveError::Vanished {
+                    name: name(),
+                    diagnosis: Diagnosis::WitnessBifurcation(Box::new(
+                        editor_core::WitnessBifurcation {
+                            kind: editor_core::BifurcationKind::AmbiguousBasin,
+                            margin: editor_core::BranchMarginEvidence {
+                                margin: 3.0e-10,
+                                band_zero: 1.0e-9,
+                                band_escalate: 1.0e-8,
+                            },
+                            implicated: vec![editor_core::Implicated::Constraint(2)],
+                            witness_age: editor_core::WitnessAge {
+                                solved_under: Vec::new(),
+                                at_solve: Vec::new(),
+                            },
+                        },
+                    )),
+                    last_good: None,
+                },
+            ),
             (
                 "Vanished",
                 ResolveError::Vanished {
@@ -3708,29 +3807,23 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             }),
         ),
         row(
-            "Unplaced/NoOffset",
-            NodeErrorKind::Unplaced {
-                group: RecipeNodeId::new(0, 6),
-                cause: editor_core::Unplaced::NoOffset,
-            },
-        ),
-        row(
-            "Unplaced/DeadGauge",
-            NodeErrorKind::Unplaced {
-                group: RecipeNodeId::new(0, 6),
-                cause: editor_core::Unplaced::DeadGauge {
-                    gauge: RecipeNodeId::new(0, 2),
+            "SpaceMismatch/WorldAndLoose",
+            NodeErrorKind::SpaceMismatch {
+                a: editor_core::Space::World,
+                b: editor_core::Space::Loose {
+                    root: RecipeNodeId::new(0, tagged(6)),
                 },
             },
         ),
         row(
-            "PlacementRefused",
-            NodeErrorKind::PlacementRefused {
-                node: RecipeNodeId::new(0, 2),
-                error: NodeErrorKind::EmptyOperand {
-                    input: RecipeNodeId::new(0, 1),
-                }
-                .into(),
+            "SpaceMismatch/TwoLoose",
+            NodeErrorKind::SpaceMismatch {
+                a: editor_core::Space::Loose {
+                    root: RecipeNodeId::new(0, tagged(6)),
+                },
+                b: editor_core::Space::Loose {
+                    root: RecipeNodeId::new(0, tagged(7)),
+                },
             },
         ),
         row(
@@ -3813,6 +3906,12 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
                 through: RecipeNodeId::new(0, tagged(2)),
             }),
         ),
+        (
+            "NodeNotInDocument",
+            InterrogateError::Standing(NodeStanding::NotInDocument {
+                node: RecipeNodeId::new(0, tagged(3)),
+            }),
+        ),
         ("NoSuchName", InterrogateError::NoSuchName),
         ("Ambiguous", InterrogateError::Ambiguous { candidates: 2 }),
         (
@@ -3828,6 +3927,12 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             InterrogateError::NoBodies { payload: "profile" },
         ),
         ("NoSuchBody", InterrogateError::NoSuchBody { index: 2 }),
+        (
+            "SeveralOutputs",
+            InterrogateError::SeveralOutputs {
+                node: RecipeNodeId::new(0, tagged(3)),
+            },
+        ),
         (
             "Readback",
             InterrogateError::Readback(ReadbackError::NoCarrier),
@@ -4043,10 +4148,13 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
 }
 
 fn mate() -> Vec<(String, NodeErrorKind)> {
-    use editor_core::{Clash, DocumentId, LeverRefusal, MateFault as M, MateSide, Subgroup};
-    use geom_core::{FrameError, FrameInput};
-    use payloads::*;
+    use editor_core::{
+        Coord, DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, SlideAxis, VarKind,
+    };
     let n = |id| RecipeNodeId::new(0, tagged(id));
+    let c = |id: u32| editor_core::ConstraintId(editor_core::MintId::new(id, 0));
+    // Constraint `id` of placement 7, the copy every row's bundle places.
+    let r = |id: u32| editor_core::MateRef::new(n(7), c(id));
     [
         (
             "PosesOfAnotherDocument",
@@ -4055,133 +4163,78 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
                 found: DocumentId::derive("b"),
             },
         ),
+        ("ClassNotAdmitted", M::ClassNotAdmitted { mate: r(9) }),
         (
-            "Frame",
-            M::Frame {
-                mate: n(9),
-                side: MateSide::A,
-                error: FrameError::Degenerate {
-                    input: FrameInput::Aim,
-                    indeterminate: None,
+            "Overconstrained",
+            M::Overconstrained {
+                placement: n(7),
+                constraints: vec![c(8), c(9)],
+                free: 0,
+            },
+        ),
+        (
+            "TargetsDiffer",
+            M::TargetsDiffer {
+                placement: n(7),
+                constraints: vec![c(8), c(9)],
+            },
+        ),
+        ("NotOnTheCopy", M::NotOnTheCopy { mate: r(9) }),
+        (
+            "KindsDiffer",
+            M::KindsDiffer {
+                mate: r(9),
+                on: VarKind::Plane,
+                to: VarKind::Axis,
+            },
+        ),
+        (
+            "WorldRead",
+            M::WorldRead {
+                mate: r(9),
+                fault: editor_core::WorldReadFault::Role {
+                    role: editor_core::pose::PoseRole::Normal,
+                    found: VarKind::Frame,
                 },
             },
         ),
-        ("ClassNotAdmitted", M::ClassNotAdmitted { mate: n(9) }),
         (
-            "TableLacks",
-            M::TableLacks {
-                mate: n(9),
-                what: "a clocking rider on a planar rest",
+            "ValueNamesNoMate",
+            M::ValueNamesNoMate {
+                value: r(9),
+                mate: c(8),
             },
         ),
         (
-            "Indeterminate",
-            M::Indeterminate {
-                mate: n(9),
-                diag: Box::new(diag()),
+            "NotAFreedom",
+            M::NotAFreedom {
+                value: r(9),
+                coord: Coord::Slide(SlideAxis::Z),
+                kind: VarKind::Plane,
             },
         ),
         (
-            "Band",
-            M::Band {
-                error: band_error(),
+            "NoChart",
+            M::NoChart {
+                value: r(9),
+                why: NoChartWhy::PointRotation,
             },
         ),
         (
-            "Contradictory",
-            M::Contradictory {
-                held: n(8),
-                added: n(9),
-                predicate: "mate_coaxial",
-                clash: Clash::Length { metres: 0.002 },
+            "NoChart/TwoBodies",
+            M::NoChart {
+                value: r(9),
+                why: NoChartWhy::TwoBodies,
             },
         ),
         (
-            "Under",
-            M::Under {
-                mate: n(9),
-                parent: n(6),
-                child: n(7),
-                residual: Subgroup::Se3,
-            },
-        ),
-        (
-            "DanglingHead",
-            M::DanglingHead {
-                mate: n(9),
-                side: MateSide::B,
-                head: n(4),
-            },
-        ),
-        (
-            "PlacerRefused",
-            M::PlacerRefused {
-                mate: n(9),
-                side: MateSide::B,
-                placer: n(4),
-                error: NodeErrorKind::EmptyOperand { input: n(3) }.into(),
-                placer_row: editor_core::PlacerRow::Silent,
-            },
-        ),
-        (
-            "PartSelectsAnotherCopy",
-            M::PartSelectsAnotherCopy {
-                mate: n(9),
-                side: MateSide::A,
-                part: n(6),
-                named: 2,
-                selected: 5,
-            },
-        ),
-        (
-            "SelfMate",
-            M::SelfMate {
-                mate: n(9),
-                instance: n(6),
-            },
-        ),
-        (
-            "FaceUnresolved",
-            M::FaceUnresolved {
-                mate: n(9),
-                side: MateSide::A,
-                refusal: Box::new(editor_core::FaceRefusal::Reach {
-                    instance: n(6),
-                    part: doc_ref(),
-                    face: editor_core::FaceName::new(editor_core::StableName {
-                        kind: editor_core::EntityKind::Face,
-                        node: n(3),
-                        path: vec![],
-                    })
-                    .expect("a face"),
-                    refusal: editor_core::FacePoseRefusal::NoSuchName,
-                }),
-            },
-        ),
-        (
-            "FaceUnresolved/NoPartFace",
-            M::FaceUnresolved {
-                mate: n(9),
-                side: MateSide::A,
-                refusal: Box::new(editor_core::FaceRefusal::NoPartFace {
-                    instance: n(6),
-                    head: editor_core::FaceName::new(editor_core::StableName {
-                        kind: editor_core::EntityKind::Face,
-                        node: n(6),
-                        path: vec![],
-                    })
-                    .expect("a face"),
-                }),
-            },
-        ),
-        (
-            "FrameUnevaluated",
-            M::FrameUnevaluated {
-                mate: n(9),
-                side: MateSide::B,
+            "SideUnevaluated",
+            M::SideUnevaluated {
+                mate: r(9),
+                side: MateSide::To,
                 refusal: Box::new(
-                    NodeErrorKind::DegenerateDirection {
-                        role: "transform rotation axis",
+                    NodeErrorKind::PoseDegenerate {
+                        construction: editor_core::pose::PoseConstruction::Through,
                     }
                     .into(),
                 ),
@@ -4190,42 +4243,12 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
         (
             "Unleverable",
             M::Unleverable {
-                mate: n(9),
+                mate: r(9),
                 refusal: Box::new(LeverRefusal::Reach {
                     instance: n(6),
                     part: doc_ref(),
                     refusal: editor_core::ReachRefusal::NoExtent,
                 }),
-            },
-        ),
-        (
-            "OffsetDisagrees",
-            M::OffsetDisagrees {
-                instance: n(7),
-                root: n(6),
-                predicate: "mate_member_translation_zero",
-                clash: Clash::Length { metres: 0.002 },
-            },
-        ),
-        (
-            "OffsetUnchecked/Placement",
-            M::OffsetUnchecked {
-                instance: n(7),
-                cause: Box::new(editor_core::OffsetCheck::Placement {
-                    node: n(3),
-                    error: NodeErrorKind::EmptyOperand { input: n(2) }.into(),
-                }),
-            },
-        ),
-        (
-            "OffsetUnchecked/Unleverable",
-            M::OffsetUnchecked {
-                instance: n(7),
-                cause: Box::new(editor_core::OffsetCheck::Unleverable(LeverRefusal::Reach {
-                    instance: n(7),
-                    part: doc_ref(),
-                    refusal: editor_core::ReachRefusal::NoExtent,
-                })),
             },
         ),
     ]
@@ -4771,61 +4794,6 @@ const REPLACE_FACE_ARMS: [&str; 42] = [
     "ResultNotClosed",
 ];
 
-/// The four arms that say what a designation turned out to be carry a
-/// `Found` only the entity door can mint, so they are raised through
-/// real documents: a square prism's face, edge and vertex designated
-/// where another kind is wanted.
-fn found_arms() -> Vec<(String, NodeErrorKind)> {
-    use crate::fixture::{self, ang, fname, insert, len, on_frame, square, wall};
-    use editor_core::{CancelToken, Datum, EvalOptions, Node, NodeResult, ProfileDoc, evaluate};
-    use geom_core::Tol;
-    let doc = ProfileDoc::empty_derived("refusal_concision_chains", Tol::witness());
-    let (doc, profile) = on_frame(
-        doc,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![square(0.0, 0.0, 1.0)],
-    );
-    let (doc, body) = insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(1.0),
-            side: ExtrudeSide::Along,
-        },
-    );
-    let face = fname(body, wall(&doc, body, 2));
-    let edge = fixture::prism_edges(&doc, body, 4).remove(2);
-    let (doc, shell) = insert(doc, Node::shell(body, len(0.1), vec![edge.clone()]));
-    let (doc, fillet) = insert(doc, Node::fillet(body, len(0.1), vec![face.clone()]));
-    let (doc, frame) = insert(
-        doc,
-        Node::Datum(Datum::FaceFrame {
-            face: editor_core::Operand::select(body, vec![edge]),
-            spin: ang(0.0),
-        }),
-    );
-    let mut ev = evaluate::<f64>(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        Tol::witness(),
-    );
-    [
-        ("SelectKind", shell),
-        ("SelectKind", fillet),
-        ("SelectKind", frame),
-    ]
-    .into_iter()
-    .map(|(n, node)| match ev.nodes.remove(&node) {
-        Some(NodeResult::Failed(e)) => row(n, e.kind),
-        other => panic!("{n}: the designation must refuse; got {other:?}"),
-    })
-    .collect()
-}
-
 /// **Every checks-window finding fits the window it is listed in.** The
 /// checks window draws each finding's `Display` verbatim beside its
 /// placement's button, so each `CheckEvidence` arm is rendered as the window
@@ -4922,8 +4890,9 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             "invalid margin",
             escalated(MarginDiag::INVALID),
             format!(
-                "{head}{sign}margin is invalid (NaN or a refused enclosure) against the ambiguity band (1e-9, 1e-8). {LEVER}; an \
-                 unreadable margin may indicate a kernel or file defect worth reporting"
+                "{head}{sign}margin is invalid (NaN or a refused enclosure) against the ambiguity \
+                 band (1e-9, 1e-8). {LEVER}; an unreadable margin may indicate a kernel or file \
+                 defect worth reporting"
             ),
         ),
         (

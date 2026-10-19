@@ -115,6 +115,9 @@ DOOR_RE='diagnostic_f64_for_error_text'
 # definition home that mints a valued reading.
 MINT_ALLOWLIST=(
   'crates/geom-core/src/interval.rs 1 the interval classifier reports the enclosure it classified'
+  'crates/geom-core/src/spline/knot_values.rs 1 a knot run order the structure refuses undecided (C6) reports the step enclosure it read, in the refusal and nothing else'
+  'crates/geom-core/src/spline/weights.rs 1 a weight whose sign the structure refuses undecided (C6) reports the weight enclosure it read, in the refusal and nothing else'
+  'crates/sweep/src/skin.rs 1 an arc sweep decision the structure refuses undecided (C6) reports the sweep'"'"'s distance to the breakpoint it read, in the refusal and nothing else'
   'crates/sweep/src/blend/battery.rs 2 the blend payload reports its companion quantities as its own scalar reads them (the M5 PR 12 seam)'
   'crates/topo/src/boolean/recl.rs 1 a grazing bisector between definite keys rides a record code that keeps no margin, so its On reports the zero band (residue on hand-minted-indeterminate-ratchet-gate)'
   'crates/topo/src/chart_region.rs 1 a definite deduction that cannot certify its outcome echoes the value it classified'

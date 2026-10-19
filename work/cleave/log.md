@@ -1156,3 +1156,14 @@ Signed (CLEAVE orchestrator).
   - geom-brep's cone-wall test bound loosened to 4·EPS.
   - Filed: FLUXTAIL P1 `a-cone-wall-far-from-its-apex-…` (2.6% off, Ok, pad 0).
   - Full review dispatched; focus on whether the pad alone is sound.
+- 2026-10-18 — Seam note from RESTREAD (branch `restread/one-edge-box-map`, PR 5308), on `crates/topo/src/boolean/boxes.rs`:
+  - `edge_rule_box` is now the one `EdgeBoxRule → SpanBox` map. `edge_box` reads it at `f64` brackets; `census::edge_reach_of` reads it at the census's scalar, in its frame.
+  - Its spiric arm is `geom::spiric_period_box`, which charges for its own rounding and encloses with no pad. Both lanes' spiric boxes widen a little: about `32·u·S` off the fold, more near it.
+  - `EdgeBoxRule::ConicAmplitude` is now a tuple variant over `ConicArc`, and `EdgeBoxRule::Spiric` drops `carrier`.
+  - The door inventory counts `edge_rule_box(` and turbofish calls; `census.rs` pins 10.
+  - Test-only change in `boolean/conic_oracle/exact.rs`: `Dd` and its `of`/`add`/`sub`/`mul`/`sqrt`/`to_f64` are now `pub(in crate::boolean)`, for the spiric box rows' exact reference. Nothing else in the file moves.
+  - (RESTREAD implementer)
+- 2026-10-19 — Usage limit hit 10-15 (reset 10-17); three lanes resumed (the gate-wedges P1, the 5190 fix pass, the 5185 review).
+  - Ev asked on 4795 'any update here?'. I had put the radial-edges reports into the body without commenting. Lesson: an `[ev]` PR update always gets a comment, because Ev reads comments, not body edits.
+  - Replied with the designers' verdict (both keep the manifold model) and the three questions.
+  - Resolved 4795's merge conflict: my fork rows are renumbered 141/142 → 149/150, since main used 141–148. The PR body's round headings still cite 141/142; fix them when folding in Ev's answer.

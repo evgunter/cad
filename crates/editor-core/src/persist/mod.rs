@@ -34,11 +34,8 @@
 //! data. The precondition is the ATTRIBUTE and not the field — a
 //! declaration with a named field and no attribute takes the stray key
 //! and drops it — and this format does not carry the attribute
-//! everywhere its own rule needs one. `MatePrimitive`'s `PlanarRest`
-//! is the known hole
-//! (`work/msolve/mate-primitive-accepts-a-stray-field-the-module-docs-say-refuses.md`
-//! is that instance;
-//! `work/census/census-sees-an-inert-attribute-but-not-a-missing-one.md`
+//! everywhere its own rule needs one
+//! (`work/census/census-sees-an-inert-attribute-but-not-a-missing-one.md`
 //! is the class, and holds the question of what would detect the next
 //! one — a tracker path deleted at its program's close is recoverable
 //! in git history),
@@ -377,14 +374,11 @@ pub enum PersistError {
     /// An edit in the log refused through the [`crate::edit::apply`] door — on
     /// LOAD replay, or at SAVE by the symmetric log-verification pass
     /// (a log that cannot replay would make an unloadable file; save
-    /// refuses first). A logged mate insert the solve's per-mate
-    /// admission refuses on the datum alone refuses here as
-    /// [`EditError::MateRefused`], naming the entry; a rider on a
-    /// coincidence, which the recording door decided over the parts'
-    /// reach, is not re-decided ([`crate::edit::apply_replayed`]).
-    /// The SNAPSHOT is a state, not an edit: its walk asks only that a
-    /// mate's alignment be finite, and a mate it holds that the solve
-    /// refuses is the solve's at evaluation.
+    /// refuses first). A logged constraint the edit door refuses on the
+    /// recipe alone refuses here as [`EditError::MateRefused`], naming
+    /// the entry. The SNAPSHOT is a state, not an edit: its walk asks
+    /// each constraint the door's own admission, and a bundle the fold
+    /// refuses is the placement's refusal at evaluation.
     EditReplay {
         /// The refusing edit's index in the log.
         index: usize,

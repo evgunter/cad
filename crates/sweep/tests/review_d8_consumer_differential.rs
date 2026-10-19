@@ -281,15 +281,15 @@ fn make_compatible_still_lands_every_section_on_the_union_vector() {
             sections.len(),
             "{names:?}: section count changed"
         );
-        let first = out[0].knots().clone();
+        let first = out[0].knots_f64_interim().clone();
         for (i, c) in out.iter().enumerate() {
             assert_eq!(
-                c.knots().degree(),
+                c.knots_f64_interim().degree(),
                 first.degree(),
                 "{names:?}: section {i} has a different degree after make_compatible"
             );
             assert_eq!(
-                c.knots().knots(),
+                c.knots_f64_interim().knots(),
                 first.knots(),
                 "{names:?}: section {i}'s knot vector is not bit-identical to section 0's — \
                  compatibility is exactly the claim that it is"
@@ -298,7 +298,7 @@ fn make_compatible_still_lands_every_section_on_the_union_vector() {
         // The union promise, from the ELEVATED inputs.
         let degree = first.degree();
         for (i, c) in sections.iter().enumerate() {
-            let raise = degree - c.knots().degree();
+            let raise = degree - c.knots_f64_interim().degree();
             let elevated = if raise == 0 {
                 c.clone()
             } else {
@@ -307,7 +307,7 @@ fn make_compatible_still_lands_every_section_on_the_union_vector() {
                     Err(_) => continue,
                 }
             };
-            for (v, m) in own_interior(elevated.knots()) {
+            for (v, m) in own_interior(elevated.knots_f64_interim()) {
                 let got = own_interior(&first)
                     .into_iter()
                     .find(|(w, _)| *w == v)
@@ -391,7 +391,7 @@ fn the_fit_removal_sweep_still_returns_valid_structure() {
                 continue;
             }
         };
-        let kv = outcome.curve.knots();
+        let kv = outcome.curve.knots_f64_interim();
         let p = kv.degree();
         assert!(
             KnotVector::clamped(kv.knots().to_vec(), p).is_ok(),

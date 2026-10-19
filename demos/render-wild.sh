@@ -19,6 +19,8 @@
 #   * STAGING — cells render into out/stage/renders-wild/ (untracked)
 #     and are published to renders-wild/ only when the whole pass
 #     succeeded, so a failed pass leaves the committed tree untouched;
+#     publish_lane.py replaces the lane's cells wholesale, so a cell the
+#     pass did not draw shows up as a deletion;
 #   * PROVENANCE — every cell is stamped with the wild lane's Author
 #     signature (render.py --author), and check_render_provenance.py
 #     certifies the published cells BEFORE the sheet is composed. A
@@ -71,15 +73,11 @@ mkdir -p "$STAGE"
 # committed tree untouched.
 "$VENV/bin/python" render.py "$WILD_OUT" "$STAGE" "--author=$AUTHOR"
 
-# Publish the completed pass WHOLESALE (the pass rendered every
-# pinned cell, so the lane directory goes from one whole pass to the
-# next — a renamed or retired cell cannot leave a stale frame behind),
-# certify it, then compose the sheet from the certified cells (the
-# render.sh ordering, lane for lane).
-mkdir -p "$RD"
-rm -f "$RD"/*.png
-mv -f "$STAGE"/*.png "$RD/"
-"$VENV/bin/python" check_render_provenance.py "$RD"
+# Publish the completed pass and certify it (publish_lane.py), then
+# compose the sheet from the certified cells.
+# shellcheck disable=SC2046  # scene names are identifiers, by construction
+"$VENV/bin/python" publish_lane.py "$STAGE" "$RD" \
+    $("$VENV/bin/python" manifest.py --scene-names "$WILD_OUT")
 exec "$VENV/bin/python" compose_montage.py "$WILD_OUT" "$RD" \
     --montage=montage-wild.png \
     '--title=Wild corpus — third-party STEP imported and tessellated by the kernel' \

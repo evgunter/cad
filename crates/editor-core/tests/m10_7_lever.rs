@@ -76,7 +76,6 @@ fn mint(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, Recip
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the insert applies");
     let id = applied.record.minted.expect("an insert mints an id");

@@ -85,7 +85,7 @@ impl RevolveTool {
 
     /// **The one committed edit**: the session op that inserts the
     /// revolve node through the ordinary commit door, about the axis
-    /// line through `axis_origin` along `axis_direction` in the
+    /// line through `axis_through` at `axis_heading` in the
     /// profile's own coordinates, by `angle` (the chrome's default is a
     /// full turn about the profile's +y).
     ///
@@ -96,14 +96,14 @@ impl RevolveTool {
     /// typed.
     pub fn op(
         &self,
-        axis_origin: [Formula; 2],
-        axis_direction: [Formula; 2],
+        axis_through: [Formula; 2],
+        axis_heading: Formula,
         angle: Formula,
     ) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddRevolve {
             profile: self.seats.require(0)?,
-            axis_origin,
-            axis_direction,
+            axis_through,
+            axis_heading,
             angle,
         })
     }

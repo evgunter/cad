@@ -174,11 +174,10 @@ fn a_near_perpendicular_end_escalates_or_decides_the_circle() {
 /// watertight. The boolean takes it with a brick beside the band and
 /// with one through it, in every op, tier-3 valid at the closed forms:
 /// the notch's overlap is its box, the slot's its box less the band's
-/// section over the slot's width. A brick wholly apart is sided by the
-/// containment door, whose rays from the far brick meet nothing: the
-/// closed-form volume cannot read the at-infinity side of the band an
-/// ellipse trims, and a ray aimed at a planar face of it does. `∖` keeps
-/// the filleted body, `∪` adds the brick, `∩` is empty.
+/// section over the slot's width. With a brick wholly apart, the
+/// containment door's rays from the far brick meet nothing and read the
+/// side at infinity. `∖` keeps the filleted body, `∪` adds the brick,
+/// `∩` is empty.
 #[test]
 fn the_ellipse_edges_pass_the_tessellator_and_the_boolean() {
     let body = parallelogram::<f64>();

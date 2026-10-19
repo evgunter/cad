@@ -1,6 +1,6 @@
-//! **Gauss–Newton polish**: a carrier's foot of a point, and two
-//! carriers' closest pair, each carrier read through its point and first
-//! derivative at a parameter. A polished parameter is a place to read,
+//! **Gauss–Newton polish** of two carriers' closest pair, each carrier
+//! read through its point and first derivative at a parameter (a point's
+//! foot on one carrier is [`geom::Curve3::foot`]). A polished parameter is a place to read,
 //! never a decision: every point it yields is read by
 //! [`super::Span::contact`].
 
@@ -8,24 +8,6 @@ use geom_core::{Decide, Point3, Vec3};
 
 /// The steps each polish takes.
 const STEPS: usize = 4;
-
-/// Gauss–Newton from `t` toward the foot of `q` on the carrier `c`, a
-/// step taken where `keep` accepts the metres it moves the point.
-pub(super) fn foot<T: Decide>(
-    c: impl Fn(T) -> (Point3<T>, Vec3<T>),
-    q: Point3<T>,
-    mut t: T,
-    keep: impl Fn(T) -> bool,
-) -> T {
-    for _ in 0..STEPS {
-        let (p, d) = c(t);
-        let dt = T::zero() - (p - q).dot(d) / d.dot(d);
-        if keep(d.norm() * dt.abs()) {
-            t = t + dt;
-        }
-    }
-    t
-}
 
 /// Gauss–Newton from `(s, t)` toward the closest pair of the carriers
 /// `a` and `b`, a step taken where `keep` accepts the metres it moves the

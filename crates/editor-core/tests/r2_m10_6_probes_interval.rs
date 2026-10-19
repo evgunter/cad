@@ -116,7 +116,6 @@ fn eval_over<T: editor_core::EvalScalar>(
 ) -> editor_core::Evaluation<T> {
     let opts = EvalOptions {
         param_box: box_.map(std::sync::Arc::new),
-        profile_lift: editor_core::ProfileLift::Guided,
         ..EvalOptions::default()
     };
     evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness())
@@ -221,7 +220,15 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
 #[test]
 fn the_certifying_filter_changes_a_pre_m10_6_documents_drive() {
     let (doc, assertion) = straddling_assertion();
-    let witness: editor_core::Evaluation<f64> = eval_over(&doc, None);
+    // The drive's own witness, under its own options.
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let witness: editor_core::Evaluation<f64> = evaluate(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &editor_core::drive::witness_options(&analyzed),
+        Tol::witness(),
+    );
     let full = VerdictVector::of(&witness);
     let certifying = certifying_vector(&doc, &witness);
     assert_ne!(
@@ -231,7 +238,6 @@ fn the_certifying_filter_changes_a_pre_m10_6_documents_drive() {
          if they do not, this fixture no longer exercises the filter"
     );
 
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict =
         drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("the nominal builds");
     assert!(

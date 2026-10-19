@@ -2,10 +2,11 @@
 id: a-wide-section-row-escalates-chord-side-at-eps-1e-12-on-main
 kind: issue
 title: loft_profiles_door's wide-section row escalates the section's own chord_side at eps 1e-12 on main
-status: open
+status: closed
 opened: 2026-10-11
 priority: P1
 cost: E
+closed: 2026-10-16
 ---
 
 
@@ -31,3 +32,13 @@ segment_index: 1 }), source: Indeterminate { margin: Enclosure { lo:
 
 The row landed with `43e2c69ee7` (u6 fix pass). Why the section's
 `chord_side` enclosure is wider than the band at this ε is unmeasured.
+
+## Closed
+
+Dissolved by `the-skin-at-interval-encloses-the-nominal-skin` (PR 5233),
+which deletes the row: a wide section no longer refuses at `Interval`,
+it encloses its family. The rows that replace it
+(`loft_profiles_door`'s `at_interval_a_wide_section_encloses_its_family`
+and its siblings in `a_loft_computes_its_walls_in_t`) take a box
+`ε/256` either side of the corner (`common::enclosure::box_about`), and
+are run at the 1e-12 and 1e-6 rows as well as the default.

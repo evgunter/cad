@@ -2405,3 +2405,8 @@ The PR merged with `demos` red on that drift alone.
 - North-star `TestCrosslapGlued` now succeeds: audit row 37 flips NO→YES.
 
 **PR 5180: main red, fixed.** TANG #5111 added a `copysign` site that the Rule F census did not count, and main's own CI scoped geom-core out. 5107 and 5174, both at `TIER=all`, went red. The census was re-asked: the site makes no decision. The fix was merged into both, then into main.
+
+- 2026-10-15 — **No live row is at or above this track's own band (P0).** The 31 rows left are 2 at P2, 23 at P3, 5 at P4, 1 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
+  Band the 1 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
+  (tracker sweep)
+- 2026-10-18 — Seam note from FUSE, which closes (`docs/doc-ledger/fuse-leaves-the-tracker.md`): `a-conventional-vertex-mints-no-edge-derived-name`, `a-split-join-that-kills-a-split-child-has-no-row`, `boolean-naming-carries-the-join-rows-twice` and `a-discard-border-inside-a-merged-face-or-joined-edge-reads-as-no-border` (the last a naming-layer design question on `Borders`, beside this slate's other border rows) moved here by `git mv`, ids kept and bodies unchanged but for re-pointed `work/fuse/` citations. (FUSE close lane)

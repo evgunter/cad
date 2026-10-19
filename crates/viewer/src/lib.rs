@@ -150,7 +150,7 @@ pub use evalseam::{
 // the same way. `ThreadEvaluator` carries the `cfg` its module does.
 pub use display::{
     AdmissionFault, DisplayFault, DisplayState, DisplayView, PruneReport, Withdrawn,
-    free_move_check, mates_naming,
+    free_move_check, space_check,
 };
 #[cfg(not(target_family = "wasm"))]
 pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, ThreadProver, Worker};
@@ -159,8 +159,8 @@ pub use history::{History, HistoryId};
 pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
 pub use marks::{EdgeOverlay, Highlight, edge_id_segments, edge_overlay, edge_segments, highlight};
 pub use matetool::{
-    MateAdmission, MateChoice, MateProposal, MateTool, MateToolError, MateToolEvent, MateToolState,
-    admitted_classes,
+    MATE_KINDS, MateAdmission, MateChoice, MateFreedom, MateProposal, MateTool, MateToolError,
+    MateToolEvent, MateToolState, admitted_classes,
 };
 pub use narrowing::Narrow;
 pub use parts::{PartChooser, PartEntry};
@@ -176,8 +176,8 @@ pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePar
 pub use seats::{Seat, SeatError, SeatEvent, Seats, seat_line};
 pub use session::{
     BoundsReading, DatumSpec, DocSession, EdgeSelection, FaceFrameFault, FaceSelection, Hovered,
-    Landing, NodeKindWanted, OpOutcome, PatternRuleSpec, ProfileShape, Refusal, Selection,
-    SessionOp, Standing,
+    Landing, NodeKindWanted, OpOutcome, PatternRuleSpec, PlaceReport, ProfileShape, Refusal,
+    Selection, SessionOp, Standing,
 };
 pub use theme::{Mark, MixFraction, Polarity, Safety, Theme};
 pub use tools::{ToolKind, ToolNotice, Tools};

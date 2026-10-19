@@ -814,3 +814,7 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-15 — `[ev]` 5113 answered: decision 1 accepted; the special-case principle accepted ("good for now"; Ev may later prefer a sharp cutoff at ε with in-band cases as a lint); edge join records class Zeros; lane choice with no lane: lever-only "not yet" (B). Decision 2 split out to `a-torus-faces-convention-is-decided-where-the-face-is-admitted` (needs_ev, waits on exch's import-validation question). Fork rows 142 and 144 filled.
 - 2026-10-15 — `[ev]` question: Ev asked whether the cylinder's meridian exception (D3: "or a closed form whose own envelope carries the miss") is consistent. It exists only because a line has no projected lane. Recommended: in band always takes the general lane, every class gets one (a projected line lane on a cylinder), the clause goes. Filed `a-line-on-a-cylinder-has-no-general-lane` (needs_ev).
 - 2026-10-15 — `[ev]` 5186 answered ("sounds good!"): D3 has no closed-form exception; the line lane joins unit E.
+
+- 2026-10-15 — **No live row is at or above this track's own band (P0).** The 35 rows left are 28 at P3, 3 at P4, 4 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
+  Band the 4 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
+  (tracker sweep)

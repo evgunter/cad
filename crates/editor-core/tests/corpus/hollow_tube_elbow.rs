@@ -19,6 +19,7 @@
 //! `==`, so it would pin `f64` rounding of an irrational rather than
 //! the geometry — the `die_chamfer` disposition.
 
+use super::PlacePart;
 use editor_core::{Datum, DocEdit, Node, SlotId, TubeWindow};
 
 use super::super::fixture::{ang, len, scl};
@@ -65,7 +66,7 @@ pub fn document() -> CorpusDoc {
         wall: len(WALL),
     });
 
-    r.place(elbow);
+    r.place_part(elbow);
 
     CorpusDoc {
         name: "hollow_tube_elbow",

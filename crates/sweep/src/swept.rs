@@ -1450,8 +1450,13 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
             continue;
         }
         // The rim is the cap's own profile, the plane fitted through it,
-        // stated in that chart: the pair cannot carry it, the spline wall
-        // having no implicit form to meter incidence on
+        // stated in that chart. The pair's incidence lane
+        // (`geom_brep::plane_nurbs_incidence`) certifies a LINE rim but
+        // not yet an arc rim, whose limb-2 hull reads the lane's fitted
+        // chart image rather than the exact boundary row, and no lane
+        // exists at the interval or dual scalars; a door does not pick
+        // its description by what the lane can certify, so every rim
+        // stays in the cap's chart until the pair certifies them all
         // (`work/tang/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`).
         let spec = body
             .get_curve_geom(curve_key)

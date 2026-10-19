@@ -267,7 +267,7 @@ pub(crate) fn recognize(curve: &NurbsCurve3<f64>, eps_in: f64) -> CurveRecogniti
 /// every structural refusal and every refused hull, which certifies nothing.
 fn composite_sup(curve: &NurbsCurve3<f64>, surface: &ImplicitSurface) -> f64 {
     let coords = curve.certified_coords();
-    let Ok(data) = CurveCertData::new(curve.knots(), curve.weights(), &coords) else {
+    let Ok(data) = CurveCertData::new(curve.knots_f64_interim(), curve.weights(), &coords) else {
         return f64::NAN;
     };
     match compose::implicit_composite(&data, surface) {
@@ -332,7 +332,7 @@ fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)>
     // is the same predicate as `geom-brep`'s value spelling
     // `*w != 1.0` — `+1.0` has one representation and NaN fails both
     // — it just satisfies the float-eq lint without an `allow`.
-    let degree = curve.knots().degree();
+    let degree = curve.knots_f64_interim().degree();
     if degree == 0
         || curve
             .weights()
@@ -346,7 +346,7 @@ fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)>
     if !(span > 0.0) || !span.is_finite() {
         return None;
     }
-    let flat = curve.knots().knots();
+    let flat = curve.knots_f64_interim().knots();
     let mut hull = 0.0f64;
     for (i, p) in control.iter().enumerate() {
         #[allow(clippy::cast_precision_loss)]
@@ -601,7 +601,7 @@ fn covers_one_full_turn(
 ) -> bool {
     let v_ref = axis.cross(u_ref);
     let control = curve.control();
-    let kv = curve.knots();
+    let kv = curve.knots_f64_interim();
     let flat = kv.knots();
     let degree = kv.degree();
     let count = control.len();
@@ -795,7 +795,12 @@ mod tests {
         // past ε_in, and nowhere near any circle.
         let mut control = curve.control().to_vec();
         control[2] = control[2] + Vec3::new(0.001, 0.0, 0.0);
-        curve = NurbsCurve3::new(curve.knots().clone(), control, curve.weights().to_vec()).unwrap();
+        curve = NurbsCurve3::new(
+            curve.knots_f64_interim().clone(),
+            control,
+            curve.weights().to_vec(),
+        )
+        .unwrap();
         assert!(
             matches!(recognize(&curve, EPS_IN), CurveRecognition::StaysNurbs),
             "a dented circle is not a circle"
@@ -969,8 +974,12 @@ mod tests {
                     p.z += delta;
                 }
             }
-            let curve =
-                NurbsCurve3::new(base.knots().clone(), control, base.weights().to_vec()).unwrap();
+            let curve = NurbsCurve3::new(
+                base.knots_f64_interim().clone(),
+                control,
+                base.weights().to_vec(),
+            )
+            .unwrap();
             let CurveRecognition::Promoted {
                 curve:
                     Curve3::Circle {
@@ -1303,8 +1312,12 @@ mod tests {
         for p in &mut control {
             p.y *= 1.0 + 1e-10 / radius;
         }
-        let curve =
-            NurbsCurve3::new(base.knots().clone(), control, base.weights().to_vec()).unwrap();
+        let curve = NurbsCurve3::new(
+            base.knots_f64_interim().clone(),
+            control,
+            base.weights().to_vec(),
+        )
+        .unwrap();
         let CurveRecognition::Promoted { residual, .. } = recognize(&curve, EPS_IN) else {
             panic!("must certify at the module budget");
         };
@@ -1477,8 +1490,12 @@ mod r2_probes {
                     p.z += delta;
                 }
             }
-            let curve =
-                NurbsCurve3::new(base.knots().clone(), control, base.weights().to_vec()).unwrap();
+            let curve = NurbsCurve3::new(
+                base.knots_f64_interim().clone(),
+                control,
+                base.weights().to_vec(),
+            )
+            .unwrap();
             let outcome = recognize(&curve, EPS_IN);
             let CurveRecognition::Promoted {
                 curve:

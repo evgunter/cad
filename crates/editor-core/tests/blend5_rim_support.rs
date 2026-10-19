@@ -83,7 +83,12 @@ fn lantern() -> (ProfileDoc, RecipeNodeId) {
     );
     let (doc, revolve) = insert(
         doc,
-        revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
+        revolve_about(
+            profile,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            ang(std::f64::consts::TAU),
+        ),
     );
     (doc, revolve)
 }
@@ -324,7 +329,12 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     );
     let (doc, revolve) = insert(
         doc,
-        revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
+        revolve_about(
+            profile,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            ang(std::f64::consts::TAU),
+        ),
     );
     // The BASE rim (disk meets the lower cone): the one whose two
     // links disagree on slot order, and which has a planar support.
