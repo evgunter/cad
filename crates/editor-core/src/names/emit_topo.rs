@@ -4931,7 +4931,6 @@ mod tests {
                 face: body.faces().next().map(|(f, _)| f).unwrap(),
                 bordered: Vec::new(),
                 boundary_chains: vec![vec![e1, e0]],
-                held: Vec::new(),
             }],
             ..topo::BooleanNaming::default()
         };

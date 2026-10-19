@@ -194,7 +194,7 @@ fn every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell() {
     );
     assert_eq!(
         (stretches, inside),
-        (27_000, 2448),
+        (28_248, 2448),
         "bordered stretches, and those with an end inside an edge or a face"
     );
 }

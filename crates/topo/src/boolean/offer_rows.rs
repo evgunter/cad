@@ -2740,6 +2740,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "Coincide::VertexOnCurvedFace",
         1,
     ),
+    ("fate.rs", "sign", "Coincide::Sectors", 1),
     ("glue.rs", "tangency", "Coincide::Rim", 1),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),

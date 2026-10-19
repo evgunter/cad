@@ -13,9 +13,11 @@
 //! stretch a discard recorded along it, through the edge's split
 //! lineage (kept across the steps that killed its ancestors) and the
 //! edges a later step's join made it of, and so to its obstacle;
-//! discards one edge reaches are one obstacle. A face discarded where
-//! a coincident kept face holds part of its region borders that face
-//! where the held part ends (`topo::DiscardRow::held`). An obstacle that borders two
+//! discards one edge reaches are one obstacle. Where a coincident kept
+//! face holds part of a dropped face's region, the boolean cut the
+//! dropped face where the held part ends, so its removed fragment
+//! borders the kept face there, and the held fragment is no discard
+//! (`topo::BooleanNaming::substitutions`). An obstacle that borders two
 //! or more pieces DIVIDES the face; a piece's qualifier is the set of
 //! walls — the faces across its edges — along which it meets a divider,
 //! each cited by its parent's name. Nothing beyond a piece's own
@@ -110,8 +112,7 @@ impl<K: Ord + Clone> Obstacles<K> {
     ) -> Result<(), NamingError> {
         let settler = naming.settler(body);
         // A bordered stretch settles on a seam edge: the zip made the
-        // kept face's section edge one edge with the wall's. A held
-        // stretch settles on the kept face's own edge, whichever it is.
+        // kept face's section edge one edge with the wall's.
         let seam_edges: BTreeSet<EdgeKey> = naming
             .seam_edges
             .iter()
@@ -197,19 +198,20 @@ impl<K: Ord + Clone> Obstacles<K> {
             // beside it: nothing of a piece lies along it.
             // A stretch an end of which the output stage joined away lies
             // along the edge the join made.
-            for (stretches, edges, seam_only) in [
-                (&row.bordered, &by_ends, true),
-                (&row.held, &any_by_ends, false),
-            ] {
-                // An end the zip split per cone lies at each of its
-                // copies, so the stretch is read between every pair of
-                // copies, and every edge found is kept, not the first:
-                // each lies along the stretch's locus, where the discard's
-                // region meets it, so each is where its obstacle borders
-                // a piece (N2). `topo`'s `boolean_discards::bordered_edges`
-                // reads it alike.
-                for &(u, w) in stretches {
-                    let (us, ws) = (settler.settle_cones(u)?, settler.settle_cones(w)?);
+            // A stretch across a one-sided chord settles on the kept
+            // face's own edge, which is no seam, so a stretch no seam lies
+            // along is read on every edge.
+            for &(u, w) in &row.bordered {
+                let (us, ws) = (settler.settle_cones(u)?, settler.settle_cones(w)?);
+                for (edges, seam_only) in [(&by_ends, true), (&any_by_ends, false)] {
+                    let found = seams.len();
+                    // An end the zip split per cone lies at each of its
+                    // copies, so the stretch is read between every pair of
+                    // copies, and every edge found is kept, not the first:
+                    // each lies along the stretch's locus, where the
+                    // discard's region meets it, so each is where its
+                    // obstacle borders a piece (N2). `topo`'s
+                    // `boolean_discards::bordered_edges` reads it alike.
                     for (&u, &w) in us.iter().flat_map(|u| ws.iter().map(move |w| (u, w))) {
                         let between = match (u, w) {
                             (Cell::Vertex(u), Cell::Vertex(w)) => edges.get(&(u.min(w), u.max(w))),
@@ -228,6 +230,9 @@ impl<K: Ord + Clone> Obstacles<K> {
                         {
                             seams.push(e);
                         }
+                    }
+                    if seams.len() > found {
+                        break;
                     }
                 }
             }

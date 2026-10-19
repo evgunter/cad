@@ -1660,13 +1660,13 @@ fn an_earlier_seam_split_and_joined_away_in_one_step_names_alike() {
 /// **A held edge wholly inside a dropped face**: the plate less a
 /// pocket, its floor at z 0.5, unioned with a bar `b` whose top is
 /// flush with the floor and wider than it, so the floor's four edges lie
-/// inside `b`'s top with both ends at vertex-on-face contacts. Every
-/// run should publish one set of names; the pair union and the union
-/// `[a, b]` refuse that a piece borders no recorded discard, and the
-/// union `[b, a]` builds
-/// (`work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`).
+/// inside `b`'s top with both ends at vertex-on-face contacts. The pair
+/// union and both member orders publish one set of names: whichever
+/// copy of the coincident tops the boolean drops is cut along the
+/// floor's outline, so its lost part borders the floor's edges. Red
+/// before the cut: the pair union and the union `[a, b]` refused that
+/// a piece borders no recorded discard.
 #[test]
-#[ignore = "refuses by member order: cargo nextest run -p editor-core --run-ignored only -E 'test(pocket_floor)'"]
 fn a_pocket_floor_held_inside_a_dropped_face_names_alike() {
     let doc = ProfileDoc::empty_derived("held-pocket", Tol::witness());
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
