@@ -487,19 +487,23 @@ fn builds_where(
             Err(e) => panic!("{what}: builds, got {e:?}"),
         };
     }
-    let [Some(xy), Some(yx), Some(u), Some(u2), Some(i), Some(i2)] = v else {
-        return held;
-    };
+    let [xy, yx, u, u2, i, i2] = v;
     let (vx, vy) = (volume(x), volume(y));
     let what = format!("{label}, {}", pose.label);
-    // Each sum, which every result enters.
+    let add = |a: Option<f64>, b: Option<f64>| Some(a? + b?);
+    // Each sum, which every result enters, over the ops that built: a
+    // cell the result gate refuses ([`OVERLAPPING`]) leaves out the sums
+    // it enters, and the rest still hold.
     for (sum, want, which) in [
-        (u + i, vx + vy, "|x ∪ y| + |x ∩ y|"),
-        (xy + i, vx, "|x − y| + |x ∩ y|"),
-        (yx + i, vy, "|y − x| + |x ∩ y|"),
+        (add(u, i), Some(vx + vy), "|x ∪ y| + |x ∩ y|"),
+        (add(xy, i), Some(vx), "|x − y| + |x ∩ y|"),
+        (add(yx, i), Some(vy), "|y − x| + |x ∩ y|"),
         (u2, u, "|y ∪ x|"),
         (i2, i, "|y ∩ x|"),
     ] {
+        let (Some(sum), Some(want)) = (sum, want) else {
+            continue;
+        };
         assert!(
             (sum - want).abs() < 1e-9,
             "{what}: {which} {sum}, want {want}"

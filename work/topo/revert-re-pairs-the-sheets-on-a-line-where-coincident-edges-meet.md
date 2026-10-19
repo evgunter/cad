@@ -159,4 +159,7 @@ rows above, these return with the re-pairing:
 - topo `a_vertex_read_by_two_sector_passes` (15 cells, `OVERLAPPING`),
   `a_vertex_read_again_classes_every_edge` (four scenes, and the void on
   the lying pyramid's ray, 30.6° and 356.1°, with its three scenes),
-  `three_solids_on_one_line` (fourteen cells).
+  `three_solids_on_one_line` (fourteen cells);
+- topo `a_vertex_read_again_classes_every_edge::partners_along_the_face_build_sound_against_the_germ`:
+  146 cells at the default ε, 125 at 1e-6 and 141 at 1e-12
+  (`PARTNERS_OVERLAPPING`, which says why the count moves with ε).

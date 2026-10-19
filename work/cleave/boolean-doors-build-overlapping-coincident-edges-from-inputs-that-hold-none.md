@@ -70,8 +70,11 @@ interior direction for) refuses typed `WedgeEnd` rather than as an
 in-band escalation.
 
 Census (topo, sweep, editor-core, slow set included, ε default, 1e-6,
-1e-12): every newly refusing op reads overlapping wedges on main, the
-same set at all three ε. The row's witnesses are pinned at their
+1e-12): every newly refusing op reads overlapping wedges on main. The
+set is the same at all three ε but for one probe matrix, whose count of
+refused cells moves with ε because which of its cells reach the gate
+does (146, 125, 141; `a_vertex_read_again_classes_every_edge`'s
+`PARTNERS_OVERLAPPING`). The row's witnesses are pinned at their
 refusals beside their fixtures. What stays owed is this row's re-pairing
 in the join and the finish (the material decides the edges, ratified on
 `[ev]` PR 4795); the pins that return with it are listed on

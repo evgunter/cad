@@ -753,7 +753,7 @@ fn no_unjoined_line<T: Decide + Bounds>(
     body: &crate::body::Body<T>,
     band: Band,
 ) -> Result<(), BooleanError> {
-    let lines = crate::census::collinear_overlaps(body, |_| true, band).map_err(line_edges)?;
+    let lines = crate::census::collinear_overlaps(body, band).map_err(collinear_escalated)?;
     match lines.first() {
         Some(line) => Err(BooleanError::Revert {
             operand: Operand::B,
@@ -763,10 +763,10 @@ fn no_unjoined_line<T: Decide + Bounds>(
     }
 }
 
-/// An in-band reading of whether two edges of the subtracted solid lie
-/// on one line: a reading of the input, which moving its geometry
-/// reaches.
-fn line_edges((_, diag): ([crate::entity::EdgeKey; 2], Indeterminate)) -> BooleanError {
+/// An in-band reading of whether two straight edges lie on one line
+/// ([`BooleanDecision::LineEdges`]), of the subtracted solid's or of the
+/// result's: a reading of the input, which moving its geometry reaches.
+fn collinear_escalated((_, diag): ([crate::entity::EdgeKey; 2], Indeterminate)) -> BooleanError {
     BooleanError::Escalated {
         decision: BooleanDecision::LineEdges,
         diag,
@@ -790,37 +790,47 @@ fn line_edges((_, diag): ([crate::entity::EdgeKey; 2], Indeterminate)) -> Boolea
 /// built; or a wedge the reading cannot take, a face with no sheet on
 /// the line or a cusp or slit edge (D1: a consumer with no wedge-end
 /// answer refuses typed).
-/// [`BooleanError::Escalated`] ([`BooleanDecision::LineWedges`]): a
-/// reading in band, of whether two of the result's edges lie on one
-/// line or of their wedges. The edges and the faces meeting on the line
-/// are where the operands' faces meet, carried into the result exactly,
-/// so both are readings of the input, and moving the geometry reaches
-/// them.
+/// [`BooleanError::Escalated`]: a reading in band, of whether two of the
+/// result's straight edges lie on one line ([`BooleanDecision::LineEdges`])
+/// or of their wedges ([`BooleanDecision::LineWedges`]). Both read where
+/// the operands' faces meet: the result carries their surfaces
+/// unchanged, and a vertex minted where they meet carries the rounding
+/// of its computation, far inside the band (where a minted pair's gap is
+/// in band the reduction reads it first, at the operands' own gap:
+/// `a_doubled_line_does_not_revert::a_minted_edges_in_band_gap_is_the_operands_own`).
+/// So a reading in band is a near-coincidence of the operands' geometry,
+/// and moving it reaches the reading.
 fn coincident_wedges_disjoint<T: Decide + Bounds>(
     result: &Body<T>,
     band: Band,
 ) -> Result<(), BooleanError> {
-    let escalated = |diag| BooleanError::Escalated {
-        decision: BooleanDecision::LineWedges,
-        diag,
+    let pairs = crate::census::collinear_overlaps(result, band).map_err(collinear_escalated)?;
+    let (i, fault) = match crate::census::line_wedges(result, &pairs, band) {
+        Ok(None) => return Ok(()),
+        Ok(Some(i)) => (
+            i,
+            LineWedgeFault::Overlap {
+                edges: pairs[i].edges,
+            },
+        ),
+        Err((_, crate::census::WedgeRefusal::Undecided(diag))) => {
+            return Err(BooleanError::Escalated {
+                decision: BooleanDecision::LineWedges,
+                diag,
+            });
+        }
+        Err((i, crate::census::WedgeRefusal::NoSheet(edge))) => {
+            (i, LineWedgeFault::NoSheet { edge })
+        }
+        Err((i, crate::census::WedgeRefusal::WedgeEnd(edge))) => {
+            (i, LineWedgeFault::WedgeEnd { edge })
+        }
     };
-    let lines = crate::census::collinear_overlaps(result, |_| true, band)
-        .map_err(|(_, diag)| escalated(diag))?;
-    for line in &lines {
-        let fault = match crate::census::line_wedges(result, line.ends, band) {
-            Ok(crate::census::LineWedges::Disjoint) => continue,
-            Ok(crate::census::LineWedges::Overlap(edges)) => LineWedgeFault::Overlap { edges },
-            Err(crate::census::WedgeRefusal::Undecided(diag)) => return Err(escalated(diag)),
-            Err(crate::census::WedgeRefusal::NoSheet(edge)) => LineWedgeFault::NoSheet { edge },
-            Err(crate::census::WedgeRefusal::WedgeEnd(edge)) => LineWedgeFault::WedgeEnd { edge },
-        };
-        return Err(BooleanError::LineWedges {
-            fault,
-            from: crate::census::witness(line.ends[0]),
-            to: crate::census::witness(line.ends[1]),
-        });
-    }
-    Ok(())
+    Err(BooleanError::LineWedges {
+        fault,
+        from: crate::census::witness(pairs[i].ends[0]),
+        to: crate::census::witness(pairs[i].ends[1]),
+    })
 }
 
 /// `body` as the pipeline reads an operand: as is when it holds at most

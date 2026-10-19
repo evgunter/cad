@@ -3589,6 +3589,13 @@ pub enum BooleanError {
     /// Where four or more sheets meet on a line the material decides
     /// which pair into edges, and the op's pairing is not that one; the
     /// re-pairing is not built.
+    ///
+    /// A definite finding at the finished-body gate is otherwise a kernel
+    /// defect (`ResultInvalid`, DESIGN.md `[coincidence.booleans]`). This
+    /// one is not: the operands are valid and their answer is defined,
+    /// and the kernel has not built it, so it is the typed refusal naming
+    /// its blocker that DESIGN.md `[loud-failure]` gives valid input the
+    /// kernel has not built yet.
     LineWedges {
         /// What the line's reading found.
         fault: LineWedgeFault,
@@ -4848,8 +4855,8 @@ impl core::fmt::Display for BooleanError {
                 ),
                 LineWedgeFault::NoSheet { .. } => write!(
                     f,
-                    "a face meeting the line from {from} to {to}, where two of the result's edges \
-                     lie, has no tangent plane there, so the material on its side has no \
+                    "a face meeting the line from {from} to {to}, where two or more of the \
+                     result's edges lie, has no tangent plane there, so the material on its side has no \
                      reading. {NOT_YET_ENDING}"
                 ),
                 LineWedgeFault::WedgeEnd { .. } => write!(

@@ -218,6 +218,26 @@ const OVERLAPPING: &[(&str, usize)] = &[
     ("continuing the lying pyramid's face", 5),
 ];
 
+/// A refusal's kind as a tally keys it: the error's arm, and for the
+/// result gate's refusal of coincident edges, [`OVERLAP`] where it is an
+/// overlap.
+fn refusal_kind(e: &BooleanError) -> String {
+    if matches!(
+        e,
+        BooleanError::LineWedges {
+            fault: topo::LineWedgeFault::Overlap { .. },
+            ..
+        }
+    ) {
+        return OVERLAP.to_owned();
+    }
+    let kind = format!("{e:?}");
+    kind.split([' ', '{', '(']).next().unwrap_or("").to_owned()
+}
+
+/// The tally key of the result gate's refusal of overlapping wedges.
+const OVERLAP: &str = "LineWedges::Overlap";
+
 /// One scene's cells, over every pose and op: what refused, and each
 /// edge at `MEET` of a built result's operands, by its rows against the
 /// germ.
@@ -258,9 +278,7 @@ fn check(
             Ok(BooleanResult::Body(r)) => r,
             Ok(BooleanResult::Empty) => continue,
             Err(e) => {
-                let kind = format!("{e:?}");
-                let kind = kind.split([' ', '{', '(']).next().unwrap_or("").to_owned();
-                *tally.refused.entry(kind).or_default() += 1;
+                *tally.refused.entry(refusal_kind(&e)).or_default() += 1;
                 continue;
             }
         };
@@ -979,8 +997,8 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
         let refused_else = tally
             .refused
             .iter()
-            .any(|(kind, &n)| kind != "LineWedges" || Some(n) != pinned);
-        let pinned_built = pinned.is_some() && !tally.refused.contains_key("LineWedges");
+            .any(|(kind, &n)| kind != OVERLAP || Some(n) != pinned);
+        let pinned_built = pinned.is_some() && !tally.refused.contains_key(OVERLAP);
         if refused_else || pinned_built || tally.wrong + tally.missing + tally.doubled > 0 {
             failures.push(format!("{label}: {tally:?}"));
         }
@@ -997,6 +1015,8 @@ struct ProbeTally {
     built: usize,
     empty: usize,
     refused: BTreeMap<String, usize>,
+    /// The cells the result gate refused for overlapping wedges.
+    overlaps: std::collections::BTreeSet<String>,
     bad: Vec<String>,
 }
 
@@ -1068,8 +1088,10 @@ fn probe_material(
                 continue;
             }
             Err(e) => {
-                let kind = format!("{e:?}");
-                let kind = kind.split([' ', '{', '(']).next().unwrap_or("").to_owned();
+                let kind = refusal_kind(&e);
+                if kind == OVERLAP {
+                    tally.overlaps.insert(what.clone());
+                }
                 *tally.refused.entry(kind).or_default() += 1;
                 continue;
             }
@@ -1332,4 +1354,45 @@ fn partners_along_the_face_build_sound_against_the_germ() {
         probe.built > 0 && germ.rows > 0,
         "cells built and rows read"
     );
+    // The cells the result gate refuses: each carries coincident edges
+    // whose wedges overlap, which every tier passed (the re-pairing
+    // returns them). The germ's pass reads the same cells.
+    let overlaps = probe.overlaps.len();
+    assert_eq!(
+        germ.refused.get(OVERLAP).copied().unwrap_or(0),
+        overlaps,
+        "the germ's pass and the probe's refuse the same cells"
+    );
+    assert!(
+        probe
+            .refused
+            .keys()
+            .chain(germ.refused.keys())
+            .all(|k| !k.starts_with("LineWedges") || k == OVERLAP),
+        "every refusal of the line's wedges is an overlap: {:?} {:?}",
+        probe.refused,
+        germ.refused
+    );
+    match PARTNERS_OVERLAPPING.iter().find(|&&(e, _)| e == eps) {
+        Some(&(_, want)) => assert_eq!(
+            overlaps, want,
+            "the cells the result gate refuses at ε = {eps:e}: {:#?}",
+            probe.overlaps
+        ),
+        None => println!(
+            "SKIPPED: no pinned count of the overlapping cells at ε = {eps:e}; {overlaps} refused: \
+             {:#?}",
+            probe.overlaps
+        ),
+    }
 }
+
+/// How many cells of [`partners_along_the_face_build_sound_against_the_germ`]
+/// the result gate refuses for overlapping wedges, at each ε a CI row
+/// runs. The count moves with ε because the cells that reach the
+/// result gate do: a partner whose own construction escalates drops its
+/// 84 cells (four at the default ε, six at 1e-6 and 1e-12: 3 024 cells
+/// against 2 856), and a cell an earlier reading escalates in band never
+/// reaches the gate (516, 705 and 492 such cells), both moving with
+/// where the run's ε puts the partners' near-flat and `k·ε` geometry.
+const PARTNERS_OVERLAPPING: &[(f64, usize)] = &[(1e-9, 146), (1e-6, 125), (1e-12, 141)];

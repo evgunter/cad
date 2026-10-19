@@ -2859,7 +2859,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "of_describe", "BooleanDecision::EdgeOnFaces", 1),
-    ("ops.rs", "line_edges", "BooleanDecision::LineEdges", 1),
+    (
+        "ops.rs",
+        "collinear_escalated",
+        "BooleanDecision::LineEdges",
+        1,
+    ),
     (
         "ops.rs",
         "coincident_wedges_disjoint",
