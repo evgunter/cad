@@ -207,7 +207,8 @@ fn run(label: &str, s: &Section, u0s: &[f64]) -> (Vec<String>, (f64, f64)) {
     for &u0 in u0s {
         let (q, t) = (sec.eval(u0), sec.deriv(u0));
         let at_f64: Result<PlaneNurbsLimbs<f64>, _> = geom_brep::plane_nurbs_limbs(
-            &ruling(q.x, q.y),
+            &geom::Curve3::Nurbs(std::sync::Arc::new(ruling(q.x, q.y))),
+            (ruling(q.x, q.y)).knot_values().domain(),
             &vplane(q.x, q.y, t.x, t.y),
             &wall::<f64>(s),
             1.0,
@@ -218,7 +219,8 @@ fn run(label: &str, s: &Section, u0s: &[f64]) -> (Vec<String>, (f64, f64)) {
             Err(e) => bad.push(format!("{label} u0={u0} f64: {e:?}")),
         }
         let at_itv: Result<PlaneNurbsLimbs<Interval>, _> = geom_brep::plane_nurbs_limbs(
-            &ruling(q.x, q.y),
+            &geom::Curve3::Nurbs(std::sync::Arc::new(ruling(q.x, q.y))),
+            (ruling(q.x, q.y)).knot_values().domain(),
             &vplane(q.x, q.y, t.x, t.y),
             &wall::<Interval>(s),
             Interval::one(),

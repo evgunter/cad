@@ -928,8 +928,8 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
     let ellipse = |axis: Vec3<f64>, major: f64, u_ref: Vec3<f64>| Curve3::Ellipse {
         center: c,
         axis,
-        major,
-        minor: 0.3,
+        semi_u: major,
+        semi_v: 0.3,
         u_ref,
     };
     let axis = Vec3::unit_z();
@@ -968,7 +968,7 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
             "ellipse, negative major with u_ref flipped",
             ellipse(axis, -0.5, x),
             K::Ellipse,
-            D::Major,
+            D::SemiU,
             Verdict::Unrepresentable(Value, Lower),
         ),
         (
@@ -1095,11 +1095,11 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
             Curve3::Ellipse {
                 center: o,
                 axis: z,
-                major: 1.0,
-                minor: 0.0,
+                semi_u: 1.0,
+                semi_v: 0.0,
                 u_ref: x,
             },
-            Some(V::Unrepresentable(D::Minor, Value, Lower)),
+            Some(V::Unrepresentable(D::SemiV, Value, Lower)),
         ),
         ("honest spiric", spiric(0.5, 0.3), None),
         (
@@ -1239,8 +1239,8 @@ fn the_frame_lever_is_the_kinds_radius() {
     let ellipse = |major: f64, minor: f64, d: f64| Curve3::Ellipse {
         center: o,
         axis: Vec3::new(0.0, 0.0, long(d)),
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref: Vec3::unit_x(),
     };
     let surface_verdict = |s: &Surface<f64>| {
@@ -1347,8 +1347,8 @@ fn the_elliptic_lever_is_the_larger_semi_axis_magnitude() {
         let carrier = Curve3::Ellipse {
             center: Point3::new(0.5, 0.0, 0.0),
             axis: Vec3::unit_z(),
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         };
         let (body, edge) = pillow_with_carrier(carrier, 0.0, pi, tol)
@@ -1841,7 +1841,7 @@ fn revert_maps_the_legal_cusp_to_the_legal_slit() {
     let tol = Tol::witness();
     let p = cusp_prism(tol);
     let kiss = kiss_edge(&p);
-    let reverted = p.body.revert();
+    let reverted = p.body.revert().unwrap();
     assert_eq!(validate(&reverted), Ok(()));
     assert_eq!(material_end(&p.body, kiss), MaterialWedge::Cusp);
     assert_eq!(
@@ -1863,7 +1863,7 @@ fn revert_maps_the_legal_cusp_to_the_legal_slit() {
     // this body's wedges.
     // Bit-faithful: revert is an involution, so the pair really is one
     // body read two ways.
-    let back = reverted.revert();
+    let back = reverted.revert().unwrap();
     assert_eq!(
         crate::fixtures::deep_snapshot(&back),
         crate::fixtures::deep_snapshot(&p.body)
@@ -3109,7 +3109,7 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
         (Outer, Outer),
         "upright: the roles"
     );
-    let inverted = upright.revert();
+    let inverted = upright.revert().unwrap();
     let solid = inverted.solids().next().expect("one solid").0;
     assert_eq!(
         validate_geometric(&inverted, tol),
@@ -3164,7 +3164,7 @@ fn the_census_gate_reads_a_shell_role_as_the_classification_does() {
         Void,
         "the premise: read with no lane, the upright slab's rounded sum calls it a cavity"
     );
-    let inverted = upright.revert();
+    let inverted = upright.revert().unwrap();
     for (body, want) in [(&upright, Outer), (&inverted, Void)] {
         let classified = crate::classify_shells(body, tol).expect("the shell classifies")[0].role;
         let gate = crate::census::gate_role(body, shell, band, tol);
@@ -3188,7 +3188,7 @@ fn an_inside_out_slab_just_past_the_band_is_refused() {
     let band = geom_core::Band::linear(tol).expect("a band");
     let t = 4.0 * band.escalate();
     for far in [0.0, 1e3, 5e3] {
-        let inverted = far_anchored_slab(0.0, 1e-3, t, far, tol).revert();
+        let inverted = far_anchored_slab(0.0, 1e-3, t, far, tol).revert().unwrap();
         let solid = inverted.solids().next().expect("one solid").0;
         assert_eq!(
             validate_geometric(&inverted, tol),
@@ -3529,7 +3529,7 @@ fn far_thin_half_disc_reads(far: bool, tol: Tol) {
     }
     // Check 7 on the inside-out body first: an enclosure that lets it
     // pass is the defect this row exists to see.
-    let inverted = upright.revert();
+    let inverted = upright.revert().unwrap();
     let solid = inverted.solids().next().expect("one solid").0;
     assert_eq!(
         validate_geometric(&inverted, tol),
@@ -3571,7 +3571,7 @@ fn check_10_reads_every_shell_s_role_or_refuses_the_solid() {
         cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
         let mut slab = far_anchored_slab(3.0, 1e-3, t, 1e3, tol);
         if inside_out {
-            slab = slab.revert();
+            slab = slab.revert().unwrap();
         }
         crate::graft_disjoint_all_keyed(&mut body, &slab).expect("the slab grafts");
         let [keeper, donor] = solids_of(&body)[..] else {
@@ -3635,8 +3635,9 @@ fn the_census_gate_finds_a_far_slab_nested_in_another_solid() {
     }
     let band = geom_core::Band::linear(tol).expect("a band");
     let mut body = far_anchored_slab(0.0, 1e-3, 1e-7, 5e3, tol);
-    let cavity =
-        crate::test_support::brick::<f64>((5e-3, 6e-3), (0.0, 1e-3), (0.0, 1e-3), tol).revert();
+    let cavity = crate::test_support::brick::<f64>((5e-3, 6e-3), (0.0, 1e-3), (0.0, 1e-3), tol)
+        .revert()
+        .unwrap();
     crate::graft_disjoint_all_keyed(&mut body, &cavity).expect("the graft");
     body.merge_all_solids().expect("one solid");
     let [slab] = solids_of(&body)[..] else {

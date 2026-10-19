@@ -15,19 +15,30 @@
 //! with a uniform scale about the origin, and so does the offset
 //! (`s·(S + d·n) = s·S + (s·d)·n`), so every round's fit of the patch
 //! scaled by `s` is that round's fit of the patch, scaled, and its
-//! bound is `s` times the patch's to rounding. Choosing `s` from the
-//! patch's own round-[`ROUND`] bound, which is below every earlier
-//! round's, lands the minted face on that round a fixed fraction
-//! [`MARGIN`] under the run's ε at every eps row, with the same rigid
-//! drift at every row, which is what lets one row reproduce the
-//! refusal whatever ε the run committed.
+//! bound is `s` times the patch's up to the arithmetic. Choosing `s`
+//! from the patch's own round-[`ROUND`] bound, which is below every
+//! earlier round's, lands the minted face on that round a chosen
+//! fraction under the run's ε at every eps row.
+//!
+//! **The fraction is searched, not fixed.** "Up to the arithmetic" is
+//! not small here: at round 2 the scaled fit's bound departs from `s`
+//! times the patch's by up to `±1.7e-4` of itself, and the departure
+//! jumps between neighbouring scales, so it is the same size as the
+//! rigid drift the row needs and no one fraction is a witness at every
+//! eps row. A fixed `1/4096` was one until PR 4984 tightened the
+//! regularity floor, which cut the worst map's drift at `d = +0.05`
+//! to `2.16e-4` at 1e-12, under the `2.28e-4` that margin landed the
+//! face at. So [`near_eps_face`] walks [`MARGINS`] and keeps the first
+//! face that reproduces both answers — some image refuses on the hull
+//! limb and some certifies — and the rows assert that one exists.
 //!
 //! **The round is 2, not 0.** On the one-cell round-0 fit a rotation
 //! moves the bound by about `2e-5`, within a few times the scaling's
 //! own departure from linearity (`6e-6`), which leaves no margin both
 //! above the one and below the other. On round 2's 16 cells it moves
-//! it by up to `5.6e-4`/`7.7e-4` (`d = ±0.05`) and by as little as
-//! `−7e-5`, so a margin between those is a witness at every row.
+//! it by `1.8e-4` to `4.9e-4` at the worst map, across the eps rows
+//! and both signs of `d`, and by `−1.6e-4` or less at the mildest, so
+//! margins in between are where a witness is.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -38,12 +49,18 @@ use geom_brep::{OffsetFitError, OffsetFitLane, OffsetLimb};
 use geom_core::{Affine3, Band, Point3, Tol, Vec3};
 use topo::{Body, FaceKey, FaceSurface};
 
-/// How far under ε the minted face's bound is placed, as a fraction of
-/// ε. Inside the drift the worst maps below produce on this shape's
-/// round-[`ROUND`] fit (`5.6e-4` and more), outside the drift of the
-/// mildest ones (which is below zero), and well outside the scaling's
-/// own departure from linearity (a few parts per million).
-const MARGIN: f64 = 1.0 / 4096.0;
+/// How far under ε the minted face's bound is aimed, as fractions of ε,
+/// tried in order (module docs): the `1/4096` the rows used before PR
+/// 4984, then nearer ε down to just past the scaling's departure, then
+/// one step further under.
+const MARGINS: [f64; 6] = [
+    1.0 / 4096.0,
+    1.0 / 5120.0,
+    1.0 / 6144.0,
+    1.0 / 7168.0,
+    1.0 / 8192.0,
+    1.0 / 3072.0,
+];
 
 /// The fit round the minted face certifies on (module docs).
 const ROUND: u32 = 2;
@@ -71,8 +88,8 @@ fn bowed(s: f64) -> NurbsSurface<f64> {
 }
 
 /// The certified `Approx` face of the scaled patch's offset at `d`,
-/// minted by the production door at the run's ε, with its bound
-/// `MARGIN·ε` under ε.
+/// minted by the production door at the run's ε on round [`ROUND`],
+/// at the first of [`MARGINS`] whose face reproduces both answers.
 fn near_eps_face(d: f64) -> geom::ApproxSurface<f64> {
     let tol = Tol::witness();
     let eps = tol.eps();
@@ -89,21 +106,52 @@ fn near_eps_face(d: f64) -> geom::ApproxSurface<f64> {
         unscaled.rounds, ROUND,
         "the unscaled patch meets {ROUND_TARGET:e} on round {ROUND}"
     );
-    let s = eps * (1.0 - MARGIN) / unscaled.hull_sup;
-    let face = geom_brep::approx_offset_surface(Arc::new(bowed(s)), d * s, tol)
-        .unwrap_or_else(|e| panic!("d = {d}: the scaled patch mints at the run's ε: {e}"));
-    let c = face.certificate();
-    // The subject is what the file says it is: a round-`ROUND` face
-    // whose bound sits within twice the margin of ε. A scaled fit that
-    // stopped elsewhere makes every row below vacuous.
-    assert!(
-        c.rounds == ROUND && c.hull_sup <= eps && c.hull_sup >= eps * (1.0 - 2.0 * MARGIN),
-        "d = {d}: the minted face must sit just under ε on round {ROUND} — rounds {}, \
-         hull_sup/ε {}",
-        c.rounds,
-        c.hull_sup / eps
-    );
-    Arc::unwrap_or_clone(face)
+    let mut tried = Vec::new();
+    for margin in MARGINS {
+        let s = eps * (1.0 - margin) / unscaled.hull_sup;
+        let face = geom_brep::approx_offset_surface(Arc::new(bowed(s)), d * s, tol)
+            .unwrap_or_else(|e| panic!("d = {d}: the scaled patch mints at the run's ε: {e}"));
+        let c = face.certificate();
+        // The subject is what the file says it is: a round-`ROUND`
+        // face whose bound sits just under ε. A scaled fit that stopped
+        // elsewhere makes every row below vacuous.
+        let (refused, certified) = if c.rounds == ROUND && c.hull_sup >= eps * (1.0 - 4.0 * margin)
+        {
+            answers(&face, d)
+        } else {
+            (0, 0)
+        };
+        if refused > 0 && certified > 0 {
+            return Arc::unwrap_or_clone(face);
+        }
+        tried.push(format!(
+            "1/{:.0}: rounds {}, hull_sup/ε {}, {refused} refused, {certified} certified",
+            1.0 / margin,
+            c.rounds,
+            c.hull_sup / eps
+        ));
+    }
+    panic!("d = {d}: no margin reproduces both answers: {tried:#?}")
+}
+
+/// How many of [`rotations`]' images of `face` refuse the re-derivation
+/// on the hull limb, and how many certify.
+fn answers(face: &geom::ApproxSurface<f64>, d: f64) -> (usize, usize) {
+    let tol = Tol::witness();
+    let lane = OffsetFitLane::fit();
+    rotations()
+        .into_iter()
+        .fold((0, 0), |(refused, certified), (name, map)| {
+            let (description, fit) = image(face, &map);
+            match lane.remap(&description, &fit, face.window(), tol) {
+                Ok(_) => (refused, certified + 1),
+                Err(OffsetFitError::Limb {
+                    limb: OffsetLimb::HullSup,
+                    ..
+                }) => (refused + 1, certified),
+                Err(e) => panic!("d = {d}, {name}: only the hull limb moves here: {e}"),
+            }
+        })
 }
 
 /// Rigid maps about four axes at eight angles each — the oblique ones

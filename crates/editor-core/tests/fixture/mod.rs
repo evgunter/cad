@@ -1971,6 +1971,17 @@ pub fn out(doc: &ProfileDoc, node: RecipeNodeId) -> VarId {
         .unwrap_or_else(|| panic!("{node} defines an output"))
 }
 
+/// The member a union-minted name came from, or `None` for a name that
+/// is not a carried (`From`) row. Read off the member's READ, which is
+/// the only thing that answers: the inner name's minting node is the
+/// PROTOTYPE's where a member is a placement of one.
+pub fn member_of(doc: &ProfileDoc, name: &StableName) -> Option<RecipeNodeId> {
+    match name.path.first() {
+        Some(RoleSeg::From { read, .. }) => doc.operation_of(*read),
+        _ => None,
+    }
+}
+
 /// **One ENTITY of one member, in the UNION's own name space** — the
 /// row `member_view` puts into that member's operand table, and the
 /// shape a union's published table carries.
@@ -2391,4 +2402,43 @@ pub fn continuous_vars(doc: &ProfileDoc) -> usize {
     doc.free_vars()
         .filter(|(_, free)| matches!(free, editor_core::FreeVar::Continuous { .. }))
         .count()
+}
+
+/// `a`, `b` standing on `a`'s top raised by `lift` (0 glues `b`'s bottom
+/// to `a`'s top, −0.1 sinks it, 0.1 lifts it clear), and `c` rising
+/// through `a`'s top across `b`'s far end, its x = 1.2 wall cutting
+/// `b`'s y = 0.25 bottom rim.
+pub fn glued_rim(lift: f64) -> impl Fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    move |doc| {
+        let (doc, a) = glued_block(doc, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+        let (doc, b) = glued_block(doc, (0.5, 1.5), (0.25, 0.75), 1.0 + lift, 0.5);
+        let (doc, c) = glued_block(doc, (1.2, 2.5), (-0.2, 1.2), 0.5, 1.3);
+        (doc, vec![a, b, c])
+    }
+}
+
+/// An axis-aligned block on the xy plane at height `z0`, extruded `dz`:
+/// [`glued_rim`]'s members.
+fn glued_block(
+    doc: ProfileDoc,
+    (x0, x1): (f64, f64),
+    (y0, y1): (f64, f64),
+    z0: f64,
+    dz: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = on_frame(
+        doc,
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
+    );
+    insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(dz),
+            side: ExtrudeSide::Along,
+        },
+    )
 }

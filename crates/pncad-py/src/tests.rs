@@ -3757,8 +3757,10 @@ fn check_registry_tags_are_stable() {
     );
     assert_eq!(
         check_evidence_tag(&CheckEvidence::SeparationUnavailable {
-            kind: pncad::topo::BooleanErrorKind::ClassificationInvariant,
-            reason: "boxes refused".into()
+            refusal: pncad::topo::BooleanError::ClassificationInvariant {
+                what: "boxes refused"
+            }
+            .into()
         }),
         "separation_unavailable"
     );
@@ -3834,8 +3836,10 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         &["other_root", "other_output"],
     );
     let unavailable = E::SeparationUnavailable {
-        kind: pncad::topo::BooleanErrorKind::ClassificationInvariant,
-        reason: "boxes refused".into(),
+        refusal: pncad::topo::BooleanError::ClassificationInvariant {
+            what: "boxes refused",
+        }
+        .into(),
     };
     carries(&unavailable, &["reason", "boolean_variant"]);
 
@@ -3914,9 +3918,19 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     let pair = check_payload(&separated);
     assert_eq!(pair.other_root, Some(RecipeNodeId::new(0, 4)));
     assert_eq!(pair.other_output, Some(2));
+    let E::SeparationUnavailable { refusal } = &unavailable else {
+        unreachable!("built as the separation arm above")
+    };
+    let words = check_payload(&unavailable);
     assert_eq!(
-        check_payload(&unavailable).reason.as_deref(),
-        Some("boxes refused")
+        words.reason.as_deref(),
+        Some(refusal.to_string().as_str()),
+        "the reason is the kernel's own sentence, whole"
+    );
+    assert_eq!(
+        words.boolean_variant,
+        Some("classification_invariant"),
+        "the class is the arm the refusal is"
     );
 }
 
@@ -4846,7 +4860,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "euler",
             "fallback_extent_unsupported",
             "germ_edge_carrier_unsupported",
-            "germ_frame_cylinder_pinch",
             "germ_frame_unsupported",
             "germ_section_outside_inventory",
             "germ_section_spiric",
@@ -4860,7 +4873,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join_undecided",
             "lineage_row",
             "merge",
+            "mixed_seam",
             "nesting_unread",
+            "node_unbuilt",
             "non_finite_sector_chord",
             "non_manifold_result",
             "non_maximal_faces",
@@ -4870,7 +4885,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "partner_along_face",
             "pcurves",
             "pieces",
-            "pinch_cones_on_separate_keys",
             "pinch_rays_in_a_face",
             "point_in_face_refused",
             "point_split_carrier_unsupported",
@@ -4878,6 +4892,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rest_piece_unread",
             "result_invalid",
             "result_volume_implausible",
+            "revert",
             "rim_cusp_arm_unbuilt",
             "scaffolding_operand",
             "seam_orientation",
@@ -4974,6 +4989,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "coincidence_relation_tag",
         values: &[
+            "axes_meet",
             "co_ruled",
             "coaxial",
             "common_foot",
@@ -4981,6 +4997,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "on_carrier",
             "same_opposite",
             "same_oriented",
+            "same_radius",
             "surface_tangent",
             "tangent",
         ],
@@ -5026,6 +5043,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "carrier_ladder",
             "census_at_rest",
             "coaxial_sphere",
+            "crossing_cylinders",
             "plane_ladder",
             "profile_junction",
             "split_on",
@@ -5341,6 +5359,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_carries_metadata",
             "part_dead_gauge",
             "placement_pose_crosses",
+            "ranked_run_reordered",
             "stranded_part_name",
             "stranded_part_read",
             "unknown_node",
@@ -5492,6 +5511,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "naming_error_tag",
         values: &[
+            "carrier_unplaced",
             "closed_carrier_unread",
             "conventional_vertex",
             "duplicate",
@@ -6097,6 +6117,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "partition",
             "pcurve",
             "rim",
+            "rim_seam_mixed",
             "roles",
             "thickness",
             "wall_clearance",
@@ -6236,6 +6257,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_id_collides",
             "part_name_reaches_remainder",
             "placing_mate_left",
+            "ranked_run_reordered",
             "remainder_edit",
             "remainder_read_uncarried",
             "severed_edge",
@@ -6255,7 +6277,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "split_op_error_tag",
         values: &["finish", "join", "pcurves", "pieces", "reduce"],
-        delegates: &["join_refusal_tag"],
+        delegates: &["boolean_error_tag", "join_refusal_tag"],
     },
     TagEntry {
         function: "stale_declaration_tag",
@@ -6488,6 +6510,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "loop_cycle_overrun",
             "loop_role_inverted",
             "missing_provenance",
+            "mixed_dihedral",
             "multiply_owned",
             "negative_volume",
             "next_prev_mismatch",
@@ -6734,6 +6757,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // `program`, which leaves `profile` to the operand the slot
     // alphabet forwards.
     ("profile", 2),
+    // A split's and an inline's refusal of a ranked run its re-minted
+    // ids reorder: one fact (`editor_core::RemapError::RankedRunReordered`).
+    ("ranked_run_reordered", 2),
     // One fact: `topo::readback` refused the face it read, as a face
     // frame's refusal and as a pose read off geometry's.
     ("readback", 2),

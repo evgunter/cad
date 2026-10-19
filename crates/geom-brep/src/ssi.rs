@@ -118,6 +118,7 @@
 
 pub mod boundary;
 pub mod certify;
+mod compensated;
 pub mod enclose;
 mod ends;
 pub mod exhaust;
@@ -696,6 +697,11 @@ pub enum SsiError {
         /// What is missing, in the caller's terms.
         what: &'static str,
     },
+    /// Limb 2 has no certified net of the carrier over a span of its
+    /// interval ([`crate::CarrierEnclosureRefusal`]): the carrier's
+    /// kind and the span, from the one door every composite reads a
+    /// carrier through.
+    CarrierEnclosure(crate::CarrierEnclosureRefusal),
     /// A NURBS wall's boundary row would not re-wrap as a curve: a
     /// weight on it is not positive and finite. Unreachable for a wall
     /// that validated, and surfaced with the spline layer's own
@@ -949,7 +955,8 @@ impl core::fmt::Display for SsiError {
                  locus cusps or crosses itself, which is a degenerate operand pair"
             ),
             Self::CertificateLimb { limb, margin } => match limb {
-                SsiLimb::HullSup => write!(
+                // The chart arm's label says it reads through the pcurve.
+                SsiLimb::HullSup | SsiLimb::HullSupChart => write!(
                     f,
                     "ssi: {} bounds the fitted carrier's distance from the locus it claims by \
                      {margin:e} m, past the tolerance",
@@ -957,14 +964,30 @@ impl core::fmt::Display for SsiError {
                 ),
                 SsiLimb::HullValueChart => write!(
                     f,
-                    "ssi: the fitted carrier failed {} at {margin:e} m — the carrier is off \
-                     the surface point its pcurve names",
+                    "ssi: the fitted carrier failed {} at {margin:e} m — the carrier against \
+                     the surface point its pcurve names, which bounds the carrier's miss and is \
+                     not the miss",
                     limb.name()
                 ),
-                SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => write!(
+                SsiLimb::ImageMiss => write!(
+                    f,
+                    "ssi: the fitted carrier failed {} at {margin:e} m where the carrier is on \
+                     the surface — its pcurve misses the carrier's foot path there",
+                    limb.name()
+                ),
+                SsiLimb::OnLocus | SsiLimb::HullValue => write!(
                     f,
                     "ssi: the fitted carrier failed {} at {margin:e} m — the cache is not \
                      within tolerance of the locus it claims",
+                    limb.name()
+                ),
+                // No producer writes a `CertificateLimb` of limb 3: the
+                // tube refuses as `TubeStraddles` or `TubeNotOneArc`, or
+                // escalates.
+                SsiLimb::Tube => write!(
+                    f,
+                    "ssi: the fitted carrier failed {} at {margin:e} m — the certificate cannot \
+                     show the cache is its surfaces' one crossing",
                     limb.name()
                 ),
             },
@@ -1177,6 +1200,7 @@ impl core::fmt::Display for SsiError {
             Self::UnsupportedCertificate { what } => {
                 write!(f, "ssi: {what}")
             }
+            Self::CarrierEnclosure(r) => write!(f, "ssi: {r}"),
             Self::ChartRow { .. } => write!(
                 f,
                 "ssi: a NURBS wall's boundary row is not valid spline structure"
@@ -1454,7 +1478,9 @@ impl SsiError {
                 RefusedArm::SignCertain(None),
                 reading,
             ),
-            Self::UnsupportedCertificate { .. } => NOT_YET_ENDING.to_owned(),
+            Self::UnsupportedCertificate { .. } | Self::CarrierEnclosure(_) => {
+                NOT_YET_ENDING.to_owned()
+            }
             Self::WrongLane { .. } => WRONG_LANE_RECOURSE.to_owned(),
         }
     }
@@ -3004,7 +3030,8 @@ pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds + geom_core::Certi
     band: Band,
 ) -> Result<SsiCertificate<T>, SsiError> {
     certify::certify_branch(
-        carrier,
+        &Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        carrier.knot_values().domain(),
         certify::Lane::AtRest {
             a,
             b,
@@ -3398,7 +3425,7 @@ mod ending_tests {
             },
             samples: 10_221,
             refusal: Box::new(SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSupChart,
                 margin: MarginDiag::value(last),
             }),
             earlier: vec![
@@ -3409,7 +3436,7 @@ mod ending_tests {
                 },
                 RefusedRound {
                     samples: 7_400,
-                    limb: SsiLimb::HullSup,
+                    limb: SsiLimb::HullSupChart,
                     margin: RoundMargin::Over(MarginDiag::value(before)),
                 },
             ],
@@ -3475,7 +3502,7 @@ mod ending_tests {
             },
             samples: 18_299,
             refusal: Box::new(SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSupChart,
                 margin: MarginDiag::value(1.17e-14),
             }),
             earlier: Vec::new(),
@@ -3500,7 +3527,7 @@ mod ending_tests {
             refusal,
             earlier: vec![RefusedRound {
                 samples: 18_299,
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSupChart,
                 margin: RoundMargin::Over(MarginDiag::value(1.3e-14)),
             }],
         };
@@ -3518,13 +3545,13 @@ mod ending_tests {
                 },
                 samples: 348,
                 refusal: Box::new(SsiError::CertificateLimb {
-                    limb: SsiLimb::HullSup,
+                    limb: SsiLimb::HullSupChart,
                     margin: MarginDiag::value(2.4e-9),
                 }),
                 earlier: (0..earlier)
                     .map(|_| RefusedRound {
                         samples: 346,
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: RoundMargin::Over(MarginDiag::value(3.1e-9)),
                     })
                     .collect(),
@@ -3622,6 +3649,7 @@ mod ending_tests {
             ),
             ("unsupported, routing", NOT_YET_ENDING, NOT_YET_ENDING),
             ("unsupported, pcurve", NOT_YET_ENDING, NOT_YET_ENDING),
+            ("carrier enclosure", NOT_YET_ENDING, NOT_YET_ENDING),
             (
                 "wall collapsed",
                 super::WALL_COLLAPSED_RECOURSE,
@@ -3744,7 +3772,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 44;
+    const ARMS: usize = 45;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -3795,6 +3823,7 @@ mod ending_tests {
             SsiError::ChartRow { .. } => 41,
             SsiError::PairBoundaryUnresolved { .. } => 42,
             SsiError::SeedOutsideTube { .. } => 43,
+            SsiError::CarrierEnclosure(_) => 44,
         }
     }
 
@@ -3906,12 +3935,12 @@ mod ending_tests {
                     },
                     samples: 348,
                     refusal: Box::new(SsiError::CertificateLimb {
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: MarginDiag::value(2.4e-9),
                     }),
                     earlier: vec![RefusedRound {
                         samples: 346,
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: RoundMargin::Over(MarginDiag::value(3.1e-9)),
                     }],
                 },
@@ -3925,12 +3954,12 @@ mod ending_tests {
                     },
                     samples: 17_375,
                     refusal: Box::new(SsiError::CertificateLimb {
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: MarginDiag::value(2.15e-11),
                     }),
                     earlier: vec![RefusedRound {
                         samples: 10_337,
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         margin: RoundMargin::Over(MarginDiag::value(1.30e-10)),
                     }],
                 },
@@ -3946,13 +3975,13 @@ mod ending_tests {
                     },
                     samples: 14_965,
                     refusal: Box::new(SsiError::CertificateEscalated {
-                        limb: SsiLimb::HullSup,
+                        limb: SsiLimb::HullSupChart,
                         cause: in_band,
                     }),
                     earlier: (0..4)
                         .map(|k| RefusedRound {
                             samples: 4_245 << k,
-                            limb: SsiLimb::HullSup,
+                            limb: SsiLimb::HullSupChart,
                             margin: RoundMargin::InBand(MarginDiag::value(1.6e-14)),
                         })
                         .collect(),
@@ -4012,7 +4041,7 @@ mod ending_tests {
             (
                 "limb",
                 SsiError::CertificateLimb {
-                    limb: SsiLimb::HullSup,
+                    limb: SsiLimb::HullSupChart,
                     margin: MarginDiag::value(3e-9),
                 },
             ),
@@ -4102,6 +4131,13 @@ mod ending_tests {
                 SsiError::UnsupportedCertificate {
                     what: super::certify::NURBS_LIMBS_NEED_PCURVE,
                 },
+            ),
+            (
+                "carrier enclosure",
+                SsiError::CarrierEnclosure(crate::CarrierEnclosureRefusal {
+                    kind: geom::CurveKind::Spiric,
+                    span: (3.1, 3.2),
+                }),
             ),
             (
                 "chart speed",

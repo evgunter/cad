@@ -9,7 +9,7 @@
 //! ([`chart_moves`]). What the doors differ in is how a declaration
 //! travels with the edge, so each passes that as `carried`.
 
-use geom_brep::{EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, MappedCurve, SurfacePair};
+use geom_brep::{EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, MappedCurve};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign};
 
@@ -32,14 +32,22 @@ pub(crate) fn chart_moves<T: Decide>(distance: T, band: Band) -> Result<bool, Re
 /// - an **intrinsic** one keeps its (about to be remapped) surfaces
 ///   with the witness at `mid`;
 /// - a **chart image** in a chart that holds while the edge's other
-///   side moves is restated against the moving side
-///   ([`held_neighbour_image`]). Any other image is derived afresh
+///   side moves has left the locus it draws, and is re-asked as the
+///   moved pair below. Any other image is derived afresh
 ///   from the moved carrier (`image: None`, the spec's request to
 ///   derive it) when the edge `slides` within its chart, and kept when
 ///   it does not — the chart moves rigidly with the edge, or neither
 ///   moves;
+/// - a **pair** the two surfaces under-determined, and such an image,
+///   is re-asked the must-carry rule against the moved pair through
+///   `re_ask`
+///   ([`re_ask_on_pair`]), which the door supplies with the edge's two
+///   sides' moved surfaces and its moved carrier, handed the
+///   declaration to carry where the rule reads the pair conventional;
 /// - a **declaration** or a **scaffold** is 3-space sketch data, and
-///   rides `carried`.
+///   rides `carried` — only where the restated edge keeps it, so a
+///   declaration the rule's intrinsic reading drops is never asked to
+///   travel.
 ///
 /// `sides` is each side's key and whether its chart moves. Nothing
 /// stated here is trusted: the attach layer certifies the spec against
@@ -51,10 +59,13 @@ pub(crate) fn restate<T: Real>(
     slides: bool,
     mid: Point3<T>,
     carried: impl Fn(MappedCurve<T>) -> Result<MappedCurve<T>, ReplaceFaceError<T>>,
+    re_ask: impl FnOnce(
+        &dyn Fn() -> Result<Option<MappedCurve<T>>, ReplaceFaceError<T>>,
+    ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>>,
 ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
-    let declared = match authority {
-        EdgeAuthority::Derived => None,
-        EdgeAuthority::Declared(mc) => Some(carried(mc)?),
+    let declared = || match authority {
+        EdgeAuthority::Derived => Ok(None),
+        EdgeAuthority::Declared(mc) => Ok(Some(carried(mc)?)),
     };
     Ok(match description {
         EdgeDescription::Intersection { pair, .. } => {
@@ -63,43 +74,65 @@ pub(crate) fn restate<T: Real>(
         EdgeDescription::TangentIntersection { pair, .. } => {
             EdgeDescriptionSpec::TangentIntersection { pair, witness: mid }
         }
+        EdgeDescription::OnPair { .. } => re_ask(&declared)?,
         EdgeDescription::Chart(c) => match beside_moving(c.surface, sides) {
-            Some(moving) => held_neighbour_image(moving, c.surface, declared, mid),
+            // The image names no key the moving side wears after the
+            // move, and the edge has left the locus it draws: it lies on
+            // the moved pair, which the rule is asked again, and it
+            // stores what the rule reads, declared or not.
+            Some(_) => re_ask(&declared)?,
             None => EdgeDescriptionSpec::Chart {
                 surface: c.surface,
                 image: (!slides).then_some(c.pcurve),
                 wrap: c.wrap,
-                declared,
+                declared: declared()?,
             },
         },
         EdgeDescription::Scaffold(m) => EdgeDescriptionSpec::Scaffold(carried(m)?),
     })
 }
 
-/// An edge whose description is an image in `held`'s chart, `held`
-/// holding still while the edge's other side `moving` moves, restated
-/// for the move.
+/// **An `OnPair` edge whose pair or extent a door changed**, re-asked
+/// the must-carry rule as it now stands ([`geom_brep::reask_pair`]):
+/// `surfaces` are the pair's two surfaces after the door, each with the
+/// key the edge's description names, and `carrier` over `(t0, t1)` is
+/// the edge after it. `declared` is the edge's declaration as the
+/// door transports it, asked only where the rule reads the pair
+/// conventional: an intrinsic reading drops it, so its transport
+/// cannot refuse there.
 ///
-/// The image names no key the moving side wears after the move, and
-/// the edge has left the locus it draws, so the edge is stated as what
-/// it now is: the section of the two charts. A declaration rides only a
-/// chart image (an intersection has no slot for one), so a declared
-/// edge moves into the moving side's own chart instead, its image
-/// derived from the moved carrier. `moving` is the key the side wears
-/// now; the door's remap re-points it at the chart it mints.
-pub(crate) fn held_neighbour_image<T: Real>(
-    moving: SurfaceKey,
-    held: SurfaceKey,
-    declared: Option<MappedCurve<T>>,
-    witness: Point3<T>,
-) -> EdgeDescriptionSpec<T> {
-    match declared {
-        None => EdgeDescriptionSpec::Intersection {
-            pair: SurfacePair::new(moving, held),
-            witness,
+/// # Errors
+///
+/// [`ReplaceFaceError::MixedEdge`] where the moved edge reads a corner
+/// at one station and smooth at its neighbour;
+/// [`ReplaceFaceError::Escalated`] where a station is in band; and
+/// whatever `declared` refuses, where the reading keeps it.
+pub(crate) fn re_ask_on_pair<T: Decide>(
+    edge: crate::entity::EdgeKey,
+    surfaces: [(SurfaceKey, &geom::Surface<T>); 2],
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    declared: impl FnOnce() -> Result<Option<MappedCurve<T>>, ReplaceFaceError<T>>,
+    band: Band,
+) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
+    let read =
+        geom_brep::reask_pair(surfaces, carrier, (t0, t1), None, band).map_err(|refusal| {
+            match refusal {
+                geom_brep::PairRefusal::Mixed(stations) => {
+                    ReplaceFaceError::MixedEdge { edge, stations }
+                }
+                geom_brep::PairRefusal::InBand(escalation) => ReplaceFaceError::Escalated {
+                    source: escalation.diag(),
+                },
+            }
+        })?;
+    Ok(match read {
+        EdgeDescriptionSpec::OnPair { pair, .. } => EdgeDescriptionSpec::OnPair {
+            pair,
+            declared: declared()?,
         },
-        Some(mc) => EdgeDescriptionSpec::chart(moving).declared_by(mc),
-    }
+        intrinsic => intrinsic,
+    })
 }
 
 /// The moving side's key, where the chart `named` is the edge's other

@@ -43,3 +43,7 @@ The FLUX cylinder-band lane (PR 4839) re-ran the row alone by name on
 clean main `e71d719f1`. It fails at `CAD_TOLERANCE_EPS=1e-6` and at 1e-12,
 and is green at the default. That lane's diff does not reach the cone
 extent scan.
+
+## 2026-10-14 — still red at 1e-6 and 1e-12 on main (NURBS, fresh target)
+
+Re-run alone with a fresh `CARGO_TARGET_DIR` per commit: red at `a71403e3` and still red on main at `307ed404`. Not moved by NURBS PR 4984 (red on both sides of it). (NURBS build A)

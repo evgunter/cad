@@ -705,14 +705,15 @@ fn the_copysign_mint_sites_the_tree_holds_are_these() {
     }
     let expected: std::collections::BTreeMap<String, usize> = [
         ("crates/geom-brep/src/implicit.rs", 1),
+        ("crates/geom-brep/src/intersect.rs", 1),
         ("crates/geom-brep/src/props/curved.rs", 1),
+        ("crates/geom-brep/src/quartic.rs", 2),
         ("crates/geom-brep/src/tangent.rs", 1),
         ("crates/geom-core/src/linalg/svd.rs", 1),
         ("crates/geom/src/curves/banded.rs", 1),
         ("crates/profile/src/sugar.rs", 1),
         ("crates/sweep/src/blend/arms.rs", 1),
         ("crates/sweep/src/revolve/axis.rs", 1),
-        ("crates/topo/src/boolean/solid_contain.rs", 2),
     ]
     .into_iter()
     .map(|(f, n)| (f.to_owned(), n))

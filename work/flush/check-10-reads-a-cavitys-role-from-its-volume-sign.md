@@ -2,12 +2,12 @@
 id: check-10-reads-a-cavitys-role-from-its-volume-sign
 kind: issue
 title: Check 10 reads a cavity's role from its V/A, so a definite thin cavity (brick minus slab) refuses ShellRole though its faces are a definite pair
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P2
 cost: M
 design: true
-branch: flush/ev-shell-role
+branch: flush/shell-role-reader
 pr: 4990
 ---
 

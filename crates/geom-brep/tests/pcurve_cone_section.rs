@@ -64,8 +64,8 @@ fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
     let &Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u,
+        semi_v,
         u_ref,
     } = e
     else {
@@ -74,21 +74,56 @@ fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
     Curve3::Ellipse {
         center,
         axis: -axis,
-        major,
-        minor,
+        semi_u,
+        semi_v,
         u_ref,
     }
 }
 
-/// Every pairing of nappe and traversal: the image is the
-/// cone instance of the `FocalSection` form, maps onto the carrier at rounding scale over two
-/// periods (the azimuth's branch never jumps), and certifies over a
-/// span longer than a half-turn with a rounding-scale envelope.
+/// The same ellipse seamed `k` quarter turns on, at each of its four
+/// principal vertices in turn: `u_ref` turned about `axis` and, on an
+/// odd turn, the semi-axes swapped.
+fn seamed(e: &Curve3<f64>, k: u32) -> Curve3<f64> {
+    let &Curve3::Ellipse {
+        center,
+        axis,
+        semi_u,
+        semi_v,
+        u_ref,
+    } = e
+    else {
+        unreachable!()
+    };
+    let (u_ref, semi_u, semi_v) = match k % 4 {
+        0 => (u_ref, semi_u, semi_v),
+        1 => (axis.cross(u_ref), semi_v, semi_u),
+        2 => (-u_ref, semi_u, semi_v),
+        _ => (-axis.cross(u_ref), semi_v, semi_u),
+    };
+    Curve3::Ellipse {
+        center,
+        axis,
+        semi_u,
+        semi_v,
+        u_ref,
+    }
+}
+
+/// Every pairing of nappe and traversal, seamed at each principal
+/// vertex: the image is the cone instance of the `FocalSection` form,
+/// maps onto the carrier at rounding scale over two periods (the
+/// azimuth's branch never jumps), and certifies over a span longer than
+/// a half-turn with a rounding-scale envelope. A carrier seamed at a
+/// minor vertex is read in its major frame through the image's `t0`.
 #[test]
 fn the_image_is_exact_on_both_nappes_and_both_traversals() {
     for axis_sign in [1.0, -1.0] {
         let surface = cone(axis_sign);
-        for carrier in [section(), reversed(&section())] {
+        let carriers = [section(), reversed(&section())]
+            .iter()
+            .flat_map(|e| (0..4).map(|k| seamed(e, k)))
+            .collect::<Vec<_>>();
+        for carrier in carriers {
             let what = format!("axis sign {axis_sign}, carrier {carrier:?}");
             let image = chart_pcurve(&carrier, &surface, band()).unwrap();
             let Pcurve::FocalSection(FocalImage { beta, sense, .. }) = image else {
@@ -301,7 +336,7 @@ fn read_off_the_sum(
         &Pcurve::FocalSection(focal),
         &Curve3::Ellipse {
             center,
-            major,
+            semi_u,
             u_ref: e_u,
             ..
         },
@@ -314,7 +349,7 @@ fn read_off_the_sum(
     };
     let radial = |v: Vec3<f64>| v - axis * v.dot(axis);
     let w = center - apex;
-    let start = (radial(w) + radial(e_u * major)) * w.dot(axis).signum();
+    let start = (radial(w) + radial(e_u * semi_u)) * w.dot(axis).signum();
     let u0 = start.dot(axis.cross(u_ref)).atan2(start.dot(u_ref));
     Pcurve::FocalSection(FocalImage { u0, ..focal })
 }
@@ -452,8 +487,8 @@ fn skew_near_circle(alpha: f64, h: f64, phi: f64, off: f64) -> (Curve3<f64>, Sur
     let carrier = Curve3::Ellipse {
         center: m.transform_point(center + Vec3::unit_y() * off),
         axis: m.transform_vec(u_ref.cross(Vec3::unit_y())),
-        major: 0.5 * (p1 - p2).norm(),
-        minor: (ta * ta * cz * cz - cx * cx).sqrt(),
+        semi_u: 0.5 * (p1 - p2).norm(),
+        semi_v: (ta * ta * cz * cz - cx * cx).sqrt(),
         u_ref: m.transform_vec(u_ref),
     };
     let surface = Surface::Cone {
@@ -697,8 +732,8 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
     let Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u,
+        semi_v,
         u_ref,
     } = exact
     else {
@@ -707,8 +742,8 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
     let carrier = Curve3::Ellipse {
         center: center + u_ref * (0.3 * eps()),
         axis,
-        major,
-        minor,
+        semi_u,
+        semi_v,
         u_ref,
     };
     let off = off_cone(&carrier, &surface);
@@ -717,10 +752,77 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
         Err(e) => return refused(format!("a carrier {off:e} off the cone: {e}")),
     };
     let miss = whole_turn_miss(&image, &carrier, &surface);
-    let bound = off / alpha.cos() + 4.0 * f64::EPSILON * major / k;
+    let bound = off / alpha.cos() + 4.0 * f64::EPSILON * semi_u / k;
     assert!(
         miss < bound,
-        "carrier {off:e} off the cone (k {k:e}, A {major:e}): image misses by {miss:e}, \
+        "carrier {off:e} off the cone (k {k:e}, A {semi_u:e}): image misses by {miss:e}, \
          past {bound:e}"
     );
+}
+
+/// How many `u` of a flat cone's section `size` its image's envelope may
+/// read: three times the 16 `u` (`RESOLUTION_ULPS`) that
+/// `flat_cone_tilted_ellipse.rs` allows the carrier itself off the cut,
+/// on the same `size`, `max(larger semi-axis, |centre|, |apex|)`.
+const FLAT_IMAGE_ULPS: f64 = 48.0;
+
+/// **A flat cone's section images and certifies at its own resolution**
+/// (`work/pcert/focal-section-image-on-a-flat-cone-misses-by-a-cos-squared-factor`,
+/// fixed by #5043's `K = −D·M` and its apex-foot centre; this row guards
+/// both halves). The item's own frustum pose, [`skew_section`], at
+/// half-angle 1.55 (`1/cos²α ≈ 2300`), height 0.1, the plane leaning
+/// `f·(π/2 − α)` off square to the axis for `f` of 0.5, 0.8 and 0.9.
+/// Each section's `FocalSection` image certifies over a whole turn on a
+/// band of its own, `(1e-12, 1e-11)`, so the row reads the same at every
+/// ε row, with an envelope within [`FLAT_IMAGE_ULPS`] `u` of its `size`.
+///
+/// The ceiling binds at every pose: the band's zero is 700 `u` of the
+/// largest `size` here and more of the others, so the ceiling, not the
+/// band, decides. Today's envelopes read 27, 8 and 31 `u`. What reds the
+/// row:
+/// - the arm's old `K = c² − sin²α`, at every pose;
+/// - the arm's old centre `apex − (c·a − sin²α·n)·δ/K`, at every pose
+///   (465 `u` at `f = 0.8`, a refusal at the others);
+/// - the centre moved 30 `u` of the semi-axis back along the major axis,
+///   which reads 64, 86 and 70 `u`.
+#[test]
+fn a_flat_cones_section_images_and_certifies_at_its_own_resolution() {
+    let band = geom_core::Band::new(1e-12, 1e-11).unwrap();
+    let mut wrong = Vec::new();
+    for f in [0.5, 0.8, 0.9] {
+        let (carrier, surface, _) = skew_section(1.55, 0.1, f).unwrap();
+        let Curve3::Ellipse {
+            center,
+            semi_u,
+            semi_v,
+            ..
+        } = carrier
+        else {
+            unreachable!("skew_section answers an ellipse")
+        };
+        let Surface::Cone { apex, .. } = surface else {
+            unreachable!("skew_section answers a cone")
+        };
+        let size = Curve3::semi_axes_by_size(semi_u, semi_v)
+            .0
+            .max(center.distance(Point3::origin()))
+            .max(apex.distance(Point3::origin()));
+        let ceiling = FLAT_IMAGE_ULPS * 0.5 * f64::EPSILON * size;
+        assert!(
+            ceiling < band.zero(),
+            "f {f}: the ceiling {ceiling:e} must bind below the band's zero"
+        );
+        let got = chart_pcurve(&carrier, &surface, band).and_then(|image| {
+            PcurveCache::certify(image, 0.0, core::f64::consts::TAU, &carrier, &surface, band)
+        });
+        match got {
+            Ok(cache) if cache.certificate().envelope <= ceiling => {}
+            Ok(cache) => wrong.push(format!(
+                "f {f}: envelope {:e} past {FLAT_IMAGE_ULPS} u of size {size:e}",
+                cache.certificate().envelope
+            )),
+            Err(e) => wrong.push(format!("f {f}, size {size:e}: {e:?}")),
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
 }

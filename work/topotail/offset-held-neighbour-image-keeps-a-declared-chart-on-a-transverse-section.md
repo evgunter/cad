@@ -2,11 +2,11 @@
 id: offset-held-neighbour-image-keeps-a-declared-chart-on-a-transverse-section
 kind: issue
 title: offset_restate::held_neighbour_image moves a declared chart image onto a moving side that usually meets the held side transversally; check 4 would refuse it at rest (unverified)
-status: open
+status: closed
 opened: 2026-10-06
 priority: P3
 cost: E
-blocked_on: [restatement-derives-each-moved-edges-kind]
+closed: 2026-10-15
 ---
 
 
@@ -29,3 +29,26 @@ This row was filed on the orchestration branch, so INTENT's 2026-10-08 re-homing
 ## Re-homed at TOPO's cut (2026-10-11)
 
 Moved from TOPO to TOPOTAIL when TOPO dropped to P2 and split on its priority seam (`work/topotail/log.md`). TOPO kept the Euler surgery doors; this row is a torn-record, refusal-recourse or code-hygiene row, or a parked boolean or placement row.
+
+## Moved by TANG's OnPair (2026-10-13)
+
+`held_neighbour_image` is now `offset_restate::held_neighbour_restated`:
+the moved edge's pair is asked the must-carry rule
+(`geom_brep::reask_pair`), and a derived edge stores what it reads
+(`Intersection`, `TangentIntersection` or `OnPair`). A declared edge
+rides `OnPair` where the rule reads the pair under-determined; where it
+reads a corner or a determinate tangency, the declared edge keeps
+`chart(moving).declared_by(mc)`, this row's case, still waiting on the
+same authority question.
+
+## Closed (2026-10-15)
+
+Answered by Ev's decision on D2 (PR 5150; recorded on
+`tang/a-declared-tangent-seam-flips-invalid-when-eps-tightens`): the
+offset arm stores what the must-carry rule reads, declared or not, so
+a declared image in a held neighbour's chart becomes the moved pair's
+`Intersection` (or `TangentIntersection`, or `OnPair` with the
+declaration) and the body is valid. `held_neighbour_restated` is gone;
+`restate` and `replace_face`'s chart arm call the re-ask directly. The
+witness rows in `crates/sweep/tests/offset_restates_a_neighbour_chart_rim.rs`
+now assert the section and a valid body.

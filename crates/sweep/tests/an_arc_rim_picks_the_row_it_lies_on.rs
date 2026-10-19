@@ -13,7 +13,7 @@
 
 use geom::Surface;
 use geom_brep::{
-    CertifyError, EdgeDescriptionSpec, PcurveCertifyError, PlaneNurbsRefusal, SurfacePair,
+    CertifyError, EdgeDescriptionSpec, PcurveCertifyError, PlaneNurbsRefusal, SsiLimb, SurfacePair,
 };
 use geom_core::{Band, Point2, Tol};
 use profile::test_support::bulge_loop;
@@ -178,13 +178,15 @@ fn a_half_rim_reaches_the_pick_and_is_refused_there() {
 }
 
 /// **An `Intersection` circle on a spline chart is refused at the
-/// door.** `nurbs_iso_derive`'s boundary-iso schedule offers a circle to
-/// the arc rim and falls through to `General` only on the pick's own
-/// refusal, so a pick that certification then refused would not reach
-/// `General`. No body at rest holds such an edge: the plane × NURBS
-/// certificate takes a spline carrier only (and the NURBS × NURBS one no
-/// closed form). If a door ever certifies one, this goes red and the
-/// fall-through is owed a second look.
+/// door, on the certificate's own image.** The spline Intersection certificate
+/// takes a circle carrier and reads it as it reads a spline, so the
+/// rim's circle restated as the cap × wall `Intersection` reaches limb
+/// 2: its chart image, degree 1 over the schedule's feet, misses the
+/// semicircle by its chord error, and the hull measures that past ε at
+/// a break where the circle's own foot is on the wall. The refusal says
+/// the image misses, not that the exact circle is off its surfaces.
+/// `nurbs_iso_derive` offers an `Intersection` circle the door does
+/// certify to the arc rim, and keeps the rim only where it certifies.
 #[test]
 fn an_intersection_circle_on_a_spline_wall_is_refused_at_the_door() {
     let mut body = semicircle_prism();
@@ -204,14 +206,29 @@ fn an_intersection_circle_on_a_spline_wall_is_refused_at_the_door() {
     };
     let before = format!("{body:?}");
     let refused = body.set_edge_curve(edge, spec, tol());
+    let Err(EulerOpError::Certification {
+        error: ref error @ CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, margin }),
+    }) = refused
+    else {
+        panic!(
+            "the rim's circle is refused at a limb of the spline Intersection certificate: {refused:?}"
+        )
+    };
+    assert_eq!(
+        limb,
+        SsiLimb::ImageMiss,
+        "limb 2 refuses it at a break where the circle is on the wall"
+    );
+    let miss = margin.diagnostic_f64_for_error_text().value();
     assert!(
-        matches!(
-            refused,
-            Err(EulerOpError::Certification {
-                error: CertifyError::PlaneNurbs(PlaneNurbsRefusal::Unsupported { .. }),
-            })
-        ),
-        "the rim's circle is refused as a plane × NURBS Intersection: {refused:?}"
+        miss.is_some_and(|m| (band().zero()..1e-2).contains(&m)),
+        "the chord error, measured past ε: {miss:?}"
+    );
+    let words = error.to_string();
+    assert!(
+        words.contains("own image of the carrier misses the carrier's foot path")
+            && words.contains("not shown off its surfaces"),
+        "the refusal names the image, not the carrier: {words}"
     );
     assert_eq!(format!("{body:?}"), before, "the body is untouched");
 }

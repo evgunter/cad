@@ -34,3 +34,19 @@ freed half-edge slot for the cut's child, or a cut that splits one
 operand edge twice on one side and joins both points (a child then dies
 in the second join). Neither is built by a plane against the corpus's
 operands today.
+
+## Evidence from `fuse/split-hop-lineage-at-append` (2026-10-14)
+
+The table is now written: the cone graze in
+`split_tangent_edge_curved` (`a_cone_graze_records_each_rejoined_piece_with_the_edge_it_was_split_from`)
+records one or two rows at eight of ten azimuths, each the killed edge
+with the edge its join kept, and some carry a record older than the cut
+(`8v3 ← 10v1` is not an `edge_pieces` row). A probe over the topo,
+sweep and editor-core ci suites (8,557 tests) found 112 rows over 74
+splits, and dropping them left every test green, so what this row asks
+for still holds: no row's naming outcome reads the table. No split in
+those suites killed a child and then its parent on one side (the order
+a mint-freshness check refuses); the profile segments are lines and
+arcs, so a plane touches one edge at most once per cut, and a second
+joinable vertex along one lineage would have to be one the operand
+already held.

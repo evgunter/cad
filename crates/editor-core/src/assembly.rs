@@ -1907,6 +1907,7 @@ fn attribute(
         | ValidationError::PlanarBoundaryResidual { .. }
         | ValidationError::PlanarBoundaryEscalated { .. }
         | ValidationError::SliverDihedral { .. }
+        | ValidationError::MixedDihedral { .. }
         | ValidationError::NoDihedralArm { .. }
         | ValidationError::TransverseNotIntrinsic { .. }
         | ValidationError::TangentNotIntrinsic { .. }

@@ -98,7 +98,7 @@ fn tilted_cut_mints_exact_ellipse_carriers() {
         let ellipses = ellipse_edges(part);
         assert_eq!(ellipses.len(), 2, "two ellipse arcs bound the section");
         for (_, curve) in &ellipses {
-            let Curve3::Ellipse { major, minor, .. } = *curve.carrier() else {
+            let Some(geom::MajorFrame { major, minor, .. }) = curve.carrier().major_frame() else {
                 panic!("ellipse filter guarantees the variant");
             };
             assert!((minor - 0.5).abs() < 1e-12, "b = r");

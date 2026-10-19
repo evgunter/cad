@@ -61,7 +61,7 @@
 use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use super::boxes;
-use super::circle_roots::CircleRoots;
+use super::circle_roots::{CircleRoots, door_refusal};
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp_decided};
 use super::plane_eq::PlaneDesc;
 use super::separating::Item;
@@ -75,6 +75,7 @@ use crate::replace_face::ReplaceFaceError;
 use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane, PlaneSide as SplitSide};
 use crate::validate::decide;
 use crate::vertex_section::{Offset, SectionPlane, VertexRefusal};
+use geom_brep::roots::{Roots, Unsettled};
 use geom_core::Tol;
 
 /// Which candidate-generation path the reduction sweep runs — the
@@ -423,7 +424,7 @@ pub(super) struct UnsupportedPair {
 /// # Errors
 ///
 /// [`BooleanError::ClassificationInvariant`] for a cylinder face whose
-/// axis has no decided length (`boxes::face_box`).
+/// axis is no direction (`boxes::face_box`).
 pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
@@ -1073,10 +1074,21 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
         let SweepStrategy::Realized = strategy;
         face_tree(y, &faces, knobs, pad, band)?
     };
-    let mut worklist: std::collections::VecDeque<(EdgeKey, usize)> =
-        x.edges().map(|(k, _)| (k, 0)).collect();
+    let mut worklist: std::collections::VecDeque<Pending> = x
+        .edges()
+        .map(|(edge, _)| Pending {
+            edge,
+            start: 0,
+            lying_in: Vec::new(),
+        })
+        .collect();
 
-    while let Some((edge_key, start)) = worklist.pop_front() {
+    while let Some(Pending {
+        edge: edge_key,
+        start,
+        mut lying_in,
+    }) = worklist.pop_front()
+    {
         // The fragment's candidate face indices, ascending — the
         // realized set is a subsequence of the idealized scan, so the
         // examination order (and with it every split/requeue) is
@@ -1177,13 +1189,35 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     FaceContainment::In => {
                         let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                         push_vf(contacts, x_is, w, face, on);
-                        requeue(&mut worklist, x, edge_key, w, j)?;
+                        read_then_requeue(
+                            &mut worklist,
+                            (x, x_is, edge_key, &edge),
+                            y,
+                            w,
+                            j,
+                            &lying_in,
+                            declared,
+                            contacts,
+                            band,
+                            tol,
+                        )?;
                     }
                     FaceContainment::OnEdge(ey) => {
                         let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                         let wy = split_other_at_point(y, x_is.other(), ey, p, band, tol, contacts)?;
                         push_vv(contacts, x_is, w, wy, on);
-                        requeue(&mut worklist, x, edge_key, w, j)?;
+                        read_then_requeue(
+                            &mut worklist,
+                            (x, x_is, edge_key, &edge),
+                            y,
+                            w,
+                            j,
+                            &lying_in,
+                            declared,
+                            contacts,
+                            band,
+                            tol,
+                        )?;
                     }
                     FaceContainment::OnVertex(vy) => {
                         let w = split_logged(
@@ -1196,7 +1230,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             contacts,
                         )?;
                         push_vv(contacts, x_is, w, vy, on);
-                        requeue(&mut worklist, x, edge_key, w, j)?;
+                        read_then_requeue(
+                            &mut worklist,
+                            (x, x_is, edge_key, &edge),
+                            y,
+                            w,
+                            j,
+                            &lying_in,
+                            declared,
+                            contacts,
+                            band,
+                            tol,
+                        )?;
                     }
                 }
                 break 'faces;
@@ -1245,6 +1290,13 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     }
                     PlaneCrossingLane::Conic(meet) => Some(meet),
                 };
+                // Only the line lane's coplanar arm grows `lying_in`, and a
+                // conic's pieces are conics, so its splits read nothing
+                // (`Pending`).
+                debug_assert!(
+                    meet.is_none() || lying_in.is_empty(),
+                    "a conic edge carries the faces it lies in"
+                );
                 let covers = edge_covers(x, x_is, &edge, face, declared);
                 let touch_at_end = if meet.is_none() || covers.is_empty() {
                     None
@@ -1386,7 +1438,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 FaceContainment::In => {
                                     let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                                     push_vf(contacts, x_is, w, face, on);
-                                    requeue(&mut worklist, x, edge_key, w, j)?;
+                                    read_then_requeue(
+                                        &mut worklist,
+                                        (x, x_is, edge_key, &edge),
+                                        y,
+                                        w,
+                                        j,
+                                        &lying_in,
+                                        declared,
+                                        contacts,
+                                        band,
+                                        tol,
+                                    )?;
                                     break 'faces;
                                 }
                                 FaceContainment::OnEdge(ey) => {
@@ -1401,7 +1464,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                         contacts,
                                     )?;
                                     push_vv(contacts, x_is, w, wy, on);
-                                    requeue(&mut worklist, x, edge_key, w, j)?;
+                                    read_then_requeue(
+                                        &mut worklist,
+                                        (x, x_is, edge_key, &edge),
+                                        y,
+                                        w,
+                                        j,
+                                        &lying_in,
+                                        declared,
+                                        contacts,
+                                        band,
+                                        tol,
+                                    )?;
                                     break 'faces;
                                 }
                                 FaceContainment::OnVertex(vy) => {
@@ -1415,35 +1489,37 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                         contacts,
                                     )?;
                                     push_vv(contacts, x_is, w, vy, on);
-                                    requeue(&mut worklist, x, edge_key, w, j)?;
+                                    read_then_requeue(
+                                        &mut worklist,
+                                        (x, x_is, edge_key, &edge),
+                                        y,
+                                        w,
+                                        j,
+                                        &lying_in,
+                                        declared,
+                                        contacts,
+                                        band,
+                                        tol,
+                                    )?;
                                     break 'faces;
                                 }
                             }
                         }
                         // No interior root lands in the face:
                         // endpoint processing only.
-                        let side = |w: VertexKey, p: Point3<T>| {
-                            vertex_face_side(
-                                (x, (w, p)),
-                                (y, face, &plane),
-                                (plane.origin, plane.normal),
-                                band,
-                            )
-                        };
                         let read =
                             edge_face_read(x, x_is, &edge, face, declared, Coincide::VertexOnFace);
-                        let on_face = |refusal| vertex_refusal(refusal, read);
-                        let s1 = side(u, pu).map_err(on_face)?;
-                        let s2 = side(v, pv).map_err(on_face)?;
                         let mut hit = false;
-                        if s1.sign == Sign::Zero {
-                            hit |= vertex_on_face(
-                                x_is, y, u, pu, face, &plane, s1.margin, contacts, band, tol,
-                            )?;
-                        }
-                        if s2.sign == Sign::Zero {
-                            hit |= vertex_on_face(
-                                x_is, y, v, pv, face, &plane, s2.margin, contacts, band, tol,
+                        for end in [(u, pu), (v, pv)] {
+                            hit |= read_on_plane(
+                                (x, x_is),
+                                y,
+                                end,
+                                (face, &plane),
+                                read,
+                                contacts,
+                                band,
+                                tol,
                             )?;
                         }
                         if hit && let Some(tr) = trace.as_deref_mut() {
@@ -1487,7 +1563,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         FaceContainment::In => {
                             let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
                             push_vf(contacts, x_is, w, face, on);
-                            requeue(&mut worklist, x, edge_key, w, j + 1)?;
+                            read_then_requeue(
+                                &mut worklist,
+                                (x, x_is, edge_key, &edge),
+                                y,
+                                w,
+                                j + 1,
+                                &lying_in,
+                                declared,
+                                contacts,
+                                band,
+                                tol,
+                            )?;
                             break 'faces;
                         }
                         FaceContainment::OnEdge(ey) => {
@@ -1495,7 +1582,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             let wy =
                                 split_other_at_point(y, x_is.other(), ey, p, band, tol, contacts)?;
                             push_vv(contacts, x_is, w, wy, on);
-                            requeue(&mut worklist, x, edge_key, w, j + 1)?;
+                            read_then_requeue(
+                                &mut worklist,
+                                (x, x_is, edge_key, &edge),
+                                y,
+                                w,
+                                j + 1,
+                                &lying_in,
+                                declared,
+                                contacts,
+                                band,
+                                tol,
+                            )?;
                             break 'faces;
                         }
                         FaceContainment::OnVertex(vy) => {
@@ -1509,7 +1607,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 contacts,
                             )?;
                             push_vv(contacts, x_is, w, vy, on);
-                            requeue(&mut worklist, x, edge_key, w, j + 1)?;
+                            read_then_requeue(
+                                &mut worklist,
+                                (x, x_is, edge_key, &edge),
+                                y,
+                                w,
+                                j + 1,
+                                &lying_in,
+                                declared,
+                                contacts,
+                                band,
+                                tol,
+                            )?;
                             break 'faces;
                         }
                     }
@@ -1517,8 +1626,13 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // Endpoint(s) on the face plane: `dovertexonface`
                 // (steps 2–4, 7–8). A fully coplanar pair (Zero, Zero)
                 // deliberately gets endpoint treatment ONLY (module
-                // docs: interior events surface via neighbor faces).
+                // docs: interior events surface via neighbor faces),
+                // and a vertex a later split mints on the edge is read
+                // against the face as the ends are (`lying_in`).
                 (za, zb) => {
+                    if (za, zb) == (Sign::Zero, Sign::Zero) {
+                        lying_in.push(face);
+                    }
                     let mut hit = false;
                     if za == Sign::Zero {
                         hit |= vertex_on_face(
@@ -2749,9 +2863,8 @@ fn conic_clearance<T: Decide>(
     {
         let h = geom_brep::conic_cone_harmonics(conic, apex, axis, half_angle);
         let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
-        let swing = hypot(h.c1, h.s1)
-            + hypot(h.c2, h.s2)
-            + super::circle_roots::rounding_charge(h.terms) / h.per;
+        let swing =
+            hypot(h.c1, h.s1) + hypot(h.c2, h.s2) + geom_brep::rounding_charge(h.terms) / h.per;
         return Some(decide(
             "bool_conic_curved_clearance",
             Margin::of((h.c0 - swing).max(T::zero() - (h.c0 + swing))),
@@ -3271,7 +3384,7 @@ enum SpanVerdict<T: geom_core::Real> {
     Constant,
     /// The conic LIES on the surface: its residual is a zero constant,
     /// decided exactly on by its root door
-    /// ([`super::circle_roots::CircleRoots::OnSurface`]; in band it
+    /// ([`Roots::On`]; in band it
     /// escalates there). Unlike [`Self::Constant`] this is a verdict
     /// on the side as well as the shape.
     LiesOn,
@@ -3288,7 +3401,7 @@ enum SpanVerdict<T: geom_core::Real> {
     /// typed frontier door.
     Unsettled,
     /// A root within the band of a cone's apex
-    /// ([`super::circle_roots::CircleRoots::AtApex`]): the caller refuses
+    /// ([`Unsettled::AtApex`]): the caller refuses
     /// [`BooleanError::CrossingAtConeApex`].
     AtApex,
 }
@@ -3363,25 +3476,13 @@ fn wall_crossing<T: Decide + Bounds>(
         },
         _ => return Ok(SpanVerdict::Unsettled),
     };
-    // The carrier's speed at a parameter: only the kinds `found` was
-    // read for reach here, and an ellipse whose frame cannot be read is
-    // a kernel bug, refused — never a zero speed that would read every
-    // root as at the span's end.
-    let speed_at = |t: T| {
-        crate::carrier_speed::speed_at(carrier, t).ok_or(BooleanError::ClassificationInvariant {
-            what: "a wall root's carrier is neither a line nor a conic",
-        })
-    };
-    let (count, roots) = match found {
-        CircleRoots::Certified { count, thetas } => (count, thetas),
-        // A conic ON the surface: its residual is a zero constant — the
-        // circle or ellipse that lies on a sphere, wall or torus. (A
-        // ruling on a wall is the line door's `Constant`, above.)
-        CircleRoots::OnSurface => return Ok(SpanVerdict::LiesOn),
+    let found = match found {
+        Ok(found) => found,
+        Err(Unsettled::AtApex) => return Ok(SpanVerdict::AtApex),
         // A tangency, or a count the door could not certify: where the
         // span may meet the carrier is localized and read against the
         // face, which settles it off the face or keeps the door.
-        CircleRoots::Uncertain => {
+        Err(_) => {
             return Ok(
                 if super::carrier_touch::off_face(y, face, surface, carrier, (t0, t1), band)? {
                     SpanVerdict::OffFace
@@ -3390,10 +3491,27 @@ fn wall_crossing<T: Decide + Bounds>(
                 },
             );
         }
-        CircleRoots::Miss => return Ok(SpanVerdict::Miss),
-        CircleRoots::AtApex => return Ok(SpanVerdict::AtApex),
     };
-    let ts = &roots[..count];
+    // The carrier's speed at a parameter: only the kinds `found` was
+    // read for reach here, and an ellipse whose frame cannot be read is
+    // a kernel bug, refused — never a zero speed that would read every
+    // root as at the span's end.
+    let speed_at = |t: T| {
+        geom_brep::carrier_speed::speed_at(carrier, t).ok_or(
+            BooleanError::ClassificationInvariant {
+                what: "a wall root's carrier is neither a line nor a conic",
+            },
+        )
+    };
+    let found = match found {
+        CircleRoots::Certified(found) => found,
+        // A conic ON the surface: its residual is a zero constant — the
+        // circle or ellipse that lies on a sphere, wall or torus. (A
+        // ruling on a wall is the line door's `Constant`, above.)
+        CircleRoots::On(_) => return Ok(SpanVerdict::LiesOn),
+        CircleRoots::Miss => return Ok(SpanVerdict::Miss),
+    };
+    let ts = found.roots();
     // **A root on the far nappe is not this face's.** The roots are the
     // DOUBLE cone's, the carrier [`geom_brep::implicit_residual`]
     // states; a cone face lies on one nappe, and a root definitely off
@@ -3548,6 +3666,9 @@ fn no_pierce_verdict<T: geom_core::Real>(crossed_elsewhere: bool, at_end: bool) 
     }
 }
 
+/// A root door's answer: its roots, or the count it could not certify.
+type RootsOrUnsettled<T> = Result<CircleRoots<T>, Unsettled>;
+
 /// The certified LINE × wall roots, per kind, in the root doors' answer
 /// shape — or, for the one answer that shape has no word for, the
 /// verdict itself: an axis-parallel line's residual is constant along it
@@ -3561,14 +3682,10 @@ fn line_wall_roots_of<T: Decide>(
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
     band: Band,
-) -> Result<Result<CircleRoots<T>, SpanVerdict<T>>, BooleanError> {
-    use super::solid_contain::{TorusRoots, WallRoots};
+) -> Result<Result<RootsOrUnsettled<T>, SpanVerdict<T>>, BooleanError> {
+    use super::solid_contain::WallRoots;
     let span = (t1 - t0).abs();
-    let two = |ts: [T; 2]| {
-        let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
-        thetas[..2].copy_from_slice(&ts);
-        CircleRoots::Certified { count: 2, thetas }
-    };
+    let two = |ts: [T; 2]| Ok(Roots::<T, 2>::all(ts).widen());
     // The certified roots, per kind. Every lane answers the same three
     // ways — a certified root set, a definite miss, or no certain
     // count — and the cylinder adds a fourth, the axis-parallel line
@@ -3591,47 +3708,39 @@ fn line_wall_roots_of<T: Decide>(
             diag: fault.diag,
         })? {
             WallRoots::Two(ts) => two(ts),
-            WallRoots::Tangent => CircleRoots::Uncertain,
+            WallRoots::Tangent => Err(Unsettled::Tangency),
             WallRoots::AxisParallel => return Ok(Err(SpanVerdict::Constant)),
-            WallRoots::Miss => CircleRoots::Miss,
+            WallRoots::Miss => Ok(CircleRoots::Miss),
         },
         // The quartic: the ray lane's own certified root door, over the
         // edge's span instead of a ray's forward half. It answers only
-        // on a CERTIFIED count, so a graze, a repeated root, or a
-        // classifying sign in the band is `Uncertain` and keeps the
-        // door exactly as the cylinder's tangency does.
+        // on a CERTIFIED count, so a graze or a repeated root refuses
+        // and keeps the door exactly as the cylinder's tangency does.
         geom::Surface::Torus {
             center,
             axis,
             major_radius,
             minor_radius,
             ..
-        } => match super::solid_contain::line_torus_roots(
-            origin,
-            dir,
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            band,
-        )
-        .map_err(|diag| BooleanError::Escalated {
-            decision: BooleanDecision::TorusRoots,
-            diag,
-        })? {
-            TorusRoots::Miss => CircleRoots::Miss,
-            TorusRoots::Uncertain => CircleRoots::Uncertain,
-            TorusRoots::Certified { count, ts } => {
-                let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
-                thetas[..ts.len()].copy_from_slice(&ts);
-                CircleRoots::Certified { count, thetas }
-            }
-            TorusRoots::CountDisagrees { .. } => {
+        } => match door_refusal(
+            super::solid_contain::line_torus_roots(
+                origin,
+                dir,
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                band,
+            ),
+            BooleanDecision::TorusRoots,
+        )? {
+            Err(Unsettled::CountDisagrees { .. }) => {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "the constructed roots of a quartic disagree in number with its \
                            certified count",
                 });
             }
+            found => found.map(Roots::widen),
         },
         // The quadratic, the ray lane's own. No line lies on a sphere,
         // so it has no constant case either.
@@ -3642,8 +3751,8 @@ fn line_wall_roots_of<T: Decide>(
                     diag,
                 })? {
                 WallRoots::Two(ts) => two(ts),
-                WallRoots::Tangent => CircleRoots::Uncertain,
-                WallRoots::AxisParallel | WallRoots::Miss => CircleRoots::Miss,
+                WallRoots::Tangent => Err(Unsettled::Tangency),
+                WallRoots::AxisParallel | WallRoots::Miss => Ok(CircleRoots::Miss),
             }
         }
         geom::Surface::Cone {
@@ -3652,7 +3761,18 @@ fn line_wall_roots_of<T: Decide>(
             half_angle,
             ..
         } => line_cone_roots(origin, dir, (apex, axis, half_angle), (t0, t1), band)?,
-        _ => CircleRoots::Uncertain,
+        // No root lane. A door's refusal goes to `carrier_touch::off_face`,
+        // which settles nothing on a kind with no reach, so this answer
+        // is the one that read would give; a kind here that gains a reach
+        // is refused rather than left unread.
+        geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
+            if super::carrier_touch::reach(surface).is_some() {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "a surface with no line root lane has a reach to read it off the face by",
+                });
+            }
+            return Ok(Err(SpanVerdict::Unsettled));
+        }
     }))
 }
 
@@ -3664,23 +3784,23 @@ fn line_wall_roots_of<T: Decide>(
 ///
 /// - **`bool_line_cone_apex`** — the segment `[t0, t1]`'s distance from
 ///   the apex. Not definitely positive: the edge reaches the apex, where
-///   the cone's gradient vanishes, and the lane answers
-///   [`CircleRoots::AtApex`] rather than read a root there.
+///   the cone's gradient vanishes, and the lane refuses
+///   [`Unsettled::AtApex`] rather than read a root there.
 /// - **`bool_line_cone_lead`** — `A/|dir|²` levered by the segment's
 ///   length: how far the line turns off a generator over the edge. Zero:
 ///   the quadratic degenerates (a ruling, or a line parallel to one) and
-///   the lane does not answer ([`CircleRoots::Uncertain`]).
+///   the lane does not answer ([`Unsettled::Degenerate`]).
 /// - **`bool_line_cone_depth`** — the depth the line's vertex `t*`
 ///   reaches: `G(t*) = −disc/A`, and on the near nappe
 ///   `Q = res·(ρ cos α + |h| sin α)` with that factor at most `|q|`, so
 ///   `disc/(|A|·R)`, `R ≥ |q(t*)|`, is a lower bound on the residual's
 ///   magnitude there, signed as the crossing count. Positive: two roots;
-///   Zero: a tangency, [`CircleRoots::Uncertain`]; Negative: a miss.
+///   Zero: a tangency, [`Unsettled::Tangency`]; Negative: a miss.
 /// - **`bool_line_cone_root_slack`** — each root's arc-length slack: the
 ///   rounding of `G`'s evaluation (charged against its term bound,
 ///   `(|w₀| + |dir||t|)²`) over `|G′(t)| = 2√disc`, at the line's speed,
 ///   less the root's distance outside the span. Not definitely inside
-///   the band: [`CircleRoots::Uncertain`]. A root inside the span is
+///   the band: [`Unsettled::Meter`]. A root inside the span is
 ///   placed within the band; one outside it is placed no nearer the span
 ///   than the band, which is all the span decisions read of it.
 fn line_cone_roots<T: Decide>(
@@ -3689,7 +3809,7 @@ fn line_cone_roots<T: Decide>(
     (apex, axis, half_angle): (Point3<T>, geom_core::Vec3<T>, T),
     (t0, t1): (T, T),
     band: Band,
-) -> Result<CircleRoots<T>, BooleanError> {
+) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
     let escalate = |diag| BooleanError::Escalated {
         decision: BooleanDecision::ConeRoots,
         diag,
@@ -3702,7 +3822,7 @@ fn line_cone_roots<T: Decide>(
         .min(t0.max(t1));
     match decide("bool_line_cone_apex", Margin::norm3(at(foot)), band).map_err(escalate)? {
         Sign::Positive => {}
-        Sign::Zero | Sign::Negative => return Ok(CircleRoots::AtApex),
+        Sign::Zero | Sign::Negative => return Ok(Err(Unsettled::AtApex)),
     }
     let [a2, b2, c2] =
         super::solid_contain::line_cone_quadratic(origin, dir, apex, axis, half_angle);
@@ -3715,7 +3835,7 @@ fn line_cone_roots<T: Decide>(
     .map_err(escalate)?
     {
         Sign::Positive | Sign::Negative => {}
-        Sign::Zero => return Ok(CircleRoots::Uncertain),
+        Sign::Zero => return Ok(Err(Unsettled::Degenerate)),
     }
     let disc = b2.powi(2) - a2 * c2;
     let vertex = (T::zero() - b2) / a2;
@@ -3728,16 +3848,16 @@ fn line_cone_roots<T: Decide>(
     .map_err(escalate)?
     {
         Sign::Positive => {}
-        Sign::Zero => return Ok(CircleRoots::Uncertain),
-        Sign::Negative => return Ok(CircleRoots::Miss),
+        Sign::Zero => return Ok(Err(Unsettled::Tangency)),
+        Sign::Negative => return Ok(Ok(CircleRoots::Miss)),
     }
-    let roots = super::solid_contain::quadratic_roots(a2, b2, c2, disc);
+    let roots = geom_brep::quartic::quadratic_roots(a2, b2, c2, disc);
     let two = T::from_f64(2.0);
     let speed = dir.norm();
     let (lo, hi) = (t0.min(t1), t0.max(t1));
     for t in roots {
         let terms = (w0.norm() + speed * t.abs()).powi(2);
-        let slack = speed * super::circle_roots::rounding_charge(terms) / (two * disc.sqrt());
+        let slack = speed * geom_brep::rounding_charge(terms) / (two * disc.sqrt());
         let outside = speed * (lo - t).max(t - hi).max(T::zero());
         match decide(
             "bool_line_cone_root_slack",
@@ -3745,12 +3865,10 @@ fn line_cone_roots<T: Decide>(
             band,
         ) {
             Ok(Sign::Zero | Sign::Negative) => {}
-            Ok(Sign::Positive) | Err(_) => return Ok(CircleRoots::Uncertain),
+            Ok(Sign::Positive) | Err(_) => return Ok(Err(Unsettled::Meter)),
         }
     }
-    let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
-    thetas[..2].copy_from_slice(&roots);
-    Ok(CircleRoots::Certified { count: 2, thetas })
+    Ok(Ok(Roots::<T, 2>::all(roots).widen()))
 }
 
 /// What one edge×curved-face pair asks of the sweep.
@@ -4266,15 +4384,128 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     split_logged(y, y_is, edge, t, Some(p), tol, contacts)
 }
 
+/// An edge the sweep has yet to read, from face index `start` on.
+/// `lying_in` holds the planar faces before `start` that the line lane's
+/// coplanar arm read the edge in, ends only: a split of the edge reads
+/// the vertex it mints against them ([`read_then_requeue`]), whichever
+/// lane splits it. A conic edge's is empty: a conic lying in a face's
+/// plane (`ConicPlaneMeet::Parallel`) is not recorded, since reading a
+/// later split's vertex against that face turns operations that build
+/// sound into refusals
+/// (`a_rim_in_a_face_beside_a_resting_ridge_answers_every_op_as_before`).
+///
+/// An edge lying on a CURVED face (the curved arm's endpoint postures)
+/// is not carried either, and refuses order-dependently where a later
+/// split mints a vertex on it
+/// (`work/tang/a-vertex-minted-on-an-edge-lying-on-a-curved-face-is-unread.md`).
+struct Pending {
+    edge: EdgeKey,
+    start: usize,
+    lying_in: Vec<FaceKey>,
+}
+
+/// Reads vertex `w` of `x`, at `p`, against planar `face` of `y`:
+/// on the plane, it goes to [`vertex_on_face`]. Returns whether it
+/// recorded a contact; a side the band cannot decide refuses as
+/// `read` names it.
+#[allow(clippy::too_many_arguments)]
+fn read_on_plane<T: Decide + crate::props::AtRestPolicy>(
+    (x, x_is): (&Body<T>, Operand),
+    y: &mut Body<T>,
+    (w, p): End<T>,
+    (face, plane): (FaceKey, &PlaneDesc<T>),
+    read: DeclarationRead,
+    contacts: &mut ContactAcc,
+    band: Band,
+    tol: Tol,
+) -> Result<bool, BooleanError> {
+    let on = vertex_face_side(
+        (x, (w, p)),
+        (y, face, plane),
+        (plane.origin, plane.normal),
+        band,
+    )
+    .map_err(|refusal| vertex_refusal(refusal, read))?;
+    if on.sign != Sign::Zero {
+        return Ok(false);
+    }
+    vertex_on_face(x_is, y, w, p, face, plane, on.margin, contacts, band, tol)
+}
+
+/// Reads `w`, a vertex a split minted on `edge` of `x`, against each
+/// face of `lying_in` as the edge's ends were read, then requeues the
+/// edge's two pieces from face index `next_face`, carrying `lying_in`
+/// on. Every split goes on through here, so none skips the read.
+#[allow(clippy::too_many_arguments)]
+fn read_then_requeue<T: Decide + crate::props::AtRestPolicy>(
+    worklist: &mut std::collections::VecDeque<Pending>,
+    (x, x_is, parent, edge): (&Body<T>, Operand, EdgeKey, &crate::entity::Edge),
+    y: &mut Body<T>,
+    w: VertexKey,
+    next_face: usize,
+    lying_in: &[FaceKey],
+    declared: &super::GluedPairs<T>,
+    contacts: &mut ContactAcc,
+    band: Band,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    read_lying_in(
+        (x, x_is, edge),
+        y,
+        w,
+        lying_in,
+        declared,
+        contacts,
+        band,
+        tol,
+    )?;
+    requeue(worklist, x, parent, w, next_face, lying_in)
+}
+
+/// The contact half of [`read_then_requeue`]: `w` of `x`, minted on
+/// `edge`, against each planar face of `y` in `lying_in`.
+#[allow(clippy::too_many_arguments)]
+fn read_lying_in<T: Decide + crate::props::AtRestPolicy>(
+    (x, x_is, edge): (&Body<T>, Operand, &crate::entity::Edge),
+    y: &mut Body<T>,
+    w: VertexKey,
+    lying_in: &[FaceKey],
+    declared: &super::GluedPairs<T>,
+    contacts: &mut ContactAcc,
+    band: Band,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    let p = x.resolve_vertex_point(w, crate::live::Proven);
+    for &face in lying_in {
+        let plane = face_plane(y, face).ok_or(BooleanError::ClassificationInvariant {
+            what: "a face an edge lies in lost its plane",
+        })?;
+        let read = edge_face_read(x, x_is, edge, face, declared, Coincide::VertexOnFace);
+        read_on_plane(
+            (x, x_is),
+            y,
+            (w, p),
+            (face, &plane),
+            read,
+            contacts,
+            band,
+            tol,
+        )?;
+    }
+    Ok(())
+}
+
 /// Requeues both children of a just-split edge (parent keeps the
 /// leading span and its key; `w` is the minted vertex whose emanating
-/// half-edge names the trailing child).
+/// half-edge names the trailing child), from face index `next_face`,
+/// each carrying `lying_in`.
 fn requeue<T: Decide>(
-    worklist: &mut std::collections::VecDeque<(EdgeKey, usize)>,
+    worklist: &mut std::collections::VecDeque<Pending>,
     x: &Body<T>,
     parent: EdgeKey,
     w: VertexKey,
     next_face: usize,
+    lying_in: &[FaceKey],
 ) -> Result<(), BooleanError> {
     let emanating =
         x.get_vertex(w)
@@ -4287,8 +4518,13 @@ fn requeue<T: Decide>(
             what: "split child edge unresolvable",
         },
     )?;
-    worklist.push_back((parent, next_face));
-    worklist.push_back((child, next_face));
+    for edge in [parent, child] {
+        worklist.push_back(Pending {
+            edge,
+            start: next_face,
+            lying_in: lying_in.to_vec(),
+        });
+    }
     Ok(())
 }
 
@@ -5140,8 +5376,8 @@ mod edge_span_tests {
         let ellipse = geom::Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
-            major: 1.0,
-            minor: 0.05,
+            semi_u: 1.0,
+            semi_v: 0.05,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let root = core::f64::consts::FRAC_PI_2 - 2e-8;
@@ -5520,8 +5756,8 @@ mod clearance_rows {
                 -0.888_958_285_986_655_8,
             ),
             axis,
-            major: 4.846_323_757_498_574,
-            minor: 0.207_528_397_062_063_02,
+            semi_u: 4.846_323_757_498_574,
+            semi_v: 0.207_528_397_062_063_02,
             u_ref: Vec3::new(
                 0.087_713_558_478_483_3,
                 0.789_303_434_737_465_2,
@@ -5584,8 +5820,8 @@ mod clearance_rows {
         let e = geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         };
         let x = Vec3::new(1.0, 0.0, 0.0);
@@ -5682,8 +5918,8 @@ mod clearance_rows {
                     geom::Curve3::Ellipse {
                         center,
                         axis: n,
-                        major,
-                        minor,
+                        semi_u: major,
+                        semi_v: minor,
                         u_ref,
                     }
                 };
@@ -6071,7 +6307,11 @@ mod line_cone_rows {
     /// The cone about `+z` from the origin, half-angle `π/4`.
     const APEX: (f64, f64, f64) = (0.0, 0.0, 0.0);
 
-    fn roots(origin: [f64; 3], dir: [f64; 3], span: (f64, f64)) -> CircleRoots<f64> {
+    fn roots(
+        origin: [f64; 3],
+        dir: [f64; 3],
+        span: (f64, f64),
+    ) -> Result<CircleRoots<f64>, Unsettled> {
         let tip = Point3::new(APEX.0, APEX.1, APEX.2);
         line_cone_roots(
             Point3::from_array(origin),
@@ -6110,17 +6350,18 @@ mod line_cone_rows {
                 true,
             ),
         ] {
-            let CircleRoots::Certified { count: 2, thetas } = roots(origin, dir, (0.0, 4.0)) else {
+            let Ok(CircleRoots::Certified(found)) = roots(origin, dir, (0.0, 4.0)) else {
                 panic!(
                     "{label}: two roots, got {:?}",
                     roots(origin, dir, (0.0, 4.0))
                 );
             };
-            for &t in &thetas[..2] {
+            let thetas: [_; 2] = found.roots().try_into().unwrap();
+            for &t in &thetas {
                 let f = form(origin, dir, t);
                 assert!(f.abs() < 1e-14, "{label}: the form is {f} at the root {t}");
             }
-            let heights: Vec<f64> = thetas[..2].iter().map(|t| origin[2] + dir[2] * t).collect();
+            let heights: Vec<f64> = thetas.iter().map(|t| origin[2] + dir[2] * t).collect();
             assert_eq!(
                 heights[0].signum() != heights[1].signum(),
                 nappes,
@@ -6132,15 +6373,16 @@ mod line_cone_rows {
     /// **A miss, a graze and a ruling.** A line outside the cone that
     /// keeps clear of it is a `Miss`. A line tangent to the cone along a
     /// generator's tangent plane, moved off by a fraction of the zero
-    /// band, is not a miss and not two roots. A line parallel to a
-    /// generator degenerates the quadratic, and the lane does not answer.
+    /// band, is not a miss and not two roots: a tangency. A line parallel
+    /// to a generator degenerates the quadratic, and the lane does not
+    /// answer.
     #[test]
     fn a_miss_a_graze_and_a_ruling() {
         let b = band();
         assert!(
             matches!(
                 roots([-2.0, 3.0, 1.0], [1.0, 0.0, 0.0], (0.0, 4.0)),
-                CircleRoots::Miss
+                Ok(CircleRoots::Miss)
             ),
             "a line 3 m off the axis at height 1 misses"
         );
@@ -6152,13 +6394,13 @@ mod line_cone_rows {
             (0.0, 4.0),
         );
         assert!(
-            matches!(graze, CircleRoots::Uncertain),
+            matches!(graze, Err(Unsettled::Tangency)),
             "a graze within the band, got {graze:?}"
         );
         let s = core::f64::consts::FRAC_1_SQRT_2;
         let ruling = roots([0.5, 0.0, 0.0], [s, 0.0, s], (0.0, 2.0));
         assert!(
-            matches!(ruling, CircleRoots::Uncertain),
+            matches!(ruling, Err(Unsettled::Degenerate)),
             "a line parallel to a generator, got {ruling:?}"
         );
     }
@@ -6176,11 +6418,14 @@ mod line_cone_rows {
             ("in band of the apex", [-1.0, 0.3 * b.zero(), 0.3]),
         ] {
             let got = roots(origin, [1.0, 0.0, -0.3], (0.0, 2.0));
-            assert!(matches!(got, CircleRoots::AtApex), "{label}: got {got:?}");
+            assert!(
+                matches!(got, Err(Unsettled::AtApex)),
+                "{label}: got {got:?}"
+            );
         }
         let short = roots([-1.0, 0.0, 0.3], [1.0, 0.0, -0.3], (0.0, 0.5));
         assert!(
-            matches!(short, CircleRoots::Uncertain),
+            matches!(short, Err(Unsettled::Tangency)),
             "a segment ending half a metre short of the apex, got {short:?}"
         );
     }
@@ -6236,7 +6481,8 @@ mod line_cone_rows {
                             .filter(inside)
                             .collect();
                         match line_cone_roots(origin, axis, (apex, axis, alpha), span, band) {
-                            Ok(CircleRoots::Certified { count, thetas }) => {
+                            Ok(Ok(CircleRoots::Certified(found))) => {
+                                let (count, thetas) = (found.count(), found.roots());
                                 certified += 1;
                                 let got: Vec<f64> =
                                     thetas[..count].iter().copied().filter(inside).collect();
@@ -6262,7 +6508,7 @@ mod line_cone_rows {
                                     );
                                 }
                             }
-                            Ok(CircleRoots::Miss) => {
+                            Ok(Ok(CircleRoots::Miss)) => {
                                 assert!(truth.is_empty(), "{label}: a Miss, but {truth:?}");
                             }
                             Ok(_) | Err(_) => {}

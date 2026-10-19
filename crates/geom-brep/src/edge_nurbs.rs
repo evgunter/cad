@@ -14,9 +14,10 @@
 //!
 //! # What the lane proves
 //!
-//! Everything here is the rung-3 SSI certificate ([`crate::ssi`]'s
-//! `certify_rung3` door) applied to a **declared** carrier instead of
-//! a marched one. That door already answers exactly the three
+//! Everything here is the rung-3 SSI certificate (`ssi::certify`'s
+//! `certify_branch`, which [`crate::ssi`]'s `certify_rung3` opens for a
+//! marched spline) applied to a **declared** carrier of any kind
+//! instead of a marched one. That door already answers exactly the three
 //! questions this edge class raises, so the lane supplies the one
 //! ingredient a declared carrier is missing — the chart image — and
 //! delegates:
@@ -73,7 +74,7 @@
 //! a bound says that without an impl to write.
 
 use core::num::NonZeroUsize;
-use geom::{NurbsCurve2, NurbsCurve3};
+use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
 use geom_core::spline::{KnotVector, SpanLocate, SplineError};
@@ -87,7 +88,6 @@ use crate::recourse::{ReadAt, Refused, RefusedArm};
 use crate::ssi::enclose::CellGrid;
 use crate::ssi::{
     ChartSpeedRefusal, OneArcRefusal, PointLever, SsiError, SsiLimb, SsiOperand, SsiTube,
-    certify_rung3,
 };
 
 /// What the plane × NURBS lane proved, in metres unless noted.
@@ -157,15 +157,19 @@ pub enum PlaneNurbsRefusal {
     /// defect report.
     CarrierDomain(CarrierDomainRefusal),
     /// A certificate limb exceeded ε, with its number. **The
-    /// declare-and-check refusal**: limb 1 measured the file's carrier
-    /// off its surfaces by this much; limb 2's certified bound on that
-    /// miss is this much, so the certificate cannot show the carrier on
-    /// them.
+    /// declare-and-check refusal**: limb 1 measured the carrier's foot
+    /// distance from a surface; limb 2 bounds the carrier's distance from
+    /// an analytic surface ([`SsiLimb::HullSup`], [`SsiLimb::HullValue`]),
+    /// or reads it through the lane's own image of it on a spline one,
+    /// a bound on the carrier's miss and the image's together
+    /// ([`SsiLimb::HullSupChart`], [`SsiLimb::HullValueChart`]); at a
+    /// break where the carrier's own foot decides Zero, the miss is the
+    /// image's ([`SsiLimb::ImageMiss`]).
     Limb {
         /// Which limb refused.
         limb: SsiLimb,
-        /// What the classifier saw of limb 1's measured miss, or of limb
-        /// 2's bound on it, in metres, for error reporting only
+        /// What the classifier saw of the limb's reading, in metres,
+        /// for error reporting only
         /// ([`MarginDiag`]): it rides
         /// [`PlaneNurbsRefusal::decision`]'s sign-certain arm to the import
         /// door's words on it.
@@ -224,6 +228,10 @@ pub enum PlaneNurbsRefusal {
     /// net is too large), so no length in metres crosses into its
     /// parameters. A fact of the face, refused at the lane's door.
     ChartSpeed(ChartSpeedRefusal),
+    /// Limb 2 has no certified net of the declared carrier over a span
+    /// of its interval: the carrier-enclosure door's refusal, naming
+    /// the carrier's kind and the span.
+    CarrierEnclosure(crate::CarrierEnclosureRefusal),
     /// The (carrier, operand) shape is outside the lane's certified
     /// inventory, named exactly. A routing boundary (C12.1), never a
     /// runtime fallback.
@@ -389,6 +397,7 @@ impl PlaneNurbsRefusal {
             | Self::TubeNotOneArc { .. }
             | Self::PcurveFit
             | Self::CarrierDomain(_)
+            | Self::CarrierEnclosure(_)
             | Self::Unsupported { .. } => {
                 return None;
             }
@@ -428,28 +437,55 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             Self::Limb { limb, margin } => match limb {
                 SsiLimb::HullSup => write!(
                     f,
-                    "{} bounds the declared carrier's distance from both surfaces by {margin:e} \
-                     m, past the run tolerance — the certificate cannot show the carrier is on \
-                     them",
+                    "{} bounds the declared carrier's distance from an analytic surface by \
+                     {margin:e} m, past the run tolerance — the certificate cannot show the \
+                     carrier stays on that surface between the schedule's samples",
+                    limb.name()
+                ),
+                SsiLimb::HullSupChart => write!(
+                    f,
+                    "{} bounds the declared carrier's distance from the spline surface, read \
+                     through the certificate's own image of the carrier on it, by {margin:e} \
+                     m, past the run tolerance — limb 1 found the carrier on that surface at \
+                     every schedule sample, and the certificate cannot show it stays on it \
+                     between them",
                     limb.name()
                 ),
                 SsiLimb::HullValueChart => write!(
                     f,
-                    "{} reads {margin:e} m against the run tolerance — the declared carrier \
-                     is off the surface point its description names",
+                    "{} reads {margin:e} m at a break, past the run tolerance: the declared \
+                     carrier against the surface point the certificate's own image of it \
+                     names there, which bounds the carrier's miss and is not the miss — the \
+                     certificate cannot show the carrier is on that surface",
                     limb.name()
                 ),
-                SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => write!(
+                SsiLimb::ImageMiss => write!(
                     f,
-                    "{} measured {margin:e} m against the run tolerance — the declared carrier \
-                     is not on both surfaces",
+                    "{} reads {margin:e} m at a break, past the run tolerance, where the \
+                     declared carrier is on the surface — the certificate's own image of the \
+                     carrier misses the carrier's foot path there, and the carrier is not \
+                     shown off its surfaces",
+                    limb.name()
+                ),
+                SsiLimb::OnLocus | SsiLimb::HullValue => write!(
+                    f,
+                    "{} measured the declared carrier {margin:e} m from a surface, past the run \
+                     tolerance — the carrier is not on both surfaces",
+                    limb.name()
+                ),
+                // No producer writes a `Limb` of limb 3: the tube refuses
+                // as `TubeStraddles` or `TubeNotOneArc`, or escalates.
+                SsiLimb::Tube => write!(
+                    f,
+                    "{} measured {margin:e} m against the run tolerance — the certificate \
+                     cannot show the carrier is its surfaces' one crossing",
                     limb.name()
                 ),
             },
             Self::TubeStraddles { verdict, boxes } => write!(
                 f,
                 "the uniqueness tube's transversality is not certified clear of the zero band \
-                 over {boxes} boxes of the chain — a sliver of the plane/NURBS pair along the \
+                 over {boxes} boxes of the chain — a sliver of the surface pair along the \
                  locus at this tolerance; the certificate's proven clearance from zero is {:e} \
                  m, which is the bound it could prove and not the sliver's own extent",
                 verdict.margin()
@@ -469,7 +505,16 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                 cause.payload()
             ),
             Self::ChartSpeed(r) => f.write_str(r.what()),
-            Self::Unsupported { what } => write!(f, "outside the plane × NURBS lane: {what}"),
+            // The door is read only by limb 2's composite (against the
+            // plane and against the wall alike), before any bound
+            // exists, so the refusal names the limb and no bound.
+            Self::CarrierEnclosure(r) => write!(
+                f,
+                "limb 2 could not enclose the declared carrier between samples: {r}"
+            ),
+            Self::Unsupported { what } => {
+                write!(f, "outside the spline Intersection lane: {what}")
+            }
         }
     }
 }
@@ -501,15 +546,16 @@ impl core::fmt::Display for PlaneNurbsRefusal {
 ///
 /// ```compile_fail,E0277
 /// use geom_core::{Band, Dual64};
-/// use geom::{NurbsCurve3, NurbsSurface, Surface};
+/// use geom::{Curve3, NurbsSurface, Surface};
 /// fn certified(
-///     carrier: &NurbsCurve3<Dual64>,
+///     carrier: &Curve3<Dual64>,
+///     params: (Dual64, Dual64),
 ///     plane: &Surface<Dual64>,
 ///     wall: &NurbsSurface<Dual64>,
 ///     extent: Dual64,
 ///     band: Band,
 /// ) {
-///     let _ = geom_brep::plane_nurbs_limbs(carrier, plane, wall, extent, band);
+///     let _ = geom_brep::plane_nurbs_limbs(carrier, params, plane, wall, extent, band);
 /// }
 /// ```
 ///
@@ -519,15 +565,16 @@ impl core::fmt::Display for PlaneNurbsRefusal {
 ///
 /// ```
 /// use geom_core::Band;
-/// use geom::{NurbsCurve3, NurbsSurface, Surface};
+/// use geom::{Curve3, NurbsSurface, Surface};
 /// fn certified(
-///     carrier: &NurbsCurve3<f64>,
+///     carrier: &Curve3<f64>,
+///     params: (f64, f64),
 ///     plane: &Surface<f64>,
 ///     wall: &NurbsSurface<f64>,
 ///     extent: f64,
 ///     band: Band,
 /// ) {
-///     let _ = geom_brep::plane_nurbs_limbs(carrier, plane, wall, extent, band);
+///     let _ = geom_brep::plane_nurbs_limbs(carrier, params, plane, wall, extent, band);
 /// }
 /// ```
 ///
@@ -537,19 +584,21 @@ impl core::fmt::Display for PlaneNurbsRefusal {
 ///
 /// ```
 /// use geom_core::{Band, Sym};
-/// use geom::{NurbsCurve3, NurbsSurface, Surface};
+/// use geom::{Curve3, NurbsSurface, Surface};
 /// fn symbolic(
-///     carrier: &NurbsCurve3<Sym<f64>>,
+///     carrier: &Curve3<Sym<f64>>,
+///     params: (Sym<f64>, Sym<f64>),
 ///     plane: &Surface<Sym<f64>>,
 ///     wall: &NurbsSurface<Sym<f64>>,
 ///     extent: Sym<f64>,
 ///     band: Band,
 /// ) {
-///     let _ = geom_brep::plane_nurbs_limbs(carrier, plane, wall, extent, band);
+///     let _ = geom_brep::plane_nurbs_limbs(carrier, params, plane, wall, extent, band);
 /// }
 /// ```
 pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
-    carrier: &NurbsCurve3<T>,
+    carrier: &Curve3<T>,
+    params: (T, T),
     plane: &Surface<T>,
     wall: &NurbsSurface<T>,
     extent: T,
@@ -587,45 +636,42 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     // what it was when the two loops were one.
     let mut min_sin = T::from_f64(f64::MAX);
     let eval = |t| carrier.eval(t);
-    let pcurve = chart_image(
-        Schedule::new(&eval, carrier.domain(), carrier.knot_values().domain()),
-        wall,
-        |i, foot| {
-            // Transversality at the INTERIOR samples only: an endpoint is
-            // shared with the neighbouring edges, where a vanishing angle
-            // is a vertex fact rather than this edge's — the analytic
-            // `Intersection` arm's own convention, kept verbatim.
-            if i == 0 || i == PXN_FIT_SAMPLES - 1 {
-                return Ok(());
-            }
-            let (u, v) = measured_foot(foot);
-            let jet = wall.ders(u, v);
-            let sin_theta = normal_angle_sine(normal, jet.du.cross(jet.dv));
-            // The point arm, the plane's curvature being zero.
-            let kappa = crate::shape_operator::max_principal_curvature(&jet);
-            let (arm, reach) = crate::ssi::point_arm(kappa, extent);
-            let margin = geom_core::Margin::levered(sin_theta, arm);
-            match crate::dihedral::decide_reported("plane_nurbs_transversality", margin, band) {
-                Ok(decided) => {
-                    if let Some(verdict) = Refused::of(decided, band) {
-                        return Err(PlaneNurbsRefusal::NotTransverse {
-                            sample: i,
-                            lever: PointLever::of(Bounds::lo(reach)),
-                            verdict,
-                        });
-                    }
-                }
-                Err(cause) => {
-                    return Err(PlaneNurbsRefusal::TransversalityEscalated { sample: i, cause });
+    let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
+    let pcurve = chart_image(Schedule::new(&eval, domain, ends), wall, |i, foot| {
+        // Transversality at the INTERIOR samples only: an endpoint is
+        // shared with the neighbouring edges, where a vanishing angle
+        // is a vertex fact rather than this edge's — the analytic
+        // `Intersection` arm's own convention, kept verbatim.
+        if i == 0 || i == PXN_FIT_SAMPLES - 1 {
+            return Ok(());
+        }
+        let (u, v) = measured_foot(foot);
+        let jet = wall.ders(u, v);
+        let sin_theta = normal_angle_sine(normal, jet.du.cross(jet.dv));
+        // The point arm, the plane's curvature being zero.
+        let kappa = crate::shape_operator::max_principal_curvature(&jet);
+        let (arm, reach) = crate::ssi::point_arm(kappa, extent);
+        let margin = geom_core::Margin::levered(sin_theta, arm);
+        match crate::dihedral::decide_reported("plane_nurbs_transversality", margin, band) {
+            Ok(decided) => {
+                if let Some(verdict) = Refused::of(decided, band) {
+                    return Err(PlaneNurbsRefusal::NotTransverse {
+                        sample: i,
+                        lever: PointLever::of(Bounds::lo(reach)),
+                        verdict,
+                    });
                 }
             }
-            // `Real::min` PROPAGATES poison (unlike `f64::min`, which
-            // returns the non-NaN operand), so a poisoned sine cannot
-            // be dropped out of this fold — it reaches the guard below.
-            min_sin = min_sin.min(sin_theta);
-            Ok(())
-        },
-    )?;
+            Err(cause) => {
+                return Err(PlaneNurbsRefusal::TransversalityEscalated { sample: i, cause });
+            }
+        }
+        // `Real::min` PROPAGATES poison (unlike `f64::min`, which
+        // returns the non-NaN operand), so a poisoned sine cannot
+        // be dropped out of this fold — it reaches the guard below.
+        min_sin = min_sin.min(sin_theta);
+        Ok(())
+    })?;
     // FAIL LOUD on a poisoned aggregate. A NaN sine cannot reach here
     // today — the per-sample `decide` above escalates on its levered
     // margin first — but the reported transversality must not depend on
@@ -638,13 +684,19 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             .map_err(PlaneNurbsRefusal::ReportedTransversalityPoisoned)?;
 
     // ---- The rung-3 door: all three limbs, both operands. ----
-    let cert = certify_rung3(
+    let cert = crate::ssi::certify::certify_branch(
         carrier,
-        Some(&pcurve),
-        &SsiOperand::Analytic(plane),
-        &wall_op,
+        params,
+        crate::ssi::certify::Lane::AtRest {
+            a: &SsiOperand::Analytic(plane),
+            b: &wall_op,
+            pcurve_a: None,
+            pcurve_b: Some(&pcurve),
+        },
         extent,
         band,
+        crate::ssi::certify::Limbs::All,
+        &mut crate::ssi::certify::Refused::default(),
     )
     .map_err(refusal)?;
     Ok(PlaneNurbsLimbs {
@@ -677,7 +729,8 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// charts are not definitely transverse, and a limb's refusal with its
 /// measured bound.
 pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
-    carrier: &NurbsCurve3<T>,
+    carrier: &Curve3<T>,
+    params: (T, T),
     a: &NurbsSurface<T>,
     b: &NurbsSurface<T>,
     extent: T,
@@ -702,57 +755,51 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     .map_err(refusal)?;
     let mut feet_a: Vec<Point2<f64>> = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
     let eval = |t| carrier.eval(t);
-    let pcurve_a = chart_image(
-        Schedule::new(&eval, carrier.domain(), carrier.knot_values().domain()),
-        a,
-        |_, foot| {
-            feet_a.push(foot);
-            Ok(())
-        },
-    )?;
+    let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
+    let pcurve_a = chart_image(Schedule::new(&eval, domain, ends), a, |_, foot| {
+        feet_a.push(foot);
+        Ok(())
+    })?;
     let mut min_sin = T::from_f64(f64::MAX);
-    let pcurve_b = chart_image(
-        Schedule::new(&eval, carrier.domain(), carrier.knot_values().domain()),
-        b,
-        |i, foot| {
-            // Interior samples only, as the plane lane reads them.
-            if i == 0 || i == PXN_FIT_SAMPLES - 1 {
-                return Ok(());
-            }
-            let Some(fa) = feet_a.get(i as usize) else {
-                return Err(PlaneNurbsRefusal::PcurveFit);
-            };
-            let (ua, va) = measured_foot(*fa);
-            let (ub, vb) = measured_foot(foot);
-            let (ja, jb) = (a.ders(ua, va), b.ders(ub, vb));
-            let sin_theta = normal_angle_sine(ja.du.cross(ja.dv), jb.du.cross(jb.dv));
-            let kappa = crate::shape_operator::max_principal_curvature(&ja)
-                .max(crate::shape_operator::max_principal_curvature(&jb));
-            let (arm, reach) = crate::ssi::point_arm(kappa, extent);
-            let margin = geom_core::Margin::levered(sin_theta, arm);
-            match crate::dihedral::decide_reported("nurbs_pair_transversality", margin, band) {
-                Ok(decided) => {
-                    if let Some(verdict) = Refused::of(decided, band) {
-                        return Err(PlaneNurbsRefusal::NotTransverse {
-                            sample: i,
-                            lever: PointLever::of(Bounds::lo(reach)),
-                            verdict,
-                        });
-                    }
-                }
-                Err(cause) => {
-                    return Err(PlaneNurbsRefusal::TransversalityEscalated { sample: i, cause });
+    let pcurve_b = chart_image(Schedule::new(&eval, domain, ends), b, |i, foot| {
+        // Interior samples only, as the plane lane reads them.
+        if i == 0 || i == PXN_FIT_SAMPLES - 1 {
+            return Ok(());
+        }
+        let Some(fa) = feet_a.get(i as usize) else {
+            return Err(PlaneNurbsRefusal::PcurveFit);
+        };
+        let (ua, va) = measured_foot(*fa);
+        let (ub, vb) = measured_foot(foot);
+        let (ja, jb) = (a.ders(ua, va), b.ders(ub, vb));
+        let sin_theta = normal_angle_sine(ja.du.cross(ja.dv), jb.du.cross(jb.dv));
+        let kappa = crate::shape_operator::max_principal_curvature(&ja)
+            .max(crate::shape_operator::max_principal_curvature(&jb));
+        let (arm, reach) = crate::ssi::point_arm(kappa, extent);
+        let margin = geom_core::Margin::levered(sin_theta, arm);
+        match crate::dihedral::decide_reported("nurbs_pair_transversality", margin, band) {
+            Ok(decided) => {
+                if let Some(verdict) = Refused::of(decided, band) {
+                    return Err(PlaneNurbsRefusal::NotTransverse {
+                        sample: i,
+                        lever: PointLever::of(Bounds::lo(reach)),
+                        verdict,
+                    });
                 }
             }
-            min_sin = min_sin.min(sin_theta);
-            Ok(())
-        },
-    )?;
+            Err(cause) => {
+                return Err(PlaneNurbsRefusal::TransversalityEscalated { sample: i, cause });
+            }
+        }
+        min_sin = min_sin.min(sin_theta);
+        Ok(())
+    })?;
     let min_sin =
         geom_core::k_stats::gate_measured("nurbs_pair_transversality_reported", min_sin, band)
             .map_err(PlaneNurbsRefusal::ReportedTransversalityPoisoned)?;
     let cert = crate::ssi::certify::certify_branch(
         carrier,
+        params,
         crate::ssi::certify::Lane::AtRest {
             a: &op_a,
             b: &op_b,
@@ -829,8 +876,8 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             what: "the analytic rung-3 certificate reads two analytic operands",
         });
     }
-    let (t0, t1) = params;
-    let piece = edge_piece(carrier, t0.lo().min(t1.lo()), t0.hi().max(t1.hi()))?;
+    let (lo, hi) = crate::carrier_net::outer_ends(params);
+    let piece = edge_piece(carrier, lo, hi)?;
     let lane = crate::FittedLane::<T>::certified();
     for operand in [s1, s2] {
         use crate::pcurve_cache::projected::{Offset, net_offset_sup};
@@ -852,7 +899,8 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         return Err(AnalyticRung3Refusal::NoTubeEnclosure { operand });
     }
     crate::ssi::certify::certify_branch(
-        &piece,
+        &Curve3::Nurbs(std::sync::Arc::new(piece.clone())),
+        piece.knot_values().domain(),
         crate::ssi::certify::Lane::AtRest {
             a: &SsiOperand::Analytic(s1),
             b: &SsiOperand::Analytic(s2),
@@ -1609,6 +1657,7 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
         }
         SsiError::UnsupportedCertificate { what } => PlaneNurbsRefusal::Unsupported { what },
         SsiError::ChartSpeed(r) => PlaneNurbsRefusal::ChartSpeed(r),
+        SsiError::CarrierEnclosure(r) => PlaneNurbsRefusal::CarrierEnclosure(r),
         _ => PlaneNurbsRefusal::Unsupported {
             what: "the rung-3 certificate refused for a reason outside this lane's vocabulary",
         },

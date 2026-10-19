@@ -151,35 +151,38 @@ fn the_convex_feet_formula_is_two_r_off_the_wall_under_the_concave_rest() {
     }
 }
 
-/// **MEASUREMENT 3, closed — the stored chart follows the side.** As
-/// measured at the unit's opening (this row's first committed form),
-/// the surface `corner_ball` carried aimed its pole along `+Σn` under
-/// EITHER arm — toward the CONVEX patch's centre, away from the
-/// concave patch (whose feet lie along `−n_i`, its centre along
-/// `−Σn`). The unit folds the side into the stored chart, and this
-/// row now pins the closed state: each ball's stored pole aims at its
-/// own side's patch centre. ("Patch centre", not "apex": the point of
-/// the patch farthest from its three boundary circles, which is not a
-/// foot — the production chart's pole, `octant_chart`'s, is the third
-/// FOOT up to sign, a different point with its own pins.)
+/// **MEASUREMENT 3, closed — the stored chart follows the side.** The
+/// surface `corner_ball` carries is `corner_chart` over its own side's
+/// feet (`+n_i` convex, `−n_i` concave), so its seam and quarter-turn
+/// pass through that side's first two feet and its pole is the third
+/// foot up to sign — the pole alone cannot tell the sides apart, the
+/// equator does. A chart that read the other side's feet would put
+/// both off by a half-turn.
 #[test]
-fn the_stored_chart_pole_aims_at_each_sides_own_patch_centre() {
+fn the_stored_chart_equator_runs_through_each_sides_own_feet() {
     let r = 0.15;
     let normals = [
         Vec3::new(1.0, 0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
         Vec3::new(0.0, 0.0, 1.0),
     ];
-    let mean = (normals[0] + normals[1] + normals[2]).normalize();
-    for (convex, patch_centre) in [(Convexity::Convex, mean), (Convexity::Concave, -mean)] {
+    for (convex, sign) in [(Convexity::Convex, 1.0), (Convexity::Concave, -1.0)] {
         let ball = corner_ball([Point3::new(0.0, 0.0, 0.0); 3], normals, r, convex);
-        let Surface::Sphere { axis, .. } = ball.surface else {
+        let Surface::Sphere { axis, u_ref, .. } = ball.surface else {
             panic!("the corner ball's surface is a sphere");
         };
-        let aim = axis.dot(patch_centre);
+        let feet = normals.map(|n| n * sign);
         assert!(
-            (aim - 1.0).abs() < 1e-15,
-            "the stored pole aims at this side's patch centre (convex {convex}, dot {aim})"
+            (u_ref - feet[0]).norm() < 1e-15,
+            "the seam is this side's first foot (convex {convex}, u_ref {u_ref:?})"
+        );
+        assert!(
+            (axis.cross(u_ref) - feet[1]).norm() < 1e-15,
+            "the quarter-turn is this side's second foot (convex {convex}, axis {axis:?})"
+        );
+        assert!(
+            axis.cross(feet[2]).norm() < 1e-15,
+            "the pole is the third foot up to sign (convex {convex}, axis {axis:?})"
         );
     }
 }
