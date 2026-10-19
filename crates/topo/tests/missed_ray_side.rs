@@ -1,11 +1,10 @@
 //! **A body thin everywhere is sided far away from it.** A ray from a
-//! point that crosses no face leaves the point on the at-infinity side.
-//! The selection's signed volume reads that side, on a margin of `V/A`,
-//! which for a slab `t` thick is `t/(2 + 4t)`: in band for every slab
-//! from `10ε` (the thinnest the prism door builds, its span margin) to
-//! `20ε`, however far the point lies. Across that window a ray aimed at
-//! a planar face reads the side off its closest crossing instead
-//! (`solid_contain::missed_side`).
+//! point that crosses no face leaves the point on the at-infinity side,
+//! read off a ray aimed at a planar face from beyond the body, off its
+//! closest crossing (`side_reader::side_at_infinity`). The selection's
+//! signed volume, whose margin `V/A` is `t/(2 + 4t)` for a slab `t`
+//! thick, in band for every slab from `10ε` (the thinnest the prism door
+//! builds, its span margin) to `20ε`, would not read it.
 //!
 //! Every pose scales with the run's ε, so each row runs at every ε.
 
@@ -15,8 +14,8 @@ use crate::common;
 use common::brick;
 use geom_core::{Band, Bounds, Decide, Dual64, Point3, Tol};
 use topo::{
-    AtRestBody, AtRestOutcome, AtRestPolicy, Body, BooleanDecision, BooleanError, BooleanResult,
-    Operand, SolidContainment, ValidationError, point_in_solid,
+    AtRestBody, AtRestOutcome, AtRestPolicy, Body, BooleanError, BooleanResult, Operand,
+    SolidContainment, ValidationError, point_in_solid,
 };
 
 /// The slab thicknesses, in ε: the in-band window of `V/A`, its ends
@@ -102,12 +101,10 @@ fn a_thin_slab_reads_out_far_away_and_its_complement_in() {
 /// containment fallback sides each shell by a witness of it read
 /// against the other operand, and every witness of the brick lies far
 /// from the slab. `slab ∩ brick` is empty in both orders, and
-/// `brick ∖ slab` is the brick. `slab ∪ brick` passes containment, but
-/// the pieces sort reads no role off the slab's in-band `V/A`, so the
-/// slab stays in the brick's solid, where check 10 refuses it
-/// (`work/flush/check-10-reads-a-cavitys-role-from-its-volume-sign.md`).
+/// `brick ∖ slab` is the brick. `slab ∪ brick` is two solids: the pieces
+/// sort reads the slab's role off a ray aimed at it.
 #[test]
-fn a_thin_slab_is_a_legal_operand_against_a_brick_far_away_and_its_union_with_it_refuses() {
+fn a_thin_slab_is_a_legal_operand_against_a_brick_far_away_and_its_union_with_it_is_two_solids() {
     let tol = Tol::witness();
     let far = far_brick(tol);
     for m in WINDOW {
@@ -127,16 +124,14 @@ fn a_thin_slab_is_a_legal_operand_against_a_brick_far_away_and_its_union_with_it
             (1, 6),
             "{m}ε: brick ∖ slab is the brick"
         );
-        match topo::union(&s, &far, tol) {
-            Err(BooleanError::Escalated {
-                decision: BooleanDecision::ShellRole { others: 0, .. },
-                ..
-            }) => {}
-            other => panic!(
-                "{m}ε: slab ∪ brick refuses at the result gate, got {:?}",
-                other.map(|_| ())
-            ),
-        }
+        let joined = topo::union(&s, &far, tol)
+            .unwrap_or_else(|e| panic!("{m}ε: slab ∪ brick builds, got {e:?}"));
+        let joined = joined.body().expect("slab ∪ brick is not empty");
+        assert_eq!(
+            joined.body.solids().count(),
+            2,
+            "{m}ε: slab ∪ brick is two solids"
+        );
     }
 }
 
@@ -237,7 +232,8 @@ fn two_thin_slabs_in_one_body_read_their_sides() {
 }
 
 /// Every op in both orders between `rev` and each of `others` refuses
-/// `InsideOutOperand`, naming `rev`'s operand and its one solid.
+/// `InsideOutOperand`, naming `rev`'s operand and its one solid inside
+/// out (check 7's `NegativeVolume`).
 fn refused_as_inside_out<T: Decide + Bounds + AtRestPolicy>(
     what: &str,
     rev: &AtRestBody<T>,
@@ -257,7 +253,7 @@ fn refused_as_inside_out<T: Decide + Bounds + AtRestPolicy>(
                     Err(BooleanError::InsideOutOperand { operand, errors }) => {
                         assert_eq!(operand, inside_out, "{what} {place} {name}: the operand");
                         assert!(
-                            matches!(errors[..], [ValidationError::SliverInsideOut { .. }]),
+                            matches!(errors[..], [ValidationError::NegativeVolume { .. }]),
                             "{what} {place} {name}: {errors:?}"
                         );
                     }
@@ -272,39 +268,28 @@ fn refused_as_inside_out<T: Decide + Bounds + AtRestPolicy>(
     }
 }
 
-/// **An inside-out slab is refused as an operand, in every op and both
-/// orders.** Its `V/A` is in band, so check 7 exempts it and it finishes
-/// at rest (`Validated`); the Boolean reads its orientation by a ray and
-/// refuses it as the inside-out operand, naming it, rather than
-/// answering for its complement. Against a brick far away and one
-/// across it alike.
+/// **An inside-out slab never finishes at rest.** Its `V/A` is in band,
+/// but check 7 reads its orientation off a ray aimed at one of its faces,
+/// which crosses into its material first: the at-rest gate refuses it,
+/// naming its solid inside out.
 #[test]
-fn an_inside_out_slab_is_refused_as_an_operand() {
+fn an_inside_out_slab_refuses_at_rest() {
     let tol = Tol::witness();
-    let others = [
-        ("far", far_brick(tol)),
-        (
-            "across",
-            at_rest(brick((0.5, 1.5), (0.5, 1.5), (-1.0, 1.0), tol), tol),
-        ),
-    ];
     for m in WINDOW {
-        let t = m * tol.eps();
-        let rev = at_rest(slab(t, tol).revert().unwrap(), tol);
+        let rev = slab(m * tol.eps(), tol).revert().unwrap();
+        let solid = rev.solids().next().expect("one solid").0;
         assert_eq!(
-            rev.outcome(),
-            AtRestOutcome::Validated,
-            "{m}ε: the at-rest gate admits the inside-out slab"
+            AtRestBody::validate(rev, tol).map(|_| ()),
+            Err(vec![ValidationError::NegativeVolume { solid }]),
+            "{m}ε: the at-rest gate refuses the inside-out slab"
         );
-        refused_as_inside_out(&format!("{m}ε"), &rev, &others);
     }
 }
 
-/// **At a dual too.** A dual's policy runs no at-rest gate, and the
-/// door's own orientation read passes a sign it leaves in band, so the
-/// inside-out slab reaches the Boolean with no verdict; the Boolean reads
-/// every solid of such an operand by a ray, and refuses it in every op
-/// and both orders.
+/// **At a dual, the operand gate refuses it.** A dual's policy runs no
+/// at-rest gate, so the inside-out slab reaches the Boolean with no
+/// verdict; the operand gate reads every solid of such an operand with
+/// check 7's reader, and refuses it in every op and both orders.
 #[test]
 fn an_inside_out_slab_is_refused_as_an_operand_at_a_dual() {
     let tol = Tol::witness();

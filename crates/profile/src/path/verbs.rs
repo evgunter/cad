@@ -422,11 +422,9 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
     let centre = dp.at + n * (sgn * r);
     // Rotate (at − centre) about the centre by the SIGNED sweep.
     let signed = sgn * angle;
-    let (s, c) = signed.sin_cos();
-    let v = dp.at - centre;
-    let end = centre + Vec2::new(v.x * c - v.y * s, v.x * s + v.y * c);
+    let end = centre + super::rotated(dp.at - centre, signed);
     let four = T::from_f64(4.0);
-    let end_dir = Dir::from_angle(dp.dir.ang + signed);
+    let end_dir = super::turned(dp.dir.unit, signed);
     let chord = (end - dp.at).norm_squared().sqrt();
     Ok(TangentArcLeg {
         end,

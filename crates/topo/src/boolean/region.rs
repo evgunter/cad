@@ -147,7 +147,7 @@ pub(crate) fn side_at_closest<T: Decide>(
     band: Band,
 ) -> Result<bool, RayFault<RegionRefusal>> {
     let hit = crossings
-        .closest(order, band, |diag, _| RegionRefusal::Escalated(diag))?
+        .closest(order, band, |diag, _, _| RegionRefusal::Escalated(diag))?
         .ok_or(RayFault::Unread)?;
     match decide(
         cross,

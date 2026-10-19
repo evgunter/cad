@@ -2561,37 +2561,46 @@ mod joined_lineage_rows {
 }
 
 /// **The split types its at-rest refusal as the Boolean does, in its own
-/// lever.** A side refused only on a shell certified in band is
-/// `ResultEscalated` on that shell, ending in the split's lever; beside a
-/// definite finding it is the kernel's, `ResultNotAtRest`.
+/// lever.** A side refused only on a reading in band — an aimed ray's
+/// pair — is `ResultEscalated` on it, ending in the split's lever; beside
+/// a definite finding it is the kernel's, `ResultNotAtRest`, and so is a
+/// solid's volume whose certified enclosure holds zero, which is never in
+/// band (D10).
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod at_rest_rows {
     use super::{PlaneSide, SplitFinishError};
-    use crate::entity::{ShellKey, SolidKey};
-    use crate::props::CertifiedSliver;
-    use crate::{BooleanDecision, ShellClassifyError, ValidationError};
+    use crate::entity::{FaceKey, ShellKey, SolidKey};
+    use crate::{
+        AimedPair, BooleanDecision, OrientationUnread, ShellClassifyError, ValidationError,
+    };
     use geom_core::{Band, Indeterminate, MarginDiag};
 
     #[test]
     fn an_in_band_shell_escalates_in_the_splits_lever() {
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let read = |margin, terminal_sliver| Indeterminate {
+        let read = |margin, predicate| Indeterminate {
             margin,
             band,
-            predicate: Some("positive_volume"),
-            terminal_sliver,
+            predicate: Some(predicate),
+            terminal_sliver: false,
         };
-        let thin = CertifiedSliver::of(read(MarginDiag::enclosure(-3.29e-9, -3.28e-9), true))
-            .expect("in band");
+        let gap = read(MarginDiag::value(3.05e-9), "side_at_infinity_order");
         let shell: ShellKey = slotmap::KeyData::from_ffi((1 << 32) | 1).into();
+        let near: FaceKey = slotmap::KeyData::from_ffi((1 << 32) | 2).into();
         let role = ValidationError::ShellRoleUndecided {
             solid: SolidKey::default(),
-            error: ShellClassifyError::Escalated {
+            error: ShellClassifyError::RayInBand {
                 shell,
-                source: read(MarginDiag::value(3.05e-9), false),
+                pair: Box::new(AimedPair {
+                    shell,
+                    aimed: near,
+                    aim: "(0.5, 0.5, 1.0)".to_owned(),
+                    near,
+                    far: FaceKey::default(),
+                    gap,
+                }),
             },
-            sliver: Some(Box::new(thin)),
         };
         let refusal = SplitFinishError::not_at_rest(PlaneSide::Below, vec![role.clone()]);
         assert!(
@@ -2599,21 +2608,42 @@ mod at_rest_rows {
                 &refusal,
                 SplitFinishError::ResultEscalated {
                     side: PlaneSide::Below,
-                    decision: BooleanDecision::ShellRole { shell: s, others: 0, .. },
+                    decision: BooleanDecision::ShellRole { near: n, others: 0, .. },
                     diag,
-                } if *s == shell && diag == thin.reading()
+                } if *n == near && *diag == gap
             ),
-            "an in-band shell alone escalates on it: {refusal:?}"
+            "an in-band pair alone escalates on it: {refusal:?}"
         );
         let msg = refusal.to_string();
         assert!(
             msg.starts_with("the piece on the below side of the plane: ")
                 && msg.contains("whether a shell of the result bounds material or a cavity")
                 && msg.contains(
-                    "move the split plane or the geometry so each piece it leaves is clearly thick"
+                    "move the split plane or the geometry so the two faces the aimed ray met are \
+                     clearly apart"
                 )
-                && !msg.contains("move the parts"),
+                && !msg.contains("move the geometry so the two"),
             "the split's lever, not the Boolean's: {msg}"
+        );
+        // A solid no aimed ray read, its volume's certified enclosure
+        // holding zero: the kernel's.
+        let holding_zero = ValidationError::OrientationUndecided {
+            solid: SolidKey::default(),
+            reading: OrientationUnread::Volume {
+                margin: Some(read(
+                    MarginDiag::enclosure(-1e-20, 3e-20),
+                    "positive_volume_exact",
+                )),
+                aimed: 0,
+                set_aside: Vec::new(),
+            },
+        };
+        assert!(
+            matches!(
+                SplitFinishError::not_at_rest(PlaneSide::Above, vec![holding_zero]),
+                SplitFinishError::ResultNotAtRest { side: PlaneSide::Above, errors } if errors.len() == 1
+            ),
+            "an enclosure holding zero is the kernel's"
         );
         let beside = SplitFinishError::not_at_rest(
             PlaneSide::Above,
