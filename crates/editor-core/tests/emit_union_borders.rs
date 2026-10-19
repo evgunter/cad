@@ -30,8 +30,9 @@ use crate::emit_union_flush_names::parent_of;
 use crate::fixture::{ang, face_vertices, frame, insert, len, on_frame, out, scl, step, table};
 
 use editor_core::{
-    Axis3, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable, Node,
-    ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, SlotId, StableName,
+    Axis3, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable, NamingError,
+    Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, SlotId,
+    StableName,
 };
 use geom_core::Tol;
 
@@ -1808,4 +1809,249 @@ fn a_pocket_floor_held_inside_a_dropped_face_names_alike() {
     for (at, got) in &sets[1..] {
         assert_eq!(got, &sets[0].1, "{at} against {}: the wall sets", sets[0].0);
     }
+}
+
+/// A stepped plate, `[0,3] × [0,2] × [0,2]` less an L pocket above
+/// `z = 1`: its lower top `plate:z=1.00` is `[0,2] × [0,1] ∪
+/// [0,1] × [1,1.5]`, and its riser `plate:y=1.00` stands at `y = 1` for
+/// `x` in `[1,2]`. Returns the document, the plate, and the members
+/// `more` after it, labelled.
+fn stepped_plate_and(
+    label: &'static str,
+    more: Vec<(&'static str, Mem)>,
+) -> (
+    ProfileDoc,
+    Vec<RecipeNodeId>,
+    BTreeMap<RecipeNodeId, &'static str>,
+) {
+    let doc = ProfileDoc::empty_derived(label, Tol::witness());
+    let (doc, blk) = add(doc, &b((0.0, 3.0), (0.0, 2.0), (0.0, 2.0)));
+    let pocket = vec![vec![
+        (-1.0, -1.0),
+        (2.0, -1.0),
+        (2.0, 1.0),
+        (1.0, 1.0),
+        (1.0, 1.5),
+        (-1.0, 1.5),
+    ]];
+    let (doc, pk) = add(doc, &Mem::Prism(pocket, 1.0, 2.0));
+    let (mut doc, plate) = insert(
+        doc,
+        Node::Subtract {
+            from: blk.into(),
+            tool: pk.into(),
+        },
+    );
+    let mut ids = vec![plate];
+    let mut labels = BTreeMap::from([(plate, "plate")]);
+    for (l, m) in more {
+        let (d, id) = add(doc, &m);
+        doc = d;
+        ids.push(id);
+        labels.insert(id, l);
+    }
+    (doc, ids, labels)
+}
+
+/// Each split parent's wall sets, as [`splits`] reads them.
+type Splits = BTreeMap<String, Vec<Vec<String>>>;
+
+/// What the union of `ids` in each member order decides: its split
+/// parents' wall sets, or the emission it refuses.
+fn splits_by_order(
+    doc: &ProfileDoc,
+    ids: &[RecipeNodeId],
+    labels: &BTreeMap<RecipeNodeId, &str>,
+) -> Vec<(Vec<usize>, Result<Splits, &'static str>)> {
+    permutations(&(0..ids.len()).collect::<Vec<_>>())
+        .into_iter()
+        .map(|order| {
+            let ordered: Vec<RecipeNodeId> = order.iter().map(|&i| ids[i]).collect();
+            let (d, n) = crate::fixture::union_over(doc.clone(), &ordered);
+            let ev = run(&d);
+            let got = match failure(&ev, n) {
+                None => Ok(splits(&ev, &d, n, labels)),
+                Some(NodeErrorKind::Naming(NamingError::Emission { what })) => Err(*what),
+                Some(e) => panic!("{order:?}: refuses {e:?}"),
+            };
+            (order, got)
+        })
+        .collect()
+}
+
+/// The refusal of a union whose member orders decide differently
+/// (`work/emit/a-union-over-a-stepped-plate-refuses-in-the-orders-that-fold-the-plate-early.md`).
+const NO_DISCARD_BETWEEN: &str =
+    "a piece of a face held as several borders no recorded discard between them";
+
+/// **A corner touching the far half of a joined seam is not cited.**
+/// `m` covers the stepped plate's pocket extension, so its wall at
+/// `y = 1` merges with the riser, and the lower top's edge there is
+/// joined at `x = 1`: `m`'s discard borders only the half at `x ≤ 1`.
+/// `t` crosses it and the lower top, so the two are one divider. A
+/// diamond's corner rests on the riser's half, at `(1.6, 1, 1)`, and
+/// it meets no lost region of the top, so it is an obstacle on the
+/// right piece alone and is never cited. Every order that publishes
+/// gives one table; the rest refuse.
+#[test]
+fn a_corner_touching_the_far_half_of_a_joined_seam_is_not_cited() {
+    let (doc, ids, labels) = stepped_plate_and(
+        "joined_far_half",
+        vec![
+            ("m", b((-0.5, 1.3), (1.0, 1.6), (0.5, 2.2))),
+            ("t", b((0.4, 0.6), (-1.0, 3.0), (0.5, 2.5))),
+            (
+                "dia",
+                Mem::Prism(
+                    vec![vec![(1.8, 0.8), (1.6, 1.0), (1.4, 0.8), (1.6, 0.6)]],
+                    0.47,
+                    0.56,
+                ),
+            ),
+        ],
+    );
+    let top = vec![
+        w(&["plate:y=1.00+m:y=1.00", "t:x=0.40"]),
+        w(&["plate:y=1.00+m:y=1.00", "t:x=0.60"]),
+    ];
+    let mut published: Vec<(Vec<usize>, Splits)> = Vec::new();
+    for (order, got) in splits_by_order(&doc, &ids, &labels) {
+        // Orders that fold the plate before `m` or `t` refuse.
+        let at = |i| order.iter().position(|&o| o == i);
+        if at(0) < at(1).max(at(2)) {
+            assert_eq!(got, Err(NO_DISCARD_BETWEEN), "{order:?}: refuses");
+            continue;
+        }
+        let got = got.unwrap_or_else(|e| panic!("{order:?}: refuses {e}"));
+        assert_eq!(
+            got.get("plate:z=1.00"),
+            Some(&top),
+            "{order:?}: the lower top"
+        );
+        if let Some((first, table)) = published.first() {
+            assert_eq!(&got, table, "{order:?} against {first:?}: the wall sets");
+        }
+        published.push((order, got));
+    }
+    assert_eq!(
+        published.len(),
+        8,
+        "the orders that fold the plate after `m` and `t` publish"
+    );
+}
+
+/// **A divider beside a joined seam does not reach across it.** The
+/// stepped plate and `m` as in
+/// [`a_corner_touching_the_far_half_of_a_joined_seam_is_not_cited`],
+/// with `t` at `x` in `[1.5, 1.7]`: `t`'s discard lies on the riser's
+/// side of the join and meets neither `m`'s discard on the lower top
+/// nor the region `m`'s wall lost inside the plate, so only `t`
+/// divides the lower top and the merged wall.
+///
+/// Orders (plate, m, t) and (m, plate, t) link `t`'s discard to `m`'s
+/// through its chain along the joined edge and cite the merged wall
+/// (`work/emit/borders-records-a-join-twice-and-reads-lineage-three-ways.md`);
+/// they are held apart here, so a fix or a further order turns it red.
+#[test]
+fn a_divider_beside_a_joined_seam_does_not_reach_across_it() {
+    let (doc, ids, labels) = stepped_plate_and(
+        "joined_beside",
+        vec![
+            ("m", b((-0.5, 1.3), (1.0, 1.6), (0.5, 2.2))),
+            ("t", b((1.5, 1.7), (-1.0, 3.0), (0.5, 2.5))),
+        ],
+    );
+    let apart = || vec![w(&["t:x=1.50"]), w(&["t:x=1.70"])];
+    let right: Splits = [
+        ("plate:y=1.00+m:y=1.00", apart()),
+        ("plate:z=1.00", apart()),
+        ("plate:z=2.00", apart()),
+        ("t:z=0.50", vec![w(&["plate:y=0.00"]), w(&["plate:y=2.00"])]),
+    ]
+    .into_iter()
+    .map(|(p, sets)| (p.to_owned(), sets))
+    .collect();
+    let over_linked = [vec![0, 1, 2], vec![1, 0, 2]];
+    for (order, got) in splits_by_order(&doc, &ids, &labels) {
+        let got = got.unwrap_or_else(|e| panic!("{order:?}: refuses {e}"));
+        if over_linked.contains(&order) {
+            assert_eq!(
+                got.get("plate:z=1.00"),
+                Some(&vec![
+                    w(&["plate:y=1.00+m:y=1.00", "t:x=1.50"]),
+                    w(&["plate:y=1.00+m:y=1.00", "t:x=1.70"]),
+                ]),
+                "{order:?}: the lower top, over-linked"
+            );
+        } else {
+            assert_eq!(got, right, "{order:?}: the wall sets");
+        }
+    }
+}
+
+/// **A corner touching the near half of a joined seam is part of the
+/// divider** it touches. The stepped plate and `m` as in
+/// [`a_corner_touching_the_far_half_of_a_joined_seam_is_not_cited`],
+/// `t` at `x` in `[0.2, 0.4]`, and the diamond's corner at
+/// `(0.75, 1, 1)`, on the half of the joined edge `m`'s discard borders:
+/// the right piece cites the diamond's walls.
+///
+/// Where the plate folds after `m` and `t` and before the diamond, the
+/// join is made before the diamond's step and nothing in the record
+/// says which half of the joined edge its corner lies on, so the corner
+/// meets no discard and the right piece does not cite it
+/// (`work/emit/borders-records-a-join-twice-and-reads-lineage-three-ways.md`).
+/// Those orders are held apart here; the orders that fold the plate
+/// before `m` or `t` refuse.
+#[test]
+fn a_corner_touching_the_near_half_of_a_joined_seam_is_part_of_the_divider() {
+    let (doc, ids, labels) = stepped_plate_and(
+        "joined_near_half",
+        vec![
+            ("m", b((-0.5, 1.3), (1.0, 1.6), (0.5, 2.2))),
+            ("t", b((0.2, 0.4), (-1.0, 3.0), (0.5, 2.5))),
+            (
+                "dia",
+                Mem::Prism(
+                    vec![vec![(0.9, 0.8), (0.75, 1.0), (0.6, 0.8), (0.75, 0.6)]],
+                    0.47,
+                    0.56,
+                ),
+            ),
+        ],
+    );
+    let left = w(&["plate:y=1.00+m:y=1.00", "t:x=0.20"]);
+    let right = w(&[
+        "dia:slant",
+        "dia:slant",
+        "dia:slant",
+        "dia:slant",
+        "plate:y=1.00+m:y=1.00",
+        "t:x=0.40",
+    ]);
+    let under_linked = [vec![1, 2, 0, 3], vec![2, 1, 0, 3]];
+    let mut published = 0;
+    for (order, got) in splits_by_order(&doc, &ids, &labels) {
+        let at = |i| order.iter().position(|&o| o == i);
+        if at(0) < at(1).max(at(2)) {
+            assert_eq!(got, Err(NO_DISCARD_BETWEEN), "{order:?}: refuses");
+            continue;
+        }
+        let got = got.unwrap_or_else(|e| panic!("{order:?}: refuses {e}"));
+        let top = if under_linked.contains(&order) {
+            vec![left.clone(), w(&["plate:y=1.00+m:y=1.00", "t:x=0.40"])]
+        } else {
+            vec![right.clone(), left.clone()]
+        };
+        assert_eq!(
+            got.get("plate:z=1.00"),
+            Some(&top),
+            "{order:?}: the lower top"
+        );
+        published += 1;
+    }
+    assert_eq!(
+        published, 8,
+        "the orders that fold the plate after `m` and `t` publish"
+    );
 }

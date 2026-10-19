@@ -16,8 +16,8 @@
 //!   its boundary descending from that seam (`Discard::touches`);
 //! - they meet at a point the result holds as a vertex: one ends a
 //!   bordered or held stretch there, and an edge at it is, or descends
-//!   from, a seam the other borders, of its own step or an earlier one
-//!   (`Discard::touches`);
+//!   from, an edge the other borders end to end, of its own step or an
+//!   earlier one (`Discard::meets`);
 //! - they meet at a point the output stage joined away: a piece edge
 //!   that descends from the joined edge reaches the discards along every
 //!   edge the join made it of (`Obstacles::joined_from`).
@@ -55,15 +55,23 @@ use super::least_root::LeastRoot;
 
 /// One discarded face, resolved into the result of its step.
 struct Discard {
-    /// The result edges it bordered a kept face along.
+    /// The result edges it bordered a kept face along, some only in
+    /// part: an edge the output stage joined holds the stretch and the
+    /// edge it was joined to.
     seams: Vec<EdgeKey>,
-    /// Seam edges whose discards it is one obstacle with:
-    /// - an earlier step's that its boundary descends from, the region
-    ///   across which was discarded before;
-    /// - its own step's or an earlier one's that an edge at a live
-    ///   vertex where one of its stretches ends is, or descends from:
-    ///   that seam's discard holds the point in its closure.
+    /// The seams it borders end to end, each still the edge it bordered:
+    /// none a later step's join made longer or killed. Every point of
+    /// one is in its closure.
+    whole: Vec<EdgeKey>,
+    /// Earlier steps' seam edges its boundary descends from, the region
+    /// across which was discarded before: it is one obstacle with their
+    /// discards.
     touches: Vec<EdgeKey>,
+    /// Edges others border end to end, of its own step or an earlier
+    /// one, that an edge at a live vertex where one of its stretches
+    /// ends is, or descends from: it is one obstacle with the discards
+    /// whole along them, which hold the point in their closure.
+    meets: Vec<EdgeKey>,
     /// Its other boundary edges, which it died with: another discard of
     /// the parent across one of them — a fragment of the same face
     /// across a chord, or of another of a corner's faces across the edge
@@ -73,6 +81,16 @@ struct Discard {
     /// the result has no key for them, and only two discards of one
     /// operand in one boolean can share one.
     bounds: Vec<(usize, topo::Operand, EdgeKey)>,
+}
+
+/// One discard row of a step, read before any row's meets.
+struct Read<'a> {
+    row: &'a topo::DiscardRow,
+    chains: Vec<Vec<EdgeKey>>,
+    seams: Vec<EdgeKey>,
+    whole: Vec<EdgeKey>,
+    /// The live vertices its stretches end at.
+    ends: BTreeSet<VertexKey>,
 }
 
 /// The discards of one boolean, or of each step of a union's fold.
@@ -129,13 +147,21 @@ impl<K: Ord + Clone> Obstacles<K> {
     ) -> Result<(), NamingError> {
         // What was recorded before is operand A's, in A's keys, and every
         // record reads it as the result's: A held directly. A result
-        // without A holds none of A's region, so none of it borders
-        // anything after, and its keys name another arena.
-        if naming.a_keys != topo::OperandKeys::Direct {
-            *self = Self {
-                records: self.records,
-                ..Self::new()
-            };
+        // that is B alone holds none of A's region, so none of it
+        // borders anything after, and its keys name another arena.
+        match (naming.a_keys, naming.b_keys) {
+            (topo::OperandKeys::Direct, _) => {}
+            (topo::OperandKeys::Absent, topo::OperandKeys::Direct) => {
+                *self = Self {
+                    records: self.records,
+                    ..Self::new()
+                };
+            }
+            _ => {
+                return Err(bug(
+                    "a boolean's result holds its operands in a key layout it has no reading for",
+                ));
+            }
         }
         let settler = naming.settler(body);
         // A bordered stretch settles on a seam edge: the zip made the
@@ -163,15 +189,21 @@ impl<K: Ord + Clone> Obstacles<K> {
         }
         // An earlier step's seam this step's output stage joined into
         // another edge lies along the joined edge, whichever of the two
-        // the join kept.
+        // the join kept, and neither is one it borders end to end.
+        let joined: BTreeSet<EdgeKey> = naming
+            .edge_joins
+            .iter()
+            .flat_map(|j| [j.gone, j.kept])
+            .collect();
         for d in &mut self.discards {
-            let joined: Vec<EdgeKey> = d
+            let extended: Vec<EdgeKey> = d
                 .seams
                 .iter()
                 .map(|&e| naming.joined_edge(e))
                 .filter(|j| !d.seams.contains(j))
                 .collect();
-            d.seams.extend(joined);
+            d.seams.extend(extended);
+            d.whole.retain(|e| !joined.contains(e));
         }
         for j in &naming.edge_joins {
             self.joined_from.entry(j.kept).or_default().push(j.gone);
@@ -209,9 +241,8 @@ impl<K: Ord + Clone> Obstacles<K> {
             .chain(&naming.graft_dead_edges)
             .copied()
             .collect();
-        // Each row's chains, seams and the live vertices its stretches
-        // end at, read before any row's touches, which reach this
-        // step's seams too.
+        // Each row read before any row's meets, which reach this step's
+        // whole seams too.
         let mut read = Vec::with_capacity(naming.discards.len());
         for row in &naming.discards {
             let chains: Vec<Vec<EdgeKey>> = row
@@ -226,6 +257,7 @@ impl<K: Ord + Clone> Obstacles<K> {
                 })
                 .collect();
             let mut seams = Vec::new();
+            let mut whole = Vec::new();
             let mut ends = BTreeSet::new();
             // A stretch no live edge joins merged away with the faces
             // beside it: nothing of a piece lies along it.
@@ -260,7 +292,7 @@ impl<K: Ord + Clone> Obstacles<K> {
                             | (_, Cell::Edge(_) | Cell::Face(_)) => None,
                         };
                         if let Some(es) = between {
-                            seams.extend(es.iter().copied());
+                            whole.extend(es.iter().copied());
                         } else if let Some(e) = naming.stretch_through_joins(body, (u, w))
                             && (!seam_only || seam_edges.contains(&e))
                         {
@@ -274,41 +306,38 @@ impl<K: Ord + Clone> Obstacles<K> {
                     note_split(&mut self.split_from, w[0], w[1]);
                 }
             }
-            read.push((row, chains, seams, ends));
+            seams.extend(whole.iter().copied());
+            read.push(Read {
+                row,
+                chains,
+                seams,
+                whole,
+                ends,
+            });
         }
-        let any: BTreeSet<EdgeKey> = earlier
+        let whole_so_far: BTreeSet<EdgeKey> = self
+            .discards
             .iter()
+            .flat_map(|d| &d.whole)
+            .chain(read.iter().flat_map(|r| &r.whole))
             .copied()
-            .chain(
-                read.iter()
-                    .flat_map(|(_, _, seams, _)| seams.iter().copied()),
-            )
             .collect();
-        for (row, chains, seams, ends) in read {
+        for r in read {
             // A chain edge an earlier seam was split into since that
             // seam's step still touches it: its lineage reaches the seam.
-            // An edge at a stretch's end meets any seam it is a piece of
-            // there.
+            let touches = self.lineage_hits(body, r.chains.concat(), &earlier)?;
+            // An edge at a stretch's end, a piece of an edge another
+            // discard borders end to end, has the point in that edge's
+            // closure.
             let mut at_ends = Vec::new();
-            for v in ends {
+            for v in r.ends {
                 at_ends.extend(
                     body.edges_of_vertex(v)
                         .ok_or_else(|| bug("a stretch end's star does not resolve"))?,
                 );
             }
-            let mut touches = BTreeSet::new();
-            for (edges, targets) in [(chains.concat(), &earlier), (at_ends, &any)] {
-                for k in edges {
-                    self.up_lineage(body, k, |up| {
-                        let hit = targets.contains(&up);
-                        if hit {
-                            touches.insert(up);
-                        }
-                        hit
-                    })?;
-                }
-            }
-            let touches = touches.into_iter().collect();
+            let meets = self.lineage_hits(body, at_ends, &whole_so_far)?;
+            let row = r.row;
             let parents = parents_of(row.operand, row.face)?;
             for k in &parents {
                 self.by_parent
@@ -323,13 +352,36 @@ impl<K: Ord + Clone> Obstacles<K> {
                 .map(|k| (self.records, row.operand, k))
                 .collect();
             self.discards.push(Discard {
-                seams,
+                seams: r.seams,
+                whole: r.whole,
                 touches,
+                meets,
                 bounds,
             });
         }
         self.records += 1;
         Ok(())
+    }
+
+    /// The edges of `targets` that some edge of `edges` is, or descends
+    /// from ([`Obstacles::up_lineage`]), each walk ending at its first.
+    fn lineage_hits<T: geom_core::Real>(
+        &self,
+        body: &Body<T>,
+        edges: Vec<EdgeKey>,
+        targets: &BTreeSet<EdgeKey>,
+    ) -> Result<Vec<EdgeKey>, NamingError> {
+        let mut hits = BTreeSet::new();
+        for k in edges {
+            self.up_lineage(body, k, |up| {
+                let hit = targets.contains(&up);
+                if hit {
+                    hits.insert(up);
+                }
+                hit
+            })?;
+        }
+        Ok(hits.into_iter().collect())
     }
 
     /// Walks edge `e`'s split lineage upward, `e` first: the edge `body`'s
@@ -461,12 +513,14 @@ impl<K: Ord + Clone> Obstacles<K> {
     }
 
     /// `mine` grouped by each key `keys` lists for a discard, each
-    /// group joined in `link`.
+    /// group joined in `link`, and each discard joined to the group of
+    /// every key `reaches` lists for it.
     fn join_by<Q: Ord + Copy>(
         &self,
         link: &mut LeastRoot<usize>,
         mine: &BTreeSet<usize>,
         keys: impl Fn(&Discard) -> &[Q],
+        reaches: impl Fn(&Discard) -> &[Q],
     ) -> BTreeMap<Q, Vec<usize>> {
         let mut of: BTreeMap<Q, Vec<usize>> = BTreeMap::new();
         for &i in mine {
@@ -477,6 +531,13 @@ impl<K: Ord + Clone> Obstacles<K> {
         for ds in of.values() {
             for w in ds.windows(2) {
                 link.join(w[0], w[1]);
+            }
+        }
+        for &i in mine {
+            for k in reaches(&self.discards[i]) {
+                for &j in of.get(k).into_iter().flatten() {
+                    link.join(i, j);
+                }
             }
         }
         of
@@ -514,15 +575,9 @@ impl<K: Ord + Clone> Obstacles<K> {
         for &i in &mine {
             link.insert(i);
         }
-        let seam_of = self.join_by(&mut link, &mine, |d| &d.seams);
-        self.join_by(&mut link, &mine, |d| &d.bounds);
-        for &i in &mine {
-            for k in &self.discards[i].touches {
-                for &j in seam_of.get(k).into_iter().flatten() {
-                    link.join(i, j);
-                }
-            }
-        }
+        let seam_of = self.join_by(&mut link, &mine, |d| &d.seams, |d| &d.touches);
+        self.join_by(&mut link, &mine, |d| &d.whole, |d| &d.meets);
+        self.join_by(&mut link, &mine, |d| &d.bounds, |_| &[]);
         // Each boundary edge's discards, and the wall across it. An edge
         // reaches a discard along its split lineage, the first recorded
         // seam on it, and through every edge a join made it of, so an
