@@ -2,7 +2,8 @@
 id: kernel-computed-specs-at-callers-sites-return-a-kernel-bug-typed
 kind: issue
 title: A spec the kernel computed reaches a Callers certification site, so its span refusal returns typed instead of panicking
-status: dispatched
+status: review
+pr: 5413
 opened: 2026-10-19
 branch: encl/kernel-specs-origin
 ---
@@ -37,3 +38,19 @@ the public door keeps `Origin::Callers`.
 **Sweep owed.** Every production caller of `mev*`, `mef*`, `kev_describing`
 and `set_edge_curve` outside `euler*.rs` and `attach.rs`, sorted by
 whether its spec is a caller's or the kernel's.
+
+**Resolution (2026-10-19).** The sweep found the cited `edge_join`
+drivers to be input-reachable or test code: `join_one`'s `kev_describing`
+states a span joined from two edges of a body any caller can hand
+`join_edges`, and the `mef_chord`/`mev_line` calls near it are in the
+`conventional` test module. The kernel-computed specs at `Callers` sites
+are the ones that restate a stored edge's carrier and interval: the seam
+description pass (`describe_edges`), a split's section boundary
+description and section re-chart, a shell's rim re-chart,
+`describe_at_rest` and the parted-wrap restatement. Each now names a
+`KernelSite` through a `pub(crate)` door that takes only the new
+description and restates the stored carrier and interval itself
+(`Body::restate_edge`, `Body::rechart_restating`). The PR carries the
+full site table.
+Sweep's own restatements go through the public door and are filed as
+`work/encl/cross-crate-restatements-of-stored-edges-certify-as-callers.md`.
