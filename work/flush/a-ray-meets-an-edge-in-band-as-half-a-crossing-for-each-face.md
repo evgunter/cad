@@ -68,3 +68,9 @@ forbids it to make.
 **Done when** a ray within the band of an edge meets it; set-asides
 are left only at vertices, wedges and real pairs; and the fixtures
 above read by ray rather than by the volume fallback.
+
+**It also retires the aims' exact ties at symmetric nominals**
+(`work/flush/the-side-readers-aims-decide-exact-ties-at-a-documents-nominal.md`):
+a planar aim's `point_in_loop_arm` and a wall aim's `curve_foot_branch`
+read exactly 0 at `die_chamfer`'s and `cut_cylinder`'s nominals, read
+apart today as the reader's family.

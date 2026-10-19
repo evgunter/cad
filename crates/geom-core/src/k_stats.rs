@@ -266,6 +266,8 @@ thread_local! {
 /// it (`editor_core::resolve`'s N5 passes over them). Only the verdict
 /// channel is renamed: an escalation keeps the name its refusal is
 /// typed by, and a K sample the name its population is counted under.
+/// The symbolic recorder tags the decisions taken inside it with the
+/// family (`sym::revalue::Decision::family`), for the same reader's sake.
 ///
 /// The family is this thread's for the call, an inner one replacing it
 /// until it returns, and [`map_detached`] hands it to its workers. A
@@ -281,8 +283,10 @@ pub fn in_family<R>(family: &'static str, work: impl FnOnce() -> R) -> R {
     work()
 }
 
-/// The family verdicts are recorded under on this thread, if any.
-fn current_family() -> Option<&'static str> {
+/// The family verdicts are recorded under on this thread, if any
+/// ([`in_family`]); the symbolic recorder tags its decisions with it
+/// (`sym::revalue::Decision::family`).
+pub(crate) fn current_family() -> Option<&'static str> {
     FAMILY.with(Cell::get)
 }
 

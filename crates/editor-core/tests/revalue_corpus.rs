@@ -111,6 +111,10 @@ struct Found {
     /// decisions before it: (decisions in common, decisions at `p0`,
     /// the `p0` predicate at the first difference).
     parted: Option<(usize, usize, &'static str)>,
+    /// The side reader's decisions paired and re-valued
+    /// ([`compare_decisions`]): they align apart from the document's,
+    /// and their launderings count in `laundered` with the rest.
+    family: usize,
 }
 
 fn continuous_vars(doc: &ProfileDoc) -> Vec<(VarId, f64)> {
@@ -199,6 +203,52 @@ fn compare_prefix(doc: &ProfileDoc) -> Found {
     if a.compared >= b.compared { a } else { b }
 }
 
+/// `decisions` split into the document's own and the side reader's
+/// (`topo::SIDE_READER_FAMILY`, the family `k_stats::in_family` tags):
+/// the reader's answer turns on none of its own decisions (`[verdicts]`),
+/// so where it aims cannot part or flip a document's row.
+fn streams(decisions: &[Decision]) -> (Vec<Decision>, Vec<Decision>) {
+    decisions
+        .iter()
+        .cloned()
+        .partition(|d| d.family != Some(topo::SIDE_READER_FAMILY))
+}
+
+/// The two builds' decisions compared: the document's own aligned
+/// ([`in_step`]) and read ([`tally`]); `None` where they part, unless
+/// `prefix`. The side reader's are paired among themselves, up to their
+/// own first difference, and re-valued as the document's are: a
+/// laundering among them counts in `laundered`, while one of their flips,
+/// and what follows it, parts and flips nothing.
+fn compare_decisions(
+    p0: &[Decision],
+    p1: &[Decision],
+    prefix: bool,
+    env0: &dyn Fn(ParamSymbol) -> Option<f64>,
+    env: &dyn Fn(ParamSymbol) -> Option<f64>,
+) -> Option<Found> {
+    let ((d0, f0), (d1, f1)) = (streams(p0), streams(p1));
+    let common = in_step(&d0, &d1);
+    let parts = common < d0.len().max(d1.len());
+    if parts && !prefix {
+        return None;
+    }
+    let mut found = Found {
+        parted: parts.then(|| {
+            let at = d0.get(common).map_or("<end>", |d| d.predicate);
+            (common, d0.len(), at)
+        }),
+        ..Found::default()
+    };
+    tally(&mut found, &d0, &d1, common, env0, env);
+    let mut reader = Found::default();
+    tally(&mut reader, &f0, &f1, in_step(&f0, &f1), env0, env);
+    found.family = reader.compared;
+    found.drifted += reader.drifted;
+    found.laundered.extend(reader.laundered);
+    Some(found)
+}
+
 /// How many decisions the two builds took by the same predicate.
 fn in_step(p0: &[Decision], p1: &[Decision]) -> usize {
     p0.iter()
@@ -279,28 +329,13 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
     let p1 = replayed(&at_p1, |opts| build(doc, opts)).0;
     replayed(&at_p0, |opts| {
         let p0 = build(doc, opts);
-        let common = in_step(&p0, &p1);
-        let parts = common < p0.len().max(p1.len());
-        if parts && !prefix {
-            return None;
-        }
-        let mut found = Found {
+        compare_decisions(&p0, &p1, prefix, &|s| env0.get(&s).copied(), &|s| {
+            env.get(&s).copied()
+        })
+        .map(|found| Found {
             mode: Some(mode),
-            parted: parts.then(|| {
-                let at = p0.get(common).map_or("<end>", |d| d.predicate);
-                (common, p0.len(), at)
-            }),
-            ..Found::default()
-        };
-        tally(
-            &mut found,
-            &p0,
-            &p1,
-            common,
-            &|s| env0.get(&s).copied(),
-            &|s| env.get(&s).copied(),
-        );
-        Some(found)
+            ..found
+        })
     })
     .0
 }
@@ -473,10 +508,12 @@ fn revalue_census() {
             mode,
             seen,
             parted,
+            family,
         } = &found;
         eprintln!(
             "{} ({:.1?}) {mode:?}: compared {compared}, moved {moved}, drifted {drifted}, opaque {opaque}, \
-             laundered {laundered:?}, after_flip {after_flip:?}, flips {flips:?}, parted {parted:?}",
+             laundered {laundered:?}, after_flip {after_flip:?}, flips {flips:?}, parted {parted:?}, \
+             side reader {family}",
             cd.name,
             t.elapsed()
         );
@@ -535,6 +572,67 @@ fn a_planted_laundering_is_seen_and_from_computed_is_opaque() {
         rows,
         [Some(false), Some(true), None],
         "laundered / kept in the scalar / from_computed, each re-valued at p1 against the p1 build"
+    );
+}
+
+/// **The side reader's decisions align apart, and a laundering among
+/// them is still caught.** Each build decides a document's predicate, then
+/// under the reader's family (`topo::SIDE_READER_FAMILY`) a margin
+/// laundered through `from_f64`, a tie exact at `p0` that `p1` answers
+/// `Positive`, and, at `p1` only, one more; then the document's next.
+/// The document's decisions align and nothing flips or parts, while the
+/// family's laundering, paired before its flip, is reported as any other.
+#[test]
+fn a_side_reader_laundering_is_caught_and_its_flips_part_nothing() {
+    use geom_core::Real;
+    use geom_core::predicate::{Band, Margin};
+    let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+    let w = ParamSymbol::new(11);
+    let decide =
+        |name: &'static str, m: Sym<f64>| geom_core::k_stats::decide(name, Margin::of(m), band);
+    let build = |d: f64| {
+        let x = Sym::<f64>::from_f64(2.0) + Sym::param(w, d);
+        record(|| {
+            let _ = decide("revalue_doc", x);
+            geom_core::k_stats::in_family(topo::SIDE_READER_FAMILY, || {
+                let xx = x * x;
+                let _ = decide("revalue_reader_laundered", xx - Sym::from_f64(xx.value));
+                let _ = decide("revalue_reader_tie", Sym::param(w, d) - Sym::from_f64(0.25));
+                if d > 0.3 {
+                    let _ = decide("revalue_reader_extra", x);
+                }
+            });
+            let _ = decide("revalue_doc_after", x * x);
+        })
+        .1
+    };
+    let p1 = session(|| build(0.5));
+    let found = session(|| {
+        let p0 = build(0.25);
+        assert!(
+            p0.iter()
+                .any(|d| d.family == Some(topo::SIDE_READER_FAMILY)),
+            "the recorder tags the family's decisions"
+        );
+        compare_decisions(&p0, &p1, false, &|s| (s == w).then_some(0.25), &|s| {
+            (s == w).then_some(0.5)
+        })
+    })
+    .expect("the document's decisions align: the family's extra one parts nothing");
+    assert_eq!(found.compared, 2, "the document's two decisions");
+    assert!(
+        found.flips.is_empty(),
+        "the family's tie flips nothing: {found:?}"
+    );
+    assert_eq!(found.parted, None);
+    assert_eq!(
+        found.family, 2,
+        "the family's two decisions both builds took; the third is p1's alone"
+    );
+    assert_eq!(
+        found.laundered,
+        BTreeSet::from(["revalue_reader_laundered"]),
+        "the family's laundering is caught"
     );
 }
 
