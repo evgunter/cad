@@ -472,18 +472,19 @@ fn fragment_at<T: Decide>(
     if let [one] = pieces.as_slice() {
         return Ok(*one);
     }
+    let unplaced = |_| BooleanError::ClassificationInvariant {
+        what: "a fate cut's end is not placed in its face",
+    };
     let mut inside = Vec::new();
     for f in pieces {
-        let normal = crate::face_normal::face_outward_normal(body, f).ok_or(
-            BooleanError::ClassificationInvariant {
-                what: "a fate cut's end lies in a divided curved face",
-            },
-        )?;
-        let at = super::contfp(body, f, normal.vec(), p, band).map_err(|_| {
-            BooleanError::ClassificationInvariant {
-                what: "a fate cut's end is not placed in its face",
-            }
-        })?;
+        let at = match crate::face_normal::face_outward_normal(body, f) {
+            Some(normal) => super::contfp(body, f, normal.vec(), p, band).map_err(unplaced)?,
+            None => super::curved_face_containment(body, f, p, band)
+                .map_err(unplaced)?
+                .ok_or(BooleanError::ClassificationInvariant {
+                    what: "a fate cut's end lies in a curved face its chart cannot place it in",
+                })?,
+        };
         if at == super::FaceContainment::In {
             inside.push(f);
         }
@@ -518,12 +519,41 @@ fn loop_of<T: geom_core::Real>(body: &Body<T>, he: HalfEdgeKey) -> Result<LoopKe
         })
 }
 
-/// Joins `from` to `to` in their face with a line, returning the half
+/// The kept edge's `curve` as a chord's scaffold spec, run in its own
+/// sense (`along`) or back.
+fn along_spec<T: Decide>(
+    curve: &geom_brep::EdgeCurve<T>,
+    along: bool,
+) -> Result<geom_brep::EdgeCurveSpec<T>, BooleanError> {
+    let refuse = || BooleanError::ClassificationInvariant {
+        what: "a fate cut along a kept edge that is neither a line nor a circle",
+    };
+    let own = curve.restated_spec();
+    let (carrier, t0, t1) = if along {
+        (own.carrier, own.param_start, own.param_end)
+    } else {
+        (
+            own.carrier.reversed().ok_or_else(refuse)?,
+            T::zero() - own.param_end,
+            T::zero() - own.param_start,
+        )
+    };
+    match carrier {
+        geom::Curve3::Line { .. } => geom_brep::EdgeCurveSpec::segment_of_line(carrier, t0, t1),
+        geom::Curve3::Circle { .. } => geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1),
+        _ => None,
+    }
+    .ok_or_else(refuse)
+}
+
+/// Joins `from` to `to` in their face along the kept edge's `curve`
+/// (`forward` where `from` lies at its plus half's start), returning the half
 /// running from `from`'s vertex to `to`'s; a division it makes is
 /// recorded in `divisions`.
 fn chord<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     (from, to): (Place, Place),
+    (curve, forward): (&geom_brep::EdgeCurve<T>, bool),
     divisions: &mut FaceDivisions,
     band: Band,
     tol: Tol,
@@ -560,8 +590,9 @@ fn chord<T: Decide + crate::props::AtRestPolicy>(
             .copied()
             .ok_or_else(|| desync("a fate cut's end has no point"))
     };
-    let (pu, pw) = (point(body, u)?, point(body, w)?);
-    let line = || geom_brep::EdgeCurveSpec::line_between(pu, pw);
+    let pw = point(body, w)?;
+    // The kept edge's curve, run from `v`, one of the chord's ends.
+    let run = |v: VertexKey| along_spec(curve, forward == (v == u));
     let outer = body
         .get_face(face)
         .map(|f| f.outer)
@@ -601,10 +632,7 @@ fn chord<T: Decide + crate::props::AtRestPolicy>(
             };
             let made = body.mef(
                 MefSite::Chords { he1, he2 },
-                geom_brep::EdgeCurveSpec::line_between(
-                    point(body, start_of(body, Place::Corner(he1))?)?,
-                    point(body, start_of(body, Place::Corner(he2))?)?,
-                ),
+                run(start_of(body, Place::Corner(he1))?)?,
                 FaceSurface::Inherit,
                 tol,
             )?;
@@ -619,32 +647,22 @@ fn chord<T: Decide + crate::props::AtRestPolicy>(
             };
             let made = body.mekr(
                 MekrSite::Cycles { target, ring },
-                geom_brep::EdgeCurveSpec::line_between(
-                    point(body, start_of(body, Place::Corner(target))?)?,
-                    point(body, start_of(body, Place::Corner(ring))?)?,
-                ),
+                run(start_of(body, Place::Corner(target))?)?,
                 tol,
             )?;
             [made.he_plus, made.he_minus]
         }
         (Place::Corner(target), Place::Lone(ring, _))
         | (Place::Lone(ring, _), Place::Corner(target)) => {
-            let far = match (from, to) {
-                (Place::Lone(_, v), _) | (_, Place::Lone(_, v)) => v,
-                _ => unreachable!("one end is lone"),
-            };
             let made = body.mekr(
                 MekrSite::EmptyRing { target, ring },
-                geom_brep::EdgeCurveSpec::line_between(
-                    point(body, start_of(body, Place::Corner(target))?)?,
-                    point(body, far)?,
-                ),
+                run(start_of(body, Place::Corner(target))?)?,
                 tol,
             )?;
             [made.he_plus, made.he_minus]
         }
         (Place::Lone(target, _), Place::Lone(ring, _)) => {
-            let made = body.mekr(MekrSite::BothEmpty { target, ring }, line(), tol)?;
+            let made = body.mekr(MekrSite::BothEmpty { target, ring }, run(u)?, tol)?;
             [made.he_plus, made.he_minus]
         }
         (Place::Along(_), _) | (_, Place::Along(_)) => {
@@ -791,6 +809,12 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                     .is_some_and(|f| div_k.root(f) == kept_root)
             })
             .ok_or_else(|| desync("a fate edge does not bound its kept face"))?;
+        let curve = kept_body
+            .get_curve_geom(edge.curve)
+            .and_then(|c| c.certified())
+            .cloned()
+            .ok_or_else(|| desync("a fate edge has no certified curve"))?;
+        let forward = kept_he == edge.he_plus;
         let kept_mate = kept_body
             .mate(kept_he)
             .ok_or_else(|| desync("a fate edge has no mate"))?;
@@ -826,7 +850,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
         let run = match (p0, p1) {
             (Place::Along(h), Place::Along(_)) => h,
             _ => {
-                let c = chord(body, (p0, p1), div_d, band, tol)?;
+                let c = chord(body, (p0, p1), (&curve, forward), div_d, band, tol)?;
                 let h = body
                     .get_half_edge(c)
                     .cloned()
