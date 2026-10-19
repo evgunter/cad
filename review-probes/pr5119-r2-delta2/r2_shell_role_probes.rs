@@ -435,3 +435,39 @@ fn r2_lane_free_words() {
         }
     }
 }
+
+/// Third check: the lane-free doors on needle bars, both orientations,
+/// axis-aligned and posed.
+#[test]
+#[ignore = "review probe"]
+fn r2_lane_free_needles() {
+    let tol = Tol::witness();
+    let e = tol.eps();
+    let (mut ok, mut bad) = (0, 0);
+    for m in [10.5, 12.0, 15.0, 21.0, 30.0] {
+        let w = m * e;
+        for (i, (axis, ang)) in POSES.iter().enumerate() {
+            for c in [[0.0, 0.0, 0.0], [37.0, -21.0, 13.0]] {
+                let Ok(raw) = std::panic::catch_unwind(|| {
+                    posed_box([0.0, 0.0, 0.0], [1.0, w, w], rot(*axis, *ang), c, tol)
+                }) else {
+                    continue;
+                };
+                let plain = topo::validate_geometric_structural(&raw, tol).map(|_| ());
+                let inv = topo::validate_geometric_structural(&raw.revert().expect("revert"), tol).map(|_| ());
+                let inv_ok = matches!(&inv, Err(v) if v.len() == 1 && matches!(v[0], topo::ValidationError::NegativeVolume { .. }));
+                if plain.is_ok() && inv_ok {
+                    ok += 1;
+                } else {
+                    bad += 1;
+                    let words = |r: &Result<(), Vec<topo::ValidationError>>| match r {
+                        Ok(()) => "ok".to_owned(),
+                        Err(v) => v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(" | ").chars().take(300).collect(),
+                    };
+                    println!("R2L eps={e:e} m={m} pose={i} c={c:?} plain={} inv={}", words(&plain), words(&inv));
+                }
+            }
+        }
+    }
+    println!("R2L eps={e:e} structural read={ok} not={bad}");
+}

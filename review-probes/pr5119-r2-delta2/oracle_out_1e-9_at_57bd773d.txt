@@ -1,0 +1,49 @@
+m=10.5 pose=0 c=0 inv=false rc=true: model=1.102500e-16 poly=1.102500e-16 width/|V|=4.47e-16 poly_off_mid/width=-0.249 sign=+
+m=10.5 pose=0 c=0 inv=true rc=true: model=-1.102500e-16 poly=-1.102500e-16 width/|V|=4.47e-16 poly_off_mid/width=0.249 sign=-
+m=10.5 pose=0 c=1 inv=false rc=true: model=1.102500e-16 poly=1.102500e-16 width/|V|=0.00e+00 poly_off_mid/width=None sign=+
+m=10.5 pose=0 c=1 inv=true rc=true: model=-1.102500e-16 poly=-1.102500e-16 width/|V|=0.00e+00 poly_off_mid/width=None sign=-
+m=10.5 pose=0 c=2 inv=false rc=true: model=1.102501e-16 poly=1.102501e-16 width/|V|=0.00e+00 poly_off_mid/width=None sign=+
+m=10.5 pose=0 c=2 inv=true rc=true: model=-1.102501e-16 poly=-1.102501e-16 width/|V|=0.00e+00 poly_off_mid/width=None sign=-
+m=10.5 pose=1 c=0 inv=false rc=true: model=1.087895e-16 poly=1.102500e-16 width/|V|=4.47e-16 poly_off_mid/width=-0.00289 sign=+ MODEL-OUTSIDE
+m=10.5 pose=1 c=0 inv=true rc=true: model=-1.117105e-16 poly=-1.102500e-16 width/|V|=4.47e-16 poly_off_mid/width=-0.329 sign=- MODEL-OUTSIDE
+m=10.5 pose=1 c=1 inv=false rc=true: model=1.101680e-16 poly=1.102500e-16 width/|V|=4.47e-16 poly_off_mid/width=-0.154 sign=+ MODEL-OUTSIDE
+m=10.5 pose=1 c=1 inv=true rc=true: model=-1.103320e-16 poly=-1.102500e-16 width/|V|=4.47e-16 poly_off_mid/width=0.154 sign=- MODEL-OUTSIDE
+m=10.5 pose=1 c=2 inv=false rc=true: model=1.090294e-16 poly=1.102506e-16 width/|V|=4.47e-16 poly_off_mid/width=0.15 sign=+ MODEL-OUTSIDE
+m=10.5 pose=1 c=2 inv=true rc=true: model=-1.114718e-16 poly=-1.102506e-16 width/|V|=4.47e-16 poly_off_mid/width=-0.15 sign=- MODEL-OUTSIDE
+m=10.5 pose=2 c=0 inv=false rc=true: model=1.118223e-16 poly=1.102500e-16 width/|V|=4.47e-16 poly_off_mid/width=0.0866 sign=+ MODEL-OUTSIDE
+m=10.5 pose=2 c=0 inv=true rc=true: model=-1.086777e-16 poly=-1.102500e-16 width/|V|=4.47e-16 poly_off_mid/width=-0.272 sign=- MODEL-OUTSIDE
+m=10.5 pose=2 c=1 inv=false rc=true: model=1.101596e-16 poly=1.102500e-16 width/|V|=4.47e-16 poly_off_mid/width=-0.318 sign=+ MODEL-OUTSIDE
+m=10.5 pose=2 c=1 inv=true rc=true: model=-1.103403e-16 poly=-1.102500e-16 width/|V|=4.47e-16 poly_off_mid/width=0.318 sign=- MODEL-OUTSIDE
+m=10.5 pose=2 c=2 inv=false rc=true: model=1.100726e-16 poly=1.102494e-16 width/|V|=4.47e-16 poly_off_mid/width=0.15 sign=+ MODEL-OUTSIDE
+m=10.5 pose=2 c=2 inv=true rc=true: model=-1.104261e-16 poly=-1.102494e-16 width/|V|=4.47e-16 poly_off_mid/width=-0.15 sign=- MODEL-OUTSIDE
+m=10.5 pose=3 c=0 inv=false rc=true: model=1.105898e-16 poly=1.102500e-16 width/|V|=4.47e-16 poly_off_mid/width=-0.261 sign=+ MODEL-OUTSIDE
+m=10.5 pose=3 c=0 inv=true rc=true: model=-1.099102e-16 poly=-1.102500e-16 width/|V|=4.47e-16 poly_off_mid/width=0.114 sign=- MODEL-OUTSIDE
+m=10.5 pose=3 c=1 inv=false rc=true: model=1.102633e-16 poly=1.102500e-16 width/|V|=4.47e-16 poly_off_mid/width=0.106 sign=+ MODEL-OUTSIDE
+m=10.5 pose=3 c=1 inv=true rc=true: model=-1.102367e-16 poly=-1.102500e-16 width/|V|=4.47e-16 poly_off_mid/width=-0.106 sign=- MODEL-OUTSIDE
+m=10.5 pose=3 c=2 inv=false rc=true: model=1.098145e-16 poly=1.102540e-16 width/|V|=4.47e-16 poly_off_mid/width=-0.233 sign=+ MODEL-OUTSIDE
+m=10.5 pose=3 c=2 inv=true rc=true: model=-1.106935e-16 poly=-1.102540e-16 width/|V|=4.47e-16 poly_off_mid/width=0.233 sign=- MODEL-OUTSIDE
+m=30 pose=0 c=0 inv=false rc=true: model=9.000000e-16 poly=9.000000e-16 width/|V|=4.38e-16 poly_off_mid/width=0.0215 sign=+
+m=30 pose=0 c=0 inv=true rc=true: model=-9.000000e-16 poly=-9.000000e-16 width/|V|=4.38e-16 poly_off_mid/width=-0.0215 sign=-
+m=30 pose=0 c=1 inv=false rc=true: model=9.000000e-16 poly=9.000000e-16 width/|V|=0.00e+00 poly_off_mid/width=None sign=+
+m=30 pose=0 c=1 inv=true rc=true: model=-9.000000e-16 poly=-9.000000e-16 width/|V|=0.00e+00 poly_off_mid/width=None sign=-
+m=30 pose=0 c=2 inv=false rc=true: model=8.999878e-16 poly=8.999878e-16 width/|V|=0.00e+00 poly_off_mid/width=None sign=+
+m=30 pose=0 c=2 inv=true rc=true: model=-8.999878e-16 poly=-8.999878e-16 width/|V|=0.00e+00 poly_off_mid/width=None sign=-
+m=30 pose=1 c=0 inv=false rc=true: model=8.968185e-16 poly=9.000000e-16 width/|V|=4.38e-16 poly_off_mid/width=0.0554 sign=+ MODEL-OUTSIDE
+m=30 pose=1 c=0 inv=true rc=true: model=-9.003801e-16 poly=-9.000000e-16 width/|V|=4.38e-16 poly_off_mid/width=-0.0883 sign=- MODEL-OUTSIDE
+m=30 pose=1 c=1 inv=false rc=true: model=9.026260e-16 poly=9.000002e-16 width/|V|=8.77e-16 poly_off_mid/width=-0.0585 sign=+ MODEL-OUTSIDE
+m=30 pose=1 c=1 inv=true rc=true: model=-8.973745e-16 poly=-9.000002e-16 width/|V|=8.77e-16 poly_off_mid/width=0.0585 sign=- MODEL-OUTSIDE
+m=30 pose=1 c=2 inv=false rc=true: model=9.009968e-16 poly=8.999907e-16 width/|V|=4.38e-16 poly_off_mid/width=0.333 sign=+ MODEL-OUTSIDE
+m=30 pose=1 c=2 inv=true rc=true: model=-8.989846e-16 poly=-8.999907e-16 width/|V|=4.38e-16 poly_off_mid/width=-0.333 sign=- MODEL-OUTSIDE
+m=30 pose=2 c=0 inv=false rc=true: model=8.989263e-16 poly=9.000000e-16 width/|V|=8.77e-16 poly_off_mid/width=0.0124 sign=+ MODEL-OUTSIDE
+m=30 pose=2 c=0 inv=true rc=true: model=-9.028515e-16 poly=-9.000000e-16 width/|V|=4.38e-16 poly_off_mid/width=0.281 sign=- MODEL-OUTSIDE
+m=30 pose=2 c=1 inv=false rc=true: model=8.997650e-16 poly=9.000001e-16 width/|V|=4.38e-16 poly_off_mid/width=0.128 sign=+ MODEL-OUTSIDE
+m=30 pose=2 c=1 inv=true rc=true: model=-9.002352e-16 poly=-9.000001e-16 width/|V|=4.38e-16 poly_off_mid/width=-0.128 sign=- MODEL-OUTSIDE
+m=30 pose=2 c=2 inv=false rc=true: model=8.988803e-16 poly=9.000014e-16 width/|V|=4.38e-16 poly_off_mid/width=-0.175 sign=+ MODEL-OUTSIDE
+m=30 pose=2 c=2 inv=true rc=true: model=-9.042559e-16 poly=-9.000014e-16 width/|V|=4.38e-16 poly_off_mid/width=0.175 sign=- MODEL-OUTSIDE
+m=30 pose=3 c=0 inv=false rc=true: model=8.988267e-16 poly=9.000000e-16 width/|V|=4.38e-16 poly_off_mid/width=0.226 sign=+ MODEL-OUTSIDE
+m=30 pose=3 c=0 inv=true rc=true: model=-8.996345e-16 poly=-9.000000e-16 width/|V|=4.38e-16 poly_off_mid/width=-0.0512 sign=- MODEL-OUTSIDE
+m=30 pose=3 c=1 inv=false rc=true: model=8.997510e-16 poly=9.000001e-16 width/|V|=4.38e-16 poly_off_mid/width=0.0448 sign=+ MODEL-OUTSIDE
+m=30 pose=3 c=1 inv=true rc=true: model=-9.002491e-16 poly=-9.000001e-16 width/|V|=4.38e-16 poly_off_mid/width=-0.0448 sign=- MODEL-OUTSIDE
+m=30 pose=3 c=2 inv=false rc=true: model=9.005949e-16 poly=9.000055e-16 width/|V|=4.38e-16 poly_off_mid/width=0.197 sign=+ MODEL-OUTSIDE
+m=30 pose=3 c=2 inv=true rc=true: model=-8.994161e-16 poly=-9.000055e-16 width/|V|=4.38e-16 poly_off_mid/width=-0.197 sign=- MODEL-OUTSIDE
+rows 48 flagged 36
