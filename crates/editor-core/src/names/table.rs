@@ -296,8 +296,18 @@ pub struct KindMismatch {
     pub found: EntityKind,
 }
 
-/// Why a seating door refused a row. Both are emission bugs, never
-/// valid states.
+/// A tie offered with fewer than two distinct candidates: a row that
+/// names no tie, refused at the door that would have seated it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShortTie {
+    /// The name the tie was to be seated under.
+    pub name: Box<StableName>,
+    /// How many distinct entities the tie was offered: 0 or 1.
+    pub candidates: usize,
+}
+
+/// Why a seating door refused a row. Each is an emission bug, never a
+/// valid state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SeatingRefusal {
     /// The name or the entity is already seated, or a candidate list
@@ -305,6 +315,9 @@ pub enum SeatingRefusal {
     Duplicate(DuplicateName),
     /// The entity's kind is not the name's.
     KindMismatch(KindMismatch),
+    /// A minted tie of fewer than two distinct entities, or a carried
+    /// candidate list of none.
+    ShortTie(ShortTie),
 }
 
 impl From<DuplicateName> for SeatingRefusal {
@@ -317,6 +330,13 @@ impl SeatingRefusal {
     fn duplicate(name: &StableName) -> Self {
         Self::Duplicate(DuplicateName {
             name: Box::new(name.clone()),
+        })
+    }
+
+    fn short_tie(name: &StableName, candidates: usize) -> Self {
+        Self::ShortTie(ShortTie {
+            name: Box::new(name.clone()),
+            candidates,
         })
     }
 
@@ -554,7 +574,7 @@ impl NameTable {
         ents.sort_unstable();
         ents.dedup();
         if ents.len() < 2 {
-            return Err(SeatingRefusal::duplicate(&name));
+            return Err(SeatingRefusal::short_tie(&name, ents.len()));
         }
         // Each candidate is a distinct live entity, so a tie of more
         // than `u32::MAX` of them needs that many entities in memory at
@@ -577,9 +597,10 @@ impl NameTable {
     /// # Errors
     ///
     /// [`SeatingRefusal`] under [`NameTable::insert`]'s collisions, and
-    /// for a list that repeats a candidate or an entity, is empty, or
-    /// holds a strict name's [`Candidate::Only`] beside anything: a
-    /// (name, candidate) pair names one entity.
+    /// for a list that repeats a candidate or an entity, or holds a
+    /// strict name's [`Candidate::Only`] beside anything: a (name,
+    /// candidate) pair names one entity. [`SeatingRefusal::ShortTie`]
+    /// for an empty list.
     pub(super) fn insert_candidates_ref(
         &mut self,
         name: NameRef,
@@ -603,7 +624,7 @@ impl NameTable {
             }
         }
         match ents.as_slice() {
-            [] => Err(dup(&name)),
+            [] => Err(SeatingRefusal::short_tie(&name, 0)),
             [one] if ks.is_empty() => self.insert_ref(name, *one),
             _ => {
                 let mut seen = ks.clone();
@@ -677,7 +698,7 @@ impl NameTable {
     /// # Errors
     ///
     /// [`SeatingRefusal`] under the same collisions as
-    /// [`NameTable::insert`], or [`SeatingRefusal::Duplicate`] if fewer
+    /// [`NameTable::insert`], or [`SeatingRefusal::ShortTie`] if fewer
     /// than 2 candidates remain.
     pub fn insert_tied(
         &mut self,
@@ -995,7 +1016,9 @@ mod carrying_door {
     //! for every other writer — a split's flush, `project`.
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use super::{Candidate, EntityKey, EntityRef, Entry, KindMismatch, NameTable, SeatingRefusal};
+    use super::{
+        Candidate, EntityKey, EntityRef, Entry, KindMismatch, NameTable, SeatingRefusal, ShortTie,
+    };
     use crate::names::role::{EntityKind, NameRef, RoleSeg, StableName};
     use crate::node::RecipeNodeId;
     use Candidate::{Of, Only};
@@ -1128,6 +1151,47 @@ mod carrying_door {
             Err(mismatch),
             "a one-candidate tie of an edge"
         );
+    }
+
+    /// A tie of fewer than two distinct candidates, and a carried list
+    /// of none, refuse as a short tie counting what was offered, not as
+    /// a duplicate, and seat nothing.
+    #[test]
+    fn a_short_tie_refuses_as_a_short_tie() {
+        let short = |candidates| {
+            Err(SeatingRefusal::ShortTie(ShortTie {
+                name: Box::new((*name()).clone()),
+                candidates,
+            }))
+        };
+        type Door = fn(&mut NameTable) -> Result<(), SeatingRefusal>;
+        let doors: [(&str, Door, usize); 4] = [
+            (
+                "a tie of none",
+                |t| t.insert_tied((*name()).clone(), vec![]),
+                0,
+            ),
+            (
+                "a tie of one",
+                |t| t.insert_tied((*name()).clone(), vec![face(1)]),
+                1,
+            ),
+            (
+                "a tie of one entity twice",
+                |t| t.insert_tied((*name()).clone(), vec![face(1), face(1)]),
+                1,
+            ),
+            (
+                "a carried list of none",
+                |t| t.insert_candidates_ref(name(), vec![]),
+                0,
+            ),
+        ];
+        for (door, seat, candidates) in doors {
+            let mut t = NameTable::new();
+            assert_eq!(seat(&mut t), short(candidates), "{door}");
+            assert!(t.iter().next().is_none(), "{door}: nothing is seated");
+        }
     }
 
     #[test]

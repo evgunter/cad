@@ -67,3 +67,11 @@ reading of two curved edges could not settle a count" }) }]" on two
 edges. The window reading above passes it at the default ε; the 1e-12
 row still reaches the meter.
 
+
+## Evidence: a body door reaches the sphere-circles window (2026-10-19)
+
+Two halves of one ball, the upper turned `θ` about a diameter, refuse
+every op `CurvedPierceUnsupported` at `θ ≤ 10³·Kε`. The cause is
+`meet(rim, rim)` → `Unsettled(Meter)` → `Unread`. Before the reader,
+main built this door at 1e-9. Filed as
+`a-ball-split-on-its-equator-and-turned-refuses-every-op-below-the-basin-floor`.
