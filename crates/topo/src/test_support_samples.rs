@@ -736,7 +736,7 @@ fn props_errors() -> Vec<PropsError> {
             what: "props_loop_closed",
         },
         PropsError::ConeLoop {
-            what: "props_loop_closed",
+            what: "props_cone_apex_loop_sweep",
         },
         PropsError::HolesExceedFace,
         PropsError::SenseContradicted,

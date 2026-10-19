@@ -256,8 +256,9 @@ fn four_winding_rims_bound_no_single_face() {
 /// the face measured. Counted
 /// whole, the zig-zag alone measures and with the rim refuses
 /// ([`PropsError::LoopsWindChart`]). With the rulings' turns read as
-/// none, the loop's residual from a whole turn, `≈ 268ε`, is past its
-/// slack and the face still refuses rather than measures.
+/// none, each misses its ends by `0.9ε` at the radius, `360ε` summed,
+/// past the loop's slack, and the face still refuses rather than
+/// measures.
 #[test]
 fn a_loop_of_many_rulings_turns_by_their_own_turns() {
     fn zig<T: geom_core::Decide>(radius: f64) -> (Vec<LoopEdge<T>>, f64) {
@@ -773,9 +774,12 @@ fn torus_chains_of_arcs_off_centre_measure() {
 /// admits. A cylinder rectangle and band of radius `10.5ε` and `11.5ε`,
 /// a thin torus of that minor radius, and spindle and horn tori whose
 /// parallel near the axis has that radius all measure; demanding
-/// `2ε` more of the radius than the class does refused them. (At
-/// `ε = 1e-12` the spindle and horn faces escalate at the interval
-/// scalar for another reason, filed and pinned below.)
+/// `2ε` more of the radius than the class does refused them. At the
+/// interval scalar the near-axis parallel's azimuths round by about
+/// `u·|p|/ρ`, which a loop's whole-turn residual charges at that
+/// parallel's own radius; charged at the loop's largest it escalated
+/// the spindle and horn faces at `ε = 1e-12`. They measure out to
+/// `10⁴ε` from the axis, or `1e-8` m where that is nearer.
 #[test]
 fn circles_just_past_the_axis_class_threshold_measure() {
     fn rim<T: geom_core::Decide>(radius: f64, z: f64, ends: (f64, f64)) -> LoopEdge<T> {
@@ -867,30 +871,160 @@ fn circles_just_past_the_axis_class_threshold_measure() {
         out
     }
     let e = eps();
-    for k in [10.5, 11.5] {
+    for k in [10.5, 11.5, 1e2, 1e3, 1e4] {
+        if k * e > 1e-8 {
+            continue;
+        }
         for (what, got) in faces::<f64>(k * e) {
             assert_eq!(got, Ok(()), "{what} at {k}ε, f64");
         }
         for (what, got) in faces::<geom_core::Interval>(k * e) {
-            // A spindle or horn parallel within about `1e-8` m of the
-            // axis escalates the loop's whole-turn residual at the
-            // interval scalar, its rounding charged at the loop's
-            // largest radius (work item
-            // `closed-form-loop-whole-charges-near-axis-rounding-at-the-largest-radius`).
-            // Its fix measures these too, and turns this arm red.
-            let filed = what.ends_with("torus") && what != "thin torus" && k * e < 1e-8;
-            if filed {
-                assert!(
-                    matches!(
-                        &got,
-                        Err(PropsError::Escalated { cause, .. })
-                            if format!("{cause:?}").contains("props_chart_loop_whole")
-                    ),
-                    "{what} at {k}ε, interval: {got:?}"
-                );
-            } else {
-                assert_eq!(got, Ok(()), "{what} at {k}ε, interval");
-            }
+            assert_eq!(got, Ok(()), "{what} at {k}ε, interval");
+        }
+    }
+}
+
+/// The cone of half-angle ½ about `+z` through the origin.
+fn cone<T: geom_core::Real>() -> Surface<T> {
+    Surface::Cone {
+        apex: p3(0.0, 0.0, 0.0),
+        axis: v3(0.0, 0.0, 1.0),
+        half_angle: T::from_f64(0.5),
+        u_ref: v3(1.0, 0.0, 0.0),
+    }
+}
+
+/// The cone's rim at slant `v`, from azimuth `u0` to `u1`.
+fn kim<T: geom_core::Real>(v: f64, u0: f64, u1: f64) -> LoopEdge<T> {
+    let (s, c) = 0.5_f64.sin_cos();
+    edge(
+        Curve3::Circle {
+            center: p3(0.0, 0.0, v * c),
+            axis: v3(0.0, 0.0, 1.0),
+            radius: T::from_f64(v * s),
+            u_ref: v3(1.0, 0.0, 0.0),
+        },
+        u0,
+        u1,
+        0,
+        0,
+    )
+}
+
+/// The cone's generator at azimuth `u`, from slant `v0` to `v1`.
+fn kgen<T: geom_core::Real>(u: f64, v0: f64, v1: f64) -> LoopEdge<T> {
+    let (s, c) = 0.5_f64.sin_cos();
+    edge(
+        Curve3::Line {
+            origin: p3(0.0, 0.0, 0.0),
+            dir: v3(s * u.cos(), s * u.sin(), c),
+        },
+        v0,
+        v1,
+        0,
+        0,
+    )
+}
+
+/// **The cone decides closure as the periodic charts do**, at `f64` and
+/// at the interval scalar. The rectangle `u ∈ [τ − 1, τ]`, slant
+/// `[1, 2]`, its generator on the seam starting `2ε` up from the lower
+/// rim's end, measures `sin α·(2² − 1²)/2`; started `0.1` m up it is
+/// [`PropsError::ChartLoopOpen`]. The band between whole rims at slants
+/// 1 and 2 measures `π·sin α·(2² − 1²)`; the pair of loops each turning
+/// twice, and four whole rims wound `+ + − −`, are
+/// [`PropsError::LoopsWindChart`].
+#[test]
+fn the_cone_decides_closure_as_the_periodic_charts_do() {
+    /// The face's area, its bracket's midpoint after checking the
+    /// bracket is within `10⁻⁹` of it.
+    fn face<T: geom_core::Decide + geom_core::CertifiedEnclosure>(
+        loops: &[Vec<LoopEdge<T>>],
+    ) -> Result<f64, PropsError> {
+        let refs: Vec<&[LoopEdge<T>]> = loops.iter().map(Vec::as_slice).collect();
+        curved_face_loops(&cone::<T>(), &refs, true, band()).map(|fc| {
+            let (lo, hi) = fc.area.certified_bracket().expect("a certified area");
+            assert!(hi - lo <= 1e-9 * hi.abs(), "area bracket [{lo}, {hi}]");
+            0.5 * (lo + hi)
+        })
+    }
+    fn rows<T: geom_core::Decide + geom_core::CertifiedEnclosure>(scalar: &str) {
+        let sa = 0.5_f64.sin();
+        let rect = |gap: f64| {
+            vec![vec![
+                kim::<T>(1.0, TAU - 1.0, TAU),
+                kgen::<T>(TAU, 1.0 + gap, 2.0),
+                kim::<T>(2.0, TAU, TAU - 1.0),
+                kgen::<T>(TAU - 1.0, 2.0, 1.0),
+            ]]
+        };
+        let whole = |v: f64, up: bool, times: usize| {
+            let (a, b) = if up { (0.0, TAU) } else { (TAU, 0.0) };
+            vec![kim::<T>(v, a, b); times]
+        };
+        let area =
+            face(&rect(2.0 * eps())).unwrap_or_else(|e| panic!("rectangle at {scalar}: {e:?}"));
+        let want = sa * 1.5;
+        assert!(
+            (area - want).abs() < 1e-9 * want,
+            "rectangle at {scalar}: {area} vs {want}"
+        );
+        assert_eq!(
+            face(&rect(0.1)).err(),
+            Some(PropsError::ChartLoopOpen),
+            "open rectangle at {scalar}"
+        );
+        let area = face(&[whole(1.0, true, 1), whole(2.0, false, 1)])
+            .unwrap_or_else(|e| panic!("band at {scalar}: {e:?}"));
+        let want = core::f64::consts::PI * sa * 3.0;
+        assert!(
+            (area - want).abs() < 1e-9 * want,
+            "band at {scalar}: {area} vs {want}"
+        );
+        assert_eq!(
+            face(&[whole(1.0, true, 2), whole(2.0, false, 2)]).err(),
+            Some(PropsError::LoopsWindChart),
+            "two-turn pair at {scalar}"
+        );
+        assert_eq!(
+            face(&[
+                whole(1.0, true, 1),
+                whole(1.5, true, 1),
+                whole(2.0, false, 1),
+                whole(2.5, false, 1)
+            ])
+            .err(),
+            Some(PropsError::LoopsWindChart),
+            "+ + − − at {scalar}"
+        );
+    }
+    rows::<f64>("f64");
+    rows::<geom_core::Interval>("the interval scalar");
+}
+
+/// **A cone band whose lower rim is in many arcs off the axis
+/// measures**, at `f64` and at the interval scalar, as the cylinder's
+/// does ([`rims_in_many_arcs_off_the_axis_measure`]): each arc's stored
+/// turn about its own centre is carried to the axis at its ends.
+#[test]
+fn a_cone_rim_in_many_arcs_off_the_axis_measures() {
+    fn band_face<T: geom_core::Decide>(n: usize, gap: f64, off: f64) -> Result<(), PropsError> {
+        let (s, c) = 0.5_f64.sin_cos();
+        let lower = arc_chain::<T>(s, n, TAU / n as f64, c, (gap, off, 1.0), true);
+        let upper = vec![kim::<T>(2.0, TAU, 0.0)];
+        curved_face_loops(&cone::<T>(), &[&lower, &upper], true, band()).map(|_| ())
+    }
+    let e = eps();
+    for n in [4usize, 50, 200] {
+        for (gap, off) in [(0.0, 0.0), (1.0, 0.9), (2.0, 0.9), (3.5, 0.0)] {
+            let (gap, off) = (gap * e, off * e);
+            let what = format!("{n} arcs, gap {gap:e}, off {off:e}");
+            assert_eq!(band_face::<f64>(n, gap, off), Ok(()), "{what}, f64");
+            assert_eq!(
+                band_face::<geom_core::Interval>(n, gap, off),
+                Ok(()),
+                "{what}, interval"
+            );
         }
     }
 }

@@ -405,40 +405,28 @@ fn a_face_crossing_the_apex_refuses_by_name() {
     }
 }
 
-/// **A loop that does not close refuses, named `props_loop_closed`**:
-/// the notched wall with its last generator dropped bounds no region, and
-/// its vector area is not one.
+/// **A loop that does not close refuses as the periodic charts' do**
+/// ([`PropsError::ChartLoopOpen`]): the notched wall with its last
+/// generator dropped bounds no region, and its vector area is not one.
 #[test]
 fn an_open_loop_refuses_by_name() {
     let mut edges = chart_loop(&notched().loops[0]);
     edges.pop();
     let got = measure(&[edges], true);
-    assert!(
-        matches!(
-            got,
-            Err(PropsError::ConeLoop {
-                what: "props_loop_closed"
-            })
-        ),
-        "an open loop must refuse at props_loop_closed; got {got:?}"
-    );
+    assert_eq!(got.err(), Some(PropsError::ChartLoopOpen), "an open loop");
 }
 
-/// **A loop that winds the axis twice refuses, named
-/// `props_cone_loop_winding`**: a full rim stated twice closes at every
-/// joint, and its vector area counts the apex cap twice.
+/// **A loop that winds the axis twice refuses as the periodic charts'
+/// do** ([`PropsError::LoopsWindChart`]): a full rim stated twice closes
+/// at every joint, and its vector area counts the apex cap twice.
 #[test]
 fn a_loop_winding_the_axis_twice_refuses_by_name() {
     let twice = vec![rim(1.5, 0.0, TAU, 0, 0), rim(1.5, 0.0, TAU, 0, 0)];
     let got = measure(&[twice], true);
-    assert!(
-        matches!(
-            got,
-            Err(PropsError::ConeLoop {
-                what: "props_cone_loop_winding"
-            })
-        ),
-        "a loop winding twice must refuse at props_cone_loop_winding; got {got:?}"
+    assert_eq!(
+        got.err(),
+        Some(PropsError::LoopsWindChart),
+        "a loop winding twice"
     );
 }
 
@@ -875,7 +863,10 @@ fn the_material_sign_refuses_what_the_flux_lane_refuses() {
         let flux = measure(&loops, true).err();
         let gate = side(&loops).err();
         assert!(
-            matches!(flux, Some(PropsError::ConeLoop { .. })),
+            matches!(
+                flux,
+                Some(PropsError::ConeLoop { .. } | PropsError::LoopsWindChart)
+            ),
             "{name}: the flux lane refuses it: {flux:?}"
         );
         assert_eq!(gate, flux, "{name}: the gate refuses it alike");
