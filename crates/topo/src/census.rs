@@ -2520,7 +2520,7 @@ fn pair_edge_face<T: Decide>(
         .filter(|&s| !(both_ways && s == [Sign::Negative, Sign::Positive]));
     let under = |signs| {
         let mut found = Vec::new();
-        pair.hypothetical(signs, &mut found);
+        pair.on_signs(signs, None, &mut found);
         found
     };
     if let Some(carried) = read_undecided(signs, under) {
@@ -2614,20 +2614,10 @@ struct EfPair<'a, T: Decide> {
 }
 
 impl<T: Decide> EfPair<'_, T> {
-    /// [`Self::on_signs`] under signs an undecided residual can take
-    /// ([`undecided_signs`]). An end read strictly on one side lies past
-    /// the band's zero `z` off the plane: past its escalation if decided,
-    /// and past `z` if undecided, whose residual lies between the two. So
-    /// two ends on opposite strict sides differ by more than `2z` (more
-    /// than `esc + z` with one decided). A lever read at most `z` rules
-    /// that pair of signs out, and one read definite is a divisor the
-    /// crossing can be placed by ([`pierce_span`]).
-    fn hypothetical(&self, signs: [Sign; 2], errors: &mut Vec<ValidationError>) {
-        self.on_signs(signs, None, errors);
-    }
-
     /// What the pair finds with its ends read `signs` off the plane,
-    /// `margin` the two readings' joint margin where both were decided.
+    /// `margin` the two readings' joint margin where both were decided;
+    /// under signs an undecided residual can take ([`undecided_signs`]),
+    /// `None`.
     fn on_signs(
         &self,
         signs: [Sign; 2],
@@ -2639,8 +2629,8 @@ impl<T: Decide> EfPair<'_, T> {
             [Sign::Positive, Sign::Negative] | [Sign::Negative, Sign::Positive] => {
                 // Where the plane meets the edge's line: inside the
                 // segment where the signs are the ends' own, possibly off
-                // it under [`Self::hypothetical`], which reads it all the
-                // same and so can only keep an escalation.
+                // it under an undecided residual's, which reads it all
+                // the same and so can only keep an escalation.
                 //
                 // NO backing rung is consulted, deliberately: a
                 // transverse dive through a face's interior is
@@ -2680,8 +2670,8 @@ impl<T: Decide> EfPair<'_, T> {
 
 /// **Where the plane of `f` meets the line of `e`**, as an enclosure
 /// `[lo, hi]` of the fraction of the chord from its start, every
-/// rounding of the closed form charged; `None` where no crossing is
-/// placed (a lever at most ε, or one undecided, pushed).
+/// rounding of the closed form charged; `None` where the lever is
+/// undecided (pushed).
 ///
 /// The fraction is `r₀/ℓ`, `ℓ = r₀ − r₁`, the residuals `rᵢ = (pᵢ − o)·n`
 /// read off the plane's stored origin `o`. Each is off by about
@@ -2695,6 +2685,12 @@ impl<T: Decide> EfPair<'_, T> {
 /// chord alone, and the fraction from both ends, `r₀/ℓ` and `1 + r₁/ℓ`,
 /// each pair of enclosures intersected, as the crossing lane reads its
 /// reaches ([`ee_lines_closest`]).
+///
+/// An end read strictly on one side lies past the band's zero `z` off
+/// the plane: past its escalation if decided, and past `z` if
+/// undecided ([`undecided_signs`]), whose residual lies between the
+/// two. So the lever exceeds `2z`, and its enclosure is read past the
+/// band, a divisor, or straddling it, refused.
 fn pierce_span<T: Decide>(
     e: &EdgeGeo<T>,
     f: &FaceGeo<T>,
@@ -2719,7 +2715,9 @@ fn pierce_span<T: Decide>(
     let decide = magnitude_door("pm_census_ef_pierce_lever", band);
     match enclosure_reading(size, "pm_census_ef_pierce_lever_straddle", band, decide) {
         Ok(Enclosed::Above) => {}
-        Ok(Enclosed::AtMost(_)) => return None,
+        Ok(Enclosed::AtMost(_)) => unreachable!(
+            "two ends read on opposite sides past the band's zero read a lever at most it"
+        ),
         Err(cause) => {
             errors.push(ValidationError::CensusEscalated { cause });
             return None;
