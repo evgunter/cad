@@ -5,7 +5,7 @@ title: blend: a dimple or a boss whose mouth lies on a support's strip inside th
 status: closed
 opened: 2026-10-14
 closed: 2026-10-15
-pr: PRNUM
+pr: 5338
 priority: P2
 cost: H
 ---

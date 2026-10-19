@@ -1138,3 +1138,17 @@ and `a-cup-leaning-off-the-spine-under-a-fillet-is-charged-its-boxs-diagonal`.
 - 2026-10-15 — **No live row is at or above this track's own band (P0).** The 51 rows left are 5 at P2, 36 at P3, 3 at P4, 7 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
   Band the 7 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
   (tracker sweep)
+
+## 2026-10-19 — a cup on a support's strip goes with the band (PR 5338, step 3)
+
+The strip half of step 3: a dimple under a convex plane–plane band and
+a boss under a concave one, their mouths rings on a support's strip,
+wholly inside the region, go at `ΔV = ∓(A·L − π·a²·h)`, where the band
+is one link cut off at both ends. The ring pass reads a support's ring
+against the strip across the edge; the clearance screen stands down on
+a ring that reading decides; the reach reads the cup in the band's core
+less that support's side, its other edges in the whole core, with the
+section's convexity along the support's normal paying a ruling square
+to the support. `consume` needed nothing new. The followability row's
+blind hole from the support face now builds. Filed
+`a-cup-on-a-strip-beside-a-band-not-cut-off-at-both-ends-is-not-carved`.

@@ -109,7 +109,7 @@ re-word the crossing refusal's recourse to the reorder (and to what is
 true where none exists). (2) The concave bar. (3) The one-cycle members:
 blind bore, pin, boss, dimple. (4) Whole shells and the seal, sharing
 `insert_void`'s bookkeeping. Step 1: PR 5077. Step 2: PR 5099. Step 3: PR 5161
-(the end-wall half) and PR PRNUM (the strip half). The lint and an editor reorder action
+(the end-wall half) and PR 5338 (the strip half). The lint and an editor reorder action
 (re-point plus the selection unwrap, one action) run beside any step;
 the crossing arm waits on the intersection table.
 
