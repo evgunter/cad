@@ -804,7 +804,7 @@ fn a_prism_whose_face_holds_the_line_builds_in_every_member_order() {
 /// the third's face along part of its length, and refuses `EdgeInFace`
 /// in every order: the material about it (at its midpoint, from the
 /// face's own direction round into it: solid to 30°, empty to 80°,
-/// solid to 180°, then the plate's and the 120° prism's beyond) parts
+/// solid to 180°, empty to 270°, solid to 300°, empty beyond) parts
 /// it, which is not built where it runs on past the face. Main built
 /// the one edge, its wedge claiming the empty sector between.
 #[test]
