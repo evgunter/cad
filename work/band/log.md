@@ -1152,6 +1152,17 @@ section's convexity along the support's normal paying a ruling square
 to the support. `consume` needed nothing new. The followability row's
 blind hole from the support face now builds. Filed
 `a-cup-on-a-strip-beside-a-band-not-cut-off-at-both-ends-is-not-carved`.
+## 2026-10-19 — the blend arms place their centres at their inputs' scale (`band/arms-centre-placement`)
+
+`sheet_center`'s round × round arm reads `geom_core::Circles` for the
+offset circles' radical foot and half-chord, and `corner_ball` solves
+for the centre's offset from its first vertex. Rows in
+`blend_arms_centre_placement.rs` hold both at a few ulps of scale at
+`f64` and `Interval` (main: about `ratio` ulps / NaN past 1e8, and
+`u·|p|/det`). Closed `sheet-center-circle-pair-cancels-at-unequal-offsets`
+and `blend-corner-ball-cramer-anchors-at-the-world-origin`. Filed
+`plane-sphere-blend-spine-radius-by-differences-of-squares` here and
+`work/shell/topo-planar-offset-cramer-anchors-at-the-world-origin.md`.
 ## 2026-10-19 — the slate re-banded for the hand-back
 
 Ev (in chat): finish what matters, then hand the tail back rather than
