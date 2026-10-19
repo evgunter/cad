@@ -71,7 +71,7 @@
 use core::num::NonZeroUsize;
 use geom_core::linalg::lsq::{self, LsqError};
 use geom_core::spline::{KnotAlgebraError, KnotVector, KnotVectorIssue, SplineError, basis};
-use geom_core::spline::{Knots, SpanLocate};
+use geom_core::spline::{KnotSpan, Knots, SpanLocate};
 use geom_core::{Point2, Point3, Readable};
 
 use crate::curves::banded::{self, BandedLu};
@@ -418,11 +418,19 @@ pub fn interpolate_columns(
 /// does not ascend ([`geom_core::spline::structure_ascends`]), and in the
 /// banded solve a pivot that is not certainly nonzero
 /// (`curves/banded.rs`). So at an enclosure scalar a datum or an
-/// interior parameter may be wider than a point. The averaged knots are
-/// a carrier's, and one wider than a point refuses
-/// ([`SplineError::CarrierKnotNotAPoint`]) before the collocation rows
-/// are formed: a row is one span's basis, and over a wide knot the
-/// members' spans differ. The arithmetic is [`interpolate_columns`]'s
+/// interior parameter may be wider than a point, and so may an averaged
+/// knot (C6 S5c). A wide row encloses every member's (`unit_row_in`).
+/// Where a parameter overlaps more than one span of the held knots, its
+/// row is wider than `p + 1`, and every row is widened to the widest
+/// with exact zeros (`banded_rows`). That overlap is either members
+/// disagreeing on the span (at degree 3, a middle parameter beside an
+/// average it enters) or the intervals' loss of the parameter's
+/// correlation with the averages it enters (at degrees 1 and 2 every
+/// member's parameter lies in one fixed span); the row encloses either
+/// way. How far the solve over such rows reaches is
+/// `work/inlane/the-fits-enclosure-solve-reaches-only-narrow-parameters.md`.
+/// The knots are returned held; a carrier's door decides what it
+/// admits of them. The arithmetic is [`interpolate_columns`]'s
 /// operation for operation (a unit weight's product `n · 1` is `n`,
 /// bit for bit), so at `f64` the two answer the same bits.
 ///
@@ -460,8 +468,7 @@ pub fn interpolate_columns_in<T: SpanLocate>(
     check_ordered(params)?;
     check_degree(n, degree)?;
     let knots = averaged_knots_in(params, degree)?;
-    let (first, basis): (Vec<usize>, Vec<Vec<T>>) =
-        params.iter().map(|u| unit_row_in(&knots, *u)).unzip();
+    let (first, basis) = banded_rows(params.iter().map(|u| unit_row_in(&knots, *u)), n);
     let lu = banded::factor(&first, &basis).map_err(FitError::Lsq)?;
     let control = lu.solve(rows).map_err(FitError::Lsq)?;
     Ok((knots, control))
@@ -499,28 +506,123 @@ fn averaged_knots_in<T: SpanLocate>(params: &[T], degree: usize) -> Result<Knots
         Some((held, m)) if held.value_channel() == 1.0 => *m = m.saturating_add(degree + 1),
         _ => runs.push((T::one(), end)),
     }
-    let knots = Knots::new(runs, degree).map_err(FitError::Structure)?;
-    if let Some(index) = knots.runs().position(|(v, _)| v.point_value().is_none()) {
-        return Err(FitError::Structure(SplineError::CarrierKnotNotAPoint {
-            index,
-        }));
-    }
-    Ok(knots)
+    Knots::new(runs, degree).map_err(FitError::Structure)
 }
 
 /// [`rational_row`] at unit weights, in `T`: the basis values alive at
-/// `t` over the held knots, each divided by their sum.
+/// `t` over the held knots, and the column the first of them stands in.
+///
+/// At a point `t` over point knots, as at every point scalar, it is the
+/// `f64` row's arithmetic: one span, each value divided by their sum.
+///
+/// Otherwise the row is an enclosure (C6 S5c). Each member's row is one
+/// overlapped span's, in that span's columns and exactly zero outside
+/// them, and on its own span a member's parameter lies between the
+/// span's knots and its basis values lie in `[0, 1]` and sum to one. So
+/// each overlapped span gives its piece at `t` clipped to the span's
+/// knots, clamped to `[0, 1]`, and not divided by its sum, which is one
+/// exactly in ℝ and only widens an enclosure (`enclosure_piece`). The row hulls those pieces column by column
+/// ([`SpanLocate::enclosure_hull`]) with the zero a span that leaves the
+/// column out gives there, from the first span's first column to the
+/// last span's last: wider than `p + 1` where `t` overlaps more than one
+/// span. (In the fit that zero is in the hull already: a wide average
+/// never merges with another, so an interior knot a wide `t` straddles
+/// has multiplicity one, and a basis function whose support ends there
+/// is continuous to zero. It stays explicit so the hull is sound by
+/// construction.)
 fn unit_row_in<T: SpanLocate>(knots: &Knots<T>, t: T) -> (usize, Vec<T>) {
-    let Some((span, _)) = knots.locate(t) else {
+    let Some((first, last)) = knots.locate(t) else {
         return (0, vec![T::from_f64(f64::NAN); knots.degree() + 1]);
     };
-    let n = basis::basis_funs_in(span, t);
-    let first = span.span().first_control();
-    let mut den = T::zero();
-    for nj in &n {
-        den = den + *nj;
+    if knots.is_point() && t.point_value().is_some() {
+        let n = basis::basis_funs_in(first, t);
+        let mut den = T::zero();
+        for nj in &n {
+            den = den + *nj;
+        }
+        return (
+            first.span().first_control(),
+            n.iter().map(|nj| *nj / den).collect(),
+        );
     }
-    (first, n.iter().map(|nj| *nj / den).collect())
+    let pieces: Vec<(usize, Vec<T>)> = core::iter::once(first)
+        .chain(((first.span().index() + 1)..=last.span().index()).filter_map(|s| knots.span(s)))
+        .map(|span| enclosure_piece(span, t))
+        .collect();
+    let lo = pieces.first().map_or(0, |(f, _)| *f);
+    let hi = pieces.last().map_or(0, |(f, r)| f + r.len());
+    let hulled = (lo..hi)
+        .map(|c| {
+            pieces
+                .iter()
+                .map(|(f, r)| {
+                    c.checked_sub(*f)
+                        .and_then(|k| r.get(k).copied())
+                        .unwrap_or_else(T::zero)
+                })
+                .reduce(SpanLocate::enclosure_hull)
+                .unwrap_or_else(T::zero)
+        })
+        .collect();
+    (lo, hulled)
+}
+
+/// One span's piece of an enclosure row (`unit_row_in`): its basis
+/// values, and its first column. A member whose row this span gives has
+/// its parameter between the span's knots, so the piece is formed at
+/// `t` narrowed to the span's knots' brackets
+/// ([`SpanLocate::clip_to`]: at `Interval` the intersection, at a dual
+/// the value narrowed and `t`'s own tangent kept), and each value is
+/// clamped to the `[0, 1]` every such member's is in. Inside the
+/// domain, which the fit's parameters are (its ends are the points `0`
+/// and `1`): the locator gives a parameter past a domain end the end
+/// span's polynomial extension, which no clip encloses.
+fn enclosure_piece<T: SpanLocate>(span: KnotSpan<'_, T>, t: T) -> (usize, Vec<T>) {
+    let s = span.span();
+    // `index + 1` is inside the vector: a span's own range invariant.
+    let ends = (
+        span.values()[s.index()].structure_bracket(),
+        span.values()[s.index() + 1].structure_bracket(),
+    );
+    let clipped = match ends {
+        (Some((lo, _)), Some((_, hi))) => t.clip_to(lo, hi),
+        _ => t,
+    };
+    (
+        s.first_control(),
+        basis::basis_funs_in(span, clipped)
+            .into_iter()
+            .map(|nj| nj.max(T::zero()).min(T::one()))
+            .collect(),
+    )
+}
+
+/// The collocation rows as the banded factor takes them, all one width
+/// (`curves/banded.rs`): each row's values in columns `first ..`, widened
+/// to the widest row with exact zeros. A row keeps its first column
+/// where the widened window fits in the `columns`, and otherwise starts
+/// as far right as it does; either way its window holds its values, and
+/// the first columns still never decrease where the rows' own do not.
+/// Where every row is `p + 1` wide, as at every point scalar, the rows
+/// are as they came.
+fn banded_rows<T: SpanLocate>(
+    rows: impl Iterator<Item = (usize, Vec<T>)>,
+    columns: usize,
+) -> (Vec<usize>, Vec<Vec<T>>) {
+    let rows: Vec<(usize, Vec<T>)> = rows.collect();
+    let width = rows.iter().map(|(_, r)| r.len()).max().unwrap_or(0);
+    rows.into_iter()
+        .map(|(f, r)| {
+            if r.len() == width {
+                return (f, r);
+            }
+            let start = f.min(columns.saturating_sub(width));
+            let mut wide = vec![T::zero(); f - start];
+            wide.extend(r);
+            wide.resize(width, T::zero());
+            (start, wide)
+        })
+        .unzip()
 }
 
 /// The factored collocation system of one parameterization at one
@@ -1343,6 +1445,226 @@ mod tests {
                 RECOURSE_WORDS.iter().any(|w| lower.contains(w)),
                 "no recourse in: {msg}"
             );
+        }
+    }
+
+    /// **Over a wide parameter the fit encloses every member's (C6
+    /// S5c).** Five parameters whose middle one is `[0.495, 0.505]`, at
+    /// degree 1 (the middle parameter is the interior knot) and degree 3
+    /// (the one interior knot is `(0.3 + ū₂ + 0.7)/3`, beside which the
+    /// members' middle parameters fall on either side). Either way the
+    /// held parameter overlaps two spans of the held knots: at degree 3
+    /// because the members disagree, at degree 1 because the intervals
+    /// lose the parameter's correlation with the knot it is (every
+    /// member's matrix is the identity there). At members across the
+    /// bracket, the held knots enclose the member's averaged knots, every
+    /// solved entry encloses the member's own `f64` solve (to the solve's
+    /// rounding), and the middle parameter's row encloses the member's
+    /// own row column by column. The widest solved entry is registered
+    /// (`work/inlane/the-fits-enclosure-solve-reaches-only-narrow-parameters.md`
+    /// owes a tighter solve; a looser one is red here). Red where a row
+    /// over two spans reads one span alone, where a row's pieces are not
+    /// clamped to the `[0, 1]` every member's values lie in, or where the
+    /// enclosure loosens (a piece formed at the whole of the parameter
+    /// rather than narrowed to its span's knots among them, or narrowed by
+    /// the `max`/`min` envelope rather than intersected).
+    #[test]
+    fn over_a_wide_parameter_the_fit_encloses_every_members() {
+        use geom_core::{Bounds, Interval, Real};
+        let i = Interval::from_f64;
+        let mid = Interval::from_bounds(0.495, 0.505);
+        let params = [i(0.0), i(0.3), mid, i(0.7), i(1.0)];
+        let data: Vec<Vec<f64>> = (0..5)
+            .map(|k| {
+                let k = k as f64;
+                vec![k * k - 2.0 * k, (k * 0.9).cos(), 1.0 / (2.0 + k)]
+            })
+            .collect();
+        let rows: Vec<Vec<Interval>> = data
+            .iter()
+            .map(|r| r.iter().map(|x| i(*x)).collect())
+            .collect();
+        // A row's pieces are clamped to the `[0, 1]` every member's basis
+        // values lie in: unclamped, a piece past its span reaches below
+        // zero over the wider `[0.45, 0.5]`.
+        let wide = Interval::from_bounds(0.45, 0.5);
+        let wider = [i(0.0), i(0.3), wide, i(0.7), i(1.0)];
+        for degree in [1, 3] {
+            let knots = averaged_knots_in(&wider, degree).unwrap();
+            let (_, row) = unit_row_in(&knots, wide);
+            assert!(
+                row.iter().all(|v| 0.0 <= v.lo() && v.hi() <= 1.0),
+                "degree {degree}: the row lies in [0, 1]: {row:?}"
+            );
+        }
+        // Three wide parameters at degree 3: each span's piece at the
+        // parameter intersected with the span's knots' brackets
+        // (`SpanLocate::clip_to`), registered at S5c (0.952; 2.44 where
+        // the narrowing is the `max`/`min` envelope, which reaches past
+        // the parameter to a knot's far end).
+        let h = 0.0005;
+        let w = |c: f64| Interval::from_bounds(c - h, c + h);
+        let three = [i(0.0), w(0.2), i(0.35), w(0.5), i(0.65), w(0.8), i(1.0)];
+        let seven: Vec<Vec<Interval>> = (0..7).map(|k| vec![i(k as f64), i(1.0)]).collect();
+        let (_, solved) = interpolate_columns_in(&three, 3, &seven).unwrap();
+        let widest = solved
+            .iter()
+            .flatten()
+            .map(|v| v.hi() - v.lo())
+            .fold(0.0, f64::max);
+        assert!(
+            widest <= 1.05,
+            "three wide parameters: the widest entry {widest}"
+        );
+        for degree in [1, 3] {
+            let (held, solved) = interpolate_columns_in(&params, degree, &rows).unwrap();
+            assert!(!held.is_point(), "degree {degree}: a wide knot is held");
+            let widest = solved
+                .iter()
+                .flatten()
+                .map(|v| v.hi() - v.lo())
+                .fold(0.0, f64::max);
+            // Registered at S5c, with a tenth's headroom: 0.218 at degree
+            // 1, 1.95 at degree 3 (2.53 with each span's piece at the
+            // whole of the parameter, 2.34 narrowed from below only).
+            let register = if degree == 1 { 0.24 } else { 2.15 };
+            assert!(
+                widest <= register,
+                "degree {degree}: the widest entry {widest} past its register {register}"
+            );
+            let (first, last) = held.locate(mid).unwrap();
+            assert!(
+                first.span().index() < last.span().index(),
+                "degree {degree}: the middle parameter overlaps two spans"
+            );
+            for member in [0.495, 0.498, 0.5, 0.502, 0.505] {
+                let at = [0.0, 0.3, member, 0.7, 1.0];
+                let (kv, plain) = interpolate_columns(&at, degree, &data).unwrap();
+                // The middle parameter's row, column by column, against
+                // the member's own: every column it reaches, and zero in
+                // the others.
+                let (f, own) = unit_row_in(&Knots::from(kv.clone()), member);
+                let (g, hulled) = unit_row_in(&held, mid);
+                for c in 0_usize..5 {
+                    let x = c
+                        .checked_sub(f)
+                        .and_then(|k| own.get(k).copied())
+                        .unwrap_or(0.0);
+                    let h = c.checked_sub(g).and_then(|k| hulled.get(k).copied());
+                    // The member's `f64` row is divided by its sum, rounded.
+                    assert!(
+                        h.is_some_and(|h| h.lo() - 1e-15 <= x && x <= h.hi() + 1e-15)
+                            || (h.is_none() && x == 0.0),
+                        "degree {degree} at {member}: row column {c}: {x} outside {h:?}"
+                    );
+                }
+                for (h, k) in held.values().iter().zip(kv.knots()) {
+                    assert!(
+                        h.lo() <= *k && *k <= h.hi(),
+                        "degree {degree} at {member}: knot {k} in {h:?}"
+                    );
+                }
+                for (r, (hr, pr)) in solved.iter().zip(&plain).enumerate() {
+                    for (c, (h, x)) in hr.iter().zip(pr).enumerate() {
+                        // The member's `f64` solve carries its own rounding.
+                        let slack = 1e-12 * (1.0 + x.abs());
+                        assert!(
+                            h.lo() - slack <= *x && *x <= h.hi() + slack,
+                            "degree {degree} at {member}: entry ({r}, {c}) {x} outside {h:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// **A row over three spans encloses every member's.** A quadratic
+    /// over the held breakpoints `0.4` and `[0.495, 0.505]`, and the
+    /// parameter `[0.35, 0.6]`, which overlaps the spans either side of
+    /// both: at members across both brackets the row encloses the
+    /// member's own, column by column. Red where the row hulls the first
+    /// and last spans and drops the one between.
+    #[test]
+    fn a_row_over_three_spans_encloses_every_members() {
+        use core::num::NonZeroUsize;
+        use geom_core::{Bounds, Interval, Real};
+        let i = Interval::from_f64;
+        let one = NonZeroUsize::MIN;
+        let three = NonZeroUsize::new(3).unwrap();
+        let held = Knots::new(
+            vec![
+                (i(0.0), three),
+                (i(0.4), one),
+                (Interval::from_bounds(0.495, 0.505), one),
+                (i(1.0), three),
+            ],
+            2,
+        )
+        .unwrap();
+        let t = Interval::from_bounds(0.35, 0.6);
+        let (first, last) = held.locate(t).unwrap();
+        assert_eq!(last.span().index() - first.span().index(), 2, "three spans");
+        let (g, row) = unit_row_in(&held, t);
+        for knot in [0.495, 0.5, 0.505] {
+            let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.4, knot, 1.0, 1.0, 1.0], 2).unwrap();
+            for member in [0.35, 0.38, 0.4, 0.45, 0.49, 0.5, 0.51, 0.55, 0.6] {
+                let (f, own) = unit_row_in(&Knots::from(kv.clone()), member);
+                for c in 0_usize..5 {
+                    let x = c
+                        .checked_sub(f)
+                        .and_then(|k| own.get(k).copied())
+                        .unwrap_or(0.0);
+                    let h = c.checked_sub(g).and_then(|k| row.get(k).copied());
+                    // The member's `f64` row is divided by its sum, rounded.
+                    assert!(
+                        h.is_some_and(|h| h.lo() - 1e-15 <= x && x <= h.hi() + 1e-15)
+                            || (h.is_none() && x == 0.0),
+                        "knot {knot}, member {member}: column {c}: {x} outside {h:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// **A wide parameter over point knots takes the enclosure row.**
+    /// Four parameters at degree 3 (`n = p + 1`: no interior knot, so the
+    /// knots are points) whose middle two are `0.3 ± 0.05` and
+    /// `0.7 ± 0.05`: the rows are clamped to `[0, 1]` and not divided by
+    /// their sum, so the solve decides, and every solved entry encloses
+    /// each corner member's own `f64` solve. Red where a point vector
+    /// sends a wide parameter down the `f64` row's division (the
+    /// division widens the rows until a pivot is undecided).
+    #[test]
+    fn a_wide_parameter_over_point_knots_takes_the_enclosure_row() {
+        use geom_core::{Bounds, Interval, Real};
+        let i = Interval::from_f64;
+        let h = 0.05;
+        let params = [
+            i(0.0),
+            Interval::from_bounds(0.3 - h, 0.3 + h),
+            Interval::from_bounds(0.7 - h, 0.7 + h),
+            i(1.0),
+        ];
+        let data: Vec<Vec<f64>> = (0..4).map(|k| vec![k as f64, 1.0]).collect();
+        let rows: Vec<Vec<Interval>> = data
+            .iter()
+            .map(|r| r.iter().map(|x| i(*x)).collect())
+            .collect();
+        let (held, solved) = interpolate_columns_in(&params, 3, &rows).unwrap();
+        assert!(held.is_point(), "no interior knot");
+        for a in [0.3 - h, 0.3, 0.3 + h] {
+            for b in [0.7 - h, 0.7, 0.7 + h] {
+                let (_, plain) = interpolate_columns(&[0.0, a, b, 1.0], 3, &data).unwrap();
+                for (hr, pr) in solved.iter().zip(&plain) {
+                    for (h, x) in hr.iter().zip(pr) {
+                        let slack = 1e-12 * (1.0 + x.abs());
+                        assert!(
+                            h.lo() - slack <= *x && *x <= h.hi() + slack,
+                            "members {a}, {b}: {x} outside {h:?}"
+                        );
+                    }
+                }
+            }
         }
     }
 
