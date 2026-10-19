@@ -29,6 +29,8 @@ Since S5c, `geom::curves::fit::interpolate_columns_in` solves over a wide averag
 
 At degree 3 the widest entry is already about half the data's range at `w = 0.01`, and the solve refuses from `w = 0.05`.
 
+S5c's review fix pass forms each span's piece at the parameter clipped to that span's knots, which tightens the rows. On the S5c row's data at `w = 0.01`, degree 3's widest entry drops from 2.53 to 1.95, and that row registers it. The table above predates the clip.
+
 **Several wide parameters reach less** (S5c's review, PR 5332):
 - Three wide parameters, `[0, .2±h, .35, .5±h, .65, .8±h, 1]`, data up to 8:
   - degree 3: the widest entry is 2.3 at `h = 0.0005`, and the solve refuses from `h = 0.01`;
