@@ -4750,9 +4750,9 @@ impl Undecided {
                  bounding boxes no longer overlap"
             }
             Self::TouchUnanalysed => {
-                "they touch where a face of one meets the touch both at a corner and along an \
-                 edge, or where one's faces around the touch do not close on one another, so \
-                 the check cannot tell whether they overlap. There is no way through yet for \
+                "they touch where a face of one meets it at a corner and along an edge, or \
+                 where one's faces there do not close, so the check cannot tell whether they \
+                 overlap. There is no way through yet for \
                  a designed resting contact; otherwise move them until their bounding boxes \
                  no longer overlap"
             }
