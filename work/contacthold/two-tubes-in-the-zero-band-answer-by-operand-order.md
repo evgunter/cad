@@ -2,11 +2,12 @@
 id: two-tubes-in-the-zero-band-answer-by-operand-order
 kind: issue
 title: Two tubes side by side in the zero band answer Ok in one operand order and CurvedPierceUnsupported in the other
-status: review
+status: closed
 branch: contacthold/two-tubes-zero-band
 pr: 5389
 opened: 2026-10-13
 priority: P2
+closed: 2026-10-19
 ---
 
 

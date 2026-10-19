@@ -7,6 +7,7 @@ opened: 2026-10-19
 priority: P2
 design: true
 refs: [a-two-carrier-face-pair-off-its-tangent-line-reads-contradicted-not-stale, an-at-rest-shared-crescent-reads-as-a-contradicted-contact-not-an-interference-finding, the-census-discovers-no-same-solid-tangent-touch-through-face-interiors]
+needs_ev: true
 ---
 
 Found by `contacthold/ff-divided-reads-stale` (the unit
