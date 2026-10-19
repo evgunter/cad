@@ -4,6 +4,7 @@ kind: issue
 title: The carry refuses a divided cell's face–face Found row Unread where the two-carrier confirm reads a pair Contradicted, not stale
 status: review
 branch: contacthold/ff-divided-reads-stale
+pr: 5390
 opened: 2026-10-13
 priority: P2
 refs: [a-carried-edge-face-record-the-census-cannot-read-refuses-every-later-op, point-touch-reading]
