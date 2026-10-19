@@ -5,7 +5,6 @@ title: A contact the at-rest census finds between groups no op joined is a row a
 status: open
 opened: 2026-10-11
 priority: P1
-needs_ev: true
 ---
 
 
@@ -63,4 +62,6 @@ is unit `the-census-records-what-it-decides`, then J.
 - `each-space-runs-its-census-between-arrivals`: the graft returns a space's aggregate with its arrivals; `record_at_rest` takes that one value (its `groups` closure retires); a census per space with two or more arrivals, memoised with the space's inputs; findings reported once as the deciding space's; spaces outside the product checked too.
 - `a-placement-carries-its-sources-at-rest-result`: generalises `a-part-drops-its-census-findings-at-the-seam` from the instance seam to every placement.
 
-**Sequencing.** Inside an arrival the census confirms and matches; a touch matching nothing is that arrival's door's defect, reported typed. On main today that arm is reachable by input, not only by a kernel bug (`boolean-door-runs-the-census-over-its-result`, `transform-and-pattern-drop-a-values-contact-records`), so it stays a reported finding, never a panic. `an-escalated-census-finding-names-no-pair` is a prerequisite of matching an escalated carried finding.
+**Sequencing (Ev, PR 4666, 2026-10-19: the confirmation inside an arrival "might be ok as a transitional state if explicitly scheduled to be removed when boolean etc are fixed").** D10 states the final rule: inside an arrival the census decides nothing and reads nothing. Until every door certifies its own result, `each-space-runs-its-census-between-arrivals` keeps a transitional check inside each arrival. It confirms the arrival's carried records, matches carried findings, and reports a touch matching neither as that arrival's door's defect, typed and never a panic. That check is removed by `the-in-arrival-census-check-retires`, which is blocked on the doors it stands in for. `an-escalated-census-finding-names-no-pair` is a prerequisite of matching an escalated carried finding while the check stands.
+
+**Ev (PR 4666, 2026-10-19).** Spaces that never reach the world are checked: "1. this is good". The in-arrival confirmation: transitional only, scheduled for removal (above).

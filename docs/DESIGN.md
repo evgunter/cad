@@ -753,8 +753,8 @@ tiers".
   record backs is never silently blessed. Between two arrivals of a
   space at rest ([assertions]) the census is the deciding operation:
   it records each such touch as an `unproven-coincidence` finding and
-  leaves on the space a contact record citing it, so a census over a
-  placement of that space confirms the touch and never decides it
+  leaves on the space a contact record citing it, which every
+  placement of that space carries, so the touch is never decided
   again. Inside one op's result it is that op's defect, refused
   typed. Every op, the boolean and every surgery verb
   alike, carries records through one lineage stating what it made of
@@ -1414,10 +1414,9 @@ census decides each pair. Contact is an `unproven-coincidence` finding
 unless it is structural (a mate-placed face is); an overlap of their
 material is an interference finding; and a pair the census has no
 lane for is a finding too, saying it could not look, so no outcome of
-the census is silence. Inside one arrival it decides nothing: it
-confirms the arrival's carried records and matches what else it finds
-against the arrival's carried findings, and a touch or overlap that
-matches neither is that arrival's door's defect, reported typed. A
+the census is silence. Inside one arrival it decides nothing and reads
+nothing: the arrival's verdicts are its source's or its door's, carried
+with it. A
 finding belongs to the space whose census decided it and is reported
 once there, however many times that space is placed, and a space
 nothing places into the world is checked all the same. A contact or
