@@ -79,6 +79,17 @@ or kills it. That premise is now stated in `Discard::whole` and
 - origin/main gives the same two outcomes. Before the fix, a third
   outcome came from the vertex channel.
 
+**The readers of `seams`, swept** (`rg 'seams|seam_of' names/borders.rs`).
+The pattern cannot match a reader through another name, and
+`borders.rs` has none.
+- **`touches`, the chain channel:** over-links, as measured above.
+- **`reached`:** a piece edge's lineage reaches every discard holding
+  the joined edge in `seams`.
+- **`seam_of`'s grouping in `walls`:** two discards holding one joined
+  edge are linked even when each borders a different half.
+
+No fixture yet separates the last two from the chain channel.
+
 **What the fix costs: a corner on the near half.**
 `emit_union_borders::a_corner_touching_the_near_half_of_a_joined_seam_is_part_of_the_divider`
 moves the diamond's corner to `(0.75, 1, 1)`, on the half `m`'s
