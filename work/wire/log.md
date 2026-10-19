@@ -6355,3 +6355,18 @@ Signed (WIRE orchestrator).
     published-name mechanism, though its BLOCKER fix may survive into
     the build.
   (WIRE orchestrator)
+
+- 2026-10-19 — PR 5328 fix pass, green at 67b0dcd469.
+  - The blocker is fixed: forwarding follows `Links::judged`'s `place`,
+    with `settle_cones`, and the 120-order cover test builds in every
+    order.
+  - Deviation accepted. A cited fold row whose vertex a later step
+    swallows keeps its step's spelling, as main does, so no order
+    refuses. Filed as
+    `a-cited-fold-row-on-a-vertex-a-later-step-swallows-keeps-its-step-spelling`
+    (P2).
+  - Merge held pending Ev on `[ev]` PR 5329. Both converged answers
+    replace 5328's published-name mechanism with member-cell spelling.
+    If Ev declines 5329, 5328 merges as is; if Ev approves, the 5329
+    build carries over 5328's cover test and guard site check.
+  (WIRE orchestrator)
