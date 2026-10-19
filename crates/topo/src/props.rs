@@ -39,9 +39,7 @@ use geom_brep::props::quad::{self, RoundOutcome, RoundWindow};
 use geom_brep::props::{
     CarrierId, FaceContribution, LoopEdge, PropsError, curved_face_loops, planar_face,
 };
-use geom_brep::recourse::{
-    Classified, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
-};
+use geom_brep::recourse::{Classified, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::interval::Interval;
 use geom_core::k_stats::Detached;
 use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, Tol};
@@ -2969,7 +2967,7 @@ pub const AIMED_PAIR: SizedDecision = SizedDecision {
     lever: "move the geometry so the two faces the aimed ray met are clearly apart",
     size: "gap",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 

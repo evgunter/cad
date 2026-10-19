@@ -313,6 +313,13 @@ pub mod test_support {
     };
     pub use crate::test_support_impl::ArenaCounts;
 
+    /// The pad a face's reach box takes past the band, and each face's
+    /// share of the census's gaps (`boolean::boxes::sweep_pad`): the
+    /// spelling a test outside this crate reads it by.
+    pub fn sweep_pad(band: geom_core::Band) -> f64 {
+        crate::boolean::boxes::sweep_pad(band)
+    }
+
     /// **Restates the surface at `key`** as `surface`: a row that needs
     /// a datum no construction mints (a cone's seam off square to its
     /// axis) builds the body and then restates its carrier. Returns

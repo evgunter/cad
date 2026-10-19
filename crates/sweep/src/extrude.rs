@@ -767,8 +767,8 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Extruded<T>, ExtrudeError> {
     let band = Band::linear(tol).map_err(ExtrudeError::Band)?;
-    let place = profile.plane().placement;
-    let normal = place.linear.c2;
+    let place = profile.plane().placement();
+    let normal = profile.plane().normal().get();
 
     // ---- Direction classification (crate docs; named predicates). ----
     let (w, reverse) = match extrusion {

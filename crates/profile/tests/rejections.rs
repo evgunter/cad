@@ -39,8 +39,7 @@ fn empty_profile_is_rejected() {
 /// would otherwise be a validated profile with no place in space.
 #[test]
 fn a_plane_that_is_not_finite_is_rejected() {
-    use geom_core::{Affine3, Vec3};
-    let at = |z: f64| SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z)));
+    let at = |z: f64| SketchPlane::xy_at(geom_core::Point3::new(0.0, 0.0, z));
     for z in [f64::NAN, f64::INFINITY] {
         let p = profile::Profile::new(at(z), vec![rect(0.0, 0.0, 1.0, 1.0)]);
         assert_eq!(err(&p), ProfileError::PlaneNotFinite, "validate, z = {z}");
@@ -561,6 +560,323 @@ fn a_crossing_read_in_band_is_not_settled_by_an_end_beside_the_other_crossing() 
         interval_read.is_err(),
         "Interval: the figure-eight must not validate"
     );
+}
+
+/// The unit circle about the origin and the circle about `(d, 0)` of
+/// radius `1 − d + g`: carriers `d` apart whose internal clearance is
+/// `g`, so within the band of tangency at angle 0 for `|g| ≤ ε`, and
+/// apart by `d(1 − cos θ) − g` at angle `θ`.
+fn near_concentric(d: f64, g: f64) -> ((Point2<f64>, f64), (Point2<f64>, f64)) {
+    (
+        (Point2::new(0.0, 0.0), 1.0),
+        (Point2::new(d, 0.0), 1.0 - d + g),
+    )
+}
+
+fn rim((c, r): (Point2<f64>, f64), angle: f64) -> Point2<f64> {
+    Point2::new(c.x + r * angle.cos(), c.y + r * angle.sin())
+}
+
+/// A hole bounded by the arc of `circle` from angle `from` through
+/// `sweep` and its chord.
+fn cap_hole(circle: (Point2<f64>, f64), from: f64, sweep: f64) -> profile::ProfileLoop<f64> {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let arc = Segment::Arc(Arc2 {
+        centre: circle.0,
+        radius: circle.1,
+        sweep,
+    });
+    ProfileLoop::new([
+        (rim(circle, from), arc),
+        (rim(circle, from + sweep), Segment::Line),
+    ])
+}
+
+/// A hole outside `circle`: its arc clockwise from angle `hi` to `lo`,
+/// closed by lines out to x = 3.
+fn outside_hole(circle: (Point2<f64>, f64), hi: f64, lo: f64) -> profile::ProfileLoop<f64> {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let arc = Segment::Arc(Arc2 {
+        centre: circle.0,
+        radius: circle.1,
+        sweep: lo - hi,
+    });
+    let (top, bottom) = (rim(circle, hi), rim(circle, lo));
+    ProfileLoop::new([
+        (top, arc),
+        (bottom, Segment::Line),
+        (Point2::new(3.0, bottom.y), Segment::Line),
+        (Point2::new(3.0, top.y), Segment::Line),
+    ])
+}
+
+/// Validates `p` at `f64` and at `Interval`, which must agree up to an
+/// escalation's margin.
+fn validate_both(p: &profile::Profile<f64>) -> Result<(), ProfileError> {
+    let verdict = |read: &Result<(), ProfileError>| match read {
+        Err(ProfileError::Escalated { site, source }) => format!("{site:?} {:?}", source.predicate),
+        other => format!("{other:?}"),
+    };
+    let at_f64 = p.validate(tol()).map(|_| ());
+    let at_interval = common::lift::<geom_core::Interval>(p)
+        .validate(tol())
+        .map(|_| ());
+    assert_eq!(
+        verdict(&at_f64),
+        verdict(&at_interval),
+        "f64 and Interval disagree"
+    );
+    at_f64
+}
+
+/// **Two arcs on near-concentric carriers decided internally tangent
+/// read their tangency on each carrier, not at the radical foot.**
+///
+/// With centres `d` apart and internal clearance `g`, the radical foot
+/// stands about `g/d` off both unit-scale circles: 0.029 at `d = 17ε`,
+/// `g = 0.5ε`, at every ε. Each hole's arc stops `s` short of angle 0,
+/// so the arcs are `2s` apart, centimetres at most, and none of them
+/// may refuse. The second table puts the arcs within ε of each other
+/// along the stretch where the carriers stay within the band, which
+/// reaches far from angle 0 when `d` is a few ε: there, a hole inside
+/// the unit circle and a hole outside the other circle, with the arcs
+/// holding angle 0 or not, must refuse: a tangency, an end's touch, or
+/// an end read in band of the other carrier or the other span. Where the
+/// carriers cross (`g > 0`) they read as two crossings 0.24 rad either
+/// side of angle 0, not as one tangency.
+#[test]
+fn near_concentric_arcs_read_their_tangency_on_each_carrier() {
+    let eps = tol().eps();
+    for (d, g, s) in [
+        (17.0, 0.5, 0.005),
+        (17.0, 0.5, 0.01),
+        (17.0, 0.5, 0.014),
+        (34.0, 0.9, 0.01),
+        (17.0, -0.5, 0.01),
+        (1000.0, 0.5, 0.001),
+    ] {
+        let (one, two) = near_concentric(d * eps, g * eps);
+        let p = profile(vec![
+            rect(-5.0, -5.0, 10.0, 10.0),
+            cap_hole(one, s, 2.0),
+            cap_hole(two, -2.0 - s, 2.0),
+        ]);
+        assert_eq!(
+            validate_both(&p),
+            Ok(()),
+            "arcs {:e} apart, d = {d}ε, g = {g}ε",
+            2.0 * s
+        );
+    }
+    let pair = (sref(1, 0), sref(2, 0));
+    let tangent = || ProfileError::TangentialContact {
+        first: pair.0,
+        second: pair.1,
+    };
+    let touch = || ProfileError::NonSimple {
+        first: pair.0,
+        second: pair.1,
+        kind: ContactKind::Touch,
+    };
+    let crossing = || ProfileError::NonSimple {
+        first: pair.0,
+        second: pair.1,
+        kind: ContactKind::Crossing,
+    };
+    for (d, g, (from, sweep), (hi, lo), want) in [
+        (17.0, 0.5, (-0.2, 0.4), (0.2, -0.2), Err("arc_span")),
+        (17.0, -0.5, (-0.2, 0.4), (0.2, -0.2), Ok(tangent())),
+        (17.0, 0.5, (0.1, 0.4), (0.3, 0.05), Ok(crossing())),
+        (17.0, 0.5, (-0.3, 0.2), (0.2, -0.2), Ok(touch())),
+        (17.0, 0.5, (-0.2, 0.4), (0.3, 0.1), Ok(touch())),
+        (17.0, -0.5, (0.1, 0.4), (0.3, 0.05), Err("circle_side")),
+        (17.0, -0.5, (-0.3, 0.2), (-0.05, -0.25), Err("circle_side")),
+        (34.0, 0.9, (0.05, 0.1), (0.12, 0.08), Ok(touch())),
+    ] {
+        let (one, two) = near_concentric(d * eps, g * eps);
+        let p = profile(vec![
+            rect(-5.0, -5.0, 10.0, 10.0),
+            cap_hole(one, from, sweep),
+            outside_hole(two, hi, lo),
+        ]);
+        let label = format!("d = {d}ε, g = {g}ε, arc {from}+{sweep} against {hi}..{lo}");
+        match (validate_both(&p), want) {
+            (Err(got), Ok(want)) => assert_eq!(got, want, "{label}"),
+            (Err(ProfileError::Escalated { site, source }), Err(predicate)) => {
+                assert_eq!(site, EscalationSite::SegmentPair(pair.0, pair.1), "{label}");
+                assert_eq!(source.predicate, Some(predicate), "{label}");
+            }
+            (got, _) => panic!("{label}: {got:?}"),
+        }
+    }
+}
+
+/// One loop: an arc of `one` into the joint at its polar angle `at`, an
+/// arc of `two` out of it through `sweep` (back the way the first came
+/// at a cusp, on round at a smooth joint), and lines home.
+fn joint_loop(
+    (one, two): ((Point2<f64>, f64), (Point2<f64>, f64)),
+    at: f64,
+    sweep: f64,
+) -> profile::Profile<f64> {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let arc = |(centre, radius): (Point2<f64>, f64), sweep| {
+        Segment::Arc(Arc2 {
+            centre,
+            radius,
+            sweep,
+        })
+    };
+    let mut vertices = vec![
+        (rim(one, at - 2.0), arc(one, 2.0)),
+        (rim(one, at), arc(two, sweep)),
+        (rim(two, at + sweep), Segment::Line),
+    ];
+    if sweep > 0.0 {
+        vertices.push((Point2::new(0.0, 0.0), Segment::Line));
+    }
+    profile(vec![ProfileLoop::new(vertices)])
+}
+
+/// **A cusp on near-concentric carriers refuses the crossing its arcs
+/// make away from the joint.** Carriers `d` apart whose internal
+/// clearance `g` is within ε stay within the band for about
+/// `√(2(ε + g)/d)` rad either side of the tangency direction, and for
+/// `g > 0` cross at `±√(2g/d)`: 0.24 rad out at `d = 17ε`, `g = 0.5ε`.
+/// Two arcs leaving a joint there the same way both hold one crossing,
+/// so the pair crosses, however near the tangency direction the joint
+/// stands; two leaving it opposite ways meet only at the joint, a
+/// smooth tangent joint that validates. The joint's arcs are adjacent,
+/// so a contact recorded at the joint is the shared vertex's to
+/// discount: the smooth rows hold the tangency's contact there, and the
+/// cusp rows hold the crossing apart from it.
+#[test]
+fn a_cusp_on_near_concentric_carriers_refuses_its_crossing() {
+    let eps = tol().eps();
+    let crossing = Err(ProfileError::NonSimple {
+        first: sref(0, 0),
+        second: sref(0, 1),
+        kind: ContactKind::Crossing,
+    });
+    for (d, g, at, sweep, want) in [
+        (17.0, 0.5, 0.0, -1.6, crossing.clone()),
+        (17.0, 0.9, 0.0, -1.6, crossing.clone()),
+        (34.0, 0.5, 0.0, -1.2, crossing.clone()),
+        (100.0, 0.5, 0.0, -0.8, crossing.clone()),
+        (1000.0, 0.5, 0.0, -0.3, crossing.clone()),
+        (17.0, 0.5, -10.0, -1.6, crossing.clone()),
+        (17.0, 0.5, 10.0, -1.6, crossing.clone()),
+        (1000.0, 0.5, -10.0, -0.3, crossing.clone()),
+        (17.0, 0.5, 0.0, 1.6, Ok(())),
+        (17.0, -0.5, 0.0, 1.6, Ok(())),
+        (1000.0, 0.5, -10.0, 1.6, Ok(())),
+    ] {
+        let p = joint_loop(near_concentric(d * eps, g * eps), at * eps, sweep);
+        assert_eq!(
+            validate_both(&p),
+            want,
+            "d = {d}ε, g = {g}ε, joint at {at}ε, second arc through {sweep}"
+        );
+    }
+}
+
+/// **A compound joint escalates only where its crossing pair and its
+/// tangency disagree.** Carriers 0.5 to 0.01 apart, internally tangent
+/// at the joint to within ε, cut a chord whose sagitta is about
+/// `g·r/d`: within the band at `d = 0.1`, `g = 0.2ε`. Read as a
+/// tangency or as the two crossings, a smooth joint's arcs meet only at
+/// the joint, so it validates whichever the chord is. A cusp's arcs
+/// both hold a crossing near the joint: as two crossings they cross
+/// there, and as a tangency they meet only at the joint, so the cusp
+/// escalates. Past the band the cusp
+/// crosses, and a nested pair (`g < 0`) reads its tangency without
+/// asking. The `d = 0.01`, `g = 0.03ε` cusp is the band's lower edge:
+/// a sagitta of 3ε, which a chord read a fifth as deep calls tangent.
+#[test]
+fn a_compound_joint_escalates_only_where_its_readings_disagree() {
+    let eps = tol().eps();
+    let pair = (sref(0, 0), sref(0, 1));
+    let crossing = || ProfileError::NonSimple {
+        first: pair.0,
+        second: pair.1,
+        kind: ContactKind::Crossing,
+    };
+    let (smooth, cusp) = (1.0, -0.5);
+    for (d, g, sweep, want) in [
+        (0.5, 0.9, smooth, None),
+        (0.5, -0.9, smooth, None),
+        (0.1, 0.2, smooth, None),
+        (0.1, 0.5, smooth, None),
+        (0.1, 0.9, smooth, None),
+        (0.1, -0.2, smooth, None),
+        (0.1, -0.5, smooth, None),
+        (0.1, -0.9, smooth, None),
+        (0.01, 0.03, smooth, None),
+        (0.5, 0.9, cusp, Some(Err("carrier_circles_chord"))),
+        (0.1, 0.2, cusp, Some(Err("carrier_circles_chord"))),
+        (0.1, 0.9, cusp, Some(Err("carrier_circles_chord"))),
+        (0.01, 0.03, cusp, Some(Err("carrier_circles_chord"))),
+        (0.01, 0.2, cusp, Some(Ok(crossing()))),
+    ] {
+        let p = joint_loop(near_concentric(d, g * eps), 0.0, sweep);
+        let label = format!("d = {d}, g = {g}ε, second arc through {sweep}");
+        match (validate_both(&p), want) {
+            (Ok(()), None) => {}
+            (Err(got), Some(Ok(want))) => assert_eq!(got, want, "{label}"),
+            (Err(ProfileError::Escalated { site, source }), Some(Err(predicate))) => {
+                assert_eq!(site, EscalationSite::SegmentPair(pair.0, pair.1), "{label}");
+                assert_eq!(source.predicate, Some(predicate), "{label}");
+            }
+            (got, _) => panic!("{label}: {got:?}"),
+        }
+    }
+}
+
+/// **A cusp whose crossing one arc's span reads in band escalates.**
+/// Carriers 0.015 apart cut a chord whose sagitta, 1.5ε, is within the
+/// band, so the crossings stand `√(3ε)` rad either side of the tangency
+/// direction. The joint stands 10ε along toward one of them, and the
+/// second arc leaves it back the way the first came, round to just
+/// past the joint: a gap wide enough to read as an arc, narrow enough
+/// that its span reads the crossing in band. The carriers stay within ε
+/// from the joint to the crossing, so the joint is on both of them, but
+/// a touch there is the shared vertex's: the crossing escalates rather
+/// than settle on it.
+#[test]
+fn a_cusp_whose_crossing_one_arc_reads_in_band_escalates() {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let eps = tol().eps();
+    let (d, sagitta) = (0.015, 1.5 * eps);
+    let (one, two) = near_concentric(d, sagitta * d);
+    let arc = |(centre, radius): (Point2<f64>, f64), sweep| {
+        Segment::Arc(Arc2 {
+            centre,
+            radius,
+            sweep,
+        })
+    };
+    let v = rim(one, -10.0 * eps);
+    let from = (v.y - two.0.y).atan2(v.x - two.0.x);
+    let sweep = -(std::f64::consts::TAU - 1.05 * (160.0 * eps).sqrt());
+    let out = |angle: f64| rim((Point2::new(0.0, 0.0), 2.0), angle);
+    let p = profile(vec![ProfileLoop::new([
+        (rim(one, -10.0 * eps - 0.34), arc(one, 0.34)),
+        (v, arc(two, sweep)),
+        (rim(two, from + sweep), Segment::Line),
+        (out(from + sweep), Segment::Line),
+        (out(-0.34), Segment::Line),
+    ])]);
+    match validate_both(&p) {
+        Err(ProfileError::Escalated { site, source }) => {
+            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(0, 1)));
+            assert_eq!(source.predicate, Some("carrier_circles_chord"));
+        }
+        got => panic!("the cusp's crossing should escalate: {got:?}"),
+    }
 }
 
 #[test]

@@ -42,13 +42,14 @@
 
 #![allow(dead_code)] // loaded once per consumer; each uses a subset
 
+use profile::SketchPlane;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_brep::keys::SurfaceKey;
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use sweep::Lofted;
 use topo::{Body, CurveGeom, EdgeKey, FaceKey, FaceSurface};
@@ -76,7 +77,7 @@ pub fn prism() -> Body<f64> {
     };
     let places = [0.0, 1.0]
         .iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, *z)))
         .collect::<Vec<_>>();
     sweep::loft_body::<f64>(&[square(), square()], &places, 1, Tol::witness())
         .expect("the square prism lofts")
@@ -132,8 +133,8 @@ pub fn twisted_lofted(theta: f64) -> Lofted<f64> {
         rv(0.0, 2.0),
     ])];
     let places = vec![
-        Affine3::translation(Vec3::new(0.0, 0.0, 0.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0)),
     ];
     sweep::loft_body::<f64>(&[square, rotated], &places, 1, Tol::witness())
         .expect("the twisted square lofts")

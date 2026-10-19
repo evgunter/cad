@@ -120,9 +120,7 @@
 //! ellipse's two decided bounds on its span's overlap straddling the
 //! whole band ([`geom_core::k_stats::straddle`]).
 
-use geom_brep::recourse::{
-    LeverOnly, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
-};
+use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::k_stats::decide_reported;
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
@@ -248,7 +246,7 @@ pub(crate) const fn placement_sized(
         lever,
         size,
         passes,
-        stored: StoredDefinite::Lever,
+        side: RefusedSide::Lever,
         no_size: None,
     }
 }

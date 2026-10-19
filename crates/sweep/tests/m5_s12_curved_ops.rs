@@ -45,7 +45,7 @@ use sweep::ExtrudeSide;
 use crate::common::operands::m5_boss;
 use geom::Surface;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Point3, Vec3};
+use geom_core::{Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{ball_poled_y, finished};
 use sweep::{Extrusion, extrude};
@@ -383,7 +383,7 @@ fn a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit() {
             .map(|(x, y)| (Point2::new(x, y), 0.0))
             .collect(),
     );
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.3));
     let sp = Profile::new(plane, vec![sq])
         .validate(Tol::witness())
         .unwrap();

@@ -21,7 +21,8 @@
 use crate::common::operands::{plate6, plate6_cyl};
 use crate::mate2_common;
 use geom::SurfaceKind;
-use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
+use geom_core::Point3;
+use geom_core::{Point2, Tol, Vec2};
 use mate2_common::{
     assert_additive, boolean_body, collar, collar_at, peg_at, plane_face, volume, walls_at,
 };
@@ -341,7 +342,7 @@ fn d_prism_with_split_keys() -> (
         (Point2::new(2.0, 1.0), 0.0),
         (Point2::new(0.0, 1.0), 0.0),
     ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.0));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();

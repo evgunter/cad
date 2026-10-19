@@ -75,7 +75,7 @@ fn authored(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> profile::S
 /// Every component of a placement, as raw bits — the comparison an
 /// approximate one would let through.
 fn bits(p: &profile::SketchPlane<f64>) -> [u64; 12] {
-    p.placement.components().map(f64::to_bits)
+    p.placement().components().map(f64::to_bits)
 }
 
 fn assert_same_plane(
@@ -438,16 +438,14 @@ fn a_frame_whose_v_is_not_perpendicular_carries_the_orthonormalized_pair() {
     );
 }
 
-/// Row 6 — **under a box, an authored frame's profile is placed at the
-/// LANE, as the document moved there places it.** The build places a
-/// profile from the frame's nominal read (the carry's `Authored` arm),
-/// and a box that varies an axis makes the evaluation an analysis, whose
-/// profile lift is guided (`EvalOptions::profile_lift`): the profile is
-/// elaborated on the frame's landed value. So the boxed body is the body
-/// of the document authored at the offset nominal, point for point —
-/// where the pinned lift used to place it from the unmoved nominal and
-/// leave it `c` away
-/// (`work/inlane/the-pinned-profile-lift-launders-at-sym.md`).
+/// Row 6 — **an authored frame's profile is placed at the LANE, on the
+/// frame's landed value.** A frame crosses no scalar upward, so the
+/// profile's plane is minted at the lane; the nominal read is only the
+/// first pass's assembly frame. This row drives the evaluation off the
+/// nominal with a degenerate `ParamBox` (`p ∈ nominal + [c, c]`, the
+/// shape `eval10_section_reads_the_nominal` uses), where the two
+/// differ: the boxed body is the body of the document authored at
+/// `nominal + c`, bit for bit, and not the unboxed one.
 #[test]
 fn an_authored_frames_profile_places_at_the_boxed_lane() {
     let (doc, _frame, _profiles, extrude) = shared_frame_doc(0.0);

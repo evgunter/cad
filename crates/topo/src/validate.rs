@@ -385,7 +385,7 @@ use std::borrow::Cow;
 
 use geom::{NetState, Surface};
 use geom_brep::recourse::{
-    Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized,
+    Reading, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass, Unsized,
 };
 use geom_brep::{
     CertCheck, CertifyError, DihedralClass, MaterialPairing, MaterialWedge,
@@ -2617,7 +2617,7 @@ const WEDGE: SizedDecision = SizedDecision {
     lever: "move the geometry so the faces meet either clearly creased or clearly smooth",
     size: "angle",
     passes: SizedPass::NonNegative,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -2629,7 +2629,7 @@ const SEPARATION: SizedDecision = SizedDecision {
             clearly share their curvature there",
     size: "curvature difference",
     passes: SizedPass::NonNegative,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -3029,7 +3029,7 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         CertCheck::ParamWinding => {
             geom_core::undecided!("whether its arc stays short of a full turn")
         }
-        CertCheck::Transversality => {
+        CertCheck::Transversality | CertCheck::TransversalityTube => {
             "its faces meet too nearly tangentially to decide at this tolerance"
         }
         CertCheck::TransversalityArm => {
@@ -11973,7 +11973,7 @@ mod tests {
                 },
                 "Recourse: move the geometry so that edge's faces clearly run farther and none \
                  curves tightly there; faces of no extent or a cone's point leave no angle to \
-                 measure; a radius below zero is a defect"
+                 measure"
                     .to_owned(),
             ),
             (
@@ -12303,7 +12303,7 @@ mod tests {
                 assert!(
                     text.starts_with("an edge is not between faces wide enough")
                         && !text.contains("too close")
-                        && text.ends_with("no angle to measure; a radius below zero is a defect"),
+                        && text.ends_with("no angle to measure"),
                     "{row}: {text}"
                 );
             }
@@ -16803,15 +16803,16 @@ mod certify_escalation_rows {
                  Recourse: move the geometry to a scale where the spline face's control points \
                  stay well inside the range of finite numbers",
             ),
-            // At exact tangency no tolerance decides it: the lever alone.
+            // Exact tangency where the stored description says the faces
+            // cross is a stored contradiction.
             (
                 says(CertifyError::NotTransverse {
                     lever: None,
                     sample: 4,
                     verdict: zero(0.0),
                 }),
-                "its faces are tangent where its description says they cross. Recourse: move \
-                 the geometry so the surfaces cross at a clearer angle",
+                "its faces are tangent where its description says they cross. There is no way \
+                 through: this is a kernel defect or a damaged file; report it",
             ),
             // A definite stored contradiction no move or loosening
             // reaches: an approximation's residual, and the lane's limb.
@@ -16900,9 +16901,9 @@ mod certify_escalation_rows {
                  indicate a kernel bug worth reporting",
             ),
             // A span shorter than the tolerance is a length a user may
-            // intend; one of no length is one no construction mints; a
-            // reversed one, and a winding past a full turn, are stored
-            // contradictions at rest.
+            // intend; one of no length, or reversed, is one no
+            // construction mints, and a winding past a full turn a stored
+            // contradiction.
             (
                 says(CertifyError::IntervalNotForward {
                     verdict: zero(5.0e-10),
@@ -16913,10 +16914,8 @@ mod certify_escalation_rows {
             ),
             (
                 says(CertifyError::IntervalNotForward { verdict: zero(0.0) }),
-                "its length is within the tolerance of zero. Recourse: move the geometry so \
-                 this edge runs forward over a clear length; an edge of no length, or a reversed \
-                 one, is one no kernel construction mints, so this is a kernel defect or a damaged \
-                 file, worth reporting",
+                "its length is within the tolerance of zero. There is no way through: this is a \
+                 kernel defect or a damaged file; report it",
             ),
             (
                 says(CertifyError::IntervalNotForward {
@@ -16944,10 +16943,11 @@ mod certify_escalation_rows {
                  they fix where it runs, which its description says they do. Recourse: move the \
                  geometry so the faces curve apart more clearly where they touch",
             ),
-            // The lane's tube refusal is the transversality decision's
-            // verdict: a Zero clearance is band-decided, and quotes the
-            // tolerance below `m/K` where the certificate proved one; a
-            // Negative one is a stored contradiction.
+            // The lane's tube refusal is the verdict on a lower bound of
+            // the transversality: a clearance proved above zero quotes the
+            // tolerance below `m/K`; a straddle reads `0`, which shows
+            // only that the certificate could not clear it, so it keeps
+            // the lever and never ends as a defect.
             (
                 says(CertifyError::PlaneNurbs(P::TubeStraddles {
                     verdict: tube_zero(0.0),
@@ -16973,8 +16973,7 @@ mod certify_escalation_rows {
                     boxes: 4,
                 })),
                 "its faces are not certainly crossing along it, so they do not fix where it \
-                 runs. There is no way through: this is a kernel defect or a damaged file; \
-                 report it",
+                 runs. Recourse: move the geometry so the surfaces cross at a clearer angle",
             ),
             // A certificate escalation ends by its limb's decision: the
             // tube's in-band margin is the transversality's, and a

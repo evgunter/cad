@@ -2,10 +2,11 @@
 id: split-keeps-has-two-builders-that-disagree
 kind: issue
 title: The Split's face Keeps and vertex Keeps are two hand-written builders that disagree on joins and on in-plane edges
-status: open
+status: closed
 opened: 2026-10-18
 priority: P3
 cost: M
+closed: 2026-10-19
 ---
 
 
@@ -28,3 +29,7 @@ face reading cites an in-plane boundary edge is the question in
 `a-split-names-an-operand-edge-in-its-plane-as-a-section-chord`.
 
 Signed (wire-keeps lane).
+
+## Resolution (2026-10-19)
+
+Closed by PR 5334: a split finishes each half with maximal faces (recording a curved skip), names in-plane edges and merged groups per N2/N3 as Ev approved on PR 5306, and reads `Keeps` by descent in one builder. Pinned in `split_pinch_keeps.rs`, `m3_pr3_split.rs` and `a_lower_half_on_the_plane_takes_a_box_hole`.

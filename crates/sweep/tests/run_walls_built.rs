@@ -17,7 +17,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::test_support::bulge_loop;
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile};
 use sweep::ExtrudeSide;
@@ -46,10 +46,7 @@ fn cube(x0: f64, y0: f64, z0: f64, sx: f64, sy: f64, sz: f64) -> AtRestBody<f64>
         Point2::new(x0 + sx, y0 + sy),
         Point2::new(x0, y0 + sy),
     ]);
-    let plane = SketchPlane::new(Affine3::from_parts(
-        Mat3::identity(),
-        Point3::new(0.0, 0.0, z0) - Point3::origin(),
-    ));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let v = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
     let cube = extrude(
         &v,

@@ -12,8 +12,8 @@
 //! * the cap measures `sin α·Δu·|v_hi² − v_lo²|/2` on both nappes and
 //!   both traversals;
 //! * a rim that does not CLOSE around the apex bounds no cap — at the
-//!   flux lane a loop that does not close (`props_loop_closed`) or
-//!   winds the axis twice (`props_cone_loop_winding`), at the shape
+//!   flux lane a loop that does not close (`ChartLoopOpen`) or winds
+//!   the axis twice (`LoopsWindChart`), at the shape
 //!   door `props_rim_only_closed` and `props_rim_only_join`, the
 //!   sphere's guard at the cone's own azimuthal arm;
 //! * rims at one level traversed OPPOSITE ways point at opposite sides
@@ -174,8 +174,8 @@ fn an_apex_cap_whose_rim_is_three_arcs_measures_the_same() {
 /// definite AREA here too — half a rim at half the cap's, a quarter at
 /// a quarter, the same full rim stated twice at double, and a full rim
 /// plus a half arc at 1.5×. The flux lane refuses a loop whose joints
-/// do not close (`props_loop_closed`) and one that winds the axis
-/// twice (`props_cone_loop_winding`); the shape door's fold decides
+/// do not close ([`PropsError::ChartLoopOpen`]) and one that winds the
+/// axis twice ([`PropsError::LoopsWindChart`]); the shape door's fold decides
 /// `(Δu − τ)` at the cone's own azimuthal arm (`props_rim_only_closed`).
 /// Each shape refuses at both, by name.
 #[test]
@@ -186,22 +186,22 @@ fn an_apex_cap_refuses_a_rim_that_does_not_close() {
         (
             "half a rim only (du = pi)",
             vec![rim(SL, 0.0, PI, 0, 1)],
-            "props_loop_closed",
+            PropsError::ChartLoopOpen,
         ),
         (
             "quarter rim only",
             vec![rim(SL, 0.0, PI / 2.0, 0, 1)],
-            "props_loop_closed",
+            PropsError::ChartLoopOpen,
         ),
         (
             "the same full rim stated twice",
             vec![rim(SL, 0.0, TAU, 0, 0), rim(SL, 0.0, TAU, 0, 0)],
-            "props_cone_loop_winding",
+            PropsError::LoopsWindChart,
         ),
         (
             "full rim + an extra half arc, same direction",
             vec![rim(SL, 0.0, TAU, 0, 0), rim(SL, 0.0, PI, 0, 1)],
-            "props_loop_closed",
+            PropsError::ChartLoopOpen,
         ),
     ] {
         assert_eq!(
@@ -220,14 +220,13 @@ fn an_apex_cap_refuses_a_rim_that_does_not_close() {
                 );
                 answered.push(name);
             }
-            Err(PropsError::ConeLoop { what }) => {
-                println!("  {name:<44} REFUSE {what}");
+            Err(e) => {
+                println!("  {name:<44} REFUSE {e:?}");
                 assert_eq!(
-                    what, flux_guard,
+                    e, flux_guard,
                     "{name}: the flux lane's closure guard is what must refuse it"
                 );
             }
-            Err(e) => panic!("{name}: refused by something else: {e:?}"),
         }
     }
     assert!(
@@ -298,7 +297,7 @@ fn zero_length_generators_between_rims_at_one_level_change_nothing() {
 /// **A frustum band measures with its seam, and two rims in one loop
 /// are no loop.** The seam generator closes the walk; without it the
 /// two circles do not chain, and the vector area of edges that do not
-/// chain is no region's (`props_loop_closed`).
+/// chain is no region's ([`PropsError::ChartLoopOpen`]).
 #[test]
 fn a_frustum_band_measures_with_its_seam() {
     let (v0, v1) = (SL, 3.0 * SL);
@@ -320,9 +319,7 @@ fn a_frustum_band_measures_with_its_seam() {
             band()
         )
         .map(|_| ()),
-        Err(PropsError::ConeLoop {
-            what: "props_loop_closed"
-        }),
+        Err(PropsError::ChartLoopOpen),
         "two rims in one loop do not chain"
     );
 }
@@ -379,13 +376,15 @@ fn verdict_multiset(edges: &[LoopEdge<f64>]) -> Vec<(String, usize)> {
 
 /// **The apex cap's own verdicts at the flux lane, named.** The rim's
 /// incidence on the cone (`props_circle_axis_class`, `props_rim_fit`,
-/// `props_cone_circle_tilt`, `props_cone_circle_off_axis`); one closure
-/// decide for the one joint (`props_loop_closed`); the nappe's two ends
-/// (`props_cone_nappe`); the side (`props_cone_area_side`); and the
-/// winding — the rim's two ends off the apex
-/// (`props_cone_loop_off_apex`), its sense (`props_cone_arc_sense`; a
-/// rim turns through its stored span, so no turn is decided) and the
-/// once-round threshold (`props_cone_loop_winding`). The rim's span is
+/// `props_cone_circle_tilt`, `props_cone_circle_off_axis`); the nappe's
+/// two ends (`props_cone_nappe`); the side (`props_cone_area_side`); the
+/// winding's own reading — the rim's two ends off the apex
+/// (`props_cone_loop_off_apex`) and its sense (`props_cone_arc_sense`; a
+/// rim turns through its stored span, so no turn is decided); and the
+/// periodic chart's closure: one junction (`props_chart_junction_closed`),
+/// the loop's turns at the half and three-half turn thresholds and their
+/// sense (`props_chart_loop_turns`, `props_chart_loop_sense`), and its
+/// whole-turn residual (`props_chart_loop_whole`). The rim's span is
 /// decided once, under certification's span bound, a full period
 /// sitting AT it (`props_rim_span_forward` Positive,
 /// `props_rim_span_winding` Zero). One edge has no two non-adjacent
@@ -394,15 +393,18 @@ fn verdict_multiset(edges: &[LoopEdge<f64>]) -> Vec<(String, usize)> {
 fn the_apex_cap_records_its_named_decides() {
     let got = verdict_multiset(&[rim(SL, 0.0, TAU, 0, 0)]);
     let want: Vec<(String, usize)> = [
+        ("props_chart_junction_closed Zero", 1),
+        ("props_chart_loop_sense Positive", 1),
+        ("props_chart_loop_turns Negative", 1),
+        ("props_chart_loop_turns Positive", 1),
+        ("props_chart_loop_whole Zero", 1),
         ("props_circle_axis_class Positive", 1),
         ("props_cone_arc_sense Positive", 1),
         ("props_cone_area_side Negative", 1),
         ("props_cone_circle_off_axis Zero", 1),
         ("props_cone_circle_tilt Zero", 1),
         ("props_cone_loop_off_apex Positive", 2),
-        ("props_cone_loop_winding Positive", 1),
         ("props_cone_nappe Positive", 2),
-        ("props_loop_closed Zero", 1),
         ("props_rim_fit Zero", 1),
         ("props_rim_span_forward Positive", 1),
         ("props_rim_span_winding Zero", 1),
@@ -426,7 +428,8 @@ fn the_apex_cap_records_its_named_decides() {
 /// quarters and answered the same. Both are the sphere unit's own
 /// MAJOR — an area answered for a rim that does not close — reached
 /// past the sum. The shape door's `props_rim_only_join` and the flux
-/// lane's `props_loop_closed` each require the arcs to TILE: each
+/// lane's junction closure (`props_chart_junction_closed`) each require
+/// the arcs to TILE: each
 /// edge's traversal end is the next one's traversal start, cyclically.
 #[test]
 fn a_sum_that_makes_a_turn_is_not_a_cover() {
@@ -461,12 +464,8 @@ fn a_sum_that_makes_a_turn_is_not_a_cover() {
                 );
                 answered.push(name);
             }
-            Err(PropsError::ConeLoop { what }) => {
-                println!("  {name:<44} REFUSE {what}");
-                assert_eq!(
-                    what, "props_loop_closed",
-                    "{name}: the flux lane's closure decide is what must refuse it"
-                );
+            Err(PropsError::ChartLoopOpen) => {
+                println!("  {name:<44} REFUSE ChartLoopOpen");
             }
             Err(e) => panic!("{name}: refused by something else: {e:?}"),
         }
@@ -522,10 +521,8 @@ fn an_apex_cap_is_a_tiling_and_the_families_that_are_not_refuse() {
             other => panic!("{name}: the shape door finds no cap in it: {other:?}"),
         }
         match curved_face(&cone(), edges, true, band()) {
-            Err(PropsError::ConeLoop { what })
-                if what == "props_loop_closed" || what == "props_cone_loop_winding" =>
-            {
-                println!("  {name:<40} flux REFUSE {what}")
+            Err(e @ (PropsError::ChartLoopOpen | PropsError::LoopsWindChart)) => {
+                println!("  {name:<40} flux REFUSE {e:?}")
             }
             other => panic!("{name}: a boundary that does not tile bounds no cap: {other:?}"),
         }
@@ -732,9 +729,7 @@ fn a_boundary_that_does_not_close_refuses_at_every_door() {
         for (which, got) in [("gate", &gate), ("flux", &flux)] {
             assert_eq!(
                 *got,
-                Err(PropsError::ConeLoop {
-                    what: "props_loop_closed"
-                }),
+                Err(PropsError::ChartLoopOpen),
                 "{name}: the {which} refuses the open loop"
             );
         }

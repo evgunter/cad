@@ -38,7 +38,7 @@
 
 use geom_brep::LeverRung;
 use geom_brep::recourse::{
-    LeverOnly, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized,
+    LeverOnly, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass, Unsized,
 };
 use geom_core::Indeterminate;
 
@@ -809,7 +809,7 @@ const fn proximity(passes: SizedPass) -> SizedDecision {
         lever: proximity_lever!(),
         size: "gap",
         passes,
-        stored: StoredDefinite::Lever,
+        side: RefusedSide::Lever,
         no_size: None,
     }
 }
@@ -876,7 +876,7 @@ const TANGENT_SIDE: SizedDecision = SizedDecision {
             curve alike there",
     size: "difference in bend",
     passes: SizedPass::AnySign,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -897,7 +897,7 @@ pub(super) const SEAM_WEDGE: SizedDecision = SizedDecision {
             smooth",
     size: "fold across the seam",
     passes: SizedPass::NonNegative,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -921,7 +921,7 @@ const SEAM_JET: SizedDecision = SizedDecision {
             there or clearly share their curvature",
     size: "curvature difference across the seam",
     passes: SizedPass::NonNegative,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -936,7 +936,7 @@ pub(crate) const CORNER_SENSE: SizedDecision = SizedDecision {
     lever: CORNER_EDGES,
     size: "length of the corner's shorter edge",
     passes: SizedPass::NonZero,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -962,7 +962,7 @@ const PARTNER_FACES: SizedDecision = SizedDecision {
             they clearly part",
     size: "gap between their faces",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -1068,7 +1068,7 @@ const SPHERE_AGAINST_PLANE: SizedDecision = SizedDecision {
     lever: "move the parts so the sphere clearly crosses that face's plane or clearly clears it",
     size: "gap",
     passes: SizedPass::NonZero,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -1083,7 +1083,7 @@ pub(crate) const SPHERES: SizedDecision = SizedDecision {
     lever: "move the spheres so they clearly stand apart, or so one lies clearly inside the other",
     size: "clearance",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -1249,7 +1249,7 @@ pub(crate) const PIERCE_CURVATURE: SizedDecision = SizedDecision {
     lever: "make the edge leave the face more steeply, or make the face curve less sharply there",
     size: "departure beyond the bend",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -1263,7 +1263,7 @@ pub(crate) const CONIC_BEND: SizedDecision = SizedDecision {
     lever: "tilt the arc off the face, or bend a circular or elliptic arc more sharply",
     size: "lift beyond the residue",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -1277,7 +1277,7 @@ pub(crate) const NEIGHBOUR_OFFSET: SizedDecision = SizedDecision {
     lever: NEIGHBOUR_LEVER,
     size: "offset between the two faces' planes",
     passes: SizedPass::NonZero,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -1363,7 +1363,7 @@ const fn sized(lever: &'static str, size: &'static str, passes: SizedPass) -> En
         lever,
         size,
         passes,
-        stored: StoredDefinite::Lever,
+        side: RefusedSide::Lever,
         no_size: None,
     })
 }
