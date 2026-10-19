@@ -33,6 +33,14 @@ pub mod sym;
 pub mod test_support;
 pub mod tolerance;
 
+/// **The golden angle**, `2π·(1 − 1/φ)` radians: as far from every
+/// low-order rational multiple of a turn as an angle gets, so a direction
+/// stepped or turned by it aligns with no axis-parallel or 45° feature a
+/// model is likely to hold. The one spelling of it: profile's ray
+/// schedule steps by it, and topo's side-at-infinity reader turns its
+/// aimed rays by it.
+pub const GOLDEN_ANGLE: f64 = 2.399_963_229_728_653;
+
 pub use arc::{Arc2, Circles, Circles2, CirclesAt};
 pub use dual::{Dual, Dual64, DualInterval};
 pub use interval::Interval;

@@ -9,6 +9,10 @@
 //! answer, so the absence is the scalar's, and the result type says so:
 //! [`ByPolicy::NoLane`] is not a [`CertifyError`], so a door cannot pass
 //! it on as a certification failure without naming it.
+//!
+//! It is also the home of the kernel's reading of a span refusal of
+//! data the body stores ([`kernels_own`]): there the input is the
+//! kernel's own, so the refusal is a kernel bug and panics.
 
 use geom::Surface;
 use geom_brep::{Certificate, CertifyError, EdgeCurve, EdgeCurveSpec};
@@ -92,6 +96,27 @@ pub(crate) fn recertify<T: AtRestPolicy>(
     curve
         .recertify_via(start, end, surfaces, reach, band, T::nurbs_lane())
         .map_err(ByPolicy::of::<T>)
+}
+
+/// **A span refusal of an interval the body stores is a kernel bug**
+/// (`[failure]`): every kernel re-mint or re-certification of stored
+/// data passes its refusal through here, naming `site`.
+/// [`CertifyError::StatedInterval`] panics; every other refusal passes
+/// through.
+///
+/// The invariant: each such call reads at the band the stored edge was
+/// minted at, where its span was decided forward and short of a full
+/// turn; its parameters travel bitwise and its carrier's rate stays a
+/// positive bound, so the span's sign does (a split child's interval is
+/// one side of a parameter the split decided interior at that band).
+pub(crate) fn kernels_own(error: CertifyError, site: &str) -> CertifyError {
+    if let CertifyError::StatedInterval { refused } = error {
+        unreachable!(
+            "{site}: a stored edge's interval read as refused at the band it was minted at \
+             ({refused}): a kernel bug"
+        );
+    }
+    error
 }
 
 #[cfg(test)]

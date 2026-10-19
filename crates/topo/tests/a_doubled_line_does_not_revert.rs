@@ -427,8 +427,12 @@ fn a_minted_edges_in_band_gap_is_the_operands_own() {
         tol,
     );
     let refusal = subtract(&a, &tool, tol).err();
-    let Some(BooleanError::Escalated { diag, .. }) = refusal else {
-        panic!("{refusal:?}, not an escalation");
+    let Some(BooleanError::Escalated {
+        decision: topo::BooleanDecision::Containment { .. },
+        diag,
+    }) = refusal
+    else {
+        panic!("{refusal:?}, not the containment's escalation");
     };
     let margin: f64 = format!("{:e}", diag.margin).parse().unwrap();
     assert!(

@@ -909,7 +909,9 @@ fn graft_solids_impl<T: geom_core::Decide>(
             band,
             lane,
         )
-        .map_err(BooleanError::GraftRecertify)?;
+        .map_err(|error| {
+            BooleanError::GraftRecertify(crate::policy_lane::kernels_own(error, "a graft"))
+        })?;
         let Some(slot) = dst.curves.get_mut(dk) else {
             unreachable!(
                 "graft (recertify): `dk` was minted into `dst.curves` by this call's \

@@ -10,9 +10,9 @@
 //! (`census::sweep_cross_solid_backstop`), which reads vertices only and
 //! refuses where all of them touch
 //! (`work/inside/the-census-material-probe-reads-only-vertices-so-a-flush-nested-solid-is-undecided.md`).
-//! The containment door's aimed rays (`boolean::solid_contain`
-//! `aimed_side`) read its third rung alone, [`planar_interior_point`], as
-//! points to aim at rather than witnesses to probe.
+//! The reader of the side at infinity (`boolean::solid_contain`
+//! `side_at_infinity`) reads its third rung alone, [`planar_interior_point`],
+//! as points to aim at rather than witnesses to probe.
 //! Each of the questions asks it
 //! under the premise that the complex crosses no surface it is probed
 //! against, so it meets one only where it lies ON it, every point of it
@@ -522,16 +522,15 @@ pub(crate) struct ShellRead {
 
 impl ShellRead {
     /// `shell` read, or the shell's typed refusal where its role cannot
-    /// be, with the certified reading's sliver verdict
-    /// ([`crate::props::shell_role_read`]).
+    /// be ([`crate::props::shell_role`]).
     pub(crate) fn of<T: Decide>(
         body: &Body<T>,
         shell: ShellKey,
         band: Band,
         tol: Tol,
         quad: Option<QuadLane<T>>,
-    ) -> Result<Self, crate::props::RoleRefusal> {
-        crate::props::shell_role_read(body, shell, band, tol, quad).map(|(role, _)| Self {
+    ) -> Result<Self, crate::props::ShellClassifyError> {
+        crate::props::shell_role(body, shell, band, tol, quad).map(|role| Self {
             shell,
             role,
             sel: SolidFaces::of_shell(body, shell).with_role(role),

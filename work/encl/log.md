@@ -1614,3 +1614,22 @@ coincidence is now a margined verdict (no declarations), checked by the
     - `at-rest-stored-contradictions-and-unminted-sides-panic-once-import-validates-everything`, parked on EXCH's import row.
   - **Filed:** `import-door-residual-and-unsized-endings-past-eps-in-name-kernel-or-file`, `a-defect-endings-culprit-has-two-choosers`.
   (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5365** (`param-span-unminted-side-is-reached-at-a-build-by-public-euler-doors`, closed). Every public geom-brep door (`certify*`, `recertify*`) now maps a certainly-refused span or winding to a typed `CertifyError::StatedInterval`, which ends by its door:
+  - at a build: the lever;
+  - at the import door within ε_in: the door's sentence plus the lever;
+  - at the import door past ε_in: `DAMAGED_FILE_ENDING`;
+  - at rest: the defect ending.
+
+  `ParamSpan` and `ParamWinding` (`Unminted`) panic only at topo's kernel re-mints, through `policy_lane::kernels_own`: `transform_rigid`, split children, graft, `vouch_described_move` and `certify_rebased_run`.
+  - **Rulings during review:**
+    - The panic lives where the span or band comes from: caller-supplied is typed at the door; an operation computing it from user parameters refuses in its own words; a kernel re-mint panics.
+    - `#[doc(hidden)] pub` is still input.
+    - Wording keys on the verdict, never on the raw number.
+  - **Review:** four rounds. The first full review found two MAJORs: `recertify` at a finer band reached the panic, and the import door ignored `ReadAt`. The first delta review found one more: the hidden `pub` doors.
+  - **Filed:**
+    - `kernels-own-span-panic-has-one-row-in-five-sites-and-no-type`
+    - `a-hand-built-unminted-refusal-panics-through-pub-render`
+    - tcost `panic-hook-copies-swap-the-process-hook-around-each-capture`
+    - topo `the-re-basing-gate-reads-a-derived-image-where-the-mint-read-the-stored-one`
+  - **Evidence added to** `zero-and-negative-payloads-of-one-decision-use-different-nouns`.
+  (ENCL orchestrator)

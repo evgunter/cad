@@ -3820,13 +3820,6 @@ pub(crate) mod tests {
     ///   when loose, which narrows the gap. A rule that named a cover
     ///   holding less would be the unsound direction. A looser
     ///   proposal (an axis not offered) only withholds a depth.
-    /// - `boolean/reduce.rs`'s sliver gate, through
-    ///   `census::boundary_unclaimable` (a helper, so this walk counts it
-    ///   under `census.rs`): it reads whether [`axial_carrier`] claims a
-    ///   cylinder or cone face's boundary at all, to type the refusal of
-    ///   a face with no reach. **Types only**: no extent reaches it, so
-    ///   looseness cannot; a rule that claimed where it should not would
-    ///   give that face a reach, and so a different refusal or none.
     ///
     /// `boolean/boxes.rs` is excluded by path: it is the definition
     /// site, every call in it is this suite's own or one arm calling

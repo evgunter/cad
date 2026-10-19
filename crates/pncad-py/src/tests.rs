@@ -5855,7 +5855,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "shell_classify_error_tag",
-        values: &["band", "escalated", "props", "straddles", "zero_volume"],
+        values: &[
+            "band",
+            "corner",
+            "escalated",
+            "props",
+            "ray",
+            "ray_in_band",
+            "sign_unresolved",
+            "straddles",
+            "zero_volume",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -6260,6 +6270,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "null_face_at_rest",
             "null_scaffold_shared",
             "orbit_foreign_member",
+            "orientation_undecided",
             "orphan_entity",
             "orphan_geometry",
             "outer_listed_as_ring",
