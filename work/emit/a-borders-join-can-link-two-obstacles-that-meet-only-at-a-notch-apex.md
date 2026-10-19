@@ -2,11 +2,11 @@
 id: a-borders-join-can-link-two-obstacles-that-meet-only-at-a-notch-apex
 kind: issue
 title: The Borders chase links every discard one piece edge reaches through a join, which joins two obstacles that meet only at a reflex apex of a non-convex parent
-status: open
+status: closed
+closed: 2026-10-19
 opened: 2026-10-13
 priority: P3
 cost: M
-design: true
 ---
 
 
@@ -112,3 +112,44 @@ lost regions that meet only at a point are one obstacle, and N2 says so
 `borders.rs`, canonicalised through `null_copies`, the cone splits and
 the graft's vertex maps, with all six orders of the wall-through-the-apex
 probe naming alike.
+
+## Closed
+
+Built in `names/borders.rs` (`Obstacles`), branch `emit/borders-closure`.
+
+- **Vertex link.** Each `Discard` keeps `ends`: every key its step
+  holds for the points its bordered and held stretches end at
+  (`points`: the step's `null_copies`, B's through `graft_vertices`;
+  `cone_splits`' rows; and the zip's `vertex_merges`). `Obstacles::walls`
+  joins discards of one parent that share a key. Identity only; no
+  point is compared.
+  - Two departures from the prototype, both measured on the
+    wall-through-the-apex fixture. Keeping only each class's least key
+    fixed 5 of 6 orders: order (plate, s2, m) failed, since a later
+    step's least key for the apex is not the earlier step's. Keeping
+    the whole class works, because operand A's keys are the result's,
+    so a later step's class holds the key the earlier result held.
+    Without the zip's fusions, order (s2, plate, m) failed.
+- **Seam link.** A discard whose stretch ends at a live vertex on a
+  piece of an earlier step's seam touches that seam's discard (the
+  `touches` walk now also starts from the edges at each live stretch
+  end). Without it, the corner-touching boss below failed at order
+  (plate, slab, boss): the slab's footprint was recorded a step
+  earlier, and its stretch ends are the seam's ends, not the corner.
+- **Fixtures** (`editor-core/tests/emit_union_borders.rs`):
+  - `a_wall_through_a_notch_apex_names_alike_in_every_order`: all six
+    orders give left {`m:y=1.20`, `s2:x=1.50`}, right {`m:x=2.00`,
+    `m:y=1.20`, `s2:x=1.70`}. On main, order (plate, s2, m) gave left
+    {`s2:x=1.50`}.
+  - `a_boss_whose_corner_touches_the_divider_is_part_of_it` (the cost
+    Ev accepted): a diamond boss whose corner rests on the slab's wall.
+    The left piece cites the diamond's four walls beside `slab:x=1.40`
+    in all six orders.
+  - `regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle` and
+    `two_members_regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle`
+    lose `_today`. Unchanged.
+- **Measured, nothing moved:** `emit_union_borders` 21/21 (+2 new, 1
+  ignored as before), `name_words_corpus` 7/7,
+  `emit_union_rim_piece_ranks` 8/8, `emit_union_flush_names` 7/7,
+  `emit_shared_rim_several` 6/6, `union_member_orders_decide_alike` 6/6.
+- N2 on main already states closure; the README is unchanged.
