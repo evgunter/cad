@@ -1175,3 +1175,12 @@ Signed (CLEAVE orchestrator).
   - **Regression from the reader.** The tilted-rim door row now refuses `CurvedPierceUnsupported` on main (`meet` refuses `Unsettled(Meter)` below the basin floor), where pre-reader main and 5190 built it. It refuses typed, never misanswers. Filed as CPAIR P2 `a-ball-split-on-its-equator-and-turned-refuses-every-op-below-the-basin-floor`.
   - **M-1 family.** No silent misses on main.
   - **Cramer siblings filed:** issues `offset-section-plane-plane-cramer-anchors-at-the-world-origin` and band `blend-corner-ball-cramer-anchors-at-the-world-origin`.
+- 2026-10-19 — PR 5185 full review: APPROVE-WITH-FIXES, no MAJOR.
+  - The pad alone covers on all 1,508 rebuilt bodies at three ε. The forms are equal to 7e-49, and the goldens and outcome diff match.
+  - Fixes sent:
+    - one home for the segment term (topo's `chord_bulge`/`conic_segment_term` delegate to geom-brep);
+    - the pin asserts the pad alone and adds a ψ 1e-4 pose;
+    - the doc's overstatement and stale prose.
+  - To file: the cylinder wall's radial lever (wrong Ok, pad 0, 2.4× ε·A at 250 m inside the box; FLUXTAIL, predates the PR).
+  - Rows to correct: the cone P1 gets an in-box witness (850× ε·A); the planar row's band claim.
+  - `certify_section_area` is noted on GAUGE as a conditioning risk.
