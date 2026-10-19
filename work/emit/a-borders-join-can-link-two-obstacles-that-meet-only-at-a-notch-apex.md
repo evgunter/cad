@@ -7,7 +7,6 @@ opened: 2026-10-13
 priority: P3
 cost: M
 design: true
-needs_ev: true
 ---
 
 
@@ -104,3 +103,12 @@ no parameter read, nothing refuses.
 
 **The cost of closure:** a boss whose corner exactly touches a divider
 becomes part of it, and is cited.
+
+## Ev's ruling: closure (PR 5153, 2026-10-19)
+
+Ev took recommendation 1 ("the recommendation for 1 makes sense"). Two
+lost regions that meet only at a point are one obstacle, and N2 says so
+(PR 5153). The build is the converged design: a vertex link in
+`borders.rs`, canonicalised through `null_copies`, the cone splits and
+the graft's vertex maps, with all six orders of the wall-through-the-apex
+probe naming alike.

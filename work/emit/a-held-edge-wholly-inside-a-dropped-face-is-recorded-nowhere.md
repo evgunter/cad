@@ -2,12 +2,12 @@
 id: a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere
 kind: issue
 title: A kept face's edge that lies wholly inside a dropped covered face, both ends at vertex-on-face contacts, is held by no discard row
-status: open
+status: parked
 opened: 2026-10-02
 priority: P3
 cost: M
 design: true
-needs_ev: true
+blocked_on: [coincident-faces-are-not-imprinted-on-each-other-before-the-lump]
 ---
 
 
@@ -176,3 +176,16 @@ emitter does not change.
 
 No N2 text changes for this one; it asks only whether the record is the
 right home.
+
+## Ev's ruling: no stopgap (PR 5153, 2026-10-19)
+
+Ev read the uncarved dropped face as a deeper problem in how the kernel
+represents edges lying on planes. Ev declined the `HeldEdge` record as
+a stopgap ("no stopgap"). The fix is the kernel's: imprint each
+coincident face with the other operand's in-plane edges before the Eq.
+15.3 lump. It is filed on FLUSH as
+`coincident-faces-are-not-imprinted-on-each-other-before-the-lump`, and
+this row waits on it. Once that lands, re-measure the pocket fixture
+(un-ignore it) and the three-box reproducer. The emitter is expected to
+need nothing, because the outline is then recorded as `bordered` in
+every order, as `[b, a]` already does.
