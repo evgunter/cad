@@ -297,10 +297,10 @@ impl<K: Ord + Clone> Obstacles<K> {
                 );
             }
             let mut touches = BTreeSet::new();
-            for (edges, seams) in [(chains.concat(), &earlier), (at_ends, &any)] {
+            for (edges, targets) in [(chains.concat(), &earlier), (at_ends, &any)] {
                 for k in edges {
                     self.up_lineage(body, k, |up| {
-                        let hit = seams.contains(&up);
+                        let hit = targets.contains(&up);
                         if hit {
                             touches.insert(up);
                         }
