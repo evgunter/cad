@@ -30,7 +30,7 @@ others' cuts). Then:
   `join/pierce-pinch-families`.
 
 The same on main before
-`work/fuse/shared-vertex-crossings-that-tie-or-interleave-are-unprobed.md`'s
+`work/gauge/shared-vertex-crossings-that-tie-or-interleave-are-unprobed.md`'s
 PR (measured). Pinned by
 `three_corners_alternating_round_the_cube_refuse_three_ops`
 (`crates/topo/tests/union_flush_onto_edge_contact.rs`), which carries

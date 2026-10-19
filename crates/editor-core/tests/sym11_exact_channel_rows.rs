@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use editor_core::ProfileDoc;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
-use editor_core::{CancelToken, EvalOptions, NodeResult, ProfileLift, evaluate};
+use editor_core::{CancelToken, EvalOptions, NodeResult, evaluate};
 use geom_core::{SymCounts, SymRules, Tol};
 
 use crate::m10_9_pins_interval::measured_studies;
@@ -120,21 +120,23 @@ use crate::m10_9_pins_interval::measured_studies;
 /// fired. Main's final non-finite check and the placement add: `symbolic`
 /// falls by main's count on each (plate −45, annulus −27, link −33,
 /// bracket −61, pad −57) from the placement's; `numeric` and `frozen` are
-/// the placement's.
+/// the placement's. The frame decided across the window's cut moves
+/// `frozen` alone, the cut-side margin's forms: bracket 2110 → 2112, pad
+/// 3558 → 3566. No decision moved and no dispute fired.
 ///
 /// A harmonic row's windings stored as structure (PCERT B2a, `[ev]` PR
 /// 5113's first decision) retire the decisions that read them off a
 /// slope: plate `[987, 726, 729]` → `[939, 686, 729]`, annulus
 /// `[523, 471, 940]` → `[475, 431, 940]`, link `[315, 295, 542]` →
-/// `[291, 275, 542]`, bracket `[1372, 1096, 2110]` → `[1312, 1046,
-/// 2110]`, pad `[1248, 1211, 3558]` → `[1212, 1181, 3558]`. The decisions
+/// `[291, 275, 542]`, bracket `[1372, 1096, 2112]` → `[1312, 1046,
+/// 2112]`, pad `[1248, 1211, 3566]` → `[1212, 1181, 3566]`. The decisions
 /// are gone, not moved; no dispute fired, and `frozen` holds.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [939, 686, 729]),
     ("r1_annulus", [475, 431, 940]),
     ("r2_link", [291, 275, 542]),
-    ("r2_filleted_bracket", [1312, 1046, 2110]),
-    ("r2_rounded_pad", [1212, 1181, 3558]),
+    ("r2_filleted_bracket", [1312, 1046, 2112]),
+    ("r2_rounded_pad", [1212, 1181, 3566]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
@@ -159,7 +161,6 @@ fn replay_on_a_thread(
     test_utils::own_thread::caught(move || {
         let opts = EvalOptions {
             param_box: Some(Arc::new(box_)),
-            profile_lift: ProfileLift::Guided,
             ..EvalOptions::default()
         };
         let budget = geom_core::SymBudget {

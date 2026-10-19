@@ -779,6 +779,35 @@ mod tests {
         );
     }
 
+    /// **At `Interval` a pivot is refused unless it is nonzero for every
+    /// value it stands for.** A 2×2 system whose second pivot is
+    /// `[-1, 1]`, an enclosure straddling zero, refuses at that pivot
+    /// (its value channel is NaN, the payload says so); the same system
+    /// with that pivot a wide bracket clear of zero factors. A pivot read
+    /// as `value_channel() == 0` would let the straddling one through.
+    #[test]
+    fn a_pivot_straddling_zero_refuses_at_interval() {
+        use geom_core::{Interval, Real};
+        let i = <Interval as Real>::from_f64;
+        let rows = |p: Interval| vec![vec![i(1.0), i(0.0)], vec![i(0.0), p]];
+        match factor(&[0, 0], &rows(Interval::from_bounds(-1.0, 1.0))) {
+            Err(LsqError::LsqDegenerate {
+                pivot_index: 1,
+                pivot,
+            }) => {
+                assert!(pivot.is_nan(), "a wide pivot has no value channel: {pivot}");
+            }
+            other => panic!(
+                "a straddling pivot must refuse, got {:?}",
+                other.map(|_| ())
+            ),
+        }
+        assert!(
+            factor(&[0, 0], &rows(Interval::from_bounds(0.5, 2.0))).is_ok(),
+            "a wide pivot clear of zero factors"
+        );
+    }
+
     #[test]
     fn one_factorisation_serves_every_right_hand_side() {
         let n = 40;

@@ -151,10 +151,10 @@ pub struct Lofted<T: Real> {
     /// — the produced surface IS the definition (DESIGN Q8), so no
     /// residual pad accompanies it. It is [`crate::loft_parameters`]'
     /// answer for the body's sections, askable BEFORE the body is built
-    /// (a [`sweep_body`]'s sections are its stations'). Each is the
-    /// parameter's value channel, so at an enclosure scalar an interior
-    /// parameter wider than a point reads NaN.
-    pub section_params: Vec<f64>,
+    /// (a [`sweep_body`]'s sections are its stations'). Each is held in
+    /// `T`, so at an enclosure scalar an interior parameter over a box
+    /// reads as its bracket.
+    pub section_params: Vec<T>,
 }
 
 /// Typed refusal of the loft/sweep body assembly (closed enum, D4 ¶3).
@@ -674,16 +674,11 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
         stacking_fold(self.places, &canonical, band)?;
         let geometry =
             skin_validated(canonical, self.places, self.v_degree).map_err(LoftError::Skin)?;
-        let params = geometry
-            .section_params
-            .iter()
-            .map(|u| u.value_channel())
-            .collect();
         assemble(
             self.places,
             &geometry.walls,
             &geometry.canonical,
-            params,
+            geometry.section_params,
             self.tol,
         )
     }
@@ -756,7 +751,13 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
         let lifted: Vec<ValidatedProfile<T>> = canonical
             .iter()
             .zip(&places)
-            .map(|(c, place)| c.clone().lift_onto(SketchPlane::new(*place)))
+            .map(|(c, place)| {
+                c.clone()
+                    .lift_onto(SketchPlane::new(*place))
+                    .unwrap_or_else(|e| {
+                        unreachable!("{e}: these placements are points, by `all_points`")
+                    })
+            })
             .collect();
         stacking_fold(&places, &lifted, band)?;
         let geometry = skin_validated(canonical, self.channel_places, self.v_degree)
@@ -766,7 +767,12 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
             .iter()
             .map(|w| lift_loop_walls(w))
             .collect::<Result<Vec<_>, _>>()?;
-        assemble(&places, &walls, &lifted, geometry.section_params, self.tol)
+        let params = geometry
+            .section_params
+            .iter()
+            .map(|u| T::from_computed(*u))
+            .collect();
+        assemble(&places, &walls, &lifted, params, self.tol)
     }
 }
 
@@ -780,7 +786,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     places: &[Affine3<T>],
     walls_t: &[Vec<Arc<NurbsSurface<T>>>],
     canonical: &[ValidatedProfile<T>],
-    section_params: Vec<f64>,
+    section_params: Vec<T>,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
     let band = Band::linear(tol).map_err(LoftError::Band)?;

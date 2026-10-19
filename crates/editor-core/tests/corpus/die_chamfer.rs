@@ -23,6 +23,7 @@
 //! `f64` rounding of an irrational, not the geometry — the
 //! `die_fillet` disposition, for the same reason.
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
 
@@ -57,7 +58,7 @@ pub fn document() -> CorpusDoc {
     });
     let blank = r.insert(Node::chamfer(cube, len(D), prism_edges(&r.doc, cube, 4)));
 
-    r.place(blank);
+    r.place_part(blank);
 
     CorpusDoc {
         name: "die_chamfer",

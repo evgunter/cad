@@ -413,6 +413,32 @@ pub(crate) fn copy_groups<T: Decide>(copies: &[GatheredCopy<T>]) -> BTreeMap<Sol
         .collect()
 }
 
+/// **A cell of the gathered product, named as its copy reads it**:
+/// which copy holds it (by its index in `copies`) and the cell as that
+/// copy's placement output names it, `None` for a cell of no copy.
+pub(crate) fn copy_cell<T: Decide>(
+    body: &Body<T>,
+    names: &NameTable,
+    copies: &[GatheredCopy<T>],
+    groups: &BTreeMap<SolidKey, u32>,
+    cell: topo::Cell,
+) -> Option<(usize, crate::coincide::NamedCell)> {
+    let key = match cell {
+        topo::Cell::Face(f) => EntityKey::Face(f),
+        topo::Cell::Edge(e) => EntityKey::Edge(e),
+        topo::Cell::Vertex(v) => EntityKey::Vertex(v),
+    };
+    let copy = *groups.get(&topo::census_cell_solid(body, cell)?)? as usize;
+    let name = names.name_of(&EntityRef { body: 0, key })?.clone();
+    Some((
+        copy,
+        crate::coincide::NamedCell::Entity {
+            input: copies[copy].var,
+            name,
+        },
+    ))
+}
+
 /// **The census's rows between two copies, named** (D1 (iii), D10):
 /// each row [`topo::record_at_rest`] recorded between two copies, its
 /// cells named as each copy's placement reads them, and the two copies
@@ -429,14 +455,7 @@ pub(crate) fn copy_rows<T: Decide>(
         let topo::RowCell::Result { cell } = cell else {
             return None;
         };
-        let key = match cell {
-            topo::Cell::Face(f) => EntityKey::Face(f),
-            topo::Cell::Edge(e) => EntityKey::Edge(e),
-            topo::Cell::Vertex(v) => EntityKey::Vertex(v),
-        };
-        let copy = *groups.get(&topo::census_cell_solid(body, cell)?)? as usize;
-        let name = names.name_of(&EntityRef { body: 0, key })?.clone();
-        Some((copy, name))
+        copy_cell(body, names, copies, &groups, cell)
     };
     let by = |x: usize| CopyRef {
         var: copies[x].var,
@@ -447,14 +466,10 @@ pub(crate) fn copy_rows<T: Decide>(
             let [Some((ca, na)), Some((cb, nb))] = row.cells.map(named) else {
                 unreachable!("a row the census recorded between copies names a cell of each")
             };
-            let cell = |copy: usize, name| crate::coincide::NamedCell::Entity {
-                input: copies[copy].var,
-                name,
-            };
             crate::assembly::AtRestRow {
                 by: crate::assembly::AtRestBy::Copies(by(ca.min(cb)), by(ca.max(cb))),
                 row: crate::coincide::NamedCoincidence {
-                    cells: [cell(ca, na), cell(cb, nb)],
+                    cells: [na, nb],
                     relation: row.relation,
                     site: row.site,
                     margin: row.margin,

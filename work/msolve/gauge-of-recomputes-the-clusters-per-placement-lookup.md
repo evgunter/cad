@@ -2,10 +2,11 @@
 id: gauge-of-recomputes-the-clusters-per-placement-lookup
 kind: issue
 title: gauge_of recomputes clusters(doc) on every placement lookup, so an evaluation's placement reads cost O(instances²) on any document with a mate
-status: open
+status: closed
 opened: 2026-09-19
 priority: P3
 cost: E
+closed: 2026-10-16
 ---
 
 
@@ -45,3 +46,7 @@ placement through, outside the unit's fence.
 ## Released from the D10 hold (2026-10-08)
 
 Nothing D10 changes gates this row, so it is open: stale on main: gauge_of and clusters() are gone and SolvedPoses::placement reads its own root map; re-measure the quadratic now and close the row if it is gone. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed by INTENT stage 3 B (PR #5232)
+
+`gauge_of`, `clusters`, gauges and roots are gone. The solve folds each placement's bundle once per document. The evaluation reads a placement's pose and anchor frame from `SolvedPoses`' own maps (`SolvedPoses::pose`, `SolvedPoses::frame`, both `BTreeMap` lookups) in `eval/wire.rs`'s `placement_map`. No placement read recomputes a partition of the document.

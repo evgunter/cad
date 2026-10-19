@@ -2852,22 +2852,6 @@ fn between_edge_is_section<T: Decide>(
     }
 }
 
-/// Branch-stabilized chart azimuth `atan2(y, x)` (M5 S13): `atan2`'s
-/// cut sits on the negative-`x` axis, and an interval `y` touching
-/// zero there (a crossing vertex exactly on the chart seam's angle-π
-/// copy) explodes the enclosure to a full period even though every
-/// consumer reads the value mod τ. On a definitely-negative-`x` frame
-/// the same azimuth is `atan2(−y, −x) + π` — the identical angle mod
-/// τ with the cut on the benign axis. The frame trilean is a
-/// computation choice between two identical formulas; its degenerate
-/// and in-band arms keep the direct one (deterministic tie-break, D9).
-fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
-    match decide("split_chart_azimuth_frame", Margin::of(x), band) {
-        Ok(Sign::Negative) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
-        Ok(Sign::Positive | Sign::Zero) | Err(_) => y.atan2(x),
-    }
-}
-
 /// The **exact** chart-azimuth extent of a pcurve over `[t₀, t₁]`.
 ///
 /// On a cylinder chart [`geom_brep::chart_pcurve`] produces an azimuth
@@ -5340,7 +5324,9 @@ fn chart_ring_side<T: Decide>(
     let read = |v: VertexKey| -> Result<Result<Option<RingSide>, Indeterminate>, SplitJoinError> {
         let decide_r = |name, margin| decide(name, margin, band);
         let w = vertex_point(body, v) - centre;
-        let raw = stable_azimuth(w.dot(axis.cross(u_ref)), w.dot(u_ref), band);
+        // The chart's one azimuth read (`geom_brep::Azimuth::principal`),
+        // lifted onto the run's window below by `periodic_branch`.
+        let raw = geom_brep::Azimuth::of(w.dot(axis.cross(u_ref)), w.dot(u_ref)).principal(band);
         // The vertex on the branch of the window's middle, in
         // `(mid − τ/2, mid + τ/2]`. A vertex inside the window lands on its
         // own branch. One at the seam of a whole-period window lands on

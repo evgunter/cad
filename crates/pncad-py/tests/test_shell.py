@@ -25,6 +25,7 @@ from pncad import (
     CapEnd,
     Doc,
     DocEdit,
+    EditError,
     EntityKind,
     EvaluationError,
     Formula,
@@ -142,7 +143,7 @@ class TestCup(unittest.TestCase):
         self.assertIn(top, rim[0])
         self.assertTrue(all(top not in name for name in outer))
         for name in rim + inner + outer:
-            self.assertEqual(ev.resolve(name).status, "resolved")
+            self.assertEqual(ev.resolve(hollow, name).status, "resolved")
 
     def test_the_live_document_rebuilds_through_the_slot_edits(self):
         """The cup at bumped values without re-authoring anything: two
@@ -168,7 +169,7 @@ class TestCup(unittest.TestCase):
         self.assertEqual(props.volume, want_v)
         self.assertEqual(props.surface_area, want_a)
         for name in names:
-            self.assertEqual(ev.resolve(name).status, "resolved", name)
+            self.assertEqual(ev.resolve(hollow, name).status, "resolved", name)
 
     def test_the_same_recipe_at_bumped_values_answers_the_same_names(self):
         doc = Doc()
@@ -187,7 +188,7 @@ class TestCup(unittest.TestCase):
         names2 = ev2.select(hollow2, Selector.of(faces.seg(SegPat.group(OpGroup.Shell))))
         self.assertEqual(len(names2), len(names))
         for name in names:
-            verdict = ev2.resolve(name)
+            verdict = ev2.resolve(hollow, name)
             self.assertEqual(
                 (verdict.status, verdict.variant), ("failed", "node_gone"), name
             )
@@ -230,12 +231,20 @@ class TestRefusals(unittest.TestCase):
         node = doc.insert(Node.shell(box, Formula.length_in(T, m), [ghost]))
         self.assertEqual(self.refusal(doc, node).kind, "select_resolve")
 
-    def test_an_edge_in_the_open_list_refuses_typed(self):
+    def test_an_edge_in_the_open_list_refuses_at_the_insert(self):
         doc = Doc()
         box = blank(doc, L, H)
         edge = evaluate(doc).all_edges(box)[0]
-        node = doc.insert(Node.shell(box, Formula.length_in(T, m), [edge]))
-        self.assertEqual(self.refusal(doc, node).kind, "select_kind")
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.shell(box, Formula.length_in(T, m), [edge]))
+        refused = caught.exception
+        self.assertEqual(refused.variant, "selection_name_kind")
+        self.assertIsNone(refused.inner_variant)
+        self.assertEqual(refused.first, 0)
+        self.assertEqual(refused.found_kind, EntityKind.Edge)
+        self.assertEqual(refused.expected_kind, EntityKind.Face)
+        self.assertEqual(refused.slot, "open")
+        self.assertIn("open face 0 names", str(refused))
 
     def test_a_non_positive_wall_is_the_kernels_refusal(self):
         doc = Doc()

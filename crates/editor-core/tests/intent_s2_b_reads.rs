@@ -38,12 +38,12 @@ fn applied(
     doc: &ProfileDoc,
     edit: DocEdit<editor_core::ProfileProgram>,
 ) -> editor_core::Applied<editor_core::ProfileProgram> {
-    apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach)
+    apply(doc, &edit, Tol::witness())
         .unwrap_or_else(|refusal| panic!("the edit applies: {refusal}"))
 }
 
 fn refused(doc: &ProfileDoc, edit: DocEdit<editor_core::ProfileProgram>) -> EditError {
-    match apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach) {
+    match apply(doc, &edit, Tol::witness()) {
         Ok(_) => panic!("the door accepted an edit this row expects it to refuse"),
         Err(refusal) => refusal,
     }
@@ -493,23 +493,18 @@ fn a_split_port_read_is_its_half() {
         (volume - 1.5).abs() < 1e-12,
         "the half (0.5) and the block (1): {volume}"
     );
-    let above_rows: Vec<editor_core::StableName> = ev
-        .value(split)
-        .expect("the split")
-        .name_table
-        .iter()
-        .filter(|(_, e)| {
-            matches!(e, editor_core::Entry::Unique(r) if r.body == editor_core::SplitHalf::Above.output_body())
-        })
-        .map(|(n, _)| n.clone())
-        .collect();
+    let above_rows: Vec<editor_core::StableName> =
+        fixture::half(&ev, split, editor_core::SplitHalf::Above)
+            .iter()
+            .filter(|(_, e)| matches!(e, editor_core::Entry::Unique(_)))
+            .map(|(n, _)| n.clone())
+            .collect();
     let port_read = doc
         .output(split, editor_core::SplitHalf::Above.port())
         .expect("the split's above port");
     let carried: Vec<editor_core::StableName> = ev
-        .value(by_port)
+        .table_at(by_port)
         .expect("the union")
-        .name_table
         .iter()
         .filter_map(|(n, _)| match n.path.first() {
             Some(editor_core::RoleSeg::From { read, of }) if *read == port_read => {
@@ -845,8 +840,8 @@ fn a_port_re_point_keys_apart_and_the_memo_serves_no_stale_half() {
         "the memo builds what a fresh evaluation builds"
     );
     assert_eq!(
-        format!("{:?}", memo.value(boolean).map(|v| &v.name_table)),
-        format!("{:?}", fresh.value(boolean).map(|v| &v.name_table)),
+        format!("{:?}", memo.table_at(boolean)),
+        format!("{:?}", fresh.table_at(boolean)),
         "and names it alike"
     );
 }
@@ -909,7 +904,12 @@ fn dm5_is_over_the_variables_read() {
     );
     let (doc, revolve) = insert(
         doc,
-        fixture::revolve_about(profile, (0.0, 0.0), (0.0, 1.0), fixture::ang(0.5)),
+        fixture::revolve_about(
+            profile,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            fixture::ang(0.5),
+        ),
     );
     insert(
         doc,
@@ -917,7 +917,7 @@ fn dm5_is_over_the_variables_read() {
             input: Operand::output(revolve, 0),
             count: editor_core::Formula::count(3),
             kind: PatternKind::Circular {
-                axis: Operand::output(revolve, 1),
+                axis: Operand::output(revolve, 1).into(),
                 step: fixture::ang(1.0),
             },
         },
@@ -976,7 +976,12 @@ pub(crate) fn families_document() -> ProfileDoc {
     );
     let (doc, revolve) = insert(
         doc,
-        fixture::revolve_about(low, (3.0, 0.0), (0.0, 1.0), fixture::ang(1.0)),
+        fixture::revolve_about(
+            low,
+            (3.0, 0.0),
+            crate::fixture::along_y(),
+            fixture::ang(1.0),
+        ),
     );
     let (doc, pattern) = insert(
         doc,
@@ -995,7 +1000,7 @@ pub(crate) fn families_document() -> ProfileDoc {
             input: Operand::output(revolve, 0),
             count: editor_core::Formula::count(2),
             kind: PatternKind::Circular {
-                axis: Operand::output(revolve, 1),
+                axis: Operand::output(revolve, 1).into(),
                 step: fixture::ang(1.0),
             },
         },

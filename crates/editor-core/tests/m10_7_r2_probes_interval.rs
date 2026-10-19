@@ -25,7 +25,7 @@
 use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
-use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
+use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
     Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
@@ -438,13 +438,7 @@ fn r2_what_a_real_study_gets_today() {
         }
     }
     // And the degenerate box, so the nominal answer is visible beside it.
-    let nominal = ParamBox::from_axes(
-        ParamBox::of(&analyzed)
-            .axes()
-            .keys()
-            .map(|n| (*n, BoxAxis::Fixed))
-            .collect(),
-    );
+    let nominal = ParamBox::of(&analyzed).at_nominal();
     let _ = Arc::new(nominal);
 }
 
@@ -518,16 +512,9 @@ fn r2_collinear_walls_should_discharge_side_planes_cosurface() {
         ("R2 filleted bracket", bracket(1.0, tol).0),
     ] {
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        let nominal = ParamBox::from_axes(
-            ParamBox::of(&analyzed)
-                .axes()
-                .keys()
-                .map(|n| (*n, BoxAxis::Fixed))
-                .collect(),
-        );
+        let nominal = ParamBox::of(&analyzed).at_nominal();
         let opts = editor_core::EvalOptions {
             param_box: Some(Arc::new(nominal)),
-            profile_lift: editor_core::ProfileLift::Guided,
             ..editor_core::EvalOptions::default()
         };
         geom_core::k_stats::start_recording();

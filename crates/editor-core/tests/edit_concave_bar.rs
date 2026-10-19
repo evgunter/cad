@@ -200,8 +200,10 @@ fn a_bar_a_size_edit_puts_inside_a_concave_fill_vanishes_on_the_blends_verdict()
                 doc: &doc,
                 eval: &ev1,
             },
+            doc2.read_of_node(blend).expect("the blend's read"),
             &carried,
-        );
+        )
+        .expect("a body read");
         let editor_core::Resolution::Failed(f) = res else {
             panic!("{verb}: the absorbed wall's name resolves Failed, got {res:?}");
         };

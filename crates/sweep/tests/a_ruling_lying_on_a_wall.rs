@@ -748,7 +748,7 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
 /// turn of the curvature over that stretch, `2·(a/b²)·2·(e/0.01 + e)`,
 /// which fails once `ε` passes about `2.5·10⁻⁸`: at `k` below one the
 /// reading refuses `Unsettled::Meter`
-/// (`work/fuse/curve-pair-polish-meters-refuse-shallow-meetings.md`) and
+/// (`work/cpair/curve-pair-polish-meters-refuse-shallow-meetings.md`) and
 /// the pierce is unread. There the three ops with the first rod first
 /// at 80 refuse `CurvedPierceUnsupported` too, before the sector
 /// reading, on the same meter: the seam ruling lies on the other rod's

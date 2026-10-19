@@ -2979,7 +2979,10 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         }
     };
     let uncertified = |n: &NurbsCurve3<geom_core::Interval>, (a, b): (f64, f64)| {
-        let (knots, p) = (n.knots().knots(), n.knots().degree());
+        let (knots, p) = (
+            n.knots_f64_interim().knots(),
+            n.knots_f64_interim().degree(),
+        );
         n.control().iter().enumerate().any(|(i, c)| {
             knots[i] < b
                 && knots[i + p + 1] > a
@@ -3049,15 +3052,23 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     // ratios are formed in the scalar).
     let twin_net = lift(twin_net);
     let coords = twin_net.certified_coords();
-    let data = CurveCertData::new(twin_net.knots(), twin_net.weight_channel(), &coords)
-        .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
+    let data = CurveCertData::new(
+        twin_net.knots_f64_interim(),
+        twin_net.weights_f64_interim(),
+        &coords,
+    )
+    .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
     let composite_of = |data: &CurveCertData<'_>| {
         canonical_composite(data, &form)
             .map_err(|_| refuse("the canonical composite refused the re-derived net"))
     };
     let whole = composite_of(&data)?;
     let (whole_breaks, whole_sup) = (whole.num.breaks().to_vec(), whole.span_sup_bounds());
-    let runs: Vec<f64> = twin_net.knots().knot_runs().map(|(k, _)| k).collect();
+    let runs: Vec<f64> = twin_net
+        .knots_f64_interim()
+        .knot_runs()
+        .map(|(k, _)| k)
+        .collect();
     let mut all_cuts: Vec<f64> = runs
         .windows(2)
         .flat_map(|w| {
@@ -3193,7 +3204,7 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     // bracket whose decoration refuses never reaches here: check 2 of
     // `run_fitted_checks`, this gate's only caller, has already decided
     // `t1 − t0` through `decide`, which refuses an uncertified value.
-    let (d0, d1) = image.knots().domain();
+    let (d0, d1) = image.knots_f64_interim().domain();
     let (lo, hi) = crate::carrier_net::outer_ends((t0, t1));
     if !(d0 <= lo && hi <= d1) {
         return Err(PcurveCertifyError::FittedCertificate {
@@ -3209,14 +3220,18 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     // `cuts` besides the round's grid: a halving shrinks a closed form's
     // remainder too.
     let (pcoords, scoords) = (image.certified_coords(), chart.certified_coords());
-    let pimage = (image.knots(), image.weight_channel(), &pcoords[..]);
+    let pimage = (
+        image.knots_f64_interim(),
+        image.weights_f64_interim(),
+        &pcoords[..],
+    );
     let schart = (
-        chart.knots_u(),
-        chart.knots_v(),
-        chart.weight_channel(),
+        chart.knots_u_f64_interim(),
+        chart.knots_v_f64_interim(),
+        chart.weights_f64_interim(),
         &scoords[..],
     );
-    let grid = chart_grid(carrier, image.knots());
+    let grid = chart_grid(carrier, image.knots_f64_interim());
     let stopped = crate::ssi::certify::subdivide(
         |cuts: &[f64]| carrier_chart_round(carrier, pimage, schart, &grid, cuts),
         band,
@@ -5145,10 +5160,11 @@ pub struct WalkStop {
 /// **The principal windows** a periodic chart's angles are placed in
 /// ([`Window`]): an azimuth or a torus's tube angle in `(−1, τ − 1]`
 /// ([`ANGLE_WINDOW_START`], whose doc has the census that chose it),
-/// about the centre `π − 1`; a sphere's latitude in `(−π, π]`, about
-/// `0`, so every latitude the chart has is itself. A row's angle at its
-/// span's midpoint is taken into its window by deciding the turns off it
-/// through these marks ([`Placement::turns`]). A net's channels keep
+/// about the centre `π − 1`; a sphere's latitude in `(1 − π, 1 + π]`
+/// ([`LATITUDE_WINDOW_START`]), about `1`, which holds every latitude
+/// the chart's points have, so each of those is named as itself. A
+/// row's angle at its span's midpoint is taken into its window by
+/// deciding the turns off it through these marks ([`Placement::turns`]). A net's channels keep
 /// their knot domain.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Period<T> {
@@ -5205,10 +5221,8 @@ impl<T: Real> Period<T> {
 /// | `(−1, τ − 1]` | 0.8% | 0 |
 ///
 /// On the torus's tube angle the same window moves 6.6% and puts none on
-/// the cut. A sphere's latitude is named in its own window, `(−π, π]`
-/// ([`Window::Latitude`]), and needs no census: every latitude the chart
-/// has lies in `[−π/2, π/2]`, so the window moves none of them and none
-/// comes within `π/2` of its cut.
+/// the cut. A sphere's latitude is named in its own window
+/// ([`LATITUDE_WINDOW_START`]).
 ///
 /// **The table is a measurement and is not guarded.** It reads every
 /// image the workspace suite derives, which no one row sees, and a census
@@ -5233,13 +5247,49 @@ impl<T: Real> Period<T> {
 /// `work/pcert/no-row-pins-that-the-boolean-union-path-reads-window-copies-alike`.
 pub const ANGLE_WINDOW_START: f64 = -1.0;
 
+/// **A sphere's latitude window** starts here: a latitude is placed in
+/// `(LATITUDE_WINDOW_START, LATITUDE_WINDOW_START + τ]`, that is
+/// `(1 − π, 1 + π]`, centred on latitude `1`.
+///
+/// Every point of the chart has a latitude in `[−π/2, π/2]`, inside the
+/// window. The *read* ranges further: a meridian placed on its far half
+/// reads its polar angle as `π − δ`, anywhere on `(π/2, 3π/2)`. So the
+/// read's one jump has to sit at a generic angle, not on a landmark: at
+/// an equator start a far-half read is `π`, and `atan2`'s own cut there
+/// put an `Interval` read a whole turn wide. The window's cut, at
+/// `1 + π ≡ 1 − π`, is reached by a far-half read only at the generic
+/// latitude `δ = −1`, the footing the angle window's offset arms are on.
+/// Every latitude below `1` reads on the direct side, bit-identical to
+/// `atan2`; those in `(1, π/2]` read through the turned formula
+/// (`stable_azimuth`), so their bits are not `atan2`'s. No pinned row
+/// reads one, but unpinned rows do (the delta-6 review counted 257 reads
+/// strictly inside, in 13 rows, and 122 k exactly at `π/2`, from pole
+/// starts, which are bit-equal at `f64` and a different enclosure at
+/// `Interval`), and all of them pass.
+///
+/// Measured over the workspace suite's sphere placements (1.51 M reads,
+/// 2380 distinct midpoints): no read lies within `1e-6` of this window's
+/// cut, against 431 (27 distinct) within `1e-6` of `atan2`'s at `π`.
+/// This window moves 10.1% of the placements (the angle at the midpoint
+/// before placement lies outside it, `k ≠ 0`), as `(−π, π]` does, and
+/// neither puts a midpoint on its cut (`(−π/2, 3π/2]` would put 302 k
+/// there, `(0, τ]` 551 k). After placement nearly every midpoint lies in
+/// `[−π/2, π/2]`: the delta-6 review counted 3 of 170 k outside, all in
+/// the pole band, on the fast set. Against `(−π, π]`, 504 workspace
+/// midpoints (9 distinct, all of rows that run a meridian past a full
+/// turn) take another turn; on the fast set none do. The table is a
+/// measurement and is not guarded, re-taken as [`ANGLE_WINDOW_START`]'s
+/// is, logging each latitude placement's read and midpoint.
+pub const LATITUDE_WINDOW_START: f64 = 1.0 - core::f64::consts::PI;
+
 /// **An angle read off the geometry**: the two frame components of a
 /// direction, as `atan2` would read them, with no arithmetic of its own.
-/// It leaves as an angle one way: [`Azimuth::principal`], the stable
-/// `atan2` read, whose copy a derivation then decides in the principal
-/// window through the marks (`Placement::phase`, a [`Period::decide`]
-/// about the window's centre). No whole-period integer is read off a
-/// value.
+/// It leaves as an angle one way: read in a window
+/// ([`Azimuth::principal`] in the angle window, `principal_in` in any),
+/// the stable `atan2` read whose one jump is that window's cut, and whose
+/// copy a derivation then decides through the window's marks
+/// (`Placement::phase`, a [`Period::decide`] about the window's centre).
+/// No whole-period integer is read off a value.
 ///
 /// An anchored `atan2` (the direction rotated back by a reference and
 /// read there) would name the copy with no decision, but it rotates
@@ -5267,23 +5317,37 @@ impl<T: Real> Azimuth<T> {
 }
 
 impl<T: Decide> Azimuth<T> {
-    /// The principal angle: `atan2`'s, read on whichever of two frames
-    /// keeps its cut off the direction (the chart's frame read): a rounding
-    /// choice between two formulas equal modulo a turn, so the angle is
-    /// one of the direction's names: in `(−π/2, 3π/2]` where the frame
-    /// decides its side, and in `atan2`'s own `(−π, π]` where that
-    /// decision is in band (the direct formula, the tie-break), so in
-    /// `(−π, 3π/2]` in all. A direction of no length (or, at `Interval`,
+    /// The principal angle in the angle window ([`Window::Angle`],
+    /// `principal_in`): `atan2`'s, read on whichever side of the
+    /// window's cut line the direction lies (`stable_azimuth`): a choice
+    /// between two formulas equal modulo a turn, so the angle is one of
+    /// the direction's names. A direction decided on either side reads in
+    /// `(−1, τ − 1]`, and one on the cut reads the closed end `τ − 1`. One
+    /// in band just inside the open end, at angle `−1 + δ`, reads
+    /// `τ − 1 + δ`: the turned formula, a hair past the window, which
+    /// placement's marks take back. A direction of no length (or, at `Interval`,
     /// one whose enclosure reaches zero length: no bounded reciprocal)
     /// names no angle, and every angle names its zero-length vector alike:
     /// it reads `0`, the chart's `u_ref`, at every scalar, as `atan2(0, 0)`
     /// does at `f64` (a pole's zero-radius parallel, a sub-band rim's
-    /// centre on the axis).
+    /// centre on the axis). At `Interval` the rule broadens the same way:
+    /// an enclosure of the length that straddles zero has no bounded
+    /// reciprocal, so it reads `0` too, although the direction it encloses
+    /// may have length.
     pub fn principal(self, band: Band) -> T {
+        self.principal_in(Window::Angle, band)
+    }
+
+    /// The angle read in `window`: as [`Azimuth::principal`] reads in the
+    /// angle window, with the cut line through `window`'s own start, so a
+    /// direction decided on either side reads in that window and the
+    /// read's one jump is the window's cut. A direction of no length reads
+    /// `0`, in every window.
+    pub(crate) fn principal_in(self, window: Window, band: Band) -> T {
         if !(T::one() / self.length()).is_bounded() {
             return T::zero();
         }
-        stable_azimuth(self.y, self.x, band)
+        stable_azimuth(self.y, self.x, window.start(), band)
     }
 }
 
@@ -7231,7 +7295,7 @@ fn run_iso_arc_checks<T: Decide>(
         .map_err(|source| PcurveCertifyError::ChartRow { source })?;
     // --- The construction's EXACT structure (C6). ---
     let spans = breaks.control_count().saturating_sub(1);
-    if spans == 0 || b.knots().degree() != 2 {
+    if spans == 0 || b.knots_f64_interim().degree() != 2 {
         return Err(bad(
             "an arc rim whose chart column is not a quadratic — the rational-quadratic \
              arc construction is the only one this class certifies",
@@ -7302,7 +7366,7 @@ fn run_iso_arc_checks<T: Decide>(
         }
     }
     let slack_knots = stretch_u.to_meters(knot_dev);
-    let bw = b.weight_channel();
+    let bw = b.weights_f64_interim();
     if bw.len() != 2 * spans + 1 || bw.first() != Some(&1.0) || bw.last() != Some(&1.0) {
         return Err(bad(
             "an arc rim whose chart column weights are not the arc pattern",
@@ -7759,7 +7823,7 @@ fn seam_envelope<T: Decide>(
     if let Curve3::Line { origin, dir } = carrier {
         let u_start = p0.x + pl.x * t0;
         let (b, slack_u) = traversed_column(payload, u_start, stretch_u, du_drift, band, esc)?;
-        if b.weight_channel().iter().any(|w| *w != 1.0) {
+        if b.weights_f64_interim().iter().any(|w| *w != 1.0) {
             return Err(PcurveCertifyError::IsoUnsupported {
                 what: "a LINE seam on a RATIONAL chart column: the Greville hull \
                            is a linear-precision fact and the rational basis has none \
@@ -7768,7 +7832,7 @@ fn seam_envelope<T: Decide>(
                            class's construction",
             });
         }
-        let (p, kn) = (b.knots().degree(), b.knot_values().values());
+        let (p, kn) = (b.knots_f64_interim().degree(), b.knot_values().values());
         let mut hull = T::zero();
         // `pl.y ≠ 0` is this class's own classification: the
         // `(false, true)` arm means the v channel MOVES, so
@@ -7831,7 +7895,7 @@ fn seam_envelope<T: Decide>(
     // this class used to carry was over-broad: what is
     // load-bearing is the shared spline space, not the
     // weights being 1.
-    if c.weight_channel()
+    if c.weights_f64_interim()
         .iter()
         .any(|w| !w.is_finite() || *w <= 0.0)
     {
@@ -7879,16 +7943,18 @@ fn seam_envelope<T: Decide>(
     // constant (a collapsed row wrapped polynomial, whose carrier's
     // constant cancels the same way).
     let row_weights: Vec<f64> = if backward {
-        b.weight_channel().iter().rev().copied().collect()
+        b.weights_f64_interim().iter().rev().copied().collect()
     } else {
-        b.weight_channel().to_vec()
+        b.weights_f64_interim().to_vec()
     };
-    let shared_weights = row_weights == c.weight_channel()
-        || (constant_weights(b.weight_channel()) && constant_weights(c.weight_channel()));
+    let shared_weights = row_weights == c.weights_f64_interim()
+        || (constant_weights(b.weights_f64_interim()) && constant_weights(c.weights_f64_interim()));
     let shared_knots = if backward {
-        b.knots().is_reflection_of(c.knots())
+        b.knots_f64_interim()
+            .is_reflection_of(c.knots_f64_interim())
     } else {
-        b.knots().knots() == c.knots().knots() && b.knots().degree() == c.knots().degree()
+        b.knots_f64_interim().knots() == c.knots_f64_interim().knots()
+            && b.knots_f64_interim().degree() == c.knots_f64_interim().degree()
     };
     if !shared_knots || !shared_weights {
         return Err(PcurveCertifyError::IsoUnsupported {
@@ -7952,7 +8018,9 @@ fn seam_envelope<T: Decide>(
 }
 
 /// **Where a derivation places its angular phases** (C4): over the
-/// edge's span, in the principal window ([`ANGLE_WINDOW_START`]). It
+/// edge's span, in its channel's principal window ([`Window`]: from
+/// [`ANGLE_WINDOW_START`] for an angle, [`LATITUDE_WINDOW_START`] for a
+/// sphere's latitude). It
 /// carries the span's midpoint; a phase is the angle its channel reads
 /// at the image's own origin, placed so that the channel lies in the
 /// window at that midpoint ([`Placement::phase`]). Where the carrier's
@@ -8005,16 +8073,19 @@ struct Levers<T> {
     latitude: T,
 }
 
-/// **The window a placed channel is named in.** Every angle of a
-/// periodic chart is named in the angular window,
-/// `(ANGLE_WINDOW_START, ANGLE_WINDOW_START + τ]`, but a sphere's
+/// **The window a placed channel is named in**, and so the window its
+/// angle is read in: each window carries its start, the reader takes its
+/// cut there (`Azimuth::principal_in`), and the marks are read about its
+/// centre. Every angle of a periodic chart is named in the angular
+/// window, `(ANGLE_WINDOW_START, ANGLE_WINDOW_START + τ]`, but a sphere's
 /// latitude is not an angle every value of which is the chart's: only
 /// `[−π/2, π/2]` is (`chart_region` refuses an image past it as unbounded
-/// in its sphere arm). Its window is `(−π, π]`, centred on the equator,
-/// so every valid latitude is named as itself and the cut sits a quarter
-/// turn past either pole, as far from them as it can be: the meridian's
-/// placed polar angle, the parallel's `asin` and the projected image's
-/// latitude, which is never moved, are one convention.
+/// in its sphere arm). Its window, `(LATITUDE_WINDOW_START,
+/// LATITUDE_WINDOW_START + τ]`, holds every valid latitude, so each is
+/// named as itself, and its cut sits at a generic angle past both
+/// poles (`1 + π` beyond the north, `1 − π` beyond the south): the
+/// meridian's placed polar angle, the parallel's `asin` and the
+/// projected image's latitude, which is never moved, are one convention.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Window {
     /// An angle of a periodic chart.
@@ -8023,12 +8094,36 @@ pub(crate) enum Window {
     Latitude,
 }
 
+/// Every window's start lies in `(−π, 0]`, which `stable_azimuth`'s two
+/// formulas need to cover `(start, start + τ]`; a start moved outside it
+/// fails the build.
+const _: () = {
+    use core::f64::consts::PI;
+    assert!(-PI < ANGLE_WINDOW_START && ANGLE_WINDOW_START <= 0.0);
+    assert!(-PI < LATITUDE_WINDOW_START && LATITUDE_WINDOW_START <= 0.0);
+};
+
 impl Window {
+    /// The window's open end, its cut: the one place its start is spelled.
+    fn start<T: Real>(self) -> T {
+        match self {
+            Window::Angle => T::from_f64(ANGLE_WINDOW_START),
+            Window::Latitude => T::from_f64(LATITUDE_WINDOW_START),
+        }
+    }
+
     /// The window's centre, half a turn from its cut either way.
     fn centre<T: Real>(self) -> T {
+        T::pi() + self.start()
+    }
+}
+
+impl Along {
+    /// The window the angle is read and named in.
+    fn window(self) -> Window {
         match self {
-            Window::Angle => T::pi() + T::from_f64(ANGLE_WINDOW_START),
-            Window::Latitude => T::zero(),
+            Along::Azimuth | Along::Tube => Window::Angle,
+            Along::Latitude => Window::Latitude,
         }
     }
 }
@@ -8089,8 +8184,9 @@ impl<T: Decide> Placement<T> {
 
     /// The phase of the `along` channel whose direction at the image's
     /// origin is `dir` and which moves by `offset(t)` from there by
-    /// parameter `t`: `dir`'s principal angle ([`Azimuth::principal`]),
-    /// less the whole turns that put `phase + offset(mid)` in its window
+    /// parameter `t`: `dir`'s angle read in the channel's window
+    /// (`Azimuth::principal_in`), less the whole turns that put
+    /// `phase + offset(mid)` in its window
     /// ([`Placement::turns`]); none leaves the principal angle as it was
     /// read.
     pub(crate) fn phase(
@@ -8100,7 +8196,8 @@ impl<T: Decide> Placement<T> {
         offset: impl FnOnce(T) -> T,
         band: Band,
     ) -> Result<T, PcurveCertifyError> {
-        let read = dir.principal(band);
+        // The read's one jump is the cut of the window it is named in.
+        let read = dir.principal_in(along.window(), band);
         let turns = self.turns(along, read + offset(self.mid), band)?;
         Ok(if turns == 0 {
             read
@@ -8130,10 +8227,11 @@ impl<T: Decide> Placement<T> {
             sample: 0,
             cause,
         };
-        let (window, lever) = match along {
-            Along::Azimuth => (Window::Angle, self.levers.azimuth),
-            Along::Tube => (Window::Angle, self.levers.tube),
-            Along::Latitude => (Window::Latitude, self.levers.latitude),
+        let window = along.window();
+        let lever = match along {
+            Along::Azimuth => self.levers.azimuth,
+            Along::Tube => self.levers.tube,
+            Along::Latitude => self.levers.latitude,
         };
         // A zero lever (or an enclosure reaching zero: no bounded
         // reciprocal, at every scalar alike) is an angle that moves
@@ -8187,19 +8285,24 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
     }
 }
 
-/// Branch-stabilized azimuth (M5 S13, shared by every chart's
-/// derivation since M6-3): atan2's cut sits on the negative-x axis,
-/// and an interval y touching zero there (a seam meridian's angle-π
-/// copy, or a rim whose start sits ON the seam) explodes the
-/// enclosure to a full period even though every consumer reads
-/// azimuth mod τ. On a definitely-negative-x frame the same angle is
-/// `atan2(−y, −x) + π`. The frame trilean chooses between two
-/// formulas identical mod τ (the negative-`y` side differs by 2π);
-/// degenerate and in-band arms keep the direct one (tie-break, D9).
-fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
-    match decide("pcurve_chart_azimuth_frame", Margin::of(x), band) {
-        Ok(Sign::Negative) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
-        Ok(Sign::Positive | Sign::Zero) | Err(_) => y.atan2(x),
+/// The angle of `(x, y)` (M5 S13, shared by every chart's derivation
+/// since M6-3), by one of two formulas equal modulo a turn:
+/// `atan2(y, x)`, its cut on the negative-`x` axis, or
+/// `atan2(−y, −x) + π`, its cut on the positive-`x` axis.
+///
+/// Which one is decided across the line through the angles `start` and
+/// `start + π` (`pcurve_chart_cut_side`), `start` in `(−π, 0]`: on the
+/// side that holds angle `0`, the first; on the other, in band or
+/// undecided, the second. So a direction decided on either side reads in
+/// `(start, start + τ]`, and the read jumps only across the line's band
+/// at `start`, on the angle-`0` side of it (`Azimuth::principal`'s doc
+/// says what a direction in that band reads); the geom-brep README's C4
+/// says why the windows' starts are generic angles.
+fn stable_azimuth<T: Decide>(y: T, x: T, start: T, band: Band) -> T {
+    let (s, c) = start.sin_cos();
+    match decide("pcurve_chart_cut_side", Margin::of(c * y - s * x), band) {
+        Ok(Sign::Positive) => y.atan2(x),
+        Ok(Sign::Negative | Sign::Zero) | Err(_) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
     }
 }
 
@@ -8873,8 +8976,10 @@ fn derive_class<T: Decide>(
         //
         // Since M6-3 this arm is CERTIFIED (run_harmonic_checks admits
         // the sphere chart) and sphere faces mint stored caches. The
-        // meridian arm's DERIVED anchor is the principal branch
-        // (δ = atan2(aa, ‖a_r‖) ∈ [−π/2, π/2]), but the traversed arc
+        // meridian arm's DERIVED anchor is read in the latitude window
+        // (`Azimuth::of(aa, reach)`, `reach` negative on the far half, so
+        // the READ ranges over the whole circle; the PLACED anchor lies in
+        // [−π/2, π/2]), but the traversed arc
         // is NOT confined to it: a POLE-CROSSING meridian arc
         // CERTIFIES — `S(u, v)` extends smoothly past |v| = π/2 (the
         // chart formula covers the far meridian at the same u), so
@@ -9081,9 +9186,12 @@ fn derive_class<T: Decide>(
                         |_| T::zero(),
                         band,
                     )?;
-                    // The polar angle moves along the meridian: placed in
-                    // the latitude window at the span's midpoint, where
-                    // every valid latitude is itself ([`Window::Latitude`]).
+                    // The polar angle moves along the meridian: read and
+                    // placed in the latitude window at the span's midpoint.
+                    // On the far half the read is `π − δ`, anywhere on
+                    // `(π/2, 3π/2)`, and the window's cut, at `1 ± π`, is
+                    // generic there; a midpoint on the chart's points is
+                    // named as itself ([`Window::Latitude`]).
                     let delta = place.phase(
                         Along::Latitude,
                         Azimuth::of(aa, reach),
@@ -9502,7 +9610,9 @@ fn torus_oblique_circle<T: Decide>(
     let Some(form) = carrier_harmonic(carrier) else {
         unreachable!("carrier_harmonic: a circle has its harmonic form")
     };
-    let t0 = stable_azimuth(d.dot(form.b), d.dot(form.a), band);
+    // Read through `Azimuth::principal`, so a direction of no length (an
+    // undefined `t0`) reads `0` here as everywhere.
+    let t0 = Azimuth::of(d.dot(form.b), d.dot(form.a)).principal(band);
     let cv = axis.cross(u_ref);
     // The tube angle, `vl·(t − t0)` from the carrier's own parameter, is
     // an angle of the chart like the azimuth: placed in the window at the
@@ -11571,7 +11681,7 @@ mod tests {
             let frozen = NurbsCurve3::new(
                 arc.knots.clone(),
                 control,
-                held.weight_channel()
+                held.weights_f64_interim()
                     .iter()
                     .map(|w| S::from_f64(*w))
                     .collect(),

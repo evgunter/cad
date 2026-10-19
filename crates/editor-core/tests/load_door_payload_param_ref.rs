@@ -65,7 +65,6 @@ fn with_depth_and_extrude() -> (ProfileDoc, VarName, RecipeNodeId) {
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a well-formed length parameter declares")
     .doc;
@@ -150,7 +149,6 @@ fn an_assertion_value_reading_an_undeclared_parameter_refuses_to_load() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::PayloadUnknownVarName { name: n, .. }) => assert_eq!(n, missing),
         other => panic!("the edit door must refuse an undeclared payload param, got {other:?}"),
@@ -184,7 +182,6 @@ fn an_assertion_value_retyped_under_its_bound_refuses_to_load() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::VarKindFixed { var, kind, offered }) => {
             assert_eq!(var.name(), Some(&name));
@@ -231,7 +228,6 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::PayloadUnknownVarName { name: n, .. }) => assert_eq!(n, missing),
         other => panic!("the edit door must refuse an undeclared bound param, got {other:?}"),
@@ -310,7 +306,6 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a length parameter drives a length slot")
     .doc;
@@ -367,7 +362,6 @@ fn an_assertion_value_that_is_a_body_refuses() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::PayloadVarKind { .. }) => {}
         other => panic!("the edit door must refuse a body as a value, got {other:?}"),

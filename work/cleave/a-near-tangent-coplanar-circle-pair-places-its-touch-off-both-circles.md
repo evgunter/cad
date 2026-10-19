@@ -13,7 +13,7 @@ cost: M
 
 ## The finding
 
-Measured by a FUSE designer lane weighing `work/fuse/two-curve-curve-meeting-finders.md`. The probe ran in a throwaway worktree and was never committed.
+Measured by a FUSE designer lane weighing `two-curve-curve-meeting-finders` (closed, PRs 5154, 5162 and 5227). The probe ran in a throwaway worktree and was never committed.
 
 The fault is in `carrier_cross::parallel_circles` (`crates/topo/src/boolean/carrier_cross.rs`), in the touch branch `if apart == Sign::Zero || nested == Sign::Zero { return Ok(vec![foot]); }`. It places the touch with the generic radical-line foot `c1 + e·(d² + r1² − r2²)/2d`. That formula multiplies the decision's residue (`d − |r1 − r2|`, or `|r1 + r2| − d`) by `(r1 + r2)/2d`, which is unbounded as `d → 0`.
 
@@ -58,7 +58,7 @@ A second designer lane ran its own probe, also never committed: 2000 random pair
 - Decide a double root by the gap between its two roots along the curve, in metres, not by a centre-line margin.
 - Rows: one red-then-green row per reproduction above.
 
-FUSE's curve-meeting design (`work/fuse/two-curve-curve-meeting-finders.md`, now with Ev) would absorb these arms. **This defect is silent today, so fix it now, independently of that design.**
+FUSE's curve-meeting design (`two-curve-curve-meeting-finders` (closed, PRs 5154, 5162 and 5227), now with Ev) would absorb these arms. **This defect is silent today, so fix it now, independently of that design.**
 
 ## Closed — `carrier_cross` reads its meetings from `geom_brep::curve_pair::meet` (fuse/curve-pair-reader-c)
 
@@ -85,8 +85,33 @@ foot in place; it only moved the one-circle decision onto
     tilted family.
 - **Where the pose sits below the tangency floor** it refuses typed
   rather than placing a candidate
-  (`work/fuse/curve-pair-polish-meters-refuse-shallow-meetings.md`),
+  (`work/cpair/curve-pair-polish-meters-refuse-shallow-meetings.md`),
   and `carrier_cross` answers `Unread`. The caller keeps its frontier
   door rather than reading `Clear`.
 
 The row's second ask, a sweep of the other closed-form arms for a generic formula at data a `Zero` reading called degenerate, is not done here. It lives on `work/issues/decided-tangent-point-is-the-radical-foot.md`, with the two arms still of that shape (`splitting::conic_plane_candidates` and `rim_wedge::crossings`).
+
+## The PR 5190 review's M-1 family through `curve_pair::meet` (2026-10-19)
+
+PR 5190 (closed unmerged, superseded by the reader) was reviewed with a
+near-tangent family that found silent misses in its own `conic_meets_plane`
+at ε = 1e-12. The same family, run through `geom_brep::curve_pair::meet` on
+main (f6dbcfe1f7):
+
+- **The poses (601):** two sections of the unit sphere about
+  `(3.7, −2.1, 0.4)`; their planes share a line `g` short of tangency to
+  the first, with `g ∈ ±20·z`; turned `θ` apart about it, 30 log steps of
+  `θ` from `1e-11` to `1e-3` by 20 gaps; plus the review's witness
+  (`θ = 1e-6`, crossings 16.6 µm apart).
+- **The method:** whole-circle spans, both orders. A double-double
+  oracle on the stored records (`reach² − lift²`, each product exact)
+  says where each conic crosses the other's plane, and a pose counts
+  where both do.
+- **Silent misses** (a definite no-meeting where the records cross):
+  none at any ε.
+
+| ε | readings that cross | meeting found | shared run | refused typed (`Escalated`) |
+|---|---|---|---|---|
+| 1e-12 | 636 | 606 | 0 | 30 |
+| 1e-9 | 590 | 394 | 126 | 70 |
+| 1e-6 | 610 | 160 | 370 | 80 |

@@ -443,3 +443,49 @@ move the anchor" is un-metered and true. The pins are
 beside it (`review_fillet_overrun_nearest_fit_r1_probes`, `_r2_probes`),
 whose grid-A recourse census says which way reading the number as a
 radius reduction errs.
+
+## The profile loop: format and tangency
+
+Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topology]`, `[coincidence]` …) are `docs/DESIGN.md`'s clauses.
+
+- **Profile format**: a profile loop is a vertex chain whose segments
+  are each a carrier plus a signed interval on it — a line (the chord
+  between its two vertices), or an arc (centre, radius and signed sweep
+  Δθ, |Δθ| ≤ 2π). Vertices are stored verbatim and are authoritative; a
+  full turn is ONE segment at ONE vertex (|Δθ| = 2π), so a closed
+  carrier is one edge. The form is redundant (the vertices lie on the
+  carrier, Δθ agrees with them mod 2π, 0 < |Δθ| ≤ 2π), and those
+  consistency conditions are never trusted: each is either checked at
+  validate or holds by construction, proved by what built the arc at
+  the scalar it was built in, and none is decided twice (where each
+  is decided: `crates/profile/README.md`); a stored carrier is carried
+  verbatim, including across scalars, and never re-derived from its
+  vertices. The authored shape lives in the program, which is what a
+  document stores and edits; the loop is its canonical cache, rebuilt
+  from it and never persisted, and each arc mode's lowering is that
+  mode's one conversion into this form. Each construction lowers what
+  the user wrote into this form in the
+  shape's own algebra (the radius as authored, the sweep as one
+  `4·atan` of a quantity algebraic in the authored data, never an
+  angle difference), so the symbolic tier, replaying the program, reads
+  the authored shape through the stored fields. An identity the
+  algebra does not close is registered by the construction that proves
+  it, on the values it built; nothing about it is stored on the arc,
+  and a copied or embedded arc claims nothing. The arc carrier is one
+  type shared by the profile and the B-rep sketch segment. Bulge
+  (b = tan(Δθ/4), DXF-compatible) is one of the path algebra's arc
+  modes, lowered into this form once, at the algebra — not the
+  storage. Winding is invisible to users (roles derive from
+  containment). Downstream re-inspection of arc geometry uses the
+  stored carrier data, never endpoint atan2.
+- **Profile tangency**: each junction's tangency is a margined
+  verdict. The PATHS constructors (`.fillet(r)`, the tangent
+  continuations) author exact tangency by construction, verified, never
+  trusted (`TangencyContradicted`), with fit gating
+  (`TangentJointOutOfRange`); a junction decided Zero that no
+  constructor made is a tangent joint all the same, recorded for the
+  `unproven-coincidence` lint ([coincidence]); the sliver band refuses. Every
+  zero-turn joint is a tangent joint. Zero new ε: the per-junction
+  classifier reuses the carrier predicates verbatim. The tangent-joint
+  set is derived at lowering, from the constructors and the junction
+  verdicts, never stored.

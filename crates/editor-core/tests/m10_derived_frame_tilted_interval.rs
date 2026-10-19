@@ -67,33 +67,26 @@ fn failures<T: geom_core::Decide>(ev: &Evaluation<T>) -> Vec<String> {
         .collect()
 }
 
-fn opts(doc: &editor_core::ProfileDoc, lift: ProfileLift) -> EvalOptions {
+fn opts(doc: &editor_core::ProfileDoc) -> EvalOptions {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
-        profile_lift: lift,
         ..EvalOptions::default()
     }
 }
 
-fn plain(doc: &editor_core::ProfileDoc, lift: ProfileLift) -> Vec<String> {
-    let ev: Evaluation<Interval> = evaluate(
-        doc,
-        None,
-        &CancelToken::new(),
-        &opts(doc, lift),
-        Tol::witness(),
-    );
+fn plain(doc: &editor_core::ProfileDoc) -> Vec<String> {
+    let ev: Evaluation<Interval> =
+        evaluate(doc, None, &CancelToken::new(), &opts(doc), Tol::witness());
     failures(&ev)
 }
 
 fn sym(
     doc: &ProfileDoc,
-    lift: ProfileLift,
     rules: SymRules,
     budget: SymBudget,
 ) -> (Vec<String>, geom_core::SymCounts) {
-    let o = opts(doc, lift);
+    let o = opts(doc);
     geom_core::sym::with_session_rules(budget, rules, || {
         let ev: Evaluation<geom_core::Sym<Interval>> =
             evaluate(doc, None, &CancelToken::new(), &o, Tol::witness());
@@ -189,14 +182,14 @@ fn ladder() -> Vec<(&'static str, SymRules)> {
 fn sym5_tilted_width_parameter_ladder() {
     for half in [1.0e-3, 5.0e-2] {
         let doc = boss_on_widened_width_box(half);
-        let p = plain(&doc, ProfileLift::Pinned);
+        let p = plain(&doc);
         println!(
             "width half={half:e} plain: {} {}",
             p.len(),
             head(p.first().map_or("", String::as_str), 300)
         );
         for (name, rules) in ladder() {
-            let (f, c) = sym(&doc, ProfileLift::Pinned, rules, budget());
+            let (f, c) = sym(&doc, rules, budget());
             println!(
                 "width half={half:e} {name}: {c:?}\n  fails {} {}",
                 f.len(),
@@ -269,15 +262,16 @@ fn sym5_tilted_frame_ladder() {
     for half in [1.0e-3, 5.0e-2] {
         for (kind, derived) in [("authored", false), ("derived", true)] {
             let doc = boss_on_tilted(half, derived);
-            for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-                let p = plain(&doc, lift);
+            {
+                let lift = ProfileLift::Guided;
+                let p = plain(&doc);
                 println!(
                     "tilted {kind} half={half:e} {lift:?} plain: {} {}",
                     p.len(),
                     head(p.first().map_or("", String::as_str), 260)
                 );
                 for (name, rules) in ladder() {
-                    let (f, c) = sym(&doc, lift, rules, budget());
+                    let (f, c) = sym(&doc, rules, budget());
                     println!(
                         "tilted {kind} half={half:e} {lift:?} {name}: frozen {} sym0 {} num {}\n  fails {} {}",
                         c.frozen,
@@ -324,7 +318,6 @@ fn sym5_tilted_derived_guided_profiled() {
     ] {
         let o = EvalOptions {
             param_box: Some(Arc::new(box_.clone())),
-            profile_lift: ProfileLift::Guided,
             ..EvalOptions::default()
         };
         start_profile();
@@ -408,7 +401,7 @@ fn sym5_tilted_derived_guided_budget_ladder() {
         ),
     ] {
         let t = std::time::Instant::now();
-        let (f, c) = sym(&doc, ProfileLift::Guided, SymRules::shipped(), b);
+        let (f, c) = sym(&doc, SymRules::shipped(), b);
         println!(
             "tilted derived Guided 1e-3 shipped budget {label}: frozen {} sym0 {} num {} in {:?}\n  fails {} {}",
             c.frozen,
@@ -448,21 +441,10 @@ fn sym5_tilted_derived_guided_budget_ladder() {
 fn m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does() {
     let eps = Tol::witness().eps();
     for half in [eps / 8.0, 1.0e-3] {
-        for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-            let authored = sym(
-                &boss_on_tilted(half, false),
-                lift,
-                SymRules::shipped(),
-                budget(),
-            )
-            .0;
-            let derived = sym(
-                &boss_on_tilted(half, true),
-                lift,
-                SymRules::shipped(),
-                budget(),
-            )
-            .0;
+        {
+            let lift = ProfileLift::Guided;
+            let authored = sym(&boss_on_tilted(half, false), SymRules::shipped(), budget()).0;
+            let derived = sym(&boss_on_tilted(half, true), SymRules::shipped(), budget()).0;
             assert!(
                 authored.is_empty(),
                 "half={half:e} {lift:?}: the authored twin certifies: {authored:?}"
@@ -478,18 +460,8 @@ fn m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does() {
     // Rule E is what carries it: with the rule off the derived boss
     // refuses under Guided where the twin certifies.
     let off = SymRules::without_rule_e();
-    let (derived_off, _) = sym(
-        &boss_on_tilted(1.0e-3, true),
-        ProfileLift::Guided,
-        off,
-        budget(),
-    );
-    let (authored_off, _) = sym(
-        &boss_on_tilted(1.0e-3, false),
-        ProfileLift::Guided,
-        off,
-        budget(),
-    );
+    let (derived_off, _) = sym(&boss_on_tilted(1.0e-3, true), off, budget());
+    let (authored_off, _) = sym(&boss_on_tilted(1.0e-3, false), off, budget());
     assert!(
         authored_off.is_empty(),
         "the twin certifies with rule E off too: {authored_off:?}"
@@ -505,12 +477,7 @@ fn m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does() {
     );
 
     // The one width still refused, and the reason, read off the kernel.
-    let (wide, _) = sym(
-        &boss_on_tilted(5.0e-2, true),
-        ProfileLift::Guided,
-        SymRules::shipped(),
-        budget(),
-    );
+    let (wide, _) = sym(&boss_on_tilted(5.0e-2, true), SymRules::shipped(), budget());
     assert_eq!(wide.len(), 1, "one refusal at 5e-2: {wide:?}");
     assert!(
         wide[0].contains("interval_span_forward"),
@@ -700,7 +667,7 @@ fn revolved(r: &mut Recorder, base: RecipeNodeId) -> RecipeNodeId {
     let rev = r.insert(fixture::revolve_about(
         p,
         (0.0, 0.0),
-        (0.0, 1.0),
+        crate::fixture::along_y(),
         ang(std::f64::consts::PI),
     ));
     r.insert(Node::Datum(Datum::FaceFrame {
@@ -820,13 +787,14 @@ fn sym5_the_reach_on_documents_the_unit_did_not_build() {
             continue;
         }
         let doc = r2_document(half, base, place);
-        for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-            let p = plain(&doc, lift);
+        {
+            let lift = ProfileLift::Guided;
+            let p = plain(&doc);
             let t0 = std::time::Instant::now();
-            let (off, c_off) = sym(&doc, lift, SymRules::without_rule_e(), budget());
+            let (off, c_off) = sym(&doc, SymRules::without_rule_e(), budget());
             let d_off = t0.elapsed().as_secs_f64();
             let t1 = std::time::Instant::now();
-            let (on, c_on) = sym(&doc, lift, SymRules::shipped(), budget());
+            let (on, c_on) = sym(&doc, SymRules::shipped(), budget());
             let d_on = t1.elapsed().as_secs_f64();
             println!(
                 "{name:<20} {lift:?}: plain {} | off {} frozen {} sym0 {} {d_off:.1}s | on {} frozen {} sym0 {} {d_on:.1}s",
@@ -905,7 +873,8 @@ fn render_wall(name: &str, base: Base, place: Place, halves: &[f64]) {
             );
         }
         let only_lift = std::env::var("CAD_SYM8_LIFT").ok();
-        for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
+        {
+            let lift = ProfileLift::Guided;
             if only_lift
                 .as_deref()
                 .is_some_and(|l| l.trim() != format!("{lift:?}"))
@@ -922,7 +891,6 @@ fn render_wall(name: &str, base: Base, place: Place, halves: &[f64]) {
                 }
                 let o = EvalOptions {
                     param_box: Some(Arc::new(box_.clone())),
-                    profile_lift: lift,
                     ..EvalOptions::default()
                 };
                 start_shape_report();
@@ -1076,8 +1044,9 @@ fn sym8_phase1_the_tilt_u_ladder() {
             ("derived", Place::Derived(1)),
         ] {
             let doc = r2_document(half, Base::TiltU, place);
-            for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-                let p = plain(&doc, lift);
+            {
+                let lift = ProfileLift::Guided;
+                let p = plain(&doc);
                 println!(
                     "tiltU {kind} half={half:e} {lift:?} plain: {} {}",
                     p.len(),
@@ -1088,7 +1057,7 @@ fn sym8_phase1_the_tilt_u_ladder() {
                     ("F-on", shipped_with_rule_f()),
                 ] {
                     let t = std::time::Instant::now();
-                    let (f, c) = sym(&doc, lift, rules, budget());
+                    let (f, c) = sym(&doc, rules, budget());
                     println!(
                         "tiltU {kind} half={half:e} {lift:?} {label}: frozen {} sym0 {} num {} in {:.1}s\n  fails {} {}",
                         c.frozen,
@@ -1146,7 +1115,7 @@ fn m10_the_tilt_u_derived_boss_certifies_once_the_read_settles_its_frame() {
         ("shipped", shipped_with_rule_f()),
     ] {
         start_shape_report();
-        let (fails, counts) = sym(&doc, ProfileLift::Guided, rules, budget());
+        let (fails, counts) = sym(&doc, rules, budget());
         let shapes = take_shape_report();
         let split = crate::m10_8_harness::split(&shapes);
         let row = |p: &'static str| split.get(p).copied().unwrap_or([0; 2]);
@@ -1225,7 +1194,8 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
         {
             continue;
         }
-        for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
+        {
+            let lift = ProfileLift::Guided;
             if only_lift
                 .as_deref()
                 .is_some_and(|l| l.trim() != format!("{lift:?}"))
@@ -1238,7 +1208,7 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
             ] {
                 let doc = r2_document(1.0e-3, base, place);
                 let t0 = std::time::Instant::now();
-                let (f, c) = sym(&doc, lift, rules, budget());
+                let (f, c) = sym(&doc, rules, budget());
                 let dt = t0.elapsed().as_secs_f64();
                 // The split is read from the shape report, which
                 // renders every numeric residual: on the `Pinned`
@@ -1251,7 +1221,7 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
                     Default::default()
                 } else {
                     start_shape_report();
-                    let _ = sym(&doc, lift, rules, budget());
+                    let _ = sym(&doc, rules, budget());
                     crate::m10_8_harness::split(&take_shape_report())
                 };
                 println!(
@@ -1274,7 +1244,7 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
                 // arm: cheap on these cubes (a replay is well under a
                 // second each way with the report off).
                 let certifies = |h: f64| {
-                    sym(&r2_document(h, base, place), lift, rules, budget())
+                    sym(&r2_document(h, base, place), rules, budget())
                         .0
                         .is_empty()
                 };
@@ -1336,7 +1306,7 @@ fn m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert(
     let f_shut = SymRules::without_rule_f();
     let read = |doc: &ProfileDoc, rules: SymRules| {
         start_shape_report();
-        let (fails, counts) = sym(doc, ProfileLift::Guided, rules, budget());
+        let (fails, counts) = sym(doc, rules, budget());
         let split = crate::m10_8_harness::split(&take_shape_report());
         let row = |p: &'static str| split.get(p).copied().unwrap_or([0; 2]);
         (
@@ -1441,13 +1411,8 @@ fn m10_what_the_read_buys_on_the_tilted_caps() {
     let mut got = Vec::new();
     for (name, base, place, want_on, want_off, refuses_at) in rows {
         let doc = doc_of(base, place);
-        let (on_fails, on) = sym(&doc, ProfileLift::Guided, SymRules::shipped(), budget());
-        let (off_fails, off) = sym(
-            &doc,
-            ProfileLift::Guided,
-            SymRules::without_the_reads(),
-            budget(),
-        );
+        let (on_fails, on) = sym(&doc, SymRules::shipped(), budget());
+        let (off_fails, off) = sym(&doc, SymRules::without_the_reads(), budget());
         println!("{name} read on: {on:?} {on_fails:?}\n{name} read shut: {off:?} {off_fails:?}");
         assert!(
             on_fails.is_empty(),
@@ -1506,9 +1471,9 @@ fn m10_what_the_read_buys_on_the_tilted_caps() {
 fn sym12_rule_f_is_inert_on_the_reviews_negative_nz_documents() {
     use geom_core::sym::report::{start_shape_report, take_shape_report};
     let f_shut = SymRules::without_rule_f();
-    let read = |doc: &ProfileDoc, lift, rules| {
+    let read = |doc: &ProfileDoc, rules| {
         start_shape_report();
-        let (fails, counts) = sym(doc, lift, rules, budget());
+        let (fails, counts) = sym(doc, rules, budget());
         let split = crate::m10_8_harness::split(&take_shape_report());
         let row = |p: &'static str| split.get(p).copied().unwrap_or([0; 2]);
         (
@@ -1519,20 +1484,20 @@ fn sym12_rule_f_is_inert_on_the_reviews_negative_nz_documents() {
         )
     };
     let mut cases = vec![
-        ("flipX derived", Base::FlipX, 2.0e-3, ProfileLift::Pinned),
-        ("flipX derived", Base::FlipX, 2.0e-3, ProfileLift::Guided),
-        ("tiltU end cap", Base::TiltU, 2.0e-3, ProfileLift::Guided),
+        ("flipX derived", Base::FlipX, 2.0e-3),
+        ("flipX derived", Base::FlipX, 2.0e-3),
+        ("tiltU end cap", Base::TiltU, 2.0e-3),
     ];
     for half in [3.0e-3, 1.0e-2, 5.0e-2] {
-        cases.push(("flipV derived", Base::FlipV, half, ProfileLift::Guided));
+        cases.push(("flipV derived", Base::FlipV, half));
     }
-    cases.push(("flipV derived", Base::FlipV, 3.0e-3, ProfileLift::Pinned));
-    for (name, base, half, lift) in cases {
+    cases.push(("flipV derived", Base::FlipV, 3.0e-3));
+    for (name, base, half) in cases {
         let doc = r2_document(half, base, Place::Derived(1));
-        let on = read(&doc, lift, shipped_with_rule_f());
-        let off = read(&doc, lift, f_shut);
+        let on = read(&doc, shipped_with_rule_f());
+        let off = read(&doc, f_shut);
         println!(
-            "{name} half={half:e} {lift:?} shipped: {}\n  fails {} {}\n  \
+            "{name} half={half:e} shipped: {}\n  fails {} {}\n  \
              carrier_endpoint_end {:?} newell_plane_residual {:?}",
             on.0,
             on.1.len(),
@@ -1542,7 +1507,7 @@ fn sym12_rule_f_is_inert_on_the_reviews_negative_nz_documents() {
         );
         assert_eq!(
             on, off,
-            "{name} half={half:e} {lift:?}: rule F is inert — shutting its two arms moves \
+            "{name} half={half:e}: rule F is inert — shutting its two arms moves \
              nothing, because the frame mints no copysign for the negative arm to fold"
         );
     }
@@ -1574,7 +1539,7 @@ fn sym12_the_copysign_census_on_the_revolved_cap() {
     ] {
         start_shape_report();
         let t0 = std::time::Instant::now();
-        let (fails, counts) = sym(&doc, ProfileLift::Guided, rules, budget());
+        let (fails, counts) = sym(&doc, rules, budget());
         let shapes = take_shape_report();
         println!(
             "revolved-cap Guided 1e-3 {label}: {counts:?} ({:.1}s)\n  fails {} {}",
@@ -1696,8 +1661,9 @@ fn sym8_the_reviews_documents_the_unit_did_not_measure() {
         ),
     ] {
         let doc = r2_document(half, base, place);
-        for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-            let p = plain(&doc, lift);
+        {
+            let lift = ProfileLift::Guided;
+            let p = plain(&doc);
             println!(
                 "{name} half={half:e} {lift:?} plain: {} {}",
                 p.len(),
@@ -1709,7 +1675,7 @@ fn sym8_the_reviews_documents_the_unit_did_not_measure() {
                 ("F-on ", shipped_with_rule_f()),
             ] {
                 let t0 = std::time::Instant::now();
-                let (f, c) = sym(&doc, lift, rules, budget());
+                let (f, c) = sym(&doc, rules, budget());
                 println!(
                     "{name} half={half:e} {lift:?} {label}: sym {} num {} \
                      frozen {} in {:.1}s\n  fails {} {}",
@@ -1794,7 +1760,6 @@ fn sym10_phase1_the_tilted_rows_residual_rendered() {
             }
             let o = EvalOptions {
                 param_box: Some(Arc::new(box_.clone())),
-                profile_lift: lift,
                 ..EvalOptions::default()
             };
             start_shape_report();
@@ -1868,12 +1833,7 @@ fn sym10_phase1_hand_plant_table_tilted() {
     for (hname, half) in [("eps/8", eps / 8.0), ("1e-3", 1.0e-3)] {
         for lift in [ProfileLift::Guided, ProfileLift::Pinned] {
             let t0 = std::time::Instant::now();
-            let (f, c) = sym(
-                &boss_on_tilted(half, true),
-                lift,
-                SymRules::shipped(),
-                budget(),
-            );
+            let (f, c) = sym(&boss_on_tilted(half, true), SymRules::shipped(), budget());
             println!(
                 "derived {hname} {lift:?}: fails {} in {:.1}s | sym {} num {} frozen {}\n    {}",
                 f.len(),
@@ -1887,7 +1847,6 @@ fn sym10_phase1_hand_plant_table_tilted() {
     }
     let (f, c) = sym(
         &boss_on_tilted(eps / 8.0, false),
-        ProfileLift::Guided,
         SymRules::shipped(),
         budget(),
     );

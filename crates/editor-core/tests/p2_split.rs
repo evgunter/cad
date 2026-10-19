@@ -1,26 +1,22 @@
-//! **Split and inline at a gauge** (ASSEMBLY.md A4, A11 (2)–(5); the
-//! spec's `## P2-split` rows S2–S6, I1–I5 and R1).
+//! **Split and inline over placements** (ASSEMBLY.md A4, A11 (2)–(5);
+//! the spec's `## P2-split` rows S2–S6, I1–I5 and R1).
 //!
-//! A split votes its anchor with the cut's gauges in it: a cut gauge
-//! votes its parent, a reference that stays inside the cut casts no
-//! vote, and a group unplaced for lack of an offset votes its gauge. A
-//! kept node hanging from a cut gauge refuses. Every cut moves
-//! verbatim: each cut gauge is carried, one whose parent leaves the
-//! cut onto the part's world, and each root keeps its offset. Inline
-//! at a non-empty offset mints a gauge under the instance's gauge,
-//! holding that offset, and moves the members the instance placed onto
-//! it; a mate-placed instance inlines over a part that is one group at
-//! the empty chain on its world, whose root takes its place. Every cut
-//! split admits, inlined back at the empty offset, returns the document
-//! it was given up to node ids and the one regrouping A10's replacement
-//! rule makes of a cut whose roots a kept root separates (R1). `Promote`
-//! and `Fold` carry a
-//! group's frame onto a gauge and back, so a part at a frame of its own
-//! is a promote and a cut leaving the gauge behind.
+//! A cut takes whole placements and moves them verbatim: each keeps its
+//! bundle in the part, and the remainder receives one instance pinned
+//! to the world at the identity over its own geometry. A cut placement
+//! whose bundle reads a kept copy severs that read; a kept mate whose
+//! pose reads a cut instance's face crosses, its pose written afresh
+//! over the instance's copies. Inline of an instance pinned to the world
+//! splices its part's placements with every world mate moved by the
+//! motion the pin solved to; an instance placed by other constraints
+//! inlines over a part whose one placement on its world is an instance
+//! pinned there at the identity, which takes the instance's bundle.
+//! Every cut split admits, inlined back at the identity, returns the
+//! document it was given up to node ids (R1).
 //!
-//! The scenes are `p2_gauges`'s two literal blocks; every placement is
-//! a translation by dyadic lengths, so the evaluations compared are
-//! exact.
+//! The scenes are `p2_gauges`'s two literal blocks; every pin is a
+//! translation by dyadic lengths, so the evaluations compared agree to
+//! the band a pin read off geometry stands at.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -28,32 +24,109 @@ use editor_core::Formula;
 use std::sync::Arc;
 
 use crate::fixture;
-use crate::p2_gauges::{
-    Parts, TOP_HEIGHT, body_of, cut, literal, min_corner, parts, placed_pair, points, seat,
-    seat_on, set_gauge, set_offset,
-};
+use crate::p2_gauges::{Parts, body_of, cut, min_corner, parts, placed_pair, points};
 
+use editor_core::pose::PoseRole;
 use editor_core::{
-    CapEnd, DocEdit, DocumentId, EvalOptions, InlineError, InlineOutcome, Label, Node,
-    PartResolver, Placement, ProfileDoc, RecipeNodeId, SplitError, SplitOutcome, StableName,
-    product,
+    CapEnd, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Frame, InlineError, InlineOutcome,
+    Label, MateFault, MateRef, Node, PartResolver, ProfileDoc, RecipeNodeId, SitedFace, SplitError,
+    SplitOutcome, StableName, Target, Uncarried, VarId, WorldRead, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::round_trip::{composed, same_up_to_ids};
-use fixture::{head, insert, offset_of, run, solve, step};
+use fixture::{head, insert, offset_of, run, step};
 use geom_core::Tol;
+
+// ---- shared seats and pins ----
+
+/// **`mover` seated on `onto` at `at`** (A5): `mover`'s plane rests on
+/// `onto`'s, outward normals opposed, and three values pin what the rest
+/// leaves ([`crate::p2_gauges::seat_on`]). The rest's address.
+pub(crate) fn seat_at(
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    mover: SitedFace,
+    onto: SitedFace,
+    at: [f64; 2],
+) -> (ProfileDoc, MateRef) {
+    crate::p2_gauges::seat_on(doc, placement, mover, onto, at)
+}
+
+/// [`seat_at`] at `(1, 1)`: "mate the top to the base".
+pub(crate) fn seated(
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    mover: SitedFace,
+    onto: SitedFace,
+) -> (ProfileDoc, MateRef) {
+    crate::p2_gauges::seat(doc, placement, mover, onto)
+}
+
+/// **An instance of `part` pinned to the world at the translation
+/// `at`** over its own geometry ([`fixture::pin`]).
+pub(crate) fn pinned_at(
+    doc: ProfileDoc,
+    part: DocRef,
+    at: [f64; 3],
+    o: &EvalOptions,
+) -> (ProfileDoc, RecipeNodeId) {
+    crate::p2_gauges::pinned(doc, part, Frame::translation(at), o)
+}
+
+/// **An instance of `part` pinned to the world turned `angle` about z
+/// and lifted by the document's `lift`**: the identity pin over its
+/// geometry with the two world moves appended, so the pin reads the
+/// parameter.
+pub(crate) fn pinned_lifted(
+    doc: ProfileDoc,
+    part: DocRef,
+    along: PoseRole,
+    angle: f64,
+    o: &EvalOptions,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, id) = insert(doc, fixture::mated_instance(part));
+    let copy = editor_core::Operand::Var(doc.output(id, 0).expect("an instance's copies"));
+    let mut pin = editor_core::pin_at(&doc, &copy, &Frame::IDENTITY, o, Tol::witness())
+        .expect("the copy pins over its geometry");
+    let Target::World(world) = pin.to else {
+        unreachable!("a pin reads the world")
+    };
+    let world = if angle == 0.0 {
+        world
+    } else {
+        world.spin(WorldRead::through(PoseRole::Z), fixture::ang(angle))
+    };
+    pin.to = Target::World(world.slide(
+        WorldRead::through(along),
+        Formula::named(crate::p2_gauges::lift(), editor_core::Dimension::Length),
+    ));
+    (fixture::constrain_at(doc, id, pin).0, id)
+}
+
+/// **`placement`'s bundle replaced by one pin at the translation `at`**.
+pub(crate) fn repin(
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    at: [f64; 3],
+    o: &EvalOptions,
+) -> ProfileDoc {
+    crate::p2_gauges::set_pin(doc, placement, Some(Frame::translation(at)), o)
+}
+
+/// Whether `placement` solves to the identity of `doc`'s world.
+pub(crate) fn at_identity(doc: &ProfileDoc, placement: RecipeNodeId, o: &EvalOptions) -> bool {
+    fixture::solve(doc, o, Tol::witness()).at_identity(placement)
+}
 
 // ---- substrate ----
 
-/// **An instance of `part`, placed in `doc`'s world at the identity**
-/// (A10): each instance here is in the product, as the product roots
-/// were.
-fn instance(doc: ProfileDoc, part: editor_core::DocRef) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, id) = insert(doc, Node::instantiate_part(part));
-    (fixture::place(doc, id).0, id)
+/// **An instance of `part`, pinned to `doc`'s world at the identity**
+/// (A10): each instance here is in the product.
+fn instance(doc: ProfileDoc, part: DocRef, o: &EvalOptions) -> (ProfileDoc, RecipeNodeId) {
+    fixture::insert_pinned(doc, Node::instantiate_part(part), o)
 }
 
-pub(crate) fn split(
+fn split(
     doc: &ProfileDoc,
     ids: &[RecipeNodeId],
     label: &str,
@@ -68,7 +141,7 @@ pub(crate) fn split(
     )
 }
 
-pub(crate) fn inline(doc: &ProfileDoc, instance: RecipeNodeId, store: &PartStore) -> InlineOutcome {
+fn inline(doc: &ProfileDoc, instance: RecipeNodeId, store: &PartStore) -> InlineOutcome {
     let r: Arc<dyn PartResolver> = Arc::new(store.clone());
     editor_core::inline(doc, instance, &r, Tol::witness())
         .unwrap_or_else(|e| panic!("inline refused: {e}"))
@@ -83,7 +156,7 @@ fn inline_err(doc: &ProfileDoc, instance: RecipeNodeId, store: &PartStore) -> In
 }
 
 /// The whole document's product: its corners and volume.
-pub(crate) fn extent(doc: &ProfileDoc, o: &EvalOptions) -> ([f64; 3], [f64; 3], f64) {
+fn extent(doc: &ProfileDoc, o: &EvalOptions) -> ([f64; 3], [f64; 3], f64) {
     let body = product(doc, &run(doc, o), Tol::witness()).expect("gathers");
     let pts = points(&body);
     let lo = pts.iter().fold([f64::INFINITY; 3], |m, p| {
@@ -98,7 +171,7 @@ pub(crate) fn extent(doc: &ProfileDoc, o: &EvalOptions) -> ([f64; 3], [f64; 3], 
     (lo, hi, volume)
 }
 
-pub(crate) fn same_extent(a: ([f64; 3], [f64; 3], f64), b: ([f64; 3], [f64; 3], f64), what: &str) {
+fn same_extent(a: ([f64; 3], [f64; 3], f64), b: ([f64; 3], [f64; 3], f64), what: &str) {
     let near = |x: [f64; 3], y: [f64; 3]| x.iter().zip(y).all(|(p, q)| (p - q).abs() <= 1e-9);
     assert!(
         near(a.0, b.0) && near(a.1, b.1) && (a.2 - b.2).abs() <= 1e-9,
@@ -106,17 +179,20 @@ pub(crate) fn same_extent(a: ([f64; 3], [f64; 3], f64), b: ([f64; 3], [f64; 3], 
     );
 }
 
-/// `name` wrapped at `instance`, as a host spells a face of its part.
-/// **`name`, an entity of a body `part` places, as `part`'s product
-/// names it**: under the copy of the one world placement in `part`
-/// whose body is `name`'s minting node (A10).
+/// **`name`, an entity of a copy in `part`, as `part`'s product names
+/// it** (A10): an instance's own name as it is, since the instance is
+/// its own placement; a body's name under the copy of the one `Place`
+/// in `part` that copies its minting node.
 fn in_world_of(part: &ProfileDoc, name: StableName) -> StableName {
+    if matches!(part.node(name.node), Some(Node::InstantiatePart { .. })) {
+        return name;
+    }
     let copies: Vec<RecipeNodeId> = part
         .placements()
         .into_iter()
         .filter(|&at| {
-            matches!(part.node(at), Some(Node::PlaceInWorld { body, .. })
-                if part.operation_of(body.read) == Some(name.node))
+            matches!(part.node(at), Some(Node::Place { shapes, .. })
+                if shapes.iter().any(|s| part.operation_of(s.read) == Some(name.node)))
         })
         .collect();
     let [copy] = copies[..] else {
@@ -125,6 +201,7 @@ fn in_world_of(part: &ProfileDoc, name: StableName) -> StableName {
     name.in_copy(copy)
 }
 
+/// `name` wrapped at `instance`, as a host spells a face of its part.
 fn wrap(instance: RecipeNodeId, name: StableName) -> StableName {
     editor_core::FaceName::new(name)
         .expect("a face")
@@ -132,7 +209,6 @@ fn wrap(instance: RecipeNodeId, name: StableName) -> StableName {
         .into_name()
 }
 
-/// The base block's bottom cap at `base`.
 /// The document `instance` in `doc` references.
 fn part_id_of(doc: &ProfileDoc, instance: RecipeNodeId) -> DocumentId {
     match doc.node(instance) {
@@ -141,26 +217,54 @@ fn part_id_of(doc: &ProfileDoc, instance: RecipeNodeId) -> DocumentId {
     }
 }
 
+/// The base block's bottom cap at `base`.
 fn base_bottom(p: &Parts, base: RecipeNodeId) -> StableName {
     in_part(base, p.base_body, CapEnd::Start)
 }
 
+/// The face name a stored mate's pose reads: its one selection's.
+fn read_name(doc: &ProfileDoc, pose: VarId) -> StableName {
+    let [select] = fixture::face_reads(doc, pose)[..] else {
+        panic!("a pose of one face")
+    };
+    fixture::side_name(doc, select)
+}
+
+/// The pose a stored constraint's target reads.
+fn target_of(c: &editor_core::Constraint) -> VarId {
+    *c.mate()
+        .and_then(|m| m.to.pose())
+        .expect("a mate to a pose")
+}
+
+/// The pose a stored constraint's own side reads.
+fn on_of(c: &editor_core::Constraint) -> VarId {
+    c.mate().expect("a mate").on
+}
+
+/// The one mate `placement`'s bundle holds, beside the values on it.
+fn only_constraint(doc: &ProfileDoc, placement: RecipeNodeId) -> editor_core::Constraint {
+    let bundle: Vec<_> = fixture::bundle(doc, placement)
+        .into_iter()
+        .filter(|c| c.mate().is_some())
+        .collect();
+    let [one] = bundle.as_slice() else {
+        panic!("{placement:?} holds one mate, not {bundle:?}");
+    };
+    one.clone()
+}
+
 /// **R1**: `doc` split at `ids` and the instance inlined back at the
-/// empty offset it sits at is `doc` up to node ids.
-pub(crate) fn round_trip(
-    doc: &ProfileDoc,
-    ids: &[RecipeNodeId],
-    p: &Parts,
-    label: &str,
-) -> SplitOutcome {
+/// identity it sits at is `doc` up to node ids.
+fn round_trip(doc: &ProfileDoc, ids: &[RecipeNodeId], p: &Parts, label: &str) -> SplitOutcome {
     let out = split(doc, ids, label, &p.opts()).unwrap_or_else(|e| panic!("{label}: {e}"));
-    assert_eq!(
-        offset_of(&out.remainder, out.instance),
-        Some(Placement::IDENTITY),
-        "{label}: a cut holding a gauge moves verbatim at the empty offset"
-    );
     let mut store = p.store.clone();
     store.insert(out.part.clone(), Tol::witness());
+    assert!(
+        offset_of(&out.remainder, out.instance).is_some()
+            && at_identity(&out.remainder, out.instance, &with_resolver(store.clone())),
+        "{label}: the instance a split leaves is pinned to the world at the identity"
+    );
     let back = inline(&out.remainder, out.instance, &store);
     let (map, steps) = composed(doc, &out, &back);
     same_up_to_ids(doc, &back.doc, &map, &steps)
@@ -168,68 +272,39 @@ pub(crate) fn round_trip(
     out
 }
 
-fn gauge_parent(doc: &ProfileDoc, id: RecipeNodeId) -> Option<RecipeNodeId> {
-    match doc.node(id) {
-        Some(Node::Gauge { parent, .. }) => *parent,
-        other => panic!("{id:?} is no gauge: {other:?}"),
-    }
-}
+// ---- S2: a cut moved verbatim ----
 
-// ---- S2: a gauge moved verbatim ----
-
-/// **A cut holding a gauge moves verbatim** (ruling 4): K on the kept
-/// anchor g, an instance on K and one on g. K votes g, the instance on
-/// K casts no vote, so the anchor is g; the instance left behind sits
-/// on g at the empty offset, K is carried with its parent the part's
-/// world, its instance on K's image, and the instance on g on the
-/// part's world. The evaluation is unchanged, and the round trip is
+/// **A cut of pinned instances moves verbatim** (A4): two instances
+/// pinned to the world, one labelled. Each keeps its world pin in the
+/// part, the label follows its node, the evaluation is unchanged, a cut
+/// face resolves through the instance qualifier, and the round trip is
 /// the document up to node ids.
 #[test]
-fn s2_a_cut_holding_a_gauge_moves_verbatim_and_round_trips() {
+fn s2_a_cut_of_pinned_instances_moves_verbatim_and_round_trips() {
     let p = parts("s2-verbatim");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("s2-verbatim"), Tol::witness());
-    let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
-    let (doc, k) = insert(doc, Node::gauge(Some(g), literal([2.0, 0.0, 0.5])));
-    let (doc, on_k) = instance(doc, p.base);
-    let doc = set_gauge(doc, on_k, Some(k));
-    let doc = set_offset(doc, on_k, Some(literal([0.0, 0.0, 4.0])));
-    let (doc, on_g) = instance(doc, p.top);
-    let doc = set_gauge(doc, on_g, Some(g));
-    let doc = set_offset(doc, on_g, Some(literal([16.0, 0.0, 0.0])));
+    let (doc, low) = pinned_at(doc, p.base, [2.0, 8.0, 4.5], &o);
+    let (doc, high) = pinned_at(doc, p.top, [16.0, 8.0, 0.0], &o);
     let (doc, _) = step(
         doc,
         DocEdit::SetLabel {
-            node: k,
+            node: low,
             label: Some(Label::new("bench").expect("a label")),
         },
     );
-    let out = round_trip(&doc, &[k, on_k, on_g], &p, "s2-verbatim");
+    let out = round_trip(&doc, &[low, high], &p, "s2-verbatim");
+    for id in [low, high] {
+        assert!(
+            offset_of(&doc, id).is_some()
+                && fixture::same_offset(&out.part, out.node_map[&id], &doc, id),
+            "{id:?} keeps its world pin in the part"
+        );
+    }
     assert_eq!(
-        out.remainder.node(out.instance).and_then(Node::gauge_ref),
-        Some(g),
-        "the instance names the anchor"
-    );
-    let k_part = out.node_map[&k];
-    assert_eq!(
-        gauge_parent(&out.part, k_part),
-        None,
-        "K's parent leaves the cut"
-    );
-    assert_eq!(
-        out.part.node(out.node_map[&on_k]).and_then(Node::gauge_ref),
-        Some(k_part),
-        "an instance on K sits on K's image"
-    );
-    assert_eq!(
-        out.part.node(out.node_map[&on_g]).and_then(Node::gauge_ref),
-        None,
-        "an instance on the anchor sits on the part's world"
-    );
-    assert_eq!(
-        out.part.label(k_part).map(ToString::to_string),
+        out.part.label(out.node_map[&low]).map(ToString::to_string),
         Some("bench".to_owned()),
-        "K's label follows it"
+        "the label follows its node"
     );
     let mut store = p.store.clone();
     store.insert(out.part.clone(), Tol::witness());
@@ -246,7 +321,7 @@ fn s2_a_cut_holding_a_gauge_moves_verbatim_and_round_trips() {
     let resolves = |d: &ProfileDoc, o: &EvalOptions, name: &StableName| {
         let eval = run(d, o);
         matches!(
-            editor_core::resolve(
+            crate::fixture::resolve_at_mint(
                 editor_core::RunCtx {
                     doc: d,
                     eval: &eval
@@ -257,8 +332,8 @@ fn s2_a_cut_holding_a_gauge_moves_verbatim_and_round_trips() {
         )
     };
     for (face, in_part) in [
-        (p.base_cap(on_k), p.base_cap(out.node_map[&on_k])),
-        (p.top_cap(on_g), p.top_cap(out.node_map[&on_g])),
+        (p.base_cap(low), p.base_cap(out.node_map[&low])),
+        (p.top_cap(high), p.top_cap(out.node_map[&high])),
     ] {
         assert!(
             resolves(&doc, &o, &face),
@@ -272,264 +347,157 @@ fn s2_a_cut_holding_a_gauge_moves_verbatim_and_round_trips() {
     }
 }
 
-/// **The carry puts a gauge ahead of what sits on it** (ruling 4): an
-/// instance inserted before the gauge it was then moved onto is carried
-/// after it, at a split and at an inline alike.
+/// **A placement inserted before the copy its bundle reads is carried
+/// whole**: a top inserted first, then the base, then the top mated
+/// onto the base. The round trip is the document, and an inline of a
+/// part holding the same order carries the top's constraint onto the
+/// spliced base.
 #[test]
-fn s2_a_gauge_inserted_after_its_instance_is_carried_first() {
+fn s2_a_placement_inserted_before_its_target_round_trips() {
     let p = parts("s2-order");
+    let o = p.opts();
     let build = |label: &str| {
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-        let (doc, early) = instance(doc, p.base);
-        let (doc, k) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 2.0])));
-        (set_gauge(doc, early, Some(k)), early, k)
+        let (doc, early) = insert(doc, fixture::mated_instance(p.top));
+        let (doc, base) = instance(doc, p.base, &o);
+        let (doc, _) = seated(doc, early, head(p.top_cap(early)), head(p.base_cap(base)));
+        (doc, early, base)
     };
-    let (doc, early, k) = build("s2-order");
-    round_trip(&doc, &[early, k], &p, "s2-order");
+    let (doc, early, base) = build("s2-order");
+    round_trip(&doc, &[early, base], &p, "s2-order");
 
-    // A part document holding the same order, inlined at the empty
-    // offset.
+    // A part document holding the same order, inlined at the identity.
     let mut store = p.store.clone();
     let part_ref = store.insert(build("s2-order-sub").0, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("s2-order-host"), Tol::witness());
-    let (host, h) = instance(host, part_ref);
+    let (host, h) = instance(host, part_ref, &with_resolver(store.clone()));
     let back = inline(&host, h, &store);
-    let carried = back.node_map[&early];
+    let carried = only_constraint(&back.doc, back.node_map[&early]);
     assert_eq!(
-        back.doc.node(carried).and_then(Node::gauge_ref),
-        Some(back.node_map[&k])
+        read_name(&back.doc, target_of(&carried)),
+        p.base_cap(back.node_map[&base]),
+        "the carried constraint reads the spliced base"
     );
 }
 
-// ---- S3: the severed gauge ----
+// ---- S3: the severed read ----
 
-/// **A kept node hanging from a cut gauge refuses** (ruling 2): a kept
-/// instance on K, and a kept gauge whose parent is K, each refuse
-/// `SeveredGauge` naming the gauge and the kept node, with the recourse.
+/// **A cut placement whose bundle reads a kept copy severs that read**
+/// (A4's cut rule): a top mated onto a kept base, cut alone, refuses
+/// `SeveredEdge` naming the top as the cut consumer, with a recourse.
 #[test]
-fn s3_a_kept_instance_or_gauge_on_a_cut_gauge_refuses_severed_gauge() {
-    let p = parts("s3-severed");
-    let o = p.opts();
-    let doc = ProfileDoc::empty(DocumentId::derive("s3-severed"), Tol::witness());
-    let (doc, k) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 2.0])));
-    let (doc, cut_on_k) = instance(doc, p.top);
-    let doc = set_gauge(doc, cut_on_k, Some(k));
-    let (with_instance, kept) = instance(doc.clone(), p.base);
-    let with_instance = set_gauge(with_instance, kept, Some(k));
-    let (with_gauge, k2) = insert(doc, Node::gauge(Some(k), literal([1.0, 0.0, 0.0])));
-    for (doc, kept, what) in [
-        (&with_instance, kept, "a kept instance"),
-        (&with_gauge, k2, "a kept gauge"),
-    ] {
-        let err =
-            split(doc, &[k, cut_on_k], "s3-severed", &o).expect_err("a kept node on a cut gauge");
-        assert!(
-            matches!(&err, SplitError::SeveredGauge { gauge, kept: n }
-                if gauge.id() == k && n.id() == kept),
-            "{what}: {err:?}"
-        );
-        let said = err.to_string();
-        assert!(
-            said.contains(&format!(
-                "Recourse: add {} to the cut, or set its gauge outside the cut (SetGauge)",
-                doc.spoken(kept)
-            )),
-            "{what}: {said}"
-        );
-    }
-}
-
-// ---- S4: the vote ----
-
-/// **The vote with gauges in the cut** (ruling 1, D2): K on g votes g,
-/// so an instance on the world beside it refuses `TwoAnchors`; a bare
-/// cut gauge whose parent was deleted refuses `DeadGaugeReference`
-/// naming it; and a group unplaced for lack of an offset votes its
-/// gauge, so beside a placed instance on the world it refuses
-/// `TwoAnchors` rather than lose its gauge.
-#[test]
-fn s4_cut_gauges_vote_their_parents_and_an_unplaced_group_votes_its_gauge() {
-    let p = parts("s4-vote");
-    let o = p.opts();
-    let doc = ProfileDoc::empty(DocumentId::derive("s4-vote"), Tol::witness());
-    let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
-    let (doc, k) = insert(doc, Node::gauge(Some(g), literal([2.0, 0.0, 0.0])));
-    let (doc, on_world) = instance(doc, p.top);
-    let err = split(&doc, &[k, on_world], "s4-vote", &o).expect_err("two anchors");
+fn s3_a_cut_placement_reading_a_kept_copy_refuses_severed_edge() {
+    let (p, doc, [base, top], _) = placed_pair("s3-severed");
+    let err = split(&doc, &[top], "s3-severed", &p.opts()).expect_err("a severed read");
     assert!(
-        matches!(&err, SplitError::TwoAnchors { node, first, second }
-            if node.id() == on_world
-                && first.as_ref().map(|f| f.id()) == Some(g)
-                && second.is_none()),
+        matches!(&err, SplitError::SeveredEdge { consumer, input, consumer_is_cut: true, .. }
+            if consumer.id() == top && input.id() == base),
         "{err:?}"
     );
     assert!(err.to_string().contains("Recourse:"), "{err}");
-
-    let (dead, _) = step(doc.clone(), DocEdit::DeleteNode { id: g });
-    let err = split(&dead, &[k], "s4-vote", &o).expect_err("a dead parent");
-    assert!(
-        matches!(&err, SplitError::DeadGaugeReference { node, gauge }
-            if node.id() == k && gauge.id() == g),
-        "{err:?}"
-    );
-    assert!(err.to_string().contains("Recourse:"), "{err}");
-
-    // D2: the unplaced group's gauge is not lost.
-    let (doc, unplaced) = instance(doc, p.base);
-    let doc = set_gauge(doc, unplaced, Some(g));
-    let doc = set_offset(doc, unplaced, None);
-    let err = split(&doc, &[on_world, unplaced], "s4-vote", &o)
-        .expect_err("the unplaced group votes its gauge");
-    assert!(
-        matches!(&err, SplitError::TwoAnchors { node, first, second }
-            if node.id() == unplaced
-                && first.is_none()
-                && second.as_ref().map(|s| s.id()) == Some(g)),
-        "{err:?}"
-    );
-    // Beside a placed instance on its own gauge, it anchors there.
-    let (doc, placed) = instance(doc, p.top);
-    let doc = set_gauge(doc, placed, Some(g));
-    let out = split(&doc, &[unplaced, placed], "s4-vote", &o).expect("one anchor");
-    assert_eq!(
-        out.remainder.node(out.instance).and_then(Node::gauge_ref),
-        Some(g)
-    );
 }
 
-// ---- S5: the frame rule under the verbatim move ----
+// ---- S5: a kept mate reading the cut ----
 
-/// **A kept mate reading a root on a cut gauge refuses** (ruling 4's
-/// `root_lands_empty`): the cut holds K and a root at the empty chain
-/// on it, and a root at the empty chain on the world. A kept block on a
-/// gauge of its own declares against each: the one reading the world
-/// root crosses, since that root lands at the empty chain on the
-/// part's world; the one reading the root on K refuses
-/// `MateFrameCrosses`, since that root lands on K's image.
+/// **A kept mate reading a cut instance's face crosses where that
+/// instance stands at the identity** (A4): the cut holds a base pinned
+/// at the identity and one pinned at `[8, 0, 0]`. A kept top seated on
+/// the base at the identity crosses — its target written afresh over the
+/// instance's copies — and stands where it stood. Seated on the shifted
+/// base it refuses `RemainderReadUncarried` naming that base as posed:
+/// the seat's values are charted on its target body's frame, which
+/// would become the instance's, the part's world, so the top would move.
+///
+/// *Breaks if* the crossing keeps reading the cut node or moves the top,
+/// or the values of a seat on a copy off the identity are carried over
+/// onto the instance's frame.
 #[test]
-fn s5_a_kept_mate_reading_a_root_on_a_cut_gauge_refuses_the_frame_rule() {
+fn s5_a_kept_mate_reading_a_cut_instance_crosses_only_at_the_identity() {
     let p = parts("s5-frame");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("s5-frame"), Tol::witness());
-    let (doc, k) = insert(doc, Node::gauge(None, literal([8.0, 0.0, 0.0])));
-    let (doc, on_k) = instance(doc, p.base);
-    let doc = set_gauge(doc, on_k, Some(k));
-    let (doc, on_world) = instance(doc, p.base);
-    let (doc, h) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 0.0])));
-    let (doc, kept) = instance(doc, p.top);
-    let doc = set_gauge(doc, kept, Some(h));
-    let declaring = |doc: &ProfileDoc, base: RecipeNodeId| {
-        insert(
+    let (doc, shifted) = pinned_at(doc, p.base, [8.0, 0.0, 0.0], &o);
+    let (doc, at_identity) = instance(doc, p.base, &o);
+    let (doc, kept) = insert(doc, fixture::mated_instance(p.top));
+    let seat_on = |base: RecipeNodeId| {
+        seated(
             doc.clone(),
-            seat(head(p.top_cap(kept)), head(p.base_cap(base))),
+            kept,
+            head(p.top_cap(kept)),
+            head(p.base_cap(base)),
         )
+        .0
     };
-    let (crosses, _) = declaring(&doc, on_world);
-    split(&crosses, &[k, on_k, on_world], "s5-frame", &o)
-        .expect("a root at the empty chain on the part's world crosses");
-    let (refuses, mate) = declaring(&doc, on_k);
-    let err =
-        split(&refuses, &[k, on_k, on_world], "s5-frame", &o).expect_err("a root on a cut gauge");
+
+    let mated = seat_on(at_identity);
+    let before = min_corner(&body_of(&run(&mated, &o), kept));
+    let out = split(&mated, &[shifted, at_identity], "s5-frame", &o)
+        .unwrap_or_else(|e| panic!("the kept mate crosses: {e}"));
+    let carried = only_constraint(&out.remainder, kept);
+    let [select] = fixture::face_reads(&out.remainder, target_of(&carried))[..] else {
+        panic!("the target reads one face")
+    };
+    assert_eq!(
+        out.remainder.selection(select).map(|s| s.body),
+        out.remainder.output(out.instance, 0),
+        "the kept mate's target reads the instance's copies"
+    );
+    let mut store = p.store.clone();
+    store.insert(out.part.clone(), Tol::witness());
+    let after = min_corner(&body_of(&run(&out.remainder, &with_resolver(store)), kept));
+    crate::p2_gauges::close(before, after, "the top is where it was");
+
+    let err = split(&seat_on(shifted), &[shifted, at_identity], "s5-frame", &o)
+        .expect_err("a seat with values on a copy off the identity");
     assert!(
-        matches!(&err, SplitError::MateFrameCrosses { mate: m, side, promote: None }
-            if m.id() == mate && *side == editor_core::MateSide::B),
+        matches!(&err, SplitError::RemainderReadUncarried { reader, why: Uncarried::Posed { placement } }
+            if reader.id() == kept && placement.id() == shifted),
         "{err:?}"
     );
     assert!(err.to_string().contains("Recourse:"), "{err}");
 }
 
-// ---- S6: would start placing ----
+// ---- I1–I3: inline at a pose ----
 
-/// **A kept instance on the anchor declaring against a cut instance on
-/// K refuses** (A4): the instance left behind sits on g beside it, so
-/// the mate would start placing.
-#[test]
-fn s6_a_declaring_mate_from_the_anchor_into_a_cut_gauge_would_start_placing() {
-    let p = parts("s6-placing");
+/// A part of two lone bases, the second pinned at `[16, 0, 0]`, and its
+/// first base, pinned at the identity.
+fn two_pinned(p: &Parts, label: &str) -> (ProfileDoc, RecipeNodeId) {
     let o = p.opts();
-    let doc = ProfileDoc::empty(DocumentId::derive("s6-placing"), Tol::witness());
-    let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
-    let (doc, k) = insert(doc, Node::gauge(Some(g), literal([4.0, 0.0, 0.0])));
-    let (doc, on_k) = instance(doc, p.base);
-    let doc = set_gauge(doc, on_k, Some(k));
-    let (doc, kept) = instance(doc, p.top);
-    let doc = set_gauge(doc, kept, Some(g));
-    let (doc, mate) = insert(doc, seat(head(p.top_cap(kept)), head(p.base_cap(on_k))));
-    let err = split(&doc, &[k, on_k], "s6-placing", &o).expect_err("would start placing");
-    assert!(
-        matches!(&err, SplitError::WouldStartPlacing { mate: m } if m.id() == mate),
-        "{err:?}"
-    );
-    assert!(err.to_string().contains("Recourse:"), "{err}");
-}
-
-// ---- I1–I3: inline's gauge ----
-
-/// A part of two lone bases, the second at `[16, 0, 0]`, its first base
-/// the root of its group at the empty chain.
-fn two_groups(p: &Parts, label: &str) -> (ProfileDoc, RecipeNodeId) {
     let sub = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (sub, first) = instance(sub, p.base);
-    let (sub, second) = instance(sub, p.base);
-    (
-        set_offset(sub, second, Some(literal([16.0, 0.0, 0.0]))),
-        first,
-    )
+    let (sub, first) = instance(sub, p.base, &o);
+    let (sub, _) = pinned_at(sub, p.base, [16.0, 0.0, 0.0], &o);
+    (sub, first)
 }
 
-/// A host instance of `sub` on a gauge g at `[0, 8, 0]`, at offset
-/// `[2, 0, 4]` and labelled, and the store holding `sub`.
-fn host_of(p: &Parts, sub: ProfileDoc, label: &str) -> (ProfileDoc, PartStore, [RecipeNodeId; 2]) {
+/// A host instance of `sub` pinned to the world at `[2, 8, 4]`, and the
+/// store holding `sub`.
+fn host_of(p: &Parts, sub: ProfileDoc, label: &str) -> (ProfileDoc, PartStore, RecipeNodeId) {
     let mut store = p.store.clone();
     let sub_ref = store.insert(sub, Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
-    let (doc, h) = instance(doc, sub_ref);
-    let doc = set_gauge(doc, h, Some(g));
-    let doc = set_offset(doc, h, Some(literal([2.0, 0.0, 4.0])));
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetLabel {
-            node: h,
-            label: Some(Label::new("sub").expect("a label")),
-        },
-    );
-    (doc, store, [g, h])
+    let (doc, h) = pinned_at(doc, sub_ref, [2.0, 8.0, 4.0], &with_resolver(store.clone()));
+    (doc, store, h)
 }
 
-/// The one gauge `out` minted: a gauge of `out.doc` that neither `doc`
-/// nor the part held.
-fn minted_gauge(doc: &ProfileDoc, out: &InlineOutcome) -> RecipeNodeId {
-    let fresh: Vec<RecipeNodeId> = out
-        .doc
-        .ids()
-        .iter()
-        .copied()
-        .filter(|&id| matches!(out.doc.node(id), Some(Node::Gauge { .. })))
-        .filter(|id| doc.node(*id).is_none() && !out.node_map.values().any(|v| v == id))
-        .collect();
-    match fresh.as_slice() {
-        [g] => *g,
-        other => panic!("one minted gauge, not {other:?}"),
-    }
-}
-
-/// **Inline mints a gauge** (ruling 5, D3): a root instance at offset o
-/// on gauge g, over a part of two groups, over a part whose root sits
-/// off the empty chain, and over a part holding a gauge, inlines onto a
-/// gauge minted under g holding o, labelled as the instance was, from
-/// which the part's gauges and instances hang; the material is where it
-/// was.
+/// **Inline at a pose moves the part's world mates by the pin's
+/// motion** (A4): an instance pinned at `[2, 8, 4]`, over a part of two
+/// pinned instances, over a part whose one instance sits off the
+/// identity, and over a part whose one instance is pinned up, splices
+/// the part's placements after the host's, each where it stood in the
+/// world; the material is where it was.
+///
+/// *Breaks if* a spliced world mate lands unmoved, or moved by the
+/// part's own pin rather than the instance's.
 #[test]
-fn i1_inline_at_an_offset_over_any_other_part_mints_a_gauge() {
-    let p = parts("i1-minted");
+fn i1_inline_at_a_pose_moves_the_parts_world_mates_by_its_motion() {
+    let p = parts("i1-pose");
+    let o = p.opts();
     // Each part, with where each of its instances' lowest corner lands
-    // in the world: g at [0, 8, 0], o at [2, 0, 4], then the part's own.
+    // in the world: the host pose at [2, 8, 4], then the part's own.
     let two = {
         let sub = ProfileDoc::empty(DocumentId::derive("i1-two"), Tol::witness());
-        let (sub, first) = instance(sub, p.base);
-        let (sub, second) = instance(sub, p.base);
-        let sub = set_offset(sub, second, Some(literal([16.0, 0.0, 0.0])));
+        let (sub, first) = instance(sub, p.base, &o);
+        let (sub, second) = pinned_at(sub, p.base, [16.0, 0.0, 0.0], &o);
         (
             sub,
             vec![(first, [2.0, 8.0, 4.0]), (second, [18.0, 8.0, 4.0])],
@@ -537,48 +505,22 @@ fn i1_inline_at_an_offset_over_any_other_part_mints_a_gauge() {
     };
     let shifted = {
         let sub = ProfileDoc::empty(DocumentId::derive("i1-shifted"), Tol::witness());
-        let (sub, root) = instance(sub, p.base);
-        let sub = set_offset(sub, root, Some(literal([1.0, 0.0, 0.0])));
-        (sub, vec![(root, [3.0, 8.0, 4.0])])
+        let (sub, shifted) = pinned_at(sub, p.base, [1.0, 0.0, 0.0], &o);
+        (sub, vec![(shifted, [3.0, 8.0, 4.0])])
     };
-    let gauged = {
-        let sub = ProfileDoc::empty(DocumentId::derive("i1-gauged"), Tol::witness());
-        let (sub, k) = insert(sub, Node::gauge(None, literal([0.0, 0.0, 2.0])));
-        let (sub, on_k) = instance(sub, p.base);
-        (set_gauge(sub, on_k, Some(k)), vec![(on_k, [2.0, 8.0, 6.0])])
+    let raised = {
+        let sub = ProfileDoc::empty(DocumentId::derive("i1-raised"), Tol::witness());
+        let (sub, up) = pinned_at(sub, p.base, [0.0, 0.0, 2.0], &o);
+        (sub, vec![(up, [2.0, 8.0, 6.0])])
     };
     for ((sub, corners), what) in [
-        (two, "two groups"),
-        (shifted, "a root off the empty chain"),
-        (gauged, "a part holding a gauge"),
+        (two, "two pinned instances"),
+        (shifted, "an instance off the identity"),
+        (raised, "an instance pinned up"),
     ] {
-        let (doc, store, [g, h]) = host_of(&p, sub.clone(), &format!("i1-host-{what}"));
+        let (doc, store, h) = host_of(&p, sub.clone(), &format!("i1-host-{what}"));
         let out = inline(&doc, h, &store);
-        let minted = minted_gauge(&doc, &out);
-        assert_eq!(
-            out.doc.node(minted),
-            Some(&Node::gauge(Some(g), literal([2.0, 0.0, 4.0]))),
-            "{what}: the minted gauge sits on g holding the offset"
-        );
-        assert_eq!(
-            out.doc.label(minted).map(ToString::to_string),
-            Some("sub".to_owned()),
-            "{what}: the minted gauge takes the instance's label"
-        );
-        for (&old, &new) in &out.node_map {
-            if sub.node(old).and_then(Node::gauge_ref).is_none()
-                && matches!(
-                    sub.node(old),
-                    Some(Node::InstantiatePart { .. } | Node::Gauge { .. })
-                )
-            {
-                assert_eq!(
-                    out.doc.node(new).and_then(Node::gauge_ref),
-                    Some(minted),
-                    "{what}: {old:?} on the part's world hangs from the minted gauge"
-                );
-            }
-        }
+        assert!(out.doc.node(h).is_none(), "{what}: the instance is gone");
         // The world: the part's placements, carried in its own order.
         let spliced: Vec<RecipeNodeId> = sub.placements().iter().map(|r| out.node_map[r]).collect();
         assert!(
@@ -602,58 +544,34 @@ fn i1_inline_at_an_offset_over_any_other_part_mints_a_gauge() {
     }
 }
 
-/// A host whose instance of a two-group part places a top block on the
-/// part's first base through a mate, and the mate.
-fn member_through_a_mate(p: &Parts, label: &str) -> (ProfileDoc, PartStore, [RecipeNodeId; 4]) {
-    let (sub, first) = two_groups(p, &format!("{label}-sub"));
-    member_through_a_mate_of(p, sub, first, label)
-}
-
-/// [`member_through_a_mate`] over `sub`, the mate reading `first`.
-fn member_through_a_mate_of(
-    p: &Parts,
-    sub: ProfileDoc,
-    first: RecipeNodeId,
-    label: &str,
-) -> (ProfileDoc, PartStore, [RecipeNodeId; 4]) {
+/// A host whose instance of a two-instance part, pinned at a pose, has a
+/// top mated onto the part's first base: `[h, top, first]`.
+fn member_through_a_mate(p: &Parts, label: &str) -> (ProfileDoc, PartStore, [RecipeNodeId; 3]) {
+    let (sub, first) = two_pinned(p, &format!("{label}-sub"));
     let inner = in_world_of(&sub, p.base_cap(first));
-    let (doc, store, [g, h]) = host_of(p, sub, label);
-    let (doc, top) = instance(doc, p.top);
-    let doc = set_gauge(doc, top, Some(g));
-    let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(wrap(h, inner))));
-    (doc, store, [h, top, mate, first])
+    let (doc, store, h) = host_of(p, sub, label);
+    let (doc, top) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, _) = seated(doc, top, head(p.top_cap(top)), head(wrap(h, inner)));
+    (doc, store, [h, top, first])
 }
 
-/// **The members move** (ruling 5): a top the instance places through a
-/// mate moves onto the minted gauge with it, by the recorded `Promote`
-/// that mints the gauge; its mate reads the inner root, and it is where
-/// it was.
+/// **A host constraint reading the instance crosses onto the spliced
+/// copy** (A4): a top mated onto the instance's first base, which the
+/// part pins at the identity, reads the spliced base after the inline
+/// and is where it was. The edit list replays to the result.
 #[test]
-fn i2_a_member_the_instance_placed_moves_onto_the_minted_gauge() {
-    let p = parts("i2-moved");
-    let (doc, store, [h, top, mate, first]) = member_through_a_mate(&p, "i2-moved");
+fn i2_a_host_constraint_reading_the_instance_crosses_onto_the_spliced_copy() {
+    let p = parts("i2-crossed");
+    let (doc, store, [h, top, first]) = member_through_a_mate(&p, "i2-crossed");
     let o = with_resolver(store.clone());
     let before = min_corner(&body_of(&run(&doc, &o), top));
     let out = inline(&doc, h, &store);
-    let minted = minted_gauge(&doc, &out);
+    let carried = only_constraint(&out.doc, top);
     assert_eq!(
-        out.doc.node(top).and_then(Node::gauge_ref),
-        Some(minted),
-        "the top sits on the minted gauge"
+        read_name(&out.doc, target_of(&carried)),
+        p.base_cap(out.node_map[&first]),
+        "the constraint reads the spliced base"
     );
-    assert!(
-        out.edits.contains(&DocEdit::Promote { instance: h }),
-        "the move is a recorded edit: {:?}",
-        out.edits
-    );
-    match out.doc.node(mate) {
-        Some(Node::Mate { b, .. }) => assert_eq!(
-            crate::fixture::side_name(&out.doc, *b),
-            p.base_cap(out.node_map[&first]),
-            "the mate reads the inner root"
-        ),
-        other => panic!("the mate survives: {other:?}"),
-    }
     let after = min_corner(&body_of(&run(&out.doc, &o), top));
     crate::p2_gauges::close(before, after, "the top is where it was");
     same_extent(extent(&doc, &o), extent(&out.doc, &o), "no material moves");
@@ -667,167 +585,126 @@ fn i2_a_member_the_instance_placed_moves_onto_the_minted_gauge() {
     assert!(replayed.bit_eq(&out.doc), "the list replays to the result");
 }
 
-/// **A moved member with a further offset refuses** (ruling 5): the top
-/// carries a checked offset, stated in g, which the minted gauge's
-/// frame would not keep. Over a two-group part, and over a part that is
-/// one group rooted at the empty chain on its world — the shape whose
-/// root once took the instance's offset, so nothing moved, and which
-/// now mints a gauge like any other.
-#[test]
-fn i3_a_moved_member_with_a_further_offset_refuses() {
-    let p = parts("i3-offset");
-    let one = ProfileDoc::empty(DocumentId::derive("i3-offset-one"), Tol::witness());
-    let (one, only) = instance(one, p.base);
-    let one = set_offset(one, only, Some(Placement::IDENTITY));
-    for (doc, store, [h, top, _, _]) in [
-        member_through_a_mate(&p, "i3-offset"),
-        member_through_a_mate_of(&p, one, only, "i3-offset-one-group"),
-    ] {
-        i3_refuses(&doc, &store, h, top);
-    }
-}
-
-fn i3_refuses(doc: &ProfileDoc, store: &PartStore, h: RecipeNodeId, top: RecipeNodeId) {
-    let (doc, store) = (doc.clone(), store.clone());
-    let o = with_resolver(store.clone());
-    let solved = solve(&doc, &o, Tol::witness())
-        .placement(&doc, top)
-        .expect("placed");
-    // A true checked offset, and the empty chain stated in g, which is
-    // false in the minted gauge's frame: both refuse.
-    for offset in [Placement::literal(&solved), Placement::IDENTITY] {
-        let doc = set_offset(doc.clone(), top, Some(offset.clone()));
-        let err = inline_err(&doc, h, &store);
-        assert!(
-            matches!(&err, InlineError::MovedMemberOffset { member } if member.id() == top),
-            "{offset:?}: {err:?}"
-        );
-        let said = err.to_string();
-        assert!(
-            said.contains(&format!(
-                "Recourse: clear {}'s offset (SetOffset), then inline",
-                doc.spoken(top)
-            )),
-            "{said}"
-        );
-    }
-}
-
 // ---- I4–I5: the mate-placed inline ----
 
-/// A part at a frame of its own — the placed pair's base promoted, and
-/// the group cut leaving the promoted gauge: a base at the empty chain,
-/// a top mated onto it — in a store, its base and top, and a host in
-/// which a tall block
-/// `ht`, placed first, places an instance of that part through a mate
-/// reading the part's base: the instance is not its group's root.
-fn mate_placed(label: &str) -> (Parts, PartStore, ProfileDoc, [RecipeNodeId; 5]) {
-    let (p, doc, [base, top, mate]) = placed_pair(label);
-    let (doc, _) = step(doc, DocEdit::Promote { instance: base });
-    let out = split(&doc, &[base, top, mate], label, &p.opts()).expect("the promoted group");
-    let (part_base, part_top) = (out.node_map[&base], out.node_map[&top]);
-    let bottom = in_world_of(&out.part, base_bottom(&p, part_base));
-    let mut store = p.store.clone();
-    let part_ref = store.insert(out.part, Tol::witness());
-    let host = ProfileDoc::empty(DocumentId::derive(&format!("{label}-host")), Tol::witness());
-    let (host, ht) = instance(host, p.top);
-    let (host, i) = instance(host, part_ref);
-    let (host, m) = insert(
-        host,
-        seat_on(
-            head(wrap(i, bottom)),
-            head(p.top_upper_cap(ht)),
-            [0.0, 0.0, TOP_HEIGHT],
-        ),
-    );
-    (p, store, host, [ht, i, m, part_base, part_top])
+/// **A part whose one placement on its world is a base at `base_at`**
+/// (at the identity, an instance pinned there with no pose of its own),
+/// with a top mated onto it, under the document id `label`: the part,
+/// its base and its top.
+fn pair_part(p: &Parts, label: &str, base_at: [f64; 3]) -> (ProfileDoc, [RecipeNodeId; 2]) {
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let (doc, base) = pinned_at(doc, p.base, base_at, &o);
+    let (doc, top) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, _) = seated(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
+    (doc, [base, top])
 }
 
-/// **The mate-placed inline** (ruling 6): an instance its mate places
-/// on a host block, over a part that is one group at the empty chain,
-/// inlines. The part's root takes its place — no offset, on its gauge —
-/// the host mate reads that root, and the material is where it was.
-/// With a checked offset on the instance, the root carries it. A host
-/// mate reading the part through a member that is not its root still
-/// refuses the frame rule.
+/// A part of one base pinned to its world at the identity and a top
+/// mated onto it, in a store, its base and top, and a host in which a
+/// tall block `ht`, pinned first, places an instance `i` of that part
+/// through a mate reading the part's base bottom; that mate's address.
+fn mate_placed(
+    label: &str,
+) -> (
+    Parts,
+    PartStore,
+    ProfileDoc,
+    [RecipeNodeId; 4],
+    editor_core::MateRef,
+) {
+    let p = parts(label);
+    let (part, [part_base, part_top]) = pair_part(&p, &format!("{label}-part"), [0.0; 3]);
+    let bottom = in_world_of(&part, base_bottom(&p, part_base));
+    let mut store = p.store.clone();
+    let part_ref = store.insert(part, Tol::witness());
+    let host = ProfileDoc::empty(DocumentId::derive(&format!("{label}-host")), Tol::witness());
+    let (host, ht) = instance(host, p.top, &with_resolver(store.clone()));
+    let (host, i) = insert(host, fixture::mated_instance(part_ref));
+    let (host, m) = seat_at(
+        host,
+        i,
+        head(wrap(i, bottom)),
+        head(p.top_upper_cap(ht)),
+        [0.0, 0.0],
+    );
+    (p, store, host, [ht, i, part_base, part_top], m)
+}
+
+/// `host` with `i`'s mate `m` and the values on it removed.
+fn without(host: ProfileDoc, m: editor_core::MateRef) -> ProfileDoc {
+    fixture::bundle(&host, m.placement)
+        .into_iter()
+        .rev()
+        .filter(|c| c.id == m.id || c.value().is_some_and(|v| v.mate == m.id))
+        .fold(host, |host, c| {
+            step(
+                host,
+                DocEdit::RemoveConstraint {
+                    placement: m.placement,
+                    constraint: c.id,
+                },
+            )
+            .0
+        })
+}
+
+/// **The mate-placed inline** (A4): an instance its constraint places
+/// on a host block, over a part whose one placement on its world is an
+/// instance pinned there at the identity, inlines. That placement takes
+/// the instance's bundle in place of its pin, the host constraint reads
+/// it, and the material is where it was. A host mate whose own side
+/// reads the part through a copy that is not that placement lands on a
+/// placement whose copy it does not read, and the root's door refuses it
+/// `NotOnTheCopy`.
+///
+/// *Breaks if* the root keeps its pin beside the taken bundle, the taken
+/// mate reads anything but the spliced base, or a mate on another copy is
+/// moved onto the root in silence.
 #[test]
-fn i4_a_mate_placed_instance_over_one_such_group_inlines() {
-    let (p, store, host, [ht, i, m, part_base, part_top]) = mate_placed("i4-mate-placed");
+fn i4_a_mate_placed_instance_over_one_pinned_instance_inlines() {
+    let (p, store, host, [ht, i, part_base, part_top], m) = mate_placed("i4-mate-placed");
     let o = with_resolver(store.clone());
     let out = inline(&host, i, &store);
-    let root = out.node_map[&part_base];
-    assert_eq!(offset_of(&out.doc, root), None, "the root takes no offset");
-    assert_eq!(out.doc.node(root).and_then(Node::gauge_ref), None);
-    match out.doc.node(m) {
-        Some(Node::Mate { a, .. }) => {
-            assert_eq!(
-                crate::fixture::side_name(&out.doc, *a),
-                base_bottom(&p, root),
-                "the host mate reads the root"
-            );
-        }
-        other => panic!("the mate survives: {other:?}"),
-    }
+    let spliced = out.node_map[&part_base];
+    assert_eq!(offset_of(&out.doc, spliced), None, "the pin gives way");
+    let taken = only_constraint(&out.doc, spliced);
+    assert_eq!(
+        read_name(&out.doc, on_of(&taken)),
+        base_bottom(&p, spliced),
+        "the host constraint reads the spliced base"
+    );
     same_extent(extent(&host, &o), extent(&out.doc, &o), "no material moves");
 
-    let solved = solve(&host, &o, Tol::witness())
-        .placement(&host, i)
-        .expect("placed");
-    let checked = Placement::literal(&solved);
-    let stated = set_offset(host.clone(), i, Some(checked.clone()));
-    assert_eq!(
-        solve(&stated, &o, Tol::witness()).fault(i),
-        None,
-        "the checked offset is true"
-    );
-    let out = inline(&stated, i, &store);
-    assert_eq!(
-        offset_of(&out.doc, out.node_map[&part_base]),
-        Some(editor_core::test_support::stored_placement(
-            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
-            &checked
-        )),
-        "the root carries the checked offset"
-    );
-
-    // Through the top, which is not the part's root.
+    // Through the top, which is not the part's placement on its world.
     let top_cap = in_world_of(&store.doc(part_id_of(&host, i)), p.top_cap(part_top));
-    let (through_top, by_top) = insert(
-        step(host, DocEdit::DeleteNode { id: m }).0,
-        seat_on(
-            head(wrap(i, top_cap)),
-            head(p.top_upper_cap(ht)),
-            [0.0, 0.0, TOP_HEIGHT],
-        ),
+    let (through_top, _) = seat_at(
+        without(host, m),
+        i,
+        head(wrap(i, top_cap)),
+        head(p.top_upper_cap(ht)),
+        [0.0, 0.0],
     );
     let err = inline_err(&through_top, i, &store);
     assert!(
-        matches!(&err, InlineError::MateFrameCrosses { mate, .. } if mate.id() == by_top),
+        matches!(&err, InlineError::Edit { error }
+            if matches!(error.as_ref(), EditError::MateRefused { fault, .. }
+                if matches!(fault.as_ref(), MateFault::NotOnTheCopy { .. }))),
         "{err:?}"
     );
 }
 
-/// **The mate-placed refusal stays narrow** (ruling 6): over a part
-/// whose root sits off the empty chain the instance refuses
-/// `MatePlaced`, naming the part's root and the remedy of setting its
-/// offset; over a part of two groups it refuses naming the mates.
+/// **The mate-placed refusal stays narrow** (A4): over a part whose one
+/// placement on its world sits off the identity, the instance refuses
+/// `UnplaceablePart` naming that placement as posed; over a part of two
+/// placements on its world it refuses naming the count. Each says the
+/// recourse.
 #[test]
 fn i5_a_mate_placed_instance_over_any_other_part_refuses() {
-    let (p, store, host, [ht, i, m, part_base, _]) = mate_placed("i5-mate-placed");
-    let part_id = match host.node(i) {
-        Some(Node::InstantiatePart { doc_ref, .. }) => doc_ref.id,
-        other => panic!("an instance: {other:?}"),
-    };
-    let (shifted, _) = step(
-        store.doc(part_id),
-        DocEdit::SetOffset {
-            instance: part_base,
-            offset: Some(literal([1.0, 0.0, 0.0])),
-            fresh: Vec::new(),
-        },
-    );
+    let (p, store, host, [ht, i, _, _], m) = mate_placed("i5-mate-placed");
+    let (shifted, [shifted_base, _]) = pair_part(&p, "i5-mate-placed-part", [1.0, 0.0, 0.0]);
     let mut shifted_store = store.clone();
-    let shifted_ref = shifted_store.insert(shifted.clone(), Tol::witness());
+    let shifted_ref = shifted_store.insert(shifted, Tol::witness());
     let (repinned, _) = step(
         host.clone(),
         DocEdit::UpdateReference {
@@ -837,195 +714,99 @@ fn i5_a_mate_placed_instance_over_any_other_part_refuses() {
     );
     let err = inline_err(&repinned, i, &shifted_store);
     assert!(
-        matches!(&err, InlineError::MatePlaced { instance, part_root: Some(r), .. }
-            if instance.id() == i && r.id() == part_base),
+        matches!(&err, InlineError::UnplaceablePart { instance, why: Uncarried::Posed { placement } }
+            if instance.id() == i && placement.id() == shifted_base),
         "{err:?}"
     );
     let said = err.to_string();
     assert!(
         said.contains(&format!(
-            "Recourse: in the referenced document, set {}'s offset to the empty chain \
-             (SetOffset), point {} at that version (UpdateReference), then inline",
-            shifted.spoken(part_base),
+            "Recourse: pin {} to the world alone",
             host.spoken(i)
         )),
         "{said}"
     );
 
-    let (two, first) = two_groups(&p, "i5-mate-placed-part");
+    let (two, first) = two_pinned(&p, "i5-mate-placed-part");
     let first_bottom = in_world_of(&two, base_bottom(&p, first));
     let mut two_store = p.store.clone();
     let two_ref = two_store.insert(two, Tol::witness());
     let (other, _) = step(
-        step(host.clone(), DocEdit::DeleteNode { id: m }).0,
+        without(host, m),
         DocEdit::UpdateReference {
             node: i,
             new_pin: two_ref.pin,
         },
     );
-    let (other, mate) = insert(
+    let (other, _) = seat_at(
         other,
-        seat_on(
-            head(wrap(i, first_bottom)),
-            head(p.top_upper_cap(ht)),
-            [0.0, 0.0, TOP_HEIGHT],
-        ),
+        i,
+        head(wrap(i, first_bottom)),
+        head(p.top_upper_cap(ht)),
+        [0.0, 0.0],
     );
     let err = inline_err(&other, i, &two_store);
     assert!(
-        matches!(&err, InlineError::MatePlaced { instance, mates, part_root: None, .. }
-            if instance.id() == i && mates.iter().map(|m| m.id()).collect::<Vec<_>>() == [mate]),
+        matches!(&err, InlineError::UnplaceablePart { instance, why: Uncarried::Bodies { count: 2 } }
+            if instance.id() == i),
         "{err:?}"
     );
-    assert!(err.to_string().contains("Recourse: delete"), "{err}");
-
-    // A part that is one group whose root sits at the empty chain on a
-    // gauge K: only the gauge keeps it from being one such group, and
-    // the refusal names K in the remedy.
-    let gauged = {
-        let sub = ProfileDoc::empty(DocumentId::derive("i5-mate-placed-part"), Tol::witness());
-        let (sub, k) = insert(sub, Node::gauge(None, literal([0.0, 0.0, 2.0])));
-        let (sub, root) = instance(sub, p.base);
-        (set_gauge(sub, root, Some(k)), k, root)
-    };
-    let (gauged, k, gauged_root) = gauged;
-    let mut gauged_store = p.store.clone();
-    let gauged_ref = gauged_store.insert(gauged.clone(), Tol::witness());
-    let (on_gauge, _) = step(
-        step(host.clone(), DocEdit::DeleteNode { id: m }).0,
-        DocEdit::UpdateReference {
-            node: i,
-            new_pin: gauged_ref.pin,
-        },
-    );
-    let (on_gauge, _) = insert(
-        on_gauge,
-        seat_on(
-            head(wrap(i, in_world_of(&gauged, base_bottom(&p, gauged_root)))),
-            head(p.top_upper_cap(ht)),
-            [0.0, 0.0, TOP_HEIGHT],
-        ),
-    );
-    let err = inline_err(&on_gauge, i, &gauged_store);
-    assert!(
-        matches!(&err, InlineError::MatePlaced { part_root: Some(r), part_gauges, .. }
-            if r.id() == gauged_root
-                && part_gauges.iter().map(|g| g.id()).collect::<Vec<_>>() == [k]),
-        "{err:?}"
-    );
-    let said = err.to_string();
-    assert!(
-        said.contains(&format!(
-            "Recourse: in the referenced document, put {r}'s group on the world at the empty \
-             chain (SetGauge, SetOffset), delete {k} (DeleteNode)",
-            r = gauged.spoken(gauged_root),
-            k = gauged.spoken(k)
-        )),
-        "{said}"
-    );
+    assert!(err.to_string().contains("Recourse:"), "{err}");
 }
 
 // ---- R1: the round trip ----
 
-/// **A cut holding a gauge, moved verbatim and inlined at the empty
-/// offset, is the document it was given up to node ids** (R1): nested
-/// gauges, instances on each, a mate placing a top on one of them, and
-/// a parametric gauge whose parameter moves with it. The comparator is
-/// not vacuous: one offset changed fails it.
+/// **A cut of placements, one pinned at a parametric pose, moved
+/// verbatim and inlined at the identity, is the document it was given
+/// up to node ids** (R1): a base pinned at `[0, 0, lift]`, a top mated
+/// onto it, and a further pinned base, beside a kept instance. The
+/// parameter moves with the cut. The comparator is not vacuous: one
+/// pin changed fails it.
 #[test]
-fn r1_a_cut_holding_nested_gauges_round_trips_exactly() {
-    let p = parts("r1-nested");
-    let doc = ProfileDoc::empty(DocumentId::derive("r1-nested"), Tol::witness());
+fn r1_a_cut_with_a_parametric_pin_round_trips_exactly() {
+    let p = parts("r1-parametric");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-parametric"), Tol::witness());
     let doc = crate::p2_gauges::declare_lift(doc, 0.5);
-    let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
-    let (doc, k) = insert(doc, crate::p2_gauges::lifting_gauge(Some(g), 0.0));
-    let (doc, k2) = insert(doc, Node::gauge(Some(k), literal([4.0, 0.0, 0.0])));
-    let (doc, base) = instance(doc, p.base);
-    let doc = set_gauge(doc, base, Some(k));
-    let doc = set_offset(doc, base, Some(literal([0.0, 2.0, 0.0])));
-    let (doc, top) = instance(doc, p.top);
-    let doc = set_gauge(doc, top, Some(k));
-    let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
-    let (doc, deep) = instance(doc, p.base);
-    let doc = set_gauge(doc, deep, Some(k2));
-    let (doc, kept) = instance(doc, p.top);
-    let doc = set_gauge(doc, kept, Some(g));
-    let out = round_trip(&doc, &[k, k2, base, top, mate, deep], &p, "r1-nested");
-    assert_eq!(
-        out.remainder.node(out.instance).and_then(Node::gauge_ref),
-        Some(g)
-    );
+    // The kept instance comes first: split appends its instance and
+    // inline its splice, so the cut's placements, listed last, come
+    // back in their order.
+    let (doc, _kept) = pinned_at(doc, p.top, [0.0, 8.0, 0.0], &o);
+    let (doc, base) = pinned_lifted(doc, p.base, PoseRole::Z, 0.0, &o);
+    let (doc, top) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, _) = seated(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
+    let (doc, deep) = pinned_at(doc, p.base, [4.0, 8.0, 0.0], &o);
+    let out = round_trip(&doc, &[base, top, deep], &p, "r1-parametric");
     assert!(
         out.part
             .var_named(crate::p2_gauges::lift().as_str())
             .is_some(),
-        "K's parameter moves with it"
+        "the pin's parameter moves with it"
     );
 
     let mut store = p.store.clone();
     store.insert(out.part.clone(), Tol::witness());
     let back = inline(&out.remainder, out.instance, &store);
     let (map, steps) = composed(&doc, &out, &back);
-    let moved = set_offset(back.doc, map[&base], Some(literal([0.0, 2.5, 0.0])));
+    let moved = repin(back.doc, map[&deep], [4.0, 8.5, 0.0], &with_resolver(store));
     assert!(
         same_up_to_ids(&doc, &moved, &map, &steps).is_err(),
-        "the comparator reads offsets"
-    );
-}
-
-/// **R1 with a checked offset under a carried placing mate**: a cut
-/// holding a gauge K and a placed pair on the world, the top mated
-/// onto the base and carrying its solved pose as a checked offset. The
-/// carried mate's insert clears the top's offset and the carry
-/// re-states it, at the split and at the inline, so the round trip is
-/// the document up to node ids and no `OffsetCleared` survives.
-#[test]
-fn r1_a_checked_offset_under_a_carried_placing_mate_round_trips_exactly() {
-    let (p, doc, [base, top, mate]) = placed_pair("r1-checked");
-    let o = p.opts();
-    let solved = solve(&doc, &o, Tol::witness())
-        .placement(&doc, top)
-        .expect("placed");
-    let doc = set_offset(doc, top, Some(Placement::literal(&solved)));
-    assert_eq!(
-        solve(&doc, &o, Tol::witness()).fault(top),
-        None,
-        "the checked offset is true"
-    );
-    let (doc, k) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
-    let (doc, on_k) = instance(doc, p.base);
-    let doc = set_gauge(doc, on_k, Some(k));
-    let out = round_trip(&doc, &[base, top, mate, k, on_k], &p, "r1-checked");
-    assert_eq!(
-        offset_of(&out.part, out.node_map[&top]),
-        Some(Placement::literal(&solved)),
-        "the part keeps the checked offset"
-    );
-    assert!(
-        !out.part_maintenance
-            .iter()
-            .any(|m| matches!(m, editor_core::Maintenance::OffsetCleared { .. })),
-        "no cleared offset survives: {:?}",
-        out.part_maintenance
+        "the comparator reads pins"
     );
 }
 
 // ---- No material ----
 
 /// **A cut that holds no material refuses** (A4: split-then-evaluate
-/// equals the unsplit evaluation): a bare gauge beside kept material, a
-/// gauge chain, and a spare frame datum each refuse `NoMaterial` naming
-/// the cut's first node, with a recourse, rather than leave an instance
-/// of a part with no body.
+/// equals the unsplit evaluation): a spare frame datum beside placed
+/// material refuses `NoMaterial` naming it, with a recourse, rather
+/// than leave an instance of a part with no body.
 #[test]
-fn a_cut_of_gauges_or_a_datum_alone_refuses_no_material() {
+fn a_cut_of_a_datum_alone_refuses_no_material() {
     let p = parts("no-material");
     let o = p.opts();
-    let doc = ProfileDoc::empty(DocumentId::derive("no-material"), Tol::witness());
-    let (doc, k) = insert(doc, Node::gauge(None, literal([1.0, 0.0, 0.0])));
-    let (doc, _kept) = instance(doc, p.base);
-    let (chain, k2) = insert(doc.clone(), Node::gauge(Some(k), literal([0.0, 1.0, 0.0])));
-    let (block, _) = crate::p2_gauges::block("no-material-datum", 2.0, 1.0);
+    let (block, body) = crate::p2_gauges::block("no-material-datum", 2.0, 1.0);
+    let block = fixture::place(block, body).0;
     let frame = *block
         .ids()
         .iter()
@@ -1035,61 +816,63 @@ fn a_cut_of_gauges_or_a_datum_alone_refuses_no_material() {
         block.clone(),
         block.node(frame).map(|n| n.written(&block)).expect("live"),
     );
-    for (doc, ids, first, what) in [
-        (&doc, vec![k], k, "a bare gauge"),
-        (&chain, vec![k, k2], k, "a gauge chain"),
-        (&with_datum, vec![spare], spare, "a spare frame datum"),
-    ] {
-        let err = split(doc, &ids, "no-material", &o).expect_err(what);
-        assert!(
-            matches!(&err, SplitError::NoMaterial { node } if node.id() == first),
-            "{what}: {err:?}"
-        );
-        assert!(err.to_string().contains("Recourse:"), "{what}: {err}");
-    }
+    let err = split(&with_datum, &[spare], "no-material", &o).expect_err("a spare frame datum");
+    assert!(
+        matches!(&err, SplitError::NoMaterial { node } if node.id() == spare),
+        "{err:?}"
+    );
+    assert!(err.to_string().contains("Recourse:"), "{err}");
 }
 
-/// **`gauges_first` puts a gauge's own parent ahead of it**: an
-/// instance, then K2, then K are inserted, the instance put on K2 and
-/// K2 on K. Carried in document order the instance would precede both
-/// gauges and K2 its parent; the round trip is the document.
+/// **A chain of constraints authored backwards round-trips**: a top,
+/// then a second top, then a base are inserted; the second top is
+/// mated onto the base and the first onto the second. Each bundle reads
+/// a copy inserted after its placement; the round trip is the document.
 #[test]
-fn s2_a_gauge_chain_inserted_backwards_is_carried_parent_first() {
+fn s2_a_constraint_chain_authored_backwards_round_trips() {
     let p = parts("s2-chain-order");
     let doc = ProfileDoc::empty(DocumentId::derive("s2-chain-order"), Tol::witness());
-    let (doc, instance) = instance(doc, p.base);
-    let (doc, k2) = insert(doc, Node::gauge(None, literal([1.0, 0.0, 0.0])));
-    let (doc, k) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 2.0])));
-    let doc = set_gauge(doc, instance, Some(k2));
-    let doc = set_gauge(doc, k2, Some(k));
-    round_trip(&doc, &[instance, k2, k], &p, "s2-chain-order");
+    let (doc, upper) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, lower) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, base) = instance(doc, p.base, &p.opts());
+    let (doc, _) = seated(doc, lower, head(p.top_cap(lower)), head(p.base_cap(base)));
+    let (doc, _) = seat_at(
+        doc,
+        upper,
+        head(p.top_cap(upper)),
+        head(p.top_upper_cap(lower)),
+        [0.0, 0.0],
+    );
+    round_trip(&doc, &[upper, lower, base], &p, "s2-chain-order");
 }
 
 // ---- The comparator's own rows ----
 
-/// The comparator's scene: a block's frame, profile and extrude, a
-/// parametric gauge K with a label, a gauge K2, a placed base on K, a
-/// top mated onto it, and a lone instance on K2. `tweak` changes one
-/// thing; every variant mints the same ids in the same order, except
-/// `Order`, which inserts the top before the base.
+/// The comparator's scene: a block's frame, profile and extrude, an
+/// anchor pinned at a parametric pose and labelled, a base pinned
+/// beside it, a top mated onto the base, and a lone top mated onto the
+/// anchor. `tweak` changes one thing; every variant mints the same ids
+/// in the same order, except `Order`, which inserts the top before the
+/// base.
 #[derive(Clone, Copy, PartialEq)]
 enum Tweak {
     None,
-    GaugeRef,
-    Offset,
-    Placement,
-    Alignment,
+    Target,
+    Pin,
+    Pose,
+    Value,
     Head,
     Param,
     Label,
     Order,
 }
 
-fn comparator_scene(p: &Parts, tweak: Tweak) -> (ProfileDoc, [RecipeNodeId; 5]) {
+fn comparator_scene(p: &Parts, tweak: Tweak) -> (ProfileDoc, [RecipeNodeId; 4]) {
     let (doc, _) = crate::p2_gauges::block("comparator-scene", 2.0, 1.0);
     let doc = crate::p2_gauges::declare_lift(doc, if tweak == Tweak::Param { 0.75 } else { 0.5 });
-    let angle = if tweak == Tweak::Placement { 0.25 } else { 0.0 };
-    let (doc, k) = insert(doc, crate::p2_gauges::lifting_gauge(None, angle));
+    let o = p.opts();
+    let angle = if tweak == Tweak::Pose { 0.25 } else { 0.0 };
+    let (doc, anchor) = pinned_lifted(doc, p.base, PoseRole::Z, angle, &o);
     let label = if tweak == Tweak::Label {
         "other"
     } else {
@@ -1098,47 +881,44 @@ fn comparator_scene(p: &Parts, tweak: Tweak) -> (ProfileDoc, [RecipeNodeId; 5]) 
     let (doc, _) = step(
         doc,
         DocEdit::SetLabel {
-            node: k,
+            node: anchor,
             label: Some(Label::new(label).expect("a label")),
         },
     );
-    let (doc, k2) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
+    let x = if tweak == Tweak::Pin { 3.0 } else { 2.0 };
     let (doc, base, top) = if tweak == Tweak::Order {
-        let (doc, top) = instance(doc, p.top);
-        let (doc, base) = instance(doc, p.base);
+        let (doc, top) = insert(doc, fixture::mated_instance(p.top));
+        let (doc, base) = pinned_at(doc, p.base, [x, 8.0, 0.0], &o);
         (doc, base, top)
     } else {
-        let (doc, base) = instance(doc, p.base);
-        let (doc, top) = instance(doc, p.top);
+        let (doc, base) = pinned_at(doc, p.base, [x, 8.0, 0.0], &o);
+        let (doc, top) = insert(doc, fixture::mated_instance(p.top));
         (doc, base, top)
     };
-    let doc = set_gauge(doc, base, Some(k));
-    let doc = set_gauge(doc, top, Some(k));
-    let x = if tweak == Tweak::Offset { 3.0 } else { 2.0 };
-    let doc = set_offset(doc, base, Some(literal([x, 0.0, 0.0])));
     let onto = if tweak == Tweak::Head {
         base_bottom(p, base)
     } else {
         p.base_cap(base)
     };
-    let at = if tweak == Tweak::Alignment {
-        [1.0, 1.5, crate::p2_gauges::BASE_HEIGHT]
+    let at = if tweak == Tweak::Value {
+        [1.0, 1.5]
     } else {
-        [1.0, 1.0, crate::p2_gauges::BASE_HEIGHT]
+        [1.0, 1.0]
     };
-    let (doc, mate) = insert(doc, seat_on(head(p.top_cap(top)), head(onto), at));
-    let (doc, lone) = instance(doc, p.base);
-    let gauge = if tweak == Tweak::GaugeRef { k } else { k2 };
-    let doc = set_gauge(doc, lone, Some(gauge));
-    (doc, [k, base, top, mate, lone])
+    let (doc, _) = seat_at(doc, top, head(p.top_cap(top)), head(onto), at);
+    let (doc, lone) = insert(doc, fixture::mated_instance(p.top));
+    let target = if tweak == Tweak::Target { base } else { anchor };
+    let (doc, _) = seated(doc, lone, head(p.top_cap(lone)), head(p.base_cap(target)));
+    (doc, [anchor, base, top, lone])
 }
 
 /// **The comparator reads every field it claims** — and it reads them
 /// itself, not through the remapping under test. A scene holding a
 /// profile is itself under the identity maps; each one-thing change —
-/// a gauge reference, an offset, a gauge placement, a mate alignment, a
-/// head, a parameter, a label, a group's order — fails the check named,
-/// as do a wrong profile step, a collapsed map and an extra root.
+/// a constraint's target, a pin, a parametric pose, a value on a
+/// mate, a head, a parameter, a label, the placements' order —
+/// fails the check named, as do a wrong profile step and a collapsed
+/// map.
 #[test]
 fn r1_the_comparator_reads_every_field() {
     let p = parts("comparator");
@@ -1174,11 +954,11 @@ fn r1_the_comparator_reads_every_field() {
         same_up_to_ids(&a, b, nodes, steps).expect_err("the comparator reads the change")
     };
     for (tweak, check, role) in [
-        (Tweak::GaugeRef, "payload", 4),
-        (Tweak::Offset, "payload", 1),
-        (Tweak::Placement, "payload", 0),
-        (Tweak::Alignment, "payload", 3),
-        (Tweak::Head, "payload", 3),
+        (Tweak::Target, "payload", 3),
+        (Tweak::Pin, "payload", 1),
+        (Tweak::Pose, "payload", 0),
+        (Tweak::Value, "payload", 2),
+        (Tweak::Head, "payload", 2),
         (Tweak::Param, "variables", 0),
         (Tweak::Label, "label", 0),
     ] {
@@ -1192,8 +972,8 @@ fn r1_the_comparator_reads_every_field() {
             "{check}: {said}"
         );
     }
-    // A group's order: the top inserted before the base, each mapped
-    // to its own role.
+    // The placements' order: the top inserted before the base, each
+    // mapped to its own role.
     let (b, b_roles) = comparator_scene(&p, Tweak::Order);
     let (mut by_role, step_map) = by_position(&b);
     for (x, y) in roles.iter().zip(b_roles) {
@@ -1216,7 +996,7 @@ fn r1_the_comparator_reads_every_field() {
     );
     // Two nodes collapsed onto one.
     let mut collapsed = nodes.clone();
-    collapsed.insert(roles[4], roles[1]);
+    collapsed.insert(roles[3], roles[1]);
     let said = fails(&a, &collapsed, &steps);
     assert!(
         said.lines().any(|l| l.starts_with("injective")),
@@ -1225,137 +1005,72 @@ fn r1_the_comparator_reads_every_field() {
 }
 
 /// **The comparator over a round trip that keeps a profile** (a block
-/// beside a cut gauge and its instance): equal, profile and all.
+/// beside a cut pinned instance): equal, profile and all.
 #[test]
 fn r1_a_round_trip_keeping_a_profile_compares_equal() {
     let p = parts("r1-profile");
     let (doc, _) = crate::p2_gauges::block("r1-profile", 2.0, 1.0);
-    let (doc, k) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
-    let (doc, on_k) = instance(doc, p.base);
-    let doc = set_gauge(doc, on_k, Some(k));
-    round_trip(&doc, &[k, on_k], &p, "r1-profile");
+    let (doc, lone) = pinned_at(doc, p.base, [0.0, 8.0, 0.0], &p.opts());
+    round_trip(&doc, &[lone], &p, "r1-profile");
 }
 
 /// **R1 over every shape split admits**: a cut moves as selected, so
-/// inlining it back at the empty offset returns the document up to node
-/// ids whatever the cut holds, its roots adjacent in the list — one
-/// placed group, one with a checked member, a lone instance, a group
-/// rooted at a parametric offset, a gauge at the empty chain holding a
-/// group, a gauge holding one group at the empty chain, a gauge on a
-/// kept gauge holding two groups and a gauge, a group on a kept gauge,
-/// and plain geometry on the world.
+/// inlining it back at the identity returns the document up to node ids
+/// whatever the cut holds — one placed pair, a lone pinned instance, a
+/// pair whose base is pinned at a parametric pose, two pinned instances
+/// beside a pair, and plain geometry on the world.
 #[test]
 fn r1_every_shape_split_admits_round_trips_exactly() {
     type Scene = (ProfileDoc, Vec<RecipeNodeId>);
     let p = parts("r1-every");
     let o = p.opts();
     let empty = |label: &str| ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let pair_on = |doc: ProfileDoc, gauge: Option<RecipeNodeId>, at: Placement<Formula>| {
-        let (doc, base) = instance(doc, p.base);
-        let doc = set_gauge(doc, base, gauge);
-        let doc = set_offset(doc, base, Some(at));
-        let (doc, top) = instance(doc, p.top);
-        let doc = set_gauge(doc, top, gauge);
-        let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
-        (doc, [base, top, mate])
+    let seat_pair = |doc: ProfileDoc, base: RecipeNodeId| {
+        let (doc, top) = insert(doc, fixture::mated_instance(p.top));
+        let (doc, _) = seated(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
+        (doc, [base, top])
     };
-    let one_group = || -> Scene {
-        let (doc, ids) = pair_on(empty("r1-one-group"), None, literal([4.0, 0.0, 0.0]));
+    let pair_at = |doc: ProfileDoc, at: [f64; 3]| {
+        let (doc, base) = pinned_at(doc, p.base, at, &o);
+        seat_pair(doc, base)
+    };
+    let one_pair = || -> Scene {
+        let (doc, ids) = pair_at(empty("r1-one-pair"), [4.0, 0.0, 0.0]);
         (doc, ids.to_vec())
-    };
-    let checked_member = || -> Scene {
-        let (doc, [base, top, mate]) =
-            pair_on(empty("r1-checked-member"), None, literal([4.0, 0.0, 0.0]));
-        let solved = solve(&doc, &o, Tol::witness())
-            .placement(&doc, top)
-            .expect("placed");
-        let doc = set_offset(doc, top, Some(Placement::literal(&solved)));
-        (doc, vec![base, top, mate])
     };
     let lone = || -> Scene {
-        let (doc, kept) = instance(empty("r1-lone"), p.top);
-        let doc = set_offset(doc, kept, Some(literal([0.0, 9.0, 0.0])));
-        let (doc, lone) = instance(doc, p.base);
-        let doc = set_offset(doc, lone, Some(literal([4.0, 0.0, 0.0])));
+        let (doc, _kept) = pinned_at(empty("r1-lone"), p.top, [0.0, 9.0, 0.0], &o);
+        let (doc, lone) = pinned_at(doc, p.base, [4.0, 0.0, 0.0], &o);
         (doc, vec![lone])
     };
-    let parametric_root = || -> Scene {
-        let doc = crate::p2_gauges::declare_lift(empty("r1-parametric-root"), 0.5);
-        let at = Placement::from(editor_core::Step::Rigid {
-            translation: [
-                editor_core::Formula::named(
-                    crate::p2_gauges::lift(),
-                    editor_core::Dimension::Length,
-                ),
-                fixture::len(0.0),
-                fixture::len(0.0),
-            ],
-            axis: [0.0, 0.0, 1.0].map(fixture::scl),
-            angle: fixture::ang(0.0),
-        });
-        let (doc, ids) = pair_on(doc, None, at);
+    let parametric = || -> Scene {
+        let doc = crate::p2_gauges::declare_lift(empty("r1-parametric-pin"), 0.5);
+        let (doc, base) = pinned_lifted(doc, p.base, PoseRole::X, 0.0, &o);
+        let (doc, ids) = seat_pair(doc, base);
         (doc, ids.to_vec())
     };
-    let empty_gauge = || -> Scene {
-        let (doc, k) = insert(
-            empty("r1-empty-gauge"),
-            Node::gauge(None, Placement::IDENTITY),
-        );
-        let (doc, ids) = pair_on(doc, Some(k), literal([4.0, 0.0, 0.0]));
-        (doc, [&[k][..], &ids].concat())
-    };
-    let group_at_empty = || -> Scene {
-        let (doc, k) = insert(
-            empty("r1-group-at-empty"),
-            Node::gauge(None, literal([2.0, 0.0, 0.5])),
-        );
-        let (doc, ids) = pair_on(doc, Some(k), Placement::IDENTITY);
-        (doc, [&[k][..], &ids].concat())
-    };
-    let gauge_on_kept = || -> Scene {
-        let (doc, g) = insert(
-            empty("r1-gauge-on-kept"),
-            Node::gauge(None, literal([0.0, 8.0, 0.0])),
-        );
-        let (doc, k) = insert(doc, Node::gauge(Some(g), literal([2.0, 0.0, 0.5])));
-        let (doc, pair) = pair_on(doc, Some(k), literal([0.0, 2.0, 0.0]));
-        let (doc, lone) = instance(doc, p.base);
-        let doc = set_gauge(doc, lone, Some(k));
-        let doc = set_offset(doc, lone, Some(literal([16.0, 0.0, 0.0])));
-        let (doc, k2) = insert(doc, Node::gauge(Some(k), literal([4.0, 0.0, 0.0])));
-        let (doc, deep) = instance(doc, p.top);
-        let doc = set_gauge(doc, deep, Some(k2));
-        (doc, [&[k, lone, k2, deep][..], &pair].concat())
-    };
-    let group_on_kept = || -> Scene {
-        let (doc, g) = insert(
-            empty("r1-group-on-kept"),
-            Node::gauge(None, literal([0.0, 8.0, 0.0])),
-        );
-        let (doc, ids) = pair_on(doc, Some(g), literal([4.0, 0.0, 0.0]));
-        (doc, ids.to_vec())
+    let pins_beside_a_pair = || -> Scene {
+        let (doc, _kept) = pinned_at(empty("r1-pins-beside-a-pair"), p.top, [0.0, 8.0, 0.0], &o);
+        let (doc, pair) = pair_at(doc, [2.0, 10.0, 0.5]);
+        let (doc, lone) = pinned_at(doc, p.base, [18.0, 8.0, 0.5], &o);
+        let (doc, deep) = pinned_at(doc, p.top, [6.0, 8.0, 0.5], &o);
+        (doc, [&[lone, deep][..], &pair].concat())
     };
     let plain = || -> Scene {
         let (doc, body) = crate::p2_gauges::block("r1-plain", 2.0, 1.0);
         let doc = fixture::place(doc, body).0;
-        let all = doc.ids().to_vec();
+        let all = doc
+            .ids()
+            .into_iter()
+            .filter(|&id| id != RecipeNodeId::WORLD)
+            .collect();
         (doc, all)
     };
-    let scenes: [(&str, &dyn Fn() -> Scene); 9] = [
-        ("one placed group", &one_group),
-        ("one placed group with a checked member", &checked_member),
-        ("a lone instance", &lone),
-        ("a group at a parametric offset", &parametric_root),
-        ("a gauge at the empty chain holding a group", &empty_gauge),
-        (
-            "a gauge holding one group at the empty chain",
-            &group_at_empty,
-        ),
-        (
-            "a gauge on a kept gauge with two groups and a gauge",
-            &gauge_on_kept,
-        ),
-        ("a group on a kept gauge", &group_on_kept),
+    let scenes: [(&str, &dyn Fn() -> Scene); 5] = [
+        ("one placed pair", &one_pair),
+        ("a lone pinned instance", &lone),
+        ("a pair at a parametric pin", &parametric),
+        ("two pinned instances beside a pair", &pins_beside_a_pair),
         ("plain geometry on the world", &plain),
     ];
     for (shape, scene) in scenes {
@@ -1364,86 +1079,37 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
     }
 }
 
-/// **A cut placement that is not an instance at the identity refuses
-/// where the cut anchors on a gauge** (R1's other half): a placed pair
-/// on gauge g, and a second top on g that nothing places, lifted by a
-/// transform whose result is placed. That placement lives in the
-/// unplaced group's own space and casts no vote, so the cut
-/// anchors on g, and inline could not put it back on g; split refuses
-/// `UnplaceableRoot` naming the placement and g. Folding g, the
-/// recourse, makes the cut round-trip.
-///
-/// (Restated for A10: a measure, an assertion and a face frame were
-/// roots while the product was the sink list; none is in the world now,
-/// and the world's counterpart is a placement that is no instance at
-/// the identity.)
+/// **A cut a kept placement separates comes back regrouped** (A4:
+/// inline-of-split is the document up to minted ids and order): three
+/// pinned instances x, y, z, inserted in that order, and a cut of x and
+/// z. Split appends its instance and inline its splice, so the round
+/// trip lists y, then x and z, and the regrouping is the only thing the
+/// comparator reads as changed. The regrouped document's cut comes
+/// last, so a second round trip changes nothing.
 #[test]
-fn r1_a_cut_root_on_no_gauge_refuses_where_the_cut_anchors_on_a_gauge() {
-    let p = parts("r1-no-gauge");
-    let o = p.opts();
-    let (doc, g) = insert(
-        ProfileDoc::empty(DocumentId::derive("r1-no-gauge"), Tol::witness()),
-        Node::gauge(None, literal([0.0, 8.0, 0.0])),
-    );
-    let (doc, base) = instance(doc, p.base);
-    let doc = set_gauge(doc, base, Some(g));
-    let doc = set_offset(doc, base, Some(literal([4.0, 0.0, 0.0])));
-    let (doc, top) = instance(doc, p.top);
-    let doc = set_gauge(doc, top, Some(g));
-    let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
-    // A second top on g in a group no offset places, lifted by a
-    // transform, and the lift placed: a copy that is no instance at the
-    // identity, living in that group's own space.
-    let (blocked, loose) = insert(doc.clone(), Node::instantiate_part(p.top));
-    let blocked = set_gauge(blocked, loose, Some(g));
-    let blocked = set_offset(blocked, loose, None);
-    let (blocked, lifted) = insert(
-        blocked,
-        fixture::xform(loose, [0.0, 0.0, 30.0], [0.0, 0.0, 1.0], 0.0),
-    );
-    let (blocked, local_copy) = fixture::place(blocked, lifted);
-    let ids = [base, top, mate, loose, lifted];
-    let err = split(&blocked, &ids, "a lifted copy", &o).expect_err("a lifted copy");
-    assert!(
-        matches!(&err, SplitError::UnplaceableRoot { root: r, anchor }
-            if r.id() == local_copy && anchor.id() == g),
-        "a lifted copy: {err:?}"
-    );
-    let said = err.to_string();
-    assert!(
-        said.contains(&format!(
-            "Recourse: add {g} and what sits on it to the cut, or fold {g} (Fold), then split",
-            g = blocked.spoken(g)
-        )),
-        "a lifted copy: {said}"
-    );
-    let (folded, _) = step(blocked, DocEdit::Fold { gauge: g });
-    round_trip(&folded, &ids, &p, "a lifted copy");
-}
-
-/// **A cut a kept root separates comes back regrouped** (A10's
-/// replacement rule, A4): three lone instances x, y, z, listed in that
-/// order, and a cut of x and z. The instance takes x's position, so
-/// inline lists x and z there and y after them; that regrouping is the
-/// only thing the comparator reads as changed. The regrouped document's
-/// cut is adjacent, so a second round trip changes nothing, and with
-/// the cut's roots listed together from the start the round trip is
-/// exact.
-#[test]
-fn r1_a_cut_whose_roots_a_kept_root_separates_collapses_the_order() {
+fn r1_a_cut_whose_placements_a_kept_one_separates_round_trips() {
     let p = parts("r1-interleaved");
+    let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r1-interleaved"), Tol::witness());
-    let (doc, x) = instance(doc, p.base);
-    let doc = set_offset(doc, x, Some(literal([4.0, 0.0, 0.0])));
-    let (doc, y) = instance(doc, p.base);
-    let doc = set_offset(doc, y, Some(literal([0.0, 9.0, 0.0])));
-    let (doc, z) = instance(doc, p.top);
-    let doc = set_offset(doc, z, Some(literal([0.0, 0.0, 7.0])));
-    let out = split(&doc, &[x, z], "r1-interleaved", &p.opts()).expect("two lone instances");
+    let (doc, x) = pinned_at(doc, p.base, [4.0, 0.0, 0.0], &o);
+    let (doc, y) = pinned_at(doc, p.base, [0.0, 9.0, 0.0], &o);
+    let (doc, z) = pinned_at(doc, p.top, [0.0, 0.0, 7.0], &o);
+    let out = split(&doc, &[x, z], "r1-interleaved", &p.opts()).expect("two pinned instances");
     let mut store = p.store.clone();
     store.insert(out.part.clone(), Tol::witness());
     let back = inline(&out.remainder, out.instance, &store);
     let (map, steps) = composed(&doc, &out, &back);
-    same_up_to_ids(&doc, &back.doc, &map, &steps).expect("the round trip is the document");
+    let said = same_up_to_ids(&doc, &back.doc, &map, &steps)
+        .expect_err("the round trip regroups the placements");
+    let [only] = said.lines().collect::<Vec<_>>()[..] else {
+        panic!("the regrouping is the one difference: {said}")
+    };
+    assert!(only.starts_with("order: "), "the regrouping: {said}");
+    let order: Vec<RecipeNodeId> = back.doc.placements();
+    assert_eq!(
+        order,
+        vec![map[&y], map[&x], map[&z]],
+        "the kept placement, then the cut's in their order"
+    );
     round_trip(&back.doc, &[map[&x], map[&z]], &p, "the regrouped document");
 }

@@ -472,7 +472,9 @@ fn random_bases_with_corners_in_the_band_split_sound() {
 /// the two lobes above it apart round the apex**, at every pose either
 /// way up, against the closed form: a base the review's fuzz drew
 /// (seed `0x9E3779B97F4A7C15`, its 123rd). The floor is read On, so the
-/// edge from the apex to it lies in the plane.
+/// edge from the apex to it lies in the plane. Each piece passes tier
+/// 3′ with no contact records: the two edges continuing each other
+/// through the floor, kinked by `0.9 ε`, overlap nowhere.
 #[test]
 fn a_notch_floor_in_the_band_splits_sound() {
     let base = base_of(&[
@@ -483,6 +485,23 @@ fn a_notch_floor_in_the_band_splits_sound() {
         (-0.0422, 0.9, true),
     ]);
     pyramid_splits_sound("a notch floor 0.9 ε above", &base, Some([2, 1]));
+    for pose in poses() {
+        let u = apex_pyramid(&base, &pose, t());
+        for up in [true, false] {
+            let r = split(&u, &plane_at(&pose, up), t()).unwrap();
+            for (part, side) in [(&r.above, "above"), (&r.below, "below")] {
+                let SplitPart::Body(b) = part else {
+                    panic!("{}: side {side} empty", pose.label);
+                };
+                assert_eq!(
+                    topo::validate_pseudomanifold(b, &topo::ContactRecords::default(), t()),
+                    Ok(()),
+                    "{}, up {up}, side {side}: tier 3′",
+                    pose.label
+                );
+            }
+        }
+    }
 }
 
 /// A W-shaped base whose valley dips `1000 ε` below the top between

@@ -960,6 +960,12 @@ impl ViewerApp {
     /// nothing.
     fn sync_scene(&mut self) {
         self.session.pump();
+        // What the landings' prunes withdrew (DI5: a placement that pins
+        // a free-moved space takes effect when its solve lands), said as
+        // an operation's withdrawals are.
+        let withdrawn = self.session.take_landed_withdrawals();
+        self.notices
+            .extend(withdrawn.iter().flat_map(frame::withdrawal_notices));
         // **The survival step, once per frame, for whichever tool is
         // open** — the obligation every tool's module docs put on its
         // consumer, discharged in the one place that holds them all.
@@ -3915,7 +3921,7 @@ mod properties_pane_tests {
         });
         // A pick is on the drawn copy, and says so.
         let line = format!(
-            "pick a: face of PlaceInWorld {}; pick b: —",
+            "on: face of Place {}; to: —",
             test_utils::refusal::tag(placement().0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
@@ -4892,7 +4898,7 @@ mod properties_pane_tests {
 
     /// A session over two instances of one part, and the two instance
     /// ids in document order: placed in the world through one union
-    /// when `fused`, each placed on its own otherwise. Also the union's
+    /// when `fused`, and each its own placement either way. Also the union's
     /// id, when there is one.
     ///
     /// The part is never resolved: the display admission is a question
@@ -4906,7 +4912,8 @@ mod properties_pane_tests {
         Option<RecipeNodeId>,
     ) {
         use pncad::document::{
-            Bodies, ContentPin, DocRef, DocumentId, Node, Placement, ProfileDoc,
+            Bodies, BodyRead, ContentPin, CopyKey, DocRef, DocumentId, Node, Operand, ProfileDoc,
+            RecipeNodeId, VarId,
         };
         let tol = pncad::tolerance::witness();
         let part = DocRef {
@@ -4915,26 +4922,28 @@ mod properties_pane_tests {
         };
         let mut doc = ProfileDoc::empty(DocumentId::derive("shown-asm"), tol);
         let insert = |doc: &mut ProfileDoc, node| crate::test_support::insert_into(doc, node, tol);
+        // Each instance is a placement of its own.
         let a = insert(&mut doc, Node::instantiate_part(part));
         let b = insert(&mut doc, Node::instantiate_part(part));
-        let union = if fused {
+        let union = fused.then(|| {
+            // The part is never resolved, so its one copy's key is
+            // spelled here: the edges are what the admission reads.
+            let key = CopyKey::part(RecipeNodeId::new(1, 1), CopyKey::Read(VarId::new(1, 2)));
+            let copy = |instance| BodyRead::keyed(Operand::Node(instance), key.clone());
             let union = insert(
                 &mut doc,
                 Node::Union {
-                    members: Bodies::Spelled(vec![a.into(), b.into()]),
+                    members: Bodies::Spelled(vec![copy(a), copy(b)]),
                 },
             );
-            insert(&mut doc, Node::place_in_world(union, Placement::IDENTITY));
-            Some(union)
-        } else {
-            for instance in [a, b] {
-                insert(
-                    &mut doc,
-                    Node::place_in_world(instance, Placement::IDENTITY),
-                );
-            }
-            None
-        };
+            // Placed, loose: the part never resolves, so no pose is
+            // read off its copies to pin it by.
+            insert(
+                &mut doc,
+                Node::place(vec![BodyRead::plain(Operand::from(union))]),
+            );
+            union
+        });
         let mut session = crate::session::DocSession::inline(doc, tol);
         session.pump();
         (session, [a, b], union)
@@ -5313,6 +5322,219 @@ mod properties_pane_tests {
         );
     }
 
+    /// **A fresh directory under the temp dir holding one stored part**
+    /// (`test_support::boss_on_block`), for a row that authors an
+    /// assembly beside it: the directory, the part, and the file it was
+    /// stored in. `name` names the directory, made unique by the process.
+    fn part_workspace(
+        name: &str,
+        tol: pncad::geom_core::Tol,
+    ) -> (
+        std::path::PathBuf,
+        pncad::document::Doc<pncad::document::ProfileProgram>,
+        std::path::PathBuf,
+    ) {
+        let dir = std::env::temp_dir().join(format!("{name} {}", std::process::id()));
+        if dir.exists() {
+            std::fs::remove_dir_all(&dir).expect("clear the fixture directory");
+        }
+        std::fs::create_dir_all(&dir).expect("create the fixture directory");
+        let (part, _, _) = crate::test_support::boss_on_block(&format!("{name}-part"), tol);
+        let file = pncad::workspace::Workspace::open(&dir)
+            .expect("the empty workspace opens")
+            .create(&part, tol)
+            .expect("the part stores");
+        (dir, part, file)
+    }
+
+    /// **A landing's withdrawal reaches the status line** (DI5): a
+    /// free-move's space is known only once its solve lands, so the
+    /// frame an undo pins goes at the LANDING. `sync_scene` takes it
+    /// (`DocSession::take_landed_withdrawals`) at the top of the frame
+    /// the landing arrives in, and the batch at that frame's end says it
+    /// — the path an operation's own withdrawals never cross. Drawn
+    /// through the real app, frame by frame, so the landing arrives on
+    /// the worker's schedule.
+    #[test]
+    fn a_landings_withdrawal_reaches_the_status_line() {
+        let tol = pncad::tolerance::witness();
+        let (dir, part, _) = part_workspace("landing notice", tol);
+        let mut driven = Driven::with(vec![
+            SessionOp::NewDocument {
+                name: "landing-notice".to_owned(),
+            },
+            SessionOp::Save(dir.join("assembly.pncad")),
+            SessionOp::AddInstance { id: part.id() },
+        ]);
+        driven.settle();
+        let doc = driven.app.session.committed_doc();
+        let instance = doc
+            .ids()
+            .iter()
+            .copied()
+            .find(|id| {
+                matches!(
+                    doc.node(*id),
+                    Some(pncad::document::Node::InstantiatePart { .. })
+                )
+            })
+            .expect("the instance went in");
+        // Its placement off, the copy is a loose space the probe moves.
+        let mate = match doc.node(instance) {
+            Some(pncad::document::Node::InstantiatePart { constraints, .. }) => {
+                let mates: Vec<_> = constraints
+                    .iter()
+                    .filter(|constraint| constraint.mate().is_some())
+                    .collect();
+                let [placed] = mates.as_slice() else {
+                    panic!("the instance is placed by one mate: {constraints:?}")
+                };
+                pncad::document::MateRef::new(instance, placed.id)
+            }
+            other => panic!("not an instance: {other:?}"),
+        };
+        driven
+            .app
+            .perform_batch(vec![SessionOp::RemoveConstraint { mate }]);
+        driven.settle();
+        driven.app.perform_batch(vec![
+            SessionOp::BeginFreeMove { instance },
+            SessionOp::PreviewFreeMove {
+                instance,
+                frame: pncad::document::Frame::translation([0.0, 0.0, 0.05]),
+            },
+            SessionOp::CommitFreeMove { instance },
+        ]);
+        assert!(
+            driven
+                .app
+                .session
+                .display()
+                .free_move_of(instance)
+                .is_some(),
+            "the probe committed: {:?}",
+            status(&driven)
+        );
+
+        // The undo puts the placement back. The edit alone does not know
+        // the space; its landing does, in a later frame.
+        driven.app.perform_batch(vec![SessionOp::Undo]);
+        assert!(
+            !status(&driven)
+                .unwrap_or_default()
+                .contains("lives in the world's space"),
+            "the undo's own outcome says nothing of the frame"
+        );
+        assert!(
+            driven
+                .app
+                .session
+                .display()
+                .free_move_of(instance)
+                .is_some(),
+            "the edit's own prune keeps the frame"
+        );
+        driven.settle();
+        assert!(
+            driven
+                .app
+                .session
+                .display()
+                .free_move_of(instance)
+                .is_none(),
+            "the landing dropped the frame"
+        );
+        let said = status(&driven).unwrap_or_default();
+        assert!(
+            said.contains("lives in the world's space"),
+            "the landing's withdrawal is on the status line: {said:?}"
+        );
+        std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+    }
+
+    /// **The Properties pane reads the spaces the op does**, so between
+    /// an edit and its landing it says what the probe would refuse —
+    /// the space is not known yet — rather than offer the control off
+    /// the older landing's spaces. The instance's placement comes back
+    /// by an undo whose run the [`Gated`] seam holds: the landed run
+    /// still says the copy is loose, and the pane must not ask it.
+    #[test]
+    fn the_pane_does_not_offer_the_probe_off_an_older_landing() {
+        let tol = pncad::tolerance::witness();
+        let (dir, part, _) = part_workspace("pane older landing", tol);
+        let (mut driven, open) = gated();
+        driven.app.perform_batch(vec![
+            SessionOp::NewDocument {
+                name: "pane-older-landing".to_owned(),
+            },
+            SessionOp::Save(dir.join("assembly.pncad")),
+            SessionOp::AddInstance { id: part.id() },
+        ]);
+        driven.settle();
+        let doc = driven.app.session.committed_doc();
+        let instance = doc
+            .ids()
+            .iter()
+            .copied()
+            .find(|id| {
+                matches!(
+                    doc.node(*id),
+                    Some(pncad::document::Node::InstantiatePart { .. })
+                )
+            })
+            .expect("the instance went in");
+        let mate = match doc.node(instance) {
+            Some(pncad::document::Node::InstantiatePart { constraints, .. }) => {
+                let mates: Vec<_> = constraints
+                    .iter()
+                    .filter(|constraint| constraint.mate().is_some())
+                    .collect();
+                let [placed] = mates.as_slice() else {
+                    panic!("the instance is placed by one mate: {constraints:?}")
+                };
+                pncad::document::MateRef::new(instance, placed.id)
+            }
+            other => panic!("not an instance: {other:?}"),
+        };
+        driven.perform(SessionOp::RemoveConstraint { mate });
+        driven.select(Selection::Node(instance));
+        let painted = driven.quiet();
+        assert!(
+            painted
+                .iter()
+                .any(|(run, _)| run.starts_with("free-move probe (")),
+            "the loose copy is offered the probe: {painted:?}"
+        );
+
+        // The placement back, its run held: the landing still says loose.
+        open.store(false, std::sync::atomic::Ordering::SeqCst);
+        driven.app.perform_batch(vec![
+            SessionOp::Undo,
+            SessionOp::Select(Selection::Node(instance)),
+        ]);
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let painted = driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(
+            driven.app.session.space_evaluation().is_none(),
+            "the held run leaves no landing that answers the document"
+        );
+        let text: String = painted
+            .iter()
+            .map(|(run, _)| run.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            text.contains("not known yet"),
+            "the pane says the space is not known yet: {text}"
+        );
+        assert!(
+            !text.contains("free-move probe ("),
+            "and offers no probe control: {text}"
+        );
+        open.store(true, std::sync::atomic::Ordering::SeqCst);
+        std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+    }
+
     /// **An instance from the part chooser takes the label its field
     /// holds**: the chooser proposes `InstantiatePart N` above its
     /// listing, a text typed over the proposal is kept in the field, and
@@ -5321,16 +5543,7 @@ mod properties_pane_tests {
     fn the_part_chooser_labels_the_instance_it_inserts() {
         use crate::pane::create::{ADD_PART, INSTANCE_NOUN};
         let tol = pncad::tolerance::witness();
-        let dir = std::env::temp_dir().join(format!("part chooser label {}", std::process::id()));
-        if dir.exists() {
-            std::fs::remove_dir_all(&dir).expect("clear the fixture directory");
-        }
-        std::fs::create_dir_all(&dir).expect("create the fixture directory");
-        let (part, _, _) = crate::test_support::boss_on_block("part-chooser-label-part", tol);
-        let part_file = pncad::workspace::Workspace::open(&dir)
-            .expect("the empty workspace opens")
-            .create(&part, tol)
-            .expect("the part stores");
+        let (dir, _, part_file) = part_workspace("part chooser label", tol);
         let part_name = part_file
             .file_name()
             .expect("a stored part has a file name")
@@ -5874,7 +6087,7 @@ mod properties_pane_tests {
         let refused_said =
             pncad::document::Said(&refused, pncad::document::Speaker::of(landed)).to_string();
         assert!(
-            refused_said.contains("of PlaceInWorld"),
+            refused_said.contains("of Place "),
             "the refusal's node is said as the landed document holds it: {refused_said}"
         );
         let spelled = crate::frame::Spelled::in_landed(refused.clone(), Some(landed));
@@ -6083,7 +6296,7 @@ mod properties_pane_tests {
         }
     }
 
-    /// **The mate tool's instance-pick refusal says the kept label
+    /// **The mate tool's same-copy refusal says the kept label
     /// while the landed document is behind**: the run that would land
     /// the rename and the delete is held, so the landed document still
     /// says the picked copy's placement by its old label and the survival step keeps the
@@ -6136,11 +6349,13 @@ mod properties_pane_tests {
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         let said = status(&driven).expect("the commit refused");
         let plinth = format!(
-            "PlaceInWorld \"plinth\" ({})",
+            "Place \"plinth\" ({})",
             test_utils::refusal::tag(placement().0.digest())
         );
+        // Both picks are caps of the one copy, so the commit refuses
+        // the pair, naming the copy's placement.
         assert!(
-            said.contains(&format!("pick a is on {plinth}")),
+            said.contains(&format!("both picks are on {plinth},")),
             "the refusal says the kept label: {said}"
         );
     }

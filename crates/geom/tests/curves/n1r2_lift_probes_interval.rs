@@ -33,7 +33,7 @@ fn n1r2_curve_interval_lift_encloses_source_on_adversarial_nets() {
             matches!(&ei, Curve3::Nurbs(n) if !n.is_placeholder()),
             "{name}"
         );
-        for t in params(c.knots()) {
+        for t in params(c.knots_f64_interim()) {
             let ti = Interval::from_f64(t);
             for (label, li, s) in [
                 ("p", ei.eval(ti), e.eval(t).into_vec()),
@@ -81,7 +81,7 @@ impl IntoVecI for geom_core::Vec3<Interval> {
 fn n1r2_curve2_interval_lift_encloses_source() {
     for (name, c) in curves2() {
         let ci = c.map_scalar(Interval::from_f64);
-        for t in params(c.knots()) {
+        for t in params(c.knots_f64_interim()) {
             let p = ci.eval(Interval::from_f64(t));
             let q = c.eval(t);
             assert!(contains(p.x, q.x) && contains(p.y, q.y), "{name} t={t}");
@@ -102,8 +102,8 @@ fn n1r2_surface_interval_lift_encloses_source_on_adversarial_nets() {
             matches!(&ei, Surface::Nurbs(n) if !n.is_placeholder()),
             "{name}"
         );
-        for u in params(s.knots_u()) {
-            for v in params(s.knots_v()) {
+        for u in params(s.knots_u_f64_interim()) {
+            for v in params(s.knots_v_f64_interim()) {
                 let (ui, vi) = (Interval::from_f64(u), Interval::from_f64(v));
                 let p = ei.eval(ui, vi);
                 let q = e.eval(u, v);
@@ -211,7 +211,7 @@ fn n1r2_composed_lift_is_the_hand_re_spelling_bit_for_bit() {
             c.weights().iter().map(|w| lift(*w)).collect(),
         )
         .unwrap();
-        for t in params(c.knots()) {
+        for t in params(c.knots_f64_interim()) {
             let tt = Dual::variable(Interval::from_f64(t));
             let a = composed.eval(tt);
             let b = hand.eval(tt);
