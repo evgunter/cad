@@ -87,7 +87,6 @@ fn subdivided_axis_run_is_representable_through_the_program_layer() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a declared collinear joint is a tangent joint, so this authors");
 }

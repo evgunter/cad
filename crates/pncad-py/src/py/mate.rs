@@ -34,7 +34,7 @@ use crate::errors::ErrorClass;
 use crate::py::typed_err;
 use crate::tags::{
     class_admission_tag, coord_tag, maintenance_tag, mate_fault_tag, no_chart_why_tag,
-    placed_by_tag, subgroup_tag,
+    placed_by_tag,
 };
 use std::sync::Arc;
 
@@ -43,28 +43,6 @@ use pncad::tolerance::Tol;
 
 use super::doc::NodeId;
 use super::place::Frame;
-use super::quantity::Length;
-
-/// One bare metre figure as the length it is.
-fn length(m: f64) -> Length {
-    Length(pncad::quantity::Length::from_meters(m))
-}
-
-/// Metres out.
-fn lengths(v: [f64; 3]) -> (Length, Length, Length) {
-    (length(v[0]), length(v[1]), length(v[2]))
-}
-
-/// A kernel point as three lengths.
-fn point(p: pncad::geom_core::Point3<f64>) -> (Length, Length, Length) {
-    lengths(p.to_array())
-}
-
-/// A kernel vector as three plain numbers — a DIRECTION carries no
-/// dimension, the `PatternKind.linear` convention.
-fn direction(v: pncad::geom_core::Vec3<f64>) -> (f64, f64, f64) {
-    (v.x, v.y, v.z)
-}
 
 /// Which pose of a mate a diagnostic is about: `On`, the copy's, or
 /// `To`, the pose it is equated with.
@@ -669,123 +647,18 @@ impl MateRef {
     }
 }
 
-/// A residual subgroup: what a fold left free.
-///
-/// The payload attributes — `normal`, `point`, `direction` — are
-/// present on every arm and `None` where that arm does not carry one,
-/// so reading `residual.direction` never needs a branch on `variant`
-/// first. `point` is three LENGTHS (a point on a line); `normal` and
-/// `direction` are plain unit numbers.
-///
-/// **Point-free arms are point-free on purpose.** `planar` and
-/// `prismatic` carry no base point because rotations about any
-/// parallel axis, and translations along any parallel line, are in the
-/// group — a base point would suggest a distinction the algebra does
-/// not make.
-#[pyclass(frozen, module = "pncad", skip_from_py_object)]
-#[derive(Clone)]
-pub(crate) struct Subgroup(d::Subgroup);
-
-#[pymethods]
-impl Subgroup {
-    /// The stable tag: `se3`, `planar`, `cylindrical`, `prismatic`,
-    /// `revolute`, `trivial` or `empty`, the seven the stub lists for
-    /// this attribute. `empty` is the contradictory answer and
-    /// `trivial` the fully located one.
-    // The map is `crate::tags::subgroup_tag`, whose words
-    // `TAG_INVENTORY` pins.
-    #[getter]
-    fn variant(&self) -> &'static str {
-        subgroup_tag(&self.0)
-    }
-
-    /// The plane's unit normal, for `planar` and `plane_translation`.
-    #[getter]
-    fn normal(&self) -> Option<(f64, f64, f64)> {
-        use d::Subgroup as S;
-        match self.0 {
-            S::Planar { normal } | S::PlaneTranslation { normal } => Some(direction(normal.get())),
-            S::Se3
-            | S::Cylindrical { .. }
-            | S::Prismatic { .. }
-            | S::Revolute { .. }
-            | S::Spherical { .. }
-            | S::Parallel { .. }
-            | S::Translation
-            | S::Trivial
-            | S::Empty => None,
-        }
-    }
-
-    /// A point on the axis, for `cylindrical` and `revolute`; the fixed
-    /// point, for `spherical`.
-    #[getter]
-    fn point(&self) -> Option<(Length, Length, Length)> {
-        use d::Subgroup as S;
-        match self.0 {
-            S::Cylindrical { point: p, .. }
-            | S::Revolute { point: p, .. }
-            | S::Spherical { point: p } => Some(point(p)),
-            // `planar`, `prismatic`, `parallel` and `plane_translation`
-            // are point-free on purpose, as the class doc says; the
-            // remaining arms have no geometry to be based at.
-            S::Planar { .. }
-            | S::Prismatic { .. }
-            | S::Parallel { .. }
-            | S::PlaneTranslation { .. }
-            | S::Translation
-            | S::Se3
-            | S::Trivial
-            | S::Empty => None,
-        }
-    }
-
-    /// The unit direction, for `cylindrical`, `prismatic`, `revolute`
-    /// and `parallel`.
-    #[getter]
-    fn direction(&self) -> Option<(f64, f64, f64)> {
-        use d::Subgroup as S;
-        match self.0 {
-            S::Cylindrical { direction: v, .. }
-            | S::Prismatic { direction: v }
-            | S::Revolute { direction: v, .. }
-            | S::Parallel { direction: v } => Some(direction(v.get())),
-            S::Se3
-            | S::Planar { .. }
-            | S::PlaneTranslation { .. }
-            | S::Spherical { .. }
-            | S::Translation
-            | S::Trivial
-            | S::Empty => None,
-        }
-    }
-
-    fn __repr__(&self) -> String {
-        format!("Subgroup({:?})", self.variant())
-    }
-}
-
 /// Why the solve refused for one node — a VALUE, because the solve is
 /// total and records a refusal per node rather than failing the
 /// document.
 ///
 /// Every payload attribute is present on every arm, `None` where the
 /// arm does not carry it: `mate`, `side`, `error`, `instance`,
-/// `shape`, `placement`, `constraints`, `residual`, `held`, `added`,
-/// `predicate`, `clash`, `what`, `expected_document`,
-/// `found_document`, `inner_variant`, `margin`, `margin_low`,
-/// `margin_high`, `zero`, `escalate`, `lever_residual`, `lever_arm`, `on_kind`, `to_kind`, `value_ref`,
-/// `named`, `coord`, `mate_kind`, `why`, `cause`. The human
+/// `shape`, `placement`, `constraints`, `free`, `what`,
+/// `expected_document`, `found_document`, `inner_variant`, `on_kind`,
+/// `to_kind`, `value_ref`, `named`, `coord`, `mate_kind`, `why`,
+/// `cause`. The human
 /// message is the kernel's own prose, available as `str(fault)`; the
 /// refusal it carries and does not quote is `cause`.
-///
-/// **The classifier's words are the frame door's words.** `margin` /
-/// `margin_low` / `margin_high`, `zero` / `escalate` and `predicate`
-/// are spelled here exactly as
-/// [`super::place::frame_err`] spells them, because an escalation a
-/// mate reports and one a frame constructor reports are the same
-/// value; the fork itself is `crate::escalation`, which both doors
-/// call.
 ///
 /// All of them read off ONE record, [`crate::mate_payload`], whose
 /// match over the kernel enum is exhaustive with no wildcard: a fault
@@ -835,9 +708,10 @@ impl MateFault {
     }
 
     /// The mate the fault is about, `None` for an arm whose subject is
-    /// not one mate (`mate_contradictory`, which names `held` and
-    /// `added` instead; `mate_poses_of_another_document`, whose
-    /// subject is two documents).
+    /// not one mate: a bundle's faults, whose subject is the
+    /// `placement`; a value's, whose subject is the `value_ref`; and
+    /// `mate_poses_of_another_document`, whose subject is two
+    /// documents.
     #[getter]
     fn mate(&self) -> Option<MateRef> {
         self.payload().mate.map(MateRef)
@@ -908,38 +782,12 @@ impl MateFault {
         })
     }
 
-    /// What the rest of an over-constrained bundle already holds the
-    /// copy to (`mate_overconstrained`).
+    /// How many of the copy's six freedoms an over-constrained bundle
+    /// leaves (`mate_overconstrained`): `0` where the rest already pins
+    /// it.
     #[getter]
-    fn residual(&self) -> Option<Subgroup> {
-        self.payload().residual.map(Subgroup)
-    }
-
-    /// The mate already folded, for a contradictory pair.
-    #[getter]
-    fn held(&self) -> Option<MateRef> {
-        self.payload().held.map(MateRef)
-    }
-
-    /// The mate whose intersection died against it.
-    #[getter]
-    fn added(&self) -> Option<MateRef> {
-        self.payload().added.map(MateRef)
-    }
-
-    /// The predicate that decided against a contradictory pair.
-    #[getter]
-    fn predicate(&self) -> Option<&'static str> {
-        self.payload().predicate
-    }
-
-    /// The measured clash: the margin that should have been zero and
-    /// was not — a length verbatim, or a lever's product. `None` for
-    /// the structural refusal (`mate_member_empty`), which measures
-    /// nothing.
-    #[getter]
-    fn clash(&self) -> Option<Length> {
-        self.payload().clash.map(length)
+    fn free(&self) -> Option<u8> {
+        self.payload().free
     }
 
     /// The kind of pose the mate's `on` reads, where the two kinds
@@ -977,8 +825,7 @@ impl MateFault {
         self.payload().coord.map(Coord)
     }
 
-    /// The kind of the mate whose kind alone fixes that freedom, `None`
-    /// where the bundle's other constraints fix it
+    /// The kind of the mate whose kind fixes that freedom
     /// (`mate_not_a_freedom`).
     #[getter]
     fn mate_kind(&self) -> Option<&'static str> {
@@ -986,7 +833,7 @@ impl MateFault {
     }
 
     /// Why a value's freedom has no chart (`mate_no_chart`):
-    /// `"point_rotation"` or `"two_bodies"`.
+    /// `"point_rotation"`, `"two_bodies"` or `"slide_turns_a_ball"`.
     #[getter]
     fn why(&self) -> Option<&'static str> {
         self.payload().why.map(no_chart_why_tag)
@@ -1013,77 +860,11 @@ impl MateFault {
     }
 
     /// **The nested refusal's own word**: the lever refusal's, or the
-    /// world read's (`mate_world_read`). `None` on an arm whose payload is a struct
-    /// rather than an enum — an escalation has no inner word, and its
-    /// shape is which margin attribute is set.
+    /// world read's (`mate_world_read`). `None` on an arm with no
+    /// nested refusal.
     #[getter]
     fn inner_variant(&self) -> Option<&'static str> {
         self.payload().inner_variant
-    }
-
-    /// The in-band margin the classifier saw, when it saw a value.
-    ///
-    /// For error text only, not a decision input: what the escalation
-    /// contract forbids is recovering the margin to make the sign
-    /// decision the classifier refused.
-    #[getter]
-    fn margin(&self) -> Option<Length> {
-        self.payload().margin.map(length)
-    }
-
-    /// The classified enclosure's lower bound, where the classifier
-    /// saw an enclosure rather than a value. For error text only, not
-    /// a decision input.
-    #[getter]
-    fn margin_low(&self) -> Option<Length> {
-        self.payload().margin_low.map(length)
-    }
-
-    /// Its upper bound. For error text only, not a decision input.
-    #[getter]
-    fn margin_high(&self) -> Option<Length> {
-        self.payload().margin_high.map(length)
-    }
-
-    /// The coincidence threshold of the band a margin was classified
-    /// against.
-    ///
-    /// A plain real, as the frame door answers it: a `Band`'s
-    /// thresholds are whatever its predicate measures in, and the
-    /// same type carries angular ones.
-    #[getter]
-    fn zero(&self) -> Option<f64> {
-        self.payload().zero
-    }
-
-    /// Its escalation threshold.
-    #[getter]
-    fn escalate(&self) -> Option<f64> {
-        self.payload().escalate
-    }
-
-    /// The lever's RESIDUAL — a pure number, named by `predicate`: a
-    /// sine, a cosine, a Frobenius departure from the identity, a
-    /// reachability defect — when a contradictory clash levered one.
-    /// Dimensionless, so a bare float
-    /// and not a quantity.
-    #[getter]
-    fn lever_residual(&self) -> Option<f64> {
-        self.payload().lever_residual
-    }
-
-    /// The lever's ARM — an upper bound on the two mated parts'
-    /// extent together from the datum: each part's reach from its own
-    /// origin plus its frame's distance, plus the authored lengths. It
-    /// is NOT a contact feature, so it names the parts' scale and
-    /// nothing else in the model.
-    ///
-    /// `clash` is the PRODUCT of the two halves: a levered refusal
-    /// reports `lever_residual * lever_arm` as its deviation. An arm that measured its margin
-    /// without a lever carries none of the three.
-    #[getter]
-    fn lever_arm(&self) -> Option<Length> {
-        self.payload().lever_arm.map(length)
     }
 
     /// The fault's words, each node it names spoken from the document
@@ -1397,7 +1178,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ConstraintId>()?;
     m.add_class::<MateRef>()?;
     m.add_class::<Mate>()?;
-    m.add_class::<Subgroup>()?;
     m.add_class::<MateFault>()?;
     m.add_class::<SolvedPoses>()?;
     m.add_class::<ClassAdmission>()?;
@@ -1407,7 +1187,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(class_admission, m)?)?;
     m.add("CLASS_DEFERRAL", d::CLASS_DEFERRAL)?;
     m.add("OVERCONSTRAINED_RECOURSE", d::OVERCONSTRAINED_RECOURSE)?;
-    m.add("CONTRADICTORY_RECOURSE", d::CONTRADICTORY_RECOURSE)?;
     m.add("NO_AT_REST_RECORD_RECOURSE", d::NO_AT_REST_RECORD_RECOURSE)?;
     Ok(())
 }

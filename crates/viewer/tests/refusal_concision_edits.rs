@@ -842,9 +842,7 @@ fn long_path_refusals() -> Vec<(&'static str, profile::PathError<f64>)> {
 
 /// A mate fault of every arm, for the two edit arms that forward one.
 fn mate_faults() -> Vec<(&'static str, MateFault)> {
-    use editor_core::{Clash, Coord, LeverRefusal, MateSide, SlideAxis, Subgroup, VarKind};
-    use geom_core::{Band, Indeterminate, MarginDiag, Tol};
-    let band = Band::linear(Tol::witness()).expect("the witness band");
+    use editor_core::{Coord, LeverRefusal, MateSide, SlideAxis, VarKind};
     let doc_ref = editor_core::DocRef {
         id: DocumentId::derive("bracket"),
         pin: ContentPin::of_bytes(b"bracket v3"),
@@ -862,32 +860,11 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
             MateFault::ClassNotAdmitted { mate: r(9) },
         ),
         (
-            "Indeterminate",
-            MateFault::Indeterminate {
-                mate: r(9),
-                diag: Box::new(Indeterminate {
-                    margin: MarginDiag::value(3.0e-10),
-                    band,
-                    predicate: Some("mate_coaxial"),
-                    terminal_sliver: false,
-                }),
-            },
-        ),
-        (
-            "Contradictory",
-            MateFault::Contradictory {
-                held: r(8),
-                added: r(9),
-                predicate: "mate_coaxial",
-                clash: Clash::Length { metres: 0.002 },
-            },
-        ),
-        (
             "Overconstrained",
             MateFault::Overconstrained {
                 placement: n(7),
                 constraints: vec![c(8), c(9)],
-                held: Subgroup::Trivial,
+                free: 0,
             },
         ),
         (
@@ -925,7 +902,7 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
             MateFault::NotAFreedom {
                 value: r(9),
                 coord: Coord::Slide(SlideAxis::Z),
-                kind: Some(VarKind::Plane),
+                kind: VarKind::Plane,
             },
         ),
         (

@@ -1390,16 +1390,6 @@ BOUND_AS = {
     "all_faces": "Evaluation.all_faces",
     "all_vertices": "Evaluation.all_vertices",
     "apply": "Doc.apply",
-    # The mate solve's reach — the mated parts' own extent, what a
-    # solve and a mate-graph edit lever through — is spelled in Python
-    # as the `resolver=` keyword `evaluate` already has, on
-    # `solve_document`, `Doc.apply`, `Doc.insert` and `split`: a
-    # `Workspace` IS the reach's seam, and absent it every door refuses
-    # typed the way the kernel's refusing reach does.
-    "MateReach": "Doc.apply",
-    "PartReach": "Doc.apply",
-    "RefusingReach": "Doc.apply",
-    "mate_reach": "Doc.apply",
     # A part whose reach is not in hand faults the mate; Python reads
     # it as `MateFault`'s `mate_unleverable` variant, with the lever
     # refusal's own word as `inner_variant` (its row is in NOT_BOUND's
@@ -1810,10 +1800,10 @@ FAMILIES: dict[str, str] = {
 #:   table rather than restated — so the constant and the door agree
 #:   by construction.
 #:
-#:   `CONTRADICTORY_RECOURSE` and `NO_AT_REST_RECORD_RECOURSE` are
+#:   `OVERCONSTRAINED_RECOURSE` and `NO_AT_REST_RECORD_RECOURSE` are
 #:   bound for the same reason and complete the set: the four typed
-#:   refusals an assembly author meets — under-determined, in
-#:   contradiction, outside the at-rest vocabulary, and pinned to a
+#:   refusals an assembly author meets — under-determined,
+#:   over-constrained, outside the at-rest vocabulary, and pinned to a
 #:   version the store no longer holds — each end on a named sentence,
 #:   and binding two of the four would leave the other two assertable
 #:   only by re-typing prose.
@@ -1858,7 +1848,8 @@ FAMILIES: dict[str, str] = {
 #: `ProgramTarget`, `ProgramArcData`, `StepArg`): the PATHS lattice
 #: hands `Node.profile` a `ClosedLoop` and the program is built inside
 #: Rust, so no Python value is ever one of these. The naming table and
-#: its provenance payloads (`NameTable`, `DuplicateName`,
+#: its provenance payloads (`NameTable`, `SeatingRefusal`,
+#: `DuplicateName`, `KindMismatch`,
 #: `ProfileEdgeRef`, `ProfileVertexRef`, `edge_name`, `face_name` —
 #: key-to-name inversions with no key to invert), the declared-contact
 #: interior (`DeclaredContact`, `ContactVerdict`, `ContactRefusal`,
@@ -2323,8 +2314,7 @@ NOT_BOUND = {
     # An operation's output signature: Python reads an output by its
     # port's index (`Doc.output(node, port)`), not by the port record;
     # a signature refusal crosses as `PersistError.inner_variant`
-    # `output_signature` and its sentence, and the subgroup family is
-    # the value-free name of a `Subgroup.variant` Python already reads.
+    # `output_signature` and its sentence.
     "OutputFault": SHAPE,
     # The deepest world read a mate holds: Python meets the bound as the
     # world read's `too_deep` refusal (`MateFault.inner_variant` of a
@@ -2366,9 +2356,13 @@ NOT_BOUND = {
     # formula, a value, a `Var` or a `NodeId`, and the slot's word says
     # which the kernel lowers it to.
     "SlotValue": SHAPE,
+    # A pose value's subgroup, its family, and the trait that answers
+    # it, which the mate solve folds and the bundle rule meets: Python
+    # holds no pose value to ask it of, and an over-constrained
+    # bundle's refusal crosses as the count of freedoms it leaves
+    # (`MateFault.free`).
+    "Subgroup": SHAPE,
     "SubgroupFamily": SHAPE,
-    # A pose value's subgroup, which the mate solve folds: Python holds
-    # no pose value to ask it of.
     "PoseSymmetry": SHAPE,
     # The free-or-defined half of `VarDef`, which a declaration writes:
     # Python declares through `VarDecl`.
@@ -2593,19 +2587,6 @@ NOT_BOUND = {
     # (`MarginDiag::kind`): the attribute set above IS that kind in
     # Python, so it crosses the same way and is not a second word.
     "MarginKind": SHAPE,
-    # WHAT A LEVERED CLASH MEASURED, curated at `pncad::document`
-    # beside the `MateFault` arm that carries it (`mate_contradictory`)
-    # — and, like `MarginDiag`, a discriminant that crosses as WHICH
-    # ATTRIBUTE IS SET rather than as a word: a dimensionless residual
-    # is `MateFault.lever_residual`, and the arm it levers is
-    # `MateFault.lever_arm`, so a `lever_kind` word beside them would
-    # publish one fact twice.
-    "Lever": SHAPE,
-    # WHAT A CONTRADICTORY REFUSAL MEASURED, the type that holds the
-    # lever above and crosses the same way: a length is `clash` alone,
-    # a lever is `clash` beside its halves, and the structural refusal
-    # is `clash` absent under the predicate word `mate_member_empty`.
-    "Clash": SHAPE,
     # The attribution walk's verdict, and the door that answers it.
     # Same family as `RolePath`/`RoleSeg` and for their reason: it
     # reads the INSIDE of a name, which nothing user-side may read.
@@ -2870,6 +2851,8 @@ NOT_BOUND = {
     "Curve3": INTERIOR,
     "DeclaredContact": INTERIOR,
     "DuplicateName": INTERIOR,
+    "KindMismatch": INTERIOR,
+    "SeatingRefusal": INTERIOR,
     # What an edge's locus IS, read back off a certified carrier.
     # Python holds an opaque `Body` handle and no door on it answers a
     # description, so nothing here is a thing Python can read.
@@ -3838,9 +3821,6 @@ MEMBERS_BOUND_AS = {
     "InlineError::Edit": "InlineError.variant",
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
     "MateFault::ClassNotAdmitted": "MateFault.variant",
-    "MateFault::Indeterminate": "MateFault.variant",
-    "MateFault::PoseOutOfRange": "MateFault.variant",
-    "MateFault::Contradictory": "MateFault.variant",
     "MateFault::Overconstrained": "MateFault.variant",
     "MateFault::TargetsDiffer": "MateFault.variant",
     "MateFault::NotOnTheCopy": "MateFault.variant",
@@ -3990,19 +3970,6 @@ MEMBERS_BOUND_AS = {
     "StlError::IndexOutOfRange": "StlError.variant",
     "StlError::TooManyTriangles": "StlError.variant",
     "StlError::Io": "StlError.variant",
-    # The solve's freedom class, a value: `Subgroup.variant` plus the
-    # axis attributes each arm carries.
-    "Subgroup::Se3": "Subgroup.variant",
-    "Subgroup::Planar": "Subgroup.variant",
-    "Subgroup::Cylindrical": "Subgroup.variant",
-    "Subgroup::Prismatic": "Subgroup.variant",
-    "Subgroup::Revolute": "Subgroup.variant",
-    "Subgroup::Spherical": "Subgroup.variant",
-    "Subgroup::Parallel": "Subgroup.variant",
-    "Subgroup::Translation": "Subgroup.variant",
-    "Subgroup::PlaneTranslation": "Subgroup.variant",
-    "Subgroup::Trivial": "Subgroup.variant",
-    "Subgroup::Empty": "Subgroup.variant",
     "TessellateError::InvalidChordalTolerance": "TessellateError.variant",
     "TessellateError::UnsupportedSurface": "TessellateError.variant",
     "TessellateError::UnsupportedNurbsFace": "TessellateError.variant",

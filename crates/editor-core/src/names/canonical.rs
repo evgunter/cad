@@ -24,7 +24,9 @@
 //! - a [`RoleSeg::Seam`]'s two sides, in a name whose seams are
 //!   [`Seams::ByName`]: a union has no A and B, so its pair is put in
 //!   name order. A pair boolean's seams are [`Seams::Sided`]: `a` is
-//!   the A operand's entity, and that order is data.
+//!   the A side's face and `b` the B side's — an operand's face, or
+//!   the `Merged` parent of a face the pair merged, standing opposite
+//!   the operand face across the seam — and that order is data.
 //!
 //! Any rewrite that changes the names in those positions has to put
 //! them back in order, or it publishes a name the emitter would not
@@ -69,8 +71,10 @@ use super::seam_pair::{VertexLines, seam_line_pair, seam_vertex_parents};
 /// or a name order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Seams {
-    /// A pair boolean's seams: `a` is the A operand's entity and `b` the
-    /// B operand's, so the two sides stay where they are.
+    /// A pair boolean's seams: `a` is the A side's face and `b` the B
+    /// side's — an operand's face, or a merged face's `Merged` parent
+    /// opposite the operand face across the seam — so the two sides stay
+    /// where they are.
     Sided,
     /// A union's seams: the pair is put in name order.
     ByName,
@@ -80,10 +84,16 @@ impl Seams {
     /// The order a PUBLISHED name's own seams are in, read off the name.
     ///
     /// A pair boolean's seam sides are its OPERANDS' names (N2), minted
-    /// by other nodes. A union's are its own member-space names, minted
-    /// by the union: the collapse rewrites every side into this node's
-    /// space. So a seam whose side is minted by the name's own node is
-    /// a union's.
+    /// by other nodes, but for a side beside a face the pair merged,
+    /// which cites that face's `Merged` parent, minted by the pair (N3).
+    /// A union's sides are its own member-space names, minted by the
+    /// union: the collapse rewrites every side into this node's space.
+    /// So a seam both of whose sides are minted by the name's own node
+    /// is read as a union's, and one with an operand's side as a pair's.
+    /// The pair emitter mints no seam between two of its own merged
+    /// faces (`emit_topo`'s `chord_kind` names such a chord as an
+    /// operand rim or refuses), which is what keeps this reading
+    /// whole.
     ///
     /// Only published names are read this way. Inside a union's fold
     /// every row, a seam's sides included, is minted under the union's
@@ -92,7 +102,7 @@ impl Seams {
     /// a rewrite (the collapse publishes their rows).
     pub(crate) fn of_published(name: &StableName) -> Self {
         let union = name.path.iter().any(|seg| match seg {
-            RoleSeg::Seam { a, .. } => a.node == name.node,
+            RoleSeg::Seam { a, b } => a.node == name.node && b.node == name.node,
             RoleSeg::EdgeCrossing(run) => run.iter().any(|l| l.line.node == name.node),
             _ => false,
         });
@@ -1149,5 +1159,35 @@ mod tests {
         assert_eq!(Seams::of_published(&union), Seams::ByName);
         let pair = name(EntityKind::Edge, 9, vec![seam(face(7, 1), face(8, 2))]);
         assert_eq!(Seams::of_published(&pair), Seams::Sided);
+        // A pair seam beside a face the pair merged cites that face's
+        // `Merged` parent, minted by the pair itself, in either slot
+        // (N3). It is still the pair's, and a rewrite keeps its sides
+        // where they are although its `a` side names after its `b`.
+        let parent = name(
+            EntityKind::Face,
+            9,
+            vec![RoleSeg::Merged(vec![face(7, 1), face(8, 3)])],
+        );
+        let beside = face(8, 2);
+        assert!(parent > beside, "the premise: slot a names after slot b");
+        for pair in [
+            name(
+                EntityKind::Edge,
+                9,
+                vec![seam(parent.clone(), beside.clone())],
+            ),
+            name(
+                EntityKind::Edge,
+                9,
+                vec![seam(beside.clone(), parent.clone())],
+            ),
+        ] {
+            assert_eq!(Seams::of_published(&pair), Seams::Sided, "{pair:?}");
+            assert_eq!(
+                rewritten(&pair, pair.clone(), &mut same).unwrap(),
+                Rewritten::Canonical(pair.clone()),
+                "a pair seam's sides stay where they are: {pair:?}"
+            );
+        }
     }
 }

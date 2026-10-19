@@ -2083,8 +2083,8 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         // A constraint's own admission, the one the edit door asks
         // (`mate::solve::admit_mate`), asked in THIS walk: a second
         // pass over the nodes would be a second place to forget the
-        // question. What the fold decides needs the poses' values, and
-        // is the placement's at evaluation, never this door's.
+        // question. Whether the bundle fixes an equation twice is the
+        // fold's, for a state the edit doors did not see (A11 (1)).
         let bundle = crate::mate::solve::bundle_of(node).unwrap_or_default();
         for c in bundle {
             let at = crate::mate::MateRef::new(id, c.id);
@@ -2787,7 +2787,6 @@ mod tests {
                         fresh: Vec::new(),
                     },
                     tol,
-                    &crate::RefusingReach,
                 )
                 .expect("the node inserts")
                 .doc;
@@ -2813,7 +2812,6 @@ mod tests {
                     label: Some(crate::Label::new("outline").expect("a label")),
                 },
                 tol,
-                &crate::RefusingReach,
             )
             .expect("the label sets")
             .doc;

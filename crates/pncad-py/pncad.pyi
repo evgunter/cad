@@ -5947,12 +5947,8 @@ vocabulary refuses with."""
 
 OVERCONSTRAINED_RECOURSE: Final[str]
 """The recourse an over-constrained bundle's refusal ends on: delete
-one of the named constraints."""
-
-CONTRADICTORY_RECOURSE: Final[str]
-"""The recourse a mate contradiction's refusal ends on — one sentence
-for both shapes it renders, a pair of mates and a mate contradicting
-itself."""
+one of the named constraints, and where two copies also meet, assert
+it."""
 
 NO_AT_REST_RECORD_RECOURSE: Final[str]
 """The recourse the at-rest gate's `NoAtRestRecord` refusal ends on:
@@ -5991,28 +5987,6 @@ class MateRef:
     def __ge__(self, other: MateRef) -> bool: ...
     def __hash__(self) -> int: ...
 
-class Subgroup:
-    """A residual subgroup: what a fold left free.
-
-    `normal`, `point` and `direction` are present on every arm and
-    `None` where that arm does not carry one. `planar`, `prismatic`,
-    `parallel` and `plane_translation` are point-FREE on purpose:
-    rotations about any parallel axis, and translations along any
-    parallel line, are in the group."""
-
-    @property
-    def variant(self) -> str:
-        """`se3`, `planar`, `cylindrical`, `prismatic`, `revolute`,
-        `spherical`, `parallel`, `translation`, `plane_translation`,
-        `trivial`, or `empty`."""
-
-    @property
-    def normal(self) -> Optional[tuple[float, float, float]]: ...
-    @property
-    def point(self) -> Optional[tuple[Length, Length, Length]]: ...
-    @property
-    def direction(self) -> Optional[tuple[float, float, float]]: ...
-
 class MateFault:
     """Why the solve refused for one placement — a VALUE, because the
     solve is total and records a refusal per placement rather than
@@ -6022,12 +5996,6 @@ class MateFault:
     does not carry it, so `getattr` never raises and a caller need not
     branch on `variant` first.
 
-    The classifier's words are the frame door's words: `margin`,
-    `margin_low`, `margin_high`, `zero`, `escalate` and `predicate`
-    are spelled here exactly as `FrameError` spells
-    them, because an escalation a mate reports and one a frame
-    constructor reports are the same value.
-
     `cause` is the refusal the fault CARRIES, typed: on
     `mate_side_unevaluated`, the `EvaluationError` the pose's own
     evaluation raises, which `str(fault)` points at (`error` is its
@@ -6035,9 +6003,9 @@ class MateFault:
 
     Every field that names a mate answers its address, a `MateRef`.
     A bundle's two faults name the placement and its constraints:
-    `mate_overconstrained` carries `placement`, `constraints` (each
-    whose removal leaves the bundle's codimension unchanged) and
-    `residual` (what the rest of the bundle holds the copy to);
+    `mate_overconstrained` carries `placement`, `constraints` (each an
+    equation of which the rest of the bundle already fixes) and `free`
+    (how many of the copy's six freedoms the bundle leaves);
     `mate_targets_differ` carries `placement` and the `constraints`
     whose targets differ. `mate_not_on_the_copy` names the `mate` whose
     `on` does not read its copy; `mate_kinds_differ` the `mate` and its
@@ -6047,9 +6015,9 @@ class MateFault:
     `mate_side_unevaluated` the `mate`, the `side` and the pose's own
     `error`. A value's faults
     name the value as `value_ref`: `mate_value_names_no_mate` the id it
-    names as `named`, `mate_not_a_freedom` the `coord` and, where the
-    mate's kind alone fixes it, `mate_kind`, and `mate_no_chart` `why`
-    (`point_rotation`, `two_bodies`)."""
+    names as `named`, `mate_not_a_freedom` the `coord` and the
+    `mate_kind` that fixes it, and `mate_no_chart` `why`
+    (`point_rotation`, `two_bodies`, `slide_turns_a_ball`)."""
 
     @property
     def variant(self) -> str: ...
@@ -6073,18 +6041,9 @@ class MateFault:
     def constraints(self) -> Optional[list[MateRef]]: ...
 
     @property
-    def residual(self) -> Optional[Subgroup]: ...
-    @property
-    def held(self) -> Optional[MateRef]: ...
-    @property
-    def added(self) -> Optional[MateRef]: ...
-    @property
-    def predicate(self) -> Optional[str]: ...
-    @property
-    def clash(self) -> Optional[Length]:
-        """The measured clash: a length verbatim, or a lever's product.
-        `None` for the structural refusal (`mate_member_empty`), which
-        measures nothing."""
+    def free(self) -> Optional[int]:
+        """How many of the copy's six freedoms an over-constrained
+        bundle leaves (`mate_overconstrained`)."""
 
     @property
     def on_kind(self) -> Optional[str]: ...
@@ -6099,7 +6058,7 @@ class MateFault:
     @property
     def mate_kind(self) -> Optional[str]: ...
     @property
-    def why(self) -> Optional[Literal["point_rotation", "two_bodies"]]: ...
+    def why(self) -> Optional[Literal["point_rotation", "two_bodies", "slide_turns_a_ball"]]: ...
     @property
     def what(self) -> Optional[str]:
         """What a lever's unbounded face is, in its own words."""
@@ -6121,56 +6080,8 @@ class MateFault:
         instance it is about as `instance` or the copied shape as
         `shape`, or `out_of_range` and `below_zero_band`, about the
         pair's lever rather than one body, with neither), or the world
-        read's on `mate_world_read`. `None` on an
-        arm whose payload is a struct rather than an enum — an
-        escalation has no inner word, and its shape is which margin
-        attribute is set."""
-
-    @property
-    def margin(self) -> Optional[Length]:
-        """The in-band margin the classifier saw, when it saw a
-        value. For error text only, not a decision input: what the
-        escalation contract forbids is recovering the margin to make
-        the sign decision the classifier refused."""
-
-    @property
-    def margin_low(self) -> Optional[Length]:
-        """The classified enclosure's lower bound, where the
-        classifier saw an enclosure rather than a value. For error
-        text only, not a decision input."""
-
-    @property
-    def margin_high(self) -> Optional[Length]:
-        """Its upper bound. For error text only, not a decision
-        input."""
-
-    @property
-    def zero(self) -> Optional[float]:
-        """The coincidence threshold of the band a margin was
-        classified against. A plain real, as the frame door answers it: a band's
-        thresholds are whatever its predicate measures in."""
-
-    @property
-    def escalate(self) -> Optional[float]:
-        """Its escalation threshold."""
-
-    @property
-    def lever_residual(self) -> Optional[float]:
-        """The lever's RESIDUAL — a pure number, named by `predicate`:
-        a sine, a cosine, a Frobenius departure from the identity, a
-        reachability defect — when a contradictory clash levered one.
-        Dimensionless, so a bare float
-        and not a quantity."""
-
-    @property
-    def lever_arm(self) -> Optional[Length]:
-        """Its ARM, in metres: an upper bound on the two mated bodies'
-        extent together from the datum. NOT a contact feature: it names
-        the bodies' scale and nothing
-        else in the model. `clash` is the PRODUCT of the set half and
-        the arm, and an arm that measured its margin without a lever
-        carries neither."""
-
+        read's on `mate_world_read`. `None` on an arm with no nested
+        refusal."""
 
 
 class SolvedPoses:

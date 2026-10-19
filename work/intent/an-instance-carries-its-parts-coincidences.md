@@ -40,11 +40,10 @@ the part's document.
   evaluation is read (`unplaced` gathers
   `evaluation.unplaced_groups()` and `all_unplaced_below()`), gather
   every node's `NodeValue::coincidences` and prove them against the
-  part's document there (`coincide::prove(doc, &[(node, rows)], tol,
-  cancel)`, which replays that document once at `Sym`,
-  alone: a symbolic run refuses a resolver,
-  `ParamBoxError::SymbolsAcrossAPartSeam`, because two documents mint
-  the same variable ids and a symbol is keyed by its id), and carry the
+  part's document there (`coincide::prove(doc, &[(node, rows)],
+  resolver, tol, cancel)`, which replays that document once at `Sym`,
+  its own parts resolved through `resolver`, each document's variables
+  its own symbols), and carry the
   part's own and those its parts carried up as `PartRow<…>`
   (`assembly.rs`: `of`, the route `via`, and the held labels), on a
   new `PartValue` field.

@@ -309,8 +309,6 @@ mod maintenance_net;
 mod msolve10_door_admission;
 #[path = "msolve11_mate_log.rs"]
 mod msolve11_mate_log;
-#[path = "msolve12_honest_translation.rs"]
-mod msolve12_honest_translation;
 #[path = "msolve13_read_at_operand.rs"]
 mod msolve13_read_at_operand;
 #[path = "msolve14_run_scalar.rs"]
@@ -800,6 +798,8 @@ mod intent_s3_a_prime_moves;
 mod intent_s3_b_placements;
 #[path = "intent_s3_c_mates.rs"]
 mod intent_s3_c_mates;
+#[path = "intent_s4_h_placed.rs"]
+mod intent_s4_h_placed;
 #[path = "intent_s5_a_relation.rs"]
 mod intent_s5_a_relation;
 #[path = "intent_s5_b_interference.rs"]

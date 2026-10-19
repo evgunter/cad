@@ -45,7 +45,6 @@ fn a_rebind_onto_a_designated_face_shrinks_keeping_the_earlier() {
             to: top.clone(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("rebind applies");
     let Some(Node::Shell { open, .. }) = out.doc.node(shell) else {
@@ -66,7 +65,6 @@ fn a_rebind_onto_a_designated_face_shrinks_keeping_the_earlier() {
             to: bottom.clone(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("rebind applies");
     let Some(Node::Shell { open, .. }) = out2.doc.node(shell) else {
@@ -98,7 +96,6 @@ fn a_thick_wall_bump_builds_below_half_the_side_and_refuses_at_it() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("edit applies")
         .doc;
@@ -190,7 +187,6 @@ fn the_rim_follows_a_rebound_designation() {
             to: cup::bottom(blank),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("rebind")
     .doc;
@@ -228,7 +224,6 @@ fn a_thickness_only_edit_moves_the_content_key_and_the_memo() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("edit applies")
     .doc;

@@ -96,6 +96,9 @@ fn worn(instance: RecipeNodeId, body: RecipeNodeId, name: StableName) -> StableN
 struct PartNames {
     lateral: [StableName; 2],
     rim: [StableName; 2],
+    /// The cap vertices at corner 1, the start cap's then the end
+    /// cap's: where a corner frame up `lateral[0]` points its `x`.
+    corner: [StableName; 2],
 }
 
 /// **The world the product is** (A10): each of `bodies` placed, then
@@ -266,11 +269,12 @@ impl Scene {
         worn(self.top, self.top_body, name.clone())
     }
 
-    /// **The seat of `cap` on the copy read at `at` under `wrap`**:
-    /// the cap's bottom cap resting on the copy's top cap, and its two
-    /// lateral edges coaxial with the copy's, each of those slid
-    /// [`OVERHANG`] along both rim lines — `wrap` spells a name of the
-    /// top as the copy read at `at` wears it.
+    /// **The seat of `cap` on the copy read at `at` under `wrap`**: one
+    /// pin (FORK-S3O) equating the cap's corner frame at its bottom cap
+    /// (up its lateral edge 0, `x` towards corner 1) with the copy's at
+    /// its top cap, slid [`OVERHANG`] along both rim lines, so the cap
+    /// overhangs the copy — `wrap` spells a name of the top as the copy
+    /// read at `at` wears it.
     fn seat(
         &self,
         cap: RecipeNodeId,
@@ -278,6 +282,7 @@ impl Scene {
         wrap: &dyn Fn(StableName) -> StableName,
     ) -> Vec<Mate<Formula>> {
         let read = |name: &StableName| SitedRef::new(at, wrap(self.on_top(name)));
+        let own = |name: &StableName| SitedRef::new(cap, worn(cap, self.top_body, name.clone()));
         let slid = |pose: Operand, along: &StableName| {
             Operand::Pose(Box::new(PoseDef::Slide {
                 pose: RoleRead::plain(pose),
@@ -285,26 +290,18 @@ impl Scene {
                 by: len(OVERHANG),
             }))
         };
-        let mut mates = vec![fixture::rest(
-            fixture::head(in_part(cap, self.top_body, CapEnd::Start)),
-            fixture::head_at(at, wrap(self.top_cap())),
+        let target = slid(
+            slid(
+                fixture::corner_frame(read(&self.names.lateral[0]), read(&self.names.corner[1])),
+                &self.names.rim[0],
+            ),
+            &self.names.rim[1],
+        );
+        vec![fixture::mate(
+            fixture::corner_frame(own(&self.names.lateral[0]), own(&self.names.corner[0])),
+            target,
             ContactClass::Rest,
-        )];
-        for lateral in &self.names.lateral {
-            let target = slid(
-                slid(fixture::axis(read(lateral)), &self.names.rim[0]),
-                &self.names.rim[1],
-            );
-            mates.push(fixture::mate(
-                fixture::axis(SitedRef::new(
-                    cap,
-                    worn(cap, self.top_body, lateral.clone()),
-                )),
-                target,
-                ContactClass::Rest,
-            ));
-        }
-        mates
+        )]
     }
 }
 
@@ -336,9 +333,11 @@ fn scene(label: &str) -> Scene {
         )
     };
     let rim = |k| fixture::rim_edge(body, CapEnd::End, fixture::piece(&part, body, 0, k));
+    let corner = |end| fixture::cap_vertex(body, end, fixture::vpiece(&part, body, 0, 1));
     let names = PartNames {
         lateral: [lateral(0), lateral(1)],
         rim: [rim(0), rim(1)],
+        corner: [corner(CapEnd::Start), corner(CapEnd::End)],
     };
     let (top_ref, top_body) = store.insert_part((part, body), Tol::witness());
     let opts = with_resolver(store);

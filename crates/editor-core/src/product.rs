@@ -1164,8 +1164,7 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // above, so what is left belongs to no one root.
     if let Err(e) = tie_rows.finish(&mut names) {
         unreachable!(
-            "two copies carried one name, {:?}: a copy's names are qualified by its placement",
-            e.name
+            "two copies carried one name, {e:?}: a copy's names are qualified by its placement"
         )
     }
     // Pass 4: MINTING (A3's "Declaration minting"). Every evaluated
@@ -1186,11 +1185,25 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             .find(|((node, ..), _)| *node == placement)
             .map(|(_, keys)| &**keys)
     };
+    // A mated pair's row names each face as the census reads it: in its
+    // copy, as that copy's placement output names it.
+    let groups = crate::checks::at_rest::copy_groups(&copies);
+    let cell_of = |face| {
+        crate::checks::at_rest::copy_cell(
+            &aggregate,
+            &names,
+            &copies,
+            &groups,
+            topo::Cell::Face(face),
+        )
+        .map(|(_, cell)| cell)
+        .unwrap_or_else(|| unreachable!("a mated face is a face of a gathered copy"))
+    };
     let (minted, unminted) = crate::assembly::mint(
         doc,
         evaluation,
         &bridge_of,
-        &aggregate,
+        (&aggregate, &cell_of),
         &mut at_rest,
         space,
         geom_core::Band::linear(tol),
@@ -1205,7 +1218,6 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // the product and a record citing it (`topo::record_at_rest`, D1
     // (iii)), which the `unproven-coincidence` check reads, and the rest
     // is what the at-rest gate refuses or reports ([`Product::census`]).
-    let groups = crate::checks::at_rest::copy_groups(&copies);
     let first_row = u32::try_from(coincidences.len())
         .unwrap_or_else(|_| unreachable!("a product's mates number fewer than u32"));
     let recorded = topo::record_at_rest(
@@ -1461,8 +1473,7 @@ fn carry_names(
     });
     if let Err(e) = carried {
         unreachable!(
-            "{node:?} carried {:?} twice: a copy's names are qualified by its placement",
-            e.name
+            "{node:?} carried a name twice, {e:?}: a copy's names are qualified by its placement"
         )
     }
 }

@@ -1,55 +1,43 @@
-//! **The coset algebra** — the binding class×class intersection table
-//! (ASM-R2a D-4; ASM-R2-SPEC-DRAFT "R2-a coset table"; A11 rule 1).
+//! **The coset algebra** (A11 (1); FORK-S3O): the subgroups a pose
+//! kind's symmetry generates, and how a placement's constraints meet.
 //!
-//! Each mate primitive pins a pair's relative pose to a COSET: a
-//! representative pose times a residual SE(3) subgroup. Folding a
-//! pair's mates is exact coset intersection, and because intersection
-//! is order-independent the table must cover the CLOSURE of the
-//! symmetries of the five pose kinds (D10: a point, a direction, an
-//! axis, a plane, a frame). That closure is eleven entries —
-//! [`Subgroup::Se3`], [`Subgroup::Planar`], [`Subgroup::Cylindrical`],
+//! Each mate pins a copy's relative pose to a COSET: a representative
+//! pose times a residual SE(3) subgroup, the target pose's symmetry.
+//! The subgroups are the closure of the five pose kinds' symmetries
+//! (D10: a point, a direction, an axis, a plane, a frame) under
+//! intersection, ten families — [`Subgroup::Se3`],
+//! [`Subgroup::Planar`], [`Subgroup::Cylindrical`],
 //! [`Subgroup::Prismatic`], [`Subgroup::Revolute`],
 //! [`Subgroup::Spherical`], [`Subgroup::Parallel`],
 //! [`Subgroup::Translation`], [`Subgroup::PlaneTranslation`],
-//! [`Subgroup::Trivial`], [`Subgroup::Empty`] — and its closedness is
-//! a PROOF OBLIGATION, executed rather than asserted in prose: the
-//! mate families' rows by the enumeration test
-//! (`asm_r2a_mate_solve::row5_the_closure_set_is_closed_under_intersection`),
-//! and every pair of all eleven against the intersection of the two
-//! Lie algebras, computed independently
-//! (`intent_s3_a_poses::the_subgroup_table_spans_the_intersection_of_every_pair`). No screw subgroup arises: the primitives'
-//! parallel-cylinder intersection is pure translation.
+//! [`Subgroup::Trivial`].
 //!
-//! The representative stage covers every pair: a ball's turn about a
-//! line or about a second ball is solved ([`ball_on_line`],
-//! [`ball_pair`]), and a group freeing every translation meets the
-//! other side at its anchor.
+//! # Subgroup algebra, measuring nothing
 //!
-//! # Why the intersection is two stages, not a table of formulas
+//! A placement's constraints are admitted by their families alone
+//! ([`SubgroupFamily::meet`], [`SubgroupFamily::transverse`]): a
+//! constraint any of whose equations the others already fix refuses,
+//! and whether one does is read off the families the bundle's
+//! definitions name, never off the poses' values. Two families meet in
+//! general position in the family [`SubgroupFamily::meet`] answers, and
+//! a pair is admitted only where that meeting is transverse — its
+//! codimension the sum of theirs. The meet's dimension is checked
+//! against the intersection of the two Lie algebras, computed
+//! independently in general position
+//! (`intent_s3_a_poses::the_family_meet_spans_the_intersection_in_general_position`).
 //!
-//! A coset `G·R` intersects `G′·R′` in either the empty set or a coset
-//! of `G ∩ G′` — elementary, and it splits the work exactly:
-//!
-//! 1. **The subgroup** ([`intersect_subgroups`]) is the table's case
-//!    splits — every one a decided predicate through the `k_stats`
-//!    funnel with a NAMED predicate, Indeterminate escalating typed.
-//! 2. **The representative** is then constructed to satisfy the HELD
-//!    side exactly and checked against the added side, so a failure's
-//!    measured clash is the added mate's own violation rather than an
-//!    averaged residue — which is what a CONTRADICTORY refusal must
-//!    quote.
-//!
-//! Membership is itself a decided predicate per subgroup, so step 2's
-//! check is the same funnel: "an unsatisfiable candidate is empty,
-//! named", the table's own closing sentence.
+//! The only transverse meeting two mates' families have is a ball's
+//! with a direction's ([`intersect`]), whose coset is constructed and
+//! never checked: each side's equation holds by construction, so
+//! nothing is re-measured.
 
+use geom_core::Real;
 use geom_core::k_stats::decide;
-use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, UnitVec3Error, Vec3};
+use geom_core::linalg::{Affine3, Point3, UnitVec3, UnitVec3Error, Vec3};
 use geom_core::predicate::{Band, Indeterminate, Margin, Sign};
-use geom_core::{Real, is_finite_length};
 
+use super::LeverRefusal;
 use super::solve::SolveScalar;
-use super::{Clash, Lever, LeverRefusal, Refuted};
 
 /// A residual SE(3) subgroup — the closure set the table is closed
 /// over. Its directions are [`UnitVec3`] witnesses: the predicates
@@ -114,10 +102,6 @@ pub enum Subgroup<T: Real = f64> {
     },
     /// The identity alone: DETERMINED (dim 0).
     Trivial,
-    /// No pose satisfies the fold: CONTRADICTORY. Carried as a closure
-    /// element rather than an error type so `X ∩ empty = empty` is a
-    /// table entry that can be enumerated like every other.
-    Empty,
 }
 
 /// Coordinate-wise equality of the linear types, which carry no
@@ -138,9 +122,7 @@ fn point_eq(a: Point3<f64>, b: Point3<f64>) -> bool {
 impl PartialEq for Subgroup<f64> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Se3, Self::Se3)
-            | (Self::Trivial, Self::Trivial)
-            | (Self::Empty, Self::Empty) => true,
+            (Self::Se3, Self::Se3) | (Self::Trivial, Self::Trivial) => true,
             (Self::Planar { normal: a }, Self::Planar { normal: b })
             | (Self::Prismatic { direction: a }, Self::Prismatic { direction: b }) => {
                 vec_eq(a.get(), b.get())
@@ -186,8 +168,7 @@ impl PartialEq for Subgroup<f64> {
                 | Self::Parallel { .. }
                 | Self::Translation
                 | Self::PlaneTranslation { .. }
-                | Self::Trivial
-                | Self::Empty,
+                | Self::Trivial,
                 _,
             ) => false,
         }
@@ -279,6 +260,80 @@ impl SubgroupFamily {
     }
 }
 
+impl SubgroupFamily {
+    /// The family's codimension in SE(3): how many equations a pose of
+    /// this symmetry fixes.
+    #[must_use]
+    pub fn codimension(self) -> u8 {
+        6 - self.dimension()
+    }
+
+    /// **Two families met in general position**: the family of the
+    /// intersection of a subgroup of each, placed so that no special
+    /// position holds between them (no two directions parallel or
+    /// perpendicular, no point on a line). It is read off the families
+    /// alone, so it measures nothing; a pair in special position meets
+    /// in a larger subgroup, never a smaller one. Unordered.
+    #[must_use]
+    pub fn meet(self, other: Self) -> Self {
+        use SubgroupFamily::{
+            Cylindrical, Parallel, Planar, PlaneTranslation, Prismatic, Revolute, Se3, Spherical,
+            Translation, Trivial,
+        };
+        match (self, other) {
+            (Se3, g) | (g, Se3) => g,
+            (Trivial, _) | (_, Trivial) => Trivial,
+            // Two planes meet in the slide along their common line.
+            (Planar, Planar) | (Planar, PlaneTranslation) | (PlaneTranslation, Planar) => Prismatic,
+            (PlaneTranslation, PlaneTranslation) => Prismatic,
+            (Planar, Cylindrical | Prismatic | Revolute)
+            | (Cylindrical | Prismatic | Revolute, Planar) => Trivial,
+            // A ball turns about the plane's normal through its point.
+            (Planar, Spherical) | (Spherical, Planar) => Revolute,
+            (Planar, Parallel | Translation) | (Parallel | Translation, Planar) => PlaneTranslation,
+            // Two lines' groups, or a line's and a point's, share
+            // nothing in general position.
+            (
+                Cylindrical | Prismatic | Revolute,
+                Cylindrical | Prismatic | Revolute | Spherical | PlaneTranslation,
+            )
+            | (Spherical | PlaneTranslation, Cylindrical | Prismatic | Revolute) => Trivial,
+            (Cylindrical | Prismatic, Parallel | Translation)
+            | (Parallel | Translation, Cylindrical | Prismatic) => Prismatic,
+            (Revolute, Parallel | Translation) | (Parallel | Translation, Revolute) => Trivial,
+            // Two balls turn about the line through both points; a ball
+            // and a direction about the line through the point along it.
+            (Spherical, Spherical | Parallel) | (Parallel, Spherical) => Revolute,
+            (Spherical, Translation | PlaneTranslation)
+            | (Translation | PlaneTranslation, Spherical) => Trivial,
+            (Parallel | Translation, Parallel | Translation) => Translation,
+            (Parallel | Translation, PlaneTranslation)
+            | (PlaneTranslation, Parallel | Translation) => PlaneTranslation,
+        }
+    }
+
+    /// **Whether a subgroup of `added` meets one of `self`
+    /// transversally** (FORK-S3O): the meeting's family where its
+    /// codimension is the sum of the two, so neither fixes an equation
+    /// the other already fixes; `None` where it is not, whatever the
+    /// two subgroups' positions.
+    #[must_use]
+    pub fn transverse(self, added: Self) -> Option<Self> {
+        let met = self.meet(added);
+        (self.codimension() + added.codimension() == met.codimension()).then_some(met)
+    }
+
+    /// Whether the family holds every translation.
+    pub(crate) fn frees_every_translation(self) -> bool {
+        matches!(self, Self::Se3 | Self::Parallel | Self::Translation)
+    }
+
+    /// Whether the family holds every rotation about some point.
+    pub(crate) fn frees_every_rotation(self) -> bool {
+        matches!(self, Self::Se3 | Self::Spherical)
+    }
+}
+
 /// **A pose value's symmetry** (D10, A11 (1)): the subgroup of rigid
 /// motions the value is a frame known up to, the one a mate on it
 /// folds. A point forgets rotation about itself, a direction
@@ -292,10 +347,9 @@ pub trait PoseSymmetry<T: Real> {
 }
 
 impl<T: Real> Subgroup<T> {
-    /// The subgroup's family, `None` for [`Subgroup::Empty`] (which is
-    /// not a subgroup at all).
-    pub fn family(&self) -> Option<SubgroupFamily> {
-        Some(match self {
+    /// The subgroup's family.
+    pub fn family(&self) -> SubgroupFamily {
+        match self {
             Self::Se3 => SubgroupFamily::Se3,
             Self::Planar { .. } => SubgroupFamily::Planar,
             Self::Cylindrical { .. } => SubgroupFamily::Cylindrical,
@@ -306,84 +360,22 @@ impl<T: Real> Subgroup<T> {
             Self::Translation => SubgroupFamily::Translation,
             Self::PlaneTranslation { .. } => SubgroupFamily::PlaneTranslation,
             Self::Trivial => SubgroupFamily::Trivial,
-            Self::Empty => return None,
-        })
+        }
     }
 
-    /// The subgroup's dimension as a manifold, `None` for
-    /// [`Subgroup::Empty`].
-    pub fn dimension(&self) -> Option<u8> {
-        self.family().map(SubgroupFamily::dimension)
+    /// The subgroup's dimension as a manifold.
+    pub fn dimension(&self) -> u8 {
+        self.family().dimension()
     }
 
     /// The subgroup's family name, for messages and table rows.
     pub fn name(&self) -> &'static str {
-        self.family().map_or("empty", SubgroupFamily::name)
+        self.family().name()
     }
 
     /// Whether this subgroup determines the pose outright.
     pub fn is_determined(&self) -> bool {
         matches!(self, Self::Trivial)
-    }
-
-    /// The rotations this subgroup contains, as the axis they all fix.
-    fn rotations(&self) -> Rotations<T> {
-        match self {
-            Self::Se3 | Self::Spherical { .. } => Rotations::Free,
-            Self::Planar { normal } => Rotations::About(*normal),
-            Self::Cylindrical { direction, .. }
-            | Self::Revolute { direction, .. }
-            | Self::Parallel { direction } => Rotations::About(*direction),
-            Self::Prismatic { .. }
-            | Self::Translation
-            | Self::PlaneTranslation { .. }
-            | Self::Trivial
-            | Self::Empty => Rotations::Fixed,
-        }
-    }
-
-    /// How many independent PURE translations this subgroup contains —
-    /// the freedom a candidate translation may keep.
-    fn translation_dimension(&self) -> u8 {
-        match self {
-            Self::Se3 | Self::Parallel { .. } | Self::Translation => 3,
-            Self::Planar { .. } | Self::PlaneTranslation { .. } => 2,
-            Self::Cylindrical { .. } | Self::Prismatic { .. } => 1,
-            Self::Revolute { .. } | Self::Spherical { .. } | Self::Trivial | Self::Empty => 0,
-        }
-    }
-
-    /// The point `q` this subgroup's translation CONSTRAINT is anchored
-    /// at, given the candidate's rotation `a` relative to the coset
-    /// representative's and the representative's translation `r`:
-    /// membership reads `P·(t − q) = 0`, with `P` the projector onto
-    /// the directions the subgroup does not translate along — the
-    /// normal of a planar, the plane across a prismatic's or
-    /// cylindrical's direction, every direction for the rest.
-    ///
-    /// Why a point enters at all: a rotation about a line NOT through
-    /// the origin carries a translation `(I − Q)p`, so the affine part
-    /// cannot be split off and read separately. A revolute's elements
-    /// fix their axis pointwise, a cylindrical's move it only along
-    /// itself, a planar's move no point across the plane.
-    fn translation_anchor(&self, a: Mat3<T>, r: Vec3<T>) -> Vec3<T> {
-        let ar = a * r;
-        match self {
-            Self::Se3
-            | Self::Trivial
-            | Self::Empty
-            | Self::Prismatic { .. }
-            | Self::Planar { .. }
-            | Self::Parallel { .. }
-            | Self::Translation
-            | Self::PlaneTranslation { .. } => ar,
-            Self::Cylindrical { point, .. }
-            | Self::Revolute { point, .. }
-            | Self::Spherical { point } => {
-                let p = *point - Point3::origin();
-                p - a * p + ar
-            }
-        }
     }
 }
 
@@ -433,27 +425,12 @@ impl Subgroup<f64> {
                 dir(normal)
             ),
             Self::Trivial => "no freedom — the pose is determined".to_string(),
-            Self::Empty => "nothing — the mates cannot both hold".to_string(),
         }
     }
 }
 
-/// The rotations a subgroup contains.
-#[derive(Debug, Clone, Copy)]
-enum Rotations<T: Real> {
-    /// All of SO(3).
-    Free,
-    /// Exactly the rotations about this axis.
-    About(UnitVec3<T>),
-    /// The identity alone.
-    Fixed,
-}
-
 /// A coset of [`Subgroup`]: the set `{ g · representative : g ∈ subgroup }`
-/// of relative poses a pair's mates admit.
-///
-/// The representative is meaningless when the subgroup is
-/// [`Subgroup::Empty`]; every consumer must read the subgroup first.
+/// of relative poses a placement's mates admit.
 #[derive(Debug, Clone, Copy)]
 pub struct Coset<T: Real = f64> {
     /// The residual freedom.
@@ -472,51 +449,16 @@ impl<T: Real> Coset<T> {
     }
 }
 
-/// Why a fold step could not produce a coset.
-#[derive(Debug, Clone, PartialEq)]
-pub enum FoldStop {
-    /// A case split landed in the ambiguity band.
-    Indeterminate(Box<Indeterminate>),
-    /// The intersection is empty: the named predicate measured a clash
-    /// where the cosets would have had to meet.
-    Clash {
-        /// The membership predicate that refused.
-        predicate: &'static str,
-        /// What it measured.
-        clash: Clash,
-    },
-    /// The cosets meet further away than the solve can measure a
-    /// distance: the candidate's translation, or a length membership
-    /// measures on it, squares past the format (a length is a square
-    /// root, so a translation whose every component is representable
-    /// can still have none). Over an arm the angles are decidable at
-    /// ([`FoldStop::Unleverable`] answers the rest first), the solve
-    /// divides only by numbers the table decided away from zero
-    /// ([`candidate_translation`]), so this is the meeting point's own
-    /// distance, not the solve's conditioning.
-    OutOfRange,
-    /// The fold's arm is no lever an angle can be decided over at
-    /// this band ([`Arm::decides_over`]); refused before any angle is.
-    Unleverable(Box<LeverRefusal>),
-}
-
-impl From<Indeterminate> for FoldStop {
-    fn from(value: Indeterminate) -> Self {
-        Self::Indeterminate(Box::new(value))
-    }
-}
-
-// ---- The lever, and the table's case splits, each a named decided predicate ----
+// ---- The lever, and the decided predicates a value's chart and the report read ----
 
 /// **The lever a mate's angular decisions turn on**, as the predicates
 /// receive it: a length minted only by [`Arm::of`], which refuses one
 /// the format cannot decide over.
 ///
 /// Every levered predicate in this module multiplies the arm by a pure
-/// number of magnitude below 4 — a sine or a cosine of two unit
-/// witnesses, a departure of a rotation from the identity (at most
-/// `2√3`), a reachability defect (at most 2) — and [`parallel`] hands
-/// that product to the direction door, which squares it. An arm whose
+/// number of magnitude at most 1 — a sine or a cosine of two unit
+/// witnesses — and [`parallel`] hands that product to the direction
+/// door, which squares it. An arm whose
 /// sixteenfold square is finite keeps every one of those finite, so
 /// such a margin is never infinite for want of range, which `Decide`
 /// would read as maximally definite.
@@ -549,9 +491,8 @@ impl Arm {
 
     /// **The arm in `T`**: a bound read off the resolved origins, so it
     /// enters as a computed value ([`Real::from_computed`]), at `Sym`
-    /// an unknown of its own. Each intersection mints it ONCE and every
-    /// levered product in it multiplies by that one value, so a step
-    /// dividing by a levered sine cancels the arm symbolically.
+    /// an unknown of its own. Each predicate mints it once and its levered
+    /// product multiplies by that one value.
     pub fn lever<T: Real>(self) -> T {
         T::from_computed(self.0)
     }
@@ -589,16 +530,13 @@ impl Arm {
 /// ONE mint. The margin is the sine of the angle between them — which
 /// the cross product's length IS because both are witnesses — levered
 /// by `arm` into the displacement it induces there, spelled as the
-/// length of the levered vector `(u × v) · arm` so that the direction
-/// the non-parallel verdict hands out is minted by the very decision
-/// that made it: `None` when parallel, `Some((line, sine))` when not
-/// — `line` the unit direction of `u × v`, the line two planes with
-/// these normals meet in, and `sine` the levered vector's length, in
-/// metres, which the door decided at least `K·ε`. A second decision
-/// of the same number at a mint would be spelled a rounding apart and
-/// could land in the band where this one did not; the length handed
-/// out is the door's own measure of that vector (`Vec3::norm`, which
-/// is deterministic).
+/// length of the levered vector `(u × v) · arm` and decided by the door
+/// that mints the direction the non-parallel verdict hands out
+/// ([`UnitVec3::new_scaled`]): `None` when parallel, `Some(line)` when
+/// not — `line` the unit direction of `u × v`, the line two planes with
+/// these normals meet in. It does not carry the arm, so a map built
+/// along it is a function of its poses alone at every scalar, and the
+/// arm stays opaque to the decision it levers.
 ///
 /// The direction door's arms in this predicate's vocabulary: a
 /// decided-zero length is the parallel verdict, and so is a levered
@@ -608,18 +546,15 @@ impl Arm {
 /// witnesses at any arm the reach bounds). A length that is no number
 /// has no input to come from: the arm is an [`Arm`].
 ///
-/// `lever` is that arm in `T` ([`Arm::lever`]): the one value the
-/// intersection's every levered product multiplies by, so a step that
-/// divides by `sine` cancels the arm it multiplies by.
+/// `lever` is that arm in `T` ([`Arm::lever`]), the decision's alone.
 fn parallel<T: SolveScalar>(
     u: UnitVec3<T>,
     v: UnitVec3<T>,
     band: Band,
     lever: T,
-) -> Result<Option<(UnitVec3<T>, T)>, Indeterminate> {
-    let levered = u.get().cross(v.get()) * lever;
-    match UnitVec3::new(levered, "mate_axes_parallel", band) {
-        Ok(line) => Ok(Some((line, levered.norm()))),
+) -> Result<Option<UnitVec3<T>>, Indeterminate> {
+    match UnitVec3::new_scaled(u.get().cross(v.get()), lever, "mate_axes_parallel", band) {
+        Ok(line) => Ok(Some(line)),
         Err(UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength) => Ok(None),
         Err(UnitVec3Error::Escalated(diag)) => Err(diag),
         Err(UnitVec3Error::NonFiniteLength) => unreachable!(
@@ -653,23 +588,6 @@ fn perpendicular<T: SolveScalar>(
     )
 }
 
-/// **The number a table verdict decided away from zero to separate a
-/// pair's freedoms** — handed to the translation stage, which divides
-/// by it and by nothing else that could be small.
-#[derive(Debug, Clone, Copy)]
-enum Separated<T: Real> {
-    /// No angular verdict separated them: the residual keeps every
-    /// freedom the pair shares, or the verdict was the parallel or
-    /// perpendicular one.
-    Not,
-    /// Two directions called non-parallel: the levered sine
-    /// `|u × v| · arm`, in metres, at least `K·ε` ([`parallel`]).
-    Sine(T),
-    /// A direction and a normal called non-perpendicular: their
-    /// cosine, out of the zero band once levered ([`perpendicular`]).
-    Cosine(T),
-}
-
 /// Predicate: a point lies on a line. The margin is its perpendicular
 /// offset — already a length, because the projector `d − u(d·u)` is
 /// the orthogonal one exactly when `u` is unit, which the witness
@@ -686,1011 +604,58 @@ fn point_on_line<T: SolveScalar>(
     Ok(decide("mate_axis_point_offset", Margin::norm3(off), band)? == Sign::Zero)
 }
 
-/// Predicate: two points coincide. The margin is their distance:
-/// `None` when they coincide, `Some(line)` when not, `line` the unit
-/// direction from `p` to `q`, minted by the decision that separated
-/// them.
-fn points_apart<T: SolveScalar>(
-    p: Point3<T>,
-    q: Point3<T>,
-    band: Band,
-) -> Result<Option<UnitVec3<T>>, Indeterminate> {
-    match UnitVec3::new(q - p, "mate_points_coincide", band) {
-        Ok(line) => Ok(Some(line)),
-        Err(UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength) => Ok(None),
-        Err(UnitVec3Error::Escalated(diag)) => Err(diag),
-        Err(UnitVec3Error::NonFiniteLength) => unreachable!(
-            "two points of finite lengths are a finite length apart: a subgroup's point is a \
-             pose's, minted at a finite length"
-        ),
-    }
-}
-
-/// **The subgroup half of the binding table**: `G ∩ G′`, every case
-/// split decided through the funnel.
-///
-/// Unordered as the table is: every entry states BOTH orders as one
-/// arm, which is also what makes the match EXHAUSTIVE without a
-/// catch-all — a new closure element would fail to compile here rather
-/// than fall into a silent default, which is the enumeration's whole
-/// point. `arm` is the lever the angular splits turn on (D4 ¶1: an
-/// angle decides only through the displacement it induces at a named
-/// length).
-///
-/// # Errors
-///
-/// [`Indeterminate`] when a case split lands in the ambiguity band —
-/// the typed escalation the spec demands, never a silent pick.
-pub fn intersect_subgroups<T: SolveScalar>(
-    g1: Subgroup<T>,
-    g2: Subgroup<T>,
-    band: Band,
-    arm: Arm,
-) -> Result<Subgroup<T>, Indeterminate> {
-    table(g1, g2, band, arm.lever()).map(|(residual, _)| residual)
-}
-
-/// [`intersect_subgroups`], with the number its verdict decided away
-/// from zero ([`Separated`]).
-fn table<T: SolveScalar>(
-    g1: Subgroup<T>,
-    g2: Subgroup<T>,
-    band: Band,
-    lever: T,
-) -> Result<(Subgroup<T>, Separated<T>), Indeterminate> {
-    use Subgroup::{
-        Cylindrical, Empty, Parallel, Planar, PlaneTranslation, Prismatic, Revolute, Se3,
-        Spherical, Translation, Trivial,
-    };
-    let not = |g| (g, Separated::Not);
-    Ok(match (g1, g2) {
-        // The universal entries: empty absorbs, SE(3) is the identity,
-        // trivial is the zero. Stated first, and between them they
-        // cover every tuple touching those three — so what remains
-        // below is exactly the four proper families.
-        (Empty, _) | (_, Empty) => not(Empty),
-        (Se3, other) | (other, Se3) => not(other),
-        (Trivial, _) | (_, Trivial) => not(Trivial),
-        // 1. planar ∩ planar — the flush merge and the V-block.
-        (Planar { normal: n1 }, Planar { normal: n2 }) => {
-            match parallel(n1, n2, band, lever)? {
-                None => not(Planar { normal: n1 }),
-                // The line the two planes meet in, as the verdict
-                // minted it.
-                Some((direction, sine)) => (Prismatic { direction }, Separated::Sine(sine)),
-            }
-        }
-        // 2. planar ∩ cylindrical — pin-in-hole, slot, and the generic
-        //    angle that kills both freedoms.
-        (
-            Planar { normal: n },
-            Cylindrical {
-                point: p,
-                direction: u,
-            },
-        )
-        | (
-            Cylindrical {
-                point: p,
-                direction: u,
-            },
-            Planar { normal: n },
-        ) => {
-            if parallel(u, n, band, lever)?.is_none() {
-                not(Revolute {
-                    point: p,
-                    direction: u,
-                })
-            } else {
-                match perpendicular(u, n, band, lever)? {
-                    None => not(Prismatic { direction: u }),
-                    Some(cosine) => (Trivial, Separated::Cosine(cosine)),
-                }
-            }
-        }
-        // 3. planar ∩ prismatic.
-        (Planar { normal: n }, Prismatic { direction: d })
-        | (Prismatic { direction: d }, Planar { normal: n }) => {
-            match perpendicular(d, n, band, lever)? {
-                None => not(Prismatic { direction: d }),
-                Some(cosine) => (Trivial, Separated::Cosine(cosine)),
-            }
-        }
-        // 4. planar ∩ revolute.
-        (
-            Planar { normal: n },
-            Revolute {
-                point: p,
-                direction: u,
-            },
-        )
-        | (
-            Revolute {
-                point: p,
-                direction: u,
-            },
-            Planar { normal: n },
-        ) => {
-            if parallel(u, n, band, lever)?.is_none() {
-                not(Revolute {
-                    point: p,
-                    direction: u,
-                })
-            } else {
-                not(Trivial)
-            }
-        }
-        // 5. cylindrical ∩ cylindrical — same line, parallel-distinct,
-        //    or concurrent/skew.
-        (
-            Cylindrical {
-                point: p1,
-                direction: u1,
-            },
-            Cylindrical {
-                point: p2,
-                direction: u2,
-            },
-        ) => match parallel(u1, u2, band, lever)? {
-            None => {
-                if point_on_line(p2, p1, u1, band)? {
-                    not(Cylindrical {
-                        point: p1,
-                        direction: u1,
-                    })
-                } else {
-                    not(Prismatic { direction: u1 })
-                }
-            }
-            Some((_, sine)) => (Trivial, Separated::Sine(sine)),
-        },
-        // 6. cylindrical ∩ prismatic.
-        (Cylindrical { direction: u, .. }, Prismatic { direction: d })
-        | (Prismatic { direction: d }, Cylindrical { direction: u, .. }) => {
-            match parallel(d, u, band, lever)? {
-                None => not(Prismatic { direction: d }),
-                Some((_, sine)) => (Trivial, Separated::Sine(sine)),
-            }
-        }
-        // 7. cylindrical ∩ revolute.
-        (
-            Cylindrical {
-                point: pc,
-                direction: uc,
-            },
-            Revolute {
-                point: pr,
-                direction: ur,
-            },
-        )
-        | (
-            Revolute {
-                point: pr,
-                direction: ur,
-            },
-            Cylindrical {
-                point: pc,
-                direction: uc,
-            },
-        ) => {
-            if parallel(uc, ur, band, lever)?.is_none() && point_on_line(pr, pc, uc, band)? {
-                not(Revolute {
-                    point: pr,
-                    direction: ur,
-                })
-            } else {
-                not(Trivial)
-            }
-        }
-        // 8. prismatic ∩ prismatic.
-        (Prismatic { direction: d1 }, Prismatic { direction: d2 }) => {
-            match parallel(d1, d2, band, lever)? {
-                None => not(Prismatic { direction: d1 }),
-                Some((_, sine)) => (Trivial, Separated::Sine(sine)),
-            }
-        }
-        // 9. prismatic ∩ revolute — a translation is never a rotation.
-        (Prismatic { .. }, Revolute { .. }) | (Revolute { .. }, Prismatic { .. }) => not(Trivial),
-        // 10. revolute ∩ revolute.
-        (
-            Revolute {
-                point: p1,
-                direction: u1,
-            },
-            Revolute {
-                point: p2,
-                direction: u2,
-            },
-        ) => {
-            if parallel(u1, u2, band, lever)?.is_none() && point_on_line(p2, p1, u1, band)? {
-                not(Revolute {
-                    point: p1,
-                    direction: u1,
-                })
-            } else {
-                not(Trivial)
-            }
-        }
-        // 11. spherical ∩ planar: the rotations about the point that
-        //     turn about the plane's normal.
-        (Spherical { point }, Planar { normal }) | (Planar { normal }, Spherical { point }) => {
-            not(Revolute {
-                point,
-                direction: normal,
-            })
-        }
-        // 12. spherical ∩ cylindrical or revolute: the line's rotations,
-        //     if the point is on it.
-        (
-            Spherical { point },
-            Cylindrical {
-                point: p,
-                direction: u,
-            }
-            | Revolute {
-                point: p,
-                direction: u,
-            },
-        )
-        | (
-            Cylindrical {
-                point: p,
-                direction: u,
-            }
-            | Revolute {
-                point: p,
-                direction: u,
-            },
-            Spherical { point },
-        ) => {
-            if point_on_line(point, p, u, band)? {
-                not(Revolute {
-                    point: p,
-                    direction: u,
-                })
-            } else {
-                not(Trivial)
-            }
-        }
-        // 13. spherical ∩ a group with no rotation: a rotation fixing a
-        //     point is never a translation.
-        (Spherical { .. }, Prismatic { .. } | Translation | PlaneTranslation { .. })
-        | (Prismatic { .. } | Translation | PlaneTranslation { .. }, Spherical { .. }) => {
-            not(Trivial)
-        }
-        // 14. spherical ∩ spherical: the rotations fixing both points,
-        //     about the line through them.
-        (Spherical { point: p }, Spherical { point: q }) => match points_apart(p, q, band)? {
-            None => not(Spherical { point: p }),
-            Some(line) => not(Revolute {
-                point: p,
-                direction: line,
-            }),
-        },
-        // 15. spherical ∩ parallel: the rotations about the point along
-        //     the direction.
-        (Spherical { point }, Parallel { direction })
-        | (Parallel { direction }, Spherical { point }) => not(Revolute { point, direction }),
-        // 16. parallel ∩ planar: the plane's own group when its normal
-        //     is the direction, else its translations alone.
-        (Parallel { direction: d }, Planar { normal: n })
-        | (Planar { normal: n }, Parallel { direction: d }) => match parallel(d, n, band, lever)? {
-            None => not(Planar { normal: n }),
-            Some((_, sine)) => (PlaneTranslation { normal: n }, Separated::Sine(sine)),
-        },
-        // 17. parallel ∩ cylindrical or revolute.
-        (
-            Parallel { direction: d },
-            Cylindrical {
-                point,
-                direction: u,
-            },
-        )
-        | (
-            Cylindrical {
-                point,
-                direction: u,
-            },
-            Parallel { direction: d },
-        ) => match parallel(d, u, band, lever)? {
-            None => not(Cylindrical {
-                point,
-                direction: u,
-            }),
-            Some((_, sine)) => (Prismatic { direction: u }, Separated::Sine(sine)),
-        },
-        (
-            Parallel { direction: d },
-            Revolute {
-                point,
-                direction: u,
-            },
-        )
-        | (
-            Revolute {
-                point,
-                direction: u,
-            },
-            Parallel { direction: d },
-        ) => match parallel(d, u, band, lever)? {
-            None => not(Revolute {
-                point,
-                direction: u,
-            }),
-            Some((_, sine)) => (Trivial, Separated::Sine(sine)),
-        },
-        // 18. parallel ∩ a group of translations: every translation is
-        //     in a parallel group, so the other side.
-        (Parallel { .. }, g @ (Prismatic { .. } | Translation | PlaneTranslation { .. }))
-        | (g @ (Prismatic { .. } | Translation | PlaneTranslation { .. }), Parallel { .. }) => {
-            not(g)
-        }
-        // 19. parallel ∩ parallel.
-        (Parallel { direction: d1 }, Parallel { direction: d2 }) => {
-            match parallel(d1, d2, band, lever)? {
-                None => not(Parallel { direction: d1 }),
-                Some((_, sine)) => (Translation, Separated::Sine(sine)),
-            }
-        }
-        // 20. translation ∩ the rest: the other side's translations.
-        (Translation, Planar { normal }) | (Planar { normal }, Translation) => {
-            not(PlaneTranslation { normal })
-        }
-        (Translation, Cylindrical { direction, .. })
-        | (Cylindrical { direction, .. }, Translation) => not(Prismatic { direction }),
-        (Translation, g @ (Prismatic { .. } | Translation | PlaneTranslation { .. }))
-        | (g @ (Prismatic { .. } | PlaneTranslation { .. }), Translation) => not(g),
-        (Translation, Revolute { .. }) | (Revolute { .. }, Translation) => not(Trivial),
-        // 21. plane translation ∩ planar: both normals one, or the
-        //     slide along the line the planes meet in, minted held
-        //     normal first as row 1's is, which the translation stage
-        //     crosses back into the held plane.
-        (
-            PlaneTranslation { normal: n1 },
-            Planar { normal: n2 } | PlaneTranslation { normal: n2 },
-        )
-        | (Planar { normal: n1 }, PlaneTranslation { normal: n2 }) => {
-            match parallel(n1, n2, band, lever)? {
-                None => not(PlaneTranslation { normal: n1 }),
-                Some((direction, sine)) => (Prismatic { direction }, Separated::Sine(sine)),
-            }
-        }
-        // 22. plane translation ∩ a line's group: its slide, if the line
-        //     lies in the plane.
-        (
-            PlaneTranslation { normal: n },
-            Cylindrical { direction: u, .. } | Prismatic { direction: u },
-        )
-        | (
-            Cylindrical { direction: u, .. } | Prismatic { direction: u },
-            PlaneTranslation { normal: n },
-        ) => match perpendicular(u, n, band, lever)? {
-            None => not(Prismatic { direction: u }),
-            Some(cosine) => (Trivial, Separated::Cosine(cosine)),
-        },
-        (PlaneTranslation { .. }, Revolute { .. }) | (Revolute { .. }, PlaneTranslation { .. }) => {
-            not(Trivial)
-        }
-    })
-}
-
-// ---- Membership: the decided predicate the representative meets ----
-
-/// **What one predicate measured, before it is decided** — a length
-/// outright, or a pure number it levers by an arm. The one home of
-/// the levered margin in the solve: every levered site names its
-/// number here, decides [`Measured::margin`] and, refusing, quotes
-/// [`Measured::clash`], so the number the sentence prints is the
-/// number the funnel decided on.
-///
-/// At the solve's scalar; the arm is the reach's `f64` upper bound, so
-/// only what the solve computed is at `T`. The refusal quotes it at `f64`
-/// ([`SolveScalar::quoted`]), the number the margin's own lane reads.
-#[derive(Debug, Clone, Copy)]
-pub(super) enum Measured<T: Real> {
-    /// A length, in metres.
-    Length(T),
-    /// A pure number and the arm that levers it.
-    Lever(Lever<T>),
-}
-
-impl<T: SolveScalar> Measured<T> {
-    /// The margin the predicate decides.
-    pub(super) fn margin(self) -> Margin<T> {
-        match self {
-            Self::Length(m) => Margin::of(m),
-            Self::Lever(lever) => lever.margin(),
-        }
-    }
-
-    /// The measurement, as the refusal quotes it.
-    pub(super) fn clash(self) -> Clash {
-        match self {
-            Self::Length(metres) => Clash::Length {
-                metres: metres.quoted(),
-            },
-            Self::Lever(Lever::Residual { value, arm }) => Clash::Levered(Lever::Residual {
-                value: value.quoted(),
-                arm,
-            }),
-        }
-    }
-}
-
-/// Whether `x` lies in `g` (as a subgroup of SE(3), not a coset).
-///
-/// # Errors
-///
-/// [`FoldStop::Clash`] naming the failing predicate with what it
-/// measured — the CONTRADICTORY refusal's own quotation —,
-/// [`FoldStop::Indeterminate`] when a check landed in the band, or
-/// [`FoldStop::OutOfRange`] when a length it measures has none the
-/// format can hold.
-fn member_of<T: SolveScalar>(
-    g: Subgroup<T>,
-    x: Affine3<T>,
-    band: Band,
-    arm: Arm,
-) -> Result<(), FoldStop> {
-    let arm = arm.get();
-    let residual = |value: T| Measured::Lever(Lever::Residual { value, arm });
-    let axis_fixed = |axis: UnitVec3<T>| {
-        (
-            Refuted::AxisFixed,
-            residual((x.linear * axis.get() - axis.get()).norm()),
-        )
-    };
-    let rotation_identity = || {
-        (
-            Refuted::RotationIdentity,
-            residual(rotation_residual(x.linear)),
-        )
-    };
-    let checks: Vec<(Refuted, Measured<T>)> = match g {
-        // The empty set holds nothing, and no margin decides that —
-        // the answer is structural, so it never reaches the funnel.
-        Subgroup::Empty => {
-            return Err(FoldStop::Clash {
-                predicate: super::MATE_MEMBER_EMPTY,
-                clash: Clash::Structural,
-            });
-        }
-        Subgroup::Se3 => Vec::new(),
-        Subgroup::Trivial => vec![
-            rotation_identity(),
-            (
-                Refuted::TranslationZero,
-                Measured::Length(x.translation.norm()),
-            ),
-        ],
-        Subgroup::Prismatic { direction } => vec![
-            rotation_identity(),
-            (
-                Refuted::TranslationAlong,
-                Measured::Length(x.translation.reject_from(direction.get()).norm()),
-            ),
-        ],
-        Subgroup::Planar { normal } => vec![
-            axis_fixed(normal),
-            (
-                Refuted::TranslationInPlane,
-                Measured::Length(x.translation.dot(normal.get())),
-            ),
-        ],
-        Subgroup::Cylindrical { point, direction } => vec![
-            axis_fixed(direction),
-            (
-                Refuted::PointOnAxis,
-                Measured::Length(
-                    (x.transform_point(point) - point)
-                        .reject_from(direction.get())
-                        .norm(),
-                ),
-            ),
-        ],
-        Subgroup::Revolute { point, direction } => vec![
-            axis_fixed(direction),
-            (
-                Refuted::PointFixed,
-                Measured::Length((x.transform_point(point) - point).norm()),
-            ),
-        ],
-        Subgroup::Spherical { point } => vec![(
-            Refuted::PointFixed,
-            Measured::Length((x.transform_point(point) - point).norm()),
-        )],
-        Subgroup::Parallel { direction } => vec![axis_fixed(direction)],
-        Subgroup::Translation => vec![rotation_identity()],
-        Subgroup::PlaneTranslation { normal } => vec![
-            rotation_identity(),
-            (
-                Refuted::TranslationInPlane,
-                Measured::Length(x.translation.dot(normal.get())),
-            ),
-        ],
-    };
-    for (predicate, measured) in checks {
-        if matches!(measured, Measured::Length(m) if !is_finite_length(m)) {
-            return Err(FoldStop::OutOfRange);
-        }
-        if decide(predicate.name(), measured.margin(), band)? != Sign::Zero {
-            return Err(FoldStop::Clash {
-                predicate: predicate.name(),
-                clash: measured.clash(),
-            });
-        }
-    }
-    Ok(())
-}
-
-/// A rotation's departure from the identity as a pure number: the
-/// Frobenius norm of `Q − I`. The caller levers it, so the number a
-/// refusal quotes is the one the predicate decided on.
-fn rotation_residual<T: Real>(q: Mat3<T>) -> T {
-    let d = sub(q, Mat3::identity());
-    (d.c0.norm_squared() + d.c1.norm_squared() + d.c2.norm_squared()).sqrt()
-}
-
 // ---- The intersection proper ----
 
-/// **Intersect two cosets** — the table, executed.
-///
-/// The result's representative satisfies `held` exactly by
-/// construction and `added` up to the decided membership check, so a
-/// [`FoldStop::Clash`] quotes the ADDED mate's own violation. `arm` is
-/// the lever the angular decisions turn on.
-///
-/// # Errors
-///
-/// [`FoldStop::Indeterminate`] when a case split or membership check
-/// lands in the ambiguity band; [`FoldStop::Clash`] when the
-/// intersection is empty; [`FoldStop::OutOfRange`] when the meeting
-/// point is further than a length can say; [`FoldStop::Unleverable`]
-/// when `arm` decides no angle at `band`.
-pub fn intersect<T: SolveScalar>(
-    held: Coset<T>,
-    added: Coset<T>,
-    band: Band,
-    arm: Arm,
-) -> Result<Coset<T>, FoldStop> {
-    if matches!(held.subgroup, Subgroup::Empty) || matches!(added.subgroup, Subgroup::Empty) {
-        return Ok(Coset {
-            subgroup: Subgroup::Empty,
-            representative: held.representative,
-        });
-    }
-    // X ∩ SE(3) = X, verbatim: nothing to construct and nothing to
-    // check, so the fold's identity element costs no arithmetic.
-    if matches!(held.subgroup, Subgroup::Se3) {
-        return Ok(added);
-    }
-    if matches!(added.subgroup, Subgroup::Se3) {
-        return Ok(held);
-    }
-    let arm = arm
-        .decides_over(band)
-        .map_err(|refusal| FoldStop::Unleverable(Box::new(refusal)))?;
-    let lever = arm.lever();
-    let (residual, separated) = table(held.subgroup, added.subgroup, band, lever)?;
-    let rotation = candidate_rotation(held, added, residual, band, arm, lever)?;
-    let translation = candidate_translation(held, added, residual, separated, rotation, lever);
-    if !is_finite_length(translation.norm()) {
-        return Err(FoldStop::OutOfRange);
-    }
-    let x = Affine3::from_parts(rotation, translation);
-    for coset in [held, added] {
-        member_of(
-            coset.subgroup,
-            x * coset.representative.inverse(),
-            band,
-            arm,
-        )?;
-    }
-    Ok(Coset {
-        subgroup: residual,
-        representative: x,
-    })
-}
-
-/// Stage one: the candidate's rotation.
-///
-/// The rotation constraint of a coset `G·R` is that `Q·Q_R⁻¹` lie in
-/// `G`'s rotations, which are all of SO(3), the rotations about one
-/// axis, or the identity alone. Two one-axis constraints meet through
-/// the two-axis condition below; everything else is forced.
-fn candidate_rotation<T: SolveScalar>(
-    held: Coset<T>,
-    added: Coset<T>,
-    residual: Subgroup<T>,
-    band: Band,
-    arm: Arm,
-    lever: T,
-) -> Result<Mat3<T>, FoldStop> {
-    use Subgroup::{Cylindrical, Revolute, Spherical};
-    // A ball frees every rotation but pins a point, so against a line
-    // or a second ball the rotation is solved, not taken from the other
-    // side: the other side's free turn about its own axis is what
-    // carries the ball's point where its own coset puts it.
+/// **Two cosets met where their families meet transversally**
+/// ([`SubgroupFamily::transverse`]), `None` where they do not. The
+/// coset is constructed, never checked: SE(3) meets anything as that
+/// thing, and a ball meets a group whose rotations are fixed but for
+/// at most a turn about one direction — a direction's, or the
+/// translations' — in that group's rotation, its representative
+/// carrying the ball's point home. Each side's equation holds by
+/// construction, so nothing is measured, and the answer is the same in
+/// either order.
+pub fn intersect<T: Real>(held: Coset<T>, added: Coset<T>) -> Option<Coset<T>> {
     match (held.subgroup, added.subgroup) {
-        (Spherical { .. }, Spherical { .. }) => return ball_pair(held, added, residual, band),
-        (Spherical { .. }, Cylindrical { .. } | Revolute { .. }) => {
-            return Ok(ball_on_line(held, added, residual, band)?);
-        }
-        (Cylindrical { .. } | Revolute { .. }, Spherical { .. }) => {
-            return Ok(ball_on_line(added, held, residual, band)?);
-        }
-        _ => {}
-    }
-    let q1 = held.representative.linear;
-    let q2 = added.representative.linear;
-    Ok(
-        match (held.subgroup.rotations(), added.subgroup.rotations()) {
-            (Rotations::Free, _) => q2,
-            (_, Rotations::Free) => q1,
-            // The tighter side forces the rotation; the looser side's
-            // violation, if any, surfaces at the membership check.
-            (Rotations::Fixed, _) => q1,
-            (_, Rotations::Fixed) => q2,
-            (Rotations::About(a1), Rotations::About(a2)) => {
-                if parallel(a1, a2, band, lever)?.is_none() {
-                    // PARALLEL rotation axes: the held side admits EVERY
-                    // rotation about its own axis, so the candidate's
-                    // clocking about that axis is free — and free means it
-                    // must be SOLVED, not inherited. Pinning it to the
-                    // held representative's clocking yields a pose that is
-                    // merely IN the held coset rather than a witness of
-                    // the intersection, and the (sound) membership check
-                    // then refuses an assemblable pair: review MAJOR-1's
-                    // two-pin pattern, inter-axis invariants matching but
-                    // the patterns clocked apart.
-                    clocking_about(held, added, a1, residual, band)? * q1
-                } else {
-                    // Two distinct rotation axes. Write the unknown as
-                    // `rot(a1, α)·Q1`; requiring it to fix a2 after the
-                    // added side's representative is undone gives one
-                    // equation in α, solvable iff the two vectors share
-                    // their a1-component — the reachability predicate.
-                    let (a1, a2) = (a1.get(), a2.get());
-                    let m = q1 * q2.transpose();
-                    let v = m * a2;
-                    let reach = Measured::Lever(Lever::Residual {
-                        value: v.dot(a1) - a2.dot(a1),
-                        arm: arm.get(),
-                    });
-                    let refuted = Refuted::TwoAxisReachable;
-                    if decide(refuted.name(), reach.margin(), band)? != Sign::Zero {
-                        return Err(FoldStop::Clash {
-                            predicate: refuted.name(),
-                            clash: reach.clash(),
-                        });
-                    }
-                    // Neither radius is at the origin where a pose can
-                    // come of the angle: `tp`'s length is the sine
-                    // `parallel` decided nonzero (deciding it again would
-                    // be a second decision of that number, a rounding
-                    // apart), and `vp` vanishes only where `v` lies on
-                    // `a1` while `a2` is that sine off it — no rotation
-                    // about `a1` reaches, and the membership check refuses
-                    // on the value channel whatever the angle.
-                    let vp = v.reject_from(a1);
-                    let tp = a2.reject_from(a1);
-                    let alpha = T::solve_atan2(vp.cross(tp).dot(a1), vp.dot(tp));
-                    Mat3::rotation_about(a1, alpha) * q1
-                }
-            }
-        },
-    )
-}
-
-/// **The free clocking about a shared axis, solved** (review MAJOR-1).
-///
-/// When both sides constrain rotation to one shared axis `u`, the
-/// candidate may be turned by any angle α about the HELD side's own
-/// axis and stay in the held coset — `rot(line(p₁,u), α)` is an
-/// element of every subgroup this arm sees. So α is a free parameter,
-/// and the added side's own axis-POSITION constraint is what fixes it.
-///
-/// The equation, in one line: the added side asks that its axis point
-/// `p₂` come back to itself (up to sliding along `u`), so the candidate
-/// must carry `w = R₁R₂⁻¹(p₂)` onto `p₂`. Turning about `(p₁,u)` moves
-/// `w` on a circle, so the condition is a planar rotation taking
-/// `(w−p₁)⊥` onto `(p₂−p₁)⊥` — one angle, closed form.
-///
-/// **Solvable exactly when the two radii agree**, which is the table's
-/// own "inter-axis displacement invariants match A vs B" predicate.
-/// This function does NOT decide that: `atan2` gives the direction
-/// change regardless, the radius mismatch survives into the candidate,
-/// and the membership check refuses it with the mismatch as the
-/// measured clash — the table's "an unsatisfiable candidate is empty,
-/// named", reached through the one gate rather than a second one.
-///
-/// Two arms need no angle: a side whose subgroup carries NO axis point
-/// states no position constraint (planar), and a held side with
-/// perpendicular translation freedom (planar again) can satisfy the
-/// added position constraint by TRANSLATING in stage two. Nor does an
-/// added axis point with no radius to turn: on the held axis — the
-/// table decided the two lines coincide, and its `residual` keeps the
-/// line (a shaft in two coaxial bores) — or carried there (`w` on the
-/// held axis, decided here under `mate_clocking_radius`). Each returns
-/// the identity, whose radius mismatch, if any, the membership check
-/// measures. So an angle is taken only between two radii decided
-/// nonzero, and the arctangent never reads the origin, where no scalar
-/// but `f64` has an answer (a dual's tangent is `0/0`, an interval's
-/// the whole circle).
-///
-/// # Errors
-///
-/// [`Indeterminate`] when `w`'s radius lands in the band.
-fn clocking_about<T: SolveScalar>(
-    held: Coset<T>,
-    added: Coset<T>,
-    u: UnitVec3<T>,
-    residual: Subgroup<T>,
-    band: Band,
-) -> Result<Mat3<T>, Indeterminate> {
-    let (Some(p1), Some(p2)) = (axis_point(held.subgroup), axis_point(added.subgroup)) else {
-        return Ok(Mat3::identity());
-    };
-    if axis_point(residual).is_some() {
-        return Ok(Mat3::identity());
-    }
-    let u = u.get();
-    let w = (held.representative * added.representative.inverse()).transform_point(p2);
-    let from = (w - p1).reject_from(u);
-    if decide("mate_clocking_radius", Margin::norm3(from), band)? == Sign::Zero {
-        return Ok(Mat3::identity());
-    }
-    let to = (p2 - p1).reject_from(u);
-    Ok(Mat3::rotation_about(
-        u,
-        T::solve_atan2(from.cross(to).dot(u), from.dot(to)),
-    ))
-}
-
-/// **A ball on a line's coset, its turn about the line solved.**
-///
-/// The candidate is `h·R_l`, `h` a turn by `α` about the line `(c, u)`
-/// (and, for a cylindrical, a slide along it), and the ball asks that
-/// it carry the ball's own point back to `P`. The line's
-/// representative already carries that point to `w = R_l·R_b⁻¹(P)`,
-/// so `α` is the turn about `u` taking `w`'s radius onto `P`'s: one
-/// angle, closed form, as [`clocking_about`]'s.
-///
-/// Where the table put `P` on the line (a revolute residual), every
-/// turn keeps it there and the line's own rotation is taken. Where it
-/// did not, `P`'s radius is the offset that verdict decided nonzero;
-/// `w`'s is decided here, under `mate_ball_radius`, and on the line it
-/// has no angle to give: the line's rotation is taken and the
-/// membership check measures the radius mismatch. So the arctangent
-/// never reads the origin.
-///
-/// # Errors
-///
-/// [`Indeterminate`] when `w`'s radius lands in the band.
-fn ball_on_line<T: SolveScalar>(
-    ball: Coset<T>,
-    line: Coset<T>,
-    residual: Subgroup<T>,
-    band: Band,
-) -> Result<Mat3<T>, Indeterminate> {
-    let q = line.representative.linear;
-    let (Subgroup::Spherical { point }, Some(c), Rotations::About(u)) = (
-        ball.subgroup,
-        axis_point(line.subgroup),
-        line.subgroup.rotations(),
-    ) else {
-        unreachable!("a ball and a line: a spherical, and a cylindrical or revolute")
-    };
-    if !matches!(residual, Subgroup::Trivial) {
-        return Ok(q);
-    }
-    let u = u.get();
-    let w = (line.representative * ball.representative.inverse()).transform_point(point);
-    let from = (w - c).reject_from(u);
-    if decide("mate_ball_radius", Margin::norm3(from), band)? == Sign::Zero {
-        return Ok(q);
-    }
-    let d = point - c;
-    let to = d - u * d.dot(u);
-    Ok(Mat3::rotation_about(u, T::solve_atan2(from.cross(to).dot(u), from.dot(to))) * q)
-}
-
-/// **Two balls' cosets, the turn carrying one chord onto the other.**
-///
-/// The candidate keeps the held ball's point and turns the added
-/// ball's point about it: the held representative carries the added
-/// copy point to `w = R₁·R₂⁻¹(P₂)`, and the rotation taking `w − P₁`
-/// onto `P₂ − P₁` (about their cross product, by the angle between
-/// them) carries it home. The chords' lengths must agree, which the
-/// membership check measures.
-///
-/// Where the table found the two points one (a spherical residual),
-/// the held rotation is taken. Where it found them apart, it minted
-/// the chord's direction, which is taken here rather than decided
-/// again. Collinear chords have no cross product: the sense of `w − P₁`
-/// along the chord decides between no turn and a half-turn about a
-/// direction across the chord.
-///
-/// # Errors
-///
-/// [`FoldStop::Indeterminate`] when the turn's axis or its sense lands
-/// in the band.
-fn ball_pair<T: SolveScalar>(
-    held: Coset<T>,
-    added: Coset<T>,
-    residual: Subgroup<T>,
-    band: Band,
-) -> Result<Mat3<T>, FoldStop> {
-    let q = held.representative.linear;
-    let (Subgroup::Spherical { point: p1 }, Subgroup::Spherical { point: p2 }) =
-        (held.subgroup, added.subgroup)
-    else {
-        unreachable!("two balls: two sphericals")
-    };
-    let Subgroup::Revolute {
-        direction: chord, ..
-    } = residual
-    else {
-        return Ok(q);
-    };
-    let a = (held.representative * added.representative.inverse()).transform_point(p2) - p1;
-    let b = chord.get();
-    match UnitVec3::new(a.cross(b), "mate_ball_turn_axis", band) {
-        Ok(axis) => Ok(Mat3::rotation_about(
-            axis.get(),
-            T::solve_atan2(a.cross(b).dot(axis.get()), a.dot(b)),
-        ) * q),
-        Err(UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength) => {
-            match decide("mate_ball_turn_sense", Margin::of(a.dot(b)), band)? {
-                Sign::Negative => Ok(Mat3::rotation_about(
-                    chord.orthonormal_basis().0,
-                    T::from_f64(core::f64::consts::PI),
-                ) * q),
-                Sign::Zero | Sign::Positive => Ok(q),
-            }
-        }
-        Err(UnitVec3Error::Escalated(diag)) => Err(diag.into()),
-        Err(UnitVec3Error::NonFiniteLength) => Err(FoldStop::OutOfRange),
-    }
-}
-
-/// The point a subgroup's axis is pinned through, `None` for the
-/// point-free subgroups (whose membership states no position
-/// constraint at all).
-fn axis_point<T: Real>(g: Subgroup<T>) -> Option<Point3<T>> {
-    match g {
-        Subgroup::Cylindrical { point, .. } | Subgroup::Revolute { point, .. } => Some(point),
+        (Subgroup::Se3, _) => Some(added),
+        (_, Subgroup::Se3) => Some(held),
+        (
+            Subgroup::Spherical { point },
+            turning @ (Subgroup::Parallel { .. } | Subgroup::Translation),
+        ) => Some(ball_meets(point, held, turning, added)),
+        (
+            turning @ (Subgroup::Parallel { .. } | Subgroup::Translation),
+            Subgroup::Spherical { point },
+        ) => Some(ball_meets(point, added, turning, held)),
         _ => None,
     }
 }
 
-/// Stage two: the candidate's translation, with the rotation fixed.
-///
-/// Each side contributes an affine condition `P·(t − q) = 0`
-/// ([`Subgroup::translation_anchor`]). The HELD side is met exactly —
-/// `t = q₁ + δ` with `δ` in the held subgroup's translation freedom —
-/// and the added side in the part of that freedom the residual does
-/// not keep, so a failure's margin is the added mate's own clash. That
-/// part is at most a plane, and each shape is solved in closed form in
-/// its own frame, by least squares where the added side over-asks.
-///
-/// **Its only divisor is the number the table's verdict decided away
-/// from zero** ([`Separated`]): the levered sine of a non-parallel
-/// verdict, at least `K·ε`, or the cosine of a non-perpendicular one,
-/// out of the zero band — exactly where the held freedom and the
-/// added constraint nearly align, so the conditioning is that number
-/// and not its square. Where a verdict called two directions parallel
-/// or perpendicular instead, the shape it named is solved as named,
-/// with no division: a line along the normal meets the plane at its
-/// anchor's foot, and a line lying in the plane holds its anchor's
-/// foot. So a pair the table separated has a candidate as finite as
-/// the meeting point it names, which [`intersect`] measures.
-fn candidate_translation<T: SolveScalar>(
-    held: Coset<T>,
-    added: Coset<T>,
-    residual: Subgroup<T>,
-    separated: Separated<T>,
-    rotation: Mat3<T>,
-    lever: T,
-) -> Vec3<T> {
-    use Subgroup::{
-        Cylindrical, Parallel, Planar, PlaneTranslation, Prismatic, Revolute, Spherical,
-        Translation, Trivial,
+/// [`intersect`]'s constructed meeting of a ball's coset `ball` about
+/// `point` with `other`'s, whose subgroup `turning` frees every
+/// translation: the other's rotation, translated so `point` stays where
+/// the ball puts it. What is left is the other's turns about the line
+/// through `point` (a direction's), or nothing (the translations').
+fn ball_meets<T: Real>(
+    point: Point3<T>,
+    ball: Coset<T>,
+    turning: Subgroup<T>,
+    other: Coset<T>,
+) -> Coset<T> {
+    let rotation = other.representative.linear;
+    // The turn about `point` that carries the ball's representative to
+    // `rotation`, applied to it.
+    let turn = rotation * ball.representative.linear.transpose();
+    let p = point - Point3::origin();
+    let translation = p - turn * p + turn * ball.representative.translation;
+    let subgroup = match turning {
+        Subgroup::Parallel { direction } => Subgroup::Revolute { point, direction },
+        _ => Subgroup::Trivial,
     };
-    let a1 = rotation * held.representative.linear.transpose();
-    let a2 = rotation * added.representative.linear.transpose();
-    let q1 = held
-        .subgroup
-        .translation_anchor(a1, held.representative.translation);
-    let q2 = added
-        .subgroup
-        .translation_anchor(a2, added.representative.translation);
-    let delta = q2 - q1;
-    if held.subgroup.translation_dimension() == residual.translation_dimension() {
-        // The residual keeps every translation the held side frees.
-        return q1;
+    Coset {
+        subgroup,
+        representative: Affine3::from_parts(rotation, translation),
     }
-    let step = match (held.subgroup, added.subgroup, separated) {
-        // A held side freeing every translation (a direction's group, or
-        // the translations alone) meets the added side at its own
-        // anchor, which the added side holds by construction.
-        (Parallel { .. } | Translation, _, _) => delta,
-        // Two planes meeting in the residual's line `d`: cross it
-        // within the held plane, along `e = d × n`, to the added
-        // plane. `m·e = d·(n × m)` is the sine the verdict levered.
-        (
-            Planar { normal: n } | PlaneTranslation { normal: n },
-            Planar { normal: m } | PlaneTranslation { normal: m },
-            Separated::Sine(sine),
-        ) => {
-            let Prismatic { direction: d } = residual else {
-                unreachable!("two planes the table separates meet in its prismatic line")
-            };
-            let e = d.get().cross(n.get());
-            e * (m.get().dot(delta) * (lever / sine))
-        }
-        // A line crossing the plane at the cosine the verdict decided:
-        // the point where it does, either side held.
-        (
-            Planar { normal: n } | PlaneTranslation { normal: n },
-            Cylindrical { direction: u, .. } | Prismatic { direction: u },
-            Separated::Cosine(cosine),
-        ) => delta - u.get() * (n.get().dot(delta) / cosine),
-        (
-            Cylindrical { direction: u, .. } | Prismatic { direction: u },
-            Planar { normal: n } | PlaneTranslation { normal: n },
-            Separated::Cosine(cosine),
-        ) => u.get() * (n.get().dot(delta) / cosine),
-        // A line the verdict called along the normal (a revolute
-        // residual) or in the plane (a slide along it): either way the
-        // anchor's foot on the held plane, which is where the first
-        // meets the plane and a point of the second. So is the point of
-        // the plane nearest an added side that pins the translation.
-        (Planar { normal: n } | PlaneTranslation { normal: n }, _, Separated::Not) => {
-            delta - n.get() * n.get().dot(delta)
-        }
-        // A held line along the normal of an added plane (a revolute
-        // residual): the point where it crosses, the line being the
-        // normal up to its sense.
-        (
-            Cylindrical { direction: u, .. } | Prismatic { direction: u },
-            Planar { normal: n } | PlaneTranslation { normal: n },
-            Separated::Not,
-        ) => u.get() * (u.get().dot(n.get()) * n.get().dot(delta)),
-        // Two lines the table called non-parallel: the point of the
-        // held line nearest the added one. Along `u` the added side's
-        // projector has length `|u × v|`, the sine the verdict
-        // levered into `sine`, so the step is `((v × w)·Δ) · arm / sine²`
-        // with `w = (u × v)·arm`, whose length is `sine`.
-        (
-            Cylindrical { direction: u, .. } | Prismatic { direction: u },
-            Cylindrical { direction: v, .. } | Prismatic { direction: v },
-            Separated::Sine(sine),
-        ) => {
-            let w = u.get().cross(v.get()) * lever;
-            u.get() * (v.get().cross(w).dot(delta) * (lever / sine / sine))
-        }
-        // An added side that pins the translation outright: the point
-        // of the held line nearest it.
-        (
-            Cylindrical { direction: u, .. } | Prismatic { direction: u },
-            Revolute { .. } | Spherical { .. } | Trivial,
-            Separated::Not,
-        ) => u.get() * u.get().dot(delta),
-        (held_subgroup, added_subgroup, separated) => unreachable!(
-            "the table hands no such verdict to a held side with freedom its residual does not \
-             keep: held {}, added {}, {separated:?}; SE(3) and the empty coset return before \
-             this stage, and a revolute or trivial held side keeps no translation",
-            held_subgroup.name(),
-            added_subgroup.name()
-        ),
-    };
-    q1 + step
-}
-
-/// `a − b`, columnwise, in one written order (D9).
-fn sub<T: Real>(a: Mat3<T>, b: Mat3<T>) -> Mat3<T> {
-    Mat3::from_cols(a.c0 - b.c0, a.c1 - b.c1, a.c2 - b.c2)
 }
 
 // ---- A value's freedom, inside a residual ----
@@ -1724,8 +689,7 @@ pub(crate) fn turn_line<T: SolveScalar>(
         Subgroup::Prismatic { .. }
         | Subgroup::Translation
         | Subgroup::PlaneTranslation { .. }
-        | Subgroup::Trivial
-        | Subgroup::Empty => None,
+        | Subgroup::Trivial => None,
     })
 }
 
@@ -1748,10 +712,7 @@ pub(crate) fn slides_along<T: SolveScalar>(
         Subgroup::Cylindrical { direction, .. } | Subgroup::Prismatic { direction } => {
             parallel(v, direction, band, arm.lever())?.is_none()
         }
-        Subgroup::Revolute { .. }
-        | Subgroup::Spherical { .. }
-        | Subgroup::Trivial
-        | Subgroup::Empty => false,
+        Subgroup::Revolute { .. } | Subgroup::Spherical { .. } | Subgroup::Trivial => false,
     })
 }
 
@@ -1769,40 +730,8 @@ pub(crate) fn after_turn<T: Real>(g: Subgroup<T>) -> Option<Subgroup<T>> {
         | Subgroup::Prismatic { .. }
         | Subgroup::Translation
         | Subgroup::PlaneTranslation { .. }
-        | Subgroup::Trivial
-        | Subgroup::Empty => None,
+        | Subgroup::Trivial => None,
     }
-}
-
-/// **The line across two directions** — their cross product minted at
-/// `arm`'s lever, as [`parallel`] decides it — or `None` where they are
-/// parallel.
-///
-/// # Errors
-///
-/// [`Indeterminate`] when the verdict lands in the band.
-pub(crate) fn across<T: SolveScalar>(
-    u: UnitVec3<T>,
-    v: UnitVec3<T>,
-    band: Band,
-    arm: Arm,
-) -> Result<Option<UnitVec3<T>>, Indeterminate> {
-    Ok(parallel(u, v, band, arm.lever())?.map(|(line, _)| line))
-}
-
-/// **Whether a translation along `r` moves a measure along `v`**: `v`
-/// is not perpendicular to `r`, decided over `arm` ([`perpendicular`]).
-///
-/// # Errors
-///
-/// [`Indeterminate`] when the verdict lands in the band.
-pub(crate) fn reaches<T: SolveScalar>(
-    v: UnitVec3<T>,
-    r: UnitVec3<T>,
-    band: Band,
-    arm: Arm,
-) -> Result<bool, Indeterminate> {
-    Ok(perpendicular(v, r, band, arm.lever())?.is_some())
 }
 
 /// **Whether two directions are parallel**, decided over `arm`
@@ -1833,112 +762,4 @@ pub(crate) fn on_the_line<T: SolveScalar>(
     band: Band,
 ) -> Result<bool, Indeterminate> {
     point_on_line(p, origin, direction, band)
-}
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
-    use super::{Arm, Coset, Subgroup, intersect};
-    use geom_core::linalg::{Affine3, Mat3, UnitVec3, Vec3};
-    use geom_core::predicate::{Band, Margin, Sign};
-    use geom_core::sym::{session_counts, with_session};
-    use geom_core::{ParamSymbol, Real, Sym, SymBudget, Tol};
-
-    type S = Sym<f64>;
-
-    fn p(name: &str, v: f64) -> S {
-        Sym::param(ParamSymbol::new(test_utils::symbol_id(name)), v)
-    }
-
-    fn band() -> Band {
-        Band::linear(Tol::witness()).expect("the witness tolerance has a linear band")
-    }
-
-    fn at(subgroup: Subgroup<S>, t: [S; 3]) -> Coset<S> {
-        Coset {
-            subgroup,
-            representative: Affine3::from_parts(Mat3::identity(), Vec3::new(t[0], t[1], t[2])),
-        }
-    }
-
-    /// The candidate's translation of `held ∩ added` at two arms, and
-    /// how many of the three component decisions `t(2) − t(5) = 0` the
-    /// symbolic tier proved.
-    fn proved_arm_free(held: Coset<S>, added: Coset<S>) -> u64 {
-        let (proved, _) = with_session(
-            SymBudget {
-                max_terms: 4096,
-                max_degree: 128,
-            },
-            || {
-                let t = |arm: f64| {
-                    intersect(held, added, band(), Arm::of(arm, 0.0).unwrap())
-                        .expect("the two meet")
-                        .representative
-                        .translation
-                };
-                let (a, b) = (t(2.0), t(5.0));
-                let before = session_counts().unwrap().symbolic;
-                for d in [a.x - b.x, a.y - b.y, a.z - b.z] {
-                    let sign =
-                        geom_core::k_stats::decide("coset_test_arm_free", Margin::of(d), band());
-                    assert_eq!(sign, Ok(Sign::Zero));
-                }
-                session_counts().unwrap().symbolic - before
-            },
-        );
-        proved
-    }
-
-    /// **The step's arm cancels the levered sine's own, symbolically.**
-    /// Each intersection mints its arm in `T` once ([`Arm::lever`]), so
-    /// the anchor step's `arm / sine` divides out the very arm the
-    /// verdict's sine was levered by, and the meeting point is the same
-    /// at any arm: at `Sym` the tier proves `t(arm₁) − t(arm₂) = 0` in
-    /// every component, for two planes meeting in a line and for two
-    /// lines meeting in a point. Red where the step re-enters the arm as
-    /// a literal while the sine holds it as an unknown (each decision
-    /// then falls to the numeric tier).
-    #[test]
-    fn the_steps_arm_cancels_the_levered_sines_own_at_sym() {
-        let z = UnitVec3::exact_z;
-        let tilted = || {
-            UnitVec3::new(
-                Vec3::new(p("a", 0.3), S::zero(), S::one()),
-                "coset_test_tilt",
-                band(),
-            )
-            .unwrap()
-        };
-        let zero = || S::zero();
-        let planes = proved_arm_free(
-            at(
-                Subgroup::PlaneTranslation { normal: z() },
-                [zero(), zero(), p("h", 0.5)],
-            ),
-            at(
-                Subgroup::PlaneTranslation { normal: tilted() },
-                [p("w", 0.7), zero(), zero()],
-            ),
-        );
-        let lines = proved_arm_free(
-            at(
-                Subgroup::Prismatic {
-                    direction: UnitVec3::exact_x(),
-                },
-                [zero(), p("b", 0.4), zero()],
-            ),
-            at(
-                Subgroup::Prismatic {
-                    direction: UnitVec3::exact_y(),
-                },
-                [p("c", 0.6), zero(), zero()],
-            ),
-        );
-        assert_eq!(
-            (planes, lines),
-            (3, 3),
-            "proved symbolically, of three components each"
-        );
-    }
 }

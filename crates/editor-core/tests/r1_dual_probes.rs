@@ -703,7 +703,6 @@ fn r1_e2e_consumer_drive_at_dual64() {
             fresh: Vec::new(),
         },
         tol,
-        &editor_core::RefusingReach,
     )
     .expect("bump applies")
     .doc;

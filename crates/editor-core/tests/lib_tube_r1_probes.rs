@@ -37,9 +37,7 @@ use geom_core::Tol;
 use topo::Surface;
 
 fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(d, e, Tol::witness(), &editor_core::RefusingReach)
-        .expect("edit applies")
-        .doc
+    apply(d, e, Tol::witness()).expect("edit applies").doc
 }
 
 fn axis_doc() -> (ProfileDoc, RecipeNodeId) {

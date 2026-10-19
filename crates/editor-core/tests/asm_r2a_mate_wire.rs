@@ -40,7 +40,6 @@ fn a_mate_bearing_document_round_trips() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("an instance inserts");
         ids.push(applied.record.minted.expect("a minted id"));
@@ -67,7 +66,6 @@ fn a_mate_bearing_document_round_trips() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("a mate inserts")
         .doc

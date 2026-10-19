@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-18
 priority: P2
 cost: M
-needs_ev: true
 design: true
 ---
 
@@ -95,3 +94,10 @@ The build closes, or verifies closed, `split-keeps-has-two-builders-that-disagre
 `a-section-faces-division-root-is-the-operand-face-its-cut-ran-in` and
 CLEAVE's split-half row. It also re-baselines `split_pinch_keeps.rs`'s
 four expected sets from `{rim, in-plane edge}` to `{rim}`.
+
+## Decided (2026-10-19)
+
+Ev approved the recommendation on PR 5306 ("sure, sounds good"): N2/N3 as
+the PR edits them. Design-fork log row 163. The build is a WIRE unit:
+the naming side plus `topo/src/splitting/finish.rs` (CLEAVE's
+`a-split-exactly-on-a-face-leaves-a-half-no-boolean-accepts`).

@@ -18,7 +18,7 @@ use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, FaceName,
     InterfaceCrossing, InterfaceRecord, Mate, Node, PersistError, ProfileDoc, RecipeNodeId,
-    RefusingReach, RoleSeg, SitedFace, StableName, Target, WorldRead, apply, load, save,
+    RoleSeg, SitedFace, StableName, Target, WorldRead, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -53,7 +53,6 @@ fn doc_with_a_crossing() -> ProfileDoc {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &RefusingReach,
         )
         .expect("the fixture's nodes insert")
         .doc
@@ -140,7 +139,6 @@ fn an_empty_record_stays_absent_from_the_wire() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("an instance inserts")
     .doc;

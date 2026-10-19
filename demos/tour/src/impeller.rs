@@ -58,7 +58,7 @@ use std::collections::BTreeMap;
 use pncad::document::{
     Bodies, BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation,
     Formula, FreeValue, FreeVar, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId,
-    RefusingReach, ValuePayload, VarName, apply, evaluate, parse_formula,
+    ValuePayload, VarName, apply, evaluate, parse_formula,
 };
 use pncad::geom_core::Tol;
 use pncad::topo::Body;
@@ -165,7 +165,6 @@ fn build_doc(tol: Tol) -> Recipe {
                 fresh: Vec::new(),
             },
             tol,
-            &RefusingReach,
         )
         .expect("insert node");
         *doc = applied.doc;
@@ -182,7 +181,6 @@ fn build_doc(tol: Tol) -> Recipe {
             def: pncad::document::VarDecl::Free(FreeVar::Count { value: COUNTS[0] }),
         },
         tol,
-        &RefusingReach,
     )
     .expect("the blade count declares");
     doc = applied.doc;
@@ -305,7 +303,6 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 value: FreeValue::Count(n),
             },
             tol,
-            &RefusingReach,
         )
         .expect("the blade count edits");
         doc = applied.doc;

@@ -690,7 +690,7 @@ fn a_resolve_row_names_the_slot_that_failed() {
 /// Subtract, which minted the name, not only the block its words say.
 #[test]
 fn a_strand_row_names_the_node_the_delete_took() {
-    use editor_core::{Attr, DocEdit, RefusingReach, Rgba8, apply};
+    use editor_core::{Attr, DocEdit, Rgba8, apply};
     let mut r = Recorder::new();
     let (block, cut) = block_and_cut(&mut r);
     let doc = r.doc;
@@ -718,12 +718,10 @@ fn a_strand_row_names_the_node_the_delete_took() {
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         tol,
-        &RefusingReach,
     )
     .expect("paint")
     .doc;
-    let applied = apply(&doc, &DocEdit::DeleteNode { id: cut }, tol, &RefusingReach)
-        .expect("the delete applies");
+    let applied = apply(&doc, &DocEdit::DeleteNode { id: cut }, tol).expect("the delete applies");
     let rows: Vec<String> = applied.maintenance.iter().map(|m| m.to_string()).collect();
     let deleted = format!(
         "this edit deleted {}, which minted the name",
@@ -813,7 +811,7 @@ fn a_resolve_row_names_a_payload_slot_above_zero() {
 /// painted, and the union deleted.
 #[test]
 fn a_strand_row_names_a_deleted_union() {
-    use editor_core::{Attr, DocEdit, RefusingReach, Rgba8, apply};
+    use editor_core::{Attr, DocEdit, Rgba8, apply};
     let mut r = Recorder::new();
     let (block, _) = block_and_split(&mut r);
     let q = r.profile(
@@ -848,17 +846,10 @@ fn a_strand_row_names_a_deleted_union() {
             attr: Attr::Color(Rgba8::opaque(1, 2, 3)),
         },
         tol,
-        &RefusingReach,
     )
     .expect("paint")
     .doc;
-    let applied = apply(
-        &doc,
-        &DocEdit::DeleteNode { id: union },
-        tol,
-        &RefusingReach,
-    )
-    .expect("the delete applies");
+    let applied = apply(&doc, &DocEdit::DeleteNode { id: union }, tol).expect("the delete applies");
     let rows: Vec<String> = applied.maintenance.iter().map(|m| m.to_string()).collect();
     let deleted = format!(
         "this edit deleted {}, which minted the name",

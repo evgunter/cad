@@ -335,7 +335,6 @@ fn tilted_revolve(width: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             }),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("declares")
     .doc;
@@ -690,7 +689,6 @@ fn a_pose_trees_leaves_are_keyed_by_the_port_they_read() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("re-tools")
     .doc;
@@ -820,7 +818,6 @@ fn a_pose_whose_scalar_becomes_observed_refuses_the_redefinition() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     assert!(
         matches!(
@@ -1094,7 +1091,7 @@ fn algebra(g: &editor_core::Subgroup<f64>) -> Vec<[f64; 6]> {
             .collect(),
         S::Translation => axes.iter().map(|&a| twist(zero, a)).collect(),
         S::PlaneTranslation { normal } => across(UnitVec3::get(normal)).collect(),
-        S::Trivial | S::Empty => Vec::new(),
+        S::Trivial => Vec::new(),
     }
 }
 
@@ -1125,77 +1122,77 @@ fn rank(rows: &[[f64; 6]]) -> usize {
     r
 }
 
-/// **The one `Subgroup` table is closed and right over all eleven
-/// families** (the coset module's proof obligation, executed): for
-/// every pair drawn from a sample of each family in general and in
-/// special position, the table's answer is a member of the lattice and
-/// spans exactly the intersection of the two Lie algebras — computed
-/// here independently, as subspaces of the twists — and the answer is
-/// the same in both orders.
+/// **The family meet is the intersection in general position** (the
+/// coset module's proof obligation, executed): for every pair of the
+/// ten families, each placed in general position (directions and points
+/// no two of which are parallel, perpendicular or incident), the
+/// dimension [`editor_core::SubgroupFamily::meet`] answers is the
+/// dimension of the intersection of the two Lie algebras, computed here
+/// independently as subspaces of the twists, in both orders.
+///
+/// *Breaks if* a row of the meet answers a family a general pair does
+/// not meet in, which would admit or refuse a bundle wrongly.
 #[test]
-fn the_subgroup_table_spans_the_intersection_of_every_pair() {
+fn the_family_meet_spans_the_intersection_in_general_position() {
     use editor_core::Subgroup as S;
-    use editor_core::mate::coset::{Arm, intersect_subgroups};
+    use editor_core::SubgroupFamily as F;
     use geom_core::{Point3, Vec3};
     let band = geom_core::predicate::Band::linear(Tol::witness()).expect("a band");
     let unit = |x: f64, y: f64, z: f64| {
         UnitVec3::new(Vec3::new(x, y, z), topo::query::DATUM_UNIT_NORM, band).unwrap()
     };
-    let dirs = [
-        unit(0.0, 0.0, 1.0),
-        unit(1.0, 0.0, 0.0),
-        unit(1.0, 0.0, 1.0),
-    ];
-    let points = [
-        Point3::origin(),
-        Point3::new(0.0, 1.0, 0.0),
-        Point3::new(1.0, 2.0, -0.5),
-    ];
-    let mut sample = vec![S::Se3, S::Translation, S::Trivial];
-    for &d in &dirs {
-        sample.push(S::Planar { normal: d });
-        sample.push(S::Prismatic { direction: d });
-        sample.push(S::Parallel { direction: d });
-        sample.push(S::PlaneTranslation { normal: d });
-        for &p in &points {
-            sample.push(S::Cylindrical {
+    // One general placing per side: no two of these directions are
+    // parallel or perpendicular, and neither point lies on the other
+    // side's line.
+    let place = |family: F, side: usize| {
+        let (d, p) = if side == 0 {
+            (unit(0.3, 0.5, 0.81), Point3::new(0.17, -0.43, 0.29))
+        } else {
+            (unit(-0.62, 0.21, 0.4), Point3::new(-0.38, 0.71, -0.13))
+        };
+        match family {
+            F::Se3 => S::Se3,
+            F::Planar => S::Planar { normal: d },
+            F::Cylindrical => S::Cylindrical {
                 point: p,
                 direction: d,
-            });
-            sample.push(S::Revolute {
+            },
+            F::Prismatic => S::Prismatic { direction: d },
+            F::Revolute => S::Revolute {
                 point: p,
                 direction: d,
-            });
+            },
+            F::Spherical => S::Spherical { point: p },
+            F::Parallel => S::Parallel { direction: d },
+            F::Translation => S::Translation,
+            F::PlaneTranslation => S::PlaneTranslation { normal: d },
+            F::Trivial => S::Trivial,
         }
-    }
-    for &p in &points {
-        sample.push(S::Spherical { point: p });
-    }
-    let arm = Arm::of(0.0, 1.0).expect("a metre is in range");
-    let mut pairs = 0;
-    for a in &sample {
-        for b in &sample {
-            let met = intersect_subgroups(*a, *b, band, arm).expect("decided");
-            let back = intersect_subgroups(*b, *a, band, arm).expect("decided");
-            assert_eq!(met.family(), back.family(), "{a:?} ∩ {b:?} is unordered");
-            let (ga, gb, gm) = (algebra(a), algebra(b), algebra(&met));
-            // dim(A ∩ B) = dim A + dim B − dim(A + B).
+    };
+    let all = [
+        F::Se3,
+        F::Planar,
+        F::Cylindrical,
+        F::Prismatic,
+        F::Revolute,
+        F::Spherical,
+        F::Parallel,
+        F::Translation,
+        F::PlaneTranslation,
+        F::Trivial,
+    ];
+    for a in all {
+        for b in all {
+            let (ga, gb) = (algebra(&place(a, 0)), algebra(&place(b, 1)));
             let both = [ga.clone(), gb.clone()].concat();
+            // dim(A ∩ B) = dim A + dim B − dim(A + B).
             let wanted = rank(&ga) + rank(&gb) - rank(&both);
-            assert_eq!(rank(&gm), wanted, "{a:?} ∩ {b:?} = {met:?}: the dimension");
-            for side in [&ga, &gb] {
-                let joined = [side.clone(), gm.clone()].concat();
-                assert_eq!(
-                    rank(&joined),
-                    rank(side),
-                    "{a:?} ∩ {b:?} = {met:?} leaves {side:?}"
-                );
-            }
-            pairs += 1;
+            assert_eq!(
+                usize::from(a.meet(b).dimension()),
+                wanted,
+                "{a:?} ∩ {b:?} = {:?}: the dimension",
+                a.meet(b)
+            );
         }
     }
-    assert!(
-        pairs > 900,
-        "the sample is the whole lattice: {pairs} pairs"
-    );
 }

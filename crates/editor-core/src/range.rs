@@ -713,7 +713,7 @@ fn edit(
     e: &DocEdit<ProfileProgram>,
     tol: Tol,
 ) -> Result<Doc<ProfileProgram>, RangeRefusal> {
-    apply(doc, e, tol, &crate::mate::RefusingReach)
+    apply(doc, e, tol)
         .map(|a| a.doc)
         .map_err(|e| RangeRefusal::Derivation(Box::new(e)))
 }

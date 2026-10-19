@@ -1233,10 +1233,12 @@ fn verdict<T: crate::checks::at_rest::LocalizeLane>(
 /// reading the selection's body, whose own value holds that entity
 /// under the same key (a placement moves a body and re-mints nothing);
 /// `copies` is the graft bridge from each placement's copy to the
-/// product. A side whose body no placement reads has no world copy, so
-/// the mate mints nothing: such a mate relates, say, a boolean's
-/// operands in the workbench, which is the boolean's coincidence door's
-/// business, not an at-rest fact of the product.
+/// product, and the product comes with how a row names a face of it: in
+/// its copy, as that copy's placement output names it. A side whose
+/// body no placement reads has no world copy, so the mate mints
+/// nothing: such a mate relates, say, a boolean's operands in the
+/// workbench, which is the boolean's coincidence door's business, not
+/// an at-rest fact of the product.
 ///
 /// **Total over the document's live mates**: a mate this cannot mint
 /// yields a [`MintRefusal`] row and the walk CONTINUES, so the record
@@ -1248,7 +1250,10 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     copies: &dyn Fn(RecipeNodeId) -> Option<&'k topo::GraftKeys>,
-    body: &topo::Body<T>,
+    (body, cell_of): (
+        &topo::Body<T>,
+        &dyn Fn(FaceKey) -> crate::coincide::NamedCell,
+    ),
     at_rest: &mut AtRestRows,
     space: crate::mate::Space,
     band: Result<geom_core::Band, geom_core::BandError>,
@@ -1353,20 +1358,7 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
                     "a live mate's two references resolved to one face: \
                      the solve door's `SelfMate` refusal was bypassed"
                 );
-                // Each side's cell is named at the read the side selects
-                // in: its selection's body (D10).
-                let read = |side: &crate::VarId| {
-                    doc.selection(*side)
-                        .map(|select| select.body)
-                        .unwrap_or_else(|| unreachable!("a live mate's side is a selection"))
-                };
-                at_rest.decide(
-                    id,
-                    body,
-                    (&head_a, face_a, read(a)),
-                    (&head_b, face_b, read(b)),
-                    band,
-                );
+                at_rest.decide(id, body, (face_a, face_b), cell_of, band);
             }
             other => {
                 unminted.push(MintRefusal::NoAtRestRecord {
@@ -1395,8 +1387,8 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
 pub struct AtRestRow {
     /// Whose pair the census decided.
     pub by: AtRestBy,
-    /// The decision, each cell named as the read it entered through
-    /// reads it: a mate's reference, or a copy's placement.
+    /// The decision, each cell named as the copy the census read it in
+    /// reads it: the copy's placement output, and its name there.
     pub row: crate::coincide::NamedCoincidence,
 }
 
@@ -1433,8 +1425,8 @@ impl AtRestRows {
         &mut self,
         mate: crate::mate::MateRef,
         body: &topo::Body<T>,
-        (a, face_a, read_a): (&SitedFace, FaceKey, crate::VarId),
-        (b, face_b, read_b): (&SitedFace, FaceKey, crate::VarId),
+        (face_a, face_b): (FaceKey, FaceKey),
+        cell_of: &dyn Fn(FaceKey) -> crate::coincide::NamedCell,
         band: Result<geom_core::Band, geom_core::BandError>,
     ) {
         let decided = match band {
@@ -1443,15 +1435,11 @@ impl AtRestRows {
         };
         match decided {
             Ok(row) => {
-                let cell = |r: &SitedFace, input| crate::coincide::NamedCell::Entity {
-                    input,
-                    name: (*r.name).clone(),
-                };
                 let k = u32::try_from(self.coincidences.len()).unwrap_or(u32::MAX);
                 self.coincidences.push(AtRestRow {
                     by: AtRestBy::Mate(mate),
                     row: crate::coincide::NamedCoincidence {
-                        cells: [cell(a, read_a), cell(b, read_b)],
+                        cells: [cell_of(face_a), cell_of(face_b)],
                         relation: row.relation,
                         site: row.site,
                         margin: row.margin,

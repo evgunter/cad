@@ -19,8 +19,9 @@
 //!
 //! - `random_queries_read_the_truth` is a counterexample search: the seed
 //!   varies, is logged, and the count rides `CAD_FUZZ_EFFORT`. It asserts
-//!   no wrong answer; a refusal is not one, and the counts of each are
-//!   printed.
+//!   no wrong answer and no `VolumeUncertified`, the side at infinity of
+//!   a body whose volume is far from zero; any other refusal is not a
+//!   failure, and the counts of each are printed.
 //! - `a_lattice_on_the_tube_reads_the_truth` is its pinned subset: a
 //!   fixed lattice on the tube of the notched bodies, asserted exactly.
 //! - `the_puck_is_the_shape_it_is_built_as` holds the puck's fixture to
@@ -507,6 +508,15 @@ fn random_queries_read_the_truth() {
             t.wrong.len(),
             test_utils::fuzz::replay(),
             t.wrong.join("\n")
+        );
+        // Every body here holds a volume far from zero, which the
+        // quadrature measures through its torus walls, so a ray that
+        // meets nothing always reads its side.
+        assert_eq!(
+            t.refused.get("VolumeUncertified"),
+            None,
+            "{name}: a point whose rays all miss went unread ({})",
+            test_utils::fuzz::replay()
         );
     }
 }

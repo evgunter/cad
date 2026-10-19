@@ -111,7 +111,6 @@ fn rebind_moves_a_reference_one_shot() {
                 to: cap(t.c),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     // The key keeps its read and takes the new name (a Rebind repairs
@@ -130,8 +129,7 @@ fn rebind_moves_a_reference_one_shot() {
                     from: cap(t.b),
                     to: cap(t.a),
                 },
-                Tol::witness(),
-                &editor_core::RefusingReach
+                Tol::witness()
             )
             .unwrap_err(),
         EditError::RebindNoReferences {
@@ -203,8 +201,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                     from: cap(t.b),
                     to: cap(t.b),
                 },
-                Tol::witness(),
-                &editor_core::RefusingReach
+                Tol::witness()
             )
             .unwrap_err(),
         EditError::RebindIdentity {
@@ -225,8 +222,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                     from: cap(t.b),
                     to: body_c,
                 },
-                Tol::witness(),
-                &editor_core::RefusingReach
+                Tol::witness()
             )
             .unwrap_err(),
         EditError::RebindKindMismatch {
@@ -244,8 +240,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                     from: cap(t.b),
                     to: cap(t.c),
                 },
-                Tol::witness(),
-                &editor_core::RefusingReach
+                Tol::witness()
             )
             .unwrap_err(),
         EditError::RebindTargetMissingNode {
@@ -262,8 +257,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                     from: foreign.clone(),
                     to: cap(t.c),
                 },
-                Tol::witness(),
-                &editor_core::RefusingReach
+                Tol::witness()
             )
             .unwrap_err(),
         EditError::RebindUnknownName {
@@ -279,8 +273,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                     from: cap(t.a), // A's cap carries a colour; it IS referenced
                     to: cap(t.c),
                 },
-                Tol::witness(),
-                &editor_core::RefusingReach
+                Tol::witness()
             )
             .map(|_| ())
             .err(),
@@ -295,8 +288,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                     from: cap(t.c), // referenced nowhere
                     to: cap(t.a),
                 },
-                Tol::witness(),
-                &editor_core::RefusingReach
+                Tol::witness()
             )
             .unwrap_err(),
         EditError::RebindNoReferences {
@@ -326,7 +318,6 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
                 witness: w.clone(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(!applied.record.structural);
@@ -339,8 +330,7 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
                 node: extrude,
                 witness: w.clone(),
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::WitnessOnNonSketch {
@@ -353,8 +343,7 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
                 node: RecipeNodeId::new(0, 9999),
                 witness: w.clone(),
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::UnknownNode {
@@ -370,7 +359,6 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
                 witness: w.clone(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(applied.doc.bit_eq(&redo.doc));
@@ -382,7 +370,6 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
                 witness: datum(1, b"assignment-v2"),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(!applied.doc.bit_eq(&other.doc));
@@ -414,7 +401,6 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
                 certification: cert.clone(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(!applied.record.structural);
@@ -427,8 +413,7 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
                 entries: vec![],
                 certification: cert.clone(),
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::EmptyWitnessBulk
@@ -439,8 +424,7 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
                 entries: vec![(p1, datum(1, b"w1")), (p1, datum(1, b"w1b"))],
                 certification: cert.clone(),
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::DuplicateWitnessEntry {
@@ -453,8 +437,7 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
                 entries: vec![(e1, datum(1, b"w"))],
                 certification: cert,
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::WitnessOnNonSketch {
@@ -549,7 +532,6 @@ fn set_extrude_side_flips_an_extrude_and_refuses_another_kind() {
                 side: ExtrudeSide::Against,
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(applied.record.structural);
@@ -561,8 +543,7 @@ fn set_extrude_side_flips_an_extrude_and_refuses_another_kind() {
                 node: profile,
                 side: ExtrudeSide::Against,
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::SetExtrudeSideOnNonExtrude {

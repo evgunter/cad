@@ -60,9 +60,9 @@ use pncad::document::{
     Assembly, AssemblyError, AuthoredNode, CheckId, ChecksConfig, ChecksReport, Dimension,
     DimensionError, Doc, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula,
     FreeValue, FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, Operand, OperandSlot,
-    PartReach, PartResolver, ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording,
-    SlotId, StepId, Subject, VarId, VarName, apply, assemble_gathered, cascade_delete_order,
-    parse_formula, product_recorded, run_checks_at_rest_on,
+    PartResolver, ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId,
+    Subject, VarId, VarName, apply, assemble_gathered, cascade_delete_order, parse_formula,
+    product_recorded, run_checks_at_rest_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -1853,11 +1853,7 @@ impl DocSession {
             node,
             label: Some(label),
         };
-        // A label edit performs no maintenance, so its reach is never
-        // asked; the session's own is handed over for uniformity.
-        let resolver = self.resolver_seam();
-        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
-        match apply(self.history.doc(), &edit, self.tol, &reach) {
+        match apply(self.history.doc(), &edit, self.tol) {
             Ok(applied) => {
                 self.history
                     .extend_current(recorded, edit.clone(), applied.doc);
@@ -2505,7 +2501,6 @@ impl DocSession {
     /// driving operation has to be), and what it is not is about this
     /// drag.
     fn preview_gesture(&mut self, named: &ValueGestureName, value: f64) -> OpOutcome {
-        let resolver = self.resolver_seam();
         let tol = self.tol;
         let previewed = self.gesture.preview(
             gesture_words(),
@@ -2518,15 +2513,8 @@ impl DocSession {
                     .map_err(Refusal::Dimension)?;
                 // Applied to the gesture's BASE, so previews replace
                 // one another instead of composing, and the history
-                // never sees any of them. The reach is the session's
-                // own seam: a gesture that moved a group would mint a
-                // frame from the parts' extent, and with no directory
-                // to resolve against it refuses typed. Built per tick,
-                // and lazy — a slot gesture moves no group, so what a
-                // tick pays for it is the construction and nothing
-                // more.
-                let reach = PartReach::<f64>::with_resolver(Some(&resolver), tol);
-                let applied = apply(&gesture.base, &edit, tol, &reach)
+                // never sees any of them.
+                let applied = apply(&gesture.base, &edit, tol)
                     .map_err(|error| Refusal::Edit(Box::new(error)))?;
                 // **The display layer's identity, held rather than
                 // argued.** Every display predicate is a function of
@@ -2876,9 +2864,7 @@ impl DocSession {
         let Some(edit) = self.set_program_of(node, base, loops, ids)? else {
             return Ok(Vec::new());
         };
-        let resolver = self.resolver_seam();
-        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
-        let mut run = Recording::start(self.committed_doc(), self.tol, &reach);
+        let mut run = Recording::start(self.committed_doc(), self.tol);
         let refused = |error| Refusal::Edit(Box::new(error));
         run.apply(edit).map_err(refused)?;
         // What the count says is what the person would lose: a
@@ -3567,13 +3553,9 @@ impl DocSession {
         &self,
         action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<T, EditError>,
     ) -> Result<(Recorded<ProfileProgram>, T), Refusal> {
-        // ONE reach for the whole action, over the session's own seam
-        // (the directory rule; `None` refuses typed): the mate door
-        // asks it, and nothing it decides is recorded — the edits are
-        // the history.
-        let resolver = self.resolver_seam();
-        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
-        let mut run = Recording::start(self.history.doc(), self.tol, &reach);
+        // Nothing the door decides is recorded: the edits are the
+        // history.
+        let mut run = Recording::start(self.history.doc(), self.tol);
         let answer = action(&mut run);
         let refused = |error| Refusal::Edit(Box::new(error));
         let staged = run.finish().map_err(refused)?;

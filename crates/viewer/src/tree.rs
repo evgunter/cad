@@ -218,9 +218,8 @@ impl RowStatus {
     /// points at the row that owns it, so both stay
     /// [`Tone::Advisory`] and the eye goes to the one row a reader can
     /// do something about — a document with six rows downstream of one
-    /// broken feature has one loud row, not seven. There can be more
-    /// than one: a `MateFault::Contradictory` naming two different
-    /// mates blames both, and both are actionable ([`blamed_mates`]).
+    /// broken feature has one loud row, not seven. A mate refusal is
+    /// actionable on the placements it blames ([`blamed_mates`]).
     ///
     /// **Total, where [`RowStatus::message`] is not**, because an `Ok`
     /// row still has a [`badge`](RowStatus::badge) — a report, nothing
@@ -1368,7 +1367,6 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> Standing<'_>
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
         MateFault::ClassNotAdmitted { mate }
-        | MateFault::Indeterminate { mate, .. }
         | MateFault::NotOnTheCopy { mate }
         | MateFault::Unleverable { mate, .. }
         | MateFault::KindsDiffer { mate, .. }
@@ -1385,18 +1383,6 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         // Names no mate and reaches NO row (`MateFault`'s doc says
         // why); the empty answer here is unreachable, not a reading.
         MateFault::PosesOfAnotherDocument { .. } => Vec::new(),
-        // A contradiction is a claim about a PAIR of mates, and so is
-        // a meeting point past the format: neither is the wrong one on
-        // the fault's own telling, so both placements read as causes
-        // and the user picks which to relax.
-        MateFault::Contradictory { held, added, .. }
-        | MateFault::PoseOutOfRange { held, added } => {
-            if held.placement == added.placement {
-                vec![held.placement]
-            } else {
-                vec![held.placement, added.placement]
-            }
-        }
     }
 }
 

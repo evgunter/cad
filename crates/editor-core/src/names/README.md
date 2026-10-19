@@ -473,7 +473,8 @@ itself.
 entity of every output body from kernel birth data alone (`Extruded`/`Revolved`
 maps, `SplitNaming`, `BooleanNaming`, `BlendNaming`, D5 provenance); an unnamed
 live entity is `NamingError::Unnamed`, and `NameTable::insert` refuses aliasing
-and kind disagreement (`DuplicateName`). The table is bidirectional (`lookup`,
+(`SeatingRefusal::Duplicate`) and kind disagreement
+(`SeatingRefusal::KindMismatch`). The table is bidirectional (`lookup`,
 `name_of`), one per output variable (N1, the scope), read through that
 variable alone (`Evaluation::table`), and rides memo hits with the geometry;
 consumed entities have no row. The invariant CI pins: the table is a

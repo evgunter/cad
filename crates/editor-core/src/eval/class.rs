@@ -223,12 +223,6 @@ pub enum NodeErrorClass {
     MatePosesOfAnotherDocument,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::ClassNotAdmitted`].
     MateClassNotAdmitted,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::Indeterminate`].
-    MateIndeterminate,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::PoseOutOfRange`].
-    MatePoseOutOfRange,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::Contradictory`].
-    MateContradictory,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Overconstrained`].
     MateOverconstrained,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::TargetsDiffer`].
@@ -415,9 +409,6 @@ impl NodeErrorClass {
         match fault {
             MateFault::PosesOfAnotherDocument { .. } => Self::MatePosesOfAnotherDocument,
             MateFault::ClassNotAdmitted { .. } => Self::MateClassNotAdmitted,
-            MateFault::Indeterminate { .. } => Self::MateIndeterminate,
-            MateFault::PoseOutOfRange { .. } => Self::MatePoseOutOfRange,
-            MateFault::Contradictory { .. } => Self::MateContradictory,
             MateFault::Overconstrained { .. } => Self::MateOverconstrained,
             MateFault::TargetsDiffer { .. } => Self::MateTargetsDiffer,
             MateFault::NotOnTheCopy { .. } => Self::MateNotOnTheCopy,
@@ -572,9 +563,6 @@ mod tests {
         PartNotEntered,
         MatePosesOfAnotherDocument,
         MateClassNotAdmitted,
-        MateIndeterminate,
-        MatePoseOutOfRange,
-        MateContradictory,
         MateOverconstrained,
         MateTargetsDiffer,
         MateNotOnTheCopy,
@@ -957,24 +945,10 @@ mod tests {
                 found: crate::DocumentId::derive("b"),
             }),
             C::MateClassNotAdmitted => mate(crate::MateFault::ClassNotAdmitted { mate: m(9) }),
-            C::MateIndeterminate => mate(crate::MateFault::Indeterminate {
-                mate: m(9),
-                diag: Box::new(diag()),
-            }),
-            C::MatePoseOutOfRange => mate(crate::MateFault::PoseOutOfRange {
-                held: m(8),
-                added: m(9),
-            }),
-            C::MateContradictory => mate(crate::MateFault::Contradictory {
-                held: m(8),
-                added: m(9),
-                predicate: "mate_coaxial",
-                clash: crate::Clash::Length { metres: 0.002 },
-            }),
             C::MateOverconstrained => mate(crate::MateFault::Overconstrained {
                 placement: n(6),
                 constraints: vec![c(1), c(2)],
-                held: crate::Subgroup::Trivial,
+                free: 1,
             }),
             C::MateTargetsDiffer => mate(crate::MateFault::TargetsDiffer {
                 placement: n(6),
@@ -1010,7 +984,7 @@ mod tests {
             C::MateNotAFreedom => mate(crate::MateFault::NotAFreedom {
                 value: m(9),
                 coord: crate::mate::Coord::Slide(crate::mate::SlideAxis::Z),
-                kind: Some(crate::VarKind::Plane),
+                kind: crate::VarKind::Plane,
             }),
             C::MateNoChart => mate(crate::MateFault::NoChart {
                 value: m(9),
