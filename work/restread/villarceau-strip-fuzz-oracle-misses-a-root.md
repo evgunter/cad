@@ -2,8 +2,10 @@
 id: villarceau-strip-fuzz-oracle-misses-a-root
 kind: issue
 title: The Villarceau strip fuzz's numeric oracle finds no root at seed 0xaaece85fd941a95f
-status: open
+status: closed
 opened: 2026-10-19
+pr: 5363
+closed: 2026-10-19
 priority: P1
 cost: E
 rides_with: main-red-torus-region-probe-fuzz-reads-on-boundary-near-the-tube
@@ -22,3 +24,11 @@ Seen on PR 5323's CI (run 39204266518, job `test`), reproduced locally on
 that branch; the PR does not touch `torus_region.rs` or anything its test
 reads. The fix is the oracle's (a root search that does not rely on a sign
 change, or a sample rejection that is logged), then pin this seed beside it.
+
+## Closed
+
+The seed's point sits near a bitangent tangency: its two plane roots
+lie `2.2e-4` apart, inside one `3.1e-4` step of the sign scan. The
+family parameter is now in closed form (`villarceau_family`, the clamped
+`acos` root whose circle holds the point), and the seed's point is
+pinned as `a_bitangent_point_reads_the_strips_side`.
