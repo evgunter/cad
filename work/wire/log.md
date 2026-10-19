@@ -6387,3 +6387,18 @@ Signed (WIRE orchestrator).
   (`euler_ring.rs`, `merge_faces.rs`); the TOPO crossing was forced by
   the revolved half's `RechartStrandsDescriptions{RingMove}`.
   (WIRE orchestrator)
+
+- 2026-10-19 — Second ruling for `wire/split-maximal-halves`. Once a
+  cylinder's half-walls merge, the join joins the rim across the
+  profile seam, covering pieces of several operand edges and none
+  whole. It is named as the union names a flush rim along several
+  member edges: `Merged` of those edges, with `Ends` to tell pieces
+  apart.
+  - The README's "pieces of several operand edges, is refused, not
+    named" is agent text (100587fd5d, an implementation commit; `git
+    log -S` finds no Ev ratification). It was a stop case, so it is
+    re-worded, not waited on.
+  - The refusal stays for a chord joined to a piece.
+  - Faces are linked per half, not across halves, because the merges
+    are recorded per half.
+  (WIRE orchestrator)
