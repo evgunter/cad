@@ -100,12 +100,12 @@ pub enum MaterialSign {
     ///   neither pole is read, though the face may hold neither
     ///   (`props_sphere_pole_side.rs`,
     ///   `a_pole_in_the_band_of_a_great_carriers_plane_leaves_the_loop_unread`);
-    /// * one whose loop has a pole off it on EACH side (a rim-only cap,
-    ///   a tilted cap or a blend corner patch holding a pole). Under
-    ///   either sense such a face holds a pole, which breaks the rule
-    ///   that a chart singularity inside a face is a vertex of it; the
-    ///   reading carries nothing about the bit, and validity, not the
-    ///   side reader, is what refuses the face.
+    /// * one whose loop has a pole off it on EACH side (a rim-only cap
+    ///   or a tilted cap holding a pole). Under either sense such a
+    ///   face holds a pole, which breaks the rule that a chart
+    ///   singularity inside a face is a vertex of it; the reading
+    ///   carries nothing about the bit, and validity, not the side
+    ///   reader, is what refuses the face.
     Unencoded,
 }
 
@@ -226,7 +226,7 @@ pub fn boundary_material_sign_loops<T: Decide>(
 /// (`props_circle_axis_class`, `props_rim_fit`,
 /// `props_cylinder_circle_*` and `props_cone_circle_*`,
 /// `props_rim_axis_parallel`, `props_rim_center_on_axis`, the
-/// `props_meridian_*` incidences, `props_rim_level`), so a
+/// `props_meridian_*` decides, `props_rim_level`), so a
 /// `NotIsoRectangle` from here carries the `what` the flux lane would
 /// report for the same face.
 ///
@@ -508,14 +508,14 @@ pub fn require_one_chart_branch<T: Decide>(
                 let Curve3::Line { origin, dir } = e.carrier else {
                     continue;
                 };
-                // GENERATORS only, by the parse's own incidence margin
+                // GENERATORS only, by the parse's own generator margin
                 // — the cone's mirror of the sphere arm's
                 // rim/meridian filter. A line that misses the apex is
                 // no generator of this cone, has no apex in its span
                 // to cross, and must not be refused here: without this
                 // the arm read EVERY `Line` carrier as a generator and
                 // answered `NotOneChartBranch` on a line the shape
-                // door answers `props_meridian_generator` for.
+                // door refuses.
                 if classify(
                     "props_meridian_apex",
                     Margin::norm3((apex - e.p0()).cross(dir)),
@@ -876,7 +876,7 @@ impl<T: Decide> Rim<T> {
     /// stored span is decided ([`require_rim_span`], at the rim
     /// circle's radius `r_c` — certification's lever), so every reader
     /// of [`Rim::dt`] — the cylinder and torus charts' `Δu` sums,
-    /// [`du_of_rims`], [`span_sum`] — rests on that bound. A
+    /// `du_of_rims`, [`span_sum`] — rests on that bound. A
     /// full-period rim sits AT it and is admitted.
     fn decided(
         e: &LoopEdge<T>,
@@ -1588,22 +1588,30 @@ fn cylinder_boundary<T: Decide>(
     for e in edges {
         match e.carrier {
             Curve3::Line { dir, .. } => {
+                // Incidence at the true distance from the cylinder over
+                // the span: the ends' radial residuals, and how far the
+                // segment sags inside between them ([`radial_sag`]).
+                let radial = |p: Point3<T>| {
+                    let w = p - origin;
+                    w - axis * w.dot(axis)
+                };
+                let (q0, q1) = (radial(e.p0()), radial(e.p1()));
+                let (f0, f1) = (q0.norm() - radius, q1.norm() - radius);
+                require_zero(
+                    "props_meridian_on_surface",
+                    Margin::of(f0.abs().max(f1.abs()).max(radial_sag(q0, q1) - f0.min(f1))),
+                    band,
+                    Premise::OnSurface,
+                )?;
+                // Whether the on-surface line is a ruling: its deviation
+                // from the ruling through its start, which a line tipped
+                // in the tangent plane leaves to first order while it
+                // leaves the cylinder to second.
                 require_zero(
                     "props_meridian_axial",
                     Margin::levered(dir.cross(axis).norm(), e.t1 - e.t0),
                     band,
-                    Premise::OnSurface,
-                )?;
-                // Incidence: the (certified-axial) line lies on the
-                // cylinder iff one of its points does — radial distance
-                // of the interval start from the axis vs the radius
-                // (meters).
-                let w0 = e.p0() - origin;
-                require_zero(
-                    "props_meridian_on_surface",
-                    Margin::of((w0 - axis * w0.dot(axis)).norm() - radius),
-                    band,
-                    Premise::OnSurface,
+                    Premise::Inventory,
                 )?;
                 levels.push((e.p0() - origin).dot(axis));
                 levels.push((e.p1() - origin).dot(axis));
@@ -1852,9 +1860,8 @@ struct ConeLoops<T: Real> {
 /// area against the chart normal, off the axial vector area.
 ///
 /// Every edge must lie on the cone, decided as incidence
-/// ([`PropsError::OffSurface`], [`require_on_cone`]): a line is a
-/// generator, a circle a coaxial section and an ellipse the section by
-/// its plane. Every circle and ellipse span is decided within a period
+/// ([`PropsError::OffSurface`], [`require_on_cone`]), and a line must be
+/// a generator besides, the inventory's question. Every circle and ellipse span is decided within a period
 /// ([`require_cone_conic_spans`]) before any reader takes it.
 ///
 /// The chart normal makes `n·axis = −sin α` on the `v > 0` nappe and
@@ -1952,12 +1959,12 @@ fn cone_loop_refusal(e: PropsError) -> PropsError {
     }
 }
 
-/// **An edge lies on the cone**, each premise decided at the true
+/// **An edge lies on the cone**, each incidence decided at the true
 /// distance from the cone of the edge's farthest point, every one
 /// through the cone's residual ([`cone_offset`]):
 ///
-/// - a line is a generator ([`require_cone_generator`]), under the iso
-///   parse's names;
+/// - a line lies on it, and is a generator as the inventory's question
+///   ([`require_cone_generator`]), under the iso parse's names;
 /// - a circle is coaxial (`props_circle_axis_class`) at the cone's
 ///   radius for its height (`props_rim_fit`, the residual at the radius
 ///   and the centre's axial height), and neither tilted
@@ -2094,14 +2101,14 @@ fn require_cone_ellipse<T: Decide>(
     let Curve3::Ellipse {
         center,
         axis: n,
-        major,
-        minor,
+        semi_u,
+        semi_v,
         u_ref,
     } = e.carrier
     else {
         return Err(PropsError::Unimplemented);
     };
-    let (a, b) = (u_ref * major, n.cross(u_ref) * minor);
+    let (a, b) = (u_ref * semi_u, n.cross(u_ref) * semi_v);
     let (cos2, sin2) = (cos_a.powi(2), sin_a.powi(2));
     let perp = |p: Vec3<T>| p - axis * p.dot(axis);
     let m = |p: Vec3<T>, q: Vec3<T>| perp(p).dot(perp(q)) * cos2 - p.dot(axis) * q.dot(axis) * sin2;
@@ -2155,14 +2162,29 @@ fn require_cone_ellipse<T: Decide>(
     Ok(())
 }
 
-/// **A line on the cone is a generator**: at the generator angle to the
-/// axis (`props_meridian_generator`) and through the apex
+/// **A line segment lies on the cone, and is a generator.**
+///
+/// Incidence first (`props_meridian_on_surface`), at an upper bound on
+/// the segment's distance from the cone, which at a point is `|f|`,
+/// `f = ρ·cos α − |h|·sin α` ([`cone_offset`]), with `ρ` its distance
+/// from the axis and `h` its height above the apex. Along the segment
+/// `h` is affine and `ρ` convex, so on each piece of it either side of
+/// the apex's plane `f` is convex: greatest at the piece's ends — the
+/// segment's, and where it crosses the plane, `f = ρ·cos α` — and below
+/// the chord of theirs by at most `cos α` times the radial sag
+/// ([`radial_sag`]). The ends and the crossing are exact.
+///
+/// Then whether the on-surface line is a generator, the inventory's
+/// question: at the generator angle to the axis
+/// (`props_meridian_generator`) and through the apex
 /// (`props_meridian_apex`, the apex's distance from the line, `dir`
 /// unit). A line through the apex at angle `β` to the axis is off the
 /// cone by `s·sin(β − α)` at distance `s` from the apex, and
 /// `sin(β − α)` is the cone's residual at the unit direction
 /// ([`cone_offset`] of `|dir × axis|` and `|dir·axis|`), so the angle is
 /// levered by the edge's reach from the apex, the farther of its ends.
+/// A line tipped in the tangent plane misses the apex to first order and
+/// leaves the cone to second.
 fn require_cone_generator<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -2172,6 +2194,32 @@ fn require_cone_generator<T: Decide>(
     e: &LoopEdge<T>,
     band: Band,
 ) -> Result<(), PropsError> {
+    let radial = |p: Point3<T>| {
+        let w = p - apex;
+        w - axis * w.dot(axis)
+    };
+    let (q0, q1) = (radial(e.p0()), radial(e.p1()));
+    let (h0, h1) = ((e.p0() - apex).dot(axis), (e.p1() - apex).dot(axis));
+    let f0 = cone_offset(q0.norm(), h0.abs(), sin_a, cos_a);
+    let f1 = cone_offset(q1.norm(), h1.abs(), sin_a, cos_a);
+    // Over a piece on one side of the apex's plane: the larger end, and
+    // the depth inside.
+    let piece = |qa: Vec3<T>, fa: T, qb: Vec3<T>, fb: T| {
+        fa.max(fb).max(radial_sag(qa, qb) * cos_a - fa.min(fb))
+    };
+    let whole = piece(q0, f0, q1, f1);
+    // Split where the segment crosses the plane, at radial `qc`.
+    let qc = (q0 * h1 - q1 * h0) * (T::one() / (h1 - h0));
+    let fc = qc.norm() * cos_a;
+    let split = piece(q0, f0, qc, fc).max(piece(qc, fc, q1, f1));
+    let span = h0.abs() + h1.abs();
+    let worst = (h0 * h1).select_le_zero(span.select_le_zero(whole, split), whole);
+    require_zero(
+        "props_meridian_on_surface",
+        Margin::of(worst),
+        band,
+        Premise::OnSurface,
+    )?;
     require_zero(
         "props_meridian_generator",
         Margin::levered(
@@ -2179,14 +2227,36 @@ fn require_cone_generator<T: Decide>(
             (e.p0() - apex).norm().max((e.p1() - apex).norm()),
         ),
         band,
-        Premise::OnSurface,
+        Premise::Inventory,
     )?;
     require_zero(
         "props_meridian_apex",
         Margin::norm3((apex - e.p0()).cross(dir)),
         band,
-        Premise::OnSurface,
+        Premise::Inventory,
     )
+}
+
+/// **How far a segment sags inside the chord of its ends' radii**, with
+/// `q0`, `q1` the ends' radial vectors from an axis and `ρ = ‖q‖`: its
+/// radius at `λ ∈ [0, 1]` is at least `(1 − λ)·ρ0 + λ·ρ1` less this.
+///
+/// That chord `c` meets `c² − ρ(λ)² = λ(1 − λ)·N`, with
+/// `N = (ℓ − δ)(ℓ + δ)`, `ℓ = ‖q1 − q0‖`, `δ = |ρ1 − ρ0|`, so the sag is
+/// `λ(1 − λ)·N / (c + ρ(λ)) ≤ λ(1 − λ)·N / c ≤ N / (√ρ0 + √ρ1)²`, the
+/// last the greatest over `λ` of the one before, and so within a factor
+/// 2 of the greatest sag. Read as `(ℓ − δ)` times `(ℓ + δ) / (√ρ0 + √ρ1)²`,
+/// whose second factor is at most 2 (`ℓ + δ ≤ 2·max ρ`), and taken at
+/// that where its denominator vanishes: a piece of a generator that
+/// ends at the apex, whose ends both read on the axis.
+fn radial_sag<T: Real>(q0: Vec3<T>, q1: Vec3<T>) -> T {
+    let (r0, r1) = (q0.norm(), q1.norm());
+    let (l, d) = ((q1 - q0).norm(), (r1 - r0).abs());
+    let two = T::one() + T::one();
+    let roots = (r0.sqrt() + r1.sqrt())
+        .powi(2)
+        .max(T::from_f64(f64::MIN_POSITIVE));
+    (l - d) * two.min((l + d) / roots)
 }
 
 /// **Every conic span the cone reads, decided.** The cone's flux lane
@@ -2207,9 +2277,9 @@ fn require_cone_conic_spans<T: Decide>(
     for e in edges {
         match e.carrier {
             Curve3::Circle { radius, .. } => require_rim_span(e, radius, band)?,
-            Curve3::Ellipse { major, minor, .. } => require_span_within_period(
+            Curve3::Ellipse { semi_u, semi_v, .. } => require_span_within_period(
                 e,
-                major.abs().min(minor),
+                semi_u.abs().min(semi_v),
                 band,
                 [
                     "props_cone_ellipse_span_forward",
@@ -2229,7 +2299,9 @@ fn cone_edge_length<T: Decide>(e: &LoopEdge<T>) -> Result<T, PropsError> {
     match e.carrier {
         Curve3::Line { .. } => Ok((e.p1() - e.p0()).norm()),
         Curve3::Circle { radius, .. } => Ok(radius * (e.t1 - e.t0).abs()),
-        Curve3::Ellipse { major, minor, .. } => Ok(major.max(minor) * (e.t1 - e.t0).abs()),
+        Curve3::Ellipse { semi_u, semi_v, .. } => {
+            Ok(geom::Curve3::semi_axes_by_size(semi_u, semi_v).0 * (e.t1 - e.t0).abs())
+        }
         Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),
     }
 }
@@ -4634,12 +4706,7 @@ fn fold_torus_meridians<T: Decide>(
 /// the hairline escalates honestly. Profile's canonical-form band and
 /// the split join's ordering decide against the same constants.
 fn exact_band() -> Band {
-    match Band::new(f64::from_bits(1), f64::from_bits(2)) {
-        Ok(band) => band,
-        // Two finite, ordered, positive constants: a `BandError` from
-        // them is a kernel bug, not a state (D2 addendum row 4).
-        Err(_) => unreachable!("the exact-order band's constants are valid by construction"),
-    }
+    Band::least()
 }
 
 /// One chain of arcs — non-empty, loop-consecutive, one identity, one

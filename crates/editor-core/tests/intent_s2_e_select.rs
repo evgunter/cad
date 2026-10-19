@@ -28,7 +28,7 @@ use fixture::{fname, insert, len, on_frame, square, wall};
 use geom_core::Tol;
 
 fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
+    apply(doc, edit, Tol::witness())
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
@@ -182,7 +182,6 @@ fn a_rebind_at_a_body_whose_selections_do_not_name_it_refuses() {
             to: p.edges[1].clone(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     assert!(
         matches!(refused, Err(EditError::RebindNoReferences { .. })),
@@ -300,7 +299,6 @@ fn each_primitive_admits_its_kinds_at_the_edit_door() {
                     SitedRef::at_mint(p.faces[1].clone()),
                 )],
                 Tol::witness(),
-                &editor_core::RefusingReach,
             );
             match (got, admitted) {
                 (Ok(_), true) => {}
@@ -548,7 +546,7 @@ fn a_re_point_reports_an_unread_named_selection_as_a_delete_does() {
     );
     let doc = push(&doc, &DocEdit::DeleteNode { id: fillet });
     let edit = |doc: &ProfileDoc, edit: DocEdit<ProfileProgram>| {
-        apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach)
+        apply(doc, &edit, Tol::witness())
             .expect("the edit applies")
             .maintenance
     };
@@ -585,7 +583,6 @@ fn a_selection_authored_off_its_body_is_reported_by_neither_door() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the insert applies");
     assert_eq!(stranded_selections(&inserted.maintenance), 0);
@@ -602,7 +599,6 @@ fn a_selection_authored_off_its_body_is_reported_by_neither_door() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the slot write applies");
     assert_eq!(stranded_selections(&written.maintenance), 0);
@@ -649,7 +645,6 @@ fn the_slot_door_holds_a_measure_reference_to_its_primitive_kinds() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         );
         assert!(
             matches!(
@@ -686,7 +681,6 @@ fn a_measure_reads_a_whole_body_only_under_its_own_name() {
                 b: SitedRef::at_mint(q.faces[0].clone()),
             }],
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
     };
     let own = clearance(SitedRef::new(p.node, body(p.node))).expect("its own body");

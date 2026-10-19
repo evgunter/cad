@@ -48,9 +48,9 @@ use crate::blend::battery::{EndSection, cap_incidence};
 use crate::blend::naming::BlendNaming;
 use crate::blend::reach::{EDGE_SAMPLES, sure};
 use crate::blend::surgery::{
-    ContactCarrier, Piece, SourceFaces, SplitFragments, chord_site, face_of_half, halves_of,
-    not_intact, op, piece_along, piece_distance, point_of, retire_fragment, split_fragment,
-    split_param_in_span, stored_piece, unbuilt_geometry, unbuilt_run_out,
+    ContactCarrier, Piece, SourceFaces, SplitFragments, chord_site, disagrees, face_of_half,
+    halves_of, op, piece_along, piece_distance, point_of, retire_fragment, split_fragment,
+    split_param_in_span, stored_piece, unbuilt_geometry, unbuilt_run_out, unresolved,
 };
 use crate::blend::{BlendDecision, BlendError, BlendSite, classify};
 
@@ -132,15 +132,22 @@ impl<T: Decide + Bounds> EndCut<T> {
         let (rim_a, rim_b, face) = end_rims(body, vertex, crease, face_a, face_b)?;
         // The end plane, from the STORED surface — the battery's
         // classification read the same one.
-        let Some(Surface::Plane {
+        let stored = body
+            .get_face(face)
+            .and_then(|f| body.get_surface(f.surface))
+            .ok_or_else(|| {
+                unresolved(
+                    EntityId::Face(face),
+                    "a cut-off's end face's stored surface",
+                )
+            })?;
+        let Surface::Plane {
             origin: po,
             normal: n,
             ..
-        }) = body
-            .get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
+        } = stored
         else {
-            return Err(not_intact(
+            return Err(disagrees(
                 EntityId::Face(face),
                 "a cut-off's end face's stored surface is not a plane",
             ));
@@ -247,11 +254,16 @@ impl<T: Decide + Bounds> EndCut<T> {
 /// - within `reach` and above every `floorₖ`, because `‖p − center‖` is
 ///   convex and `(p − center)·dₖ` linear, so over the compact `S` the
 ///   first is largest, and each second smallest, somewhere on `S`'s
-///   boundary, which is `A` and the two rim pieces; `reach` and the
-///   floors are those extremes over the three pieces, each in closed
-///   form over its own window ([`piece_distance`], [`piece_along`]; an
-///   ellipse's distance from its own centre is extreme at its window's
-///   ends or at a major vertex).
+///   boundary, which is `A` and the two rim pieces. `A` adds no
+///   extreme of its own: its ends are the feet, which end the rim
+///   pieces too; a chord is extreme only at its ends; and inside its
+///   window an arc of the convex `E` is farthest from `center`, or
+///   lowest along `dₖ`, only where `E`'s outward normal is the
+///   direction in which the function keeps growing (the reach) or
+///   falling (a floor); `S` lies outside `E` there — and `center`,
+///   `E`'s own centre, inside it — so `S` runs on past that point. So `reach` and the floors are those extremes over the two
+///   rim pieces, each in closed form over its own window
+///   ([`piece_distance`], [`piece_along`]).
 ///
 /// The directions `dₖ` are free for soundness — every unit direction
 /// gives a sound floor. They are `toward`, the unit direction from
@@ -273,12 +285,6 @@ impl<T: Decide + Bounds> EndCut<T> {
 /// it certifies neither way is a bound — on a chord end too, where the
 /// exact triangle could certify it outside (work item
 /// `a-chord-ends-triangle-could-read-a-cycle-outside`).
-///
-/// Two of its terms are pinned by no assembly row, only by the piece
-/// meters' unit row: the arc's term of a floor, which binds only when a
-/// rim piece spans more than π, and the whole-circle arm of an arc
-/// extreme on a cap edge (work item
-/// `cap-sliver-floor-arc-term-and-whole-circle-arm-are-unpinned`).
 pub(in crate::blend) struct CapSliver<T: Real> {
     /// The end face the sliver is cut from.
     pub(in crate::blend) cap: FaceKey,
@@ -351,7 +357,9 @@ struct SliverBoundary<T: Real> {
 }
 
 /// A round section's frame in the end plane: `p − center` is inside
-/// it when `(d·u/major)² + (d·w/minor)² < 1`.
+/// it when `(d·u/major)² + (d·w/minor)² < 1`. `u` is along the larger
+/// semi-axis, so `major ≥ minor > 0` and `1/minor` bounds the scaling's
+/// stretch ([`Self::depth`], [`Self::outside`]).
 #[derive(Clone, Copy)]
 struct SectionFrame<T: Real> {
     u: Vec3<T>,
@@ -384,8 +392,11 @@ impl<T: Bounds> SectionFrame<T> {
                 center: c, radius, ..
             } => self.scaled(c - center) + radius / self.minor,
             Curve3::Ellipse {
-                center: c, major, ..
-            } => self.scaled(c - center) + major / self.minor,
+                center: c,
+                semi_u,
+                semi_v,
+                ..
+            } => self.scaled(c - center) + Curve3::semi_axes_by_size(semi_u, semi_v).0 / self.minor,
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
         };
         Some(self.minor * (T::one() - rho))
@@ -417,8 +428,11 @@ impl<T: Bounds> SectionFrame<T> {
                 center: c, radius, ..
             } => self.scaled(c - center) - radius / self.minor,
             Curve3::Ellipse {
-                center: c, major, ..
-            } => self.scaled(c - center) - major / self.minor,
+                center: c,
+                semi_u,
+                semi_v,
+                ..
+            } => self.scaled(c - center) - Curve3::semi_axes_by_size(semi_u, semi_v).0 / self.minor,
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
         };
         Some(self.minor * (rho - T::one()))
@@ -516,7 +530,16 @@ impl<T: Bounds> CapSliver<T> {
                 .iter()
                 .map(move |&(d, floor)| (floor - q0.dot(d), zero - e.dot(d)))
         };
-        let g = |s: T| self.beyond(q0 + e * s.max(zero).min(len));
+        // `G` along the segment, each term reading `s` once. Read at the
+        // point `q0 + e·s`, every coordinate carries `s`, and at
+        // `Interval` a candidate's spread then lowers even a term flat
+        // along the segment by about the spread itself.
+        let g = |s: T| {
+            let s = s.max(zero).min(len);
+            let rho = ((s + b).powi(2) + d2).sqrt();
+            let v = minor.map_or(rho - self.reach, |m| (rho - self.reach).max(m - rho));
+            affine().fold(v, |v, (a, k)| v.max(a + k * s))
+        };
         // A quotient whose divisor's bracket meets zero is skipped: at
         // `f64` that is a divisor that vanishes (below), and at `Interval`
         // the candidate would spread over the segment and read `G` over
@@ -535,7 +558,7 @@ impl<T: Bounds> CapSliver<T> {
         // `‖q‖ = a + k·s`, `|k| ≤ 1`: with `τ = s + b` and `a′ = a − k·b`,
         // `(1 − k²)·τ² − 2·a′·k·τ + d2 − a′² = 0`, whose roots are
         // `(d2 − a′²)/(a′·k ∓ r)`, both signs taken where `topo`'s
-        // `solid_contain::quadratic_roots` picks one. It never divides by
+        // `geom_brep::quartic::quadratic_roots` picks one. It never divides by
         // `1 − k²`, which vanishes on an edge along a floor's direction
         // and leaves the equation linear with the one root it takes. A
         // divisor vanishes alone only where `a′² = d2`: the other root
@@ -591,10 +614,13 @@ fn apart<T: Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
         Curve3::Circle { center, radius, .. } => Some((center, radius, radius)),
         Curve3::Ellipse {
             center,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             ..
-        } => Some((center, major, minor)),
+        } => {
+            let (outer, inner) = Curve3::semi_axes_by_size(semi_u, semi_v);
+            Some((center, outer, inner))
+        }
         _ => None,
     };
     let about = |(o, outer, inner): (Point3<T>, T, T), (carrier, window): Piece<'_, T>| {
@@ -793,10 +819,11 @@ impl<T: Decide + Bounds> CapSliver<T> {
 
     /// **The region a cut-off removes from its end face**, read off the
     /// source before any mutation. `rims` pairs each rim with its foot,
-    /// `face_a`'s first. The end curves differ only in the curve's own
-    /// terms: a round one is read over its window from `face_a`'s foot
-    /// to `face_b`'s, a chord — `center` its midpoint, no section
-    /// inside — at its two ends, where a segment's extremes are.
+    /// `face_a`'s first. `reach` and the floors are read over the rim
+    /// pieces alone (the type's doc says why the end curve adds none);
+    /// the end curves differ in `center`, `inside` and `exact`, and a
+    /// round end's window from `face_a`'s foot to `face_b`'s is read
+    /// only to check that it runs forward.
     ///
     /// # Errors
     ///
@@ -814,18 +841,19 @@ impl<T: Decide + Bounds> CapSliver<T> {
         curve: &EndCurve<T>,
     ) -> Result<Self, BlendError> {
         let pv = point_of(body, vertex)
-            .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a cut-off's old vertex"))?;
+            .ok_or_else(|| unresolved(EntityId::Vertex(vertex), "a cut-off's old vertex"))?;
         let [(rim_a, foot_a), (rim_b, foot_b)] = rims;
         // The rims' pieces from their feet to the old vertex.
         let pieces = [
             rim_piece(body, rim_a, vertex, foot_a)?,
             rim_piece(body, rim_b, vertex, foot_b)?,
         ];
-        // The end curve's own piece, its centre, and on a round end the
-        // section's frame and its far extent from that centre.
+        // The end curve's centre, and on a round end the section's frame.
         let (center, round) = match curve {
             EndCurve::Chord => (foot_a + (foot_b - foot_a) * T::from_f64(0.5), None),
             EndCurve::Round(arc) => {
+                // The frame with the major semi-axis first
+                // (`Curve3::major_frame`).
                 let (center, axis, major, minor, u) = match *arc {
                     Curve3::Circle {
                         center,
@@ -833,13 +861,12 @@ impl<T: Decide + Bounds> CapSliver<T> {
                         radius,
                         u_ref,
                     } => (center, axis, radius, radius, u_ref),
-                    Curve3::Ellipse {
-                        center,
-                        axis,
-                        major,
-                        minor,
-                        u_ref,
-                    } => (center, axis, major, minor, u_ref),
+                    ref ellipse @ Curve3::Ellipse { center, axis, .. } => {
+                        let Some(f) = ellipse.major_frame() else {
+                            unreachable!("an Ellipse carrier has a major frame")
+                        };
+                        (center, axis, f.major.abs(), f.minor.abs(), f.major_dir)
+                    }
                     Curve3::Line { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
                         return Err(unbuilt_geometry(
                             EntityId::Vertex(vertex),
@@ -848,7 +875,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
                     }
                 };
                 let backward = || {
-                    not_intact(
+                    disagrees(
                         EntityId::Vertex(vertex),
                         "a cut-off's round end curve does not run forward from one foot to \
                          the other",
@@ -865,44 +892,18 @@ impl<T: Decide + Bounds> CapSliver<T> {
                     major,
                     minor,
                 };
-                // The distance from the centre at `t` is
-                // `√(major²·cos²t + minor²·sin²t)`, largest at a window
-                // end or at a major vertex `t = kπ` inside the window.
-                let at = |p: Point3<T>| (p - center).norm();
-                let first = T::zero() - (T::zero() - ta / T::pi()).floor();
-                let vertex_inside = (first * T::pi() - tb).lo() <= 0.0;
-                let far = if vertex_inside {
-                    major
-                } else {
-                    at(foot_a).max(at(foot_b))
-                };
-                (center, Some((arc, (ta, tb), frame, far, axis)))
+                (center, Some((frame, axis)))
             }
         };
         let toward = (pv - center).normalize();
         let mut directions = vec![toward];
-        if let Some((_, _, frame, _, _)) = round {
+        if let Some((frame, _)) = round {
             directions.extend([frame.u, -frame.u, frame.w, -frame.w]);
         }
-        let mut reach = match round {
-            Some((_, _, _, far, _)) => far,
-            None => (foot_a - center).norm().max((foot_b - center).norm()),
-        };
-        let mut floors = Vec::with_capacity(directions.len());
-        for d in directions {
-            let low = match round {
-                Some((arc, window, _, _, _)) => {
-                    piece_along(arc, window, center, d)
-                        .ok_or_else(|| {
-                            unbuilt_geometry(EntityId::Vertex(vertex), "a cut-off's round section")
-                        })?
-                        .0
-                }
-                None => (foot_a - center).dot(d).min((foot_b - center).dot(d)),
-            };
-            floors.push((d, low));
-        }
-        for (i, (carrier, window)) in pieces.iter().enumerate() {
+        // `reach` and the floors over the rim pieces alone: `A` adds no
+        // extreme of its own.
+        let extent = |i: usize| {
+            let (carrier, window) = &pieces[i];
             let unsupported = || {
                 unbuilt_geometry(
                     EntityId::Edge(rims[i].0),
@@ -910,21 +911,26 @@ impl<T: Decide + Bounds> CapSliver<T> {
                      rims the sliver's extent is closed-form over",
                 )
             };
-            reach = reach.max(
-                piece_distance(carrier, *window, center)
-                    .ok_or_else(unsupported)?
-                    .1,
-            );
-            for (d, floor) in &mut floors {
-                let (low, _) = piece_along(carrier, *window, center, *d).ok_or_else(unsupported)?;
-                *floor = floor.min(low);
-            }
-        }
+            let (_, far) = piece_distance(carrier, *window, center).ok_or_else(unsupported)?;
+            let lows = directions
+                .iter()
+                .map(|&d| Some(piece_along(carrier, *window, center, d)?.0))
+                .collect::<Option<Vec<T>>>()
+                .ok_or_else(unsupported)?;
+            Ok::<_, BlendError>((far, lows))
+        };
+        let ((far_a, lows_a), (far_b, lows_b)) = (extent(0)?, extent(1)?);
+        let reach = far_a.max(far_b);
+        let floors = directions
+            .iter()
+            .zip(lows_a.into_iter().zip(lows_b))
+            .map(|(&d, (a, b))| (d, a.min(b)))
+            .collect();
         // A chord end whose rims are lines cuts off the triangle
         // `V, foot_a, foot_b`.
         let lines = pieces.iter().all(|(c, _)| matches!(c, Curve3::Line { .. }));
         let exact = match round {
-            Some((_, _, _, _, axis)) => Exact::Round(SliverBoundary {
+            Some((_, axis)) => Exact::Round(SliverBoundary {
                 feet: [foot_a, foot_b],
                 axis,
                 rims: pieces.map(|(carrier, window)| (carrier.clone(), window)),
@@ -936,7 +942,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
             cap,
             rims: [rim_a, rim_b],
             center,
-            inside: round.map(|(_, _, frame, _, _)| frame),
+            inside: round.map(|(frame, _)| frame),
             reach,
             floors,
             exact,
@@ -1011,17 +1017,14 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
             foot_param(body, rim, v0, f0)?,
             foot_param(body, rim, v1, f1)?,
         );
-        let Some((carrier, _)) = stored_piece(body, rim)? else {
-            return Err(unbuilt_geometry(
-                EntityId::Edge(rim),
-                "an end face's rim carries no certified carrier",
-            ));
-        };
+        let (carrier, _) = stored_piece(body, rim)?;
         let rate = match *carrier {
             Curve3::Line { .. } => InfSpeed::new(T::one()),
             Curve3::Circle { radius, .. } => InfSpeed::new(radius),
             // An ellipse's speed is never below its minor semi-axis.
-            Curve3::Ellipse { major, minor, .. } => InfSpeed::new(major.min(minor)),
+            Curve3::Ellipse { semi_u, semi_v, .. } => {
+                InfSpeed::new(Curve3::semi_axes_by_size(semi_u, semi_v).1)
+            }
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
                 return Err(unbuilt_geometry(
                     EntityId::Edge(rim),
@@ -1031,7 +1034,7 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
         };
         let he_plus = body
             .get_edge(rim)
-            .ok_or_else(|| not_intact(EntityId::Edge(rim), "a shared rim"))?
+            .ok_or_else(|| unresolved(EntityId::Edge(rim), "a shared rim"))?
             .he_plus;
         // The stored window runs along `he_plus`, so the foot of the
         // cut-off at its start must come first.
@@ -1063,10 +1066,9 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedGeometry`] when the rim carries no certified
-/// carrier; [`BlendError::UnsupportedRunOut`] from the foot's parameter
+/// [`BlendError::UnsupportedRunOut`] from the foot's parameter
 /// ([`foot_param`]); [`BlendError::BodyNotIntact`] when the rim does not
-/// resolve or does not end at `vertex`.
+/// resolve, carries no certified carrier, or does not end at `vertex`.
 fn rim_piece<T: Decide + Bounds>(
     body: &Body<T>,
     rim: EdgeKey,
@@ -1075,21 +1077,16 @@ fn rim_piece<T: Decide + Bounds>(
 ) -> Result<Piece<'_, T>, BlendError> {
     let he_plus = body
         .get_edge(rim)
-        .ok_or_else(|| not_intact(EntityId::Edge(rim), "an end face's rim"))?
+        .ok_or_else(|| unresolved(EntityId::Edge(rim), "an end face's rim"))?
         .he_plus;
-    let Some((carrier, (t0, t1))) = stored_piece(body, rim)? else {
-        return Err(unbuilt_geometry(
-            EntityId::Edge(rim),
-            "an end face's rim carries no certified carrier",
-        ));
-    };
+    let (carrier, (t0, t1)) = stored_piece(body, rim)?;
     let t = foot_param(body, rim, vertex, foot)?;
     if body.get_half_edge(he_plus).map(|h| h.start) == Some(vertex) {
         Ok((carrier, (t0, t)))
     } else if body.half_edge_end(he_plus) == Some(vertex) {
         Ok((carrier, (t, t1)))
     } else {
-        Err(not_intact(
+        Err(disagrees(
             EntityId::Edge(rim),
             "an end face's rim does not end at the band's old vertex",
         ))
@@ -1118,7 +1115,7 @@ pub(in crate::blend) fn end_rims<T: Decide>(
     face_b: FaceKey,
 ) -> Result<(EdgeKey, EdgeKey, FaceKey), BlendError> {
     cap_incidence(body, vertex, crease, face_a, face_b).ok_or_else(|| {
-        not_intact(
+        disagrees(
             EntityId::Vertex(vertex),
             "a band's end is not the end face the verdict classified: its other two edges do \
              not each join one support to one shared end face",
@@ -1189,7 +1186,7 @@ pub(in crate::blend) fn cut_off<T: Decide + Bounds + topo::AtRestPolicy>(
     // split the rim this end shares with it.
     let (rim_a, rim_b, face) = end_rims(body, v, crease, face_a, face_b)?;
     if face != end.face {
-        return Err(not_intact(
+        return Err(disagrees(
             EntityId::Vertex(v),
             "a cut-off's end face is not the one the plan read",
         ));
@@ -1202,14 +1199,14 @@ pub(in crate::blend) fn cut_off<T: Decide + Bounds + topo::AtRestPolicy>(
     let ends_at_v = |body: &Body<T>, he: HalfEdgeKey| body.half_edge_end(he) == Some(v);
     let (he1, he2, x, y) = chord_site(body, end.face, |row| ends_at_v(body, row.0), 0, 2)?;
     if !((x == a.vertex && y == b.vertex) || (x == b.vertex && y == a.vertex)) {
-        return Err(not_intact(
+        return Err(disagrees(
             EntityId::Vertex(v),
             "an end face's cycle around the old vertex is not flanked by the two feet just split",
         ));
     }
     let (px, py) = (
-        point_of(body, x).ok_or_else(|| not_intact(EntityId::Vertex(x), "a foot"))?,
-        point_of(body, y).ok_or_else(|| not_intact(EntityId::Vertex(y), "a foot"))?,
+        point_of(body, x).ok_or_else(|| unresolved(EntityId::Vertex(x), "a foot"))?,
+        point_of(body, y).ok_or_else(|| unresolved(EntityId::Vertex(y), "a foot"))?,
     );
     let created = body
         .mef(
@@ -1242,7 +1239,7 @@ pub(in crate::blend) fn fold_sliver<T: Decide>(
     tol: Tol,
 ) -> Result<(), BlendError> {
     let (ahp, ahm) = halves_of(body, rims.a.near)
-        .ok_or_else(|| not_intact(EntityId::Edge(rims.a.near), "a split rim's near piece"))?;
+        .ok_or_else(|| unresolved(EntityId::Edge(rims.a.near), "a split rim's near piece"))?;
     // The sliver is on whichever side of the near piece is NOT the band.
     let dying = if face_of_half(body, ahp) == Some(band) {
         ahm
@@ -1251,7 +1248,7 @@ pub(in crate::blend) fn fold_sliver<T: Decide>(
     };
     sources.kef_minted(body, dying, "end sliver kef", tol)?;
     let (bhp, bhm) = halves_of(body, rims.b.near)
-        .ok_or_else(|| not_intact(EntityId::Edge(rims.b.near), "a split rim's near piece"))?;
+        .ok_or_else(|| unresolved(EntityId::Edge(rims.b.near), "a split rim's near piece"))?;
     let spur = if body.half_edge_end(bhm) == Some(vertex) {
         bhm
     } else {
@@ -1509,6 +1506,130 @@ mod tests {
         assert!(
             iv.lo() <= -0.15 && iv.lo() > -0.15 - 1e-10,
             "Interval reads {iv:?}, not −0.15"
+        );
+    }
+
+    /// The least of `G` over `a → b`: the least of a dense run of samples,
+    /// refined by ternary search about it. Never below the true least.
+    fn sampled_least(region: &Region, a: (f64, f64), b: (f64, f64)) -> f64 {
+        let at = |t: f64| region.g((a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t));
+        const N: u32 = 2000;
+        let (best, n) = (0..=N)
+            .map(|n| (at(f64::from(n) / f64::from(N)), n))
+            .fold((f64::INFINITY, 0), |l, r| if r.0 < l.0 { r } else { l });
+        let (mut lo, mut hi) = (
+            f64::from(n.saturating_sub(1)) / f64::from(N),
+            f64::from((n + 1).min(N)) / f64::from(N),
+        );
+        for _ in 0..100 {
+            let (m1, m2) = (lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0);
+            if at(m1) < at(m2) {
+                hi = m2;
+            } else {
+                lo = m1;
+            }
+        }
+        best.min(at(0.5 * (lo + hi)))
+    }
+
+    /// **The meter's two claims on `a → b`**: at `f64` it reads the least
+    /// `G` to the samples' slack; at `Interval` its enclosure's low end lies
+    /// at or below that least and within rounding of the `f64` reading, the
+    /// enclosure carrying the gain rather than the whole segment's spread.
+    pub(super) fn check(region: &Region, a: (f64, f64), b: (f64, f64), case: impl Fn() -> String) {
+        let least = sampled_least(region, a, b);
+        // `G` is 1-Lipschitz, so the samples' least is within half a
+        // spacing of the true one; rounding grows with the distance from
+        // the centre.
+        let scale = (b.0 - a.0).hypot(b.1 - a.1);
+        let slack = scale / 4000.0 + 1e-14 * (1.0 + a.0.hypot(a.1) + scale);
+        let (m, iv) = region.meter(a, b);
+        let what = || {
+            format!(
+                "{}: {a:?} → {b:?}, reach {}, section {:?}, floors {:?}",
+                case(),
+                region.reach,
+                region.section,
+                region.floors,
+            )
+        };
+        assert!(
+            m <= least + slack && m >= least - slack,
+            "f64 reads {m}, the least G is {least}: {}",
+            what()
+        );
+        assert!(
+            iv.lo() <= least + slack && iv.lo() >= m - 1e-12 * (1.0 + a.0.hypot(a.1) + scale),
+            "Interval reads {iv:?}, f64 {m}, the least G is {least}: {}",
+            what()
+        );
+    }
+
+    /// **A segment `~5·10³` from the centre at its ends, run along one
+    /// floor's line, whose least is that floor's flat term**, met near the
+    /// foot by a second floor crossing the minor disc's term where the two
+    /// differ by little (`a′² ≈ d2`): that crossing's quotient of two
+    /// differences reads at `Interval` as a run `10⁻⁷` long. Found by the
+    /// line-meter fuzzer at `CAD_FUZZ_SEED=0xa9b25b00fc22acb2`, case 80.
+    #[test]
+    fn a_far_segment_reads_a_floor_crossing_the_minor_disc_to_rounding() {
+        let (a, b) = (
+            (2778.682165969168, -3803.6929153369833),
+            (-3120.380308781379, 4271.024536003959),
+        );
+        let region = Region {
+            section: Some((0.0, 0.3739873428335117, 0.3739873428335117)),
+            reach: 1.168384052714115,
+            floors: vec![
+                (
+                    (0.8074717451340941, 0.5899062474750547),
+                    -0.11487650578226152,
+                ),
+                (
+                    (-0.9665909248993477, 0.256323982300181),
+                    0.33182995179051883,
+                ),
+            ],
+        };
+        check(&region, a, b, || "the far crossing".into());
+    }
+
+    /// **Two opposite floors whose terms run all but parallel along the
+    /// segment**: their crossing is ill-conditioned (`~10⁻¹¹` here) where
+    /// `G` is flat, so only a reading that spreads a term over the
+    /// candidate's whole box, rather than along the segment, loses it.
+    /// Found by the line-meter fuzzer at `CAD_FUZZ_SEED=0x1281277f8dfa215d`,
+    /// case 30.
+    #[test]
+    fn two_floors_parallel_along_a_segment_read_their_crossing_to_rounding() {
+        let region = Region {
+            section: Some((0.0, 0.25299113746373153, 0.25299113746373153)),
+            reach: 0.7804898663095933,
+            floors: vec![
+                (
+                    (0.7972795443729409, -0.6036102452116562),
+                    -0.3595462882329724,
+                ),
+                (
+                    (-0.7972795443729409, 0.6036102452116562),
+                    0.3588416431553506,
+                ),
+                (
+                    (0.9816386005106127, 0.19075025029489656),
+                    0.11024723871746345,
+                ),
+                (
+                    (-0.9005322168633404, 0.434789289646373),
+                    0.021858290386058923,
+                ),
+                ((0.818640532000699, 0.5743062592081098), -0.0035775011289499),
+            ],
+        };
+        check(
+            &region,
+            (-0.8131924792185901, -0.4784468841887551),
+            (0.9976382564163786, 1.9133917489300676),
+            || "the parallel floors".into(),
         );
     }
 

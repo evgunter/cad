@@ -17,8 +17,9 @@
 use geom_core::{Band, Margin, Point3, Sign, Tol, Vec3};
 
 use super::{CurvedPlacement, curved_face_placement};
-use crate::boolean::solid_contain::{TorusRoots, line_torus_roots, torus_elevation};
+use crate::boolean::solid_contain::{line_torus_roots, torus_elevation};
 use crate::validate::decide;
+use geom_brep::quartic::QuarticRoots;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -172,9 +173,10 @@ fn every_certified_root_lands_on_the_tube_or_the_consumer_refuses() {
             }
             let d = d.normalize();
             let got = line_torus_roots(o, d, center, axis, big_r, r, band());
-            let Ok(TorusRoots::Certified { count, ts }) = got else {
+            let Ok(QuarticRoots::Certified(found)) = got else {
                 continue;
             };
+            let (count, ts) = (found.count(), found.roots());
             if k % 2 == 1 {
                 ferrari += 1;
             }

@@ -15,7 +15,7 @@ line 5990, `map_err(span_escalated)`) reports every refusal as
 `PcurveCertifyError::Escalated { check: PcurveCheck::ParamSpan }`. A
 meter decided zero or negative (a spline whose speed floor vanishes or
 turns back) therefore reads as an undecided span, in the span's lever
-("not vanishingly short"), not as a meter that is not there. It is the
+("runs forward over a clear length"), not as a meter that is not there. It is the
 pcurve twin of certification's `nurbs_span_meter`, which ENCL routes as
 `CertCheck::ParamSpanMeter` / `CertifyError::SpanMeterCollapsed`.
 

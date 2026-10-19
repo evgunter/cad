@@ -22,7 +22,7 @@
 //! below), plus the curve's own curvature. Near a tangency the first
 //! clears nothing finer than the band, the second clears pieces in
 //! proportion to their distance from the touch. The pieces that do not
-//! clear, bisected down to [`crate::bisect::tangency_floor`] of ρ, run together
+//! clear, bisected down to [`geom_core::bisect::tangency_floor`] of ρ, run together
 //! into clusters. A cluster reaching `ℓ` about `m` meets the carrier, if
 //! at all, within `ℓ + |dist(m)|` of `m`'s foot on the carrier, and that
 //! radius, widened by `escalate`, is its ball's.
@@ -48,11 +48,11 @@ use super::BooleanError;
 use super::boxes;
 use super::contain::{ContainError, CurvedPlacement, FaceContainment};
 use super::{BooleanDecision, reduce};
-use crate::bisect::Step;
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey};
 use crate::live::BoundaryMember;
 use crate::validate::decide;
+use geom_core::bisect::Step;
 
 /// The most clusters a span may localize into: the most meetings a span
 /// of these curves has with these carriers. A conic against a torus is
@@ -77,7 +77,10 @@ pub(super) fn off_face<T: Decide + Bounds>(
     (t0, t1): (T, T),
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let (Some(rho), Some((speed, bend))) = (reach(surface), speed_bound(carrier)) else {
+    let (Some(rho), Some((speed, bend))) = (
+        reach(surface),
+        geom::carrier_speed::speed_and_curvature_hi(carrier),
+    ) else {
         return Ok(false);
     };
     let Some(clusters) = clusters(surface, carrier, (speed, bend), rho, (t0, t1), band) else {
@@ -89,7 +92,7 @@ pub(super) fn off_face<T: Decide + Bounds>(
         let Some((dist, foot, _)) = distance(surface, m) else {
             return Ok(false);
         };
-        let radius = crate::bisect::reach(SupSpeed::new(speed), (a, b))
+        let radius = geom_core::bisect::reach(SupSpeed::new(speed), (a, b))
             + dist.abs()
             + T::from_f64(band.escalate());
         if !ball_off_face(y, face, foot, radius, rho, band)? {
@@ -101,7 +104,7 @@ pub(super) fn off_face<T: Decide + Bounds>(
 
 /// The carrier's reach, ρ in the module docs; `None` for a kind with no
 /// distance here.
-fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<T> {
+pub(super) fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<T> {
     match *surface {
         geom::Surface::Sphere { radius, .. } | geom::Surface::Cylinder { radius, .. } => {
             Some(radius)
@@ -116,17 +119,6 @@ fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<T> {
         | geom::Surface::Nurbs(_)
         | geom::Surface::Approx(_) => None,
     }
-}
-
-/// Bounds on the curve's speed, metres per unit of its parameter
-/// ([`crate::carrier_speed::speed_hi`]), and on its curvature
-/// ([`crate::carrier_speed::curvature_hi`]); `None` past the speed's
-/// kinds (a spiric, a spline).
-fn speed_bound<T: Decide>(carrier: &geom::Curve3<T>) -> Option<(T, T)> {
-    Some((
-        crate::carrier_speed::speed_hi(carrier)?,
-        crate::carrier_speed::curvature_hi(carrier)?,
-    ))
 }
 
 /// A point's signed distance from the carrier, its foot on it, and the
@@ -200,15 +192,15 @@ fn clusters<T: Decide + Bounds>(
 ) -> Option<Vec<(T, T)>> {
     // The carrier's reach is the radius its level sets part from a
     // tangent curve over (module docs).
-    let floor = crate::bisect::tangency_floor(rho, band.escalate()).hi();
+    let floor = geom_core::bisect::tangency_floor(rho, band.escalate()).hi();
     let mut out: Vec<(T, T)> = Vec::new();
     // Whether a cleared piece came after the last open one: the next open
     // piece starts a cluster.
     let mut broken = true;
     let half = T::from_f64(0.5);
-    let walk = crate::bisect::bisect([(t0, t1)], |(a, b)| {
+    let walk = geom_core::bisect::bisect([(t0, t1)], |(a, b)| {
         let mid = (a + b) * half;
-        let ell = crate::bisect::reach(SupSpeed::new(speed), (a, b));
+        let ell = geom_core::bisect::reach(SupSpeed::new(speed), (a, b));
         let Some((dist, _, normal)) = distance(surface, carrier.eval(mid)) else {
             return Step::Stop(Unlocalized);
         };
@@ -375,13 +367,13 @@ fn edge_clear_of_ball<T: Decide + Bounds>(
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             ..
         } => {
             // The annulus between the semi-axis magnitudes, whichever is
             // stored first.
-            let (lo, hi) = (major.abs().min(minor.abs()), major.abs().max(minor.abs()));
+            let (hi, lo) = geom::Curve3::semi_axes_by_size(semi_u, semi_v);
             let (h, rho) = split(center, axis);
             let g = (rho - hi).max(lo - rho).max(T::zero());
             (g.powi(2) + h.powi(2)).sqrt()

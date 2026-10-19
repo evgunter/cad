@@ -51,9 +51,7 @@ use geom_core::Tol;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox, sample_offset};
 use crate::doc::Doc;
-use crate::eval::{
-    CancelToken, ContentKey, EvalOptions, Evaluation, ProfileLift, ValuePayload, evaluate,
-};
+use crate::eval::{CancelToken, ContentKey, EvalOptions, Evaluation, ValuePayload, evaluate};
 use crate::measure::AssertionVerdict;
 use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
@@ -437,8 +435,13 @@ pub fn monte_carlo(
     }
     // The nominal build, first: a document that does not build has no
     // replay, and finding that out once beats finding it out `samples`
-    // times.
-    let nominal: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &lane_opts(), tol);
+    // times. Over the box collapsed to the nominal, so it reads the
+    // document as the samples do (`ParamBox::at_nominal`).
+    let nominal_opts = EvalOptions {
+        param_box: Some(Arc::new(ParamBox::of(analyzed).at_nominal())),
+        ..lane_opts()
+    };
+    let nominal: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &nominal_opts, tol);
     if let Some(standing) = nominal
         .order
         .iter()
@@ -649,14 +652,12 @@ pub fn monte_carlo(
     })
 }
 
-/// The replay's evaluation options: the guided profile lift, so a
+/// The replay's evaluation options: the defaults. A sample's box
+/// makes the profile lift guided ([`EvalOptions::profile_lift`]), so a
 /// sampled profile dimension reaches the geometry the same way the
-/// driver's leaves do (M10-P), and nothing else.
+/// driver's leaves do (M10-P).
 fn lane_opts() -> EvalOptions {
-    EvalOptions {
-        profile_lift: ProfileLift::Guided,
-        ..EvalOptions::default()
-    }
+    EvalOptions::default()
 }
 
 /// What one sample read at each sink, in `sinks` order, and at each

@@ -52,7 +52,7 @@ use editor_core::resolve::{TSpan, ray_triangle};
 use editor_core::test_support::listed;
 use editor_core::{
     CancelToken, EntityKey, EvalOptions, Evaluation, MeshPick, Node, PickTarget, ProfileDoc, Ray,
-    RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face, resolve,
+    RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face,
 };
 use fixture::{insert, len, on_frame};
 use geom_core::{Point3, Tol};
@@ -119,7 +119,8 @@ fn resolved_patch(
     mesh: &Mesh,
     name: &editor_core::StableName,
 ) -> Option<usize> {
-    let Resolution::Resolved(r) = resolve(RunCtx { doc, eval: ev }, name) else {
+    let Resolution::Resolved(r) = crate::fixture::resolve_at_mint(RunCtx { doc, eval: ev }, name)
+    else {
         panic!("picked name resolves");
     };
     let EntityKey::Face(fk) = r.entity.key else {

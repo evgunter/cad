@@ -62,6 +62,7 @@
 //! `m5_pr12_fillet_node.rs`'s `f64` row alongside validity (tier 1 +
 //! closed) and the face count.
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
 
@@ -100,7 +101,7 @@ pub fn document() -> CorpusDoc {
     // covariance row as well as a shape row.
     let blank = r.insert(Node::fillet(cube, len(R), prism_edges(&r.doc, cube, 4)));
 
-    r.place(blank);
+    r.place_part(blank);
 
     CorpusDoc {
         name: "die_fillet",

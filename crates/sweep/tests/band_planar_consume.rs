@@ -36,8 +36,9 @@ use topo::{
 
 use crate::band_planar_cut_off::{D, Verb, edge, midpoint_tol, pad_ceiling, tol, volume_enclosure};
 
-/// The section `verb` at size `r` removes from a right dihedral.
-fn section(verb: Verb, r: f64) -> f64 {
+/// The section `verb` at size `r` removes from, or fills in, a right
+/// dihedral.
+pub(crate) fn section(verb: Verb, r: f64) -> f64 {
     verb.section_at(r, PI / 2.0)
 }
 
@@ -55,7 +56,7 @@ fn blend<T: Decide + Bounds + AtRestPolicy>(
     .map_err(|e| e.error)
 }
 
-const VERBS: [Verb; 2] = [Verb::Fillet, Verb::Chamfer];
+pub(crate) const VERBS: [Verb; 2] = [Verb::Fillet, Verb::Chamfer];
 
 /// A closed polygonal profile loop through `pts`.
 pub(crate) fn poly<T: Real>(pts: &[(f64, f64)]) -> ProfileLoop<T> {
@@ -455,9 +456,58 @@ fn a_bore_a_hair_across_the_planar_slivers_arc_crosses_and_one_inside_goes_with_
     );
 }
 
+/// The square block's point `t` along the ray from the ball centre `c`
+/// towards `V` and `s` across it, towards the support `x = 1`.
+fn in_the_corner(t: f64, s: f64) -> (f64, f64) {
+    let c = 1.0 - D;
+    ((c + (t + s) / 2f64.sqrt()), (c + (t - s) / 2f64.sqrt()))
+}
+
+/// **A cap edge whose window holds its circle's extreme crosses the
+/// arc**, read at that extreme, not at the edge's ends. The round bore
+/// reaches `≈ 0.006` past the fillet's arc into the sliver and the
+/// D-shaped one `≈ 0.008`; each refuses
+/// `RingClearance` as a measurement at the cap:
+///
+/// - a round bore about `c + (0.035, 0.048)` of radius `0.0465`, whose
+///   upper half's ends lie `≈ 0.005` inside the section and whose
+///   farthest point from `c` lies past the arc;
+/// - a D-shaped bore, its chord across the ray `0.064` from `c` and
+///   `≈ 0.007` short of the feet's line, its arc bulging to `0.108`
+///   along the ray, past the arc.
+#[test]
+fn a_bore_across_the_arc_at_its_edges_extreme_crosses() {
+    let c = 1.0 - D;
+    let (a1, b1) = (in_the_corner(0.064, 0.05), in_the_corner(0.064, -0.05));
+    let d_shaped = bulge_loop(vec![
+        (Point2::new(a1.0, a1.1), 0.044 / 0.05),
+        (Point2::new(b1.0, b1.1), 0.0),
+    ]);
+    for (what, hole) in [
+        (
+            "the farthest point of its circle",
+            round(c + 0.035, c + 0.048, 0.0465),
+        ),
+        ("its circle's extreme towards V", d_shaped),
+    ] {
+        let got = refusal(Verb::Fillet, &square::<f64>(1.0, hole));
+        assert!(
+            matches!(
+                got,
+                BlendError::RingClearance {
+                    bounded: false,
+                    chain: Convexity::Convex,
+                    ..
+                }
+            ),
+            "{what}: a measured RingClearance at the cap, got {got:?}"
+        );
+    }
+}
+
 /// The point `dist` from the chamfer's chord, on its normal through the
 /// chord's midpoint `(1 − D/2, 1 − D/2)` towards the old vertex.
-fn past_the_chord(dist: f64) -> (f64, f64) {
+pub(crate) fn past_the_chord(dist: f64) -> (f64, f64) {
     let m = 1.0 - D / 2.0;
     (m + dist / 2f64.sqrt(), m + dist / 2f64.sqrt())
 }
@@ -501,28 +551,6 @@ fn a_bore_a_hair_across_the_chamfers_chord_crosses_and_one_inside_goes_with_it()
         (removed, 1.0),
         "a hair past the chord",
     );
-}
-
-/// **A blind bore wholly inside the sliver refuses** under both verbs, as a bound at its
-/// wall: its floor is neither a cap's cycle nor a line between two, so
-/// the prism reading does not take it, and the carve takes only a
-/// through-feature between the caps.
-#[test]
-fn a_blind_bore_inside_the_planar_sliver_refuses_as_a_bound() {
-    let (d, a) = BORE;
-    let tool = crate::common::cavity::rod(Point2::new(1.0 - d, 1.0 - d), a, -0.5, 0.5);
-    let body = crate::common::cavity::cut(
-        "blind bore",
-        &square::<f64>(1.0, poly(&[(0.4, 0.4), (0.6, 0.4), (0.6, 0.6), (0.4, 0.6)])),
-        &tool,
-    );
-    for verb in VERBS {
-        let got = refusal(verb, &body);
-        assert!(
-            matches!(got, BlendError::FaceClearance { bounded: true, .. }),
-            "{verb:?}: a blind bore refuses as a bound, got {got:?}"
-        );
-    }
 }
 
 /// The tilted bore through the leaning prism at `s = 0` whose axis is a
@@ -639,8 +667,9 @@ fn a_tilted_bore_inside_the_chamfers_prism_goes_with_it() {
 /// past the chamfer's chord), and the cap reads its mouth inside. But the
 /// hole runs into the die behind the wall, not into the fill: it is not
 /// wholly inside the material the band adds, and its wall meets the end
-/// wall's plane, which the reach reads as a bound. What the fill should
-/// do with a feature it would seal is the question step 4 stopped at.
+/// wall's plane, which the reach reads as a bound. Under `S ∪ F` the
+/// fill seals its mouth, the through-hole turning blind; the seal is not
+/// built.
 #[test]
 fn a_hole_whose_mouth_lies_inside_a_concave_sliver_refuses_as_a_bound() {
     let (d, a) = BORE;

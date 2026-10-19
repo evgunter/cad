@@ -91,7 +91,9 @@ fn a_one_segment_circle_validates_at_interval_and_lifts_verbatim() {
     let vi = validate(vec![at_i]).expect("the lifted circle validates at Interval");
     assert_eq!(vi.loops()[0].segments().len(), 1);
     let vf = validate(vec![lp]).expect("the circle validates at f64");
-    let lifted = vf.lift_onto(SketchPlane::<Interval>::xy());
+    let lifted = vf
+        .lift_onto(SketchPlane::<Interval>::xy())
+        .expect("the xy plane is finite");
     for vp in [&vi, &lifted] {
         let SegmentKind::Arc { arc, turn } = vp.loops()[0].segments()[0].kind else {
             panic!("an arc");
@@ -236,8 +238,8 @@ fn a_one_vertex_table_that_is_not_a_full_turn_is_refused() {
 
 /// **A chained leg's full turn stays refused.** In a loop of two or
 /// more vertices a segment leaves its vertex for another, so a stored
-/// full turn there cannot land on its far end: the table is refused at
-/// the landing check, and the two-vertex loop whose two vertices
+/// full turn there is outside a chord arc's range: the table is refused
+/// at the range check, and the two-vertex loop whose two vertices
 /// coincide is refused as a zero chord.
 #[test]
 fn a_full_turn_between_two_vertices_is_refused() {
@@ -258,7 +260,7 @@ fn a_full_turn_between_two_vertices_is_refused() {
         validate(vec![two]).err(),
         Some(ProfileError::InconsistentArc {
             at,
-            check: ArcCheck::Landing
+            check: ArcCheck::SweepRange
         }),
     );
     let doubled: ProfileLoop<f64> =

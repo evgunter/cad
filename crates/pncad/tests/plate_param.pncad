@@ -3,7 +3,7 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
   "snapshot": {
     "id": "5ef5ef0364b6939c4ca61f34b393f7b3",
     "mint": {
-      "chain": "f762ccd6a7a389ff1650b74490f06787a176beb4ff1da4f24c6ad907c622e1b8",
+      "chain": "48e4cdad144cc26983c847aaf179766a5707c423cbbacee00d00100fb2a3384c",
       "log": [
         {
           "var": "1:e2382e0f27e19466"
@@ -207,28 +207,31 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           "var": "67:453158be06d6d800"
         },
         {
-          "node": "68:8b6846b9c2d9d2f5"
+          "node": "68:189e75f3e21a3291"
         },
         {
-          "var": "69:9c6b1b5d8295ed05"
+          "var": "69:931afbbc1834e563"
         },
         {
-          "var": "70:976c561e37686b3a"
+          "constraint": "70:7f8b38cc127a8cc8"
         },
         {
-          "var": "71:af0258bb4767e8a8"
+          "var": "71:9c258eaf4c0ddca6"
         },
         {
-          "node": "72:b048cb784beeb072"
+          "var": "72:c409f61bb48e784e"
         },
         {
-          "var": "73:ca72edf8f1270a4b"
+          "node": "73:d7fb7ec2ef4a7c78"
         },
         {
-          "var": "74:e2fcfe98ef07279e"
+          "var": "74:2159464ff6ff32d2"
         },
         {
-          "node": "75:f762ccd6a7a389ff"
+          "var": "75:dac20cb5e9dba98c"
+        },
+        {
+          "node": "76:48e4cdad144cc269"
         }
       ]
     },
@@ -429,28 +432,35 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           }
         }
       },
-      "68:8b6846b9c2d9d2f5": {
-        "PlaceInWorld": {
-          "body": "67:453158be06d6d800",
-          "pose": {
-            "steps": []
-          }
+      "68:189e75f3e21a3291": {
+        "Place": {
+          "shapes": [
+            "67:453158be06d6d800"
+          ],
+          "constraints": [
+            {
+              "id": "70:7f8b38cc127a8cc8",
+              "kind": {
+                "world_pin": "identity"
+              }
+            }
+          ]
         }
       },
-      "72:b048cb784beeb072": {
+      "73:d7fb7ec2ef4a7c78": {
         "Measure": {
           "primitive": {
             "Distance": {
-              "a": "70:976c561e37686b3a",
-              "b": "71:af0258bb4767e8a8"
+              "a": "71:9c258eaf4c0ddca6",
+              "b": "72:c409f61bb48e784e"
             }
           }
         }
       },
-      "75:f762ccd6a7a389ff": {
+      "76:48e4cdad144cc269": {
         "Assertion": {
-          "value": "73:ca72edf8f1270a4b",
-          "bound": "74:e2fcfe98ef07279e",
+          "value": "74:2159464ff6ff32d2",
+          "bound": "75:dac20cb5e9dba98c",
           "relation": "AtLeast"
         }
       }
@@ -1011,16 +1021,16 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           }
         }
       },
-      "69:9c6b1b5d8295ed05": {
+      "69:931afbbc1834e563": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "68:8b6846b9c2d9d2f5",
+            "node": "68:189e75f3e21a3291",
             "port": 0
           }
         }
       },
-      "70:976c561e37686b3a": {
+      "71:9c258eaf4c0ddca6": {
         "kind": "Face",
         "def": {
           "Select": {
@@ -1046,7 +1056,7 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           }
         }
       },
-      "71:af0258bb4767e8a8": {
+      "72:c409f61bb48e784e": {
         "kind": "Face",
         "def": {
           "Select": {
@@ -1072,16 +1082,16 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           }
         }
       },
-      "73:ca72edf8f1270a4b": {
+      "74:2159464ff6ff32d2": {
         "kind": "Length",
         "def": {
           "Output": {
-            "node": "72:b048cb784beeb072",
+            "node": "73:d7fb7ec2ef4a7c78",
             "port": 0
           }
         }
       },
-      "74:e2fcfe98ef07279e": {
+      "75:dac20cb5e9dba98c": {
         "kind": "Length",
         "def": {
           "Free": {

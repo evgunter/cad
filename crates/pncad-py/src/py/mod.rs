@@ -51,6 +51,8 @@ pyo3::create_exception!(
      node the refusal is about, a node it names), `slot`, `param`, `name`, \
      `key`, `expected` and `found` (the dimension the door required \
      and the one it was offered), `kind`, `from_kind`, `to_kind`, \
+     `found_kind` and `expected_kind` (the entity kind a selection's \
+     name denotes and the one its seat reads), \
      `count`, `first`, `again`, `value`, `offered`, `determinant`, \
      `index` (which of a node's placement frames: a transform's step \
      or an explicit rule's listed placement), `side` (the mate side \
@@ -310,12 +312,12 @@ pyo3::create_exception!(
     pncad,
     MateError,
     PncadError,
-    "The mate solve could not place an instance. Carries `variant`, \
-     the stable tag of the refusing arm, and `fault` — the \
-     `MateFault` VALUE, which carries the arm's payload.\n\n\
-     The solve itself is TOTAL and never raises: a refusing group \
+    "The mate solve could not place a copy. Carries `variant`, the \
+     stable tag of the refusing arm, and `fault` — the `MateFault` \
+     VALUE, which carries the arm's payload.\n\n\
+     The solve itself is TOTAL and never raises: a refusing bundle \
      must not fail an unrelated one, so `solve_document` records the \
-     fault per node and `SolvedPoses.fault` hands back the same value \
+     fault per placement and `SolvedPoses.fault` hands back the same value \
      this exception carries. This class is raised only where an \
      answer is a pose or nothing — `SolvedPoses.placement`. One \
      payload vocabulary, so the value and the exception cannot \
@@ -361,8 +363,8 @@ pyo3::create_exception!(
     PncadError,
     "The `split` refactoring refused. Carries `variant`, the stable \
      tag of the refusing arm, plus its payload as attributes \
-     (`node`, `consumer`, `input`, `root`, `instance`, `param`, \
-     `name`, `id`, `gauge`), `None` where inapplicable."
+     (`node`, `consumer`, `input`, `param`, `name`, `id`, `mate`, \
+     `moving`, `staying`), `None` where inapplicable."
 );
 pyo3::create_exception!(
     pncad,
@@ -370,9 +372,8 @@ pyo3::create_exception!(
     PncadError,
     "The `inline` refactoring refused. Carries `variant`, the stable \
      tag of the refusing arm, plus its payload as attributes \
-     (`node`, `by`, `name`, `param`, `key`, `root`, `host_epsilon`, \
-     `part_epsilon`, `host_root`, `part_root`, `part_gauges`), `None` \
-     where inapplicable.\n\n\
+     (`node`, `by`, `name`, `param`, `key`, `host_epsilon`, \
+     `part_epsilon`, `mate`), `None` where inapplicable.\n\n\
      Inline crosses the SAME document seam evaluation does, so a \
      reference that will not resolve refuses under the seam's own \
      tags — `part_pin_mismatch`, `part_epsilon_seam`, \

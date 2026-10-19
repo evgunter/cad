@@ -75,7 +75,7 @@ fn split_at_an_existing_knot_and_repeated_splits() {
     // A knot value strictly inside the domain (the interpolant has
     // interior knots at the chord parameters).
     let interior = c
-        .knots()
+        .knots_f64_interim()
         .knots()
         .iter()
         .copied()

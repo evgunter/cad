@@ -14,8 +14,8 @@
 //! sealed, with each instantiation's semantics documented there. The
 //! derivative's coefficient factor and net, at a generic scalar, have
 //! their one home in [`derivative`], with the quotient bound every
-//! first-order rational derivative bound reads, on the exact dyadic
-//! pieces of [`pieces`]. No
+//! first-order rational derivative bound reads, on pieces halved from
+//! the quotient formed once over each span or cell. No
 //! topology decision exists anywhere in this module (nothing routes
 //! through `k_stats`).
 //!
@@ -57,9 +57,11 @@ pub mod knots;
 pub mod locate;
 pub mod net;
 pub mod pieces;
+pub mod plan_inputs;
 pub mod projective;
 pub mod range;
 pub mod weight_scale;
+pub mod weights;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep, RingRefinement};
 pub use blossom::{BlossomError, SpanRow, diagonal_in_span, restrict_bernstein, restrict_segment};
@@ -76,10 +78,12 @@ pub use hull::{
 };
 pub use knot_values::{KnotSpan, Knots};
 pub use knots::{
-    KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, check_weight_values,
-    derivative_knot_slice, knot_difference, weight_in_regime,
+    KnotMirrorError, KnotStructure, KnotVector, KnotVectorIssue, Span, SplineError,
+    check_weight_value, check_weight_values, derivative_knot_slice, knot_difference,
+    weight_in_regime,
 };
-pub use locate::{SpanLocate, SpanSet, poison_from};
+pub use locate::{SpanLocate, SpanSet, poison_from, structure_ascends, structure_nonzero};
 pub use net::{TensorChannels, TensorCoeffs, TensorNet};
 pub use projective::{ProjectivePoint, ProjectiveScalar, ProjectiveSplit};
 pub use range::{Param, ParamRange, last_at_or_below};
+pub use weights::Weights;

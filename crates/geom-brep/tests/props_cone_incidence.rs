@@ -190,14 +190,14 @@ fn lift<T: Real>(e: &Curve3<f64>) -> Curve3<T> {
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => Curve3::Ellipse {
             center: p(center),
             axis: v(axis),
-            major: T::from_f64(major),
-            minor: T::from_f64(minor),
+            semi_u: T::from_f64(semi_u),
+            semi_v: T::from_f64(semi_v),
             u_ref: v(u_ref),
         },
         _ => unreachable!(),
@@ -386,8 +386,8 @@ fn section_at(c: &Cone, tilt: f64, l: f64) -> Curve3<f64> {
     Curve3::Ellipse {
         center: pt(center),
         axis: vt(normal),
-        major,
-        minor: ((radius - off) * (radius + off)).sqrt(),
+        semi_u: major,
+        semi_v: ((radius - off) * (radius + off)).sqrt(),
         u_ref: vt(unit(half)),
     }
 }
@@ -398,8 +398,8 @@ fn ellipse_stretched(c: &Cone, d: f64) -> Spec {
     let Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u,
+        semi_v,
         u_ref,
     } = section(c)
     else {
@@ -408,8 +408,8 @@ fn ellipse_stretched(c: &Cone, d: f64) -> Spec {
     let stretched = |k: f64| Curve3::Ellipse {
         center,
         axis,
-        major: major * (1.0 + k),
-        minor,
+        semi_u: semi_u * (1.0 + k),
+        semi_v,
         u_ref,
     };
     // The distance is linear in a small stretch: read its slope at one.
@@ -432,15 +432,15 @@ const PERTURBED: [Perturbed; 7] = [
         build: rim_off_axis,
     },
     Perturbed {
-        name: "props_meridian_generator",
+        name: "props_meridian_on_surface",
         build: generator_turned,
     },
     Perturbed {
-        name: "props_meridian_generator",
+        name: "props_meridian_on_surface",
         build: generator_turned_far,
     },
     Perturbed {
-        name: "props_meridian_apex",
+        name: "props_meridian_on_surface",
         build: generator_off_apex,
     },
     Perturbed {
@@ -490,11 +490,12 @@ fn every_cone_incidence_decide_meters_the_true_distance() {
     assert!(bad.is_empty(), "{} wrong:\n{}", bad.len(), bad.join("\n"));
 }
 
-/// **The generator decide meters the angle off the generator, not its
-/// cosine.** At `α = 10⁻⁶` the cosine difference `|dir·axis| − cos α`
-/// reads a generator `δ` off as `sin α·δ`, so the generator stated
-/// `2·escalate` off at its far end reads as on the cone, and the loop is
-/// refused only at the joint it opens (`props_loop_closed`).
+/// **A generator turned off the cone at the needle refuses as incidence
+/// by its own name.** At `α = 10⁻⁶` a reading of the turn by the cosine
+/// difference `|dir·axis| − cos α` sees a generator `δ` off as
+/// `sin α·δ`, so the generator stated `2·escalate` off at its far end
+/// would read as on the cone, and the loop be refused only at the joint
+/// it opens (`props_loop_closed`).
 #[test]
 fn the_needle_generator_refuses_by_its_own_name() {
     let b = band();
@@ -504,7 +505,7 @@ fn the_needle_generator_refuses_by_its_own_name() {
             assert_eq!(
                 got,
                 Err(PropsError::OffSurface {
-                    what: "props_meridian_generator"
+                    what: "props_meridian_on_surface"
                 }),
                 "{c:?} {lane}"
             );
@@ -583,14 +584,14 @@ fn an_ellipse_span_is_metered_at_its_smaller_semi_axis() {
         let tilt = ((1.0 - 1.0 / (squash * squash)).sqrt() * c.alpha.cos()).asin();
         let (s, co) = c.alpha.sin_cos();
         let e = section_at(&c, tilt, (1e3 * b.escalate() / s.min(co)).max(0.05));
-        let Curve3::Ellipse { major, minor, .. } = e else {
+        let Curve3::Ellipse { semi_u, semi_v, .. } = e else {
             unreachable!()
         };
         assert!(
-            (major / minor - squash).abs() < 0.01 * squash,
-            "{c:?}: the section is {major} by {minor}"
+            (semi_u / semi_v - squash).abs() < 0.01 * squash,
+            "{c:?}: the section is {semi_u} by {semi_v}"
         );
-        let cap = |over: f64| -> Spec { vec![(e.clone(), 0.0, TAU + over / minor)] };
+        let cap = |over: f64| -> Spec { vec![(e.clone(), 0.0, TAU + over / semi_v)] };
         for (lane, got) in verdicts(&c, &cap(0.6 * b.zero())) {
             assert_eq!(got, Ok(()), "{c:?} {lane}: an overrun within the bound");
         }
@@ -663,8 +664,8 @@ mod between_samples {
             Curve3::Ellipse {
                 center: p3(self.c[0], self.c[1], self.c[2]),
                 axis: v3(self.n[0], self.n[1], self.n[2]),
-                major: T::from_f64(self.a),
-                minor: T::from_f64(self.b),
+                semi_u: T::from_f64(self.a),
+                semi_v: T::from_f64(self.b),
                 u_ref: v3(self.u[0], self.u[1], self.u[2]),
             }
         }

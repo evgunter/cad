@@ -39,13 +39,11 @@
 //! The split and the zip read one alignment ([`align`]); where the
 //! two operands' splits leave their section faces paired several to one
 //! (or several), the faces holding paired edges zip as one split seam
-//! ([`zip_split`]). After the zips,
-//! [`share_points`] puts the cones of a pinch that still sit on several
-//! keys onto one: the keys the correspondence ties ([`point_classes`]),
-//! read before the split.
-//! Where the insertion hung runs at a turned run's copy, a point whose
-//! cones still sit on several keys after that refuses
-//! ([`refuse_split_hung_points`]).
+//! ([`zip_split`]). After the zips, [`share_points`] puts the cones of a
+//! pinch that still sit on several keys onto one: the keys the
+//! correspondence ties ([`point_classes`]), read before the split. The
+//! output stage then does the same for the keys the result's
+//! vertex-vertex records tie (`ops::record_classes`).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -129,7 +127,7 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
 /// key, the D5 descendant map's zip rows) and the surviving seam
 /// edges (the D6 description pass's worklist — tracked lineage, never
 /// a post-hoc scan).
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(super) struct ZipReport {
     /// Vertex fusions in zip order: `(dead, kept)` per zipped pair.
     pub vertex_merges: Fusions,
@@ -139,6 +137,17 @@ pub(super) struct ZipReport {
     /// Edge fusions, `(dead, kept)`: each B section edge the zip kills
     /// and the A seam edge on its segment, which survives in its place.
     pub edge_merges: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
+}
+
+impl Default for ZipReport {
+    // Each lineage list names itself where it is made (`LineageRows`).
+    fn default() -> Self {
+        Self {
+            vertex_merges: Fusions::new(crate::lineage::LineageRows::Fusions),
+            seam_edges: Default::default(),
+            edge_merges: Default::default(),
+        }
+    }
 }
 
 /// The order the loopglue zip fuses a seam's `n` vertex pairs in:
@@ -183,11 +192,10 @@ impl<K: Ord + Copy> Roots<K> {
 /// the correspondence `vmap` reaches, through its pairs and through the
 /// keys its vertices share, names one point. Returns those classes of
 /// two or more keys, read before any zip; [`share_points`] reads them
-/// after. Decided by the records alone: no position is read.
-///
-/// A ring serving several pierces ties their keys too: the ring joined
-/// those pierces by a value decision, which the ledger records beside
-/// the result's records (`ops::ledger`).
+/// after. Decided by the records alone: no position is read. Copies an
+/// operand held on one key, which the zips may fuse onto the other
+/// operand's key one by one, carry no vertex-vertex record, so
+/// `ops::record_classes` does not reach them.
 ///
 /// # Errors
 ///
@@ -196,7 +204,7 @@ impl<K: Ord + Copy> Roots<K> {
 pub(super) fn point_classes<T: geom_core::Real>(
     body: &Body<T>,
     vmap: &SeamCorrespondence,
-) -> Result<Vec<BTreeSet<PointKey>>, BooleanError> {
+) -> Result<Vec<PointClass>, BooleanError> {
     let corr = || BooleanError::ZipCorrespondence {
         what: "a seam correspondent no longer resolves",
     };
@@ -208,27 +216,16 @@ pub(super) fn point_classes<T: geom_core::Real>(
             roots.union(ka, key(b)?);
         }
     }
-    let mut classes: BTreeMap<PointKey, BTreeSet<PointKey>> = BTreeMap::new();
-    for &k in roots.0.keys() {
-        let r = roots.find(k);
-        classes
-            .entry(r)
-            .or_insert_with(|| BTreeSet::from([r]))
-            .insert(k);
-    }
-    Ok(classes.into_values().collect())
+    Ok(roots.classes().into_values().collect())
 }
 
-/// **A pinch's cones sit on one point key** ([`point_classes`]). After
-/// the zips, the vertices of one point fused where they lie in one cone,
-/// and a fused vertex keeps one key; the vertices of a pinch's other
-/// cones keep theirs. So where a class's live vertices still sit on
-/// several keys (an operand's own pinch, which an earlier op left on
-/// several keys, tied through the other operand's copy of the point),
-/// they move onto the class's smallest live key
-/// ([`Body::share_point`]). Elsewhere the zips left one vertex, and
-/// nothing moves. The census's same-point rung and the output stage's
-/// join then read the pinch from its keys.
+/// **The vertices of each class sit on one point key**: where a
+/// class's live vertices sit on several of its keys, they move onto its
+/// smallest live key ([`Body::share_point`]); elsewhere nothing moves.
+/// The classes come from the seams, after the zips ([`point_classes`]),
+/// and from the result's vertex-vertex records, at the output stage
+/// (`ops::record_classes`). The census's same-point rung and the join
+/// then read the point from its keys.
 ///
 /// # Errors
 ///
@@ -236,9 +233,9 @@ pub(super) fn point_classes<T: geom_core::Real>(
 /// resolves, which the index built just before rules out.
 pub(super) fn share_points<T: geom_core::Real>(
     body: &mut Body<T>,
-    classes: &[BTreeSet<PointKey>],
+    classes: &[PointClass],
 ) -> Result<(), BooleanError> {
-    // The classes are disjoint (`point_classes` builds them as a
+    // The classes are disjoint (each caller builds them as a
     // partition), so one index serves them all.
     let mut on_key: BTreeMap<PointKey, Vec<VertexKey>> = BTreeMap::new();
     for (v, d) in body.vertices() {
@@ -246,6 +243,7 @@ pub(super) fn share_points<T: geom_core::Real>(
     }
     for class in classes {
         let keys: Vec<PointKey> = class
+            .keys
             .iter()
             .copied()
             .filter(|k| on_key.contains_key(k))
@@ -261,7 +259,8 @@ pub(super) fn share_points<T: geom_core::Real>(
                 .filter_map(|&k| body.points.get(k))
                 .map(|p| [p.x, p.y, p.z].map(|c| format!("{c:?}")))
                 .collect();
-            SHARED.with(|s| s.borrow_mut().push(at));
+            let margins = class.margins.iter().map(|m| format!("{m:e}")).collect();
+            SHARED.with(|s| s.borrow_mut().push((at, margins)));
         }
         // Unreachable: `on_key` holds live vertices and live keys only.
         body.share_point(&vertices, onto)
@@ -272,41 +271,34 @@ pub(super) fn share_points<T: geom_core::Real>(
     Ok(())
 }
 
-/// **A hung point left on several keys refuses.** Where the insertion
-/// hung runs at a copy of their own pair's (`insert::hang_at_shared`), `hung`
-/// holds the point's keys: those of every vertex the vertex-vertex
-/// contacts tie to the hung one, in result keys. Those are all of the
-/// point's keys. Every vertex there either has a contact, or is a copy
-/// that keeps its original's key (a null edge's, a cone split's), and
-/// the seams' classes ([`point_classes`]) tie only keys of vertices the
-/// seams pair there, which the contacts already tie. So after
-/// [`share_points`], live vertices on more than one of them are a pinch
-/// whose cones the seams do not link: an operand's own pinch, left on
-/// several keys by an earlier op. The census cannot read it, and the op
-/// refuses [`BooleanError::PinchConesOnSeparateKeys`] rather than ship
-/// it. Only keys are read, no position.
-///
-/// # Errors
-///
-/// [`BooleanError::PinchConesOnSeparateKeys`] at such a point.
-pub(super) fn refuse_split_hung_points<T: geom_core::Real>(
-    body: &Body<T>,
-    hung: &[(super::insert::Hang, BTreeSet<PointKey>)],
-) -> Result<(), BooleanError> {
-    for (hang, keys) in hung {
-        let live: BTreeSet<PointKey> = body
-            .vertices()
-            .map(|(_, d)| d.point)
-            .filter(|k| keys.contains(k))
-            .collect();
-        if live.len() > 1 {
-            return Err(BooleanError::PinchConesOnSeparateKeys {
-                operand: hang.operand,
-                vertex: hang.vertex,
-            });
+/// The point keys one rebind of [`share_points`] puts on one key, with
+/// the margin of each decision the records tying them cite
+/// (`ops::record_classes`); none where the seams tie them
+/// ([`point_classes`]), whose pairs are bitwise coincident.
+pub(super) struct PointClass {
+    pub(super) keys: BTreeSet<PointKey>,
+    #[cfg(feature = "sweep-testing")]
+    pub(super) margins: Vec<geom_core::MarginDiag>,
+}
+
+impl Roots<PointKey> {
+    /// Each class of two or more keys, by its root.
+    pub(super) fn classes(&self) -> BTreeMap<PointKey, PointClass> {
+        let mut classes: BTreeMap<PointKey, PointClass> = BTreeMap::new();
+        for &k in self.0.keys() {
+            let r = self.find(k);
+            classes
+                .entry(r)
+                .or_insert_with(|| PointClass {
+                    keys: BTreeSet::from([r]),
+                    #[cfg(feature = "sweep-testing")]
+                    margins: Vec::new(),
+                })
+                .keys
+                .insert(k);
         }
+        classes
     }
-    Ok(())
 }
 
 #[cfg(feature = "sweep-testing")]
@@ -328,24 +320,30 @@ pub fn swap_split_roles(on: bool) {
 #[cfg(feature = "sweep-testing")]
 thread_local! {
     /// The stored points of the keys each [`share_points`] class rebinds,
-    /// in call order ([`take_shared_points`]).
-    static SHARED: core::cell::RefCell<Vec<Vec<[String; 3]>>> =
+    /// in call order, with the reach its records allow
+    /// ([`take_shared_points`]).
+    static SHARED: core::cell::RefCell<Vec<SharedClass>> =
         const { core::cell::RefCell::new(Vec::new()) };
 }
 
-/// Drains the stored points of every class [`share_points`] rebound on
-/// this thread since the last drain: one list per class, each key's
-/// point before the rebind, each coordinate as its `{:?}` rendering.
-/// `share_points` reads no position, so its premise (the seams tie only
-/// keys that hold one point) is pinned here, in test builds: a row
-/// parses the coordinates back and asserts each list is one point, bit
-/// for bit. At `f64` the rendering is the shortest string that parses
-/// back to the same value, so the parse is exact. Rendered, not typed,
-/// because `T` reaches its bits only through the fenced bit-identity
-/// seam (`geom_core::bit_identity`), which a test witness has no claim
-/// on. `sweep-testing` only.
+/// One class [`share_points`] rebound: each key's point before the
+/// rebind, each coordinate as its `{:?}` rendering, and each margin its
+/// records cite (`ops::record_classes`), as its `{:e}` rendering; none for
+/// a class the seams tie, which holds one point bit for bit.
 #[cfg(feature = "sweep-testing")]
-pub fn take_shared_points() -> Vec<Vec<[String; 3]>> {
+pub type SharedClass = (Vec<[String; 3]>, Vec<String>);
+
+/// Drains every class [`share_points`] rebound on this thread since the
+/// last drain ([`SharedClass`]). `share_points` reads no position, so
+/// its premise is pinned here, in test builds: a row parses the
+/// coordinates back and asserts each class lies within the margins its
+/// records' decisions read (a seam class within none: one point). At `f64` the rendering is the shortest
+/// string that parses back to the same value, so the parse is exact.
+/// Rendered, not typed, because `T` reaches its bits only through the
+/// fenced bit-identity seam (`geom_core::bit_identity`), which a test
+/// witness has no claim on. `sweep-testing` only.
+#[cfg(feature = "sweep-testing")]
+pub fn take_shared_points() -> Vec<SharedClass> {
     SHARED.with(|s| core::mem::take(&mut *s.borrow_mut()))
 }
 
@@ -418,7 +416,7 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
     let (cone_a, cone_b) = cones(&sigma_a, &sigma_b);
     let mut a_sections: Vec<FaceKey> = seams.iter().map(|&(a, _)| a).collect();
     let mut b_sections: Vec<FaceKey> = seams.iter().map(|&(_, b)| b).collect();
-    let mut splits = Vec::new();
+    let mut splits = crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies);
     split_side(
         body,
         &runs_a,
@@ -474,16 +472,15 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
 /// past it is one whose pinches the boolean's carry reads
 /// (`ops::Zipped`). Only [`split_cones`] builds one.
 pub(super) struct ConesSplit {
-    /// Each split `(split, new)` in the order made, keys of the body
-    /// split: the vertex split and the vertex its moved cone now holds,
-    /// on the split vertex's point key
-    /// (`BooleanNaming::cone_splits`).
-    splits: Vec<(VertexKey, VertexKey)>,
+    /// Each split `(new, split)` in the order made, keys of the body
+    /// split: the vertex its moved cone now holds, on the split vertex's
+    /// point key, and the vertex split (`BooleanNaming::cone_splits`).
+    splits: crate::lineage::ConeCopies,
 }
 
 impl ConesSplit {
-    /// The splits made, `(split, new)` in the order made.
-    pub(super) fn splits(&self) -> &[(VertexKey, VertexKey)] {
+    /// The splits made, checked as each was made.
+    pub(super) fn splits(&self) -> &crate::lineage::ConeCopies {
         &self.splits
     }
 }
@@ -554,7 +551,7 @@ fn cones(sigma_a: &[usize], sigma_b: &[usize]) -> (Vec<usize>, Vec<usize>) {
 /// Splits each of one side's vertices per cone, its first cone's runs
 /// staying, one cone at a time: a cone whose runs lie together round the
 /// vertex, first in orbit order. Each split is pushed to `splits` as
-/// `(split, new)`.
+/// `(new, split)`, checked where it is pushed.
 ///
 /// The null edge each `mev_null` leaves lies between two section
 /// corners, on the section faces the zips consume, and is killed there:
@@ -570,14 +567,15 @@ fn cones(sigma_a: &[usize], sigma_b: &[usize]) -> (Vec<usize>, Vec<usize>) {
 /// split takes a cone whose runs lie together, which nesting always
 /// leaves, so only two cones' runs alternating, their boundary cycles
 /// crossing there, refuse. No battery line reaches that.
-/// The Euler operators' refusals, typed.
+/// The Euler operators' refusals, typed. [`BooleanError::LineageRow`]
+/// where a split's copy is not one its `mev_null` minted.
 fn split_side<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     runs: &RunsAt,
     cone_of: &[usize],
     he_of: &dyn Fn(usize) -> HalfEdgeKey,
     sections: &mut Vec<FaceKey>,
-    splits: &mut Vec<(VertexKey, VertexKey)>,
+    splits: &mut crate::lineage::ConeCopies,
     tol: Tol,
 ) -> Result<(), BooleanError> {
     for at in runs.values() {
@@ -593,7 +591,7 @@ fn split_side<T: Decide + crate::props::AtRestPolicy>(
                 crate::NewVertexSide::Above,
             )?;
             let split = proven(&body.half_edges, made.he_plus, EntityId::HalfEdge).start;
-            splits.push((split, made.vertex));
+            splits.push((made.vertex, split))?;
             let loop_of =
                 |he: HalfEdgeKey| proven(&body.half_edges, he, EntityId::HalfEdge).parent_loop;
             let (lp, lm) = (loop_of(made.he_plus), loop_of(made.he_minus));
@@ -1237,7 +1235,7 @@ mod tests {
         };
         let killed = |v| (RowDefect::NamesRetired, super::super::Cell::Vertex(v));
 
-        let mut chain = Fusions::default();
+        let mut chain = Fusions::new(crate::lineage::LineageRows::Fusions);
         chain.push((a, b)).unwrap();
         chain.push((b, c)).unwrap();
         assert_eq!(
@@ -1246,7 +1244,7 @@ mod tests {
             "a chain folds through every hop, and an unfused key is its own"
         );
 
-        let mut fusions = Fusions::default();
+        let mut fusions = Fusions::new(crate::lineage::LineageRows::Fusions);
         fusions.push((a, b)).unwrap();
         for (row, what, case) in [
             ((c, a), killed(a), "keeps a killed key"),
@@ -1258,7 +1256,7 @@ mod tests {
             ),
         ] {
             assert_eq!(refusal(fusions.push(row)), what, "pushed: {case}");
-            let mut later = Fusions::default();
+            let mut later = Fusions::new(crate::lineage::LineageRows::Fusions);
             if row.0 != row.1 {
                 later.push(row).unwrap();
                 assert_eq!(refusal(fusions.extend(&later)), what, "extended: {case}");
@@ -1277,9 +1275,9 @@ mod tests {
     fn an_extend_that_refuses_partway_leaves_the_list_as_it_was() {
         let mut arena: SlotMap<VertexKey, ()> = SlotMap::with_key();
         let [a, b, c, d, e] = [(); 5].map(|()| arena.insert(()));
-        let mut fusions = Fusions::default();
+        let mut fusions = Fusions::new(crate::lineage::LineageRows::Fusions);
         fusions.push((a, b)).unwrap();
-        let mut later = Fusions::default();
+        let mut later = Fusions::new(crate::lineage::LineageRows::Fusions);
         later.push((d, e)).unwrap();
         later.push((c, a)).unwrap();
         assert!(

@@ -184,9 +184,8 @@ fn the_kept_copy_is_named_from_both_seats() {
     let joined = boolean(&mut r, BooleanOp::Union, p, q);
     let ev = eval(&r.doc);
     let faces = |id: RecipeNodeId| -> Vec<StableName> {
-        ev.value(id)
+        ev.table_at(id)
             .expect("a value")
-            .name_table
             .iter()
             .filter(|(n, _)| n.kind == EntityKind::Face)
             .map(|(n, _)| n.clone())

@@ -68,7 +68,7 @@ fn revolve_wires_the_datum_axis_through_the_sketch_plane() {
     // Decided coincident with τ ⇒ Full.
     let (doc, rev) = insert(
         doc,
-        fixture::revolve_about(prof, (0.0, 0.0), (0.0, 1.0), ang(TAU)),
+        fixture::revolve_about(prof, (0.0, 0.0), crate::fixture::along_y(), ang(TAU)),
     );
     let ev = run(&doc);
     let ValuePayload::Body(body) = &ev.value(rev).expect("revolve evaluated").payload else {
@@ -317,7 +317,11 @@ fn typed_refusal_doors() {
     match ev.nodes.get(&pat) {
         Some(NodeResult::Failed(e)) => assert!(matches!(
             e.kind,
-            NodeErrorKind::NonPositiveCount { count: 0 }
+            NodeErrorKind::CountOutOfRange {
+                slot: editor_core::SlotId::Count,
+                count: 0,
+                ..
+            }
         )),
         other => panic!("expected Failed, got {other:?}"),
     }

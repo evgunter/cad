@@ -2,10 +2,11 @@
 id: the-plate-verdict-pin-holds-only-at-the-default-eps
 kind: issue
 title: demos/tour's the_plate_verdicts_hold_their_bits pins bits computed from tol.eps(), so it fails under CAD_TOLERANCE_EPS=1e-12 (identically on main); the pin is per-ε, not ε-free
-status: open
+status: closed
 priority: P4
 cost: E
 opened: 2026-10-10
+closed: 2026-10-17
 ---
 
 
@@ -19,3 +20,11 @@ Owed, one of:
 - the pin keyed per ε row, i.e. one pinned string per supported ε;
 - the row skips, with a stated reason, outside the ε its pin was taken at;
 - the inputs expressed so the verdict bits are ε-free.
+
+## Closed
+
+The first option: one pinned string per ε row CI gates (1e-6, the default 1e-9, 1e-12), each measured at its row.
+- At 1e-6 the Monte Carlo lane leaves 24 of the real plate's samples unevaluated.
+- At 1e-12 the certifiable box's bound and its leaf mass differ in their low bits.
+
+At any other ε the row fails, saying how to add a pin, rather than skip. The row passes at all three.

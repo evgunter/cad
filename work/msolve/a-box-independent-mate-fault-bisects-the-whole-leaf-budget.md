@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-01
 priority: P2
 cost: E
-blocked_on: [intent-stage3-is-built, the-box-driver-carries-no-part-resolver]
+blocked_on: [the-box-driver-carries-no-part-resolver]
 ---
 
 Found by a designer weighing plan item 19 (the analysis lanes). The
@@ -67,7 +67,19 @@ levered sine lands in the band, and one parameter boxed by
   `MateFault::Indeterminate`, with the escalation on its own log.
 
 Pinned by
-`msolve11_mate_log::a_box_run_over_an_escalating_mate_refuses_at_its_witness`.
+`msolve11_mate_log::a_box_run_over_an_overconstrained_bundle_refuses_at_its_witness`.
+
+## Re-read at INTENT stage 3 F
+
+F names the vocabulary: `MateFault::Overconstrained` is decided by the
+bundle's families, measuring nothing, so it is the same in every box
+and is a terminal class for `classify_replay`'s read (1), beside the
+walk, the class and an unresolved part. Two rests are now refused at
+the door, so the measurement above is restated over a bundle written
+past it (the state a doctored save leaves): under a resolver it refuses
+`Overconstrained` with no escalation on its log, and the driver still
+refuses at its witness for want of a resolver. The row waits on that
+alone.
 
 What this means here: before this item's `Budget` shape can show, a box
 run over any assembly needs the driver to carry a resolver. Once it

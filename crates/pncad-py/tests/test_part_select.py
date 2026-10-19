@@ -184,17 +184,26 @@ class TestTheHalfIsItsPort(unittest.TestCase):
         self.assertEqual(mass.surface_area, 2 * 2.0 * 2.0 + 4 * 2.0 * 1.0)
 
     def test_the_names_pass_through(self):
-        """A read of a half hands on the split's rows for that half and
-        otherwise verbatim — so every face name a reader answers with
-        is a face name of the split, unchanged as text, and the two
-        halves' name sets are disjoint."""
+        """A read of a half hands on that half's table verbatim — so
+        every face name a reader answers with is a face name of the
+        split's half, unchanged as text. A split's names spell no half:
+        each half is its own table, so the section face and each wall's
+        fragment are ONE name the two halves' tables each hold."""
         doc, split, above, below = self.build()
         ev = evaluate(doc)
-        whole = set(ev.all_faces(split))
+        upper_half = set(ev.all_faces(doc.output(split, 0)))
+        lower_half = set(ev.all_faces(doc.output(split, 1)))
         upper, lower = set(ev.all_faces(above)), set(ev.all_faces(below))
-        self.assertTrue(upper <= whole)
-        self.assertTrue(lower <= whole)
-        self.assertEqual(upper & lower, set())
+        self.assertEqual(upper, upper_half)
+        self.assertEqual(lower, lower_half)
+        # What the halves share is what the split's names no longer
+        # tell apart by half: the section face and the four walls'
+        # fragments, each one name that each half's table holds. The
+        # cap each half keeps whole is its own.
+        shared = upper & lower
+        self.assertEqual(len(shared), 5)
+        self.assertEqual(sum('"SectionFace"' in n for n in shared), 1)
+        self.assertEqual(sum('"SplitFragment"' in n for n in shared), 4)
         # A cut box is a 6-faced slab per side: four walls, the
         # original face, and the section.
         self.assertEqual(len(upper), 6)
@@ -402,7 +411,7 @@ class TestThePatternDoor(unittest.TestCase):
     def test_a_count_below_one_refuses(self):
         doc = Doc()
         family = pattern_of(doc, box(doc), count=0)
-        self.assertEqual(refusal(self, doc, family), "non_positive_count")
+        self.assertEqual(refusal(self, doc, family), "count_out_of_range")
 
     def test_an_explicit_rule_refuses_at_insert(self):
         """The explicit rule carries its OWN placements, so pairing it

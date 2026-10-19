@@ -28,7 +28,7 @@ use pncad::topo::BooleanOp;
 use test_utils::refusal::tagged;
 use viewer::session::BooleanSpec;
 
-use common::{ang, body_volume, len, len2, len3, near, scl2, scl3, session_insert, shape};
+use common::{ang, body_volume, len, len2, len3, near, scl3, session_insert, shape};
 use pncad::document::BooleanValue;
 use pncad::document::SplitSide;
 use pncad::document::{
@@ -254,7 +254,7 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
                 DocEdit::InsertNode { .. },
                 DocEdit::SetParam {
                     node,
-                    slot: pncad::document::SlotId::Operand(OperandSlot::Body),
+                    slot: pncad::document::SlotId::Operand(OperandSlot::Shape(0)),
                     value: pncad::document::SlotValue::Read(pncad::document::Operand::Node(read)),
                     ..
                 },
@@ -1596,8 +1596,8 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
         let op = match seat {
             Seat::RevolveProfile => SessionOp::AddRevolve {
                 profile: filled(Seat::RevolveProfile),
-                axis_origin: len2([0.0, 0.0]),
-                axis_direction: scl2([0.0, 1.0]),
+                axis_through: len2([0.0, 0.0]),
+                axis_heading: Formula::turn_over(4).expect("a quarter turn"),
                 angle: ang(core::f64::consts::TAU),
             },
             // A member beside one filled correctly, so the refusal is
@@ -1967,8 +1967,8 @@ fn a_tool_closes_on_its_own_committed_edit() {
             ToolKind::Revolve,
             SessionOp::AddRevolve {
                 profile: RecipeNodeId::new(0, tagged(1)),
-                axis_origin: len2([0.0, 0.0]),
-                axis_direction: scl2([0.0, 1.0]),
+                axis_through: len2([0.0, 0.0]),
+                axis_heading: Formula::turn_over(4).expect("a quarter turn"),
                 angle: ang(1.0),
             },
         ),
@@ -2183,8 +2183,8 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
                 profile: ring.into(),
                 // The revolve's axis is its own: a line in the ring's
                 // plane, its +y through (0, 0).
-                axis_origin: [common::len(0.0), common::len(0.0)],
-                axis_direction: [common::scl(0.0), common::scl(1.0)],
+                axis_through: [common::len(0.0), common::len(0.0)],
+                axis_heading: Formula::turn_over(4).expect("a quarter turn"),
                 angle: common::ang(core::f64::consts::TAU),
             },
         ),
@@ -2299,7 +2299,6 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
                 fresh: Vec::new(),
             },
             tol,
-            &pncad::document::RefusingReach,
         );
         let refused_as_operand = matches!(
             probe,
@@ -2594,8 +2593,9 @@ fn duplicating_a_body_places_its_patterned_copy_beside_it() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        3,
-        "a pattern of two, its copy's projection, and that projection's placement"
+        7,
+        "a pattern of two, its copy's projection, and that projection's placement with its \
+         mate and three values"
     );
     let minted = outcome.minted.clone();
     let [pattern, copy, placement] = minted[..] else {
@@ -2615,7 +2615,7 @@ fn duplicating_a_body_places_its_patterned_copy_beside_it() {
         "the copy is the pattern's second instance, projected"
     );
     assert!(
-        matches!(doc.node(placement), Some(Node::PlaceInWorld { .. })),
+        matches!(doc.node(placement), Some(Node::Place { .. })),
         "and the copy is placed"
     );
     assert_eq!(
@@ -2811,7 +2811,6 @@ fn the_part_seats_track_the_part_door() {
                     fresh: Vec::new(),
                 },
                 tol,
-                &pncad::document::RefusingReach,
             ) {
                 Err(_) => true,
                 Ok(applied) => {
@@ -2862,16 +2861,11 @@ fn a_body_seat_reads_a_split_half_by_its_port() {
         },
     );
     let below = pncad::document::Operand::output(split, SplitHalf::Below.port());
-    let applied = pncad::document::apply(
+    let (doc, placed) = common::placed_read(
         session.committed_doc(),
-        &pncad::document::DocEdit::place(below.clone(), None),
+        below.clone(),
+        &pncad::document::EvalOptions::default(),
         tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the half places");
-    let (doc, placed) = (
-        applied.doc,
-        applied.record.minted.expect("a placement mints its node"),
     );
 
     // A pick on the placed half's copy seats the half it places.
@@ -3343,11 +3337,13 @@ fn a_body_seat_takes_a_split_half_clicked_in_the_viewport() {
     let whole_box = common::copy_of(&doc, body);
     common::edit_into(&mut doc, DocEdit::DeleteNode { id: whole_box }, tol);
     for port in [0, 1] {
-        common::edit_into(
-            &mut doc,
-            DocEdit::place(pncad::document::Operand::output(split, port), None),
+        doc = common::placed_read(
+            &doc,
+            pncad::document::Operand::output(split, port),
+            &pncad::document::EvalOptions::default(),
             tol,
-        );
+        )
+        .0;
     }
     let mut session = DocSession::inline(doc, tol);
     session.pump();

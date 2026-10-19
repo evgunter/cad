@@ -75,7 +75,6 @@ fn widened_document(width: f64) -> ProfileDoc {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the parameter re-declares with a distribution")
     .doc
@@ -115,8 +114,18 @@ fn assert_parts_are_their_bodies(ev: &Evaluation<Interval>, doc: &ProfileDoc, la
 /// widened run threaded through it.
 fn widened_runs(width: f64) -> (ProfileDoc, Evaluation<Interval>, Evaluation<Interval>) {
     let doc = widened_document(width);
-    let nominal = run(&doc, None, &EvalOptions::default());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    // The prior is the drive's witness: the box collapsed to the
+    // nominal, so it elaborates under the widened run's (guided) lift
+    // and the memo compares like with like (`ParamBox::at_nominal`).
+    let nominal = run(
+        &doc,
+        None,
+        &EvalOptions {
+            param_box: Some(Arc::new(ParamBox::of(&analyzed).at_nominal())),
+            ..EvalOptions::default()
+        },
+    );
     let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
         ..EvalOptions::default()
@@ -157,10 +166,10 @@ enum Rung {
 /// source escalates (`carrier_matches_mapped_source`, an enclosure a
 /// few parts per million over the band's zero). At ε/16 the split
 /// certifies and the union of its halves does not: the glue door reads
-/// the cut faces' plane offset in band (`bool_plane_offset`), so the pair
-/// is not glued, and the corner that reads it one carrier refuses
-/// (`carrier_unglued_coincidence`). ε/32 and every narrower rung
-/// certify. Each
+/// the cut faces' plane offset in band (`bool_plane_offset`, an
+/// enclosure across zero), so the pair is not glued, and the corner that
+/// reads it one carrier refuses with that reading, the one a narrower
+/// width clears: ε/32 and every narrower rung certify. Each
 /// rung is asserted, so a floor that moves — up or down — reds this
 /// row naming the rung.
 #[test]
@@ -181,7 +190,7 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
             16,
             Rung::Escalates {
                 node: union,
-                predicate: "carrier_unglued_coincidence",
+                predicate: "bool_plane_offset",
             },
         ),
         (32, Rung::Green),
@@ -237,7 +246,18 @@ const A7_DIVISOR: f64 = 128.0;
 fn a7_the_corpus_document_evaluates_at_interval_with_a_widened_height() {
     let width = Tol::witness().eps() / A7_DIVISOR;
     let doc = widened_document(width);
-    let nominal = run(&doc, None, &EvalOptions::default());
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    // The prior is the drive's witness: the box collapsed to the
+    // nominal, so it elaborates under the widened run's (guided) lift
+    // and the memo compares like with like (`ParamBox::at_nominal`).
+    let nominal = run(
+        &doc,
+        None,
+        &EvalOptions {
+            param_box: Some(Arc::new(ParamBox::of(&analyzed).at_nominal())),
+            ..EvalOptions::default()
+        },
+    );
     assert!(
         corpus::failures(&nominal).is_empty(),
         "nominal: {:?}",
@@ -245,7 +265,6 @@ fn a7_the_corpus_document_evaluates_at_interval_with_a_widened_height() {
     );
     assert_parts_are_their_bodies(&nominal, &doc, "nominal");
 
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
         ..EvalOptions::default()

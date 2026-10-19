@@ -83,8 +83,8 @@ fn circle_carriers_are_in_the_certified_lane_on_every_revolution_kind() {
     let ellipse = Curve3::Ellipse {
         center: p(0.0, 0.0, 0.0),
         axis: Vec3::new(0.0, 0.0, 1.0),
-        major: 2.0,
-        minor: 1.0,
+        semi_u: 2.0,
+        semi_v: 1.0,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     assert!(!tangent_certificate_lane(&ellipse, &sphere, &plane));
@@ -117,7 +117,7 @@ fn the_corner_ball_cylinder_circle_certifies_as_a_tangent_intersection() {
         param_start: t0,
         param_end: t1,
     };
-    let curve = EdgeCurve::certify(spec, start, end, |k| surfaces.get(k).cloned(), band())
+    let curve = EdgeCurve::certify(spec, start, end, |k| surfaces.get(k).cloned(), 1.0, band())
         .expect("the corner trimline is a certified tangent intersection");
     assert!(
         curve.certificate().max_residual < 1e-12,
@@ -219,6 +219,7 @@ fn certify_cap_quarter<T: Decide>(
         circle.eval(t0),
         circle.eval(t1),
         |k| surfaces.get(k).cloned(),
+        geom_core::Real::from_f64(1.0),
         band(),
     )
 }

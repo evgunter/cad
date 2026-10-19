@@ -560,72 +560,42 @@ fn a_pinch_records_the_vertex_identity_that_made_it() {
     );
 }
 
-/// **A carried edge-edge record split at a pierce decides only cells its
-/// input holds.** Two blocks touching along a line, cut out of a slab,
-/// leave the slab holding the contact as two coincident edges and their
-/// edge-edge record. A plate's top pierces both edges at one point, so
-/// the record's lineage decides each edge's split vertex one with the
-/// other's. The insertion moves each child piece's start onto a null
-/// edge's copy; the lineage reads the piece from the split vertex the
-/// copy was minted at, and every row it emits names a cell of the slab
-/// (an edge, through its split). Red if a piece's end is read off the
-/// clone after the insertion: the rows name the copies.
+/// **Two blocks touching along a line cut out of a slab refuse.** The
+/// slab would hold the contact as two coincident edges with their
+/// edge-edge record; the complement of the two blocks inside the slab
+/// pairs one block's faces with the other's, and ∖ does not build that
+/// re-pairing, so the result's two edges would bound 270° each,
+/// overlapping, and ∖ refuses `Revert`. The record's lineage at a
+/// plate's pierce through that slab returns with the re-pairing
+/// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
 #[test]
-fn a_carried_edge_edge_record_split_at_a_pierce_names_its_inputs_cells() {
+fn cutting_a_touching_pair_out_of_a_slab_refuses_its_revert() {
     let slab = box_of((-1.0, 4.0), (-1.0, 3.0), (0.5, 2.5), "the slab");
     let p1 = box_of((1.0, 1.5), (-2.0, 1.0), (0.3, 2.0), "p1");
     let p2 = box_of((1.5, 2.0), (1.0, 4.0), (0.27, 1.73), "p2");
-    let plate = box_of((0.0, 3.0), (0.0, 2.0), (0.0, 1.0), "the plate");
-    let subtract = |a: &AtRestBody<f64>, b: &BooleanBody<f64>| {
-        let inputs = BooleanInputs {
-            records_b: b.contacts.carried(),
-            ..BooleanInputs::default()
-        };
-        match topo::boolean_op_with(
-            topo::BooleanOp::Subtract,
-            a,
-            &b.body,
-            &inputs,
-            topo::SweepStrategy::Realized,
-            tol(),
-        ) {
-            Ok(BooleanResult::Body(r)) => r,
-            other => panic!("the cut builds: {other:?}"),
-        }
-    };
     let blocks = united(&p1, &p2, &BooleanInputs::default());
-    let x = subtract(&slab, &blocks);
-    assert_eq!(
-        x.contacts.edge_edge().count(),
-        1,
-        "the slab holds the contact's edges' record: {:?}",
-        x.contacts
-    );
-    let r = subtract(&plate, &x);
-    let holds = |cell: &RowCell| match *cell {
-        RowCell::Input { input, cell } => {
-            let body: &topo::Body<f64> = match input {
-                Operand::A => &plate,
-                Operand::B => &x.body,
-            };
-            match cell {
-                Cell::Vertex(v) => body.get_vertex(v).is_some(),
-                Cell::Edge(e) => body.get_edge(e).is_some(),
-                Cell::Face(f) => body.get_face(f).is_some(),
-            }
-        }
-        _ => false,
+    let inputs = BooleanInputs {
+        records_b: blocks.contacts.carried(),
+        ..BooleanInputs::default()
     };
-    assert!(
-        !r.coincidences.is_empty(),
-        "the pierce's decision is emitted"
+    let got = topo::boolean_op_with(
+        topo::BooleanOp::Subtract,
+        &slab,
+        &blocks.body,
+        &inputs,
+        topo::SweepStrategy::Realized,
+        tol(),
     );
-    for row in &r.coincidences {
-        assert!(
-            row.cells.iter().all(holds),
-            "a row names a cell its input holds: {row:?}"
-        );
-    }
+    assert!(
+        matches!(
+            got,
+            Err(topo::BooleanError::Revert {
+                operand: Operand::B,
+                ..
+            })
+        ),
+        "the slab less the blocks: {got:?}, not the revert's refusal"
+    );
 }
 
 /// The L-prism whose reflex top corner is [`PINCH_AT`].
@@ -763,4 +733,49 @@ fn every_pinch_over_the_poses_records_a_row() {
         }
     }
     assert!(pinches > 0, "the poses pinch somewhere");
+}
+
+/// **An operand's copies on one key stay on one key** (`zip::point_classes`,
+/// `zip::share_points`): the two lobes, the halfspace first, at forty
+/// normals by every op. Wherever the result keeps both copies at the
+/// corner, they share one point key. They carry no vertex-vertex record
+/// (the copies were the operand's structure), so the output stage's
+/// record rule does not reach them: the seam correspondence ties them,
+/// the zips having fused one onto the halfspace's key. Red at 43 of the
+/// 120 runs without the seam tie (the copies on two keys).
+#[test]
+fn an_operands_copies_on_one_key_stay_on_one_key_at_every_normal() {
+    let lobes = built(
+        "the two lobes",
+        topo::intersect(&ell(), &cube_beyond([1.0, 1.3, 0.7], 4.0), tol()),
+    )
+    .body;
+    let n = 40;
+    let ga = std::f64::consts::PI * (3.0 - 5f64.sqrt());
+    let mut held = 0;
+    for i in 0..n {
+        let z = 1.0 - 2.0 * (f64::from(i) + 0.5) / f64::from(n);
+        let r = (1.0 - z * z).sqrt();
+        let m = [
+            r * (ga * f64::from(i)).cos(),
+            r * (ga * f64::from(i)).sin(),
+            z,
+        ];
+        let half = cube_beyond(m, 8.0);
+        for (op, got) in [
+            ("intersect", topo::intersect(&half, &lobes, tol())),
+            ("union", topo::union(&half, &lobes, tol())),
+            ("subtract", topo::subtract(&half, &lobes, tol())),
+        ] {
+            let Ok(BooleanResult::Body(r)) = got else {
+                continue;
+            };
+            let (keys, _) = at_pinch(&r);
+            if keys.len() == 2 {
+                held += 1;
+                assert_eq!(keys[0], keys[1], "normal {i} half-lobes {op}: {keys:?}");
+            }
+        }
+    }
+    assert!(held >= 43, "{held} runs keep both copies");
 }

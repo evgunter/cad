@@ -258,7 +258,11 @@ fn admit(u: Interval, index: usize, (lo, hi): (f64, f64)) -> Result<Interval, Bl
 /// The span's closure and its level ratio: at level `r`, entry `j` of
 /// the window combines at `(u − U_i)/(U_{i+p+1−r} − U_i)`, `i = s − p + j`.
 fn span_ratio(span: Span<'_>) -> ((f64, f64), impl Fn(usize, usize, Interval) -> Interval) {
-    let (p, s, t) = (span.degree(), span.index(), span.knots().knots());
+    let (p, s, t) = (
+        span.degree(),
+        span.index(),
+        span.knots_f64_interim().knots(),
+    );
     // Indexing justified: `p ≤ s ≤ last_span() = len − p − 2`.
     ((t[s], t[s + 1]), slice_ratio(t, p, s))
 }
@@ -459,7 +463,7 @@ mod tests {
             );
             let span = win.span();
             let diagonal = diagonal_in_span(
-                span.knots().knots(),
+                span.knots_f64_interim().knots(),
                 p,
                 span.first_control(),
                 win.coeffs(),

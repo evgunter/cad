@@ -33,8 +33,12 @@ fn curve(knots: Vec<f64>, degree: usize) -> NurbsCurve3<f64> {
 fn perturbed(base: &NurbsCurve3<f64>, moved: usize) -> NurbsCurve3<f64> {
     let mut control = base.control().to_vec();
     control[moved] = control[moved] + Vec3::new(1.0, -2.0, 3.0);
-    NurbsCurve3::new(base.knots().clone(), control, base.weights().to_vec())
-        .expect("perturbation keeps the invariants")
+    NurbsCurve3::new(
+        base.knots_f64_interim().clone(),
+        control,
+        base.weights().to_vec(),
+    )
+    .expect("perturbation keeps the invariants")
 }
 
 /// Point/vector types carry no `PartialEq` (Q1: `Real` is
@@ -49,7 +53,7 @@ fn vbits(v: Vec3<f64>) -> (u64, u64, u64) {
 
 fn check(knots: Vec<f64>, degree: usize) {
     let base = curve(knots, degree);
-    let kv = base.knots().clone();
+    let kv = base.knots_f64_interim().clone();
     for index in kv.first_span()..=kv.last_span() {
         let Some(span) = base.span(index) else {
             continue;
@@ -163,7 +167,7 @@ fn a_curves_channels_mint_against_its_own_vector() {
     let mut windows = 0usize;
     for (knots, degree) in span_families() {
         let c = curve(knots, degree);
-        let k = c.knots();
+        let k = c.knots_f64_interim();
         let coords = c.certified_coords();
         for (ch, coeffs) in coords.iter().enumerate() {
             let pair = k
@@ -207,8 +211,8 @@ fn a_curves_channels_mint_against_its_own_vector() {
         3,
     );
     let theirs = longer.certified_coords();
-    assert!(mine.knots().with_coeffs(&theirs[0]).is_none());
-    assert!(longer.knots().with_coeffs(&theirs[0]).is_some());
+    assert!(mine.knots_f64_interim().with_coeffs(&theirs[0]).is_none());
+    assert!(longer.knots_f64_interim().with_coeffs(&theirs[0]).is_some());
 }
 
 /// The other direction, which is how a guard fails when it cannot

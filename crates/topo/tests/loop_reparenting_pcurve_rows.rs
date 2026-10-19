@@ -330,7 +330,8 @@ fn the_fixture_is_pcurve_complete_and_the_pcurve_pass_accepts_it() {
 /// whose normal is set by hand without regard to its loop's traversal,
 /// so the structural battery refuses the body — every finding is about
 /// that planar face's geometry, and none of them is about a pcurve
-/// row. `LoopRoleInverted` is the hand-set normal: the rim arcs' axis
+/// row. `MixedDihedral` is a rim arc the off-plane back meets at a
+/// corner along part of it and smoothly along the rest. `LoopRoleInverted` is the hand-set normal: the rim arcs' axis
 /// lies IN the plane, so the loop's winding about the normal is its
 /// chord hexagon's, and that winds clockwise. The pcurve pass and the structural battery ask different
 /// questions of the same body and this suite asks only the first.
@@ -355,9 +356,9 @@ fn the_fixture_is_not_a_structurally_valid_body() {
         kinds,
         vec![
             "LoopRoleInverted".to_string(),
+            "MixedDihedral".to_string(),
             "PlanarBoundaryResidual".to_string(),
             "ScaffoldAtRest".to_string(),
-            "TransverseNotIntrinsic".to_string(),
         ]
     );
 }
@@ -1205,14 +1206,52 @@ fn he_at(body: &Body<f64>, face: FaceKey, p: Point3<f64>) -> topo::HalfEdgeKey {
 /// closes that ruling: `he1` leaves the bottom split vertex `m1`
 /// (`m1→b`), `he2` the top one `m2` (`m2→f`), and the chord `m1→m2`
 /// is the ruling itself, a line ON the cylinder.
+///
+/// Where the bottom rim's other face is the sheet's planar back, which
+/// does not contain it ([`the_fixture_is_not_a_structurally_valid_body`]),
+/// the split's re-ask of its chart image would read a corner where
+/// there is none and refuse the intrinsic form it cannot certify. That
+/// back rests on the cylinder for the split, through the test-only
+/// bypass, and its own surface is put back after, under a fresh key:
+/// these rows are about the rows `split_edge` carries, not about that
+/// re-ask.
 fn ruling_site(s: &mut Sheet) -> (topo::HalfEdgeKey, topo::HalfEdgeKey, EdgeCurveSpec<f64>) {
     let (a, c) = (at(U0, V0), at(U1, VM));
     let bottom = s.body.get_half_edge(he_at(&s.body, s.low, a)).unwrap().edge;
     let mid = s.body.get_half_edge(he_at(&s.body, s.low, c)).unwrap().edge;
+    let back = s.body.get_face(s.plane).unwrap().clone();
+    let original = s.body.get_surface(back.surface).unwrap().clone();
+    // A back on the cylinder under a second key (the second-key row)
+    // contains the rims, and its key is that row's subject: it is left
+    // where it is.
+    let lifted = matches!(original, Surface::Plane { .. });
+    if lifted {
+        let cyl = s.body.get_face(s.low).unwrap().surface;
+        s.body
+            .set_face_surface_unvouched_for_tests(
+                s.plane,
+                FaceSurface::Shared {
+                    key: cyl,
+                    sense: back.sense,
+                },
+            )
+            .unwrap();
+    }
     // `a→b` runs forward in `u`; the mid rim `c→f` is `rim_back`, whose
     // parameter runs from `U1` down.
     let m1 = s.body.split_edge(bottom, UM, tol()).unwrap();
     let m2 = s.body.split_edge(mid, U1 - UM, tol()).unwrap();
+    if lifted {
+        s.body
+            .set_face_surface_unvouched_for_tests(
+                s.plane,
+                FaceSurface::New {
+                    surface: original,
+                    sense: back.sense,
+                },
+            )
+            .unwrap();
+    }
     let point = |v: topo::VertexKey| {
         *s.body
             .get_point(s.body.get_vertex(v).unwrap().point)

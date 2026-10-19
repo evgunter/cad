@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [mates-declare-no-contact, a-mate-on-a-pinned-copy-refuses]
+blocked_on: [mates-declare-no-contact]
 ---
 
 INTENT stage 5, PR C. Ev approved the design in PR 4320 (fork log row
@@ -42,10 +42,11 @@ It waits on stages 3 and 4 as well as A and B:
 
 The `blocked_on` names `mates-declare-no-contact` (stage 4's last unit
 it needs, which records the at-rest contacts at the door; stage 4 spec
-§13) and `a-mate-on-a-pinned-copy-refuses` (stage 3's F, the unit that
-closes
+§13). It also named `a-mate-on-a-pinned-copy-refuses` (stage 3's F),
+which has landed: it closed
 `mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion`
-and A11 (4)'s declaring mates).
+and retired A11 (4)'s declaring mates, since a redundant mate now
+refuses `Overconstrained` at the door.
 
 When this unit lands, A5's opening and *Interference.* paragraphs
 become: "**A5 — The at-rest check.** Per space, the census examines

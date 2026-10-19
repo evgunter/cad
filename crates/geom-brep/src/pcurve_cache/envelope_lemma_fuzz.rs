@@ -30,14 +30,15 @@ mod projected;
 mod projected_searches;
 
 use super::{
-    ChartWindings, Derivation, EnvelopeTerm, EnvelopeTerms, FocalImage, Pcurve, PcurveCache,
-    PcurveCertifyError, PcurveCheck, Winding, carrier_harmonic, chart_image_harmonic, chart_pcurve,
-    derive_harmonic, focal_section_envelope, incidence, orthonormal_chart, periodic_envelope,
+    AxisMap, Channel, ChartMap, Derivation, EnvelopeTerm, EnvelopeTerms, FocalImage, Pcurve,
+    PcurveCache, PcurveCertifyError, PcurveCheck, angle_rate, carrier_harmonic, channels_of,
+    chart_image_harmonic, chart_pcurve, derive_harmonic, focal_section_envelope, incidence,
+    orthonormal_chart, periodic_envelope,
 };
 use geom::{Curve3, Surface};
 use geom_core::predicate::Band;
 use geom_core::tolerance::Tol;
-use geom_core::{Bounds, Interval, Point2, Point3, Real, Vec2, Vec3};
+use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 use test_utils::fuzz;
 
@@ -245,8 +246,8 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
                 Curve3::Ellipse {
                     center: at + axis * v0,
                     axis: normal,
-                    major: radius / theta.cos(),
-                    minor: radius,
+                    semi_u: radius / theta.cos(),
+                    semi_v: radius,
                     u_ref: major_dir,
                 },
             )
@@ -553,8 +554,8 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
                 return Curve3::Ellipse {
                     center,
                     axis,
-                    major,
-                    minor,
+                    semi_u: major,
+                    semi_v: minor,
                     u_ref,
                 };
             }
@@ -568,8 +569,8 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => {
             let axis = (axis + nudge(s, 3)).normalize();
@@ -577,8 +578,8 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
             Curve3::Ellipse {
                 center: center + nudge(s, 1),
                 axis,
-                major: scaled(s, major),
-                minor: scaled(s, minor),
+                semi_u: scaled(s, semi_u),
+                semi_v: scaled(s, semi_v),
                 u_ref,
             }
         }
@@ -598,33 +599,13 @@ fn sampled_sup(p: &Pcurve<f64>, s: &Surface<f64>, c: &Curve3<f64>, t0: f64, t1: 
         .fold(0.0, f64::max)
 }
 
-/// The chart's windings the derivation decided, as check 1 reads them
-/// off a stored image.
-fn windings_of(derivation: Derivation) -> ChartWindings {
-    let (u, v) = match derivation {
-        Derivation::Plane => (Winding::Zero, None),
-        Derivation::CylinderMoving { beta } | Derivation::ConeRim { beta, .. } => (beta, None),
-        Derivation::CylinderMeridian | Derivation::ConeRuling { .. } => (Winding::Zero, None),
-        Derivation::SphereParallel { beta } | Derivation::TorusParallel { beta } => {
-            (beta, Some(Winding::Zero))
-        }
-        Derivation::SphereMeridian { sigma, .. } | Derivation::TorusMeridian { sigma } => {
-            (Winding::Zero, Some(sigma))
-        }
-        Derivation::FocalSection => {
-            unreachable!("windings_of: this sweep draws no focal section")
-        }
-    };
-    ChartWindings { u, v }
-}
-
 /// The arm a derivation selected, as the coverage census names it: the
 /// variant, split where the arm's own terms differ (a moving class's
 /// zero winding, a ruling's anchor, a meridian's pole start).
 fn arm(derivation: Derivation) -> &'static str {
-    let moving = |beta: Winding, turning: &'static str, still: &'static str| match beta {
-        Winding::Zero => still,
-        Winding::Pos | Winding::Neg => turning,
+    let moving = |beta: i32, turning: &'static str, still: &'static str| match beta {
+        0 => still,
+        _ => turning,
     };
     match derivation {
         Derivation::CylinderMoving { beta } => {
@@ -718,17 +699,81 @@ fn scale(surface: &Surface<f64>, carrier: &Curve3<f64>, reach: f64) -> f64 {
 }
 
 fn lift_harmonic(p: &Pcurve<f64>) -> Pcurve<Interval> {
-    let Pcurve::Harmonic { p0, pa, pb, pl } = *p else {
+    let Pcurve::Harmonic { u, v } = *p else {
         unreachable!("the sweep stores harmonic images")
     };
     let f = Interval::from_f64;
-    let v = |q: Vec2<f64>| Vec2::new(f(q.x), f(q.y));
+    let lift = |c: Channel<f64>| match c {
+        Channel::Angle { phase, winding } => Channel::Angle {
+            phase: f(phase),
+            winding,
+        },
+        Channel::Free { c, a, b, l } => Channel::Free {
+            c: f(c),
+            a: f(a),
+            b: f(b),
+            l: f(l),
+        },
+    };
     Pcurve::Harmonic {
-        p0: Point2::new(f(p0.x), f(p0.y)),
-        pa: v(pa),
-        pb: v(pb),
-        pl: v(pl),
+        u: lift(u),
+        v: lift(v),
     }
+}
+
+/// `image` with each channel's numbers passed through `jitter`, in the
+/// order `u` then `v`: an angle's phase (its windings are structure, so
+/// no jitter reaches them), and a free channel's `c, a, b, l`.
+fn jittered(image: &Pcurve<f64>, mut jitter: impl FnMut(f64) -> f64) -> Pcurve<f64> {
+    let Pcurve::Harmonic { u, v } = *image else {
+        unreachable!("the sweep stores harmonic images")
+    };
+    let mut channel = |c: Channel<f64>| match c {
+        Channel::Angle { phase, winding } => Channel::Angle {
+            phase: jitter(phase),
+            winding,
+        },
+        Channel::Free { c, a, b, l } => Channel::Free {
+            c: jitter(c),
+            a: jitter(a),
+            b: jitter(b),
+            l: jitter(l),
+        },
+    };
+    let u = channel(u);
+    let v = channel(v);
+    Pcurve::Harmonic { u, v }
+}
+
+/// `image` translated by `du`, `dv`, with each channel's slope negated
+/// where `flip` asks. An angle's windings are negated through
+/// [`Channel::mapped`], by the reflection about its own phase, which
+/// keeps the phase; a free channel's linear coefficient is a number,
+/// negated as one.
+fn restated(image: &Pcurve<f64>, du: f64, dv: f64, flip: [bool; 2]) -> Pcurve<f64> {
+    let Pcurve::Harmonic { u, v } = image.translate(du, dv) else {
+        unreachable!("the rows store harmonic images")
+    };
+    let mv = |c: Channel<f64>, f: bool| match c {
+        _ if !f => c,
+        Channel::Angle { phase, .. } => c
+            .mapped(AxisMap::reflect_about(2.0 * phase))
+            .expect("a derived winding has a negation"),
+        Channel::Free { c, a, b, l } => Channel::Free { c, a, b, l: -l },
+    };
+    Pcurve::Harmonic {
+        u: mv(u, flip[0]),
+        v: mv(v, flip[1]),
+    }
+}
+
+/// `image`'s twin on a sphere chart ([`ChartMap::sphere_involution`]),
+/// then `shift` along `u`: `(u + π + shift, π − v)`.
+fn twin(image: &Pcurve<f64>, shift: f64) -> Pcurve<f64> {
+    image
+        .map_affine(ChartMap::sphere_involution())
+        .expect("a derived row has a twin")
+        .translate(shift, 0.0)
 }
 
 /// One row the sweeps read: the arm the derivation selected and each
@@ -765,13 +810,23 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     let (t0, t1) = span(s);
     let reach = t0.abs().max(t1.abs());
     // The stored image is what the mint derives on the chart as stored.
-    let (derived, _) = derive_harmonic(&carrier, &surface, band()).ok()?;
-    let (_, derivation) = derive_harmonic(&carrier, &orthonormal_chart(&surface), band()).ok()?;
+    let (derived, _) = derive_harmonic(
+        &carrier,
+        &surface,
+        super::Placement::own(&carrier, &surface),
+        band(),
+    )
+    .ok()?;
+    let (_, derivation) = derive_harmonic(
+        &carrier,
+        &orthonormal_chart(&surface),
+        super::Placement::own(&carrier, &surface),
+        band(),
+    )
+    .ok()?;
     // An ellipse a move left on a cone images as a cone section, which
     // its own lane certifies.
-    let Pcurve::Harmonic { p0, pa, pb, pl } = derived else {
-        return None;
-    };
+    derived.harmonic_form()?;
     let drift = if matches!(mode, 1 | 2) {
         magnitude(s)
     } else {
@@ -779,7 +834,7 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     };
     let pick = s.below(9);
     let mut slot = 0;
-    let mut jitter = |v: f64| {
+    let jitter = |v: f64| {
         slot += 1;
         if pick == 0 || pick == slot {
             v + drift * s.range(-1.0, 1.0)
@@ -787,19 +842,11 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
             v
         }
     };
-    let mut stored = Pcurve::Harmonic {
-        p0: Point2::new(jitter(p0.x), jitter(p0.y)),
-        pa: Vec2::new(jitter(pa.x), jitter(pa.y)),
-        pb: Vec2::new(jitter(pb.x), jitter(pb.y)),
-        pl: Vec2::new(jitter(pl.x), jitter(pl.y)),
-    };
+    let mut stored = jittered(&derived, jitter);
     let k = s.range(-1.5, 1.5).round();
     stored = stored.shift_branch(k, TAU);
     if matches!(surface, Surface::Sphere { .. }) && s.below(2) == 0 {
-        stored = stored.map_affine(
-            |p| Point2::new(p.x + PI, PI - p.y),
-            |v| Vec2::new(v.x, -v.y),
-        );
+        stored = twin(&stored, 0.0);
     }
     let form = carrier_harmonic(&carrier).unwrap();
     let context = || {
@@ -808,8 +855,16 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
              drift = {drift:e}, k = {k})"
         )
     };
-    let terms = periodic_envelope(&stored, &carrier, form, &surface, (t0, t1), reach, band())
-        .unwrap_or_else(|e| panic!("{}: the envelope refused at f64: {e}", context()));
+    let terms = periodic_envelope(
+        channels_of(&stored),
+        &carrier,
+        form,
+        &surface,
+        (t0, t1),
+        reach,
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("{}: the envelope refused at f64: {e}", context()));
     let envelope = terms.total();
     // A NaN envelope decides `Invalid`, which refuses (a circle past a
     // sphere's pole has no polar angle): sound, and no bound to compare.
@@ -843,7 +898,7 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     // never under the sampled sup.
     let lift = Interval::from_f64;
     if let Ok(at_iv) = periodic_envelope(
-        &lift_harmonic(&stored),
+        channels_of(&lift_harmonic(&stored)),
         &carrier.map_scalar(lift),
         carrier_harmonic(&carrier.map_scalar(lift)).unwrap(),
         &surface.map_scalar(lift),
@@ -915,11 +970,7 @@ fn the_envelope_dominates_where_no_circle_reaches() {
         let d = unit(&mut s);
         let d = (d - e * d.dot(e)).normalize();
         let pole = s.below(2) == 0;
-        let sigma: Winding = if s.below(2) == 0 {
-            Winding::Pos
-        } else {
-            Winding::Neg
-        };
+        let sigma: i32 = if s.below(2) == 0 { 1 } else { -1 };
         let delta = if pole {
             FRAC_PI_2 * if s.below(2) == 0 { 1.0 } else { -1.0 }
         } else {
@@ -927,7 +978,7 @@ fn the_envelope_dominates_where_no_circle_reaches() {
         };
         let moved = |s: &mut fuzz::Rng| unit(s) * (z * s.range(0.0, 0.9));
         let a0 = (d * delta.cos() + e * delta.sin()) * r;
-        let b0 = (e * delta.cos() - d * delta.sin()) * (r * sigma.value::<f64>());
+        let b0 = (e * delta.cos() - d * delta.sin()) * (r * angle_rate::<f64>(sigma));
         let (a, b) = (a0 + moved(&mut s), b0 + moved(&mut s));
         // The derivation's own reading of `a` decides the pole; a draw it
         // would read the other way is not this arm's.
@@ -953,11 +1004,15 @@ fn the_envelope_dominates_where_no_circle_reaches() {
             b,
             l: Vec3::zero(),
         };
-        let derivation = Derivation::SphereMeridian { pole, sigma };
+        let derivation = Derivation::SphereMeridian {
+            pole,
+            sigma,
+            far: false,
+        };
         let sup = (0..=4096)
             .map(|i| {
                 let t = -PI + TAU * f64::from(i) / 4096.0;
-                let v = v0 + sigma.value::<f64>() * t;
+                let v = v0 + angle_rate::<f64>(sigma) * t;
                 let image = (d_read * v.cos() + e * v.sin()) * r;
                 (image - (a * t.cos() + b * t.sin())).norm()
             })
@@ -1002,24 +1057,28 @@ fn the_envelope_dominates_where_no_circle_reaches() {
             radius: v * alpha.sin(),
             u_ref: Vec3::unit_x(),
         };
-        let Ok(Pcurve::Harmonic { p0, pa, pb, pl }) = chart_pcurve(&carrier, &cone, band()) else {
+        let Ok(image @ Pcurve::Harmonic { .. }) = chart_pcurve(&carrier, &cone, band()) else {
             continue;
         };
-        let stored = Pcurve::Harmonic {
-            p0: Point2::new(p0.x + s.range(-1.0, 1.0), p0.y + v * s.range(-0.5, 1.0)),
-            pa,
-            pb,
-            pl,
-        };
+        let du = s.range(-1.0, 1.0);
+        let dv = v * s.range(-0.5, 1.0);
+        let stored = restated(&image, du, dv, [false, false]);
         let sup = sampled_sup(&stored, &cone, &carrier, 0.0, TAU);
         let form = carrier_harmonic(&carrier).unwrap();
-        let Ok(at_f64) = periodic_envelope(&stored, &carrier, form, &cone, (0.0, TAU), TAU, band())
-        else {
+        let Ok(at_f64) = periodic_envelope(
+            channels_of(&stored),
+            &carrier,
+            form,
+            &cone,
+            (0.0, TAU),
+            TAU,
+            band(),
+        ) else {
             continue;
         };
         let carrier_i = carrier.map_scalar(f);
         let at_iv = periodic_envelope(
-            &lift_harmonic(&stored),
+            channels_of(&lift_harmonic(&stored)),
             &carrier_i,
             carrier_harmonic(&carrier_i).unwrap(),
             &cone.map_scalar(f),
@@ -1043,9 +1102,9 @@ fn the_envelope_dominates_where_no_circle_reaches() {
 /// an unlucky one). On a pinned stream of rows of every class, each
 /// row's dominance is asserted (as in the sweep above), and for every
 /// arm `derive_harmonic` selects, each of its terms is over the row's
-/// noise in at least one row. So a table that drops or under-states any
-/// term is met by a row where that term is load-bearing, at `f64` and
-/// at `Interval`, whatever seed the counterexample search draws.
+/// noise in at least one row. What it checks is that much: every term
+/// is exercised by a row where it is not negligible. It does not assert
+/// that dropping the term there breaks dominance.
 #[test]
 fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
     let mut s = fuzz::pinned(
@@ -1067,6 +1126,15 @@ fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
             }
         }
     }
+    // The pairs the stream reaches only through a move, written down
+    // (`zero_winding_axis_circle`).
+    for (row, _) in axis_charts().map(|(chart, _)| zero_winding_axis_circle(&chart, 4.0)) {
+        for term in EnvelopeTerm::ALL {
+            if row.terms[term.slot()] > row.noise {
+                seen.insert((row.arm, term.slot()));
+            }
+        }
+    }
     let missing: Vec<(&str, EnvelopeTerm)> = arm_terms()
         .into_iter()
         .flat_map(|(arm, terms)| terms.into_iter().map(move |t| (arm, t)))
@@ -1078,13 +1146,150 @@ fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
     );
 }
 
+/// **A zero-winding axis circle with its centre off the axis**, written
+/// down (implementer discipline §8, shape 2): a circle inside the band
+/// about a chart's axis (its winding reads Zero at its own radius), its
+/// plane ⊥ the axis, its centre `floors` noise floors off the axis. On a
+/// cone it is the zero-winding rim, on a torus the zero-winding parallel.
+/// The row's dominance is asserted at `f64` and at `Interval`, as the
+/// sweep's are. Returned with the row: its `Centre` term's lower end at
+/// `Interval`, which the row that pins the witness reads.
+fn zero_winding_axis_circle(chart: &Surface<f64>, floors: f64) -> (Row, f64) {
+    let (rho, h, reach) = (0.25 * band().zero(), 1.0, TAU);
+    let on_axis = circle(
+        Point3::new(0.0, 0.0, h),
+        Vec3::unit_z(),
+        rho,
+        Vec3::unit_x(),
+    );
+    let offset = floors * 64.0 * f64::EPSILON * scale(chart, &on_axis, reach);
+    let carrier = circle(
+        Point3::new(offset, 0.0, h),
+        Vec3::unit_z(),
+        rho,
+        Vec3::unit_x(),
+    );
+    let (stored, _) = derive_harmonic(
+        &carrier,
+        chart,
+        super::Placement::own(&carrier, chart),
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("{floors} floors: the rim derives: {e}"));
+    let (_, derivation) = derive_harmonic(
+        &carrier,
+        &orthonormal_chart(chart),
+        super::Placement::own(&carrier, chart),
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("{floors} floors: the rim derives: {e}"));
+    let noise = 64.0 * f64::EPSILON * scale(chart, &carrier, reach);
+    let terms = periodic_envelope(
+        channels_of(&stored),
+        &carrier,
+        carrier_harmonic(&carrier).unwrap(),
+        chart,
+        (0.0, TAU),
+        reach,
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("{floors} floors: the envelope refused at f64: {e}"));
+    let sup = sampled_sup(&stored, chart, &carrier, 0.0, TAU);
+    assert!(
+        terms.total() >= sup - noise,
+        "{floors} floors: envelope {:e} under the sampled sup {sup:e}",
+        terms.total()
+    );
+    let lift = Interval::from_f64;
+    let carrier_i = carrier.map_scalar(lift);
+    let at_iv = periodic_envelope(
+        channels_of(&lift_harmonic(&stored)),
+        &carrier_i,
+        carrier_harmonic(&carrier_i).unwrap(),
+        &chart.map_scalar(lift),
+        (lift(0.0), lift(TAU)),
+        lift(reach),
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("{floors} floors: the envelope refused at Interval: {e}"));
+    assert!(
+        at_iv.total().hi() >= sup - noise,
+        "{floors} floors: the Interval envelope {:e} under the sampled sup {sup:e}",
+        at_iv.total().hi()
+    );
+    (
+        Row {
+            arm: arm(derivation),
+            terms: terms.0,
+            noise,
+        },
+        at_iv.0[EnvelopeTerm::Centre.slot()].lo(),
+    )
+}
+
+/// **A zero-winding cone rim's and torus parallel's `Centre` are
+/// load-bearing at every ε row.** The pinned sweep's stream reached
+/// these pairs only through a move that carried an axis circle's centre
+/// off the axis, in three or four rows, and at ε 1e-12 a reshuffled
+/// stream lost the cone's; the witnesses are written down instead
+/// ([`zero_winding_axis_circle`]), at two, four and eight noise
+/// floors: at ε 1e-12 a floor is a few hundredths of the band, so the
+/// offset and the radius together keep the winding inside it.
+#[test]
+fn a_zero_winding_axis_circles_centre_off_the_axis_is_load_bearing() {
+    for ((chart, want), floors) in axis_charts()
+        .into_iter()
+        .flat_map(|c| [2.0, 4.0, 8.0].map(move |f| (c.clone(), f)))
+    {
+        let (row, centre_iv) = zero_winding_axis_circle(&chart, floors);
+        assert_eq!(row.arm, want, "{floors} floors");
+        assert!(
+            centre_iv > row.noise,
+            "{want}, {floors} floors: Centre's lower end {centre_iv:e} is not over the noise {:e} at Interval",
+            row.noise
+        );
+        let centre = row.terms[EnvelopeTerm::Centre.slot()];
+        assert!(
+            centre > row.noise,
+            "{want}, {floors} floors: Centre {centre:e} is not over the noise {:e}",
+            row.noise
+        );
+    }
+}
+
+/// The charts [`zero_winding_axis_circle`] is drawn on, with the arm each
+/// selects.
+fn axis_charts() -> [(Surface<f64>, &'static str); 2] {
+    [
+        (
+            Surface::Cone {
+                apex: Point3::origin(),
+                axis: Vec3::unit_z(),
+                half_angle: 0.4,
+                u_ref: Vec3::unit_x(),
+            },
+            "cone rim, zero winding",
+        ),
+        (
+            Surface::Torus {
+                center: Point3::origin(),
+                axis: Vec3::unit_z(),
+                major_radius: 2.0,
+                minor_radius: 1.5,
+                u_ref: Vec3::unit_x(),
+            },
+            "torus parallel, zero winding",
+        ),
+    ]
+}
+
 /// **A corrupted stored image refuses at `Interval` as at `f64`**
 /// (PR 3812's review R1, P3; static rows). Check 3 does not run over a
 /// box, so fidelity is what refuses a stored image that is not the
 /// carrier's; every corruption here refuses, at both scalars, and every
 /// legitimate renaming (a whole period, a sphere's involution twin)
-/// certifies at both. A branch past `MAX_BRANCH_PERIODS` refuses by
-/// type.
+/// certifies at both, however many periods out: check 4 decides the
+/// branch by the period's marks from zero, with no cap.
 #[test]
 fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
     let fixtures: Vec<(Surface<f64>, Curve3<f64>, &str)> = vec![
@@ -1168,79 +1373,86 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
     for (surface, carrier, name) in &fixtures {
         let sphere = name.starts_with("sphere");
         let angular_v = sphere || name.starts_with("torus");
-        let (image, _) = derive_harmonic(carrier, surface, band()).unwrap();
-        let Pcurve::Harmonic { p0, pa, pb, pl } = image else {
-            unreachable!()
+        let (image, _) = derive_harmonic(
+            carrier,
+            surface,
+            super::Placement::own(carrier, surface),
+            band(),
+        )
+        .unwrap();
+        let Pcurve::Harmonic {
+            u: u_channel,
+            v: v_channel,
+        } = image
+        else {
+            unreachable!("the fixtures derive harmonic images")
         };
-        let h = |p0: Point2<f64>, pl: Vec2<f64>| Pcurve::Harmonic { p0, pa, pb, pl };
-        // `Ok(())` certifies; `Err(true)` refuses by the branch's type;
-        // `Err(false)` refuses as a residual.
+        let h = |du: f64, dv: f64| restated(&image, du, dv, [false, false]);
+        // A slope negated: a winding's is structure, refused as the
+        // windings' mismatch (`Err(true)`); a free channel's linear
+        // coefficient is a number, refused as a residual (`Err(false)`).
+        let flipped = |c: Channel<f64>, structural: bool| {
+            let still = match c {
+                Channel::Angle { winding, .. } => winding == 0,
+                Channel::Free { l, .. } => l == 0.0,
+            };
+            match (still, structural) {
+                (true, _) => Ok(()),
+                (false, true) => Err(true),
+                (false, false) => Err(false),
+            }
+        };
+        // Off a sphere the twin map is no renaming: it negates a winding
+        // polar channel (a torus meridian's), a structural refusal, and
+        // reflects a free one, a residual.
+        let off_sphere_twin = if v_channel.winding().is_some_and(|w| w != 0) {
+            Err(true)
+        } else {
+            Err(false)
+        };
+        // `Ok(())` certifies; `Err(false)` refuses as a residual.
         let corruptions: Vec<(&str, Pcurve<f64>, Result<(), bool>)> = vec![
             ("exact", image.clone(), Ok(())),
-            ("u + τ", h(Point2::new(p0.x + TAU, p0.y), pl), Ok(())),
-            ("u − 3τ", h(Point2::new(p0.x - 3.0 * TAU, p0.y), pl), Ok(())),
-            (
-                "u + 7τ, past MAX_BRANCH_PERIODS",
-                h(Point2::new(p0.x + 7.0 * TAU, p0.y), pl),
-                Err(true),
-            ),
-            ("u + π", h(Point2::new(p0.x + PI, p0.y), pl), Err(false)),
-            (
-                "u + τ/2 + 1e-9",
-                h(Point2::new(p0.x + PI + 1e-9, p0.y), pl),
-                Err(false),
-            ),
-            (
-                "u + 1e3·ε",
-                h(Point2::new(p0.x + off, p0.y), pl),
-                Err(false),
-            ),
-            (
-                "v + 1e3·ε",
-                h(Point2::new(p0.x, p0.y + off), pl),
-                Err(false),
-            ),
+            ("u + τ", h(TAU, 0.0), Ok(())),
+            ("u − 3τ", h(-3.0 * TAU, 0.0), Ok(())),
+            ("u + 7τ", h(7.0 * TAU, 0.0), Ok(())),
+            ("u + π", h(PI, 0.0), Err(false)),
+            ("u + τ/2 + 1e-9", h(PI + 1e-9, 0.0), Err(false)),
+            ("u + 1e3·ε", h(off, 0.0), Err(false)),
+            ("v + 1e3·ε", h(0.0, off), Err(false)),
             (
                 "v + τ",
-                h(Point2::new(p0.x, p0.y + TAU), pl),
+                h(0.0, TAU),
                 if angular_v { Ok(()) } else { Err(false) },
             ),
             (
                 "slope u flipped",
-                h(p0, Vec2::new(-pl.x, pl.y)),
-                if pl.x == 0.0 { Ok(()) } else { Err(false) },
+                restated(&image, 0.0, 0.0, [true, false]),
+                flipped(u_channel, true),
             ),
+            // On a sphere meridian a polar winding negated is the
+            // twin's, so the row reads as the twin with its azimuth a
+            // half turn off, a residual.
             (
                 "slope v flipped",
-                h(p0, Vec2::new(pl.x, -pl.y)),
-                if pl.y == 0.0 { Ok(()) } else { Err(false) },
+                restated(&image, 0.0, 0.0, [false, true]),
+                flipped(v_channel, angular_v && !sphere),
             ),
-            (
-                "u + π, v kept (half a twin)",
-                h(Point2::new(p0.x + PI, p0.y), pl),
-                Err(false),
-            ),
+            ("u + π, v kept (half a twin)", h(PI, 0.0), Err(false)),
             (
                 "the involution twin",
-                image.map_affine(
-                    |p| Point2::new(p.x + PI, PI - p.y),
-                    |v| Vec2::new(v.x, -v.y),
-                ),
-                if sphere { Ok(()) } else { Err(false) },
+                twin(&image, 0.0),
+                if sphere { Ok(()) } else { off_sphere_twin },
             ),
             (
                 "the twin, a period on",
-                image.map_affine(
-                    |p| Point2::new(p.x + PI + TAU, PI - p.y),
-                    |v| Vec2::new(v.x, -v.y),
-                ),
-                if sphere { Ok(()) } else { Err(false) },
+                twin(&image, TAU),
+                if sphere { Ok(()) } else { off_sphere_twin },
             ),
         ];
         for (what, stored, want) in corruptions {
             let read = |r: Result<(), PcurveCertifyError>| match r {
                 Ok(()) => Ok(()),
-                Err(PcurveCertifyError::BranchOutOfReach) => Err(true),
                 // At f64 check 3's cross-check may refuse first.
                 Err(
                     PcurveCertifyError::ResidualExceeded {
@@ -1258,6 +1470,7 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
                         ..
                     },
                 ) => Err(false),
+                Err(PcurveCertifyError::WindingMismatch { .. }) => Err(true),
                 Err(other) => panic!("{name} / {what}: an unexpected refusal {other:?}"),
             };
             let at_f64 = read(
@@ -1275,7 +1488,11 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
                 )
                 .map(|_| ()),
             );
-            if at_f64 != want || at_iv != want {
+            // At f64 check 3's cross-check runs before check 4, so a
+            // winding mismatch may refuse first as the schedule's
+            // residual.
+            let f64_reads = at_f64 == want || (want == Err(true) && at_f64 == Err(false));
+            if !f64_reads || at_iv != want {
                 wrong.push(format!(
                     "{name} / {what}: want {want:?}, f64 {at_f64:?}, Interval {at_iv:?}"
                 ));
@@ -1302,10 +1519,15 @@ fn the_closed_form_tables_compose_back_to_the_carrier() {
         let (surface, carrier) = on_chart(&mut s, class);
         let (t0, t1) = span(&mut s);
         let reach = t0.abs().max(t1.abs());
-        let (derived, derivation) = derive_harmonic(&carrier, &surface, band())
-            .unwrap_or_else(|e| panic!("trial {trial} ({class:?}): an exact carrier refused: {e}"));
+        let (derived, derivation) = derive_harmonic(
+            &carrier,
+            &surface,
+            super::Placement::own(&carrier, &surface),
+            band(),
+        )
+        .unwrap_or_else(|e| panic!("trial {trial} ({class:?}): an exact carrier refused: {e}"));
         let noise = 1e-12 * scale(&surface, &carrier, reach);
-        let image = chart_image_harmonic(&derived, &surface, windings_of(derivation))
+        let image = chart_image_harmonic(&derived, &surface)
             .unwrap_or_else(|| panic!("trial {trial} ({class:?}): no closed-form image"));
         let form = carrier_harmonic(&carrier).unwrap();
         let gaps = [
@@ -1569,8 +1791,8 @@ fn the_phase_remainder_carries_a_carrier_that_is_the_harmonic_part() {
     let carrier = Curve3::Ellipse {
         center: Point3::origin() - d0 * (big * e),
         axis: x.cross(y).normalize(),
-        major: x.norm(),
-        minor: y.norm(),
+        semi_u: x.norm(),
+        semi_v: y.norm(),
         u_ref: x.normalize(),
     };
     let (t0, t1) = (-0.5, 0.5);

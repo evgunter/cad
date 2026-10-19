@@ -185,7 +185,7 @@ fn an_empty_open_list_is_the_sealed_hollow() {
         "sealed cup",
     );
     // Every face is a survivor or a cavity twin: no rim was minted.
-    let table = &ev.value(sealed).expect("a value").name_table;
+    let table = ev.table_at(sealed).expect("a value");
     assert!(
         table.iter().all(|(n, _)| !matches!(
             n.path.first(),
@@ -204,8 +204,7 @@ fn the_rim_inner_and_outer_names_resolve() {
     let blank = blank_of(&d.doc);
     let shell = d.result.expect("head");
     let ev = eval::<f64>(&d.doc);
-    let value = ev.value(shell).expect("the cup evaluated");
-    let table = &value.name_table;
+    let table = ev.table_at(shell).expect("the cup evaluated");
     for name in cup_names(&d.doc, blank, shell) {
         assert!(
             matches!(table.lookup(&name), Some(editor_core::Entry::Unique(_))),
@@ -272,7 +271,7 @@ fn a_rebuild_moves_the_forms_and_keeps_the_names() {
     let names = cup_names(&d.doc, blank, shell);
     let resolved_before: Vec<_> = names
         .iter()
-        .map(|n| before.value(shell).unwrap().name_table.lookup(n).cloned())
+        .map(|n| before.table_at(shell).unwrap().lookup(n).cloned())
         .collect();
 
     let bumped = d.bumped();
@@ -285,7 +284,6 @@ fn a_rebuild_moves_the_forms_and_keeps_the_names() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the wall bumps")
     .doc;
@@ -298,10 +296,7 @@ fn a_rebuild_moves_the_forms_and_keeps_the_names() {
         cup::closed_forms(cup::L, cup::H_BUMPED, cup::T_BUMPED),
         "bumped cup",
     );
-    let table = &after
-        .value(shell)
-        .expect("the bumped cup evaluated")
-        .name_table;
+    let table = after.table_at(shell).expect("the bumped cup evaluated");
     for (name, was) in names.iter().zip(&resolved_before) {
         let now = table.lookup(name).cloned();
         assert!(
@@ -340,7 +335,7 @@ fn the_vessel_opens_its_mouth_into_one_rim() {
     // Outer: base, foot ×2, belly ×2; the rim; cavity: the same five.
     assert_eq!(body.faces().count(), 11, "5 outer + 1 rim + 5 cavity");
     let pot = d.doc.upstream(shell)[0];
-    let table = &ev.value(shell).expect("evaluated").name_table;
+    let table = ev.table_at(shell).expect("evaluated");
     let rim = shelled(
         shell,
         EntityKind::Face,
@@ -377,7 +372,7 @@ fn the_capped_vessel_opens_its_cap_into_a_seamed_band() {
     );
     // Outer: base, foot ×2; the band ×2; cavity: base, foot ×2.
     assert_eq!(body.faces().count(), 8, "3 outer + 2 band + 3 cavity");
-    let table = &ev.value(shell).expect("evaluated").name_table;
+    let table = ev.table_at(shell).expect("evaluated");
     let cap = fixture::piece(&doc, pot, 0, vessel::SEG_CAP as usize);
     for (which, name) in [
         ("the u = 0 half", editor_core::band(pot, cap)),
@@ -418,7 +413,7 @@ fn a_planar_void_designation_opens_and_its_rim_is_named_for_it() {
         Ok(()),
         "tier 3"
     );
-    let table = &ev.value(opened).expect("evaluated").name_table;
+    let table = ev.table_at(opened).expect("evaluated");
     let rim = shelled(opened, EntityKind::Face, RoleSeg::Rim(ceiling.into()));
     assert!(
         matches!(table.lookup(&rim), Some(editor_core::Entry::Unique(_))),
@@ -472,30 +467,28 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
             "a selected name failed to resolve: the side wall over piece 7 of the profile \
              step {step} of node {blank} no longer resolves in this evaluation: the recorded \
              reference disagrees with the recipe as it stands on the derivation path (node \
-             {blank}'s payload differs)"
+             {blank}'s payload differs). Recourse: rebind it"
         )
     );
 
-    // (b) a name of the wrong KIND: an edge that really is there, so
-    // it resolves and then fails the door's faces-only check.
-    let mut edge = None;
-    let (doc, n) = cup_with(|blank| {
-        let open = fixture::prism_edges(&doc, blank, 4)[0].clone();
-        edge = Some(open.clone());
-        Node::shell(blank, fixture::len(cup::T), vec![open])
-    });
-    let edge = edge.expect("the shell was built");
-    let e = refusal(&doc, n);
+    // (b) a name of the wrong KIND: an edge that really is there,
+    // refused at the insert against the seat's kind, before anything
+    // resolves.
+    let d = cup::document();
+    let blank = blank_of(&d.doc);
+    let open = fixture::prism_edges(&d.doc, blank, 4)[0].clone();
+    let err = fixture::insert_refused(&d.doc, Node::shell(blank, fixture::len(cup::T), vec![open]));
     assert!(
         matches!(
-            &e,
-            NodeErrorKind::SelectKind { found, .. } if found.kind() == EntityKind::Edge
+            &err,
+            editor_core::EditError::SelectionNameKind {
+                at: 0,
+                found: EntityKind::Edge,
+                expected: EntityKind::Face,
+                ..
+            }
         ),
-        "{e:?}"
-    );
-    assert_eq!(
-        e.to_string(),
-        format!("a selection names {edge}, which is an edge, not a face")
+        "{err:?}"
     );
 
     // (c) a non-positive thickness: the kernel's gate, carried WITH its
@@ -771,7 +764,7 @@ fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
     let tube = r.insert(fixture::revolve_about(
         profile,
         (0.0, 0.0),
-        (0.0, 1.0),
+        crate::fixture::along_y(),
         fixture::ang(std::f64::consts::TAU),
     ));
     // The outer wall: the meridian's second segment, at r = 1/2.
@@ -791,7 +784,7 @@ fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
         Ok(()),
         "tier 3"
     );
-    let table = &ev.value(shell).expect("evaluated").name_table;
+    let table = ev.table_at(shell).expect("evaluated");
     for (which, seg) in [
         ("the first band", RoleSeg::Rim(wall.clone().into())),
         (

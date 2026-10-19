@@ -709,6 +709,17 @@ impl Real for Interval {
         Self(self.0.powi(n))
     }
 
+    /// `[lo·k, hi·k]` unpadded where both results are strictly above the
+    /// smallest normal and `k` is
+    /// a positive normal power of two; the general product everywhere
+    /// else ([`DInterval::scale_pow2`] states each case). Bit for bit
+    /// the general product wherever that product is itself exact, and
+    /// inside its one-step pad between the smallest normal and the 2Prod
+    /// floor, where it cannot certify the exact value.
+    fn scale_pow2(self, k: f64) -> Self {
+        Self(self.0.scale_pow2(k))
+    }
+
     /// The pair `(sin(self), cos(self))`, each component an outward-padded
     /// enclosure of its own. No paired/fused override could do
     /// better: at interval type the two components are independent
@@ -842,6 +853,48 @@ impl crate::real::CertifiedEnclosure for Interval {
 /// through to whichever reader certifies. A NaI (NaN ends) or an empty
 /// enclosure (inverted ends) is no bracket, so it locates nothing.
 impl crate::spline::SpanLocate for Interval {
+    /// A blend's `t` inside `[0, 1]` over finite `x` and `y`: the hull
+    /// of the step at the eight corners. `x + (y − x)·t` is linear in
+    /// `x`, in `y` and in `t` separately, so its range over the box is
+    /// attained at a corner, and each corner, a step of three points,
+    /// is enclosed outward; the inputs' widths are met, not multiplied
+    /// (the expression reads `x` twice). The hull carries the
+    /// expression's decoration, the weakest of its inputs' and steps':
+    /// corners built from fresh points are `Com`, and an input that is
+    /// not certified must not come out certified. Otherwise (an
+    /// unblend's `t` above `1`, an unbounded or poison input) the
+    /// expression.
+    fn homogeneous_step(x: Self, y: Self, t: Self) -> Self {
+        let plain = x + (y - x) * t;
+        let (xl, xh, yl, yh) = (Bounds::lo(x), Bounds::hi(x), Bounds::lo(y), Bounds::hi(y));
+        let (tl, th) = (Bounds::lo(t), Bounds::hi(t));
+        let finite = [xl, xh, yl, yh].iter().all(|v| v.is_finite());
+        if !(finite && tl >= 0.0 && th <= 1.0) {
+            return plain;
+        }
+        let corner = |a: f64, b: f64, s: f64| {
+            let (a, b, s) = (
+                Self(DInterval::point(a)),
+                Self(DInterval::point(b)),
+                Self(DInterval::point(s)),
+            );
+            a + (b - a) * s
+        };
+        let mut acc = corner(xl, yl, tl);
+        for (a, b, s) in [
+            (xl, yl, th),
+            (xl, yh, tl),
+            (xl, yh, th),
+            (xh, yl, tl),
+            (xh, yl, th),
+            (xh, yh, tl),
+            (xh, yh, th),
+        ] {
+            acc = Self(enclosure_hull_of(acc.0, corner(a, b, s).0));
+        }
+        Self(cap_decoration(acc.0, plain.0.decoration()))
+    }
+
     fn locate_spans<'a>(
         self,
         knots: &'a crate::spline::KnotVector,
@@ -866,10 +919,10 @@ impl crate::spline::SpanLocate for Interval {
         ends: (f64, f64),
         _held_ends: (Self, Self),
     ) -> Vec<Self> {
-        // A held knot at `Interval` is the point of its `f64` structure,
-        // so the certified restriction reads the structure; the held
-        // values are checked for length only, as at every scalar.
-        if held.len() != span.knots().knots().len() {
+        // The certified restriction reads the knots' `f64` vector (C6's
+        // interim), which a carrier's point knots have; the held values
+        // are checked for length only, as at every scalar.
+        if held.len() != span.structure().len() {
             return vec![Self::from_f64(f64::NAN); span.degree() + 1];
         }
         crate::spline::blossom::restrict_window(window, span, ends)
@@ -878,6 +931,15 @@ impl crate::spline::SpanLocate for Interval {
     fn point_value(self) -> Option<f64> {
         let (lo, hi) = (Bounds::lo(self), Bounds::hi(self));
         (lo == hi && !lo.is_nan()).then_some(lo)
+    }
+
+    fn structure_bracket(self) -> Option<(f64, f64)> {
+        let (lo, hi) = (Bounds::lo(self), Bounds::hi(self));
+        (!self.is_poison() && lo <= hi).then_some((lo, hi))
+    }
+
+    fn structure_positive(self) -> bool {
+        Bounds::lo(self) > 0.0 && !self.is_poison()
     }
 
     fn plain_constant(self) -> Option<f64> {
@@ -1242,6 +1304,29 @@ mod tests {
     /// Shorthand: the enclosure [lo, hi].
     fn iv(lo: f64, hi: f64) -> Interval {
         Interval::from_bounds(lo, hi)
+    }
+
+    /// **The interval scalar's `scale_pow2` is the backend's exact
+    /// scale, not the trait's default product.** Just above the
+    /// smallest normal the general product cannot certify an exact
+    /// halving (it is under the backend's 2Prod floor) and pads it one
+    /// step; the override returns the exact half, so a lost override
+    /// reds here. Above the floor the two agree bit for bit, and at
+    /// `f64` the door is the product.
+    #[test]
+    fn the_power_of_two_scale_is_the_backends_exact_scale() {
+        let least = f64::MIN_POSITIVE;
+        let x = iv(4.0 * least, 8.0 * least);
+        let got = x.scale_pow2(0.5);
+        assert_eq!((got.lo(), got.hi()), (2.0 * least, 4.0 * least));
+        let general = x * Interval::from_f64(0.5);
+        assert!(general.lo() < got.lo() && got.hi() < general.hi());
+        let x = iv(-3.0, 0.375);
+        assert_eq!(
+            x.scale_pow2(0.25).repr_bits(),
+            (x * Interval::from_f64(0.25)).repr_bits()
+        );
+        assert_eq!(Real::scale_pow2(0.375_f64, 0.25), 0.375 * 0.25);
     }
 
     /// A named unary trait operation (for the monotonicity tables).

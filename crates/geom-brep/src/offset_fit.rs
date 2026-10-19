@@ -1583,8 +1583,8 @@ fn expiry(
 /// The seed sample parameters, per direction (module docs).
 fn seed_params(base: &NurbsSurface<f64>) -> (Vec<f64>, Vec<f64>) {
     (
-        seed_direction(base.knots_u()),
-        seed_direction(base.knots_v()),
+        seed_direction(base.knots_u_f64_interim()),
+        seed_direction(base.knots_v_f64_interim()),
     )
 }
 
@@ -1678,8 +1678,8 @@ fn interpolate_offset_grid(
     vs: &[f64],
 ) -> Result<NurbsSurface<f64>, OffsetFitError> {
     let (nu, nv) = (us.len(), vs.len());
-    let (ulo, uhi) = base.knots_u().domain();
-    let (vlo, vhi) = base.knots_v().domain();
+    let (ulo, uhi) = base.knots_u_f64_interim().domain();
+    let (vlo, vhi) = base.knots_v_f64_interim().domain();
     let ubar = normalized(us, ulo, uhi);
     let vbar = normalized(vs, vlo, vhi);
     // `Q_{k,ℓ}`, flattened per u-row as `3·nv` scalars so the u pass
@@ -2008,8 +2008,8 @@ fn channel<'n>(
     form: NetForm,
     origin: &Origin,
 ) -> TensorCoeffs<'n> {
-    let nv = n.knots_v().control_count();
-    TensorCoeffs::from_fn(n.knots_u(), n.knots_v(), |i, j| {
+    let nv = n.knots_v_f64_interim().control_count();
+    TensorCoeffs::from_fn(n.knots_u_f64_interim(), n.knots_v_f64_interim(), |i, j| {
         // Row-major layout: control[iu·nv + iv] — the net's own.
         let (p, w) = (n.control()[i * nv + j], n.weights()[i * nv + j]);
         let x = Interval::point(match c {
@@ -2026,8 +2026,8 @@ fn channel<'n>(
 
 /// The weight net `w` of a control net, as point enclosures.
 fn weight_net(n: &NurbsSurface<f64>) -> TensorCoeffs<'_> {
-    let nv = n.knots_v().control_count();
-    TensorCoeffs::from_fn(n.knots_u(), n.knots_v(), |i, j| {
+    let nv = n.knots_v_f64_interim().control_count();
+    TensorCoeffs::from_fn(n.knots_u_f64_interim(), n.knots_v_f64_interim(), |i, j| {
         Interval::point(n.weights()[i * nv + j])
     })
 }
@@ -2155,13 +2155,13 @@ impl Composite {
         let rational = base_form == NetForm::Homogeneous;
         let (base, fit) = (unit_scaled_weights(base), unit_scaled_weights(fit));
         let (base, fit) = (&*base, &*fit);
-        let (ku, kv) = (base.knots_u(), base.knots_v());
+        let (ku, kv) = (base.knots_u_f64_interim(), base.knots_v_f64_interim());
         // One break list per direction, carrying every operand's
         // interior knots — the alignment substrate (patch docs).
         let mut extra_u: Vec<f64> = ku.interior_knots().map(|(t, _)| t).collect();
-        extra_u.extend(fit.knots_u().interior_knots().map(|(t, _)| t));
+        extra_u.extend(fit.knots_u_f64_interim().interior_knots().map(|(t, _)| t));
         let mut extra_v: Vec<f64> = kv.interior_knots().map(|(t, _)| t).collect();
-        extra_v.extend(fit.knots_v().interior_knots().map(|(t, _)| t));
+        extra_v.extend(fit.knots_v_f64_interim().interior_knots().map(|(t, _)| t));
         let dec = |grid: &TensorCoeffs<'_>| PatchSpans::decompose(grid, &extra_u, &extra_v);
         // The FIT's homogeneous net `F̃ = w_fit·P_fit` and its weight
         // channel. On a unit-weight fit `w_fit ≡ 1`, the spatial net
@@ -2862,8 +2862,8 @@ mod tests {
             .map(|k| 1.0 + 0.15 * f64::from(u32::try_from(k % 5).unwrap()) / 4.0)
             .collect();
         let rational = geom::NurbsSurface::new(
-            base.knots_u().clone(),
-            base.knots_v().clone(),
+            base.knots_u_f64_interim().clone(),
+            base.knots_v_f64_interim().clone(),
             base.control().to_vec(),
             weights,
         )
@@ -2973,10 +2973,15 @@ mod tests {
             .map(|w| Point3::new(*w, 0.0, 0.0))
             .collect();
         let ones = vec![1.0; n.weights().len()];
-        geom::NurbsSurface::new(n.knots_u().clone(), n.knots_v().clone(), control, ones)
-            .unwrap()
-            .eval(u, v)
-            .x
+        geom::NurbsSurface::new(
+            n.knots_u_f64_interim().clone(),
+            n.knots_v_f64_interim().clone(),
+            control,
+            ones,
+        )
+        .unwrap()
+        .eval(u, v)
+        .x
     }
 
     /// **`sup‖M̃‖` and `sup‖Y‖` are certified from above, and never
@@ -3286,8 +3291,8 @@ mod tests {
         }
 
         let twos = geom::NurbsSurface::new(
-            cylinder.knots_u().clone(),
-            cylinder.knots_v().clone(),
+            cylinder.knots_u_f64_interim().clone(),
+            cylinder.knots_v_f64_interim().clone(),
             cylinder.control().to_vec(),
             vec![2.0; 6],
         )
@@ -3297,7 +3302,7 @@ mod tests {
         let sup = want.iter().map(|b| f64::from_bits(*b)).fold(0.0, f64::max);
         assert_eq!(
             sup.to_bits(),
-            1.018_060_029_513_911_7e-1_f64.to_bits(),
+            1.018_060_029_513_912e-1_f64.to_bits(),
             "the weights-2 net's sup bound is {sup:e}, not the rational arm's"
         );
         for k in [-2, -301, 299] {
