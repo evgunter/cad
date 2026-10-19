@@ -11,7 +11,7 @@ refs: [a-placement-relates-two-frames]
 
 From row 162 (PR 5312). Ev, chat 2026-10-18: "a space is defined by a set of placements, and then provides a nice api to things downstream where the api doesn't say anything about how the geometry got there". The ratified sentence is "what reads it downstream reads the space's bodies, never a placement". But nothing represents a space's body today. A copy is an output of its placement, read by key (`CopyKey`, `BodyRead.key`, `crates/editor-core/src/operand.rs:502`; `copy_of`, `eval/wire.rs:2575`). Its names are re-minted under the placement node (`RoleSeg::Placed`, `names/role.rs:1579`; `name_placed*`, `names/emit.rs:919–1000`; `InPart`, `emit.rs:951`). Line numbers are stage 3 D's branch at bf45076901.
 
-Weighed by an Opus and a Fable designer (fork-log row 163). The clause is in the `[ev]` PR that opens this item.
+Weighed by an Opus and a Fable designer (fork-log row 165). The clause is in the `[ev]` PR that opens this item.
 
 **Converged:**
 - A body of a space is a variable of that space: a construction's or operation's output, or a *pick*. A pick is a `Body` variable defined as one copy a placement places there; it is a `Bodies` family read by index for a pattern.
