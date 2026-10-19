@@ -2539,13 +2539,25 @@ fn a_second_name_on_one_entity_refuses_as_entity_named() {
             "rendered without {wanted:?}: {shown}"
         );
     }
+    let twice = NameTable::new()
+        .insert_tied(cap(CapEnd::End), vec![ent, ent])
+        .expect_err("one face offered twice");
     assert_eq!(
-        NameTable::new().insert_tied(cap(CapEnd::End), vec![ent, ent]),
-        Err(SeatingRefusal::EntityNamed(EntityNamed {
+        twice,
+        SeatingRefusal::EntityNamed(EntityNamed {
             name: Box::new(cap(CapEnd::End)),
             held: Box::new(cap(CapEnd::End)),
-        })),
+        }),
         "`insert_tied` refuses one face offered twice as the name it is offered"
+    );
+    let shown = NamingError::from(twice).to_string();
+    assert!(
+        shown.contains("the end cap") && shown.contains("offered the same face twice"),
+        "the list's repeat is the fact it states: {shown}"
+    );
+    assert!(
+        !shown.contains("already names"),
+        "a face offered twice is not said to hold a name already: {shown}"
     );
 }
 

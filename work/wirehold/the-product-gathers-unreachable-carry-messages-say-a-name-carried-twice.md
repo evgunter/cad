@@ -2,8 +2,11 @@
 id: the-product-gathers-unreachable-carry-messages-say-a-name-carried-twice
 kind: issue
 title: The product gather's unreachable carry refusals say a name was carried twice, whatever SeatingRefusal arm they caught
-status: open
+status: parked
 opened: 2026-10-19
+priority: P4
+cost: E
+blocked_on: [transform-retires-into-a-placement]
 ---
 
 
@@ -28,10 +31,16 @@ collision is ruled out for another reason (each graft mints distinct
 aggregate keys), and neither message says so. The payload is printed,
 so nothing is lost, but the sentence states the wrong invariant.
 
-The lane did not edit `product.rs`, which is held placement ground
-(D10).
 
 ## Repair shape
 
 Match the arm, or word each message as the invariant that rules out
 every arm: a copy's rows are distinct names over distinct keys.
+
+## Parked on the D10 hold (2026-10-19, WIRE)
+
+`product.rs` is the product gather, held placement ground under D10,
+so `wire-p4` left it alone and filed this rather than editing it.
+Parked on `transform-retires-into-a-placement`, the row whose landing
+releases that ground. Re-read both sites then: the gather may have
+moved.

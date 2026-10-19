@@ -4,6 +4,8 @@ kind: issue
 title: The feature-tree census's kernel-payload lists are kept in step with their enums by hand, and four skip arms
 status: open
 opened: 2026-10-19
+priority: P4
+cost: E
 ---
 
 
@@ -34,6 +36,10 @@ comment above it says), so it is not a hit.
 
 Some of these may be unreachable through a node, or covered by
 another list. Each wants a reason in-file or a row.
+
+`every_forwarded_editor_arm_has_a_row` cites this row for every
+`NodeErrorKind` arm that forwards a kernel refusal (`forward`'s
+`UNWELDED_KERNEL`), and asserts the file still exists.
 
 ## Repair shape
 

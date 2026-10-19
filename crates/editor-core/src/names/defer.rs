@@ -47,7 +47,7 @@ use std::collections::BTreeMap;
 use super::emit::NamingError;
 use super::role::NameRef;
 use super::table::{
-    Candidate, DuplicateName, EntityKey, EntityNamed, EntityRef, Entry, NameTable, SeatingRefusal,
+    Candidate, DuplicateName, EntityKey, EntityRef, Entry, NameTable, SeatingRefusal,
 };
 use crate::node::RecipeNodeId;
 
@@ -173,7 +173,7 @@ impl TieRows {
         e: EntityRef,
     ) -> Result<(), SeatingRefusal> {
         let rows = self.0.entry(name.clone()).or_default();
-        let distinct = |(held, _): &Deferred| match (held, candidate) {
+        let distinct = |(carried, _): &Deferred| match (carried, candidate) {
             (Some(Candidate::Of(a)), Candidate::Of(b)) => *a != b,
             _ => false,
         };
@@ -183,11 +183,8 @@ impl TieRows {
             }
             .into());
         }
-        if rows.iter().any(|&(_, held)| held == e) {
-            return Err(SeatingRefusal::EntityNamed(EntityNamed {
-                name: Box::new((*name).clone()),
-                held: Box::new((*name).clone()),
-            }));
+        if rows.iter().any(|&(_, other)| other == e) {
+            return Err(SeatingRefusal::entity_named(&name, &name));
         }
         rows.push((Some(candidate), e));
         Ok(())

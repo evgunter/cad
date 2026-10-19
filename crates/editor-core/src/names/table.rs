@@ -1,9 +1,11 @@
 //! The N4 per-node name table: bidirectional `NameRef ↔ entity` —
 //! one SHARED name per row, indexed both ways — covering EVERY
 //! boundary entity of a node's output bodies, with N2 tie marks.
-//! Injectivity is enforced at insertion: a would-be duplicate name
-//! outside the tie path is the no-silent-aliasing bug N1 rests on,
-//! surfaced as a typed error (this crate has no panic paths).
+//! Injectivity is enforced at insertion, both ways, as typed errors
+//! (this crate has no panic paths): a would-be duplicate name outside
+//! the tie path is the no-silent-aliasing bug N1 rests on
+//! ([`DuplicateName`]), and an entity offered a second name, or twice
+//! in one list, breaks the reverse direction ([`EntityNamed`]).
 //!
 //! Every door comes in two spellings and one body. The public door
 //! takes a [`StableName`] and shares it; its `_ref` twin, which the
@@ -275,8 +277,9 @@ impl PartialEq for Lines {
 
 impl Eq for Lines {}
 
-/// A duplicate-name insertion outside the tie path (the
-/// no-silent-aliasing bug, typed).
+/// A name offered to a second row outside the tie path, or a (name,
+/// candidate) pair offered twice: the forward map's injectivity, the
+/// no-silent-aliasing bug, typed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DuplicateName {
     /// The colliding name.
@@ -348,7 +351,7 @@ impl SeatingRefusal {
         })
     }
 
-    fn entity_named(name: &StableName, held: &StableName) -> Self {
+    pub(super) fn entity_named(name: &StableName, held: &StableName) -> Self {
         Self::EntityNamed(EntityNamed {
             name: Box::new(name.clone()),
             held: Box::new(held.clone()),

@@ -201,6 +201,9 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
 /// through", and none of the shared unlabelled repairs — by exact row
 /// id, grouped under the row that files them with their owner.
 pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
+    // work/wire/two-refusals-the-widened-census-finds-state-no-recourse.md
+    "ParamBox/SymbolsOverABox",
+    "UnresolvedRead",
     // work/wire/wire-refusals-short-of-the-shape-guard.md
     "AssertionDimension",
     "BlendSelectionEmpty",
@@ -220,7 +223,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MeasureUnsupported",
     "MissingInput",
     "ParamBox/AxisUnrepresentable",
-    "ParamBox/SymbolsOverABox",
     "ParamBox/UnknownParam",
     // work/wirehold/placement-rule-refusals-state-no-recourse.md
     "FaceFrameNotPlanar",
@@ -691,10 +693,13 @@ fn every_node_refusal_renders_within_the_budget() {
     }
 }
 
-use editor_core::{EvalError, ParamBoxError, PlacementRuleFault, ResolveError, SeedError};
+use editor_core::{
+    EvalError, ParamBoxError, PiecesFault, PlacementRuleFault, ResolveError, SeedError,
+};
 
 test_utils::f6_variants! {
-    /// `EvalError`'s arms, the roster the `Expr/` rows are welded to.
+    /// `EvalError`'s arms, for the `Expr/`, `PoseScalar/`,
+    /// `MeasureNonFinite/` and `PayloadExpr/` rows.
     const EVAL_ERROR: EvalError = [
         UnresolvedVar,
         OutputRead,
@@ -731,74 +736,232 @@ test_utils::f6_variants! {
 }
 
 test_utils::f6_variants! {
+    /// `PiecesFault`'s arms, for the `ProfilePieces/` rows.
+    const PIECES_FAULT: PiecesFault = [NoRecord, NoIds, Length, NoStepId];
+}
+
+test_utils::f6_variants! {
     /// `ResolveError`'s arms, for the `SelectResolve/` rows.
     const RESOLVE_ERROR: ResolveError = [Vanished, Ambiguous, ReadGone, NodeGone];
 }
 
-/// The arm of the forwarded payload a row of `editor_payloads` carries,
-/// with the family its row name opens with.
-fn forwarded_arm(kind: &NodeErrorKind) -> Option<(&'static str, String)> {
-    use test_utils::f6::variant_identifier as arm;
-    Some(match kind {
-        NodeErrorKind::Expr { source, .. } => ("Expr", arm(source)),
-        NodeErrorKind::ParamBox { source } => ("ParamBox", arm(source)),
-        NodeErrorKind::Seed { source } => ("Seed", arm(source)),
-        NodeErrorKind::PlacementRule(e) => ("PlacementRule", arm(e)),
-        NodeErrorKind::Naming(e) => ("Naming", arm(e)),
-        NodeErrorKind::SelectResolve { error, .. } => ("SelectResolve", arm(error)),
-        _ => return None,
-    })
+test_utils::f6_variants! {
+    /// `NodeErrorKind`'s arms: the roster [`forward`] classifies and the
+    /// census rows are checked against, so an arm with no row reds and
+    /// an arm added to the enum stops this compiling until it is here.
+    const NODE_ERROR_KIND: NodeErrorKind = [
+        Expr, Profile, ProfileReplay, ProfileLaneReplay, ProfileAnchor, ProfilePieces,
+        ProfileRecordMissing, Extrude, Revolve, Tube, Split, Blend, Boolean, Transform, Motion,
+        Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
+        ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand, ProductOperand,
+        UnfinishedOperand, EmptyHalf, InstanceOutOfRange, NoSuchCopy, CopiesShareAKey, CopyShape,
+        DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
+        VerbArity, Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
+        PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, NegativeSpacing, DegenerateSpacing,
+        DegenerateStep, FullRangeStep, PlacementsUncertified, PlacementRule, UnschedulableCycle,
+        Naming, UnionFoldStep, BlendSelectionEmpty, Shell, ShellLaneUnsupported,
+        FaceFrameNotPlanar, FaceFrameReadback, FrameDirection, WitnessBifurcation, Part, Mate,
+        SpaceMismatch, CrossingUnverified, MeasureRefUnreadable, MeasureNonFinite,
+        MeasureNotParallel, MeasureUnsupported, PayloadExpr, MeasureClearanceRefused,
+        AssertionDimension,
+    ];
 }
 
-/// **Every arm of every editor-core payload `NodeErrorKind` forwards
-/// has a row.** Each roster is an `f6_variants!` census, whose `match`
-/// rustc holds exhaustive (`NamingError`'s is `display_contract`'s),
-/// and each row is named by its own payload's arm, so an arm added to
-/// an enum or a row taken out reds here.
+/// What the census does with one `NodeErrorKind` arm's payload.
+enum Forward {
+    /// An editor-core refusal enum every arm of which has a row,
+    /// labelled `{family}/{arm}` (or `{arm}(…)`) when `labelled`.
+    Welded {
+        census: &'static [&'static str],
+        arm: String,
+        labelled: bool,
+    },
+    /// A refusal the weld does not cover — an editor-core one, or a
+    /// kernel crate's — and the row that files it.
+    Unwelded(&'static str),
+    /// No forwarded refusal: the arm writes its own sentence over plain
+    /// values, or carries one struct whose shape has no arms.
+    Own,
+}
+
+const UNWELDED: &str = "work/wire/editor-core-forwarders-the-census-does-not-weld.md";
+const UNWELDED_HELD: &str = "work/wirehold/mate-and-pose-forwarders-the-census-does-not-weld.md";
+const UNWELDED_KERNEL: &str =
+    "work/wire/kernel-payload-lists-in-the-concision-census-are-kept-by-hand.md";
+
+/// The one classification of every `NodeErrorKind` arm: a `match` with
+/// no wildcard, so a new arm is a decision here before it compiles.
+fn forward(kind: &NodeErrorKind) -> Forward {
+    use test_utils::f6::variant_identifier as arm;
+    let welded = |census, arm| Forward::Welded {
+        census,
+        arm,
+        labelled: true,
+    };
+    match kind {
+        NodeErrorKind::Expr { source, .. }
+        | NodeErrorKind::PoseScalar { source, .. }
+        | NodeErrorKind::MeasureNonFinite { source }
+        | NodeErrorKind::PayloadExpr { source, .. } => {
+            welded(EVAL_ERROR.identifiers(), arm(source))
+        }
+        NodeErrorKind::ParamBox { source } => welded(PARAM_BOX_ERROR.identifiers(), arm(source)),
+        NodeErrorKind::Seed { source } => welded(SEED_ERROR.identifiers(), arm(source)),
+        NodeErrorKind::PlacementRule(e) => welded(PLACEMENT_RULE_FAULT.identifiers(), arm(e)),
+        NodeErrorKind::Naming(e) => {
+            welded(crate::display_contract::NAMING_ERROR.identifiers(), arm(e))
+        }
+        NodeErrorKind::SelectResolve { error, .. } => {
+            welded(RESOLVE_ERROR.identifiers(), arm(error))
+        }
+        NodeErrorKind::ProfilePieces { fault } => welded(PIECES_FAULT.identifiers(), arm(fault)),
+        // Labelled by the standing each carries, the names the filed
+        // rows cite them by.
+        NodeErrorKind::MeasureRefUnreadable { error, .. } => Forward::Welded {
+            census: crate::display_contract::INTERROGATE_ERROR.identifiers(),
+            arm: arm(error),
+            labelled: false,
+        },
+        NodeErrorKind::WitnessBifurcation(_)
+        | NodeErrorKind::Part { .. }
+        | NodeErrorKind::MeasureClearanceRefused(_) => Forward::Unwelded(UNWELDED),
+        NodeErrorKind::PoseRead { .. }
+        | NodeErrorKind::Mate(_)
+        | NodeErrorKind::SpaceMismatch { .. } => Forward::Unwelded(UNWELDED_HELD),
+        NodeErrorKind::Profile(_)
+        | NodeErrorKind::ProfileReplay { .. }
+        | NodeErrorKind::ProfileLaneReplay { .. }
+        | NodeErrorKind::Extrude(_)
+        | NodeErrorKind::Revolve(_)
+        | NodeErrorKind::Tube(_)
+        | NodeErrorKind::Split(_)
+        | NodeErrorKind::Blend { .. }
+        | NodeErrorKind::Boolean(_)
+        | NodeErrorKind::Transform(_)
+        | NodeErrorKind::Motion(_)
+        | NodeErrorKind::Skin(_)
+        | NodeErrorKind::Loft(_)
+        | NodeErrorKind::UnfinishedOperand { .. }
+        | NodeErrorKind::Band(_)
+        | NodeErrorKind::VerbArity { .. }
+        | NodeErrorKind::Shell(_)
+        | NodeErrorKind::FaceFrameReadback { .. }
+        | NodeErrorKind::FrameDirection { .. } => Forward::Unwelded(UNWELDED_KERNEL),
+        NodeErrorKind::ProfileAnchor
+        | NodeErrorKind::ProfileRecordMissing { .. }
+        | NodeErrorKind::CurvedSolidFrontier { .. }
+        | NodeErrorKind::MissingInput { .. }
+        | NodeErrorKind::UnresolvedRead { .. }
+        | NodeErrorKind::ToleranceConflict { .. }
+        | NodeErrorKind::WrongOperand { .. }
+        | NodeErrorKind::EmptyOperand { .. }
+        | NodeErrorKind::ProductOperand { .. }
+        | NodeErrorKind::EmptyHalf { .. }
+        | NodeErrorKind::InstanceOutOfRange { .. }
+        | NodeErrorKind::NoSuchCopy { .. }
+        | NodeErrorKind::CopiesShareAKey { .. }
+        | NodeErrorKind::CopyShape { .. }
+        | NodeErrorKind::DegenerateDirection { .. }
+        | NodeErrorKind::NonFiniteDirection { .. }
+        | NodeErrorKind::UnderflowedDirection { .. }
+        | NodeErrorKind::MissingSlot { .. }
+        | NodeErrorKind::Escalated { .. }
+        | NodeErrorKind::MeasureEscalated { .. }
+        | NodeErrorKind::PlacementAxisEscalated { .. }
+        | NodeErrorKind::PoseDirectionEscalated { .. }
+        | NodeErrorKind::PoseDegenerate { .. }
+        | NodeErrorKind::CountOutOfRange { .. }
+        | NodeErrorKind::NegativeSpacing { .. }
+        | NodeErrorKind::DegenerateSpacing
+        | NodeErrorKind::DegenerateStep
+        | NodeErrorKind::FullRangeStep { .. }
+        | NodeErrorKind::PlacementsUncertified { .. }
+        | NodeErrorKind::UnschedulableCycle
+        | NodeErrorKind::UnionFoldStep { .. }
+        | NodeErrorKind::BlendSelectionEmpty { .. }
+        | NodeErrorKind::ShellLaneUnsupported { .. }
+        | NodeErrorKind::FaceFrameNotPlanar { .. }
+        | NodeErrorKind::CrossingUnverified { .. }
+        | NodeErrorKind::MeasureNotParallel { .. }
+        | NodeErrorKind::MeasureUnsupported(_)
+        | NodeErrorKind::AssertionDimension { .. } => Forward::Own,
+    }
+}
+
+/// **Every `NodeErrorKind` arm has a row, and so does every arm of
+/// each editor-core refusal it forwards.**
+///
+/// Each roster is an `f6_variants!` census, whose `match` rustc holds
+/// exhaustive (`NamingError`'s and `InterrogateError`'s are
+/// `display_contract`'s), and [`forward`] ties each forwarding arm to
+/// its census with no wildcard. The family a payload is checked under
+/// is its row's own `NodeErrorKind` arm, so a family cannot drop out of
+/// the check while its arm has a row, and the first census makes every
+/// arm have one.
+///
+/// Each set difference guards one direction that can fire: an arm with
+/// no row. The other — a row whose arm is not in the census — cannot,
+/// since the census's `match` names every arm; it is left in place for
+/// a `Debug` written by hand, which `variant_identifier` would misread.
 #[test]
 fn every_forwarded_editor_arm_has_a_row() {
-    let rosters: [(&str, &[&str]); 6] = [
-        ("Expr", EVAL_ERROR.identifiers()),
-        ("ParamBox", PARAM_BOX_ERROR.identifiers()),
-        ("Seed", SEED_ERROR.identifiers()),
-        ("PlacementRule", PLACEMENT_RULE_FAULT.identifiers()),
-        (
-            "Naming",
-            crate::display_contract::NAMING_ERROR.identifiers(),
-        ),
-        ("SelectResolve", RESOLVE_ERROR.identifiers()),
-    ];
-    let rows: Vec<(&str, String)> = editor_payloads()
-        .into_iter()
-        .filter_map(|(name, kind)| {
-            let (family, arm) = forwarded_arm(&kind)?;
-            let label = name
-                .strip_prefix(&format!("{family}/"))
-                .unwrap_or_else(|| panic!("{name}: a {family} row opens with {family}/"));
-            assert!(
-                label == arm || label.starts_with(&format!("{arm}(")),
-                "{name}: a row is named by its payload's arm, {arm}"
-            );
-            Some((family, arm))
-        })
-        .collect();
-    let reports: Vec<String> = rosters
-        .into_iter()
-        .filter_map(|(family, roster)| {
-            let rendered: Vec<&str> = rows
-                .iter()
-                .filter(|(f, _)| *f == family)
-                .map(|(_, arm)| arm.as_str())
-                .collect();
-            test_utils::census::set_difference(
-                roster,
-                &rendered,
-                &format!("the {family}/ rows and their payload's arms disagree"),
-                "rendered by a row and not an arm of the census",
-                "an arm with no feature-tree row: give it one in `editor_payloads`",
-            )
-        })
-        .collect();
+    use test_utils::f6::variant_identifier;
+    let rows = node_refusals();
+    let kinds: Vec<String> = rows.iter().map(|(_, k)| variant_identifier(k)).collect();
+    let kinds: Vec<&str> = kinds.iter().map(String::as_str).collect();
+    let mut reports: Vec<String> = test_utils::census::set_difference(
+        NODE_ERROR_KIND.identifiers(),
+        &kinds,
+        "NodeErrorKind's arms and the census rows disagree",
+        "rendered by a row and not an arm of the census",
+        "an arm with no row: give it one in `node_refusals`",
+    )
+    .into_iter()
+    .collect();
+    let mut families: std::collections::BTreeMap<String, (&[&str], Vec<String>)> =
+        std::collections::BTreeMap::new();
+    for ((name, kind), family) in rows.iter().zip(&kinds) {
+        let (census, arm, labelled) = match forward(kind) {
+            Forward::Welded {
+                census,
+                arm,
+                labelled,
+            } => (census, arm, labelled),
+            Forward::Unwelded(filed) => {
+                let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../..")
+                    .join(filed);
+                assert!(
+                    path.is_file(),
+                    "{name}: its unwelded payload cites {filed}, which is gone"
+                );
+                continue;
+            }
+            Forward::Own => continue,
+        };
+        let label = name
+            .strip_prefix(&format!("{family}/"))
+            .unwrap_or_else(|| panic!("{name}: a {family} row opens with {family}/"));
+        assert!(
+            !labelled || label == arm || label.starts_with(&format!("{arm}(")),
+            "{name}: a row is named by its payload's arm, {arm}"
+        );
+        families
+            .entry((*family).to_owned())
+            .or_insert((census, Vec::new()))
+            .1
+            .push(arm);
+    }
+    for (family, (census, arms)) in &families {
+        let arms: Vec<&str> = arms.iter().map(String::as_str).collect();
+        reports.extend(test_utils::census::set_difference(
+            census,
+            &arms,
+            &format!("the {family}/ rows and their payload's arms disagree"),
+            "rendered by a row and not an arm of the census",
+            "an arm with no row: give it one in `editor_payloads`",
+        ));
+    }
     assert!(reports.is_empty(), "{}", reports.join("\n"));
 }
 
@@ -1058,18 +1221,9 @@ fn row(name: &str, kind: NodeErrorKind) -> (String, NodeErrorKind) {
 /// The arms whose sentence `NodeErrorKind` writes itself, each on a
 /// representative payload where it forwards.
 fn own_arms() -> Vec<(String, NodeErrorKind)> {
-    use editor_core::{Dimension, EvalError, SlotId};
+    use editor_core::{Dimension, SlotId};
     use payloads::*;
     vec![
-        row(
-            "Expr",
-            NodeErrorKind::Expr {
-                slot: SlotId::Distance,
-                source: EvalError::UnresolvedVar {
-                    var: editor_core::VarId::new(0, tagged(7)),
-                },
-            },
-        ),
         row(
             "ProfileLaneReplay(None)",
             NodeErrorKind::ProfileLaneReplay {
@@ -1086,16 +1240,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "ProfileRecordMissing(Some)",
             NodeErrorKind::ProfileRecordMissing { loop_: Some(1) },
-        ),
-        row(
-            "ProfilePieces",
-            NodeErrorKind::ProfilePieces {
-                fault: editor_core::PiecesFault::Length {
-                    loop_: 0,
-                    recorded: 4,
-                    anchored: 5,
-                },
-            },
         ),
         row(
             "CurvedSolidFrontier",
@@ -1274,6 +1418,41 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
+            "MeasureEscalated",
+            NodeErrorKind::MeasureEscalated {
+                predicate: "bool_plane_parallel",
+                source: named("bool_plane_parallel"),
+            },
+        ),
+        row(
+            "PlacementAxisEscalated",
+            NodeErrorKind::PlacementAxisEscalated {
+                predicate: "eval_direction_norm",
+                source: named("eval_direction_norm"),
+            },
+        ),
+        row(
+            "PoseDirectionEscalated",
+            NodeErrorKind::PoseDirectionEscalated {
+                predicate: topo::DATUM_UNIT_NORM,
+                source: named(topo::DATUM_UNIT_NORM),
+            },
+        ),
+        row(
+            "UnresolvedRead",
+            NodeErrorKind::UnresolvedRead {
+                slot: editor_core::OperandSlot::Selection,
+                var: editor_core::VarId::new(0, tagged(4)),
+            },
+        ),
+        row(
+            "ProductOperand",
+            NodeErrorKind::ProductOperand {
+                input: RecipeNodeId::new(0, tagged(3)),
+                parts: 2,
+            },
+        ),
+        row(
             "PoseRead",
             NodeErrorKind::PoseRead {
                 pose: editor_core::VarKind::Axis,
@@ -1286,13 +1465,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "PoseDegenerate",
             NodeErrorKind::PoseDegenerate {
                 construction: editor_core::pose::PoseConstruction::Meet,
-            },
-        ),
-        row(
-            "PoseScalar",
-            NodeErrorKind::PoseScalar {
-                var: editor_core::VarId::new(0, tagged(4)),
-                source: editor_core::EvalError::NonFiniteResult,
             },
         ),
         row(
@@ -1380,20 +1552,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
                 a: "plane",
                 b: "plane",
                 predicate: "measure_parallel",
-            },
-        ),
-        row(
-            "MeasureNonFinite",
-            NodeErrorKind::MeasureNonFinite {
-                source: EvalError::NonFiniteResult,
-            },
-        ),
-        row(
-            "PayloadExpr",
-            NodeErrorKind::PayloadExpr {
-                what: "placement",
-                index: 2,
-                source: EvalError::NonFiniteResult,
             },
         ),
         row(
@@ -3583,7 +3741,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
 /// analysis seeds, placement rules, naming, the name ladder.
 fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
-        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError,
+        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError, PiecesFault,
         PlacementRuleFault, RecipeEditRef, ResolveError, RimShare, SeedError, SlotId, StableName,
         TieWitness, VarName,
     };
@@ -3594,59 +3752,81 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         node: RecipeNodeId::new(0, tagged(3)),
         path: Vec::new(),
     };
-    let eval: Vec<(&str, EvalError)> = vec![
+    let eval = || -> Vec<(&str, EvalError)> {
+        vec![
+            (
+                "UnresolvedVar",
+                EvalError::UnresolvedVar {
+                    var: editor_core::VarId::new(0, tagged(7)),
+                },
+            ),
+            (
+                "OutputRead",
+                EvalError::OutputRead {
+                    var: editor_core::VarId::new(0, tagged(7)),
+                },
+            ),
+            (
+                "DefinitionRefused",
+                EvalError::DefinitionRefused {
+                    var: editor_core::VarId::new(0, tagged(7)),
+                    source: Box::new(EvalError::NonFiniteResult),
+                },
+            ),
+            (
+                "VarKindMismatch",
+                EvalError::VarKindMismatch {
+                    var: editor_core::VarId::new(0, tagged(7)),
+                    bound: Dimension::Angle,
+                    read: Dimension::Length,
+                },
+            ),
+            (
+                "CountExprInContinuousEval",
+                EvalError::CountExprInContinuousEval,
+            ),
+            (
+                "ContinuousExprInCountEval",
+                EvalError::ContinuousExprInCountEval {
+                    found: Dimension::Length,
+                },
+            ),
+            ("CountOverflow", EvalError::CountOverflow),
+            (
+                "CountToScalarOutOfRange",
+                EvalError::CountToScalarOutOfRange(1 << 60),
+            ),
+            ("NonFiniteResult", EvalError::NonFiniteResult),
+            // No node raises it — a lowered document holds no authored
+            // leaf, so a node's expression never reaches it — but a formula
+            // evaluated outside a document does, and it renders through the
+            // same `Display` within the same budget.
+            (
+                "Unlowered",
+                EvalError::Unlowered(editor_core::LowerFault::Quantity {
+                    dim: Dimension::Length,
+                }),
+            ),
+        ]
+    };
+    let pieces = [
+        ("NoRecord", PiecesFault::NoRecord { loop_: 0 }),
+        ("NoIds", PiecesFault::NoIds { loop_: 0 }),
         (
-            "UnresolvedVar",
-            EvalError::UnresolvedVar {
-                var: editor_core::VarId::new(0, tagged(7)),
+            "Length",
+            PiecesFault::Length {
+                loop_: 0,
+                recorded: 4,
+                anchored: 5,
             },
         ),
         (
-            "OutputRead",
-            EvalError::OutputRead {
-                var: editor_core::VarId::new(0, tagged(7)),
+            "NoStepId",
+            PiecesFault::NoStepId {
+                loop_: 0,
+                step: 6,
+                ids: 5,
             },
-        ),
-        (
-            "DefinitionRefused",
-            EvalError::DefinitionRefused {
-                var: editor_core::VarId::new(0, tagged(7)),
-                source: Box::new(EvalError::NonFiniteResult),
-            },
-        ),
-        (
-            "VarKindMismatch",
-            EvalError::VarKindMismatch {
-                var: editor_core::VarId::new(0, tagged(7)),
-                bound: Dimension::Angle,
-                read: Dimension::Length,
-            },
-        ),
-        (
-            "CountExprInContinuousEval",
-            EvalError::CountExprInContinuousEval,
-        ),
-        (
-            "ContinuousExprInCountEval",
-            EvalError::ContinuousExprInCountEval {
-                found: Dimension::Length,
-            },
-        ),
-        ("CountOverflow", EvalError::CountOverflow),
-        (
-            "CountToScalarOutOfRange",
-            EvalError::CountToScalarOutOfRange(1 << 60),
-        ),
-        ("NonFiniteResult", EvalError::NonFiniteResult),
-        // No node raises it — a lowered document holds no authored
-        // leaf, so a node's expression never reaches it — but a formula
-        // evaluated outside a document does, and it renders through the
-        // same `Display` within the same budget.
-        (
-            "Unlowered",
-            EvalError::Unlowered(editor_core::LowerFault::Quantity {
-                dim: Dimension::Length,
-            }),
         ),
     ];
     let param_box = [
@@ -3959,13 +4139,34 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         ]
     };
     let mut rows: Vec<(String, NodeErrorKind)> = Vec::new();
-    for (n, e) in eval {
+    type EvalWrap = fn(EvalError) -> NodeErrorKind;
+    let eval_wraps: [(&str, EvalWrap); 4] = [
+        ("Expr", |source| NodeErrorKind::Expr {
+            slot: SlotId::Distance,
+            source,
+        }),
+        ("PoseScalar", |source| NodeErrorKind::PoseScalar {
+            var: editor_core::VarId::new(0, tagged(4)),
+            source,
+        }),
+        ("MeasureNonFinite", |source| {
+            NodeErrorKind::MeasureNonFinite { source }
+        }),
+        ("PayloadExpr", |source| NodeErrorKind::PayloadExpr {
+            what: "placement",
+            index: 2,
+            source,
+        }),
+    ];
+    for (wrap, build) in eval_wraps {
+        for (n, e) in eval() {
+            rows.push(row(&format!("{wrap}/{n}"), build(e)));
+        }
+    }
+    for (n, fault) in pieces {
         rows.push(row(
-            &format!("Expr/{n}"),
-            NodeErrorKind::Expr {
-                slot: SlotId::Distance,
-                source: e,
-            },
+            &format!("ProfilePieces/{n}"),
+            NodeErrorKind::ProfilePieces { fault },
         ));
     }
     for (n, source) in param_box {

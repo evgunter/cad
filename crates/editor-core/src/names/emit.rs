@@ -379,7 +379,8 @@ pub enum NamingError {
 /// fact's consistency with the body, an acyclic lineage — found broken.
 /// Each speaks it followed by what it caught —
 /// [`NamingError::Duplicate`] the name minted twice,
-/// [`NamingError::EntityNamed`] the entity offered a second name,
+/// [`NamingError::EntityNamed`] the entity offered a second name, or
+/// offered twice,
 /// [`NamingError::KindMismatch`] the name seated on another kind,
 /// [`NamingError::ShortTie`] the tie offered short,
 /// [`NamingError::Unnamed`] the entity left uncovered,
@@ -449,6 +450,15 @@ impl crate::spoken::Say for NamingError {
                  alias silently only over the kernel's dead body",
                 by.name(name),
                 name.path
+            ),
+            // A held name that IS the offered one is a list that
+            // offered one entity twice, and says so.
+            Self::EntityNamed { name, held } if name == held => write!(
+                f,
+                "{EMISSION_FRAMING}: {} was offered the same {} twice — a name's \
+                 candidates are distinct entities",
+                by.name(name),
+                name.kind.noun()
             ),
             Self::EntityNamed { name, held } => write!(
                 f,
