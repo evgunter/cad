@@ -1781,7 +1781,7 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
     )
 }
 
-/// A covered line × curved-face pair whose touch lies inside the edge
+/// A covered edge × curved-face pair whose touch lies inside the edge
 /// ([`CurvedEvent::Deferred`]), deferred until both sweep directions
 /// have run.
 #[derive(Debug)]
@@ -1939,11 +1939,11 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// endpoint posture instead of the frontier door. A roots-lane
 /// "tangent" verdict is a band decision and never a source, so a
 /// graze within the band keeps the frontier. The cover records
-/// endpoints only, so a covered pair whose ends are both clear of the
-/// carrier and which no enclosure or root set clears is deferred
+/// endpoints only, so a covered pair whose ends place nothing on the
+/// face and which no enclosure or root set clears is deferred
 /// ([`CurvedEvent::Deferred`]) — a LINE against a wall or a sphere,
-/// whose convex residual a fragment's ends read whole — and read again
-/// on the edge's fragments
+/// or a covered conic whose interior this arm cannot see — and read
+/// again on the edge's fragments
 /// once both sweep directions have run ([`settle_deferred`]). Each
 /// on-carrier endpoint is
 /// classified through the boundary pre-pass rows
@@ -2317,12 +2317,11 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // stands); definitely off on the side the cover
                 // certifies ⇒ no event at that end (a covered circle
                 // touches the carrier where it meets it); off on the
-                // other side ⇒ the frontier. An interior-only touch (no
-                // endpoint on the carrier) keeps the frontier door: along
-                // a circle the residual is not convex, so a covered arc
-                // can touch twice and an endpoint reading of its
-                // fragments would not see the second touch. Uncovered
-                // keeps both doors verbatim.
+                // other side ⇒ the frontier. An arc that places nothing
+                // on this face, its interior unseen, is deferred to the
+                // fragments both directions leave ([`settle_deferred`]),
+                // read by this arm as the other operand order reads
+                // them. Uncovered keeps both doors verbatim.
                 //
                 // **An endpoint the trim places definitely OUT of THIS
                 // face is eventless HERE, not a refusal.** Reading that
@@ -2414,6 +2413,13 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         },
                         side: Coincide::VertexOnCoveredFace,
                     };
+                    // Nothing placed on this face and the interior unseen:
+                    // the touch, if any, is inside the arc, where the
+                    // other direction's vertex may yet split it.
+                    if !inside.clear() && ends.iter().flatten().all(|p| *p == Placement::Elsewhere)
+                    {
+                        return Ok(CurvedEvent::Deferred);
+                    }
                     return Placement::declared(ends, inside.clear())
                         .map(|event| event.lying(on))
                         .ok_or_else(frontier);
@@ -4026,10 +4032,11 @@ pub(super) enum CurvedEvent<T: geom_core::Real> {
     /// mints on the edge is read against the face under `on`
     /// ([`LyingIn::Curved`]).
     Lies { recorded: bool, on: OnCurved },
-    /// A covered LINE whose touch with a cylinder or sphere, if it has
-    /// one, lies strictly inside the edge: both ends are definitely off
-    /// the carrier, the cover puts the edge in one closed side of it,
-    /// and the roots could not settle it. The cover records endpoints
+    /// A covered edge whose touch with the carrier, if it has one, lies
+    /// strictly inside the edge: no end is placed on the face, the
+    /// cover puts the edge in one closed side of the carrier, and
+    /// neither the roots (a line on a cylinder or sphere) nor the
+    /// interior question (a conic) settled it. The cover records endpoints
     /// only, so the sweep defers the pair ([`DeferredTouch`]) until both
     /// directions have run and then reads it again on the edge's
     /// fragments ([`settle_deferred`]).
