@@ -14,7 +14,7 @@ Found by both designers of the pinch-crescent fork (`[ev]` branch
 
 ## What
 
-`validate_geometric`'s deferred list (`crates/topo/src/validate.rs:5029`)
+`validate_geometric`'s deferred list (`crates/topo/src/validate.rs:5032`)
 says:
 
 > **The doubled cusp** (two material wedges on one tangent line — the

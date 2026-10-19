@@ -64,3 +64,23 @@ Which is wrong, the mint or the confirm:
 Pins on the fix: both probes' A∖B rows, every scale, every eps row.
 
 
+
+## W1′: the same point set in two topologies (2026-10-19)
+
+Measured by both designers of the pinch fork's round 3 (`[ev]` PR 5395),
+on main `f6ee5c7db8`, f64, `Tol::witness`, with throwaway probes:
+
+- **Rod seams off the ruling** (this row's fixture): one solid,
+  v = 16 − π/8, records ff(plate's y = 2 face, bore wall) plus two
+  edge–face records (the cap circles). Tier 3 passes; 3′ refuses
+  `ContactContradicted` on the face–face record.
+- **Rod seam on the ruling** (the rod's seam placed on the ruling,
+  x = 0, y = 2): the seam edge lies in the plate face (`Smooth`,
+  `Aligned`), records ef(seam, plate face) plus two vertex–face
+  records. Tier 3 and 3′ both pass.
+
+Same point set, same volume: two topologies by vertex placement, with
+opposite 3′ verdicts. Whichever answer the fork takes, the two forms owe
+one verdict; the edge–face form passes only because no lane reads its
+sides (RESTREAD's
+`the-edge-edge-and-point-record-confirms-read-no-material-sides`).

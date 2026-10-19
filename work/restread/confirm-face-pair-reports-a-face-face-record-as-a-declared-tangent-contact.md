@@ -14,12 +14,13 @@ Found by both designers of the pinch-crescent fork (`[ev]` branch
 
 ## What
 
-`census::confirm_face_pair` (`crates/topo/src/census.rs:7458`) reads a
+`census::confirm_face_pair` (`crates/topo/src/census.rs:7870`) reads a
 face–face record on two carriers through
-`boolean::tangent_pair_at_rest` and, where that refuses
+`boolean::tangent_pair_at_rest` and `tangent_table_at_rest` and, where
+either refuses
 `Contradicted`, pushes `ValidationError::ContactContradicted` with
 `declaration: DeclaredContact { a, b, class: ContactClass::Tangent }`
-(`census.rs:7523`–`7534`). No mate declared that pair: the
+(`census.rs:7929`–`7940`). No mate declared that pair: the
 record is a face–face record (C3) minted where an op's glue door
 decided a tangency, and since PR 4775 that door's tangency claims no
 material class (C4). The error names a declaration that never was, so a caller

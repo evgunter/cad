@@ -229,10 +229,11 @@ along a locus the witness lane certifies, and says nothing of the
 materials: whether the pair is a contact (a void crescent between the
 sheets), an overlap (a crescent both materials fill), a seam or a nested
 touch is read where it is consumed, by the lump and by the wedge of the
-result's junction (C7). `ContactClass::Tangent`, the record's and the
-mate's class, keeps its material claim; a crescent the materials of two
-distinct solids share is interference between them (C6), not a
-contradicted contact.
+result's junction (C7). `ContactClass::Tangent` is the record's and the
+mate's class. A crescent the materials of two distinct solids share is
+interference between them (C6), not a contradicted contact; a crescent
+one solid shares with itself at a point touch is that solid's own
+material, and legal.
 
 Verification is `Rest`'s carrier rung with the sense bit reversed:
 carrier non-contradiction through the kind ladder, senses aligned as an

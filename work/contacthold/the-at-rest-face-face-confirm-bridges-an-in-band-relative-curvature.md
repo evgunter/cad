@@ -16,11 +16,11 @@ defect.
 
 ## What
 
-`boolean::tangent_pair_at_rest` (`crates/topo/src/boolean/mod.rs:6744`,
-renamed `tangent_table_at_rest` on PR 5390's branch) reads a face–face
+`boolean::tangent_table_at_rest` (`crates/topo/src/boolean/mod.rs:6870`)
+reads a face–face
 record's tangent table through
 `contact_verify::tangent_locus_relation` with `declared = true`
-(`mod.rs:6753`): "the declared posture, the record standing as the
+(`mod.rs:6885`): "the declared posture, the record standing as the
 declaration". In that posture the second-order margin, the relative
 transverse curvature κ_rel, is bridged where it lies in band
 (`crates/topo/src/boolean/contact_verify.rs:33`, `:234`).
