@@ -7,6 +7,9 @@ opened: 2026-10-19
 priority: P2
 cost: M
 design: true
+needs_ev: true
+pr: 5411
+branch: wire/ev-kernel-defect-rule
 ---
 
 

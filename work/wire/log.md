@@ -6614,3 +6614,5 @@ Signed (WIRE orchestrator).
   - The reviewer's off-scope find, a mate Flip-chain walk with no guard, is filed parked in wirehold on a-mate-relates-two-poses.
   - Class note: a dedup in a walk's stop closure can absorb a cycle the walk itself was meant to refuse.
 - 2026-10-19 (WIRE orchestrator) FORK-DEFECT crossover round 1: Designer O converged on the rule, the at-rest ending, the rename and the provenance. It reconciled the Emission count at ~135 non-test raises; most samples are row 0/4. Waiting on the other designer's round.
+
+- 2026-10-19 (WIRE orchestrator) FORK-DEFECT reconciled in one round. The rule converged: proof decides, a typed shortfall row 6, a `pub fn` precondition is row 1, `held_out` goes. Two residual splits go to Ev: the rename, and "or file" on an imported body's geometric gate. [ev] PR 5411 opened, editing D9, with fork-log row 177. Subscribed.
