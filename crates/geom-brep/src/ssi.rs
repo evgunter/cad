@@ -330,8 +330,8 @@ pub enum SsiError {
     ///
     /// The refused arm of the march's transversality decision
     /// (`ssi_transversality`), which passes on a positive sign; it ends
-    /// by [`CertCheck::Transversality`], as limb 3 and the edge
-    /// certifier's transversality do ([`SsiError::ending`]).
+    /// by [`CertCheck::Transversality`], as the edge certifier's
+    /// transversality does ([`SsiError::ending`]).
     TransversalityBand {
         /// The sine of the angle between the operand normals.
         sin_theta: f64,

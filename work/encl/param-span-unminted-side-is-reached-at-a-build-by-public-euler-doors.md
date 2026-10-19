@@ -20,11 +20,21 @@ opened: 2026-10-19
 
 So `RefusedSide::Unminted` ends at a build in the lever and its note, as a stored contradiction does (`crates/geom-brep/src/recourse.rs`, `SizedDecision::words`). Its note still says "an edge of no length, or a reversed one, is one no kernel construction mints, so this is a kernel defect worth reporting", which is false of `mev`'s caller and of `mev_line`'s coincident points.
 
-## Question (design)
+## Repair shape
 
-Either:
+This is the ratified clause applied, not an open design question. `[failure]` and D2 refuse input typed at its door, so only a kernel bug reaches a check that runs after the door; (iv) then has a side no kernel construction produces panic at a build. The repair is therefore:
 
-1. the public Euler doors refuse a non-forward caller span typed before certification (and `line_between` refuses coincident endpoints), so only a kernel bug reaches the span check at a build, and the build panic lands as ratified; or
-2. `ParamSpan`'s build side is the caller's geometry, so it is a stored contradiction (lever at a build), and the note drops "no kernel construction mints" at a build.
+- the public Euler doors refuse a non-forward or degenerate caller span typed, before certification:
+  - `Body::mev` with a caller's `EdgeCurveSpec` whose `param_end <= param_start`;
+  - `mev_line` and `mef_chord` through `EdgeCurveSpec::line_between` with coincident points;
+  - `replace_face`'s periodic carrier left non-forward;
+  - a circle or ellipse carrier with a non-positive radius or minor semi-axis;
+- with the doors in place, only a kernel bug reaches `CertCheck::ParamSpan`'s span check at a build, and its build panic lands as (iv) says. The build note's "no kernel construction mints" is then true.
 
-`ParamWinding` was ruled the same way for the same reason: `mev` with a circle spec past a full turn reaches `WindingExceeded` at a build.
+`ParamWinding` falls under the same door check: a span past a full turn is refused at the door (`mev` with a circle spec past a full turn reaches `WindingExceeded` at a build today). Once that lands, `ParamWinding` becomes `RefusedSide::Unminted`, not `StoredContradiction`.
+
+Rejected: making `ParamSpan`'s build side the caller's geometry (a stored contradiction, the lever at a build, the note dropping "no kernel construction mints"). It changes the ratified row assignment.
+
+## What this row separates
+
+`RefusedSide::StoredContradiction` and `RefusedSide::Unminted` currently behave identically at every door (`SizedDecision::words` in `crates/geom-brep/src/recourse.rs` gives them the same arms). This row is what separates them: once the doors above refuse typed, `Unminted` panics at a build and `StoredContradiction` keeps the lever there. (Reviewer's note on PR 5349.)

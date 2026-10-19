@@ -3,8 +3,9 @@
 //! module owns the decision's closed type.
 //!
 //! A decision names its geometry lever, the size its margin measures,
-//! what it passes on and what its refused side is ([`SizedDecision`]); the refused arm ([`RefusedArm`]) and the
-//! door that reads it ([`Reading`]) decide the rest. Edge certification
+//! what it passes on and what its refused side is ([`SizedDecision`]);
+//! the refused arm ([`RefusedArm`]) and the door that reads it
+//! ([`ReadAt`]) decide the rest. Edge certification
 //! (`crate::certify::recourse`) and the offset meters
 //! (`crate::offset_meters::Meter`) both end their sized decisions here.
 //!
@@ -27,17 +28,17 @@ pub enum Reading {
     /// kernel's own construction.
     Build,
     /// Over a body at rest, which a damaged file reaches as surely as a
-    /// defective operation does. Certification at STEP adoption reads
-    /// here too (D4 ¶1); the import door's own ε_in words are the
-    /// margin's ([`MarginDiag::sized_recourse_in_file`],
-    /// [`FileCoincidence::miss_recourse_in_file`]).
+    /// defective operation does. The STEP import door is its own door
+    /// ([`ReadAt::File`]); an ending that takes only a `Reading` reads it
+    /// here ([`ReadAt::reading`]).
     AtRest,
 }
 
 /// **The door a refusal's ending is read at** (D4 ¶1): a [`Reading`] at
-/// this run's ε, or the STEP import door, which reads as at rest with the
-/// file's declared coincidence distance picking the words. Every ending
-/// in the refusal stack takes one, so one body serves both doors.
+/// this run's ε, or the STEP import door, where the file's declared
+/// coincidence distance picks the words and, past it, a stored
+/// contradiction is the file's ([`RefusedSide`]). Every ending in the
+/// refusal stack takes one, so one body serves every door.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ReadAt {
     /// At this run's ε.
@@ -47,8 +48,10 @@ pub enum ReadAt {
 }
 
 impl ReadAt {
-    /// The reading this door certifies at: the import door reads as at
-    /// rest (D4 ¶1).
+    /// The reading an ending that does not tell the import door apart
+    /// takes there: [`Reading::AtRest`], which names the kernel or the
+    /// file. A sized decision's refused side reads the door itself
+    /// ([`SizedDecision::recourse`]).
     #[must_use]
     pub const fn reading(self) -> Reading {
         match self {
@@ -116,8 +119,11 @@ pub enum Unsized {
     /// The kernel approximated (a fitted carrier, a settled root, a
     /// spent budget), so a miss may be the approximation's limit (D4 ¶1
     /// (i)'s last resort): at a build on every arm, and at rest on an
-    /// undecided one. A definite miss read at rest is a stored
-    /// contradiction.
+    /// undecided one. A definite miss read at rest, or at the import
+    /// door past ε_in, is a stored contradiction, which ends in
+    /// [`KERNEL_OR_FILE_DEFECT_ENDING`] at both: unlike a sized
+    /// decision's ([`RefusedSide::StoredContradiction`]), it does not yet
+    /// name the file alone at the import door.
     Fit,
     /// The refused margin is a certified upper bound on the miss, not
     /// the miss: a loose bound is the certificate's own limit, and
@@ -351,12 +357,14 @@ pub enum RefusedSide {
     Lever,
     /// A contradiction between a stored description and its stored
     /// geometry. At a build it is the user's geometry, which the lever
-    /// moves: the lever and the note. At the import door it is the
-    /// file's ([`geom_core::DAMAGED_FILE_ENDING`]); over a body at rest it
-    /// ends in [`KERNEL_OR_FILE_DEFECT_ENDING`].
+    /// moves: the lever and the note. At the import door past ε_in it is
+    /// the file's ([`geom_core::DAMAGED_FILE_ENDING`]); over a body at
+    /// rest it ends in [`KERNEL_OR_FILE_DEFECT_ENDING`]. A residual's
+    /// stored contradiction ([`Unsized::Fit`]) ends in the latter at the
+    /// import door too.
     StoredContradiction,
-    /// A side no kernel construction produces. At the import door it is
-    /// the file's, and over a body at rest it ends as a stored
+    /// A side no kernel construction produces. At the import door past
+    /// ε_in it is the file's, and over a body at rest it ends as a stored
     /// contradiction does. At a build it ends in the lever and the note:
     /// a public door that certifies the caller's own interval
     /// (`topo::Body::mev`) reaches it from input.
@@ -397,13 +405,15 @@ impl SizedDecision {
     ///   ([`geom_core::SizedWords::sign_certain_recourse`]).
     /// - A reading certainly on the refused side ends as
     ///   [`SizedDecision::side`] says at `at`.
-    /// - The import door ([`ReadAt::File`]) reads as at rest, except that
-    ///   a band-decided arm whose margin's nearer end lies at or below the
-    ///   file's declared coincidence distance ends in the door's one
-    ///   sentence for a size the file cannot tell from zero
+    /// - At the import door ([`ReadAt::File`]), a band-decided arm whose
+    ///   margin's nearer end lies at or below the file's declared
+    ///   coincidence distance ends in the door's one sentence for a size
+    ///   the file cannot tell from zero
     ///   ([`MarginDiag::sized_recourse_in_file`]), whichever arm the run's
-    ///   band placed it on, with no decision's note. A straddle carries no
-    ///   single margin to place against ε_in.
+    ///   band placed it on, with no decision's note. Past ε_in it ends as
+    ///   at rest, except that a reading certainly on a stored
+    ///   contradiction or an unminted side is the file's. A straddle
+    ///   carries no single margin to place against ε_in.
     #[must_use]
     pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
         let Self { lever, passes, .. } = self;

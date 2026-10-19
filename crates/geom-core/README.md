@@ -198,8 +198,8 @@ refusal that would otherwise name no recourse at all (a kernel
 approximation limit — an offset fit that stalls, a quadrature budget
 spent, a built curve's residual) names loosening the tolerance as a
 last resort and says the refusal may indicate a kernel bug worth
-reporting. At adoption, certification runs at ε and a refusal reads
-as at rest. ε_in is the file's own coincidence distance ([import]): it
+reporting. At adoption, certification runs at ε and a refusal ends at
+the import door, as the table below gives. ε_in is the file's own coincidence distance ([import]): it
 governs interpretation — what the file's data is evidence of, where
 healing may move geometry by up to O(ε_in) — and its refusals are
 the import door's, named in ε_in with the value the margin gives; a
@@ -241,11 +241,16 @@ unresolved enclosure, a straddle) ends in the lever whatever the side.
 Within ε_in the import door ends every band-decided reading in its one
 sentence and the lever, whatever the side. The table departs from
 clause (iv) in two cells, each typed until the door that would keep
-input from it exists: an unminted side at a build, which `topo::Body::mev`
-reaches from a caller's own interval, and the at-rest column, which the
-validator also reads at the import gate (`[import]` step 4) and so a
-damaged file reaches until adoption checks everything the validator
-does (`work/encl/at-rest-stored-contradictions-and-unminted-sides-panic-once-import-validates-everything.md`).
+input from it exists, and each scheduled by its row:
+
+- an unminted side at a build, which `topo::Body::mev` reaches from a
+  caller's own interval until the public Euler doors refuse a
+  non-forward or degenerate span typed
+  (`work/encl/param-span-unminted-side-is-reached-at-a-build-by-public-euler-doors.md`);
+- the at-rest column, which the validator also reads at the import gate
+  (`[import]` step 4) and so a damaged file reaches until adoption
+  checks everything the validator does
+  (`work/encl/at-rest-stored-contradictions-and-unminted-sides-panic-once-import-validates-everything.md`).
 
 Review checklist form: for every arm added to a decision, name which
 ε_input story it belongs to, or say why it belongs to none.

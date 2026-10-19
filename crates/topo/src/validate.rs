@@ -2976,7 +2976,7 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         CertCheck::ParamWinding => {
             geom_core::undecided!("whether its arc stays short of a full turn")
         }
-        CertCheck::Transversality => {
+        CertCheck::Transversality | CertCheck::TransversalityTube => {
             "its faces meet too nearly tangentially to decide at this tolerance"
         }
         CertCheck::TransversalityArm => {
@@ -16864,18 +16864,18 @@ mod certify_escalation_rows {
                  they fix where it runs, which its description says they do. Recourse: move the \
                  geometry so the faces curve apart more clearly where they touch",
             ),
-            // The lane's tube refusal is the transversality decision's
-            // verdict: a Zero clearance quotes the tolerance below `m/K`
-            // where the certificate proved one; a clearance of no size,
-            // and a Negative one, are stored contradictions.
+            // The lane's tube refusal is the verdict on a lower bound of
+            // the transversality: a clearance proved above zero quotes the
+            // tolerance below `m/K`; a straddle reads `0`, which shows
+            // only that the certificate could not clear it, so it keeps
+            // the lever and never ends as a defect.
             (
                 says(CertifyError::PlaneNurbs(P::TubeStraddles {
                     verdict: tube_zero(0.0),
                     boxes: 4,
                 })),
                 "its faces are not certainly crossing along it, so they do not fix where it \
-                 runs. There is no way through: this is a kernel defect or a damaged file; \
-                 report it",
+                 runs. Recourse: move the geometry so the surfaces cross at a clearer angle",
             ),
             (
                 says(CertifyError::PlaneNurbs(P::TubeStraddles {
@@ -16894,8 +16894,7 @@ mod certify_escalation_rows {
                     boxes: 4,
                 })),
                 "its faces are not certainly crossing along it, so they do not fix where it \
-                 runs. There is no way through: this is a kernel defect or a damaged file; \
-                 report it",
+                 runs. Recourse: move the geometry so the surfaces cross at a clearer angle",
             ),
             // A certificate escalation ends by its limb's decision: the
             // tube's in-band margin is the transversality's, and a

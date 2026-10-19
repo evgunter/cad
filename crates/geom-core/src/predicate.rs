@@ -2177,8 +2177,7 @@ pub const KERNEL_OR_FILE_DEFECT_ENDING: &str = crate::kernel_or_file_defect_endi
 /// itself or states what no construction produces: nothing the user
 /// changes in the model is a way through, and the file, not the kernel,
 /// is what the report is about.
-pub const DAMAGED_FILE_ENDING: &str =
-    "There is no way through: the file is damaged; report it to the program that wrote it";
+pub const DAMAGED_FILE_ENDING: &str = crate::damaged_file_ending!();
 
 /// The subject a door states for an escalation whose decision it has no
 /// words for — a name its table does not carry, or no name at all. One
@@ -2259,6 +2258,16 @@ macro_rules! kernel_limit_last_resort {
 macro_rules! kernel_or_file_defect_ending {
     () => {
         "There is no way through: this is a kernel defect or a damaged file; report it"
+    };
+}
+
+/// [`DAMAGED_FILE_ENDING`] as a literal, for `concat!`; see
+/// `kernel_defect_ending!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! damaged_file_ending {
+    () => {
+        "There is no way through: the file is damaged; report it to the program that wrote it"
     };
 }
 

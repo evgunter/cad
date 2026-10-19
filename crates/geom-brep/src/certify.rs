@@ -140,6 +140,11 @@ pub enum CertCheck {
     /// (the dihedral displacement margin — must be definitely
     /// transverse).
     Transversality,
+    /// Intersection, rung 3: the uniqueness tube's certified clearance
+    /// of the operands' transversality from zero over its box chain — a
+    /// lower bound, `0` wherever an enclosure straddles, so it never
+    /// shows the transversality's own size or sign.
+    TransversalityTube,
     /// Intersection: the folded lever arm the transversality margin is
     /// metered over at an interior sample, which must be definitely
     /// positive before any angle is read there
@@ -293,6 +298,7 @@ impl core::fmt::Display for CertCheck {
             Self::EndpointEnd => "the end-endpoint residual",
             Self::WitnessMidpoint => "the witness-midpoint residual",
             Self::Transversality => "the transversality margin",
+            Self::TransversalityTube => "the uniqueness tube's transversality bound",
             Self::TransversalityArm => "the length its faces' angle is measured over",
             Self::TangentPlanes => "the surfaces' tangent planes",
             Self::TangentParallel => "the normal-parallelism defect",
@@ -988,6 +994,16 @@ impl CertCheck {
                 side: RefusedSide::StoredContradiction,
                 no_size: None,
             }),
+            // The tube's clearance is a conservative lower bound, so a
+            // definite refusal of it is the certificate's limit, which the
+            // lever reaches, never a stored contradiction.
+            Self::TransversalityTube => Ending::Sized(SizedDecision {
+                lever: "move the geometry so the surfaces cross at a clearer angle",
+                size: "angle",
+                passes: SizedPass::Positive,
+                side: RefusedSide::Lever,
+                no_size: None,
+            }),
             Self::TransversalityArm => Ending::Sized(crate::DIHEDRAL_ARM),
             Self::TangentPlanes => Ending::Undefined(TANGENT_PLANES_RECOURSE),
             Self::TangentSecondOrder => Ending::Sized(SizedDecision {
@@ -1082,9 +1098,9 @@ impl CertCheck {
 ///   file's defect ending, since no loosening repairs a stored
 ///   contradiction. A certified bound on the miss ends in the last resort
 ///   on every arm: a loose bound contradicts nothing stored.
-/// - At the STEP import door ([`ReadAt::File`]) certification reads as at
-///   rest, and the file's declared coincidence distance picks the words:
-///   a sized decision's as [`SizedDecision::recourse`] gives, and a
+/// - At the STEP import door ([`ReadAt::File`]) the file's declared
+///   coincidence distance picks the words: a sized decision's as
+///   [`SizedDecision::recourse`] gives, an unsized one's as at rest, and a
 ///   residual's miss within ε_in but beyond ε, or a bound on it wholly
 ///   within ε_in, names setting ε to ε_in as a stopgap
 ///   ([`Unsized::residual_in_file`]).
@@ -4119,7 +4135,7 @@ mod tests {
     /// below. Held total against the enum by
     /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
     /// review.
-    fn all_checks() -> [CertCheck; 27] {
+    fn all_checks() -> [CertCheck; 28] {
         let surface = SurfaceKey::default();
         [
             CertCheck::ParamSpan,
@@ -4131,6 +4147,7 @@ mod tests {
             CertCheck::WitnessSurfaceResidual { surface },
             CertCheck::WitnessMidpoint,
             CertCheck::Transversality,
+            CertCheck::TransversalityTube,
             CertCheck::TransversalityArm,
             CertCheck::TangentPlanes,
             CertCheck::TangentParallel,
@@ -4167,33 +4184,34 @@ mod tests {
     #[test]
     fn all_is_the_whole_taxonomy() {
         let rows = match CertCheck::ParamSpan {
-            CertCheck::ParamSpan => 27,
-            CertCheck::ParamSpanMeter => 27,
-            CertCheck::ParamWinding => 27,
-            CertCheck::EndpointStart => 27,
-            CertCheck::EndpointEnd => 27,
-            CertCheck::SurfaceResidual { .. } => 27,
-            CertCheck::WitnessSurfaceResidual { .. } => 27,
-            CertCheck::WitnessMidpoint => 27,
-            CertCheck::Transversality => 27,
-            CertCheck::TransversalityArm => 27,
-            CertCheck::TangentPlanes => 27,
-            CertCheck::TangentParallel => 27,
-            CertCheck::TangentGap => 27,
-            CertCheck::TangentSecondOrder => 27,
-            CertCheck::TangentHull => 27,
-            CertCheck::TangentTube => 27,
-            CertCheck::MappedSource => 27,
-            CertCheck::ChartImage => 27,
-            CertCheck::ChartResidual => 27,
-            CertCheck::PlaneNurbsOnLocus => 27,
-            CertCheck::PlaneNurbsHull => 27,
-            CertCheck::PlaneNurbsHullValue => 27,
-            CertCheck::AnalyticBreakResidual => 27,
-            CertCheck::AnalyticHull => 27,
-            CertCheck::PlaneNurbsReportedTransversality => 27,
-            CertCheck::PlaneNurbsChartSpeed => 27,
-            CertCheck::PlaneNurbsChartSpeedBound => 27,
+            CertCheck::ParamSpan => 28,
+            CertCheck::ParamSpanMeter => 28,
+            CertCheck::ParamWinding => 28,
+            CertCheck::EndpointStart => 28,
+            CertCheck::EndpointEnd => 28,
+            CertCheck::SurfaceResidual { .. } => 28,
+            CertCheck::WitnessSurfaceResidual { .. } => 28,
+            CertCheck::WitnessMidpoint => 28,
+            CertCheck::Transversality => 28,
+            CertCheck::TransversalityTube => 28,
+            CertCheck::TransversalityArm => 28,
+            CertCheck::TangentPlanes => 28,
+            CertCheck::TangentParallel => 28,
+            CertCheck::TangentGap => 28,
+            CertCheck::TangentSecondOrder => 28,
+            CertCheck::TangentHull => 28,
+            CertCheck::TangentTube => 28,
+            CertCheck::MappedSource => 28,
+            CertCheck::ChartImage => 28,
+            CertCheck::ChartResidual => 28,
+            CertCheck::PlaneNurbsOnLocus => 28,
+            CertCheck::PlaneNurbsHull => 28,
+            CertCheck::PlaneNurbsHullValue => 28,
+            CertCheck::AnalyticBreakResidual => 28,
+            CertCheck::AnalyticHull => 28,
+            CertCheck::PlaneNurbsReportedTransversality => 28,
+            CertCheck::PlaneNurbsChartSpeed => 28,
+            CertCheck::PlaneNurbsChartSpeedBound => 28,
         };
         for (i, check) in all_checks().iter().enumerate() {
             assert!(
@@ -5610,6 +5628,16 @@ mod tests {
                     curve,
                     "curvature difference",
                 ),
+                (
+                    CertCheck::TransversalityTube,
+                    lane(P::TubeStraddles {
+                        verdict: zero,
+                        boxes: 4,
+                    }),
+                    end(escalated(CertCheck::TransversalityTube)),
+                    cross,
+                    "angle",
+                ),
             ];
             for (check, at_zero, in_band, lever, size) in pairs {
                 let offer = |below: &str| {
@@ -5622,10 +5650,11 @@ mod tests {
                 assert_eq!(in_band, offer("5e-10"), "{reading:?}");
                 let definite = recourse(check, RefusedArm::SignCertain(None), reading);
                 match (reading, check) {
-                    // The tube's margin is a lower bound: its definite
+                    // A tube's margin is a lower bound: its definite
                     // refusal is the certificate's limit, not a stored
                     // contradiction.
-                    (Reading::Build, _) | (_, CertCheck::TangentTube) => {
+                    (Reading::Build, _)
+                    | (_, CertCheck::TangentTube | CertCheck::TransversalityTube) => {
                         assert_eq!(definite, lever, "{reading:?} {check:?}");
                     }
                     (Reading::AtRest, _) => {
@@ -5774,9 +5803,11 @@ mod tests {
                 ),
                 (separated(zero(0.0)), curve.to_owned()),
                 (separated(negative(-0.5)), curve.to_owned()),
+                // The tube's clearance is a lower bound: `0` is a straddle,
+                // which keeps the lever at every door.
                 (tube(zero(5e-10)), tightened(cross, "angle", "5e-11")),
-                (tube(zero(0.0)), definite(cross)),
-                (tube(negative(-5e-9)), definite(cross)),
+                (tube(zero(0.0)), cross.to_owned()),
+                (tube(negative(-5e-9)), cross.to_owned()),
             ];
             if reading == Reading::Build {
                 assert_eq!(
@@ -5796,6 +5827,94 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// **A tube straddle never ends as a defect.** The lane's tube
+    /// clearance is a lower bound that reads `0` wherever an enclosure
+    /// straddles, so its refusal ends in the lever at a build, at rest and
+    /// at the import door (where a zero lies within every ε_in, so the
+    /// door's sentence leads), on every route, and never in a dead end.
+    #[test]
+    fn a_tube_straddle_keeps_the_lever_at_every_door() {
+        use crate::edge_nurbs::PlaneNurbsRefusal as P;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let straddle = Refused::Zero(Classified {
+            margin: MarginDiag::value(0.0),
+            band,
+        });
+        let lever = "Recourse: move the geometry so the surfaces cross at a clearer angle";
+        for at in [
+            ReadAt::Run(Reading::Build),
+            ReadAt::Run(Reading::AtRest),
+            ReadAt::File(FileCoincidence::new(1e-12)),
+        ] {
+            let lane = P::TubeStraddles {
+                verdict: straddle,
+                boxes: 4,
+            };
+            let edge = CertifyError::PlaneNurbs(lane);
+            let analytic = crate::edge_nurbs::AnalyticRung3Refusal::TubeStraddles {
+                verdict: straddle,
+                boxes: 4,
+            };
+            let ssi = crate::ssi::SsiError::TubeStraddles {
+                verdict: straddle,
+                boxes: 4,
+            };
+            let mut endings = vec![lane.ending(at), edge.ending(at), analytic.ending(at)];
+            if let ReadAt::Run(reading) = at {
+                endings.push(Some(ssi.ending(reading)));
+            }
+            for got in endings {
+                let got = got.unwrap();
+                assert!(
+                    got.ends_with(lever) && !got.contains("There is no way through"),
+                    "{at:?}: {got}"
+                );
+            }
+        }
+    }
+
+    /// **A proved-zero span ends by its unminted side**: a zero the
+    /// symbolic tier proved, its rounded number outside the zero band,
+    /// ends at rest in the defect ending that names the kernel or the
+    /// file, and at the import door past ε_in in the file's.
+    #[test]
+    fn a_proved_zero_span_ends_by_its_side_at_rest_and_at_the_import_door() {
+        use geom_core::sym::with_session;
+        use geom_core::{DAMAGED_FILE_ENDING, Margin, ParamSymbol, Sym, SymBudget};
+
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        // `x·3/3 − x` at this `x` rounds to 3.7e-9 m; the symbolic tier
+        // proves it zero.
+        let (proved, _) = with_session(
+            SymBudget {
+                max_terms: 64,
+                max_degree: 8,
+            },
+            || {
+                let x = Sym::param(ParamSymbol::new(0xa8), 23_456_789.1_f64);
+                let three = Sym::from_f64(3.0);
+                crate::dihedral::decide_positive("pin", Margin::of(x * three / three - x), band)
+                    .unwrap_err()
+            },
+        );
+        let verdict = Refused::rejected(&proved).unwrap();
+        assert!(
+            matches!(verdict, Refused::Zero(Classified { margin, .. }) if margin.proven()),
+            "the fixture is a proved zero: {verdict:?}"
+        );
+        let span = CertifyError::IntervalNotForward { verdict };
+        assert_eq!(
+            span.ending(Reading::AtRest).as_deref(),
+            Some(KERNEL_OR_FILE_DEFECT_ENDING),
+            "at rest"
+        );
+        assert_eq!(
+            span.ending(FileCoincidence::new(1e-12)).as_deref(),
+            Some(DAMAGED_FILE_ENDING),
+            "at the import door past ε_in"
+        );
     }
 
     /// A span of no length and a reversed one each render whole under
@@ -5958,7 +6077,7 @@ mod tests {
                     limb: SsiLimb::Tube,
                     cause: cause(MarginDiag::value(5e-9)),
                 },
-                CertCheck::Transversality,
+                CertCheck::TransversalityTube,
                 tube,
             ),
             (
@@ -7066,6 +7185,7 @@ mod tests {
             ),
             (CertCheck::WitnessMidpoint, Miss(Unsized::Defect)),
             (CertCheck::Transversality, Sized(Positive)),
+            (CertCheck::TransversalityTube, Sized(Positive)),
             (CertCheck::TransversalityArm, Sized(Positive)),
             (CertCheck::TangentPlanes, Undefined),
             (CertCheck::TangentSecondOrder, Sized(Positive)),
