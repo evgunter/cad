@@ -1211,3 +1211,4 @@ Signed (CLEAVE orchestrator).
     - The straight ring fails mesh `NonManifoldEdge`.
   - Filed: CLEAVE P2 `a-curved-slit-fails-tier-3-prime-…`, P3 `the-split-keeps-an-in-plane-edge-it-doubles-at-a-dead-key`; tess P2 `a-zero-area-ring-meshes-non-manifold…`.
   - Full review dispatched.
+- 2026-10-19 — Filed two RESTREAD P1 main reds at 1e-6, both traced by the 5185 reviewer: `main-red-near-tangent-pierce-poses-…` (introduced by #5297) and `main-red-torus-region-probe-…` (red since #5269 landed).
