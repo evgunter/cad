@@ -581,6 +581,8 @@ mod review_4704_r1_probes;
 mod review_4781_r1_probes;
 #[path = "review_4781_r2_probes.rs"]
 mod review_4781_r2_probes;
+#[path = "review_5338_probes.rs"]
+mod review_5338_probes;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
 #[path = "review_arms2_r1_probes.rs"]
