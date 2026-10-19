@@ -84,3 +84,14 @@ opposite 3′ verdicts. Whichever answer the fork takes, the two forms owe
 one verdict; the edge–face form passes only because no lane reads its
 sides (RESTREAD's
 `the-edge-edge-and-point-record-confirms-read-no-material-sides`).
+
+## The through-bore slot (2026-10-19, unmeasured)
+
+From round 4 of the pinch fork (`[ev]` PR 5395): a plate ∖ a rod tangent
+from inside that runs through the plate (a through-bore), then ∖ a slot
+cut through the wall beneath the bore, far from the tangent line. The
+slot leaves the material joined only along the line, so the body is two
+solids, each ending in a cusp there. Either answer must handle it: the
+record form has to split the plate face and the bore wall at the
+record's locus, which that op never sectioned; the edge form already
+holds the cusp edges and only re-sorts. Not yet probed on main.
