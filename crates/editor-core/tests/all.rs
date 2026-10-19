@@ -728,6 +728,8 @@ mod wire_rv_unknown;
 #[path = "wire_selection_kind_doors.rs"]
 mod wire_selection_kind_doors;
 
+#[path = "a_keel_ring_names_its_two_edges.rs"]
+mod a_keel_ring_names_its_two_edges;
 #[path = "a_mate_on_a_full_turn_bore_names.rs"]
 mod a_mate_on_a_full_turn_bore_names;
 #[path = "decide_1_self_dot_interval.rs"]
