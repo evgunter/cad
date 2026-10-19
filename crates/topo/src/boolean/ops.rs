@@ -7677,7 +7677,11 @@ mod tests {
         // band, the needle class's fork.
         let straddling_volume = V::ShellRoleUndecided {
             solid: SolidKey::default(),
-            error: S::Straddles { shell: shells[2] },
+            error: S::Straddles {
+                shell: shells[2],
+                low: geom_core::MarginDiag::value(-1e-18),
+                high: geom_core::MarginDiag::value(1e-18),
+            },
         };
         let definite = V::NegativeVolume {
             solid: SolidKey::default(),

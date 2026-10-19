@@ -470,3 +470,56 @@ fn a_union_leaving_a_needle_cavity_holds_it_as_a_void() {
         );
     }
 }
+
+/// **A needle's orientation through the structural doors**, which hold
+/// no quadrature lane and read the volume walk's own sums: the sign of
+/// the sum against a stated bound on its rounding
+/// (`props::rounding_bound`), never its `V/A` against the band
+/// (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum.md`).
+/// A needle `w` across, a unit long, holds `V = w²`, and its sums round
+/// by about `u` per coordinate product of its unit length: at ε 1e-6
+/// (`w ≥ 1.05e-5`, `V ≥ 1.1e-10`) the sign clears that bound, so the
+/// needle validates and inside out is `NegativeVolume`; at ε 1e-9
+/// (`V ≤ 9e-16`) it lies within it, and the needle refuses as a
+/// capability limit of the scalar, `VolumeSignUnresolved { Scalar }`,
+/// never as a thinness gate or a defect — except where an aimed ray reads
+/// its side first, which at ε 1e-9 is the turned needle 21ε across alone.
+#[test]
+fn a_needles_orientation_through_the_structural_doors() {
+    let tol = Tol::witness();
+    if stood_down(tol) {
+        return;
+    }
+    let at_1e6 = (tol.eps() - 1e-6).abs() < 1e-12;
+    for m in NEEDLE {
+        let w = m * tol.eps();
+        for (turned, what, body) in [
+            (false, format!("needle {m}ε"), needle(w, tol)),
+            (true, format!("turned needle {m}ε"), turned_needle(w, tol)),
+        ] {
+            let reads = at_1e6 || (turned && m == 21.0);
+            let solid = body.solids().next().expect("one solid").0;
+            let inside_out = body.revert().expect("the needle reverts");
+            let unresolved = Err(vec![ValidationError::VolumeSignUnresolved {
+                solid,
+                limit: topo::SignLimit::Scalar,
+            }]);
+            let (plain, inverted) = if reads {
+                (Ok(()), Err(vec![ValidationError::NegativeVolume { solid }]))
+            } else {
+                (unresolved.clone(), unresolved)
+            };
+            assert_eq!(
+                topo::validate_geometric_structural(&body, tol),
+                plain,
+                "{what} through the structural door"
+            );
+            assert_eq!(
+                topo::validate_geometric_structural(&inside_out, tol),
+                inverted,
+                "inside-out {what} through the structural door"
+            );
+        }
+    }
+}
+

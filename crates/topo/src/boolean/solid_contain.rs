@@ -5213,6 +5213,11 @@ fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
     .map_err(refused)?;
     let role = role.map_err(|refusal| match refusal {
         crate::props::RoleWalkRefusal::Refused(source) => refused(source),
+        // A sign left open by a limit of the measurement is the capability
+        // gap `VolumeUncertified` names, never the body's.
+        crate::props::RoleWalkRefusal::Unread {
+            limit: Some(_), ..
+        } => PointInSolidError::VolumeUncertified,
         crate::props::RoleWalkRefusal::Unread { last, .. } => unread_refusal(&last, faces[0]),
     });
     // An `Outer` boundary leaves infinity outside its material, a `Void`

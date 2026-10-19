@@ -742,9 +742,9 @@ impl<T: Decide> Round<'_, '_, T> {
                 self.certify
                     .map(|lane| rederived(self.body, self.band, self.tol, lane, self.runs, tight))
             },
+            || rounding_bound(self.body, self.runs),
             names,
             certified,
-            self.band,
         )
     }
 }
@@ -866,8 +866,8 @@ impl RoleUnread {
 
     /// `shell`'s refusal for this read, its ends picking the words
     /// ([`shell_role_refusal`]).
-    pub(crate) fn refusal(self, shell: ShellKey, band: Band) -> ShellClassifyError {
-        shell_role_refusal(shell, self.lo, self.hi, band)
+    pub(crate) fn refusal(self, shell: ShellKey) -> ShellClassifyError {
+        shell_role_refusal(shell, self.lo, self.hi)
     }
 }
 
@@ -916,6 +916,44 @@ pub(crate) fn read_role<U: Decide>(
     }
 }
 
+/// **The bandless sign read** (D10): `reading`'s ends read for their
+/// sign alone ([`Margin::sign_of`] against [`Band::enclosure_sign`]), the
+/// high end first, the low end only where it decides nothing
+/// ([`ShellRole::decided_at`]). No length is held against a tolerance:
+/// a certified enclosure on one side of zero is that role however thin
+/// the body. The margins it records are the volume's own.
+pub(crate) fn read_sign<U: Decide>(reading: SignReading<U>, names: RoleNames) -> RoleRead {
+    let sign = |name, volume| {
+        crate::validate::decide_reported(name, Margin::sign_of(volume), Band::enclosure_sign())
+    };
+    let role_at = |end, decided: Result<Decided, Indeterminate>| {
+        decided
+            .ok()
+            .and_then(|decided| ShellRole::decided_at(end, decided.sign))
+    };
+    let read = |role: Option<ShellRole>, unread| match role {
+        Some(role) => RoleRead::Decided(role),
+        None => RoleRead::Unread(unread),
+    };
+    match reading {
+        SignReading::Exact { volume, .. } => {
+            let one = sign(names.high, volume);
+            read(
+                role_at(BracketEnd::Low, one).or_else(|| role_at(BracketEnd::High, one)),
+                RoleUnread { lo: one, hi: one },
+            )
+        }
+        SignReading::Bracket(ends) => {
+            let hi = sign(names.high, ends.volume_hi);
+            if let Some(role) = role_at(BracketEnd::High, hi) {
+                return RoleRead::Decided(role);
+            }
+            let lo = sign(names.low, ends.volume_lo);
+            read(role_at(BracketEnd::Low, lo), RoleUnread { lo, hi })
+        }
+    }
+}
+
 /// What [`read_role`] read.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum RoleRead {
@@ -940,80 +978,205 @@ impl RoleRead {
 pub(crate) enum Certified {
     /// The role, decided on the exact value.
     Role(ShellRole),
-    /// No role: the enclosure holds zero, taken about the body, so its
-    /// width is the body's own rounding.
+    /// No role: the certified enclosure holds zero, taken about the body
+    /// with every face in closed form, so its width is the body's own
+    /// rounding — the kernel's or the file's, since a body whose pairs
+    /// are definite holds a volume clear of that rounding.
     Open(RoleUnread),
-    /// No role, and the interval was NOT taken about the body (a face
-    /// its lane could not measure about the body kept the world-origin
-    /// width), so a straddle may be
-    /// that width rather than the body: the sign is unresolved.
-    Unresolved(RoleUnread),
+    /// No role, and the read's width is a limit of how it was measured,
+    /// not the body's ([`SignLimit`]): the sign is unresolved.
+    Unresolved(RoleUnread, SignLimit),
     /// The interval re-derivation refused a face.
     Refused(MassPropsError),
+}
+
+/// **Why a volume's sign is unresolved where the body is not at fault**:
+/// a limit of how the volume was measured, which no change to the part
+/// is known to move.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SignLimit {
+    /// A face its lane could not measure about the body kept the width
+    /// it was measured with about the world origin, so the enclosure's
+    /// width may be the body's distance from the origin.
+    WorldOrigin,
+    /// A curved face's quadrature enclosure was still open at the last
+    /// round its schedule runs.
+    Quadrature,
+    /// The scalar holds no interval lane, so its sums are read against a
+    /// stated bound on their rounding ([`rounding_bound`]), and the volume
+    /// lies within it.
+    Scalar,
+}
+
+impl SignLimit {
+    /// What left the sign unresolved, in words, after "the sign of … volume
+    /// cannot be read: ".
+    #[must_use]
+    pub fn words(self) -> &'static str {
+        match self {
+            Self::WorldOrigin => {
+                "its enclosure holds zero, and a face that could not be measured about the \
+                 body itself keeps the width it was measured with far from the world origin"
+            }
+            Self::Quadrature => {
+                "its enclosure still holds zero at the last round a curved face's \
+                 quadrature runs"
+            }
+            Self::Scalar => {
+                "this scalar carries no interval to certify its sums, and the volume lies \
+                 within their rounding"
+            }
+        }
+    }
+
+    /// The refusal's ending: a capability limit, never a defect.
+    #[must_use]
+    pub fn ending(self) -> &'static str {
+        match self {
+            Self::WorldOrigin => "Recourse: model the part nearer the origin",
+            Self::Quadrature | Self::Scalar => geom_core::NOT_YET_ENDING,
+        }
+    }
 }
 
 /// **A role, certified**: read off `interval` — the walk's faces
 /// re-derived in interval arithmetic — wherever the walk holds a lane,
 /// and off the walk's own sums `reading` only where it holds none.
 ///
-/// The sums round at `f64` with nothing to say how far, and a body small
-/// against its coordinates reads its rounding as its sign, either way and
-/// into the band. The re-derivation encloses the divergence sum about a
-/// corner of the body over the stored geometry ([`rederive`] says which
-/// value, and how it differs from the sums' target by an in-band amount),
-/// at the closed forms' own outward rounding about that corner. An
-/// interval that decides nothing holds zero: [`Certified::Open`] where
-/// every face was recentred, its width the body's own rounding, and
-/// [`Certified::Unresolved`] where a face kept its world-origin width.
+/// **The sign alone decides** (D10: the volume's sign is certified by its
+/// enclosure alone, never held against the band): every read is
+/// [`read_sign`]'s, so an enclosure wholly on one side of zero is that
+/// role however thin the body.
+///
+/// - **With a lane**, the re-derivation encloses the divergence sum of
+///   the stored geometry about a vertex of the body ([`rederive`] says
+///   which value). One that holds zero is [`Certified::Open`] where every
+///   face was taken about the body in closed form, its width the body's
+///   own rounding, and [`Certified::Unresolved`] where a face kept its
+///   world-origin width or a quadrature face its last round's
+///   ([`SignLimit`]).
+/// - **With none** (a scalar with no interval lane, or a structural door),
+///   the walk's sums are read as the enclosure `[V − b, V + b]`, `b` the
+///   stated bound on their rounding (`rounding`, [`rounding_bound`]);
+///   one that holds zero is [`SignLimit::Scalar`], a capability limit.
+///   Never `V/A` against the run's band
+///   (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum.md`).
 ///
 /// `interval(tight)` is read in two stages, so a decision costs one read
 /// of each face wherever one suffices. Untight (`false`), a quadrature
 /// face is the walk's own enclosure less `c · A⃗`, no new quadrature; a
 /// role it decides stands, the enclosure being sound. Only where it
-/// leaves the sign open on a face it did not recentre is `interval(true)`
-/// read, which measures those faces again about the corner.
-///
-/// **The interval's sign alone decides** (D10: the volume's sign is
-/// certified by its enclosure alone, never held against the band): it is
-/// read against [`Band::enclosure_sign`], so an enclosure wholly on one
-/// side of zero is that role however thin the body, and one that holds
-/// zero is no role, its enclosure the reading a refusal reports. The
-/// walk's sums are read first all the same, under the run's band, and
-/// decide only where the walk holds no lane: it then has no
-/// re-derivation, and its sums decide
-/// (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
+/// leaves the sign open at a world-origin width is `interval(true)` read,
+/// which measures those faces again about the vertex.
 pub(crate) fn certify_role<T: Decide>(
     reading: SignReading<T>,
-    interval: impl Fn(bool) -> Option<Result<(SignReading<Interval>, bool), MassPropsError>>,
+    interval: impl Fn(bool) -> Option<Result<(SignReading<Interval>, Option<SignLimit>), MassPropsError>>,
+    rounding: impl FnOnce() -> Result<T, MassPropsError>,
     names: RoleNames,
     certified: RoleNames,
-    band: Band,
 ) -> Certified {
-    let walk = read_role(reading, names, band);
-    let read =
-        |got: Option<Result<(SignReading<Interval>, bool), MassPropsError>>| match (got, walk) {
-            (None, RoleRead::Decided(role)) => Certified::Role(role),
-            (None, RoleRead::Unread(unread)) => Certified::Open(unread),
-            (Some(Err(source)), _) => Certified::Refused(source),
-            (Some(Ok((exact, recentred))), _) => {
-                // The walk's sums are no certificate either way: the
-                // certified read decides, or refuses in its own words.
-                let unread = match read_role(exact, certified, Band::enclosure_sign()) {
-                    RoleRead::Decided(role) => return Certified::Role(role),
-                    RoleRead::Unread(cert) => cert,
-                };
-                if recentred {
+    let read = |got: Option<Result<(SignReading<Interval>, Option<SignLimit>), MassPropsError>>| {
+        got.map(|got| match got {
+            Err(source) => Certified::Refused(source),
+            Ok((exact, limit)) => match (read_sign(exact, certified), limit) {
+                (RoleRead::Decided(role), _) => Certified::Role(role),
+                (RoleRead::Unread(unread), None) => Certified::Open(unread),
+                (RoleRead::Unread(unread), Some(limit)) => Certified::Unresolved(unread, limit),
+            },
+        })
+    };
+    let lane_free = || match rounding() {
+        Err(source) => Certified::Refused(source),
+        Ok(bound) => {
+            let (lo, hi, lever) = reading.ends();
+            let widened = SignReading::Bracket(VolumeEnclosure {
+                volume_lo: lo - bound,
+                volume_hi: hi + bound,
+                surface_area: lever,
+            });
+            match read_sign(widened, names) {
+                RoleRead::Decided(role) => Certified::Role(role),
+                // An end that could not be read (a NaN sum) is no rounding
+                // the bound covers: the sums are the body's or the kernel's.
+                RoleRead::Unread(unread) if unread.escalation().is_some() => {
                     Certified::Open(unread)
-                } else {
-                    Certified::Unresolved(unread)
                 }
+                RoleRead::Unread(unread) => Certified::Unresolved(unread, SignLimit::Scalar),
             }
-        };
+        }
+    };
     match read(interval(false)) {
-        Certified::Unresolved(_) => read(interval(true)),
-        certified => certified,
+        Some(Certified::Unresolved(_, SignLimit::WorldOrigin)) => {
+            read(interval(true)).unwrap_or_else(lane_free)
+        }
+        Some(certified) => certified,
+        None => lane_free(),
     }
 }
+
+/// **The stated bound on a lane-free walk's rounding** ([`certify_role`]'s
+/// `b`): `ROUNDING_TERMS · u · Σ_f (n_f + 1) · R_f · D_f²` over the walk's
+/// faces, `u` the unit roundoff and `n_f` a face's edge count. A face's
+/// closed form is taken about its surface's anchor (a plane's or a
+/// cylinder's origin, a cone's apex, a sphere's or a torus's centre): `R_f`
+/// is the larger 1-norm of the anchor and of the face's loop points
+/// (their distance from the world origin, from above), and `D_f` the
+/// larger of the loop points' box and their 1-norm distance from the
+/// anchor (the spread of the vectors the closed form crosses, from
+/// above).
+///
+/// The model: a face's flux is a sum over its edges of cross products of
+/// vectors `D_f` long, each rounding by about `u · D_f²`, levered by a
+/// point `R_f` from the origin; the fold adds one rounding per face.
+/// `ROUNDING_TERMS` covers the few rounded operations of each term. It is
+/// a stated bound, not a certificate: a scalar with no interval lane has
+/// none to give, and what this read certifies is only that the sums' sign
+/// is not within the rounding the model puts on them.
+fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, MassPropsError> {
+    let one_norm = |x: T, y: T, z: T| x.abs() + y.abs() + z.abs();
+    let mut bound = T::zero();
+    for run in runs {
+        let (face, surface) = resolve_face(body, run.face);
+        let anchor = match *surface {
+            Surface::Plane { origin, .. } | Surface::Cylinder { origin, .. } => Some(origin),
+            Surface::Cone { apex, .. } => Some(apex),
+            Surface::Sphere { center, .. } | Surface::Torus { center, .. } => Some(center),
+            Surface::Nurbs(_) | Surface::Approx(_) => None,
+        };
+        let mut edges = 0usize;
+        let mut reach = anchor.map_or(T::zero(), |a| one_norm(a.x, a.y, a.z));
+        let mut spread = T::zero();
+        let mut box_lo: Option<Point3<T>> = None;
+        let mut box_hi: Option<Point3<T>> = None;
+        for lp in face_loops(body, face)? {
+            for e in &lp {
+                edges += 1;
+                for p in [e.carrier.eval(e.t0), e.carrier.eval(e.t1)] {
+                    reach = reach.max(one_norm(p.x, p.y, p.z));
+                    if let Some(a) = anchor {
+                        spread = spread.max(one_norm(p.x - a.x, p.y - a.y, p.z - a.z));
+                    }
+                    box_lo = Some(box_lo.map_or(p, |b| {
+                        Point3::new(b.x.min(p.x), b.y.min(p.y), b.z.min(p.z))
+                    }));
+                    box_hi = Some(box_hi.map_or(p, |b| {
+                        Point3::new(b.x.max(p.x), b.y.max(p.y), b.z.max(p.z))
+                    }));
+                }
+            }
+        }
+        if let (Some(lo), Some(hi)) = (box_lo, box_hi) {
+            let spread = spread.max(one_norm(hi.x - lo.x, hi.y - lo.y, hi.z - lo.z));
+            #[allow(clippy::cast_precision_loss)]
+            let terms = T::from_f64((edges + 1) as f64);
+            bound = bound + terms * reach * spread * spread;
+        }
+    }
+    Ok(bound * T::from_f64(ROUNDING_TERMS * f64::EPSILON * 0.5))
+}
+
+/// [`rounding_bound`]'s allowance for the rounded operations of one term.
+const ROUNDING_TERMS: f64 = 16.0;
 
 /// [`rederive`] as a role read takes it: one interval, read once.
 fn rederived<T: Decide>(
@@ -1023,9 +1186,9 @@ fn rederived<T: Decide>(
     lane: QuadLane<T>,
     runs: &[FaceRun<T>],
     tight: bool,
-) -> Result<(SignReading<Interval>, bool), MassPropsError> {
+) -> Result<(SignReading<Interval>, Option<SignLimit>), MassPropsError> {
     rederive(body, band, tol, lane, runs, tight)
-        .map(|r| (SignReading::exact(r.volume, r.area), r.recentred))
+        .map(|r| (SignReading::exact(r.volume, r.area), r.limit()))
 }
 
 /// **A walk's runs re-derived in interval arithmetic**, about the least
@@ -1105,6 +1268,7 @@ fn rederive_about<T: Decide>(
 ) -> Result<Option<Rederived>, MassPropsError> {
     let (mut flux, mut area) = (Interval::zero(), Interval::zero());
     let mut recentred = centre.is_some();
+    let mut quadrature = false;
     for run in runs {
         let (face, surface) = resolve_face(body, run.face);
         let flat = flat_loops(body, face)?;
@@ -1114,7 +1278,10 @@ fn rederive_about<T: Decide>(
             source,
         };
         let (f, a) = match (run.contribution.enclosure, centre) {
-            (Some(enclosure), None) => enclosure,
+            (Some(enclosure), None) => {
+                quadrature = true;
+                enclosure
+            }
             (Some(enclosure), Some(centre)) => {
                 // The quadrature again, about `centre`, at the round the
                 // walk reached; failing that, the walk's enclosure less
@@ -1132,6 +1299,7 @@ fn rederive_about<T: Decide>(
                 };
                 match rerun {
                     Ok(RoundOutcome::Converged(b) | RoundOutcome::Open { bounds: b, .. }) => {
+                        quadrature = true;
                         (b.flux, b.area)
                     }
                     Err(_) => match (lane.closed_form)(
@@ -1178,6 +1346,7 @@ fn rederive_about<T: Decide>(
         volume: flux / Interval::from_f64(3.0),
         area,
         recentred,
+        quadrature,
     }))
 }
 
@@ -1252,6 +1421,7 @@ fn rederive_polygons<T: Decide>(
         volume: flux / Interval::from_f64(3.0),
         area,
         recentred: true,
+        quadrature: false,
     })
 }
 
@@ -1301,6 +1471,23 @@ struct Rederived {
     /// no translated twin) kept the world-origin width
     /// ([`quad_lane::closed_form`]).
     recentred: bool,
+    /// Whether a face was read off its quadrature's last round rather
+    /// than in closed form.
+    quadrature: bool,
+}
+
+impl Rederived {
+    /// What an enclosure holding zero is a limit of, if not the body's
+    /// own rounding: a world-origin width first, then a quadrature's.
+    fn limit(&self) -> Option<SignLimit> {
+        if !self.recentred {
+            Some(SignLimit::WorldOrigin)
+        } else if self.quadrature {
+            Some(SignLimit::Quadrature)
+        } else {
+            None
+        }
+    }
 }
 
 /// **The reference point the re-derivation takes the flux about**: the
@@ -2899,31 +3086,41 @@ pub enum ShellClassifyError {
         /// The per-face/per-body failure.
         source: MassPropsError,
     },
-    /// The sign read escalated at an end of the shell's volume bracket:
-    /// the certified enclosure of `V/A` holds zero (the sign is read off
-    /// it alone, D10), or could not be read. F6: an undecided orientation
-    /// is never guessed to a side.
+    /// The sign read escalated on the shell's certified volume: its
+    /// enclosure, taken about the body in closed form, holds zero (the
+    /// sign is read off it alone, D10), or could not be read. F6: an
+    /// undecided orientation is never guessed to a side.
     Escalated {
         /// The unclassifiable shell.
         shell: ShellKey,
         /// The named escalation from the funnel.
         source: Indeterminate,
     },
-    /// An end of the shell's volume bracket (the whole volume, for a
-    /// closed-form shell) classified as zero at this tolerance, and no
-    /// end classified to a side.
+    /// An end of the shell's certified volume enclosure read as zero, and
+    /// no end read to a side.
     ZeroVolume {
         /// The unclassifiable shell.
         shell: ShellKey,
         /// The zero end's verdict, with its reporting margin.
         verdict: Classified,
     },
-    /// The shell's certified volume bracket straddles zero at this
-    /// tolerance: its low end classified to the void side and its high
-    /// end to the outer side.
+    /// The shell's certified volume bracket straddles zero: its low end
+    /// reads on the void side and its high end on the outer side.
     Straddles {
         /// The unclassifiable shell.
         shell: ShellKey,
+        /// The low end's reading.
+        low: geom_core::MarginDiag,
+        /// The high end's reading.
+        high: geom_core::MarginDiag,
+    },
+    /// The sign of the shell's volume is unresolved by a limit of how it
+    /// was measured, not by the body ([`SignLimit`]): a capability limit.
+    SignUnresolved {
+        /// The unclassifiable shell.
+        shell: ShellKey,
+        /// What left the sign unresolved.
+        limit: SignLimit,
     },
     /// A ray aimed at one of the shell's faces from beyond it met two of
     /// its faces in band of each other along it, and no other aimed ray
@@ -2971,24 +3168,37 @@ pub const AIMED_PAIR: SizedDecision = SizedDecision {
     no_size: None,
 };
 
-/// **A volume's certified enclosure, in words**: the `V/A` it reads, its
-/// two ends (which give its width), or that it could not be read,
-/// through the reading's own `Display`. A volume read off its enclosure
-/// alone (D10) refuses only where the enclosure holds zero, so the ends
-/// are what the refusal has to say, and no band is quoted against them.
+/// **A volume's enclosure, in words**: the volume itself, in cubic
+/// metres — its enclosure's two ends, the one value read, or that it
+/// could not be read — through the reading's own `Display`. The volume's
+/// sign is read off it alone ([`read_sign`]), so the volume is what the
+/// refusal has to say, and no band is quoted against it.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct EnclosureWords(pub(crate) geom_core::MarginDiag);
 
 impl fmt::Display for EnclosureWords {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0.kind() {
-            geom_core::MarginKind::Enclosure => {
-                write!(f, "its volume over area lies in {:e}", self.0)
-            }
-            geom_core::MarginKind::Value => write!(f, "its volume over area reads {:e}", self.0),
+            geom_core::MarginKind::Enclosure => write!(f, "its volume lies in {:e} m³", self.0),
+            geom_core::MarginKind::Value => write!(f, "its volume reads {:e} m³", self.0),
             geom_core::MarginKind::Invalid => {
                 f.write_str("its volume could not be read (NaN or a refused enclosure)")
             }
+        }
+    }
+}
+
+/// One end of a volume bracket, in words: `reads {v} m³`, or that it
+/// could not be read.
+#[derive(Clone, Copy, Debug)]
+struct VolumeEnd(geom_core::MarginDiag);
+
+impl fmt::Display for VolumeEnd {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0.kind() {
+            geom_core::MarginKind::Invalid => f.write_str("could not be read"),
+            geom_core::MarginKind::Enclosure => write!(f, "lies in {:e} m³", self.0),
+            geom_core::MarginKind::Value => write!(f, "reads {:e} m³", self.0),
         }
     }
 }
@@ -3006,15 +3216,26 @@ impl fmt::Display for ShellClassifyPayload<'_> {
             ShellClassifyError::Props { source, .. } => write!(f, "{source}"),
             ShellClassifyError::Escalated { source, .. } => write!(
                 f,
-                "the certified enclosure of a shell's volume holds zero: {}",
+                "the sign of a shell's volume cannot be read: {}",
                 EnclosureWords(source.margin)
             ),
-            ShellClassifyError::ZeroVolume { .. } => {
-                f.write_str("a shell's certified volume, or an end of its bracket, is zero")
-            }
-            ShellClassifyError::Straddles { .. } => {
-                f.write_str("a shell's certified volume bracket straddles zero")
-            }
+            ShellClassifyError::ZeroVolume { verdict, .. } => write!(
+                f,
+                "a shell's certified volume reads zero: {}",
+                EnclosureWords(verdict.margin)
+            ),
+            ShellClassifyError::Straddles { low, high, .. } => write!(
+                f,
+                "a shell's certified volume bracket holds zero: its low end {} and its high \
+                 end {}",
+                VolumeEnd(*low),
+                VolumeEnd(*high)
+            ),
+            ShellClassifyError::SignUnresolved { limit, .. } => write!(
+                f,
+                "the sign of a shell's volume cannot be read: {}",
+                limit.words()
+            ),
             ShellClassifyError::RayInBand { pair, .. } => write!(
                 f,
                 "which side of a shell its material lies on cannot be read: {}",
@@ -3058,7 +3279,9 @@ impl ShellClassifyError {
             Self::Corner { volume, .. } => volume.arm(),
             Self::ZeroVolume { verdict, .. } => Some(RefusedArm::Zero(*verdict)),
             Self::Straddles { .. } => Some(RefusedArm::SignCertain(None)),
-            Self::Props { .. } | Self::Band { .. } | Self::Ray { .. } => None,
+            Self::Props { .. } | Self::Band { .. } | Self::Ray { .. } | Self::SignUnresolved { .. } => {
+                None
+            }
         }
     }
 
@@ -3069,6 +3292,9 @@ impl ShellClassifyError {
     /// `None` where the refusal is not that reading's.
     #[must_use]
     pub fn recourse(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> Option<String> {
+        if let Self::SignUnresolved { limit, .. } = self {
+            return Some(limit.ending().to_owned());
+        }
         let at = at.into();
         let arm = self.arm()?;
         Some(match self {
@@ -3079,7 +3305,10 @@ impl ShellClassifyError {
             | Self::Straddles { .. }
             | Self::Props { .. }
             | Self::Band { .. }
-            | Self::Ray { .. } => geom_brep::recourse::Unsized::Defect.recourse(arm, at.reading()),
+            | Self::Ray { .. }
+            | Self::SignUnresolved { .. } => {
+                geom_brep::recourse::Unsized::Defect.recourse(arm, at.reading())
+            }
         })
     }
 
@@ -3100,6 +3329,7 @@ impl fmt::Display for ShellClassifyError {
             | Self::Props { .. }
             | Self::ZeroVolume { .. }
             | Self::Straddles { .. }
+            | Self::SignUnresolved { .. }
             | Self::RayInBand { .. }
             | Self::Corner { .. }
             | Self::Ray { .. } => write!(f, "{}", self.payload()),
@@ -3337,7 +3567,10 @@ pub(crate) fn shell_volume_role<T: Decide>(
     match role {
         Ok(role) => Ok(role),
         Err(RoleWalkRefusal::Refused(source)) => Err(props(source)),
-        Err(RoleWalkRefusal::Unread { last, .. }) => Err(last.refusal(shell, band)),
+        Err(RoleWalkRefusal::Unread {
+            limit: Some(limit), ..
+        }) => Err(ShellClassifyError::SignUnresolved { shell, limit }),
+        Err(RoleWalkRefusal::Unread { last, .. }) => Err(last.refusal(shell)),
     }
 }
 
@@ -3351,11 +3584,11 @@ pub(crate) enum RoleWalkRefusal {
     Unread {
         /// The last round's two ends.
         last: Box<RoleUnread>,
-        /// Whether that round was taken about the body
-        /// ([`Certified::Open`]: an enclosure holding zero at the body's
-        /// own rounding) rather than at a face's world-origin width
-        /// ([`Certified::Unresolved`]).
-        about_the_body: bool,
+        /// What left that round's sign unresolved, where it is a limit of
+        /// the measurement ([`Certified::Unresolved`]); `None` where the
+        /// enclosure holds zero at the body's own rounding
+        /// ([`Certified::Open`]).
+        limit: Option<SignLimit>,
         /// The walk's refusal to measure further, where the schedule
         /// stopped on one rather than running out.
         measuring: Option<MassPropsError>,
@@ -3380,7 +3613,7 @@ pub(crate) enum RoleWalkRefusal {
 /// - check 7 (`validate`'s `plus_v_by_sign`): a solid's faces, the same
 ///   lane and names, and also the certificate the walk assembles, the
 ///   open/unresolved split ([`RoleWalkRefusal::Unread`]'s
-///   `about_the_body`, which tells `VolumeSignUnresolved` from an
+///   `limit`, which tells `VolumeSignUnresolved` from an
 ///   undecided orientation) and the walk's measuring refusal
 ///   (`VolumeUncomputable`);
 /// - point containment's side at infinity (`boolean::solid_contain`'s
@@ -3415,18 +3648,18 @@ pub(crate) fn role_walk<'b, T: Decide>(
             Certified::Role(role) => Some(Ok(role)),
             Certified::Refused(source) => Some(Err(RoleWalkRefusal::Refused(source))),
             Certified::Open(unread) => {
-                last.set(Some((unread, true)));
+                last.set(Some((unread, None)));
                 None
             }
-            Certified::Unresolved(unread) => {
-                last.set(Some((unread, false)));
+            Certified::Unresolved(unread, limit) => {
+                last.set(Some((unread, Some(limit))));
                 None
             }
         },
         |measuring| match (last.get(), measuring) {
-            (Some((unread, about_the_body)), measuring) => Err(RoleWalkRefusal::Unread {
+            (Some((unread, limit)), measuring) => Err(RoleWalkRefusal::Unread {
                 last: Box::new(unread),
-                about_the_body,
+                limit,
                 measuring,
             }),
             (None, Some(source)) => Err(RoleWalkRefusal::Refused(source)),
@@ -3473,19 +3706,22 @@ fn shell_role_refusal(
     shell: ShellKey,
     lo: Result<Decided, Indeterminate>,
     hi: Result<Decided, Indeterminate>,
-    band: Band,
 ) -> ShellClassifyError {
     match (lo, hi) {
         (_, Err(source)) | (Err(source), _) => ShellClassifyError::Escalated { shell, source },
         (Ok(lo), Ok(hi)) => match (lo.sign, hi.sign) {
-            (Sign::Negative, Sign::Positive) => ShellClassifyError::Straddles { shell },
+            (Sign::Negative, Sign::Positive) => ShellClassifyError::Straddles {
+                shell,
+                low: lo.margin,
+                high: hi.margin,
+            },
             _ => {
                 let zero = if lo.sign == Sign::Zero { lo } else { hi };
                 ShellClassifyError::ZeroVolume {
                     shell,
                     verdict: Classified {
                         margin: zero.margin,
-                        band,
+                        band: Band::enclosure_sign(),
                     },
                 }
             }
@@ -4526,12 +4762,13 @@ pub(crate) mod role_unread_rows {
                 let volume = Interval::from_bounds(lo, hi);
                 Ok((
                     SignReading::exact(volume, Interval::from_bounds(1.0, 1.0)),
-                    true,
+                    None,
                 ))
             })
         };
-        match certify_role(walk, interval, names, names, band()) {
-            Certified::Open(unread) | Certified::Unresolved(unread) => unread,
+        let rounding = || Ok(0.0);
+        match certify_role(walk, interval, rounding, names, names) {
+            Certified::Open(unread) | Certified::Unresolved(unread, _) => unread,
             other => panic!("{walk:?} certified by {certified:?} read {other:?}"),
         }
     }
@@ -4581,10 +4818,10 @@ pub(crate) mod role_unread_rows {
                 Read::Zero,
             ),
             (
-                "a bracket inside the band",
+                "a bracket reaching across zero, no band to hold it",
                 bracket(-1e-15, 1e-15),
                 None,
-                Read::Zero,
+                Read::Unmeasured,
             ),
             (
                 "a bracket straddling zero",
@@ -4656,11 +4893,11 @@ pub(crate) mod role_unread_rows {
                     Interval::from_bounds(lo, hi),
                     Interval::from_bounds(1.0, 1.0),
                 ),
-                true,
+                None,
             )))
         };
         assert!(matches!(
-            certify_role(SignReading::exact(0.0, 1.0), interval, names, names, band()),
+            certify_role(SignReading::exact(0.0, 1.0), interval, || Ok(0.0), names, names),
             Certified::Role(super::ShellRole::Outer)
         ));
     }
@@ -5148,11 +5385,18 @@ mod shell_role_refusal_tests {
         let v = MarginDiag::value;
         let ok = |sign, m| Ok(Decided { sign, margin: v(m) });
         let across = MarginDiag::enclosure(-2e-9, 3e-9);
-        let straddles = ShellClassifyError::Straddles { shell };
+        let straddles = ShellClassifyError::Straddles {
+            shell,
+            low: v(-1.0),
+            high: v(1.0),
+        };
         // The zero end's verdict rides the refusal, the low end's first.
         let zero = |m| ShellClassifyError::ZeroVolume {
             shell,
-            verdict: Classified { margin: v(m), band },
+            verdict: Classified {
+                margin: v(m),
+                band: Band::enclosure_sign(),
+            },
         };
         let rows = [
             // Closed form: one read for both ends.
@@ -5226,7 +5470,7 @@ mod shell_role_refusal_tests {
             ),
         ];
         for (name, lo, hi, want) in rows {
-            assert_eq!(shell_role_refusal(shell, lo, hi, band), want, "{name}");
+            assert_eq!(shell_role_refusal(shell, lo, hi), want, "{name}");
         }
     }
 }

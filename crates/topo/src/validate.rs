@@ -1527,16 +1527,18 @@ pub enum ValidationError {
         /// The mass-properties failure.
         source: crate::props::MassPropsError,
     },
-    /// Tier 3, check 7 — **the sign is unresolved.** The solid's volume
-    /// enclosure straddles zero, and it was taken partly about the world
-    /// origin (a face the re-derivation could not measure about the
-    /// body keeps the width it was measured with), so the straddle may be
-    /// that width rather than a volume in the band. Escalated rather than exempted: exempting it would pass
-    /// an inside-out body whose enclosure is merely wide
-    /// (escalate-never-guess, D4 paragraph 3).
+    /// Tier 3, check 7 — **the sign is unresolved** by a limit of how the
+    /// volume was measured, not by the body ([`crate::props::SignLimit`]):
+    /// a face kept its world-origin width, a curved face's quadrature ran
+    /// out still open, or a scalar with no interval lane read its sums
+    /// within their rounding. A capability limit. Escalated rather than
+    /// exempted: exempting it would pass an inside-out body whose
+    /// enclosure is merely wide (escalate-never-guess, D4 paragraph 3).
     VolumeSignUnresolved {
         /// The solid whose volume's sign is unresolved.
         solid: SolidKey,
+        /// What left it unresolved.
+        limit: crate::props::SignLimit,
     },
     /// Tier 3, check 7 — **no reading decides which side of the solid's
     /// faces infinity lies on**: a ray aimed at one of its faces met two
@@ -4084,11 +4086,11 @@ impl fmt::Display for ValidationError {
                 "a solid holds {outer} separate pieces of material, and a solid is one piece. \
                  {DEFECT}"
             ),
-            Self::VolumeSignUnresolved { .. } => f.write_str(
-                "the sign of a solid's volume cannot be read: its enclosure straddles zero, and \
-                 a face that could not be measured about the solid itself keeps the width it was \
-                 measured with far from the world origin. Recourse: model the part nearer the \
-                 origin, or tighten the tolerance",
+            Self::VolumeSignUnresolved { limit, .. } => write!(
+                f,
+                "the sign of a solid's volume cannot be read: {}. {}",
+                limit.words(),
+                limit.ending()
             ),
             Self::ShellRoleUndecided { error, .. } => {
                 f.write_str(
@@ -5895,11 +5897,9 @@ pub(crate) enum PlusVVerdict {
     /// the round's interval re-derivation refused a face. The payload
     /// is that refusal.
     Uncomputable(crate::props::MassPropsError),
-    /// The sign is unresolved: the enclosure straddles zero, and it kept
-    /// a face's world-origin width (one the re-derivation could not
-    /// measure about the body), so the straddle is not known to be the
-    /// body's own rounding.
-    Unresolved,
+    /// The sign is unresolved by a limit of the measurement, not by the
+    /// body ([`crate::props::SignLimit`]).
+    Unresolved(crate::props::SignLimit),
     /// The sign is undecided about the body itself: in band, carrying
     /// its escalation, or straddling zero by the body's own rounding.
     Undecided(Option<Indeterminate>),
@@ -5972,9 +5972,8 @@ fn plus_v_verdict(
             },
         ) => PlusVVerdict::Uncomputable(source),
         Err(RoleWalkRefusal::Unread {
-            about_the_body: false,
-            ..
-        }) => PlusVVerdict::Unresolved,
+            limit: Some(limit), ..
+        }) => PlusVVerdict::Unresolved(limit),
         Err(RoleWalkRefusal::Unread { last, .. }) => PlusVVerdict::Undecided(last.escalation()),
     }
 }
@@ -6025,8 +6024,8 @@ fn plus_v_errors<T: Decide>(
     let volume = || match walked {
         Some(PlusVVerdict::Pass) => Ok(SolidContainment::Out),
         Some(PlusVVerdict::Refuse) => Ok(SolidContainment::In),
-        Some(PlusVVerdict::Unresolved) => Err(Some(None)),
-        Some(PlusVVerdict::Undecided(reading)) => Err(Some(Some(*reading))),
+        Some(PlusVVerdict::Unresolved(limit)) => Err(Some(Err(*limit))),
+        Some(PlusVVerdict::Undecided(reading)) => Err(Some(Ok(*reading))),
         Some(PlusVVerdict::Uncomputable(_)) | None => Err(None),
     };
     let read =
@@ -6039,10 +6038,11 @@ fn plus_v_errors<T: Decide>(
             errors.push(undecided(OrientationUnread::Pair(Box::new(pair))));
         }
         Ok(Err(SideUnread::Fallback {
-            volume: Some(None), ..
-        })) => errors.push(ValidationError::VolumeSignUnresolved { solid }),
+            volume: Some(Err(limit)),
+            ..
+        })) => errors.push(ValidationError::VolumeSignUnresolved { solid, limit }),
         Ok(Err(SideUnread::Fallback {
-            volume: Some(Some(margin)),
+            volume: Some(Ok(margin)),
             aimed,
             set_aside,
         })) => errors.push(undecided(OrientationUnread::Volume {
@@ -10708,18 +10708,20 @@ mod tests {
 
     /// **An open round and an unresolved one stay apart once the
     /// schedule runs out**: a sign undecided about the body itself keeps
-    /// its escalation for check 7's refusal, and a straddle that kept a
-    /// face's world-origin width is [`ValidationError::VolumeSignUnresolved`].
-    /// Pinned here because no shipped surface kind reaches `Unresolved`
-    /// now that every face is taken about the body's corner
+    /// its escalation for check 7's refusal, and one left unresolved by a
+    /// limit of the measurement — a face's world-origin width, a
+    /// quadrature still open at its last round, a lane-free scalar's
+    /// rounding — is [`ValidationError::VolumeSignUnresolved`] with that
+    /// limit, ending as a capability limit and never as a defect. Pinned
+    /// here because no shipped surface kind reaches the world-origin arm
+    /// now that every face is taken about a vertex of the body
     /// ([`crate::props::rederive`]).
     #[test]
     fn an_open_round_and_an_unresolved_one_stay_apart() {
-        let band = Band::linear(Tol::witness()).expect("the witness band");
-        let unread = |v: f64| match crate::props::read_role(
+        use crate::props::SignLimit;
+        let unread = |v: f64| match crate::props::read_sign(
             crate::props::SignReading::exact(v, 1.0),
             PLUS_V,
-            band,
         ) {
             crate::props::RoleRead::Unread(unread) => unread,
             crate::props::RoleRead::Decided(role) => panic!("{v:e} read {role:?}"),
@@ -10727,25 +10729,23 @@ mod tests {
         // The walk's last round, as the role walk leaves it once the
         // schedule runs out ([`crate::props::role_walk`]).
         let at_target = |certified| {
-            let (last, about_the_body) = match certified {
-                Certified::Open(unread) => (unread, true),
-                Certified::Unresolved(unread) => (unread, false),
+            let (last, limit) = match certified {
+                Certified::Open(unread) => (unread, None),
+                Certified::Unresolved(unread, limit) => (unread, Some(limit)),
                 _ => unreachable!("only an open round runs the schedule out"),
             };
             plus_v_verdict(Err(crate::props::RoleWalkRefusal::Unread {
                 last: Box::new(last),
-                about_the_body,
+                limit,
                 measuring: None,
             }))
         };
-        let in_band = 3.0 * band.zero();
         assert!(
             matches!(
-                at_target(Certified::Open(unread(in_band))),
-                PlusVVerdict::Undecided(Some(diag))
-                    if diag.margin.diagnostic_f64_for_error_text().value() == Some(in_band)
+                at_target(Certified::Open(unread(f64::NAN))),
+                PlusVVerdict::Undecided(Some(diag)) if diag.margin.is_invalid()
             ),
-            "in band, its escalation kept"
+            "unreadable, its escalation kept"
         );
         assert!(
             matches!(
@@ -10754,13 +10754,26 @@ mod tests {
             ),
             "zero"
         );
-        assert!(
-            matches!(
-                at_target(Certified::Unresolved(unread(0.0))),
-                PlusVVerdict::Unresolved
-            ),
-            "unresolved"
-        );
+        for limit in [SignLimit::WorldOrigin, SignLimit::Quadrature, SignLimit::Scalar] {
+            assert!(
+                matches!(
+                    at_target(Certified::Unresolved(unread(0.0), limit)),
+                    PlusVVerdict::Unresolved(l) if l == limit
+                ),
+                "unresolved by {limit:?}"
+            );
+            let text = ValidationError::VolumeSignUnresolved {
+                solid: SolidKey::default(),
+                limit,
+            }
+            .to_string();
+            assert!(
+                !text.contains(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
+                    && !text.contains(geom_core::KERNEL_DEFECT_ENDING)
+                    && text.ends_with(limit.ending()),
+                "{limit:?} is a capability limit: {text}"
+            );
+        }
     }
 
     /// **Check 1's analytic verdicts at BOTH scalars**, one surface

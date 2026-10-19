@@ -1506,7 +1506,10 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     ));
     s.push((
         "VolumeSignUnresolved".to_owned(),
-        ValidationError::VolumeSignUnresolved { solid },
+        ValidationError::VolumeSignUnresolved {
+            solid,
+            limit: crate::props::SignLimit::Scalar,
+        },
     ));
     s.push((
         "ShellRoleUndecided".to_owned(),
@@ -1514,6 +1517,8 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             solid,
             error: crate::ShellClassifyError::Straddles {
                 shell: ShellKey::default(),
+                low: geom_core::MarginDiag::value(-1e-12),
+                high: geom_core::MarginDiag::value(1e-12),
             },
         },
     ));

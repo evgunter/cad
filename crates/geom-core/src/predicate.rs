@@ -781,6 +781,17 @@ impl<T: crate::real::Real> Margin<T> {
         Self(measure / lever)
     }
 
+    /// Door: a quantity **read for its sign alone**, against
+    /// [`Band::enclosure_sign`] and no tolerance — a certified volume's
+    /// enclosure, whose side of zero is a shell's role (D10: certified by
+    /// its enclosure alone, never held against the band). No length is
+    /// claimed, because no band in metres is held against it, and none
+    /// may be: a margin from this door is decided under
+    /// [`Band::enclosure_sign`] only. One operation, the identity.
+    pub fn sign_of(measure: T) -> Self {
+        Self(measure)
+    }
+
     /// The wrapped margin, for the classify seam and for diagnostics
     /// (refusal payloads that echo the margin they classified). This is
     /// an exit, not an entrance: reading the value back does not

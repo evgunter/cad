@@ -3170,13 +3170,15 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
 
 /// **The census's void screen reads a shell's role as the rest of the
 /// crate does.** The far-anchored slab of the row above, whose `f64`
-/// sum reads it negative: a lane-free volume read calls the upright slab
-/// a `Void` (the premise, asserted), and a cross-solid gate holding no
-/// lane dropped it as one. The gate reads what the shell classification
-/// reads, both ways round: a lone shell is outer by arity.
+/// sum reads it negative: a lane-free volume read once called the
+/// upright slab a `Void`, and a cross-solid gate holding no lane dropped
+/// it as one. A lane-free read now leaves its sign unresolved within the
+/// sum's rounding (`props::rounding_bound`; asserted), and the gate reads
+/// what the shell classification reads, both ways round: a lone shell is
+/// outer by arity.
 #[test]
 fn the_census_gate_reads_a_shell_role_as_the_classification_does() {
-    use crate::ShellRole::{Outer, Void};
+    use crate::ShellRole::Outer;
     let tol = Tol::witness();
     if tol.eps() > 1e-9 {
         test_utils::vacuity::stood_down(
@@ -3189,10 +3191,12 @@ fn the_census_gate_reads_a_shell_role_as_the_classification_does() {
     let upright = far_anchored_slab(0.0, 1e-3, 1e-7, 5e3, tol);
     let shell = upright.shells.iter().next().expect("one shell").0;
     assert_eq!(
-        crate::props::shell_volume_role(&upright, shell, band, tol, None)
-            .expect("a lane-free read decides"),
-        Void,
-        "the premise: read with no lane, the upright slab's rounded sum calls it a cavity"
+        crate::props::shell_volume_role(&upright, shell, band, tol, None),
+        Err(crate::ShellClassifyError::SignUnresolved {
+            shell,
+            limit: crate::SignLimit::Scalar,
+        }),
+        "read with no lane, the upright slab's rounded sum decides no role"
     );
     let inverted = upright.revert().unwrap();
     for (body, want) in [(&upright, Outer), (&inverted, Outer)] {
@@ -3765,4 +3769,44 @@ mod a_tangent_record_off_the_cusp {
             "{inner:?}"
         );
     }
+}
+
+/// **A lane-free read never takes the rounded sum's sign for the
+/// volume's** (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum.md`):
+/// the far-anchored slab's `f64` sum reads −1.2e-12 m³ for a +1e-13 m³
+/// body, and with no lane its volume is read as `[V − b, V + b]`, `b` the
+/// stated bound on the sum's rounding (`props::rounding_bound`). The slab
+/// lies within it either way out, so its shell's volume role is
+/// unresolved in this scalar, never `Void`; and the structural door,
+/// which reads the same walk, never refuses the upright slab
+/// `NegativeVolume`.
+#[test]
+fn a_lane_free_read_never_takes_the_rounded_sums_sign() {
+    let tol = Tol::witness();
+    if tol.eps() > 1e-9 {
+        test_utils::vacuity::stood_down(
+            "eps above 1e-9",
+            "the slab's 100 nm walls are below a band this wide, so it is not a body here",
+        );
+        return;
+    }
+    let band = geom_core::Band::linear(tol).expect("the witness band");
+    let upright = far_anchored_slab(0.0, 1e-3, 1e-7, 5e3, tol);
+    for (what, body) in [("upright", upright.clone()), ("inside out", upright.revert().unwrap())] {
+        let (shell, _) = body.shells.iter().next().expect("one shell");
+        assert_eq!(
+            crate::props::shell_volume_role(&body, shell, band, tol, None),
+            Err(crate::ShellClassifyError::SignUnresolved {
+                shell,
+                limit: crate::SignLimit::Scalar,
+            }),
+            "{what}: the lane-free volume role"
+        );
+    }
+    let solid = upright.solids().next().expect("one solid").0;
+    let read = crate::validate::validate_geometric_structural(&upright, tol);
+    assert!(
+        !matches!(&read, Err(e) if e.contains(&ValidationError::NegativeVolume { solid })),
+        "upright through the structural door: {read:?}"
+    );
 }

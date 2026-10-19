@@ -518,8 +518,9 @@ mod tests {
     /// **A role read over a poisoned volume is the kernel's, never a
     /// loosening**: beside two cubes, a third whose every plane's origin
     /// is NaN, so its volume cannot be read. Its sign is read off its
-    /// certified enclosure alone, which no tolerance reads otherwise, so
-    /// no tolerance is offered.
+    /// enclosure alone, which no tolerance reads otherwise, and a NaN is
+    /// no rounding a measurement limit covers, so no tolerance is offered
+    /// and the ending is the kernel's.
     #[test]
     fn a_poisoned_role_beside_two_pieces_offers_no_tolerance() {
         let mut body = beside_a_poisoned_cube(true);
@@ -534,8 +535,8 @@ mod tests {
             text,
             format!(
                 "whether a shell of the body bounds material or a cavity could not be decided, \
-                 so the piece it belongs to is unknown: the certified enclosure of a shell's \
-                 volume holds zero: its volume could not be read (NaN or a refused enclosure). \
+                 so the piece it belongs to is unknown: the sign of a shell's volume cannot be \
+                 read: its volume could not be read (NaN or a refused enclosure). \
                  {}",
                 geom_core::KERNEL_DEFECT_ENDING
             ),

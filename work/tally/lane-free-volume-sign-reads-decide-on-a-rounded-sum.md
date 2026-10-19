@@ -2,7 +2,10 @@
 id: lane-free-volume-sign-reads-decide-on-a-rounded-sum
 kind: issue
 title: Lane-free reads of a body's volume sign decide on the rounded f64 sum, with no interval re-derivation to certify it
-status: open
+status: closed
+closed: 2026-10-19
+branch: flush/shell-role-reader
+pr: 5119
 opened: 2026-10-03
 priority: P3
 cost: M
@@ -51,3 +54,28 @@ the one shell-role reader (`props::shell_role`) through
 `T::quad_lane()`. `tier3_tests::the_census_gate_reads_a_shell_role_as_the_classification_does`
 pins it on the far-anchored slab. The `_structural` doors and
 `classify_shells_structural` are unchanged.
+
+## Resolution (FLUSH, PR 5119 fix pass 3)
+
+A lane-free read no longer decides on the rounded sum, and no longer
+holds `V/A` against the band. `props::certify_role` reads a walk that
+holds no lane as the enclosure `[V − b, V + b]`, `b` a stated bound on
+the sum's rounding (`props::rounding_bound`: `16·u·Σ_f (n_f + 1)·R_f·D_f²`,
+each face's edge count, reach from the origin and spread about its
+surface's anchor), for its sign alone (`props::read_sign`). A volume
+within it is `SignLimit::Scalar`: `ShellClassifyError::SignUnresolved` /
+`ValidationError::VolumeSignUnresolved`, a capability limit ending
+`NOT_YET_ENDING`, never a defect. So the `_structural` doors and
+`classify_shells_structural` read the sign where the sums carry it and
+refuse it as unresolved where they do not.
+
+The witness pins it: `tier3_tests::a_lane_free_read_never_takes_the_rounded_sums_sign`
+(the far-anchored slab, whose sum reads −1.2e-12 m³ for +1e-13: its
+lane-free volume role is unresolved either way out, and the structural
+door never refuses it `NegativeVolume`); and
+`shell_role_reader::a_needles_orientation_through_the_structural_doors`
+(at ε 1e-6 every needle bar validates and inside out is `NegativeVolume`;
+at 1e-9 each is `VolumeSignUnresolved { Scalar }` but where an aimed ray
+reads it first). The question of certifying the structural doors through
+a closed-form lane stays open on no row: the bound answers what the
+doors claim.
