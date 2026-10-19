@@ -1184,3 +1184,7 @@ Signed (CLEAVE orchestrator).
   - To file: the cylinder wall's radial lever (wrong Ok, pad 0, 2.4× ε·A at 250 m inside the box; FLUXTAIL, predates the PR).
   - Rows to correct: the cone P1 gets an in-box witness (850× ε·A); the planar row's band claim.
   - `certify_section_area` is noted on GAUGE as a conditioning risk.
+- 2026-10-19 — PR 5185 fix pass green (`a57373ce90`).
+  - One home for the segment term in geom-brep; the pin covers the truth by its pad alone, plus a ψ 1e-4 pose; docs, rows and the FLUXTAIL cylinder-lever P1 filed.
+  - Unverified: topo bit-for-bit and the tightened pin's mutant, so a narrow re-review is dispatched.
+  - Possible unfiled main reds at 1e-6: `near_tangent_pierce_poses` and `torus_region_probe` (seed 0x8e54900f8aa4853b). The reviewer is capturing them to file.
