@@ -2,12 +2,13 @@
 id: a-two-carrier-face-pair-meeting-at-one-extent-point-refuses-not-certifiable
 kind: issue
 title: tangent_pair_at_rest refuses NotCertifiable where two faces' extents along their tangent line meet at one point, where the interiors cannot meet there
-status: review
+status: closed
 branch: contacthold/one-tangent-interiors-reading
 pr: 5006
 opened: 2026-10-13
 priority: P3
 refs: [point-touch-reading]
+closed: 2026-10-19
 ---
 
 
