@@ -3972,7 +3972,10 @@ pub(super) fn edges_holding<'b, T: Decide + 'b, K>(
 /// Edge `e` of `body` as a cover candidate: its ends and, on a curved
 /// edge, the point halfway along its certified carrier. A segment is
 /// read by its ends alone, so its middle is its start.
-pub(super) fn carrier_arc<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<CarrierArc<T>, NamingError> {
+pub(super) fn carrier_arc<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+) -> Result<CarrierArc<T>, NamingError> {
     let (v0, v1) = edge_ends(body, e)?;
     let mid = if is_straight(body, e) {
         vertex_point(body, v0)?
@@ -6913,7 +6916,11 @@ mod track_cover {
     #[test]
     fn a_seam_round_the_whole_circle_or_with_two_gaps_has_no_start() {
         let whole = [arc(1.0, 4.0), arc(4.0, 1.0 + TAU)];
-        assert_eq!(offsets(1.0, 4.0, &whole, &[2.0, 3.0]), None, "two pieces round it");
+        assert_eq!(
+            offsets(1.0, 4.0, &whole, &[2.0, 3.0]),
+            None,
+            "two pieces round it"
+        );
         assert_eq!(
             offsets(1.0, 4.0, &[arc(1.0, 1.0 + TAU)], &[2.0, 3.0]),
             None,
@@ -6937,7 +6944,11 @@ mod track_cover {
             p1: Point3::new(-2.0, 0.0, 0.0),
             closed: false,
         };
-        assert_eq!(offsets(1.0, 2.0, &[arc(1.0, 2.0), other], &[1.5]), None, "two carriers");
+        assert_eq!(
+            offsets(1.0, 2.0, &[arc(1.0, 2.0), other], &[1.5]),
+            None,
+            "two carriers"
+        );
         let band = Band::linear(Tol::witness()).unwrap();
         let off = [Point3::new(0.0, 0.0, 1.0)];
         assert_eq!(
