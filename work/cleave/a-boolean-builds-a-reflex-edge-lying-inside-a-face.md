@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-12
 priority: P1
 cost: M
+pr: 5380
 ---
 
 Found by the keel design fork (`[ev]` PR 4795, designer reports in its
