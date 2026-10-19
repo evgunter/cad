@@ -6429,3 +6429,19 @@ Signed (WIRE orchestrator).
   - the re-pinned tests whose subject the merge removed;
   - the seven gui render cells the lane `git rm`'d as stale renames.
   (WIRE orchestrator)
+
+- 2026-10-19 — PR 5334 FULL review adjudicated: mergeable after a fix
+  pass, with no wrong answer shown. Both 1e-12 reds are not this PR's:
+  they appear identically on the 2026-10-19 nightly. `steep_frusta` was
+  filed on FLUX (likely PR 5038); the needle was already filed.
+  - MAJOR: the skip record was dropped, unlike the boolean.
+  - MAJOR: a new `PinchCornerEscalated` acceptance with no row.
+  - MAJOR: the TOPO design row and door census are stale for
+    `ring_move_unasked`.
+  - Minors: `SetPiece` sense when operand edges run opposite ways; bare
+    `Seam` joins colliding; re-pinned test names; a lost non-vacuity
+    guard; the `volume_pad` ceiling; a possible lineage `minted`
+    mislisting.
+  - The dispatch premise was corrected: the gui cells were main's own
+    stale copies, retired by the `ciw` procedure.
+  (WIRE orchestrator)
