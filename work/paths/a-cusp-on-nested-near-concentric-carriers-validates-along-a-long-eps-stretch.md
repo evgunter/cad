@@ -66,3 +66,12 @@ smooth tangent joint on the same carriers meets only at the joint and
 must keep validating (`a_cusp_on_near_concentric_carriers_refuses_its_crossing`'s
 smooth rows). Touching how the joint pass records or verifies a tangent
 joint is D10's hold.
+
+## A wider witness (third review of PR #5175, 2026-10-19)
+
+The class is wider than nested carriers: any tangency reading with a long within-ε stretch. At 1e-12, f64 and Interval, on main and on #5175's head alike, this loop validates:
+- arc 1: c = (0.8339940436193314, 0.6128195379062746), r = 2.709842185979272, start −5.195849007589949, sweep +6.272685487203751;
+- arc 2: c = (0.8339940436636458, 0.6128195379906916), r = 2.709842185883936, start 1.0768364796134309, sweep −1.409459670080262;
+- joint at (2.1187738322069234, 2.9987335279213676), closed by a line.
+
+mpmath gives d = 95ε and g = +0.005ε. The carriers cross, and the joint sits at one crossing. It is a cusp whose second arc stays within ε of the first for 0.13 rad (0.35 m). The title's "nested" should widen to "near-concentric".
