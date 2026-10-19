@@ -2,7 +2,7 @@
 id: a-split-names-an-operand-edge-in-its-plane-as-a-section-chord
 kind: issue
 title: A split names an operand edge lying in its plane, and the copies of it, as section chords: the edge's own name dies, and a face piece's Keeps cannot cite it
-status: dispatched
+status: review
 branch: wire/split-maximal-halves
 opened: 2026-10-18
 priority: P2

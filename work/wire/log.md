@@ -6415,3 +6415,17 @@ Signed (WIRE orchestrator).
   - Unit 2, `wire`'s k-ary rows with an origin mark plus re-pinned order
     tests, follows it.
   (WIRE orchestrator)
+
+- 2026-10-19 — PR 5334 (split maximal halves) opened. `gate ok` is red
+  on two eps-1e-12 sweep rows:
+  - `band_turn_overrun_fillet::the_needle…`, also red on the 10-18
+    nightly;
+  - `reach_cone_split::steep_frusta…`, which panics before any split
+    runs. Its presence on main is unconfirmed.
+  A FULL review is dispatched, with the CI-origin check as claim 6. The
+  review also covers:
+  - the lane's assumption that a joined edge runs with the operand edges
+    it covers;
+  - the re-pinned tests whose subject the merge removed;
+  - the seven gui render cells the lane `git rm`'d as stale renames.
+  (WIRE orchestrator)
