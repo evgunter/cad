@@ -900,8 +900,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
             curve.carrier(),
             curve.params(),
         );
-        // The source's stored interval, grafted verbatim.
-        let recert = geom_brep::EdgeCurve::remint_via_stated(
+        let recert = geom_brep::EdgeCurve::certify_via(
             spec,
             point(start_v),
             point(end_v),
@@ -909,9 +908,10 @@ fn graft_solids_impl<T: geom_core::Decide>(
             reach,
             band,
             lane,
-            None,
         )
-        .map_err(BooleanError::GraftRecertify)?;
+        .map_err(|error| {
+            BooleanError::GraftRecertify(crate::policy_lane::kernels_own(error, "a graft"))
+        })?;
         let Some(slot) = dst.curves.get_mut(dk) else {
             unreachable!(
                 "graft (recertify): `dk` was minted into `dst.curves` by this call's \

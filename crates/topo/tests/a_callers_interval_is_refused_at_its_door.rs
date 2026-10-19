@@ -12,6 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Curve3;
+use geom_brep::recourse::SpanDecision;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, StatedSpan};
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{Body, EulerOpError, MefSite, MevSite};
@@ -32,16 +33,10 @@ fn circle(r: f64) -> Curve3<f64> {
     }
 }
 
-/// Which span check refused: what the door refused, once its whole
-/// render at a build is shown to end in the check's lever (rendering it
-/// does not panic).
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum Refused {
-    NotForward,
-    PastFullTurn,
-}
-
-fn refused(result: Result<impl core::fmt::Debug, EulerOpError>, row: &str) -> Refused {
+/// Which span decision refused, once the door's whole render at a build
+/// is shown to end in the decision's lever (rendering it does not
+/// panic).
+fn refused(result: Result<impl core::fmt::Debug, EulerOpError>, row: &str) -> SpanDecision {
     let error = result.expect_err(row);
     let EulerOpError::Certification {
         error: CertifyError::StatedInterval { refused, .. },
@@ -51,17 +46,14 @@ fn refused(result: Result<impl core::fmt::Debug, EulerOpError>, row: &str) -> Re
     };
     let text = error.to_string();
     assert!(
-        text.ends_with(&format!("Recourse: {}", refused.lever())),
+        text.ends_with(&format!("Recourse: {}", refused.decision.lever())),
         "{row}: {text}"
     );
-    match refused {
-        StatedSpan::NotForward(_) => Refused::NotForward,
-        StatedSpan::PastFullTurn(_) => Refused::PastFullTurn,
-    }
+    refused.decision
 }
 
 /// `Body::mev` from a lone vertex at `(1, 0)` with the caller's spec.
-fn mev(spec: EdgeCurveSpec<f64>, to: Point3<f64>, row: &str) -> Refused {
+fn mev(spec: EdgeCurveSpec<f64>, to: Point3<f64>, row: &str) -> SpanDecision {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(1.0, 0.0), true).unwrap();
     let r#loop = seed.r#loop;
@@ -97,7 +89,7 @@ fn every_door_refuses_a_callers_interval_typed() {
         param_end: 1.0,
         ..line.clone()
     };
-    let not_forward = Refused::NotForward;
+    let not_forward = SpanDecision::Forward;
     let rows = [
         (
             "mev, reversed",
@@ -123,7 +115,7 @@ fn every_door_refuses_a_callers_interval_typed() {
         (
             "mev, an arc past a full turn",
             mev(arc(1.0, 1.5 * TAU), p(-1.0, 0.0), "past a turn"),
-            Refused::PastFullTurn,
+            SpanDecision::Winding,
         ),
     ];
     for (row, got, want) in rows {
@@ -191,7 +183,10 @@ fn every_door_refuses_a_callers_interval_typed() {
         matches!(
             direct,
             CertifyError::StatedInterval {
-                refused: StatedSpan::NotForward(_),
+                refused: StatedSpan {
+                    decision: SpanDecision::Forward,
+                    ..
+                },
             }
         ),
         "EdgeCurve::certify, coincident: {direct:?}"

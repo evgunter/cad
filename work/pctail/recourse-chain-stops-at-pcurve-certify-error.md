@@ -152,8 +152,9 @@ still folds a `Sign::Zero` verdict into a sign-certain refusal (the
 and `pcurve_cache/projected.rs`), so a positive span in band, which an
 operation at a looser tolerance reaches on an edge minted at a tighter
 one, would read as certainly refused and panic. `PcurveCheck`'s routing
-now sends `ParamSpan` to its own `CertCheck::ImageSpan` and
-`AzimuthPeriod` / `TubePeriod` to the winding decision read on the image
+now reads `ParamSpan` as the forward decision on the image
+(`SpanDecision::Forward`, as `CertCheck::ImageSpan` does) and
+`AzimuthPeriod` / `TubePeriod` as the winding decision on it
 (`SpanDecision::Winding`), both `RefusedSide::StoredContradiction` in
 the edge's levers (`PcurveCheck::routing`). Once the image's span
 verdict carries its `Refused` margin, its span check can return to the

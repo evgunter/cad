@@ -92,11 +92,15 @@ fn mev_disp(t0: f64, t1: f64) -> Disp {
         Err(EulerOpError::Certification {
             error:
                 CertifyError::StatedInterval {
-                    refused: geom_brep::StatedSpan::PastFullTurn(verdict),
+                    refused:
+                        geom_brep::StatedSpan {
+                            decision: geom_brep::recourse::SpanDecision::Winding,
+                            reading,
+                        },
                 },
-        }) => match verdict {
-            Some(_) => Disp::RefuseInBand,
-            None => Disp::Refuse,
+        }) => match reading {
+            geom_brep::SpanReading::InBand(_) => Disp::RefuseInBand,
+            geom_brep::SpanReading::Decided(_) => Disp::Refuse,
         },
         Err(EulerOpError::Certification {
             error:

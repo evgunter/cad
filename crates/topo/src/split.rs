@@ -490,24 +490,17 @@ impl<T: Decide> Body<T> {
         let spec1 = self.tangent_piece(edge, spec1, band)?;
         let spec2 = self.tangent_piece(edge, spec2, band)?;
         let faces = crate::edge_faces(self, edge);
-        let cert1 = self.certify_edge_spec(
-            Some(edge),
-            spec1,
-            p_u,
-            p_new,
-            faces,
-            tol,
-            crate::policy_lane::Interval::Kernels,
-        )?;
-        let cert2 = self.certify_edge_spec(
-            Some(edge),
-            spec2,
-            p_new,
-            p_v,
-            faces,
-            tol,
-            crate::policy_lane::Interval::Kernels,
-        )?;
+        let child = |spec, start, end| {
+            self.certify_edge_spec(Some(edge), spec, start, end, faces, tol)
+                .map_err(|refusal| match refusal {
+                    EulerOpError::Certification { error } => EulerOpError::Certification {
+                        error: crate::policy_lane::kernels_own(error, "a split child"),
+                    },
+                    other => other,
+                })
+        };
+        let cert1 = child(spec1, p_u, p_new)?;
+        let cert2 = child(spec2, p_new, p_v)?;
         // ---- Pcurve gate (still no mutation): each parent half-edge's
         // stored chart row, stated over the two children's sub-intervals
         // (placed again where it is closed-form or projected) and

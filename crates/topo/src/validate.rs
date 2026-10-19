@@ -2859,10 +2859,18 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             verdict: Refused::Zero(_),
         } => "its length is within the tolerance of zero",
         CertifyError::StatedInterval {
-            refused: geom_brep::StatedSpan::NotForward(_),
+            refused:
+                geom_brep::StatedSpan {
+                    decision: geom_brep::recourse::SpanDecision::Forward,
+                    ..
+                },
         } => "its parameter interval does not run forward",
         CertifyError::StatedInterval {
-            refused: geom_brep::StatedSpan::PastFullTurn(_),
+            refused:
+                geom_brep::StatedSpan {
+                    decision: geom_brep::recourse::SpanDecision::Winding,
+                    ..
+                },
         } => "its arc spans more than one full turn",
         CertifyError::NotTransverse { .. } | CertifyError::PlaneNurbs(P::NotTransverse { .. }) => {
             "its faces are tangent where its description says they cross"
@@ -6841,7 +6849,7 @@ pub(crate) fn tier3_local_checks_marked<
         // claim about an edge whose certificate needs that lane.
         //
         // **Read that at its true width, because it is wider than the
-        // class it is about.** `recertify_via` is ONE call and check 2
+        // class it is about.** `recertify_via_stated` is ONE call and check 2
         // is a whole-edge check: without the lane the description
         // resolver refuses `NurbsLaneNotSupplied` BEFORE the endpoint,
         // interval and chart-image checks run, so what a lane-free
@@ -6881,8 +6889,7 @@ pub(crate) fn tier3_local_checks_marked<
             (t0, t1),
         );
         reaches.insert(edge_key, reach);
-        // At the run's one band, which the edge was minted at.
-        match curve.rederive_via_stated(
+        match curve.recertify_via_stated(
             p_start,
             p_end,
             |k| body.surfaces.get(k).cloned(),

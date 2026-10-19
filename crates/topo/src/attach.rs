@@ -370,7 +370,6 @@ impl<T: Decide> Body<T> {
                 resolve(sides),
                 reach,
                 band,
-                crate::policy_lane::Interval::Callers,
             )
             .map_err(|refusal| match refusal {
                 crate::policy_lane::ByPolicy::NoLane { scalar } => {
@@ -911,28 +910,22 @@ impl<T: Decide> Body<T> {
                 &spec.carrier,
                 (spec.param_start, spec.param_end),
             );
-            // The stored carrier and interval, under the caller's
-            // description.
-            let curve = crate::policy_lane::certify(
-                spec,
-                p_start,
-                p_end,
-                resolve,
-                reach,
-                band()?,
-                crate::policy_lane::Interval::Kernels,
-            )
-            .map_err(|refusal| match refusal {
-                crate::policy_lane::ByPolicy::NoLane { scalar } => {
-                    EulerOpError::NurbsLaneUnsupported {
-                        edge: Some(edge),
-                        scalar,
+            let curve = crate::policy_lane::certify(spec, p_start, p_end, resolve, reach, band()?)
+                .map_err(|refusal| match refusal {
+                    crate::policy_lane::ByPolicy::NoLane { scalar } => {
+                        EulerOpError::NurbsLaneUnsupported {
+                            edge: Some(edge),
+                            scalar,
+                        }
                     }
-                }
-                crate::policy_lane::ByPolicy::Refused(error) => {
-                    EulerOpError::RechartFalsifies { door, edge, error }
-                }
-            })?;
+                    crate::policy_lane::ByPolicy::Refused(error) => {
+                        EulerOpError::RechartFalsifies {
+                            door,
+                            edge,
+                            error: crate::policy_lane::kernels_own(error, "a re-description"),
+                        }
+                    }
+                })?;
             written.push((edge, sides, curve));
         }
         let keeps = landing.after == Slot::Kept(old) || refusals_lifted();
@@ -1263,15 +1256,7 @@ impl<T: Decide> Body<T> {
         self.check_description_adjacent(edge, &curve.description)?;
 
         let faces = crate::edge_faces(self, edge);
-        let certified = self.certify_edge_spec(
-            Some(edge),
-            curve,
-            p_start,
-            p_end,
-            faces,
-            tol,
-            crate::policy_lane::Interval::Callers,
-        )?;
+        let certified = self.certify_edge_spec(Some(edge), curve, p_start, p_end, faces, tol)?;
         let rows = self.description_rows(&[(edge, &certified)], |_| Ok(Vec::new()), tol)?;
 
         // ---- Mutation (infallible from here on). ----

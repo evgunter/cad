@@ -182,10 +182,12 @@ use geom_core::{
     Decide, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2, Vec3,
 };
 
-use crate::certify::{CERT_SAMPLES, CertCheck, sample_param};
+use crate::certify::{CERT_SAMPLES, sample_param};
 use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::ladder::{IdentityLadder, read_identity};
-use crate::recourse::{Reading, RefusedArm, SizedDecision, SpanDecision, Unsized};
+use crate::recourse::{
+    Reading, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision, Unsized,
+};
 use crate::ssi::{SsiDecision, SsiLimb};
 
 /// **One chart coordinate of a harmonic image** ([`Pcurve::Harmonic`]).
@@ -2386,13 +2388,11 @@ impl PcurveCertifyError {
     }
 }
 
-/// How a refusal of a [`PcurveCheck`] ends: by the edge certifier's own
-/// decision where the check restates it, as a span decision read on the
-/// image where it restates one the edge reads otherwise, and otherwise
-/// as a decision with no size.
+/// How a refusal of a [`PcurveCheck`] ends: as a span decision read on
+/// the image where the check restates one ([`SpanDecision`]), and
+/// otherwise as a decision with no size.
 #[derive(Clone, Copy)]
 enum Routing {
-    Edge(CertCheck),
     Sized(SizedDecision),
     Unsized(Unsized),
 }
@@ -2400,15 +2400,16 @@ enum Routing {
 impl PcurveCheck {
     fn routing(self) -> Routing {
         match self {
-            // The image's span, read over a cache the kernel derives at
-            // the band the operation passes.
-            Self::ParamSpan => Routing::Edge(CertCheck::ImageSpan),
-            // The winding decision on a spline image, which can sweep
-            // past a period no edge check counts (the projected lane's
-            // gate): a stored contradiction, not a side no input reaches.
-            Self::AzimuthPeriod | Self::TubePeriod => Routing::Sized(
-                SpanDecision::Winding.on(crate::recourse::RefusedSide::StoredContradiction),
-            ),
+            // The span decisions read on the image, each a stored
+            // contradiction, not a side no input reaches: its span, over a
+            // cache the kernel derives at the band the operation passes
+            // (as `CertCheck::ImageSpan` names it on the edge), and its
+            // winding on a spline image, which can sweep past a period no
+            // edge check counts (the projected lane's gate).
+            Self::ParamSpan => Routing::Sized(SpanDecision::Forward.on(StoredContradiction)),
+            Self::AzimuthPeriod | Self::TubePeriod => {
+                Routing::Sized(SpanDecision::Winding.on(StoredContradiction))
+            }
             // The winding the kernel stores exactly: a form selection.
             Self::ChartWinding | Self::ChartIncidence | Self::Sector => {
                 Routing::Unsized(Unsized::Defect)
@@ -2434,7 +2435,6 @@ impl PcurveCheck {
     #[must_use]
     pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
         match self.routing() {
-            Routing::Edge(check) => crate::certify::recourse(check, arm, reading),
             Routing::Sized(decision) => decision.recourse(arm, reading),
             Routing::Unsized(decision) => decision.recourse(arm, reading),
         }
@@ -10186,12 +10186,7 @@ mod tests {
         };
         assert_eq!(
             PcurveCertifyError::AzimuthPeriodExceeded.ending(Reading::Build),
-            Some(format!(
-                "Recourse: {}",
-                SpanDecision::Winding
-                    .on(crate::recourse::RefusedSide::Lever)
-                    .lever
-            )),
+            Some(format!("Recourse: {}", SpanDecision::Winding.lever())),
             "definite, at a build"
         );
         assert_eq!(

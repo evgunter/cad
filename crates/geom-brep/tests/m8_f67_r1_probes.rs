@@ -237,7 +237,11 @@ fn certify_poison_meter_escalates_invalid_at_the_meter() {
 fn certify_backwards_span_stays_interval_not_forward() {
     match certify_axis(axis_segment_f64(1.0), 1.0, 0.0) {
         Err(CertifyError::StatedInterval {
-            refused: geom_brep::StatedSpan::NotForward(_),
+            refused:
+                geom_brep::StatedSpan {
+                    decision: geom_brep::recourse::SpanDecision::Forward,
+                    ..
+                },
         }) => {}
         other => panic!("a backwards span must stay one that does not run forward: {other:?}"),
     }

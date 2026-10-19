@@ -1883,7 +1883,6 @@ impl<T: Decide> Body<T> {
             p_w,
             [face_key; 2],
             tol,
-            crate::policy_lane::Interval::Callers,
         )?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → ring … prev(ring) → he_minus → target … prev(target).
@@ -1983,7 +1982,6 @@ impl<T: Decide> Body<T> {
             p_w,
             [face_key; 2],
             tol,
-            crate::policy_lane::Interval::Callers,
         )?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → he_minus → target … prev(target).
@@ -2073,7 +2071,6 @@ impl<T: Decide> Body<T> {
             p_w,
             [face_key; 2],
             tol,
-            crate::policy_lane::Interval::Callers,
         )?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → ring … prev(ring) → he_minus.
@@ -2172,7 +2169,6 @@ impl<T: Decide> Body<T> {
             p_w,
             [face_key; 2],
             tol,
-            crate::policy_lane::Interval::Callers,
         )?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → he_minus.

@@ -2082,7 +2082,11 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
                         error:
                             geom_brep::CertifyError::IntervalNotForward { .. }
                             | geom_brep::CertifyError::StatedInterval {
-                                refused: geom_brep::StatedSpan::NotForward(_),
+                                refused:
+                                    geom_brep::StatedSpan {
+                                        decision: geom_brep::recourse::SpanDecision::Forward,
+                                        ..
+                                    },
                             },
                     },
                     Some(offset),
