@@ -58,30 +58,6 @@ pub(super) fn decided<T: Decide>(
         .ok()
 }
 
-/// Whether a point is in two cells, each reading pushing what stopped
-/// it: `Some(false)` where either reads it out, whatever the other
-/// pushed (a decided answer drops the other's escalations); `Some(true)`
-/// where both read it in; `None` otherwise, with what both pushed.
-pub(super) fn in_both(
-    a: impl FnOnce(&mut Vec<ValidationError>) -> Option<bool>,
-    b: impl FnOnce(&mut Vec<ValidationError>) -> Option<bool>,
-    errors: &mut Vec<ValidationError>,
-) -> Option<bool> {
-    let mut held = Vec::new();
-    let on_a = a(&mut held);
-    if on_a == Some(false) {
-        return Some(false);
-    }
-    match (on_a, b(&mut held)) {
-        (_, Some(false)) => Some(false),
-        (Some(true), Some(true)) => Some(true),
-        _ => {
-            errors.extend(held);
-            None
-        }
-    }
-}
-
 /// `e`'s certified curve and span, or the typed refusal
 /// pushed for an edge with none; whose speed bound meters no reach over
 /// its span (a span within the band, or a bound that is poison — which

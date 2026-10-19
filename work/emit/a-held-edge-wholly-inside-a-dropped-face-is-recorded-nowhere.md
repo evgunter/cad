@@ -189,3 +189,16 @@ this row waits on it. Once that lands, re-measure the pocket fixture
 (un-ignore it) and the three-box reproducer. The emitter is expected to
 need nothing, because the outline is then recorded as `bordered` in
 every order, as `[b, a]` already does.
+
+## FLUSH's design for the imprint row (2026-10-19)
+
+The designer pair on `coincident-faces-are-not-imprinted-on-each-other-before-the-lump`
+converged on the fate-change cut (the design is in that row's `## Design`).
+Two consequences for this row:
+- **The three-box reproducer is not reached by it.** In the four
+  refusing orders, no binary step meets a coincident pair; `M`'s two
+  transversal cuts make the two discards. It stays EMIT's n-ary fold
+  question.
+- **`HeldEdge` / `DiscardRow::held` and the `HeldInto` entry-vertex
+  rule retire** when the imprint row lands. The pocket fixture is
+  re-measured then, as above.
