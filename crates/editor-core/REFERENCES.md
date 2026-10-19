@@ -330,7 +330,8 @@ row names a cell the fold minted, such as a `Fragment`.
 `Merged` mint, DOCM-8 (PR 2073); the pairwise contact rule (#3200, built in
 PR 3213); the three nodes over one `Bodies` argument, keyed by the read,
 FORK-DM4 unit 1 (PR 4527); one verdict per carrier pair, read through
-lineage (#4323).*
+lineage (#4323); the rows as the evaluation's decisions, spelled by member
+cells (PR 5378).*
 
 ## DM5 — A read repeated is answered by the operation
 
