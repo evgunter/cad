@@ -1188,3 +1188,4 @@ Signed (CLEAVE orchestrator).
   - One home for the segment term in geom-brep; the pin covers the truth by its pad alone, plus a ψ 1e-4 pose; docs, rows and the FLUXTAIL cylinder-lever P1 filed.
   - Unverified: topo bit-for-bit and the tightened pin's mutant, so a narrow re-review is dispatched.
   - Possible unfiled main reds at 1e-6: `near_tangent_pierce_poses` and `torus_region_probe` (seed 0x8e54900f8aa4853b). The reviewer is capturing them to file.
+- 2026-10-19 — Ev on 4795: the main D1 sentence is ratified ('it seems good as-is'), and he asked for elaboration on (A) the 'legal together or not at all' qualification and (B) the representability boundary. I posted explanations recommending yes on both. Waiting before the merge.
