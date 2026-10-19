@@ -16,6 +16,15 @@ one.
     slow_set.py --expr     print the slow set as one nextest filterset
                            (the filter without its `not`), read from
                            .config/nextest.toml
+    slow_set.py --new-expr <new-tests.txt>
+                           the same, narrowed to the entries the diff adds
+                           or edits: what ci.yml's slow-set step runs
+
+A slow test runs per PR only on a PR whose added lines spell it, which is the
+PR that adds it or edits it; every other night it runs in the nightly. What
+counts as spelling it is `is_new`, the rule check-fast-set-times.py holds new
+fast-set tests to its stricter bar by, read from the same
+`check-fast-set-times.py --new-since` tokens.
 """
 
 from __future__ import annotations
@@ -117,6 +126,20 @@ def expr(pairs: list[tuple[str, str]]) -> str:
     return "(" + " | ".join(terms) + ")"
 
 
+def is_new(binary_id: str, name: str, tokens: set[str]) -> bool:
+    """Whether the diff's `pkg:ident` / `pkg:mod:name` tokens spell this
+    test: its leaf name, or a module on its path the diff declares."""
+    pkg = binary_id.split("::")[0]
+    *mods, leaf = name.split("::")
+    return f"{pkg}:{leaf}" in tokens or any(f"{pkg}:mod:{m}" in tokens for m in mods)
+
+
+def new_expr(pairs: list[tuple[str, str]], tokens: set[str]) -> str:
+    """The entries `tokens` spell, as one filterset; `none()` when none is."""
+    spelled = [(b, n) for b, n in pairs if is_new(b, n, tokens)]
+    return expr(spelled) if spelled else "none()"
+
+
 def selftest() -> None:
     text = "not (\n  (binary_id(a::all) & (test(=m::x) | test(=m::y))) |\n  (binary_id(b) & test(=n::z))\n)\n"
     want = [("a::all", "m::x"), ("a::all", "m::y"), ("b", "n::z")]
@@ -135,6 +158,9 @@ def selftest() -> None:
         except SlowSetError:
             continue
         raise SystemExit(f"slow_set selftest FAILED: {why} was read")
+    assert new_expr(want, set()) == "none()"
+    assert new_expr(want, {"a:y", "b:x"}) == expr([("a::all", "m::y")]), "a leaf, in its own package"
+    assert new_expr(want, {"b:mod:n"}) == expr([("b", "n::z")]), "a module on the path"
     print("slow_set: selftest ok")
 
 
@@ -142,13 +168,18 @@ def main(argv: list[str]) -> int:
     if argv == ["--selftest"]:
         selftest()
         return 0
-    if argv != ["--expr"]:
-        sys.exit("usage: slow_set.py --expr | --selftest")
+    if argv != ["--expr"] and not (len(argv) == 2 and argv[0] == "--new-expr"):
+        sys.exit("usage: slow_set.py --expr | --new-expr <new-tests.txt> | --selftest")
     try:
         with open(CONFIG, encoding="utf-8") as fh:
-            print(expr(entries(ci_filter(fh.read()))))
+            pairs = entries(ci_filter(fh.read()))
     except (OSError, SlowSetError) as exc:
         sys.exit(f"slow_set: {CONFIG}: {exc}")
+    if argv == ["--expr"]:
+        print(expr(pairs))
+        return 0
+    with open(argv[1], encoding="utf-8") as fh:
+        print(new_expr(pairs, set(fh.read().split())))
     return 0
 
 
