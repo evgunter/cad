@@ -973,7 +973,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         Some(zipped),
         band,
     )?;
-    share_recorded_points(&mut body, &contacts, &coincidences)?;
+    share_recorded_points(&mut body, &contacts, &coincidences, band)?;
     body.sweep_and_close();
     let body = gate(finished, band, tol)?;
     reverted_lines_disjoint(&body, b, &fin.reverted_roots, band)?;
@@ -3720,7 +3720,8 @@ fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
 /// **The substitution door**: every contact record an op holds, in
 /// result keys. Each operand's carried records go through the one carry
 /// ([`carried`]): placed on the result by what the op made of each input
-/// cell, by the census's own record confirm (D1). The reduction's own
+/// cell, by lineage where the op kept both cells and by the census's own
+/// record confirm where it divided one (D1). The reduction's own
 /// records are rewritten through the operand views and the descendant
 /// map: a record whose cell an op replaced now names the replacement (a
 /// fused vertex its survivor, an absorbed face its kept face, a zipped
@@ -3802,8 +3803,8 @@ pub(super) fn carry<T: Decide + AtRestPolicy>(
 
 /// **The one carry, for the boolean** (D1): each operand's carried
 /// records ([`Ledger::carried`]) placed on the result through what the
-/// op made of each input cell ([`operand_fate`]), by the census's own
-/// record confirm ([`super::records::landings`]), each landing restated
+/// op made of each input cell ([`operand_fate`]), by the one carry's
+/// placement ([`super::records::landings`]), each landing restated
 /// in its operand's clone keys so the vertex groups read it as they
 /// read the reduction's records ([`carry_rows`]). Two cells the op
 /// minted on a record's two cells that meet at a point are decided at
@@ -3903,20 +3904,9 @@ fn carried<T: Decide + AtRestPolicy>(
                          that is no vertex pair",
                     ));
                 };
-                let gap = match (vertex_point(body, ru), vertex_point(body, rw)) {
-                    (Some(p), Some(q)) => Margin::norm3(p - q),
-                    _ => return Err(desync("a minted vertex has no point")),
-                };
-                let (apart, margin) = geom_core::k_stats::decide_magnitude_reported(
-                    "bool_carried_minted_meeting",
-                    gap,
-                    band,
-                )
-                .map_err(|diag| BooleanError::Escalated {
-                    decision: BooleanDecision::VertexOnVertex,
-                    diag,
-                })?;
-                if apart != geom_core::k_stats::Magnitude::Zero {
+                let (meet, margin) =
+                    vertices_meet(body, [ru, rw], "bool_carried_minted_meeting", band)?;
+                if !meet {
                     return Err(desync(
                         "the census confirms two minted vertices meeting that the door reads apart",
                     ));
@@ -4262,8 +4252,9 @@ fn share_recorded_points<T: Decide>(
     body: &mut Body<T>,
     contacts: &ContactRecords,
     coincidences: &[crate::Coincidence],
+    band: Band,
 ) -> Result<(), BooleanError> {
-    let classes = record_classes(body, contacts, coincidences)?;
+    let classes = record_classes(body, contacts, coincidences, band)?;
     super::zip::share_points(body, &classes)
 }
 
@@ -4274,24 +4265,31 @@ fn share_recorded_points<T: Decide>(
 /// assembly. A vertex-vertex record of the result states that the two
 /// are one point: the op decided it (the carry refuses a record no
 /// decision backs, and every decision it emits decided its margin
-/// Zero), or an operand carried it in and the carry confirmed it by the
-/// census's own read (`records::landings`, which refuses a carried
-/// record whose cells do not meet as the caller's stale record). So
-/// every key the records reach, through their pairs and through the
-/// keys their vertices share, names one point, and the classes of two
-/// or more keys are returned for `zip::share_points`. No position is
-/// read here: the record is the premise.
+/// Zero), or an operand carried it in, landed by lineage on vertices
+/// the op kept or confirmed by the census where it divided one
+/// (`records::landings`). Moving a vertex onto another's key moves
+/// geometry on the record's word, so each pair on two keys has its gap
+/// decided Zero at `band` first (D10): a carried pair apart is the
+/// caller's stale record, refused, and never moves a vertex. Every key
+/// the records reach, through their pairs and through the keys their
+/// vertices share, then names one point, and the classes of two or more
+/// keys are returned for `zip::share_points`.
 /// The records themselves stay, citing their decisions, which is what
 /// the `unproven-coincidence` lint reads.
 ///
 /// # Errors
 ///
-/// [`BooleanError::JoinDesync`] where a record's vertex does not
+/// [`BooleanError::CarryRefused`] ([`super::CarryRefusal::Stale`]) for a
+/// carried pair whose two points are apart, and
+/// [`BooleanError::JoinDesync`] for a decided one;
+/// [`BooleanError::Escalated`] (`VertexOnVertex`) where a gap is in
+/// band; [`BooleanError::JoinDesync`] where a record's vertex does not
 /// resolve in `body`.
-fn record_classes<T: Real>(
+fn record_classes<T: Decide>(
     body: &Body<T>,
     contacts: &crate::ContactRecords,
     coincidences: &[crate::Coincidence],
+    band: Band,
 ) -> Result<Vec<super::zip::PointClass>, BooleanError> {
     let key = |v: VertexKey| {
         body.get_vertex(v)
@@ -4301,8 +4299,31 @@ fn record_classes<T: Real>(
             })
     };
     let mut roots = super::zip::Roots::new();
-    for (a, b) in contacts.vertex_vertex() {
-        roots.union(key(a)?, key(b)?);
+    for row in contacts.rows() {
+        let crate::ContactKind::VertexVertex(a, b) = row.kind() else {
+            continue;
+        };
+        let (ka, kb) = (key(a)?, key(b)?);
+        if ka != kb && !vertices_meet(body, [a, b], "bool_shared_record_points", band)?.0 {
+            let carried = row.cites.iter().find_map(|b| match b {
+                Backing::Carried { input, record } => Some((input, record)),
+                Backing::Decided(_) => None,
+            });
+            return Err(match carried {
+                Some((input, record)) => BooleanError::CarryRefused {
+                    row: super::RefusedRow::Carried(if input == 0 {
+                        Operand::A
+                    } else {
+                        Operand::B
+                    }),
+                    refusal: super::CarryRefusal::Stale { record },
+                },
+                None => BooleanError::JoinDesync {
+                    what: "a decided vertex-vertex record names two points apart",
+                },
+            });
+        }
+        roots.union(ka, kb);
     }
     #[cfg_attr(not(feature = "sweep-testing"), allow(unused_mut))]
     let mut classes = roots.classes();
@@ -4795,17 +4816,18 @@ fn carry_rows<T: Decide + AtRestPolicy>(
     Ok(out)
 }
 
-/// **A record's cells in result keys**: each chased through
-/// [`Descendants::live`]. A row of the reduction's own (`found`, its
-/// index in the working set) on a face the join divided after the row
-/// was written goes through the one carry ([`super::records::landings`]):
-/// the face is divided into its live pieces and the chords between them
-/// ([`face_pieces`]), its remainder removed where the op stated a piece's
-/// removal ([`stated_removed`]), and the row lands on every pair of
-/// images the census's record confirm reads as meeting; a row whose
-/// every pair is structure is consumed, as structural sharing needs no
-/// record (D1, [`crate::Lineage::glued`]). None where the other cell
-/// left the result: a row of the reduction's own leaves with its cell.
+/// **A record's cells in result keys**, placed by the one carry
+/// ([`super::records::landings`]): each cell chased through
+/// [`Descendants::live`] lands there by lineage, unread. A row of the
+/// reduction's own (`found`, its index in the working set) on a face the
+/// join divided after the row was written has that face divided into
+/// its live pieces and the chords between them ([`face_pieces`]), its
+/// remainder removed where the op stated a piece's removal
+/// ([`stated_removed`]), and lands on every pair of images the census's
+/// record confirm reads as meeting. A row whose every pair is structure
+/// is consumed, as structural sharing needs no record (D1,
+/// [`crate::Lineage::glued`]). None where the other cell left the
+/// result: a row of the reduction's own leaves with its cell.
 ///
 /// # Errors
 ///
@@ -4864,44 +4886,50 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
         let (side, cell) = ends[i];
         desc.live(body, side, views[at(side)], cell)
     };
-    let (Some((i, fate)), Some(row)) = (divided, found) else {
-        let (Some(x), Some(y)) = (live(0)?, live(1)?) else {
-            return Ok(Vec::new());
-        };
-        return Ok(vec![(x, y)]);
+    // The row in the keys the lineage reads: a divided cell in its
+    // operand's, a kept one as the result holds it.
+    let (row, lineage) = match divided {
+        None => {
+            let (Some(x), Some(y)) = (live(0)?, live(1)?) else {
+                return Ok(Vec::new());
+            };
+            ([x, y], crate::Lineage::new().glued())
+        }
+        Some((i, fate)) => {
+            let Some(other) = live(1 - i)? else {
+                return Ok(Vec::new());
+            };
+            let cells = ends.map(|(_, c)| c);
+            let lineage = crate::Lineage::new()
+                .glued()
+                .with(cells[i], fate)
+                .and_then(|l| {
+                    l.with(
+                        cells[1 - i],
+                        crate::Fate::Kept {
+                            at: other,
+                            copies: Vec::new(),
+                        },
+                    )
+                })
+                .map_err(|_| BooleanError::JoinDesync {
+                    what: "a row the reduction found names one cell twice",
+                })?;
+            (cells, lineage)
+        }
     };
-    let Some(other) = live(1 - i)? else {
-        return Ok(Vec::new());
+    let refused = |refusal: super::CarryRefusal| match found {
+        Some(row) => BooleanError::CarryRefused {
+            row: super::RefusedRow::Found,
+            refusal: refusal.renumbered(super::reduce::index(row)),
+        },
+        None => BooleanError::JoinDesync {
+            what: "the carry refused a row it places by lineage",
+        },
     };
-    let cells = ends.map(|(_, c)| c);
-    let lineage = crate::Lineage::new()
-        .glued()
-        .with(cells[i], fate)
-        .and_then(|l| {
-            l.with(
-                cells[1 - i],
-                crate::Fate::Kept {
-                    at: other,
-                    copies: Vec::new(),
-                },
-            )
-        })
-        .map_err(|_| BooleanError::JoinDesync {
-            what: "a row the reduction found names one cell twice",
-        })?;
-    let refused = |refusal: super::CarryRefusal| BooleanError::CarryRefused {
-        row: super::RefusedRow::Found,
-        refusal: refusal.renumbered(super::reduce::index(row)),
-    };
-    let landed = super::records::landings(
-        &[cells],
-        &lineage,
-        &[body],
-        confirms,
-        band,
-        T::region_lane(),
-    )
-    .map_err(refused)?;
+    let landed =
+        super::records::landings(&[row], &lineage, &[body], confirms, band, T::region_lane())
+            .map_err(refused)?;
     landed
         .into_iter()
         .map(|l| {
@@ -5199,6 +5227,36 @@ fn vertex_star<T: Real>(body: &Body<T>, w: VertexKey) -> Option<Vec<Cell>> {
 }
 
 /// A vertex's point.
+/// Whether vertices `a` and `b` of `body` are one point: their gap
+/// decided Zero at `band` by `predicate`, with the margin read.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where a vertex has no point, and
+/// [`BooleanError::Escalated`] (`VertexOnVertex`) where the gap is in
+/// band.
+fn vertices_meet<T: Decide>(
+    body: &Body<T>,
+    [a, b]: [VertexKey; 2],
+    predicate: &'static str,
+    band: Band,
+) -> Result<(bool, geom_core::MarginDiag), BooleanError> {
+    let gap = match (vertex_point(body, a), vertex_point(body, b)) {
+        (Some(p), Some(q)) => Margin::norm3(p - q),
+        _ => {
+            return Err(BooleanError::JoinDesync {
+                what: "a vertex the carry or the output stage reads has no point",
+            });
+        }
+    };
+    let (magnitude, margin) = geom_core::k_stats::decide_magnitude_reported(predicate, gap, band)
+        .map_err(|diag| BooleanError::Escalated {
+        decision: BooleanDecision::VertexOnVertex,
+        diag,
+    })?;
+    Ok((magnitude == geom_core::k_stats::Magnitude::Zero, margin))
+}
+
 fn vertex_point<T: Real>(body: &Body<T>, v: VertexKey) -> Option<Point3<T>> {
     body.get_vertex(v)
         .and_then(|d| body.get_point(d.point))
@@ -7036,7 +7094,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 None,
                 band,
             )?;
-            share_recorded_points(&mut body, &contacts, &coincidences)?;
+            share_recorded_points(&mut body, &contacts, &coincidences, band)?;
             let body = gate(body, band, tol)?;
             let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
             let naming = BooleanNaming {
@@ -7141,7 +7199,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         None,
         band,
     )?;
-    share_recorded_points(&mut body, &contacts, &coincidences)?;
+    share_recorded_points(&mut body, &contacts, &coincidences, band)?;
     let body = gate(body, band, tol)?;
     let naming = match kind {
         BooleanResultKind::OperandA => BooleanNaming {

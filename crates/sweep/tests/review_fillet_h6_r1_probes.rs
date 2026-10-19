@@ -46,7 +46,7 @@ fn cap_rim_descriptions(built: &Extruded<f64>) -> Vec<EdgeDescription<f64>> {
 /// `CAD_AMBIGUITY_K=1.1` it would read smooth. The cap rim's
 /// `SliverRim` and at-rest `MaterialPairing` arms this row reached
 /// then have no row now
-/// (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
+/// (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
 fn worst_admitted_obliquity_on_a_tight_rim_is_the_faces_corner() {
     let tol = Tol::witness();
