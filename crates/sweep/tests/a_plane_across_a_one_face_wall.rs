@@ -17,11 +17,10 @@
 //! - the tube under a box whose side face cuts its outer wall, so one
 //!   one-site loop lies beside matched segments in the same faces.
 //!
-//! One class no row here owns is pinned as known, by row: a box less a
-//! tube, which leaves a rod in the bore, fails tier 3′
-//! (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
-//! A piece of the wall under a tilted plane is a legal operand: a ray
-//! from the far brick that meets nothing reads its side off the sign of
+//! A box less a tube leaves a rod in the bore, two solids the census
+//! clears on the rod's depth about the bore's axis. A piece of the wall
+//! under a tilted plane is a legal operand: a ray from the far brick
+//! that meets nothing reads its side off the sign of
 //! the piece's volume, which the quadrature measures through the
 //! ellipse-trimmed wall.
 //!
@@ -105,21 +104,12 @@ fn below(at: Point3<f64>, turn: Affine3<f64>) -> Body<f64> {
     .unwrap()
 }
 
-/// What a row's run is held to besides `SOUND`: the one flag a known
-/// class sets false, the rest of the line sound.
-#[derive(Clone, Copy)]
-enum Known {
-    /// Tier 3′ refuses the result.
-    T3,
-}
-
 /// Every op in both orders between `a` and `b` (volumes `va`, `vb`,
-/// overlapping in `vab`), each read through `outcome`: `SOUND`, or for
-/// a run `known` names, sound but for that class's flag; and meshed,
+/// overlapping in `vab`), each read through `outcome`: `SOUND`; and meshed,
 /// unless the result holds a window in a curved face, which the mesher
 /// refuses typed (`TessellateError::RingOnCurvedFace`,
 /// `work/tess/a-notched-or-ringed-cylinder-wall-does-not-tessellate.md`).
-fn every_op(what: &str, a: Body<f64>, b: Body<f64>, v: (f64, f64, f64), known: &[(&str, Known)]) {
+fn every_op(what: &str, a: Body<f64>, b: Body<f64>, v: (f64, f64, f64)) {
     let (a, b) = (fin("A", a), fin("B", b));
     for (op, r, want) in every_op_both_orders(&a, &b, v, tol()) {
         let row = format!("{what}: {op}");
@@ -140,7 +130,6 @@ fn every_op(what: &str, a: Body<f64>, b: Body<f64>, v: (f64, f64, f64), known: &
             m.volume,
             m.volume_pad
         );
-        let k = known.iter().find(|(o, _)| *o == op).map(|&(_, k)| k);
         // `operand=` reads only whether the union builds. A legal
         // operand's union with the far brick also holds the brick's
         // volume.
@@ -158,12 +147,8 @@ fn every_op(what: &str, a: Body<f64>, b: Body<f64>, v: (f64, f64, f64), known: &
             m.volume + 1.0
         );
         let line = outcome(r, m.volume, tol());
-        let flags = ["t2=", "t3p=", "cert=", "operand="].map(|f| {
-            let named = matches!((f, k), ("t3p=", Some(Known::T3)));
-            format!("{f}{}", !named)
-        });
-        for f in &flags {
-            assert!(line.contains(f.as_str()), "{row}: want {f}: {line}");
+        for f in ["t2=true", "t3p=true", "cert=true", "operand=true"] {
+            assert!(line.contains(f), "{row}: want {f}: {line}");
         }
     }
 }
@@ -184,7 +169,6 @@ fn a_box_across_a_full_revolved_tube() {
         tube(0.3),
         block,
         (0.32 * PI, 9.0, 0.16 * PI),
-        &[("B ∖ A", Known::T3)],
     );
 }
 
@@ -194,13 +178,7 @@ fn a_box_across_a_full_revolved_tube() {
 #[test]
 fn a_slab_across_a_one_segment_cylinder() {
     let slab = brick((-3.0, 3.0), (-3.0, 3.0), (0.5, 1.0), tol());
-    every_op(
-        "the slab",
-        seam_cylinder(0.0),
-        slab,
-        (TAU, 18.0, 0.5 * PI),
-        &[],
-    );
+    every_op("the slab", seam_cylinder(0.0), slab, (TAU, 18.0, 0.5 * PI));
 }
 
 /// **A blind pocket**: the one-segment cylinder raised to
@@ -215,7 +193,6 @@ fn a_blind_pocket_through_a_plates_top_face() {
         plate,
         seam_cylinder(0.5),
         (36.0, TAU, 0.5 * PI),
-        &[],
     );
 }
 
@@ -235,7 +212,6 @@ fn a_tilted_plane_across_a_one_segment_cylinder() {
         seam_cylinder(0.0),
         cutter,
         (TAU, 512.0, PI),
-        &[],
     );
 }
 
@@ -297,7 +273,6 @@ fn a_plane_close_by_the_wrap_edges_end() {
             seam_cylinder(0.0),
             below(Point3::new(1.0, 0.0, c), turn),
             (TAU, 512.0, PI * (c + m)),
-            &[],
         );
     }
 }
@@ -318,7 +293,6 @@ fn a_one_site_loop_beside_matched_ones() {
         tube(0.3),
         block,
         (0.32 * PI, 5.7, 0.16 * PI - segment),
-        &[("B ∖ A", Known::T3)],
     );
 }
 
@@ -372,7 +346,6 @@ fn a_circle_edge_in_the_partners_face_builds() {
             tube.clone(),
             block,
             (dome + shank, 18.0, shared),
-            &[],
         );
     }
 }

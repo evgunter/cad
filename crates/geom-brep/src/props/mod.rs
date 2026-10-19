@@ -114,14 +114,14 @@
 //! face measures and encodes its side as a rectangle does. [`boundary_material_sign_loops`] reads
 //! each kind's side off the quantity its flux integrates.
 //!
-//! Closure: every lane on a cylinder or torus chart decides it one way
+//! Closure: every lane on a cylinder, torus or cone chart decides it one way
 //! (`closure`): each junction's chart gap, less whole periods, against a
 //! stated slack, then whole-number windings held to a face boundary's
 //! integer facts. The windings are read two ways by what the lane holds:
 //! an interval lane sums the whole periods its junctions are nearest, a
 //! closed form reads its loop's total angle at half-turn thresholds. The
-//! sphere's Gauss–Bonnet and the cone's vector area decide every junction
-//! in space (`props_loop_closed`). No lane reads the loop-local vertex **tags**
+//! sphere's Gauss–Bonnet decides every junction in space
+//! (`props_loop_closed`). No lane reads the loop-local vertex **tags**
 //! ([`LoopEdge`]).
 
 mod bracket;
@@ -135,7 +135,7 @@ use geom::Curve3;
 use geom_core::spline::SpanLocate;
 use geom_core::{Indeterminate, KERNEL_OR_FILE_DEFECT_ENDING, Point3, Real, SizedPass, Vec3};
 
-use crate::recourse::{Reading, RefusedArm, SizedDecision, StoredDefinite, Unsized};
+use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, Unsized};
 
 pub use curved::{
     MaterialSign, boundary_material_sign, boundary_material_sign_loops, cone_face_closed_form,
@@ -353,9 +353,8 @@ pub enum PropsError {
         what: &'static str,
     },
     /// A cone face (`curved::cone_face_closed_form`) fails a premise of
-    /// its vector-area closed form: a loop that does not close, that
-    /// winds the axis twice or sweeps past a turn through the apex, that
-    /// meets itself at a vertex, or a ring that winds the axis or
+    /// its vector-area closed form: a loop that sweeps past a turn
+    /// through the apex, that meets itself at a vertex, or a ring that
     /// touches the apex. Name-only, as [`Self::SphereLoop`]: `what` is
     /// the deciding predicate's name.
     ConeLoop {
@@ -591,7 +590,7 @@ pub const FACE_EXTENT: SizedDecision = SizedDecision {
     size: "width",
     passes: SizedPass::Positive,
     // The stored description a lever edits IS the face's own extent.
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 

@@ -140,6 +140,8 @@ mod band_subdivided_side_walls;
 mod bisector_lane_stubs;
 #[path = "bisector_nodes.rs"]
 mod bisector_nodes;
+#[path = "blend_arms_centre_placement.rs"]
+mod blend_arms_centre_placement;
 #[path = "bool1_fix_pass.rs"]
 mod bool1_fix_pass;
 #[path = "bool1_r1_probes.rs"]
@@ -1133,6 +1135,9 @@ mod shell10_r2_cost;
 
 #[path = "shell10_r2_dump.rs"]
 mod shell10_r2_dump;
+
+#[path = "cross_solid_apart.rs"]
+mod cross_solid_apart;
 
 #[path = "census_containment_cause.rs"]
 mod census_containment_cause;

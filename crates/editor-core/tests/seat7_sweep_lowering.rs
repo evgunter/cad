@@ -400,12 +400,20 @@ fn both_sweeps_evaluate_in_one_document() {
 /// stored pcurve is two channels (`Channel::Angle { phase, winding }` /
 /// `Channel::Free`) where it was one flat tuple, and the digest hashes
 /// it. Re-taken merged over PCERT B1's re-bless above.
+/// RE-BLESSED, `cut_cylinder` only, when each split half came to end
+/// with maximal faces and to re-describe the boundary of a curved run
+/// its merge records as skipped (PR 5334): the tilted cut leaves both
+/// half-walls' pieces in each half, and the re-description's pass over
+/// their boundary edges re-stores those edges' stored rows, which this
+/// digest hashes. Every edge description's `Debug` is unchanged, and no
+/// point moved (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held).
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0xb0ac_b6ff_5b86_687f),
         ("corner_table", 0x4d24_cb55_a481_538d),
-        ("cut_cylinder", 0x3c37_782c_be93_f19a),
+        ("cut_cylinder", 0x615f_38e4_0bb7_2148),
         ("boss_union", 0xc33a_d792_0586_087c),
         ("kitchen_sink", 0x1032_8a96_fb12_9d02),
     ];

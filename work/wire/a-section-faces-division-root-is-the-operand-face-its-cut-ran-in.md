@@ -2,10 +2,11 @@
 id: a-section-faces-division-root-is-the-operand-face-its-cut-ran-in
 kind: issue
 title: FaceDivisions::root of a section face descends to the operand face the section's mef ran in, so a consumer reading it as adjacency names a section chord by build order
-status: open
+status: closed
 opened: 2026-10-18
 priority: P3
 cost: E
+closed: 2026-10-19
 ---
 
 
@@ -29,3 +30,7 @@ this becomes a kernel-bug guard. It rides with whatever unit builds
 FORK-INPLANE.
 
 Signed (WIRE orchestrator).
+
+## Resolution (2026-10-19)
+
+Closed by PR 5334: a split finishes each half with maximal faces (recording a curved skip), names in-plane edges and merged groups per N2/N3 as Ev approved on PR 5306, and reads `Keeps` by descent in one builder. Pinned in `split_pinch_keeps.rs`, `m3_pr3_split.rs` and `a_lower_half_on_the_plane_takes_a_box_hole`.
