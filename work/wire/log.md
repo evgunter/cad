@@ -6516,3 +6516,18 @@ Signed (WIRE orchestrator).
   shape, which is broad and hard to reverse. The lane stops if a
   truthful meeting relation needs more than `CoincidenceRelation`
   states. (WIRE orchestrator)
+
+- 2026-10-19 — Ruling for unit 2. The lane stopped at the brief's step 2:
+  `OnCarrier` needs a distinguished point cell, and a fold-minted
+  point's member-cell spelling has none. Ruled option A: a new
+  `topo::Relation::Meet`, unordered and k-ary ("the cells' carriers
+  share one point"). It applies where the point was widened, or where a
+  set has three or more cells; two-cell rows with a member vertex keep
+  `OnCarrier`.
+  - Why the orchestrator rules it: DM4, approved on PR 5329, already
+    says "the set of member cells that meet". No design page lists the
+    relation set (checked DESIGN.md and the crate READMEs). B, keeping
+    the point apart, spells one point two ways by order, against DM4.
+  - `Meet` also publishes topo's held `UnspelledDecision`s and CLEAVE's
+    15 cited misstatements truthfully.
+  (WIRE orchestrator)
