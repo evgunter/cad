@@ -3317,6 +3317,9 @@ enum FoldRow {
     Restates(Vec<usize>),
     /// The step decided it, in member space ([`in_member_space`]).
     Decided(crate::coincide::NamedCoincidence),
+    /// It names a cell the step's operands do not hold, and no record
+    /// cites it: held out of the log.
+    Unnamed,
 }
 
 /// Whether `a` and `b` make one statement: one relation between one
@@ -3781,17 +3784,14 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 if pairwise {
                     let acc_view =
                         names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
-                    let named = crate::coincide::name_rows(
-                        &out.coincidences,
-                        &crate::coincide::RowInputs {
-                            a: (own_read, &acc_view),
-                            b: Some((own_read, &member_table)),
-                            tool: None,
-                        },
-                    )
-                    .map_err(NodeErrorKind::Naming)?;
+                    let inputs_named = crate::coincide::RowInputs {
+                        a: (own_read, &acc_view),
+                        b: Some((own_read, &member_table)),
+                        tool: None,
+                    };
                     let given = inputs.given.as_deref().unwrap_or_default();
-                    for (row, named) in out.coincidences.iter().zip(named) {
+                    let cited = contacts.decided();
+                    for (k, row) in out.coincidences.iter().enumerate() {
                         let restates = restated_given(
                             row,
                             given,
@@ -3800,18 +3800,39 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                             &fold,
                             &coincidences[..judged_rows],
                         )?;
-                        fold_rows.push(match restates {
-                            Some(judged) => FoldRow::Restates(judged),
-                            None => {
-                                #[cfg(any(test, feature = "test-support"))]
-                                let as_named = named.clone();
-                                let spelled = in_member_space(named, own_read, member)
-                                    .map_err(NodeErrorKind::Naming)?;
-                                #[cfg(any(test, feature = "test-support"))]
-                                crate::test_support::record_fold_row(&as_named, &spelled);
-                                FoldRow::Decided(spelled)
+                        if let Some(judged) = restates {
+                            fold_rows.push(FoldRow::Restates(judged));
+                            continue;
+                        }
+                        let named = match crate::coincide::name_rows(
+                            std::slice::from_ref(row),
+                            &inputs_named,
+                        ) {
+                            Ok(named) => named,
+                            // A row naming a cell the step's operands do
+                            // not hold, a pierce vertex the reduction
+                            // minted off every edge split
+                            // (`work/cleave/a-fold-steps-ring-tie-row-names-a-pierce-vertex-its-operand-does-not-hold.md`):
+                            // no record cites it, and it is held out of
+                            // the log, as a record citing it refuses.
+                            Err(_)
+                                if u32::try_from(k)
+                                    .is_ok_and(|k| cited.binary_search(&k).is_err()) =>
+                            {
+                                fold_rows.push(FoldRow::Unnamed);
+                                continue;
                             }
-                        });
+                            Err(e) => return Err(NodeErrorKind::Naming(e)),
+                        };
+                        let [named] = <[_; 1]>::try_from(named)
+                            .unwrap_or_else(|_| unreachable!("one row names one row"));
+                        #[cfg(any(test, feature = "test-support"))]
+                        let as_named = named.clone();
+                        let spelled = in_member_space(named, own_read, member)
+                            .map_err(NodeErrorKind::Naming)?;
+                        #[cfg(any(test, feature = "test-support"))]
+                        crate::test_support::record_fold_row(&as_named, &spelled);
+                        fold_rows.push(FoldRow::Decided(spelled));
                     }
                 }
                 let held = Arc::clone(&acc_records);
@@ -3902,6 +3923,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             .into_iter()
             .map(|row| match row {
                 FoldRow::Restates(judged) => judged,
+                FoldRow::Unnamed => Vec::new(),
                 // A fold row the judgement already states is that row: a
                 // record citing it cites the judged decision and its
                 // margin, not the step's (which can differ in its last
