@@ -2,7 +2,8 @@
 id: a-cusp-on-nested-near-concentric-carriers-validates-along-a-long-eps-stretch
 kind: issue
 title: a tangent cusp on nested near-concentric carriers validates while its two arcs run within ε of each other for a quarter radian
-status: dispatched
+status: closed
+closed: 2026-10-19
 opened: 2026-10-15
 priority: P0
 cost: M
@@ -80,3 +81,40 @@ mpmath gives d = 95ε and g = +0.005ε. The carriers cross, and the joint sits a
 ## Ruling (Ev, #5354, 2026-10-19)
 
 "that plan sounds good!" The profile is valid. No pass reads the stretch's length, and the far end is the line ([topology.census]). A tangent cusp's legality as an edge is the sweep's second-order arm. The joint pass decides tangency from the turn levered by the arm, now. The implementation unit closes this row as a contract note.
+
+## Closed (2026-10-19): a contract note
+
+Closed on `paths/joint-reads-its-turn` under the ruling above. The
+profile is valid however long the stretch; what draws the line is the
+far end, and what decides an edge is the sweep.
+
+- **The contract is stated where it is asked**: `crates/profile/src/validate.rs`
+  step 3 and `seg::end_in_stretch` / `end_touches` say that no pass
+  reads how far two adjacent segments run within ε past their joint,
+  and that the neighbourhood is the joint's own (`[topology.census]`).
+- **The joint reads its turn**: `seg::joint_tangency` decides
+  tangency by `seg::junction_turn` (`path_junction_turn`), the one home
+  the path door's junction check calls too; carrier identity stays on
+  `carrier_circles_identity` / `chord_side`.
+- **The rows that pin it** (`crates/profile/tests/rejections.rs`, f64
+  and Interval, at 1e-6, 1e-9 and 1e-12):
+  `a_tangent_cusps_far_end_draws_its_line` (the far-end table: a
+  sweep of 0.05–0.2 rad touches, 0.3–1.0 escalates, 1.3–1.6
+  validates); `a_tangent_cusp_on_near_concentric_carriers_validates_its_long_stretch`
+  (this row's two tables); `a_cusp_on_crossing_carriers_95_eps_apart_escalates_its_turn`
+  (the wider witness, which the turn reading escalates at the joint
+  on the number the extrude used to read); and
+  `a_joint_at_a_crossing_of_near_concentric_carriers_is_a_corner`.
+  On the sweep side (`crates/sweep/tests/a_tangent_joint_on_near_concentric_carriers.rs`):
+  the 17ε walls refuse `SliverJoin` on `tangent_second_order` (8.5ε),
+  cusp and smooth; 40ε and 100ε build and pass tier 3; a crossing
+  joint builds a corner.
+- **Residue, each in its own file**:
+  `seg-candidates-skips-its-end-reads-when-the-joints-candidate-is-held`,
+  `a-smooth-joint-at-a-near-concentric-crossing-validates-at-f64-and-escalates-at-interval`
+  (here); `work/restfront/a-cusps-second-order-arm-caps-at-the-curvature-arm-where-its-walls-part-definitely.md`;
+  `work/carve/a-smooth-joint-whose-walls-part-in-band-refuses-sliver-join.md`;
+  `work/strut/extrude-step-8-doc-names-cusp-joints-which-nothing-reads.md`;
+  and appended consequences on
+  `work/twice/the-wedge-reach-counts-a-faces-run-along-its-edge.md` and
+  `a-short-run-outs-stored-chord-reads-a-declared-fillet-joint-transversal`.

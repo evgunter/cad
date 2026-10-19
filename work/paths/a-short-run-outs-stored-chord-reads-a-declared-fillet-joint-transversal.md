@@ -48,3 +48,31 @@ or the refusal should be a variant naming the short chord, with a lever
 that works (a longer run, or no run at all). In both cases,
 `FilletCarrierBelowSceneResolution` should only be raised when its
 `resolution` is at least ε.
+
+## Wider since the joint reads its turn (2026-10-19)
+
+`paths/joint-reads-its-turn` (Ev's ruling on #5354) decides a joint by
+its turn levered by the longer leg's arm, so the stored chord now reads
+as what it is, a corner of half its sweep at the fillet's arm, rather
+than through the chord line's rounding. The predicate the refusal names
+is `path_junction_turn`, and the class reaches the default ε and wide
+margins:
+
+- the construction above, at `CAD_TOLERANCE_EPS=1e-9`: turns 1e-7 to
+  3e-5 rad refuse `FilletCarrierBelowSceneResolution` (margin 2.5e-8 at
+  1e-7, `resolution` 4.2e-16); at 1e-12 turns 1e-11 to 1e-6; at 1e-6,
+  1e-4 to 1e-3. The run out builds once its sagitta, about `turn²`
+  m, clears the band, so `arc_fillet.rs`'s row now reads turns of a few
+  `√(Kε)`.
+- grid A's recourse census (`review_fillet_overrun_nearest_fit_r1/r2`):
+  following the reported deficit leaves an arc leg's remnant past the
+  fillet short enough to flatten, and the door refuses it the same way
+  at 4 entries at 1e-9 and 30 at 1e-6 (`margin` 2.8e-6 to 5e-4, every
+  `resolution` near 1e-17). The census counts them past the corner
+  (`common::past_the_corner`) with a per-row pin.
+
+The refusal is right in kind: the stored chord turns definitely from
+the fillet, and the body extruded from it would build that corner sharp
+under a constructed tangency. What this row asks is unchanged and more
+pressing: the variant blames the scene's resolution, whose own field
+reads four to thirteen decades below ε.
