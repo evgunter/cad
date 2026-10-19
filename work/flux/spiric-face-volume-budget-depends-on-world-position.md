@@ -2,7 +2,8 @@
 id: spiric-face-volume-budget-depends-on-world-position
 kind: issue
 title: A spiric-bounded face's certified volume spends its quadrature budget in a turned frame 990 m out, inside the box
-status: open
+status: review
+branch: flux/spiric-budget-world-position
 opened: 2026-10-14
 priority: P2
 cost: M
@@ -55,3 +56,25 @@ rounds 13 } } }`.
 The certified volume of a body in the box converges, or refuses,
 the same way at any rigid placement in the box. A row pins the pose
 above at s = 100 and asserts that all six ops build.
+
+## Cause, measured
+
+The lead held. At s = 100 turned, the plane face's lever from the world
+origin is ~990 m, its vector area's enclosure keeps ~7e-11 of width
+per component at round 12, and the flux's width is ~8.6e-8, so
+`width_len` reads 3.6e-8 against 1.024e-9. Translated only, the
+off-normal components enclose zero exactly and the lever multiplies
+nothing.
+
+## Fix
+
+Every face of a walk is read about the walk's reference
+(`topo::props`' `walk_reference`): the first loop point of its first
+face with one, a vertex of the body, so the lever is bounded by the
+body's diameter wherever it sits. One rule for every walk, the body's
+and each shell's; `corner_of`, the re-derivation's centre, is the same
+point lifted. Rows: `sweep` tests
+`a_spiric_cut_far_off_and_turned_reads_as_at_home` (all six ops build at
+s = 100 turned and measure the s = 0 volume; every quadrature face meets
+its target at the same round) and `topo::props::walk_reference_rows`
+(a closed-form body's volume is unchanged in the reals).
