@@ -1919,8 +1919,8 @@ fn a_mate_refused_at_the_door_speaks_the_nodes_its_fault_names() {
 
 /// **A part's own at-rest refusal crosses whole.** A sub-assembly holds
 /// the gapped stand, whose carried declaration its census refutes, and
-/// a block of its own 3 nm off the stand's lower cube, in the sliver
-/// band, where its census escalates. Its own gate refuses both. A top
+/// a block of its own three ε off the stand's lower cube, in the
+/// sliver band, where its census escalates. Its own gate refuses both. A top
 /// document instantiating it refuses `CarriedAtRest` with that refusal
 /// whole: the escalation no declaration answers for, and the refutation
 /// of the stand's mate, attributed as the sub-assembly attributed it,
@@ -1948,10 +1948,10 @@ fn a_parts_own_refusal_crosses_whole_with_its_refuted_mate() {
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![
-            (1.0 + 3e-9, 0.25),
+            (1.0 + 3.0 * Tol::witness().eps(), 0.25),
             (1.5, 0.25),
             (1.5, 0.75),
-            (1.0 + 3e-9, 0.75),
+            (1.0 + 3.0 * Tol::witness().eps(), 0.75),
         ]],
     );
     let (mid, block) = insert(

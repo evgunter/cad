@@ -63,11 +63,17 @@ fn overlapping(label: &str) -> ProfileDoc {
     two_blocks(label, 0.45)
 }
 
-/// The two copies stand 3 nm apart, inside the sliver band: the census
+/// A gap inside the sliver band at the ambient ε: three ε, between the
+/// band's zero (ε) and its escalation (10 ε).
+fn in_band_gap() -> f64 {
+    3.0 * Tol::witness().eps()
+}
+
+/// The two copies stand three ε apart, inside the sliver band: the census
 /// escalates on whether they touch, which the part's own gate refuses,
 /// naming none of its declarations.
 fn in_band(label: &str) -> ProfileDoc {
-    two_blocks(label, 0.5 + 3e-9)
+    two_blocks(label, 0.5 + in_band_gap())
 }
 
 fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
@@ -404,7 +410,7 @@ impl editor_core::PartResolver for Versions {
 fn two_pins_of_one_document_are_two_part_rows() {
     let v1 = in_band("seam-two-pins-part");
     let (v2, a) = block(v1.clone(), (10.0, 0.0, 0.0), 0.5, 1.0);
-    let (v2, b) = block(v2, (10.8 + 3e-9, 0.0, 0.25), 0.3, 0.5);
+    let (v2, b) = block(v2, (10.8 + in_band_gap(), 0.0, 0.25), 0.3, 0.5);
     let (v2, _) = place(v2, a);
     let v2 = place(v2, b).0;
     let count = |doc: &ProfileDoc| match gate(doc, &EvalOptions::default()) {
