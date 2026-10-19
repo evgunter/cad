@@ -151,6 +151,14 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// (`expr-non-finite-asks-value-times-zero`): it asks boundedness, not
 /// `value · 0` against a band, so `expr_non_finite` (37/0/0/0) leaves
 /// the table. Nothing else moves.
+///
+/// **INTENT stage 3 D** (a construction stands in the world by a mate
+/// and the values it leaves): the copy's plane mate reads its chart,
+/// which decides its three directions (`datum_unit_norm` 0/2 -> 0/5),
+/// the two swings onto the mated direction
+/// (`mate_chart_reference_antipode`, new at 2/0) and the one at-rest
+/// verdict of the solved map (`solve_copy_at_identity`, new at 1/0).
+/// Nothing else moves.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
@@ -167,13 +175,14 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("chord_side", [6, 12]),
     ("circle_side", [2, 2]),
     ("contact_at_shared_vertex", [12, 4]),
-    ("datum_unit_norm", [0, 2]),
+    ("datum_unit_norm", [0, 5]),
     ("dihedral_arm", [0, 128]),
     ("dihedral_wedge", [0, 128]),
     ("extrusion_normal_component", [0, 2]),
     ("interval_span_forward", [0, 36]),
     ("interval_span_winding", [0, 12]),
     ("line_span", [6, 4]),
+    ("mate_chart_reference_antipode", [2, 0]),
     ("newell_plane_residual", [30, 0]),
     ("path_circle_radius", [0, 1]),
     ("path_junction_turn", [0, 4]),
@@ -191,6 +200,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("segment_straightness", [6, 6]),
     ("side_cylinders_cosurface", [2, 0]),
     ("side_planes_cosurface", [0, 2]),
+    ("solve_copy_at_identity", [1, 0]),
     ("vertex_separation", [0, 12]),
     ("witness_at_mid_parameter", [16, 0]),
     ("witness_on_surface_1", [14, 2]),
@@ -273,6 +283,14 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
 /// **The final non-finite check decides nothing**
 /// (`expr-non-finite-asks-value-times-zero`): it asks boundedness, so
 /// `expr_non_finite` (33/0/0/0) leaves the table. Nothing else moves.
+///
+/// **INTENT stage 3 D** (a construction stands in the world by a mate
+/// and the values it leaves): the copy's plane mate reads its chart,
+/// which decides its three directions (`datum_unit_norm` 0/2 -> 0/5),
+/// the two swings onto the mated direction
+/// (`mate_chart_reference_antipode`, new at 2/0) and the one at-rest
+/// verdict of the solved map (`solve_copy_at_identity`, new at 1/0).
+/// Nothing else moves.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -295,13 +313,14 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("carrier_on_surface_1", [90, 0]),
             ("carrier_on_surface_2", [90, 0]),
             ("contact_at_shared_vertex", [6, 3]),
-            ("datum_unit_norm", [0, 2]),
+            ("datum_unit_norm", [0, 5]),
             ("dihedral_arm", [0, 80]),
             ("dihedral_wedge", [0, 80]),
             ("extrusion_normal_component", [0, 2]),
             ("interval_span_forward", [0, 24]),
             ("interval_span_winding", [0, 12]),
             ("line_span", [2, 0]),
+            ("mate_chart_reference_antipode", [2, 0]),
             ("newell_plane_residual", [18, 0]),
             ("path_circle_radius", [0, 1]),
             ("path_junction_turn", [0, 2]),
@@ -318,6 +337,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_map_residual", [18, 0]),
             ("segment_straightness", [2, 6]),
             ("side_cylinders_cosurface", [2, 0]),
+            ("solve_copy_at_identity", [1, 0]),
             ("vertex_separation", [0, 8]),
             ("witness_at_mid_parameter", [10, 0]),
             ("witness_on_surface_1", [10, 0]),

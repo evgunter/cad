@@ -664,7 +664,7 @@ where
                 // space, the identity for the space's own geometry. Two
                 // bodies refuse only where a value asks for the chart.
                 let at = crate::mate::solve::chart_body(doc, *var);
-                let body = at.clone().map(|body| {
+                let body = at.map(|body| {
                     body.and_then(|at| match to_results.get(&at) {
                         Some(NodeResult::Ok(value)) => value.motion,
                         _ => None,

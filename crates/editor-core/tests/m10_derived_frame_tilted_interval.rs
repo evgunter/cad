@@ -166,28 +166,23 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
 /// BOTH `ProfileLift`s, at the widths the twin certifies at on the
 /// symbolic lane.
 ///
-/// What carries it is rule E ([`SymRules::common_factor`], the
+/// What carried it was rule E ([`SymRules::common_factor`], the
 /// quotient's common factor): with the rule off — `without_rule_e`,
-/// M10-10's tier bit for bit — the derived boss refuses under `Guided`
-/// while the twin certifies, and that asymmetry is asserted here too,
-/// so the pin says what the rule is for and not only that it works.
-/// The predicate it stops on is the CARRIER ENDPOINT, ahead of the
-/// side plane's Newell sum: on the sign-hull frame the un-cancelled
-/// quotient freezes in the extrude's attachment gate before the cap is
-/// reached, so with the rule off the document never gets as far as the
-/// plane it used to fail on.
+/// M10-10's tier bit for bit — the derived boss refused under `Guided`
+/// on the carrier's end endpoint while the twin certified. Under D's
+/// placement solve the tilted copy's map is composed from its charts'
+/// frames, and the derived boss certifies with the rule off too, which
+/// is asserted here so the row says what the rule no longer has to do.
 ///
-/// At a half-width of `5e-2` the derived boss still refuses, and the
-/// refusal is NOT the tier's: it is the clause-1 `Invalid` margin
-/// `work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum`
-/// carries, the same one PR-1 measured on the translated document.
-/// That is asserted by name below — it is a defect pinned as the
-/// current behaviour, and when that row is answered this assertion
-/// fails and the width joins the parity list above it.
+/// At a half-width of `5e-2` the derived boss used to refuse on the
+/// stored interval's own span (`interval_span_forward`, the class
+/// `work/frame/a-widened-derived-placement-normalises-a-straddling-newell-sum`
+/// carries); it certifies there now, and the width joins the parity
+/// list.
 #[test]
 fn m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does() {
     let eps = Tol::witness().eps();
-    for half in [eps / 8.0, 1.0e-3] {
+    for half in [eps / 8.0, 1.0e-3, 5.0e-2] {
         {
             let lift = ProfileLift::Guided;
             let authored = sym(&boss_on_tilted(half, false), SymRules::shipped(), budget()).0;
@@ -204,8 +199,9 @@ fn m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does() {
         }
     }
 
-    // Rule E is what carries it: with the rule off the derived boss
-    // refuses under Guided where the twin certifies.
+    // Rule E no longer carries it: under D's placement solve the tilted
+    // copy's map is composed from its charts' frames, and with the rule
+    // off the derived boss certifies where the twin does too.
     let off = SymRules::without_rule_e();
     let (derived_off, _) = sym(&boss_on_tilted(1.0e-3, true), off, budget());
     let (authored_off, _) = sym(&boss_on_tilted(1.0e-3, false), off, budget());
@@ -213,27 +209,8 @@ fn m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does() {
         authored_off.is_empty(),
         "the twin certifies with rule E off too: {authored_off:?}"
     );
-    assert_eq!(
-        derived_off.len(),
-        1,
-        "without rule E the derived boss refuses: {derived_off:?}"
-    );
     assert!(
-        derived_off[0].contains("carrier_endpoint_end"),
-        "and it refuses on the carrier's end endpoint, in the attachment gate: {derived_off:?}"
-    );
-
-    // The one width still refused, and the reason, read off the kernel.
-    let (wide, _) = sym(&boss_on_tilted(5.0e-2, true), SymRules::shipped(), budget());
-    assert_eq!(wide.len(), 1, "one refusal at 5e-2: {wide:?}");
-    assert!(
-        wide[0].contains("interval_span_forward"),
-        "THIS PINS A DEFECT AS THE CURRENT BEHAVIOUR, NOT A DESIRED ONE: at 5e-2 the tier has \
-         done its work and the VALUE channel refuses first. The wall moved with DECIDE-3: \
-         the decision read settles the frame, the boss's cap plane is no longer what stops \
-         the document, and what does is the stored interval's own span over a box this wide \
-         (work/frame/a-widened-derived-placement-normalises-a-straddling-newell-sum carries \
-         the class). When that is answered this assertion FAILS and 5e-2 joins the parity \
-         list above: {wide:?}"
+        derived_off.is_empty(),
+        "the derived boss certifies with rule E off too: {derived_off:?}"
     );
 }

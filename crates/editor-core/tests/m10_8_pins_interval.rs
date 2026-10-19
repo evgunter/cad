@@ -108,6 +108,10 @@ fn a0_alone() -> SymRules {
 /// when the final non-finite check stopped deciding `value · 0` and
 /// started asking boundedness (`expr-non-finite-asks-value-times-zero`):
 /// those 26 were its theorems on the slab. Numeric and frozen do not move.
+///
+/// Under INTENT stage 3 D the slab's placement decides two fewer
+/// numeric comparisons in both tiers (265 -> 263, 257 -> 255), at every
+/// ε row. Symbolic and frozen do not move, and neither does A0's yield.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -137,13 +141,13 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic=456 numeric=265 frozen=0",
+        "decisions symbolic=456 numeric=263 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic=464 numeric=257 frozen=0",
-        "eight of the 265 numeric refusals are comparisons of two rational CONSTANTS, which \
+        "decisions symbolic=464 numeric=255 frozen=0",
+        "eight of the 263 numeric refusals are comparisons of two rational CONSTANTS, which \
          A0 decides exactly"
     );
     assert_eq!(

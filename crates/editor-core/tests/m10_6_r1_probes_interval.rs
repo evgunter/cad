@@ -573,8 +573,16 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
     eprintln!("{}", report.render(&doc, &analyzed));
     // The tour's stop-2 sentence — "worst_case.lo < bound ⇒ the
     // requirement FAILS somewhere in the box" — is what a reader would
-    // print here; the node itself says it has NO verdict.
-    assert!(report.worst_case.lo < 2.0 && 2.0 < report.worst_case.hi);
+    // print over a straddle. Under INTENT stage 3 D the slid copy's
+    // translation is set from its chart's frame, so the two walls'
+    // distance encloses to the point 2 and there is no straddle left on
+    // this document for the sentence to misread: the stackup's worst
+    // case is the bound itself, read as the node reads it.
+    assert!(
+        report.worst_case.lo == 2.0 && report.worst_case.hi == 2.0,
+        "the slid prism's web encloses to the point: {:?}",
+        report.worst_case
+    );
 }
 
 // ------------------------------------------- 4. the cache key

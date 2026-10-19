@@ -94,6 +94,15 @@ pub(crate) struct Study {
 /// asks boundedness and decides nothing, so its theorems leave every
 /// `symbolic` count (plate −45, annulus −27, link −35, bracket −61,
 /// pad −61). Numeric, frozen, registered and the verdicts do not move.
+///
+/// INTENT stage 3 D places each construction a document combines into
+/// its target's space by a plane mate and its values, so each placement
+/// reads its mate's chart: three more THEOREMS per placement, at every
+/// ε row (plate and bracket +6, two placements each; annulus, link and
+/// pad +3, one each). The verdicts do not move. With the registry's
+/// door shut the receipts move with them: the link 782/712 -> 782/710,
+/// the bracket 1330/1061 -> 1336/1069, the pad 1247/1348 -> 1252/1349,
+/// refusing (or not) where they did.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -137,8 +146,9 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // first one over the band alone, `Radius` (the class
             // circle's radius and orientation read as one pair), so it
             // decides 3 of the envelope's 9 terms on each of its two
-            // reads.
-            without_the_registry: Some(((782, 712), Some("pcurve_envelope"))),
+            // reads. Under INTENT stage 3 D's placement it decides two
+            // fewer numeric comparisons on the way (712 -> 710).
+            without_the_registry: Some(((782, 710), Some("pcurve_envelope"))),
             symbolic: [830, 830, 830],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
@@ -153,7 +163,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // centre's algebra, so eight `dihedral_wedge` decisions are
             // registered rather than proved. The tangent certificate's
             // gap rows on the fillet's contact edges added ten (47 → 57).
-            without_the_registry: Some(((1330, 1061), None)),
+            without_the_registry: Some(((1336, 1069), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
@@ -170,7 +180,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             refused_by: None,
             // Rule F's differential on this document is
             // `m10_9_the_pad_at_both_rule_f_dials`'s.
-            without_the_registry: Some(((1247, 1348), None)),
+            without_the_registry: Some(((1252, 1349), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
@@ -582,6 +592,9 @@ fn m10_9_what_the_registry_buys() {
 /// where it was levered at the edge's own chord reads each certified
 /// edge's two faces' boundary vertices: frozen 3426 → 3972, every
 /// decision column held, and both dials still read one receipt.
+/// INTENT stage 3 D places the pad's construction by a plane mate and
+/// its values: symbolic and numeric +3 each (the placement's chart),
+/// and frozen 3972 → 774, with both dials still reading one receipt.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
@@ -615,7 +628,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1311, 1284, 3972), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1314, 1287, 774), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

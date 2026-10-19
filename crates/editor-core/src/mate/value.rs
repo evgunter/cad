@@ -190,6 +190,13 @@ impl<T: SolveScalar> Chart<T> {
             .ok()
     }
 
+    /// Whether the mated direction is an axis exactly, in the target
+    /// space and in the target body's own coordinates.
+    fn on_axes(&self) -> bool {
+        super::solve::on_an_axis(self.d.get()).is_some()
+            && super::solve::on_an_axis(self.own_d.get()).is_some()
+    }
+
     /// The axis a slide runs along, in the target body's own
     /// coordinates.
     fn own_axis(&self, along: SlideAxis) -> Vec3<T> {
@@ -367,9 +374,14 @@ pub(crate) fn settle<T: SolveScalar>(
     // spin's chart is composed as the motion it is: the target body's
     // frame, then its values in the target's own coordinates (each
     // slide's component the value, any other the copy's measure there).
+    // Only on a chart whose mated direction is an axis exactly, in the
+    // target space and in the body's own: re-reading a component along
+    // a direction the box widens would spread the translation's width
+    // across the others, which the differences below leave in place.
     if T::spins_by_frames()
         && let [spin] = spun.as_slice()
         && slides.first().is_some_and(|v| v.mate == spin.mate)
+        && chart(spin)?.on_axes()
     {
         let chart = chart(spin)?;
         let own = chart.frame.to_affine();
@@ -402,6 +414,7 @@ pub(crate) fn settle<T: SolveScalar>(
     // no difference of the translation with itself widens it.
     if T::spins_by_frames()
         && let Some(first) = slides.first()
+        && chart(first)?.on_axes()
     {
         let chart = chart(first)?;
         let along = |a: SlideAxis| {

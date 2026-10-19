@@ -410,6 +410,12 @@ struct Racing {
 /// comparison below is about an EMPTY list there; the second
 /// reviewer's, whose twelve leaves certify one; and a wider drive that
 /// certifies four.
+///
+/// The last two run at a budget of 8 terms and degree 5 (they were
+/// 16/6 and 512/32): under INTENT stage 3 D's placement solve
+/// nothing on the slab freezes above 8/5 (measured: 10/4, 12/5, 12/6, 16/5, 16/6 and 512/32 freeze
+/// nothing), and a drive that freezes nothing has no column to race.
+/// At 8/5 they certify the same one and four leaves.
 const RACING: [Racing; 3] = [
     Racing {
         label: "race",
@@ -422,16 +428,16 @@ const RACING: [Racing; 3] = [
     Racing {
         label: "race (the second reviewer's)",
         leaves: 12,
-        terms: 16,
-        degree: 6,
+        terms: 8,
+        degree: 5,
         certifies: true,
         min_distinct: 2,
     },
     Racing {
         label: "certifying",
         leaves: 64,
-        terms: 512,
-        degree: 32,
+        terms: 8,
+        degree: 5,
         certifies: true,
         min_distinct: 2,
     },

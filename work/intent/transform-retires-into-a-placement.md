@@ -77,6 +77,25 @@ Closes the placement half of `a-boxed-rotation-refuses-not-rigid-at-every-placer
 - **Not run:** pncad-py's `test_placed_union.py::TestTheDieTool`, which compares against the regenerated `die_tool.pncad`.
 - **Hazard:** a worktree built in the shared target dir can poison `/home/user/cad`'s build, because the artifact hashes are the same. If a mixed build is suspected, touch the `.rs` files. Disk was at about 2.4 GB free after the lane's cleanup.
 
+**Kernel lane, finished (2026-10-19; log `/home/user/kernel-tour-status.txt`)**
+- The tour's certified lane is back at its pre-D published numbers:
+  - plate study 211/301;
+  - chain at Interval [0, 8.9988e-5] for 1–4 links;
+  - the 1-link chain on Sym certifies;
+  - certifiable fractions [1, .3702, .1851, .1110], and all 3 chaintol tests pass in release.
+- The box-lane solve composes the settled map as motions, so `admitted`'s Gram–Schmidt is no longer taken on frame lanes:
+  - a placed target is read in its own coordinates (`pin.rs` `target_own_plane`, `wire/pose.rs` `own_direction`);
+  - the chart's axes are kept unnormalised;
+  - translation is set from the chart's components, where `on_axes` holds;
+  - `onto`'s rigidity is decided only where the map is placed.
+  All of it applies only where `spins_by_frames` holds. msolve14 a3 still passes: the f64 solve is main's, bit for bit.
+- `place_at` now puts a `Flip` on the copy's side where its face looks down the world's z, instead of writing a spin by π (the revalue antipode fix). The tour's `chain.rs` joint signs follow from it. revalue `declared_tangency` now shows 4 `pcurve_chart_azimuth_frame` flips against 2 owed; re-take it.
+- m10 rows all pass now, restated as pure pin and count moves: bulge ×3, derived_frame, tilted, m10_8, m10_9, sym_drive_memo, sym_9 ×2. Toggling the lane's changes off showed those moves came from the merged tree, not the lane.
+  - `m10_6_r1`'s "bound straddled" premise is gone: the web encloses to the point [2, 2]. Its restated assertion is weaker than the original; review it.
+- `sym11` is re-taken, not restated, because its text calls a move a finding. Its frozen column fell sharply (plate 729→161, bracket 2044→464, pad 3522→726), which needs a look.
+- `m10_di_dual_corpus`: die_composed_tour has 16 undecided touches at Interval. The mechanism was not found.
+- **Design-level, needs a ruling:** `drive_and_report(1 link, f=1)` certifies 0 leaves, so `demo-tour certified` fails. At the nominal, link 1 is at rest and the witness places it by no map, deciding no transforms. Every leaf off θ = 0 moves it, so the decision lists differ and the drive refuses `flip_crossing`. Under C-5's rest snap plus "the identity is placed by no map", a toleranced placement whose nominal is at rest cannot certify in the drive; before D, the Transform node always ran. Sent to the orchestrator.
+
 **Known reds at the full-suite run on `ea25544a9a`:** 68 editor-core failures, listed with their owners above. pncad's 2 are re-bless. The viewer `--test all` suite needs a re-run (the 17 gallery_ring goldens are re-bless). The viewer's 2 lib reds are the GPU tests (no adapter). `every_suite_file_is_aggregated` fails only because of the local `zz_*` probe roots.
 
 **Uncommitted, deliberately:** the `[[test]] zz_*` entries in `crates/editor-core/Cargo.toml` and the `tests/zz_*.rs` probe roots. Remove both before the PR (`git checkout crates/editor-core/Cargo.toml && rm crates/editor-core/tests/zz_*.rs`).

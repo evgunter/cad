@@ -266,7 +266,7 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
 /// unchanged in what it asserts: whatever the kernel does with a
 /// widened placement, it must do the same for the two frame kinds.
 #[test]
-#[ignore = "red at half = 5e-2 only: work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum"]
+#[ignore = "red on the plain lane only: the derived document's widened-height box extrude refuses its own attachment gate at every width; the symbolic lane agrees at every width"]
 fn m10_an_extrude_on_a_widened_derived_frame_versus_the_authored_guided_twin() {
     let e = eps();
     let mut mismatch = Vec::new();
@@ -523,28 +523,23 @@ fn sym5_phase1_the_normalisation_chain_under_the_plain_form() {
 }
 
 /// **The measured state of the parity row**, pinned while the row
-/// above stays red at one width. Two claims, both measured at all
-/// three ε rows:
+/// above stays ignored. Measured at all three ε rows: at every
+/// half-width up to `5e-2` the two frame kinds AGREE on the symbolic
+/// lane — the derived-frame boss certifies exactly where its authored
+/// twin does, which is what the tier buys the derived frame (with every
+/// rule off it refuses, on `carrier_endpoint_start`).
 ///
-/// - up to a half-width of `1e-3` the two frame kinds AGREE on the
-///   symbolic lane — the derived-frame boss certifies exactly where its
-///   authored twin does, which is what the tier buys the derived frame
-///   (with every rule off it refuses at every width, on
-///   `carrier_endpoint_start`);
-/// - at `5e-2` the derived one refuses, and the refusal is NOT the
-///   tier's: it is a clause-1 invalid margin on `newell_plane_residual`
-///   — `Vec3::normalize` divides the boss's side-plane cross-sum by a
-///   norm whose enclosure contains zero, so the value channel has no
-///   certified value and the identity test is never asked. The tier's
-///   own early form for that residual is the ZERO form.
-///
-/// A pin of what the kernel does: when the value channel stops
-/// widening that cross-sum, this row fails and the parity row above
-/// goes green and takes its place.
+/// At `5e-2` the derived boss used to refuse on a clause-1 invalid
+/// margin on `newell_plane_residual` (`Vec3::normalize` dividing the
+/// boss's side-plane cross-sum by a norm whose enclosure contained
+/// zero). Under D's placement solve (a direction exactly on an axis
+/// read as that axis, a spin set from the two charts' frames) the
+/// placement's map no longer widens that cross-sum to zero, and the
+/// boss certifies there too.
 #[test]
 fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width() {
     let e = eps();
-    for w in [e / 8.0, 1.0e-6, 1.0e-3] {
+    for w in [e / 8.0, 1.0e-6, 1.0e-3, 5.0e-2] {
         let (derived, _, _) = boss_on_widened_box(w);
         let (authored, _) = boss_on_widened_authored_frame(w);
         {
@@ -559,45 +554,16 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
             "half={w:e}: the authored twin must certify"
         );
     }
-    // The one width where they part, and the reason, read off the
-    // refusal the kernel reports. Both lifts, because the derived
-    // placement is at `T` under either and the refusal is identical.
-    let (derived, _, _) = boss_on_widened_box(5.0e-2);
-    let (authored, _) = boss_on_widened_authored_frame(5.0e-2);
-    {
-        let lift = ProfileLift::Guided;
-        let refusal = sym_failures(&derived);
-        assert_eq!(
-            refusal.len(),
-            1,
-            "{lift:?}: one refusal at 5e-2: {refusal:?}"
-        );
-        assert!(
-            refusal[0].contains("newell_plane_residual")
-                && refusal[0].contains("margin is invalid"),
-            "THIS ROW PINS A DEFECT AS THE CURRENT BEHAVIOUR, NOT A DESIRED ONE: at 5e-2 the \
-             derived-frame boss still refuses where its authored twin certifies, on a clause-1 \
-             invalid margin from newell's normalisation of a straddling cross-sum \
-             (work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum). When \
-             that row is answered this assertion FAILS, and the ported parity row above — the \
-             acceptance test — takes its place. {lift:?}: {refusal:?}"
-        );
-    }
-    assert!(
-        sym_failures(&authored).is_empty(),
-        "the authored twin still certifies at 5e-2"
-    );
 }
 
 /// **The freeze population is not what refuses, with A0.** With A0's
-/// constant fold the derived-frame document freezes NOTHING, and what
-/// refuses at `5e-2` is clause 1's: on the sign-hull construction the
-/// gate's residual is a plain THEOREM — the opaque `Select` atoms of an
-/// axis-aligned frame cancel as `X − X` — so the document goes on to
-/// the boss's side plane, where the value channel's
-/// `newell_plane_residual` is `Invalid` and no tier is asked at all
-/// (`Decide for Sym<T>` turns a domain violation into no symbolic
-/// question). With every rule off, under the guided lift, the plain
+/// constant fold the derived-frame document freezes NOTHING and
+/// certifies at `5e-2`: on the sign-hull construction the gate's
+/// residual is a plain THEOREM — the opaque `Select` atoms of an
+/// axis-aligned frame cancel as `X − X` — and the boss's side plane,
+/// whose `newell_plane_residual` was a clause-1 `Invalid` while the
+/// placement's map widened its cross-sum to zero, is decided under D's
+/// placement solve. With every rule off, under the guided lift, the plain
 /// tier freezes twelve forms and refuses earlier, at the boss extrude's
 /// start-endpoint certification over an enclosure of [0, 0.32]; whether
 /// those freezes are what widens it is
@@ -650,11 +616,10 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
          `1/max(1, min(1, max(0, 1))/4)`, a `max`/`min` of two CONSTANTS, and A0 decides \
          those exactly now: {a0_counts:?}"
     );
-    assert_eq!(a0_fails.len(), 1, "and still refuses once: {a0_fails:?}");
     assert!(
-        a0_fails[0].contains("newell_plane_residual") && a0_fails[0].contains("margin is invalid"),
-        "with no freeze left the refusal is clause 1's, the same one the plain tier \
-         reaches: {a0_fails:?}"
+        a0_fails.is_empty(),
+        "with no freeze left A0 alone certifies: the clause-1 refusal on the side plane is \
+         gone with the placement's widening: {a0_fails:?}"
     );
 }
 
