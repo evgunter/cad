@@ -246,12 +246,14 @@ pub(super) struct ChartLoop<T, const N: usize> {
 /// axis (`curved::about_axis` and the tube's analogue) is read clear of
 /// its branch cut. `Kε` is also the least radius the parse's axis class
 /// admits a rim at (`props_circle_axis_class`, `r_c·|n_c·â|` definite),
-/// so no circle the parse admits is refused here for want of it. The
-/// cylinder decides it once at its radius, which every rim's is within
-/// `ε` of; the torus once at its minor radius, for its meridians, and at
-/// each parallel's own. A circle narrower than that is within its own
-/// band, and this closed form has no reading of it
-/// ([`PropsError::NotIsoRectangle`]).
+/// so a call at a circle's own radius refuses nothing the parse admits:
+/// the torus decides it at each parallel's own, and at its minor radius
+/// for its meridians. The cylinder decides it once at the surface
+/// radius, which a rim's may exceed by up to `ε`, so a cylinder narrower
+/// than `Kε` whose rims the axis class admits escalates here
+/// (`work/flux/cylinder-axis-inside-reads-the-surface-radius-not-the-rims`).
+/// A circle narrower than `Kε` is within its own band, and this closed
+/// form has no reading of it ([`PropsError::NotIsoRectangle`]).
 pub(super) fn require_axis_inside<T: Decide>(radius: T, band: Band) -> Result<(), PropsError> {
     if decide("props_chart_axis_inside", Margin::of(radius), band).map_err(escalated)?
         == Sign::Positive
@@ -265,24 +267,28 @@ pub(super) fn require_axis_inside<T: Decide>(radius: T, band: Band) -> Result<()
 }
 
 /// **A closed form's loops close and wind as a face's boundary does**,
-/// returning each loop's whole turns per periodic coordinate:
-/// [`closed_form_loop_turns`], then [`require_boundary_windings`].
+/// returning each loop's whole turns per periodic coordinate: each
+/// loop's junctions closed ([`require_joints_closed`]: a closed form's
+/// carriers end exactly where they are evaluated, so a junction's slack
+/// is [`VERTEX_SLACK`]`·ε` and its gap is one value), its whole turns
+/// ([`closed_loop_turns`]), then [`require_boundary_windings`].
 pub(super) fn closed_form_windings<T: Decide, const N: usize>(
     loops: &[ChartLoop<T, N>],
     band: Band,
 ) -> Result<Vec<[i64; N]>, PropsError> {
-    let windings = closed_form_loop_turns(loops, band)?;
+    let mut windings = Vec::with_capacity(loops.len());
+    for l in loops {
+        require_joints_closed(&l.joints, band)?;
+        windings.extend(closed_loop_turns([l], band)?);
+    }
     require_boundary_windings(&windings)?;
     Ok(windings)
 }
 
-/// **A closed form's loops close, each a whole number of turns**, per
+/// **A closed form's loops are each a whole number of turns**, per
 /// periodic coordinate, before the face's windings are asked whether
-/// they bound one region.
-///
-/// A closed form's carriers end exactly where they are evaluated, so a
-/// junction's slack is [`VERTEX_SLACK`]`·ε` and its gap is one value
-/// ([`require_joints_closed`]).
+/// they bound one region; their junctions are decided closed already
+/// ([`require_joints_closed`], or the caller's own reading in space).
 ///
 /// A loop's total angle about a direction is `W = Σ sweep + Σ turn`: its
 /// edges' sweeps and the short turns across its junctions. The caller's
@@ -321,20 +327,6 @@ pub(super) fn closed_form_windings<T: Decide, const N: usize>(
 /// The interval lanes ([`interval_loop_turns`]) read each edge's own
 /// chart ends, so their turns are exact by construction and ask no such
 /// question.
-pub(super) fn closed_form_loop_turns<'a, T: Decide + 'a, const N: usize>(
-    loops: impl IntoIterator<Item = &'a ChartLoop<T, N>>,
-    band: Band,
-) -> Result<Vec<[i64; N]>, PropsError> {
-    let mut windings = Vec::new();
-    for l in loops {
-        require_joints_closed(&l.joints, band)?;
-        windings.extend(closed_loop_turns([l], band)?);
-    }
-    Ok(windings)
-}
-
-/// [`closed_form_loop_turns`] for loops whose junctions the caller has
-/// decided closed ([`require_joints_closed`]).
 pub(super) fn closed_loop_turns<'a, T: Decide + 'a, const N: usize>(
     loops: impl IntoIterator<Item = &'a ChartLoop<T, N>>,
     band: Band,

@@ -1763,8 +1763,9 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 ///   through the apex sweeps at most a turn
 ///   (`props_cone_apex_loop_sweep`) and its rings wind nothing; no loop
 ///   meets itself at a vertex ([`require_cone_loop_vertices_distinct`]);
-///   and every ring that does not wind is a hole, wound against the
-///   face (`props_ring_winding`) and, together, inside it
+///   and every loop that does not bound the face (a cap's rim, a
+///   band's two, a loop through the apex) is a hole, wound against
+///   those that do (`props_ring_winding`) and, together, inside them
 ///   ([`require_cone_holes`]);
 /// - **a side** — the area `A⃗` encodes is not zero
 ///   (`props_cone_area_side`, in [`cone_loops`]), the side tier 3's
@@ -1774,8 +1775,9 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 /// edges of one loop that cross at interior points bound lobes of
 /// opposite sign, and the vector area is their difference. No closed
 /// form here decides edge-edge crossing — the sphere's Gauss–Bonnet
-/// shares the residual — so it is the body validity's; nor is a ring
-/// decided to lie inside the outer loop, beyond the sum of the holes.
+/// shares the residual — so it is the body validity's; nor is a hole
+/// decided to lie inside the loops that bound the face, beyond the sum
+/// of the holes.
 ///
 /// # Errors
 ///
@@ -1792,7 +1794,8 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 /// a period;
 /// [`PropsError::RingWoundWithFace`] for a ring wound with the face;
 /// [`PropsError::HolesExceedFace`] for holes that cover more than the
-/// outer loop; [`PropsError::Escalated`] for an in-band decision.
+/// loops that bound the face; [`PropsError::Escalated`] for an in-band
+/// decision.
 pub fn cone_face_closed_form<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -1811,8 +1814,10 @@ pub fn cone_face_closed_form<T: Decide>(
 /// the one reading the flux arm ([`cone_face_closed_form`]) and the
 /// material sign ([`cone_material_sign`]) share, so the side the gate
 /// answers is one the flux lane would measure: [`cone_loops`], then the
-/// outer loop's once-round bound, every loop's vertices apart, every
-/// ring a hole, and the holes inside the outer loop in sum.
+/// loops' windings as a boundary's (a loop through the apex sweeping
+/// once round, and the apex the puncture the others wind on balance),
+/// every loop's vertices apart, and every loop that does not bound the
+/// face a hole within those that do ([`require_cone_holes`]).
 fn cone_face_read<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -1848,8 +1853,12 @@ fn cone_face_read<T: Decide>(
         }
         let mut windings = vec![[0]];
         windings.extend(closure::closed_loop_turns(ring_charts(), band)?);
-        // A ring that winds the axis beside a loop through the apex bounds
-        // no one region of the nappe.
+        // A ring that winds the axis beside a loop through the apex is not
+        // read: such a face can bound one region (a band whose inner
+        // boundary is a slit cap, a cap less a sector at the apex), but
+        // these windings are no closed boundary's on the chart, and the
+        // closed form refuses them rather than read them
+        // (`work/flux/cone-apex-loop-beside-a-winding-rim-refuses-a-region-it-bounds`).
         if windings.iter().any(|&k| k != [0]) {
             return Err(PropsError::LoopsWindChart);
         }
@@ -1882,7 +1891,7 @@ struct ConeLoops<T: Real> {
     /// The side the loops encode, definite.
     side: Sign,
     /// Each loop's signed area and an upper bound on its length, the
-    /// area signed as `side` reads the whole's: the outer loop first.
+    /// area signed as `side` reads the whole's, in the order stored.
     per_loop: Vec<(T, T)>,
 }
 
@@ -2347,13 +2356,17 @@ fn cone_material_sign<T: Decide>(
     ))
 }
 
-/// **A ringed cone face's rings are holes inside it.** Each ring is
-/// wound against the outer loop (`props_ring_winding` against the
-/// outer loop's side, `props_cone_outer_side`), and the face's side
-/// (`props_cone_area_side`) is the outer loop's: holes that cover more
-/// than the outer loop — overlapping one another or leaving it — turn
-/// the whole's sign, and that is [`PropsError::HolesExceedFace`], not a
-/// ring wound with the face.
+/// **A ringed cone face's holes lie inside it.** The face lies inside
+/// the loops that bound it — a band's two rims, which wind the axis
+/// opposite ways; the one loop that winds the axis about the apex the
+/// face holds; or else the first loop stored — and every other loop is
+/// a hole. Each hole is wound against those loops together
+/// (`props_ring_winding` against their side, `props_cone_outer_side`,
+/// read off their signed areas summed), and the face's side
+/// (`props_cone_area_side`) is theirs: holes that cover more than they
+/// do — overlapping one another or leaving the face — turn the whole's
+/// sign, and that is [`PropsError::HolesExceedFace`], not a ring wound
+/// with the face.
 ///
 /// Tier 3 reads a cone face's side off its outer loop alone
 /// ([`boundary_material_sign_loops`]), so this is the one check of a
@@ -2363,31 +2376,22 @@ fn require_cone_holes<T: Decide>(
     windings: &[[i64; 1]],
     band: Band,
 ) -> Result<(), PropsError> {
-    let winds = |i: &usize| windings[*i] != [0];
-    let wound: Vec<usize> = (0..windings.len()).filter(winds).collect();
-    // The loop the face lies inside: the one that winds the axis about
-    // the apex it holds, or else the first stored.
-    let outer = match wound.as_slice() {
-        // A band: its two wound rims both bound it, so its holes wind
-        // against the face itself.
-        [_, _] => {
-            let holes: Vec<(T, T)> = (0..windings.len())
-                .filter(|i| !winds(i))
-                .map(|i| read.per_loop[i])
-                .collect();
-            return require_holes_against(read.side, &holes, band);
-        }
-        [i] => *i,
-        _ => 0,
-    };
+    let wound: Vec<usize> = (0..windings.len())
+        .filter(|&i| windings[i] != [0])
+        .collect();
+    let bounds = if wound.is_empty() { vec![0] } else { wound };
     let holes: Vec<(T, T)> = (0..windings.len())
-        .filter(|&i| i != outer)
+        .filter(|i| !bounds.contains(i))
         .map(|i| read.per_loop[i])
         .collect();
     if holes.is_empty() {
         return Ok(());
     }
-    let outer = match mean_width_side("props_cone_outer_side", read.per_loop[outer], band)? {
+    let outer = bounds.iter().fold((T::zero(), T::zero()), |(a, l), &i| {
+        let (ai, li) = read.per_loop[i];
+        (a + ai, l + li)
+    });
+    let outer = match mean_width_side("props_cone_outer_side", outer, band)? {
         Sign::Zero => return Err(PropsError::DegenerateFace),
         side => side,
     };
@@ -2508,10 +2512,12 @@ struct ConeWinding<T: Real> {
     /// turned from its first vertex to it — `None` on the apex.
     vertices: Vec<(Point3<T>, Option<T>)>,
     /// The loop on the cone's chart, for the closure decision
-    /// ([`closure::closed_form_loop_turns`]): each edge's turn about the
-    /// axis and its short turn, read at its nearest radius; each
-    /// junction's turn, metered at the after's radius, beside its gap in
-    /// slant.
+    /// ([`closure::closed_loop_turns`]): each edge's turn about the axis
+    /// and the angle by which it misses its end, metered at its nearest
+    /// radius; each junction's turn, metered at the after's radius. Its
+    /// junctions' gaps are decided in space ([`cone_loops`]), so they
+    /// carry none. Empty for a loop through the apex, which has no
+    /// winding.
     chart: ChartLoop<T, 1>,
 }
 
@@ -2565,9 +2571,6 @@ fn cone_loop_winding<T: Decide>(
         let w = p - apex;
         w - axis * w.dot(axis)
     };
-    // The principal angle about `axis` from `a`'s radial direction to
-    // `b`'s.
-    let turn = |a: Vec3<T>, b: Vec3<T>| axis.dot(a.cross(b)).atan2(a.dot(b));
     let off = |name, rho: T| {
         classify(name, Margin::of(rho), band, PropsCheck::Inventory).map(|s| s == Sign::Positive)
     };
@@ -2633,7 +2636,7 @@ fn cone_loop_winding<T: Decide>(
                 let sense = sense(n, rho)?;
                 let mut thirds = T::zero();
                 for (x, y) in [(a, m1), (m1, m2), (m2, b)] {
-                    let principal = turn(x, y);
+                    let principal = turn_about(axis, x, y);
                     thirds = thirds
                         + match classify(
                             "props_cone_arc_turn",
@@ -2648,7 +2651,7 @@ fn cone_loop_winding<T: Decide>(
                 }
                 thirds
             }
-            _ => turn(a, b),
+            _ => turn_about(axis, a, b),
         };
         let ends = ((a, a_apex), (b, b_apex));
         let (step, ends) = if e.forward {
@@ -2660,7 +2663,12 @@ fn cone_loop_winding<T: Decide>(
         pieces.push([EdgeTurn::new(step, turn_arms(axis, from, to), lever)]);
         steps.push((step, ends));
     }
-    let joints = cone_joints(apex, axis, edges);
+    // A loop through the apex has no winding, and no chart to read.
+    let joints = if through_apex {
+        Vec::new()
+    } else {
+        cone_joints(apex, axis, edges)
+    };
     let mut total = T::zero();
     let mut vertices = Vec::with_capacity(edges.len());
     for (k, e) in edges.iter().enumerate() {
@@ -2672,7 +2680,7 @@ fn cone_loop_winding<T: Decide>(
         total = total + step;
         let ((start, next_apex), _) = steps[(k + 1) % steps.len()].1;
         if !end_apex && !next_apex {
-            total = total + turn(end, start);
+            total = total + turn_about(axis, end, start);
         }
     }
     Ok(ConeWinding {
@@ -4452,6 +4460,8 @@ fn torus_chart_loop<T: Decide>(
         let ((xa, ya), (xb, yb)) = (tube(a), tube(b));
         (xa * xb + ya * yb, xa * yb - ya * xb)
     };
+    // The short turn on a pair of arms.
+    let short = |(dot, cross): (T, T)| cross.atan2(dot);
     // How much farther round the tube a point sits about the core circle
     // than about a meridian's own centre: the turn, in the meridian's
     // plane, from `d` (the point less the meridian's centre) to `w` (the
@@ -4484,7 +4494,6 @@ fn torus_chart_loop<T: Decide>(
         };
         let (wa, wb) = (a - center, b - center);
         let (azimuth, tube) = (turn_arms(axis, wa, wb), tube_arms(wa, wb));
-        let short = |(dot, cross): (T, T)| cross.atan2(dot);
         Ok(match p.step {
             TorusStep::Rim { du, .. } => {
                 closure::require_axis_inside(r_c, band)?;
@@ -4522,13 +4531,7 @@ fn torus_chart_loop<T: Decide>(
             Joint {
                 turn: [
                     (turn_about(axis, a, b), (b - axis * b.dot(axis)).norm()),
-                    (
-                        {
-                            let (dot, cross) = tube_arms(a, b);
-                            cross.atan2(dot)
-                        },
-                        minor,
-                    ),
+                    (short(tube_arms(a, b)), minor),
                 ],
                 flat: T::zero(),
             }

@@ -14,7 +14,9 @@ use crate::shared::point::{p3, v3};
 use crate::shared::tol::{band, eps};
 use crate::shared::topo::edge;
 use geom::{Curve3, Surface};
-use geom_brep::props::{LoopEdge, PropsError, curved_face, curved_face_loops};
+use geom_brep::props::{
+    LoopEdge, PropsError, boundary_material_sign_loops, curved_face, curved_face_loops,
+};
 use std::f64::consts::TAU;
 
 const RR: f64 = 0.020;
@@ -1113,6 +1115,22 @@ impl SkewCone {
             0,
         )
     }
+    /// The window `[v0, v1] × [u0, u1]`, counter-clockwise on the chart
+    /// when `with`, else clockwise.
+    fn window<T: geom_core::Real>(
+        &self,
+        (v0, v1): (f64, f64),
+        (u0, u1): (f64, f64),
+        with: bool,
+    ) -> Vec<LoopEdge<T>> {
+        let l = vec![
+            self.rim::<T>(v0, u0, u1),
+            self.generator::<T>(u1, v0, v1),
+            self.rim::<T>(v1, u1, u0),
+            self.generator::<T>(u0, v1, v0),
+        ];
+        if with { l } else { reversed(l) }
+    }
     fn generator<T: geom_core::Real>(&self, u: f64, v0: f64, v1: f64) -> LoopEdge<T> {
         let (s, c) = 0.5_f64.sin_cos();
         let d = self.at([s * u.cos(), s * u.sin(), c]);
@@ -1266,6 +1284,236 @@ fn an_apex_cap_with_a_hole_holds_the_apex() {
             Some(PropsError::LoopsWindChart),
             "a cap and a rim wound alike at {scalar}"
         );
+    }
+    rows::<f64>("f64");
+    rows::<geom_core::Interval>("the interval scalar");
+}
+
+/// A loop traversed the other way.
+fn reversed<T: geom_core::Real>(l: Vec<LoopEdge<T>>) -> Vec<LoopEdge<T>> {
+    let mut r: Vec<LoopEdge<T>> = l
+        .into_iter()
+        .map(|mut e| {
+            e.forward = !e.forward;
+            core::mem::swap(&mut e.start, &mut e.end);
+            e
+        })
+        .collect();
+    r.reverse();
+    r
+}
+
+/// A face of the skew cone at both doors, the flux lane and the material
+/// sign: its area, or the refusal both doors give alike.
+fn skew_doors<T: geom_core::Decide + geom_core::CertifiedEnclosure>(
+    loops: &[Vec<LoopEdge<T>>],
+) -> Result<f64, PropsError> {
+    let refs: Vec<&[LoopEdge<T>]> = loops.iter().map(Vec::as_slice).collect();
+    let side = boundary_material_sign_loops(&SkewCone::new().surface::<T>(), &refs, band());
+    let flux = skew_face(loops);
+    match (&flux, &side) {
+        (Ok(_), Ok(_)) => {}
+        (Err(a), Err(b)) => assert_eq!(a, b, "the doors refuse alike"),
+        _ => panic!("the doors disagree: flux {flux:?}, side {side:?}"),
+    }
+    flux.map(|(area, _)| area)
+}
+
+/// **A band's holes are read as a cap's are** (`require_cone_holes`):
+/// against the band's two rims together, and inside them in sum. On the
+/// skew cone, band `[1, 2]`, at `f64` and at the interval scalar, at the
+/// flux lane and the material sign alike:
+///
+/// - a window `[1.3, 1.6] × [1, 2]` wound against the band (clockwise)
+///   measures the band less the window; wound with it, it is
+///   [`PropsError::RingWoundWithFace`];
+/// - a window `[3, 6] × [0.1, τ − 0.1]` wound against the band is a hole
+///   that covers more than the band, [`PropsError::HolesExceedFace`];
+///   wound with it, [`PropsError::RingWoundWithFace`].
+#[test]
+fn a_bands_holes_are_wound_against_it_and_inside_it() {
+    fn rows<T: geom_core::Decide + geom_core::CertifiedEnclosure>(scalar: &str) {
+        let c = SkewCone::new();
+        let sa = 0.5_f64.sin();
+        let band = || {
+            vec![
+                vec![c.rim::<T>(1.0, 0.0, TAU)],
+                vec![c.rim::<T>(2.0, TAU, 0.0)],
+            ]
+        };
+        let with_hole = |v: (f64, f64), u: (f64, f64), with: bool| {
+            let mut l = band();
+            l.push(c.window::<T>(v, u, with));
+            skew_doors(&l)
+        };
+        // The band runs up the inner rim and back down the outer, so a
+        // hole against it runs clockwise on the chart.
+        let a = false;
+        let want = sa * (core::f64::consts::PI * 3.0 - 0.5 * (1.6 * 1.6 - 1.3 * 1.3));
+        let got = with_hole((1.3, 1.6), (1.0, 2.0), a)
+            .unwrap_or_else(|e| panic!("band less a window at {scalar}: {e:?}"));
+        assert!(
+            (got - want).abs() <= 1e-9 * want,
+            "band less window {got} vs {want} at {scalar}"
+        );
+        assert_eq!(
+            with_hole((1.3, 1.6), (1.0, 2.0), !a),
+            Err(PropsError::RingWoundWithFace),
+            "a window wound with the band at {scalar}"
+        );
+        let wide = (0.1, TAU - 0.1);
+        assert_eq!(
+            with_hole((3.0, 6.0), wide, a),
+            Err(PropsError::HolesExceedFace),
+            "a hole past the band at {scalar}"
+        );
+        assert_eq!(
+            with_hole((3.0, 6.0), wide, !a),
+            Err(PropsError::RingWoundWithFace),
+            "a hole past the band wound with it at {scalar}"
+        );
+    }
+    rows::<f64>("f64");
+    rows::<geom_core::Interval>("the interval scalar");
+}
+
+/// **A rim that winds the axis beside a loop through the apex refuses**
+/// ([`PropsError::LoopsWindChart`]): the slit cap of slant 1 with the rim
+/// at 2 wound against it, and the sector `[0, 1] × [0, 1]` with that rim,
+/// on the skew cone, at `f64` and at the interval scalar, at both doors.
+/// Each does bound one region — the band `[1, 2]` and the cap less the
+/// sector — which the vector area would measure; the closed form reads
+/// the windings of a face that reaches the apex only when no other loop
+/// winds, and refuses the rest rather than read them.
+#[test]
+fn a_winding_rim_beside_a_loop_through_the_apex_refuses() {
+    fn rows<T: geom_core::Decide + geom_core::CertifiedEnclosure>(scalar: &str) {
+        let c = SkewCone::new();
+        let slit = vec![
+            c.generator::<T>(0.0, 0.0, 1.0),
+            c.rim::<T>(1.0, 0.0, TAU),
+            c.generator::<T>(TAU, 1.0, 0.0),
+        ];
+        let sector = vec![
+            c.generator::<T>(0.0, 0.0, 1.0),
+            c.rim::<T>(1.0, 0.0, 1.0),
+            c.generator::<T>(1.0, 1.0, 0.0),
+        ];
+        for (name, inner) in [("slit cap", slit), ("sector", sector)] {
+            for rim in [c.rim::<T>(2.0, 0.0, TAU), c.rim::<T>(2.0, TAU, 0.0)] {
+                assert_eq!(
+                    skew_doors(&[inner.clone(), vec![rim]]),
+                    Err(PropsError::LoopsWindChart),
+                    "a {name} beside a winding rim at {scalar}"
+                );
+            }
+        }
+    }
+    rows::<f64>("f64");
+    rows::<geom_core::Interval>("the interval scalar");
+}
+
+/// **A window that runs from near the apex measures its closed form**,
+/// `½·sin α·(v₁² − v₀²)·Δu`, at `f64` and at the interval scalar: its
+/// rim nearer the apex `kε` from the axis, its generators running out to
+/// slant 2 on the skew cone, whose apex is off the origin. A generator's
+/// azimuth read so near the axis rounds by `≈ u·|apex|/ρ`, and each edge
+/// is charged its miss at its own nearest radius; charged at the loop's
+/// widest, the interval scalar would escalate.
+#[test]
+fn a_window_from_near_the_apex_measures_its_closed_form() {
+    fn rows<T: geom_core::Decide + geom_core::CertifiedEnclosure>(scalar: &str) {
+        let c = SkewCone::new();
+        let sa = 0.5_f64.sin();
+        for k in [10.5, 30.0, 100.0] {
+            let v0 = k * eps() / sa;
+            let want = 0.5 * sa * (4.0 - v0 * v0);
+            let got = skew_doors(&[c.window::<T>((v0, 2.0), (1.0, 2.0), true)])
+                .unwrap_or_else(|e| panic!("window from {k}ε at {scalar}: {e:?}"));
+            assert!(
+                (got - want).abs() <= 1e-9 * want,
+                "window from {k}ε: {got} vs {want} at {scalar}"
+            );
+        }
+    }
+    rows::<f64>("f64");
+    rows::<geom_core::Interval>("the interval scalar");
+}
+
+/// **A metre spindle torus with a parallel near its axis measures its
+/// closed form**, `r·Δu·(R·Δv + r·Δ sin v)`, at `f64` and at the
+/// interval scalar: `R = 0.8`, `r = 1`, centred off the origin, the
+/// parallel at `v₁` `kε` from the axis. Its meridians' stored turns are
+/// carried to the core circle in the meridian's own plane; read in the
+/// plane of a point so near the axis, that plane rounds by `u·|w|/ρ`,
+/// which the core circle carries `R` times over, past the slack at the
+/// interval scalar.
+#[test]
+fn a_metre_spindle_torus_near_its_axis_measures_its_closed_form() {
+    fn face<T: geom_core::Decide + geom_core::CertifiedEnclosure>(
+        o: [f64; 3],
+        (big, r): (f64, f64),
+        (v0, v1): (f64, f64),
+    ) -> Result<f64, PropsError> {
+        let parallel = |v: f64, u0: f64, u1: f64| {
+            edge::<T>(
+                Curve3::Circle {
+                    center: p3(o[0], o[1], o[2] + r * v.sin()),
+                    axis: v3(0.0, 0.0, 1.0),
+                    radius: T::from_f64(big + r * v.cos()),
+                    u_ref: v3(1.0, 0.0, 0.0),
+                },
+                u0,
+                u1,
+                0,
+                0,
+            )
+        };
+        let meridian = |u: f64, a: f64, b: f64| {
+            edge::<T>(
+                Curve3::Circle {
+                    center: p3(o[0] + big * u.cos(), o[1] + big * u.sin(), o[2]),
+                    axis: v3(u.sin(), -u.cos(), 0.0),
+                    radius: T::from_f64(r),
+                    u_ref: v3(u.cos(), u.sin(), 0.0),
+                },
+                a,
+                b,
+                0,
+                0,
+            )
+        };
+        let l = vec![
+            parallel(v0, 0.0, 1.0),
+            meridian(1.0, v0, v1),
+            parallel(v1, 1.0, 0.0),
+            meridian(0.0, v1, v0),
+        ];
+        let s = Surface::Torus {
+            center: p3(o[0], o[1], o[2]),
+            axis: v3(0.0, 0.0, 1.0),
+            major_radius: T::from_f64(big),
+            minor_radius: T::from_f64(r),
+            u_ref: v3(1.0, 0.0, 0.0),
+        };
+        curved_face_loops(&s, &[&l], true, band()).map(|fc| {
+            let (lo, hi) = fc.area.certified_bracket().expect("a certified area");
+            assert!(hi - lo <= 1e-9 * hi, "bracket [{lo}, {hi}]");
+            0.5 * (lo + hi)
+        })
+    }
+    fn rows<T: geom_core::Decide + geom_core::CertifiedEnclosure>(scalar: &str) {
+        let (o, big, r) = ([0.3, -0.2, 0.5], 0.8, 1.0);
+        for k in [10.5, 11.5, 100.0] {
+            let v1 = ((k * eps() - big) / r).acos();
+            let want = r * (big * (v1 - 1.0) + r * (v1.sin() - 1.0_f64.sin()));
+            let got = face::<T>(o, (big, r), (1.0, v1))
+                .unwrap_or_else(|e| panic!("spindle at {k}ε at {scalar}: {e:?}"));
+            assert!(
+                (got - want).abs() <= 1e-9 * want,
+                "spindle at {k}ε: {got} vs {want} at {scalar}"
+            );
+        }
     }
     rows::<f64>("f64");
     rows::<geom_core::Interval>("the interval scalar");
