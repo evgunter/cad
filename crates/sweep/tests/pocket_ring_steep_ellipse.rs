@@ -50,7 +50,7 @@ fn cylinder(r: f64, z0: f64, h: f64) -> Body<f64> {
         (Point2::new(r, 0.0), 1.0),
         (Point2::new(-r, 0.0), 1.0),
     ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let profile = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
     extrude(
         &profile,
@@ -113,9 +113,15 @@ fn prism_turned(
         "local u runs along (1, 0, k)"
     );
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), psi);
-    let profile = Profile::new(SketchPlane::new(turn * rot), vec![lp])
-        .validate(tol())
-        .unwrap();
+    let profile = Profile::new(
+        SketchPlane::from_frame(geom_core::test_support::rigid(
+            &(turn * rot),
+            geom_core::Tol::witness(),
+        )),
+        vec![lp],
+    )
+    .validate(tol())
+    .unwrap();
     extrude(&profile, Extrusion::Distance { depth: h, side }, tol())
         .unwrap()
         .body
@@ -419,9 +425,15 @@ fn rod(theta: f64, phi: f64, t: f64, len: f64) -> Body<f64> {
     let n = rot.transform_vec(Vec3::new(0.0, 0.0, 1.0));
     let p0 = Point3::new(0.0, 0.0, t / 2.0) - n * (len / 2.0);
     let place = Affine3::translation(p0 - Point3::origin()) * rot;
-    let p = Profile::new(SketchPlane::new(place), vec![lp])
-        .validate(tol())
-        .unwrap();
+    let p = Profile::new(
+        SketchPlane::from_frame(geom_core::test_support::rigid(
+            &place,
+            geom_core::Tol::witness(),
+        )),
+        vec![lp],
+    )
+    .validate(tol())
+    .unwrap();
     extrude(
         &p,
         Extrusion::Distance {

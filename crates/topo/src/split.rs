@@ -25,7 +25,7 @@
 //! Serves ch. 14 `splitgenerate` edge splitting and ch. 15's edge×face
 //! reduction sweep (M3 PRs 2 and 4).
 
-use geom_brep::recourse::{Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
+use geom_brep::recourse::{Reading, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_brep::{CertifyError, EdgeCurveSpec};
 use geom_core::{Band, Decide, InfSpeed, Margin, Point3, Tol};
 
@@ -62,7 +62,7 @@ pub(crate) const SPLIT_PARAM_INTERIOR: SizedDecision = SizedDecision {
     lever: CROSSING_LEVER,
     size: CROSSING_SIZE,
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 

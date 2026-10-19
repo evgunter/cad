@@ -241,3 +241,27 @@ What waits:
 - Field privacy and the vouched-move module, and tier 1's naming check
   with D1's text, need every operator to refuse a strand, so they
   follow the absorption.
+
+## An eleventh site: `ring_move_unasked` (2026-10-19)
+
+PR 5334 (WIRE, `wire/split-maximal-halves`) adds an eleventh production
+site of the same shape. `merge_faces.rs` `merge_group`'s ring drain
+moved an absorbed face's rings onto the survivor with
+`ring_move_minting`, which asks the move's keys; a split half whose two
+section annuli on distinct plane keys merge (the revolved pentagon at
+its apex circle) refused there `RechartStrandsDescriptions{RingMove}`.
+The drain now calls `ring_move_unasked` (crate-private,
+`euler_ring.rs`), `ring_move_minting` without the keys, as
+`kef_minting` is `kef` without them. It is sound for the reason the
+merge's `kef_minting` is: the door re-describes every boundary edge of
+each kept face, rings included, before it returns
+(`Body::merge_coplanar_faces_declared`, *The kept faces' boundaries are
+re-described*), and its tier-2 gate runs on the result. It is
+crate-private, so `pcurves.rs`'s posture census, which admits public
+mutation paths only (`every_mutation_door_declares_its_pcurve_posture`
+refuses an entry for any other), does not list it; it disposes of the
+ring's rows as `ring_move_minting` does. `ring_move_minting` keeps its
+callers outside production: the seqgen fuzz lane's mutator, the
+row-walk proofs and the loop re-parenting fixtures.
+
+Signed (wire-splitmax lane).

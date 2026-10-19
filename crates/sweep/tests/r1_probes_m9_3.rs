@@ -8,7 +8,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::operands::{plate6, plate6_cyl};
-use geom_core::{Affine3, Point2, Tol, Vec3};
+use geom_core::Point3;
+use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::test_support::{brick, finished};
@@ -244,10 +245,7 @@ fn probe_ring_count_mismatch_never_silent() {
 // ---- tube-chain rim (acceptance ii) attacks ----
 
 fn lying_plane() -> SketchPlane<f64> {
-    SketchPlane::new(Affine3::from_parts(
-        geom_core::Mat3::from_cols(Vec3::unit_z(), Vec3::unit_x(), Vec3::unit_y()),
-        Vec3::new(0.0, 0.0, 0.0),
-    ))
+    SketchPlane::from_frame(geom_core::RigidMotion::axes_zx(Point3::new(0.0, 0.0, 0.0)))
 }
 
 fn lying_extrude(vertices: Vec<(Point2<f64>, f64)>) -> AtRestBody<f64> {

@@ -1270,13 +1270,13 @@ fn a_boss_is_authored_on_a_picked_face() {
     );
     let n = placed.normal();
     close(
-        n.to_array(),
+        n.get().to_array(),
         [0.0, 0.0, 1.0],
         "and its normal is the cap's outward normal, not the base's",
     );
     let u = placed.u();
     close(
-        u.to_array(),
+        u.get().to_array(),
         [1.0, 0.0, 0.0],
         "and a zero spin leaves sketch +x on the carrier's u-reference",
     );
@@ -1405,8 +1405,8 @@ fn a_new_xy_frame_lands_where_its_preview_drew() {
 }
 
 /// A direction's components, for the comparison above.
-fn xyz(v: pncad::geom_core::Vec3<f64>) -> [f64; 3] {
-    v.to_array()
+fn xyz(v: pncad::geom_core::UnitVec3<f64>) -> [f64; 3] {
+    v.get().to_array()
 }
 
 /// **The frame is minted BEFORE the profile that names it**, and the

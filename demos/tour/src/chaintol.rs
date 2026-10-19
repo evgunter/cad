@@ -137,8 +137,7 @@ use std::time::Instant;
 
 use pncad::analysis::{AnalysisPolicy, DriveConfig, ParamBox, analyzed_box, assertion_at, drive};
 use pncad::document::{
-    CancelToken, EvalOptions, Evaluation, NodeResult, ProfileDoc, ProfileLift, ValuePayload,
-    evaluate,
+    CancelToken, EvalOptions, Evaluation, NodeResult, ProfileDoc, ValuePayload, evaluate,
 };
 use pncad::geom_core::{Bounds, Interval, Sym, SymBudget, SymCounts, SymRules, Tol};
 
@@ -172,16 +171,13 @@ fn drive_dials() -> (SymBudget, SymRules) {
 }
 
 /// One leaf's evaluation options over the WHOLE declared box, in the
-/// driver's own lane: the box varies its axes, so the profile lift is
-/// guided (`EvalOptions::profile_lift`), as every leaf of a drive is.
+/// driver's own lane.
 fn whole_box(doc: &ProfileDoc) -> EvalOptions {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
-    let opts = EvalOptions {
+    EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
         ..EvalOptions::default()
-    };
-    debug_assert_eq!(opts.profile_lift(), ProfileLift::Guided);
-    opts
+    }
 }
 
 /// Every node that failed or was poisoned, in evaluation order —
@@ -318,7 +314,7 @@ pub fn narration(tol: Tol) {
     );
     println!(
         "   ONE leaf over the WHOLE box per row (no splitting), in the driver's own lane \
-         (ProfileLift::Guided, the driver's symbolic budget and rules):"
+         (the driver's symbolic budget and rules):"
     );
 
     let mut rows = Vec::new();

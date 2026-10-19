@@ -60,8 +60,8 @@ use geom_core::{Point2, Vec3};
 use std::collections::BTreeSet;
 use sweep::test_support::{brick, finished};
 use topo::{
-    Body, BooleanError, BooleanResult, ContactRecords, EntityId, FaceKey, SweepStrategy,
-    SweepTrace, ValidationError, sweep_traces, validate_pseudomanifold,
+    Body, BooleanError, BooleanResult, ContactRecords, SweepStrategy, SweepTrace, ValidationError,
+    sweep_traces, validate_pseudomanifold,
 };
 
 /// The corpus cylinder, its base at `z0`, `height` tall (the rows'
@@ -82,10 +82,11 @@ fn assembly(outer: &Body<f64>, inner: &Body<f64>) -> Body<f64> {
 
 /// **The regression row.** A body wholly inside the cylinder, but
 /// outside the hull of the cylinder's six vertices, must be REFUSED —
-/// never cleared. Arm 1 refuses the cylinder wall × box-face pairs
-/// (the proximity class), AND the material test decides the pair: the
+/// never cleared. Arm 1 clears the cylinder wall × box-face pairs,
+/// whose faces are apart (the box lies inside the wall's carrier, read
+/// by `census::depth_gap`), and the material test decides the pair: the
 /// box's vertices are strictly inside the cylinder's material, so the
-/// arm reports the interference beside arm 1's refusals.
+/// arm reports the interference, and it is the whole verdict.
 ///
 /// `cx` is swept across the whole annulus between the inscribed hull's
 /// face (x = −0.25) and the true wall (x = −0.5), so the row goes red
@@ -115,55 +116,28 @@ fn a_body_nested_inside_a_curved_solid_is_never_silently_cleared() {
         );
         let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
             .expect_err("a nested instance must refuse, never clear");
-        // Arm 1's refusals stand (the box is within the wall's reach),
-        // and an `In` vertex is decided whatever else stands.
-        assert!(
-            errors.iter().any(|e| matches!(
-                e,
-                ValidationError::CensusUndecidable {
-                    a: EntityId::Face(_),
-                    b: EntityId::Face(_),
-                    what,
-                } if what.contains("a curved face of one is within reach of the other")
-            )),
-            "probe at {cx}: arm 1 refuses the wall pairs first, got {errors:?}"
-        );
+        // The material test decides the nested pair, and nothing
+        // else stands: arm 1 has no pair to refuse.
         assert!(
             errors
                 .iter()
-                .any(|e| matches!(e, ValidationError::InstanceInterference { .. })),
-            "probe at {cx}: the material test decides the nested pair, got {errors:?}"
-        );
-        assert!(
-            !errors.iter().any(|e| matches!(
-                e,
-                ValidationError::CensusUndecidable {
-                    a: EntityId::Solid(_),
-                    b: EntityId::Solid(_),
-                    ..
-                }
-            )),
-            "probe at {cx}: decided, so no solid-pair undecidable rides beside it: {errors:?}"
+                .all(|e| matches!(e, ValidationError::InstanceInterference { .. })),
+            "probe at {cx}: the material test decides the nested pair alone, got {errors:?}"
         );
     }
 }
 
-/// **A part in a blind BORE** (issue 750's fourth placement), MEASURED
-/// against arm 1 rather than claimed: a 2 m block with a 0.5 m-radius
-/// bore cut 0.5 m deep from its top, and a 0.2 m box floating in the
-/// bore — inside the block's box, outside its material. The box's
-/// planar faces and the bore's cylindrical wall are cross-solid faces
-/// within reach with a curved side, which is arm 1's proximity class
-/// and refuses before any material test; arm 2 then reads those
-/// standing face-pair refusals as "this pair is not certified
-/// crossing-free" and refuses its own examination typed. So the bore
-/// does NOT clear today, and this row pins exactly that shape: arm
-/// 1's face-pair refusals name the bore's wall, arm 2's refusal is
-/// the precondition's, and no interference verdict and no clear
-/// appear. The bore stays the exclusion ring's case (arm 1's), and
-/// this row is what moves the day that ring lands.
+/// **A part in a blind BORE** (issue 750's fourth placement): a 2 m
+/// block with a 0.5 m-radius bore cut 0.5 m deep from its top, and a
+/// 0.2 m box floating in the bore — inside the block's box, outside its
+/// material. The box's planar faces and the bore's cylindrical wall are
+/// cross-solid faces whose boxes nest, a curved side among them; arm 1
+/// clears them on the box's depth about the bore's axis, below the
+/// wall's (`census::depth_gap`), and the rest along `z`. The material
+/// test then finds every vertex of the box out of the block, and of the
+/// block out of the box: the pair is apart, and the census passes.
 #[test]
-fn a_part_in_a_blind_bore_is_refused_by_arm_1_before_the_material_test() {
+fn a_part_in_a_blind_bore_passes_the_census() {
     let block = finished(
         "the block",
         brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), Tol::witness()),
@@ -179,79 +153,12 @@ fn a_part_in_a_blind_bore_is_refused_by_arm_1_before_the_material_test() {
         Ok(()),
         "the bored block is a sound single solid"
     );
-    let bore_walls: Vec<FaceKey> = bored
-        .faces()
-        .filter(|(_, f)| {
-            matches!(
-                bored.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
-        .map(|(k, _)| k)
-        .collect();
-    assert!(!bore_walls.is_empty(), "the bore has a cylindrical wall");
     let part = small_box(0.0, 0.1, 0.6);
     let body = assembly(&bored, &part);
-    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
-        .expect_err("measured: the bore refuses today");
-    let arm1: Vec<&ValidationError> = errors
-        .iter()
-        .filter(|e| {
-            matches!(
-                e,
-                ValidationError::CensusUndecidable {
-                    a: EntityId::Face(_),
-                    b: EntityId::Face(_),
-                    ..
-                }
-            )
-        })
-        .collect();
-    // Every arm-1 refusal is the proximity class, and the bore's
-    // cylindrical wall is among the faces named (the block's planar
-    // top and the bore's floor carry the bore's arc rims, so they are
-    // arm 1's too and are named beside it).
-    assert!(
-        !arm1.is_empty()
-            && arm1.iter().all(|e| match e {
-                ValidationError::CensusUndecidable { what, .. } => {
-                    what.contains("a curved face of one is within reach of the other")
-                }
-                _ => false,
-            })
-            && arm1.iter().any(|e| match e {
-                ValidationError::CensusUndecidable {
-                    a: EntityId::Face(a),
-                    b: EntityId::Face(b),
-                    ..
-                } => bore_walls.contains(a) || bore_walls.contains(b),
-                _ => false,
-            }),
-        "arm 1 refuses the wall × part-face pairs first: {errors:?}"
-    );
-    let arm2: Vec<&'static str> = errors
-        .iter()
-        .filter_map(|e| match e {
-            ValidationError::CensusUndecidable {
-                a: EntityId::Solid(_),
-                b: EntityId::Solid(_),
-                what,
-            } => Some(*what),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(arm2.len(), 1, "{errors:?}");
-    assert!(arm2[0].contains("another finding"), "{}", arm2[0]);
-    assert!(
-        !errors
-            .iter()
-            .any(|e| matches!(e, ValidationError::InstanceInterference { .. })),
-        "{errors:?}"
-    );
     assert_eq!(
-        errors.len(),
-        arm1.len() + 1,
-        "nothing else refuses: {errors:?}"
+        validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()),
+        Ok(()),
+        "the part floats in the bore"
     );
 }
 

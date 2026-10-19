@@ -561,7 +561,7 @@ fn the_material_side_gate_answers_one_sign_on_a_rectangle() {
 /// there is none — a lever that is not a length of this model at all.
 /// Two generators and nothing else do not close: the material-side
 /// gate and the flux lane both refuse the open loop on the closure
-/// decide they share (`props_loop_closed`), and neither reads a rim.
+/// decision they share ([`PropsError::ChartLoopOpen`]), and neither reads a rim.
 #[test]
 fn a_rim_free_cone_refuses_at_both_doors() {
     let alpha: f64 = 0.5;
@@ -587,21 +587,15 @@ fn a_rim_free_cone_refuses_at_both_doors() {
     // Two generators and nothing else: no rim to take a lever from.
     let edges = vec![mer(0.0, 0.010, 0.020, 0, 1), mer(1.0, 0.020, 0.010, 1, 0)];
     let band = band();
+    let gate = boundary_material_sign(&s, &edges, band);
     assert!(
-        matches!(
-            boundary_material_sign(&s, &edges, band),
-            Err(PropsError::ConeLoop {
-                what: "props_loop_closed"
-            })
-        ),
-        "the gate must refuse the open rim-free loop by name"
+        matches!(gate, Err(PropsError::ChartLoopOpen)),
+        "the gate must refuse the open rim-free loop: {gate:?}"
     );
     assert!(
         matches!(
             curved_face(&s, &edges, true, band),
-            Err(PropsError::ConeLoop {
-                what: "props_loop_closed"
-            })
+            Err(PropsError::ChartLoopOpen)
         ),
         "and so must the flux lane"
     );

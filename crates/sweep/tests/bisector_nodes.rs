@@ -184,7 +184,7 @@ fn rod(z0: f64, z1: f64) -> Body<f64> {
     use sweep::{ExtrudeSide, Extrusion, extrude};
     let tol = Tol::witness();
     let lp = profile::circle(geom_core::Point2::new(0.0, 0.0), 1.0, tol).unwrap();
-    let plane = profile::SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = profile::SketchPlane::xy_at(geom_core::Point3::new(0.0, 0.0, z0));
     let p = profile::Profile::new(plane, vec![lp.into()])
         .validate(tol)
         .unwrap();

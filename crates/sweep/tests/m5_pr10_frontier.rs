@@ -16,8 +16,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
+use geom_core::Point2;
+use geom_core::Point3;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::ExtrudeSide;
@@ -31,7 +32,7 @@ use crate::common;
 /// acceptance shape's wall set (§5's "at least one non-affine pair").
 fn geometry() -> sweep::LoftGeometry {
     let chain = common::chain;
-    let places = [0.0, 1.0, 2.0].map(|z| Affine3::translation(Vec3::new(0.0, 0.0, z)));
+    let places = [0.0, 1.0, 2.0].map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, z)));
     let sections = [chain(1.0), chain(1.6), chain(1.0)];
     let params =
         loft_parameters(&sections, &places, 2, Tol::witness()).expect("the loft parameterizes");
