@@ -29,7 +29,7 @@ Since S5c, `geom::curves::fit::interpolate_columns_in` solves over a wide averag
 
 At degree 3 the widest entry is already about half the data's range at `w = 0.01`, and the solve refuses from `w = 0.05`.
 
-S5c's review fix pass forms each span's piece at the parameter clipped to that span's knots, which tightens the rows. On the S5c row's data at `w = 0.01`, degree 3's widest entry drops from 2.53 to 1.95, and that row registers it. The table above predates the clip.
+S5c's review fix pass forms each span's piece at the parameter intersected with that span's knots' brackets (`SpanLocate::clip_to`; at a dual it keeps the parameter's own tangent). That tightens the rows. On the S5c row's data at `w = 0.01`, degree 3's widest entry drops from 2.53 to 1.95. With three wide parameters at half-width 0.0005, it drops from 2.30 to 0.95. The S5c row registers both. The tables above predate the narrowing. A `max`/`min` envelope narrowing, which the delta-read rejected, reached past the parameter to a knot's far end: it loosened the three-wide case to 2.44 and a dual's tangent fourfold.
 
 **Several wide parameters reach less** (S5c's review, PR 5332):
 - Three wide parameters, `[0, .2±h, .35, .5±h, .65, .8±h, 1]`, data up to 8:
@@ -46,7 +46,7 @@ S5c's review fix pass forms each span's piece at the parameter clipped to that s
 - **The rows lose the parameter's correlation with the averaged knots it enters.**
   - At degree 1 each member's knot is its own parameter, so every member's matrix is the identity and the exact answer is the data. Yet at `[0.495, 0.505]` the held middle row is `[0, 0.051], [0.951, 1], [0, 0.051]`.
   - At degree 2 every member's parameter lies in one fixed span, yet the held parameter overlaps two.
-  - The rows are clamped to `[0, 1]` (`fit.rs`, `unit_row_in`), but no preconditioner recovers what the rows have already lost.
+  - The rows are clamped to `[0, 1]` and each span's piece is narrowed to its knots (`fit.rs`, `enclosure_piece`), but no preconditioner recovers what the rows have already lost.
 - **The elimination's dependency problem.** It compounds through `L` and `U`, and nothing uses the fact that every member's matrix is totally positive and near the midpoint matrix.
 
 **The refusal carries no margin, and names degeneracy.** Past the reach, the fit (and through it the loft) refuses `LsqError::LsqDegenerate { pivot: NaN }` (`curves/banded.rs`, the pivot check in `factor`):

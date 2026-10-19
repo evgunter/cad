@@ -337,6 +337,20 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// [`enclosure`](super::ProjectiveSplit::enclosure) half at
     /// `Interval` and the wrappers over it. A wrapper answers by its
     /// base, so the dispatch is the type's and no value is read.
+    /// This value narrowed to `[lo, hi]`, where the caller knows every
+    /// member it is read for lies there (a parameter on one span of held
+    /// knots lies between that span's knots, C6 S5c): an enclosure of
+    /// those members no wider than `self`. Its other channels (a
+    /// derivative's tangent) are `self`'s, since on those members the
+    /// narrowed value is `self`'s value. The default answers `self`,
+    /// which encloses them already: a point scalar has nothing to
+    /// narrow, and a scalar that cannot narrow soundly gives up only
+    /// tightness. At `Interval` it is the intersection, decorated as
+    /// `self` is; where `self` is poison or misses `[lo, hi]`, `self`.
+    fn clip_to(self, _lo: f64, _hi: f64) -> Self {
+        self
+    }
+
     /// Declared, never defaulted: a new scalar says which half it runs.
     fn split_projective<A: super::ProjectiveSplit<Self>>(arm: A) -> A::Out;
 }

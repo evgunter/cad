@@ -570,16 +570,27 @@ fn unit_row_in<T: SpanLocate>(knots: &Knots<T>, t: T) -> (usize, Vec<T>) {
 /// One span's piece of an enclosure row (`unit_row_in`): its basis
 /// values, and its first column. A member whose row this span gives has
 /// its parameter between the span's knots, so the piece is formed at
-/// `t` clipped to them (`max` and `min` are envelopes at an enclosure
-/// scalar, so the clip encloses every such member's parameter), and
-/// each value is clamped to the `[0, 1]` every such member's is in.
+/// `t` narrowed to the span's knots' brackets
+/// ([`SpanLocate::clip_to`]: at `Interval` the intersection, at a dual
+/// the value narrowed and `t`'s own tangent kept), and each value is
+/// clamped to the `[0, 1]` every such member's is in. Inside the
+/// domain, which the fit's parameters are (its ends are the points `0`
+/// and `1`): the locator gives a parameter past a domain end the end
+/// span's polynomial extension, which no clip encloses.
 fn enclosure_piece<T: SpanLocate>(span: KnotSpan<'_, T>, t: T) -> (usize, Vec<T>) {
     let s = span.span();
     // `index + 1` is inside the vector: a span's own range invariant.
-    let (lo, hi) = (span.values()[s.index()], span.values()[s.index() + 1]);
+    let ends = (
+        span.values()[s.index()].structure_bracket(),
+        span.values()[s.index() + 1].structure_bracket(),
+    );
+    let clipped = match ends {
+        (Some((lo, _)), Some((_, hi))) => t.clip_to(lo, hi),
+        _ => t,
+    };
     (
         s.first_control(),
-        basis::basis_funs_in(span, t.max(lo).min(hi))
+        basis::basis_funs_in(span, clipped)
             .into_iter()
             .map(|nj| nj.max(T::zero()).min(T::one()))
             .collect(),
@@ -1455,7 +1466,8 @@ mod tests {
     /// over two spans reads one span alone, where a row's pieces are not
     /// clamped to the `[0, 1]` every member's values lie in, or where the
     /// enclosure loosens (a piece formed at the whole of the parameter
-    /// rather than clipped to its span's knots among them).
+    /// rather than narrowed to its span's knots among them, or narrowed by
+    /// the `max`/`min` envelope rather than intersected).
     #[test]
     fn over_a_wide_parameter_the_fit_encloses_every_members() {
         use geom_core::{Bounds, Interval, Real};
@@ -1485,6 +1497,25 @@ mod tests {
                 "degree {degree}: the row lies in [0, 1]: {row:?}"
             );
         }
+        // Three wide parameters at degree 3: each span's piece at the
+        // parameter intersected with the span's knots' brackets
+        // (`SpanLocate::clip_to`), registered at S5c (0.952; 2.44 where
+        // the narrowing is the `max`/`min` envelope, which reaches past
+        // the parameter to a knot's far end).
+        let h = 0.0005;
+        let w = |c: f64| Interval::from_bounds(c - h, c + h);
+        let three = [i(0.0), w(0.2), i(0.35), w(0.5), i(0.65), w(0.8), i(1.0)];
+        let seven: Vec<Vec<Interval>> = (0..7).map(|k| vec![i(k as f64), i(1.0)]).collect();
+        let (_, solved) = interpolate_columns_in(&three, 3, &seven).unwrap();
+        let widest = solved
+            .iter()
+            .flatten()
+            .map(|v| v.hi() - v.lo())
+            .fold(0.0, f64::max);
+        assert!(
+            widest <= 1.05,
+            "three wide parameters: the widest entry {widest}"
+        );
         for degree in [1, 3] {
             let (held, solved) = interpolate_columns_in(&params, degree, &rows).unwrap();
             assert!(!held.is_point(), "degree {degree}: a wide knot is held");
@@ -1493,9 +1524,10 @@ mod tests {
                 .flatten()
                 .map(|v| v.hi() - v.lo())
                 .fold(0.0, f64::max);
-            // Registered at S5c: 0.218 at degree 1, 1.95 at degree 3 (2.53
-            // with each span's piece at the whole of the parameter).
-            let register = if degree == 1 { 0.23 } else { 2.0 };
+            // Registered at S5c, with a tenth's headroom: 0.218 at degree
+            // 1, 1.95 at degree 3 (2.53 with each span's piece at the
+            // whole of the parameter, 2.34 narrowed from below only).
+            let register = if degree == 1 { 0.24 } else { 2.15 };
             assert!(
                 widest <= register,
                 "degree {degree}: the widest entry {widest} past its register {register}"
@@ -1519,8 +1551,10 @@ mod tests {
                         .and_then(|k| own.get(k).copied())
                         .unwrap_or(0.0);
                     let h = c.checked_sub(g).and_then(|k| hulled.get(k).copied());
+                    // The member's `f64` row is divided by its sum, rounded.
                     assert!(
-                        h.is_some_and(|h| h.lo() <= x && x <= h.hi()) || (h.is_none() && x == 0.0),
+                        h.is_some_and(|h| h.lo() - 1e-15 <= x && x <= h.hi() + 1e-15)
+                            || (h.is_none() && x == 0.0),
                         "degree {degree} at {member}: row column {c}: {x} outside {h:?}"
                     );
                 }
@@ -1581,8 +1615,10 @@ mod tests {
                         .and_then(|k| own.get(k).copied())
                         .unwrap_or(0.0);
                     let h = c.checked_sub(g).and_then(|k| row.get(k).copied());
+                    // The member's `f64` row is divided by its sum, rounded.
                     assert!(
-                        h.is_some_and(|h| h.lo() <= x && x <= h.hi()) || (h.is_none() && x == 0.0),
+                        h.is_some_and(|h| h.lo() - 1e-15 <= x && x <= h.hi() + 1e-15)
+                            || (h.is_none() && x == 0.0),
                         "knot {knot}, member {member}: column {c}: {x} outside {h:?}"
                     );
                 }
