@@ -39,7 +39,7 @@ fn bumped(bump: f64) -> NurbsCurve3<f64> {
     .unwrap();
     let mut ctl = q.control().to_vec();
     ctl[3].z += bump;
-    NurbsCurve3::new(q.knots().clone(), ctl, q.weights().to_vec()).unwrap()
+    NurbsCurve3::new(q.knots_f64_interim().clone(), ctl, q.weights().to_vec()).unwrap()
 }
 
 /// `mev` of the carrier between a cylinder face and a plane face.

@@ -864,10 +864,10 @@ fn loose_side_rows(grid: &[((f64, f64), f64, usize)], controls: &[usize]) {
         let bound = matches!(
             got,
             Err(geom_brep::PlaneNurbsRefusal::Limb {
-                limb: ssi::SsiLimb::HullSup,
+                limb: ssi::SsiLimb::HullSupChart,
                 ..
             } | geom_brep::PlaneNurbsRefusal::Escalated {
-                limb: ssi::SsiLimb::HullSup,
+                limb: ssi::SsiLimb::HullSupChart,
                 ..
             })
         );

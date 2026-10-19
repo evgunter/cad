@@ -2554,8 +2554,8 @@ pub(crate) mod tests {
             ("wavy_rational", wavy_rational(), [1.0, 2e-1]),
         ] {
             let b = nurbs_face_bound(&s, FaceKey::default()).expect("covered");
-            let (u0, u1) = s.knots_u().domain();
-            let (v0, v1) = s.knots_v().domain();
+            let (u0, u1) = s.knots_u_f64_interim().domain();
+            let (v0, v1) = s.knots_v_f64_interim().domain();
             for delta in deltas {
                 let delta_s = delta / 2.0;
                 let (hu, hv) = b.grid_steps(delta_s);
@@ -3267,8 +3267,8 @@ pub(crate) mod tests {
     // ------------------------------------------------------------------
 
     pub(crate) fn sample_worst(s: &NurbsSurface<f64>, n: u32) -> (f64, f64, f64) {
-        let (u0, u1) = s.knots_u().domain();
-        let (v0, v1) = s.knots_v().domain();
+        let (u0, u1) = s.knots_u_f64_interim().domain();
+        let (v0, v1) = s.knots_v_f64_interim().domain();
         let (mut wuu, mut wuv, mut wvv) = (0.0f64, 0.0f64, 0.0f64);
         for i in 0..=n {
             for j in 0..=n {
@@ -3463,8 +3463,8 @@ pub(crate) mod tests {
     fn r1_extreme_weight_z1_lattice() {
         let s = extreme_weight_patch([0.0; 3], 1.0);
         let b = nurbs_face_bound(&s, FaceKey::default()).expect("covered");
-        let (u0, u1) = s.knots_u().domain();
-        let (v0, v1) = s.knots_v().domain();
+        let (u0, u1) = s.knots_u_f64_interim().domain();
+        let (v0, v1) = s.knots_v_f64_interim().domain();
         for delta in [1.0, 2e-1] {
             let delta_s = delta / 2.0;
             let (hu, hv) = b.grid_steps(delta_s);
@@ -3613,7 +3613,7 @@ pub(crate) mod tests {
             !patch_bound::is_rational(s),
             "the whole-net spelling is the integral arm's; a rational face has no such arm"
         );
-        let (kv_u, kv_v) = (s.knots_u(), s.knots_v());
+        let (kv_u, kv_v) = (s.knots_u_f64_interim(), s.knots_v_f64_interim());
         patch_bound::check_direction(kv_u).ok()?;
         patch_bound::check_direction(kv_v).ok()?;
         let nv = kv_v.control_count();

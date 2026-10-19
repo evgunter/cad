@@ -163,7 +163,7 @@ outline = doc.insert(
 # +y, so the world y axis IS its own +y through (0, 0).
 axis = (
     (Formula.length_in(0, m), Formula.length_in(0, m)),
-    (Formula.literal(0.0), Formula.literal(1.0)),
+    Formula.turn_over(4),
 )
 washer = doc.insert(Node.revolve(outline, *axis, Formula.angle_in(360, deg)))
 

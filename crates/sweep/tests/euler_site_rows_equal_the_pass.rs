@@ -361,6 +361,11 @@ fn strut_and_chord(label: &str, body0: &Body<f64>, face: FaceKey) -> usize {
     };
     let mut body = body0.clone();
     let (m1, m2) = site(&mut body);
+    // The rims' children are placed over their own spans, a whole turn
+    // apart where a full rim's second half crosses the window's cut, and
+    // the split decides the joints they make: the split body is the
+    // pass's, joints and all, and its loops close.
+    assert_the_passs_rows(&format!("{label} split"), &body);
     let (spec, end) = meridian(&s, point_of(&body, m1), point_of(&body, m2), 0.4);
     let he = leaving(&body, face, m1);
     let made = body

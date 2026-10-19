@@ -1094,7 +1094,13 @@ fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCur
     let p1 = *body.get_point(body.get_vertex(end)?.point)?;
     let curve = body.get_curve_geom(edge_data.curve)?.certified()?;
     let band = Band::linear(tol).ok()?;
-    if let Err(error) = curve.recertify(p0, p1, |k| body.get_surface(k).cloned(), band) {
+    if let Err(error) = curve.recertify(
+        p0,
+        p1,
+        |k| body.get_surface(k).cloned(),
+        crate::edge_wedge_reach(body, edge)?,
+        band,
+    ) {
         panic!("edge {edge:?} carries a carrier its own endpoints left: {error:?}");
     }
     let (t0, t1) = curve.params();
@@ -1266,7 +1272,13 @@ fn assert_unlisted_members_answer_to_the_gate(
             body.get_curve_geom(curve)
                 .and_then(crate::null::CurveGeom::certified)
                 .expect("the walk mints no null edge")
-                .recertify(m.start, m.end, |k| body.get_surface(k).cloned(), band)
+                .recertify(
+                    m.start,
+                    m.end,
+                    |k| body.get_surface(k).cloned(),
+                    crate::edge_wedge_reach(body, m.edge).expect("the walk mints no null edge"),
+                    band,
+                )
                 .is_err()
         })
         .map(|m| m.edge);
@@ -1368,8 +1380,11 @@ fn carrier_is_coherent(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> bool {
     ) else {
         return false;
     };
+    let Some(reach) = crate::edge_wedge_reach(body, edge) else {
+        return false;
+    };
     curve
-        .recertify(*p0, *p1, |k| body.get_surface(k).cloned(), band)
+        .recertify(*p0, *p1, |k| body.get_surface(k).cloned(), reach, band)
         .is_ok()
 }
 

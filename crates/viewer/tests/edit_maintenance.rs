@@ -30,8 +30,7 @@ use pncad::document::{
     ProgramStep, ProgramTarget, RecipeNodeId, SlotId, SpokenName, SpokenNode, StepArg, VarName,
 };
 use pncad::geom_core::Tol;
-use pncad::prelude::{EntityKind, ProfileEdgeRef, RoleSeg, StableName};
-use pncad::select::{PieceRole, StepId};
+use pncad::prelude::{EntityKind, RoleSeg, StableName};
 use viewer::frame::{self, RankedVerdict};
 use viewer::session::{DocSession, OpOutcome, SessionOp};
 
@@ -203,6 +202,7 @@ fn every_maintenance_row_rides_beside_a_refusal() {
             took: pncad::document::Took::Node,
         },
         Maintenance::StrandedAppearance {
+            body: pncad::document::SpokenVar::new(editor_core::VarId::new(0, tagged(9)), None),
             name: face(8),
             took: pncad::document::Took::Node,
         },
@@ -233,9 +233,10 @@ fn every_maintenance_row_rides_beside_a_refusal() {
         "nothing to undo \u{2022} node 000000000003 carries a name for the face of node \
          000000000007; this edit deleted node 000000000007, which minted the name, so the \
          name resolves to nothing until it is rebound \u{2022} the appearance store holds an \
-         attachment under a name for the face of node 000000000008; this edit deleted node \
-         000000000008, which minted the name, so the name resolves to nothing until it is \
-         rebound or cleared"
+         attachment under a name for the face of node 000000000008 read in \
+         #0:0000000000090000; this edit deleted node 000000000008, which minted the name, so \
+         the name resolves to nothing until it is rebound, re-attached in a live body or \
+         cleared"
     );
 }
 
@@ -252,6 +253,7 @@ fn a_delete_that_strands_an_appearance_key_reaches_the_line() {
         common::edited(
             doc,
             DocEdit::SetAppearance {
+                body: crate::fixture::painted_in(doc, name),
                 name: name.clone(),
                 attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
             },
@@ -263,6 +265,7 @@ fn a_delete_that_strands_an_appearance_key_reaches_the_line() {
     let doc = paint(&doc, &wall(&doc, kept, 0, 0));
 
     let expected = vec![Maintenance::StrandedAppearance {
+        body: doc.spoken_var(crate::fixture::painted_in(&doc, &painted)),
         name: doc.spoken_name(&painted),
         took: pncad::document::Took::Node,
     }];
@@ -556,39 +559,6 @@ fn an_edit_that_renumbers_nothing_leaves_the_line_to_its_verdict() {
     );
 }
 
-/// **The mate door's offset clear rides the outcome and is not worded
-/// on the line** — the one arm `frame::maintenance_notice` holds
-/// silent, and the reason is on that function. Every other arm is its
-/// own sentence.
-#[test]
-fn an_offset_clear_is_carried_but_not_worded() {
-    let minter = RecipeNodeId::new(0, tagged(7));
-    let act = Maintenance::OffsetCleared {
-        instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(5))),
-        offset: pncad::document::Placement::IDENTITY,
-    };
-    assert_eq!(frame::maintenance_notice(&act), None);
-    let strand = Maintenance::Strand {
-        node: SpokenNode::absent(RecipeNodeId::new(0, tagged(3))),
-        name: SpokenName::absent(StableName {
-            kind: EntityKind::Face,
-            node: minter,
-            path: vec![RoleSeg::Lateral(
-                ProfileEdgeRef::Piece {
-                    step: StepId::new(0, tagged(1)),
-                    role: PieceRole::Leg,
-                }
-                .into(),
-            )],
-        }),
-        took: pncad::document::Took::Node,
-    };
-    assert_eq!(
-        frame::maintenance_notice(&strand).map(|notice| notice.text().to_owned()),
-        Some(strand.to_string())
-    );
-}
-
 /// `block`'s extrude with its typed depth's anonymous variable given
 /// `distribution`.
 fn toleranced_block(
@@ -608,7 +578,6 @@ fn toleranced_block(
             distribution,
         },
         Tol::witness(),
-        &pncad::document::RefusingReach,
     )
     .expect("a length takes a normal")
     .doc;

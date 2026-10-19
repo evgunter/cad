@@ -91,6 +91,7 @@ mod tubewall;
 mod twopeg;
 mod uvdump;
 mod walls;
+mod world;
 
 use pncad::geom_core::Tol;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
@@ -1027,7 +1028,7 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
 
     println!(
         "\n-- the bench (the assembly layer: pinned part documents, patterns, mates, \
-         gauges, split/inline, the update door) --"
+         world pins, split/inline, the update door) --"
     );
     for stop in assembly::stops(work, tol) {
         visit(&stop);

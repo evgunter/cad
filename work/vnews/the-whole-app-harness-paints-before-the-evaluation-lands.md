@@ -2,10 +2,13 @@
 id: the-whole-app-harness-paints-before-the-evaluation-lands
 kind: issue
 title: The whole-app headless harness paints two frames and never waits for the evaluation, so a row can catch it still running
-status: open
+status: closed
 opened: 2026-09-28
 priority: P2
 cost: E
+branch: vnews/the-harness-waits-for-the-landing
+closed: 2026-10-14
+pr: 5182
 ---
 
 Seen by the `preview-error-picks-its-tone-by-hand-in-a-comment` lane
@@ -81,3 +84,47 @@ section fits and its opening animation is past. `app_frame` fixes the
 window at 1600 by 1000, so this helper could not route through it as it
 stands; the fix this row owes should give `app_frame` the window size
 as an argument and fold this copy in with the wait.
+
+## Closed (2026-10-14)
+
+`properties_pane_tests::settle(app, until, paint)` is the one bounded
+wait. It paints until `until` holds of the app, at most 3000 frames
+with a 10 ms sleep between, and panics naming the progress and whether
+an index or its refusal is held. Most rows wait for `quiescent`: the
+toolbar's progress read (`ViewerApp::progress`) is `None`, so the
+document landed and its evaluation is current, and the index attempt
+for the picture on screen is answered (`index_answered`).
+
+`Driven::settle`, which the batch brought in from other units, now
+delegates to it, and so do the rest of the whole-app helpers:
+- `painted_with` (through `Driven::quiet`), `painted_with_tool` and
+  `painted_adding_a_profile`;
+- the `Driven` harness's `quiet`, `each`, `landed` and `settle`, and
+  the helpers built on them;
+- the `index_seam_tests` row.
+
+`Driven::with` and `a_face_of_the_body` still draw one frame, because
+`a_hover_diff_waits_for_a_run_that_lands_between_its_frames` reads the
+state after exactly that frame. `Driven::click` does not wait either:
+the `gated` rows hold a run open on purpose and click through it, so
+a row that needs the picture settled settles first.
+
+Two rows wait on something else, and their docs say why:
+- The `index_seam_tests` row waits for `Some(Progress::Indexing)`,
+  because its fit never answers.
+- `a_stale_faces_delete_is_disabled_with_the_refusal_it_would_get`
+  waits for `index_answered`, because its fixture cancels a run and so
+  never reaches `quiescent`.
+
+`app_frame` takes the window size, so the 1600 by 4000 add-profile
+helper goes through it.
+
+`the_wait_answers_a_frame_with_nothing_outstanding` checks that a
+settled frame paints no `evaluating…`, `Cancel` or `indexing…`. A wait
+that stops at the landing answers the landing frame, whose display fit
+was submitted in that same frame, so that row fails deterministically.
+Under mutation it also failed with a fixed two-frame wait.
+
+The toolbar-only harnesses (`tests::toolbar_drawn`, `tests::Toolbar`)
+are left alone. They draw `toolbar_ui` and never `ViewerApp::ui`, so
+nothing polls a seam and their state cannot change between frames.

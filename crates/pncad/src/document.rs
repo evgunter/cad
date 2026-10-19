@@ -89,9 +89,8 @@
 // `AuthoredStep` is made of.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, Recorded, Recording,
-    RegaugeThenMateOutcome, SlotValue, StepId, StepIdFault, Took, apply, apply_replayed,
-    regauge_then_mate,
+    MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, Recorded, Recording, SlotValue,
+    StepId, StepIdFault, Took, apply, apply_replayed,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
@@ -107,10 +106,13 @@ pub use editor_core::cascade_delete_order;
 // `EditError::PlacementRuleMismatch` carry. An operand field is an
 // `Operand` read, written at an `OperandSlot` (a `SlotId::Operand`)
 // that admits a `SlotKind`; `DocEdit::SetParam` writes a `SlotValue`.
+// A read of one copy of a placement's copies names it by its
+// `CopyKey`; a placement's constraints are addressed by their
+// `ConstraintId`.
 pub use editor_core::{
-    Axis3, Bodies, BodyRead, CountMismatch, Datum, ExtrudeSide, InputFault, ListFault, MintId,
-    Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind, PlacementRuleFault, PortKind,
-    RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
+    Axis3, Bodies, BodyRead, ConstraintId, CopyKey, CountMismatch, Datum, ExtrudeSide, InputFault,
+    ListFault, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
+    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the
@@ -315,21 +317,17 @@ pub use editor_core::DocParamField;
 // `NodeErrorClass` rides with `NodeErrorKind`: it is `NodeErrorKind::class`'s
 // answer, the refusal's class a consumer can clone, compare and hash where
 // the refusal itself cannot be.
-// `Found` rides with `NodeErrorKind` by the same rule: it is the
-// `found` field of the four entity-kind refusals, so a consumer can
-// match those variants but not name what they say was there instead.
-// It carries an `EntityKind`, never a key, so it is not the LB13
-// exception `EntityKey` is — and it cannot be CONSTRUCTED from here,
-// which is the point of it: its field is private to the door that
-// mints it.
 // `StepTurns` rides with `NodeErrorKind`: it is `FullRangeStep`'s
 // `turns`, how the copies of a step a turn or more would land.
 pub use editor_core::{
     Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DirectionRefusal,
-    EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired, NodeError,
-    NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue,
-    ProfileLift, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
+    EvalOptions, EvalOutcome, Evaluation, FramePlacement, Mispaired, NodeError, NodeErrorClass,
+    NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue, ProfileLift,
+    SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
 };
+// A placement's copies, keyed (`ValuePayload::Copies`): each copy by
+// its key, with its own names.
+pub use editor_core::{Copies, KeyedCopy};
 
 // Persistence: the doors, verbatim.
 // `save`/`load` speak `ProfileDoc` + `DocEdit` — exactly this module's
@@ -367,18 +365,18 @@ pub use editor_core::{
 pub use editor_core::ContentBits;
 
 // The world (A10): the product is every copy a world placement
-// (`Node::PlaceInWorld`) defines, in the placements' document order,
-// read through `Doc::placements` and authored by `DocEdit::place` —
+// (`Node::Place`, and an instance, which is a placement) defines, in
+// the placements' document order, read through `Doc::placements` and
+// authored by `DocEdit::place` —
 // the one door that places, and the one Python's `Doc.place` is.
-// `product` is the whole-document gather of those copies. `OwnSpace`
-// is one unplaced group's own space, which a `Product` carries beside
-// the world for the at-rest gate to check, and `own_spaces` gathers
-// every one. `AtRestRow` is one of the product's at-rest decisions,
+// `product` is the whole-document gather of those copies. `LooseSpace`
+// is one loose copy's space, gathered by itself for the at-rest gate to
+// check, and `loose_spaces` gathers every one. `AtRestRow` is one of the product's at-rest decisions,
 // beside whose pair it is (`AtRestBy`): a mate's, or two copies' the
 // census found touching.
 pub use editor_core::{
-    AtRestBy, AtRestRow, OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal,
-    Refusal, SourceFinding, own_spaces, product, product_recorded,
+    AtRestBy, AtRestRow, LooseSpace, Product, ProductError, ProductErrorKind, ProductRefusal,
+    Refusal, SourceFinding, loose_spaces, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -388,8 +386,8 @@ pub use editor_core::{
 #[cfg(debug_assertions)]
 pub use editor_core::gathers_on_this_thread;
 
-// Instantiated parts. `Frame` is the rigid motion a gauge's or an
-// instance offset's `Placement` evaluates to;
+// Instantiated parts. `Frame` is the rigid motion a `Placement`
+// evaluates to;
 // `PartResolver` is the document seam evaluation crosses to reach a
 // referenced document, `ResolveFailure`/`ResolveFault` its classified
 // refusal, and `PartFault` the evaluation-side cause an
@@ -401,25 +399,30 @@ pub use editor_core::{
     ResolveFault, product_named,
 };
 
-// Mates: the declaration node's
-// authored payload (`Alignment` over two `MateFrame`s — each a
-// `FrameBase`, the part frame or the head's own face, composed with an
-// offset `Placement` — a `MatePrimitive`, an
-// `AxisSense`), the solve's per-node outcome
-// (`SolvedPoses`, `MateRole`, the residual `Subgroup`), and `MateFault`
-// — the typed refusal every door carries. `member_of` is A11's member vocabulary itself, which
-// an authoring door must gate on so it admits exactly the heads the
-// solve places (`Member` is its answer); `member_reading` is the same
-// walk with the name it reached at the member's instance, and
-// `head_face` the face of the member's part a head names, which a face
-// frame reads. `UNDER_RECOURSE` and `CONTRADICTORY_RECOURSE` are the
-// two recourse sentences the solve's own refusals end on.
+// Mates: a placement's constraints (`Constraint`, addressed by a
+// `MateRef`), each a `Mate` of two poses of one kind — `on` read off
+// the copy's geometry, `to` a `Target`: a pose of the space the copy
+// joins, or the world read inside the mate (`WorldRead`) — or a
+// `Value` setting one freedom (`Coord`, a `SlideAxis` or the spin) its
+// mate leaves. The solve's outcome (`SolvedPoses`, each copy's
+// `Space`; a pose kind's symmetry `Subgroup` and its `SubgroupFamily`,
+// whose meeting decides a bundle), and `MateFault` — the typed refusal
+// every door carries. `pin_at` pins a copy to the world at a pose over
+// its own geometry; `place_at` is the "place part" gesture's
+// constraints (`PlacedBy` saying whether the copy had a planar face to
+// rest). `unobservable` reports each number an evaluation shows moves
+// nothing (`Unobservable`): a pose move inside its pose's own symmetry,
+// a spin value about a line its copy is round about. `member_of` is A11's member vocabulary itself
+// (`Member` is its answer); `member_reading` is the same walk with the
+// name it reached at the member's instance, and `head_face` the face
+// of the member's part a head names. `OVERCONSTRAINED_RECOURSE` is the
+// recourse sentence a bundle's refusal ends on.
 /// Why a mate could not form its lever, which
 /// [`MateFault::Unleverable`] carries — by the payload rule this list
 /// states at `VerbKind`.
 ///
-/// A parallelism verdict is levered over the mated parts' own extent
-/// (`MateReach`): a part's reach that is not in hand is carried in the
+/// A parallelism verdict is levered over the mated copies' own
+/// extent: a part's reach that is not in hand is carried in the
 /// reach's own words ([`ReachRefusal`]) beside the instance and the
 /// part it is about — the part does not resolve (the resolver's own
 /// fault, unaltered), a face of its body cannot be bounded (which
@@ -434,28 +437,13 @@ pub use editor_core::{
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, FrameBase, Lever, MateFault, MateFrame,
-    MatePrimitive, MateReach, MateRole, MateSide, Member, OFFSET_RECOURSE, OffsetCheck, PartReach,
-    PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, RefusingReach, SolvedPoses, Space,
-    Subgroup, SubgroupFamily, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups,
-    head_face, head_of, mate_reach, member_of, member_reading, places, relative_freedom_components,
-    root_of, solve_document,
+    Anchor, Constraint, ConstraintKind, Coord, FreedomRefusal, MAX_WORLD_READ_DEPTH, Mate,
+    MateFault, MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal,
+    PlacedBy, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SlideAxis, SolvedPoses, Space,
+    Subgroup, SubgroupFamily, Target, Unobservable, Value, WorldPin, WorldRead, WorldReadFault,
+    head_face, head_of, member_of, member_reading, pin_at, pinned_at, place_at, reference_about,
+    relative_freedom_components, solve_document, unobservable,
 };
-/// Why a mate's face base did not resolve to a pose, which
-/// [`MateFault::FaceUnresolved`] carries — by the same payload rule.
-///
-/// A face base ([`MateFrame::from_face`]) names no face: it
-/// takes the canonical pose of the face its side's head names in the
-/// mated part ([`head_face`]) as the side's frame, read through the
-/// mated part's own evaluation (`MateReach::face_pose`, whose refusal
-/// is [`FacePoseRefusal`], carried beside the instance, its part and
-/// the face): the part does not resolve, the part's table has no row
-/// for the name or ties it, the readback refuses the carrier (no
-/// canonical frame), or the product's scalar pins no `f64` — or the
-/// head names no face of the part at all. A
-/// consumer that could match `FaceUnresolved` and not name this type
-/// would read all of that out of the message prose.
-pub use editor_core::{FacePoseRefusal, FaceRefusal};
 
 // The class-admission table (`ClassAdmission`, read through
 // `class_admission`, with `CLASS_DEFERRAL` as the deferral sentence its
@@ -465,7 +453,7 @@ pub use editor_core::{FacePoseRefusal, FaceRefusal};
 // the solve or mint door, so exposing it here is what lets a tool
 // offer only what the vocabulary can execute instead of discovering
 // the refusal after the edit lands.
-pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap};
+pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
 
 // **The assembly at-rest gate** (A5): `assemble` gathers a document's
 // product, mints every solved mate's declaration into its contact
@@ -491,15 +479,13 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap
 // own or a part's — and `CarriedDeclarations` is what an instantiated
 // value carries up. `AssemblyError::CarriedMintRefusal` is the
 // outermost gate's refusal over inner mates that could not be minted
-// at all, and `CarriedRefusal` is one of its rows; `CarriedUnplaced` is
-// an unplaced group below, which the part's world product leaves out
-// (`Evaluation::unplaced_below`); `MintRefusal` is one
+// at all, and `CarriedRefusal` is one of its rows; `MintRefusal` is one
 // row of the gate's refusal over this document's own mates. Both arms
 // raise EVERY row they hold, so the row types are what the gate's
 // answer is made of and a consumer matching that answer must name
 // them. `NO_AT_REST_RECORD_RECOURSE` is the recourse sentence a
-// `NoAtRestRecord` row ends on, carried for the reason `UNDER_RECOURSE`
-// is: a caller asserting that a refusal reaches its recourse must not
+// `NoAtRestRecord` row ends on, carried for the reason
+// `OVERCONSTRAINED_RECOURSE` is: a caller asserting that a refusal reaches its recourse must not
 // do it by re-typing the sentence.
 // An overlap between two copies' material is not a refusal but an
 // `InterferenceFinding` on `Assembly::interference` (D10): its copies
@@ -507,9 +493,9 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap
 // `Unlocalized` with why), and the assertion that quiets it, if any.
 pub use editor_core::{
     Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    CarriedRefusal, CarriedUnplaced, CopyRef, FaceSite, InterferenceFinding, MintRefusal,
-    MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, Overlap, RefusedRef, Relation, Route,
-    Unlocalized, assemble, assemble_gathered,
+    CarriedRefusal, CopyRef, FaceSite, InterferenceFinding, MintRefusal, MintedDeclaration,
+    NO_AT_REST_RECORD_RECOURSE, Overlap, RefusedRef, Relation, Route, Unlocalized, assemble,
+    assemble_gathered,
 };
 
 // Split and inline: the first-class

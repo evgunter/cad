@@ -301,8 +301,10 @@ fn a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_on_the_blends_ver
                         doc: &doc,
                         eval: &ev1,
                     },
+                    doc2.read_of_node(blend).expect("the blend's read"),
                     n,
-                );
+                )
+                .expect("a body read");
                 let editor_core::Resolution::Failed(f) = res else {
                     panic!("{what} ({verb}): the taken face's name resolves Failed, got {res:?}");
                 };

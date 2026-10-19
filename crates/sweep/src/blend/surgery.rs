@@ -481,7 +481,7 @@ enum HostFoot {
 /// tier 3's check 11 refuses at rest, so no blend door takes the body
 /// (`fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_is_construction_state`).
 /// The half-band gate that refused it has no at-rest witness left
-/// (`work/fuse/door-arms-only-a-hand-split-operand-reached.md`).
+/// (`work/gauge/door-arms-only-a-hand-split-operand-reached.md`).
 ///
 /// A RINGED host is served under [`Self::Struts`]: the band's host trim
 /// becomes that face's new outer boundary, and each ring is admissible
@@ -5543,7 +5543,12 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
                 surfaces: [(s1, surf1), (s2, surf2)],
                 carrier: &curve,
                 interval: (t0, t1),
-                chord: p0.distance(p1),
+                reach: topo::wedge_reach(
+                    body,
+                    [sides.plus.face, sides.minus.face],
+                    &curve,
+                    (t0, t1),
+                ),
                 witness,
             },
             band,

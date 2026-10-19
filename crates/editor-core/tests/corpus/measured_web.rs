@@ -21,6 +21,7 @@
 //! `None` for the reason `cut_cylinder`'s is — the document's point is
 //! not a single solid.
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::UnitSym;
 use editor_core::{
@@ -144,7 +145,7 @@ pub fn document() -> CorpusDoc {
         bound: len(MIN_WEB),
         relation: AssertionRelation::AtLeast,
     });
-    r.place(plate);
+    r.place_part(plate);
 
     CorpusDoc {
         name: "measured_web",

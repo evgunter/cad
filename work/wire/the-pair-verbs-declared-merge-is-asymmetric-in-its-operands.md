@@ -2,11 +2,12 @@
 id: the-pair-verbs-declared-merge-is-asymmetric-in-its-operands
 kind: ruling
 title: A declared merge is asymmetric in the pair verb's operands: which member's rims fragment follows the A/B assignment
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2028, does-n3-retire-loudly-generalise-to-the-folds-other-compositions]
 priority: P0
 cost: D
+closed: 2026-10-17
 ---
 
 
@@ -146,3 +147,9 @@ lives in `crates/editor-core/REFERENCES.md`, which `docs/DESIGN.md`'s
 companion table lists as **Ratified** — so the answer amends ratified
 text either way, by changing what it decides or by adding what it does
 not currently say (that the ORDER shows in the names).
+
+## Closed (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. Answered: Ev approved DM4's fold-order clause on PR 4323 (fork-log row 94, commit `613d0b56dc`): the order is the list's, and a glue keeps the earlier listed member's description. The test the row cites (`docm7_union_declare.rs`) is gone with the declare surface.
+
+Signed (WIRE orchestrator).

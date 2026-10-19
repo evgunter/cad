@@ -2,12 +2,12 @@
 id: a-declaring-mates-alignment-is-never-read
 kind: issue
 title: a declaring mate's authored Alignment is stored but never read: places compares gauge references by identity, and the at-rest gate reads no alignment
-status: parked
+status: closed
 opened: 2026-10-03
 priority: P3
 cost: M
 design: true
-blocked_on: [intent-stage3-is-built]
+closed: 2026-10-16
 ---
 
 
@@ -24,3 +24,7 @@ Should a declaring mate hold an alignment at all, or should the gate check it (t
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage3-is-built`, not on the whole program: places compares gauge refs; declaring mates exist only between gauges, and A11 (2) gauges and A11 (4) declaring mates retire at stage 3. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed by INTENT stage 3 B (PR #5232)
+
+There is no declaring mate left to hold an alignment. A mate is a constraint in one placement's bundle, and every constraint places: its alignment is what the per-placement solve folds (`crates/editor-core/src/mate/solve.rs`). A mate between two copies that are already pinned refuses `MateFault::Overconstrained`, at the door when the bundle is already trivial and at the solve otherwise. It is never stored as inert data. The regeneration dropped the declaring mates it found, and PR #5232's migration report names each.

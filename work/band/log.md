@@ -1134,3 +1134,7 @@ now built); rows witness the disk count, the piece radius and the
 plane reading's slack; C8 says an absorbed island's voids are filled.
 Filed `a-feature-inside-a-region-that-is-no-disk-or-annulus-is-not-carved`
 and `a-cup-leaning-off-the-spine-under-a-fillet-is-charged-its-boxs-diagonal`.
+
+- 2026-10-15 — **No live row is at or above this track's own band (P0).** The 51 rows left are 5 at P2, 36 at P3, 3 at P4, 7 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
+  Band the 7 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
+  (tracker sweep)

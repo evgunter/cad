@@ -2,11 +2,12 @@
 id: emit-topo-reads-a-fusion-chain-one-hop
 kind: issue
 title: emit_topo's seam-vertex pass reads vertex_merges kept → direct dead partners only, so a chain a→b→c never offers c the identity a carried
-status: open
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: E
-refs: [fused-into-names-vertices-not-live-in-the-result, 4116]
+refs: [4398, 4116]
+closed: 2026-10-17
 ---
 
 Found by the review of PR 4116 (ZIP, `zip/survivor-and-recourse`).
@@ -48,3 +49,9 @@ Two-hop chains do reach this pass. On the review's probe corpus, 632 of
 key is a later row's dead key: pierce welds 507 of 780, pinch scenes
 119 of 1,048, brick lattices 6 of 1,811. Whether a chain changes a
 minted name is unmeasured.
+
+## Closed (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. Fixed: `emit_topo.rs` `fused_partners` walks every hop from each survivor, nearest first, pinned by `a_chain_of_fusions_reaches_the_survivor_nearest_first`.
+
+Signed (WIRE orchestrator).

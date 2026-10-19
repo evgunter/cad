@@ -620,10 +620,8 @@ cut off by a tilted plane, each crease removing its section over the
 length at the section's centroid
 (`an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse`). A body whose
 band an ellipse trims, of either band, measures through the certified
-quadrature, tessellates, and takes a boolean beside or through the
-band; with an operand wholly apart the boolean's containment door
-refuses it (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`,
-pinned in `crates/sweep/tests/band_planar_oblique_fillet.rs`). The
+quadrature, tessellates, and takes a boolean beside, through or wholly
+apart from the band (`crates/sweep/tests/band_planar_oblique_fillet.rs`). The
 CONCAVE ruled band — the material-adding side, the fill covering the region
 under the arc — is pinned through the extrude door too: a rod's section
 standing on a block's top edge (the sunk rod,
@@ -632,3 +630,20 @@ standing on a block's top edge (the sunk rod,
 a common ruling — has no body yet: the union refuses at the boolean's
 curved-pierce door, and so does a block ∪ cylinder at its join lane;
 that is the boolean's ground, not the band's.
+
+## Conventions every sweep keeps
+
+Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topology]`, `[coincidence]` …) are `docs/DESIGN.md`'s clauses.
+
+- **The minimal sphere at rest is V2/E2/F2**: tier 2's valence-1 ban
+  makes a one-band wire sweep unrepresentable, so axis-touching full
+  revolves sweep two π-bands and poles have valence 2. The split is
+  owed only by CURVED walls, whose pole or apex must keep valence 2. A
+  full revolve emits each PLANAR wall as one face: a disc's centre is
+  interior to the face, not a vertex, and no revolve returns two
+  adjacent faces on one plane.
+- **The extrude/full-revolve hole asymmetry is structural** (moved from DESIGN):
+  extruded holes are cap-to-cap tunnels
+  (one shell, genus); full-revolve holes are cavities (a second shell,
+  through `topo::insert_void`); partial revolve is extrude-shaped and carries
+  holes in its one shell. Sweeps emit single-shell primary boundaries.

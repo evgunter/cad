@@ -59,8 +59,8 @@ fn r1_skinned_loft_offset_certificate_contains_dense_sample() {
             .unwrap_or_else(|e| panic!("fit_offset refused the skinned loft at d = {d}: {e}"));
         assert!(cert.hull_sup <= tol);
         let (nu, nv) = (43usize, 41usize);
-        let (ulo, uhi) = base.knots_u().domain();
-        let (vlo, vhi) = base.knots_v().domain();
+        let (ulo, uhi) = base.knots_u_f64_interim().domain();
+        let (vlo, vhi) = base.knots_v_f64_interim().domain();
         let mut worst = 0.0f64;
         for i in 0..nu {
             for j in 0..nv {
