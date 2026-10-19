@@ -22,8 +22,8 @@ test_utils::gated_to![
 use crate::common::{tol, try_replay_at};
 use geom_core::{Arc2, Bounds, Interval, Point2, Real};
 use profile::{
-    ConstructedLoop, ConstructedProfile, PathError, ProfileError, ReplayError, ReplayErrorKind,
-    Segment, SketchPlane, Step, Target,
+    ArcData, ConstructedLoop, ConstructedProfile, PathError, ProfileError, ReplayError,
+    ReplayErrorKind, Segment, SketchPlane, Step, Target,
 };
 
 const ULP: f64 = f64::EPSILON;
@@ -295,5 +295,46 @@ fn near_behind_targets_land_on_their_end_vertex_at_both_scalars() {
                 "{what}: the Interval landing is {width:e} m wide"
             );
         }
+    }
+}
+
+/// **The through-point arc near a full turn**, the `Via` mode's own
+/// quarter-tangent of the same shape: the carrier tangent to `+x` at the
+/// origin with radius `r`, through its top `(0, 2r)`, to the point 2.7 m
+/// of arc short of the full turn, and home by way of a vertex below
+/// the chord. The stored arc lands on its end vertex within 8 ulps of
+/// its radius at `f64`, and its `Interval` landing holds the vertex.
+#[test]
+fn the_through_point_arc_near_a_full_turn_keeps_its_end_vertex() {
+    let a = Point2::new(0.0, 0.0);
+    for r in [1.36e4, 1.37e7, 1.37e8] {
+        let turn = core::f64::consts::TAU - 2.7 / r;
+        let b = Point2::new(r * turn.sin(), r * (1.0 - turn.cos()));
+        let steps = vec![
+            Step::At(a),
+            Step::ArcTo(ArcData::Via {
+                q: Point2::new(0.0, 2.0 * r),
+                target: Target::Point(b),
+            }),
+            Step::LineTo(Target::Point(Point2::new(-1.35, -5.0))),
+            Step::LineTo(Target::Start),
+        ];
+        let what = format!("Via, R {r:e}");
+        let lp = try_replay_at::<f64>(&steps)
+            .unwrap_or_else(|e| panic!("{what}: f64 replay refused: {e}"));
+        let miss = f64_miss(&lp, &what);
+        assert!(
+            miss <= 8.0 * r * ULP,
+            "{what}: the stored arc misses its end vertex by {miss:e} m, past 8 ulps of its \
+             radius"
+        );
+        let li = try_replay_at::<Interval>(&steps)
+            .unwrap_or_else(|e| panic!("{what}: Interval replay refused: {e}"));
+        let (holds, width) = interval_landing(&li, &what);
+        assert!(holds, "{what}: the Interval landing misses its end vertex");
+        assert!(
+            width <= 64.0 * r * ULP,
+            "{what}: the Interval landing is {width:e} m wide"
+        );
     }
 }

@@ -133,28 +133,14 @@ static FIXTURES: &[(&str, &[[f64; 6]], &[usize])] = &[
         "arc_via_closing_matches_loopbuilder_close_arc_via",
         &[
             [0.0, 0.0, 1.0, -0.75, 1.25, -1.8545904360032244],
-            [
-                2.0,
-                0.0,
-                1.0,
-                -4.949999999999999,
-                5.049999999999999,
-                0.3986746099646482,
-            ],
+            [2.0, 0.0, 1.0, -4.949999999999999, 5.05, 0.39867460996464815],
         ],
         &[],
     ),
     (
         "arc_via_matches_loopbuilder_arc_to_via",
         &[
-            [
-                0.0,
-                0.0,
-                1.0,
-                -2.2204460492503136e-16,
-                1.0,
-                -3.1415926535897927,
-            ],
+            [0.0, 0.0, 1.0, 0.0, 1.0, -3.141592653589793],
             [2.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         ],
         &[],
@@ -458,7 +444,7 @@ fn sharp_arc_chain_matches_loopbuilder() {
 /// D3 — constructed tangent leg: `.tangent().tangent_arc_to(p)` lowers to
 /// a joint constructed tangent plus the arc whose sweep is 4·atan(X), X =
 /// tan(Δ/2) of the tangent-chord angle Δ spelled algebraically,
-/// `across / (|d| + along)` — bit-identical to that closed form
+/// `2·across / (|d|·|u + d̂|²)` — bit-identical to that closed form
 /// evaluated directly on the same inputs (the oracle below).
 #[test]
 fn tangent_arc_leg_matches_loopbuilder() {
@@ -468,8 +454,11 @@ fn tangent_arc_leg_matches_loopbuilder() {
         Point2::new(3.0, 1.0),
     );
     // The unique tangent arc departing east from b to c: d = (1, 1),
-    // along = across = 1, X = 1 / (√2 + 1) (the documented form).
-    let expected_bulge = 1.0 / (2.0_f64.sqrt() + 1.0);
+    // u = (1, 0), across = 1, |d| = √2 and d̂ = d/√2 (the documented
+    // form).
+    let len = 2.0_f64.sqrt();
+    let (hx, hy) = (1.0 / len, 1.0 / len);
+    let expected_bulge = 2.0 * 1.0 / (len * ((1.0 + hx) * (1.0 + hx) + hy * hy));
     let algebra = Open
         .at(a)
         .line_to(b, Tol::witness())
@@ -745,8 +734,8 @@ fn circle_matches_the_raw_corpus_convention() {
 }
 
 /// G1-2 — `arc_to(Via { q, p })`: the three authored points go through
-/// the documented closed form, so the derived bulge is exactly
-/// `bulge_from_via(a, q, p)` and the endpoints pass through verbatim.
+/// the documented closed form (the stored arc is the recorded twin's,
+/// bit for bit) and the endpoints pass through verbatim.
 #[test]
 fn arc_via_matches_loopbuilder_arc_to_via() {
     let (a, via, b) = (

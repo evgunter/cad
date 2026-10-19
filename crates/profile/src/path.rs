@@ -2916,10 +2916,12 @@ fn center_arc<T: Real>(
 /// `b`, lowered from its chord ([`crate::bulge_leg`]) with X the
 /// tangent of half the turn ψ at `q` from `q − a` to `b − q` — by the
 /// inscribed angle, ψ is half the arc's included angle, so X is
-/// tan(θ/4) — spelled `(d₁ × d₂) / (|d₁|·|d₂| + d₁·d₂)`, algebraic in
-/// the three points. It vanishes into a pole only at ψ = π, `q` on the
-/// chord's line outside it, which the door's collinear gate refuses
-/// first.
+/// tan(θ/4) — spelled `2·(d₁ × d₂) / (|d₁|·|d₂|·|d̂₁ + d̂₂|²)`,
+/// algebraic in the three points: `|d₁|·|d₂| + d₁·d₂` through
+/// `1 + cos ψ = |d̂₁ + d̂₂|²/2`, a sum of squares that does not cancel
+/// as ψ nears π (a near full turn) and is never negative. It vanishes
+/// into a pole only at ψ = π, `q` on the chord's line outside it, which
+/// the door's collinear gate refuses first.
 fn via_arc<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> Option<BuiltArc<T>> {
     crate::bulge_leg(a, b, via_quarter_tan(a, q, b))
 }
@@ -2927,7 +2929,8 @@ fn via_arc<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> Option<BuiltArc
 /// [`via_arc`]'s X: tan(θ/4) of the arc from `a` through `q` to `b`.
 fn via_quarter_tan<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> T {
     let (d1, d2) = (q - a, b - q);
-    d1.perp_dot(d2) / (d1.norm() * d2.norm() + d1.dot(d2))
+    let (l1, l2) = (d1.norm(), d2.norm());
+    T::from_f64(2.0) * d1.perp_dot(d2) / (l1 * l2 * (d1 / l1 + d2 / l2).norm_squared())
 }
 
 /// **The tangent arc's one conversion**: the arc leaving `a` along the
