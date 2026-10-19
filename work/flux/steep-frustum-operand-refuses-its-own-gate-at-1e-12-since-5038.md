@@ -2,10 +2,11 @@
 id: steep-frustum-operand-refuses-its-own-gate-at-1e-12-since-5038
 kind: issue
 title: reach_cone_split's steep frustum (α 1.3, S 100) is refused at its own at-rest gate at ε 1e-12 since PR 5038; props_meridian_on_surface escalates on its wall
-status: review
+status: closed
+pr: 5400
+closed: 2026-10-19
 opened: 2026-10-19
 priority: P2
-branch: flux/main-reds-1e-12-cone
 cost: M
 refs: [props-cone-ellipse-elevation-over-reads-a-section-ellipse-by-twenty-fold]
 ---

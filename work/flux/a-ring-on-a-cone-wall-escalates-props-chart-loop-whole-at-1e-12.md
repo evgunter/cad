@@ -2,10 +2,11 @@
 id: a-ring-on-a-cone-wall-escalates-props-chart-loop-whole-at-1e-12
 kind: issue
 title: Main red at ε 1e-12: reach_cone_root_lane's ring on a cone wall whose winding sums to rounding escalates props_chart_loop_whole
-status: review
+status: closed
+pr: 5400
+closed: 2026-10-19
 opened: 2026-10-19
 priority: P1
-branch: flux/main-reds-1e-12-cone
 cost: M
 ---
 
