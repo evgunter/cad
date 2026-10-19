@@ -883,44 +883,53 @@ impl<T: Real, const D: usize> Raised<T, D> {
         })
     }
 
-    /// The quotient halved along `u` (`along_u`) or `v`: numerator and
-    /// weight power halved alike, so each half is the statement on its
-    /// half of the block.
-    fn halved(&self, along_u: bool) -> Option<(Self, Self)> {
-        let (n0, n1) = self.numer.halved(along_u)?;
-        let (d0, d1) = self.denom.halved(along_u)?;
-        Some((
-            Self {
-                numer: n0,
-                denom: d0,
-            },
-            Self {
-                numer: n1,
-                denom: d1,
-            },
-        ))
-    }
-
     /// The quotient on `counts` equal pieces per axis (powers of two),
-    /// by halving at ½ along `u` and then along `v`, row-major in `u`
-    /// then `v`.
+    /// as [`shared_pieces`] cuts it.
     fn pieces(&self, counts: (usize, usize)) -> Option<Vec<QuotientPiece<T, D>>> {
-        let along_u = halvings(self.clone(), counts.0, |r| r.halved(true))?;
-        let mut out = Vec::with_capacity(counts.0 * counts.1);
-        for r in along_u {
-            for piece in halvings(r, counts.1, |r| r.halved(false))? {
-                out.push(piece.piece()?);
-            }
-        }
-        Some(out)
+        shared_pieces(&[&self.numer], &self.denom, counts)?.pop()
     }
+}
 
-    fn piece(&self) -> Option<QuotientPiece<T, D>> {
-        QuotientPiece::new(
-            self.numer.arrays(),
-            self.denom.c.iter().map(|w| w.0[0]).collect(),
-        )
+/// `grid` on `counts` equal pieces per axis (powers of two), by halving
+/// at ½ along `u` and then along `v`, row-major in `u` then `v`.
+fn grid_pieces<T: Real, const D: usize>(
+    grid: &Grid<T, D>,
+    counts: (usize, usize),
+) -> Option<Vec<Grid<T, D>>> {
+    let mut out = Vec::with_capacity(counts.0 * counts.1);
+    for g in halvings(grid.clone(), counts.0, |g| g.halved(true))? {
+        out.extend(halvings(g, counts.1, |g| g.halved(false))?);
     }
+    Some(out)
+}
+
+/// The quotients `numers[i] / denom` on `counts` equal pieces per axis,
+/// one list per numerator, each row-major in `u` then `v`. The weight
+/// power is halved into its pieces once and each piece paired with
+/// every numerator's: halving is deterministic, so a quotient that
+/// halved its own copy of the same weight power would read the same
+/// bits, and a weight power several quotients share costs one halving.
+fn shared_pieces<T: Real, const D: usize>(
+    numers: &[&Grid<T, D>],
+    denom: &Grid<T, 1>,
+    counts: (usize, usize),
+) -> Option<Vec<Vec<QuotientPiece<T, D>>>> {
+    #[cfg(test)]
+    tests::WEIGHT_HALVINGS.with(|n| n.set(n.get() + 1));
+    let denoms: Vec<Vec<T>> = grid_pieces(denom, counts)?
+        .iter()
+        .map(|d| d.c.iter().map(|w| w.0[0]).collect())
+        .collect();
+    numers
+        .iter()
+        .map(|numer| {
+            grid_pieces(numer, counts)?
+                .iter()
+                .zip(&denoms)
+                .map(|(n, d)| QuotientPiece::new(n.arrays(), d.clone()))
+                .collect()
+        })
+        .collect()
 }
 
 /// [`CellQuotients`] before it is cut.
@@ -1255,30 +1264,42 @@ fn cell_pieces<T: Real>(
 ) -> Option<CellPieces<T>> {
     let whole = cell_whole(axes, block, second)?;
     // Every quotient is formed once over the cell and halved into its
-    // pieces. With the second order the area is formed whatever `area`
-    // asks: it shares `W³` with the second partials, and
-    // `CellSecondQuotients` readers take it beside them.
+    // pieces, each weight power halved once for every quotient over it
+    // ([`shared_pieces`]): `S_u` and `S_v` share `W²`, and the area and
+    // the second partials share `W³`. With the second order the area is
+    // formed whatever `area` asks: `CellSecondQuotients` readers take it
+    // beside them.
     let counts = (halving_count(splits.0), halving_count(splits.1));
     let first = whole.first_raised(area || whole.second.is_some())?;
-    let (u, v) = (first.u.pieces(counts)?, first.v.pieces(counts)?);
-    let area: Vec<_> = match &first.area {
-        Some(a) => a.pieces(counts)?.into_iter().map(Some).collect(),
+    let [u, v]: [_; 2] = shared_pieces(&[&first.u.numer, &first.v.numer], &first.u.denom, counts)?
+        .try_into()
+        .ok()?;
+    let mut w3_pieces = match (&first.area, whole.second_raised()) {
+        (Some(a), Some(s)) => {
+            // Every `W³` is `W²·W` of the same `W` (`area_raised`,
+            // `second_numerator`), so the area's serves all four.
+            shared_pieces(
+                &[&a.numer, &s.uu.numer, &s.uv.numer, &s.vv.numer],
+                &a.denom,
+                counts,
+            )?
+        }
+        (Some(a), None) => shared_pieces(&[&a.numer], &a.denom, counts)?,
+        (None, _) => Vec::new(),
+    }
+    .into_iter();
+    let area: Vec<_> = match w3_pieces.next() {
+        Some(a) => a.into_iter().map(Some).collect(),
         None => vec![None; u.len()],
     };
-    let second: Vec<_> = match whole.second_raised() {
-        Some(s) => {
-            let (uu, uv, vv) = (
-                s.uu.pieces(counts)?,
-                s.uv.pieces(counts)?,
-                s.vv.pieces(counts)?,
-            );
-            uu.into_iter()
-                .zip(uv)
-                .zip(vv)
-                .map(|((uu, uv), vv)| Some(CellSecondQuotients { uu, uv, vv }))
-                .collect()
-        }
-        None => vec![None; u.len()],
+    let second: Vec<_> = match (w3_pieces.next(), w3_pieces.next(), w3_pieces.next()) {
+        (Some(uu), Some(uv), Some(vv)) => uu
+            .into_iter()
+            .zip(uv)
+            .zip(vv)
+            .map(|((uu, uv), vv)| Some(CellSecondQuotients { uu, uv, vv }))
+            .collect(),
+        _ => vec![None; u.len()],
     };
     let out = u
         .into_iter()
@@ -2267,5 +2288,190 @@ mod tests {
             }
         }
         assert_eq!(asked, DEGREES.len() * KNOTS.len() * KNOTS.len());
+    }
+
+    std::thread_local! {
+        /// How many weight powers this thread has halved into pieces.
+        pub(super) static WEIGHT_HALVINGS: core::cell::Cell<usize> =
+            const { core::cell::Cell::new(0) };
+    }
+
+    /// A rational bicubic-by-quadratic cell block, its weights uneven,
+    /// at the interval scalar.
+    struct RationalCell {
+        a: Vec<[Interval; 3]>,
+        w: Vec<Interval>,
+        knots_u: [Interval; 8],
+        knots_v: [Interval; 6],
+        ku: super::super::KnotVector,
+        kv: super::super::KnotVector,
+    }
+
+    fn rational_cell() -> RationalCell {
+        let (p, q) = (3, 2);
+        let n = (p + 1) * (q + 1);
+        let a = (0..n)
+            .map(|k| {
+                let (i, j) = ((k / (q + 1)) as f64, (k % (q + 1)) as f64);
+                [i, j, 0.1 * i * j + 0.3 * (k % 2) as f64].map(Interval::from_f64)
+            })
+            .collect();
+        let w = (0..n)
+            .map(|k| Interval::from_f64(1.0 + 0.25 * ((k * 7) % 5) as f64))
+            .collect();
+        let ku = super::super::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], p)
+            .expect("a Bézier vector");
+        let kv = super::super::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], q)
+            .expect("a Bézier vector");
+        RationalCell {
+            a,
+            w,
+            knots_u: [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0].map(Interval::from_f64),
+            knots_v: [0.0, 0.0, 0.0, 1.0, 1.0, 1.0].map(Interval::from_f64),
+            ku,
+            kv,
+        }
+    }
+
+    /// **A cell halves each weight power once.** `S_u` and `S_v` share
+    /// `W²`, and the area and the three second partials share `W³`, so a
+    /// cell's pieces halve one weight power at the first order without
+    /// the area and two otherwise, at any schedule: red if a quotient
+    /// halves its own copy of a shared weight power again (6 with the
+    /// second order).
+    #[test]
+    fn a_cell_halves_each_weight_power_once() {
+        let RationalCell {
+            a,
+            w,
+            knots_u,
+            knots_v,
+            ku,
+            kv,
+        } = rational_cell();
+        let axes = || {
+            (
+                super::CellAxis::Span(ku.span(3).expect("the span"), &knots_u[..]),
+                super::CellAxis::Span(kv.span(2).expect("the span"), &knots_v[..]),
+            )
+        };
+        let block = || super::CellBlock::Homogeneous { a: &a, w: &w };
+        let halvings = |f: &dyn Fn() -> usize| {
+            let before = WEIGHT_HALVINGS.with(core::cell::Cell::get);
+            let pieces = f();
+            assert!(pieces > 1, "the schedule cuts the cell");
+            WEIGHT_HALVINGS.with(core::cell::Cell::get) - before
+        };
+        for splits in [(2, 1), (4, 2), (8, 8)] {
+            let first = || {
+                super::cell_quotients(axes(), block(), splits, false)
+                    .expect("pieces")
+                    .len()
+            };
+            let area = || {
+                super::cell_quotients(axes(), block(), splits, true)
+                    .expect("pieces")
+                    .len()
+            };
+            let second = || {
+                super::cell_second_quotients(axes(), block(), splits)
+                    .expect("pieces")
+                    .1
+                    .len()
+            };
+            assert_eq!(halvings(&first), 1, "W² once, splits {splits:?}");
+            assert_eq!(halvings(&area), 2, "W² and W³ once each, splits {splits:?}");
+            assert_eq!(
+                halvings(&second),
+                2,
+                "W² and W³ once each, splits {splits:?}"
+            );
+        }
+    }
+
+    /// **A shared halving reads each quotient's own halving to the
+    /// bit.** Every piece [`super::cell_second_quotients`] serves (its
+    /// `S_u`, `S_v`, area and three second partials, numerator and
+    /// weight power) is the bits of that quotient halved as one,
+    /// numerator and its own weight power together, the area's and the
+    /// second partials' `W³` formed apart.
+    #[test]
+    fn a_shared_weight_halving_is_each_quotients_own_to_the_bit() {
+        let RationalCell {
+            a,
+            w,
+            knots_u,
+            knots_v,
+            ku,
+            kv,
+        } = rational_cell();
+        let axes = || {
+            (
+                super::CellAxis::Span(ku.span(3).expect("the span"), &knots_u[..]),
+                super::CellAxis::Span(kv.span(2).expect("the span"), &knots_v[..]),
+            )
+        };
+        let block = || super::CellBlock::Homogeneous { a: &a, w: &w };
+        let ends = |x: &Interval| (x.lo().to_bits(), x.hi().to_bits(), x.is_certified());
+        let same = |got: &super::QuotientPiece<Interval, 3>,
+                    want: &super::QuotientPiece<Interval, 3>,
+                    what: &str| {
+            let flat = |p: &super::QuotientPiece<Interval, 3>| {
+                (
+                    p.numer().iter().flatten().map(ends).collect::<Vec<_>>(),
+                    p.denom().iter().map(ends).collect::<Vec<_>>(),
+                )
+            };
+            assert_eq!(flat(got), flat(want), "{what}");
+        };
+        for splits in [(1, 1), (2, 4), (8, 2)] {
+            let counts = (
+                super::halving_count(splits.0),
+                super::halving_count(splits.1),
+            );
+            let whole =
+                super::cell_whole(axes(), block(), true).expect("a block under the ceiling");
+            let first = whole.first_raised(true).expect("the first order");
+            let area = first.area.as_ref().expect("the area");
+            let second = whole.second_raised().expect("the second order");
+            // The quotient halved as one: numerator and weight power
+            // halved together, pair by pair, along `u` and then `v`.
+            let own = |r: &super::Raised<Interval, 3>| -> Vec<super::QuotientPiece<Interval, 3>> {
+                let halve = |along_u: bool| {
+                    move |(n, d): &(super::Grid<Interval, 3>, super::Grid<Interval, 1>)| {
+                        let (n0, n1) = n.halved(along_u)?;
+                        let (d0, d1) = d.halved(along_u)?;
+                        Some(((n0, d0), (n1, d1)))
+                    }
+                };
+                super::halvings((r.numer.clone(), r.denom.clone()), counts.0, halve(true))
+                    .expect("halves")
+                    .into_iter()
+                    .flat_map(|nd| super::halvings(nd, counts.1, halve(false)).expect("halves"))
+                    .map(|(n, d)| {
+                        super::QuotientPiece::new(n.arrays(), d.c.iter().map(|w| w.0[0]).collect())
+                            .expect("a piece")
+                    })
+                    .collect()
+            };
+            let (u, v, ar) = (own(&first.u), own(&first.v), own(area));
+            let (uu, uv, vv) = (own(&second.uu), own(&second.uv), own(&second.vv));
+            let (got_counts, got) =
+                super::cell_second_quotients(axes(), block(), splits).expect("pieces");
+            assert_eq!(got_counts, counts);
+            assert_eq!(got.len(), u.len());
+            for (k, (f, s)) in got.iter().enumerate() {
+                same(&f.u, &u[k], &format!("S_u piece {k}, splits {splits:?}"));
+                same(&f.v, &v[k], &format!("S_v piece {k}, splits {splits:?}"));
+                same(
+                    f.area.as_ref().expect("the area"),
+                    &ar[k],
+                    &format!("area piece {k}"),
+                );
+                same(&s.uu, &uu[k], &format!("S_uu piece {k}, splits {splits:?}"));
+                same(&s.uv, &uv[k], &format!("S_uv piece {k}, splits {splits:?}"));
+                same(&s.vv, &vv[k], &format!("S_vv piece {k}, splits {splits:?}"));
+            }
+        }
     }
 }
