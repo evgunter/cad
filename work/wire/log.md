@@ -6282,3 +6282,11 @@ Signed (WIRE orchestrator).
   push early and build with `CARGO_INCREMENTAL=0`. Friction note: three
   lanes' target dirs (12 + 5 + 4 GB) nearly exhaust the allowance.
   (WIRE orchestrator)
+
+- 2026-10-19 — PR 5324 (naming census and short ties) merged on green
+  with main merged in; its two rows closed. The fix pass restored the
+  dropped facts by shortening the shared `UNRULED_FRAMING` from 33 to
+  13 words. PR 5328 (fold-steps end pass) opened green, and a FULL
+  review is dispatched. Its first claim is that the junction row
+  appears in only 2 of 24 orders, a possible DM4 order-dependence the
+  lane disclosed but did not check. (WIRE orchestrator)
