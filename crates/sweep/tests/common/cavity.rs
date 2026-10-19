@@ -46,7 +46,7 @@
 //! - `super::approx::prism`, which builds the `Surface::Approx`
 //!   surgery's base rather than a boolean operand.
 
-use geom_core::{Affine3, Mat3, Point2, Point3, Real, Tol, Vec3};
+use geom_core::{Point2, Point3, Real, Tol};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::test_support::finished;
@@ -55,10 +55,7 @@ use topo::{Body, EdgeKey, subtract};
 
 /// The XY sketch plane translated to height `z`.
 pub fn sketch_at(z: f64) -> SketchPlane<f64> {
-    SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Point3::new(0.0, 0.0, z) - Point3::origin(),
-    ))
+    SketchPlane::xy_at(Point3::new(0.0, 0.0, z))
 }
 
 /// A polygon on the plane at `z0`, extruded to `z1` — this module's

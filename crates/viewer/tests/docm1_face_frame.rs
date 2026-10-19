@@ -112,7 +112,7 @@ fn a7_the_viewer_takes_a_derived_frame_by_value() {
     // The drawer reads the LANDED placement: sketch (0, 0) is the cap
     // plane's origin at the box's height.
     let placed = sketch::frame_placement(session.doc(), ev, frame).expect("a drawable frame");
-    assert!((placed.placement.translation.z - 0.01).abs() <= 1e-12);
+    assert!((placed.origin().z - 0.01).abs() <= 1e-12);
 }
 
 /// **The chrome mints the node the document door mints.** One

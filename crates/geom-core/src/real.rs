@@ -872,8 +872,10 @@ pub trait Real:
 ///   datum door, the evaluation layer's `unit()`, and every one of
 ///   [`linalg::frame`](crate::linalg::frame)'s normalizing sites (the
 ///   roll offset and the ladder's rungs reach it through
-///   [`RigidMotion::from_aim`](crate::RigidMotion::from_aim));
-/// - `sweep`'s `revolve::axis::AxisFrame::build`;
+///   [`RigidMotion::from_aim`](crate::RigidMotion::from_aim)), and
+///   [`UnitVec3::new`](crate::UnitVec3::new), which `sweep` reaches
+///   for the revolve's sketch axis (`revolve::axis::AxisFrame::build`)
+///   and for a path sweep's station tangents (`sweep_path_tangent`);
 /// - `topo`'s `sector_shape`, which asks it of each bounding chord
 ///   separately because its arm is their `min` and [`Real::min`]
 ///   propagates `NaN` but not infinity, so a `min` hides an
@@ -956,8 +958,10 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 ///
 /// - [`decide_unit_direction`](crate::decide_unit_direction), behind
 ///   the datum door, the evaluation layer's `unit()` and every one of
-///   [`linalg::frame`](crate::linalg::frame)'s normalizing sites;
-/// - `sweep`'s `revolve::axis::AxisFrame::build`;
+///   [`linalg::frame`](crate::linalg::frame)'s normalizing sites, and
+///   [`UnitVec3::new`](crate::UnitVec3::new), which `sweep` reaches
+///   for the revolve's sketch axis (`revolve::axis::AxisFrame::build`)
+///   and for a path sweep's station tangents (`sweep_path_tangent`);
 /// - `topo`'s `sector_shape`, per bounding CHORD rather than of the
 ///   arm — the arm is the two chords' `min`, which has no witness of
 ///   its own and which an underflowed chord always wins, so asking the

@@ -18,3 +18,13 @@ A pcurve is a cache the kernel derives from the edge and its faces, not data a f
 ## Question
 
 Should a pcurve check's at-rest ending name the kernel alone (`KERNEL_DEFECT_ENDING`, the build ending), for example through its own `SizedDecision` with `StoredDefinite::Lever`-like semantics or a reading fixed at `Reading::Build`? Or is a pcurve read back from a file (STEP p-curves) in some path? If it is, the file is the right thing to name there. First check which readers end a `PcurveCertifyError` at rest (`PcurveCertifyError::ending`).
+
+## Evidence, 2026-10-19 (PR 5349)
+
+`StoredDefinite` is gone; a sized decision now names its `RefusedSide` (`crates/geom-brep/src/recourse.rs`). What holds now:
+
+- `PcurveCheck::ParamSpan` still routes to `CertCheck::ParamSpan`, now `RefusedSide::Unminted`; `AzimuthPeriod`/`TubePeriod` still route to `CertCheck::ParamWinding`, now `RefusedSide::StoredContradiction` (`PcurveCheck`'s routing in `crates/geom-brep/src/pcurve_cache.rs`).
+- At rest both sides end in `KERNEL_OR_FILE_DEFECT_ENDING` (`SizedDecision::words`, `RefusedReading::ContradictsStoredData`), so the finding stands: a cache the kernel derives is still told it may be a damaged file.
+- `ParamSpan`'s note is one `Option` now, read only where the reading ends in the lever (a build). Its text names the kernel alone ("is one no kernel construction mints, so this is a kernel defect worth reporting"); the stored note naming the file is gone, and at rest no note is read.
+- `PcurveCertifyError::ending` takes a `Reading`, not a `ReadAt`, so a pcurve refusal never reaches the import door's `DAMAGED_FILE_ENDING`.
+- `work/encl/at-rest-stored-contradictions-and-unminted-sides-panic-once-import-validates-everything.md` (parked) would turn these at-rest endings into a panic, which settles the wording.

@@ -2840,7 +2840,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "mod.rs",
         "locus_through_both_faces",
         "Coincide::TangentLocus",
-        2,
+        1,
     ),
     ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
     ("mod.rs", "verify_tangency", "Coincide::Rim", 1),

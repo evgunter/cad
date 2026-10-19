@@ -40,3 +40,5 @@ This fits #4861 re-posing the ellipse carrier (`u_ref` on a principal axis), whi
 ## What is open
 
 The owner decides whether the 60 lost aimed-vertex answers are acceptable, and re-pins with that reading stated, or fixes what lost them. Until then, every program's downstream run sees this row red on main.
+
+**Re-pinned, then moved again (2026-10-19).** INTENT stage 3 C (PR 5267) re-pinned the row to A′'s tally (441198, 141763, 12306, 6534). PR 5225 (`pcert/azimuth-placement`) then moved it to (441198, 141805, 13524, 6936), and the 2026-10-19 nightly is red at every ε. That movement is filed on PCERT's slate as `review-pick-r2-tally-moved-at-5225-azimuth-placement`. The question above about PR 4861's lost answers is still open.

@@ -247,6 +247,9 @@ fn clone_product(
         unminted: product.unminted.clone(),
         carried: product.carried.clone(),
         carried_unminted: product.carried_unminted.clone(),
+        carried_interference: product.carried_interference.clone(),
+        carried_at_rest: product.carried_at_rest.clone(),
+        census_pairs: product.census_pairs.clone(),
         spaces: d::loose_spaces(doc, evaluation, tol),
     }
 }

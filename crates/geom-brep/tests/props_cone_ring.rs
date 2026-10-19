@@ -1,8 +1,9 @@
 //! **A cone face with a hole measures its outer loop less its rings.**
 //! The cone's closed form is the boundary's vector area
 //! (`cone_face_closed_form`), summed over every loop; these rows pin
-//! the ring certificate it rests on: a ring is a hole, contractible on
-//! the nappe and wound against its face, or the face refuses.
+//! the ring certificate it rests on: a ring that does not wind the axis
+//! is a hole, wound against its face, and two rims that wind it bound a
+//! band, or the face refuses.
 //!
 //! Areas are asserted against closed forms; this file is on CI's
 //! `eps ∈ {default, 1e-6, 1e-12}` matrix.
@@ -169,24 +170,44 @@ fn a_ring_wound_with_its_face_refuses() {
     }
 }
 
-/// **A ring that winds the axis refuses.** A band between two whole
-/// rims is a face, but which rim is its outer loop is not a fact about
-/// the band, so the winding test cannot read it: the second rim
-/// refuses as a ring that is not contractible, in both traversals.
+/// **A band between two whole rims measures, as the periodic charts'
+/// bands do; rims wound alike bound no band.** A ring that winds the
+/// axis is no hole: the band's two rims, wound opposite ways, bound the
+/// frustum between them in both orders, `π·sin α·(v₁² − v₀²)`. The same
+/// two rims wound alike, and four wound `+ + − −`, refuse
+/// ([`PropsError::LoopsWindChart`]).
 #[test]
-fn a_ring_that_winds_the_axis_refuses() {
+fn a_band_of_two_whole_rims_measures_and_rims_wound_alike_refuse() {
+    let whole = |v: f64, up: bool| {
+        let (a, b) = if up { (0.0, TAU) } else { (TAU, 0.0) };
+        vec![
+            rim(v, a, (a + b) / 2.0, 0, 1),
+            rim(v, (a + b) / 2.0, b, 1, 0),
+        ]
+    };
     for (lo, hi) in [(1.0, 2.0), (2.0, 1.0)] {
-        let outer = vec![rim(lo, 0.0, PI, 0, 1), rim(lo, PI, TAU, 1, 0)];
-        let ring = vec![rim(hi, TAU, PI, 0, 1), rim(hi, PI, 0.0, 1, 0)];
-        let got = measure(&[outer, ring]);
+        let got = measure(&[whole(lo, true), whole(hi, false)]);
+        let area = PI * SIN_A * 3.0;
+        let (_, a) = got.unwrap_or_else(|e| panic!("outer at {lo}: {e:?}"));
         assert!(
-            matches!(
-                got,
-                Err(PropsError::ConeLoop {
-                    what: "props_cone_ring_contractible"
-                })
-            ),
-            "outer at {lo}: {got:?}"
+            (a - area).abs() <= 1e-12 * area,
+            "outer at {lo}: area {a}, not {area}"
+        );
+        assert_eq!(
+            measure(&[whole(lo, true), whole(hi, true)]).err(),
+            Some(PropsError::LoopsWindChart),
+            "outer at {lo}, wound alike"
         );
     }
+    assert_eq!(
+        measure(&[
+            whole(1.0, true),
+            whole(1.5, true),
+            whole(2.0, false),
+            whole(2.5, false)
+        ])
+        .err(),
+        Some(PropsError::LoopsWindChart),
+        "four rims wound + + − −"
+    );
 }
