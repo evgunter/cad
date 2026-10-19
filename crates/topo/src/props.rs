@@ -2675,6 +2675,48 @@ pub fn mass_properties_with_face_terms(
     Ok((props, terms))
 }
 
+/// Every quadrature face of `body` with the first round its lane meets
+/// the reporting target at, each read alone at that round about the
+/// walk's reference ([`walk_reference`]) as [`mass_properties`] reads it:
+/// `(face, its surface's kind, round)`, `None` where no round of the
+/// schedule meets it. Test vocabulary: two poses of one body compare their faces'
+/// rounds, which say whether a face's width depends on where it sits.
+///
+/// # Errors
+///
+/// As [`mass_properties`], for a face refused outright.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub fn quadrature_rounds(
+    body: &Body<f64>,
+    tol: Tol,
+) -> Result<Vec<(FaceKey, geom::SurfaceKind, Option<usize>)>, MassPropsError> {
+    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+    let faces = crate::query::all_faces(body);
+    let hook = reporting_hook(Some(QuadLane::certified()));
+    let about = walk_reference(body, faces.iter().copied())?;
+    let mut rounds = Vec::new();
+    for &face in &faces {
+        let (mut met, mut quadrature) = (None, false);
+        // Each lane's schedule ends long before this bound, with no round
+        // left to resume at.
+        for round in 0..64 {
+            let run = face_flux(body, face, band, &hook, tol, RoundWindow::at(round), about)?;
+            quadrature = run.contribution.enclosure.is_some();
+            if run.converged_at.is_some() {
+                met = Some(round);
+            }
+            if !quadrature || met.is_some() || run.open_at.is_none() {
+                break;
+            }
+        }
+        if quadrature {
+            rounds.push((face, resolve_face(body, face).1.kind(), met));
+        }
+    }
+    Ok(rounds)
+}
+
 /// The reporting walk: every face to the target, folded. The runs are
 /// handed back beside the sum for `mass_properties_with_face_terms`.
 fn mass_properties_runs<T: Decide>(
@@ -5917,5 +5959,83 @@ mod exact_enclosure_rows {
             }
         }
         assert!(read > 0, "a needle built");
+    }
+}
+
+/// **The walk's reference moves no volume in the reals**
+/// ([`walk_reference`]): a closed surface's flux sum does not depend on
+/// the point it is about, so a closed-form body's volume about its
+/// first loop point is its volume about the world origin, to the
+/// rounding of the sum.
+#[cfg(test)]
+mod walk_reference_rows {
+    use super::*;
+
+    /// `body`'s volume, every face read about `about`.
+    fn volume_about(body: &Body<f64>, about: Point3<f64>, tol: Tol) -> f64 {
+        let band = Band::linear(tol).unwrap();
+        let faces = crate::query::all_faces(body);
+        let hook = reporting_hook(Some(QuadLane::<f64>::certified()));
+        let runs = decide_faces_serially(&faces, |&f| {
+            face_flux(body, f, band, &hook, tol, RoundWindow::SCHEDULE, about)
+        })
+        .unwrap();
+        assert!(
+            runs.iter().all(|r| r.contribution.enclosure.is_none()),
+            "every face of the row's bodies has a closed form"
+        );
+        fold_runs(&runs).0.volume
+    }
+
+    #[test]
+    fn a_closed_form_bodys_volume_is_its_volume_about_the_world_origin() {
+        let tol = Tol::witness();
+        let notch = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0), (0.0, 2.0)];
+        let disc = {
+            let p = crate::test_support::prism::<f64>(&notch, 1.0, tol);
+            let mut body = p.body;
+            let outer = body.get_face(p.top_face).unwrap().outer;
+            let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+                panic!("the top's outer loop is a cycle");
+            };
+            crate::test_support::plant_disc_face(
+                &mut body,
+                first,
+                Point3::new(1.0, 0.6, 1.0),
+                0.4,
+                tol,
+            );
+            body
+        };
+        let bodies = [
+            (
+                "unit brick",
+                crate::test_support::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+            ),
+            (
+                "brick off the axes",
+                crate::test_support::brick::<f64>((0.3, 1.7), (-0.9, 0.1), (0.2, 2.9), tol),
+            ),
+            (
+                "notch prism",
+                crate::test_support::prism::<f64>(&notch, 1.0, tol).body,
+            ),
+            ("notch prism with a disc", disc),
+            (
+                "holed block",
+                crate::test_support::holed_block::<f64>(4.0, &[1.0, 3.0], tol),
+            ),
+        ];
+        for (name, body) in &bodies {
+            let about = walk_reference(body, crate::query::all_faces(body)).unwrap();
+            let (new, old) = (
+                volume_about(body, about, tol),
+                volume_about(body, Point3::origin(), tol),
+            );
+            assert!(
+                (new - old).abs() <= 4.0 * f64::EPSILON * old.abs(),
+                "{name}: about the reference {new:e}, about the origin {old:e}"
+            );
+        }
     }
 }
