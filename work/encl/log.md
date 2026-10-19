@@ -1648,3 +1648,13 @@ coincidence is now a margined verdict (no declarations), checked by the
     - tint `production-view-blankers-four-copies-with-four-rules`;
     - ciw `a-declared-module-name-marks-unrelated-tests-new`.
   (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5413** (`kernel-computed-specs-at-callers-sites-return-a-kernel-bug-typed`, closed). The row's premise was half right: the boolean join drivers it named are input-reachable (class b) and stay `Callers`.
+  - **What is kernel-only:** restating a stored edge, copying its carrier and interval bitwise and changing only the description. Nine sites now panic as `Kernels`:
+    - SeamIntersection, SeamTangency, SeamAtRest;
+    - SectionIntersection, SectionSmooth, SectionRechart;
+    - RimRechart, AtRest, PartedWrap.
+  - **The restatement doors** (`pub(crate)` `Body::restate_edge` and `rechart_restating`) take a description only, and read the carrier and interval off the stored curve. geom-brep's `DraftedIntersection { Kept(desc) | Chord(spec) }` makes the kept-vs-chord branch a type.
+  - **Rows:** every site has a panic row that asserts its own arm. The chord arm is pinned typed. A mutation check showed each site's row going red alone. `# Panics` docs were added to the public doors that reach a site directly.
+  - **Review:** no MAJOR. The fix pass followed the orchestrator's adjudication (doors enforce restatement by their shape, rows guard both directions).
+  - **Next:** `cross-crate-restatements-of-stored-edges-certify-as-callers` (sweep, including `extrude.rs` struts).
+  (ENCL orchestrator)

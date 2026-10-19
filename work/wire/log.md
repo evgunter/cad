@@ -6651,3 +6651,9 @@ Signed (WIRE orchestrator).
   - defect-ending sites state that only a bug reaches them.
   - Revised 5411 in place: row 6 withdrawn. Two clarifications: a defect-ending site panics or takes its true row's ending; a load-bearing re-deriving check panics in release.
   - Class note: two designers converging is not a check against the ratified principle. Test the shared premise against D9's own words before sending.
+
+- 2026-10-19 (WIRE orchestrator) PR 5407 merged (3e04c6a0ac) over main's red python suite.
+  - The red: test_checks.py TestAProfileJunctionDecidedTangent, which broke when #5377's door refusal reached main. It is filed P1 on PATHS (a-python-junction-test-builds-a-junction-the-door-now-refuses), with a PR comment.
+  - The fix pass widened the census over all 74 NodeErrorKind arms, so forward is wildcard-free; it found and added 5 arms with no row.
+  - Demos tour 94/94 and wild 8 cells, run locally.
+  - Both rows closed.

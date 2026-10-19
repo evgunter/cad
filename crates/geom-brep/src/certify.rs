@@ -2644,6 +2644,7 @@ pub struct IntersectionDraft<T: Real> {
     carrier: Curve3<T>,
     param_start: T,
     param_end: T,
+    kept: bool,
 }
 
 impl<T: SpanLocate> IntersectionDraft<T> {
@@ -2658,6 +2659,7 @@ impl<T: SpanLocate> IntersectionDraft<T> {
                     carrier: c.carrier().clone(),
                     param_start: t0,
                     param_end: t1,
+                    kept: true,
                 }
             }
             None => {
@@ -2667,6 +2669,7 @@ impl<T: SpanLocate> IntersectionDraft<T> {
                     carrier: chord.carrier,
                     param_start: chord.param_start,
                     param_end: chord.param_end,
+                    kept: false,
                 }
             }
         }
@@ -2680,18 +2683,36 @@ impl<T: Real> IntersectionDraft<T> {
         (&self.carrier, (self.param_start, self.param_end))
     }
 
-    /// The `Intersection` spec of `pair` at this draft's witness.
-    pub fn into_spec(self, pair: SurfacePair) -> EdgeCurveSpec<T> {
-        EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection {
-                pair,
-                witness: self.witness,
-            },
-            carrier: self.carrier,
-            param_start: self.param_start,
-            param_end: self.param_end,
+    /// The `Intersection` of `pair` at this draft's witness: the
+    /// description alone where the draft kept the edge's own carrier and
+    /// interval, the whole chord spec where it drew one.
+    pub fn into_intersection(self, pair: SurfacePair) -> DraftedIntersection<T> {
+        let description = EdgeDescriptionSpec::Intersection {
+            pair,
+            witness: self.witness,
+        };
+        if self.kept {
+            DraftedIntersection::Kept(description)
+        } else {
+            DraftedIntersection::Chord(EdgeCurveSpec {
+                description,
+                carrier: self.carrier,
+                param_start: self.param_start,
+                param_end: self.param_end,
+            })
         }
     }
+}
+
+/// An [`IntersectionDraft`]'s `Intersection`, by whose carrier it is
+/// stated over.
+#[derive(Clone, Debug)]
+pub enum DraftedIntersection<T: Real> {
+    /// The edge's own certified carrier and interval, kept: only the
+    /// description, which restates them.
+    Kept(EdgeDescriptionSpec<T>),
+    /// The chord drawn between the edge's ends: a spec of its own.
+    Chord(EdgeCurveSpec<T>),
 }
 
 /// The honest spatial **extent** of an edge's own point set — the lever

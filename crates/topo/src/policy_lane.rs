@@ -64,6 +64,29 @@ pub(crate) enum KernelSite {
     ReDescription,
     /// A re-based run's re-certification of its edges.
     ReBasedRun,
+    /// [`crate::boolean::describe_edges`]' transverse seam, described
+    /// as its pair's `Intersection` on its own curved carrier.
+    SeamIntersection,
+    /// [`crate::boolean::describe_edges`]' smooth seam whose surfaces
+    /// determine it, described as their `TangentIntersection`.
+    SeamTangency,
+    /// [`crate::boolean::describe_edges`]' smooth seam whose description
+    /// went stale, restated where it rests.
+    SeamAtRest,
+    /// A split's transverse section boundary edge, described as its
+    /// pair's `Intersection` on its own curved carrier.
+    SectionIntersection,
+    /// A split's smooth section boundary edge, described as the
+    /// must-carry rule demands.
+    SectionSmooth,
+    /// A split's re-chart of a section face, its stranded edges restated.
+    SectionRechart,
+    /// A shell's re-chart of a promoted rim face, its edges restated.
+    RimRechart,
+    /// [`crate::Body::describe_at_rest`]'s restatement.
+    AtRest,
+    /// The restatement of a wrap edge whose halves an operation parted.
+    PartedWrap,
 }
 
 impl core::fmt::Display for KernelSite {
@@ -74,6 +97,15 @@ impl core::fmt::Display for KernelSite {
             Self::Graft => "a graft",
             Self::ReDescription => "a re-description",
             Self::ReBasedRun => "a re-based run's edge",
+            Self::SeamIntersection => "a seam's intersection",
+            Self::SeamTangency => "a seam's tangency",
+            Self::SeamAtRest => "a seam at rest",
+            Self::SectionIntersection => "a section boundary's intersection",
+            Self::SectionSmooth => "a section boundary's smooth join",
+            Self::SectionRechart => "a section re-chart",
+            Self::RimRechart => "a rim re-chart",
+            Self::AtRest => "describe_at_rest",
+            Self::PartedWrap => "a parted wrap edge",
         })
     }
 }
