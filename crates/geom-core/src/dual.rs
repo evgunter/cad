@@ -800,6 +800,14 @@ where
         self.value.point_value()
     }
 
+    fn structure_positive(self) -> bool {
+        self.value.structure_positive()
+    }
+
+    fn structure_bracket(self) -> Option<(f64, f64)> {
+        self.value.structure_bracket()
+    }
+
     /// A constant only with a derivative of exactly zero: a value that
     /// moves with the parameter is no constant, whatever its value.
     fn plain_constant(self) -> Option<f64> {

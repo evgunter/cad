@@ -45,13 +45,15 @@ The recipe admits three reference shapes, and every node is built from them:
 Two precedents these clauses extend. `SitedRef { at, name }` (`node.rs`)
 pairs a DAG edge with a frozen name: `at` says which evaluated value to read,
 `name` says which entity. A selection is the same pairing as a definition,
-its `body` the `at`. A `Revolve`'s axis (`node.rs`, `axis_origin` and
-`axis_direction`) is two pairs in its profile's own coordinates: its
-meaning comes from the profile's plane, which does not make the check
-cheaper but makes an axis out of that plane unrepresentable. A pose
-definition (`VarDef::Pose`, `pose.rs`) is a variable read off geometry or
-constructed from other poses (D10), each of its reads a DAG edge, bound at
-the reader's seat.
+its `body` the `at`. A `Revolve`'s axis (`node.rs`, `axis_through` and
+`axis_heading`) is a point and a heading in its profile's own
+coordinates: its meaning comes from the profile's plane, which does not
+make the check cheaper but makes an axis out of that plane, and a zero
+direction, unrepresentable. A pose definition (`VarDef::Pose`, `pose.rs`)
+is a variable read off geometry, moved from another by a slide or a spin,
+or constructed from other poses (D10), each of its reads a DAG edge (a
+finer pose read through the role it is read through), bound at the
+reader's seat.
 
 Also kept from elsewhere: a selection freezes (#217, `node.rs`); selectors
 materialize and are never stored (`names/select.rs`); `PlacedUnion` is a node
@@ -146,7 +148,8 @@ is stored. `select_where` filters on `SurfaceKind` exactly
 
 A `Split` defines two `Body` outputs, `above` and `below` (the port index is
 `SplitHalf::output_body`'s), read like any other output: a read of a port
-is that half, its body and its rows of the split's table. One member of a
+is that half, its body and its own name table (N1: one table per output
+variable). One member of a
 family (D10, Repetition) is read as `xs[i]`, or `xs[i, j]` for a family
 keyed by two indices: a read of the family at one `Count` expression per
 index (VR4); an index outside the

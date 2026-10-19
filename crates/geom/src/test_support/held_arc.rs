@@ -189,7 +189,7 @@ mod tests {
                 arc.knots.clone(),
                 arc.control.clone(),
                 carrier
-                    .weight_channel()
+                    .weights_f64_interim()
                     .iter()
                     .map(|w| S::from_f64(*w))
                     .collect(),

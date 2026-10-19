@@ -2,12 +2,12 @@
 id: a-mate-frame-is-written-in-the-reading-instances-coordinates
 kind: issue
 title: A mate's literal frame is written in the coordinates of the instance it reads, so split and inline must refuse where its meaning would change
-status: parked
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: M
 design: true
-blocked_on: [intent-stage3-is-built]
+closed: 2026-10-17
 ---
 
 
@@ -56,3 +56,7 @@ reads it. What this row asks is the same for the authored arm.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage3-is-built`, not on the whole program: what a mate's literal frame means is ASSEMBLY A3, which D10 retires; spaces, "a part has no location" and the per-space computing frame are stage 3. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed
+
+Stage 3 C retires the mate frame: a mate's `on` pose is read off the copy's own geometry and its `to` off the target's, each in its space, with no frame written in an instance's coordinates.

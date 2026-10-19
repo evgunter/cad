@@ -45,7 +45,7 @@
 // whatever the picker shows.
 
 use pncad::document::ExtrudeSide;
-use pncad::document::{Bodies, BooleanValue, RefusingReach, save};
+use pncad::document::{Bodies, BooleanValue, save};
 use pncad::prelude::AuthoredNode;
 use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, DEG, Datum, Dimension, Doc, DocEdit, EntityKind,
@@ -199,7 +199,6 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
             fresh: Vec::new(),
         },
         tol,
-        &RefusingReach,
     )
     .expect("the edit applies");
     *doc = applied.doc;
@@ -273,8 +272,8 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
             // The pole axis, in the meridian frame's own coordinates:
             // that frame's v IS world +Z, so the axis is its +y through
             // (0, 0).
-            axis_origin: [len(0.0), len(0.0)],
-            axis_direction: [scl(0.0), scl(1.0)],
+            axis_through: [len(0.0), len(0.0)],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             // A full turn, in the degrees this document is written in.
             angle: ang(360.0),
         },
@@ -475,7 +474,7 @@ const DOC_LABEL: &str = "die";
 /// beside it, and the derivation is exact because [`build`] mints every
 /// node through one `InsertNode` against the empty document: ids are
 /// minted in insertion order, so replaying the built nodes and then
-/// the one placement rebuilds the document — ids and all, and the
+/// the placement gesture's edits rebuilds the document — ids and all, and the
 /// profiles' step ids with them, minted afresh in the same order. That is asserted here rather than assumed: a `build` that
 /// grows a non-insert edit fails this door instead of quietly
 /// exporting a document that is not the one the scene renders.
@@ -512,13 +511,18 @@ pub fn corpus_text(tol: Tol) -> String {
             }
         })
         .collect();
-    edits.push(DocEdit::place(die.composed, None));
     let mut replay = empty.clone();
     for edit in &edits {
-        replay = apply(&replay, edit, tol, &RefusingReach)
+        replay = apply(&replay, edit, tol)
             .expect("the derived log replays")
             .doc;
     }
+    // The placement is the "place part" gesture: its edits are applied
+    // against the replayed nodes, because its values name the mate by
+    // the id that mate's own edit mints.
+    let placed = crate::world::place_in_world(&replay, die.composed, tol);
+    edits.extend(placed.edits);
+    replay = placed.doc;
     let published = gallery_document(tol);
     assert_eq!(
         replay.ids(),
@@ -579,14 +583,7 @@ pub fn corpus_text(tol: Tol) -> String {
 /// blends and the placement — not a chain length.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let die = build(tol);
-    apply(
-        &die.doc,
-        &DocEdit::place(die.composed, None),
-        tol,
-        &RefusingReach,
-    )
-    .expect("the composed die places")
-    .doc
+    crate::world::place_in_world(&die.doc, die.composed, tol).doc
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {

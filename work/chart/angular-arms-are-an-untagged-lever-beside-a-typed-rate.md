@@ -49,3 +49,11 @@ Filed by SCALAR's RATE-PAIR lane in its fix pass, as the successor of
 `loop-continuity-meters-u-through-levered-and-v-through-metered`
 (closed in the same PR), which named this as the class's next member.
 TRIM owns `crates/topo/src/pcurves.rs`.
+
+## PCERT B2a (PR 5244, 2026-10-17)
+
+`chart_windings` and its arm are gone: a harmonic row stores its
+windings and certification compares them exactly, so no lever reads a
+winding. The cone arm's `SupSpeed` minted and `.get()`-stripped at
+`pcurve_azimuth_period` is still there, in `pcurve_cache/projected.rs`'s
+check 2, which is now that gate's only site.

@@ -96,7 +96,7 @@ import sys
 import zlib
 from pathlib import Path
 
-from strip_png_stamps import parse_chunks
+from strip_png_stamps import encode_chunk, parse_chunks
 
 HERE = Path(__file__).resolve().parent
 
@@ -296,23 +296,14 @@ def check_dirs(dirs):
 # so it runs on every host the gate runs on.
 
 
-def _chunk(ctype, data):
-    return (
-        struct.pack(">I", len(data))
-        + ctype
-        + data
-        + struct.pack(">I", zlib.crc32(ctype + data) & 0xFFFFFFFF)
-    )
-
-
 def _tiny_png(path, texts):
     """A valid 1x1 greyscale PNG carrying the given tEXt chunks."""
     ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 0, 0, 0, 0)
     idat = zlib.compress(b"\x00\x00")
-    blob = [b"\x89PNG\r\n\x1a\n", _chunk(b"IHDR", ihdr)]
+    blob = [b"\x89PNG\r\n\x1a\n", encode_chunk(b"IHDR", ihdr)]
     for keyword, value in texts:
-        blob.append(_chunk(b"tEXt", keyword.encode() + b"\x00" + value.encode()))
-    blob += [_chunk(b"IDAT", idat), _chunk(b"IEND", b"")]
+        blob.append(encode_chunk(b"tEXt", keyword.encode() + b"\x00" + value.encode()))
+    blob += [encode_chunk(b"IDAT", idat), encode_chunk(b"IEND", b"")]
     path.write_bytes(b"".join(blob))
 
 
@@ -452,7 +443,11 @@ def main():
     if args == ["--selftest"]:
         selftest()
         return
-    dirs = args or [HERE / d for d in LANE_DIRS]
+    certify(args or [HERE / d for d in LANE_DIRS])
+
+
+def certify(dirs):
+    """Check `dirs`, report, and exit 1 on any violation."""
     violations, checked = check_dirs(dirs)
     if violations:
         print(

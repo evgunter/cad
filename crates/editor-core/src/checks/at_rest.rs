@@ -28,9 +28,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Sign, Tol};
-use topo::{
-    AtRestPolicy, Body, CensusContact, CrossingSideVerdict, FaceKey, SolidKey, ValidationError,
-};
+use topo::{AtRestPolicy, Body, FaceKey, SolidKey, ValidationError};
 
 use crate::VarId;
 use crate::doc::Doc;
@@ -267,36 +265,6 @@ fn opposed<T: Decide>(body: &Body<T>, outer: FaceKey, inner: FaceKey, band: Band
     }
 }
 
-/// **Which census verdict is interference evidence**, and the two
-/// solids it is about: a vertex inside another solid's material, an
-/// edge piercing a face, or an in-plane crossing read `SameSide`.
-fn interference_solids<T: Decide>(
-    body: &Body<T>,
-    error: &ValidationError,
-) -> Option<(SolidKey, SolidKey)> {
-    let of_edge = |edge| {
-        let he = body.get_edge(edge)?.he_plus;
-        body.solid_of_face(body.face_of_half_edge(he)?)
-    };
-    match error {
-        ValidationError::InstanceInterference { outer, inner, .. } => Some((*outer, *inner)),
-        ValidationError::UnrecordedContact {
-            contact: CensusContact::EdgeFacePierce { edge, face },
-            ..
-        } => Some((of_edge(*edge)?, body.solid_of_face(*face)?)),
-        ValidationError::UnrecordedContact {
-            contact:
-                CensusContact::EdgeEdgeCross {
-                    a,
-                    b,
-                    side: Some(CrossingSideVerdict::SameSide),
-                },
-            ..
-        } => Some((of_edge(*a)?, of_edge(*b)?)),
-        _ => None,
-    }
-}
-
 /// **The scalars the gate localizes an overlap at**: one seam per
 /// scalar, because localizing builds bodies (the copies' intersection
 /// and the region past each asserted carrier), which reads the
@@ -386,7 +354,8 @@ pub(crate) fn partition<T: LocalizeLane>(
     let mut pairs: Vec<((usize, usize), Vec<ValidationError>)> = Vec::new();
     let mut rest = Vec::new();
     for error in errors {
-        let pair = interference_solids(&product.body, &error).and_then(|(x, y)| pair_of(x, y));
+        let pair = topo::census_interference_solids(&product.body, &error)
+            .and_then(|(x, y)| pair_of(x, y));
         match pair {
             Some(pair) => match pairs.iter_mut().find(|(p, _)| *p == pair) {
                 Some((_, evidence)) => evidence.push(error),
@@ -405,14 +374,15 @@ pub(crate) fn partition<T: LocalizeLane>(
     // (`topo::record_at_rest`), and which keeps the finding loud. A pair
     // the census decided nothing about stays refused as it left it.
     let undecided_pair = |error: &ValidationError| match error {
-        ValidationError::CensusUndecidable { a, b, .. } => {
-            pair_of(solid_of(&product.body, *a)?, solid_of(&product.body, *b)?)
-        }
+        ValidationError::CensusUndecidable { a, b, .. } => pair_of(
+            topo::census_entity_solid(&product.body, *a)?,
+            topo::census_entity_solid(&product.body, *b)?,
+        ),
         touch @ ValidationError::UnrecordedContact { .. } => {
             let [x, y] = topo::census_contact_row(touch)?
                 .cells
                 .map(|cell| match cell {
-                    topo::RowCell::Result { cell } => cell_solid(&product.body, cell),
+                    topo::RowCell::Result { cell } => topo::census_cell_solid(&product.body, cell),
                     topo::RowCell::Input { .. } | topo::RowCell::Tool => None,
                 });
             pair_of(x?, y?)
@@ -443,6 +413,32 @@ pub(crate) fn copy_groups<T: Decide>(copies: &[GatheredCopy<T>]) -> BTreeMap<Sol
         .collect()
 }
 
+/// **A cell of the gathered product, named as its copy reads it**:
+/// which copy holds it (by its index in `copies`) and the cell as that
+/// copy's placement output names it, `None` for a cell of no copy.
+pub(crate) fn copy_cell<T: Decide>(
+    body: &Body<T>,
+    names: &NameTable,
+    copies: &[GatheredCopy<T>],
+    groups: &BTreeMap<SolidKey, u32>,
+    cell: topo::Cell,
+) -> Option<(usize, crate::coincide::NamedCell)> {
+    let key = match cell {
+        topo::Cell::Face(f) => EntityKey::Face(f),
+        topo::Cell::Edge(e) => EntityKey::Edge(e),
+        topo::Cell::Vertex(v) => EntityKey::Vertex(v),
+    };
+    let copy = *groups.get(&topo::census_cell_solid(body, cell)?)? as usize;
+    let name = names.name_of(&EntityRef { body: 0, key })?.clone();
+    Some((
+        copy,
+        crate::coincide::NamedCell::Entity {
+            input: copies[copy].var,
+            name,
+        },
+    ))
+}
+
 /// **The census's rows between two copies, named** (D1 (iii), D10):
 /// each row [`topo::record_at_rest`] recorded between two copies, its
 /// cells named as each copy's placement reads them, and the two copies
@@ -459,14 +455,7 @@ pub(crate) fn copy_rows<T: Decide>(
         let topo::RowCell::Result { cell } = cell else {
             return None;
         };
-        let key = match cell {
-            topo::Cell::Face(f) => EntityKey::Face(f),
-            topo::Cell::Edge(e) => EntityKey::Edge(e),
-            topo::Cell::Vertex(v) => EntityKey::Vertex(v),
-        };
-        let copy = *groups.get(&cell_solid(body, cell)?)? as usize;
-        let name = names.name_of(&EntityRef { body: 0, key })?.clone();
-        Some((copy, name))
+        copy_cell(body, names, copies, &groups, cell)
     };
     let by = |x: usize| CopyRef {
         var: copies[x].var,
@@ -477,14 +466,10 @@ pub(crate) fn copy_rows<T: Decide>(
             let [Some((ca, na)), Some((cb, nb))] = row.cells.map(named) else {
                 unreachable!("a row the census recorded between copies names a cell of each")
             };
-            let cell = |copy: usize, name| crate::coincide::NamedCell::Entity {
-                input: copies[copy].var,
-                name,
-            };
             crate::assembly::AtRestRow {
                 by: crate::assembly::AtRestBy::Copies(by(ca.min(cb)), by(ca.max(cb))),
                 row: crate::coincide::NamedCoincidence {
-                    cells: [cell(ca, na), cell(cb, nb)],
+                    cells: [na, nb],
                     relation: row.relation,
                     site: row.site,
                     margin: row.margin,
@@ -493,26 +478,6 @@ pub(crate) fn copy_rows<T: Decide>(
             }
         })
         .collect()
-}
-
-/// The solid an edge or a vertex of `body` belongs to, through a
-/// half-edge of it; `None` for a lone vertex.
-fn cell_solid<T: Decide>(body: &Body<T>, cell: topo::Cell) -> Option<SolidKey> {
-    let he = match cell {
-        topo::Cell::Edge(e) => body.get_edge(e)?.he_plus,
-        topo::Cell::Vertex(v) => body.get_vertex(v)?.emanating?,
-        topo::Cell::Face(f) => return body.solid_of_face(f),
-    };
-    body.solid_of_face(body.face_of_half_edge(he)?)
-}
-
-/// The solid a census entity belongs to: itself, or a face's.
-fn solid_of<T: Decide>(body: &Body<T>, entity: topo::EntityId) -> Option<SolidKey> {
-    match entity {
-        topo::EntityId::Solid(s) => Some(s),
-        topo::EntityId::Face(f) => body.solid_of_face(f),
-        _ => None,
-    }
 }
 
 /// **Two copies intersected**: the overlap of their material, `None`

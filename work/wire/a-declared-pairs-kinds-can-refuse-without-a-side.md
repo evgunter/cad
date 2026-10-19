@@ -2,11 +2,12 @@
 id: a-declared-pairs-kinds-can-refuse-without-a-side
 kind: issue
 title: DeclareUnsupportedPair cannot say 'no step under either operand assignment', so the declare door's both-operands refusal outranks an answerable kind question
-status: open
+status: closed
 opened: 2026-09-15
 refs: [route-declarations-ranks-the-step-question-above-the-pairs-kinds]
 priority: P1
 cost: D
+closed: 2026-10-17
 ---
 
 ## Finding
@@ -62,3 +63,9 @@ would answer with.
 - `crates/editor-core/src/eval/mod.rs`,
   `NodeErrorKind::DeclareUnsupportedPair` — `cross_operand`, the field
   with no third state.
+
+## Closed (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. The declare door is gone: `DeclareUnsupportedPair`, `DeclareBothOperands`, `declare_landing` and `declared_step` match nothing in `crates/*/src`, deleted by INTENT stage 4 F (`declared-pairs-retire`). Two prose mentions survive (`tests/wire_entity_door.rs`, `names/emit_union.rs` module doc) and are cut by the next WIRE unit that touches those files.
+
+Signed (WIRE orchestrator).

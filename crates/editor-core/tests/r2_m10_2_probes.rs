@@ -44,7 +44,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
 }
 
 fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
+    apply(doc, edit, Tol::witness())
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
@@ -53,7 +53,7 @@ fn try_push(
     doc: &ProfileDoc,
     edit: &DocEdit<ProfileProgram>,
 ) -> Result<ProfileDoc, editor_core::EditError> {
-    apply(doc, edit, Tol::witness(), &editor_core::RefusingReach).map(|a| a.doc)
+    apply(doc, edit, Tol::witness()).map(|a| a.doc)
 }
 
 fn no_params() -> editor_core::VarEnv<f64> {
@@ -242,7 +242,7 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
             node: Box::new(fixture::revolve_about(
                 p,
                 (0.0, 0.0),
-                (0.0, 1.0),
+                crate::fixture::along_y(),
                 ang(std::f64::consts::TAU),
             )),
             fresh: Vec::new(),
@@ -940,9 +940,15 @@ fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
                     x.content_key, y.content_key,
                     "node {id:?} content key moved"
                 );
+                let size = |ev, id| -> Vec<usize> {
+                    crate::fixture::tables(ev, id)
+                        .iter()
+                        .map(|t| t.len())
+                        .collect()
+                };
                 assert_eq!(
-                    x.name_table.len(),
-                    y.name_table.len(),
+                    size(&a, *id),
+                    size(&c, *id),
                     "node {id:?} name table size moved"
                 );
             }

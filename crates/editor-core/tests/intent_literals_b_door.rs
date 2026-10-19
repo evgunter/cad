@@ -1,5 +1,5 @@
 //! INTENT-LITERALS PR B: the edit door lowers an authored node, program
-//! or offset in one walk, and every formula that walk reaches refuses
+//! or constraint in one walk, and every formula that walk reaches refuses
 //! typed where it does not lower — never a panic.
 //!
 //! The review rows (p1–p4) pin the base's refusals: a count beside a
@@ -10,13 +10,12 @@
 
 use crate::blocks::block;
 use crate::corpus;
-use crate::fixture::resolver::{PartStore, in_part};
-use crate::fixture::{ang, head, len, scl};
+use crate::fixture::resolver::PartStore;
+use crate::fixture::{ang, len, scl};
 use editor_core::{
-    Alignment, AuthoredNode, AxisSense, CapEnd, ContactClass, CountMismatch, Dimension, DocEdit,
-    DocRef, DocumentId, EditError, Formula, Frame, FreeVar, LoopProgram, MateFrame, MatePrimitive,
-    Node, PatternKind, Placement, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, Step,
-    TubeWindow, VarDecl, VarName, apply, content_pin,
+    AuthoredNode, CapEnd, ContactClass, CountMismatch, Dimension, DocEdit, DocRef, DocumentId,
+    EditError, Formula, Frame, FreeVar, LoopProgram, Node, PatternKind, ProfileDoc, ProfileProgram,
+    RecipeNodeId, RoleSeg, TubeWindow, VarDecl, VarName, WorldRead, apply, content_pin,
 };
 use geom_core::Tol;
 use std::collections::BTreeSet;
@@ -26,7 +25,7 @@ fn name(text: &'static str) -> VarName {
 }
 
 fn edit(doc: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> Result<ProfileDoc, EditError> {
-    apply(doc, e, Tol::witness(), &RefusingReach).map(|a| a.doc)
+    apply(doc, e, Tol::witness()).map(|a| a.doc)
 }
 
 fn body() -> (ProfileDoc, RecipeNodeId) {
@@ -41,14 +40,25 @@ fn insert(node: AuthoredNode) -> DocEdit<ProfileProgram> {
     }
 }
 
-/// A placement of one rigid step, every component a formula.
-fn rigid() -> Placement<Formula> {
-    Placement {
-        steps: vec![Step::Rigid {
-            translation: [len(0.1), len(0.2), len(0.3)],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.5),
-        }],
+/// The world's `xy` plane slid along its `z` axis and spun about it,
+/// each move's number a formula.
+fn moved() -> WorldRead<Formula> {
+    let z = || WorldRead::through(editor_core::pose::PoseRole::Z);
+    WorldRead::through(editor_core::pose::PoseRole::Xy)
+        .slide(z(), len(0.3))
+        .spin(z(), ang(0.5))
+}
+
+/// A mate of the plane of `body`'s start cap with the world's plane as
+/// [`moved`] reads it.
+fn on_the_world(body: RecipeNodeId) -> editor_core::Mate<Formula> {
+    editor_core::Mate {
+        on: crate::fixture::plane(crate::fixture::head(crate::fixture::fname(
+            body,
+            RoleSeg::Cap(CapEnd::Start),
+        ))),
+        to: editor_core::Target::World(moved()),
+        class: ContactClass::Rest,
     }
 }
 
@@ -156,7 +166,6 @@ fn a_refused_insert_speaks_one_id_by_name_or_by_id() {
             ))),
         },
         Tol::witness(),
-        &RefusingReach,
     )
     .expect("w declares");
     let w = applied.record.minted_var.expect("a declare mints");
@@ -219,7 +228,7 @@ impl Unheld {
     }
 
     /// Whether `refused` is this form's refusal where every formula has
-    /// an address (a program's argument, an offset's).
+    /// an address (a program's argument, a world read's number).
     fn refuses_at_a_slot(self, refused: &EditError) -> bool {
         match self {
             Self::Name => matches!(
@@ -271,15 +280,15 @@ fn kind_of(node: &AuthoredNode) -> String {
 /// fresh entry — refuses typed.** Over every node of every corpus document plus
 /// p1/p2's listed-rule nodes: each node re-authored, and for each
 /// formula `try_map_slots` visits — slots, payload leaves, a profile's
-/// program, a placement's steps, a mate's frame offsets, the count no
-/// slot addresses — that one formula unheld, inserted. Then the
+/// program, a placement's steps, a mate's world read, a value's number,
+/// the count no slot addresses — that one formula unheld, inserted. Then the
 /// same over every profile's program at `SetProgram`. A slot type the
 /// walk reaches and the refusal does not is a red row, not a panic in
 /// a caller.
 #[test]
 fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
     // The block placed in its world, as a part stored for instancing
-    // is: the mate rows name its caps through that placement.
+    // is: the placement rows copy its body.
     let mut store = PartStore::default();
     let (part, b) = store.insert_part(body(), Tol::witness());
     let edge_doc = store.doc(part.id);
@@ -296,8 +305,8 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
     let profile = held(|n| matches!(n, Node::Profile(_)));
     // The listed-rule counts no slot addresses (p1/p2), and the slot
     // types no corpus document holds: a shell, a sweep, a windowed
-    // tube, a gauge's and an instance's placements, a mate's frame
-    // offsets. Each operand reads a live output of the kind its slot
+    // tube, an instance's world read, a placement's world read and a
+    // value on its mate. Each operand reads a live output of the kind its slot
     // admits, so the refusal is the formula's.
     let edges: Vec<AuthoredNode> = vec![
         Node::Pattern {
@@ -326,24 +335,30 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
                 t1: scl(0.5),
             },
         },
-        Node::gauge(None, rigid()),
-        Node::instantiate_part_with(
-            reference(&edge_doc),
-            editor_core::InterfaceRecord::default(),
-            None,
-            Some(rigid()),
-        ),
-        Node::Mate {
-            a: head(in_part(b, b, CapEnd::End)).into(),
-            b: head(in_part(b, b, CapEnd::Start)).into(),
-            class: ContactClass::Rest,
-            alignment: Alignment {
-                a: MateFrame::on_part(rigid()),
-                b: MateFrame::on_part(rigid()),
-                primitive: MatePrimitive::FrameCoincidence,
-                sense: AxisSense::Aligned,
-                clocking: None,
-            },
+        Node::InstantiatePart {
+            doc_ref: reference(&edge_doc),
+            interface: editor_core::InterfaceRecord::default(),
+            constraints: vec![editor_core::Constraint {
+                id: editor_core::ConstraintId(editor_core::MintId::new(0, 0)),
+                kind: editor_core::ConstraintKind::Mate(on_the_world(b)),
+            }],
+        },
+        Node::Place {
+            shapes: vec![b.into()],
+            constraints: vec![
+                editor_core::Constraint {
+                    id: editor_core::ConstraintId(editor_core::MintId::new(0, 0)),
+                    kind: editor_core::ConstraintKind::Mate(on_the_world(b)),
+                },
+                editor_core::Constraint {
+                    id: editor_core::ConstraintId(editor_core::MintId::new(0, 1)),
+                    kind: editor_core::ConstraintKind::Value(editor_core::Value {
+                        mate: editor_core::ConstraintId(editor_core::MintId::new(0, 0)),
+                        coord: editor_core::Coord::Slide(editor_core::SlideAxis::X),
+                        by: len(0.2),
+                    }),
+                },
+            ],
         },
     ];
     let mut cases: Vec<(String, ProfileDoc, AuthoredNode)> = edges
@@ -438,52 +453,55 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             }
         }
     }
-    // The same over an instance's offset, at `SetOffset`.
+    // The same over an instance's world read, at `AddConstraint`.
     let instance = apply(
         &edge_doc,
-        &insert(Node::instantiate_part(reference(&edge_doc))),
+        &insert(crate::fixture::mated_instance(reference(&edge_doc))),
         Tol::witness(),
-        &RefusingReach,
     )
     .expect("an instance inserts");
     let target = instance.record.minted.expect("an insert mints");
-    let offset = rigid();
+    let world = moved();
     let mut offsets = 0usize;
     for form in Unheld::ALL {
         let mut at = 0;
         loop {
-            let (mutated, seen) = unheld_at(form, at, |f| offset.try_map_slots(&mut |e| f(e)));
+            let (mutated, seen) = unheld_at(form, at, |f| world.try_map(&mut |e| f(e)));
             if at >= seen {
                 break;
             }
             offsets += 1;
             let refused = edit(
                 &instance.doc,
-                &DocEdit::SetOffset {
-                    instance: target,
-                    offset: Some(mutated),
+                &DocEdit::AddConstraint {
+                    placement: target,
+                    mate: Box::new(editor_core::Mate {
+                        to: editor_core::Target::World(mutated),
+                        ..on_the_world(b)
+                    }),
                     fresh: Vec::new(),
                 },
             )
             .expect_err("an unheld read refuses");
             assert!(
                 form.refuses_at_a_slot(&refused),
-                "offset step argument {at} as {form:?}: {refused:?}"
+                "world read argument {at} as {form:?}: {refused:?}"
             );
             at += 1;
         }
     }
     println!(
-        "{} nodes, {formulas} node formulas, {programs} program arguments, {offsets} offset \
+        "{} nodes, {formulas} node formulas, {programs} program arguments, {offsets} world read \
          arguments; kinds {kinds:?}",
         cases.len()
     );
-    assert!(formulas > 0 && programs > 0 && offsets == 3 * 7);
-    // Every node kind is in the sweep: a kind added to the vocabulary
+    assert!(formulas > 0 && programs > 0 && offsets == 3 * 2);
+    // Every node kind is in the sweep but the world, which no edit
+    // inserts and no document writes: a kind added to the vocabulary
     // that no corpus document holds owes an edge above.
     assert_eq!(
         kinds.len(),
-        25,
+        23,
         "a node kind the sweep does not reach: {kinds:?}"
     );
 }
@@ -543,7 +561,6 @@ fn a_formula_no_row_addresses_refuses_at_the_payload() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &RefusingReach,
         )
         .expect_err("nope is unheld");
     assert!(

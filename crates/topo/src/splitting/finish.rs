@@ -1150,8 +1150,10 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                 .certified()
                 .cloned();
             let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
-            let (witness, arm) = (draft.witness, draft.extent);
-            match geom_brep::classify_dihedral(surf_self, surf_other, witness, arm, band) {
+            let (carrier, interval) = draft.span();
+            let reach = crate::wedge_reach(body, [face, other_face], carrier, interval);
+            let witness = draft.witness;
+            match geom_brep::classify_dihedral(surf_self, surf_other, witness, reach, band) {
                 Ok(geom_brep::DihedralClass::Transverse) => {
                     let spec = draft.into_spec(geom_brep::SurfacePair::new(s_self, s_other));
                     let carrier = spec.carrier.kind();
@@ -1172,7 +1174,7 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                             surf_other,
                             sense_of(other_face)?,
                             witness,
-                            geom_brep::folded_lever_arm(surf_self, surf_other, witness, arm),
+                            geom_brep::folded_lever_arm(surf_self, surf_other, witness, reach),
                             band,
                         )
                         .map_err(|diag| SplitFinishError::DescribeSideEscalated { edge, diag })?;
@@ -1189,8 +1191,8 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                     let curve = existing.as_ref().unwrap_or_else(|| {
                         unreachable!(
                             "{edge:?} read smooth at its witness has a certified carrier: \
-                             null scaffolding has coincident ends, so its zero extent \
-                             fails the dihedral's arm gate before this arm"
+                             null scaffolding has coincident ends, so its poisoned \
+                             chord fails the dihedral's arm gate before this arm"
                         )
                     });
                     let spec = curve.restated_spec();
@@ -1201,7 +1203,7 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                             surfaces: [(s_self, surf_self), (s_other, surf_other)],
                             carrier: &spec.carrier,
                             interval: (spec.param_start, spec.param_end),
-                            chord: p0.distance(p1),
+                            reach,
                             witness,
                         },
                         band,
@@ -1876,8 +1878,9 @@ mod smooth_arm_rows {
             let (_, ending) = text.split_once(". Recourse: ").expect("one recourse");
             let quoted: f64 = ending
                 .strip_prefix(
-                    "move the geometry so that edge is clearly longer and no face curves \
-                     tightly there, or, if this length is intended, tighten the tolerance below ",
+                    "move the geometry so that edge's faces clearly run farther and none curves \
+                     tightly there, or, if this length is intended, tighten the \
+                     tolerance below ",
                 )
                 .and_then(|v| v.strip_suffix(" m"))
                 .unwrap_or_else(|| panic!("{label}: the pairing's lever and offer, got {text}"))

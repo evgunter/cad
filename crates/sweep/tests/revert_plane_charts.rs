@@ -372,7 +372,7 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
         assert_mirrored(label, &image_of(&source), &image_of(&mirrored), &ts);
         let (start, end) = (carrier.eval(0.0), carrier.eval(len));
         let surfaces = |k| reverted.get_surface(k).cloned();
-        let control = source.recertify(start, end, surfaces, band);
+        let control = source.recertify(start, end, surfaces, 1.0, band);
         assert!(
             matches!(
                 control,
@@ -384,7 +384,9 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
             ),
             "{label}: the source's image on the reverted plane: {control:?}"
         );
-        let rerun = mirrored.recertify(start, end, surfaces, band).expect(label);
+        let rerun = mirrored
+            .recertify(start, end, surfaces, 1.0, band)
+            .expect(label);
         assert_eq!(
             format!("{rerun:?}"),
             format!("{:?}", mirrored.certificate()),
@@ -414,12 +416,12 @@ fn a_signed_zero_lands_in_the_mirrored_image_and_never_in_its_certificate() {
         radius: 1.0,
         u_ref: Vec3::unit_x(),
     };
-    let image = Pcurve::Harmonic {
-        p0: Point2::new(0.0, 0.0),
-        pa: Vec2::new(1.0, 0.0),
-        pb: Vec2::new(0.0, 1.0),
-        pl: Vec2::new(0.0, 0.0),
-    };
+    let image = Pcurve::free_harmonic(
+        Point2::new(0.0, 0.0),
+        Vec2::new(1.0, 0.0),
+        Vec2::new(0.0, 1.0),
+        Vec2::new(0.0, 0.0),
+    );
     let body = plane_face_with(image, circle, 0.0, core::f64::consts::PI);
     let reverted = body.revert().unwrap();
     let m = only_curve(&reverted);

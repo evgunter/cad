@@ -628,12 +628,7 @@ fn a_move_whose_first_argument_alone_crosses_still_lands() {
     };
     assert!(
         matches!(
-            apply(
-                session.committed_doc(),
-                &first,
-                tol,
-                &pncad::document::RefusingReach
-            ),
+            apply(session.committed_doc(), &first, tol),
             Err(EditError::ProfileProgramRefused { .. })
         ),
         "the premise: the first corner alone makes a crossed loop"

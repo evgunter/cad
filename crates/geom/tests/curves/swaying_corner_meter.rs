@@ -122,7 +122,7 @@ fn a_swaying_corner_meters_positive_and_below_its_speed() {
 /// same net).
 fn reweighted(c: &NurbsCurve3<f64>, weights: impl Fn(usize) -> f64) -> NurbsCurve3<f64> {
     let w = (0..c.control().len()).map(weights).collect();
-    NurbsCurve3::<f64>::new(c.knots().clone(), c.control().to_vec(), w).unwrap()
+    NurbsCurve3::<f64>::new(c.knots_f64_interim().clone(), c.control().to_vec(), w).unwrap()
 }
 
 /// The swaying family the rational meter is pinned on: the integral

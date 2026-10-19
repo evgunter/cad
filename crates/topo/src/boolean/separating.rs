@@ -93,7 +93,11 @@ pub(crate) struct Circle<T: Real> {
 /// One the band cannot read, or a face with no reach, is left out,
 /// which only drops a candidate. So is one whose `key` is a kept axis's, or its
 /// negation's: a gap along `−n` is the gap along `n` (a box's six faces
-/// give three axes).
+/// give three axes). That merge is exact-identity de-duplication of one
+/// computed value, with no tolerance, and never a predicate: it drops
+/// only an axis whose gaps were already read, so no verdict depends on
+/// it, though which axes are read does (two normals a hair apart are
+/// two axes).
 fn operand_axes<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
@@ -290,4 +294,44 @@ fn anchor<T: Decide>(body: &Body<T>, item: Item<T>) -> Option<Point3<T>> {
         let k = T::one() / T::from_f64(f64::from(n));
         Point3::new(sum.x * k, sum.y * k, sum.z * k)
     })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use geom_core::{RigidMotion, Tol};
+
+    use super::*;
+    use crate::test_support_fixtures::geometric_cube;
+
+    /// **The axis merge is exact identity, not a tolerance.** Two copies
+    /// of a cube read three axes, each face's normal merged with its
+    /// copy's and its opposite's; turned by one ulp of a radian, the
+    /// copy's normals are other values and are kept, six in all. Red
+    /// where axes are merged within a tolerance, which would make the
+    /// merge a decision taken outside the funnel.
+    #[test]
+    fn the_axis_merge_keeps_two_normals_one_ulp_apart() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let cube = geometric_cube::<f64>(tol).body;
+        let axis = UnitVec3::new(Vec3::new(1.0, 2.0, 3.0), PAIR_AXIS, band).unwrap();
+        let turned = crate::transform::transform_rigid(
+            &cube,
+            &RigidMotion::rotation(axis, f64::EPSILON).unwrap(),
+            tol,
+        )
+        .unwrap();
+        let key = super::super::boxes::axis_key;
+        assert_eq!(
+            operand_axes(&cube, &cube, band, key).len(),
+            3,
+            "one value, merged"
+        );
+        assert_eq!(
+            operand_axes(&cube, &turned, band, key).len(),
+            6,
+            "one ulp apart, kept"
+        );
+    }
 }

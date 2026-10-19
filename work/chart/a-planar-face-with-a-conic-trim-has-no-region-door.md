@@ -32,8 +32,9 @@ than the envelope sentence suggests:
   `census::pair_region_verified` reads the same Door 2, so the crossing
   rung (`ee_cross_backed`) and `ef_bound_backed`'s face-pair arms answer
   `false` for any pair one of whose faces carries an arc. In particular a
-  line edge crossing a cap's rim (`CutAt::ConicCrossing`) can have no
-  backing rung until this door reads the arc: the crossing point lies on
+  line edge crossing a cap's rim (`CutAt::CurvedCrossing`, once `ConicCrossing`) can have no
+  face-pair backing rung until this door reads the arc (its edge-edge
+  record backs it, as tier 3′'s pass 5′ owes it one): the crossing point lies on
   the arc-bounded face, which is always one face of the pair.
 
 Wanted: a plane chart reads a conic trim exactly — a circle or ellipse

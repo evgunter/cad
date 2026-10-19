@@ -1,20 +1,14 @@
 //! **Review probes, FILLET-H6 lane r1** — the cap-rim classifier read
 //! at the EDGE of the admitted set, not at its comfortable interior.
 //!
-//! The wedge margin is `sin θ · arm`, and a DEFINITE arm does not make
-//! it definite. These rows build the worst admitted extrusion (in-plane
-//! ε against height K·ε, so the tilted wall's normal is
-//! `(K, 0, −1)/√(K²+1)` and `sin θ = K/√(K²+1)`) over a rectangle
-//! whose SHORT rim is the lever arm, and walk that arm across the
-//! band. The prediction is derived from the run's K alone, so each row
-//! asserts a K-dependent outcome and can fail in every regime:
-//!
-//! - `margin ≤ ε`      ⇒ the `Smooth` arm IS reached (K ≲ 1.27 only):
-//!   the rim keeps the conventional description and the at-rest gate
-//!   refuses the body;
-//! - `ε < margin < Kε` ⇒ `SliverRim` under `dihedral_wedge` with a
-//!   DEFINITE arm — the third outcome, at the door;
-//! - `margin ≥ Kε`     ⇒ `Transverse`, every rim `Intersection`.
+//! These rows build the worst admitted extrusion (in-plane ε against
+//! height K·ε, so the tilted wall's normal is `(K, 0, −1)/√(K²+1)` and
+//! `sin θ = K/√(K²+1)`) over a rectangle with a short rim `f·K·ε` long.
+//! Levered at that rim's own length the wedge would land in the band
+//! or under it for small `f`; levered at the faces' extent
+//! (`topo::wedge_reach`), at least the tilted wall's distance
+//! `ε·√(K²+1)` to its far rim, it is at least the height `K·ε`, so
+//! every rim is `Intersection` at every K and every `f`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -25,7 +19,7 @@ use profile::{
     Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
 };
 use sweep::ExtrudeSide;
-use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
+use sweep::{Extruded, Extrusion, extrude};
 use topo::validate_geometric;
 
 fn rect(sx: f64, sy: f64) -> ValidatedProfile<f64> {
@@ -46,120 +40,28 @@ fn cap_rim_descriptions(built: &Extruded<f64>) -> Vec<EdgeDescription<f64>> {
     cap_rims(built).into_iter().map(|r| r.description).collect()
 }
 
-#[derive(Debug, PartialEq)]
-enum Predicted {
-    Smooth,
-    InBand,
-    Transverse,
-}
-
-/// The rim verdict the linear band must give on the short rim of
-/// `rect(2, s)` with `s = f·K·ε` under the vector `(ε, 0, K·ε)`,
-/// from K alone: the arm is `s` (both walls are planes, so the fold is
-/// the extent), the wedge margin `s · K/√(K²+1)`.
-fn predict(k: f64, f: f64) -> Predicted {
-    let sin_theta = k / (k * k + 1.0).sqrt();
-    let margin_over_eps = f * k * sin_theta;
-    if margin_over_eps <= 1.0 {
-        Predicted::Smooth
-    } else if margin_over_eps < k {
-        Predicted::InBand
-    } else {
-        Predicted::Transverse
-    }
-}
-
-/// The short rim's lever arm is `f·K·ε`: definite by exactly the same
-/// band the arm gate reads, so `dihedral_arm` passes and the wedge
-/// margin alone decides. At K = 10 the row at `f = 1.002` lands in the
-/// band (9.97ε), which is why a definite arm is not enough; `f = 1.1`
-/// clears it (10.95ε). Run with `CAD_AMBIGUITY_K=1.1` the same rows
-/// predict — and must find — the `Smooth` arm reached.
+/// The worst admitted obliquity on the tightest admitted rim: every
+/// cap rim is the faces' corner. At K = 10 a rim levered at its own
+/// length would read in band at `f = 1.002` (9.97ε); run with
+/// `CAD_AMBIGUITY_K=1.1` it would read smooth. The cap rim's
+/// `SliverRim` and at-rest `MaterialPairing` arms this row reached
+/// then have no row now
+/// (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
-fn worst_admitted_obliquity_on_a_tight_rim_reads_the_band() {
+fn worst_admitted_obliquity_on_a_tight_rim_is_the_faces_corner() {
     let tol = Tol::witness();
     let (eps, k) = (tol.eps(), tol.k());
     let w = Vec3::new(eps, 0.0, k * eps);
     for f in [1.002, 1.1, 1.5] {
-        let s = f * k * eps;
-        let predicted = predict(k, f);
-        let built = extrude(&rect(2.0, s), Extrusion::Vector(w), tol);
-        match predicted {
-            Predicted::InBand => {
-                let err = built.err().unwrap_or_else(|| {
-                    panic!("f={f} K={k}: predicted an in-band wedge, but the body built")
-                });
-                assert!(
-                    matches!(
-                        &err,
-                        ExtrudeError::SliverRim { source, .. }
-                            if source.predicate == Some("dihedral_wedge")
-                    ),
-                    "f={f} K={k}: predicted SliverRim under dihedral_wedge, got {err:?}",
-                );
-            }
-            Predicted::Transverse => {
-                let built = built.unwrap_or_else(|e| {
-                    panic!("f={f} K={k}: predicted transverse rims, refused: {e:?}")
-                });
-                for d in cap_rim_descriptions(&built) {
-                    assert!(
-                        matches!(d, EdgeDescription::Intersection { .. }),
-                        "f={f} K={k}: predicted transverse, a cap rim carries {d:?}",
-                    );
-                }
-            }
-            Predicted::Smooth => {
-                let built = built.unwrap_or_else(|e| {
-                    panic!("f={f} K={k}: predicted the Smooth arm, refused: {e:?}")
-                });
-                let rims = cap_rims(&built);
-                // Two short rims per cap, two caps. Plane against
-                // plane has an exactly-zero jet, so the locus is
-                // under-determined and the rim keeps the conventional
-                // description: an image in its WALL's chart, the
-                // surface swept from the rim's own carrier.
-                let smooth: Vec<_> = rims
-                    .iter()
-                    .filter(|r| !matches!(r.description, EdgeDescription::Intersection { .. }))
-                    .collect();
-                assert_eq!(
-                    smooth.len(),
-                    4,
-                    "f={f} K={k}: predicted the Smooth arm on the four short rims",
-                );
-                for r in smooth {
-                    assert!(
-                        matches!(&r.description, EdgeDescription::Chart(c)
-                            if !c.wrap && c.surface == r.wall),
-                        "f={f} K={k}: a smooth rim must be an image in its wall's chart, got {:?}",
-                        r.description,
-                    );
-                }
-                // A smooth cap-wall pair has no material side, so the
-                // body the door hands back is one the at-rest gate
-                // refuses — once per smooth rim, as the material
-                // pairing.
-                let refused = validate_geometric(&built.body, tol)
-                    .expect_err("a smooth cap rim has no material side");
-                let sliver = refused
-                    .iter()
-                    .filter(|e| {
-                        matches!(
-                            e,
-                            topo::ValidationError::SliverDihedral {
-                                check: topo::WedgeCheck::MaterialPairing,
-                                ..
-                            }
-                        )
-                    })
-                    .count();
-                assert_eq!(
-                    sliver, 4,
-                    "f={f} K={k}: one material-pairing refusal per smooth rim, got {refused:?}",
-                );
-            }
+        let built = extrude(&rect(2.0, f * k * eps), Extrusion::Vector(w), tol)
+            .unwrap_or_else(|e| panic!("f={f} K={k}: the rectangle extrudes, refused: {e:?}"));
+        for d in cap_rim_descriptions(&built) {
+            assert!(
+                matches!(d, EdgeDescription::Intersection { .. }),
+                "f={f} K={k}: a cap rim carries {d:?}",
+            );
         }
+        assert_eq!(validate_geometric(&built.body, tol), Ok(()), "f={f} K={k}");
     }
 }
 

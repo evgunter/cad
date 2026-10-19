@@ -2158,7 +2158,7 @@ fn a_corner_crossing_the_cubes_four_times_builds_every_op() {
 /// pair, which crosses the cube's corner four times, has no run in the
 /// cube's corner clear of the other pieces' cuts, both ways round, and
 /// refuses `SharedVertexCrossings`
-/// (`work/fuse/shared-vertex-crossings-that-tie-or-interleave-are-unprobed.md`):
+/// (`work/gauge/shared-vertex-crossings-that-tie-or-interleave-are-unprobed.md`):
 /// pinned as they stand.
 #[test]
 fn three_corners_alternating_round_the_cube_refuse_three_ops() {

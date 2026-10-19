@@ -2,10 +2,12 @@
 id: the-skin-at-interval-encloses-the-nominal-skin
 kind: issue
 title: The skin at Interval encloses the nominal f64 skin: a section wider than a point refuses instead of enclosing its family
-status: open
+status: closed
 opened: 2026-10-11
 priority: P1
 refs: [the-skin-computes-its-values-in-t, a-loft-is-the-nominal-surface-in-every-generic-lane]
+cost: H
+closed: 2026-10-11
 ---
 
 
@@ -90,3 +92,44 @@ lands, flip both of these pins to evaluating and enclosing:
 - `e6_drive_over_a_loft_at_interval`'s two budget rows, and
   `m10_4_stackup_interval`'s drive tail on
   `a_loft_section_seed_rides_the_section_to_the_measure`.
+
+## Closed
+
+At an enclosure scalar a loft encloses the family its sections stand
+for (`crates/sweep/src/loft.rs`, `LoftBuild::enclosure`):
+- Sections and placements that are all points are a family of one.
+  They loft as the lifted `f64` skin, as before.
+- Wider ones are validated at `T` (`validate_at_t`, its decisions
+  certified there) and skinned in `T`, under the projective half's
+  code.
+
+The structure witness is the decision itself, not a nominal point:
+each structural positivity the skin asks (a chord that is not empty, a
+row that moves, a parameter step that ascends, a pivot that is
+nonzero) holds for every value the bracket stands for
+(`SpanLocate::structure_positive`, which is `value_channel() > 0.0` at a
+point scalar, so `f64` is unchanged). Finiteness is read through
+`is_finite_length`. The knot algebra splits at
+`SpanLocate::split_projective` in `make_compatible`. At an enclosure
+scalar, curves that are already compatible come back as themselves,
+and others refuse `SkinError::IncompatibleAtEnclosure`.
+
+Flipped pins:
+- `docm1_face_frame_interval`'s face-frame loft:
+  `a_section_on_a_derived_frame_lofts_and_encloses_at_interval`.
+- eval10's box over a section width:
+  `a_box_over_a_section_width_lofts_the_family_it_spans`, at ε/256. At
+  ε/16 the wall's pcurve residual escalates at the band, which the
+  drive bisects.
+- E6's rotated row, which now certifies in one leaf.
+- m10_4's drive tail, which certifies in one leaf.
+
+What a carrier cannot hold still refuses typed, and is
+`an-enclosure-carrier-holds-point-weights-and-knots` (a design fork):
+- every arc, as `SkinError::ArcWeightNotAPoint` (E6's arc row still
+  bisects to its budget);
+- an interior averaged knot wider than a point (`k > v_degree + 1`).
+
+The library pins are in `crates/sweep/tests/a_loft_computes_its_walls_in_t.rs`
+and `loft_profiles_door.rs`. `a-section-not-a-point-is-spelled-two-ways-across-the-loft-doors`
+closes with this unit.

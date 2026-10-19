@@ -66,3 +66,26 @@ per-`Curve3` match of its own: a line's chord, a circle's farthest
 point from its start (`2r·sin(min(span, π)/2)`), a NURBS carrier's
 control hull, and any other carrier's box (`census::edge_reach_in`).
 So it is a fifth dispatcher, and a client of the home this row owes.
+
+## Evidence: the box lanes now share one edge map (RESTREAD, 2026-10-18)
+
+`topo::boolean::boxes::edge_rule_box` is now the one `EdgeBoxRule → box`
+map inside `topo`'s two box lanes (`edge_box` and the census's
+`edge_reach_in`), and the census's copy of the spiric arm is gone. A
+spiric's box has one construction everywhere: `geom::spiric_period_box`,
+which charges for its own rounding. `topo`'s two lanes read it,
+`geom::curves::boxes::spiric_arc_aabb` reads it, and so
+`sweep::blend::surgery::boxed_reach` reads it through that door. The
+sweep for that change found these other dispatchers for this row's
+question, outside that map:
+
+- `census::Candidates::build`'s `curved_box` (`crates/topo/src/census.rs`)
+  takes a NURBS edge's control hull (`nurbs_curve_aabb`) for pass 2′,
+  where `EdgeBoxRule` says `NoSoundBox`: a second NURBS-edge rule beside
+  the rule's own NURBS bullet.
+- `sweep::blend::reach`'s boundary-edge box (`crates/sweep/src/blend/reach.rs`,
+  beside its `circle_arc_aabb` read) and `sweep::blend::surgery::boxed_reach`
+  each match `Curve3` and read `geom`'s arc doors directly. Their arms
+  differ: one refuses a spiric, the other a circle.
+- `editor-core`'s `eval::measure::curve_reach` bounds a reach per
+  `Curve3` kind (whole-carrier balls).

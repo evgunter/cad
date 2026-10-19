@@ -757,6 +757,7 @@ pub fn acts(op: &SessionOp) -> bool {
         SessionOp::Hover(_) => false,
         SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
+        | SessionOp::RemoveConstraint { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
@@ -867,6 +868,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         SessionOp::Hover(_)
         | SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
+        | SessionOp::RemoveConstraint { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
@@ -1250,9 +1252,9 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// **Nothing here composes prose about why a placement or a hide
 /// went.** Each entry carries the [`AdmissionFault`] the prune
 /// discarded on, and this renders it through its own `Display` — the rule the
-/// rest of the crate follows. So the commonest arm names the mates and
-/// the remedy (`MateConstrained`: *delete the mate(s) if free relative
-/// motion is intended*), a fuse names the product and the instances
+/// rest of the crate follows. So the commonest arm names where the copy
+/// lives and why the probe cannot move it (`InTheWorld`: *its placement
+/// pins it there … free-move moves a loose space*), a fuse names the product and the instances
 /// fused into it, and a deleted instance says the document does not
 /// hold the node — which is the delete arm's whole point, since the id
 /// alone names something the tree no longer draws without saying that
@@ -1261,10 +1263,10 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// The frame around the faults counts where there is anything to count,
 /// and never names: every [`AdmissionFault`] names its own SUBJECT, so
 /// naming the id again in the preamble would say it twice. It does not
-/// promise a vocabulary for that subject: an arm about an instance says
-/// "instance N" and an arm about an id that names no instance
-/// (`NoSuchNode`, `NotAnInstance`) says "node N", which is that enum's
-/// own rule and the only honest wording there.
+/// promise a vocabulary for that subject: each arm says it as the
+/// spoken node does, its kind included (`InstantiatePart N`, `Place N`,
+/// and `node N` for an id the document does not hold), which is that
+/// enum's own rule and the only honest wording there.
 ///
 /// [`crate::display::DisplayFault`]'s own arms name no id at all — they are about a
 /// gesture or a frame rather than a node — and a `Withdrawn` cannot
@@ -1287,16 +1289,22 @@ vocabulary! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum WithdrawalKind {
         /// **A SUBSTITUTION.** The user's hand placement answered "where
-        /// does this part go", and the mate that landed answers it better,
-        /// so the probe steps aside and the picture keeps the part.
+        /// does this part go", and the document that landed answers it
+        /// differently — a pin, a join with another space, a placement it
+        /// refuses — so the probe steps aside and the picture keeps the
+        /// part.
         ///
-        /// [`crate::display::PruneReport::superseded`], carried to the
-        /// chrome on [`crate::session::OpOutcome::withdrawn`], names the
-        /// instances whose COMMITTED free-move placement an operation's document
-        /// transition discarded — the G3 supersession, reported by the
-        /// session rather than inferred ([`crate::display::DisplayState::prune`] is
-        /// where it happens, and [`crate::display::free_move_check`] is the
-        /// condition). A killed in-flight gesture is NOT in that list, so
+        /// [`crate::display::PruneReport::superseded`] names, by their
+        /// roots, the loose spaces whose COMMITTED free-move frame a prune
+        /// discarded — the G3 supersession, reported by the session rather
+        /// than inferred. Most arrive with a landing, which is when a space
+        /// is known (`DocSession::take_landed_withdrawals`), and the rest
+        /// on [`crate::session::OpOutcome::withdrawn`] (a root gone);
+        /// [`crate::display::DisplayState::prune`] is where it happens
+        /// ([`crate::display::DisplayState::prune_structural`] for a value
+        /// gesture's scratch), and [`crate::display::space_check`] is the
+        /// condition. A killed
+        /// in-flight gesture is NOT in that list, so
         /// it is not this channel's to report; the next gesture op refuses
         /// typed instead.
         ///
@@ -1471,10 +1479,39 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
         refusal: _,
         withdrawn,
         maintenance,
+        placed,
     } = outcome;
     Withdrawal::all(withdrawn)
         .map(|withdrawal| withdrawal.notice())
         .chain(maintenance.iter().filter_map(maintenance_notice))
+        .chain(placed.iter().filter_map(place_notice))
+}
+
+/// **What a landing's prune withdrew, as notices** — the same notices
+/// [`outcome_notices`] words an operation's [`OpOutcome::withdrawn`]
+/// into ([`crate::session::DocSession::take_landed_withdrawals`]).
+pub fn withdrawal_notices(
+    report: &crate::display::PruneReport,
+) -> impl Iterator<Item = Message> + '_ {
+    Withdrawal::all(report).map(|withdrawal| withdrawal.notice())
+}
+
+/// **How a place gesture placed its copy, as a notice**, or `None` for
+/// the gesture's ordinary answer: a plane mate on the copy's planar
+/// face, whose values move it. A copy with no planar face is pinned,
+/// with no value to move it by, and one that could not be read stands
+/// loose; each says so, in [`editor_core::PinRefusal`]'s own words for
+/// the second. Nothing else says it again ([`Retold::Never`]): the
+/// tree row says what the bundle holds, not why.
+pub fn place_notice(report: &crate::session::PlaceReport) -> Option<Message> {
+    let text = match &report.by {
+        Ok(editor_core::PlacedBy::PlanarFace) => return None,
+        Ok(editor_core::PlacedBy::Pin) => "the copy has no planar face, so it is pinned where it \
+                                          stands, with no values to move it by"
+            .to_owned(),
+        Err(refusal) => format!("the copy stands loose, placed by nothing: {refusal}"),
+    };
+    Some(Message::new(Subject::Document, text, Retold::Never))
 }
 
 /// **One maintenance row as a notice**, or `None` for a row the line
@@ -1516,9 +1553,6 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // operand.
         Maintenance::StrandedRead { .. } => Retold::Again,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
-        // A fold's dropped label is said nowhere else: the gauge is
-        // gone, and nothing evaluates a label.
-        Maintenance::LabelDropped { .. } => Retold::Never,
         // An anonymous variable's removal is what rewriting or deleting
         // the slot it was written at means, and a typed value retires
         // one on almost every edit: one that carried no tolerance took
@@ -1528,10 +1562,6 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // tolerance took an analysis axis, which nothing else says.
         Maintenance::AnonymousVarRemoved { .. } if row.is_silent_retirement() => return None,
         Maintenance::AnonymousVarRemoved { .. } => Retold::Never,
-        // The mate door's offset clear is what inserting the mate
-        // means — the joined group stands on the one it joined — and
-        // the mate the person just placed is its notice.
-        Maintenance::OffsetCleared { .. } => return None,
     };
     Some(Message::new(Subject::Document, row.to_string(), retold))
 }
@@ -1549,7 +1579,10 @@ impl core::fmt::Display for Withdrawal<'_> {
             AdmissionFault::FusedGeometry { .. } => true,
             AdmissionFault::NoSuchNode { .. }
             | AdmissionFault::NotAnInstance { .. }
-            | AdmissionFault::MateConstrained { .. } => false,
+            | AdmissionFault::InTheWorld { .. }
+            | AdmissionFault::NotEvaluated { .. }
+            | AdmissionFault::NoSpace { .. }
+            | AdmissionFault::MovedSpace { .. } => false,
         };
         // The two kinds that are over a SET word themselves by
         // counting it. The third is over the one gesture that can be
@@ -2394,7 +2427,7 @@ fn coincidence_cells(
                 };
                 Some((by.name(name).to_string(), select))
             }
-            NamedCell::Tool { input } => {
+            NamedCell::Tool { input, .. } => {
                 let node = landed.operation_of(*input)?;
                 Some((by.node(node).to_string(), Selection::Node(node)))
             }
@@ -2552,7 +2585,6 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
         | ProductErrorKind::UnknownNode => BadgeSite::FeatureTree,
         ProductErrorKind::EvaluationOfAnotherDocument
         | ProductErrorKind::EmptyProduct
-        | ProductErrorKind::Unplaced
         | ProductErrorKind::Graft
         | ProductErrorKind::RootInvalid
         | ProductErrorKind::ProductInvalid
@@ -3465,6 +3497,7 @@ mod tests {
             (
                 ProductError::EmptyProduct {
                     unplaced: Vec::new(),
+                    loose: Vec::new(),
                 },
                 BadgeSite::NotAFault,
             ),
@@ -3506,7 +3539,6 @@ mod tests {
         // went silent would not fail.
         for kind in [
             ProductErrorKind::EvaluationOfAnotherDocument,
-            ProductErrorKind::Unplaced,
             ProductErrorKind::Graft,
             ProductErrorKind::RootInvalid,
             ProductErrorKind::ProductInvalid,
@@ -3563,7 +3595,6 @@ mod tests {
             ProductErrorKind::RootPoisoned,
             ProductErrorKind::EmptyProduct,
             ProductErrorKind::StrandedPlacement,
-            ProductErrorKind::Unplaced,
             ProductErrorKind::Graft,
             ProductErrorKind::RootInvalid,
             ProductErrorKind::ProductInvalid,
@@ -3622,25 +3653,17 @@ mod tests {
         Withdrawal::dropped_hide(withdrawn).map(|withdrawal| withdrawal.to_string())
     }
 
-    /// A withdrawal on `instance`, mate-constrained by `mates` — the
-    /// commonest arm, and the one whose `Display` carries a remedy.
-    fn constrained(instance: u64, mates: &[u64]) -> Withdrawn {
+    /// A withdrawal on `instance`, whose copy a placement now pins to the
+    /// world — the commonest arm under DI5, and the one whose `Display`
+    /// says why the probe cannot move it.
+    fn pinned(instance: u64) -> Withdrawn {
         Withdrawn {
             instance: RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
-            cause: AdmissionFault::MateConstrained {
+            cause: AdmissionFault::InTheWorld {
                 instance: crate::test_support::spoken(
                     RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
                     Some("InstantiatePart"),
                 ),
-                mates: mates
-                    .iter()
-                    .map(|&mate| {
-                        crate::test_support::spoken(
-                            RecipeNodeId::new(0, test_utils::refusal::tagged(mate)),
-                            Some("Mate"),
-                        )
-                    })
-                    .collect(),
             },
         }
     }
@@ -3652,7 +3675,7 @@ mod tests {
         // which supersedes is one the document ACCEPTED, so the frame's
         // own batch verdict is `Clear` — a supersession written to the
         // line instead of to the notices is erased by its own cause.
-        let notice = superseded_text(&[constrained(7, &[9])]).expect("a supersession is news");
+        let notice = superseded_text(&[pinned(7)]).expect("a supersession is news");
         assert!(
             notice.contains("InstantiatePart 000000000007"),
             "the notice names which of the user's placements went, as the \
@@ -3668,7 +3691,7 @@ mod tests {
              that, the composition below would be asserting about a case \
              where nothing had to survive anything"
         );
-        let message = Withdrawal::superseded(&[constrained(7, &[9])])
+        let message = Withdrawal::superseded(&[pinned(7)])
             .expect("a supersession is news")
             .notice();
         assert_eq!(
@@ -3689,26 +3712,23 @@ mod tests {
     #[test]
     fn a_supersession_says_the_cause_in_the_faults_own_words() {
         // The whole point of carrying the fault rather than the id: the
-        // sentence names the mates AND the remedy, and neither string
-        // is written here — both come from `AdmissionFault`'s `Display`.
-        let cause = AdmissionFault::MateConstrained {
+        // sentence names where the copy lives AND what the probe moves,
+        // and neither string is written here — both come from
+        // `AdmissionFault`'s `Display`.
+        let cause = AdmissionFault::InTheWorld {
             instance: crate::test_support::spoken(
                 RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
                 Some("InstantiatePart"),
             ),
-            mates: vec![crate::test_support::spoken(
-                RecipeNodeId::new(0, test_utils::refusal::tagged(5)),
-                Some("Mate"),
-            )],
         };
-        let notice = superseded_text(&[constrained(3, &[5])]).expect("news");
+        let notice = superseded_text(&[pinned(3)]).expect("news");
         assert!(
             notice.ends_with(&cause.to_string()),
             "the fault renders itself, verbatim: {notice}"
         );
         assert!(
-            notice.contains("delete the mate(s)"),
-            "so the remedy the typed value already knew reaches the line: {notice}"
+            notice.contains("Free-move moves a loose space"),
+            "so what the typed value already knew reaches the line: {notice}"
         );
 
         // The delete arm, which is the other thing the bare id could
@@ -3771,9 +3791,7 @@ mod tests {
         // Both facts can arrive on one frame, and they are ranked
         // together as two notices rather than merged into one claim.
         let notices = [
-            Withdrawal::superseded(&[constrained(7, &[9])])
-                .expect("news")
-                .notice(),
+            Withdrawal::superseded(&[pinned(7)]).expect("news").notice(),
             Message::new(Subject::Document, notice.clone(), Retold::Again),
         ];
         let RankedVerdict::Show(shown) = frame_status(&notices, &[SessionOp::Undo], None) else {
@@ -3853,16 +3871,16 @@ mod tests {
         // several probes (a mate lands on two probed instances, a
         // delete takes a subtree), and each is an instance the user
         // placed by hand and no longer has.
-        let one = superseded_text(&[constrained(3, &[5])]).expect("one supersession is news");
+        let one = superseded_text(&[pinned(3)]).expect("one supersession is news");
         assert_eq!(
             one,
             "free move: a committed placement was discarded — \
-             InstantiatePart 000000000003 is mate-constrained (Mate 000000000005): its pose \
-             is mate-derived, so the free-move probe refuses — delete the mate(s) if free \
-             relative motion is intended"
+             InstantiatePart 000000000003 lives in the world's space: its placement pins it \
+             there (a world pin, or a mate onto a copy in the world), so the free-move probe \
+             refuses. Free-move moves a loose space, a copy nothing pins to the world"
         );
 
-        let two = [constrained(3, &[5]), constrained(11, &[5])];
+        let two = [pinned(3), pinned(11)];
         let both = superseded_text(&two).expect("two supersessions are still news");
         assert_eq!(
             both,
@@ -3883,7 +3901,7 @@ mod tests {
 
     #[test]
     fn a_killed_gesture_is_its_own_sentence_and_has_no_plural() {
-        let killed = constrained(3, &[5]);
+        let killed = pinned(3);
         let notice = Withdrawal::killed_gesture(Some(&killed))
             .expect("a drag the document ended is news")
             .to_string();
@@ -3942,9 +3960,9 @@ mod tests {
     #[test]
     fn every_withdrawal_kind_has_a_producer() {
         let report = PruneReport {
-            superseded: vec![constrained(7, &[9])],
-            dropped_hides: vec![constrained(11, &[9])],
-            killed_gesture: Some(constrained(3, &[5])),
+            superseded: vec![pinned(7)],
+            dropped_hides: vec![pinned(11)],
+            killed_gesture: Some(pinned(3)),
         };
         let produced: Vec<WithdrawalKind> = Withdrawal::all(&report)
             .map(|withdrawal| withdrawal.kind)
@@ -4042,6 +4060,7 @@ mod tests {
                 held: Default::default(),
                 refusal: ProductError::EmptyProduct {
                     unplaced: Vec::new(),
+                    loose: Vec::new(),
                 }
                 .into(),
             },

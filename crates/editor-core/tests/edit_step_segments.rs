@@ -275,7 +275,7 @@ fn lateral(
 ) -> Option<FaceKey> {
     let piece = pieces.edge(e.loop_index as usize, e.segment as usize)?;
     let name = fixture::fname(node, RoleSeg::Lateral(piece.into()));
-    match ev.value(node)?.name_table.lookup(&name)? {
+    match ev.table_at(node)?.lookup(&name)? {
         Entry::Unique(r) => match r.key {
             EntityKey::Face(f) => Some(f),
             _ => None,
@@ -589,7 +589,7 @@ fn rim(
 ) -> Option<EdgeKey> {
     let piece = pieces.edge(e.loop_index as usize, e.segment as usize)?;
     let name = fixture::ename(node, RoleSeg::RimEdge(end, piece.into()));
-    match ev.value(node)?.name_table.lookup(&name)? {
+    match ev.table_at(node)?.lookup(&name)? {
         Entry::Unique(r) => match r.key {
             EntityKey::Edge(k) => Some(k),
             _ => None,
@@ -615,7 +615,7 @@ fn loft_wall(
         })
         .collect::<Option<Vec<_>>>()?;
     let name = fixture::fname(loft, RoleSeg::LoftWall(pieces));
-    match ev.value(loft)?.name_table.lookup(&name)? {
+    match ev.table_at(loft)?.lookup(&name)? {
         Entry::Unique(r) => match r.key {
             EntityKey::Face(f) => Some(f),
             _ => None,
@@ -1032,7 +1032,7 @@ fn a_twisted_loft_takes_the_twist_the_author_wrote() {
                     .collect(),
             ),
         );
-        let strut = fixture::edge_of(&ev.value(loft).unwrap().name_table, "strut", &name);
+        let strut = fixture::edge_of(ev.table_at(loft).unwrap(), "strut", &name);
         let [a, b] = fixture::ends(body, strut);
         let got = [fixture::point(body, a), fixture::point(body, b)];
         for want in [
@@ -2554,7 +2554,6 @@ fn a_fillet_cannot_be_a_loops_closing_corner() {
                 fresh: Vec::new(),
             },
             tol(),
-            &editor_core::RefusingReach,
         );
         assert!(
             attempt.is_err(),
@@ -2670,7 +2669,6 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
                 fresh: Vec::new(),
             },
             tol(),
-            &editor_core::RefusingReach,
         )
         .expect("a fused step over a bulge spec is authorable and replays");
     let doc = applied.doc;

@@ -56,9 +56,7 @@ const GOLDEN_PATH: &str = "tests/golden/golden.cad";
 fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     let mut doc = ProfileDoc::empty_derived("m4_pr6_golden", Tol::witness());
     let push = |d: &ProfileDoc, e: &DocEdit<ProfileProgram>| {
-        apply(d, e, Tol::witness(), &editor_core::RefusingReach)
-            .expect("golden edit")
-            .doc
+        apply(d, e, Tol::witness()).expect("golden edit").doc
     };
     // The node an insert just minted: the document's last.
     let last = |d: &ProfileDoc| *d.ids().last().expect("an insert landed");
@@ -272,6 +270,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc, &body),
             name: body.clone(),
             attr: Attr::Color(Rgba8::opaque(10, 20, 30)),
         },
@@ -287,6 +286,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::SetAppearanceMeta {
+            body: crate::fixture::painted_in(&doc, &body),
             name: body.clone(),
             key: "tool.example/pin".into(),
             value: MetaValue::map(m).expect("a shallow value"),
@@ -429,7 +429,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     );
     // The world: every body the document builds and nothing builds on,
     // in document order — the chamfered prism, the two tubes and the
-    // shell.
+    // shell — each placed and pinned at the identity.
     let placed: Vec<editor_core::RecipeNodeId> = doc
         .ids()
         .into_iter()
@@ -446,7 +446,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         })
         .collect();
     for body in placed {
-        doc = push(&doc, &DocEdit::place(body, None));
+        doc = fixture::place(doc, body).0;
     }
     // The committed EDIT LOG half: one trailing continuous edit —
     // authored through the TEXT door with a display unit, so the v4
@@ -463,8 +463,16 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     (doc, edits)
 }
 
+/// The frozen bytes, built at the golden's own pinned ε. Its placements
+/// are pinned by the gesture (`pin_at`), which reads each copy's
+/// geometry off an evaluation at the process ε, so a matrix row at
+/// another ε builds another document — one the load door refuses
+/// (`ToleranceConflict`, [`golden_bytes_load`]) — and skips.
 #[test]
 fn golden_bytes_are_frozen() {
+    if geom_core::Tol::witness().get().eps.to_bits() != 1e-9f64.to_bits() {
+        return;
+    }
     let (doc, edits) = golden();
     let text = save(&doc, &edits.to_vec(), Tol::witness()).expect("golden saves");
     if std::env::var("M4_PR6_BLESS_GOLDEN").is_ok() {
@@ -523,9 +531,7 @@ fn golden_document_evaluates_green_at_its_pinned_eps() {
     }
     let (mut doc, edits) = golden();
     for e in &edits {
-        doc = apply(&doc, e, Tol::witness(), &editor_core::RefusingReach)
-            .expect("golden edit")
-            .doc;
+        doc = apply(&doc, e, Tol::witness()).expect("golden edit").doc;
     }
     let ev = evaluate::<f64>(
         &doc,

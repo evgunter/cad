@@ -202,3 +202,17 @@ of the same sliver (262 runs) is JOIN's
 ## CONTACT close-out triage (2026-10-08)
 
 P0 to P1: the weld it rests on was retired by PR 4139 and its 89 poses were not re-measured. Re-measure first; drop to P2 if they no longer reach a wrong answer. Parallelism is still levered at the full arm (`census.rs`, ~:2000).
+
+## 2026-10-17: the arithmetic that kept some of these escalated is gone (RESTREAD)
+
+RESTREAD's crossing lane read two edges' crossing from the ends they
+share on one point key, so a pair leaving one point meets only there
+(`the-census-crossing-lane-misplaces-a-shared-points-crossing-on-a-near-collinear-pair`).
+Before it, the closed form's rounding put that crossing 1e-9 to 1e-8
+off the point, and the census escalated `pm_census_ee_span`. At
+ε = 1e-9, over the near-tangent probe's default tilts on main
+`43cac0bf`, 321 such escalations were pairs that run within `Kε` for
+at least 1% of the shorter edge (the classifier's `b-arith/sliver`).
+Every one reads a definite far-end gap, the number DESIGN.md tier 3′
+(PR 4595) gives cells that share a point, so the census now passes
+them, as it passes this row's pair.

@@ -33,13 +33,12 @@ PR 4246 found and fixed this shape in the ring lane
     `line_sphere_roots` (`:4245`) decide only the discriminant, as the
     sagitta `disc/|d⊥|²/(2r)`. A decided graze `g ≥ Kε` leaves the root
     error at `≈ δ·√(r/(2g))`, far past the band, with no slack row.
-- **`bool_carrier_cross_in_span`** (`carrier_cross.rs:186`, called at
-  `:161`) reads `gap · metres_per_param`, again arc length. The meeting
-  comes from `meetings` (`carrier_cross.rs:228`): a line through a
-  circle's or an ellipse's plane, or `circle_meets_plane` (`:381`).
-  These are decided `transverse` by a sine levered at the reach or the
-  radius. A decided sine `≥ Kε/arm` still leaves the meeting's error at
-  `δ·arm/(Kε)`.
+- **`bool_carrier_cross_in_span`** is retired. `carrier_cross` reads
+  its meetings from `geom_brep::curve_pair::meet`, which places a
+  crossing of the other's plane at the carriers' closest pair, polished
+  under a basin meter, and reads each against both spans through
+  `Span::contact`'s chord to each end (stage (c) of
+  `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227)).
 
 ## What it costs
 

@@ -76,11 +76,18 @@ fn eval_f64(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn opts(doc: &ProfileDoc, seed: Option<&str>, lift: ProfileLift) -> EvalOptions {
-    EvalOptions {
-        seed: seed.map(|n| doc.var_named(n).unwrap_or(editor_core::VarId::new(0, 0))),
-        profile_lift: lift,
-        ..EvalOptions::default()
+/// A pass's options: seeded on `seed`, or, unseeded, over a box
+/// spanning `[0, 0]` on every continuous variable, so the base reads the
+/// nominal under the passes' guided lift (`EvalOptions::profile_lift`)
+/// as `stackup`'s does.
+fn opts(doc: &ProfileDoc, seed: Option<&str>) -> EvalOptions {
+    match seed {
+        Some(n) => EvalOptions {
+            seed: Some(doc.var_named(n).unwrap_or(editor_core::VarId::new(0, 0))),
+            ..EvalOptions::default()
+        },
+        None => crate::corpus::options_under(doc, editor_core::ProfileLift::Guided)
+            .expect("the document has a continuous variable"),
     }
 }
 
@@ -276,7 +283,10 @@ fn r1_seed_none_is_bit_identical_at_every_scalar() {
                 &doc,
                 None,
                 &CancelToken::new(),
-                &opts(&doc, None, ProfileLift::Pinned),
+                &EvalOptions {
+                    seed: None,
+                    ..EvalOptions::default()
+                },
                 Tol::witness(),
             );
             assert_eq!(d.order, e.order, "{}", stringify!($t));
@@ -322,14 +332,15 @@ fn r1_seed_hygiene_and_schedule_independence_on_a_stepped_shaft() {
     let nominal = fixture::reading(&doc, &f, m).expect("the shaft measures at f64");
     assert!((nominal - 1.5).abs() < 1e-12, "nominal {nominal}");
     for p in ["h1", "h2"] {
-        for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
+        {
+            let lift = ProfileLift::Guided;
             let d = measured(
                 &doc,
                 &evaluate(
                     &doc,
                     None,
                     &CancelToken::new(),
-                    &opts(&doc, Some(p), lift),
+                    &opts(&doc, Some(p)),
                     Tol::witness(),
                 ),
                 m,
@@ -364,21 +375,21 @@ fn r1_dl2_two_passes_share_a_subgraph_without_aliasing() {
         &doc,
         None,
         &CancelToken::new(),
-        &opts(&doc, Some("h1"), ProfileLift::Guided),
+        &opts(&doc, Some("h1")),
         Tol::witness(),
     );
     let on_h2_fresh: Evaluation<Dual64> = evaluate(
         &doc,
         None,
         &CancelToken::new(),
-        &opts(&doc, Some("h2"), ProfileLift::Guided),
+        &opts(&doc, Some("h2")),
         Tol::witness(),
     );
     let on_h2_threaded: Evaluation<Dual64> = evaluate(
         &doc,
         Some(&on_h1),
         &CancelToken::new(),
-        &opts(&doc, Some("h2"), ProfileLift::Guided),
+        &opts(&doc, Some("h2")),
         Tol::witness(),
     );
     let (fresh, threaded) = (
@@ -453,7 +464,6 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap_or_else(|e| panic!("the edit applies: {e}"))
     .doc;
@@ -889,8 +899,8 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
 /// **PIN — a profile shape the PR did not exercise: an ARC leg.** The
 /// slab's x-walls are `w` apart and the profile carries a sharp `arc_to`
 /// whose derived centre and radius are parameter-driven. Under the
-/// guided lift the seed must reach the measure with tangent exactly 1;
-/// under the pinned lift it is the silent zero.
+/// guided lift — the only lift a seed can ask for — the seed must reach
+/// the measure with a nonzero tangent.
 #[test]
 fn r1_an_arc_carrying_profile_propagates_the_seed() {
     let (doc, m) = arc_slab(2.0);
@@ -900,7 +910,7 @@ fn r1_an_arc_carrying_profile_propagates_the_seed() {
             &doc,
             None,
             &CancelToken::new(),
-            &opts(&doc, Some("w"), ProfileLift::Guided),
+            &opts(&doc, Some("w")),
             Tol::witness(),
         ),
         m,
@@ -910,21 +920,6 @@ fn r1_an_arc_carrying_profile_propagates_the_seed() {
         guided.value, guided.deriv
     );
     assert!(guided.deriv.is_finite(), "an arc profile's seed is finite");
-    let pinned = measured(
-        &doc,
-        &evaluate(
-            &doc,
-            None,
-            &CancelToken::new(),
-            &opts(&doc, Some("w"), ProfileLift::Pinned),
-            Tol::witness(),
-        ),
-        m,
-    );
-    assert_eq!(
-        pinned.deriv, 0.0,
-        "the pinned lift is the silent zero, as documented"
-    );
     assert!(
         guided.deriv != 0.0,
         "the guided lift must move an arc-carrying profile's measure"
