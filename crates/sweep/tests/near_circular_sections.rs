@@ -5,7 +5,7 @@
 //!
 //! Three tilts per scale `r ∈ {1e-2, 1, 1e2}`, at the run's ε, all past
 //! the pose's own band and all where the semi-axes differ by at most
-//! about Kε/4 (the old `ellipse_axes_distinct` gap): just clear of the
+//! about Kε/4, far inside the band: just clear of the
 //! pose band, where `a − b ≈ ε/2`, and where `a − b ≈ Kε/4`. At each the
 //! table serves the ellipse and the served carrier misses both surfaces
 //! by rounding along its whole length (measured in double-double), a
