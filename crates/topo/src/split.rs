@@ -490,7 +490,8 @@ impl<T: Decide> Body<T> {
         let spec1 = self.tangent_piece(edge, spec1, band)?;
         let spec2 = self.tangent_piece(edge, spec2, band)?;
         let faces = crate::edge_faces(self, edge);
-        let origin = crate::policy_lane::Origin::Kernels("a split child");
+        let origin =
+            crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::SplitChild);
         let child = |spec, start, end| {
             self.certify_edge_spec(origin, Some(edge), spec, start, end, faces, tol)
         };

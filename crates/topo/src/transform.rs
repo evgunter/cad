@@ -617,7 +617,8 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
             old.carrier(),
             (param_start, param_end),
         );
-        let origin = crate::policy_lane::Origin::Kernels("transform_rigid");
+        let origin =
+            crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::RigidTransform);
         let mapped = crate::policy_lane::certify(origin, spec, start, end, surfaces, reach, band)
             .map_err(|refusal| match refusal {
             crate::policy_lane::ByPolicy::NoLane { scalar } => {

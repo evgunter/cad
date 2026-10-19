@@ -901,7 +901,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
             curve.params(),
         );
         let recert = crate::policy_lane::certify_via(
-            crate::policy_lane::Origin::Kernels("a graft"),
+            crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::Graft),
             spec,
             point(start_v),
             point(end_v),

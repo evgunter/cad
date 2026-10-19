@@ -19,6 +19,7 @@ use geom_core::{Point3, Vec3};
 
 use crate::euler::FaceSurface;
 use crate::fixtures::{refile_shells, test_curve};
+use crate::policy_lane::KernelSite;
 use crate::validate::{
     MaterialArmOutcome, ValidationError, material_arm_error, material_arm_outcome, validate,
     validate_geometric,
@@ -1444,14 +1445,9 @@ fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
         "at rest, typed: {errs:?}"
     );
 
-    let message = test_utils::panic_capture::caught(|| {
+    panics_as_a_kernel_bug_at(KernelSite::RigidTransform, || {
         let _ = crate::transform_rigid(&body, &geom_core::RigidMotion::identity(), tol);
-    })
-    .expect("the re-mint panics");
-    assert!(
-        message.contains("transform_rigid") && message.contains("a kernel bug"),
-        "{message}"
-    );
+    });
 }
 
 /// The pillow with its split chord's curve swapped for an arc of the
@@ -1488,7 +1484,7 @@ fn pillow_with_an_arc_past_a_turn(tol: Tol, past: f64) -> (crate::Body<f64>, cra
 }
 
 /// `re_mint` panics as a kernel bug naming `site`.
-fn panics_as_a_kernel_bug_at(site: &str, re_mint: impl FnOnce()) {
+fn panics_as_a_kernel_bug_at(site: KernelSite, re_mint: impl FnOnce()) {
     let message = test_utils::panic_capture::caught(std::panic::AssertUnwindSafe(re_mint))
         .unwrap_or_else(|| panic!("{site}: the re-mint returned rather than panicking"));
     assert!(
@@ -1507,7 +1503,7 @@ fn a_split_child_past_a_turn_is_a_kernel_bug() {
     let past = 20.0 * tol.k() * tol.eps();
     let (mut body, split) = pillow_with_an_arc_past_a_turn(tol, past);
     let t = core::f64::consts::TAU + past / 2.0;
-    panics_as_a_kernel_bug_at("a split child", || {
+    panics_as_a_kernel_bug_at(KernelSite::SplitChild, || {
         let _ = body.split_edge(split.edge, t, tol);
     });
 }
@@ -1520,7 +1516,7 @@ fn a_grafted_arc_past_a_turn_is_a_kernel_bug() {
     let (src, _) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
     let mut dst = src.clone();
     let solid = dst.solids().next().unwrap().0;
-    panics_as_a_kernel_bug_at("a graft", || {
+    panics_as_a_kernel_bug_at(KernelSite::Graft, || {
         let _ = crate::boolean::combine::graft_solid(&mut dst, solid, &src, tol);
     });
 }
@@ -1534,7 +1530,7 @@ fn a_redescribed_arc_past_a_turn_is_a_kernel_bug() {
     let tol = Tol::witness();
     let (body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
     let chart = body.get_face(split.face).unwrap().surface;
-    panics_as_a_kernel_bug_at("a re-description", || {
+    panics_as_a_kernel_bug_at(KernelSite::ReDescription, || {
         let _ = body.vouch_described_move(
             crate::euler::RechartDoor::SetFaceSurface,
             split.face,
@@ -1557,7 +1553,7 @@ fn a_re_based_arc_past_a_turn_is_a_kernel_bug() {
     let (body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
     let v = body.get_half_edge(split.he_plus).unwrap().start;
     let here = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-    panics_as_a_kernel_bug_at("a re-based run's edge", || {
+    panics_as_a_kernel_bug_at(KernelSite::ReBasedRun, || {
         let _ = body.certify_rebased_run(&[split.he_plus], here, tol);
     });
 }

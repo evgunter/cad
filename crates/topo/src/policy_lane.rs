@@ -39,13 +39,43 @@ pub(crate) enum Origin {
     /// span refusal is that input's, and stays typed.
     Callers,
     /// The kernel's own: an edge the body stores, re-minted or
-    /// re-certified at the band it was minted at, at the named site. Its
-    /// span was decided forward and short of a full turn at that band;
-    /// its parameters travel bitwise and its carrier's rate stays a
-    /// positive bound, so the span's sign does (a split child's interval
-    /// is one side of a parameter the split decided interior at that
-    /// band). A span refusal is a kernel bug, and panics.
-    Kernels(&'static str),
+    /// re-certified at the band it was minted at, at the named site.
+    /// That band is the run's: a run holds one [`geom_core::Tol`], and
+    /// every `topo` edge mint certifies at its `Band::linear(tol)`. The span
+    /// was decided forward and short of a full turn at that band; its
+    /// parameters travel bitwise and its carrier's rate stays a positive
+    /// bound, so the span's sign does (a split child's interval is one
+    /// side of a parameter the split decided interior at that band). A
+    /// span refusal is a kernel bug, and panics.
+    Kernels(KernelSite),
+}
+
+/// **The kernel's re-mints of stored edges**, one per call site that
+/// certifies with [`Origin::Kernels`]; a panic names its site.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum KernelSite {
+    /// [`crate::transform_rigid`]'s re-mint of each moved edge.
+    RigidTransform,
+    /// [`crate::Body::split_edge`]'s two children.
+    SplitChild,
+    /// A graft's re-certification of the source body's edges.
+    Graft,
+    /// A described move's re-certification of a stored carrier.
+    ReDescription,
+    /// A re-based run's re-certification of its edges.
+    ReBasedRun,
+}
+
+impl core::fmt::Display for KernelSite {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::RigidTransform => "transform_rigid",
+            Self::SplitChild => "a split child",
+            Self::Graft => "a graft",
+            Self::ReDescription => "a re-description",
+            Self::ReBasedRun => "a re-based run's edge",
+        })
+    }
 }
 
 impl Origin {
@@ -112,7 +142,8 @@ pub(crate) fn certify_stated<T: AtRestPolicy>(
     band: Band,
     stated: Option<&StatedImage<T>>,
 ) -> Result<EdgeCurve<T>, ByPolicy> {
-    EdgeCurve::certify_via_stated(
+    certify_via_stated(
+        origin,
         spec,
         start,
         end,
@@ -122,7 +153,7 @@ pub(crate) fn certify_stated<T: AtRestPolicy>(
         T::nurbs_lane(),
         stated,
     )
-    .map_err(|error| ByPolicy::of::<T>(origin.read(error)))
+    .map_err(ByPolicy::of::<T>)
 }
 
 /// [`EdgeCurve::certify_via`] with the lane its caller holds.
@@ -137,7 +168,23 @@ pub(crate) fn certify_via<T: Decide>(
     band: Band,
     lane: Option<NurbsLane<T>>,
 ) -> Result<EdgeCurve<T>, CertifyError> {
-    EdgeCurve::certify_via(spec, start, end, surfaces, reach, band, lane)
+    certify_via_stated(origin, spec, start, end, surfaces, reach, band, lane, None)
+}
+
+/// [`EdgeCurve::certify_via_stated`] with the lane its caller holds.
+#[allow(clippy::too_many_arguments)] // the door's, plus the origin
+fn certify_via_stated<T: Decide>(
+    origin: Origin,
+    spec: EdgeCurveSpec<T>,
+    start: Point3<T>,
+    end: Point3<T>,
+    surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    reach: T,
+    band: Band,
+    lane: Option<NurbsLane<T>>,
+    stated: Option<&StatedImage<T>>,
+) -> Result<EdgeCurve<T>, CertifyError> {
+    EdgeCurve::certify_via_stated(spec, start, end, surfaces, reach, band, lane, stated)
         .map_err(|error| origin.read(error))
 }
 
@@ -243,6 +290,30 @@ mod tests {
         body.set_edge_curve(edge_key, spec, tol).map(|_| edge_key)
     }
 
+    /// **`Origin::read` keeps a refusal typed but where the kernel owns
+    /// a span refusal**: under `Kernels` every other refusal passes
+    /// through as it came, and under `Callers` a span refusal does too.
+    /// (The `Kernels` span panic has its rows in `crate::tier3_tests`.)
+    #[test]
+    fn an_origin_types_every_refusal_but_a_kernel_owned_span() {
+        use super::{KernelSite, Origin};
+        use geom_brep::{CertifyError, StatedSpan, WindingReading};
+        let span = CertifyError::StatedInterval {
+            refused: StatedSpan::Winding(WindingReading::Exceeded),
+        };
+        assert_eq!(Origin::Callers.read(span), span, "a caller's span refusal");
+        for other in [
+            CertifyError::NurbsLaneNotSupplied,
+            CertifyError::WindingExceeded,
+        ] {
+            assert_eq!(
+                Origin::Kernels(KernelSite::Graft).read(other),
+                other,
+                "a kernel site's non-span refusal"
+            );
+        }
+    }
+
     /// **The attach door takes the scalar's lane**: an analytic rung-3
     /// edge attaches at `f64`, and at the dual — whose policy holds no
     /// lane — refuses naming the edge and the scalar.
@@ -281,7 +352,9 @@ mod tests {
 /// closure's `|a, b|`), so the arity reading errs loud.
 ///
 /// **Production** is every file a test-only `cfg` does not gate, with
-/// every item such a `cfg` gates in it blanked: `cfg(test)`, and
+/// everything such a `cfg` gates in it blanked — an item, or a field, a
+/// variant or an arm, each to its own end
+/// ([`test_utils::source::attributed_extent`]): `cfg(test)`, and
 /// `cfg(any(..))` over `test`, `feature = "test-support"` and
 /// `-testing` features, the naming `scripts/gates/test-features-dev-only.sh`
 /// holds to test builds.
@@ -298,7 +371,7 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod origin_census {
     use crate::source_walk::{CodeOnly, crate_sources, src_root};
-    use test_utils::source::{balanced_end, boundary_after, line, skip_ws};
+    use test_utils::source::{attributed_extent, balanced_end, boundary_after, line};
 
     /// `geom_brep`'s edge certification doors.
     const DOORS: [&str; 6] = [
@@ -311,8 +384,8 @@ mod origin_census {
     ];
 
     /// Qualifiers whose `certify`/`recertify` by path is not an edge
-    /// door: this module, other types' doors of those names, and
-    /// `topo`'s own functions of those names.
+    /// door: this module, whose entries share the doors' names, and the
+    /// two other types with a `certify`/`recertify` of their own.
     pub(super) const NOT_DOORS: [&str; 3] = ["policy_lane", "PcurveCache", "ApproxSurface"];
 
     /// Whether `attr` (`#[cfg(..)]`, as written) gates its item to test
@@ -351,40 +424,19 @@ mod origin_census {
             if !test_only(&text[at..=attr_end]) {
                 continue;
             }
-            let mut item = skip_ws(code, attr_end + 1);
-            while code[item..].starts_with("#[") {
-                item = skip_ws(code, balanced_end(code, item + 1).expect("closes") + 1);
-            }
-            let mut depth = 0usize;
-            let mut end = None;
-            for (off, c) in code[item..].char_indices() {
-                match c {
-                    '(' | '[' => depth += 1,
-                    ')' | ']' => depth = depth.saturating_sub(1),
-                    ';' if depth == 0 => {
-                        end = Some(item + off);
-                        break;
-                    }
-                    '{' if depth == 0 => {
-                        end = balanced_end(code, item + off);
-                        break;
-                    }
-                    _ => {}
-                }
-            }
-            let end = end.expect("a gated item ends");
-            let head: Vec<&str> = code[item..end].split_whitespace().collect();
-            if code.as_bytes()[end] == b';'
+            let span = attributed_extent(code, at).expect("a gated item ends");
+            let head: Vec<&str> = code[span.clone()].split_whitespace().collect();
+            if code[span.clone()].ends_with(';')
                 && let Some(at) = head.iter().position(|w| *w == "mod")
             {
-                gated.push(head[at + 1].to_owned());
+                gated.push(head[at + 1].trim_end_matches(';').to_owned());
             }
-            for c in &mut kept[at..=end] {
+            for c in &mut kept[span.clone()] {
                 if *c != b'\n' {
                     *c = b' ';
                 }
             }
-            from = end + 1;
+            from = span.end;
         }
         (
             String::from_utf8(kept).expect("only ASCII spans are blanked"),
@@ -531,22 +583,49 @@ mod tests {
 }
 #[cfg(any(test, feature = "sweep-testing"))]
 fn injector() { let _ = EdgeCurve::recertify_via(c, s, e, f, 1.0, band, None); }
+struct Depth {
+    depth: u32,
+    #[cfg(test)]
+    torn: bool,
+}
+impl Clone for Depth { fn clone(&self) -> Self { EdgeCurve::recertify_via(c, s, e, f, 1.0, band, None) } }
+enum Exempt {
+    #[cfg(any(test, feature = "test-support"))]
+    Nothing,
+}
+impl Exempt { fn f() { E::certify_via(spec, s, e, f, 1.0, band, None); } }
+fn arms(x: u8) {
+    match x {
+        #[cfg(test)]
+        0 => EdgeCurve::certify(spec, s, e, f, 1.0, band),
+        _ => EdgeCurve::certify_via_stated(spec, s, e, f, 1.0, band, None, None),
+    }
+}
+struct Last {
+    #[cfg(test)]
+    torn: bool }
+mod later;
 "#;
         let (code, gated) = production(src);
+        // `later` follows a gated last field, and is not gated with it.
         assert_eq!(gated, ["fixtures", "support"], "the gated file modules");
         assert_eq!(
             bypasses(&code),
             [
                 "11: E::certify",
                 "10: EdgeCurve::certify_via",
+                "39: E::certify_via",
+                "44: EdgeCurve::certify_via_stated",
                 "12: EdgeCurve::recertify",
                 "13: .recertify(",
+                "34: EdgeCurve::recertify_via",
                 "14: .recertify_via_stated(",
             ]
             .map(String::from)
             .into_iter()
             .collect::<Vec<_>>(),
-            "the bypasses, in door order"
+            "the bypasses, in door order: a gated field, variant or arm takes \
+             only itself, and the item after it is read"
         );
     }
 }

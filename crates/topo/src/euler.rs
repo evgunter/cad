@@ -250,7 +250,7 @@ use geom::Surface;
 use geom_brep::recourse::{ReadAt, Reading};
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
 
-use crate::policy_lane::{ByPolicy, Origin};
+use crate::policy_lane::{ByPolicy, KernelSite, Origin};
 use geom_core::{Band, Decide, Point3, Real, Tol};
 use slotmap::SecondaryMap;
 
@@ -4238,7 +4238,7 @@ impl<T: Decide> Body<T> {
                 curve.params(),
             );
             let recertify = |start, end| {
-                let origin = Origin::Kernels("a re-based run's edge");
+                let origin = Origin::Kernels(KernelSite::ReBasedRun);
                 crate::policy_lane::recertify(origin, curve, start, end, surfaces, reach, band)
             };
             let error = match recertify(p_start, p_end) {

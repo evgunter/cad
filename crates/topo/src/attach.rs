@@ -911,7 +911,8 @@ impl<T: Decide> Body<T> {
                 &spec.carrier,
                 (spec.param_start, spec.param_end),
             );
-            let origin = crate::policy_lane::Origin::Kernels("a re-description");
+            let origin =
+                crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::ReDescription);
             let curve =
                 crate::policy_lane::certify(origin, spec, p_start, p_end, resolve, reach, band()?)
                     .map_err(|refusal| match refusal {
