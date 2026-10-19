@@ -1449,3 +1449,13 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - PR 5156 retitled `germ: …` and its body made a decision lead.
   - **Implementation dispatched** on the same branch: session_01EVAAebxyccbanNKYYd9EgK. Its scope: the axes gate and `CircularAxes` go; downstream arms removed; a readers audit (major direction off the axis); sweep README and spec-row text; gap rows red on main; old pinned rows re-pinned.
   - This completes the important in-flight set. Review per tiers when it hands back.
+- 2026-10-19 16:25 — Check-in.
+  - **PR 5382** (flat-frustum revolve, head `27516e3b39`):
+    - The cone chart's ruling and rim images take their slant by projection on the generator, not h/cos α (that read inflated an off-cone miss by 1/cos α).
+    - The ruling lemma has no division by a height.
+    - Four meter rows are re-baselined to the perpendicular d.
+    - The sixth item row is another door, filed as `a-full-revolves-return-half-rim-misses-its-start-by-two-rounded-half-turns`.
+    - Graded **H** (certificate math) → **CONCURRENT**: r5382a and r5382b, template sha `e5f9203f0f6c`, coding byte 202, even → A = r5382a.
+  - **PR 5172:** main's `f6237757e6` made the pose's one-curve reading the Procrustes margin independently. The lane's merge (`7ec297d8c6`) dropped `Conic::locus_gap`, so the PR now pins main's fix and moves the rounding-charge finding to cpair. r5172a and r5172b reviewed the pre-merge head, so a delta look on the merge comes before merging.
+  - **PR 5173:** one fix commit since its review head (`4276c978d9`, the crossing-cylinder join site), so a delta look is needed.
+  - **PR 5156 CI red** on `0496b04d6f`, but not this PR's (no code in the diff): the BAND needle and the FLUX cone-wall ring, both filed main reds, plus one unnamed. Commented on the PR. The implementation is pending.
