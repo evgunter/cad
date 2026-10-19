@@ -23,6 +23,7 @@ use crate::props::Notation;
 use crate::session::{DocSession, SessionOp};
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::Theme;
+use crate::tools::FormKind;
 use crate::widgets::{angle_picker, length_picker, new_row_step, path_step_fields};
 
 impl ViewerBehavior<'_> {
@@ -132,8 +133,8 @@ pub(crate) fn edit_door_ui(
         edit.edit_row(index, row);
     }
     let refused = preview_verdict(ui, theme, preview);
-    let moved = edit.moved();
-    let stranded = if moved {
+    let differs = edit.differs_from_base();
+    let stranded = if differs {
         let base = edit.base().clone();
         edit.report(session.history().current(), |loops, ids| {
             // A program the door refuses strands nothing yet; its
@@ -150,7 +151,7 @@ pub(crate) fn edit_door_ui(
         Vec::new()
     };
     let (apply, revert) = ui
-        .horizontal(|ui| apply_and_revert(ui, moved, refused, &stranded))
+        .horizontal(|ui| apply_and_revert(ui, differs, refused, &stranded))
         .inner;
     if apply {
         return match edit.programs(notation) {
@@ -160,17 +161,11 @@ pub(crate) fn edit_door_ui(
                 loops,
                 ids: edit.ids(),
             })),
-            Err(error) => Err(frame::tool_news(
-                format!("edit profile: {error}"),
-                frame::Retold::Again,
-            )),
+            Err(error) => Err(frame::tool_news(&FormKind::EditProfile.refuses(&error))),
         };
     }
     if revert && let Err(error) = edit.revert(session.committed_doc()) {
-        return Err(frame::tool_news(
-            format!("revert profile: {error}"),
-            frame::Retold::Again,
-        ));
+        return Err(frame::tool_news(&FormKind::RevertProfile.refuses(&error)));
     }
     Ok(None)
 }
@@ -349,14 +344,8 @@ pub(crate) fn path_steps_ui(
                         match refusal {
                             Some(state) => {
                                 // The verb's `Display`, which is
-                                // the word the combo shows, not
-                                // its `Debug`: the sentence is
-                                // about the row a reader is
-                                // looking at.
-                                row.on_disabled_hover_text(format!(
-                                    "{option} is not well-typed here — the tip is {}",
-                                    sketch::tip_state_words(state),
-                                ));
+                                // the word the combo shows.
+                                row.on_disabled_hover_text(sketch::not_well_typed(option, state));
                             }
                             None if row.clicked() && option != verb => {
                                 reverb = Some((index, option, state));
@@ -432,9 +421,9 @@ fn step_control(ui: &mut egui::Ui, glyph: &str, action: &str, blocked: Option<&s
 /// draft.
 const UNTOUCHED: &str = "the steps and numbers are the committed profile's";
 
-/// **The edit door's Apply and Revert**, both live only once the held
-/// program has `moved` off the committed profile's; Apply also waits
-/// on the preview not having `refused`.
+/// **The edit door's Apply and Revert**, both live only while the held
+/// program `differs` from the committed profile (it edits it, or cannot
+/// be read as it); Apply also waits on the preview not having `refused`.
 ///
 /// **Apply only what moved.** Untouched, there is nothing to write,
 /// and the door itself also writes nothing for an untouched program,
@@ -454,7 +443,7 @@ const UNTOUCHED: &str = "the steps and numbers are the committed profile's";
 /// disabled button never is.
 fn apply_and_revert(
     ui: &mut egui::Ui,
-    moved: bool,
+    differs: bool,
     refused: bool,
     stranded: &[String],
 ) -> (bool, bool) {
@@ -463,8 +452,8 @@ fn apply_and_revert(
         1 => "Apply, stranding 1 name".to_owned(),
         n => format!("Apply, stranding {n} names"),
     };
-    let apply = ui.add_enabled(moved && !refused, egui::Button::new(label));
-    let apply = if !moved {
+    let apply = ui.add_enabled(differs && !refused, egui::Button::new(label));
+    let apply = if !differs {
         apply.on_disabled_hover_text(format!("nothing to apply: {UNTOUCHED}"))
     } else if stranded.is_empty() {
         apply
@@ -472,8 +461,8 @@ fn apply_and_revert(
         let said = stranded.join("\n");
         apply.on_hover_text(&said).on_disabled_hover_text(said)
     };
-    let revert = ui.add_enabled(moved, egui::Button::new("Revert"));
-    let revert = if moved {
+    let revert = ui.add_enabled(differs, egui::Button::new("Revert"));
+    let revert = if differs {
         revert.on_hover_text("put the steps and numbers back to the committed profile's")
     } else {
         revert.on_disabled_hover_text(format!("nothing to revert: {UNTOUCHED}"))
@@ -498,6 +487,7 @@ mod tests {
     use crate::drafts::Drafts;
     use crate::pane::headless::{
         Landed, Voices, find, find_opening, landed_voiced, painted_while_hovering,
+        painted_while_hovering_opened,
     };
     use crate::props::Notation;
     use crate::sketch::{
@@ -589,7 +579,7 @@ mod tests {
         // near 2r. A bottom under the band and a top over it therefore
         // force some rung INTO (ε, K·ε), because no ≤3× step clears a
         // factor-K window. Two of those inequalities are facts about
-        // the ratified K = 10 and not about the structure —
+        // the ratified K = 10 (`docs/DESIGN.md`, #89) and not about the structure —
         // `CAD_AMBIGUITY_K` admits any finite K > 1, and at K ≤ 8 the
         // "nearest rung is 8s, still under K·ε" step fails outright
         // while at K ≤ 3 the ladder can step over the band. Below
@@ -632,7 +622,7 @@ mod tests {
             .expect("the document admits a split circle above the form's cap");
         let mut drafts = Drafts::default();
         let edit = drafts.profile_edit(&doc, profile).expect("held");
-        assert!(!edit.moved(), "fresh load");
+        assert!(!edit.differs_from_base(), "fresh load");
         let ctx = egui::Context::default();
         let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
             let row = super::path_steps_ui(
@@ -650,7 +640,7 @@ mod tests {
             _ => panic!("a split circle"),
         };
         assert_eq!(held_n, n, "drawing the editor rewrote the count");
-        assert!(!edit.moved(), "drawing alone made Apply live");
+        assert!(!edit.differs_from_base(), "drawing alone made Apply live");
     }
 
     /// What a pointer resting on the `nth` painting of `glyph` reads,
@@ -666,6 +656,46 @@ mod tests {
                 &mut steps,
             );
         })
+    }
+
+    /// What a pointer resting on the choice `target` reads once the
+    /// combo showing `opener` is open, over a list of `steps`.
+    fn hovering_a_choice(mut steps: Vec<Step<f64>>, opener: &str, target: &str) -> String {
+        painted_while_hovering_opened(opener, target, 0, |ui| {
+            let _hovered_only = super::path_steps_ui(
+                ui,
+                "probe",
+                Tol::witness(),
+                (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
+                &mut steps,
+            );
+        })
+    }
+
+    /// **Both pickers grey a refused choice with the one sentence** —
+    /// the verb combo, at a lone row whose tip is the entry, and an arc
+    /// spec's mode picker, at an `arc_to` off a plain point. Each is
+    /// the text [`sketch::not_well_typed`] composes, word for word.
+    #[test]
+    fn both_pickers_say_a_refused_choice_is_not_well_typed_in_one_sentence() {
+        let verb = hovering_a_choice(vec![crate::widgets::new_row_step(0)], "at", "line_to");
+        let said = "line_to is not well-typed here — the tip is at the entry, before any verb";
+        assert_eq!(sketch::not_well_typed(Verb::LineTo, TipState::Entry), said);
+        assert!(verb.lines().any(|line| line == said), "verb combo: {verb}");
+
+        let arc = sketch::fresh_step_at(Verb::ArcTo, Some(TipState::PlainPoint));
+        assert!(
+            matches!(arc, Step::ArcTo(pncad::profile::ArcData::Bulge { .. })),
+            "the arc lands in bulge, so its mode combo reads `bulge`: {arc:?}"
+        );
+        let mode = hovering_a_choice(
+            vec![crate::widgets::new_row_step(0), arc],
+            "bulge",
+            "radius",
+        );
+        let said = "radius is not well-typed here — the tip is a bound position with no incoming \
+                    tangent";
+        assert!(mode.lines().any(|line| line == said), "mode picker: {mode}");
     }
 
     /// **A list's end rows say which end they are at** — a lone

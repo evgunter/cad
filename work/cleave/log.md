@@ -1032,3 +1032,185 @@ Signed (CLEAVE orchestrator).
   - make sure the RESTFRONT row reaches main;
   - probe `transform_rigid`.
 - 2026-10-14 — PR 4861 (the re-pose) is merged (`1d6c939490`), green on `3d9c62584b` after a second merge of main. Its row is closed, and the anchored-conic unit (`the-section-table-admits-a-curve-on-its-resolution`, P2/H) is unparked to open. The part 3 rework of PR 4810 is dispatched: an escalated section-end pin is read against its carrier's per-kind resolution, so a miss the bound explains ends as a kernel limitation with no lever, a miss it can't explain stays the input's with its lever, and nothing new refuses. 5058 and 5100 are told that 4861 is in.
+- 2026-10-14 — The topo P1 `reverting-a-slit-body-…` is up as PR 5106 (`a2948a17dc`, gate ok). `revert` refuses typed (`RevertError::CoincidentEdges`) where two lines or one curve key run between the same two point keys. The ∖ finish reads B's coincident edges through the split lineage and refuses as `BooleanError::Revert` unless a piece is `On`. The void door refuses before writing. Three pinch rows on main pinned overlapping same-brick pairings and now refuse. Filed: topo `revert-re-pairs-the-sheets-…` and `subtracting-a-glued-tip-…` (P2, both blocked on 4795), and cleave `subtracting-a-slit-tool-resting-its-floor-…` (P2). Full review dispatched, focused on whether the flipped pinch rows were really wrong.
+- 2026-10-14 — PR 5058 narrow re-review: FIX-FIRST on the merge with main only (4861 renames, and `carrier_speed.rs` moved to geom-brep); the fix pass itself is sound. The oracle's margin matches Hausdorff, 49,438 `parallel_circles` calls moved only on the witness, and every mutant is red, including the body pin under the old margin. The lane is merging with the reviewer's recipe and renaming `semi_axes()` → `semi_axis_vectors()`.
+- 2026-10-14 — PR 5061 narrow re-review: MERGE, with no MAJOR or MINOR. The frontiers are exact at the gated ε, the 0.1 rad escalation is the input's (its margin is invariant in ε), join endings are identical main vs head, and the mutants are red apart from frames-after-surgery, which is disclosed and unpinned. One small pass before it lands: `join::face_surface` delegates to `readback::carrier_surface` (Q1), the doc's 'every tolerance' claim is corrected, `decision_words` names the shared constant, and the census blind spots get one P3 row.
+- 2026-10-14 — PR 5058 merged (`8b4d8d0d65`), after the lane merged main (4861 renames; `carrier_speed.rs` now lives in geom-brep) and renamed `semi_axes()` → `semi_axis_vectors()`. Its row is closed.
+- 2026-10-14 — PR 4810 reworked for unit 3 (`f3bc0cd05f`, gate ok at three ε).
+  - The new per-kind bound `Curve3::resolution` replaces the plane-offset re-read. An escalated end pin is admitted as the input's where K·ρ ≤ ε (`vertex_section::resolved`, shared with 4858) and keeps its lever; otherwise it ends as `SectionUnresolved`, a kernel limitation with no lever.
+  - Census: at 1e-12, the 83 in-band 'kernel defect' endings become `SectionUnresolved`. Nothing newly refuses or builds at any ε, and M1–M4 are red.
+  - Filed: `a-definite-section-end-miss-within-its-carriers-resolution-ends-as-a-kernel-defect` (P2; 119 runs).
+  - Full review dispatched: soundness of the bound (is 32 derived?), whether removing the re-read loses a lever, and whether the 119 belong in this unit under Ev's interim.
+- 2026-10-14 — PR 5100 fix pass green (`9c363d9d94`).
+  - The pin asserts `ResultNotAtRest` exactly; all three mutants are red.
+  - One renderer, `write_result_not_at_rest`.
+  - The Boolean's `at_rest_refusal` is lifted to `pub(crate)`: a split side failing only in band is now `ResultEscalated`, rendered through `BooleanDecision`.
+  - 4861's seam table gets a `ResultNotAtRest` arm; 50 rows that returned tier-3-refused sides now refuse at the gate.
+  - Tracker: `split-sides-are-not-finished-bodies` raised to P2; the CARVE row corrected and renamed; the RESTFRONT note added.
+  - Filed: CLEAVE P2 `a-rigid-turn-reads-a-valid-ellipse-sliver-inside-out` (40 of 784 at 1e-9) and P3 `the-at-rest-result-gate-and-its-typing-live-in-five-homes`.
+  - Narrow re-review resumed.
+- 2026-10-14 — PR 5061 merged, after its last pass and my merge of main (clippy clean; 163 topo census and join tests pass; CI green on `9dc53b6fef`).
+  - `join::face_surface` delegates to `readback::carrier_surface`.
+  - `decision_words` names the shared constant.
+  - Filed (P3): `join-census-blind-spots`.
+  - Both rows are closed.
+- 2026-10-14 — PR 5106 full review: FIX-FIRST.
+  - The three flipped pinch rows were wrong on main (wedges overlapping 180°/41°), so those flips stand, and nothing over-refuses at three ε.
+  - MAJOR: the `On` exemption passes overlapping edges through every tier, at its own row and on a line only partly On; it goes, and the 7 rows it covered get read one by one.
+  - MAJOR: a pinch with unequal heights is missed (its ends are on different keys); widen to collinear overlap by reusing census's reader.
+  - Also: pin the curve-key arm, print coordinates instead of keys, return a line record, and fix the docs.
+  - To file at P1: `(slab − c1) − c2` overlaps with no coincident input edges (a join defect), and the flat-corner union overlaps.
+  - Restread's side-check row gets the witnesses.
+- 2026-10-14 — PR 5106 fix pass stopped at its stop condition.
+  - Removing `On` refuses 11 rows, and 2 of them are right on main: the vertex-crossing pinch (one 90° edge) and the staircase `P − X` (two disjoint 90° edges). The input reading can't tell them from the 9 wrong ones.
+  - Ruling: the ∖ finish decides on the RESULT's wedges on the lines B's lineage names, through a shared census wedge reader (the primitive for restread's tier-3′ side check), escalating in band. No `On` exemption.
+  - `revert` and the void door keep the structural refusal.
+  - The P1 for overlapping edges from inputs with none is being filed with witnesses.
+- 2026-10-14 — PR 4810 full review: APPROVE-WITH-FIXES, no MAJOR.
+  - The bound is sound with ≥10× margin (mpmath oracle, 14.5k samples), and the census is reproduced exactly.
+  - Fixes sent:
+    - MINOR-1: the admission depends on distance from the world origin. A pose 27 m off loses its lever and gets a false 'rounding can account' sentence. Admit on the reading's own `Rounded` error, and pin the x0 sweep.
+    - MINOR-2: the 119 definite misses within ρ are in scope under Ev's wording; this is free in outcomes.
+    - MINOR-3: the fitted part of 32 gets a double-double guard.
+    - MINOR-4: torus circle provenance.
+  - Style: three spellings of conic rounding; `resolved` hosted in a consumer module; stale docs.
+- 2026-10-14 — PR 5100 narrow re-review: FIX-FIRST on small items.
+  - The substance holds: all 50 re-baselined rows were invalid on main, no other outcome changes, and one home for the typing.
+  - Fixes sent:
+    - a broken intra-doc link (`validate.rs:5801`, the nightly rustdoc gate);
+    - `ResultEscalated` renders the Boolean's 'move the parts' lever at the split door, so the split gets its own ending and the python tag aligns;
+    - a unit pin for the unreached arm;
+    - the `ops.rs` doc.
+  - `a-rigid-turn-reads-a-valid-ellipse-sliver-inside-out` goes to P1: `mass_properties` returns Ok with a wrong-signed, angle-dependent volume on the turned body.
+- 2026-10-14 — (NURBS orchestrator, seam note) **Main is red on `viewer::review_pick_r2` since #4861's merge (`1d6c939490`).** A fresh-target bisect moved the pinned tally exactly once, there: (…141261, 14088, 7230) → (…141201, 12294, 6504). That is 60 fewer aimed-vertex answers and 1794 fewer refused candidates. The row is in the slow set, so #4861's CI didn't run it. Filed on your slate: `review-pick-r2-tally-moved-by-4861-section-ellipse-re-pose`. NURBS has not re-pinned it; the call is yours.
+- 2026-10-14 — (PATHS, #5159's fix pass) Filed on your slate: `a-boss-over-a-hole-tangent-inside-its-rim-at-its-vertex-unites-as-two-shells` (P0). A one-segment boss over a hole tangent inside its rim, both vertices at the tangent point, unites as two shells sharing the crescent; tier 3′ fails, the door does not run it, and `main` builds the same body. It becomes common once PATHS unit 4 lowers `circle` to one segment.
+- 2026-10-14 — Main red filed to GERM (P1): `main-red-the-copysign-census-since-the-apex-tangent-generator`. PR 5152's `half_turn.copysign(c)` in `intersect.rs` is unregistered in `sym_rule_f_rows`'s copysign census. PR 5100's head `3b82cc090c` is red only on it.
+- 2026-10-14 — PR 5100 merged (`4e6dbdef73`).
+  - Its last pass: the split's own lever for `ResultEscalated`, the `escalated` tag, a unit pin, and the doc link fixed.
+  - Merged with `gate ok` red only on main's copysign census (GERM P1, filed), with a PR comment. I checked main's moves in tags, `offer_rows` and `boolean/mod.rs` on a local merge: clippy is clean, and 92 targeted tests pass.
+  - The P1 row is closed.
+- 2026-10-19 — Renamed `two-frame-lanes-still-decide-their-atan2-formula-on-a-components-sign` to `frame-lanes-still-pick-their-atan2-formula-across-a-landmark-cut` (PR 5225's round-6 review): the item lists four copies, and `solve_atan2` branches on raw bounds, not one component's sign. A reshuffle; no design implication.
+- 2026-10-14 — PR 5106 fix pass pushed (`a48cdb7881`).
+  - ∖ decides on the result's wedges (`census::line_wedges`, the primitive for restread's side check) over B's lineage lines with `collinear_overlaps`. No `On` exemption.
+  - Refused (main wrong): the slit, pinch, flat-corner, crossings, dangling and `cube ∖ y` rows.
+  - Built (main right): the vertex-crossing pinch and the staircase.
+  - `revert` and the void door stay structural.
+  - Filed: CLEAVE P1 `boolean-doors-build-overlapping-coincident-edges-from-inputs-that-hold-none`.
+  - Re-review dispatched.
+- 2026-10-14 — Main red caused by CLEAVE: `reach_cone_split::steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt` at 1e-12. GERM's #5164 pinned `(1.3, 100)` as splitting at 1e-12 with tier 3 skipped. After my merge of 5100, the split's at-rest gate refuses those halves on `VolumeUncomputable` (FLUX's elevation over-read). The fix (the row pins the at-rest refusal below `measured_from`) is on `cleave/steep-frustum-at-rest-gate`. Lesson: when a merge adds a gate, grep main's newest tests for the door's `unwrap` before landing.
+- 2026-10-14 — PR 5171 merged: the steep-frustum row pins the split's at-rest refusal below its tier-3 floor, which fixes the main red I caused (5100 × #5164). FLUX's row has a note to lift the floor once its over-read is fixed.
+- 2026-10-14 — PR 4810 fix pass (`2753f15012`). `gate ok` is red only on GERM's copysign census.
+  - MINOR-1: a window-relative bound (`carrier_resolution`). The x0 sweep, 0 m to 30 km, ends `OnPlane` with a lever that builds.
+  - MINOR-2: the 119 definite misses become `Unresolved{Past}`.
+  - MINOR-3: an exact-rational guard at a quarter of the bound.
+  - MINOR-4: torus concentric circles become `SquareToAxis`.
+  - Filed: CLEAVE P3 `a-torus-meridian-circle-…` and `three-readings-of-a-points-rounding-…`; FLUX P2 `a-cylinder-split-just-off-its-rim-vertex-exhausts-the-volume-quadrature-at-rest`.
+  - Narrow re-review on whether a window-relative bound ignores the pin's own coordinate rounding (≈1.1e-13 at 1 km vs ε/K), and on levers that refuse on one side.
+- 2026-10-15 — PR 4810 narrow re-review: MERGE, with no MAJOR.
+  - The window-relative bound is honest: at 1 km the pin's own arithmetic error measured 2.4e-14 < ε/K, which matches DESIGN Q1/D4 ¶4.
+  - `Past` is right, and the census against current main is unchanged.
+  - The levers each have a buildable side.
+  - Last pass sent for the two evidence MINORs: a translation pin along the miss's own coordinate, and a guard that reds at 32→16.
+- 2026-10-15 — PR 4810 merged (`fcc680bde8`, unit 3). Its last pass: the guard is red at 32→16, a z0 pin along the miss, and the second kind gate dropped. Merged with `gate ok` red only on GERM's copysign census, with a PR comment. Parent section-end row closed; unit 2 (anchored conic) stays open on its own row.
+- 2026-10-15 — Dispatched two P1s:
+  - `a-rigid-turn-reads-a-valid-ellipse-sliver-inside-out`: `mass_properties` returns Ok with a wrong-signed volume. Root-cause transform vs certificate.
+  - `a-near-tangent-coplanar-circle-pair-places-its-touch-off-both-circles`: re-measure after 5058 first.
+- 2026-10-15 — PR 5106 re-review: APPROVE-WITH-FIXES.
+  - The result-wedge criterion is sound: 99/99 Overlap and 30/30 Disjoint agree with an independent diagnostic; correct rows build; the census is exactly the 19 pinned tests; mutants are red.
+  - MAJOR: `collinear_overlaps(B)` escalates over every candidate pair before the kept filter and before the gap, so ∖ refuses on two edges 0.7 apart (an η-skew prism; main builds).
+  - MINOR: the `Undecided` arm is typed `Revert` but renders levers. Type the input's in-band reading as `Escalated` per PR 4335.
+  - MINOR: the void door's unequal-pinch hole (only 3′ catches it); fix the doc and add the witness to the P1.
+  - Plus: neutral attribution, the fourth strictly-inside-wedge spelling, and docs.
+  - Fix pass 2 sent.
+- 2026-10-15 — The circle-pair P1 is up as PR 5190 (`66322ac2fa`, gate ok).
+  - Every witness survived 5058, and the lane found a third arm.
+  - Fix: `conic_meets_plane` replaces `common_line`, which cancelled offsets from the world origin over sin²θ. A `Zero` touch is placed at the clamped double root on the conic, and `parallel_circles` reads `geom_core::Circles` with real crossings.
+  - No verdict flips except a new door row that main refuses at 1e-12 with an amplified lever.
+  - Full review dispatched; it diffs the margin partition bit-for-bit against main.
+  - Disk: removed the merged 4810 dir and my target dir (17→23 GB free).
+- 2026-10-15 — PR 5106 round 4 (`22fd89e82c`), CI green on the merged head.
+  - MAJOR-1: a keep filter, plus `lines_apart` overruling an in-band parallel reading; the η-skew prism builds.
+  - MINOR-1: new `BooleanDecision::LineEdges` / `LineWedges` with a lever only; the wedge reading is typed as the input's.
+  - S1: `wedge_holds` reused.
+  - Narrow re-review on whether the levers are truthful, `lines_apart` with converging edges, and `wedge_holds` semantics.
+- 2026-10-15 — PR 5106 round-4 narrow re-review: MERGE. MAJOR-1 is fixed, `lines_apart` is sound, and verdicts agree 100%. Last pass sent:
+  - name only the `LineEdges` lever half that builds ('clearly share a line' leads to `WedgesOverlap`), per PR 4335;
+  - `WedgesOverlap` text says the re-pairing isn't built;
+  - guard K > 2/√3;
+  - `decision_words` for the `wedge_holds` predicates.
+- 2026-10-15 — PR 5190 full review: APPROVE-WITH-FIXES.
+  - Suites are clean at three ε, and the door row on main refuses all four ops with an amplified lever; head is valid and exact.
+  - MAJOR: at 1e-12, below ~3e-5 tilt, `conic_meets_plane`'s margin carries 2u(r+|Δc|)/sin of unaccounted noise, leaving 47/600 silent misses (main 128). Do the row's item 2 (double root by root gap in metres), or charge the rounding so it escalates; add near-tangent small-tilt oracle poses.
+  - MINORs: two Cramer siblings to file (`offset_derive plane_plane`, blend `corner_ball`); add a translated pin and close the far-dot twin rows; stale citations; 'same margin' holds to first order only.
+  - Fix pass sent.
+- 2026-10-15 — PR 5106 merged (topo P1, the revert of a slit body).
+  - ∖ refuses only where the result's coincident wedges overlap (`census::line_wedges` over B's kept lineage lines, read with `collinear_overlaps`, with a `lines_apart` overrule).
+  - `revert` and the void door refuse structurally.
+  - New decisions `LineEdges` and `LineWedges` offer only levers that build; K > 2/√3 is guarded.
+  - Three rounds of review. The row is closed.
+  - Open follow-ups: CLEAVE P1 `boolean-doors-build-overlapping-coincident-edges-from-inputs-that-hold-none`; topo `revert-re-pairs-the-sheets…` (blocked on 4795); restread's side check.
+- 2026-10-15 — Dispatched P1 `boolean-doors-build-overlapping-coincident-edges-from-inputs-that-hold-none` as a gate check. The Boolean result gate runs `census::line_wedges` over every line holding coincident edges and refuses a definite overlap as a kernel limitation (the re-pairing waits on 4795). Over-refusal census against main is required; tier 3′'s side check stays restread's.
+- 2026-10-15 — The rigid-turn P1 is up as PR 5185 (`403960e619`, gate ok).
+  - Root cause: `loop_vector_area`'s conic arm takes its moment about the ellipse centre (|C| ~ 1e5), so two ~900 m² terms cancel. The chord's rounding is multiplied by the lever, under a pad of 0. The transform is cleared.
+  - Fix: triangle(ref, p0, p1) + k(Δ − sin Δ)·axis. Enclosure misses go from 238/812 (1e-9) and 14/348 (1e-12) to 0.
+  - Golden `frozen` counts re-cut.
+  - geom-brep's cone-wall test bound loosened to 4·EPS.
+  - Filed: FLUXTAIL P1 `a-cone-wall-far-from-its-apex-…` (2.6% off, Ok, pad 0).
+  - Full review dispatched; focus on whether the pad alone is sound.
+- 2026-10-18 — Seam note from RESTREAD (branch `restread/one-edge-box-map`, PR 5308), on `crates/topo/src/boolean/boxes.rs`:
+  - `edge_rule_box` is now the one `EdgeBoxRule → SpanBox` map. `edge_box` reads it at `f64` brackets; `census::edge_reach_of` reads it at the census's scalar, in its frame.
+  - Its spiric arm is `geom::spiric_period_box`, which charges for its own rounding and encloses with no pad. Both lanes' spiric boxes widen a little: about `32·u·S` off the fold, more near it.
+  - `EdgeBoxRule::ConicAmplitude` is now a tuple variant over `ConicArc`, and `EdgeBoxRule::Spiric` drops `carrier`.
+  - The door inventory counts `edge_rule_box(` and turbofish calls; `census.rs` pins 10.
+  - Test-only change in `boolean/conic_oracle/exact.rs`: `Dd` and its `of`/`add`/`sub`/`mul`/`sqrt`/`to_f64` are now `pub(in crate::boolean)`, for the spiric box rows' exact reference. Nothing else in the file moves.
+  - (RESTREAD implementer)
+- 2026-10-19 — Usage limit hit 10-15 (reset 10-17); three lanes resumed (the gate-wedges P1, the 5190 fix pass, the 5185 review).
+  - Ev asked on 4795 'any update here?'. I had put the radial-edges reports into the body without commenting. Lesson: an `[ev]` PR update always gets a comment, because Ev reads comments, not body edits.
+  - Replied with the designers' verdict (both keep the manifold model) and the three questions.
+  - Resolved 4795's merge conflict: my fork rows are renumbered 141/142 → 149/150, since main used 141–148. The PR body's round headings still cite 141/142; fix them when folding in Ev's answer.
+- 2026-10-19 — Usage limit hit 10-15 (reset 10-17); the gate-wedges P1 lane and the 5185 review are resumed.
+  - Ev asked on 4795 'any update here?'. I had put the radial-edges reports into the body without commenting. Lesson: an `[ev]` PR update always gets a comment, because Ev reads comments, not body edits. Replied with the verdict (both designers keep the manifold model) and the three questions.
+  - Resolved 4795's merge conflict: fork rows renumbered 141/142 → 149/150. The PR body's headings still cite 141/142; fix them with Ev's answer.
+  - PR 5190 is superseded: FUSE's curve-pair reader (`fuse/curve-pair-reader-c`) replaced `carrier_cross::meetings` on 10-14 and closed the row, deciding a double root by its root chord. The lane is redirected to salvage the door row and M-1 family against main, file the Cramer siblings, and close 5190. Lesson: before a fix pass, re-read the row on main; FUSE landed during review.
+- 2026-10-19 — **Crossing from FLUSH** (`boolean/*` is CLEAVE's). FLUSH's `coincident-faces-are-not-imprinted-on-each-other-before-the-lump` (P1, filed from EMIT's `[ev]` PR 5153 on Ev's "no stopgap") will touch `boolean/vtxfac.rs` (the tangential-site decision), `recl.rs` (`held` retires), `insert.rs`/`join.rs` (a one-sided chord along the kept copy's edge), and `finish.rs`/`discard.rs` (a substitution row at the carve; `BooleanNaming::covered` and `DiscardRow::held` retire). `sectors.rs` should need little. The design is in the row's `## Design`. Branch `flush/coincident-fate-cut`; announce any conflicting in-flight work on FLUSH's log.
+— (FLUSH orchestrator)
+- 2026-10-19 — PR 5190 closed unmerged, superseded by FUSE's curve-pair reader. Tracker PR 5327 holds what it salvaged, merged:
+  - **Regression from the reader.** The tilted-rim door row now refuses `CurvedPierceUnsupported` on main (`meet` refuses `Unsettled(Meter)` below the basin floor), where pre-reader main and 5190 built it. It refuses typed, never misanswers. Filed as CPAIR P2 `a-ball-split-on-its-equator-and-turned-refuses-every-op-below-the-basin-floor`.
+  - **M-1 family.** No silent misses on main.
+  - **Cramer siblings filed:** issues `offset-section-plane-plane-cramer-anchors-at-the-world-origin` and band `blend-corner-ball-cramer-anchors-at-the-world-origin`.
+- 2026-10-19 — PR 5185 full review: APPROVE-WITH-FIXES, no MAJOR.
+  - The pad alone covers on all 1,508 rebuilt bodies at three ε. The forms are equal to 7e-49, and the goldens and outcome diff match.
+  - Fixes sent:
+    - one home for the segment term (topo's `chord_bulge`/`conic_segment_term` delegate to geom-brep);
+    - the pin asserts the pad alone and adds a ψ 1e-4 pose;
+    - the doc's overstatement and stale prose.
+  - To file: the cylinder wall's radial lever (wrong Ok, pad 0, 2.4× ε·A at 250 m inside the box; FLUXTAIL, predates the PR).
+  - Rows to correct: the cone P1 gets an in-box witness (850× ε·A); the planar row's band claim.
+  - `certify_section_area` is noted on GAUGE as a conditioning risk.
+- 2026-10-19 — PR 5185 fix pass green (`a57373ce90`).
+  - One home for the segment term in geom-brep; the pin covers the truth by its pad alone, plus a ψ 1e-4 pose; docs, rows and the FLUXTAIL cylinder-lever P1 filed.
+  - Unverified: topo bit-for-bit and the tightened pin's mutant, so a narrow re-review is dispatched.
+  - Possible unfiled main reds at 1e-6: `near_tangent_pierce_poses` and `torus_region_probe` (seed 0x8e54900f8aa4853b). The reviewer is capturing them to file.
+- 2026-10-19 — Ev on 4795: the main D1 sentence is ratified ('it seems good as-is'), and he asked for elaboration on (A) the 'legal together or not at all' qualification and (B) the representability boundary. I posted explanations recommending yes on both. Waiting before the merge.
+- 2026-10-19 — Ev ruled on 4795.
+  - (A): add 'isolated'.
+  - (B): the representability boundary speaks of non-solids only, and the principles line drops booleans ('you can't use them to get a non-solid from solids').
+  - Main had moved D1 into `crates/topo/README.md`, so I merged main and applied all of 4795's D1 text there, plus DESIGN.md's 'Manifold solids only' summary.
+  - Fork rows renumbered again to 167/168, with Ev's decisions and mappings filled in (both Fable = A).
+  - Filed CLEAVE P2 `non-manifold-result-calls-a-buildable-solid-permanently-unrepresentable`.
+  - Keel row: decision recorded; needs_ev cleared; status open (the slit-form build is unblocked).
+  - `[ev]` taken off the title; the body leads with the decision. Merge on CI.
+  - Lesson: `work.py lint | tail` in an && chain hides lint failures; run lint unpiped before committing.
+- 2026-10-19 — 4795 merged (`0a702a9bc1`). Unparked the four rows blocked on it:
+  - topo `revert-re-pairs-…` and `subtracting-a-glued-tip-…`;
+  - CLEAVE P1 `a-boolean-builds-a-reflex-edge-lying-inside-a-face`;
+  - RESTREAD `census-passes-a-face-inside-an-edges-material-wedge`.
+- 2026-10-19 — The keel slit-ring build is dispatched (`cleave/keel-slit-ring`), following Ev's ratified D1 sentence and the row's build notes.
+- 2026-10-19 — The keel ring is up as PR 5350 (`3b57bbb11b`, gate ok).
+  - A slit trace is read from topology (a tree walk, widened to crossing and bent keels). The strut face is dropped; the slit is nested by containment and merged with `kfmrh`. New `SlitUnplaced` refusal. Volumes 15.7/16; the brief's 12.65 was wrong.
+  - Open concerns for the review:
+    - The curved twin returns sides that tier 3′ refuses, where main refused at the split. Is this a new invalid Ok?
+    - The straight ring fails mesh `NonManifoldEdge`.
+  - Filed: CLEAVE P2 `a-curved-slit-fails-tier-3-prime-…`, P3 `the-split-keeps-an-in-plane-edge-it-doubles-at-a-dead-key`; tess P2 `a-zero-area-ring-meshes-non-manifold…`.
+  - Full review dispatched.
+- 2026-10-19 — Filed two RESTREAD P1 main reds at 1e-6, both traced by the 5185 reviewer: `main-red-near-tangent-pierce-poses-…` (introduced by #5297) and `main-red-torus-region-probe-…` (red since #5269 landed).

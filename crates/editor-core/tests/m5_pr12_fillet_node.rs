@@ -166,7 +166,6 @@ fn an_inadmissible_radius_fails_the_node_typed() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("radius edit applies")
     .doc;

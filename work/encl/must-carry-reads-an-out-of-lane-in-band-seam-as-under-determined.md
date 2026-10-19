@@ -25,7 +25,7 @@ on an in-band sample. The lane only gates the DEMAND there
 (`TangentNotIntrinsic`). So an out-of-lane smooth join whose sagitta is
 in band is built conventional by any constructor that asks the rule and
 then refused at rest: the shape
-`work/fuse/boolean-rebuild-folds-an-in-band-second-order-into-conventional.md`
+`boolean-rebuild-folds-an-in-band-second-order-into-conventional` (closed, PR 3889)
 fixed in the boolean, one level down.
 
 Measured at the rule (not through a constructor): the plane tangent to

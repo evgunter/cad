@@ -17,11 +17,11 @@
 //!   to the far rim, which pinches the band shut there). The strut runs
 //!   across it from section to rim, and a face on both sides of a chord
 //!   has an interior in two pieces and a shell whose `V − E + F` is odd.
-//!   The strut is the cut the author wrote (D1): `split` returns TWO
-//!   faces on the one surface, the strut between them as an ordinary
-//!   image; a boolean's output stage glues the two into one maximal
-//!   face and the strut dies (DESIGN, "Maximal-faces precondition and
-//!   the merge stage": the sub-period re-merge).
+//!   The strut is the cut the author wrote (D1), but the two faces on
+//!   either side of it are on the one surface, so `split`, which ends
+//!   each side with maximal faces, and a boolean's output stage both
+//!   glue them into one maximal face and the strut dies (DESIGN,
+//!   "Maximal faces and maximal edges": the sub-period re-merge).
 //!
 //! The piece below the plane, `0 ≤ z < g(θ)`, meets the strut only at
 //! the vertex the plane passes through, and is one face. The pose
@@ -171,8 +171,8 @@ enum Wall {
     Two,
 }
 
-/// [`Wall`] after a boolean's output stage, which glues a disc's two
-/// faces into one and kills the strut.
+/// [`Wall`] after the merge a split and a boolean's output stage end
+/// with, which glues a disc's two faces into one and kills the strut.
 fn merged(wall: Wall) -> Wall {
     match wall {
         Wall::Two => Wall::One { strut: false },
@@ -182,7 +182,7 @@ fn merged(wall: Wall) -> Wall {
 
 /// What the side `n · p > d` (`positive`) or `< d` keeps of the
 /// cylinder whose vertex is at azimuth `phase`, or of the block it is a
-/// `hole` in, as `split` leaves it: its wall and its volume. `band` is
+/// `hole` in, before any merge: its wall and its volume. `band` is
 /// how near `max g` or `min g` may come to a cap before the plane
 /// counts as tangent to that cap's rim.
 fn closed_form(plane: Plane, phase: f64, positive: bool, hole: bool, band: f64) -> (Wall, f64) {
@@ -385,7 +385,10 @@ fn split_family(
                             tol(),
                         );
                         let (near, volume) = (offset != 0.0, sense > 0.0);
-                        let side = |positive| closed_form(plane, phase, positive, hole, band);
+                        let side = |positive| {
+                            let (wall, volume) = closed_form(plane, phase, positive, hole, band);
+                            (merged(wall), volume)
+                        };
                         runs += 1;
                         let got = match topo::split(&body, &split, tol()) {
                             Ok(out) => check(out.above.body(), side(true), volume, near)

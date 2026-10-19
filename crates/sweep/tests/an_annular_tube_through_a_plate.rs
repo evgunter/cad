@@ -99,11 +99,6 @@ fn plate() -> Body<f64> {
 /// What a row's result is held to besides its closed form.
 #[derive(Clone, Copy, Default)]
 struct Known<'a> {
-    /// The runs whose result fails tier 3′ and nothing else: it is two
-    /// solids, one in the other's bore, which the census's cross-solid
-    /// backstop cannot separate
-    /// (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
-    t3: &'a [&'a str],
     /// The runs whose result the mesher refuses `Triangulation`: a
     /// thin annulus whose two circles' vertices are opposed
     /// (`work/tess/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`).
@@ -135,8 +130,7 @@ fn every_op(what: &str, tube: Body<f64>, area: f64, z: (f64, f64), known: Known<
             m => bad.push(format!("{row}: the mesh {:?}", m.map(|_| "meshed"))),
         }
         // The closed form within the quadrature's own certified pad,
-        // which grows with ε; `outcome` reads the volume too, but a
-        // tier-3′-known run is `BAD` whatever its volume.
+        // which grows with ε; `outcome` reads the volume too.
         let m = topo::mass_properties(body, tol()).unwrap();
         if (m.volume - want).abs() > m.volume_pad + 1e-9 * want.max(1.0) {
             bad.push(format!(
@@ -145,12 +139,7 @@ fn every_op(what: &str, tube: Body<f64>, area: f64, z: (f64, f64), known: Known<
             ));
         }
         let line = outcome(r, want, tol());
-        let want_line = if known.t3.contains(&op) {
-            "OK BAD t2=true t3p=false cert=true operand=true"
-        } else {
-            "OK SOUND t2=true t3p=true cert=true operand=true"
-        };
-        if !line.starts_with(want_line) {
+        if !line.starts_with("OK SOUND t2=true t3p=true cert=true operand=true") {
             bad.push(format!("{row}: {line}"));
         }
     }
@@ -221,10 +210,6 @@ fn the_annulus_builds_at_random_azimuth_pairs() {
 /// solids.
 #[test]
 fn two_nested_annuli_build() {
-    let known = Known {
-        t3: &["A ∩ B", "B ∩ A", "A ∖ B"],
-        ..Known::default()
-    };
     nested(
         "two annuli",
         &[
@@ -232,7 +217,7 @@ fn two_nested_annuli_build() {
             [ring(0.5, 0.0), ring(0.25, PI)],
         ],
         (0.5, 2.5),
-        known,
+        Known::default(),
     );
 }
 
@@ -254,7 +239,6 @@ fn thin_nested_rings_build() {
             })
             .collect();
         let known = Known {
-            t3: &["A ∩ B", "B ∩ A", "A ∖ B"],
             untriangulated: &ALL_OPS,
         };
         nested(&format!("thin rings w = {w}"), &annuli, (0.5, 2.5), known);
@@ -286,10 +270,7 @@ fn an_annulus_through_the_plate_builds() {
         (0.0, 0.0),
         &[ring(1.0, 0.0), ring(0.5, PI)],
         (-0.5, 1.5),
-        Known {
-            t3: &["B ∖ A"],
-            ..Known::default()
-        },
+        Known::default(),
     );
 }
 

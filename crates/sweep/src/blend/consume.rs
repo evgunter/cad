@@ -1,27 +1,38 @@
-//! **The carve that takes a feature wholly inside a convex straight
-//! band's material** — the ruled band's or the plane–plane band's, cut
-//! off at its two end faces: predicate 2's inside verdict
-//! (`reach::Consumed`), built.
+//! **The carve that takes a feature wholly inside a straight band's
+//! material** — the ruled band's or the plane–plane band's, cut off at
+//! its two end faces: predicate 2's inside verdict (`reach::Consumed`),
+//! built.
 //!
 //! A feature is a connected set of faces, joined by the edges they
 //! share. The carve takes each whole, as a Boolean takes a feature
 //! wholly inside its tool, or refuses the request `WhollyInside` before
-//! any mutation ([`plan`]). The shape it builds is a through-feature
-//! between the band's two caps: faces read inside the prism the band
-//! removes, bounded only by each other and by one cycle on each cap that
-//! the cap's meter read inside its sliver. Its faces, edges and vertices
-//! go; the two cycles leave their caps, and the slivers they lay in go
-//! with the cut-off.
+//! any mutation ([`plan`]). The shapes it builds are a through-feature
+//! between the band's two caps and a cup on one cap or on one support:
+//! faces read inside the prism the band removes (convex) or fills
+//! (concave), bounded only by each other and by one cycle on each cap,
+//! or on the one face, that the cap's meter read inside its sliver or
+//! the strip meter inside the support's strip — a bore, a blind bore or
+//! a dimple under a convex band, a bar, a pin or a boss under a concave
+//! one. Its faces, edges and vertices go; its cycles leave their faces,
+//! and the slivers and strips they lay in go with the band, cut away or
+//! buried: a support gives up its ring here, before the band's carve
+//! takes its strip, so the carve finds no ring there. The walk reads no
+//! material side: the region the feature encloses lies inside the
+//! prism, so the band's cut-off builds the same body whether that
+//! region is first filled (a bore) or removed (a bar).
 //!
 //! The walk, per feature, on the clone before the band is carved
-//! ([`consume`]): the cycle on one cap is promoted to a plug face
-//! (`mfkrh`, which ends the feature's hole); the plug and the feature's
+//! ([`consume`]): each ring of a feature's face is bridged to its outer
+//! cycle (`mekr`), so the faces merged are ring-free; a through-feature's
+//! cycle on one face is promoted to a plug face (`mfkrh`, which ends the
+//! feature's hole; a cup is a disk already); the plug and the feature's
 //! faces are merged across their shared edges into one face (`kef`),
-//! and the edges left inside it, a tree hanging from the other cap's
-//! cycle, are retired leaf first (`kev`); that face is merged into the
-//! other cap across one of the cycle's edges (`kef`), whose remaining
+//! and the edges left inside it, a tree hanging from the kept cycle (a
+//! cup's mouth, or a through-feature's unplugged one), are retired leaf
+//! first (`kev`); that face is merged into the kept cycle's face across
+//! one of the cycle's edges (`kef`), whose remaining
 //! edges are retired the same way down to a lone vertex; and that vertex
-//! is joined to the cap's outer cycle by a strut (`mekr`) and retired
+//! is joined to that face's outer cycle by a strut (`mekr`) and retired
 //! with it (`kev`).
 
 use geom_core::{Decide, Tol};
@@ -42,11 +53,12 @@ use super::surgery::{
 pub(super) struct Feature {
     /// Its faces, sorted.
     faces: Vec<FaceKey>,
-    /// The cycle that stays on its cap until the merge: the cap, the
-    /// cycle.
+    /// The cycle that stays on its face until the merge: the face (a cap
+    /// or a support), the cycle.
     kept: (FaceKey, LoopKey),
-    /// The cycle promoted to the plug.
-    plugged: LoopKey,
+    /// The cycle promoted to the plug: a through-feature's second
+    /// cycle; none for a cup.
+    plugged: Option<LoopKey>,
     /// Every edge and vertex of its faces, sorted.
     edges: Vec<EdgeKey>,
     vertices: Vec<VertexKey>,
@@ -99,17 +111,24 @@ fn across<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<(LoopKey, FaceKe
 
 /// **Group what a request consumes into features**, and refuse one the
 /// carve does not take: a face joined to a face outside the feature
-/// other than through a cycle its cap read inside, a cycle not wholly
-/// bounded by one feature, or a feature that is not a through-feature
-/// between two caps — an annulus of faces each bounded by one cycle
-/// (`V − E + F = 0`), so that with the plug it is a disk and its merge
+/// other than through a cycle read inside on that face, a cycle not
+/// wholly bounded by one feature, a face not read inside the material of
+/// the band whose region's faces carry the feature's cycles, a
+/// lone-vertex cycle on a face of it, or a feature that is neither a
+/// through-feature between two faces of one band's region — an annulus,
+/// `V − E + F − R = 0` over its faces, `R` their rings — so that with the
+/// plug it is a disk, nor a cup on one, a disk (`V − E + F − R = 1`):
+/// either way its merge
 /// leaves only a tree of edges hanging from the kept cycle.
 ///
 /// Sound because the verdict is inside only when every face and cycle
 /// not clear read inside: an inside face shares no edge with a clear
 /// one (the edge would lie in both), so a feature's faces were all read,
-/// and the check here is that they are all inside, which reading them
-/// does not say of a face grouped with them.
+/// and the check here is that they are all inside one band's material,
+/// which reading them does not say of a face grouped with them. A
+/// feature is a closed surface with its cycles' disks in the caps'
+/// slivers and the supports' strips, all in that band's prism, which
+/// holds the region it bounds.
 ///
 /// # Errors
 ///
@@ -120,7 +139,9 @@ pub(super) fn plan<T: Decide>(
     consumed: &Consumed<T>,
 ) -> Result<Vec<Feature>, BlendError> {
     let refuse = || consumed.refusal.clone();
-    let faces = &consumed.faces;
+    let mut faces: Vec<FaceKey> = consumed.read.iter().map(|(f, _)| *f).collect();
+    faces.sort_unstable();
+    faces.dedup();
     let ring_of = |lp: LoopKey| consumed.rings.iter().find(|r| r.ring == lp);
     // Union-find over the faces, by shared edge.
     let mut parent: Vec<usize> = (0..faces.len()).collect();
@@ -136,7 +157,11 @@ pub(super) fn plan<T: Decide>(
         let f = body
             .get_face(face)
             .ok_or_else(|| unresolved(EntityId::Face(face), "a consumed feature's face"))?;
-        if !f.rings.is_empty() {
+        let lone = |lp: &LoopKey| {
+            body.get_loop(*lp)
+                .is_none_or(|l| matches!(l.boundary, LoopBoundary::Empty { .. }))
+        };
+        if lone(&f.outer) || f.rings.iter().any(lone) {
             return Err(refuse());
         }
         for he in face_halves(body, face)? {
@@ -144,7 +169,7 @@ pub(super) fn plan<T: Decide>(
             if let Ok(j) = faces.binary_search(&other) {
                 let (a, b) = (root(&mut parent, i), root(&mut parent, j));
                 parent[a] = b;
-            } else if ring_of(lp).is_some_and(|r| r.cap == other) {
+            } else if ring_of(lp).is_some_and(|r| r.face == other) {
                 touches.push((i, lp));
             } else {
                 return Err(refuse());
@@ -169,19 +194,33 @@ pub(super) fn plan<T: Decide>(
             .collect();
         rings.sort_unstable();
         rings.dedup();
-        let [r0, r1] = rings[..] else {
+        let (r0, r1) = match rings[..] {
+            [r0] => (r0, None),
+            [r0, r1] => (r0, Some(r1)),
+            _ => return Err(refuse()),
+        };
+        let Some(c0) = ring_of(r0) else {
             return Err(refuse());
         };
-        let (Some(c0), Some(c1)) = (ring_of(r0), ring_of(r1)) else {
-            return Err(refuse());
-        };
-        if c0.cap == c1.cap {
-            return Err(refuse());
+        if let Some(r1) = r1 {
+            match ring_of(r1) {
+                Some(c1) if c1.face != c0.face && c1.crease == c0.crease => {}
+                _ => return Err(refuse()),
+            }
         }
         let mine: Vec<FaceKey> = members.iter().map(|&j| faces[j]).collect();
+        // Every face read inside the material of its cycles' band.
+        if !mine
+            .iter()
+            .all(|f| consumed.read.contains(&(*f, c0.crease)))
+        {
+            return Err(refuse());
+        }
         let mut edges = Vec::new();
         let mut vertices = Vec::new();
+        let mut holes = 0;
         for &f in &mine {
+            holes += body.get_face(f).map_or(0, |f| f.rings.len());
             for he in face_halves(body, f)? {
                 let h = body
                     .get_half_edge(he)
@@ -194,12 +233,14 @@ pub(super) fn plan<T: Decide>(
         edges.dedup();
         vertices.sort_unstable();
         vertices.dedup();
-        if vertices.len() + mine.len() != edges.len() {
+        // `V − E + F − R`, `R` the faces' rings: 0 for the annulus, 1 for
+        // the disk.
+        if vertices.len() + mine.len() != edges.len() + holes + usize::from(r1.is_none()) {
             return Err(refuse());
         }
         features.push(Feature {
             faces: mine,
-            kept: (c0.cap, r0),
+            kept: (c0.face, r0),
             plugged: r1,
             edges,
             vertices,
@@ -209,7 +250,7 @@ pub(super) fn plan<T: Decide>(
     for ring in &consumed.rings {
         let Some(feature) = features
             .iter()
-            .find(|f| f.kept.1 == ring.ring || f.plugged == ring.ring)
+            .find(|f| f.kept.1 == ring.ring || f.plugged == Some(ring.ring))
         else {
             return Err(refuse());
         };
@@ -249,7 +290,7 @@ fn spur<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Option<HalfEdgeKey>,
         return Err(invariant_broken(
             EntityId::Face(face),
             "a consumed feature leaves a cycle of edges inside one face, which `plan`'s \
-             annulus rules out",
+             disk and annulus count rules out",
         ));
     }
     Ok(None)
@@ -279,12 +320,37 @@ pub(super) fn consume<T: Decide + topo::AtRestPolicy>(
     rec: &mut BlendNaming,
     tol: Tol,
 ) -> Result<(), BlendError> {
-    let plug = body
-        .mfkrh_minting(feature.plugged, FaceSurface::Inherit, tol)
-        .map_err(|e| op("consumed feature plug mfkrh", e))?
-        .face;
+    // Bridge each ring of a face to its outer cycle (`mekr`), so every
+    // face the merge kills is ring-free; the bridge is an inside edge of
+    // the merged face, retired with the rest.
+    for &f in &feature.faces {
+        let (outer, rings) = {
+            let face = body
+                .get_face(f)
+                .ok_or_else(|| unresolved(EntityId::Face(f), "a consumed feature's face"))?;
+            (face.outer, face.rings.clone())
+        };
+        for ring in rings {
+            let (Some(&target), Some(&from)) =
+                (halves(body, outer)?.first(), halves(body, ring)?.first())
+            else {
+                return Err(invariant_broken(
+                    EntityId::Face(f),
+                    "a consumed feature's face has a lone-vertex cycle, which `plan` rules out",
+                ));
+            };
+            body.mekr_chord(MekrSite::Cycles { target, ring: from }, tol)
+                .map_err(|e| op("consumed feature bridge mekr", e))?;
+        }
+    }
     let mut alive: Vec<FaceKey> = feature.faces.clone();
-    alive.push(plug);
+    if let Some(plugged) = feature.plugged {
+        let plug = body
+            .mfkrh_minting(plugged, FaceSurface::Inherit, tol)
+            .map_err(|e| op("consumed feature plug mfkrh", e))?
+            .face;
+        alive.push(plug);
+    }
     // Merge the plug and the feature's faces into one, across the edges
     // they share.
     while alive.len() > 1 {
@@ -310,7 +376,7 @@ pub(super) fn consume<T: Decide + topo::AtRestPolicy>(
     }
     let whole = alive[0];
     retire_spurs(body, whole)?;
-    // Merge it into the kept cap, across one edge of the cycle there.
+    // Merge it into the kept cycle's face, across one edge of the cycle.
     let (cap, ring) = feature.kept;
     let Some(he) = face_halves(body, whole)?.first().copied() else {
         return Err(invariant_broken(

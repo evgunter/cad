@@ -592,8 +592,8 @@ fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> usize {
 ///
 /// On this operand the pinched pieces lie below the plane's normal, so
 /// the kernel mints the pieces' tip copies on the Below side: two
-/// coincident-but-distinct vertices at each tip on the pieces side, one
-/// on the slab side. A plane whose orientation the dispatch re-derived
+/// coincident-but-distinct vertices at each tip on the pieces side, and
+/// none on the slab side, whose top is one maximal face. A plane whose orientation the dispatch re-derived
 /// would put the pieces on the other side.
 ///
 /// The dispatch calls the door and nothing beneath it, so agreement
@@ -617,14 +617,14 @@ fn the_split_dispatch_agrees_with_the_door_through_a_pinch_below_the_plane() {
         3,
         "the pinch's three floor pieces did not reach the dispatch below the plane"
     );
-    // The pieces' copies at each tip line, the slab keeping one vertex.
+    // The pieces' copies at each tip line; the slab's top is one face.
     for z in [0.0, 1.0] {
         assert_eq!(
             vertices_at(pieces, 4.0, 1.0, z),
             2,
             "the pieces side carries no tip copies at z = {z}"
         );
-        assert_eq!(vertices_at(slab, 4.0, 1.0, z), 1);
+        assert_eq!(vertices_at(slab, 4.0, 1.0, z), 0);
     }
     assert_eq!(
         dump_sides(&door.above, &door.below),

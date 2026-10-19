@@ -19,7 +19,7 @@
 use crate::common::germ_pair::{cyl, spin};
 use sweep::ExtrudeSide;
 
-use geom_core::{Affine3, Band, Mat3, Point2, Point3, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use sweep::test_support::finished;
 use topo::{AtRestBody, Body, SolidContainment};
@@ -34,10 +34,7 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
         Point2::new(x.1, y.1),
         Point2::new(x.0, y.1),
     ]);
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Vec3::new(0.0, 0.0, z.0),
-    ));
+    let plane = profile::SketchPlane::xy_at(Point3::new(0.0, 0.0, z.0));
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the box profile validates");

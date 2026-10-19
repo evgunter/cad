@@ -24,7 +24,7 @@ use crate::body::Body;
 use crate::entity::EdgeKey;
 use crate::euler::MevSite;
 use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
-use geom_brep::carrier_speed::speed_and_curvature_hi;
+use geom::carrier_speed::speed_and_curvature_hi;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()

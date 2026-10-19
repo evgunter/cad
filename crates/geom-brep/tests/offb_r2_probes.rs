@@ -400,8 +400,8 @@ fn p4_certify_offset_on_a_rational_fit() {
         *w = if i % 2 == 0 { 1.0 } else { 1.6 };
     }
     let rational_fit = NurbsSurface::new(
-        fit.knots_u().clone(),
-        fit.knots_v().clone(),
+        fit.knots_u_f64_interim().clone(),
+        fit.knots_v_f64_interim().clone(),
         fit.control().to_vec(),
         weights,
     )

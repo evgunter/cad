@@ -2,10 +2,11 @@
 id: a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission
 kind: issue
 title: A legal declared union reaches the seam-vertex-parentage residue Emission once a covered contact is declared
-status: open
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: D
+closed: 2026-10-17
 ---
 
 
@@ -130,3 +131,9 @@ was the `Borders` chase. It stopped at a seam that a later step's join
 had killed, so the chase now follows `EdgeJoin` and each step's split
 lineage. Whether any other document still reaches this row is WIRE's
 call; it is left open here.
+
+## Closed (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. The row's own last sections found no witness reaching the arm; `SEAM_VERTEX_RESIDUE` and `no_rule` are gone, the sibling emit row is closed, and what remains in `emit_topo.rs`'s seam-vertex pass is the deliberate unenumerated-residue arm argued at its site.
+
+Signed (WIRE orchestrator).

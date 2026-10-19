@@ -448,6 +448,20 @@ pub trait AxisScalar: geom_core::Real {
         let _ = var;
         Self::axis(lo, hi)
     }
+
+    /// [`AxisScalar::axis_of`] for a variable of the document version
+    /// `scope` names ([`symbol_scope`]): a parameter symbol keyed by the
+    /// version as well as the variable, since two documents mint the
+    /// same ids and two versions of one document share them, so a run
+    /// that binds a part's variables beside its own never makes two of
+    /// them one symbol.
+    /// A scalar that binds identities (`Sym`) overrides this as well as
+    /// [`AxisScalar::axis_of`]: the default
+    /// drops `scope`, which only an anonymous enclosure may.
+    fn axis_of_in(scope: u64, var: VarId, lo: f64, hi: f64) -> Option<Self> {
+        let _ = scope;
+        Self::axis_of(var, lo, hi)
+    }
 }
 
 /// A point scalar carries only a degenerate axis, and the comparison is
@@ -521,6 +535,12 @@ where
         T::axis(lo, hi).map(|v| {
             geom_core::Sym::param_over(geom_core::ParamSymbol::new(var.0.digest()), v, lo, hi)
         })
+    }
+
+    fn axis_of_in(scope: u64, var: VarId, lo: f64, hi: f64) -> Option<Self> {
+        let key = var.0.digest() ^ scope;
+        T::axis(lo, hi)
+            .map(|v| geom_core::Sym::param_over(geom_core::ParamSymbol::new(key), v, lo, hi))
     }
 }
 
@@ -652,26 +672,31 @@ pub enum SeedError {
 
 impl core::fmt::Display for SeedError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use crate::sentence::Recourse;
         match self {
             Self::UnknownVar { var } => write!(
                 f,
-                "the seed names {var}, which is not a variable of this document"
+                "the seed names {var}, which is not a variable of this document. {}",
+                Recourse("seed a free length, angle or scalar variable the document holds")
             ),
             Self::CountVar { var } => write!(
                 f,
                 "the seed names {var}, a Count parameter — structural parameters are fixed \
-                 under any error analysis and carry no derivative axis"
+                 under any error analysis and carry no derivative axis. {}",
+                Recourse("seed a length, angle or scalar parameter")
             ),
             Self::SeedOnNonFreeVar { var } => write!(
                 f,
                 "the seed names {var}, which is not a free variable and so is no axis of its \
                  own: a defined variable's derivative is its inputs' pushforward, and an \
-                 operation's output is a value its operation gives; seed a free variable"
+                 operation's output is a value its operation gives. {}",
+                Recourse(format_args!("seed a free variable {var} is a function of"))
             ),
             Self::TangentUnrepresentable { var } => write!(
                 f,
                 "parameter {var} is seeded and this evaluation scalar carries no tangent \
-                 channel — a sensitivity pass needs a dual"
+                 channel. {}",
+                Recourse("evaluate at a dual scalar, or drop the seed")
             ),
         }
     }
@@ -833,11 +858,6 @@ pub enum ParamBoxError {
     /// The evaluation was asked to bind every variable a symbol and to
     /// widen some over a box: two environments, and a run has one.
     SymbolsOverABox,
-    /// The evaluation was asked to bind every variable a symbol and
-    /// carries a resolver: a part's variables are keyed by their ids in
-    /// its own document, and two documents mint the same ids, so two
-    /// parts' symbols could cancel. A symbolic run crosses no part seam.
-    SymbolsAcrossAPartSeam,
 }
 
 impl core::fmt::Display for ParamBoxError {
@@ -856,10 +876,6 @@ impl core::fmt::Display for ParamBoxError {
             Self::SymbolsOverABox => f.write_str(
                 "the evaluation was asked to bind every variable a symbol and to widen some over \
                  a box, and a run has one environment",
-            ),
-            Self::SymbolsAcrossAPartSeam => f.write_str(
-                "the evaluation was asked to bind every variable a symbol and to resolve parts, \
-                 and two documents' variables are not told apart as symbols",
             ),
         }
     }
@@ -912,6 +928,28 @@ impl ParamBox {
     /// box of one axis, or one whose split order does not matter.
     pub fn from_axes(axes: BTreeMap<VarId, BoxAxis>) -> Self {
         Self::from_axes_in(axes, &[])
+    }
+
+    /// **This box collapsed to the nominal**: every varying axis spans
+    /// `[0, 0]`, every fixed one stays fixed, in the same order. Its
+    /// values are the nominal's, but it still varies its axes, so an
+    /// evaluation over it binds what the box's own leaves bind at its
+    /// centre: a drive's witness and a Monte Carlo run's nominal build,
+    /// whose verdicts the leaves' and the samples' are read against.
+    #[must_use]
+    pub fn at_nominal(&self) -> Self {
+        let axes = self
+            .axes
+            .iter()
+            .map(|(&id, axis)| {
+                let at = match axis {
+                    BoxAxis::Fixed => BoxAxis::Fixed,
+                    BoxAxis::Varying { .. } => BoxAxis::Varying { lo: 0.0, hi: 0.0 },
+                };
+                (id, at)
+            })
+            .collect();
+        Self::from_axes_in(axes, &self.order)
     }
 
     /// The axes in declaration order.
@@ -1059,14 +1097,19 @@ impl ParamBox {
 /// The parameter environment of `doc`'s nominals WIDENED by `box_` —
 /// the interval parameter door (E6's leaf replay reads through this).
 ///
-/// Each axis binds `nominal + [lo, hi]`, formed in the scalar's own
-/// arithmetic so the enclosure rounds outward; `Count` parameters bind
-/// exactly as [`Doc::var_env`] binds them (they are structural, never
-/// axes). A toleranced parameter the box does not name binds its
-/// nominal as an axis of no width; a parameter with no tolerance the
-/// box does not name is no axis ([`is_axis`]) and binds its nominal as
-/// a constant, as [`Doc::var_env`] binds it — so the symbolic lane
-/// reads it as a number, not a symbol.
+/// Each VARYING axis binds `nominal + [lo, hi]` through the identified
+/// door ([`AxisScalar::axis_of`]), formed in the scalar's own arithmetic
+/// so the enclosure rounds outward — at `Sym`, a parameter symbol.
+/// `Count` parameters bind exactly as [`Doc::var_env`] binds them (they
+/// are structural, never axes). A variable the box HOLDS — a
+/// [`BoxAxis::Fixed`] axis — binds its nominal plus a zero offset: the
+/// bits the axis door binds at every numeric scalar, and at `Sym` a
+/// constant, so the symbolic lane reads it as a number, not a symbol. A
+/// toleranced parameter the box does not name binds its nominal as an
+/// axis of no width through the identified door, so at `Sym` it is its
+/// id's symbol (VR8). A parameter with no tolerance the box does not name
+/// is no axis ([`is_axis`]) and binds its nominal as a constant, as
+/// [`Doc::var_env`] binds it.
 ///
 /// # Errors
 ///
@@ -1093,6 +1136,25 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
                 crate::expr::ParamValue::Continuous {
                     dim,
                     value: T::from_f64(value),
+                }
+            }
+            // HELD at its nominal: a `Fixed` axis. Its value is the
+            // nominal plus a zero offset, bit for bit what the axis door
+            // binds at every numeric scalar (`-0.0` lands on `+0.0` there
+            // too) — and at `Sym` a CONSTANT, not a parameter symbol. A
+            // held variable is not free to vary, so no identity may be
+            // proved over it as if it were; a caller that wants it a
+            // symbol says so with a varying axis (`Varying { lo: x, hi: x
+            // }`) or with `symbols`. A toleranced variable the box does
+            // not name is still an axis of no width through the
+            // identified door below, and so a symbol at `Sym` (VR8: a
+            // toleranced variable is an axis and a symbol).
+            FreeVar::Continuous { dim, value, .. }
+                if matches!(box_.get(id), Some(BoxAxis::Fixed)) =>
+            {
+                crate::expr::ParamValue::Continuous {
+                    dim,
+                    value: T::from_f64(value) + T::from_f64(0.0),
                 }
             }
             FreeVar::Continuous { dim, value, .. } => {
@@ -1129,8 +1191,8 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
 
 /// **Every continuous free variable a symbol of its own** (D10; the
 /// `unproven-coincidence` door's environment): each binds `nominal +
-/// offset`, the offset a symbol keyed by the variable's id
-/// ([`AxisScalar::axis_of`] over the zero span), whatever tolerance it
+/// offset`, the offset a symbol keyed by the document version and the
+/// variable's id ([`AxisScalar::axis_of_in`] over the zero span), whatever tolerance it
 /// carries or lacks. Two variables typed to one value are two symbols,
 /// so their difference is not zero as a polynomial: the question here
 /// is structure, not number, which is why this is not
@@ -1144,16 +1206,42 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
 pub fn var_env_symbolic<T: AxisScalar + geom_core::predicate::Decide, P>(
     doc: &Doc<P>,
 ) -> Result<crate::expr::VarEnv<T>, ParamBoxError> {
+    var_env_symbolic_pinned(doc, None)
+}
+
+/// **Which document version a symbol belongs to**: the document's id
+/// and, for a part, the version its reference pins (`None` for the
+/// document being evaluated, which is no pinned version), folded to one
+/// word by FNV-1a over their bytes.
+pub fn symbol_scope(id: crate::ident::DocumentId, pin: Option<&crate::ident::ContentPin>) -> u64 {
+    let pinned = pin.map_or(&[][..], |p| &p.0[..]);
+    id.0.to_le_bytes()
+        .iter()
+        .chain([u8::from(pin.is_some())].iter())
+        .chain(pinned)
+        .fold(0xcbf2_9ce4_8422_2325_u64, |h, &b| {
+            (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3)
+        })
+}
+
+/// [`var_env_symbolic`] for the version `pin` names: a part's document
+/// at the pin its reference holds.
+pub fn var_env_symbolic_pinned<T: AxisScalar + geom_core::predicate::Decide, P>(
+    doc: &Doc<P>,
+    pin: Option<&crate::ident::ContentPin>,
+) -> Result<crate::expr::VarEnv<T>, ParamBoxError> {
+    let scope = symbol_scope(doc.id(), pin);
     let mut bindings = BTreeMap::new();
     for (id, p) in doc.free_vars() {
         let v = match *p {
             FreeVar::Continuous { dim, value, .. } => {
-                let offset =
-                    T::axis_of(id, 0.0, 0.0).ok_or_else(|| ParamBoxError::AxisUnrepresentable {
+                let offset = T::axis_of_in(scope, id, 0.0, 0.0).ok_or_else(|| {
+                    ParamBoxError::AxisUnrepresentable {
                         param: doc.spoken_var(id),
                         lo: 0.0,
                         hi: 0.0,
-                    })?;
+                    }
+                })?;
                 crate::expr::ParamValue::Continuous {
                     dim,
                     value: T::from_f64(value) + offset,

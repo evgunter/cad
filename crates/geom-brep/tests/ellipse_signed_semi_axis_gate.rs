@@ -62,6 +62,7 @@ fn the_gate_meters_either_order_and_refuses_a_negative_minor() {
             e.eval(0.0),
             e.eval(core::f64::consts::FRAC_PI_2),
             |k| surfaces.get(k).cloned(),
+            1.0,
             band,
         )
     };

@@ -2,8 +2,9 @@
 id: anchor-rewrite-collision-refuses-without-naming-the-colliding-name
 kind: issue
 title: anchored() turns remap_table's collision into a static string, so a broken bijection names no name
-status: open
+status: closed
 opened: 2026-09-20
+closed: 2026-10-17
 ---
 
 
@@ -55,3 +56,9 @@ reader does with "some name collided" when the tables are large.
 Whether `NamingError::Emission`'s `what: &'static str` can carry it at
 all is part of the question: it may want a sibling arm rather than a
 formatted string, and that is a shape decision on WIRE's ground.
+
+## Closed (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. `remap_table`, `anchored` and the bijection string are gone from editor-core; `eval/anchor.rs` is now `ProfilePieces`/`derive_naming`.
+
+Signed (WIRE orchestrator).

@@ -2,12 +2,12 @@
 id: a-face-frame-cannot-turn-its-roll
 kind: issue
 title: A face frame fixes its roll by the carrier's u_ref, so a FromFace mate cannot be turned about its axis
-status: parked
+status: closed
 opened: 2026-09-24
 priority: P1
 cost: M
 design: true
-blocked_on: [intent-stage3-is-built]
+closed: 2026-10-17
 ---
 
 
@@ -119,3 +119,7 @@ the bits of every levered clash on a standoff.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage3-is-built`, not on the whole program: the kernel half landed; what remains is MSOLVE-15 (rider, Clocking and standoff deletion over MateFrame offsets), re-cut where mate frames become Frame variables at stage 3. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed
+
+Stage 3 C retires the face frame: a mate reads poses, and a turn about a face's normal is a `Spin` value or a `WorldRead::Spin` / `PoseDef::Spin` of the pose.

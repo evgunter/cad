@@ -379,13 +379,35 @@ fn cone_trunc_loop(scale: f64, verts: &[(f64, f64)]) -> Vec<LoopEdge<Probe>> {
     edges
 }
 
+/// One whole rim of `cone_trunc`'s cone at height `h·scale`, a loop of
+/// its own, turning anticlockwise about the axis when `forward`.
+fn whole_rim(scale: f64, h: f64, forward: bool) -> Vec<LoopEdge<Probe>> {
+    let (sin_a, cos_a) = 0.5_f64.atan().sin_cos();
+    let v = h * scale / cos_a;
+    vec![LoopEdge::hand_built(
+        Curve3::Circle {
+            center: p(0.0, 0.0, v * cos_a),
+            axis: v3(0.0, 0.0, 1.0),
+            radius: Probe(v * sin_a),
+            u_ref: v3(1.0, 0.0, 0.0),
+        },
+        Probe(0.0),
+        Probe(core::f64::consts::TAU),
+        forward,
+        0,
+        0,
+    )]
+}
+
 /// **The cone's flux lane decides lengths, at mm scale as at metre
-/// scale.** `cone_trunc`'s cone carries the lane's decides on four
-/// faces between them: `cone_interior_rim`'s L (the nappe, the side,
+/// scale.** `cone_trunc`'s cone carries the lane's decides on
+/// five faces between them: `cone_interior_rim`'s L (the nappe, the side,
 /// each end off the apex, each rim's sense, the winding, the loop's
 /// vertices apart), a sector through the apex (its sweep), a seamed
 /// wall with a split rim (the seam's two copies of a vertex a turn
-/// apart) and a wall with a hole (the outer loop's own side). Every
+/// apart), a wall with a hole (the outer loop's own side) and a band
+/// between two whole rims (the winding's sense, which only a loop
+/// that winds the axis decides). Every
 /// one of those it decides definitely is a point deviation, so it
 /// scales LINEARLY between the twins (an arm-multiplied comparand
 /// answers 1e6) and clears the run's escalation threshold at mm scale.
@@ -396,7 +418,8 @@ fn the_cone_flux_lane_decides_lengths_at_both_scales() {
         "props_cone_area_side",
         "props_cone_loop_off_apex",
         "props_cone_arc_sense",
-        "props_cone_loop_winding",
+        "props_chart_loop_turns",
+        "props_chart_loop_sense",
         "props_cone_loop_vertex",
         "props_cone_apex_loop_sweep",
         "props_cone_loop_vertex_sheet",
@@ -419,6 +442,7 @@ fn the_cone_flux_lane_decides_lengths_at_both_scales() {
                 cone_trunc_loop(scale, &[(0.0, 1.0), (2.0, 1.0), (2.0, 2.0), (0.0, 2.0)]),
                 cone_trunc_loop(scale, &[(0.5, 1.2), (0.5, 1.8), (1.5, 1.8), (1.5, 1.2)]),
             ],
+            vec![whole_rim(scale, 1.0, true), whole_rim(scale, 2.0, false)],
         ]
     };
     let run = |scale: f64| -> Vec<(&'static str, f64)> {

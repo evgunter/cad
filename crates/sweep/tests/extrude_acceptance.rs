@@ -538,7 +538,7 @@ fn placed_profile_extrudes_along_its_own_normal() {
 #[test]
 fn a_negative_depth_refuses_naming_the_other_side() {
     let vp = validated(vec![l_loop()]);
-    let normal = vp.plane().placement.linear.c2;
+    let normal = vp.plane().normal().get();
     for side in ExtrudeSide::ALL {
         let err = extrude(
             &vp,
@@ -654,12 +654,14 @@ fn error_paths_are_typed_and_leave_no_body() {
 }
 
 #[test]
-fn sliver_dihedral_join_is_a_typed_error() {
-    // (e) A definite profile corner whose dihedral margin lands in the
-    // sliver band at the strut's lever arm: turn angle θ = 3000ε with
-    // extrusion length 1e-3 gives margin sin θ · |w| ≈ 3ε ∈ (ε, K·ε)
-    // at every CI ε row, while the profile-level corner (arm ~1 m) is
-    // definite.
+fn a_definite_profile_corner_extruded_short_is_a_corner_at_rest() {
+    // (e) A definite profile corner, turn angle θ = 3000ε, extruded
+    // 1e-3: its wedge, levered at the strut's own length, would be
+    // ≈ 3ε, in the band at every CI ε row. The strut levers it at its
+    // walls' extent (`topo::wedge_reach`), the metre the profile corner
+    // is definite at, so the corner is a corner: the body builds and
+    // tier 3 (which refuses a conventional description on a definite
+    // corner) passes.
     let theta = 3000.0 * eps();
     let lp = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
@@ -667,7 +669,7 @@ fn sliver_dihedral_join_is_a_typed_error() {
         Point2::new(1.0 + theta.cos(), theta.sin()),
         Point2::new(0.0, 1.0),
     ]);
-    let err = extrude(
+    let body = extrude(
         &validated(vec![lp]),
         Extrusion::Distance {
             depth: 1.0e-3,
@@ -675,27 +677,9 @@ fn sliver_dihedral_join_is_a_typed_error() {
         },
         Tol::witness(),
     )
-    .unwrap_err();
-    match err {
-        ExtrudeError::SliverJoin {
-            loop_index,
-            vertex_index,
-            reading,
-            source,
-        } => {
-            assert_eq!(
-                reading,
-                topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
-                "a sliver corner is the first-order wedge's escalation"
-            );
-            assert_eq!(loop_index, 0);
-            assert_eq!(source.predicate, Some("dihedral_wedge"));
-            // The shallow corner sits at input vertex 1 = (1, 0); the
-            // canonical chain may rotate/reverse, so just check range.
-            assert!(vertex_index < 4);
-        }
-        other => panic!("expected SliverJoin, got {other:?}"),
-    }
+    .expect("the short corner extrudes")
+    .body;
+    assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()));
 }
 
 #[test]

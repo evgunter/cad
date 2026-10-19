@@ -1601,7 +1601,7 @@ fn a_kev_strut_writes_the_sum_of_two_periods() {
 
 /// **A `kev` mirror re-mints the member it re-describes.** Killing
 /// `q → t` from the tip's side (`t → q`, whose start dangles) merges `q`
-/// into `t`, so `s → q` re-describes as the arc from `4.6` to `5.0`: its
+/// into `t`, so `s → q` re-describes as the arc from `5.1` to `5.35`: its
 /// end moves, and its rows are re-derived over the interval it now
 /// spans. The joint the kill bridges is the turn at `t` from that arc
 /// onto its own mate, `e(q → t) · e(q → s)`: a period one way then the
@@ -1617,7 +1617,7 @@ fn a_kev_mirror_re_mints_the_member_it_re_describes() {
         vec![edge],
         "the merged fan is the arc `s → q`"
     );
-    body.kev_describing(q_t[1], &[(edge, cyl_arc_at(0.5, 4.6, 5.0))], tol())
+    body.kev_describing(q_t[1], &[(edge, cyl_arc_at(0.5, 5.1, 5.35))], tol())
         .unwrap();
     assert!(
         body.joint(s_q[1]).is_some(),
@@ -1636,10 +1636,10 @@ fn a_kev_mirror_re_mints_the_member_it_re_describes() {
 fn a_strut_after_a_kev_mirror_keeps_the_re_minted_rows() {
     let (mut body, face, s_q, q_t) = arc_chain_over_the_jump(tol());
     let edge = body.get_half_edge(s_q[0]).unwrap().edge;
-    body.kev_describing(q_t[1], &[(edge, cyl_arc_at(0.5, 4.6, 5.0))], tol())
+    body.kev_describing(q_t[1], &[(edge, cyl_arc_at(0.5, 5.1, 5.35))], tol())
         .unwrap();
     let he = s_q[0];
-    body.mev_line(MevSite::Fan { he1: he, he2: he }, at(4.6, 0.7), tol())
+    body.mev_line(MevSite::Fan { he1: he, he2: he }, at(5.1, 0.7), tol())
         .unwrap();
     kept_rows_are_the_pass_s(body, face, "kev mirror, then a strut");
 }

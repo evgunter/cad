@@ -72,6 +72,21 @@ every op in both orders:
   meridians' pieces are published as pieces of the ball's seam and π
   meridian.
 
+## Re-measured (branch `emit/union-curves`, 2026-10-14)
+
+The union now counts curved member edges on one carrier as one line
+at a vertex (`emit_topo::least_per_line` through `EdgeCarrier`), as
+it counts collinear straight ones. The ball's `Meridian(Seam)` and
+`Meridian(Pi)` lie on one great circle, so at the turned pole they are
+one line, the least, and no seam: `Flush::meeting` takes its
+one-line arm, finds no face there that bounds none of the line's sides,
+and refuses `one member edge meets no face at a union vertex no seam
+reaches` before any sense is read. All four intersect and union cases
+refuse so; `emit_ball_cut_by_brick.rs` pins the new message. The
+cause below and the question are unchanged: the vertex still reaches
+`meeting` only because the turned pole is no member vertex in the
+ball's own body.
+
 ## Cause
 
 The re-chart moves a member's seam and poles while keeping their keys.

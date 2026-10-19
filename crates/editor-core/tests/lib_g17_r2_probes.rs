@@ -68,8 +68,8 @@ fn p1b_order_on_distinct_charts_moves_the_key_but_nothing_else() {
     let (ea, eb) = (eval::<f64>(&da), eval::<f64>(&db));
     assert!(failures(&ea).is_empty(), "{:?}", failures(&ea));
     assert!(failures(&eb).is_empty(), "{:?}", failures(&eb));
-    let ta = &ea.value(sa).unwrap().name_table;
-    let tb = &eb.value(sb).unwrap().name_table;
+    let ta = ea.table_at(sa).unwrap();
+    let tb = eb.table_at(sb).unwrap();
     let mut na: Vec<_> = ta.iter().map(|(n, _)| n.clone()).collect();
     let mut nb: Vec<_> = tb
         .iter()
@@ -125,7 +125,6 @@ fn p2_raw_variant_with_a_repeat_is_refused_at_the_insert_door() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(editor_core::EditError::SelectionShape {
             fault: editor_core::SelectionFault::Repeated { first: 0, again: 2 },
@@ -179,7 +178,6 @@ fn p3_rebind_keeps_the_earlier_position() {
             to: a.clone(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("rebind")
     .doc;
@@ -194,7 +192,6 @@ fn p3_rebind_keeps_the_earlier_position() {
             to: c.clone(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("rebind")
     .doc;
@@ -217,7 +214,6 @@ fn p4_thick_wall_bump_refuses_typed_with_numbers() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -269,7 +265,6 @@ fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
                 }),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;
@@ -354,13 +349,12 @@ fn p6_rebinding_the_designation_moves_the_rim() {
             to: cup::bottom(blank),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc;
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let t = &ev.value(shell).unwrap().name_table;
+    let t = ev.table_at(shell).unwrap();
     let rim_bottom = shelled(
         shell,
         EntityKind::Face,
@@ -419,7 +413,7 @@ fn p7_a_holed_designated_face_mints_a_hole_rim() {
         "P7: the holed slab must hollow:\n{}",
         bad.join("\n")
     );
-    let t = &ev.value(shell).unwrap().name_table;
+    let t = ev.table_at(shell).unwrap();
     let hole_rims: Vec<_> = t
         .iter()
         .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::HoleRim { .. })))

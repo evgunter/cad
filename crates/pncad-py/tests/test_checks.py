@@ -281,7 +281,7 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         strict = ChecksConfig(connectedness=Severity.Error)
         report = run_checks(doc, evaluation, strict)
         (finding,) = report.findings
-        spoken = 'check connectedness: PlaceInWorld "joined" ('
+        spoken = 'check connectedness: Place "joined" ('
         self.assertIn(spoken, str(report))
         self.assertIn(spoken, str(finding))
         self.assertNotIn("renamed", str(report))
@@ -396,7 +396,7 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
         instance = doc.insert(
             Node.instantiate_part(DocRef(ident, store.current_pin(ident)))
         )
-        doc.place(instance)
+        doc.pin(instance, resolver=store)
         return doc, instance, evaluate(doc, resolver=store)
 
     def test_the_subject_is_the_body_its_producer_minted(self):
@@ -443,9 +443,24 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
         reporting over what did evaluate."""
         doc = Doc("checks-sliver")
         a = slab(doc, 0.0, 1.0)
-        # 2 nm apart: in band, so the union refuses.
-        b = slab(doc, 1.0 + 2e-9, 2.0)
+        # Placed while it builds — the gesture reads the union's faces —
+        # then its second slab is lowered to 2 nm above the first: in
+        # band, so the union refuses.
+        frame = doc.sketch_frame(elevation=Formula.length_in(1.5, m))
+        profile = doc.insert(
+            Node.polygon(
+                [
+                    (Formula.length_in(0, m), Formula.length_in(0, m)),
+                    (Formula.length_in(1, m), Formula.length_in(0, m)),
+                    (Formula.length_in(1, m), Formula.length_in(1, m)),
+                    (Formula.length_in(0, m), Formula.length_in(1, m)),
+                ],
+                plane=frame,
+            )
+        )
+        b = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
         root = doc.place(doc.insert(Node.union([a, b])))
+        doc.apply(DocEdit.set_param(frame, "origin_z", Formula.length_in(1.0 + 2e-9, m)))
         ev = evaluate(doc)
         with self.assertRaises(ChecksError) as caught:
             run_checks(doc, ev)
@@ -457,20 +472,25 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
 class TestTheUnprovenCoincidenceResident(unittest.TestCase):
     """The `unproven-coincidence` lint (D10): a plate resting flush on
     a block, unioned. The margin decides the rest from values, so the
-    union records one coincidence, and the door does not prove it: the
-    two caps are two constructions, and the block's top and the plate's
-    floor are two variables typed to one value. The report's rows are
-    the evaluation's unproven rows, word for word."""
+    union records it, and the door does not prove it: the two caps are
+    two constructions, and the block's top and the plate's floor are two
+    variables typed to one value. The plate's four corners, each decided
+    on the block's top, are recorded and reported alike. The report's
+    rows are the evaluation's unproven rows, word for word."""
 
-    def test_a_glued_rest_is_one_unproven_coincidence(self):
+    def test_a_glued_rest_and_its_corners_are_unproven_coincidences(self):
         doc = Doc()
         lower = slab(doc, 0.0, 1.0)
         upper = slab(doc, 0.25, 0.75, 0.25, 0.75, 1.0, 1.5)
         glued = doc.insert(Node.union([lower, upper]))
         ev = evaluate(doc)
         rows = ev.coincidences(glued)
-        self.assertEqual(len(rows), 1)
-        (row,) = rows
+        self.assertEqual(len(rows), 5)
+        row = rows[0]
+        self.assertEqual(
+            [(r.relation, r.site) for r in rows[1:]],
+            [("on_carrier", "vertex_fusion")] * 4,
+        )
         self.assertEqual((row.relation, row.site), ("same_opposite", "plane_ladder"))
         # The door replays the document with every variable a symbol,
         # and says so of a row it does not prove.
@@ -494,8 +514,10 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
             unproven_coincidence=Advisory.Warn,
         )
         report = run_checks(doc, ev, cfg)
-        self.assertEqual(len(report.findings), 1)
-        (finding,) = report.findings
+        self.assertEqual(len(report.findings), 5)
+        (finding,) = [
+            f for f in report.findings if f.evidence.site == "plane_ladder"
+        ]
         self.assertEqual(finding.check, CheckId.UnprovenCoincidence)
         self.assertEqual(finding.check.kind, CheckKind.Certified)
         self.assertEqual(finding.node, glued)

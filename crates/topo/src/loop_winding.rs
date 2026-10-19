@@ -92,7 +92,7 @@
 //! chart normal", the opposite statement on a reversed face.
 
 use geom::Curve3;
-use geom_brep::props::spiric;
+use geom_brep::props::{arc_segment_term, spiric};
 use geom_core::interval::Interval;
 use geom_core::{Decided, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
@@ -130,8 +130,9 @@ pub(crate) enum Unwound {
     /// A spiric edge whose bulge has no certified enclosure: at a
     /// scalar that does not certify
     /// ([`crate::props::AtRestPolicy::quad_lane`]), or over a span the
-    /// enclosure does not read ([`spiric_segment_term`]'s `None`: a
-    /// descending span, or one with no certified positive `f`). Its
+    /// enclosure does not read at any piece count
+    /// ([`spiric_segment_term`]'s `None`: a descending span, or one with
+    /// a piece whose `f` is not certified positive). Its
     /// bulge is read only through the certified enclosure, never as its
     /// chord.
     Uncertified,
@@ -142,7 +143,7 @@ pub(crate) enum Unwound {
 pub(crate) type Winding = Result<Result<Decided, Indeterminate>, Unwound>;
 
 /// **The conic term of one traversed edge** ([`ConicFrame`],
-/// [`chord_bulge`]): `(axis · sa·sb · (Δ − sin Δ), |Δ|·max(|sa|, |sb|))`, the vector area between the
+/// [`chord_bulge`](geom_brep::props::chord_bulge)): `(axis · sa·sb · (Δ − sin Δ), |Δ|·max(|sa|, |sb|))`, the vector area between the
 /// arc and its chord (the cross-sum's `2A` convention, odd in the
 /// signed span `Δ`) and the edge's boundary length (exact for a
 /// circle, an upper bound for an ellipse: `|Δ|` times the larger
@@ -171,7 +172,7 @@ pub(crate) fn conic_segment_term<T: Real>(
     let conic = ConicFrame::of(carrier)?;
     let span = if forward { t1 - t0 } else { t0 - t1 };
     Some((
-        conic.axis * (conic.sa * conic.sb * chord_bulge(span)),
+        arc_segment_term(conic.axis, conic.sa * conic.sb, span),
         span.abs() * conic.reach,
     ))
 }
@@ -186,9 +187,10 @@ const SPIRIC_PIECES: [usize; 4] = [16, 128, 1024, 8192];
 /// arc's vector area about its carrier's start point, which no chord
 /// through that point changes: `geom_brep`'s certified enclosure
 /// ([`spiric::spiric_vector_area`], the face lane's own term) at
-/// `pieces`. The length is [`spiric::spiric_length_bound`]. `None` for
-/// any other carrier, and for a span whose rate window has no certified
-/// positive `f`.
+/// `pieces`. The length is [`spiric::spiric_length_bound`] at the same
+/// `pieces`, so a refinement tightens the lever too. `None` for
+/// any other carrier, and for a span with a piece whose `f` is not
+/// certified positive at `pieces`.
 fn spiric_segment_term(
     (carrier, (t0, t1)): (&Curve3<Interval>, (Interval, Interval)),
     forward: bool,
@@ -218,7 +220,7 @@ fn spiric_segment_term(
         forward,
         wall: None,
     };
-    let length = spiric::spiric_length_bound(&edge)?;
+    let length = spiric::spiric_length_bound(&edge, pieces)?;
     let [x, y, z] = spiric::spiric_vector_area(&edge, pieces);
     let area = Vec3::new(x, y, z);
     Some((area + area, Interval::from_certified(length)))
@@ -295,15 +297,6 @@ impl<T: Real> ConicFrame<T> {
     pub(crate) fn b(&self) -> Vec3<T> {
         self.axis.cross(self.u_ref) * self.sb
     }
-}
-
-/// **The bulge of an arc over its chord** — the one statement of it:
-/// `Δ − sin Δ` for the signed span `Δ`. Twice the area between a unit
-/// circle's arc and its chord; an arc of the conic `c + a·cos θ +
-/// b·sin θ` cuts off `(a × b)·(Δ − sin Δ)` of twice-area, for any
-/// signed `Δ` and any `a`, `b` (module docs).
-pub(crate) fn chord_bulge<T: Real>(span: T) -> T {
-    span - span.sin()
 }
 
 /// A curve as one traversal reads it: its carrier and the interval it
@@ -583,8 +576,11 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// spiric's bulge its certified enclosure ([`spiric_segment_term`])
     /// at [`SPIRIC_PIECES`]' counts in turn, until the winding is decided
     /// (**`planar_winding_spiric_refine`**: the same margin, read where
-    /// a finer enclosure may yet decide it). An enclosure still undecided
-    /// at the finest count escalates. A scalar with no certified lane (a
+    /// a finer enclosure may yet decide it). A count at which a spiric
+    /// has no term (a piece whose `f` is not certified positive) reads
+    /// nothing, and the next is tried; with none at the finest the cycle
+    /// is [`Unwound::Uncertified`]. An enclosure still undecided at the
+    /// finest count escalates. A scalar with no certified lane (a
     /// dual) has no winding here.
     fn spiric_winding(
         walked: &[Step<'_, T>],
@@ -613,37 +609,32 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             lane.lift(normal.y),
             lane.lift(normal.z),
         );
-        let term = |(c, span, fwd): &(Curve3<Interval>, (Interval, Interval), bool), pieces| {
-            conic_segment_term((c, *span), *fwd)
-                .or_else(|| spiric_segment_term((c, *span), *fwd, pieces))
-        };
-        // A spiric with no enclosure over its span would be summed as
-        // its chord: refuse it rather than wind it so.
-        let unenclosed = |c: &(Curve3<Interval>, (Interval, Interval), bool)| {
-            matches!(c.0, Curve3::Spiric { .. }) && term(c, SPIRIC_PIECES[0]).is_none()
-        };
-        if lifted
-            .iter()
-            .filter_map(|(_, c)| c.as_ref())
-            .chain(closing.as_ref())
-            .any(unenclosed)
-        {
-            return Err(Unwound::Uncertified);
-        }
         let Some((&finest, coarser)) = SPIRIC_PIECES.split_last() else {
             unreachable!("the piece counts are a non-empty constant")
         };
+        // A spiric with no term at `pieces` would be summed as its
+        // chord: that count reads nothing, and the finest refuses.
         let margin = |pieces| {
-            let points: Vec<_> = lifted
+            let term = |(c, span, fwd): &(Curve3<Interval>, (Interval, Interval), bool)| {
+                match conic_segment_term((c, *span), *fwd)
+                    .or_else(|| spiric_segment_term((c, *span), *fwd, pieces))
+                {
+                    None if matches!(c, Curve3::Spiric { .. }) => Err(Unwound::Uncertified),
+                    t => Ok(t),
+                }
+            };
+            let points = lifted
                 .iter()
-                .map(|(p, c)| (*p, c.as_ref().and_then(|c| term(c, pieces))))
-                .collect();
-            let closing_term = closing.as_ref().and_then(|c| term(c, pieces));
+                .map(|(p, c)| Ok((*p, c.as_ref().map(term).transpose()?.flatten())))
+                .collect::<Result<Vec<_>, Unwound>>()?;
+            let closing_term = closing.as_ref().map(term).transpose()?.flatten();
             let (area, perimeter) = winding_sum(&points, point(end), closing_term, open, normal);
-            Margin::over_lever(area, perimeter)
+            Ok::<_, Unwound>(Margin::over_lever(area, perimeter))
         };
         for &pieces in coarser {
-            let read = margin(pieces);
+            let Ok(read) = margin(pieces) else {
+                continue;
+            };
             if crate::validate::decide("planar_winding_spiric_refine", read, band).is_ok() {
                 return Ok(crate::validate::decide_reported(
                     WINDING_PREDICATE,
@@ -654,7 +645,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         }
         Ok(crate::validate::decide_reported(
             WINDING_PREDICATE,
-            margin(finest),
+            margin(finest)?,
             band,
         ))
     }

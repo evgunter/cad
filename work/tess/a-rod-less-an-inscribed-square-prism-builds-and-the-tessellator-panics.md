@@ -22,3 +22,15 @@ The class is the one of `tessellator-panics-on-a-self-slit-face-every-validator-
 ## Repro
 
 Review r2's probe file `crates/sweep/tests/r2_probes.rs`, family F7 ("inscribed square in a rod"), on branch `join/tube-ending-on-a-ball-review-r2`. Its lines are in `review-r2/probe-head.txt` (`mesh=PANIC` on `B ∖ A`).
+
+## Witness: a slab the ruling pierces twice (2026-10-15)
+
+Found by the full review of PR 5187.
+
+**The pose.** The rod and ruling-square pair of `crates/sweep/tests/a_pierce_held_in_a_curved_face.rs` (`a_wall_the_ruling_pierces_twice_builds_in_every_op_and_order`), against the slab z ∈ (0.8, 1.2).
+
+**What happens.** `slab ∖ pair` builds sound at every turn. `mesh::tessellate` then panics at `crates/mesh/src/tessellate.rs:592` ("edge of 4 face triangles"). With three or four pierces of the wall, the union panics as well.
+
+**The shape.** A ruling segment the two lumps share, with both ends at held-pierce vertices.
+
+**This pose is not where the defect lies.** On main, before PR 5187, the same body built as `(slab ∖ rod) ∖ square` or as `(slab ∖ square) ∖ rod` panics identically. It has the same face, edge and vertex counts (12, 32 and 20) and the same volume. This is the same class as `two-coincident-edges-between-one-vertex-pair-mesh-non-manifold`.

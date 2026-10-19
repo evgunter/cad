@@ -149,7 +149,7 @@ impl<T: Bounds> NurbsSurface<T> {
     /// Public for warm-start consumers (the PR 7 marcher and its
     /// subdivision seeds) and for the planted wrong-sheet fixtures.
     pub fn project_seed(&self, p: Point3<T>) -> (f64, f64) {
-        let (ku, kv) = (self.knots_u(), self.knots_v());
+        let (ku, kv) = (self.knots_u_f64_interim(), self.knots_v_f64_interim());
         let mut best = (ku.domain().0, kv.domain().0);
         let mut best_d2 = f64::INFINITY;
         for iu in ku.first_span()..=ku.last_span() {
@@ -221,8 +221,8 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
         seed_u: f64,
         seed_v: f64,
     ) -> Result<SurfaceProjection<T>, SurfaceProjectionInconclusive> {
-        let (ulo, uhi) = self.knots_u().domain();
-        let (vlo, vhi) = self.knots_v().domain();
+        let (ulo, uhi) = self.knots_u_f64_interim().domain();
+        let (vlo, vhi) = self.knots_v_f64_interim().domain();
         let mut u = seed_u.clamp(ulo, uhi);
         let mut v = seed_v.clamp(vlo, vhi);
         let mut iterations = 0usize;

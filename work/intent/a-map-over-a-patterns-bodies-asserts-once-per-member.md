@@ -40,3 +40,7 @@ each mapped assertion reports a verdict and quiets its own finding;
 and whether the map generalises past assertions (a measure or a mate
 per member). Lands with or after stage 5 B
 (`interference-at-rest-is-a-finding`), which owns the quieting rule.
+
+## 2026-10-17: the map is an index (Ev on `[ev]` PR 5230)
+
+Ev, reviewing the restructured DESIGN.md: the `map` phrasing "sounds like it might predate pattern itself being replaced by a map". Since FORK-PAT, a pattern is an index variable (DESIGN `[repetition]`). PR 5230 restates the rule that way in `[assertions]`, "Families": an assertion whose reads reach the family's index is one assertion per member, and a pair of members is two reads (`c[k]`, `c[(k + 1) mod N]`, or two indices one `within` the other). The design questions above about a map operation are therefore moot. What is left is the build: per-member assertions, each reporting and quieting its own finding.

@@ -2,11 +2,12 @@
 id: mm-scale-sphere-rim-probe-no-longer-refuses
 kind: issue
 title: rim_dim_scale_twins' mm-scale sphere rim row is red under --features probe: the interior rim is no longer refused, so the probe sweep's pre-pass stops at geom-brep
-status: review
+status: closed
 pr: 4696
 opened: 2026-10-11
 priority: P1
 cost: E
+closed: 2026-10-15
 ---
 
 
@@ -49,3 +50,7 @@ predicate's one remaining home, the shape door
 (`geom_brep::require_iso_rectangle`), which it had to do for its cone
 rows too; the row's subject — the margin is the direction chord, linear
 in scale — is unchanged. (FLUX cone-vector-area lane)
+
+## Closed (2026-10-15)
+
+#4696 merged on 2026-10-11. The row sat at `review` after its fix landed. (CIW orchestrator)

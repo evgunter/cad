@@ -47,6 +47,14 @@ impl SaidKey for crate::names::StableName {
     }
 }
 
+impl SaidKey for crate::appearance::AppearanceKey {
+    fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.name.say(f)?;
+        write!(f, " read in ")?;
+        self.at.say(f)
+    }
+}
+
 /// `key` as the file spells it, JSON: a string with its escapes and
 /// quotes, or a unit variant's name as one. Neither can fail to
 /// serialize.
@@ -158,11 +166,51 @@ macro_rules! strict_map_section {
     };
 }
 
-strict_map_section!(
-    /// The snapshot's node map (id → node).
-    nodes,
-    "snapshot node"
-);
+/// **The snapshot's node map** (id → node), the world aside: every
+/// document holds its world at [`crate::RecipeNodeId::WORLD`] from its
+/// creation, so the wire never carries it, a file naming it refuses, and
+/// the load puts it back.
+pub(crate) mod nodes {
+    use super::*;
+
+    pub(crate) fn serialize<P, S>(
+        map: &BTreeMap<crate::RecipeNodeId, crate::Node<P>>,
+        ser: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        P: Serialize,
+        S: Serializer,
+    {
+        use serde::ser::SerializeMap;
+        let mut out = ser.serialize_map(None)?;
+        for (id, node) in map {
+            if *id != crate::RecipeNodeId::WORLD {
+                out.serialize_entry(id, node)?;
+            }
+        }
+        out.end()
+    }
+
+    pub(crate) fn deserialize<'de, P, D>(
+        de: D,
+    ) -> Result<BTreeMap<crate::RecipeNodeId, crate::Node<P>>, D::Error>
+    where
+        P: Deserialize<'de>,
+        D: Deserializer<'de>,
+    {
+        let mut map: BTreeMap<crate::RecipeNodeId, crate::Node<P>> =
+            strict_map(de, "snapshot node")?;
+        if map.contains_key(&crate::RecipeNodeId::WORLD)
+            || map.values().any(|node| matches!(node, crate::Node::World))
+        {
+            return Err(serde::de::Error::custom(
+                "the world is not on the wire: every document holds it from its creation",
+            ));
+        }
+        map.insert(crate::RecipeNodeId::WORLD, crate::Node::World);
+        Ok(map)
+    }
+}
 strict_map_section!(
     /// The variable table (id → variable).
     vars,

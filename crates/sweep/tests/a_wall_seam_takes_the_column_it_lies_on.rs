@@ -378,7 +378,10 @@ fn at_a_dual_a_split_seam_takes_its_stated_column() {
     };
     let mut body = sweep::loft_body::<Dual64>(
         &sweep::test_support::lift_sections::<Dual64>(&[profile(), profile()]),
-        &sweep::test_support::lift_places::<Dual64>(&stacked_at(&[0.0, 1.0])),
+        &sweep::test_support::lift_places::<Dual64>(
+            &stacked_at(&[0.0, 1.0]),
+            geom_core::Tol::witness(),
+        ),
         1,
         tol(),
     )
@@ -488,10 +491,10 @@ fn flat_wall_shifted_in_v(body: &Body<f64>) -> (Body<f64>, FaceKey) {
         body,
         flat,
         |n| {
-            let kv = n.knots_v();
+            let kv = n.knots_v_f64_interim();
             let moved: Vec<f64> = kv.knots().iter().map(|k| k + in_band()).collect();
             NurbsSurface::new(
-                n.knots_u().clone(),
+                n.knots_u_f64_interim().clone(),
                 geom_core::spline::KnotVector::clamped(moved, kv.degree()).unwrap(),
                 n.control().to_vec(),
                 n.weights().to_vec(),

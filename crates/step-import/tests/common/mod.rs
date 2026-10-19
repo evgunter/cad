@@ -214,10 +214,11 @@ pub fn freecad_fixture(name: &str) -> String {
 
 /// **The arc section**: a square of half-width `s` with a
 /// quarter-circle bulge on the `+x` side — the arc-bearing profile
-/// whose lofted wall is RATIONAL (weights `1, cos 22.5°, 1` over two
-/// 45° sub-arcs), and so the cheapest profile these suites have that
-/// puts an imported body's enclosure on the QUADRATURE lane rather
-/// than on a closed form.
+/// whose lofted wall is RATIONAL (weights `1, cos 45°, 1` over one 90°
+/// sub-arc: its sweep `4·atan(tan(π/8))` rounds just past π/2, which
+/// the sub-arc rule's η keeps at one; C6), and so the cheapest profile
+/// these suites have that puts an imported body's enclosure on the
+/// QUADRATURE lane rather than on a closed form.
 ///
 /// One copy for this crate's suites. `sweep`'s own copy lives in
 /// `crates/sweep/tests/common/`; the two are not folded together
@@ -237,8 +238,8 @@ pub fn arc_section(s: f64) -> sweep::Section {
 
 /// Loft placements: the given heights, each scaled by `s`, as pure
 /// `+z` translations.
-pub fn stacked(z: &[f64], s: f64) -> Vec<geom_core::Affine3<f64>> {
+pub fn stacked(z: &[f64], s: f64) -> Vec<profile::SketchPlane<f64>> {
     z.iter()
-        .map(|h| geom_core::Affine3::translation(geom_core::Vec3::new(0.0, 0.0, h * s)))
+        .map(|h| profile::SketchPlane::xy_at(geom_core::Point3::new(0.0, 0.0, h * s)))
         .collect()
 }

@@ -21,7 +21,7 @@ tangent piece too short for its second order. So the two halves of such
 a seam cut at a vertex stay two edges at rest, against D1's maximal
 edges.
 
-`work/fuse/curved-joinable-vertices-are-left-unjoined` (closed, PR
+`curved-joinable-vertices-are-left-unjoined` (closed, PR
 4233) covered intersections, tangencies and one-surface `Chart` seams,
 not this case.
 

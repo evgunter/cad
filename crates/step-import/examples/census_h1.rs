@@ -129,7 +129,7 @@ fn main() {
             radius: 0.0,
         };
         let coords = curve.certified_coords();
-        let data = CurveCertData::new(curve.knots(), curve.weights(), &coords).unwrap();
+        let data = CurveCertData::new(curve.knots_f64_interim(), curve.weights(), &coords).unwrap();
         let sup = match compose::implicit_composite(&data, &surface) {
             Ok(form) => form.sup_bound(),
             Err(e) => {

@@ -38,7 +38,7 @@ use std::collections::BTreeMap;
 
 use geom::SurfaceKind;
 use geom::{NetState, Surface};
-use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
+use geom_brep::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass, Unsized};
 use geom_core::{Band, BandError, Decided, Indeterminate, Tol};
 use slotmap::SecondaryMap;
 
@@ -717,16 +717,31 @@ pub(crate) const EDGE_ON_FACES_LEVER: &str =
 pub(crate) const EDGE_ON_PLANE_LEVER: &str =
     edge_on_faces_lever!(geom_core::split_plane_recourse!(), "the plane");
 
+/// An edge along the split's cut read in band of a face it bounds, in
+/// the split's words: its finish's describer and its join's section chord
+/// end.
+pub(crate) fn edge_on_plane_refusal(diag: &Indeterminate) -> String {
+    diag.undecided(
+        edge_on_faces_subject!("an edge along the cut"),
+        diag.lever_ending(EDGE_ON_PLANE_LEVER),
+    )
+    .to_string()
+}
+
 /// **Whether an attachment refusal is an edge's own reading on its
 /// faces**, the input's (D9 row 1), at every door that describes an edge
 /// between vertices an earlier reading placed: its carrier's residual
 /// against a surface it lies on, or its chart image's, read in band, on a
 /// line carrier. A line is the chord between those vertices, so its miss
-/// is their offset plus a rounding, which escalating tells truly. A
-/// circle, ellipse, spiric or spline is a construction from the surfaces,
-/// whose own error can be amplified into the band (an ellipse nearly along
-/// a cylinder's axis carries its semi-major axis's rounding), so it keeps
-/// the gate's refusal, as does every other check and a definite miss.
+/// is their offset plus a few ulp of coordinates, within the share of
+/// the band K's headroom presumes (`crate::validate::resolved`'s
+/// premise). A circle, ellipse, spiric or spline is a construction from
+/// the surfaces, whose own error can be amplified into the band (an
+/// ellipse nearly along a cylinder's axis carries its semi-major axis's
+/// rounding): at these doors it keeps the gate's refusal, as does every
+/// other check and a definite miss. The join reads a section conic's
+/// pins against its carrier's resolution instead
+/// (`chord_join::section_pin_refusal`).
 pub(crate) fn edge_on_faces_reading(
     carrier: geom::CurveKind,
     refusal: &EulerOpError,
@@ -1119,7 +1134,7 @@ const DECLARED_ORIENTATION: SizedDecision = SizedDecision {
             span a length",
     size: "span of the two faces",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -1132,7 +1147,7 @@ const LOOP_WINDING: SizedDecision = SizedDecision {
     lever: "reshape the merged faces so each loop of the result clearly encloses an area",
     size: "area a loop encloses over its length",
     passes: SizedPass::NonZero,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -1616,8 +1631,8 @@ impl EstablishedFact {
 ///
 /// | site | can return |
 /// | --- | --- |
-/// | `ring_move_minting` | `RingIsOuter` (C), `CrossShell` (C); its site mint's `Certification` (a `tol` that forms no band), never `PcurveMint`: a moved loop is left as found on a spline chart, and a minting door owes no keys-only row |
-/// | `kef_minting` | `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C); its site mint's, as `ring_move_minting`'s |
+/// | `ring_move_unasked` | `RingIsOuter` (C), `CrossShell` (C); its site mint's `Certification` (a `tol` that forms no band), never `PcurveMint`: a moved loop is left as found on a spline chart, and a minting door owes no keys-only row |
+/// | `kef_minting` | `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C); its site mint's, as `ring_move_unasked`'s |
 /// | `kev` | `SelfLoopEdge` (C); not its fan-merge refusals, which need a fan that neither kill's far vertex has: `strut_tip`'s valence-one tip, and the lone vertex the `mekr_chord` bridge ends at |
 /// | `mekr_chord` (a lone vertex's ring) | `LoopNotEmpty`, `SameLoop`, `NotSameFace`, `RingIsOuter`, `Certification` |
 /// | `kemr` | `NotSameLoop` (C) |
@@ -2886,7 +2901,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                 );
                 #[cfg(test)]
                 tear_before_ring_move(self, ring);
-                self.ring_move_minting(ring, rep, tol)?;
+                self.ring_move_unasked(ring, rep, tol)?;
             }
             // The two facts `kef` could contradict. The drain above is
             // exactly the mutation that invalidates a fact read before

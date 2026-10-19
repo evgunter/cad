@@ -5,7 +5,6 @@ title: The whole-body property fold sums face terms in arena order, so one solid
 status: open
 opened: 2026-10-11
 priority: P2
-design: true
 ---
 
 
@@ -88,8 +87,43 @@ Its cost:
   whose sum is not already exact) and any row pinning a volume's bits;
   the census is part of the design.
 
-## The question
+## The question for Ev
 
-Should the whole-body fold be order-independent ((b)), or is
-order-dependence the contract, with cross-representation claims stated
-as bounds (the status quo PRs 4682 and 4684 adopt on the round-trip row)?
+Is a body's measured volume a function of the body as stored, or should
+it be invariant under the storage choices the data model declares free?
+Those choices are face and loop order, ring order, and each loop's anchor
+half-edge.
+
+Two designers weighed it. A reconciliation round settled the fact they
+disagreed on. A probe shows that rotating a loop's anchor moves per-face
+terms by ulps: 1 to 5 of 8 to 14 faces, and up to 21 ulps of the volume
+far from the origin. So an exact sum at the body fold alone, option (b)
+above, makes nothing storage-invariant. Both designers withdrew or
+rejected it.
+
+Two coherent final states remain:
+- **(A) storage-dependent and stated.** D9 names storage as part of the
+  input. Cross-storage tests compare structure, or carry a bound computed
+  from the face terms.
+- **(S) storage-invariant all the way down.** Every reduction over a set
+  or cycle (the edges of a loop, the loops of a face, the faces of a
+  body, and the pads) is the rounded-once sum of its terms, through one
+  summation on `geom_core::Real`.
+
+The designers split: one recommends (A) (likely), the other leans to (S)
+(unsure). Either way, the current `faces − 1` ulp bound is the wrong
+shape for signed terms. D9 idiom 2's "arena order" wording also changes,
+in a different direction under each answer.
+
+## Ev's answer (PR 4830, 2026-10-19): (A), storage-dependent
+
+"i think i want to pick storage-dependent for simplicity". D9's
+determinism bullet now names a body's storage as part of the input,
+and idiom 2 reads "the walk's own fixed order". The (S) spike is kept
+findable (`docs/doc-ledger/exact-sum-spike.md`).
+
+What remains, and keeps this row open: the STEP round trip's
+`faces − 1` ulp bound
+(`step-import::nurbs_import::arc_loft_natively_computes_its_rational_volume`)
+is the wrong shape for signed terms. Replace it with a bound computed
+from the face terms, or compare structure.

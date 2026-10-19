@@ -2,11 +2,12 @@
 id: sketch-plane-holds-the-affine-and-the-witness-dies-at-the-read-boundary
 kind: issue
 title: SketchPlane stores only the Affine3, so the frame witness dies at the read-back boundary
-status: open
+status: closed
 opened: 2026-09-15
 priority: P0
 cost: H
 refs: [a-reflected-loft-placement-evades-both-normal-checks]
+closed: 2026-10-14
 ---
 
 ## What
@@ -84,3 +85,15 @@ public door decides one:
 The fix this row describes (store the frame witness; make `new` decide
 or go) removes the precondition `cap_plane` states. Until then the
 precondition is documented at `cap_plane` and cites this row.
+
+## Outcome
+
+Fixed by `the-sketch-plane-is-its-frame` (2026-10-14). `SketchPlane<T>`
+stores one private `RigidMotion<T>` and nothing else; `new` and the
+public `placement` field are gone, `placement()` is derived from the
+frame, and `origin()`/`u()`/`v()`/`normal()` read the frame, the three
+axes as `UnitVec3` witnesses. A plane is minted only through a frame
+mint (`from_frame`, `xy`/`yz`/`zx`, `xy_at`), and crosses scalars only
+through `embed`/`embed_computed`/`point_value`. `cap_plane`'s
+precondition is now the type's: its doc says so and no longer cites
+this row.

@@ -494,8 +494,8 @@ fn r4_extended_sweep_volume_identities() {
 // =================================================================
 
 /// A prism whose top notch apex hangs `delta` above the bottom edge:
-/// vertex-edge gap = delta, exercising `pm_census_ve_line_gap` /
-/// `pm_census_ve_span` (and the vv lane at delta = 0 corners). For
+/// vertex-edge gap = delta, exercising the point-on-span reading's gap
+/// and end rows (and the vv lane at delta = 0 corners). For
 /// every delta at or inside ε the validator must REFUSE (finding or
 /// typed escalation) — a silent Ok is the R5 falsification.
 fn straddle_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(delta: f64) {

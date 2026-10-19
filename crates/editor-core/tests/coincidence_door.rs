@@ -11,10 +11,10 @@ use crate::fixture::{ang, fname, insert, len, len2, on_frame, out, scl, table};
 
 use editor_core::{
     Advisory, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum, EntityKey, EntityKind, Entry,
-    Evaluation, FindingSubject, Formula, LoopProgram, NamedCell, NamedCoincidence, Node,
-    PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, Proof,
-    RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName, ValuePayload, VarId, coincide,
-    spoken_by,
+    EvalOptions, Evaluation, FindingSubject, Formula, LoopProgram, NamedCell, NamedCoincidence,
+    Node, PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    Proof, RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName, ValuePayload, VarId,
+    coincide, spoken_by,
 };
 use geom_core::{MarginDiag, Point3, Tol};
 use topo::{DecisionSite, Relation};
@@ -58,6 +58,7 @@ fn proofs(doc: &ProfileDoc, node: RecipeNodeId, rows: &[NamedCoincidence]) -> Ve
     coincide::prove(
         doc,
         &[(node, rows)],
+        None,
         Tol::witness(),
         &editor_core::CancelToken::new(),
     )
@@ -110,9 +111,10 @@ fn entity(input: VarId, name: &StableName) -> NamedCell {
 /// a block, unioned: the union holds one `SameOpposite` row naming the
 /// block's top and the plate's bottom by their operands' own names,
 /// decided by the plane ladder, and the check reports it unproven: the
-/// two caps are two constructions.
+/// two caps are two constructions. The plate's four bottom corners,
+/// each decided on the block's top, are a row each, reported alike.
 #[test]
-fn a_glued_rest_is_one_unproven_row_named_by_its_operands() {
+fn a_glued_rest_and_its_corners_are_unproven_rows_named_by_their_operands() {
     let doc = ProfileDoc::empty_derived("coincide-declared-rest", Tol::witness());
     let (doc, base) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, plate) = block(doc, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
@@ -126,8 +128,18 @@ fn a_glued_rest_is_one_unproven_row_named_by_its_operands() {
     );
     let ev = run(&doc);
     let got = rows(&ev, union);
-    assert_eq!(got.len(), 1, "one row for the one rest: {got:?}");
+    assert_eq!(got.len(), 5, "the rest and its four corners: {got:?}");
     let row = &got[0];
+    for corner in &got[1..] {
+        assert!(
+            corner.site == DecisionSite::VertexFusion
+                && corner.relation == Relation::OnCarrier
+                && matches!(&corner.cells[0], NamedCell::Entity { name, .. }
+                    if name.node == plate && name.kind == EntityKind::Vertex)
+                && corner.cells[1] == entity(out(&doc, base), &top),
+            "a plate corner on the block's top: {corner:?}"
+        );
+    }
     assert_eq!(
         row.cells,
         [
@@ -153,11 +165,12 @@ fn a_glued_rest_is_one_unproven_row_named_by_its_operands() {
         "two constructions: {residual:?}"
     );
     let findings = unproven(&doc, &ev);
-    assert_eq!(findings.len(), 1, "{findings:?}");
-    assert_eq!(
-        findings[0].subject,
-        FindingSubject::Node(union),
-        "attributed to the deciding node"
+    assert_eq!(findings.len(), 5, "every row reported: {findings:?}");
+    assert!(
+        findings
+            .iter()
+            .all(|f| f.subject == FindingSubject::Node(union)),
+        "attributed to the deciding node: {findings:?}"
     );
     match &findings[0].evidence {
         CheckEvidence::UnprovenCoincidence { row: found, .. } => assert_eq!(**found, *row),
@@ -214,7 +227,11 @@ fn face_of(
     p: [f64; 3],
     n: [f64; 3],
 ) -> StableName {
-    table(ev, node)
+    // The read holding output `index`, and the body's index in its table
+    // (a split's half is body 0 of its own, NAMES N1).
+    let (var, index) = ev.body_read_of(node, index).expect("the node evaluated");
+    ev.table(var)
+        .expect("the node evaluated")
         .iter()
         .find_map(|(name, entry)| match entry {
             Entry::Unique(r) if r.body == index => match r.key {
@@ -311,9 +328,10 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
 /// **A union's rows are its pairwise judgement's, in the author's
 /// order** (#4323: the list is the author's stated order). Two blocks
 /// overlapping in x, their caps and y-walls flush, unioned as `[a, b]`
-/// and as `[b, a]`: the same decisions either way,
-/// each row's first cell the listed-first member's face, named by that
-/// member's own table.
+/// and as `[b, a]`: the same decisions either way, a row per flush
+/// family, each its first cell the listed-first member's face, named by
+/// that member's own table, and a row per corner of each block decided
+/// on the other's boundary.
 #[test]
 fn a_unions_rows_follow_its_member_order() {
     let doc = ProfileDoc::empty_derived("coincide-union-order", Tol::witness());
@@ -325,12 +343,20 @@ fn a_unions_rows_follow_its_member_order() {
         let (doc, union) = crate::fixture::union_over(doc.clone(), &members);
         let ev = run(&doc);
         let got = rows(&ev, union);
-        assert_eq!(got.len(), n, "{members:?}: one row per flush family");
-        for row in &got {
-            assert_eq!(
-                (row.relation, row.site),
-                (Relation::SameOriented, DecisionSite::PlaneLadder)
-            );
+        let (faces, corners): (Vec<_>, Vec<_>) = got
+            .iter()
+            .partition(|r| r.site == DecisionSite::PlaneLadder);
+        assert_eq!(faces.len(), n, "{members:?}: one row per flush family");
+        assert!(
+            corners.len() == 8
+                && corners
+                    .iter()
+                    .all(|r| (r.relation, r.site)
+                        == (Relation::OnCarrier, DecisionSite::VertexFusion)),
+            "{members:?}: the four corners of each block inside the other's x span: {corners:?}"
+        );
+        for row in faces {
+            assert_eq!(row.relation, Relation::SameOriented);
             let input = |c: &NamedCell| match c {
                 NamedCell::Entity { input, name } if out(&doc, name.node) == *input => *input,
                 other => panic!("{members:?}: a cell is a member's own face: {other:?}"),
@@ -343,16 +369,23 @@ fn a_unions_rows_follow_its_member_order() {
         }
         seen.push(got);
     }
-    let [ab, ba] = [&seen[0], &seen[1]];
-    let mut ab: Vec<_> = ab.iter().map(|r| r.cells.clone()).collect();
-    let mut ba: Vec<_> = ba
-        .iter()
-        .map(|r| [r.cells[1].clone(), r.cells[0].clone()])
-        .collect();
-    let key = |c: &[NamedCell; 2]| format!("{c:?}");
-    ab.sort_by_key(key);
-    ba.sort_by_key(key);
-    assert_eq!(ab, ba, "the same decisions in either order");
+    let unordered = |got: &[NamedCoincidence]| {
+        let mut pairs: Vec<[String; 2]> = got
+            .iter()
+            .map(|r| {
+                let mut pair = r.cells.each_ref().map(|c| format!("{c:?}"));
+                pair.sort();
+                pair
+            })
+            .collect();
+        pairs.sort();
+        pairs
+    };
+    assert_eq!(
+        unordered(&seen[0]),
+        unordered(&seen[1]),
+        "the same decisions in either order"
+    );
 }
 
 /// **A pattern's instances are placed apart.** The walk reads each
@@ -624,9 +657,7 @@ fn split_prism(
 /// half): a diamond prism split by `y = 1` has four operand vertices ON
 /// the plane (the diamond's side corners, at both ends), each with one
 /// run on either side, so the plane cuts there and leaves no pieces
-/// touching. The pinch half of the row is the kernel's (`topo`'s
-/// `m3_pr3_split`): a document cannot yet split through a pinch
-/// (`work/wire/a-split-through-a-pinch-names-both-tip-copies-alike.md`).
+/// touching.
 #[test]
 fn a_split_through_a_vertex_that_only_cuts_records_nothing() {
     let diamond = [(1.0, 0.0), (2.0, 1.0), (1.0, 2.0), (0.0, 1.0)];
@@ -637,6 +668,43 @@ fn a_split_through_a_vertex_that_only_cuts_records_nothing() {
         "an ON vertex that cuts is no pinch"
     );
     assert!(unproven(&doc, &ev).is_empty());
+}
+
+/// **A split through a pinch records it** (§11 row 6's first half): the
+/// notched prism's tip `(4, 1)` has both neighbours above `y = 1`, so the
+/// split leaves two pieces touching there, one row per tip vertex, each
+/// the operand vertex the split's side verdict read ON the tool.
+#[test]
+fn a_split_through_a_pinch_records_one_row_per_pinched_vertex() {
+    let notched = [
+        (0.0, 0.0),
+        (8.0, 0.0),
+        (8.0, 2.0),
+        (7.0, 1.0),
+        (6.0, 1.0),
+        (5.0, 2.0),
+        (4.0, 1.0),
+        (3.0, 2.0),
+        (0.0, 2.0),
+    ];
+    let (_, ev, split) = split_prism("coincide-pinch", &notched, 1.0);
+    let rows = rows(&ev, split);
+    assert_eq!(rows.len(), 2, "one row per tip vertex: {rows:?}");
+    for row in &rows {
+        assert_eq!(
+            (row.relation, row.site),
+            (Relation::OnCarrier, DecisionSite::SplitOn)
+        );
+        assert!(
+            matches!(
+                (&row.cells[0], &row.cells[1]),
+                (NamedCell::Entity { name, .. }, NamedCell::Tool { .. })
+                    if name.kind == EntityKind::Vertex
+            ),
+            "an operand vertex on the tool: {row:?}"
+        );
+    }
+    assert_ne!(rows[0].cells[0], rows[1].cells[0], "the two tip vertices");
 }
 
 /// **Turning the check off removes the reports and nothing else**
@@ -747,7 +815,7 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     }) else {
         panic!("both caps walk")
     };
-    assert_eq!(a.origin, coincide::Origin::Datum(tool));
+    assert_eq!(a.origin, coincide::Origin::Datum(tool, None));
     assert_eq!(a, b);
     for proof in proofs(&doc, union, &got) {
         assert!(
@@ -1091,10 +1159,11 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
 /// **A union records a vertex touch once, as a pair does.** Two blocks
 /// kissing at a corner: their two-member union — the pair — holds one
 /// `VertexFusion` row, cited by its one record. Folded into a union with
-/// a third block apart, the pairwise judgement decides the same touch,
-/// but its records are not the union's, so only the fold step's row,
-/// which the union's record cites, is published: the union's rows and
-/// findings are the pair's, the vertex touch once.
+/// a third block apart, the pairwise judgement decides the same touch
+/// and publishes its row, and the fold step's row, which the union's
+/// record cites, states the same two member cells, so the record cites
+/// the judged row: the union's rows and findings are the pair's, the
+/// vertex touch once.
 #[test]
 fn a_union_records_a_vertex_touch_once() {
     let doc = ProfileDoc::empty_derived("coincide-union-kiss", Tol::witness());
@@ -1138,64 +1207,74 @@ fn a_union_records_a_vertex_touch_once() {
 
 /// **The door's cost on `node`'s rows, measured**: the deferred replay,
 /// then each row's margin discharged, with its time and its DAG's size,
-/// under `TERMS` terms (the drive's default unset) and the drive's
-/// retry ladder unless `NORETRY`. Release builds; `--nocapture`.
+/// in the door's own session (`coincide::with_replay_session`); a dial
+/// opens another, at `TERMS` terms (the door's 256 unset) and without
+/// the drive's retry ladder under `NORETRY`. Release builds;
+/// `--nocapture`.
 fn measure_rows(doc: &ProfileDoc, node: RecipeNodeId) {
     use geom_core::sym::deferred;
     use geom_core::{Sym, SymBudget, SymRules};
-    let opts = editor_core::EvalOptions {
+    let symbols = editor_core::EvalOptions {
         symbols: true,
-        profile_lift: editor_core::ProfileLift::Guided,
         ..editor_core::EvalOptions::default()
     };
     let t = std::time::Instant::now();
-    let ((), counts) = deferred::with_deferred_session(
-        SymBudget {
-            max_terms: std::env::var("TERMS")
-                .ok()
-                .and_then(|t| t.parse().ok())
-                .unwrap_or(editor_core::drive::DEFAULT_SYM_MAX_TERMS),
-            max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
-        },
-        SymRules::shipped(),
-        if std::env::var_os("NORETRY").is_some() {
-            geom_core::SymRetry::none()
-        } else {
-            editor_core::drive::DEFAULT_SYM_RETRY
-        },
-        || {
-            let ev: Evaluation<Sym<f64>> = editor_core::evaluate(
-                doc,
-                None,
-                &editor_core::CancelToken::new(),
-                &opts,
-                Tol::witness(),
+    // The door's own session (`coincide::with_replay_session`), unless a
+    // dial asks for another: `TERMS=<n>` a budget, `NORETRY` no ladder.
+    let dialled = std::env::var_os("TERMS").is_some() || std::env::var_os("NORETRY").is_some();
+    let body = |opts: &editor_core::EvalOptions| {
+        let ev: Evaluation<Sym<f64>> = editor_core::evaluate(
+            doc,
+            None,
+            &editor_core::CancelToken::new(),
+            opts,
+            Tol::witness(),
+        );
+        eprintln!("replay {:?}", t.elapsed());
+        let rows = ev
+            .value(node)
+            .expect("the node replays")
+            .coincidences
+            .to_vec();
+        for r in &rows {
+            let t = std::time::Instant::now();
+            let d = deferred::discharge(r.margin);
+            eprintln!(
+                "ROW {:?} {:?} {:?} {:?} {:?}",
+                r.site,
+                r.relation,
+                d,
+                t.elapsed(),
+                deferred::dag_size(r.margin)
             );
-            eprintln!("replay {:?}", t.elapsed());
-            let rows = ev
-                .value(node)
-                .expect("the node replays")
-                .coincidences
-                .to_vec();
-            for r in &rows {
-                let t = std::time::Instant::now();
-                let d = deferred::discharge(r.margin);
-                eprintln!(
-                    "ROW {:?} {:?} {:?} {:?} {:?}",
-                    r.site,
-                    r.relation,
-                    d,
-                    t.elapsed(),
-                    deferred::dag_size(r.margin)
-                );
-                if !d {
-                    for f in deferred::render(r.margin) {
-                        eprintln!("  FORM {f}");
-                    }
+            if !d {
+                for f in deferred::render(r.margin) {
+                    eprintln!("  FORM {f}");
                 }
             }
-        },
-    );
+        }
+    };
+    let ((), counts) = if dialled {
+        let opts = symbols.clone();
+        deferred::with_deferred_session(
+            SymBudget {
+                max_terms: std::env::var("TERMS")
+                    .ok()
+                    .and_then(|t| t.parse().ok())
+                    .unwrap_or(256),
+                max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+            },
+            SymRules::shipped(),
+            if std::env::var_os("NORETRY").is_some() {
+                geom_core::SymRetry::none()
+            } else {
+                editor_core::drive::DEFAULT_SYM_RETRY
+            },
+            || body(&opts),
+        )
+    } else {
+        coincide::with_replay_session(symbols, |opts| body(opts))
+    };
     eprintln!("total {:?} {counts:?}", t.elapsed());
 }
 
@@ -1349,27 +1428,19 @@ fn census_the_door_over_the_corpus() {
             .filter(|(_, rows)| !rows.is_empty())
             .collect();
         let t = std::time::Instant::now();
-        // The replay alone, as `coincide/replay.rs` runs it: its budget
-        // and options spelled again here, kept in step with it by hand.
+        // The replay alone, in the door's own session.
         let replay = (!nodes.is_empty()).then(|| {
-            geom_core::sym::deferred::with_deferred_session(
-                geom_core::SymBudget {
-                    max_terms: 256,
-                    max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+            coincide::with_replay_session(
+                editor_core::EvalOptions {
+                    symbols: true,
+                    ..editor_core::EvalOptions::default()
                 },
-                geom_core::SymRules::shipped(),
-                editor_core::drive::DEFAULT_SYM_RETRY,
-                || {
-                    let opts = editor_core::EvalOptions {
-                        symbols: true,
-                        profile_lift: editor_core::ProfileLift::Guided,
-                        ..editor_core::EvalOptions::default()
-                    };
+                |opts| {
                     let _: Evaluation<geom_core::Sym<f64>> = editor_core::evaluate(
                         &cd.doc,
                         None,
                         &editor_core::CancelToken::new(),
-                        &opts,
+                        opts,
                         Tol::witness(),
                     );
                 },
@@ -1380,6 +1451,7 @@ fn census_the_door_over_the_corpus() {
         let proofs = coincide::prove(
             &cd.doc,
             &nodes,
+            None,
             Tol::witness(),
             &editor_core::CancelToken::new(),
         )
@@ -1442,7 +1514,9 @@ fn an_unproven_row_says_why_the_replay_left_it() {
 /// **What the door proves on the tour's composed dies**: the blend
 /// joints whose `fillet3_chain_g1` margin is the zero polynomial. One of
 /// `die_composed`'s two and 21 of `die_composed_tour`'s 42 prove as
-/// theorems, and the rest stay unproven.
+/// theorems, and the rest stay unproven. The dies' unions decide vertex
+/// identities too, which their inputs' cells cannot spell yet and they
+/// hold unspelled (`topo::BooleanNaming::unspelled`).
 #[test]
 fn the_door_proves_half_the_composed_dies_joints() {
     for (name, proved, rows) in [("die_composed", 1, 2), ("die_composed_tour", 21, 42)] {
@@ -1460,6 +1534,7 @@ fn the_door_proves_half_the_composed_dies_joints() {
         let all: Vec<Proof> = coincide::prove(
             &cd.doc,
             &nodes,
+            None,
             Tol::witness(),
             &editor_core::CancelToken::new(),
         )
@@ -1480,24 +1555,6 @@ fn the_door_proves_half_the_composed_dies_joints() {
                 .all(|u| *u == coincide::Unreplayed::Numeric),
             "{name}: the rest are unproven: {replayed:?}"
         );
-    }
-}
-
-/// A resolver that resolves nothing: what a run carries when it may
-/// cross a part seam.
-#[derive(Debug)]
-struct NoParts;
-
-impl editor_core::PartResolver for NoParts {
-    fn resolve(
-        &self,
-        _: &editor_core::DocRef,
-        _: Tol,
-    ) -> Result<ProfileDoc, editor_core::ResolveFailure> {
-        Err(editor_core::ResolveFailure {
-            fault: editor_core::ResolveFault::Unresolved,
-            message: "no parts here".to_owned(),
-        })
     }
 }
 
@@ -1538,42 +1595,89 @@ fn a_symbolic_run_over_a_box_refuses_every_node() {
     }
 }
 
-/// **A symbolic run crosses no part seam.** Two documents built by the
-/// same edits mint the same variable ids, and a symbol is keyed by its
-/// id, so two parts' variables would be one symbol and their difference
-/// a false identity. A run asked for symbols and a resolver refuses
-/// every node, typed, before any runs.
+/// **A part's variables are symbols of its own document version.** Two
+/// documents built by the same edits mint the same variable ids, and two
+/// versions of one document share them; the door keys each symbol by the
+/// document, the version its reference pins and the id, so two
+/// documents' widths, or two versions', are two symbols and their
+/// difference is no identity, while one version's width read twice (a
+/// part instanced twice) is one symbol.
+///
+/// Red if a symbol is keyed by its id alone, or by its document without
+/// the pin: the widths then cancel as a theorem.
 #[test]
-fn a_symbolic_run_with_a_resolver_refuses_every_node() {
-    use editor_core::{NodeErrorKind, NodeResult, ParamBoxError};
-    let doc = ProfileDoc::empty_derived("coincide-seam", Tol::witness());
-    let (doc, _) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let opts = editor_core::EvalOptions {
-        symbols: true,
-        resolver: Some(std::sync::Arc::new(NoParts)),
-        ..editor_core::EvalOptions::default()
+fn two_documents_variables_are_two_symbols() {
+    use editor_core::ContentPin;
+    use editor_core::ParamValue;
+    use editor_core::analysis::{var_env_symbolic, var_env_symbolic_pinned};
+    use geom_core::{Band, Decide, Sym, SymBudget};
+    let built = |seed: &str| {
+        let doc = ProfileDoc::empty_derived(seed, Tol::witness());
+        block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0).0
     };
-    let ev: Evaluation<geom_core::Sym<f64>> = editor_core::evaluate(
-        &doc,
-        None,
-        &editor_core::CancelToken::new(),
-        &opts,
-        Tol::witness(),
+    let (a, b) = (built("coincide-seam-a"), built("coincide-seam-b"));
+    let ids: Vec<VarId> = a.free_vars().map(|(id, _)| id).collect();
+    assert_eq!(
+        ids,
+        b.free_vars().map(|(id, _)| id).collect::<Vec<_>>(),
+        "the same edits mint the same ids"
     );
-    assert!(!ev.order.is_empty());
-    for id in &ev.order {
-        assert!(
-            matches!(
-                ev.result(*id),
-                Some(NodeResult::Failed(e)) if matches!(
-                    e.kind,
-                    NodeErrorKind::ParamBox { source: ParamBoxError::SymbolsAcrossAPartSeam }
-                )
-            ),
-            "{:?}",
-            ev.result(*id)
+    let band = Band::linear(Tol::witness()).expect("a band");
+    let budget = SymBudget {
+        max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
+        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+    };
+    let (decided, _) = geom_core::sym::with_session(budget, || {
+        let (ea, eb) = (
+            var_env_symbolic::<Sym<f64>, _>(&a).expect("every variable binds"),
+            var_env_symbolic::<Sym<f64>, _>(&b).expect("every variable binds"),
         );
-    }
+        let value = |env: &editor_core::VarEnv<Sym<f64>>, id| match env.bindings.get(id) {
+            Some(ParamValue::Continuous { value, .. }) => *value,
+            other => panic!("{id:?} binds {other:?}"),
+        };
+        let proven = |x: Sym<f64>| {
+            let d = x.sign_within(band).expect("a difference decides");
+            (d.sign, d.margin.proven())
+        };
+        let pinned = |pin: u8| {
+            var_env_symbolic_pinned::<Sym<f64>, _>(&a, Some(&ContentPin([pin; 32])))
+                .expect("every variable binds")
+        };
+        let (v1, v1_again, v2) = (pinned(1), pinned(1), pinned(2));
+        (
+            proven(value(&ea, &ids[0]) - value(&eb, &ids[0])),
+            proven(value(&ea, &ids[0]) - value(&ea, &ids[0])),
+            proven(value(&v1, &ids[0]) - value(&v2, &ids[0])),
+            proven(value(&v1, &ids[0]) - value(&v1_again, &ids[0])),
+            proven(value(&ea, &ids[0]) - value(&v1, &ids[0])),
+        )
+    });
+    assert_eq!(
+        decided.0,
+        (geom_core::Sign::Zero, false),
+        "two documents' variable of one id: Zero at the values, two symbols"
+    );
+    assert_eq!(
+        decided.1,
+        (geom_core::Sign::Zero, true),
+        "one document's variable read twice is one symbol"
+    );
+    assert_eq!(
+        decided.2,
+        (geom_core::Sign::Zero, false),
+        "two pinned versions of one document: two symbols"
+    );
+    assert_eq!(
+        decided.3,
+        (geom_core::Sign::Zero, true),
+        "one pinned version bound twice (a part instanced twice): one symbol"
+    );
+    assert_eq!(
+        decided.4,
+        (geom_core::Sign::Zero, false),
+        "the document being evaluated and a pinned version of it: two symbols"
+    );
 }
 
 /// **Two copies of one body are two constructions placed apart, never
@@ -1592,14 +1696,18 @@ fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
     let doc = ProfileDoc::empty_derived("coincide-copies-same-face", Tol::witness());
     let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, _) = crate::fixture::place(doc, the_box);
-    let turned: editor_core::Placement<Formula> = editor_core::Step::Rigid {
-        translation: [len(2.0), len(1.0), len(0.0)],
-        axis: [scl(0.0), scl(0.0), scl(1.0)],
-        angle: ang(std::f64::consts::PI),
-    }
-    .into();
-    let (doc, q) = crate::fixture::step(doc, editor_core::DocEdit::place(the_box, Some(turned)));
-    q.expect("the placement inserts");
+    let turned = editor_core::Frame::rotate_then_translate(
+        [0.0, 0.0, 1.0],
+        std::f64::consts::PI,
+        [2.0, 1.0, 0.0],
+        crate::fixture::band(),
+    )
+    .expect("a half-turn about z");
+    let (doc, q) = crate::fixture::insert(
+        doc,
+        Node::place(vec![editor_core::BodyRead::plain(the_box)]),
+    );
+    let doc = crate::fixture::pin(doc, q, &turned, &EvalOptions::default());
     let ev = run(&doc);
     let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
     let rows = product.coincidences.len();
@@ -1725,13 +1833,12 @@ fn fusions(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
 /// the ring glues the two by a shared point key alone, which records
 /// nothing.
 ///
-/// **Two pierces already on one point key record nothing.** That
-/// intersection keeps the pierces on one key: the ring's copies, the
-/// plate's side. A slab whose face runs through (1.5, 1, 1) obliquely,
-/// intersected with it, meets the two vertices there as two pierces of
-/// one face on one key. They share the key as copies of one ring, which
-/// is structure, so the slab's intersection records no fusion of them,
-/// and the check reports nothing of the kind there.
+/// **Two pierces already on one point key are decided onto a face that
+/// runs through them.** That intersection keeps the pierces on one key:
+/// the ring's copies, the plate's side. A slab whose face runs through
+/// (1.5, 1, 1) obliquely, intersected with it, decides the vertices
+/// there onto that face, and records each decision, though the copies
+/// were already one key's.
 #[test]
 fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
     let (doc, plate, blocks) = ring_pinch(pierce_gap());
@@ -1801,9 +1908,17 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
         "the slab's intersection builds: {:?}",
         failure(&ev, cut)
     );
-    assert_eq!(
-        fusions(&ev, cut),
-        vec![],
-        "two pierces on one key record nothing"
+    let onto = fusions(&ev, cut);
+    let slab_face = |c: &NamedCell| {
+        matches!(c, NamedCell::Entity { input, name }
+        if *input == out(&doc, slab) && name.kind == EntityKind::Face)
+    };
+    assert!(
+        onto.len() >= 2
+            && onto.iter().all(|r| slab_face(&r.cells[1])
+                && r.cells[1] == onto[0].cells[1]
+                && matches!(&r.cells[0], NamedCell::Entity { input, name }
+                    if *input == out(&doc, common) && name.kind == EntityKind::Vertex)),
+        "the pierces and the vertices beside them, each on the slab's one face: {onto:?}"
     );
 }

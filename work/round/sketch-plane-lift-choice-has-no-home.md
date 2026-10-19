@@ -2,10 +2,11 @@
 id: sketch-plane-lift-choice-has-no-home
 kind: issue
 title: SketchPlane::map's doc states a lift rule with no home: each caller decides in prose and none says which it chose
-status: open
+status: closed
 opened: 2026-09-15
 priority: P1
 cost: D
+closed: 2026-10-14
 ---
 
 
@@ -59,3 +60,17 @@ second inheritor of the unanswered sentence without answering it.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to PATHS (opened at this exit as S-BOOL's successor for the profile lattice) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Outcome
+
+Closed by `the-sketch-plane-is-its-frame` (2026-10-14): the doors
+decide, and the choice was never a caller's. `SketchPlane::map` and
+`try_map` are gone, and with them the doc paragraph ending "a caller
+chooses". A plane crosses scalars through `SketchPlane::embed` (the
+`f64` frame carried exactly; `embed_computed` for a computed frame) or
+is minted at the lane scalar from that scalar's own inputs, and which
+of the two a document's profile gets is the evaluator's `ProfileLift`
+(`Pinned` embeds the `f64` plane, `Guided` places at the frame's lane
+value through `frame_plane_lane`). `eval/anchor.rs`'s `embed_profile`,
+one of the four callers cited, no longer existed; the others now call
+`embed` or `point_value`.

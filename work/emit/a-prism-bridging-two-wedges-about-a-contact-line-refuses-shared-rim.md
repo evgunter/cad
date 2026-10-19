@@ -31,7 +31,7 @@ arm). Topo builds those orders sound
 `a_third_prism_crossing_the_wedges_about_the_line_builds_or_refuses_typed`,
 "both wedges crossed": 3/3′, closed-form volume, the analytic
 oracle). The orders folding the bridging prism last refuse in topo
-first (`work/tang/an-edge-crossing-two-wedges-about-a-contact-line-is-unbuilt.md`);
+first (`work/tangtail/an-edge-crossing-two-wedges-about-a-contact-line-is-unbuilt.md`);
 the other 16 (4) build through editor-core.
 
 Unmeasured: which face pair the refusal names and why it shares no
@@ -88,7 +88,7 @@ so its walls are cited, as in the other 17 orders and as N2 reads it.
 `a_bridge_folded_after_both_wedges_seams_their_walls` runs per PR). With
 the plate, 18 of the 24 orders build. The 6 that fold the bridge last
 refuse `CrossingsAlongAContactLine`
-(`work/tang/an-edge-crossing-two-wedges-about-a-contact-line-is-unbuilt.md`),
+(`work/tangtail/an-edge-crossing-two-wedges-about-a-contact-line-is-unbuilt.md`),
 and the test says so if that ever changes. Alone, all 6 orders build.
 Two bridges filling the gap over two stretches of the line (z 0.2–0.4,
 and 0.6–1.5 or 0.6–1.81) build and name alike in all 24 orders: once
