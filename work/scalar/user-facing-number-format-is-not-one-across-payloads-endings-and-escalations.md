@@ -26,3 +26,11 @@ The bare-`{}` population is the separate row `work/issues/refusal-floats-outside
 ## Ask
 
 Decide whether `IndeterminatePayload` takes `Readable` (via `MarginDiag::readable()`, with the band thresholds through `Readable` too). Then move `ClassifiedMargin` in the same change, so the definite and undecided halves still read alike. Re-baseline the pins that move. Most band thresholds sit below `1e-4` and keep exponent form, so few renders should move.
+
+## Evidence added 2026-10-19 (ENCL, PR 5157 delta review)
+
+More `{:e}` sites print user-facing numbers outside `Readable`:
+- `crates/geom-core/src/predicate.rs`, `impl fmt::Display for BandError`: `{value:e}` for `InvalidValue` and `InvalidLeverArm`, and `{zero:e}`/`{escalate:e}` for `Empty`.
+- `crates/step-import/src/error.rs`: `{residual:e} m` (the ambient-tolerance refusal) and `{margin:e} m` (the ε_in ambiguity refusal).
+
+PR 5157 moved the geom-brep payloads onto `MarginDiag::readable`. A margin of `0` therefore now prints "0 m" there, while these sites still print "0e0". (ENCL orchestrator)
