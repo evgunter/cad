@@ -117,12 +117,28 @@ So running the map at the nominal does not by itself make the lanes' decision li
 
   **Second differing decision (found 2026-10-19, both changes applied locally):** the 1-link chain leaf refuses `flip_crossing` on `datum_unit_norm`, counted 5 at the nominal and 4 at the leaf, at nodes 50 and 63 (the joint placements). So one unit-normalisation decision that f64 makes is skipped on the box lane. Likely source: the frame-lane-only path the kernel lane added. `pose::own_direction` (`src/eval/wire/pose.rs`) reads the raw carrier direction and snaps it with `mate::solve::on_an_axis`, which decides nothing, while f64 builds the same direction through `UnitVec3::new` and decides `datum_unit_norm`. The fix is to make the two lanes decide the same thing: decide the unit norm on the frame-lane path too (and keep the raw direction), or skip it on f64 as well.
 
-  **Fix found, tested locally (2026-10-19), not yet committed.** It has three parts, all in mate/eval:
+  **Fix found and tested locally (2026-10-19); not committed.** It has three parts, all in mate/eval:
   1. the narrowing (`bundle_reads_a_variable` before the snap in `eval/wire.rs` `fold_with`);
   2. a varying bundle is placed by `Motion::Map` even at the stored identity, bypassing `marked`;
   3. in `mate/value.rs` `Chart::of`, the taken-back direction is normalised on every lane (`let back = unit(...)?`), so a frame lane decides `datum_unit_norm` as f64 does, while keeping its own direction.
 
-  With all three, **`demo-tour certified` exits 0**: plate study 211/512, the 1-link chain drive certified 1, 0 refused, the 4-link drive certified too. Pending: triage the editor-core rows the fix moves (step 2), then commit if the bar holds. If this section still says pending, re-apply the three parts from this description.
+  With all three, **`demo-tour certified` exits 0**: plate study 211/512, the 1-link chain drive certified 1, 0 refused, the 4-link drive certified too. **Triage done; reverted, because the bar is not met.** Re-apply the three parts from this description.
+
+  With the fix applied, 23 rows fail in the m10 / sym / revalue / msolve14 set (392 run; log `/home/user/c5-ec.txt`). Sorted:
+  - **Expected moves; re-bless each with the reason "a varying placement now runs its map at the nominal, so its transform decisions count there" (17):**
+    - m10_bulge ×3 (`carrier_*` and `dihedral_*` counts rose at the nominal, e.g. segment_boss carrier_endpoint 24→30);
+    - m10_9 ×3 (two_hole_plate's decisions to 1381; the registry and pad receipts);
+    - sym_9 ×2 (two_hole_plate [1009, 662]→[1381, 980]; an upward move, which its text says is re-baselined);
+    - m10_sym_profile ×2;
+    - m10_10 ×2 ([232, 56]; the walked rows' envelope Some([32, 0]));
+    - the `m10_6_ci` certifying-keys golden;
+    - msolve14 a3, and `m10_p_fence` ×3 (f64, Interval, ids masked).
+  - **Premise restored (1):** `m10_6_r1` "bound straddled". The web straddles 2.0 by ulps again ([1.9999999999999973, 2.0000000000000013]), so restore the row's original assertion that the kernel lane weakened.
+  - **Real and unexplained, which blocks the commit (3):**
+    - `m10_di_dual_corpus::dual_interval_evaluates_with_the_interval_value_channel` and `r2_m10_di_probes::deep_value_channel_identity_interval_vs_dual_interval`: on `die`, the `Dual<Interval>` value channel diverges from Interval. The likely place is the `Dual` `SolveScalar` impl (`eval/mod.rs`), which delegates `spins_by_frames` but whose `marked`/`is_stored_identity`/`carries_no_variation` answers may differ from Interval's on the new path.
+    - `revalue_corpus::revalue_cut_cylinder`: the comparison move changed from in-step to apart.
+  - **A finding to read (1):** sym11. two_hole_plate's receipt is [1381, 980, 1429], stored [1003, 654, 729]. More is proven, and more is frozen too.
+  - **Pre-existing (1):** `m10_di_dual_corpus::assemble_census_verdicts`, die_composed_tour's 16 undecided touches at Interval, unchanged by the fix.
 
 **Window of 2026-10-19 (about 3% of usage left)**
 - **The tour die corpus:** `cargo run --release -- die-corpus ../../crates/editor-core/tests/corpus/tour/die_composed_tour.pncad` in `demos/tour` gives a file byte-identical to D's committed one (1,589,134 bytes) on D's head. Nightly 65's "not byte-regenerable since #5267" was raised against main's copy, which D replaces. Nothing that reads it needed re-pinning.
