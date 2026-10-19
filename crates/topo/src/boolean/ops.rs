@@ -2742,6 +2742,8 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<(), DescribeRefusal> {
     // Whether two faces both belong to one recorded merge skip: the
     // licensed cosurface pairs the merge stage ships unglued.
+    let restating =
+        crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::SeamDescription);
     let recorded_skip = |(f1, f2): (FaceKey, FaceKey)| {
         skipped
             .iter()
@@ -2777,11 +2779,17 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
             .map_err(|(reading, diag)| DescribeRefusal::undecided(edge, reading, diag))?
         {
             geom_brep::DihedralClass::Transverse => {
+                let origin = if draft.keeps_its_span() {
+                    restating
+                } else {
+                    crate::policy_lane::Origin::Callers
+                };
                 let spec = draft.into_spec(geom_brep::SurfacePair::new(s1, s2));
                 let carrier = spec.carrier.kind();
-                body.set_edge_curve(edge, spec, tol).map_err(|e| {
-                    of_attachment(edge, EdgeDescribeFailure::Intersection, carrier, e)
-                })?;
+                body.set_edge_curve_from(origin, edge, spec, tol)
+                    .map_err(|e| {
+                        of_attachment(edge, EdgeDescribeFailure::Intersection, carrier, e)
+                    })?;
             }
             geom_brep::DihedralClass::Smooth => {
                 // F1 (the declared-merge SKIP lane): a SURVIVING
@@ -2854,9 +2862,15 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                         param_start: t0,
                         param_end: t1,
                     };
-                    body.set_edge_curve(edge, spec, tol).map_err(|e| {
-                        of_attachment(edge, EdgeDescribeFailure::Tangency, c.carrier().kind(), e)
-                    })?;
+                    body.set_edge_curve_from(restating, edge, spec, tol)
+                        .map_err(|e| {
+                            of_attachment(
+                                edge,
+                                EdgeDescribeFailure::Tangency,
+                                c.carrier().kind(),
+                                e,
+                            )
+                        })?;
                 } else if stale {
                     // A locus the adjacent surfaces under-determine, of
                     // any carrier kind, rests where it lies
@@ -2877,7 +2891,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                         geom_brep::RestLocus::Pair(_) => EdgeDescribeFailure::Pair,
                     };
                     let spec = c.restated_at(rest);
-                    body.set_edge_curve(edge, spec, tol)
+                    body.set_edge_curve_from(restating, edge, spec, tol)
                         .map_err(|e| of_attachment(edge, failure, c.carrier().kind(), e))?;
                 }
             }

@@ -2644,6 +2644,7 @@ pub struct IntersectionDraft<T: Real> {
     carrier: Curve3<T>,
     param_start: T,
     param_end: T,
+    kept: bool,
 }
 
 impl<T: SpanLocate> IntersectionDraft<T> {
@@ -2658,6 +2659,7 @@ impl<T: SpanLocate> IntersectionDraft<T> {
                     carrier: c.carrier().clone(),
                     param_start: t0,
                     param_end: t1,
+                    kept: true,
                 }
             }
             None => {
@@ -2667,6 +2669,7 @@ impl<T: SpanLocate> IntersectionDraft<T> {
                     carrier: chord.carrier,
                     param_start: chord.param_start,
                     param_end: chord.param_end,
+                    kept: false,
                 }
             }
         }
@@ -2678,6 +2681,12 @@ impl<T: Real> IntersectionDraft<T> {
     /// interval: the edge whose faces' extent levers the dihedral.
     pub fn span(&self) -> (&Curve3<T>, (T, T)) {
         (&self.carrier, (self.param_start, self.param_end))
+    }
+
+    /// Whether the carrier and interval are the existing certified
+    /// curve's, bitwise, rather than a chord drawn between the points.
+    pub fn keeps_its_span(&self) -> bool {
+        self.kept
     }
 
     /// The `Intersection` spec of `pair` at this draft's witness.

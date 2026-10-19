@@ -329,6 +329,27 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
+        self.set_face_surfaces_describing_from(
+            crate::policy_lane::Origin::Callers,
+            charts,
+            redescriptions,
+            tol,
+        )
+    }
+
+    /// [`Body::set_face_surfaces_describing`] certifying the listed
+    /// specs as `origin`'s: a kernel operation that restates stored
+    /// edges' carriers and intervals names its site.
+    pub(crate) fn set_face_surfaces_describing_from(
+        &mut self,
+        origin: crate::policy_lane::Origin,
+        charts: Vec<Rechart<T>>,
+        redescriptions: &[(EdgeKey, EdgeCurveSpec<T>)],
+        tol: Tol,
+    ) -> Result<Vec<SurfaceKey>, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
@@ -364,7 +385,7 @@ impl<T: Decide> Body<T> {
                 (spec.param_start, spec.param_end),
             );
             let curve = crate::policy_lane::certify(
-                crate::policy_lane::Origin::Callers,
+                origin,
                 spec.clone(),
                 p_start,
                 p_end,
@@ -1251,20 +1272,29 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
+        self.set_edge_curve_from(crate::policy_lane::Origin::Callers, edge, curve, tol)
+    }
+
+    /// [`Body::set_edge_curve`] certifying `curve` as `origin`'s: a
+    /// kernel operation that restates a stored edge's carrier and
+    /// interval names its site.
+    pub(crate) fn set_edge_curve_from(
+        &mut self,
+        origin: crate::policy_lane::Origin,
+        edge: EdgeKey,
+        curve: EdgeCurveSpec<T>,
+        tol: Tol,
+    ) -> Result<CurveKey, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         require_key(&self.edges, edge, EntityId::Edge, Arg("edge"))?;
         let (p_start, p_end) = self.edge_endpoints(edge);
         self.check_description_adjacent(edge, &curve.description)?;
 
         let faces = crate::edge_faces(self, edge);
-        let certified = self.certify_edge_spec(
-            crate::policy_lane::Origin::Callers,
-            Some(edge),
-            curve,
-            p_start,
-            p_end,
-            faces,
-            tol,
-        )?;
+        let certified =
+            self.certify_edge_spec(origin, Some(edge), curve, p_start, p_end, faces, tol)?;
         let rows = self.description_rows(&[(edge, &certified)], |_| Ok(Vec::new()), tol)?;
 
         // ---- Mutation (infallible from here on). ----
@@ -1368,7 +1398,12 @@ impl<T: Decide> Body<T> {
             }
             (_, rest) => restated.at_rest(rest),
         };
-        self.set_edge_curve(edge, spec, tol)?;
+        self.set_edge_curve_from(
+            crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::AtRest),
+            edge,
+            spec,
+            tol,
+        )?;
         Ok(())
     }
 
@@ -1485,7 +1520,12 @@ impl<T: Decide> Body<T> {
             })
             .collect();
         for (edge, spec) in parted {
-            self.set_edge_curve(edge, spec, tol)?;
+            self.set_edge_curve_from(
+                crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::PartedWrap),
+                edge,
+                spec,
+                tol,
+            )?;
         }
         Ok(())
     }

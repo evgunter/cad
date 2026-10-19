@@ -64,6 +64,20 @@ pub(crate) enum KernelSite {
     ReDescription,
     /// A re-based run's re-certification of its edges.
     ReBasedRun,
+    /// [`crate::boolean::describe_edges`]' re-description of a stored
+    /// edge on its own carrier and interval.
+    SeamDescription,
+    /// A split's re-description of a section boundary edge on its own
+    /// carrier and interval.
+    SectionBoundary,
+    /// A split's re-chart of a section face, its stranded edges restated.
+    SectionRechart,
+    /// A shell's re-chart of a promoted rim face, its edges restated.
+    RimRechart,
+    /// [`crate::Body::describe_at_rest`]'s restatement.
+    AtRest,
+    /// The restatement of a wrap edge whose halves an operation parted.
+    PartedWrap,
 }
 
 impl core::fmt::Display for KernelSite {
@@ -74,6 +88,12 @@ impl core::fmt::Display for KernelSite {
             Self::Graft => "a graft",
             Self::ReDescription => "a re-description",
             Self::ReBasedRun => "a re-based run's edge",
+            Self::SeamDescription => "a seam's re-description",
+            Self::SectionBoundary => "a section boundary's re-description",
+            Self::SectionRechart => "a section re-chart",
+            Self::RimRechart => "a rim re-chart",
+            Self::AtRest => "describe_at_rest",
+            Self::PartedWrap => "a parted wrap edge",
         })
     }
 }

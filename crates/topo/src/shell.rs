@@ -2044,14 +2044,11 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             let made = out
                 .mfkrh(guest_ring, crate::euler::FaceSurface::Inherit)
                 .map_err(rim_error)?;
-            let specs = loop_rekeyed(&out, guest_ring, guest_surface, host_surface);
-            out.set_face_surfaces_describing(
-                vec![crate::attach::Rechart::shared(
-                    host_surface,
-                    made.face,
-                    host_sense,
-                )],
-                &specs,
+            rechart_rekeyed(
+                &mut out,
+                (made.face, guest_ring),
+                (guest_surface, host_surface),
+                host_sense,
                 tol,
             )
             .map_err(rim_error)?;
@@ -3896,6 +3893,26 @@ fn loop_rekeyed<T: Decide>(
         ));
     }
     specs
+}
+
+/// Moves `face` onto the shared chart `live` with `sense`, each edge of
+/// its loop `r#loop` re-keyed from `dead` to `live` ([`loop_rekeyed`]):
+/// a restatement of stored edges, so a span refusal is the kernel's.
+pub(crate) fn rechart_rekeyed<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    (face, r#loop): (FaceKey, crate::entity::LoopKey),
+    (dead, live): (crate::geometry::SurfaceKey, crate::geometry::SurfaceKey),
+    sense: bool,
+    tol: Tol,
+) -> Result<(), EulerOpError> {
+    let specs = loop_rekeyed(body, r#loop, dead, live);
+    body.set_face_surfaces_describing_from(
+        crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::RimRechart),
+        vec![crate::attach::Rechart::shared(live, face, sense)],
+        &specs,
+        tol,
+    )
+    .map(drop)
 }
 
 /// **The closed-form wall-clearance gate** (module docs). Every pair of

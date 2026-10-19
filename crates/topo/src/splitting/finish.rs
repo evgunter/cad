@@ -721,25 +721,32 @@ fn of_attachment(
 
 /// [`Body::set_face_surfaces_describing`] over a section re-chart, its
 /// refusal for one of the `restated` edges read as [`of_attachment`]
-/// reads it on that edge's carrier.
-fn rechart_section<T: Decide + crate::props::AtRestPolicy>(
+/// reads it on that edge's carrier. Each `restated` spec is its edge's
+/// stored carrier and interval ([`section_plane_restatements`]), so a
+/// span refusal is the kernel's.
+pub(crate) fn rechart_section<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     charts: Vec<Rechart<T>>,
     restated: &[(EdgeKey, geom_brep::EdgeCurveSpec<T>)],
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
-    body.set_face_surfaces_describing(charts, restated, tol)
-        .map(drop)
-        .map_err(|refusal| {
-            let edge = match &refusal {
-                EulerOpError::RechartFalsifies { edge, .. } => *edge,
-                _ => return refusal.into(),
-            };
-            match restated.iter().find(|(e, _)| *e == edge) {
-                Some((_, spec)) => of_attachment(edge, spec.carrier.kind(), refusal),
-                None => refusal.into(),
-            }
-        })
+    body.set_face_surfaces_describing_from(
+        crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::SectionRechart),
+        charts,
+        restated,
+        tol,
+    )
+    .map(drop)
+    .map_err(|refusal| {
+        let edge = match &refusal {
+            EulerOpError::RechartFalsifies { edge, .. } => *edge,
+            _ => return refusal.into(),
+        };
+        match restated.iter().find(|(e, _)| *e == edge) {
+            Some((_, spec)) => of_attachment(edge, spec.carrier.kind(), refusal),
+            None => refusal.into(),
+        }
+    })
 }
 
 impl core::fmt::Display for SplitFinishError {
@@ -1375,7 +1382,7 @@ fn nest_slit<T: Decide + crate::props::AtRestPolicy>(
 /// other face keeps the chart, as that chart itself
 /// ([`Body::set_face_surfaces_describing`]). Carrier, interval and a
 /// declared authority travel verbatim.
-fn section_plane_restatements<T: Decide>(
+pub(crate) fn section_plane_restatements<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     stranded: &[EdgeKey],
@@ -1459,13 +1466,15 @@ fn section_plane_restatements<T: Decide>(
 /// ([`crate::live::OPERATORS_KEEP_LINKS`]; a rewritten edge's old curve
 /// goes only once orphaned, [`Body::remove_curve_if_orphaned`]): a torn
 /// one panics, and is not an edge with no description.
-fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
+pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     band: geom_core::Band,
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
     let corrupt = || SplitFinishError::Corrupt;
+    let restating =
+        crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::SectionBoundary);
     let face_data = body.get_face(face).ok_or_else(corrupt)?;
     let s_self = face_data.surface;
     let loops: Vec<_> = core::iter::once(face_data.outer)
@@ -1512,9 +1521,14 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
             let witness = draft.witness;
             match geom_brep::classify_dihedral(surf_self, surf_other, witness, reach, band) {
                 Ok(geom_brep::DihedralClass::Transverse) => {
+                    let origin = if draft.keeps_its_span() {
+                        restating
+                    } else {
+                        crate::policy_lane::Origin::Callers
+                    };
                     let spec = draft.into_spec(geom_brep::SurfacePair::new(s_self, s_other));
                     let carrier = spec.carrier.kind();
-                    body.set_edge_curve(edge, spec, tol)
+                    body.set_edge_curve_from(origin, edge, spec, tol)
                         .map_err(|e| of_attachment(edge, carrier, e))?;
                 }
                 // A curved wall smooth against the section plane is
@@ -1619,7 +1633,7 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                             ..spec
                         };
                         let carrier = spec.carrier.kind();
-                        body.set_edge_curve(edge, spec, tol)
+                        body.set_edge_curve_from(restating, edge, spec, tol)
                             .map_err(|e| of_attachment(edge, carrier, e))?;
                     }
                 }
