@@ -5301,11 +5301,16 @@ mod volume_refusal_rows {
         let first = FaceKey::default();
         for (what, walk, certified, read) in rows() {
             let got = unread_refusal(&unread(walk, certified), first);
-            let want = match read {
-                Read::Zero => PointInSolidError::ZeroVolumeBody,
-                Read::Unmeasured => PointInSolidError::VolumeUncertified,
-            };
-            assert_eq!(got, want, "{what}");
+            match read {
+                Read::Zero => assert_eq!(got, PointInSolidError::ZeroVolumeBody, "{what}"),
+                Read::HoldsZero => assert!(
+                    matches!(got, PointInSolidError::Escalated { face, .. } if face == first),
+                    "{what}: {got:?}"
+                ),
+                Read::Unmeasured => {
+                    assert_eq!(got, PointInSolidError::VolumeUncertified, "{what}");
+                }
+            }
         }
     }
 

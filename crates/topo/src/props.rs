@@ -1052,9 +1052,10 @@ fn rederived<T: Decide>(
 /// point of the body, no face's width is scaled by the body's distance
 /// from the world origin. A quadrature face whose lane refuses about `c`
 /// keeps the enclosure it was measured with less `c · A⃗`, at the
-/// world-origin width, and says so; a walk with no faces, or such a face
-/// whose vector area has no closed form, is taken about the world
-/// origin, unrecentred.
+/// world-origin width, and says so; a walk with no faces, such a face
+/// whose vector area has no closed form, or a closed-form face that
+/// refuses about `c` (its inventory read again there in band), is taken
+/// about the world origin, unrecentred.
 ///
 /// # Errors
 ///
@@ -1093,8 +1094,8 @@ fn rederive<T: Decide>(
 
 /// [`rederive`] about `centre` (`None`: the world origin). `Ok(None)`
 /// when a quadrature face's vector area has no closed form, so its flux
-/// cannot be carried to `centre` and the walk is taken about the world
-/// origin instead.
+/// cannot be carried to `centre`, or a closed-form face refuses about
+/// `centre`, and the walk is taken about the world origin instead.
 fn rederive_about<T: Decide>(
     body: &Body<T>,
     band: Band,
@@ -1151,12 +1152,25 @@ fn rederive_about<T: Decide>(
                     },
                 }
             }
-            (None, _) => {
-                let at = centre.unwrap_or(Point3::origin());
-                let (c, moved) = (lane.closed_form)(surface, &loops, face.sense, band, at, None)
-                    .map_err(refused)?;
-                recentred &= moved;
+            (None, None) => {
+                let (c, _) =
+                    (lane.closed_form)(surface, &loops, face.sense, band, Point3::origin(), None)
+                        .map_err(refused)?;
                 (c.flux, c.area)
+            }
+            // A closed form read again about `centre` decides its
+            // inventory again there, at the interval's rounding about
+            // that point, and may read it in band where the walk decided
+            // it: the walk is then taken about the world origin, where a
+            // refusal the face itself earns refuses.
+            (None, Some(centre)) => {
+                match (lane.closed_form)(surface, &loops, face.sense, band, centre, None) {
+                    Ok((c, moved)) => {
+                        recentred &= moved;
+                        (c.flux, c.area)
+                    }
+                    Err(_) => return Ok(None),
+                }
             }
         };
         flux = flux + f;
@@ -4544,6 +4558,9 @@ pub(crate) mod role_unread_rows {
     pub(crate) enum Read {
         /// A zero volume.
         Zero,
+        /// The certificate holds zero across it: its enclosure is the
+        /// reading's escalation, which the refusal reports.
+        HoldsZero,
         /// Neither: the volume is unmeasured.
         Unmeasured,
     }
@@ -4555,7 +4572,7 @@ pub(crate) mod role_unread_rows {
     /// The rows. A certificate is read by its enclosure alone
     /// ([`certify_role`]), so it reads zero only where the enclosure is
     /// zero at both ends; one that holds zero across it, however
-    /// narrowly, leaves the volume unmeasured.
+    /// narrowly, is no zero volume but that enclosure's escalation.
     pub(crate) fn rows() -> Vec<Row> {
         let exact_zero = SignReading::exact(0.0, 1.0);
         vec![
@@ -4599,13 +4616,13 @@ pub(crate) mod role_unread_rows {
                 "an exact zero the certificate holds zero across",
                 exact_zero,
                 Some((-1e-15, 1e-15)),
-                Read::Unmeasured,
+                Read::HoldsZero,
             ),
             (
                 "an exact zero the certificate straddles",
                 exact_zero,
                 Some((-1.0, 1.0)),
-                Read::Unmeasured,
+                Read::HoldsZero,
             ),
             (
                 "a wide bracket certified zero",
@@ -4621,6 +4638,11 @@ pub(crate) mod role_unread_rows {
         for (what, walk, certified, read) in rows() {
             let unread = unread(walk, certified);
             assert_eq!(unread.reads_zero(), read == Read::Zero, "{what}: zero");
+            assert_eq!(
+                unread.escalation().is_some(),
+                read == Read::HoldsZero,
+                "{what}: the enclosure's escalation"
+            );
         }
     }
 
