@@ -248,12 +248,11 @@ pub(super) struct ChartLoop<T, const N: usize> {
 /// admits a rim at (`props_circle_axis_class`, `r_c·|n_c·â|` definite),
 /// so a call at a circle's own radius refuses nothing the parse admits:
 /// the torus decides it at each parallel's own, and at its minor radius
-/// for its meridians. The cylinder decides it once at the surface
-/// radius, which a rim's may exceed by up to `ε`, so a cylinder narrower
-/// than `Kε` whose rims the axis class admits escalates here
-/// (`work/flux/cylinder-axis-inside-reads-the-surface-radius-not-the-rims`).
-/// A circle narrower than `Kε` is within its own band, and this closed
-/// form has no reading of it ([`PropsError::NotIsoRectangle`]).
+/// for its meridians; the cylinder once, at its least rim's radius (not
+/// the surface's, which a rim's may exceed by up to `ε`: a cylinder
+/// narrower than `Kε` may carry rims the axis class admits). A circle
+/// narrower than `Kε` is within its own band, and this closed form has
+/// no reading of it ([`PropsError::NotIsoRectangle`]).
 pub(super) fn require_axis_inside<T: Decide>(radius: T, band: Band) -> Result<(), PropsError> {
     if decide("props_chart_axis_inside", Margin::of(radius), band).map_err(escalated)?
         == Sign::Positive
