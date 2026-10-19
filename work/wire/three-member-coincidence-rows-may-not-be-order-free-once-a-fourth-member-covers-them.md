@@ -63,3 +63,43 @@ whether the step that meets it runs before the points coincide. DM4 says
 "one row in every order".
 
 Signed (WIRE orchestrator).
+
+## Weighed (2026-10-19, FORK-ROWPRESENCE, three rounds)
+
+Two designers, briefed with the problem only, converged after crossing
+once.
+
+- **Measured.** Every order-dependent statement in both fixtures is
+  implied by judged rows, but only 2 of 6 through lineage; 4 need line
+  and plane incidence theorems. Every step decision is cited by a record
+  (106/0), so the citing filter is not the cause: different orders take
+  different decisions at one point. A third face through a seam (the
+  pencil) records no coincidence at all, in `topo` or anywhere.
+- **Who reads the rows.** Every reader takes them per evaluation, in
+  decision order:
+  - the coincidence door and its replay, which match each row by site,
+    position, cells and relation;
+  - contact records' `Backing::Decided(k)`;
+  - Python's `coincidences(node)`.
+
+  Nothing compares rows across orders except this test.
+- **Recommendation.** A node's rows are its evaluation's decision log:
+  - the judged rows plus every decision a fold step takes, unfiltered;
+  - each spelled as the set of member cells that meet, with a cell the
+    fold minted resolved to the member cells it is made of;
+  - each marking whether it is judged or a fold step's.
+
+  The judged rows are the order-free subset. DM4's "so it is one row in
+  every order" is withdrawn. "The fold mints no contact verdict of its
+  own" is limited to carrier pairs. The author-facing findings come out
+  order-free in practice: an implied fold row proves when its premises
+  do, and a surviving irreducible coincidence is met in every order.
+  The residue is a covered irreducible coincidence, recorded only in the
+  orders that meet it before the cover. That is the same residue as a
+  step's refusal.
+- **Prerequisite in `topo`.** `cite_rows` emits a decision as a row only
+  where a record cites it or it pinches. Every Zero decision a boolean
+  takes becomes a row, in pair booleans too.
+
+The `[ev]` PR edits DM4 (`crates/editor-core/REFERENCES.md`); design-fork
+log row 169. Approved by Ev on PR 5329 (2026-10-19).
