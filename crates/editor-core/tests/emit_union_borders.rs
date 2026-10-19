@@ -579,6 +579,27 @@ fn a_boss_whose_corner_touches_the_divider_is_part_of_it() {
     ));
 }
 
+/// **A member that engulfs the members before it** leaves the fold a
+/// result in its own keys, holding none of their region: what they
+/// discarded borders nothing after it. A bar across its top divides the
+/// top alike in every order.
+#[test]
+fn a_member_engulfing_the_others_reads_only_what_follows_it() {
+    check(&u(
+        "engulfed",
+        vec![
+            ("plate", plate()),
+            ("slab", slab()),
+            ("big", b((-0.5, 3.5), (-1.5, 3.5), (-0.5, 3.0))),
+            ("bar", b((1.0, 1.2), (-2.0, 4.0), (2.0, 1.0))),
+        ],
+        vec![
+            ("big:z=2.50", vec![w(&["bar:x=1.00"]), w(&["bar:x=1.20"])]),
+            ("bar:z=2.00", vec![w(&["big:y=-1.50"]), w(&["big:y=3.50"])]),
+        ],
+    ));
+}
+
 /// The T-junction's top: three pieces, told apart by the stem's walls.
 fn t_top() -> (&'static str, Vec<Vec<String>>) {
     (
