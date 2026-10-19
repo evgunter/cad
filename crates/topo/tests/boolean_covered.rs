@@ -3,7 +3,7 @@
 //! operand's copy of a coincident region, the dropped copy is cut along
 //! the kept copy's edges where the held region ends. The fragment the
 //! kept face holds is recorded as substituted by it
-//! (`BooleanNaming::substituted`) and is no discard; the fragment the
+//! (`BooleanNaming::coincident_fates`) and is no discard; the fragment the
 //! result loses is a discard that borders the kept face there
 //! (`DiscardRow::bordered`).
 //!
@@ -26,7 +26,7 @@ use common::{brick, finished};
 use geom_core::Tol;
 use topo::{
     AtRestBody, Body, BooleanBody, BooleanResult, BooleanResultKind, CarrierDesc, FaceKey, Operand,
-    face_carrier, mass_properties, union,
+    face_carrier, intersect, mass_properties, subtract, union,
 };
 
 /// A face's outward normal, rounded to a unit axis.
@@ -77,7 +77,7 @@ fn substituted(
     };
     let pairs = out
         .naming
-        .substituted
+        .coincident_fates
         .iter()
         .map(|s| {
             let (fa, fb) = match s.operand {
@@ -248,7 +248,7 @@ fn a_dropped_face_is_cut_where_the_kept_face_holding_it_ends() {
         ],
         "each removed fragment of `a`'s faces borders the slab at x 0.499 and `b` at x 0.501"
     );
-    for s in &out.naming.substituted {
+    for s in &out.naming.coincident_fates {
         assert_eq!(s.operand, Operand::B, "the kept copies are `b`'s");
         assert!(
             out.naming
@@ -342,7 +342,11 @@ fn coplanar_faces_that_share_no_region_are_not_substituted() {
         let BooleanResult::Body(out) = union(&a, &other, tol).expect("the union fuses") else {
             panic!("{label}: a union of non-empty blocks cannot be empty");
         };
-        assert_eq!(out.naming.substituted, vec![], "{label}: substituted faces");
+        assert_eq!(
+            out.naming.coincident_fates,
+            vec![],
+            "{label}: substituted faces"
+        );
     }
 }
 
@@ -377,7 +381,7 @@ fn fates(x: &AtRestBody<f64>, y: &AtRestBody<f64>) -> Fates {
         volume: (mass_properties(&out.body, tol).expect("mass").volume * 1e6).round() as i64,
         held: out
             .naming
-            .substituted
+            .coincident_fates
             .iter()
             .map(|s| {
                 let pair = [face(s.operand, s.face), face(s.operand.other(), s.by)];
@@ -489,4 +493,60 @@ fn equal_height_blocks_overlapping_in_part_unite_alike_in_either_order() {
     let (xy, yx) = (fates(&x, &y), fates(&y, &x));
     assert_eq!(xy.volume, 7_000_000, "the union's volume");
     assert_eq!(xy, yx, "x ∪ y against y ∪ x");
+}
+
+/// **A containment fallback writes each row from what its result
+/// holds**, in every op: the dropped face is the absent operand's, whole,
+/// and the face holding it is one the result keeps. `on` stands on
+/// `a`'s top, so `on − a` is `on` and `a`'s top is held by `on`'s
+/// bottom, opposite it.
+#[test]
+fn a_containment_fallback_writes_each_row_from_the_face_its_result_holds() {
+    let tol = Tol::witness();
+    let unit = (0.0, 1.0);
+    let a = finished("a", brick((0.0, 2.0), unit, unit, tol), tol);
+    let inside = finished("inside", brick((0.5, 1.5), unit, unit, tol), tol);
+    let on = finished("on", brick((0.5, 1.5), (0.25, 0.75), (1.0, 2.0), tol), tol);
+    let walls_and_caps = flush_on(&[[0, -1, 0], [0, 1, 0], [0, 0, -1], [0, 0, 1]]);
+    let on_top = BTreeSet::from([([0, 0, -1], [0, 0, 1])]);
+    type Op = fn(
+        &AtRestBody<f64>,
+        &AtRestBody<f64>,
+        Tol,
+    ) -> Result<BooleanResult<f64>, topo::BooleanError>;
+    let cases: [(&str, Op, _, _, _); 3] = [
+        ("a ∪ inside", union, &a, &inside, &walls_and_caps),
+        ("inside ∩ a", intersect, &inside, &a, &walls_and_caps),
+        ("on − a", subtract, &on, &a, &on_top),
+    ];
+    for (label, op, x, y, want) in cases {
+        let BooleanResult::Body(out) = op(x, y, tol).expect("the boolean builds") else {
+            panic!("{label}: a non-empty result");
+        };
+        assert_eq!(
+            out.kind,
+            BooleanResultKind::OperandA,
+            "{label}: the fallback"
+        );
+        assert!(
+            out.naming
+                .coincident_fates
+                .iter()
+                .all(|s| s.operand == Operand::B && out.body.get_face(s.by).is_some()),
+            "{label}: each row drops the absent operand's face for one the result holds, {:?}",
+            out.naming.coincident_fates
+        );
+        let got: BTreeSet<AxisPair> = out
+            .naming
+            .coincident_fates
+            .iter()
+            .map(|s| {
+                (
+                    normal(x, root(&out, Operand::A, s.by)),
+                    normal(y, root(&out, Operand::B, s.face)),
+                )
+            })
+            .collect();
+        assert_eq!(&got, want, "{label}: the rows");
+    }
 }

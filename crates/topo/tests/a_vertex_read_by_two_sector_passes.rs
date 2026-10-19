@@ -1606,3 +1606,37 @@ fn a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose() {
     }
     assert!(built > 0, "cells built");
 }
+
+/// **A partner tipped off the face still ends the cut**: with the lying
+/// pyramid's corner a hundred ε off the top, its apex rests on the top
+/// unimprinted, so the flush pyramid's edges end on the top where it
+/// holds no vertex. `flush − y` keeps the flush pyramid's face over the
+/// top and cuts the top where that face ends (`boolean::fate`, a lone
+/// vertex minted at the apex): the row names a fragment of the top, not
+/// the top whole.
+#[test]
+fn a_partner_tipped_off_the_face_still_ends_the_cut() {
+    let eps = t().eps();
+    for pose in poses() {
+        let s = Scene::at(&pose);
+        let y = built(
+            "the plate and the tipped pyramid",
+            union(&s.plate, &tet(lying(100.0 * eps), &pose), t()),
+        );
+        let BooleanResult::Body(out) = subtract(&s.flush, &y, t()).expect("flush − y builds")
+        else {
+            panic!("{}: flush − y is not empty", pose.label);
+        };
+        let rows: Vec<_> = out
+            .naming
+            .coincident_fates
+            .iter()
+            .map(|c| (c.operand, c.face, out.naming.face_fragments_b.root(c.face)))
+            .collect();
+        assert!(
+            matches!(rows.as_slice(), [(Operand::B, face, root)] if face != root),
+            "{}: one row, a fragment cut from y's top, got {rows:?}",
+            pose.label
+        );
+    }
+}

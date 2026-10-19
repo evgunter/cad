@@ -1802,7 +1802,7 @@ type MemberFace = (usize, topo::FaceKey);
 ///
 /// A judgement is the two members' own union, so a pair it merged
 /// (`BooleanNaming::merge_groups`) or whose region it held through the
-/// other face (`BooleanNaming::substituted`) is one its margins decided one
+/// other face (`BooleanNaming::coincident_fates`) is one its margins decided one
 /// carrier (declared or not, D10), and that lies with one orientation:
 /// the kernel merges and covers no other. A certified pair the judgement
 /// never brought together is in neither record and links nothing.
@@ -1888,7 +1888,7 @@ impl<T: geom_core::Real> Links<T> {
                 }
             }
         }
-        for s in &naming.substituted {
+        for s in &naming.coincident_fates {
             let (fa, fb) = match s.operand {
                 topo::Operand::A => (s.face, s.by),
                 topo::Operand::B => (s.by, s.face),
