@@ -742,3 +742,9 @@ Signed: (CARVE orchestrator)
 - 2026-10-19 — #5374 merged (Ev ratified `arc_onto(target)` + director and the token check-or-supply half). Implementation dispatched on `paths/arc-onto`, covering both rows (`arc-closer-constructed-from-arrival-tangent`, `via-and-center-arc-closers-declared-arrival`). Review tier: single FULL review (a new verb with its own kernel geometry and a seam rule across every closer).
 
 - 2026-10-19 — PR 5384 (`paths/arc-onto`): `arc_onto(target)` + one director, built as one `transition_table!` verb with two pending states (`ArcOnto`, `ArcOntoStart`). Its geometry is `tangent_arc_to`'s kernel run from the target backwards, so the refusals are shared and the round trip is exact. `Start.arrives_tangent()` is admitted on the `Via`/`Center` legs and the `Center` arrival (checked), and on the `Via` arrival (supplied, closing at the verb). It is projected through editor-core (an additive wire variant), the viewer, pncad-py and the facade. Closes `arc-closer-constructed-from-arrival-tangent`, `via-and-center-arc-closers-declared-arrival` and `via-arrival-start-rustdoc-hides-which-direction-its-director-binds`. Files `tangent-arc-ahead-in-band-builds-a-straddling-arc-at-interval` (a pre-existing Interval NaN in the shared kernel). (implementer)
+
+- 2026-10-19 — PR 5384 fix pass (single FULL review, APPROVE-WITH-FIXES, one MAJOR).
+  - MAJOR fixed at the root: the shared tangent-arc kernel now emits the line its collinear DECISION names and escalates an undecided reading. Before this, an arc built off a sub-band `across` closed silently at Interval and stored a ~1e16 carrier at f64.
+  - Every closer now classifies its seam through `seam_joint`.
+  - Filed `tangent-arc-near-a-full-turn-loses-its-end-vertex` (P1, silent at f64 for R ≈ 1e4), because its fix moves every tangent arc's stored bits and wants its own unit.
+  - Closed `tangent-arc-ahead-in-band-builds-a-straddling-arc-at-interval` as fixed. (implementer)
