@@ -1092,9 +1092,9 @@ pub enum Qualifier {
     /// A Split's same-side face piece or vertex copy, by what it keeps
     /// of its parent: for a face piece, the parent face's boundary edges
     /// it holds a stretch of; for a vertex copy, the operand vertex's
-    /// own edges it is an end of a piece of, an edge lying in the tool
-    /// plane included. Each cited by its name without piece qualifiers,
-    /// sorted and deduplicated (N2). Equal sets are N2's tie.
+    /// own edges it is an end of a piece of. Both read by descent alone.
+    /// Each cited by its name without piece qualifiers, sorted and
+    /// deduplicated (N2). Equal sets are N2's tie.
     Keeps(Vec<StableName>),
     /// The names of an edge piece's two end vertices as the node
     /// publishes them, sorted, a repeat kept (N2): the qualifier of

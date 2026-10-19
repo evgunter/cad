@@ -1631,8 +1631,8 @@ impl EstablishedFact {
 ///
 /// | site | can return |
 /// | --- | --- |
-/// | `ring_move_minting` | `RingIsOuter` (C), `CrossShell` (C); its site mint's `Certification` (a `tol` that forms no band), never `PcurveMint`: a moved loop is left as found on a spline chart, and a minting door owes no keys-only row |
-/// | `kef_minting` | `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C); its site mint's, as `ring_move_minting`'s |
+/// | `ring_move_unasked` | `RingIsOuter` (C), `CrossShell` (C); its site mint's `Certification` (a `tol` that forms no band), never `PcurveMint`: a moved loop is left as found on a spline chart, and a minting door owes no keys-only row |
+/// | `kef_minting` | `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C); its site mint's, as `ring_move_unasked`'s |
 /// | `kev` | `SelfLoopEdge` (C); not its fan-merge refusals, which need a fan that neither kill's far vertex has: `strut_tip`'s valence-one tip, and the lone vertex the `mekr_chord` bridge ends at |
 /// | `mekr_chord` (a lone vertex's ring) | `LoopNotEmpty`, `SameLoop`, `NotSameFace`, `RingIsOuter`, `Certification` |
 /// | `kemr` | `NotSameLoop` (C) |
@@ -2901,7 +2901,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                 );
                 #[cfg(test)]
                 tear_before_ring_move(self, ring);
-                self.ring_move_minting(ring, rep, tol)?;
+                self.ring_move_unasked(ring, rep, tol)?;
             }
             // The two facts `kef` could contradict. The drain above is
             // exactly the mutation that invalidates a fact read before
