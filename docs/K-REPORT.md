@@ -868,13 +868,20 @@ complement; it reads each solid's whole link at the touch point and
 decides two polygonal cones by one test (`census.rs`, `rest::judge`).
 `census_touch_side`, `census_touch_dihedral`, `census_touch_fold` and
 `census_touch_span` retire with the star, the edge convexity and the
-candidate search; their samples end there.
+candidate search; their samples end there. `census_touch_piece_side`,
+`census_touch_piece_turn` and `census_touch_piece_front` fold into
+`census_touch_wedge` and `census_touch_ahead`, the same quantities now
+read with the point drawn in to the ray's own point; they do not pool
+with their CONTACT-7 samples. A link reading of a definite sign is
+taken twice under its one name (the value, and the value moved by the
+links' tie toward zero), so those rows sample at up to twice the rate
+of the readings they decide.
 
 | name | carrier | what it is |
 |---|---|---|
 | `census_touch_plane` | a named `const` (`TOUCH_PLANE`) | new: a point's distance from a link face's plane through the touch point |
-| `census_touch_wedge` | a named `const` (`TOUCH_WEDGE`) | new: a point's distance from the plane through a sector ray, normal to its face |
-| `census_touch_ahead` | a named `const` (`TOUCH_AHEAD`) | new: a point on a sector ray's line read along it |
+| `census_touch_wedge` | a named `const` (`TOUCH_WEDGE`) | new: a point's distance from the plane through a ray from the touch point, normal to its face (also building a face's piece) |
+| `census_touch_ahead` | a named `const` (`TOUCH_AHEAD`) | new: a point on a ray's line read along it (also building a face's piece) |
 | `census_touch_arc` | a named `const` (`TOUCH_ARC`) | new: a parity arc's ends against the plane normal to their bisector |
 | `census_touch_normal` | unchanged name | now two coplanar faces of the two links, not a face against a candidate plane; does not pool with its CONTACT-7 samples |
 

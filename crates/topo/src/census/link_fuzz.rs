@@ -4,10 +4,18 @@
 //! two solids' links there and against an exact oracle.
 //!
 //! A profile's corner at the origin spans 20° to 340°, so the cones are
-//! convex, reflex (a saddle at the prism's corner), or anything between;
-//! half the pairs are turned at random, half by quarter turns over
-//! profiles whose rays lie on multiples of 45°, so coplanar faces,
-//! facing either way, and rays lying in faces are common.
+//! convex, reflex (a saddle at the prism's corner), or anything between.
+//! Four families, a quarter each:
+//! - **turned** at random;
+//! - **snapped**: quarter turns over profiles whose rays lie on
+//!   multiples of 45°, so coplanar faces, facing either way, and rays
+//!   lying in faces are common;
+//! - **bowtie**: one prism over a profile that passes through the origin
+//!   twice, at two vertices on one key — two cones whose bottom face is
+//!   one face held at two corners — against a snapped or turned prism;
+//! - **near**: snapped poses each turned off by a few band widths, so
+//!   faces lie within or just past the band of coplanar and readings
+//!   take their in-band paths.
 //!
 //! The oracle is exact and shares nothing with the reader: each
 //! prism's cone at the corner is a union of convex cones, one per gap
@@ -36,13 +44,28 @@ use test_utils::fuzz::Rng;
 type V = [f64; 3];
 type Rot = [V; 3];
 
-/// One prism: its profile (the corner at the origin first, then the
-/// rest counterclockwise), height, and frame (rows: where local `x`,
-/// `y`, `z` go).
+/// One prism: its profile (counterclockwise, through the origin once,
+/// or twice for a bowtie), the profile's fans about the origin (each a
+/// run of rays, its material's cone the wedges between neighbours),
+/// height, and frame (rows: where local `x`, `y`, `z` go).
 struct Prism {
     profile: Vec<(f64, f64)>,
+    fans: Vec<Vec<(f64, f64)>>,
     h: f64,
     rot: Rot,
+}
+
+/// Rays from the origin over `sweep` from `start`, at least `min_gaps`
+/// gaps none past 150°, each at a random reach.
+fn fan(r: &mut Rng, start: f64, sweep: f64, min_gaps: usize) -> Vec<(f64, f64)> {
+    let gaps = min_gaps.max(1 + (sweep / 150f64.to_radians()).floor() as usize) + r.below(3);
+    (0..=gaps)
+        .map(|k| {
+            let a = start + sweep * k as f64 / gaps as f64;
+            let rad = r.range(0.4, 1.0);
+            (rad * a.cos(), rad * a.sin())
+        })
+        .collect()
 }
 
 impl Prism {
@@ -52,19 +75,49 @@ impl Prism {
         } else {
             r.range(20f64.to_radians(), 340f64.to_radians())
         };
-        // Rays at the two bounds and a few between, no gap past 150°.
-        let gaps = 1 + (sweep / 150f64.to_radians()).floor() as usize + r.below(3);
         let start = if snapped {
             45f64.to_radians() * r.below(8) as f64
         } else {
             r.range(0.0, std::f64::consts::TAU)
         };
+        let rays = fan(r, start, sweep, 1);
+        let rot = if snapped {
+            quarter_turns(r)
+        } else {
+            random_rotation(r)
+        };
         let mut profile = vec![(0.0, 0.0)];
-        for k in 0..=gaps {
-            let a = start + sweep * k as f64 / gaps as f64;
-            let rad = r.range(0.4, 1.0);
-            profile.push((rad * a.cos(), rad * a.sin()));
+        profile.extend(&rays);
+        Self {
+            profile,
+            fans: vec![rays],
+            h: r.range(0.3, 1.0),
+            rot,
         }
+    }
+
+    /// A bowtie: two fans in disjoint angular ranges, the profile running
+    /// out through one and back to the origin, then out through the
+    /// other: one loop through the origin twice.
+    fn bowtie(r: &mut Rng, snapped: bool) -> Self {
+        let step = 45f64.to_radians();
+        let (start, a, gap, b) = if snapped {
+            let a = step * (1 + r.below(2)) as f64;
+            let gap = step * (1 + r.below(2)) as f64;
+            let b = step * (1 + r.below(2)) as f64;
+            (step * r.below(8) as f64, a, gap, b)
+        } else {
+            let a = r.range(20f64.to_radians(), 120f64.to_radians());
+            let gap = r.range(15f64.to_radians(), 100f64.to_radians());
+            let b = r.range(20f64.to_radians(), 120f64.to_radians());
+            (r.range(0.0, std::f64::consts::TAU), a, gap, b)
+        };
+        let fa = fan(r, start, a, 1);
+        let fb = fan(r, start + a + gap, b, 1);
+        let mut profile = vec![(0.0, 0.0)];
+        profile.extend(&fa);
+        profile.push((0.0, 0.0));
+        profile.extend(&fb);
         let rot = if snapped {
             quarter_turns(r)
         } else {
@@ -72,9 +125,27 @@ impl Prism {
         };
         Self {
             profile,
+            fans: vec![fa, fb],
             h: r.range(0.3, 1.0),
             rot,
         }
+    }
+
+    /// The same prism turned by `angle` about a random axis.
+    fn nudged(mut self, r: &mut Rng, angle: f64) -> Self {
+        let k = {
+            let v = [0; 3].map(|_| r.range(-1.0, 1.0));
+            let n = dot(v, v).sqrt();
+            v.map(|x| x / n)
+        };
+        let (c, sn) = (angle.cos(), angle.sin());
+        let turn = |v: V| {
+            let kv = cross(k, v);
+            let kd = dot(k, v);
+            [0, 1, 2].map(|i| v[i] * c + kv[i] * sn + k[i] * kd * (1.0 - c))
+        };
+        self.rot = self.rot.map(turn);
+        self
     }
 
     fn map(&self, x: f64, y: f64, z: f64) -> Point3<f64> {
@@ -90,25 +161,36 @@ impl Prism {
     /// inward normals (in world coordinates) of `z ≥ 0` and the two
     /// rays bounding one gap of the profile.
     fn pieces(&self) -> Vec<[V; 3]> {
-        let rays: Vec<(f64, f64)> = self.profile[1..]
-            .iter()
-            .map(|&(x, y)| (x / x.hypot(y), y / x.hypot(y)))
-            .collect();
         let world = |h: V| {
             let [a, b, c] = self.rot;
             [0, 1, 2].map(|i| a[i] * h[0] + b[i] * h[1] + c[i] * h[2])
         };
-        rays.windows(2)
-            .map(|w| {
+        let mut out = Vec::new();
+        for fan in &self.fans {
+            let rays: Vec<(f64, f64)> = fan
+                .iter()
+                .map(|&(x, y)| (x / x.hypot(y), y / x.hypot(y)))
+                .collect();
+            out.extend(rays.windows(2).map(|w| {
                 let ((ax, ay), (bx, by)) = (w[0], w[1]);
                 [
                     world([0.0, 0.0, 1.0]),
                     world([-ay, ax, 0.0]),
                     world([by, -bx, 0.0]),
                 ]
-            })
-            .collect()
+            }));
+        }
+        out
     }
+}
+
+/// The deepest overlap of any convex piece of one cone with any of the
+/// other's ([`overlap`]).
+fn depth(xs: &[&Prism], y: &Prism) -> f64 {
+    xs.iter()
+        .flat_map(|x| x.pieces())
+        .flat_map(|p| y.pieces().into_iter().map(move |q| overlap(&p, &q)))
+        .fold(0.0, f64::max)
 }
 
 fn dot(a: V, b: V) -> f64 {
@@ -210,48 +292,65 @@ fn random_rotation(r: &mut Rng) -> Rot {
     ]
 }
 
-/// The two prisms as two solids of one body, and the link of each at
-/// its corner on the origin.
-fn links(a: &Prism, b: &Prism, band: Band) -> (Body<f64>, LinkPair<f64>) {
+/// A prism as a body of its own.
+fn build(p: &Prism) -> Body<f64> {
     use crate::test_support_fixtures::{FaceGeometry, describe_as_intersections, prism_ops};
-    let build = |p: &Prism| {
-        let mut body = Body::<f64>::new();
-        prism_ops(
-            &mut body,
-            &p.profile,
-            (0.0, p.h),
-            |x, y, z| p.map(x, y, z),
-            FaceGeometry::Certified,
-            Tol::witness(),
-        );
-        describe_as_intersections(&mut body, Tol::witness());
-        body
-    };
-    let mut body = build(a);
-    crate::instance::graft_disjoint(&mut body, &build(b)).unwrap();
-    let geo = snapshot(&body);
-    let at_origin: Vec<VertexKey> = geo
-        .verts
-        .iter()
-        .filter(|(_, q)| q.x == 0.0 && q.y == 0.0 && q.z == 0.0)
-        .map(|&(v, _)| v)
+    let mut body = Body::<f64>::new();
+    prism_ops(
+        &mut body,
+        &p.profile,
+        (0.0, p.h),
+        |x, y, z| p.map(x, y, z),
+        FaceGeometry::Certified,
+        Tol::witness(),
+    );
+    describe_as_intersections(&mut body, Tol::witness());
+    body
+}
+
+/// `body`'s vertices on the origin moved onto one key, as an op that
+/// decided them one point leaves them; that key.
+fn one_key(body: &mut Body<f64>) -> crate::geometry::PointKey {
+    let origin: Vec<VertexKey> = body
+        .vertices
+        .keys()
+        .filter(|&v| {
+            let q = body.points[body.vertices[v].point];
+            q.x == 0.0 && q.y == 0.0 && q.z == 0.0
+        })
         .collect();
-    assert_eq!(at_origin.len(), 2, "one corner of each prism on the origin");
-    let link = |v: VertexKey| {
-        let keys = BTreeSet::from([geo.vpoint[&v]]);
-        let solid = census_entity_solid(&body, EntityId::Vertex(v)).unwrap();
-        Link::at_point(
-            &body,
-            &geo,
-            &Ties::default(),
-            solid,
-            &keys,
-            geo.vmap[&v],
-            band,
-        )
-    };
-    let pair = (link(at_origin[0]), link(at_origin[1]));
-    (body, pair)
+    let key = body.vertices[origin[0]].point;
+    for &v in &origin[1..] {
+        let old = body.vertices[v].point;
+        body.vertices[v].point = key;
+        if old != key {
+            body.points.remove(old);
+        }
+    }
+    key
+}
+
+/// The verdict on the two solids of `body` at the origin's key, over
+/// their whole links there.
+fn verdict_at_origin(body: &mut Body<f64>, band: Band) -> TouchVerdict {
+    let key = one_key(body);
+    let geo = snapshot(body);
+    let keys = BTreeSet::from([key]);
+    let solids: BTreeSet<_> = body
+        .vertices
+        .keys()
+        .filter(|&v| body.vertices[v].point == key)
+        .map(|v| census_entity_solid(body, EntityId::Vertex(v)).unwrap())
+        .collect();
+    assert_eq!(solids.len(), 2, "two solids at the origin");
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let link = |s| Link::at_point(body, &geo, &Ties::default(), s, &keys, o, band);
+    let mut it = solids.iter().copied();
+    let (sa, sb) = (it.next().unwrap(), it.next().unwrap());
+    match (link(sa), link(sb)) {
+        (Ok(x), Ok(y)) => rest::judge(&x, &y, band),
+        (Err(v), _) | (_, Err(v)) => v,
+    }
 }
 
 /// **A link pair's rest is never an overlap, nor its crossing a pair
@@ -265,33 +364,51 @@ fn the_link_test_agrees_with_the_prisms_own_inequalities() {
     let mut tally: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
     for trial in 0..test_utils::fuzz::scaled(300) {
         let snapped = trial % 2 == 1;
-        let (a, b) = (Prism::draw(&mut r, snapped), Prism::draw(&mut r, snapped));
-        let (_, pair) = links(&a, &b, band);
-        let verdict = match pair {
-            (Ok(x), Ok(y)) => rest::judge(&x, &y, band),
-            (Err(v), _) | (_, Err(v)) => v,
+        let (family, a, b) = match trial % 4 {
+            0 | 1 => (
+                if snapped { "snapped" } else { "turned" },
+                Prism::draw(&mut r, snapped),
+                Prism::draw(&mut r, snapped),
+            ),
+            2 => {
+                let snapped = r.below(2) == 0;
+                (
+                    "bowtie",
+                    Prism::bowtie(&mut r, snapped),
+                    Prism::draw(&mut r, snapped),
+                )
+            }
+            _ => {
+                // A few band widths off a snapped pose, at the profile's
+                // metre scale.
+                let mut nudge = |p: Prism, r: &mut Rng| {
+                    let angle = band.zero() * 10f64.powf(r.range(-0.5, 1.5));
+                    p.nudged(r, angle)
+                };
+                let (a, b) = (Prism::draw(&mut r, true), Prism::draw(&mut r, true));
+                let a = nudge(a, &mut r);
+                ("near", a, nudge(b, &mut r))
+            }
         };
-        let depth = a
-            .pieces()
-            .iter()
-            .flat_map(|p| b.pieces().into_iter().map(move |q| overlap(p, &q)))
-            .fold(0.0, f64::max);
+        let mut body = build(&a);
+        crate::instance::graft_disjoint(&mut body, &build(&b)).unwrap();
+        let verdict = verdict_at_origin(&mut body, band);
+        let depth = depth(&[&a], &b);
         let (clear, any) = (depth > 1e-6, depth > 0.0);
         let kind = match &verdict {
             TouchVerdict::Rest(_) => "rest",
             TouchVerdict::Crossing => "crossing",
             other => {
-                *tally.entry(format!("{other:?}")).or_default() += 1;
+                *tally.entry(format!("{family}: {other:?}")).or_default() += 1;
                 continue;
             }
         };
         *tally
-            .entry(format!("{kind}, oracle overlap {clear}/{any}"))
+            .entry(format!("{family}: {kind}, oracle overlap {clear}/{any}"))
             .or_default() += 1;
         if (kind == "rest" && clear) || (kind == "crossing" && !any) {
             bad.push(format!(
-                "trial {trial} ({}): {kind}, oracle depth {depth:e}; a {:?} h {} rot {:?}; b {:?} h {} rot {:?}",
-                if snapped { "snapped" } else { "turned" },
+                "trial {trial} ({family}): {kind}, oracle depth {depth:e}; a {:?} h {} rot {:?}; b {:?} h {} rot {:?}",
                 a.profile,
                 a.h,
                 a.rot,
@@ -311,37 +428,17 @@ fn the_link_test_agrees_with_the_prisms_own_inequalities() {
     );
 }
 
-/// **R2 review probe (PR 5331): the whole link of a pinch.** Solid A is
-/// two prisms whose corners share the origin's key and whose cones are
-/// apart (oracle depth 0), made one solid; solid B one prism on the
-/// same key. `rest::judge` over A's whole link (both cones, gathered by
-/// `Link::at_point` from the key alone) against B's, checked against
-/// the same exact oracle over A's two cones.
+/// **The whole link of a pinch.** Solid A is two prisms whose corners
+/// share the origin's key and whose cones are apart (oracle depth 0),
+/// made one solid; solid B one prism on the same key. `rest::judge` over
+/// A's whole link (both cones, gathered by `Link::at_point` from the key
+/// alone) against B's, checked against the same exact oracle over A's
+/// two cones.
 #[test]
-fn r2_a_pinch_link_agrees_with_the_prisms_own_inequalities() {
-    use crate::test_support_fixtures::{FaceGeometry, describe_as_intersections, prism_ops};
+fn a_pinch_link_agrees_with_the_prisms_own_inequalities() {
     let label = "census_link_pinch_fuzz";
     let mut r = test_utils::fuzz::start(label);
     let band = Band::linear(Tol::witness()).unwrap();
-    let build = |p: &Prism| {
-        let mut body = Body::<f64>::new();
-        prism_ops(
-            &mut body,
-            &p.profile,
-            (0.0, p.h),
-            |x, y, z| p.map(x, y, z),
-            FaceGeometry::Certified,
-            Tol::witness(),
-        );
-        describe_as_intersections(&mut body, Tol::witness());
-        body
-    };
-    let depth = |xs: &[&Prism], y: &Prism| {
-        xs.iter()
-            .flat_map(|x| x.pieces())
-            .flat_map(|p| y.pieces().into_iter().map(move |q| overlap(&p, &q)))
-            .fold(0.0, f64::max)
-    };
     let mut bad = Vec::new();
     let mut tally: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
     for trial in 0..test_utils::fuzz::scaled(300) {
@@ -361,35 +458,7 @@ fn r2_a_pinch_link_agrees_with_the_prisms_own_inequalities() {
             body.shells[sh].solid = sa;
             body.solids[sa].shells.push(sh);
         }
-        let origin: Vec<VertexKey> = body
-            .vertices
-            .keys()
-            .filter(|&v| {
-                let q = body.points[body.vertices[v].point];
-                q.x == 0.0 && q.y == 0.0 && q.z == 0.0
-            })
-            .collect();
-        assert_eq!(origin.len(), 3);
-        let key = body.vertices[origin[0]].point;
-        for &v in &origin[1..] {
-            let old = body.vertices[v].point;
-            body.vertices[v].point = key;
-            body.points.remove(old);
-        }
-        let geo = snapshot(&body);
-        let keys = BTreeSet::from([key]);
-        let solids: BTreeSet<_> = origin
-            .iter()
-            .map(|&v| census_entity_solid(&body, EntityId::Vertex(v)).unwrap())
-            .collect();
-        assert_eq!(solids.len(), 2);
-        let sb = *solids.iter().find(|&&s| s != sa).unwrap();
-        let o = Point3::new(0.0, 0.0, 0.0);
-        let link = |s| Link::at_point(&body, &geo, &Ties::default(), s, &keys, o, band);
-        let verdict = match (link(sa), link(sb)) {
-            (Ok(x), Ok(y)) => rest::judge(&x, &y, band),
-            (Err(v), _) | (_, Err(v)) => v,
-        };
+        let verdict = verdict_at_origin(&mut body, band);
         let d = depth(&[&a1, &a2], &b);
         let (clear, any) = (d > 1e-6, d > 0.0);
         let kind = match &verdict {
@@ -420,9 +489,7 @@ fn r2_a_pinch_link_agrees_with_the_prisms_own_inequalities() {
     );
 }
 
-/// The verdict of `rest::judge` over two prisms' links at the origin,
-/// built and read at `T`.
-fn r2_verdict_at<T: Decide + Bounds + crate::props::AtRestPolicy>(
+fn verdict_at<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Prism,
     b: &Prism,
     band: Band,
@@ -474,12 +541,12 @@ fn r2_verdict_at<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
 }
 
-/// **R2 review probe (PR 5331): the link test at `Interval`.** The same
-/// draws as the shipped falsifier, read at `Interval`, against the same
+/// **The link test at `Interval`.** Prisms drawn as the falsifier's
+/// turned and snapped families, read at `Interval`, against the same
 /// exact oracle, and against the `f64` reading (a decided class the two
 /// scalars disagree on is wrong).
 #[test]
-fn r2_the_link_test_at_interval_agrees_with_the_oracle() {
+fn the_link_test_at_interval_agrees_with_the_oracle() {
     use geom_core::Interval;
     let label = "census_link_interval_fuzz";
     let mut r = test_utils::fuzz::start(label);
@@ -489,8 +556,8 @@ fn r2_the_link_test_at_interval_agrees_with_the_oracle() {
     for trial in 0..test_utils::fuzz::scaled(100) {
         let snapped = trial % 2 == 1;
         let (a, b) = (Prism::draw(&mut r, snapped), Prism::draw(&mut r, snapped));
-        let iv = r2_verdict_at::<Interval>(&a, &b, band);
-        let fl = r2_verdict_at::<f64>(&a, &b, band);
+        let iv = verdict_at::<Interval>(&a, &b, band);
+        let fl = verdict_at::<f64>(&a, &b, band);
         let depth = a
             .pieces()
             .iter()

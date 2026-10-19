@@ -4592,8 +4592,8 @@ pub(crate) enum Undecided {
     TouchPieceInBand,
     /// Arm 2: a touch at a curved face or edge.
     TouchUnreadable,
-    /// Arm 2: a touch where a face meets the touch point more than
-    /// once, or its outline there does not close.
+    /// Arm 2: a touch where a face meets the touch point both at a
+    /// corner and along an edge, or a solid's faces there do not close.
     TouchUnanalysed,
     /// Arm 2: a touch whose readings of one solid's faces contradict
     /// each other.
@@ -4755,10 +4755,11 @@ impl Undecided {
                  bounding boxes no longer overlap"
             }
             Self::TouchUnanalysed => {
-                "they touch where a face of one meets the touch more than once, or where a \
-                 face's outline around the touch does not close, so the check cannot tell \
-                 whether they overlap. There is no way through yet for a designed resting \
-                 contact; otherwise move them until their bounding boxes no longer overlap"
+                "they touch where a face of one meets the touch both at a corner and along an \
+                 edge, or where one's faces around the touch do not close on one another, so \
+                 the check cannot tell whether they overlap. There is no way through yet for \
+                 a designed resting contact; otherwise move them until their bounding boxes \
+                 no longer overlap"
             }
             Self::TouchDegenerate => {
                 "they touch where the check's readings of one's faces contradict each \
@@ -5080,8 +5081,10 @@ enum TouchVerdict {
     PieceInBand,
     /// A curved face or edge takes part.
     Unreadable,
-    /// A face meets the touch point more than once, or its piece there
-    /// does not close on decided readings.
+    /// A face meets the touch point both at a corner and along an edge,
+    /// or inside it twice; its piece there does not close on decided
+    /// readings; or a link's sectors do not pair up at their bounds
+    /// ([`Link::closes`]).
     Unanalysed,
     /// Two faces of one solid lie on each other at the touch (a slit,
     /// or a face doubled).
@@ -6427,7 +6430,8 @@ mod rest {
     /// 1. **Crossing** if a piece of one link crosses a face of the other
     ///    along a ray inside both — its two ends decidedly on opposite
     ///    sides of the face's plane, the point between them on that plane
-    ///    strictly inside one of the face's pieces — or if a piece's
+    ///    inside the face's sector and on no ray of either link lying on
+    ///    the face ([`crosses`]) — or if a piece's
     ///    probe (its middle) lies on a face of the other link inside it
     ///    with the two outward normals aligned: coplanar sectors facing
     ///    the same way, overlapping in their plane.
@@ -6435,11 +6439,14 @@ mod rest {
     ///    other link's material ([`Link::reads`]).
     /// 3. Otherwise **Rest**.
     ///
-    /// **Sound.** (1): along a ray inside a piece of `S` and a piece of
-    /// `T` crossing there, each material is the half-space behind its
-    /// face (no other face of either link reaches the ray: the pieces
-    /// are cut at every ray of both), and two half-spaces through one
-    /// line overlap in a wedge; aligned coplanar faces put both
+    /// Both links are first held to close ([`Link::closes`]), and every
+    /// reading is taken over the two links' tie ([`Reading`]).
+    ///
+    /// **Sound.** (1): along a ray inside a piece of `S` and inside `T`'s
+    /// sector off every ray lying on `T`, each material is the half-space
+    /// behind its face (no other face of either link reaches the ray: on
+    /// `S`'s side the piece is cut at every ray, on `T`'s the point is off
+    /// them), and two half-spaces through one line overlap in a wedge; aligned coplanar faces put both
     /// materials behind one plane. (2): the probe lies inside a piece,
     /// off every face of the other link, so the direction just off it
     /// on its own material side reads as the probe does, and lies in
@@ -11619,20 +11626,15 @@ mod tests {
     ) -> (Body<f64>, VertexKey, VertexKey) {
         let tol = Tol::witness();
         let cube = |lo: f64| {
-            let b = crate::test_support_fixtures::brick::<f64>(
+            crate::test_support_fixtures::brick::<f64>(
                 (lo, lo + 1.0),
                 (lo, lo + 1.0),
                 (lo, lo + 1.0),
                 tol,
-            );
-            crate::AtRestBody::validate(b, tol).expect("a cube")
+            )
         };
-        let crate::boolean::BooleanResult::Body(pinch) =
-            crate::union(&cube(0.0), &cube(-1.0), tol).expect("the pinch")
-        else {
-            panic!("the pinch is empty");
-        };
-        let mut body = pinch.body.into_body();
+        let mut body = cube(0.0);
+        crate::instance::graft_disjoint(&mut body, &cube(-1.0)).unwrap();
         let part = crate::test_support_fixtures::mapped_cube::<f64>(
             move |u, v, w| {
                 Point3::new(
@@ -11659,8 +11661,8 @@ mod tests {
             .filter(|&v| at_origin(&body, v))
             .collect();
         assert_eq!(cones.len(), 2, "one vertex per cone at the pinch");
-        // The union keeps the corner-touching cubes as two solids: the
-        // second's shell joins the first, one solid with two cones.
+        // The second cube's shell joins the first's solid: one solid with
+        // two cones.
         let solid = |body: &Body<f64>, v| census_entity_solid(body, EntityId::Vertex(v)).unwrap();
         let (keep, gone) = (solid(&body, cones[0]), solid(&body, cones[1]));
         for sh in body
@@ -11672,6 +11674,7 @@ mod tests {
             body.shells[sh].solid = keep;
             body.solids[keep].shells.push(sh);
         }
+        body.solid_provenance.remove(gone);
         let geo = snapshot(&body);
         // The first cube's cone: its faces' normals point to `+` octant's outside.
         cones.sort_by_key(|&v| {
@@ -11682,7 +11685,11 @@ mod tests {
         });
         let key = body.vertices[cones[0]].point;
         for v in [cones[1], corner] {
+            let old = body.vertices[v].point;
             body.vertices[v].point = key;
+            if old != key {
+                body.points.remove(old);
+            }
         }
         (body, corner, cones[0])
     }
@@ -11695,7 +11702,11 @@ mod tests {
     /// against the recorded vertex's cone alone that is a rest; the
     /// unit reads the solid's whole link at the point, both cones, and
     /// the touch is a crossing. The same corner turned into the empty
-    /// octants only, `(−, +, ±)`, rests.
+    /// octants only, `(−, +, ±)`, rests. Read at the touch: the two cones
+    /// here are two shells of one solid, which tier 3 refuses before the
+    /// census (a solid has one outer shell); a boolean's pinch makes the
+    /// shape with one shell touching itself, and
+    /// `join_pierce_runs_sweep::four_pairs_battery` reads those whole.
     #[test]
     fn a_rest_recorded_at_one_cone_of_a_pinch_reads_the_other() {
         let band = Band::linear(Tol::witness()).unwrap();
@@ -11718,15 +11729,19 @@ mod tests {
         }
     }
 
-    /// **R2 review probe (PR 5331, claim 1).** A cube `[0, 1]³` and a
-    /// parallelepiped whose corner shares the cube's origin KEY (no
-    /// record, no finding): the parallelepiped lies at `y ≤ 0`, one face
-    /// on the cube's extended plane `z = 0` and one standing off the
-    /// extended plane `x = 0` by between `zero` and `escalate` all along
-    /// its far side. Prints the shared point's verdict and what tier 3′
-    /// says of the pair.
+    /// **A point two solids share a key at is read, strictly.** A cube
+    /// `[0, 1]³` and a parallelepiped whose corner shares the cube's
+    /// origin KEY, no record and no finding naming it. In band, the
+    /// parallelepiped lies at `y ≤ 0`, one face on the cube's extended
+    /// plane `z = 0` and one standing off its extended plane `x = 0` by
+    /// between `zero` and `escalate` all along its far side: the shared
+    /// point reads in band, and tier 3′ refuses the pair — an undecided
+    /// reading at a shared key is never taken on its word. Decided
+    /// apart, the point rests and the pair clears. Red, the in-band pose
+    /// clearing, where `blocks` reads no shared key or reads one
+    /// leniently.
     #[test]
-    fn r2_a_shared_key_only_pair_read_in_band() {
+    fn a_shared_key_only_pair_reads_strictly() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let e = (band.zero() * band.escalate()).sqrt();
@@ -11780,9 +11795,6 @@ mod tests {
             let verdict =
                 TouchSite::VertexVertex(mine, theirs).verdict(&body, &geo, &Ties::default(), band);
             let got = crate::validate_pseudomanifold(&body, &ContactRecords::default(), tol);
-            println!("[r2] {label}: verdict {verdict:?}; tier 3' {got:?}");
-            // The decision: an undecided reading refuses by name, never
-            // clears. Red on f61574db: the in-band point clears.
             if label == "in band" {
                 assert_eq!(verdict, TouchVerdict::InBand);
                 assert!(got.is_err(), "{label}: an in-band shared point clears");
@@ -11974,7 +11986,7 @@ mod tests {
             .collect()
     }
 
-    /// The piece's points of the face of `v`'s star whose outward
+    /// The piece's points of the face of `v`'s link whose outward
     /// normal is `m`.
     fn piece_at(body: &Body<f64>, v: VertexKey, m: Vec3<f64>) -> Vec<Point3<f64>> {
         let band = Band::linear(Tol::witness()).unwrap();
@@ -12231,11 +12243,10 @@ mod tests {
     /// convexity.** A prism over `(1, 1), (0.5, 1.5), (0.2, 1.2), (0.7,
     /// 0.7)`, `z ∈ [0.25, 0.75]`, its corner `(1, 1)` on the L-bracket's
     /// reflex edge and its body reaching into the bracket's leg. At the
-    /// guest's corner the bracket's star meets the candidate planes
-    /// through the edge with both faces Above, and the material side is
-    /// the edge's convexity: reflex, so the bracket's material reaches
-    /// across and no plane certifies. Read convex, the corner rested
-    /// although the guest sits inside the bracket.
+    /// guest's corner the bracket's link holds the reflex edge's two
+    /// faces, and the guest's pieces read inside the bracket's material
+    /// across that edge: a crossing. Read as if the edge were convex,
+    /// the corner would rest although the guest sits inside the bracket.
     #[test]
     fn a_guest_seated_into_a_reflex_edge_is_not_a_rest() {
         let tol = Tol::witness();
@@ -12484,7 +12495,7 @@ mod tests {
 
     /// A floor face through the origin, `[-2, 2]²` at `z = 0`, its
     /// material below.
-    fn floor_star(band: Band) -> Link<f64> {
+    fn floor_link(band: Band) -> Link<f64> {
         let verts = vec![
             Point3::new(-2.0, -2.0, 0.0),
             Point3::new(2.0, -2.0, 0.0),
@@ -12534,7 +12545,7 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let pit = shallow_pit(400.0 * band.zero(), band);
         assert_eq!(
-            rest::judge(&pit, &floor_star(band), band),
+            rest::judge(&pit, &floor_link(band), band),
             TouchVerdict::Crossing
         );
     }
@@ -12570,7 +12581,7 @@ mod tests {
             )
             .expect("a link")
         };
-        let floor = floor_star(band);
+        let floor = floor_link(band);
         assert_eq!(
             rest::judge(&link((x, vec![vec![0, 1, 2, 3]])), &floor, band),
             TouchVerdict::Degenerate
@@ -12583,7 +12594,7 @@ mod tests {
 
     /// **A corner whose edges are not numbers refuses on scale.** A
     /// brick shrunk to 1e-170 m (its chords underflow) and one blown up
-    /// to 1e200 m (they overflow): the corner's star refuses as
+    /// to 1e200 m (they overflow): the corner's link refuses as
     /// [`TouchVerdict::ChordScale`], the rescale recourse.
     #[test]
     fn a_corner_out_of_scale_refuses_on_scale() {
@@ -12805,14 +12816,14 @@ mod tests {
         }
     }
 
-    /// **The obtuse sector on a synthetic star.** The same corner built
+    /// **The obtuse sector on a synthetic link.** The same corner built
     /// from bare geometry — the sheared bottom face and the two side
     /// faces meeting at it — dipping 500 times the zero threshold over
-    /// the floor face: the bottom face reads Below on its far vertices,
-    /// no candidate certifies, and with every reading decided the touch
-    /// is a crossing.
+    /// the floor face: the bottom face's pieces read below the floor at
+    /// their far points, and with every reading decided the touch is a
+    /// crossing.
     #[test]
-    fn an_obtuse_sector_on_a_synthetic_star_is_not_a_rest() {
+    fn an_obtuse_sector_on_a_synthetic_link_is_not_a_rest() {
         let band = Band::linear(Tol::witness()).unwrap();
         let (phi, delta, h) = (500.0 * band.zero(), 0.01, 0.03);
         let at = |x: f64, y: f64, z: f64| Point3::new(x, y, z - phi * y);
@@ -12838,7 +12849,7 @@ mod tests {
         let part = synthetic(verts[0], At::Vertex(0), verts.clone(), &faces, &edges, band)
             .expect("a corner");
         assert_eq!(
-            rest::judge(&part, &floor_star(band), band),
+            rest::judge(&part, &floor_link(band), band),
             TouchVerdict::Crossing
         );
     }
