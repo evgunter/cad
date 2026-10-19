@@ -6273,3 +6273,12 @@ Signed (WIRE orchestrator).
   It closes or verifies the two-builders, `-y` revolved, section-root
   and CLEAVE split-half rows. FULL single review; not dual, since one
   call at the finish reverses it. (WIRE orchestrator)
+
+- 2026-10-19 — Container restart stopped three lanes: fold-steps, the
+  census fix pass and split-maximal-halves. Their worktrees survived;
+  fold-steps and split-maximal had pushed nothing. Disk was at 93%, so
+  I deleted the census lane's target dir and two stale `[ev]`
+  worktrees, which brought it to 79%. All three lanes resumed, told to
+  push early and build with `CARGO_INCREMENTAL=0`. Friction note: three
+  lanes' target dirs (12 + 5 + 4 GB) nearly exhaust the allowance.
+  (WIRE orchestrator)
