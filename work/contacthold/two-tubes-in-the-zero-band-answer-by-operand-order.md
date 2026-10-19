@@ -4,6 +4,7 @@ kind: issue
 title: Two tubes side by side in the zero band answer Ok in one operand order and CurvedPierceUnsupported in the other
 status: review
 branch: contacthold/two-tubes-zero-band
+pr: 5389
 opened: 2026-10-13
 priority: P2
 ---
