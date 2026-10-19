@@ -2,7 +2,8 @@
 id: dihedral-arm-lever-says-curves-tightly-of-a-radius-below-zero
 kind: issue
 title: geom-brep: DIHEDRAL_ARM's lever names a short edge or a tight curve, and is already met by a stored radius below zero
-status: open
+status: review
+pr: 5349
 opened: 2026-10-14
 priority: P3
 cost: E
@@ -23,3 +24,7 @@ Should the lever name the goal so it is true of every reading the decision refus
 ## Depends on `[ev]` PR 5134
 
 PR 5134 (fork-log row 142) proposes making `DIHEDRAL_ARM` `StoredDefinite::Lever` and dropping "a radius below zero is a defect" from its note. Its reason is that a negative arm needs a datum a profile refuses, and that at-rest representability reports first. If Ev ratifies it, this row's premise goes stale: the negative reading is unreachable and its note no longer names it. The lever then needs only to be true of a zero arm (a cone's point, a short edge), which it already is. Settle this row after 5134.
+
+## Resolution (PR 5349)
+
+`DIHEDRAL_ARM` is `RefusedSide::Lever` and its note is "faces of no extent or a cone's point leave no angle to measure": a negative arm takes the lever and the note at every door, and the lever is true of the zero arm the note names. `editor-core`'s `refusal_concision_chains` now carries the negative `ArmCollapsed` row.
