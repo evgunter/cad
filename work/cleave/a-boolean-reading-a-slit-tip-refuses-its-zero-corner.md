@@ -31,8 +31,12 @@ Reached by `crates/topo/tests/a_vertex_read_by_two_sector_passes.rs`:
 the plate less a void lying under the top along its ray holds the ray as
 a ring of the top, and every op of it with each pyramid whose apex is at
 the ring's tip (`along_void_ray`, five scenes) refuses, at every pose
-(`REFUSING`). On main that body held the ray as one edge whose wedge
-claimed the top's material on both sides, and every op built.
+(`REFUSING`): 30 cells per pose (five scenes × six ops), 150 over the
+five poses, every one of which built on main. On main that body held
+the ray as one edge whose wedge claimed the top's material on both
+sides (the rider form PR 4795's ruling makes invalid), so those builds
+stood on an invalid operand; this row buys the 150 cells back on the
+valid one.
 
 ## Fix
 
