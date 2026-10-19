@@ -563,6 +563,45 @@ fn body_reach<T: crate::mate::SolveScalar>(
         .map_err(|refusal| crate::mate::LeverRefusal::Shape { shape: at, refusal })
 }
 
+/// **Whether placement `id`'s bundle reads a variable**: a free
+/// variable reached from its constraints' numbers or its mates' reads,
+/// through definitions and through the operations whose outputs they
+/// read (a target copy's own placement among them). The shapes it
+/// copies are not the bundle: a body's own parameters move the body,
+/// not its copy's motion.
+fn bundle_reads_a_variable(doc: &crate::doc::Doc<ProfileProgram>, id: RecipeNodeId) -> bool {
+    let Some(node) = doc.node(id) else {
+        return false;
+    };
+    let mut stack: Vec<crate::VarId> = node.exprs().into_iter().copied().collect();
+    stack.extend(
+        node.operand_rows()
+            .into_iter()
+            .filter(|(slot, _)| !matches!(slot, crate::OperandSlot::Shape(_)))
+            .map(|(_, var)| var),
+    );
+    let (mut seen, mut ops) = (
+        std::collections::BTreeSet::new(),
+        std::collections::BTreeSet::new(),
+    );
+    while let Some(var) = stack.pop() {
+        if !seen.insert(var) {
+            continue;
+        }
+        if doc.free(var).is_some() {
+            return true;
+        }
+        stack.extend(doc.definition_reads(var));
+        if let Some(op) = doc.operation_of(var).filter(|op| ops.insert(*op))
+            && let Some(n) = doc.node(op)
+        {
+            stack.extend(n.exprs().into_iter().copied());
+            stack.extend(n.operand_rows().into_iter().map(|(_, v)| v));
+        }
+    }
+    false
+}
+
 /// **A placement's bundle, folded where it evaluates** (INTENT stage 3
 /// C), its `on` poses read in `on_results` (an instance's own copy
 /// before placement among them) and its `to` poses in `to_results`.
@@ -754,24 +793,31 @@ where
     )? {
         crate::mate::solve::Folded::Loose => Ok((None, Space::Loose { root: id })),
         crate::mate::solve::Folded::Pinned(rep, rigid) => {
-            // The one at-rest verdict, decided once (fork C-5). Where the
-            // map is kept as the solve composed it, the motion the
-            // composition made is the copy's.
-            let placed = match crate::mate::solve::rest_verdict(&rep, reach, b) {
-                Some(true) if T::carries_no_variation(&rep) => None,
-                Some(true) => match T::identity_varying_as(&rep) {
-                    Some(map) => Some((map, None)),
-                    None => Some((rep, rigid.map(|c| (c, false)))),
-                },
-                // A box the band cannot decide at rest spans points the
-                // value lane snaps and points it keeps: its map holds
-                // both.
-                None if T::holds_rest(&rep) => Some((rep, rigid.map(|c| (c, false)))),
-                None => match rigid.and_then(|c| c.at_rest().map(|map| (c, map))) {
-                    Some((c, map)) if T::holds_rest(&map) => Some((map, Some((c, true)))),
-                    _ => Some((T::with_rest(&rep).unwrap_or(rep), None)),
-                },
-                Some(false) => Some((rep, rigid.map(|c| (c, false)))),
+            // The one at-rest verdict, decided once (fork C-5), and only
+            // for a bundle that reads no variable: one that does runs its
+            // map at every value, so no lane's snap at the nominal makes
+            // its decisions differ from another's. Where the map is kept
+            // as the solve composed it, the motion the composition made is
+            // the copy's.
+            let placed = if bundle_reads_a_variable(doc, id) {
+                Some((rep, rigid.map(|c| (c, false))))
+            } else {
+                match crate::mate::solve::rest_verdict(&rep, reach, b) {
+                    Some(true) if T::carries_no_variation(&rep) => None,
+                    Some(true) => match T::identity_varying_as(&rep) {
+                        Some(map) => Some((map, None)),
+                        None => Some((rep, rigid.map(|c| (c, false)))),
+                    },
+                    // A box the band cannot decide at rest spans points the
+                    // value lane snaps and points it keeps: its map holds
+                    // both.
+                    None if T::holds_rest(&rep) => Some((rep, rigid.map(|c| (c, false)))),
+                    None => match rigid.and_then(|c| c.at_rest().map(|map| (c, map))) {
+                        Some((c, map)) if T::holds_rest(&map) => Some((map, Some((c, true)))),
+                        _ => Some((T::with_rest(&rep).unwrap_or(rep), None)),
+                    },
+                    Some(false) => Some((rep, rigid.map(|c| (c, false)))),
+                }
             };
             // A map the solve composed as motions is placed as the motion
             // it is; any other is admitted from its entries.
