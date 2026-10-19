@@ -20,7 +20,7 @@ work/
   issues/README.md     this directory's signpost (unparsed)
   issues/<name>.md     issues no program owns yet (kind: issue)
   <program>/
-    program.md         the program: charter, prefix, band, territory
+    program.md         the program: charter, prefix, territory
     plan.md            the plan (narrative; present state only)
     log.md             the log (append-only narrative; its tail is
                        the program's story, never its slate)
@@ -162,8 +162,8 @@ walk and sweep wait on its slowest blocker, which can be indefinite.
 
 ## Priority
 
-Every item carries a band, and so does every program. The bands (Ev,
-in chat, 2026-09-20):
+Every item carries a band; a program does not (Ev, in chat,
+2026-10-19). The bands (Ev, in chat, 2026-09-20):
 
 - **P0 — very high.** A normal verb broken on normal geometry; a live
   wrong answer; something the GUI cannot author at all; a GUI defect
@@ -197,6 +197,35 @@ what it guards: a dead assertion in the boolean suite is P3 for being
 a guard that cannot go red, not P0 for sitting on P0 ground. And a
 band is not a forecast of effort — `cost` carries that, separately,
 because the two are independent and collapsing them hides both.
+
+**A band is absolute across the tracker, never relative to its
+program.** The definitions above say what a row IS, wherever it sits:
+the most important row in a quiet program is not P0 for being that
+program's most important row, and a P0 finding is P0 on whatever
+slate it lands. Ask what band the row would carry if it were filed in
+the program at the top of the board.
+
+**A program's place on the board is computed from its rows.**
+`STATUS.md` orders the Programs table by each track's dispatchable
+rows (`open` or `spec`), compared band by band from P0 down: one
+dispatchable P0 outranks any number of P1s, and between two tracks
+whose best rows share a band, the one holding more of them ranks first.
+Rows in flight, parked or deferred only break ties, because nobody can
+pick them up next. The `top` column is the best dispatchable band. A
+program carries no band of its own, so its place cannot outlive the
+work that put it there: when its last P0 closes it drops down the
+board, and filing a P0 on a quiet track raises it with no further
+step. To move a program, re-band its rows.
+
+**A sitting ends when its track's P0 and P1 rows are done.** Once the
+track has no dispatchable row at P0 or P1, the orchestrator does not
+go on to work the tail: it hands the track back (`ready`, or `blocked`
+if nothing is dispatchable), and the track's computed place says how
+urgent the remainder is. The exception is tail work the sitting is
+best placed to do — easy rows (`cost: E`) where the context the
+orchestrator has built up is what makes them cheap, such as a
+follow-up to a change it just landed. Do those before handing back;
+a row a successor could pick up just as cheaply is the successor's.
 
 ## Track size
 
