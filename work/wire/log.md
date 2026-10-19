@@ -6341,3 +6341,17 @@ Signed (WIRE orchestrator).
     colinear apex edges; `cite_rows`' citing filter; the guard pins
     `minted > 0`.
   (WIRE orchestrator)
+
+- 2026-10-19 — FORK-ROWPRESENCE converged in round 3: a node's rows are
+  its evaluation's decision log, with the judged rows as the order-free
+  subset, marked on the row. Every reader of the rows reads per
+  evaluation. `[ev]` PR 5329 edits DM4; fork-log row 167; the blinding
+  byte is on the analysis branch.
+  - Filed `cleave/a-boolean-records-a-zero-decision-only-where-a-record-cites-it`
+    (P1, design): the pencil, and the (a, c) pair with no row. It is the
+    prerequisite either way.
+  - Filed `wire/the-fold-row-guard-pins-a-row-naming-a-fold-minted-cell`.
+  - PR 5328 waits on Ev: both converged answers retire its
+    published-name mechanism, though its BLOCKER fix may survive into
+    the build.
+  (WIRE orchestrator)

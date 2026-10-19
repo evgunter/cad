@@ -2432,18 +2432,26 @@ fn pcurve_entry<T: Decide + Bounds>(
         } else {
             Point2::new(p0.x + pd.x, p0.y + pd.y)
         }),
-        // Straight iff BOTH trig channels are exact-structural zeros
-        // (C6): rim circles (`pl = (β, 0)`), meridians, and every
-        // line edge of a plane chart land here; a tilted-section
-        // sinusoid (`pa`/`pb` alive) refuses — including a
-        // numerically-almost-zero channel, deliberately.
-        Pcurve::Harmonic { p0, pa, pb, pl } => {
-            if exact_zero(pa.x) && exact_zero(pa.y) && exact_zero(pb.x) && exact_zero(pb.y) {
-                let t = if forward { t0 } else { t1 };
-                Ok(Point2::new(p0.x + pl.x * t, p0.y + pl.y * t))
-            } else {
-                Err("Harmonic trig channels are not exact-structural zeros \
-                     (the sinusoid / tilted-cut class)")
+        // Straight iff each channel is (C6). An angle channel is, by
+        // its kind: a phase and a winding's rate, with no trig terms.
+        // A free channel is straight iff its trig coefficients are
+        // exact-structural zeros: a plane chart's line edges land here;
+        // a tilted-section sinusoid (`a`/`b` alive) refuses — including
+        // a numerically-almost-zero channel, deliberately.
+        Pcurve::Harmonic { u, v } => {
+            let t = if forward { t0 } else { t1 };
+            let at = |c: geom_brep::Channel<T>| match c {
+                geom_brep::Channel::Angle { phase, winding } => {
+                    Some(phase + geom_brep::angle_rate::<T>(winding) * t)
+                }
+                geom_brep::Channel::Free { c, a, b, l } => {
+                    (exact_zero(a) && exact_zero(b)).then(|| c + l * t)
+                }
+            };
+            match (at(*u), at(*v)) {
+                (Some(x), Some(y)) => Ok(Point2::new(x, y)),
+                _ => Err("Harmonic trig channels are not exact-structural zeros \
+                          (the sinusoid / tilted-cut class)"),
             }
         }
         Pcurve::Fitted(_) => Err("Fitted chart image (rung-3 trace) is not a straight segment"),
@@ -3954,21 +3962,21 @@ mod tests {
 
     #[test]
     fn zero_trig_harmonic_passes_and_sinusoid_refuses() {
-        let linear = geom_brep::Pcurve::Harmonic {
-            p0: Point2::new(0.0, 0.5),
-            pa: Vec2::zero(),
-            pb: Vec2::zero(),
-            pl: Vec2::new(1.0, 0.0),
-        };
+        let linear = geom_brep::Pcurve::free_harmonic(
+            Point2::new(0.0, 0.5),
+            Vec2::zero(),
+            Vec2::zero(),
+            Vec2::new(1.0, 0.0),
+        );
         assert_pt(pcurve_entry(&linear, 0.0, 3.0, true).unwrap(), 0.0, 0.5);
 
         // The tilted-cut class: an alive sin channel refuses typed.
-        let sinusoid = geom_brep::Pcurve::Harmonic {
-            p0: Point2::new(0.0, 0.5),
-            pa: Vec2::zero(),
-            pb: Vec2::new(0.0, 0.3),
-            pl: Vec2::new(1.0, 0.0),
-        };
+        let sinusoid = geom_brep::Pcurve::free_harmonic(
+            Point2::new(0.0, 0.5),
+            Vec2::zero(),
+            Vec2::new(0.0, 0.3),
+            Vec2::new(1.0, 0.0),
+        );
         assert!(pcurve_entry(&sinusoid, 0.0, 3.0, true).is_err());
     }
 
@@ -3976,12 +3984,12 @@ mod tests {
     fn a_numerically_almost_zero_trig_channel_refuses_typed() {
         // The C6 statement with teeth: 1e-300 is NOT a structural
         // zero, and no scalar zero-test on T may decide otherwise.
-        let nearly = geom_brep::Pcurve::Harmonic {
-            p0: Point2::new(0.0, 0.5),
-            pa: Vec2::new(0.0, 1e-300),
-            pb: Vec2::zero(),
-            pl: Vec2::new(1.0, 0.0),
-        };
+        let nearly = geom_brep::Pcurve::free_harmonic(
+            Point2::new(0.0, 0.5),
+            Vec2::new(0.0, 1e-300),
+            Vec2::zero(),
+            Vec2::new(1.0, 0.0),
+        );
         assert!(pcurve_entry(&nearly, 0.0, 3.0, true).is_err());
     }
 
@@ -4264,12 +4272,12 @@ mod tests {
         // reach the machinery — the tilted-cut image refuses typed at
         // the variant gate (`pcurve_entry`), which is exactly the
         // exclusion the module docs name.
-        let sinusoid = geom_brep::Pcurve::Harmonic {
-            p0: Point2::new(0.0, 1.0),
-            pa: Vec2::zero(),
-            pb: Vec2::new(0.0, 0.5),
-            pl: Vec2::new(1.0, 0.0),
-        };
+        let sinusoid = geom_brep::Pcurve::free_harmonic(
+            Point2::new(0.0, 1.0),
+            Vec2::zero(),
+            Vec2::new(0.0, 0.5),
+            Vec2::new(1.0, 0.0),
+        );
         assert!(pcurve_entry(&sinusoid, 0.0, core::f64::consts::PI, true).is_err());
     }
 
@@ -4556,7 +4564,7 @@ mod tests {
         };
         let surface = cyl_surface(1.0);
         let pcurve = geom_brep::chart_pcurve(&ellipse, &surface, band()).unwrap();
-        let geom_brep::Pcurve::Harmonic { pa, .. } = &pcurve else {
+        let Some((_, pa, _, _)) = pcurve.harmonic_form() else {
             panic!("the tilted section charts to a Harmonic");
         };
         assert!(
@@ -4640,12 +4648,12 @@ mod tests {
                     (Vec2::zero(), Vec2::new(tiny, 0.0)),
                     (Vec2::zero(), Vec2::new(0.0, tiny)),
                 ] {
-                    let h = geom_brep::Pcurve::Harmonic {
-                        p0: Point2::new(0.0, 0.0),
+                    let h = geom_brep::Pcurve::free_harmonic(
+                        Point2::new(0.0, 0.0),
                         pa,
                         pb,
-                        pl: Vec2::new(1.0, 0.0),
-                    };
+                        Vec2::new(1.0, 0.0),
+                    );
                     assert!(
                         pcurve_entry(&h, 0.0, 1.0, true).is_err(),
                         "a {tiny:e} trig channel must refuse typed"
@@ -4658,12 +4666,12 @@ mod tests {
         fn r1_negative_zero_is_the_zero_function_and_passes() {
             // -0.0 == 0.0 in value: the trig term is the exact zero
             // function, so admitting it is sound (structure, not bits).
-            let h = geom_brep::Pcurve::Harmonic {
-                p0: Point2::new(0.25, 0.5),
-                pa: Vec2::new(-0.0, 0.0),
-                pb: Vec2::new(0.0, -0.0),
-                pl: Vec2::new(1.0, 2.0),
-            };
+            let h = geom_brep::Pcurve::free_harmonic(
+                Point2::new(0.25, 0.5),
+                Vec2::new(-0.0, 0.0),
+                Vec2::new(0.0, -0.0),
+                Vec2::new(1.0, 2.0),
+            );
             assert_pt(pcurve_entry(&h, 0.5, 1.0, true).unwrap(), 0.75, 1.5);
         }
 

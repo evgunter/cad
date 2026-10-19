@@ -291,11 +291,15 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// id drawn after it moved. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED, `cut_cylinder` only, when a harmonic row's windings
+/// became stored structure (PCERT B2a, PR 5244): the stored pcurve is
+/// two channels where it was one flat tuple, and the digest hashes it.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x3e5f_559f_058c_1664u64),
+        ("cut_cylinder", 0x3c37_782c_be93_f19au64),
         ("part_select", 0x7b4d_39f0_68df_e9b5),
         ("kitchen_sink", 0x1032_8a96_fb12_9d02),
     ] {

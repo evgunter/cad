@@ -3353,6 +3353,8 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 C::ChartRow { .. }
                 | C::CarrierOffChart { .. }
                 | C::ImageMismatch { .. }
+                | C::ChannelKindMismatch { .. }
+                | C::WindingMismatch { .. }
                 | C::FittedCertificate { .. } => (WRONG, Some(DEFECT)),
                 C::ResidualExceeded { .. } | C::FittedLimb { .. } => {
                     let why = if error.refuses_on_a_bound() {

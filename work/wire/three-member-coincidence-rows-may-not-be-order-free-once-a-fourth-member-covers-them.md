@@ -8,7 +8,6 @@ priority: P2
 cost: M
 design: true
 refs: [a-union-fold-publishes-no-pinch-row]
-needs_ev: true
 ---
 
 
@@ -103,4 +102,4 @@ once.
   takes becomes a row, in pair booleans too.
 
 The `[ev]` PR edits DM4 (`crates/editor-core/REFERENCES.md`); design-fork
-log row 167.
+log row 169. Approved by Ev on PR 5329 (2026-10-19).
