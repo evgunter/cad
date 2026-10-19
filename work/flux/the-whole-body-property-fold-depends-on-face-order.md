@@ -2,7 +2,9 @@
 id: the-whole-body-property-fold-depends-on-face-order
 kind: issue
 title: The whole-body property fold sums face terms in arena order, so one solid stored in two face orders measures a volume a few ulp apart
-status: review
+status: closed
+pr: 5402
+closed: 2026-10-19
 opened: 2026-10-11
 priority: P2
 ---
