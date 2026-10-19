@@ -115,25 +115,35 @@ fn clearance_reading(result: &Result<(), ProfileError>) -> (bool, bool) {
     (near_full, undecided)
 }
 
-/// A replay's refusal on the departure line: whether it is
-/// `DegenerateArcChord` naming, and saying, the target behind the tip,
-/// and whether
-/// it escalates on `path_collinear_target`; the replay's own answer
-/// when it is anything else.
+/// The phrase the full-turn refusal names its second case by, for
+/// either verb.
+const FULL_TURN_CASE: &str = "one end lies on the line tangent at the other";
+
+/// A replay's refusal on the departure line: the chord a
+/// `DegenerateArcChord` reports (its enclosure's ends) when its message
+/// names the full-turn case, and whether the replay escalates on
+/// `path_collinear_target` instead; the replay's own answer when it is
+/// anything else.
 fn departure_line_refusal<T: profile::ArcCarrierScalar>(
     steps: &[Step<f64>],
-) -> Result<(bool, bool), String> {
+) -> Result<(Option<(f64, f64)>, bool), String> {
     match try_replay_at::<T>(steps) {
         Err(ReplayError {
             kind: ReplayErrorKind::Path(e),
             ..
-        }) => Ok((
-            matches!(e, PathError::DegenerateArcChord { behind: true, .. })
-                && e.to_string()
-                    .contains("on the departure line behind the tip"),
-            matches!(&e, PathError::Escalated { source }
-                if source.predicate == Some("path_collinear_target")),
-        )),
+        }) => {
+            let chord = match &e {
+                PathError::DegenerateArcChord { chord }
+                    if e.to_string().contains(FULL_TURN_CASE) =>
+                {
+                    Some((chord.lo(), chord.hi()))
+                }
+                _ => None,
+            };
+            let undecided = matches!(&e, PathError::Escalated { source }
+                if source.predicate == Some("path_collinear_target"));
+            Ok((chord, undecided))
+        }
         Err(e) => Err(e.to_string()),
         Ok(_) => Err("the replay builds".to_owned()),
     }
@@ -173,9 +183,17 @@ fn the_rows_three_radii_keep_their_end_vertex() {
                     departure_line_refusal::<f64>(&steps),
                     departure_line_refusal::<Interval>(&steps),
                 ] {
-                    let (behind, undecided) = refusal.as_ref().map_or((false, false), |&pair| pair);
+                    // On the line the refusal reports the chord the ends
+                    // span, not a tolerance-sized one.
+                    let answered = match &refusal {
+                        Ok((Some((lo, hi)), _)) => {
+                            p.y <= eps && *lo <= 2.7 + 1e-9 && 2.7 <= *hi + 1e-9
+                        }
+                        Ok((None, undecided)) => p.y > eps && *undecided,
+                        Err(_) => false,
+                    };
                     assert!(
-                        if p.y <= eps { behind } else { undecided },
+                        answered,
                         "{what}: a target {:e} m off the departure line, behind the tip, \
                          refuses {refusal:?}",
                         p.y
@@ -335,6 +353,106 @@ fn the_through_point_arc_near_a_full_turn_keeps_its_end_vertex() {
         assert!(
             width <= 64.0 * r * ULP,
             "{what}: the Interval landing is {width:e} m wide"
+        );
+    }
+}
+
+/// **On the departure line, by both verbs, at every ε row**: a target
+/// a quarter-ε off the line 2.7 m behind the tip refuses
+/// `DegenerateArcChord` naming the full-turn case and reporting the
+/// 2.7 m its ends span; one a quarter-ε from the tip refuses the same
+/// kind reporting a chord under ε.
+#[test]
+fn on_the_departure_line_the_refusal_reports_the_chord_its_ends_span() {
+    let eps = tol().get().eps;
+    let a = Point2::new(0.0, 0.0);
+    for (verb, build) in [
+        ("tangent_arc_to", forward as fn(_, _, _) -> Vec<Step<f64>>),
+        ("arc_onto", onto),
+    ] {
+        let behind = build(a, (1.0, 0.0), Point2::new(-2.7, eps / 4.0));
+        let at_tip = build(a, (1.0, 0.0), Point2::new(eps / 4.0, eps / 4.0));
+        let what = format!("{verb} at eps {eps:e}");
+        for (scalar, behind, at_tip) in [
+            (
+                "f64",
+                departure_line_refusal::<f64>(&behind),
+                departure_line_refusal::<f64>(&at_tip),
+            ),
+            (
+                "Interval",
+                departure_line_refusal::<Interval>(&behind),
+                departure_line_refusal::<Interval>(&at_tip),
+            ),
+        ] {
+            assert!(
+                matches!(behind, Ok((Some((lo, hi)), false)) if lo <= 2.7 + 1e-9 && 2.7 <= hi + 1e-9),
+                "{what}, {scalar}: a target behind the tip on the line refuses {behind:?}"
+            );
+            assert!(
+                matches!(at_tip, Ok((Some((_, hi)), false)) if hi <= eps),
+                "{what}, {scalar}: a target at the tip refuses {at_tip:?}"
+            );
+        }
+    }
+}
+
+/// **An arc about an authored centre near a full turn** keeps its end
+/// vertex: the carrier of radius `r` about `(0, r)`, counter-clockwise
+/// from the origin to the point 2.7 m of arc short of the full turn,
+/// home by way of a vertex below the chord. At `f64` it lands within 8
+/// ulps of its radius of the end vertex (the radius-plus-apothem
+/// quarter-tangent missed by 2.5e-8, 5.0e-6 and 2.1e-4, and validated),
+/// and so does its `Interval` landing.
+#[test]
+fn the_centre_arc_near_a_full_turn_keeps_its_end_vertex() {
+    let a = Point2::new(0.0, 0.0);
+    for r in [1.36e4, 1.37e5, 1.37e6] {
+        let turn = core::f64::consts::TAU - 2.7 / r;
+        let b = Point2::new(r * turn.sin(), r * (1.0 - turn.cos()));
+        let steps = vec![
+            Step::At(a),
+            Step::ArcTo(ArcData::Center {
+                c: Point2::new(0.0, r),
+                winding: profile::ArcSweep::Ccw,
+                target: Target::Point(b),
+            }),
+            Step::LineTo(Target::Point(Point2::new(-1.35, -5.0))),
+            Step::LineTo(Target::Start),
+        ];
+        let what = format!("Center, R {r:e}");
+        let lp = try_replay_at::<f64>(&steps)
+            .unwrap_or_else(|e| panic!("{what}: f64 replay refused: {e}"));
+        let miss = f64_miss(&lp, &what);
+        assert!(
+            miss <= 8.0 * r * ULP,
+            "{what}: the stored arc misses its end vertex by {miss:e} m, past 8 ulps of its \
+             radius"
+        );
+        // Past the scene's resolution the Interval lane cannot read the
+        // authored centre's equidistance, and says so.
+        let li = match try_replay_at::<Interval>(&steps) {
+            Ok(li) => li,
+            Err(ReplayError {
+                kind: ReplayErrorKind::Path(PathError::Escalated { source }),
+                ..
+            }) if source.predicate == Some("path_arc_center_equidistant")
+                && 64.0 * r * ULP > tol().get().eps =>
+            {
+                continue;
+            }
+            Err(e) => panic!("{what}: Interval replay refused: {e}"),
+        };
+        // The end vertex sits off the carrier by its own rounding, so the
+        // landing is read against it at the f64 row's 8 ulps of R.
+        let v = li.vertices();
+        let end = first_arc(&li, &what).landing(v[0]);
+        let near = |e: Interval, t: Interval| {
+            e.lo() - 8.0 * r * ULP <= t.lo() && t.hi() <= e.hi() + 8.0 * r * ULP
+        };
+        assert!(
+            near(end.x, v[1].x) && near(end.y, v[1].y),
+            "{what}: the Interval landing is not within 8 ulps of R of its end vertex"
         );
     }
 }

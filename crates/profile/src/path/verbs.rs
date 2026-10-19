@@ -354,10 +354,7 @@ pub(crate) fn via_carrier<T: Decide>(
     let d = q - dp.at;
     let chord = d.norm_squared().sqrt();
     gate_positive("path_arc_chord", chord, band, |c| {
-        PathError::DegenerateArcChord {
-            chord: c,
-            behind: false,
-        }
+        PathError::DegenerateArcChord { chord: c }
     })?;
     let n = Vec2::new(-dp.dir.unit.y, dp.dir.unit.x);
     let across = d.dot(n);

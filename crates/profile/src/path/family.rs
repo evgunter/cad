@@ -1097,10 +1097,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for verbs::Bulge<T, Point2<T>> {
         let band = linear_band(tol)?;
         let chord = (self.p - at).norm_squared().sqrt();
         verbs::gate_positive("path_arc_chord", chord, band, |c| {
-            PathError::DegenerateArcChord {
-                chord: c,
-                behind: false,
-            }
+            PathError::DegenerateArcChord { chord: c }
         })?;
         let (c, w, start) = bulge_carrier(at, self.p, self.b, tol)?;
         Ok((c, w, start, self.p))
@@ -1119,10 +1116,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
         let chord_v = self.p - at;
         let chord = chord_v.norm_squared().sqrt();
         verbs::gate_positive("path_arc_chord", chord, band, |c| {
-            PathError::DegenerateArcChord {
-                chord: c,
-                behind: false,
-            }
+            PathError::DegenerateArcChord { chord: c }
         })?;
         // The collinear gate, then the existing closed form — the sharp
         // `Via` leg mode's own derivation, verbatim.
@@ -1173,12 +1167,9 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
         }
         let chord = (self.p - at).norm_squared().sqrt();
         verbs::gate_positive("path_arc_chord", chord, band, |c| {
-            PathError::DegenerateArcChord {
-                chord: c,
-                behind: false,
-            }
+            PathError::DegenerateArcChord { chord: c }
         })?;
-        let theta = super::center_sweep(at, self.p, self.c, r_tip, self.winding);
+        let theta = super::center_sweep(at, self.p, self.c, self.winding);
         let (start, _) = super::chord_tangents(self.p - at, theta);
         // The AUTHORED centre is the carrier (never the re-derived one).
         Ok((self.c, self.winding, start, self.p))

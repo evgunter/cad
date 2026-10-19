@@ -226,7 +226,7 @@ mod tests {
         let mk = |sb: [f64; 2]| ArcFilletCandidate {
             t1: Point2::new(0.0, 0.0),
             t2: Point2::new(0.0, 0.0),
-            bulge: 0.0,
+            sweep: 0.0,
             center: Point2::new(0.0, 0.0),
             centre_facts: crate::Facts::Registered,
             fit_in: Sign::Positive,

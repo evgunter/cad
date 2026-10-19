@@ -1238,7 +1238,14 @@ fn a_zero_radius_fillet_is_refused_at_the_verb() {
 /// Two sweeps moved since, `arc_arc_internal`'s arrival run by one ulp
 /// and `arc_arc_mixed`'s by three, when the run began storing the side's
 /// own carrier and reading its sweep off the chord about that centre
-/// instead of re-lowering a bulge from the chord; no vertex moved.
+/// instead of re-lowering a bulge from the chord; no vertex moved. Then
+/// every sweep came to be read as an angle (`sugar::split_sweep` along a
+/// tangent, `sugar::sweep_about` between radii) rather than as `4·atan`
+/// of a quarter-tangent: the fillet and run sweeps of `line_arc_internal`
+/// by +1 and −1 ulp, `line_arc_external` −2 and −1, `arc_line` −1 and −2,
+/// `arc_arc_internal`'s two runs −1 each (still equal, its fillet
+/// unchanged), and `arc_arc_mixed`'s first two −1 and −2; no vertex
+/// moved.
 /// A vertex's `(x, y, sweep)` raw f64 bits, the sweep its leaving
 /// segment stores (`0` for a line, which stores none) — the channel the
 /// pin below compares on, because "bit-identical" is the actual claim.
@@ -1270,11 +1277,11 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
             &[
                 (0, 4611686018427387904, 0),
                 (0, 0, 0),
-                (4609047870845172685, 0, 4611283546303459675),
+                (4609047870845172685, 0, 4611283546303459676),
                 (
                     4611170888069347941,
                     4604180019048437076,
-                    4608222567545891028,
+                    4608222567545891027,
                 ),
             ],
         ),
@@ -1286,11 +1293,11 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
                 (4613937818241073152, 13835058055282163712, 0),
                 (0, 13835058055282163712, 0),
                 (0, 0, 0),
-                (4609820566382232627, 0, 13831594604400666837),
+                (4609820566382232627, 0, 13831594604400666835),
                 (
                     4611814801016897895,
                     13823048456275842388,
-                    4608222567545891028,
+                    4608222567545891027,
                 ),
             ],
         ),
@@ -1298,11 +1305,11 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
             "arc_line",
             arc_line(0.5).expect("fits"),
             &[
-                (0, 4611686018427387904, 13832218258322411728),
+                (0, 4611686018427387904, 13832218258322411727),
                 (
                     4611504036046923850,
                     4600877379321698714,
-                    4608846221467635921,
+                    4608846221467635919,
                 ),
                 (4612698179346440494, 0, 0),
                 (4616189618054758400, 0, 0),
@@ -1314,7 +1321,7 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
             "arc_arc_internal",
             arc_arc_internal(0.25).expect("fits"),
             &[
-                (4607182418800017408, 0, 4606845105924273753),
+                (4607182418800017408, 0, 4606845105924273752),
                 (
                     4594314991293244560,
                     4610070593513891235,
@@ -1323,7 +1330,7 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
                 (
                     13817687028148020368,
                     4610070593513891235,
-                    4606845105924273753,
+                    4606845105924273752,
                 ),
                 (13830554455654793216, 0, 0),
             ],
@@ -1332,11 +1339,11 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
             "arc_arc_mixed",
             arc_arc_mixed(0.25).expect("fits"),
             &[
-                (4607182418800017408, 0, 4605750892648001873),
+                (4607182418800017408, 0, 4605750892648001872),
                 (
                     4599676419421066584,
                     4609392389112809011,
-                    13835333029979180127,
+                    13835333029979180125,
                 ),
                 (
                     4601392076421969630,

@@ -1324,14 +1324,13 @@ pub enum PathError<T: Real> {
     /// chord is degenerate, so neither the via nor the centre form
     /// determines an arc (a full turn is a closed carrier, which is
     /// [`circle`]'s business, not a chain leg's — PQ4). A tangent arc
-    /// whose target is on the departure line BEHIND the tip refuses
-    /// here too: the only arc tangent there is that full turn.
+    /// (`tangent_arc_to`, `arc_onto`) with one end on the line tangent at
+    /// the other, on the side only a full turn reaches, refuses here too:
+    /// the only arc tangent there is that full turn, and its chord is
+    /// whatever the ends span.
     DegenerateArcChord {
         /// The chord length, meters.
         chord: T,
-        /// Whether the endpoints are apart and the target is on the
-        /// departure line behind the tip, rather than at it.
-        behind: bool,
     },
     /// A `Center` mode's centre is not equidistant from the two
     /// endpoints: the authored data contradicts itself. Refused, never
@@ -1899,25 +1898,13 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  through-point off the chord, or author the straight segment as a line",
                 offset = num(offset)
             ),
-            Self::DegenerateArcChord {
-                chord,
-                behind: false,
-            } => write!(
+            Self::DegenerateArcChord { chord } => write!(
                 f,
-                "an arc leg's endpoints are within tolerance of each other (chord {chord} \
-                 m): a leg spans a chord, and a closed carrier is a circle primitive, not a \
-                 chain leg",
-                chord = num(chord)
-            ),
-            Self::DegenerateArcChord {
-                chord,
-                behind: true,
-            } => write!(
-                f,
-                "a tangent arc's target is on the departure line behind the tip (chord \
-                 {chord} m): the only arc tangent there is the full turn, and a closed \
-                 carrier is a circle primitive, not a chain leg. Recourse: move the target \
-                 off the departure line, or author the full turn as a circle",
+                "an arc leg spans no arc short of a full turn (chord {chord} m): its ends are \
+                 within tolerance of each other, or one end lies on the line tangent at the \
+                 other, on the side only a full turn reaches. A closed carrier is a circle \
+                 primitive, not a chain leg. Recourse: move the ends apart, or off that \
+                 tangent line, or author the full turn as a circle",
                 chord = num(chord)
             ),
             Self::ArcCenterNotEquidistant {
@@ -2914,19 +2901,11 @@ fn unit<T: Real>(ang: T) -> Vec2<T> {
     Vec2::new(c, s)
 }
 
-/// **The arc about a known centre**: Δθ from `a` to `b` about `centre`
-/// on the carrier of `radius`, turning in the `winding` sense, spelled
-/// `4·atan(X)` with X the [`crate::sugar::quarter_tan_about`] the
-/// fillet's sweep is spelled by too.
-fn center_sweep<T: Real>(
-    a: Point2<T>,
-    b: Point2<T>,
-    centre: Point2<T>,
-    radius: T,
-    winding: ArcSweep,
-) -> T {
-    T::from_f64(4.0)
-        * crate::sugar::quarter_tan_about(a, b, centre, radius, winding.sign::<T>()).atan()
+/// **The arc about a known centre**: Δθ from `a` to `b` about `centre`,
+/// turning in the `winding` sense — [`crate::sugar::sweep_about`], which
+/// the fillet's bulge reads too.
+fn center_sweep<T: Real>(a: Point2<T>, b: Point2<T>, centre: Point2<T>, winding: ArcSweep) -> T {
+    crate::sugar::sweep_about(a, b, centre, winding.sign::<T>())
 }
 
 /// **A fillet side's carrier run**: the arc from `a` to `b` about the
@@ -2954,7 +2933,7 @@ fn side_arc<T: Real>(
         arc: Arc2 {
             centre,
             radius,
-            sweep: center_sweep(a, b, centre, radius, winding),
+            sweep: center_sweep(a, b, centre, winding),
         },
         facts,
     }
@@ -2983,24 +2962,19 @@ fn center_arc<T: Real>(
 }
 
 /// **The `Via` mode's one conversion**: the arc from `a` through `q` to
-/// `b`, lowered from its chord ([`crate::bulge_leg`]) with X the
-/// tangent of half the turn ψ at `q` from `q − a` to `b − q` — by the
-/// inscribed angle, ψ is half the arc's included angle, so X is
-/// tan(θ/4) — spelled `(d₁ × d₂) / (|d₁|·|d₂| + d₁·d₂)` up to a half
-/// turn and `(|d₁|·|d₂| − d₁·d₂) / (d₁ × d₂)` past it, algebraic in the
-/// three points and chosen on `d₁·d₂` as [`tangent_arc`] chooses, so
-/// neither sum cancels. It vanishes into a pole only at ψ = π, `q` on
-/// the chord's line outside it, which the door's collinear gate refuses
-/// first.
+/// `b`, lowered from its chord ([`crate::bulge_leg`]) with X = tan(θ/4)
+/// read off the split of the turn at `q` from `q − a` to `b − q` (by the
+/// inscribed angle, the included angle is twice that turn) by
+/// [`crate::sugar::split_quarter_tan`] — [`crate::sugar::bulge_from_via`]'s X.
+/// The turn reaches ±π only with `q` on the chord's line outside it,
+/// which the door's collinear gate refuses first.
 fn via_arc<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> Option<BuiltArc<T>> {
     crate::bulge_leg(a, b, via_quarter_tan(a, q, b))
 }
 
 /// [`via_arc`]'s X: tan(θ/4) of the arc from `a` through `q` to `b`.
 fn via_quarter_tan<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> T {
-    let (d1, d2) = (q - a, b - q);
-    let (cross, dot, lengths) = (d1.perp_dot(d2), d1.dot(d2), d1.norm() * d2.norm());
-    (-dot).select_le_zero(cross / (lengths + dot), (lengths - dot) / cross)
+    crate::sugar::bulge_from_via(a, q, b)
 }
 
 /// **The tangent arc's one conversion**: the arc leaving `a` along the
@@ -3009,33 +2983,23 @@ fn via_quarter_tan<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> T {
 /// the circle tangent to `u` at `a` through `b`: the centre `a + n̂·ρ`
 /// (n̂ the left normal of `u`) at the signed offset
 /// `ρ = |d|² / (2·across)`, the radius `|ρ|`, with `d = b − a` resolved
-/// along and across `u` — no root. Δθ = 4·atan(X) with X the tangent of
-/// half the angle δ from `u` to the chord (the arc turns 2δ, so X is
-/// tan(θ/4)), spelled `across / (|d| + along)` up to a half turn and
-/// `(|d| − along) / across` past it ([`Real::select_le_zero`] on
-/// `along`): equal over the reals, each sum has terms of one sign on its
-/// side, so neither cancels — the first would as the target goes behind
-/// the tip (a near full turn), the second as it comes ahead (a short
-/// arc). An enclosure of `along` that straddles zero takes the hull of
-/// the two, both accurate there.
+/// along and across `u` — no root. Δθ is twice the tangent-chord angle,
+/// [`crate::sugar::split_sweep`]`(across, along)`.
 ///
 /// **Its endpoint facts are theorems** ([`crate::Facts::Registered`]):
 /// `‖a − c‖ = |ρ|` because n̂ is a unit normal, and
 /// `‖b − c‖² = |d|² − 2ρ·across + ρ² = ρ²` by the choice of ρ; the
 /// centre lies on the chord's perpendicular bisector, so the included
-/// angle about it is 2δ, whose quarter-tangent X is.
+/// angle about it is twice the tangent-chord angle.
 fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>) -> BuiltArc<T> {
     let d = b - a;
     let across = u.perp_dot(d);
-    let len = d.norm();
-    let along = u.dot(d);
-    let x = (-along).select_le_zero(across / (len + along), (len - along) / across);
     let rho = d.norm_squared() / (T::from_f64(2.0) * across);
     BuiltArc {
         arc: Arc2 {
             centre: a + Vec2::new(-u.y, u.x) * rho,
             radius: rho.abs(),
-            sweep: T::from_f64(4.0) * x.atan(),
+            sweep: crate::sugar::split_sweep(across, u.dot(d)),
         },
         facts: crate::Facts::Registered,
     }
@@ -3083,10 +3047,9 @@ fn tangent_arc_geom<T: Decide>(
     if on_line {
         match decide("path_leg_length", Margin::of(along), band) {
             Ok(Sign::Positive) => {}
-            Ok(sign) => {
+            Ok(_) => {
                 return Err(PathError::DegenerateArcChord {
                     chord: d.norm_squared().sqrt(),
-                    behind: sign == Sign::Negative,
                 });
             }
             Err(source) => return Err(PathError::Escalated { source }),
@@ -3501,17 +3464,16 @@ fn one_corner<T: Real>(at: Point2<T>, radius: T, reason: CornerReason<T>) -> Pat
 /// **The fillet's one conversion**: the arc a fillet resolution built,
 /// stored as built — its own carrier (the centre the resolution
 /// derived, the authored radius as its magnitude `|r|`, as
-/// [`circle_loop`] stores it) and Δθ = 4·atan(b), `b` the resolution's
-/// quarter-tangent, algebraic in the corner's data
-/// ([`line_line_fillet_trims`]'s half-angle identity, or
-/// `arc_fillet`'s chord-and-apothem form) — with `facts`, which the
-/// caller derives by [`fillet_facts`].
-fn fillet_arc<T: Real>(carrier: ArcData<T>, bulge: T, facts: crate::Facts) -> BuiltArc<T> {
+/// [`circle_loop`] stores it) and the resolution's sweep, read by
+/// [`crate::sugar::split_turn`] (the line×line fillet: the corner's
+/// turn) or [`crate::sugar::sweep_about`] (`arc_fillet`, about its
+/// centre) — with `facts`, which the caller derives by [`fillet_facts`].
+fn fillet_arc<T: Real>(carrier: ArcData<T>, sweep: T, facts: crate::Facts) -> BuiltArc<T> {
     BuiltArc {
         arc: Arc2 {
             centre: carrier.center,
             radius: carrier.radius.abs(),
-            sweep: T::from_f64(4.0) * bulge.atan(),
+            sweep,
         },
         facts,
     }
@@ -3950,7 +3912,7 @@ impl<T: Decide> Core<T> {
         let arc = fillet_arc_carrier(&trims, u2, pending.radius, sgn);
         let built = fillet_arc(
             arc,
-            trims.bulge,
+            trims.sweep,
             fillet_facts(crate::Facts::Registered, trims.fit_in),
         );
         register_incoming_tangency(&built, trims.t1, u1, sgn * pending.radius, tol);
@@ -4118,7 +4080,7 @@ impl<T: Decide> Core<T> {
         // extended arc's endpoint facts are that decision's, not
         // theorems.
         let arc = Arc2 {
-            sweep: center_sweep(from, t1, leg.arc.centre, leg.arc.radius, sweep),
+            sweep: center_sweep(from, t1, leg.arc.centre, sweep),
             ..leg.arc
         };
         self.verts[n - 2] = (
@@ -5071,10 +5033,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let chord = (end - at).norm_squared().sqrt();
         match decide("path_arc_chord", Margin::of(chord), band) {
             Ok(Sign::Positive) => Ok(chord),
-            Ok(_) => Err(PathError::DegenerateArcChord {
-                chord,
-                behind: false,
-            }),
+            Ok(_) => Err(PathError::DegenerateArcChord { chord }),
             Err(source) => Err(PathError::Escalated { source }),
         }
     }

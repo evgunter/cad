@@ -119,8 +119,8 @@ pub(crate) struct ArcFilletTrims<T: Real> {
     pub t1: Point2<T>,
     /// The tangent point on the arrival side.
     pub t2: Point2<T>,
-    /// The fillet arc's bulge.
-    pub bulge: T,
+    /// The fillet arc's sweep.
+    pub sweep: T,
     /// The incoming side's `fillet_leg_fit` classification.
     pub fit_in: Sign,
     /// The arrival side's fit classification.
@@ -142,7 +142,7 @@ impl<T: Real> ArcFilletTrims<T> {
     pub(crate) fn fillet(&self) -> crate::BuiltArc<T> {
         super::fillet_arc(
             self.arc,
-            self.bulge,
+            self.sweep,
             super::fillet_facts(self.centre_facts, self.fit_in),
         )
     }
@@ -938,7 +938,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
     Ok(ArcFilletTrims {
         t1: c.t1,
         t2: c.t2,
-        bulge: c.bulge,
+        sweep: c.sweep,
         fit_in,
         fit_out,
         in_arc: legs_of[picked],
