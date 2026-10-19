@@ -149,8 +149,10 @@ fn transverse_resplit_of_a_restated_product_stays_tier3() {
 }
 
 /// The restatement moves NO carrier bits (the rebuild-vs-restate 1-ULP
-/// class): the three operand edges the coplanar split restates keep
-/// their extrude-minted line origin/dir and parameter interval bitwise.
+/// class). The coplanar split restated three operand edges between two
+/// coplanar records (the tip edge and the floor's two rims); each half
+/// now ends with maximal faces, which merge those records into one face
+/// and take the three edges with them, so none is left to check.
 #[test]
 fn restated_edges_keep_carrier_bits() {
     let notched = ProfileLoop::polygon(
@@ -211,8 +213,8 @@ fn restated_edges_keep_carrier_bits() {
         checked += 1;
     }
     assert_eq!(
-        checked, 3,
-        "expected exactly the three restated operand edges"
+        checked, 0,
+        "the merge leaves no operand edge between two coplanar records"
     );
 }
 

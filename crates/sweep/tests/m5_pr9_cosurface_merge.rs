@@ -57,8 +57,9 @@ fn wall_count(body: &Body<f64>) -> usize {
 #[test]
 fn sub_period_wall_pieces_remerge_structurally() {
     // Split the disc cylinder by the vertical plane x = 0.2: the
-    // below part's wall is TWO same-key fragments meeting across one
-    // original meridian strut (the C12.5 through-cut shape).
+    // below part's wall would be TWO same-key fragments meeting across
+    // one original meridian strut (the C12.5 through-cut shape). The
+    // split ends with the cosurface merge, which glues them.
     let body = disc_cylinder();
     let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
@@ -68,27 +69,34 @@ fn sub_period_wall_pieces_remerge_structurally() {
     );
     let parts = split(&body, &plane, Tol::witness()).expect("the tilted-cut lane splits it");
     let mut part = parts.below.body().expect("a below part exists").clone();
-    assert_eq!(wall_count(&part), 2, "two same-key wall fragments");
-    let vol_before = topo::mass_properties(&part, Tol::witness()).unwrap().volume;
+    let groups: Vec<_> = parts
+        .naming
+        .merge_groups
+        .iter()
+        .filter(|(side, _)| *side == topo::splitting::PlaneSide::Below)
+        .map(|(_, g)| g)
+        .collect();
+    assert_eq!(groups.len(), 1, "one cosurface run: {groups:?}");
+    assert_eq!(groups[0].killed_edges.len(), 1, "the shared strut dies");
+    assert!(groups[0].rings_made.is_empty());
+    assert_eq!(wall_count(&part), 1, "one maximal sub-period wall face");
 
-    let out = part
+    // Volume exact: the halves hold the operand's (the merge is pure
+    // structure), and a second merge finds nothing.
+    let vol = |b: &Body<f64>| topo::mass_properties(b, Tol::witness()).unwrap().volume;
+    let halves = vol(&part) + vol(parts.above.body().expect("an above part exists"));
+    assert!(
+        (halves - vol(&body)).abs() < 1e-12,
+        "merge must not move volume: {halves} vs {}",
+        vol(&body)
+    );
+    let again = part
         .merge_coplanar_faces(Tol::witness())
         .expect("the cosurface merge");
     assert!(
-        out.skipped.is_empty(),
-        "sub-period runs commit: {:?}",
-        out.skipped
-    );
-    assert_eq!(out.groups.len(), 1, "one cosurface run: {:?}", out.groups);
-    assert_eq!(out.groups[0].killed_edges.len(), 1, "the shared strut dies");
-    assert!(out.groups[0].rings_made.is_empty());
-    assert_eq!(wall_count(&part), 1, "one maximal sub-period wall face");
-
-    // Volume untouched exactly (the merge is pure structure).
-    let vol_after = topo::mass_properties(&part, Tol::witness()).unwrap().volume;
-    assert!(
-        (vol_after - vol_before).abs() < 1e-12,
-        "merge must not move volume: {vol_before} -> {vol_after}"
+        again.groups.is_empty(),
+        "the split left a maximal wall: {:?}",
+        again.groups
     );
     if let Err(errs) = topo::validate_geometric(&part, Tol::witness()) {
         panic!("the merged part must stay tier-3 valid: {errs:?}");

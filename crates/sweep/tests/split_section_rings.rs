@@ -442,8 +442,9 @@ fn outline_len(half: &Body<f64>, face: topo::FaceKey) -> usize {
 /// its seams turned to `π/2 + 0.05`, cut through `(0, 0, 1.25)` at tilt
 /// 1.1, both ways round: the plane crosses both caps and both seams, so
 /// each wall face holds two cap crossings and two seam crossings. Each
-/// half's section is ONE counter-clockwise face of six vertices (two
-/// seam crossings, four cap crossings) with no rings, and the halves,
+/// half's section is ONE counter-clockwise face with no rings, of four
+/// vertices: the cap crossings, since each half's wall pieces merge
+/// across the seams and the seam crossings join away, and the halves,
 /// swapped by the half-turn about the cylinder's centre, each hold
 /// half its volume. Pairing the two cap crossings of one wall face
 /// with each other instead chords the arc beyond the cap, and the
@@ -462,7 +463,7 @@ fn a_steep_cut_through_both_seams_is_one_six_vertex_section_face() {
             let what = format!("flipped {flip} {side}");
             let faces = section_faces(&half, &plane);
             assert_eq!(sections(&half, &plane), vec![(true, 0)], "{what}");
-            assert_eq!(outline_len(&half, faces[0]), 6, "{what}: the outline");
+            assert_eq!(outline_len(&half, faces[0]), 4, "{what}: the outline");
             let half_volume = core::f64::consts::PI * 1.25;
             assert!(
                 (volume(&half) - half_volume).abs() < 1e-4,
