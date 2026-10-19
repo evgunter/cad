@@ -17,12 +17,22 @@ use geom_core::{COINCIDENCE_RECOURSE, EndingKind, Indeterminate};
 
 /// The words for `predicate`, from whichever owner holds them; `None`
 /// when no owner has words for it (the caller then states
-/// `geom_core::UNNAMED_DECISION`).
+/// `geom_core::UNNAMED_DECISION`). A decision the side reader's rays
+/// took is recorded under the reader's family ([`topo::SIDE_READER_FAMILY`]);
+/// where the family's name has no words of its own, it takes the words
+/// of the decision under it.
 pub(crate) fn words(predicate: &str) -> Option<&'static str> {
-    lookup(crate::names::DECISION_WORDS, predicate)
-        .or_else(|| lookup(crate::eval::DECISION_WORDS, predicate))
-        .or_else(|| topo::decision_words(predicate))
-        .or_else(|| profile::decision_subject(predicate))
+    let own = |predicate: &str| {
+        lookup(crate::names::DECISION_WORDS, predicate)
+            .or_else(|| lookup(crate::eval::DECISION_WORDS, predicate))
+            .or_else(|| topo::decision_words(predicate))
+            .or_else(|| profile::decision_subject(predicate))
+    };
+    own(predicate).or_else(|| {
+        predicate
+            .strip_prefix(topo::SIDE_READER_FAMILY)
+            .and_then(own)
+    })
 }
 
 /// The second column of `table`'s row for `predicate`.

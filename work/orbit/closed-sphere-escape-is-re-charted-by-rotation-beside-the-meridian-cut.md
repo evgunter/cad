@@ -83,5 +83,5 @@ ball's poles and meridians while moving them. The pair boolean names
 them by key, so ball minus brick publishes the ball's (0, 1, 0) pole at
 (−0.241, −0.927, −0.287). The union reads member vertices by position
 and refuses at a turned pole
-(`work/emit/a-whole-ball-cut-by-a-tilted-brick-refuses-an-unclassified-member-edge-side.md`,
+(`work/borders/a-whole-ball-cut-by-a-tilted-brick-refuses-an-unclassified-member-edge-side.md`,
 `design: true`, which recommends this row's single answer).
