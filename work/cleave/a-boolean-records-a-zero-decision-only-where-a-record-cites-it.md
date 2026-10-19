@@ -2,11 +2,12 @@
 id: a-boolean-records-a-zero-decision-only-where-a-record-cites-it
 kind: issue
 title: A boolean emits a Zero decision as a Coincidence only where a contact record cites it or it pinches, so a decision that shapes a regular cell (a third face through a seam) is invisible to the coincidence door
-status: open
+status: closed
 opened: 2026-10-19
 priority: P1
 cost: M
 design: true
+closed: 2026-10-19
 ---
 
 
@@ -53,3 +54,22 @@ check its provenance before changing it. This is the prerequisite unit
 for WIRE's `[ev]` PR 5329 (DM4's decision log), whichever way Ev rules.
 
 Signed (WIRE orchestrator).
+
+## Resolution (2026-10-19)
+
+Closed by WIRE's PR 5352. Every margined decision a boolean takes is now a
+`Coincidence` row, in pair booleans and fold steps alike, through one
+spelling door (`boolean/ops.rs` `spell`). A decision whose input-cell
+spelling would widen a cell is held as a typed `UnspelledDecision` on
+`BooleanNaming::unspelled`; nothing is dropped. The pencil's step holds its
+two crossings, and the (a, c) wedges publish their apex rows.
+
+Follow-ups filed on CLEAVE:
+- `a-cited-decision-whose-input-cells-misstate-it-is-still-published`
+- `identical-twin-coincidence-rows-arise-on-coincident-lines`
+- `a-boolean-zero-decided-and-consumed-in-place-reaches-no-row`
+- `a-boolean-records-a-face-pair-decision-only-where-the-two-faces-meet`
+- `a-split-records-an-on-vertex-only-where-it-leaves-two-runs`
+- `a-re-charted-operands-rows-may-name-cells-the-re-chart-minted`
+
+WIRE's unit 2 spells the held decisions.

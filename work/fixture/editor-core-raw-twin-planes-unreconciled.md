@@ -41,3 +41,5 @@ Worth recording alongside: the argument is applied unevenly today.
 seat6's raw side already reaches for a shared `square()` while spelling
 its plane by hand, so "sharing would hide what the same means" is not
 the rule either side is actually following.
+
+(2026-10-14, PATHS PR 5068) `SketchPlane::new(Affine3)` is gone: a plane is minted from its frame, and the translation-only plane above is now spelled `SketchPlane::xy_at(origin)`.

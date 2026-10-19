@@ -1757,7 +1757,7 @@ FAMILIES: dict[str, str] = {
 #:   that changes an ANSWER, bound at LIB-G18a — which is also when
 #:   its memo residue left the `gap` roster, and note the memo was
 #:   never a field of it (`prior` is `evaluate`'s own second argument,
-#:   bound as `prior=`). Its other six fields are stated rather than
+#:   bound as `prior=`). Its other five fields are stated rather than
 #:   waved, each with its reason in the Rust roster: `epoch` is minted
 #:   per run and is not a caller's choice; `parallel` and
 #:   `boolean_sweep` are runtime switches the kernel documents as
@@ -1765,8 +1765,8 @@ FAMILIES: dict[str, str] = {
 #:   determinism cross-check can compare both schedules in one run,
 #:   `boolean_sweep`'s two paths are bit-identical by the BVH
 #:   differential suite's own pin), so no ANSWER is unreachable
-#:   through them. The last three are unreachable for a different
-#:   argument each, and none of the three is "f64 cannot do it":
+#:   through them. The last two are unreachable for a different
+#:   argument each, and neither is "f64 cannot do it":
 #:
 #:   `param_box` (E6) IS reachable at `f64` and from Python — the MC
 #:   lane evaluates under a box and `monte_carlo` is its door — but
@@ -1774,11 +1774,7 @@ FAMILIES: dict[str, str] = {
 #:   admits. What `evaluate` cannot ask for is a box with WIDTH, which
 #:   needs a scalar carrying a bracket. `seed` (E4) is its twin with no
 #:   degenerate form at all: a tangent needs a scalar that carries one,
-#:   and `f64` does not. The profile lift (M10-P) is no option: the
-#:   evaluator reads it off the environment
-#:   (`EvalOptions::profile_lift`), guided exactly when a box varies an
-#:   axis, a seed is set, or every variable is a symbol, so it arrives
-#:   with whichever of those a door gains.
+#:   and `f64` does not.
 #:
 #:   Both gain spellings alongside an evaluation door that can
 #:   carry a box with width; no row schedules one, and
@@ -2631,7 +2627,6 @@ NOT_BOUND = {
     "Point2": SHAPE,
     "Point3": SHAPE,
     "ProfileDoc": SHAPE,
-    "ProfileLift": SHAPE,
     "REGENERATE_RECOURSE": SHAPE,
     # A refusal's rendering machinery: Python reads a refusal through
     # `str()`, and the stripped sentence is what a Rust carrier renders
@@ -3623,6 +3618,7 @@ MEMBERS_BOUND_AS = {
     "AssemblyError::Space": "AssemblyError.variant",
     "AssemblyError::Mint": "AssemblyError.variant",
     "AssemblyError::CarriedMintRefusal": "AssemblyError.variant",
+    "AssemblyError::CarriedAtRest": "AssemblyError.variant",
     "AssemblyError::AtRest": "AssemblyError.variant",
     "AssemblyError::Uncertified": "AssemblyError.variant",
     # The two mint arms answer with a LIST, so the word a caller
@@ -3637,6 +3633,11 @@ MEMBERS_BOUND_AS = {
     # The refusal's nodes as the document below holds them: what the
     # row's `refusal` says them from (`str(row.refusal)`).
     "CarriedRefusal::held": "CarriedRefusal.refusal",
+    # A part's own census findings, carried: the same route spelling,
+    # and the finding's nodes said from the part's (`str(row.finding)`).
+    "CarriedAtRestFinding::route": "CarriedAtRestFinding.of",
+    "CarriedAtRestFinding::held": "CarriedAtRestFinding.finding",
+    "CarriedInterference::route": "CarriedInterference.of",
     # A VALUE's arms, not a refusal's, and the word is `relation` because
     # what the walk answers is how a declaration stands to the document
     # it was gathered from.
@@ -4177,10 +4178,6 @@ MEMBERS_BOUND_AS = {
     "SegPat::args": "SegPat.of",
     # The alternatives, named for the door that takes them.
     "Selector::alts": "Selector.any_of",
-    # The frame crosses as its four readers rather than as an `Affine3`,
-    # which is `different-shape` in `NOT_BOUND`; this points at the
-    # first of them.
-    "SketchPlane::placement": "SketchPlane.origin",
     # As `InlineOutcome` below: the maintenance rides the document each
     # half is handed back on.
     "SplitOutcome::remainder_maintenance": "Doc.last_maintenance",

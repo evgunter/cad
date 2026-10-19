@@ -101,7 +101,7 @@ fn stored_outward(body: &Body<f64>, face: FaceKey) -> Vec3<f64> {
 /// plane along `n`.
 fn offsets_along_n(body: &Body<f64>, face: FaceKey, plane: &SketchPlane<f64>) -> Vec<f64> {
     let o = plane.origin();
-    let n = plane.normal();
+    let n = plane.normal().get();
     cycle_points(body, body.get_face(face).unwrap().outer)
         .iter()
         .map(|p| (*p - o).dot(n))
@@ -111,7 +111,7 @@ fn offsets_along_n(body: &Body<f64>, face: FaceKey, plane: &SketchPlane<f64>) ->
 /// A world point back in sketch coordinates.
 fn in_sketch(plane: &SketchPlane<f64>, p: Point3<f64>) -> Point2<f64> {
     let d = p - plane.origin();
-    Point2::new(d.dot(plane.u()), d.dot(plane.v()))
+    Point2::new(d.dot(plane.u().get()), d.dot(plane.v().get()))
 }
 
 fn near2(a: Point2<f64>, b: Point2<f64>) -> bool {
@@ -153,7 +153,7 @@ fn cap_chain(t: &Extruded<f64>, plane: &SketchPlane<f64>, lp: LoopKey) -> Vec<Po
 fn doors(plane: &SketchPlane<f64>, d: f64) -> Vec<(&'static str, Extrusion<f64>)> {
     vec![
         ("Distance", crate::common::to_offset(d)),
-        ("Vector", Extrusion::Vector(plane.normal() * d)),
+        ("Vector", Extrusion::Vector(plane.normal().get() * d)),
     ]
 }
 
@@ -170,7 +170,7 @@ fn cap_planes_are_the_sweep_ends_for_both_signs_both_doors_two_planes() {
                 let tag = format!("{pname}/{door}/d = {d}");
                 let t = extrude(&vp, ext, Tol::witness()).unwrap();
                 assert_eq!(validate_geometric(&t.body, Tol::witness()), Ok(()), "{tag}");
-                let w = plane.normal() * d;
+                let w = plane.normal().get() * d;
                 let w_hat = w.normalize();
 
                 // Positions: top at offset d, bottom at offset 0.

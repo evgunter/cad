@@ -4,6 +4,8 @@ kind: issue
 title: blend: UnsupportedCorner(DependentNormals) carries no margin, so its band-decided Zero arm cannot offer the valued tighten its in-band sibling does
 status: open
 opened: 2026-10-01
+priority: P3
+cost: E
 ---
 
 

@@ -6,7 +6,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsSurface;
-use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec3};
+use geom_core::Point3;
+use geom_core::{Bounds, Interval, Point2, Real};
+use profile::SketchPlane;
 use sweep::skin::{loft_geometry, loft_parameters, segment_curve, sweep_geometry};
 use sweep::test_support::bulge_arc;
 
@@ -36,7 +38,7 @@ fn contained(surface: &NurbsSurface<f64>, grid: usize) {
 
 #[test]
 fn review_interval_containment_dense_loft_and_sweep() {
-    let places = [0.0, 1.0, 2.0].map(|z| Affine3::translation(Vec3::new(0.0, 0.0, z)));
+    let places = [0.0, 1.0, 2.0].map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, z)));
     let sections = [chain(1.0), chain(1.6), chain(1.0)];
     let params = loft_parameters(&sections, &places, 2, Tol::witness()).expect("loft parameters");
     let loft = loft_geometry(&sections, &places, 2, &params, Tol::witness()).expect("loft");
@@ -47,18 +49,11 @@ fn review_interval_containment_dense_loft_and_sweep() {
     let path = segment_curve(
         0,
         bulge_arc(Point2::new(0.0, 0.0), Point2::new(3.0, 3.0), 0.4),
-        Affine3::identity(),
+        geom_core::Affine3::identity(),
     )
     .expect("path");
-    let swept = sweep_geometry(
-        &chain(1.0),
-        Affine3::identity(),
-        &path,
-        5,
-        3,
-        Tol::witness(),
-    )
-    .expect("sweeps");
+    let swept = sweep_geometry(&chain(1.0), SketchPlane::xy(), &path, 5, 3, Tol::witness())
+        .expect("sweeps");
     for wall in &swept.walls[0] {
         contained(wall, 64);
     }

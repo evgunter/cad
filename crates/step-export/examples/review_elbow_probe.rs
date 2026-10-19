@@ -50,7 +50,7 @@ fn duplicate_elbow(tol: Tol) -> topo::Body<f64> {
     .expect("the elbow path is a well-formed quarter arc");
     sweep_body::<f64>(
         &profile,
-        Affine3::identity(),
+        profile::SketchPlane::xy(),
         &path,
         STATIONS,
         V_DEGREE,

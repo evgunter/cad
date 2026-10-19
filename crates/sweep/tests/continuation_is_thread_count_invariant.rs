@@ -36,7 +36,10 @@ fn sym_arc_loft(s: f64) -> Body<Sym<f64>> {
             arc_section(s),
             arc_section(s),
         ]),
-        &sweep::test_support::lift_places::<Sym<f64>>(&stacked(&[0.0, 1.0, 2.0], s)),
+        &sweep::test_support::lift_places::<Sym<f64>>(
+            &stacked(&[0.0, 1.0, 2.0], s),
+            geom_core::Tol::witness(),
+        ),
         2,
         Tol::witness(),
     )

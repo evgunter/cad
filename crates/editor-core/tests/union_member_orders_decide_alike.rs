@@ -607,8 +607,9 @@ fn a_vertex_row_is_the_unions_once_in_every_member_order() {
         "PlaneLadder SameOpposite Face@m0 Face@m1",
         "VertexFusion OnCarrier Vertex@m0 Vertex@m1",
     ];
-    // Read twice: each of the block's six faces against its twin (DM5),
-    // and the kiss once, though two pairs state it.
+    // Read twice: each of the block's six faces and eight corners
+    // against its twin (DM5), and the kiss once, though two pairs state
+    // it.
     const TWICE: &[&str] = &[
         "PlaneLadder SameOpposite Face@m0 Face@m2",
         "PlaneLadder SameOpposite Face@m0 Face@m2",
@@ -619,6 +620,14 @@ fn a_vertex_row_is_the_unions_once_in_every_member_order() {
         "PlaneLadder SameOriented Face@m0 Face@m0",
         "PlaneLadder SameOriented Face@m0 Face@m0",
         "PlaneLadder SameOriented Face@m0 Face@m0",
+        "VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "VertexFusion OnCarrier Vertex@m0 Vertex@m0",
         "VertexFusion OnCarrier Vertex@m0 Vertex@m2",
     ];
     // Two blocks on a plate, touching along the line through the

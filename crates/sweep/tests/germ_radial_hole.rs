@@ -20,7 +20,7 @@
 
 use crate::common::oracles::volume_slack;
 use crate::revolve_common;
-use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol};
 use profile::test_support::bulge_loop;
 use revolve_common::{axis_y, validated};
 use sweep::test_support::finished;
@@ -47,10 +47,9 @@ fn rod(x: (f64, f64), (h, e): (f64, f64), rc: f64) -> AtRestBody<f64> {
         (Point2::new(h - rc, e), 1.0),
         (Point2::new(h + rc, e), 1.0),
     ]);
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_y(), Vec3::unit_z(), Vec3::unit_x()),
-        Vec3::new(x.0, 0.0, 0.0),
-    ));
+    let plane = profile::SketchPlane::from_frame(geom_core::RigidMotion::axes_yz(Point3::new(
+        x.0, 0.0, 0.0,
+    )));
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the rod profile validates");

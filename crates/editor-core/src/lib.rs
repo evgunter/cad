@@ -107,9 +107,9 @@ pub use appearance::{
     AppearanceResolution, Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use assembly::{
-    Assembly, AssemblyError, AtRestBy, AtRestFinding, AtRestRow, Attribution, CarriedDeclaration,
-    CarriedDeclarations, CarriedRefusal, MintRefusal, MintedDeclaration, RefusedRef, Relation,
-    Route, assemble, assemble_gathered,
+    Assembly, AssemblyError, AtRestBy, AtRestFinding, AtRestRow, Attribution, CarriedAtRestFinding,
+    CarriedDeclaration, CarriedDeclarations, CarriedInterference, CarriedRefusal, MintRefusal,
+    MintedDeclaration, RefusedRef, Relation, Route, assemble, assemble_gathered,
 };
 pub use checks::at_rest::{CopyRef, FaceSite, InterferenceFinding, Overlap, Unlocalized};
 pub use checks::{
@@ -139,7 +139,7 @@ pub use eval::{
     ContentBits, ContentKey, Copies, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
     Evaluation, FramePlacement, KeyedCopy, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
     NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PiecesFault, PoseValue,
-    ProfileLift, ProfilePieces, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
+    ProfileLane, ProfilePieces, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};

@@ -17,9 +17,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::plane_of;
 use geom::NurbsCurve3;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Mat3, Point3, Tol, Vec3};
+use profile::SketchPlane;
 use sweep::test_support::{loft_prism_sections, stacked_at};
 use sweep::{LoftError, Lofted, loft_body, sweep_body};
 
@@ -53,7 +55,7 @@ fn four_sections() -> Vec<sweep::Section> {
 /// base tangent, so the slab margin goes negative exactly when the
 /// SLAB turns past π; and the spine closes on itself at `curl = 2π`,
 /// past which the body passes through itself.
-fn arc_spine_places(curl: f64, stations: usize) -> Vec<Affine3<f64>> {
+fn arc_spine_places(curl: f64, stations: usize) -> Vec<SketchPlane<f64>> {
     (0..stations)
         .map(|i| {
             #[allow(clippy::cast_precision_loss)]
@@ -65,7 +67,7 @@ fn arc_spine_places(curl: f64, stations: usize) -> Vec<Affine3<f64>> {
                 Vec3::new(-s, 0.0, c),
                 Vec3::new(c, 0.0, s),
             );
-            Affine3::from_parts(linear, Vec3::new(s, 0.0, 1.0 - c))
+            plane_of(&Affine3::from_parts(linear, Vec3::new(s, 0.0, 1.0 - c)))
         })
         .collect()
 }
@@ -169,7 +171,7 @@ fn a_curl_past_a_full_turn_builds_a_spine_that_revisits_itself() {
     let mut closest = f64::INFINITY;
     for i in 0..places.len() {
         for j in i + 3..places.len() {
-            let d: Vec3<f64> = places[j].translation - places[i].translation;
+            let d: Vec3<f64> = places[j].origin() - places[i].origin();
             closest = closest.min(d.norm());
         }
     }
@@ -325,37 +327,37 @@ fn a_slab_verdict_ignores_the_sections_it_does_not_touch() {
 fn the_arc_spine_helper_places_a_right_handed_tangent_frame() {
     let places = arc_spine_places(2.2, 5);
     for (i, p) in places.iter().enumerate() {
-        let n = p.linear.c2;
+        let n = p.normal().get();
         assert!(
             (n.dot(n) - 1.0).abs() < 1e-14,
             "station {i}'s normal is a unit tangent"
         );
         assert!(
-            (p.linear.c0.cross(p.linear.c1).dot(n) - 1.0).abs() < 1e-14,
+            (p.u().get().cross(p.v().get()).dot(n) - 1.0).abs() < 1e-14,
             "station {i}'s frame is right-handed"
         );
     }
-    let step: Vec3<f64> = places[1].translation - places[0].translation;
+    let step: Vec3<f64> = places[1].origin() - places[0].origin();
     assert!(
-        step.dot(places[0].linear.c2) > 0.0,
+        step.dot(places[0].normal().get()) > 0.0,
         "the first slab advances along the first station's own normal"
     );
 }
 
 /// A placement at `origin` whose plane normal is `(0, −sin a, cos a)`:
 /// the identity frame turned by `a` about `x`, right-handed.
-fn turned_about_x(origin: Vec3<f64>, cos_a: f64) -> Affine3<f64> {
+fn turned_about_x(origin: Vec3<f64>, cos_a: f64) -> SketchPlane<f64> {
     let sin_a = (1.0 - cos_a * cos_a).sqrt();
     let linear = Mat3::from_cols(
         Vec3::new(1.0, 0.0, 0.0),
         Vec3::new(0.0, cos_a, sin_a),
         Vec3::new(0.0, -sin_a, cos_a),
     );
-    Affine3::from_parts(linear, origin)
+    plane_of(&Affine3::from_parts(linear, origin))
 }
 
 /// A placement at height `z` whose plane normal is `−z`.
-fn facing_down_at(z: f64) -> Affine3<f64> {
+fn facing_down_at(z: f64) -> SketchPlane<f64> {
     turned_about_x(Vec3::new(0.0, 0.0, z), -1.0)
 }
 
@@ -451,14 +453,14 @@ fn a_far_section_edge_on_refuses_and_one_in_band_escalates() {
 #[test]
 fn the_inside_out_y_prism_refuses_at_the_far_check() {
     let (s, c) = (-core::f64::consts::FRAC_PI_3).sin_cos();
-    let tilted = Affine3::from_parts(
+    let tilted = plane_of(&Affine3::from_parts(
         Mat3::from_cols(
             Vec3::new(c, 0.0, -s),
             Vec3::new(0.0, 1.0, 0.0),
             Vec3::new(s, 0.0, c),
         ),
         Vec3::new(3.0, 0.5, 0.3),
-    );
+    ));
     let sections = vec![
         quad([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
         quad([(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]),
@@ -485,7 +487,7 @@ fn an_embedded_hood_with_a_downturned_top_is_refused_by_the_far_decide() {
         Vec3::new(0.0, 1.0, 0.0),
         100f64.to_radians(),
     );
-    let top = Affine3::from_parts(top.linear, Vec3::new(0.0, 0.0, 6.0));
+    let top = plane_of(&Affine3::from_parts(top.linear, Vec3::new(0.0, 0.0, 6.0)));
     let sections = vec![
         quad([(-5.0, -5.0), (5.0, -5.0), (5.0, 5.0), (-5.0, 5.0)]),
         quad([(-2.0, -2.0), (2.0, -2.0), (2.0, 2.0), (-2.0, 2.0)]),
@@ -517,11 +519,11 @@ fn an_embedded_oblique_arc_sweep_is_refused_by_the_far_decide() {
         vec![1.0, 0.5, 1.0],
     )
     .unwrap();
-    let start = Affine3::rotation_about_axis(
+    let start = plane_of(&Affine3::rotation_about_axis(
         Point3::origin(),
         Vec3::new(0.0, 1.0, 0.0),
         70f64.to_radians(),
-    );
+    ));
     let section = quad([(-0.2, -0.2), (0.2, -0.2), (0.2, 0.2), (-0.2, 0.2)]);
     match sweep_body::<f64>(&section, start, &path, 3, 2, Tol::witness()) {
         Err(LoftError::FarSectionNotForward { slab: 0 }) => {}

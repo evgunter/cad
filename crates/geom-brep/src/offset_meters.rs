@@ -135,13 +135,11 @@ use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq};
-use geom_core::{Band, Indeterminate, Margin, SupSpeed};
+use geom_core::{Band, Indeterminate, Margin, Readable, SupSpeed};
 
 use crate::dihedral::decide_reported;
 use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
-use crate::recourse::{
-    NoSize, Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
-};
+use crate::recourse::{Reading, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use crate::shape_operator::FundamentalForms;
 
 /// The refinement ladder the door walks, coarsest first (D9: a fixed
@@ -199,16 +197,14 @@ impl Meter {
                 lever: "split the face clear of any pole, cusp or pinch",
                 size: "thinness",
                 passes: SizedPass::Positive,
-                stored: StoredDefinite::Lever,
-                no_size: Some(NoSize::same(
-                    "if it has none, this may indicate a kernel bug worth reporting",
-                )),
+                side: RefusedSide::Lever,
+                no_size: Some("if it has none, this may indicate a kernel bug worth reporting"),
             },
             Self::CurvatureHeadroom => SizedDecision {
                 lever: "use an offset distance of smaller magnitude, or offset to the other side",
                 size: "clearance",
                 passes: SizedPass::Positive,
-                stored: StoredDefinite::Lever,
+                side: RefusedSide::Lever,
                 no_size: None,
             },
         }
@@ -264,8 +260,8 @@ pub enum MeterError {
     /// smallest certified curvature radius on the folding side, so
     /// the offset self-intersects (or the bound is too weak to prove
     /// that it does not). The message names `reach`, the distance a
-    /// request must stay strictly inside, and on the zero arm the
-    /// margin; `kappa` rides in the payload.
+    /// request must stay strictly inside, and the margin; `kappa` rides
+    /// in the payload.
     CurvatureHeadroom {
         /// The certified critical distance on the folding side, in
         /// metres (`+∞` when the patch does not curve that way).
@@ -299,18 +295,22 @@ impl core::fmt::Display for MeterError {
                 verdict,
             } => write!(
                 f,
-                "the face's normal is not shown non-zero (margin {:e} m, from normal length \
-                 {floor:e} m² per unit parameter area over speed {speed_lever:e} m)",
-                verdict.margin()
+                "the face's normal is not shown non-zero (margin {} m, from its length {} m² per \
+                 unit parameter area over speed {} m)",
+                verdict.margin().readable(),
+                Readable(*floor),
+                Readable(*speed_lever)
             ),
             Self::CurvatureHeadroom {
                 reach,
-                verdict: Refused::Negative { .. },
+                verdict: verdict @ Refused::Negative { .. },
                 ..
             } => write!(
                 f,
-                "the offset distance's magnitude passes the face's radius of curvature on the \
-                 side it bends toward ({reach:e} m), so the offset folds over itself"
+                "the offset distance's magnitude passes the face's curvature radius on its \
+                 bending side, {} m (margin {} m), so the result folds over itself",
+                Readable(*reach),
+                verdict.margin().readable()
             ),
             Self::CurvatureHeadroom {
                 reach,
@@ -319,8 +319,9 @@ impl core::fmt::Display for MeterError {
             } => write!(
                 f,
                 "the offset distance's magnitude is not shown below the face's curvature radius \
-                 on its bending side, {reach:e} m (margin {:e} m), so the offset may fold",
-                verdict.margin()
+                 on its bending side, {} m (margin {} m), so the result may fold",
+                Readable(*reach),
+                verdict.margin().readable()
             ),
             Self::Escalated { source, .. } => write!(
                 f,
@@ -1049,22 +1050,33 @@ mod tests {
         let rows = [
             (
                 floor_zero(5e-10),
-                "the face's normal is not shown non-zero (margin 5e-10 m, from normal length 1e-9 \
-                 m² per unit parameter area over speed 2e0 m)",
+                "the face's normal is not shown non-zero (margin 5e-10 m, from its length 1e-9 m² \
+                 per unit parameter area over speed 2 m)",
+            ),
+            (
+                floor_zero(0.0),
+                "the face's normal is not shown non-zero (margin 0 m, from its length 0 m² per \
+                 unit parameter area over speed 2 m)",
             ),
             (
                 headroom(zero(5e-10)),
                 "the offset distance's magnitude is not shown below the face's curvature radius \
-                 on its bending side, 1e-3 m (margin 5e-10 m), so the offset may fold",
+                 on its bending side, 0.001 m (margin 5e-10 m), so the result may fold",
             ),
             (
                 headroom(negative(-1e-4)),
-                "the offset distance's magnitude passes the face's radius of curvature on the \
-                 side it bends toward (1e-3 m), so the offset folds over itself",
+                "the offset distance's magnitude passes the face's curvature radius on its bending \
+                 side, 0.001 m (margin -0.0001 m), so the result folds over itself",
             ),
         ];
         for (error, want) in rows {
-            assert_eq!(error.to_string(), want);
+            let text = error.to_string();
+            assert_eq!(text, want);
+            assert_eq!(
+                crate::recourse::repeated_words(&text),
+                Vec::<String>::new(),
+                "a word said twice: {text}"
+            );
         }
     }
 
