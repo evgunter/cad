@@ -5,9 +5,8 @@
 //! record for each cap circle touching the plate's face at one point
 //! (`crates/topo/README.md` C7). The wire hands every record to the
 //! next boolean on the body (`ContactRecords::carried`), and the one
-//! carry reads each through the census's record confirm, which reads a
-//! circle on a plane as a point touch: a later op that touches neither
-//! cell carries all three.
+//! carry lands a record whose cells the op kept on them by lineage,
+//! unread: a later op that touches neither cell carries all three.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{block, failure, run};

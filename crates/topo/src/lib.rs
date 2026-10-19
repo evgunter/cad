@@ -900,7 +900,7 @@ pub use boolean::{
 pub use joint::{Deck, JointElement};
 pub use lineage::{
     ConeCopies, Division, FaceDivisions, Fate, Lineage, LineageError, LineageKey, LineageRows,
-    Minted, Remainder, RowDefect, RowRefusal, SplitEdgeDivisions, Substitutions,
+    Minted, Remainder, RowDefect, RowRefusal, SourceGeometry, SplitEdgeDivisions, Substitutions,
 };
 pub use side_reader::{FAMILY as SIDE_READER_FAMILY, SetAside, SetAsideWhy};
 pub use surgery::Surgery;
@@ -955,6 +955,7 @@ pub use coherence::{
 };
 pub use coincidence::{
     Backing, Cited, Cites, Coincidence, DecisionSite, Discharge, Relation, RowCell,
+    UnspelledDecision,
 };
 pub use geom::Curve3;
 pub use geom::Surface;

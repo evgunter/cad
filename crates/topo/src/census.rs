@@ -1759,16 +1759,10 @@ impl<T: Real> Geo<T> {
     /// the key their vertex-vertex record ties
     /// (`boolean::ops::record_classes`). The op records each such
     /// decision (`DecisionSite::VertexFusion`) for the
-    /// `unproven-coincidence` lint where a record of its result cites it
-    /// (the record between vertices that stay distinct), or where the
-    /// op left the decided vertex as copies on one point key, a pinch it
-    /// made (`boolean::reduce::PendingRow`); copies an operand already
-    /// held on one key are its own structure and emit no row. Where the
-    /// decision glues the cones into one vertex, no copies remain, and
-    /// the row is emitted only where another touch at the point cites
-    /// it through its chain (a vertex on a face there). The census reads
-    /// keys, not lineage, so it cannot tell the cases apart and does not
-    /// ask for the record.
+    /// `unproven-coincidence` lint, whatever the result made of the
+    /// vertex (`boolean::reduce::PendingRow`). The census reads keys,
+    /// not lineage, so it cannot tell a pinch from a value decision and
+    /// does not ask for the record.
     fn same_point(&self, a: VertexKey, b: VertexKey) -> bool {
         a == b
             || matches!(

@@ -426,6 +426,12 @@ face, and whether it met the cut or the merge first, depend on member order,
 whereas the parent and its seam partners depend only on the members' consumed
 pairs and the finished body.
 
+A two-member union or intersect is the union with one step: its pairwise
+judgement is its one fold step, and its table is the union's. The pair
+boolean's own table is published only by the subtract, which tells its
+operands apart and so links nothing: a tool face lying over a face of `from`
+is cited nowhere, and the face is named for the `from` face it descends from.
+
 **Verdicts and ties.** The verdicts run through `k_stats`, so fragment
 identity changes only at a recorded flip. An in-band margin refuses
 (`NamingError::Escalated`), never a silent pick. An ambient tolerance that
