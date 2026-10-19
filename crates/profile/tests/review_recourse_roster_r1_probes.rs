@@ -53,6 +53,7 @@ const LAYERS: &[(&str, &[&str])] = &[
             "carrier_circles_internal",
             "carrier_line_circle",
             "chord_side",
+            "path_fillet_joint_turn",
             "segment_straightness",
             "vertex_separation",
         ],

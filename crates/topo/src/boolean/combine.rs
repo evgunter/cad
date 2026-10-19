@@ -900,7 +900,8 @@ fn graft_solids_impl<T: geom_core::Decide>(
             curve.carrier(),
             curve.params(),
         );
-        let recert = geom_brep::EdgeCurve::certify_via(
+        let recert = crate::policy_lane::certify_via(
+            crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::Graft),
             spec,
             point(start_v),
             point(end_v),
@@ -909,9 +910,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
             band,
             lane,
         )
-        .map_err(|error| {
-            BooleanError::GraftRecertify(crate::policy_lane::kernels_own(error, "a graft"))
-        })?;
+        .map_err(BooleanError::GraftRecertify)?;
         let Some(slot) = dst.curves.get_mut(dk) else {
             unreachable!(
                 "graft (recertify): `dk` was minted into `dst.curves` by this call's \

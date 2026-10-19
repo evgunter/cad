@@ -250,11 +250,12 @@ finer than the one it was minted at, since the winding decision passes
 a headroom its band reads as zero. Where that input is an edge the
 kernel holds, re-minted or re-certified at the run's one band (a rigid
 motion, a graft, a re-description in place, a split child, a re-based
-run), `topo` panics at the call site (`policy_lane::kernels_own`): a
-kernel bug. Only a refusal built by hand reaches `CertCheck::ParamSpan`'s
+run), the call names that origin (`topo`'s `policy_lane::Origin::Kernels`,
+which every certification in `topo` names one of) and panics: a kernel
+bug. Only a refusal built by hand reaches `CertCheck::ParamSpan`'s
 or `CertCheck::ParamWinding`'s own ending at a build; rendering it is
 input, so it ends there as the door's own refusal does, in the lever,
-and the kernel-bug panic is `kernels_own`'s alone. So the `Unminted`
+and the kernel-bug panic is `Origin::Kernels`'s alone. So the `Unminted`
 build cell keeps clause (iv)'s panic where the kernel constructs, the
 only place such a reading arises; the cell names what a hand-built
 value renders. The table departs from clause (iv) in one cell, typed until the door that would keep input

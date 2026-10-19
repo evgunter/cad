@@ -2325,18 +2325,42 @@ fn require_cone_generator<T: Decide>(
 /// `N = (ℓ − δ)(ℓ + δ)`, `ℓ = ‖q1 − q0‖`, `δ = |ρ1 − ρ0|`, so the sag is
 /// `λ(1 − λ)·N / (c + ρ(λ)) ≤ λ(1 − λ)·N / c ≤ N / (√ρ0 + √ρ1)²`, the
 /// last the greatest over `λ` of the one before, and so within a factor
-/// 2 of the greatest sag. Read as `(ℓ − δ)` times `(ℓ + δ) / (√ρ0 + √ρ1)²`,
-/// whose second factor is at most 2 (`ℓ + δ ≤ 2·max ρ`), and taken at
-/// that where its denominator vanishes: a piece of a generator that
-/// ends at the apex, whose ends both read on the axis.
+/// 2 of the greatest sag. Read as the least of that, `2·N / (ℓ + δ)`
+/// and `2·(ℓ − δ)` (equal in reals; `(ℓ + δ) / (√ρ0 + √ρ1)² ≤ 2`, as
+/// `ℓ + δ ≤ 2·max ρ`): the last has no denominator to vanish on a piece
+/// of a generator that ends at the apex, whose ends both read on the
+/// axis.
+///
+/// `N` is formed without the cancellation `ℓ − δ` carries:
+/// `N = ℓ² − δ² = 2·(ρ0·ρ1 − q0·q1)`, and where `q0·q1 ≥ 0` that is
+/// also `2·‖q0 × q1‖² / (ρ0·ρ1 + q0·q1)` (Lagrange's identity), the
+/// lesser of the two read. A generator's
+/// ends are radially parallel, so its `N` is rounding squared; read as
+/// the difference of two norms, the interval scalar loses their
+/// dependence and encloses a sag of the norms' own width (`≈ 1e-12` on
+/// a wall 410 out, past `ε = 1e-12`).
 fn radial_sag<T: Real>(q0: Vec3<T>, q1: Vec3<T>) -> T {
     let (r0, r1) = (q0.norm(), q1.norm());
     let (l, d) = ((q1 - q0).norm(), (r1 - r0).abs());
     let two = T::one() + T::one();
-    let roots = (r0.sqrt() + r1.sqrt())
-        .powi(2)
-        .max(T::from_f64(f64::MIN_POSITIVE));
-    (l - d) * two.min((l + d) / roots)
+    let (rr, dot) = (r0 * r1, q0.dot(q1));
+    let tiny = T::from_f64(f64::MIN_POSITIVE);
+    // Both forms enclose `N`, so the lesser does: the second is tight
+    // where the first cancels, and the first holds the second where an
+    // end within rounding of the axis leaves its denominator, floored,
+    // near nothing.
+    let direct = two * (rr - dot);
+    let n = dot.select_le_zero(
+        direct,
+        direct.min(two * q0.cross(q1).norm_squared() / (rr + dot).max(tiny)),
+    );
+    let roots = (r0.sqrt() + r1.sqrt()).powi(2).max(tiny);
+    // Three bounds on the one sag, the least taken: `2·(ℓ − δ)`, which
+    // has no denominator to vanish where both ends are on the axis but
+    // carries the cancellation, and the two quotients of `N`.
+    (n / roots)
+        .min(two * n / (l + d).max(tiny))
+        .min(two * (l - d))
 }
 
 /// **Every conic span the cone reads, decided.** The cone's flux lane
@@ -2560,7 +2584,10 @@ struct ConeWinding<T: Real> {
     /// The loop on the cone's chart, for the closure decision
     /// ([`closure::closed_loop_turns`]): each edge's turn about the axis
     /// and the angle by which it misses its end, metered at its nearest
-    /// radius; each junction's turn, metered at the after's radius. Its
+    /// radius — none for a generator's short turn or an ellipse's
+    /// thirds, which agree with their ends by construction, and a rim's
+    /// read about its own centre ([`closure::EdgeTurn::carried`]); each
+    /// junction's turn, metered at the after's radius. Its
     /// junctions' gaps are decided in space ([`cone_loops`]), so they
     /// carry none. Empty for a loop through the apex, which has no
     /// winding.
@@ -2664,13 +2691,15 @@ fn cone_loop_winding<T: Decide>(
             }),
         };
         let mut lever = rho;
+        let mut own_turn = T::zero();
         let step = match e.carrier {
             // The stored turn about the rim's own centre, carried to the
             // axis at each end.
             Curve3::Circle {
                 axis: n, center, ..
             } => {
-                sense(n, rho)? * (e.t1 - e.t0) + about_axis(axis, center, apex, e.p1())
+                own_turn = sense(n, rho)? * (e.t1 - e.t0);
+                own_turn + about_axis(axis, center, apex, e.p1())
                     - about_axis(axis, center, apex, e.p0())
             }
             Curve3::Ellipse { axis: n, .. } => {
@@ -2705,8 +2734,17 @@ fn cone_loop_winding<T: Decide>(
         } else {
             (-step, (ends.1, ends.0))
         };
-        let ((from, _), (to, _)) = ends;
-        pieces.push([EdgeTurn::new(step, turn_arms(axis, from, to), lever)]);
+        // A generator's short turn and an ellipse's thirds agree with
+        // their ends by construction; a rim's carried turn misses them by
+        // what its own turn misses them about its centre.
+        pieces.push([match e.carrier {
+            Curve3::Circle { center, .. } => {
+                let (ca, cb) = e.traversal_ends();
+                let own = if e.forward { own_turn } else { -own_turn };
+                EdgeTurn::carried(step, own, turn_arms(axis, ca - center, cb - center), lever)
+            }
+            _ => EdgeTurn::exact(step, lever),
+        }]);
         steps.push((step, ends));
     }
     // A loop through the apex has no winding, and no chart to read.

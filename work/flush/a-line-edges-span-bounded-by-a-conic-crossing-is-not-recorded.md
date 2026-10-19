@@ -41,3 +41,19 @@ then the span is minted as the line-line case is.
 ## Note (2026-10-15, fuse/curve-pair-reader-c3)
 
 The census side moved. Tier 3′'s pass 5′ (`census::sweep_curved_edge_edge`) owes the crossing of the line and the arc its edge-edge record, and pass 4 now backs a bound at a curved crossing (`CutAt::CurvedCrossing`, which names the arc) by that record. So a seat whose op records the crossing no longer refuses on the bound, and "the missing record changes no verdict today" is to be measured again.
+
+## Measured on a curved partner, and 3′ does not always refuse (CONTACTHOLD, 2026-10-19)
+
+The PR 5389 review (`crates/sweep/tests/review_5389_probes.rs` on
+branch `contacthold/two-tubes-zero-band-review`, `probe_rod_on_puck` and
+`probe_unrecorded_contact_detail`): a rod `r = 0.25` lying along `x`
+on a unit puck's top face, `0.5·ε` above it, its seam ruling on the
+contact line and the rod ending at `x = ρ`, on the puck's rim. The seam
+lies in the puck's top face between the rim crossing and the rod's
+end. Both operand orders build ∪ and tier 3′ reports
+`UnrecordedContact { EdgeFaceOverlap }` on the seam and the top face:
+the op mints no span record for it. With the puck spun 1 rad about its
+axis the record is still missing and 3′ reports nothing, so the "the
+census refuses every such configuration" premise above does not hold
+for this pose; the missing record then ships silently. Not measured
+further.
