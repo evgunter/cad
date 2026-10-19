@@ -750,9 +750,13 @@ tiers".
   granularity or witness. Result-side touching arises only from operand
   coincidences carried through the op's lineage or decided by the op
   where two cells it minted meet, and a touch the census finds that no
-  record backs is never silently blessed: between copies at rest it is
-  an `unproven-coincidence` finding, inside one op's result that op's
-  defect, refused typed. Every op, the boolean and every surgery verb
+  record backs is never silently blessed. Between two arrivals of a
+  space at rest ([assertions]) the census is the deciding operation:
+  it records each such touch as an `unproven-coincidence` finding and
+  leaves on the space a contact record citing it, which every
+  placement of that space carries, so the touch is never decided
+  again. Inside one op's result it is that op's defect, refused
+  typed. Every op, the boolean and every surgery verb
   alike, carries records through one lineage stating what it made of
   each cell (kept, substituted by a cell holding its interior, divided,
   or removed), and records are written by the op that changes their
@@ -1205,7 +1209,9 @@ and a bundle of constraints, mates and values, and placing the
 source's content into a space under the one rigid motion its
 constraints state. It places a copy of each of the source's carried
 bodies into that space, and carries every pose of the source as the
-copy carries it. A space is defined by what is built and placed in it,
+copy carries it and the source's at-rest decisions about those bodies,
+its contact records and its census's findings, which stay the
+source's. A space is defined by what is built and placed in it,
 and what reads it downstream reads the space's bodies, never a
 placement: a body of a space is the same to its readers whether it
 was built there, placed there, or placed through other spaces. A
@@ -1399,31 +1405,45 @@ defect (`ResultInvalid`).
 relation, bound }` (`≤`, `≥`, `=`, the bound a variable) states a
 relation the author claims and the kernel checks.
 
-**The at-rest census.** At rest the census examines the copies of each
-space pairwise, and nothing it finds refuses. Contact between copies
-is an `unproven-coincidence` finding unless it is structural (a
-mate-placed face is); an overlap of their material is an interference
-finding; and a pair the census has no lane for is a finding too,
-saying it could not look, so no outcome of the census is silence. A
-contact or interference finding observes the sign of the gap
-(CONTACT-DESIGN C5) between two copies: a contact is `g = 0` at two
-cells, an interference `g < 0` over one connected overlap of their
-material.
+**The at-rest census.** At rest each space's census examines that
+space's carried bodies pairwise, and nothing it finds refuses. An
+**arrival** is what one definer of the space brought in under one
+rigid motion: one placement's copies at one value of its indices, or
+one construction's or operation's output. Between two arrivals the
+census decides each pair. Contact is an `unproven-coincidence` finding
+unless it is structural (a mate-placed face is); an overlap of their
+material is an interference finding; and a pair the census has no
+lane for is a finding too, saying it could not look, so no outcome of
+the census is silence. Inside one arrival it decides nothing and reads
+nothing: the arrival's verdicts are its source's or its door's, carried
+with it. A
+finding belongs to the space whose census decided it and is reported
+once there, however many times that space is placed, and a space
+nothing places into the world is checked all the same. A contact or
+interference finding observes the sign of the gap (CONTACT-DESIGN C5)
+between two bodies: a contact is `g = 0` at two cells, an interference
+`g < 0` over one connected overlap of their material.
 
 **What quiets a finding.** `[assertions.quiet]` Holding assertions
 quiet a finding when they say the same: each reads a `Gap`'s output
-directly, over an opposed pair of faces of the two copies, and admits
-only values of the finding's sign (`= 0` for a contact; `≤ b` or
-`= b` with `b` negative for an interference). A contact is quiet when
-such an assertion's two faces are the two cells the census found
-coincident; an interference, when the assertion's two faces bound the
-overlap and every face bounding it lies between the carriers of an
-asserted pair. An assertion speaks for nothing else, so a new contact
+directly and admits only values of the finding's sign (`= 0` for a
+contact; `≤ b` or `= b` with `b` negative for an interference). A
+contact is quiet when such an assertion's `Gap` is taken between the
+finding's two cells as its record carries them, at whatever dimension
+they are (two faces, a vertex or an edge on a face, an edge on an
+edge, two vertices) and wherever they lie, in two arrivals or in two
+solids one arrival brought in (an imported file's instances). An
+interference is quiet when the assertion's `Gap` is over an opposed
+pair of faces of the two bodies, those faces bound the overlap, and
+every face bounding it lies between the carriers of an asserted pair.
+A `Gap` reads bodies of one space ([placement.spaces]), so an
+assertion quiets only findings of the space it is in. An assertion
+speaks for nothing else, so a new contact
 or overlap anywhere else is loud until something says otherwise, and
 an overlap the kernel cannot bound is loud and nothing quiets it.
 
-**Families.** The members of a family are examined like any other
-copies, and an assertion about each of them is written once, as an
+**Families.** Each member of a family is its own arrival, examined
+like any other, and an assertion about each of them is written once, as an
 assertion whose reads reach the family's index ([repetition]): one
 assertion per member, each reading the one bound variable, as many as
 the index's `Count`. That quiets each member against another copy. An
