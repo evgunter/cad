@@ -92,7 +92,6 @@
 //! chart normal", the opposite statement on a reversed face.
 
 use geom::Curve3;
-pub(crate) use geom_brep::props::chord_bulge;
 use geom_brep::props::{arc_segment_term, spiric};
 use geom_core::interval::Interval;
 use geom_core::{Decided, Indeterminate, Margin, Point3, Real, Sign, Vec3};
@@ -144,7 +143,7 @@ pub(crate) enum Unwound {
 pub(crate) type Winding = Result<Result<Decided, Indeterminate>, Unwound>;
 
 /// **The conic term of one traversed edge** ([`ConicFrame`],
-/// [`chord_bulge`]): `(axis · sa·sb · (Δ − sin Δ), |Δ|·max(|sa|, |sb|))`, the vector area between the
+/// [`chord_bulge`](geom_brep::props::chord_bulge)): `(axis · sa·sb · (Δ − sin Δ), |Δ|·max(|sa|, |sb|))`, the vector area between the
 /// arc and its chord (the cross-sum's `2A` convention, odd in the
 /// signed span `Δ`) and the edge's boundary length (exact for a
 /// circle, an upper bound for an ellipse: `|Δ|` times the larger

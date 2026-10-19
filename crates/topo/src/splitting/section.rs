@@ -27,8 +27,9 @@ use super::section_loops::{self, NestFault, SenseFault};
 use super::{KnifeEdge, PlaneSide, SplitError, SplitPlane, SplitReduceError, split_scratch};
 use crate::body::Body;
 use crate::entity::{HalfEdgeKey, LoopBoundary, LoopKey};
-use crate::loop_winding::{ConicFrame, chord_bulge};
+use crate::loop_winding::ConicFrame;
 use crate::validate::AtRestBody;
+use geom_brep::props::chord_bulge;
 use geom_core::Tol;
 
 /// The lever every section refusal names: a section takes no
