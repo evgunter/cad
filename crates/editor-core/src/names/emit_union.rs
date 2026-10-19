@@ -1623,10 +1623,14 @@ fn cite_member_edges<T: geom_core::Decide>(
 /// it, by the carrier's parameter, the seam oriented as the loop of its
 /// first side runs along it, read off the finished body and the faces
 /// `t` names — a line's ([`rank_crossings`]), or a curve's from where
-/// its pieces start along it (`Track::open_offsets`,
+/// the seam starts along it (`Track::open_offsets`,
 /// [`rank_along_track`]) — and otherwise N2's tie: a seam of several
 /// carriers has no one carrier to order them along, and one that runs
 /// round a closed carrier no start but where the kernel cut it.
+///
+/// `seams` are the seams of the group's run in the run's name order,
+/// so the seam a group is ranked along, straight or curved, is the
+/// same in every member order: the first that reads.
 #[allow(clippy::too_many_arguments)]
 fn rank_along_seam<T: geom_core::Decide>(
     t: &NameTable,
@@ -1639,12 +1643,14 @@ fn rank_along_seam<T: geom_core::Decide>(
     bnd: geom_core::Band,
 ) -> Result<(), NamingError> {
     let mut keys = Vec::with_capacity(rows.len());
+    let mut group = Vec::with_capacity(rows.len());
     let mut points = Vec::with_capacity(rows.len());
     let mut unique = true;
     for (_, entry, _) in rows {
         match entry {
             Entry::Unique(e) => {
                 if let EntityKey::Vertex(v) = e.key {
+                    group.push(v);
                     points.push(vertex_point(body, v)?);
                 }
                 keys.push(e);
@@ -1684,21 +1690,15 @@ fn rank_along_seam<T: geom_core::Decide>(
         } else if g.edges.iter().any(|&e| is_straight(body, e)) {
             None
         } else if let EdgeCarrier::Curved(track) = EdgeCarrier::of_edge(body, first)? {
-            let mut arcs = Vec::with_capacity(g.edges.len());
+            let mut pieces = Vec::with_capacity(g.edges.len());
             for &e in &g.edges {
-                if let EdgeCarrier::Unread = EdgeCarrier::of_edge(body, e)? {
-                    arcs.clear();
-                    break;
-                }
-                arcs.push(carrier_arc(body, e)?);
+                let (v0, v1) = edge_ends(body, e)?;
+                pieces.push((carrier_arc(body, e)?, [v0, v1]));
             }
-            if arcs.len() == g.edges.len() {
-                track
-                    .open_offsets(&arcs, &points, ON_SEAM_LINE, bnd)?
-                    .map(Along::Curve)
-            } else {
-                None
-            }
+            track
+                .open_offsets(&pieces, &group, &points, ON_SEAM_LINE, bnd)?
+                .ok()
+                .map(Along::Curve)
         } else {
             None
         };
