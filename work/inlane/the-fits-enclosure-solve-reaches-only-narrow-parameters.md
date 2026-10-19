@@ -67,7 +67,7 @@ Before S5c the same loft refused `CarrierKnotNotAPoint`, naming the knot.
 
 Either must still refuse typed rather than answer an unsound enclosure, and it must keep the `f64` and point-scalar paths bit for bit (the preconditioner applies only where a row or a datum is wider than a point).
 
-**A refusal that names what it is:** an undecided pivot at an enclosure scalar, with its margin, distinct from `LsqDegenerate`.
+**A refusal that names what it is.** It is owed separately, at P2: `an-undecided-collocation-pivot-refuses-as-degenerate`.
 
 Rows owed:
 - the table above, re-measured: degree 3 at `w = 0.05` solves, and widths drop to near the family's spread;
