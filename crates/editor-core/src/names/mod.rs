@@ -22,6 +22,7 @@
 pub(crate) mod attribute;
 mod borders;
 mod canonical;
+mod chase;
 mod defer;
 mod discriminate;
 mod emit;
