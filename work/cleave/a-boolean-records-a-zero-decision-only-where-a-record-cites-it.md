@@ -2,7 +2,8 @@
 id: a-boolean-records-a-zero-decision-only-where-a-record-cites-it
 kind: issue
 title: A boolean emits a Zero decision as a Coincidence only where a contact record cites it or it pinches, so a decision that shapes a regular cell (a third face through a seam) is invisible to the coincidence door
-status: open
+status: dispatched
+branch: wire/boolean-rows-every-decision
 opened: 2026-10-19
 priority: P1
 cost: M

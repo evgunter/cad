@@ -6402,3 +6402,16 @@ Signed (WIRE orchestrator).
   - Faces are linked per half, not across halves, because the merges
     are recorded per half.
   (WIRE orchestrator)
+
+- 2026-10-19 — Ev approved PR 5329 ("sure, i don't have much intuition
+  about this but it seems fine"). DM4 merged (72a204ff73). The fork-log
+  row was renumbered 167 → 169 and filled with byte 128 (even):
+  A = Opus, B = Fable.
+  - PR 5328 closed unmerged as superseded, with a comment. Its two filed
+    rows were copied here, and its cover test, site check and
+    `settle_cones` reading carry into the build.
+  - Build unit 1 dispatched: `wire/boolean-rows-every-decision` (CLEAVE's
+    `cite_rows` row, crossed by WIRE as the row invites), FULL review.
+  - Unit 2, `wire`'s k-ary rows with an origin mark plus re-pinned order
+    tests, follows it.
+  (WIRE orchestrator)
