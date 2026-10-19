@@ -1827,9 +1827,8 @@ mod tests {
         fn runs(body: &Body<f64>, band: Band, tol: Tol) -> Vec<FaceRun<f64>> {
             let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
             let hook = reporting_hook(Some(QuadLane::<f64>::certified()));
-            let about = crate::props::walk_reference(body, faces.iter().copied()).unwrap();
             decide_faces_serially(&faces, |&f| {
-                face_flux(body, f, band, &hook, tol, RoundWindow::SCHEDULE, about)
+                face_flux(body, f, band, &hook, tol, RoundWindow::SCHEDULE)
             })
             .unwrap()
         }
@@ -1871,10 +1870,10 @@ mod tests {
                 shell_polygons(&body, lane, &runs).unwrap().is_none(),
                 "a disc in the top keeps every face off the polygon route"
             );
-            let centre = corner_of(&body, lane, &runs).unwrap();
             let (mut flux, mut area) = (Interval::zero(), Interval::zero());
             let mut polygon = Interval::zero();
             for run in &runs {
+                let centre = corner_of(&body, lane, run.face).unwrap();
                 let (face, surface) = resolve_face(&body, run.face);
                 let loops = face_loops(&body, face).unwrap();
                 let (c, _) =

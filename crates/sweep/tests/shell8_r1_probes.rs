@@ -84,9 +84,28 @@ fn r1_a_distant_box_does_not_lever_the_vessels_margins() {
     )
     .expect("a box a million metres away does not reach the vessel")
     .body;
+    // The box's own wall where it stands: a million metres out its
+    // stored coordinates are a ulp of 1.2e-10 apart, and the shell they
+    // bound holds 1.05e-9 m³ more than the closed form's (measured in
+    // exact rationals over its vertex points), so the closed form is
+    // not the stored box's volume there.
+    let far_box = topo::shell(
+        &finished(
+            "the operand",
+            topo::transform_rigid(
+                &block(2.0, 3.0, 4.0, Tol::witness()),
+                &geom_core::RigidMotion::translation(Vec3::new(1.0e6, 0.0, 0.0)).unwrap(),
+                tol(),
+            )
+            .unwrap(),
+            tol(),
+        ),
+        t,
+        tol(),
+    )
+    .expect("the box alone, a million metres away")
+    .body;
     let wall = core::f64::consts::PI * (r * r * h - (r - t) * (r - t) * (h - 2.0 * t));
-    let boxwall =
-        box_volume(2.0, 3.0, 4.0) - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
     println!(
         "[r1] vessel alone {:.12}, in a far pair {:.12}, closed form {:.12}",
         volume(&alone),
@@ -98,7 +117,7 @@ fn r1_a_distant_box_does_not_lever_the_vessels_margins() {
         "the vessel's own wall"
     );
     assert!(
-        (volume(&far) - (wall + boxwall)).abs() < 1e-9,
+        (volume(&far) - (volume(&alone) + volume(&far_box))).abs() < 1e-12,
         "the pair is the sum of the two walls"
     );
 }
