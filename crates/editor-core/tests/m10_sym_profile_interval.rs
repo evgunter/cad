@@ -619,12 +619,40 @@ const PLATE_MAX_TERMS: usize = 28;
 /// 5753 → 5790 forms, which it now builds where the check's walk built
 /// them first, and both digests; the frozen counts, the `Early/*` and
 /// `Door/*` lines and the largest form hold.
+///
+/// Placing each row over its edge's span in the chart's principal
+/// window (C4) reads two half-period marks per placed azimuth, each
+/// decided numerically, so each is checked against the tier: 36
+/// placements, `Plain/Assertion` and `Early/Assertion` 654 → 726 calls
+/// and `Door/Decision` 396 → 468, `Plain/Assertion` frozen 405 → 417.
+/// A cylinder's meridian azimuth is read only on a meridian, so the
+/// rim circles centred on the axis no longer take the frame read of
+/// their zero radial offset: `Plain/Decision` 1048 → 1032 calls. Forms
+/// and digests move on every line; the largest form holds.
+/// The placement's lever, the direction's length, squares by
+/// `powi(2)`: the `Plain/Assertion` digest, with every count held.
+/// With the wedge levered at its faces' extent as well, the calls and
+/// frozen counts are the placement's and the forms take both: Plain/Assertion
+/// 6081, Early/Decision 8925, Early/Assertion 7244, Door/Decision 8231;
+/// the largest form holds. The placement's azimuth levered at the
+/// carrier's farthest reach from the axis at the span's ends and midpoint
+/// (PR 5225's one lever rule) builds each mark's form from three points:
+/// every call holds; forms Plain/Decision 15888, Plain/Assertion 6909
+/// (frozen 417 → 405), Early/Decision 8889, Early/Assertion 8108,
+/// Door/Decision 9469. Main's final non-finite check and the placement
+/// add: `Plain/Decision` 1032 → 987 calls (main's −45) and forms
+/// 15888 → 15839, `Plain/Assertion` forms 6909 → 6946, both digests;
+/// every other line is the placement's. The frame decided across the
+/// window's cut builds the cut-side margin's form in place of `x`'s:
+/// forms Plain/Assertion 6946 → 7020, Early/Assertion 8108 → 8182,
+/// Door/Decision 9469 → 9545, and their digests; every call and frozen
+/// count holds.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1003 forms 16013 frozen 324 digest 5a00e900e5b75a93d7c4a204eab0bb17\n\
-     Plain/Assertion calls 654 forms 5790 frozen 405 digest eae9779dd552c4c2607469dbee61dbef\n\
-     Early/Decision calls 352 forms 8955 frozen 0 digest b7df112980f31400f624889d1eabd515\n\
-     Early/Assertion calls 654 forms 6972 frozen 0 digest f0e4564a343b8e6322ec666c5a03e5ab\n\
-     Door/Decision calls 396 forms 7987 frozen 0 digest f849cdbc1af49b153010b84116530ce4";
+     Plain/Decision calls 987 forms 15839 frozen 324 digest 04d4c1ba4b5642ca49c5cecc33637690\n\
+     Plain/Assertion calls 726 forms 7020 frozen 405 digest 7ac76e11189bac7ff161e0dbc9d23c35\n\
+     Early/Decision calls 352 forms 8889 frozen 0 digest 6f1681a49fcf6ea64087b7abc15695bf\n\
+     Early/Assertion calls 726 forms 8182 frozen 0 digest a5fe34682216bf66fc159334803f12a4\n\
+     Door/Decision calls 468 forms 9545 frozen 0 digest 875c1ba5bed1ebcfaef22c011ee2d4b8";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

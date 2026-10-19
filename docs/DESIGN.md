@@ -1208,7 +1208,21 @@ bodies into that space, and carries every pose of the source as the
 copy carries it. A space is defined by what is built and placed in it,
 and what reads it downstream reads the space's bodies, never a
 placement: a body of a space is the same to its readers whether it
-was built there, placed there, or placed through other spaces. Two placements of a
+was built there, placed there, or placed through other spaces. A
+space's readers name its bodies by its variables: a construction's or
+an operation's output, or a **pick**, a `Body` variable defined as one copy a
+placement places there (a `Bodies` family, read by index, where the
+placement's reads reach an index, [repetition]). A pick's definition
+names its placement and the body's variable in the source, through
+the placements inside the source down to the first variable it
+reaches, which is its one spelling. Readers hold the pick, and nothing
+else reads a placement's copies; a copy nobody picks is still a body of
+the space, carried and checked like any other. A copy's faces, edges and vertices
+keep their names in the source, and an operation reading two picks of
+one source keys each operand's names by the pick it read through. Like
+a selection, a pick authored at two sites is two variables (the GUI
+offers the existing one). A pick whose body the source no longer has
+is unresolved, typed, never re-pointed. Two placements of a
 part are two copies. Nothing moves a body: a copy is defined by its
 one placement and never moved after, and an operation that would move
 one (today's `Transform`) is a placement. A pattern is a placement
@@ -1643,9 +1657,12 @@ swallowed.
 
 *From:* [pure-model], [intrinsic].
 
-- Same build + same inputs → bit-identical outputs. No hash-map
-  iteration order may influence geometry; parallelism only in fixed
-  reduction shapes (addendum below).
+- Same build + same inputs → bit-identical outputs. A body's storage
+  (the order of its arenas) is part of the input: outputs are not
+  promised identical across two storages of one solid, and claims
+  across storages are made on the structure, or as computed bounds.
+  No hash-map iteration order may influence geometry; parallelism only
+  in fixed reduction shapes (addendum below).
 - Transcendentals via the pure-Rust `libm` crate: system libm differs
   across platforms in the last ulp — enough to flip a marginal
   predicate.
@@ -1667,9 +1684,11 @@ cites these two idioms instead of re-deriving):
    bit-deterministic at any thread count.
 2. **Fixed-shape reduction**: FP sums/mins are **never**
    `par_iter().reduce()` (rayon's reduction tree is schedule-dependent).
-   Idiom 1, then a *sequential* fold in arena order — or, if that fold
-   profiles hot, a fixed-arity block tree with a named chunk size and a
-   documented combine order.
+   Idiom 1, then a *sequential* fold in the walk's own fixed order (the
+   order its slots were mapped in), and non-arithmetic combination
+   (naming a first refusal, splicing recordings) positional in that
+   same order — or, if that fold profiles hot, a fixed-arity block tree
+   with a named chunk size and a documented combine order.
 
 Targets in value order: the subdivision driver, certification
 sampling, mass properties, independent DAG nodes. Euler-op sequences

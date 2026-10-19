@@ -16,7 +16,7 @@ says so.
 
 | pri | item | cost | note |
 |---|---|---|---|
-| P0 | `a-merged-face-with-several-same-side-constituents-has-no-chord-rule` | H | a plain union + subtract refuses `MergedChordConstituents`; the rule is stated, the build is the work |
+| P0 | `a-merged-face-with-several-same-side-constituents-has-no-chord-rule` | H | closed by PR 5263; its chord descent retired by PR 5313 (N3, Ev on PR 5279) |
 | P1 | `a-split-through-a-pinch-names-both-tip-copies-alike` | M +design | one weighing with the next row: how a pinch vertex is named |
 | P1 | `a-pinch-vertexs-name-depends-on-the-unions-member-order` | M +design | measure first (one name table across the six orders) |
 | P1 | `a-split-circles-phase-edit-re-aims-its-piece-names-silently` | M +design | an N1 reading; ratified text, so a fork goes to Ev |

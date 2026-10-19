@@ -39,6 +39,8 @@ crates/geom-brep/src/half_angle.rs	2	constant	share	a fixed split fraction (SPLI
 crates/geom-brep/src/half_angle.rs	3	constant	f64::from(k)	a subdivision index
 crates/geom-brep/src/implicit.rs	1	constant	k as f64	a sample index
 crates/geom-brep/src/newell.rs	1	constant	points.len() as f64	a point count
+crates/geom-brep/src/pcurve_cache.rs	1	constant	a	own_interval: a net's knot-domain lower end, a knot of its bare KnotVector, which holds no value in a scalar
+crates/geom-brep/src/pcurve_cache.rs	1	constant	b	own_interval: a net's knot-domain upper end, a knot of its bare KnotVector, which holds no value in a scalar
 crates/geom-brep/src/pcurve_cache.rs	1	constant	f64::from(INCIDENCE_SAMPLES)	a sample count
 crates/geom-brep/src/pcurve_cache.rs	1	constant	f64::from(-i)	a half-period mark's branch below it
 crates/geom-brep/src/pcurve_cache.rs	2	constant	f64::from(i)	an incidence sample's index, and a half-period mark's index

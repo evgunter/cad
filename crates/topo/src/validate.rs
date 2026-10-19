@@ -3343,6 +3343,11 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                     "a boundary curve's parameter range cannot carry its image on the face",
                     Some(REPARAMETERIZE),
                 ),
+                C::PlacementTurnsExceeded => (
+                    "a boundary curve's parameter range sits too many turns out for its image \
+                     to be stored",
+                    Some(REPARAMETERIZE),
+                ),
                 C::CarrierEnclosure(_) => (CARRIER_ENCLOSURE, Some(NOT_YET_ENDING)),
                 C::CarrierGrazesChart { grazer, .. } => (WRONG, Some(grazer.recourse())),
                 C::ChartRow { .. }

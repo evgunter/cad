@@ -89,7 +89,7 @@ fn half_cap<T: Real + SpanLocate + AtRestPolicy>(phi: f64) -> Result<Body<T>, St
 /// joint that carries it lifts only through the twin: the derivation's
 /// own azimuth sits on a half-period mark of a whole-period decision.
 fn twins<T: Real + SpanLocate + AtRestPolicy + Bounds>(body: &Body<T>) -> usize {
-    use geom_brep::{Pcurve, chart_pcurve};
+    use geom_brep::{Pcurve, chart_pcurve_over};
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let near = |x: T, to: f64| (x.lo() - to).abs() < 1e-12 && (x.hi() - to).abs() < 1e-12;
     let mut twins = 0;
@@ -103,7 +103,8 @@ fn twins<T: Real + SpanLocate + AtRestPolicy + Bounds>(body: &Body<T>) -> usize 
         let sphere = body
             .get_surface(body.get_face(face).unwrap().surface)
             .unwrap();
-        let derived = chart_pcurve(curve.carrier(), sphere, band).unwrap();
+        let (t0, t1) = row.params();
+        let derived = chart_pcurve_over(curve.carrier(), t0, t1, sphere, band).unwrap();
         let (Pcurve::Harmonic { p0: d, .. }, Pcurve::Harmonic { p0: s, .. }) =
             (&derived, row.pcurve())
         else {

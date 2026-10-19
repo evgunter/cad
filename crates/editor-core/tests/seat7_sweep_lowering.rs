@@ -387,13 +387,20 @@ fn both_sweeps_evaluate_in_one_document() {
 /// id drawn after it moved. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED, `boss_union` only, when the frame was decided across the
+/// window's cut (PCERT B1, PR 5225): the rim directions on the old
+/// frame's cut (`x ≡ 0`) read the other expression, and the digest
+/// moved with what is stored from those reads. No point moved
+/// (`m10_p_fence` held). Re-taken merged over INTENT stage 3 C's
+/// re-bless above, so `boss_union`'s value is neither tree's.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0xb0ac_b6ff_5b86_687f),
         ("corner_table", 0x4d24_cb55_a481_538d),
         ("cut_cylinder", 0x3e5f_559f_058c_1664),
-        ("boss_union", 0x456c_0507_7a29_9842),
+        ("boss_union", 0xbce2_0e31_253a_3c04),
         ("kitchen_sink", 0x1032_8a96_fb12_9d02),
     ];
     let mut moved: Vec<String> = Vec::new();
