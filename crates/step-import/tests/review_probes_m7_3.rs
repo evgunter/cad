@@ -9,11 +9,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use geom_core::Point3;
+use profile::SketchPlane;
 
 use common::{arena_census, fixture};
+use geom_core::Point2;
 use geom_core::Tol;
 use geom_core::test_support::upper;
-use geom_core::{Affine3, Point2, Vec3};
 use profile::{RawLoop, test_support::bulge_loop};
 use step_import::{ImportOptions, StepImport, import_step};
 
@@ -39,9 +41,9 @@ fn native_loft_prism() -> topo::Body<f64> {
     let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
     let sections = vec![quad(square), quad(trapezoid), quad(square)];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
     ];
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("native loft_prism builds")
@@ -122,8 +124,8 @@ fn probe_refit_seam_refuses_typed() {
             );
             assert!(
                 rendered.ends_with(
-                    "the declared carrier is not on both surfaces. There is no way through: this \
-                     is a kernel defect or a damaged file; report it"
+                    "the carrier is not on both surfaces. There is no way through: this is a \
+                     kernel defect or a damaged file; report it"
                 ),
                 "a miss past ε_in ends at rest at the import door: {rendered}"
             );
@@ -186,9 +188,9 @@ fn native_arc_loft_for_probe() -> topo::Body<f64> {
     };
     let sections = vec![arc_section(1.0), arc_section(1.25), arc_section(1.0)];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
     ];
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("arc loft builds")

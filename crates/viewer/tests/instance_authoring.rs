@@ -24,7 +24,7 @@ use pncad::document::{Doc, DocumentId, Node, NodeResult, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
-use viewer::display::AdmissionFault;
+use viewer::display::{AdmissionFault, DisplayFault};
 use viewer::parts::{PartChooser, PartEntry};
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::{self, RowStatus};
@@ -51,17 +51,17 @@ fn instance_of(session: &DocSession, node: RecipeNodeId) -> (pncad::document::Do
     }
 }
 
-/// Whether the instance stands on the world at the empty offset — the
-/// insert door's own placement (A11 (2)).
+/// Whether the instance's bundle is the "place part" gesture's — one
+/// mate to the world and the three values naming it — and solves to
+/// the identity: the insert door's own placement (A11 (2)).
 fn at_origin(session: &DocSession, node: RecipeNodeId) -> bool {
-    matches!(
-        session.doc().node(node),
-        Some(Node::InstantiatePart {
-            gauge: None,
-            offset: Some(offset),
-            ..
-        }) if offset.bit_eq(&pncad::document::Placement::IDENTITY)
-    )
+    let doc = session.doc();
+    let bundle = crate::fixture::bundle(doc, node);
+    let placed_by_gesture = matches!(bundle.as_slice(), [mate, values @ ..]
+        if mate.mate().is_some_and(|m| matches!(m.to, pncad::document::Target::World(_)))
+            && values.len() == 3
+            && values.iter().all(|v| v.value().is_some_and(|v| v.mate == mate.id)));
+    placed_by_gesture && common::solve(session, doc, Tol::witness()).at_identity(node)
 }
 
 // --- the acceptance ------------------------------------------------
@@ -77,8 +77,8 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
 
     // What the door authored: the store's CURRENT version of each
     // part, an empty interface record (an authored instance crosses no
-    // split seam), and the empty offset on the world — A11 (2)'s
-    // insert at the origin.
+    // split seam), and the place gesture's mate and values at the
+    // identity — A11 (2)'s insert at the origin.
     let (post_ref, post_interface) = instance_of(&session, post_i);
     assert_eq!(
         post_ref, bench.post,
@@ -88,28 +88,17 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     let (shelf_ref, shelf_interface) = instance_of(&session, shelf_i);
     assert_eq!(shelf_ref, bench.shelf);
     assert!(shelf_interface);
-    // And each is placed in the world by the same action (A10): one
-    // identity placement per body the instance defines.
+    // And each is in the world by the same action (A10): an instance
+    // is a placement of its own, and nothing else copies it.
     let doc = session.committed_doc();
     assert_eq!(
-        common::world(doc),
+        doc.placements(),
         [post_i, shelf_i],
-        "both instances are drawn"
+        "both instances are drawn, each its own placement"
     );
-    for instance in [post_i, shelf_i] {
-        let copy = common::copy_of(doc, instance);
-        assert!(
-            matches!(
-                doc.node(copy),
-                Some(Node::PlaceInWorld { body, pose })
-                    if Some(body.read) == doc.output(instance, 0) && pose.steps.is_empty()
-            ),
-            "the instance's identity placement"
-        );
-    }
     assert!(
         [post_i, shelf_i].iter().all(|&i| at_origin(&session, i)),
-        "AddInstance authors the empty offset on the world"
+        "AddInstance places each instance at the identity"
     );
 
     // The instances evaluate: the references resolve through the
@@ -134,52 +123,63 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     });
     assert!(shown.refusal.is_none(), "{:?}", shown.refusal);
 
-    // Free-move: an authored instance is completely unconstrained
-    // until a mate lands on it, so the probe opens and commits.
-    for op in [
-        SessionOp::BeginFreeMove { instance: shelf_i },
-        SessionOp::PreviewFreeMove {
-            instance: shelf_i,
-            frame: pncad::document::Frame::translation([0.0, 0.0, 0.02]),
-        },
-        SessionOp::CommitFreeMove { instance: shelf_i },
-    ] {
-        let outcome = session.perform(op);
-        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    }
-    assert!(session.display().free_move_of(shelf_i).is_some());
+    // Free-move: an authored instance is placed at the identity by the
+    // place gesture's mate to the world, so it lives in the world's space,
+    // and the probe, which moves a loose space (DI5), refuses it typed.
+    let probe = |session: &mut DocSession| {
+        let outcome = session.perform(SessionOp::BeginFreeMove { instance: shelf_i });
+        assert!(
+            matches!(
+                &outcome.refusal,
+                Some(Refusal::Display(DisplayFault::Admission(
+                    AdmissionFault::InTheWorld { instance }
+                ))) if instance.id() == shelf_i
+            ),
+            "an authored instance stands in the world: {:?}",
+            outcome.refusal
+        );
+        assert!(session.display().free_move_of(shelf_i).is_none());
+    };
+    probe(&mut session);
 
-    // The shipped mate tool's op takes them from here.
-    let outcome = session.perform(asm::seat_op_under(
-        &bench,
-        post_i,
-        shelf_i,
-        ContactClass::Rest,
-        asm::middle_seat_alignment(),
-    ));
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1);
-    let [superseded] = &outcome.withdrawn.superseded[..] else {
-        panic!(
-            "exactly one placement is superseded: {:?}",
-            outcome.withdrawn.superseded
+    // The shipped mate tool's op takes them from here. Both instances
+    // stand placed, so the mate joins the post's bundle, which its
+    // world mate and values already fix: the door refuses it typed,
+    // overconstrained, measuring nothing, and the document is as it
+    // was. A mate beyond the pin is never dropped silently.
+    let seat = || {
+        asm::seat_op_under(
+            &bench,
+            post_i,
+            shelf_i,
+            ContactClass::Rest,
+            asm::middle_seat_values(),
         )
     };
-    assert_eq!(
-        superseded.instance, shelf_i,
-        "the mate supersedes the probe on the instance it constrains"
-    );
-    assert!(
-        matches!(
-            &superseded.cause,
-            AdmissionFault::MateConstrained { instance, mates }
-                if instance.id() == shelf_i && !mates.is_empty()
+    let beyond = session.perform(seat());
+    match beyond.refusal.as_ref() {
+        Some(Refusal::Edit(error)) => assert!(
+            matches!(
+                error.as_ref(),
+                pncad::document::EditError::MateRefused { fault, .. }
+                    if matches!(
+                        fault.as_ref(),
+                        pncad::document::MateFault::Overconstrained { placement, .. }
+                            if *placement == post_i
+                    )
+            ),
+            "the post's bundle refuses the mate beyond its pin: {error:?}"
         ),
-        "and the outcome carries WHY it went, not only which went — the \
-         fault's own PAYLOAD, which is what would go red if the prune paired \
-         the right fault with the wrong instance: {}",
-        superseded.cause
-    );
+        other => panic!("the door refuses the mate beyond the pin, got {other:?}"),
+    }
+    session.pump();
+    probe(&mut session);
+    // With the post's world mate (and its values) taken off, the same
+    // mate places it: one mate and its three values.
+    asm::unpin(&mut session, post_i);
+    let outcome = session.perform(seat());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(outcome.committed.len(), 4);
     session.pump();
     assert!(!tree::has_faults(&session.tree_rows()));
 
@@ -1030,4 +1030,103 @@ fn the_accept_reads_the_committed_document_before_its_run_lands() {
         session.committed_doc().bit_eq(&after_delete),
         "one undo takes back the accept and leaves the delete"
     );
+}
+
+/// **A free-move gesture whose space's root comes to refuse dies at the
+/// landing, through its own copy** (`a-gesture-under-a-refused-root-is-unchecked`).
+/// post_b is seated onto the loose shelf, which roots post_b's space.
+/// The shelf's file then moves on, so the saved reference mismatches
+/// and the shelf refuses; accepting the new version resolves it, a
+/// gesture opens on post_b, and undoing the accept puts the mismatch,
+/// and the refusal, back under the gesture. The copy mated onto a
+/// refused root refuses too — its mate reads the root's pose — so the
+/// gesture's own-copy check answers, and the root needs no question of
+/// its own.
+#[test]
+fn a_gesture_under_a_root_that_comes_to_refuse_dies_at_the_landing() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fmrefusedroot", tol);
+    {
+        let mut session = asm::open_bench(&bench, tol);
+        asm::unpin(&mut session, bench.post_b);
+        asm::unpin(&mut session, bench.shelf_i);
+        common::commit_mate(
+            &mut session,
+            asm::seat_op(
+                &bench,
+                bench.post_b,
+                ContactClass::Rest,
+                asm::middle_seat_values(),
+            ),
+        );
+        session.pump();
+        let saved = session.perform(SessionOp::Save(bench.asm_path.clone()));
+        assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
+    }
+    // The shelf's file moves on: the saved reference no longer matches.
+    let shelf_file = Workspace::open(&bench.dir)
+        .expect("the directory scans")
+        .documents()
+        .get(&bench.shelf.id)
+        .expect("the shelf is stored")
+        .clone();
+    let text = std::fs::read_to_string(&shelf_file).expect("the shelf reads");
+    let loaded = pncad::document::load(&text, tol).expect("the shelf loads");
+    let (edited, _) = common::framed_square(&loaded.doc, 0.005, tol);
+    Workspace::open(&bench.dir)
+        .expect("the directory scans")
+        .resave(&edited, tol)
+        .expect("the shelf rewrites");
+
+    let mut session = asm::open_bench(&bench, tol);
+    assert!(
+        matches!(
+            row_of(&session, bench.shelf_i).status,
+            RowStatus::Failed { .. }
+        ),
+        "the mismatched shelf refuses"
+    );
+    let accepted = session.perform(SessionOp::AcceptPartVersion { id: bench.shelf.id });
+    assert!(accepted.refusal.is_none(), "{:?}", accepted.refusal);
+    session.pump();
+    let root =
+        viewer::display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
+            .expect("the seated post is in the resolved shelf's loose space");
+    assert_eq!(root, bench.shelf_i, "the shelf roots it");
+    let outcome = session.perform(SessionOp::BeginFreeMove {
+        instance: bench.post_b,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+
+    // The accept undone: the root refuses again, under the gesture.
+    let undone = session.perform(SessionOp::Undo);
+    assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
+    assert!(
+        undone.withdrawn.killed_gesture.is_none(),
+        "the edit alone does not know"
+    );
+    session.pump();
+    let (_, eval) = session.landed_pair().expect("landed");
+    assert!(eval.value(bench.shelf_i).is_none(), "the root refuses");
+    assert!(
+        eval.value(bench.post_b).is_none(),
+        "and so does the copy mated onto it"
+    );
+    let killed: Vec<_> = session
+        .take_landed_withdrawals()
+        .into_iter()
+        .filter_map(|report| report.killed_gesture)
+        .collect();
+    let [killed] = &killed[..] else {
+        panic!("the landing kills the gesture: {killed:?}")
+    };
+    assert!(
+        matches!(
+            &killed.cause,
+            AdmissionFault::NoSpace { instance } if instance.id() == bench.post_b
+        ),
+        "{}",
+        killed.cause
+    );
+    assert!(session.display().probing().is_none());
 }

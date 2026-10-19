@@ -94,7 +94,6 @@ fn probe_a_cross_kind_rebind_refuses_at_its_own_door() {
             to,
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::RebindKindMismatch { from, to }) => {
             assert_eq!((from, to), (EntityKind::Face, EntityKind::Edge));

@@ -18,10 +18,10 @@
 //! apart.
 //!
 //! **Coming out** ([`name_union`] for the published table,
-//! [`collapse_table`] for the accumulation the declaration door
-//! reads, and [`collapse_name`] for the refusal paths — three
-//! consumers of one collapse, which the published table follows with
-//! the two end passes below): a fold-table name is rewritten by descending its
+//! [`collapse_table`] for the accumulation a fold step reads, and
+//! [`collapse_name`] for one name, as the fragment groups read a fold
+//! step's bases (`names::groups`) — three consumers of one collapse, which the published table follows with the two end
+//! passes below): a fold-table name is rewritten by descending its
 //! fold-side chain to the member-keyed [`RoleSeg::From`] at its foot —
 //! one wrapper, whatever the depth. The names a segment embeds are
 //! collapsed by the same rule. The result is then put in canonical
@@ -81,12 +81,14 @@
 //! leaves maximal faces and maximal edges (`docs/DESIGN.md`), a complex
 //! unique to the union's region and face partition.
 //!
-//! A refusal raised mid-fold, and the declaration door's view of an
-//! intermediate step, have no finished body and keep the fold's
-//! qualifiers. Neither may carry a fold-qualified member-edge piece: the
-//! declaration door admits no edge (`DeclareUnsupportedPair`), and a
-//! refusal that would carry one refuses as an emission bug instead
-//! ([`is_fold_qualified_member_edge`]).
+//! A refusal raised mid-fold carries no fold-table name: a step's
+//! refusal is the kernel's own, under the member that step folds in
+//! (`NodeErrorKind::UnionFoldStep`). A coincidence row a step decides
+//! is read against the collapsed accumulation ([`collapse_table`]) and
+//! spelled by the member cells it lies in ([`fold_cell`]), as the
+//! pairwise judgement's rows are. A cell the fold minted keeps the
+//! spelling of the step that minted it
+//! (`work/wire/a-fold-row-names-a-vertex-the-fold-minted-by-the-step-that-minted-it.md`).
 //!
 //! # How an intermediate row is told from a member's row
 //!
@@ -119,10 +121,10 @@ use crate::names::emit::{
     Incidence, NamingError, check_total, edge_ends, ent, face_half_edges, vertex_point,
 };
 use crate::names::emit_topo::{
-    Cover, CrossedEdge, EdgePieces, FaceDescent, Lone, Segment, UNORIENTED,
-    crossed_edge_orientation, edge_holds, edges_holding, is_straight, joined_along,
-    joined_candidates, least_per_line, name_edge_pieces, name_parent_faces, rank_crossings,
-    straight_segment,
+    Cover, CrossedEdge, EdgeCarrier, EdgePieces, FaceDescent, Lone, Segment, UNORIENTED,
+    carrier_arc, crossed_edge_orientation, edge_holds, edges_holding, is_straight, joined_along,
+    joined_candidates, least_per_line, name_edge_pieces, name_parent_faces, rank_along_track,
+    rank_crossings,
 };
 use crate::names::groups::Rederived;
 use crate::names::least_root::LeastRoot;
@@ -453,7 +455,7 @@ fn put_entry(t: &mut NameTable, name: StableName, entry: &Entry) -> Result<(), N
 /// means: the stretch it keeps outside every set where it keeps one,
 /// else the least set listing it. Every one of those lies on the
 /// constituent's line, which is all its one reader asks of it
-/// ([`Flush::way_of`] reads only whether it lies on another edge's line).
+/// (`Flush::way_of` reads only whether it lies on another edge's line).
 fn member_edge<'a, T: geom_core::Decide>(
     members: &'a [Member<'a, T>],
     member: VarId,
@@ -563,10 +565,11 @@ fn entity_name(union: RecipeNodeId, (member, of): &MemberEntity) -> StableName {
 /// never off the fold:
 /// - a finished EDGE lies within member `n`'s edge `e` when its two
 ///   faces descend from `e`'s two faces in `n` (their names cite them,
-///   through a `Merged` set or a `Fragment`) and both its ends lie on
-///   `e`'s closed segment ([`ON_MEMBER_EDGE`]); it runs ALONG `e` when
-///   instead the two overlap over a length on one line
-///   ([`Segment::cover`]);
+///   through a `Merged` set or a `Fragment`) and it lies within `e`
+///   along `e`'s carrier: a segment of its line where `e` is straight,
+///   a span of its certified curve where `e` is curved
+///   ([`joined_along`], [`ON_MEMBER_EDGE`]); it runs ALONG `e` when
+///   instead the two overlap over a length of that carrier;
 /// - a finished VERTEX sits at member `n`'s vertex `w` when it is at
 ///   `w`'s point ([`ON_MEMBER_EDGE`]) and a face around it descends
 ///   from a face of `n` that `w` lies on.
@@ -664,16 +667,22 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let (Some(from0), Some(from1)) = (self.face_ents.get(f0), self.face_ents.get(f1)) else {
             return Ok(none);
         };
-        // A union reads a curved joined edge from its two faces
-        // (`work/emit/a-unions-flush-reading-is-straight-only.md`).
-        if !is_straight(self.body, k) {
+        // An edge on a carrier that places no point covers nothing, and
+        // the fold's name for it stands
+        // (`work/emit/a-unions-flush-reading-cannot-follow-a-nurbs-carrier.md`).
+        if let EdgeCarrier::Unread = EdgeCarrier::of_edge(self.body, k)? {
             return Ok(none);
         }
         let (d0, d1): (Vec<MemberFace>, Vec<MemberFace>) = (
             from0.iter().copied().collect(),
             from1.iter().copied().collect(),
         );
-        let candidates = joined_candidates(&d0, &d1, |i| Ok(self.member_by_index(i)?.body), true)?;
+        let candidates = joined_candidates(
+            &d0,
+            &d1,
+            |i| Ok(self.member_by_index(i)?.body),
+            is_straight(self.body, k),
+        )?;
         let mut named = Vec::with_capacity(candidates.len());
         for ((i, r), arc) in candidates {
             let m = self.member_by_index(i)?;
@@ -855,7 +864,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             cited,
             |line: &MemberEntity| {
                 let (body, edge) = member_edge(self.members, line.0, line.1.name())?;
-                straight_segment(body, edge)
+                EdgeCarrier::of_edge(body, edge).map(Some)
             },
             self.bnd,
         )?;
@@ -1023,9 +1032,11 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     ///
     /// # Errors
     ///
-    /// [`NamingError::Emission`] where no such judgement classed a side,
-    /// or where the edge is a seam with no first side to orient a
-    /// crossing by.
+    /// [`NamingError::PartnerUnread`] where no such judgement classed a
+    /// side because one read no partner of the member's vertex at `v`
+    /// ([`topo::UnreadPartner`]); [`NamingError::Emission`] where no
+    /// judgement classed a side otherwise, or where the edge is a seam
+    /// with no first side to orient a crossing by.
     fn sense_against(
         &self,
         v: topo::VertexKey,
@@ -1059,32 +1070,53 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         }
         let p = vertex_point(self.body, v)?;
         let read = |i: usize| self.members.get(i).map(|m| m.read);
+        // Whether a judgement of the edge's member against one the name
+        // cites recorded something at the point `at` that is `v`'s.
+        let here = |member: usize, other: usize, at: geom_core::Point3<T>| {
+            if read(member) != Some(*n) || !read(other).is_some_and(|o| others.contains(&o)) {
+                return Ok(false);
+            }
+            let gap = Margin::of((at - p).norm());
+            decide(ON_MEMBER_EDGE, gap, self.bnd)
+                .map(|off| off == Sign::Zero)
+                .map_err(|source| NamingError::Escalated {
+                    predicate: ON_MEMBER_EDGE,
+                    source,
+                })
+        };
         let mut sides: [Option<bool>; 2] = [None, None];
         let mut piece = BTreeSet::new();
         for c in &links.classes {
-            if !rows.contains_key(&c.edge)
-                || read(c.member) != Some(*n)
-                || !read(c.other).is_some_and(|o| others.contains(&o))
-            {
-                continue;
-            }
-            let gap = Margin::of((c.at - p).norm());
-            let off =
-                decide(ON_MEMBER_EDGE, gap, self.bnd).map_err(|source| NamingError::Escalated {
-                    predicate: ON_MEMBER_EDGE,
-                    source,
-                })?;
-            if off != Sign::Zero {
+            if !rows.contains_key(&c.edge) || !here(c.member, c.other, c.at)? {
                 continue;
             }
             piece.insert(c.edge);
             let side = &mut sides[usize::from(c.starts)];
             *side = Some(side.unwrap_or(false) | c.inside);
         }
+        // A judgement that read no partner at `v` classed none of the
+        // member's edges there, by its own account: the crossing refuses
+        // naming why, so no listed vertex reaches the missing-row bug.
+        let unread = || -> Result<Option<NamingError>, NamingError> {
+            for u in &links.unread {
+                if here(u.member, u.other, u.at)? {
+                    return Ok(Some(NamingError::PartnerUnread {
+                        vertex: v,
+                        partner: u.record.partner,
+                        unread: u.record,
+                    }));
+                }
+            }
+            Ok(None)
+        };
+        let unclassified = || match unread() {
+            Ok(Some(e)) | Err(e) => e,
+            Ok(None) => bug(UNCLASSIFIED_SIDE),
+        };
         let mut piece = piece.into_iter();
         let k = match (piece.next(), piece.next()) {
             (Some(k), None) => k,
-            (None, _) => return Err(bug(UNCLASSIFIED_SIDE)),
+            (None, _) => return Err(unclassified()),
             (Some(_), Some(_)) => {
                 return Err(bug(
                     "two of a member's pieces of one line are classified at one union vertex",
@@ -1092,7 +1124,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             }
         };
         let [Some(before), Some(after)] = sides else {
-            return Err(bug(UNCLASSIFIED_SIDE));
+            return Err(unclassified());
         };
         let sense = match (before, after) {
             (false, true) => Sense::Enters,
@@ -1109,9 +1141,10 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     }
 
     /// Whether member edge `of` runs the same way as member edge `like`:
-    /// `Some(true)` for the same edge, and for a straight edge lying on
-    /// `like`'s straight line the way their directions agree; `None`
-    /// where `of` does not lie on that line.
+    /// `Some(true)` for the same edge, and for an edge lying on `like`'s
+    /// line, straight or curved, the way their directions agree
+    /// ([`EdgeCarrier::runs_with`]); `None` where `of` does not lie on
+    /// that line.
     fn same_way(
         &self,
         of: &MemberEntity,
@@ -1122,11 +1155,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         }
         let (of_body, of_edge) = member_edge(self.members, of.0, of.1.name())?;
         let (like_body, like_edge) = member_edge(self.members, like.0, like.1.name())?;
-        if !(is_straight(of_body, of_edge) && is_straight(like_body, like_edge)) {
-            return Ok(None);
-        }
-        Segment::of_edge(like_body, like_edge)?.runs_with(
-            &Segment::of_edge(of_body, of_edge)?,
+        EdgeCarrier::of_edge(like_body, like_edge)?.runs_with(
+            &EdgeCarrier::of_edge(of_body, of_edge)?,
             ON_MEMBER_EDGE,
             self.bnd,
         )
@@ -1341,16 +1371,28 @@ fn member_faces(name: &StableName, out: &mut BTreeSet<MemberEntity>) {
     }
 }
 
+/// The member entity a name of this shape is a piece of — `From(m, x)`,
+/// then nothing but `Fragment` qualifiers — and those qualifiers. The
+/// one reader of that shape: [`member_edge_piece`] narrows it to an
+/// edge's pieces, [`fold_cell`] reads a fold row's cell through it.
+fn member_piece(name: &StableName) -> Option<(VarId, &NameRef, &[RoleSeg])> {
+    let (RoleSeg::From { read, of }, tail) = name.path.split_first()? else {
+        return None;
+    };
+    tail.iter()
+        .all(|s| matches!(s, RoleSeg::Fragment(_)))
+        .then_some((*read, of, tail))
+}
+
 /// The (member, member edge) an EDGE name of this shape is about —
 /// `From(m, e)`, `e` an edge, then nothing but `Fragment(Ends)`
-/// qualifiers — and whether any qualifier follows.
+/// qualifiers, the only qualifier an edge's piece carries — and whether
+/// any qualifier follows.
 fn member_edge_piece(name: &StableName) -> Option<(VarId, NameRef, bool)> {
     if name.kind != EntityKind::Edge {
         return None;
     }
-    let (RoleSeg::From { read: member, of }, tail) = name.path.split_first()? else {
-        return None;
-    };
+    let (member, of, tail) = member_piece(name)?;
     if of.kind != EntityKind::Edge
         || !tail
             .iter()
@@ -1358,7 +1400,7 @@ fn member_edge_piece(name: &StableName) -> Option<(VarId, NameRef, bool)> {
     {
         return None;
     }
-    Some((*member, of.clone(), !tail.is_empty()))
+    Some((member, of.clone(), !tail.is_empty()))
 }
 
 /// **A vertex is named for what it sits on in the finished body, and a
@@ -1389,9 +1431,9 @@ fn member_edge_piece(name: &StableName) -> Option<(VarId, NameRef, bool)> {
 /// and not the one the fold happened to rank along at the step that met
 /// the group. A seam citing two member edges refuses, as the collapse
 /// already does for such a group's ranks. A run is ranked along its least
-/// edge, and where it holds none along a seam in it that is one straight
-/// line through every vertex of the group, and otherwise ties
-/// ([`rank_along_seam`]); so is a group whose one seam crosses a union
+/// edge, and where it holds none along a seam in it whose pieces lie on
+/// one open carrier through every vertex of the group, and otherwise
+/// ties ([`rank_along_seam`]); so is a group whose one seam crosses a union
 /// seam [`name_by_parents`] re-spelled by its head. A
 /// group with a moved name and no single seam, or a seam citing no
 /// edge, refuses. A group with no moved name and no member edge to rank
@@ -1577,11 +1619,18 @@ fn cite_member_edges<T: geom_core::Decide>(
 }
 
 /// **Vertices ranked along a union seam they lie on**: along the first
-/// of `seams` whose pieces lie on one straight line with every vertex on
-/// it — the line's parameter, the seam oriented as the loop of its first
-/// side runs along it, read off the finished body and the faces `t`
-/// names ([`rank_crossings`]) — and otherwise N2's tie, because a seam
-/// of several curves has no one carrier to order them along.
+/// of `seams` whose pieces lie on one open carrier with every vertex on
+/// it, by the carrier's parameter, the seam oriented as the loop of its
+/// first side runs along it, read off the finished body and the faces
+/// `t` names — a line's ([`rank_crossings`]), or a curve's from where
+/// the seam starts along it (`Track::open_offsets`,
+/// [`rank_along_track`]) — and otherwise N2's tie: a seam of several
+/// carriers has no one carrier to order them along, and one that runs
+/// round a closed carrier no start but where the kernel cut it.
+///
+/// `seams` are the seams of the group's run in the run's name order,
+/// so the seam a group is ranked along, straight or curved, is the
+/// same in every member order: the first that reads.
 #[allow(clippy::too_many_arguments)]
 fn rank_along_seam<T: geom_core::Decide>(
     t: &NameTable,
@@ -1594,12 +1643,14 @@ fn rank_along_seam<T: geom_core::Decide>(
     bnd: geom_core::Band,
 ) -> Result<(), NamingError> {
     let mut keys = Vec::with_capacity(rows.len());
+    let mut group = Vec::with_capacity(rows.len());
     let mut points = Vec::with_capacity(rows.len());
     let mut unique = true;
     for (_, entry, _) in rows {
         match entry {
             Entry::Unique(e) => {
                 if let EntityKey::Vertex(v) = e.key {
+                    group.push(v);
                     points.push(vertex_point(body, v)?);
                 }
                 keys.push(e);
@@ -1610,41 +1661,63 @@ fn rank_along_seam<T: geom_core::Decide>(
             }
         }
     }
-    let mut line = None;
+    /// The carrier a group is ranked along.
+    enum Along<T: geom_core::Real> {
+        Line,
+        Curve(Vec<T>),
+    }
+    let mut found = None;
     for g in seams {
         if !(unique && points.len() == keys.len()) {
             break;
         }
-        if !g.edges.iter().all(|&e| is_straight(body, e)) {
-            continue;
-        }
         let first = *g.edges.first().ok_or(NamingError::Emission {
             what: "a union seam group holds no edge",
         })?;
-        let seg = Segment::of_edge(body, first)?;
-        let mut on = true;
-        for &e in &g.edges {
-            let (v0, v1) = edge_ends(body, e)?;
-            for v in [v0, v1] {
-                on &= seg.on_line(vertex_point(body, v)?, ON_SEAM_LINE, bnd)?;
+        let along = if g.edges.iter().all(|&e| is_straight(body, e)) {
+            let seg = Segment::of_edge(body, first)?;
+            let mut on = true;
+            for &e in &g.edges {
+                let (v0, v1) = edge_ends(body, e)?;
+                for v in [v0, v1] {
+                    on &= seg.on_line(vertex_point(body, v)?, ON_SEAM_LINE, bnd)?;
+                }
             }
-        }
-        for &p in &points {
-            on &= seg.on_line(p, ON_SEAM_LINE, bnd)?;
-        }
-        if on {
-            line = Some((first, &g.base));
+            for &p in &points {
+                on &= seg.on_line(p, ON_SEAM_LINE, bnd)?;
+            }
+            on.then_some(Along::Line)
+        } else if g.edges.iter().any(|&e| is_straight(body, e)) {
+            None
+        } else if let EdgeCarrier::Curved(track) = EdgeCarrier::of_edge(body, first)? {
+            let mut pieces = Vec::with_capacity(g.edges.len());
+            for &e in &g.edges {
+                let (v0, v1) = edge_ends(body, e)?;
+                pieces.push((carrier_arc(body, e)?, [v0, v1]));
+            }
+            track
+                .open_offsets(&pieces, &group, &points, ON_SEAM_LINE, bnd)?
+                .ok()
+                .map(Along::Curve)
+        } else {
+            None
+        };
+        if let Some(along) = along {
+            found = Some((first, &g.base, along));
             break;
         }
     }
-    match line {
-        Some((edge, name)) => {
-            let crossed = CrossedEdge {
-                body,
-                table: t,
-                edge,
-                name,
-            };
+    let Some((edge, name, along)) = found else {
+        return Ok(mint_candidates(out, tie, false, base.clone(), keys)?);
+    };
+    let crossed = CrossedEdge {
+        body,
+        table: t,
+        edge,
+        name,
+    };
+    match along {
+        Along::Line => {
             let crossings: Vec<_> = keys
                 .into_iter()
                 .zip(points)
@@ -1652,7 +1725,7 @@ fn rank_along_seam<T: geom_core::Decide>(
                 .collect();
             rank_crossings(out, tie, false, base, &crossings, bnd)
         }
-        None => Ok(mint_candidates(out, tie, false, base.clone(), keys)?),
+        Along::Curve(offsets) => rank_along_track(out, tie, base, keys, &offsets, crossed, bnd),
     }
 }
 
@@ -1736,6 +1809,7 @@ type MemberFace = (usize, topo::FaceKey);
 pub(crate) struct Links<T: geom_core::Real> {
     pairs: Vec<(MemberFace, MemberFace)>,
     classes: Vec<PairClass<T>>,
+    unread: Vec<UnreadAt<T>>,
 }
 
 impl<T: geom_core::Real> Default for Links<T> {
@@ -1743,6 +1817,7 @@ impl<T: geom_core::Real> Default for Links<T> {
         Self {
             pairs: Vec::new(),
             classes: Vec::new(),
+            unread: Vec::new(),
         }
     }
 }
@@ -1761,13 +1836,27 @@ struct PairClass<T: geom_core::Real> {
     inside: bool,
 }
 
+/// One member vertex a pairwise judgement met the other member at and
+/// read no partner of (`BooleanNaming::unread_partners`), in member
+/// terms: member `member`'s edges at the point `at` have no piece the
+/// judgement against member `other` classified. The judgement's own
+/// `record` rides along: the vertex's operand in it, the partner it met
+/// and why that read nothing.
+struct UnreadAt<T: geom_core::Real> {
+    member: usize,
+    other: usize,
+    at: geom_core::Point3<T>,
+    record: topo::UnreadPartner,
+}
+
 impl<T: geom_core::Real> Links<T> {
     /// What one judgement recorded: members `a` (operand A) and `b`
     /// (operand B), the kernel's record `naming` of their union and its
     /// result `body`.
     ///
-    /// A classified piece is placed at the result vertex its operand key
-    /// settles on ([`topo::Settler::settle`]). A key that lies at no
+    /// A classified piece, and a vertex read no partner of, is placed at
+    /// the result vertex its operand key settles on
+    /// ([`topo::Settler::settle`]). A key that lies at no
     /// vertex of the result holds no piece of it: one the result never
     /// received (a B key the graft left out, discarded material whose
     /// vertex died with no row), or one settled inside an edge or a face.
@@ -1808,37 +1897,56 @@ impl<T: geom_core::Real> Links<T> {
         let grafted: BTreeMap<topo::VertexKey, topo::VertexKey> =
             naming.graft_vertices.iter().copied().collect();
         let settler = naming.settler(body);
-        for row in &naming.edge_classes {
-            let (keys, member, other) = match row.operand {
+        // The members an operand's key reads, and the result point it
+        // settles at, if any.
+        let place = |operand: topo::Operand, vertex: topo::VertexKey| {
+            let (keys, member, other) = match operand {
                 topo::Operand::A => (naming.a_keys, a, b),
                 topo::Operand::B => (naming.b_keys, b, a),
             };
             let key = match keys {
-                topo::OperandKeys::Direct => Some(row.vertex),
-                topo::OperandKeys::Grafted => grafted.get(&row.vertex).copied(),
+                topo::OperandKeys::Direct => Some(vertex),
+                topo::OperandKeys::Grafted => grafted.get(&vertex).copied(),
                 topo::OperandKeys::Absent => None,
             };
-            let Some(key) = key else { continue };
+            let Some(key) = key else { return Ok(None) };
             let v = match settler.settle(key) {
                 Ok(topo::Cell::Vertex(v)) => v,
-                Ok(topo::Cell::Edge(_) | topo::Cell::Face(_)) => continue,
+                Ok(topo::Cell::Edge(_) | topo::Cell::Face(_)) => return Ok(None),
                 // No fusion and no row moved the key: it is a vertex the
                 // result never held.
                 Err(topo::SettleError::Dead { vertex, reached })
                     if reached == topo::Cell::Vertex(vertex)
                         && naming.vertex_merges.survivor(vertex) == vertex =>
                 {
-                    continue;
+                    return Ok(None);
                 }
-                Err(e) => return Err(e.into()),
+                Err(e) => return Err(NamingError::from(e)),
+            };
+            Ok(Some((member, other, vertex_point(body, v)?)))
+        };
+        for row in &naming.edge_classes {
+            let Some((member, other, at)) = place(row.operand, row.vertex)? else {
+                continue;
             };
             self.classes.push(PairClass {
                 member,
                 other,
                 edge: row.edge,
-                at: vertex_point(body, v)?,
+                at,
                 starts: row.starts,
                 inside: row.class != topo::SideCode::Out,
+            });
+        }
+        for u in &naming.unread_partners {
+            let Some((member, other, at)) = place(u.operand, u.vertex)? else {
+                continue;
+            };
+            self.unread.push(UnreadAt {
+                member,
+                other,
+                at,
+                record: *u,
             });
         }
         Ok(())
@@ -1982,15 +2090,19 @@ impl Parents {
             }
         }
         // What the fold merged does not link: a finished face whose member
-        // faces are of several parents has no one parent to take. A
-        // bug, not a recipe: a fold step merges two member faces only
-        // where their margins decide them one carrier. A union only adds
-        // material, so they meet there in
-        // their own pair's union too, whose boxes therefore meet and
-        // which is judged under the same declarations. That judgement
-        // merges or covers them. A curved run the pair leaves unmerged
-        // (`merge_skipped`), the fold, holding no fewer of its faces,
-        // leaves unmerged too.
+        // faces are of several parents has no one parent to take. Two
+        // faces of DIFFERENT members a fold step merged meet in their own
+        // pair's union too (a union only adds material, and the pair is
+        // judged under the same declarations), and that judgement merges
+        // or covers them. Two faces of ONE member a judgement merges link
+        // nothing: `Links::judged` records member-a × member-b pairs
+        // only. A legal recipe reaches that (a bar through a sunk boss's
+        // two wall pieces,
+        // `wire_legal_union_refusals::a_bar_through_a_sunk_boss_refuses_at_the_unions_parents`)
+        // and refuses here under the bug's words; what such a pair is
+        // is `work/refs/a-union-judgement-that-merges-two-faces-of-one-member-links-neither.md`'s.
+        // A curved run the pair leaves unmerged (`merge_skipped`), the
+        // fold, holding no fewer of its faces, leaves unmerged too.
         for (_, from) in &rows {
             let mut roots = from.iter().map(|&m| link.root(m));
             let first = roots.next();
@@ -2405,10 +2517,10 @@ fn without_tail(name: &StableName, drop: impl Fn(&Qualifier) -> bool) -> StableN
 /// Two callers, and the split is what tells them apart. [`name_union`]
 /// rewrites the LAST step's table, which names a finished body and is
 /// held to totality. The fold rewrites an INTERMEDIATE step's, and
-/// for a different purpose: a step's rows are named in the space this
-/// node's refusals name (`collapse_name`), so the fold reads the
-/// accumulation in that same space. The entities are untouched — same keys, same ties — so the
-/// keys a lookup returns are the accumulation's own.
+/// for a different purpose: a step's coincidence rows are named in this
+/// node's own space, so the fold reads the accumulation in that space.
+/// The entities are untouched — same keys, same ties — so the keys a
+/// lookup returns are the accumulation's own.
 ///
 /// Rows of one seam edge the fold met at several steps collapse to one
 /// spelling: two faces of one member set seam wherever a later member
@@ -2455,19 +2567,103 @@ pub(crate) fn collapse_table(
 ///
 /// The collapse [`name_union`] applies to a whole table (before its end
 /// passes over member edges, which need the finished body), exposed
-/// for the paths that carry a name out of a step that did NOT finish:
-/// a refusal raised at step `k` reads the ACCUMULATED table, whose
-/// rows are still headed by a fold side, and a name in that shape is
-/// in the fold's internal space — no published table holds it and
-/// nothing can resolve it. Every name a union's refusal carries goes
-/// through here first, so what a caller is handed denotes in the space
-/// this node's own names live in.
+/// for one name read out of a step that did NOT finish: a fold step's
+/// table is still headed by a fold side, and a name in that shape is
+/// in the fold's internal space, which no published table holds. The
+/// fragment groups (`names::groups`) collapse a step's bases through
+/// here to compare them with the published ones.
 pub(crate) fn collapse_name(
     node: RecipeNodeId,
     name: &StableName,
 ) -> Result<StableName, NamingError> {
     collapse(node, name)
 }
+
+/// One cell of a fold row, read off its collapsed name ([`fold_cell`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum FoldCell {
+    /// A member's entity: the member's read and its name in that read's
+    /// table.
+    Member {
+        /// The member's read.
+        read: VarId,
+        /// The entity's name in the member's table.
+        name: StableName,
+    },
+    /// A cell the fold minted, in the node's own space.
+    Minted(StableName),
+}
+
+/// **A fold row's cell, by the member cell it lies in** (DM4, "A row
+/// names member cells"): `name` is a collapsed fold name
+/// ([`collapse_table`]), a head and the `Fragment`s the fold accumulated
+/// ([`member_piece`]). Under a member's `From` head its entity is a
+/// piece of the member entity the head names, and the cell is that
+/// entity. A `Crossing` vertex lies inside its crossed edge, and where
+/// that edge is a member's the cell is that member edge, as the pair
+/// verb reads a vertex it minted on an edge (`topo`'s `input_cell`).
+///
+/// Every other head the fold minted lies in no one member cell: a seam
+/// lies in a face of each of its two members, a junction's run
+/// (`EdgeCrossing`) in several member edges and seams, a `Merged` edge
+/// along several member edges, and a `Crossing` of a seam in two
+/// members' faces. Such a cell is that head in the node's own space,
+/// its pieces' qualifiers dropped, and a junction's run kept whole.
+///
+/// # Errors
+///
+/// [`NamingError::Emission`] for a head followed by anything but
+/// `Fragment`s (a junction's run aside), or a head no fold step mints.
+pub(crate) fn fold_cell(name: &StableName) -> Result<FoldCell, NamingError> {
+    let bug = |what| NamingError::Emission { what };
+    if let Some((read, of, _)) = member_piece(name) {
+        return if is_fold_side(read) {
+            Err(bug(FOLD_CELL_FOREIGN))
+        } else {
+            Ok(FoldCell::Member {
+                read,
+                name: of.name().clone(),
+            })
+        };
+    }
+    if is_junction(name) {
+        return Ok(FoldCell::Minted(name.clone()));
+    }
+    if let Some((RoleSeg::Crossing { edge, .. }, tail)) = name.path.split_first()
+        && tail.iter().all(|s| matches!(s, RoleSeg::Fragment(_)))
+        && let FoldCell::Member { read, name } = fold_cell(edge.name())?
+    {
+        return Ok(FoldCell::Member { read, name });
+    }
+    match name.path.split_first() {
+        Some((
+            RoleSeg::Seam { .. }
+            | RoleSeg::Crossing { .. }
+            | RoleSeg::EdgeCrossing(_)
+            | RoleSeg::Merged(_),
+            tail,
+        )) if tail.iter().all(|s| matches!(s, RoleSeg::Fragment(_))) => {
+            Ok(FoldCell::Minted(without_tail(name, |_| true)))
+        }
+        Some((
+            RoleSeg::From { .. }
+            | RoleSeg::Seam { .. }
+            | RoleSeg::Crossing { .. }
+            | RoleSeg::EdgeCrossing(_)
+            | RoleSeg::Merged(_),
+            _,
+        )) => Err(bug(FOLD_CELL_UNSTRIPPED)),
+        _ => Err(bug(FOLD_CELL_FOREIGN)),
+    }
+}
+
+/// A fold row's cell carries a segment past its head that is not a
+/// piece's qualifier.
+const FOLD_CELL_UNSTRIPPED: &str =
+    "a union fold row's cell carries a segment past its head that is not a fragment";
+
+/// A fold row's cell is headed by a segment a fold step does not mint.
+const FOLD_CELL_FOREIGN: &str = "a union fold row's cell has a head no fold step mints";
 
 /// The emission bug this module can raise: a fold table carrying a
 /// segment the pair emitter does not mint.
@@ -3440,6 +3636,71 @@ mod tests {
                 bnd,
             )
         }
+    }
+
+    /// **A member edge with no classified side at a vertex the
+    /// judgement read no partner of refuses why**
+    /// (`topo::UnreadPartner`), and at any other vertex stays the
+    /// missing-row bug. Constructed on [`CitedGroup`]'s member 5 judged
+    /// against a member 2, since a model does not reach it
+    /// (`a_mate_on_a_full_turn_bore_names` lists partners and names
+    /// cleanly): a pairwise judgement's operands are members, so a
+    /// listed vertex is a member's own, and a finished vertex at a member
+    /// vertex is cited as one, never read by its lines in
+    /// [`Flush::meeting`], the one caller of `sense_against`.
+    #[test]
+    fn a_side_unclassed_at_an_unread_partner_refuses_why() {
+        let g = CitedGroup::new();
+        let empty = NameTable::new();
+        let [five] = g.members();
+        let members = [
+            five,
+            Member {
+                read: crate::VarId::new(1, 2),
+                body: &g.member_body,
+                table: &empty,
+            },
+        ];
+        let bnd = geom_core::Band::new(1e-9, 1e-6).unwrap();
+        let flush = Flush::of(g.union, &g.body, &members, &Parents::empty(), bnd).unwrap();
+        let [listed, other] = g.along;
+        let mut corners = g.member_body.vertices().map(|(k, _)| k);
+        let record = topo::UnreadPartner {
+            operand: topo::Operand::B,
+            vertex: corners.next().unwrap(),
+            partner: corners.next().unwrap(),
+            neighbourhood: topo::UnreadNeighbourhood::NoBisector,
+        };
+        let links = Links {
+            pairs: Vec::new(),
+            classes: Vec::new(),
+            unread: vec![UnreadAt {
+                member: 0,
+                other: 1,
+                at: vertex_point(&g.body, listed).unwrap(),
+                record,
+            }],
+        };
+        let RoleSeg::From { of, .. } = &member_edge(g.union, 5).path[0] else {
+            unreachable!("member_edge is one From segment")
+        };
+        let line = (members[0].read, NameRef::new((**of).clone()));
+        let others = BTreeSet::from([members[1].read]);
+        assert!(matches!(
+            flush.sense_against(listed, &line, &others, &links),
+            Err(NamingError::PartnerUnread { vertex, partner, unread })
+                if vertex == listed && partner == record.partner && unread == record
+        ));
+        // Judged against a member the name does not cite, the record
+        // says nothing of this crossing.
+        assert!(matches!(
+            flush.sense_against(listed, &line, &BTreeSet::from([members[0].read]), &links),
+            Err(NamingError::Emission { what }) if what == UNCLASSIFIED_SIDE
+        ));
+        assert!(matches!(
+            flush.sense_against(other, &line, &others, &links),
+            Err(NamingError::Emission { what }) if what == UNCLASSIFIED_SIDE
+        ));
     }
 
     /// **A seam-vertex group on one member edge is ranked along that

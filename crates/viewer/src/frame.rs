@@ -24,9 +24,10 @@
 //! the badge family beside it. **The draft and the offer a refused
 //! batch leaves behind** ([`retype_draft`], [`creation_offer`]), **and
 //! the one a failed instance makes** ([`version_offer`]).
-//! **What a folded event stream amounts to** ([`folded_moved`],
-//! [`fold_status`]), **what a frame says about work outstanding**
-//! ([`progress`]), and **where a file dialog opens** ([`dialog_dir`]).
+//! **What a folded event stream amounts to**
+//! ([`folded_is_a_camera_event`], [`fold_status`]), **what a frame says
+//! about work outstanding** ([`progress`]), and **where a file dialog
+//! opens** ([`dialog_dir`]).
 //!
 //! The frame loop still decides WHEN to call one. It no longer decides
 //! what one MEANS.
@@ -242,7 +243,7 @@ use crate::display::{AdmissionFault, PruneReport, Withdrawn};
 use crate::idpass::IdStep;
 use crate::matetool::MateToolEvent;
 use crate::parts::PartFiles;
-use crate::pickcache::NotIndexed;
+use crate::pickcache::{IndexSeam, NotIndexed};
 use crate::pickindex::{EdgeNamesRefused, PickError, PickIndexError};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
@@ -252,7 +253,7 @@ use crate::session::{
     AtRestBadge, EdgeSelection, FaceSelection, OpOutcome, Outstanding, Refusal, Selection,
     SessionOp, VersionOffer,
 };
-use crate::tools::ToolNotice;
+use crate::tools::{PanelRefusal, ToolNotice};
 use crate::vocab::{partial_mirror, vocabulary};
 
 /// **What something the chrome shows is ABOUT** — carried by a
@@ -749,13 +750,14 @@ pub fn apply(status: &mut Option<Message>, verdict: RankedVerdict) {
 /// stale. Moving the pointer is not that: it emits an operation on
 /// every frame the cursor changes what it is over, refuses nothing by
 /// construction, and left unfiltered it wipes the ratified
-/// expression-driven affordance off the screen the instant the mouse
+/// expression-driven affordance (G4) off the screen the instant the mouse
 /// drifts over the viewport.
 pub fn acts(op: &SessionOp) -> bool {
     match op {
         SessionOp::Hover(_) => false,
         SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
+        | SessionOp::RemoveConstraint { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
@@ -866,6 +868,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         SessionOp::Hover(_)
         | SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
+        | SessionOp::RemoveConstraint { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
@@ -1087,7 +1090,8 @@ pub fn frame_status(
 /// list. The sweep that routed every writer through the ranking put
 /// four more on it: [`Subject::Camera`] ([`fold_status`]'s refused
 /// fold, delivered at [`crate::pane::viewport::land`]),
-/// [`Subject::Cursor`] ([`crate::idpass::Disagreement::notice`]),
+/// [`Subject::Cursor`] (`idpass::IdNews`'s notices: a disagreement, or
+/// an id said beside a refused ray),
 /// [`Subject::Display`] (the pick index's
 /// refused click and the δ field's two doors, through
 /// [`PICK_INDEX_SEAM`] and [`SCENE_SEAM`]) and [`Subject::Preferences`]
@@ -1248,9 +1252,9 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// **Nothing here composes prose about why a placement or a hide
 /// went.** Each entry carries the [`AdmissionFault`] the prune
 /// discarded on, and this renders it through its own `Display` — the rule the
-/// rest of the crate follows. So the commonest arm names the mates and
-/// the remedy (`MateConstrained`: *delete the mate(s) if free relative
-/// motion is intended*), a fuse names the product and the instances
+/// rest of the crate follows. So the commonest arm names where the copy
+/// lives and why the probe cannot move it (`InTheWorld`: *its placement
+/// pins it there … free-move moves a loose space*), a fuse names the product and the instances
 /// fused into it, and a deleted instance says the document does not
 /// hold the node — which is the delete arm's whole point, since the id
 /// alone names something the tree no longer draws without saying that
@@ -1259,10 +1263,10 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// The frame around the faults counts where there is anything to count,
 /// and never names: every [`AdmissionFault`] names its own SUBJECT, so
 /// naming the id again in the preamble would say it twice. It does not
-/// promise a vocabulary for that subject: an arm about an instance says
-/// "instance N" and an arm about an id that names no instance
-/// (`NoSuchNode`, `NotAnInstance`) says "node N", which is that enum's
-/// own rule and the only honest wording there.
+/// promise a vocabulary for that subject: each arm says it as the
+/// spoken node does, its kind included (`InstantiatePart N`, `Place N`,
+/// and `node N` for an id the document does not hold), which is that
+/// enum's own rule and the only honest wording there.
 ///
 /// [`crate::display::DisplayFault`]'s own arms name no id at all — they are about a
 /// gesture or a frame rather than a node — and a `Withdrawn` cannot
@@ -1285,16 +1289,22 @@ vocabulary! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum WithdrawalKind {
         /// **A SUBSTITUTION.** The user's hand placement answered "where
-        /// does this part go", and the mate that landed answers it better,
-        /// so the probe steps aside and the picture keeps the part.
+        /// does this part go", and the document that landed answers it
+        /// differently — a pin, a join with another space, a placement it
+        /// refuses — so the probe steps aside and the picture keeps the
+        /// part.
         ///
-        /// [`crate::display::PruneReport::superseded`], carried to the
-        /// chrome on [`crate::session::OpOutcome::withdrawn`], names the
-        /// instances whose COMMITTED free-move placement an operation's document
-        /// transition discarded — the G3 supersession, reported by the
-        /// session rather than inferred ([`crate::display::DisplayState::prune`] is
-        /// where it happens, and [`crate::display::free_move_check`] is the
-        /// condition). A killed in-flight gesture is NOT in that list, so
+        /// [`crate::display::PruneReport::superseded`] names, by their
+        /// roots, the loose spaces whose COMMITTED free-move frame a prune
+        /// discarded — the G3 supersession, reported by the session rather
+        /// than inferred. Most arrive with a landing, which is when a space
+        /// is known (`DocSession::take_landed_withdrawals`), and the rest
+        /// on [`crate::session::OpOutcome::withdrawn`] (a root gone);
+        /// [`crate::display::DisplayState::prune`] is where it happens
+        /// ([`crate::display::DisplayState::prune_structural`] for a value
+        /// gesture's scratch), and [`crate::display::space_check`] is the
+        /// condition. A killed
+        /// in-flight gesture is NOT in that list, so
         /// it is not this channel's to report; the next gesture op refuses
         /// typed instead.
         ///
@@ -1469,10 +1479,39 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
         refusal: _,
         withdrawn,
         maintenance,
+        placed,
     } = outcome;
     Withdrawal::all(withdrawn)
         .map(|withdrawal| withdrawal.notice())
         .chain(maintenance.iter().filter_map(maintenance_notice))
+        .chain(placed.iter().filter_map(place_notice))
+}
+
+/// **What a landing's prune withdrew, as notices** — the same notices
+/// [`outcome_notices`] words an operation's [`OpOutcome::withdrawn`]
+/// into ([`crate::session::DocSession::take_landed_withdrawals`]).
+pub fn withdrawal_notices(
+    report: &crate::display::PruneReport,
+) -> impl Iterator<Item = Message> + '_ {
+    Withdrawal::all(report).map(|withdrawal| withdrawal.notice())
+}
+
+/// **How a place gesture placed its copy, as a notice**, or `None` for
+/// the gesture's ordinary answer: a plane mate on the copy's planar
+/// face, whose values move it. A copy with no planar face is pinned,
+/// with no value to move it by, and one that could not be read stands
+/// loose; each says so, in [`editor_core::PinRefusal`]'s own words for
+/// the second. Nothing else says it again ([`Retold::Never`]): the
+/// tree row says what the bundle holds, not why.
+pub fn place_notice(report: &crate::session::PlaceReport) -> Option<Message> {
+    let text = match &report.by {
+        Ok(editor_core::PlacedBy::PlanarFace) => return None,
+        Ok(editor_core::PlacedBy::Pin) => "the copy has no planar face, so it is pinned where it \
+                                          stands, with no values to move it by"
+            .to_owned(),
+        Err(refusal) => format!("the copy stands loose, placed by nothing: {refusal}"),
+    };
+    Some(Message::new(Subject::Document, text, Retold::Never))
 }
 
 /// **One maintenance row as a notice**, or `None` for a row the line
@@ -1514,9 +1553,6 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // operand.
         Maintenance::StrandedRead { .. } => Retold::Again,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
-        // A fold's dropped label is said nowhere else: the gauge is
-        // gone, and nothing evaluates a label.
-        Maintenance::LabelDropped { .. } => Retold::Never,
         // An anonymous variable's removal is what rewriting or deleting
         // the slot it was written at means, and a typed value retires
         // one on almost every edit: one that carried no tolerance took
@@ -1526,10 +1562,6 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // tolerance took an analysis axis, which nothing else says.
         Maintenance::AnonymousVarRemoved { .. } if row.is_silent_retirement() => return None,
         Maintenance::AnonymousVarRemoved { .. } => Retold::Never,
-        // The mate door's offset clear is what inserting the mate
-        // means — the joined group stands on the one it joined — and
-        // the mate the person just placed is its notice.
-        Maintenance::OffsetCleared { .. } => return None,
     };
     Some(Message::new(Subject::Document, row.to_string(), retold))
 }
@@ -1547,7 +1579,10 @@ impl core::fmt::Display for Withdrawal<'_> {
             AdmissionFault::FusedGeometry { .. } => true,
             AdmissionFault::NoSuchNode { .. }
             | AdmissionFault::NotAnInstance { .. }
-            | AdmissionFault::MateConstrained { .. } => false,
+            | AdmissionFault::InTheWorld { .. }
+            | AdmissionFault::NotEvaluated { .. }
+            | AdmissionFault::NoSpace { .. }
+            | AdmissionFault::MovedSpace { .. } => false,
         };
         // The two kinds that are over a SET word themselves by
         // counting it. The third is over the one gesture that can be
@@ -1669,9 +1704,9 @@ pub fn fold_status(folded: &Folded) -> StatusUpdate {
 /// with.
 ///
 /// This is a policy over a value, not a report: it never SHOWS
-/// anything. What the cursor has to say is
-/// [`crate::idpass::Disagreement`]'s, raised where the two picking
-/// paths are compared.
+/// anything. What the cursor has to say is `idpass::IdNews`'s — a
+/// disagreement, or an id said beside a refused ray — raised where the
+/// two picking paths are compared.
 pub fn cursor_status(step: IdStep) -> StatusUpdate {
     match step {
         IdStep::Hold => StatusUpdate::Keep,
@@ -1712,7 +1747,7 @@ pub enum Tone {
 pub enum Affordance {
     /// A label. Its [`Badge::detail`], where it has one, is a tooltip.
     Read,
-    /// **A control, not a label** — the ratified argument the checks
+    /// **A control, not a label** — the argument the checks
     /// badge carries, and the reason this is part of the value rather
     /// than a shape the toolbar picks: the findings were once reachable
     /// only by hovering the badge, which is a poor home for text a
@@ -1870,8 +1905,8 @@ impl Badge {
 /// done for a seam that needs two.
 ///
 /// **What it does not buy.** It covers a seam's own refusal TYPE, so
-/// a door whose input is not one — [`tool_news`], [`startup_notices`]
-/// — spells its subject and says so at the door. And a shared
+/// a door whose input is not one — [`tool_news`]'s panel refusal,
+/// [`startup_notices`]' text — spells its subject at the door. And a shared
 /// [`Subject`] is not a shared seam: the scene (which the δ field's
 /// doors share, [`SCENE_SEAM`]) and the pick index
 /// ([`PICK_INDEX_SEAM`]) are separate seams under
@@ -1948,8 +1983,8 @@ impl SeamSubject for EdgeNamesRefused {
 // handed, and the writer hands its refusal over rather than picking.
 // Most are pinned twice over: the door takes one error type, so
 // calling the wrong door does not compile. A door whose input is text
-// rather than a typed refusal, such as `tool_news` or
-// `startup_notices`, is not pinned, and says so at its own doc.
+// rather than a typed refusal, such as `startup_notices`, is not
+// pinned, and says so at its own doc.
 
 /// **What a pick against a missing index says** — the one seam
 /// refusal that stays on the line, and the boundary the channel test
@@ -2129,7 +2164,7 @@ pub fn containing_dir(path: &Path) -> Option<&Path> {
 /// answer to an operation the user aimed at the document through the
 /// cursor, and moving the pointer does not answer it. The cursor
 /// subject is for a message ABOUT what lies under the pointer, which
-/// is [`crate::idpass::Disagreement`]'s.
+/// is `idpass::IdNews`'s.
 ///
 /// The refusal's own words, each tied face among them: a tie says
 /// each face and the node it was hit on, so two copies of one body
@@ -2190,33 +2225,38 @@ pub fn tool_notice(
     Message::new(Subject::Document, notice.said(landed), retold)
 }
 
-/// **What a tool has to say** that is not one of its own events — an
-/// authoring panel's refusal, or a sentence formatted at the site.
-/// [`Subject::Document`], retired the way that subject says. A tool's
-/// own events go through [`tool_notice`] instead, whose arms answer
-/// [`Retold`] from the event.
+/// **What a tool has to say** that is not one of its own events: a
+/// panel's refusal at its button ([`PanelRefusal`]), a modal tool's
+/// or a form's. [`Subject::Document`], retired the way that
+/// subject says. A tool's own events go through [`tool_notice`]
+/// instead, whose arms answer [`Retold`] from the event.
 ///
-/// **The caller answers [`Retold`]**, because a door that takes text
-/// cannot read from it whether anything will say it again, and a
-/// default here would be [`Message::new`]'s missing default one door
-/// out. A panel's refusal is [`Retold::Again`] — the same click says
-/// it again — and every site today is one.
+/// **[`Retold::Again`], answered here**: the refusal is the answer to a
+/// click on that button, and the same click says it again.
 ///
-/// **A door a type does not pin**, like [`startup_notices`], because
-/// its call sites hand it text — rendered through
-/// [`crate::tools::ToolKind::says`] and the typed forms vocabulary, or
-/// formatted at the site. What it buys
-/// is that every site shares one decision: changing the subject here
-/// changes it at all of them, and a row can see it.
+/// **Type-pinned to a panel, not to its words**: [`PanelRefusal`] is
+/// built only by [`ToolKind::refuses`](crate::tools::ToolKind::refuses)
+/// and [`FormKind::refuses`](crate::tools::FormKind::refuses), so every
+/// sentence through this door opens with a panel's name and gets this
+/// subject and this [`Retold`]. What follows the name is whatever the
+/// site passed to `refuses`. Bare text does not build:
 ///
-/// The sites are every `frame::tool_news` call under
-/// `crates/viewer/src`, and no number is given for them. They are a
-/// grep over the panes and the app, not a population any type bounds;
-/// a row could count them by that grep, as `frame_policy.rs` counts
-/// `ViewerApp::store`'s reads, but it would go red at every new site,
-/// and nothing about a new site is wrong.
-pub fn tool_news(text: impl Into<String>, retold: Retold) -> Message {
-    Message::new(Subject::Document, text, retold)
+/// ```compile_fail,E0308
+/// use viewer::frame::tool_news;
+///
+/// tool_news(&"the camera has no finite projection".to_string());
+/// ```
+///
+/// where a panel's refusal does:
+///
+/// ```
+/// use viewer::frame::tool_news;
+/// use viewer::tools::ToolKind;
+///
+/// tool_news(&ToolKind::Mate.refuses(&"no landed evaluation to derive frames from"));
+/// ```
+pub fn tool_news(refusal: &PanelRefusal) -> Message {
+    Message::new(Subject::Document, refusal.to_string(), Retold::Again)
 }
 
 /// **What the chrome badges about the A5 at-rest verdict**, and `None`
@@ -2387,7 +2427,7 @@ fn coincidence_cells(
                 };
                 Some((by.name(name).to_string(), select))
             }
-            NamedCell::Tool { input } => {
+            NamedCell::Tool { input, .. } => {
                 let node = landed.operation_of(*input)?;
                 Some((by.node(node).to_string(), Selection::Node(node)))
             }
@@ -2545,7 +2585,6 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
         | ProductErrorKind::UnknownNode => BadgeSite::FeatureTree,
         ProductErrorKind::EvaluationOfAnotherDocument
         | ProductErrorKind::EmptyProduct
-        | ProductErrorKind::Unplaced
         | ProductErrorKind::Graft
         | ProductErrorKind::RootInvalid
         | ProductErrorKind::ProductInvalid
@@ -2829,8 +2868,9 @@ pub fn datums_badge(vanished: usize) -> Option<Badge> {
 ///
 /// A badge, per-frame and unlatched, for [`datums_badge`]'s reasons.
 /// The cause is narrower than a datum's: a profile is drawn from its
-/// validated value at the display tolerance, and what empties it is an
-/// arc the flattener cannot put a point on (`crate::sketch::committed`)
+/// validated value at the display tolerance, and what empties it is a
+/// point the flattener cannot compute — a vertex's own position, an
+/// arc's frame, or a point along an arc (`crate::sketch::committed`)
 /// — a fact about the document at this tolerance, so the subject is
 /// the document and the tone [`Tone::Advisory`]: there is no camera
 /// move that brings it back.
@@ -2839,7 +2879,7 @@ pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
         let noun = if undrawn == 1 { "profile" } else { "profiles" };
         Badge::read(
             Subject::Document,
-            format!("profiles: {undrawn} {noun} with an arc the viewport cannot draw"),
+            format!("profiles: {undrawn} {noun} with a point the viewport cannot draw"),
             Tone::Advisory,
         )
     })
@@ -2916,7 +2956,7 @@ pub fn held_edges_badge(
 /// `None` while preferences are kept.
 ///
 /// **A badge, by the provenance rule**, and by the same argument Ev
-/// ruled on for the absent file chooser: the store's usability is
+/// ruled on for the absent file chooser (#2275, 2026-09-10): the store's usability is
 /// settled when the store is built and true for the whole run, so the
 /// sentence exists on a frame where nobody acted. That is a read of
 /// held state a reader consults, and a whole-run environmental fact
@@ -2955,7 +2995,20 @@ pub fn prefs_badge(unusable: Option<&Unusable>) -> Option<Badge> {
 /// given the toolbar two indicators that can both be lit, for one
 /// wait, with no rule anywhere saying which the reader should believe.
 /// The rule is here instead, and it is a total function of what the
-/// session owes and whether the index seam is busy.
+/// session owes and what the index seam is doing.
+///
+/// **Two of its names are [`Outstanding`]'s, because they are the same
+/// facts.** `Progress::Evaluating` holds exactly when
+/// `Outstanding::Evaluating` does, and `Progress::Canceled` exactly
+/// when `Outstanding::Canceled` does; `Current` is the one session
+/// state the index seam splits, into [`Self::Indexing`] and no state
+/// at all. Where two vocabularies share a spelling for two meanings
+/// the spelling is the defect, and [`RankedVerdict`] exists to remove
+/// one; here a second spelling would be the defect, telling a reader
+/// the states differ where they do not. Nor is this [`Outstanding`]
+/// beside an [`IndexSeam`]: an evaluation outranks the index build
+/// behind it, so the six pairs are five states, and the one pair the
+/// chrome does not tell apart has no variant to be drawn from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Progress {
     /// A run is in flight: the picture is older than the document and
@@ -2965,10 +3018,10 @@ pub enum Progress {
     /// running** — what a cancel leaves behind. A spinner over that
     /// alone would be a lie about work nobody is doing.
     ///
-    /// `indexing` is whether a seam BELOW the evaluation is
-    /// nonetheless busy — an index build, or the display fit the index
-    /// waits on — and it is carried here rather than answered by a
-    /// second indicator because this is the one state where the seams
+    /// `index` is whether a seam BELOW the evaluation is nonetheless
+    /// busy — an index build, or the display fit the index waits on —
+    /// and it is carried here rather than answered by a second
+    /// indicator because this is the one state where the seams
     /// disagree about whether anything is happening: a build submitted
     /// before the cancel is still running, and it will change the
     /// picture. The rule the payload buys is **the spinner follows the
@@ -2977,8 +3030,8 @@ pub enum Progress {
     /// indexed* refusal agrees with the toolbar instead of describing
     /// the same moment a second way.
     Canceled {
-        /// Whether an index build is in flight behind the cancel.
-        indexing: bool,
+        /// Whether an index build is on its way behind the cancel.
+        index: IndexSeam,
     },
     /// The document is evaluated and its index is being built: the
     /// picture is the last one that finished, and picks are refused
@@ -2986,8 +3039,8 @@ pub enum Progress {
     Indexing,
 }
 
-/// The one state, from what the session owes and what the pick cache
-/// is doing.
+/// The one state, from what the session owes and what the index seam
+/// is doing ([`crate::pickcache::PickCache::index_seam`]).
 ///
 /// **Evaluation outranks indexing**, because an index built for a
 /// generation the session has already moved past is about to be
@@ -2995,12 +3048,12 @@ pub enum Progress {
 /// without cancel means both can be in flight at once, and naming the
 /// index build there would tell a reader the wait was nearly over when
 /// a whole evaluation is still ahead of it.
-pub fn progress(outstanding: Outstanding, indexing: bool) -> Option<Progress> {
-    match outstanding {
-        Outstanding::Evaluating => Some(Progress::Evaluating),
-        Outstanding::Canceled => Some(Progress::Canceled { indexing }),
-        Outstanding::Current if indexing => Some(Progress::Indexing),
-        Outstanding::Current => None,
+pub fn progress(outstanding: Outstanding, index: IndexSeam) -> Option<Progress> {
+    match (outstanding, index) {
+        (Outstanding::Evaluating, _) => Some(Progress::Evaluating),
+        (Outstanding::Canceled, index) => Some(Progress::Canceled { index }),
+        (Outstanding::Current, IndexSeam::Building) => Some(Progress::Indexing),
+        (Outstanding::Current, IndexSeam::Idle) => None,
     }
 }
 
@@ -3008,7 +3061,8 @@ pub fn progress(outstanding: Outstanding, indexing: bool) -> Option<Progress> {
 ///
 /// The parse door's unknown-variable refusal is deliberate
 /// typo-safety — text naming an undeclared variable never creates
-/// one. The ratified pattern is refuse-then-offer, and this is the
+/// one. The pattern is refuse-then-offer — G4 ratifies it for a drag
+/// on a driven dimension, and this door extends it — and this is the
 /// offer as a value: the undeclared name, for the frame loop to
 /// prefill into the add-variable affordance (name only — the
 /// expression's context does not determine the new variable's
@@ -3099,7 +3153,6 @@ pub fn retype_draft(
 /// ([`Folded::applied`] is a prefix of the input). So `true` does not
 /// say whether the camera moved: a fold whose FIRST operation refused
 /// moved nothing, and one that refused later moved as far as it got.
-/// The name is narrower than the value.
 ///
 /// The stream carries cursor events too, and a stream that denotes no
 /// camera operation is not a camera event.
@@ -3114,7 +3167,7 @@ pub fn retype_draft(
 /// that stopped it — and calling it on frames with no camera event
 /// hands any writer later added to it per-frame behaviour nobody asked
 /// for.
-pub fn folded_moved(folded: &Folded) -> bool {
+pub fn folded_is_a_camera_event(folded: &Folded) -> bool {
     !folded.applied.is_empty() || folded.refused.is_some()
 }
 
@@ -3187,10 +3240,11 @@ mod tests {
         // fold decided the fate of every other writer's sentence.
         let folded = a_clean_fold();
         assert!(
-            folded_moved(&folded),
-            "the fold MOVED, so the frame loop lands it — a fold that \
-             is no camera event never reaches the line at all, and this \
-             row would be asserting about a case that cannot happen"
+            folded_is_a_camera_event(&folded),
+            "the fold applied an orbit, so it is a camera event and the \
+             frame loop lands it — a fold that is no camera event never \
+             reaches the line at all, and this row would be asserting \
+             about a case that cannot happen"
         );
         assert_eq!(fold_status(&folded), StatusUpdate::Expire(Subject::Camera));
 
@@ -3390,7 +3444,10 @@ mod tests {
     #[test]
     fn a_refused_fold_is_news_about_the_camera() {
         let folded = a_refused_fold();
-        assert!(folded_moved(&folded), "a refusal is a camera event too");
+        assert!(
+            folded_is_a_camera_event(&folded),
+            "a refusal is a camera event too"
+        );
         let StatusUpdate::Show(message) = fold_status(&folded) else {
             panic!("a refused fold is news: {:?}", fold_status(&folded));
         };
@@ -3440,6 +3497,7 @@ mod tests {
             (
                 ProductError::EmptyProduct {
                     unplaced: Vec::new(),
+                    loose: Vec::new(),
                 },
                 BadgeSite::NotAFault,
             ),
@@ -3481,7 +3539,6 @@ mod tests {
         // went silent would not fail.
         for kind in [
             ProductErrorKind::EvaluationOfAnotherDocument,
-            ProductErrorKind::Unplaced,
             ProductErrorKind::Graft,
             ProductErrorKind::RootInvalid,
             ProductErrorKind::ProductInvalid,
@@ -3538,7 +3595,6 @@ mod tests {
             ProductErrorKind::RootPoisoned,
             ProductErrorKind::EmptyProduct,
             ProductErrorKind::StrandedPlacement,
-            ProductErrorKind::Unplaced,
             ProductErrorKind::Graft,
             ProductErrorKind::RootInvalid,
             ProductErrorKind::ProductInvalid,
@@ -3597,25 +3653,17 @@ mod tests {
         Withdrawal::dropped_hide(withdrawn).map(|withdrawal| withdrawal.to_string())
     }
 
-    /// A withdrawal on `instance`, mate-constrained by `mates` — the
-    /// commonest arm, and the one whose `Display` carries a remedy.
-    fn constrained(instance: u64, mates: &[u64]) -> Withdrawn {
+    /// A withdrawal on `instance`, whose copy a placement now pins to the
+    /// world — the commonest arm under DI5, and the one whose `Display`
+    /// says why the probe cannot move it.
+    fn pinned(instance: u64) -> Withdrawn {
         Withdrawn {
             instance: RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
-            cause: AdmissionFault::MateConstrained {
+            cause: AdmissionFault::InTheWorld {
                 instance: crate::test_support::spoken(
                     RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
                     Some("InstantiatePart"),
                 ),
-                mates: mates
-                    .iter()
-                    .map(|&mate| {
-                        crate::test_support::spoken(
-                            RecipeNodeId::new(0, test_utils::refusal::tagged(mate)),
-                            Some("Mate"),
-                        )
-                    })
-                    .collect(),
             },
         }
     }
@@ -3627,7 +3675,7 @@ mod tests {
         // which supersedes is one the document ACCEPTED, so the frame's
         // own batch verdict is `Clear` — a supersession written to the
         // line instead of to the notices is erased by its own cause.
-        let notice = superseded_text(&[constrained(7, &[9])]).expect("a supersession is news");
+        let notice = superseded_text(&[pinned(7)]).expect("a supersession is news");
         assert!(
             notice.contains("InstantiatePart 000000000007"),
             "the notice names which of the user's placements went, as the \
@@ -3643,7 +3691,7 @@ mod tests {
              that, the composition below would be asserting about a case \
              where nothing had to survive anything"
         );
-        let message = Withdrawal::superseded(&[constrained(7, &[9])])
+        let message = Withdrawal::superseded(&[pinned(7)])
             .expect("a supersession is news")
             .notice();
         assert_eq!(
@@ -3664,26 +3712,23 @@ mod tests {
     #[test]
     fn a_supersession_says_the_cause_in_the_faults_own_words() {
         // The whole point of carrying the fault rather than the id: the
-        // sentence names the mates AND the remedy, and neither string
-        // is written here — both come from `AdmissionFault`'s `Display`.
-        let cause = AdmissionFault::MateConstrained {
+        // sentence names where the copy lives AND what the probe moves,
+        // and neither string is written here — both come from
+        // `AdmissionFault`'s `Display`.
+        let cause = AdmissionFault::InTheWorld {
             instance: crate::test_support::spoken(
                 RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
                 Some("InstantiatePart"),
             ),
-            mates: vec![crate::test_support::spoken(
-                RecipeNodeId::new(0, test_utils::refusal::tagged(5)),
-                Some("Mate"),
-            )],
         };
-        let notice = superseded_text(&[constrained(3, &[5])]).expect("news");
+        let notice = superseded_text(&[pinned(3)]).expect("news");
         assert!(
             notice.ends_with(&cause.to_string()),
             "the fault renders itself, verbatim: {notice}"
         );
         assert!(
-            notice.contains("delete the mate(s)"),
-            "so the remedy the typed value already knew reaches the line: {notice}"
+            notice.contains("Free-move moves a loose space"),
+            "so what the typed value already knew reaches the line: {notice}"
         );
 
         // The delete arm, which is the other thing the bare id could
@@ -3746,9 +3791,7 @@ mod tests {
         // Both facts can arrive on one frame, and they are ranked
         // together as two notices rather than merged into one claim.
         let notices = [
-            Withdrawal::superseded(&[constrained(7, &[9])])
-                .expect("news")
-                .notice(),
+            Withdrawal::superseded(&[pinned(7)]).expect("news").notice(),
             Message::new(Subject::Document, notice.clone(), Retold::Again),
         ];
         let RankedVerdict::Show(shown) = frame_status(&notices, &[SessionOp::Undo], None) else {
@@ -3828,16 +3871,16 @@ mod tests {
         // several probes (a mate lands on two probed instances, a
         // delete takes a subtree), and each is an instance the user
         // placed by hand and no longer has.
-        let one = superseded_text(&[constrained(3, &[5])]).expect("one supersession is news");
+        let one = superseded_text(&[pinned(3)]).expect("one supersession is news");
         assert_eq!(
             one,
             "free move: a committed placement was discarded — \
-             InstantiatePart 000000000003 is mate-constrained (Mate 000000000005): its pose \
-             is mate-derived, so the free-move probe refuses — delete the mate(s) if free \
-             relative motion is intended"
+             InstantiatePart 000000000003 lives in the world's space: its placement pins it \
+             there (a world pin, or a mate onto a copy in the world), so the free-move probe \
+             refuses. Free-move moves a loose space, a copy nothing pins to the world"
         );
 
-        let two = [constrained(3, &[5]), constrained(11, &[5])];
+        let two = [pinned(3), pinned(11)];
         let both = superseded_text(&two).expect("two supersessions are still news");
         assert_eq!(
             both,
@@ -3858,7 +3901,7 @@ mod tests {
 
     #[test]
     fn a_killed_gesture_is_its_own_sentence_and_has_no_plural() {
-        let killed = constrained(3, &[5]);
+        let killed = pinned(3);
         let notice = Withdrawal::killed_gesture(Some(&killed))
             .expect("a drag the document ended is news")
             .to_string();
@@ -3917,9 +3960,9 @@ mod tests {
     #[test]
     fn every_withdrawal_kind_has_a_producer() {
         let report = PruneReport {
-            superseded: vec![constrained(7, &[9])],
-            dropped_hides: vec![constrained(11, &[9])],
-            killed_gesture: Some(constrained(3, &[5])),
+            superseded: vec![pinned(7)],
+            dropped_hides: vec![pinned(11)],
+            killed_gesture: Some(pinned(3)),
         };
         let produced: Vec<WithdrawalKind> = Withdrawal::all(&report)
             .map(|withdrawal| withdrawal.kind)
@@ -4017,6 +4060,7 @@ mod tests {
                 held: Default::default(),
                 refusal: ProductError::EmptyProduct {
                     unplaced: Vec::new(),
+                    loose: Vec::new(),
                 }
                 .into(),
             },

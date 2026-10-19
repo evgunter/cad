@@ -187,7 +187,10 @@ fn sym_arc_loft() -> Body<Sym<f64>> {
             arc_section(s),
             arc_section(s),
         ]),
-        &sweep::test_support::lift_places::<Sym<f64>>(&stacked(&[0.0, 1.0, 2.0], s)),
+        &sweep::test_support::lift_places::<Sym<f64>>(
+            &stacked(&[0.0, 1.0, 2.0], s),
+            geom_core::Tol::witness(),
+        ),
         2,
         Tol::witness(),
     )
@@ -203,7 +206,10 @@ fn sym_thin_strip() -> Body<Sym<f64>> {
             strip_section(1.0e12 * eps, 1.0e9 * eps, false),
             strip_section(1.0e12 * eps, 1.0e9 * eps, false),
         ]),
-        &sweep::test_support::lift_places::<Sym<f64>>(&stacked(&[0.0, 1.0], 1.0e12 * eps)),
+        &sweep::test_support::lift_places::<Sym<f64>>(
+            &stacked(&[0.0, 1.0], 1.0e12 * eps),
+            geom_core::Tol::witness(),
+        ),
         1,
         Tol::witness(),
     )
@@ -361,9 +367,14 @@ fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
 /// what moved the table AND the new reading is the right answer, with
 /// the cause named at the cut: H5's ratified ruling 2 (PR 2701) (a
 /// certified bound that gets tighter re-baselines like any other move)
-/// and `memories/output-stability-as-justification.md`. Anything else
-/// — a move the branch cannot explain, or one in the wrong direction —
-/// is a finding, and the table stays where it is.
+/// and `memories/output-stability-as-justification.md`. A move the
+/// branch cannot explain is a finding, and the table stays where it is.
+/// A move in the wrong direction that is the named consequence of a
+/// change that makes the code right re-cuts, with the cause named at the
+/// cut and an item filed for the looseness (the INLANE orchestrator's
+/// ruling on C6 S3, PR 5290: one 90° rational sub-arc in place of two
+/// 45° ones, filed as
+/// `work/quad/a-ninety-degree-rational-span-encloses-looser-than-two-forty-five-degree-spans.md`).
 ///
 /// **Each re-cut names its cause in its PR body**, and the history of
 /// what moved is `git log -p -- crates/sweep/tests/thread-count-digest/`.

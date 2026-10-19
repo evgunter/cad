@@ -2,11 +2,10 @@
 id: three-outcomes-re-spell-a-recorded-actions-fields
 kind: issue
 title: RegaugeThenMateOutcome, SplitOutcome and InlineOutcome re-spell Recorded's fields instead of carrying one
-status: parked
+status: open
 opened: 2026-10-03
 priority: P4
 cost: M
-blocked_on: [a-placement-is-the-bundle-of-mates]
 ---
 
 Found by the fix pass of
@@ -50,3 +49,7 @@ them) beside its own fields; the consumers read through it.
 ## Re-homed at RECIPE's close (2026-10-11)
 
 Moved to DOCTAIL and parked on INTENT stage 3's `a-placement-is-the-bundle-of-mates`, which retires gauges and with them `regauge_then_mate`'s outcome. What is left after it (`SplitOutcome`, `InlineOutcome`) is a local tidy.
+
+## Opened at INTENT stage 3 B's close (PR 5232, 2026-10-17)
+
+B retired `regauge_then_mate`, and `RegaugeThenMateOutcome` with it. `SplitOutcome` and `InlineOutcome` (`crates/editor-core/src/refactor.rs`) still re-spell `Recorded`'s fields, and nothing blocks the row now.

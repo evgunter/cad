@@ -38,3 +38,15 @@ these sites move to the typed door? PR 4782 pins the local metre
 (`carrier_cross::crossing_rows::a_swept_span_is_metred_by_its_speed_at_the_meeting`
 goes red under the minor-axis or the major-axis metre), so a change
 at the rule's home has to re-derive that pin.
+
+## Where it stands
+
+`carrier_cross`'s site is gone: `carrier_cross::boundary_crossing` reads
+each candidate against the swept span through
+`geom_brep::curve_pair::Span::contact` (stage (c) of
+`the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227)). That reading decides the chord
+to each end first, in metres, and meters only the side of an end the
+chord already put past the band, by the greatest speed. The pin was
+renamed `a_swept_spans_end_is_read_by_its_chord_to_the_meeting` and
+holds unchanged. The question stands for `bool_wall_root_in_span`
+alone.

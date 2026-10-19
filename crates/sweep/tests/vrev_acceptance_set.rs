@@ -18,7 +18,8 @@
 
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::{Affine3, Point3, Tol, Vec3};
+use geom_core::{Point3, Tol};
+use profile::SketchPlane;
 
 /// A `3 × nv` net with no symmetry of its own, on a given `knots_v`.
 fn surface_on(knots_v: Vec<f64>, pv: usize) -> NurbsSurface<f64> {
@@ -93,7 +94,7 @@ fn square() -> sweep::Section {
 fn lofted_wall_verdict(k: usize) -> (Vec<f64>, bool) {
     let sections: Vec<_> = (0..k).map(|_| square()).collect();
     let places: Vec<_> = (0..k)
-        .map(|j| Affine3::translation(Vec3::new(0.0, 0.0, j as f64)))
+        .map(|j| SketchPlane::xy_at(Point3::new(0.0, 0.0, j as f64)))
         .collect();
     let lofted =
         sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("the loft builds");
@@ -103,7 +104,7 @@ fn lofted_wall_verdict(k: usize) -> (Vec<f64>, bool) {
         Some(Surface::Nurbs(n)) => (**n).clone(),
         other => panic!("a lofted wall is a NURBS chart: {other:?}"),
     };
-    let knots = n.knots_v().knots().to_vec();
+    let knots = n.knots_v_f64_interim().knots().to_vec();
     (knots, n.reversed_v().is_ok())
 }
 

@@ -94,12 +94,13 @@ pub fn image(chain: &NurbsCurve3<f64>, radius: f64, f0: f64, f1: f64) -> NurbsCu
     }
     let fit = NurbsCurve2::interpolate_with_params(&pts, 3, &params).expect("the chart image fits");
     let knots: Vec<f64> = fit
-        .knots()
+        .knots_f64_interim()
         .knots()
         .iter()
         .map(|k| f0 + (f1 - f0) * k)
         .collect();
-    let kv = KnotVector::clamped(knots, fit.knots().degree()).expect("affine knot rescale");
+    let kv =
+        KnotVector::clamped(knots, fit.knots_f64_interim().degree()).expect("affine knot rescale");
     NurbsCurve2::new(
         Knots::from(kv).lift(geom_core::Real::from_f64),
         fit.control().to_vec(),

@@ -1,7 +1,7 @@
 ---
 id: band-scale-torus-geometry-ends-as-a-kernel-defect
 kind: issue
-title: "chart_pcurve's torus arm ends band-scale geometry as Unsized::Defect: a thin tube or near-horn torus at the class gates, a near-horn Villarceau circle at its gates and incidence test, and the parallel route's unit_sign at K ≤ 3"
+title: chart_pcurve's torus arm ends band-scale geometry as Unsized::Defect: a thin tube or near-horn torus at the class gates, a near-horn Villarceau circle at its gates and incidence test, and the parallel route's unit_sign at K ≤ 3
 status: open
 opened: 2026-10-14
 priority: P3
@@ -96,3 +96,31 @@ The obvious ending is a sized decision with the tolerance offer.
   gates read them.
 
 That needs a designer's look before a lane builds it.
+
+## The question for Ev
+
+One question covers this item and its sibling
+(`chart-winding-escalates-on-the-first-candidate-at-a-band-sized-lever`,
+`band-scale-torus-geometry-ends-as-a-kernel-defect`): what certification
+owes a row whose angular or curvature-scale quantities sit at a
+band-sized lever, where today the refusal ends as "a kernel defect;
+report it". Two designers weighed it and converged after one round: on
+a periodic chart the winding is structure the row stores and `certify`
+compares exactly, never decided in metres (the near-apex child row then
+certifies); the torus convention is decided where a torus face is
+admitted; a closed-form class gate in band means "class not shown" and
+the carrier takes the general (projected) lane. The C4 text the answer
+changes is in the `[ev]` PR that carries this question.
+
+Ev asked (on that PR) for a general principle behind the third answer,
+since booleans decide their in-band cases differently and the lint is a
+separate stage. Two more designers converged on one: a reading's
+consumer is either a lane choice (it picks a form for one certified
+statement, takes a lane that does not rest on the answer, and records
+nothing) or a structural act (it changes the result's cells, records a
+Zero for the lint and refuses in band). That paragraph goes in D3, with
+a sentence in D10.
+
+## The answer
+
+Ev on `[ev]` PR 5113 (2026-10-14/15): decision 1 accepted (windings are structure the row stores and `certify` compares exactly); decision 3 replaced by the D3 principle (a class gate is a lane choice: in band or definite it takes a lane whose certificate does not rest on the class, records nothing, never ends as a defect; where no lane exists yet it refuses lever-only with "not yet", never a tolerance offer); the edge join records its class Zeros (D10). Decision 2 (the torus convention at admission) is split out to `a-torus-faces-convention-is-decided-where-the-face-is-admitted`, waiting on the import-validation conversation.

@@ -72,7 +72,7 @@ fn name(node: RecipeNodeId) -> SitedRef {
 fn every_form() -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-measure-wire"), Tol::witness());
     let push = |d: &ProfileDoc, e: &DocEdit<editor_core::ProfileProgram>| {
-        apply(d, e, Tol::witness(), &editor_core::RefusingReach)
+        apply(d, e, Tol::witness())
             .expect("a valid edit applies")
             .doc
     };
@@ -169,7 +169,7 @@ fn assertion(doc: &ProfileDoc) -> RecipeNodeId {
 fn angular() -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive("m10-2-angle"), Tol::witness());
     let push = |d: &ProfileDoc, e: &DocEdit<editor_core::ProfileProgram>| {
-        apply(d, e, Tol::witness(), &editor_core::RefusingReach)
+        apply(d, e, Tol::witness())
             .expect("a valid edit applies")
             .doc
     };
@@ -294,7 +294,6 @@ fn a_dimension_mismatched_bound_refuses_at_the_edit_door() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect_err("a Length bound on an Angle measure is refused");
     assert!(
@@ -329,7 +328,6 @@ fn an_assertion_over_a_non_scalar_refuses() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect_err("an assertion compares a value");
     assert!(

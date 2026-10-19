@@ -213,6 +213,21 @@ fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
     let said = refusal.to_string();
     assert!(said.contains("tangent"), "{said}");
     assert!(!said.contains("Tangent"), "{said}");
+    // The refusal is the sentence the row's verb combo greys `tangent`
+    // with there (`viewer::sketch::not_well_typed`), behind the step
+    // it is about.
+    assert_eq!(
+        said,
+        format!(
+            "loop 0 step 1: {}",
+            viewer::sketch::not_well_typed(Verb::Tangent, TipState::PlainPoint)
+        ),
+    );
+    assert_eq!(
+        said,
+        "loop 0 step 1: tangent is not well-typed here — the tip is a bound position with no \
+         incoming tangent",
+    );
 
     let mut session = session(tol);
     let plane = common::xy_frame_in(&mut session);
@@ -226,7 +241,7 @@ fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
         out.refusal,
     );
     assert_eq!(
-        session.committed_doc().ids(),
+        common::authored_ids(session.committed_doc()),
         &[plane][..],
         "and nothing landed — the frame the profile would have named is \
          all the document holds",
@@ -290,7 +305,7 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
         out.refusal,
     );
     assert_eq!(
-        session.committed_doc().ids(),
+        common::authored_ids(session.committed_doc()),
         &[plane][..],
         "and nothing landed — the frame the profile would have named is \
          all the document holds",

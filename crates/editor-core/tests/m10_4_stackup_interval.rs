@@ -151,7 +151,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
 }
 
 fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    editor_core::apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
+    editor_core::apply(doc, edit, Tol::witness())
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
@@ -1411,10 +1411,11 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
 /// **The lift-pinning e2e: a bore/pin fit.** The pin's radius `r` is a
 /// profile dimension (a circle program's radius) and the C5 gap
 /// `R − r − d` reads it only through the lifted cylinder carrier: the
-/// stackup reports ∂gap/∂r = −1 exactly, chamber-certified, where the
-/// pinned lift gives the silent zero. (The two-hole plate's −2 is the
-/// measure EXPRESSION's own `− 2·hole_r` and would come out under
-/// either lift; this row is the one where the lift is load-bearing.)
+/// stackup reports ∂gap/∂r = −1 exactly, chamber-certified, where a
+/// lift through `from_f64` gave the silent zero. (The two-hole plate's
+/// −2 is the measure EXPRESSION's own `− 2·hole_r` and would come out
+/// without the lift; this row is the one where the lift is
+/// load-bearing.)
 #[test]
 fn the_bore_pin_gap_stackup_pins_the_lift() {
     let half = eps() / 16.0;
@@ -1458,8 +1459,10 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let doc = r.doc;
 
-    // The silent zero the driver never uses, shown beside the fix.
-    let pinned = evaluate::<geom_core::Dual64>(
+    // A default evaluation seeded on `r` carries the tangent: the
+    // profile is elaborated at the lane, where a lift through
+    // `from_f64` gave a silent zero.
+    let seeded = evaluate::<geom_core::Dual64>(
         &doc,
         None,
         &CancelToken::new(),
@@ -1469,13 +1472,13 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
         },
         Tol::witness(),
     );
-    let Some(NodeResult::Ok(v)) = pinned.result(measure) else {
+    let Some(NodeResult::Ok(v)) = seeded.result(measure) else {
         panic!("the gap measures")
     };
     let ValuePayload::Measure { value, .. } = &v.payload else {
         panic!("a measure")
     };
-    assert_eq!(value.deriv, 0.0, "the pinned lift's silent zero");
+    assert_eq!(value.deriv, -1.0, "∂gap/∂r through the profile's carrier");
 
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("builds");
@@ -1532,10 +1535,10 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
 
 /// **A loft section carries its seed.** A loft reads its sections'
 /// profile values in the lane scalar, so a seed on a section's width
-/// rides through the skin to the walls (it was the typed valve
-/// `LiftRefusal::PinnedSection` while sections stayed `f64`): the
-/// distance from the loft's origin corner to its `x = w` corner moves
-/// one for one with `w`.
+/// rides through the skin to the walls: the distance from the loft's
+/// origin corner to its `x = w` corner moves one for one with `w`. And
+/// the drive over `w`'s box certifies in one leaf, the walls skinned
+/// over the box.
 #[test]
 fn a_loft_section_seed_rides_the_section_to_the_measure() {
     let half = eps() / 16.0;
@@ -1607,27 +1610,19 @@ fn a_loft_section_seed_rides_the_section_to_the_measure() {
         other => panic!("a section seed must reach the measure: {other:?}"),
     }
 
-    // The drive is where the box meets the section, and at `Interval` a
-    // section with a width is no point: every leaf's loft refuses
-    // `SectionNotAPoint`, so nothing certifies and the driver bisects to
-    // its budget (that refusal is not one a smaller box can lift, and
-    // the drive has no terminal class for it). The `Interval` loft over
-    // a boxed section waits on
-    // `work/inlane/the-skin-at-interval-encloses-the-nominal-skin.md`;
-    // this pins where it stands, so the day it lands this row moves.
+    // The drive is where the box meets the section: at `Interval` the
+    // section is wider than a point, and the loft skins it at the lane
+    // scalar, so the box certifies in one leaf.
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("builds");
-    assert!(
-        verdict.certified().is_empty(),
-        "a boxed section certifies nothing at Interval yet: {:?}",
-        verdict.receipt()
-    );
-    assert!(
-        verdict
-            .refused()
-            .iter()
-            .all(|leaf| matches!(leaf.reason, editor_core::drive::RefusalReason::Budget(_))),
-        "every leaf is refused mass under the budget: {:?}",
+    assert_eq!(
+        verdict.receipt(),
+        editor_core::drive::Receipt {
+            certified: 1,
+            refused: 0,
+            splits: 0
+        },
+        "a boxed section certifies at Interval: {:?}",
         verdict.refused().first().map(|l| &l.reason)
     );
 }

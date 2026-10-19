@@ -952,7 +952,7 @@ pub fn elbow_section() -> Section {
 pub fn swept_elbow_lofted(tol: Tol) -> Lofted<f64> {
     sweep_body::<f64>(
         &elbow_section(),
-        Affine3::identity(),
+        SketchPlane::xy(),
         &elbow_path(),
         ELBOW_STATIONS,
         ELBOW_V_DEGREE,
@@ -1036,10 +1036,8 @@ pub fn loft_prism_sections() -> Vec<Section> {
 /// Not specific to the loft: [`prism_at`] and [`brick`] place their
 /// own sketch planes, and a fixture that stacks anything joins by
 /// naming this.
-pub fn stacked_at(zs: &[f64]) -> Vec<Affine3<f64>> {
-    zs.iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
-        .collect()
+pub fn stacked_at(zs: &[f64]) -> Vec<SketchPlane<f64>> {
+    zs.iter().map(|z| sketch_at(*z)).collect()
 }
 
 /// **Fixture sections at a lane scalar**: each loop of `sections`
@@ -1054,9 +1052,24 @@ pub fn lift_sections<T: Real>(sections: &[Section]) -> Vec<Section<ProfileLoop<T
         .collect()
 }
 
-/// [`lift_sections`]' placements: each a fixture's constant.
-pub fn lift_places<T: Real>(places: &[Affine3<f64>]) -> Vec<Affine3<T>> {
-    places.iter().map(|p| p.map(T::from_f64)).collect()
+/// [`lift_sections`]' placements, each minted at `T`: a frame crosses
+/// no scalar upward, so the fixture's twelve placement constants are
+/// admitted again at the decided door at `T`
+/// ([`RigidMotion::check_rigid`], at `tol`'s linear band).
+///
+/// # Panics
+///
+/// When a placement is not admitted at `T`.
+pub fn lift_places<T: Decide>(places: &[SketchPlane<f64>], tol: Tol) -> Vec<SketchPlane<T>> {
+    let band = Band::linear(tol).expect("the run's tolerance forms a band");
+    places
+        .iter()
+        .map(|p| {
+            let frame = RigidMotion::check_rigid(&p.placement().map(T::from_f64), band)
+                .unwrap_or_else(|e| panic!("a fixture placement is rigid at the lane scalar: {e}"));
+            SketchPlane::from_frame(frame)
+        })
+        .collect()
 }
 
 /// [`loft_prism`] with its sections placed at `zs` instead of

@@ -89,7 +89,7 @@ fn assert_mirrored(label: &str, stored: &Pcurve<f64>, mirrored: &Pcurve<f64>, ts
 #[test]
 fn reverted_drum_cavity_mirrors_every_plane_chart_image_with_its_frame() {
     let cavity = door_cavity(&collinear_cap_drum(), T);
-    let reverted = cavity.revert();
+    let reverted = cavity.revert().unwrap();
     let stored = plane_images(&cavity);
     let mirrored = plane_images(&reverted);
     assert_eq!(stored.len(), mirrored.len(), "keys are the source's");
@@ -122,7 +122,7 @@ fn reverted_drum_cavity_mirrors_every_plane_chart_image_with_its_frame() {
 fn reverted_drum_cavity_re_certifies_edge_for_edge_and_tier_3_reports_only_the_complement() {
     let cavity = door_cavity(&collinear_cap_drum(), T);
     assert!(graft_recertify_failures(&cavity).is_empty());
-    let reverted = cavity.revert();
+    let reverted = cavity.revert().unwrap();
     let failures = graft_recertify_failures(&reverted);
     assert!(
         failures.is_empty(),
@@ -144,14 +144,17 @@ fn reverted_drum_cavity_re_certifies_edge_for_edge_and_tier_3_reports_only_the_c
 fn revert_is_a_bitwise_involution_on_a_body_with_plane_chart_images() {
     let cavity = door_cavity(&collinear_cap_drum(), T);
     let original = format!("{cavity:?}");
-    let once = cavity.revert();
+    let once = cavity.revert().unwrap();
     assert_ne!(
         format!("{once:?}"),
         original,
         "the reversal moved something"
     );
-    assert_eq!(format!("{:?}", once.revert()), original);
-    assert_eq!(format!("{:?}", cavity.revert()), format!("{once:?}"));
+    assert_eq!(format!("{:?}", once.revert().unwrap()), original);
+    assert_eq!(
+        format!("{:?}", cavity.revert().unwrap()),
+        format!("{once:?}")
+    );
 }
 
 /// **A stored pcurve row on a plane face travels the same way**: no
@@ -185,7 +188,7 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
         .expect("a plane row certifies in the harmonic lane");
     assert!(cavity.attach_pcurve(he, row.clone()).is_none());
 
-    let reverted = cavity.revert();
+    let reverted = cavity.revert().unwrap();
     let mirrored = reverted.pcurve(he).expect("the row keeps its key");
     assert_mirrored(
         "row",
@@ -232,7 +235,7 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
         "the stored image is wrong on the reverted plane at the first interior sample: \
          the reflection is load-bearing; got {stale:?}"
     );
-    let back = reverted.revert();
+    let back = reverted.revert().unwrap();
     assert_eq!(
         format!("{:?}", back.pcurve(he).unwrap()),
         format!("{row:?}"),
@@ -359,7 +362,7 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
     for (label, image) in kinds {
         let body = plane_face_with(image, carrier.clone(), 0.0, len);
         let source = only_curve(&body);
-        let reverted = body.revert();
+        let reverted = body.revert().unwrap();
         let mirrored = only_curve(&reverted);
         assert_eq!(
             std::mem::discriminant(&image_of(&mirrored)),
@@ -369,7 +372,7 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
         assert_mirrored(label, &image_of(&source), &image_of(&mirrored), &ts);
         let (start, end) = (carrier.eval(0.0), carrier.eval(len));
         let surfaces = |k| reverted.get_surface(k).cloned();
-        let control = source.recertify(start, end, surfaces, band);
+        let control = source.recertify(start, end, surfaces, 1.0, band);
         assert!(
             matches!(
                 control,
@@ -381,14 +384,16 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
             ),
             "{label}: the source's image on the reverted plane: {control:?}"
         );
-        let rerun = mirrored.recertify(start, end, surfaces, band).expect(label);
+        let rerun = mirrored
+            .recertify(start, end, surfaces, 1.0, band)
+            .expect(label);
         assert_eq!(
             format!("{rerun:?}"),
             format!("{:?}", mirrored.certificate()),
             "{label}: the certificate that travelled verbatim is the fresh run's"
         );
         assert_eq!(
-            format!("{:?}", reverted.revert()),
+            format!("{:?}", reverted.revert().unwrap()),
             format!("{body:?}"),
             "{label}: involution"
         );
@@ -411,14 +416,14 @@ fn a_signed_zero_lands_in_the_mirrored_image_and_never_in_its_certificate() {
         radius: 1.0,
         u_ref: Vec3::unit_x(),
     };
-    let image = Pcurve::Harmonic {
-        p0: Point2::new(0.0, 0.0),
-        pa: Vec2::new(1.0, 0.0),
-        pb: Vec2::new(0.0, 1.0),
-        pl: Vec2::new(0.0, 0.0),
-    };
+    let image = Pcurve::free_harmonic(
+        Point2::new(0.0, 0.0),
+        Vec2::new(1.0, 0.0),
+        Vec2::new(0.0, 1.0),
+        Vec2::new(0.0, 0.0),
+    );
     let body = plane_face_with(image, circle, 0.0, core::f64::consts::PI);
-    let reverted = body.revert();
+    let reverted = body.revert().unwrap();
     let m = only_curve(&reverted);
     let img = format!("{:?}", image_of(&m));
     assert!(
@@ -432,7 +437,7 @@ fn a_signed_zero_lands_in_the_mirrored_image_and_never_in_its_certificate() {
     );
     assert_ne!(format!("{reverted:?}"), format!("{body:?}"));
     assert_eq!(
-        format!("{:?}", reverted.revert()),
+        format!("{:?}", reverted.revert().unwrap()),
         format!("{body:?}"),
         "involution"
     );

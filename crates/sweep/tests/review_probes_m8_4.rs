@@ -14,7 +14,8 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Point3, Vec3};
+use geom_core::{Point2, Point3, Vec3};
+use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use std::sync::Arc;
 use topo::{Body, FaceSurface, Pcurve};
@@ -31,9 +32,9 @@ fn offset_square_prism() -> Body<f64> {
     };
     let sections = vec![square(), square(), square()];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.5, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.5, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
     ];
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
@@ -229,13 +230,13 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
         panic!("the boundary seam on the reversed chart mints: {out:?}");
     };
     assert_eq!(pl.x, 0.0, "u stays banded-constant: {pl:?}");
-    let (du0, du1) = chart.knots_u().domain();
+    let (du0, du1) = chart.knots_u_f64_interim().domain();
     assert!(
         p0.x == du0 || p0.x == du1,
         "still a boundary column: u = {} of [{du0}, {du1}]",
         p0.x
     );
-    let (dv0, dv1) = chart.knots_v().domain();
+    let (dv0, dv1) = chart.knots_v_f64_interim().domain();
     assert!(
         (pl.y - (dv0 - dv1)).abs() < 1e-12,
         "the BACKWARD candidate wins on the reversed chart: slope {} on [{dv0}, {dv1}]",

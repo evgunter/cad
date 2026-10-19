@@ -1,6 +1,6 @@
 //! Placement: the literal [`Frame`], and the [`Placement`] chain a
-//! `Node::Transform`, a `Node::Gauge` and an instance's offset hold
-//! (`crates/editor-core/ASSEMBLY.md` A11 (2)) — rigid steps of
+//! `Node::Transform` and a mate frame's offset hold
+//! (`crates/editor-core/ASSEMBLY.md` A3, A11 (2)) — rigid steps of
 //! expressions and literal frames.
 
 use geom_core::predicate::Band;
@@ -169,7 +169,7 @@ impl Frame {
     /// [`NodeErrorKind::NonFiniteDirection`],
     /// [`NodeErrorKind::UnderflowedDirection`],
     /// [`NodeErrorKind::Escalated`]). [`crate::EditError::PlacementAxis`]
-    /// is what carries it through the `SetOffset` door.
+    /// is what carries it through the `AddConstraint` door.
     pub fn rotate_then_translate(
         axis: [f64; 3],
         angle: f64,
@@ -436,17 +436,9 @@ pub enum FrameSite {
         /// Its index in the placement list.
         index: usize,
     },
-    /// Step `index` of the placement chain a node holds: a
-    /// transform's, a gauge's, or an instance's offset.
+    /// Step `index` of the placement chain a transform holds.
     Step {
         /// Its index in the chain.
-        index: usize,
-    },
-    /// Step `index` of a mate side's frame offset.
-    MateStep {
-        /// Which side's frame.
-        side: crate::mate::MateSide,
-        /// Its index in the offset's chain.
         index: usize,
     },
 }
@@ -461,11 +453,6 @@ impl FrameSite {
         match self {
             Self::Listed { index } => format!("placement {index} of {node}"),
             Self::Step { index } => format!("step {} of {node}'s placement", index + 1),
-            Self::MateStep { side, index } => format!(
-                "step {} of {node}'s {} frame offset",
-                index + 1,
-                side.name()
-            ),
         }
     }
 }
@@ -554,13 +541,11 @@ impl<T: Decide> Motion<T> {
 }
 
 /// **A placement: an ordered chain of steps** — what a
-/// [`crate::Node::Transform`] and a [`crate::Node::Gauge`] hold, and an
-/// instance's offset is (ASSEMBLY-DESIGN A11 (2)). An explicit rule's
-/// listed placements hold literal [`Frame`]s.
+/// [`crate::Node::Transform`] holds (ASSEMBLY-DESIGN A3). An explicit rule's listed placements
+/// hold literal [`Frame`]s.
 ///
 /// The chain composes as a product: `[s0, s1, …, sn]` denotes
-/// `s0 ∘ s1 ∘ … ∘ sn`, the reading A11 (5) writes "gauge frame ∘ offset
-/// ∘ solved pose" in and [`Frame::compose`] computes. Each step is
+/// `s0 ∘ s1 ∘ … ∘ sn`, as [`Frame::compose`] computes. Each step is
 /// expressed in the frame the steps before it build, and the last step
 /// is the first to act on the placed body: a `point_at` frame composed
 /// with a rigid step spins the body inside the aimed frame.
@@ -796,12 +781,11 @@ impl Placement {
     }
 
     /// **`before`, then this placement's steps, one step at a time** —
-    /// the fold every chain of placements goes through
-    /// (`mate::solve::group_frame` down a gauge chain and into an
-    /// offset). Folding step by step makes a chain's frame a function
-    /// of its steps alone, not of how they are grouped into placements,
-    /// so the edits that regroup them ([`crate::DocEdit::Promote`],
-    /// [`crate::DocEdit::Fold`]) move no bit of any pose.
+    /// the fold a mate side's offset goes through onto its base
+    /// (`mate::solve::compose_offset`). Folding step by step makes a
+    /// chain's frame a function of its steps alone, not of how they are
+    /// grouped, so splitting one chain into two composed ones moves no
+    /// bit of any pose.
     ///
     /// # Errors
     ///
@@ -815,29 +799,6 @@ impl Placement {
         let vals = crate::eval::slots::eval_rows(self.rows(), env)
             .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
         self.chain_motion(before, &vals, band)
-    }
-
-    /// **The one construction of a placement's motion**, from its
-    /// slots already evaluated: a rigid step minted by the transform
-    /// construction over its axis decided under the transform's role
-    /// word, a literal step admitted at the decided door
-    /// ([`Frame::rigid_motion`]), the chain folded through
-    /// [`Motion::compose`] — so a chain of witnesses is one, decided
-    /// nowhere again.
-    ///
-    /// # Errors
-    ///
-    /// [`NodeErrorKind::MissingSlot`] when a rigid step's slot is not
-    /// among `vals`, the direction door's own refusal, and
-    /// [`NodeErrorKind::Motion`] for a step's motion that is not
-    /// minted or not admitted.
-    pub(crate) fn motion<T: Decide>(
-        &self,
-        vals: &SlotValues<T>,
-        band: Band,
-    ) -> Result<Affine3<T>, NodeErrorKind> {
-        self.chain_motion(Motion::Identity, vals, band)
-            .map(Motion::affine)
     }
 
     /// [`Placement::motion`] with the bit-exact identity kept marked

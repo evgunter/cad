@@ -1091,6 +1091,18 @@ through the public `run_battery_for` on a raw body (a row pins it);
 APPROVE-WITH-FIXES. Filed `blend-two-geometry-refusals-meet-no-shape`
 and `blend-reach-may-refuse-a-valid-thin-cylinder-as-degenerate`.
 
+## 2026-10-14 — a thin cylinder boxes by its boundary (closes blend-reach-may-refuse-a-valid-thin-cylinder-as-degenerate)
+
+Tier 3 admits any exactly positive radius; the face box's levered axis
+refused one the band does not decide positive. No door was found to
+mint one (profile, STEP, fillet each refuse it at the band), but the
+margin chain does not exclude it, so `face_box_rule` now falls back to
+the boundary hull (sound for any ruled face) where the axis is a
+direction and the lever does not decide. The review's fix pass splices
+the lever's escalation superseded on that fallback, clips the slab to the
+hull on every coordinate (one home for the ruled containment), and
+filed `cleave/separating-axis-reads-swallow-their-unit-escalations`.
+
 ## 2026-10-14 — a bar inside a concave band's fill is absorbed (PR 5099, step 2)
 
 A bar between two end walls wholly inside the material a concave band's
@@ -1103,3 +1115,98 @@ probes; the ruled table's island-voids cell carries an erratum (the
 voids lie in `F`, which fills them), and the step-2 refusals steps 3 and
 4 inherit are pinned (a bump on the bar, a sealed tube, blind holes in
 the walls). Filed `a-feature-inside-a-turns-overrun-is-not-carved`.
+
+## 2026-10-14 — a cup on one end wall goes with the band (PR 5161, step 3)
+
+The end-wall half of step 3: a blind bore under a convex plane–plane
+band and a pin under a concave one, wholly inside the region, go at
+`ΔV = ∓(A·L − V_cup)`. A cup's faces off the cap are certified through
+their edges read in the band's exact core, a plane face not parallel to
+the spine by its boundary, and `consume` takes a disk on one cycle,
+bridging a face's rings first, so a bump on a bar now builds too. The
+strip-mouth half (dimple, boss) and the ruled band's cups are filed.
+
+
+The fix pass of its dual review: the core reading of an edge now
+tightens its depth (it reported the first certifying piece's, which,
+not the lean term, refused a slightly leaning bore under the fillet,
+now built); rows witness the disk count, the piece radius and the
+plane reading's slack; C8 says an absorbed island's voids are filled.
+Filed `a-feature-inside-a-region-that-is-no-disk-or-annulus-is-not-carved`
+and `a-cup-leaning-off-the-spine-under-a-fillet-is-charged-its-boxs-diagonal`.
+
+- 2026-10-15 — **No live row is at or above this track's own band (P0).** The 51 rows left are 5 at P2, 36 at P3, 3 at P4, 7 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
+  Band the 7 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
+  (tracker sweep)
+
+## 2026-10-19 — a cup on a support's strip goes with the band (PR 5338, step 3)
+
+The strip half of step 3: a dimple under a convex plane–plane band and
+a boss under a concave one, their mouths rings on a support's strip,
+wholly inside the region, go at `ΔV = ∓(A·L − π·a²·h)`, where the band
+is one link cut off at both ends. The ring pass reads a support's ring
+against the strip across the edge; the clearance screen stands down on
+a ring that reading decides; the reach reads the cup in the band's core
+less that support's side, its other edges in the whole core. A ruling
+square to the support pays nothing where the section is convex (the
+chamfer's) or the face lies on the support's side of the fillet ball's
+centre; a cup reaching past that centre pays its run across the spine,
+since at an acute dihedral a line along the support's normal can leave
+the section through the arc and come back in the cusp by the other
+support (both reviewers' probes, now rows in `band_dihedral_cups`, with
+the cap half's at 30°, 60°, 120° and 135°, which main builds right).
+The screen and arm (a) read a ring through one piece set
+(`surgery::strip_ring`), so a leaning round dimple's elliptic mouth now
+goes too. `consume` needed nothing new. The followability row's blind
+hole from the support face now builds. Filed
+`a-cup-on-a-strip-beside-a-band-not-cut-off-at-both-ends-is-not-carved`.
+## 2026-10-19 — a cut-off arc at an oblique end reads off atan2's cut
+
+`an-interval-fillet-cut-off-at-an-oblique-end-reads-its-arc-backward`
+closed: a foot half a turn from its end ellipse's `u_ref` read the hull
+`[−π, π]` at `Interval`, so the sheared box's fillet refused where
+`f64` built. `surgery::arc_window` re-anchors at the half turn and is
+the one window read for `CapSliver::of` and `attach_contact`. A shear
+ladder of both signs, convex and concave, both verbs, at both scalars.
+Filed `a-rim-split-at-its-carriers-anti-seam-refuses-at-interval` and
+one issue for the seam-anchored reads in `topo`.
+
+## 2026-10-19 — the blend arms place their centres at their inputs' scale (`band/arms-centre-placement`)
+
+`sheet_center`'s round × round arm reads `geom_core::Circles` for the
+offset circles' radical foot and half-chord, and `corner_ball` solves
+for the centre's offset from its first vertex. Rows in
+`blend_arms_centre_placement.rs` hold both at a few ulps of scale at
+`f64` and `Interval` (main: about `ratio` ulps / NaN past 1e8, and
+`u·|p|/det`). Closed `sheet-center-circle-pair-cancels-at-unequal-offsets`
+and `blend-corner-ball-cramer-anchors-at-the-world-origin`. Filed
+`plane-sphere-blend-spine-radius-by-differences-of-squares` here and
+`work/shell/topo-planar-offset-cramer-anchors-at-the-world-origin.md`.
+
+## 2026-10-19 — the slate re-banded for the hand-back
+
+Ev (in chat): finish what matters, then hand the tail back rather than
+working through it. The eight unbanded items now carry a band and a
+cost (the Interval oblique cut-off's `BodyNotIntact`, a normal fillet
+refusing on the certified scalar, P2; the precision and funnel items
+P2; the overrun and dependent-normals refusals P3).
+`ruled-cut-off-builds-a-bore-wholly-inside-the-removed-sliver` closes:
+its four steps are built and its void residue is the concave item's
+step 4. `blend-reach-never-meters-the-bands-of-one-chain-against-each-other`
+drops to P3 (no door reaches it while every chain is straight). Being
+finished before the hand-back: step 3b (strip-mouth cups), the two
+`arms.rs` centre placements, and the Interval oblique cut-off. Step 4
+(whole shells and the seal) and the P3 tail stay on the slate.
+
+## 2026-10-19 — the track handed back (`ready`, P2)
+
+Ev (in chat): finish what matters, then hand the tail back. Finished
+before the hand-back: step 3's strip half (PR 5338, a dimple or boss on
+a support's strip; its dual review found a wrong body at acute
+dihedrals, fixed by giving the ν-stray only inside the fillet ball's
+centre half-space, and the merged cap half was probed at 30°–135° and
+is unaffected), the two `arms.rs` centre placements (PR 5348), and the
+Interval oblique cut-off (PR 5346). The program is `ready` at P2: step 4
+(whole shells and the seal, H), the anti-seam Interval refusal, three
+error-propagation rows, and the P3 tail. The 1e-12 needle main red
+filed here is closed as a duplicate of CPAIR's bisected item.

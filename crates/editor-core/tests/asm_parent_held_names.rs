@@ -144,11 +144,11 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
     let v1_painted = apply(
         &v1,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&v1, &wall),
             name: wall.clone(),
             attr: Attr::Color(Rgba8::opaque(1, 2, 3)),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc;
@@ -172,7 +172,6 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
             fresh: Vec::new(),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .unwrap();
     assert_eq!(
@@ -191,11 +190,11 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
     let parent = apply(
         &parent,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&parent, &name),
             name: name.clone(),
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc;
@@ -212,7 +211,6 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
             new_pin: r2.pin,
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .unwrap();
     let after_ev = run(&updated.doc, &shelf);
@@ -251,7 +249,7 @@ fn with_leg(base: &ProfileDoc, profile: RecipeNodeId, at: usize, corner: (f64, f
         other => panic!("the part's profile: {other:?}"),
     };
     ids.insert(at, None);
-    apply(
+    let doc = apply(
         base,
         &DocEdit::SetProgram {
             node: profile,
@@ -260,10 +258,28 @@ fn with_leg(base: &ProfileDoc, profile: RecipeNodeId, at: usize, corner: (f64, f
             fresh: Vec::new(),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .unwrap()
-    .doc
+    .doc;
+    // The part's world pin reads its frame off an edge and a vertex of
+    // the body, which the reshape may move: the placement is pinned
+    // again where the reshaped body stands in its own coordinates.
+    let [placement] = doc.placements()[..] else {
+        panic!("the part places its body once")
+    };
+    let doc = fixture::bundle(&doc, placement)
+        .into_iter()
+        .fold(doc, |doc, c| {
+            fixture::step(
+                doc,
+                DocEdit::RemoveConstraint {
+                    placement,
+                    constraint: c.id,
+                },
+            )
+            .0
+        });
+    fixture::pinned(doc, placement, &editor_core::EvalOptions::default())
 }
 
 /// **Two versions of one part that branch from one value.** Version A
@@ -322,11 +338,11 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
     let parent = apply(
         &parent,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&parent, &name),
             name: name.clone(),
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc;
@@ -349,7 +365,6 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
             new_pin: rb.pin,
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .unwrap();
     assert_eq!(
@@ -420,7 +435,7 @@ fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
     for (what, doc, carried) in [("A's top on B", &b, tall), ("B's top on A", &a, taller)] {
         let eval = corpus::eval::<f64>(doc);
         let top = fixture::fname(carried, RoleSeg::Cap(editor_core::CapEnd::End));
-        match editor_core::resolve(editor_core::RunCtx { doc, eval: &eval }, &top) {
+        match crate::fixture::resolve_at_mint(editor_core::RunCtx { doc, eval: &eval }, &top) {
             editor_core::Resolution::Failed(f) => assert!(
                 matches!(
                     &f.error,

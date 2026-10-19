@@ -468,7 +468,13 @@ mod lever_rows {
                 u,
                 v,
             );
-            b.set_face_sense(fb, false).unwrap();
+            let sense = a.get_face(fa).unwrap().sense;
+            b.set_face_sense(fb, !sense).unwrap();
+            assert_ne!(
+                b.get_face(fb).unwrap().sense,
+                sense,
+                "{k}·Kε: the twin is the opposed face"
+            );
             let read = door(&a, fa, &b, fb);
             if unsettled {
                 assert!(

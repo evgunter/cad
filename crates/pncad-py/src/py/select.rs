@@ -237,7 +237,7 @@ pub(crate) enum OpGroup {
     Fillet,
     Pattern,
     InstantiatePart,
-    PlaceInWorld,
+    Place,
     Shell,
 }
 
@@ -252,7 +252,7 @@ impl OpGroup {
             Self::Fillet => s::OpGroup::Fillet,
             Self::Pattern => s::OpGroup::Pattern,
             Self::InstantiatePart => s::OpGroup::InstantiatePart,
-            Self::PlaceInWorld => s::OpGroup::PlaceInWorld,
+            Self::Place => s::OpGroup::Place,
             Self::Shell => s::OpGroup::Shell,
         }
     }
@@ -301,28 +301,6 @@ impl MeridianEnd {
     }
 }
 
-/// A split output half.
-#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-#[allow(
-    missing_docs,
-    reason = "each variant mirrors the documented `editor_core::SplitHalf` variant of the same name"
-)]
-pub(crate) enum SplitHalf {
-    Above,
-    Below,
-}
-
-impl SplitHalf {
-    /// The kernel half this mirrors.
-    pub(crate) fn to_kernel(self) -> s::SplitHalf {
-        match self {
-            Self::Above => s::SplitHalf::Above,
-            Self::Below => s::SplitHalf::Below,
-        }
-    }
-}
-
 /// Which support of a rim blend.
 #[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -335,7 +313,7 @@ pub(crate) enum RimSupport {
     Mate,
 }
 
-/// The end/side argument `SegPat.side` accepts: any one of the four
+/// The end/side argument `SegPat.side` accepts: any one of the three
 /// closed side vocabularies, exactly as Rust's `side(impl Into<Side>)`
 /// accepts them. The union is the BOUNDARY's typed extraction, not a
 /// Python-side `isinstance` ladder — the same overloading Rust spells
@@ -346,8 +324,6 @@ pub(crate) enum SideArg {
     Cap(CapEnd),
     /// `MeridianEnd`.
     Meridian(MeridianEnd),
-    /// `SplitHalf`.
-    Split(SplitHalf),
     /// `RimSupport`.
     Rim(RimSupport),
 }
@@ -358,7 +334,6 @@ impl SideArg {
             Self::Cap(CapEnd::End) => s::Side::Cap(s::CapEnd::End),
             Self::Cap(CapEnd::Start) => s::Side::Cap(s::CapEnd::Start),
             Self::Meridian(end) => s::Side::Meridian(end.to_kernel()),
-            Self::Split(half) => s::Side::Split(half.to_kernel()),
             Self::Rim(RimSupport::Host) => s::Side::Rim(s::RimSupport::Host),
             Self::Rim(RimSupport::Mate) => s::Side::Rim(s::RimSupport::Mate),
         }
@@ -544,8 +519,8 @@ impl SegPat {
     }
 
     /// Constrains the end/side tag (`.side(CapEnd.End)`). Accepts any
-    /// of the four side vocabularies: `CapEnd`, `MeridianEnd`,
-    /// `SplitHalf`, `RimSupport`.
+    /// of the three side vocabularies: `CapEnd`, `MeridianEnd`,
+    /// `RimSupport`.
     fn side(&self, side: SideArg) -> Self {
         Self(self.0.clone().side(side.to_kernel()))
     }
@@ -891,6 +866,18 @@ pub(crate) fn select_refusal(
     typed_err(py, ErrorClass::Select, message, &fields)
 }
 
+/// **A resolve the Rust door refuses, raised typed** — the select
+/// door's class and fields, the tag [`resolve_refusal_tag`]'s, the
+/// message the kernel's sentence as the document speaks it.
+pub(crate) fn resolve_refusal(
+    py: Python<'_>,
+    err: &pncad::select::ResolveRefusal,
+    doc: &pncad::document::ProfileDoc,
+) -> PyErr {
+    let fields = refusal_fields(py, crate::tags::resolve_refusal_tag(err));
+    typed_err(py, ErrorClass::Select, err.spoken(doc), &fields)
+}
+
 /// **Kernel-growth tripwires**: one function per mirrored enum,
 /// matching the KERNEL type with NO wildcard arm — so a kernel
 /// variant this file does not mirror stops the `python`-feature build
@@ -909,9 +896,7 @@ pub(crate) fn select_refusal(
     reason = "compile-time exhaustiveness tripwires; the match is the check, no caller needed"
 )]
 mod growth_tripwire {
-    use super::{
-        CapEnd, Cmp, CurveKind, MeridianEnd, OpGroup, RimSupport, SegTag, SideArg, SplitHalf, s,
-    };
+    use super::{CapEnd, Cmp, CurveKind, MeridianEnd, OpGroup, RimSupport, SegTag, SideArg, s};
 
     // `EntityKind`'s and `SurfaceKind`'s tripwires are
     // `super::entity_kind` and `super::surface_kind`, which are the
@@ -981,7 +966,7 @@ mod growth_tripwire {
             s::OpGroup::Fillet => OpGroup::Fillet,
             s::OpGroup::Pattern => OpGroup::Pattern,
             s::OpGroup::InstantiatePart => OpGroup::InstantiatePart,
-            s::OpGroup::PlaceInWorld => OpGroup::PlaceInWorld,
+            s::OpGroup::Place => OpGroup::Place,
             s::OpGroup::Shell => OpGroup::Shell,
         }
     }
@@ -994,8 +979,6 @@ mod growth_tripwire {
             s::Side::Meridian(s::MeridianEnd::End) => SideArg::Meridian(MeridianEnd::End),
             s::Side::Meridian(s::MeridianEnd::Seam) => SideArg::Meridian(MeridianEnd::Seam),
             s::Side::Meridian(s::MeridianEnd::Pi) => SideArg::Meridian(MeridianEnd::Pi),
-            s::Side::Split(s::SplitHalf::Above) => SideArg::Split(SplitHalf::Above),
-            s::Side::Split(s::SplitHalf::Below) => SideArg::Split(SplitHalf::Below),
             s::Side::Rim(s::RimSupport::Host) => SideArg::Rim(RimSupport::Host),
             s::Side::Rim(s::RimSupport::Mate) => SideArg::Rim(RimSupport::Mate),
         }
@@ -1118,7 +1101,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<OpGroup>()?;
     m.add_class::<CapEnd>()?;
     m.add_class::<MeridianEnd>()?;
-    m.add_class::<SplitHalf>()?;
     m.add_class::<RimSupport>()?;
     m.add_class::<CurveKind>()?;
     m.add_class::<SurfaceKind>()?;

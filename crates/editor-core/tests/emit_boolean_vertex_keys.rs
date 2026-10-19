@@ -20,7 +20,12 @@
 //!   the same geometry gets in `y op x` — a member's entity is named
 //!   `From` that member's READ, which no order changes. It guards
 //!   SYMMETRY only — a consistent relabel would pass it — so the rows
-//!   above are what pin which operand each name belongs to.
+//!   above are what pin which operand each name belongs to;
+//! - the covered-pair row: four flush fixtures, union and intersection,
+//!   both orders; names survive the swap, and each covered pair is one
+//!   `Merged` face of both members' faces;
+//! - the abutting subtract, both directions: a face the tool only
+//!   touches is `from`'s face alone.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::ExtrudeSide;
@@ -692,4 +697,224 @@ fn swapping_the_operands_changes_no_name() {
     // Every fixture yields a body under union; a row that compared
     // nothing would pass vacuously.
     assert!(compared >= fixtures.len(), "only {compared} pairs compared");
+}
+
+/// A plane of constant coordinate: the axis (0 = x, 1 = y, 2 = z) and
+/// the coordinate.
+type Plane = (usize, f64);
+
+fn on_plane(body: &topo::Body<f64>, f: topo::FaceKey, (axis, at): Plane) -> bool {
+    face_vertices(body, f).into_iter().all(|v| {
+        let p = point(body, v);
+        micro([p.x, p.y, p.z][axis]) == micro(at)
+    })
+}
+
+/// Every face of `id`'s table lying in `plane`, with its name.
+fn faces_in(ev: &Evaluation<f64>, id: RecipeNodeId, plane: Plane) -> Vec<StableName> {
+    let body = body_of(ev, id);
+    table(ev, id)
+        .iter()
+        .filter_map(|(n, e)| match e {
+            Entry::Unique(r) => match r.key {
+                EntityKey::Face(f) if on_plane(body, f, plane) => Some(n.clone()),
+                _ => None,
+            },
+            Entry::Tied(_) => None,
+        })
+        .collect()
+}
+
+/// The one face of `id`'s table lying in `plane`.
+fn face_in(ev: &Evaluation<f64>, id: RecipeNodeId, plane: Plane) -> StableName {
+    match faces_in(ev, id, plane).as_slice() {
+        [n] => n.clone(),
+        other => panic!("{id:?}: {} faces in {plane:?}: {other:?}", other.len()),
+    }
+}
+
+/// The path of a face carried bare out of `member`: `From` its read,
+/// of the member's own face in `plane`.
+fn carried(
+    doc: &ProfileDoc,
+    ev: &Evaluation<f64>,
+    member: RecipeNodeId,
+    plane: Plane,
+) -> Vec<RoleSeg> {
+    vec![RoleSeg::From {
+        read: out(doc, member),
+        of: face_in(ev, member, plane).into(),
+    }]
+}
+
+/// **A coincident covered face pair is named alike in both operand
+/// orders, `Merged` of both faces.**
+///
+/// Two flush blocks keep one coincident copy of each covered pair, and
+/// WHICH copy, and whether the kernel records a merge for it, depends
+/// on the operand order: in the row example (`b` inside `a`, flush on
+/// both caps and both y-walls) `a ∪ b` keeps `a` whole and `b ∪ a`
+/// takes the section path. A two-member union or intersection is the
+/// union with one step, named by its parents, so no published name
+/// sees that choice. Each fixture, op and order: every face, edge and
+/// vertex names the same geometry in the other order, and the faces
+/// in the planes the pair shares are exactly one `Merged` face per
+/// plane, whose constituents are `a`'s face there and `b`'s, each
+/// carried bare out of its member's read.
+#[test]
+fn a_covered_pair_is_named_alike_in_both_orders() {
+    type Fixture = fn(ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId);
+    let walls: &[Plane] = &[(1, 0.0), (1, 1.0), (2, 0.0), (2, 1.0)];
+    let all: &[Plane] = &[(0, 0.0), (0, 2.0), (1, 0.0), (1, 1.0), (2, 0.0), (2, 1.0)];
+    let top: &[Plane] = &[(2, 1.0)];
+    let fixtures: [(&str, Fixture, &[Plane]); 4] = [
+        // The row's own example: `b` inside `a` along x.
+        (
+            "inside",
+            |d| {
+                let (d, a) = block(d, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+                let (d, b) = block(d, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+                (d, a, b)
+            },
+            walls,
+        ),
+        (
+            "partial",
+            |d| {
+                let (d, a) = block(d, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+                let (d, b) = block(d, (1.0, 3.0), (0.0, 1.0), 0.0, 1.0);
+                (d, a, b)
+            },
+            walls,
+        ),
+        (
+            "equal",
+            |d| {
+                let (d, a) = block(d, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+                let (d, b) = block(d, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+                (d, a, b)
+            },
+            all,
+        ),
+        (
+            "tops_flush",
+            |d| {
+                let (d, a) = block(d, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+                let (d, b) = block(d, (1.0, 3.0), (0.5, 1.5), 0.5, 0.5);
+                (d, a, b)
+            },
+            top,
+        ),
+    ];
+    let mut kinds_differ = 0;
+    for (what, fixture, planes) in fixtures {
+        for op in [Op::Union, Op::Intersect] {
+            let doc = ProfileDoc::empty_derived("emit_vertex_keys_covered", Tol::witness());
+            let (doc, a, b) = fixture(doc);
+            let (doc, ab) = boolean(doc, op, a, b);
+            let (doc, ba) = boolean(doc, op, b, a);
+            let ev = run(&doc);
+            let (fwd, back) = (
+                named_geometry(&ev, ab).expect("the forward order is a body"),
+                named_geometry(&ev, ba).expect("the swapped order is a body"),
+            );
+            let diff: Vec<_> = fwd.symmetric_difference(&back).collect();
+            assert!(
+                diff.is_empty(),
+                "{what} {op:?}: names that do not survive the swap:\n{diff:#?}"
+            );
+            if kind_of(&ev, ab) != kind_of(&ev, ba) {
+                kinds_differ += 1;
+            }
+            for (order, id) in [("a,b", ab), ("b,a", ba)] {
+                for &plane in planes {
+                    let named = face_in(&ev, id, plane);
+                    let Some(RoleSeg::Merged(set)) =
+                        named.path.first().filter(|_| named.path.len() == 1)
+                    else {
+                        panic!(
+                            "{what} {op:?} [{order}]: the face in {plane:?} is not one merge: {named:?}"
+                        );
+                    };
+                    let got: BTreeSet<_> = set.iter().map(|c| c.path.clone()).collect();
+                    let want: BTreeSet<_> =
+                        [carried(&doc, &ev, a, plane), carried(&doc, &ev, b, plane)].into();
+                    assert_eq!(
+                        got, want,
+                        "{what} {op:?} [{order}]: the merge in {plane:?} is not a's face and b's"
+                    );
+                }
+                let merges = table(&ev, id)
+                    .iter()
+                    .filter(|(n, _)| {
+                        n.kind == EntityKind::Face
+                            && matches!(n.path.as_slice(), [RoleSeg::Merged(_)])
+                    })
+                    .count();
+                assert_eq!(
+                    merges,
+                    planes.len(),
+                    "{what} {op:?} [{order}]: a merge outside the covered planes"
+                );
+            }
+        }
+    }
+    // The row example's union keeps `a` whole in one order and takes
+    // the section path in the other; a fixture set whose two orders
+    // all took one kernel path would not exercise the swap.
+    assert!(
+        kinds_differ > 0,
+        "no fixture took different kernel paths by order"
+    );
+}
+
+/// **A subtract names a face its tool only touches for the `from`
+/// face alone.**
+///
+/// A subtract tells its operands apart: the copy its classification
+/// keeps of a coincident pair is always `from`'s, and the face is
+/// named for that face, carried bare, with the tool cited nowhere —
+/// so a reference to it survives the tool moving off a face it took
+/// nothing from. Rows, each in both directions: `b` abutting `a`'s
+/// whole x-wall, abutting part of it, and resting on `a`'s top.
+#[test]
+fn a_subtract_names_a_touched_face_for_from_alone() {
+    let doc = ProfileDoc::empty_derived("emit_vertex_keys_abut", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, wall) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, patch) = block(doc, (2.0, 3.0), (0.25, 0.75), 0.25, 0.5);
+    let (doc, seat) = block(doc, (0.5, 1.5), (0.0, 1.0), 1.0, 1.0);
+    let rows = [
+        ("whole wall", wall, (0, 2.0)),
+        ("part of the wall", patch, (0, 2.0)),
+        ("resting on the top", seat, (2, 1.0)),
+    ];
+    let subtract = |doc, from: RecipeNodeId, tool: RecipeNodeId| {
+        insert(
+            doc,
+            Node::Subtract {
+                from: from.into(),
+                tool: tool.into(),
+            },
+        )
+    };
+    let mut doc = doc;
+    let mut ids = Vec::new();
+    for (_, tool, _) in rows {
+        let (d, fwd) = subtract(doc, a, tool);
+        let (d, back) = subtract(d, tool, a);
+        doc = d;
+        ids.push((fwd, back));
+    }
+    let ev = run(&doc);
+    for ((what, tool, plane), (fwd, back)) in rows.into_iter().zip(ids) {
+        for (dir, id, from) in [("a − b", fwd, a), ("b − a", back, tool)] {
+            kind_of(&ev, id);
+            assert_eq!(
+                face_in(&ev, id, plane).path,
+                carried(&doc, &ev, from, plane),
+                "{what}, {dir}: the face in {plane:?} is not from's face alone"
+            );
+        }
+    }
 }

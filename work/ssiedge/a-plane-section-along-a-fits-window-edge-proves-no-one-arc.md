@@ -56,3 +56,11 @@ main `e71d719f1`. It is red at `CAD_TOLERANCE_EPS=1e-6` and green at 1e-12.
 ## 2026-10-14 — still red at 1e-6 on main (NURBS, fresh target)
 
 Re-run alone with a fresh `CARGO_TARGET_DIR` per commit: red at `a71403e3` and still red on main at `307ed404`. Not moved by NURBS PR 4984 (red on both sides of it). (NURBS build A)
+
+## 2026-10-15 — still red at 1e-6 on main
+
+Re-run by name at `CAD_TOLERANCE_EPS=1e-6` on main `8dc4a60767` by the FUSE curve-pair reader lane, after the dual review of PR 5154 found it red there: red with the same refusal on main and on the PR head, so it is not the PR's.
+
+## 2026-10-19 — the 1e-6 red dates from PR 4472's merge
+
+CONTACTHOLD's nightly-red lane built `sweep`'s `all` binary on both sides of `108b06955d`, the merge of PR 4472 (`shell/fitted-corners`). At ε 1e-6, `r1_lane0_e2e::the_f64_seam_answers_every_public_door` passes at its first parent `cb4172aa9f` and fails at the merge, with this row's `TubeNotOneArc { rungs: 15, cause: Undecided(..) }` refusal. It is still red in the 2026-10-19 nightly (run 39205007024).

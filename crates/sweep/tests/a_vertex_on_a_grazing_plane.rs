@@ -37,6 +37,15 @@ fn moved(body: &AtRestBody<f64>, by: Affine3<f64>) -> AtRestBody<f64> {
     )
 }
 
+/// The most the two halves' certified volume pads may sum to: a half
+/// whose wall pieces merged across the seam is integrated by
+/// quadrature, and its pad is the bound the volume checks allow.
+/// Measured (PR 5334): at most 1.9e-9 at ε = 1e-12, 1.25e-6 at 1e-9 and
+/// 4.8e-5 at 1e-6.
+fn pad_ceiling() -> f64 {
+    (4000.0 * tol().eps()).min(1e-4)
+}
+
 fn volume(body: &Body<f64>) -> f64 {
     mass_properties(body, tol()).unwrap().volume
 }
@@ -147,12 +156,27 @@ fn the_split_reads_a_grazing_vertex_against_its_section() {
             };
             let parts = |d: f64, label: &str| {
                 let r = cut(d).unwrap_or_else(|err| panic!("{label}: refused: {err}"));
-                let vol = |b: Option<&Body<f64>>| b.map_or(0.0, volume);
-                (vol(r.above.body()), vol(r.below.body()))
+                // Each half's volume, and the pad its certificate gives:
+                // a half whose wall pieces merged across the seam is
+                // integrated by quadrature.
+                let vol = |b: Option<&Body<f64>>| {
+                    b.map_or((0.0, 0.0), |b| {
+                        let m = mass_properties(b, tol()).unwrap();
+                        (m.volume, m.volume_pad)
+                    })
+                };
+                let ((a, pa), (b, pb)) = (vol(r.above.body()), vol(r.below.body()));
+                eprintln!("{label}: volume pads {pa:e} above, {pb:e} below");
+                assert!(
+                    pa + pb <= pad_ceiling(),
+                    "{label}: the quadrature's pads {pa:e} + {pb:e} pass {:e}",
+                    pad_ceiling()
+                );
+                (a, b, pa + pb)
             };
             let base = parts(0.0, &format!("φ {phi} ψ {name} on the plane"));
             assert!(
-                (base.0 + base.1 - core::f64::consts::PI).abs() <= 1e-6,
+                (base.0 + base.1 - core::f64::consts::PI).abs() <= 1e-6 + base.2,
                 "φ {phi} ψ {name}: the halves make the cylinder: {base:?}"
             );
             let mut rows: Vec<f64> = offsets(psi).into_iter().map(|m| m * e).collect();
@@ -165,7 +189,8 @@ fn the_split_reads_a_grazing_vertex_against_its_section() {
                     Reading::On => {
                         let got = parts(d, &label);
                         assert!(
-                            (got.0 - base.0).abs() <= 1e-6 && (got.1 - base.1).abs() <= 1e-6,
+                            (got.0 - base.0).abs() <= 1e-6 + got.2 + base.2
+                                && (got.1 - base.1).abs() <= 1e-6 + got.2 + base.2,
                             "{label}: {got:?} against {base:?} on the plane"
                         );
                     }
@@ -203,7 +228,8 @@ fn the_split_reads_a_grazing_vertex_against_its_section() {
                         if d > 0.0 {
                             let got = parts(d, &label);
                             assert!(
-                                (got.0 - base.0).abs() <= 1e-6 && (got.1 - base.1).abs() <= 1e-6,
+                                (got.0 - base.0).abs() <= 1e-6 + got.2 + base.2
+                                    && (got.1 - base.1).abs() <= 1e-6 + got.2 + base.2,
                                 "{label}: {got:?} against {base:?} on the plane"
                             );
                         } else {
@@ -406,10 +432,9 @@ fn an_unresolved_section_reading_keeps_the_offsets_verdict() {
 /// **A reading through a vanishing sine offers no lever.** At
 /// `ψ = 0.1·K·u/ε` the rounding of an offset a few ulps of a metre
 /// lands, over `sin ψ`, about the band by the rounding's choice: no row
-/// refuses at the vertex on it. Some rows return bodies that fail
-/// validation on main and here alike
-/// (`a-split-along-a-seam-at-a-vanishing-tilt-returns-an-invalid-body`),
-/// so this row reads the ending only.
+/// refuses at the vertex on it, and every side a row returns passes
+/// tier 3 (the split refuses the rest at its at-rest gate,
+/// `a-split-along-a-seam-at-a-vanishing-tilt-returns-an-invalid-body`).
 #[test]
 fn a_reading_through_a_vanishing_sine_offers_no_lever() {
     let (e, k) = (tol().eps(), tol().k());
@@ -420,8 +445,19 @@ fn a_reading_through_a_vanishing_sine_offers_no_lever() {
         assert!(
             !offers_the_section_lever(&r),
             "ψ {psi:e} L {l}: the kernel's rounding offered as the user's lever: {:?}",
-            r.err()
+            r.as_ref().err()
         );
+        if let Ok(halves) = &r {
+            for part in [halves.above.body(), halves.below.body()]
+                .into_iter()
+                .flatten()
+            {
+                assert!(
+                    topo::validate_geometric(part, tol()).is_ok(),
+                    "ψ {psi:e} L {l}: a side returned that tier 3 refuses"
+                );
+            }
+        }
     }
 }
 

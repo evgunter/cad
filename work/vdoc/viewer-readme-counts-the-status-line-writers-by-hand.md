@@ -62,3 +62,9 @@ The paragraph's last line cites
 `work/vseam/startup-notices-need-holding-to-badge.md`. Recorded on
 `work/vdoc/crates-cite-work-view-rows-that-moved-in-the-rescope`,
 which owns that class.
+
+**Correction, 2026-10-13 (`vnews/tool-news-is-a-value`):** the
+`tool_news` census above is stale. `app.rs`'s two sites now go through
+`frame::tool_notice`, so `tool_news` has eleven production callers
+(`pane/create.rs` nine, `pane/profile.rs` two), each handing it a
+`tools::PanelRefusal`.

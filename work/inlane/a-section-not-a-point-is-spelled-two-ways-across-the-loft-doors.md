@@ -2,9 +2,11 @@
 id: a-section-not-a-point-is-spelled-two-ways-across-the-loft-doors
 kind: issue
 title: loft_body refuses a section wider than a point as Skin(SectionProfile) from its f64 validation, loft_profiles as SectionNotAPoint: one fact, two spellings
-status: open
+status: closed
 opened: 2026-10-11
 priority: P1
+closed: 2026-10-11
+cost: E
 ---
 
 ## Finding
@@ -38,3 +40,20 @@ also refuses `SectionNotAPoint`. That moves `loft_body`'s refusal at
 (`a_loft_over_a_section_wider_than_a_point_refuses_at_interval`).
 Re-baseline that row, and every editor-core row that reads the
 `Skin(SectionProfile)` arm for a not-a-point section.
+
+## Closed
+
+Closed with `the-skin-at-interval-encloses-the-nominal-skin`. A
+section wider than a point no longer refuses at either door: at an
+enclosure scalar it lofts its family. What remains of the refusal
+has one home, `crates/sweep/src/loft.rs`'s `build`, which both doors
+enter. Before the split it refuses a section or placement holding a
+value that is not finite (poison or an infinity) as
+`LoftError::SectionNotFinite` / `PlacementNotFinite`, renamed from
+`SectionNotAPoint` / `PlacementNotAPoint`. So `loft_body` over a NaN
+section now refuses `SectionNotFinite` where it refused
+`Skin(SectionProfile)`. That is re-baselined at
+`crates/sweep/tests/loft_profiles_door.rs`
+(`a_value_that_is_not_finite_refuses_by_name_at_both_doors`).
+No editor-core row read the `Skin(SectionProfile)` arm for a section
+with no point.

@@ -387,8 +387,11 @@ mod tests {
                 cut.doc.placements()
             )
         };
-        let Some(Node::PlaceInWorld { body, .. }) = cut.doc.node(placement) else {
-            unreachable!("a placement is a world placement")
+        let Some(Node::Place { shapes, .. }) = cut.doc.node(placement) else {
+            unreachable!("the placement is a Place")
+        };
+        let [body] = &shapes[..] else {
+            panic!("the placement copies one body: {shapes:?}")
         };
         let part_node = cut
             .doc

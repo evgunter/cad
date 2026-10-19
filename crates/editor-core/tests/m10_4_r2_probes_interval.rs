@@ -8,7 +8,7 @@
 //! tangent (−2 on `hole_r`) arrives through the MEASURE EXPRESSION's
 //! own `− 2·hole_r` term, not through the lift — the cylinder×cylinder
 //! distance is the axis separation and does not depend on the radius —
-//! so the plate proves nothing about the guided lift. The rows below
+//! so the plate proves nothing about the profile lift. The rows below
 //! use a three-parameter slab with an UNUSED parameter whose nominal
 //! equals a used one's (the memo-aliasing shape DL2 must exclude), a
 //! bore/pin fit whose radius reaches the measure only through the
@@ -22,7 +22,7 @@
 //! stale chamber verdict marks an edited document's sensitivity
 //! `ChamberCertified` (the spec's "unwritable" stackup lie, writable
 //! through the public door), and a loft section's parameter seeds to a
-//! silent finite zero through the guided lift (the spec's "never silent
+//! silent finite zero through the profile lift (the spec's "never silent
 //! zeros" valve, absent).
 //!
 //! Sweep shape (implementer-discipline §8): nothing here samples —
@@ -44,14 +44,14 @@ use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, ParamBoxVerdict, drive};
 use editor_core::stackup::{
-    Chamber, PairingViolation, Rss, Sensitivity, SensitivityOutcome, SensitivityRefusal,
-    Unavailable, sensitivities, stackup,
+    Chamber, Rss, Sensitivity, SensitivityOutcome, SensitivityRefusal, Unavailable, sensitivities,
+    stackup,
 };
 use editor_core::{
     CancelToken, CapEnd, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
     FreeValue, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, Observed, ParamValue,
-    ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
-    SitedRef, VarId, VarName, evaluate, seed_env,
+    ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SitedRef, VarId,
+    VarName, evaluate, seed_env,
 };
 use geom_core::interval::Interval;
 use geom_core::{CertifiedEnclosure, Dual64, Tol};
@@ -90,10 +90,9 @@ fn config(max_leaves: usize) -> DriveConfig {
     }
 }
 
-fn opts(doc: &ProfileDoc, seed: Option<&str>, lift: ProfileLift) -> EvalOptions {
+fn opts(doc: &ProfileDoc, seed: Option<&str>) -> EvalOptions {
     EvalOptions {
         seed: seed.map(|n| doc.var_named(n).unwrap_or(editor_core::VarId::new(0, 0))),
-        profile_lift: lift,
         ..EvalOptions::default()
     }
 }
@@ -111,7 +110,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
 }
 
 fn push(doc: &editor_core::ProfileDoc, edit: DocEdit<ProfileProgram>) -> ProfileDoc {
-    editor_core::apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach)
+    editor_core::apply(doc, &edit, Tol::witness())
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
@@ -151,7 +150,6 @@ fn toleranced(doc: &ProfileDoc, names: &[&str]) -> ProfileDoc {
                 distribution: Some(Distribution::Normal { sigma: 1e-3 }),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("a declared variable takes a law")
         .doc
@@ -314,9 +312,8 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
 /// reaches the measure only through the lifted cylinder carrier: a
 /// bore of radius 0.5 at the origin and a pin of radius `r` (nominal
 /// 0.2) centred at (0.1, 0), both extruded by a literal; the measure is
-/// `gap(bore wall, pin wall) = 0.5 − r − 0.1`, so ∂gap/∂r = −1 exactly
-/// — and exactly 0 under the pinned lift, since nothing but the
-/// carrier's radius carries `r`.
+/// `gap(bore wall, pin wall) = 0.5 − r − 0.1`, so ∂gap/∂r = −1 exactly,
+/// and nothing but the carrier's radius carries `r`.
 pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, VarId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
@@ -521,7 +518,7 @@ fn sum(u: Distribution, n: Distribution, tn: Distribution) -> (ProfileDoc, VarId
 
 /// **Seed hygiene on an aliasing-shaped fixture.** `k` and `w` lift to
 /// the same bits; the seed rides only the binding named. Through the
-/// public door the tangent is 1 on the profile dimension (guided), 1 on
+/// public door the tangent is 1 on the profile dimension, 1 on
 /// the magnitude slot, 0 on the unused parameter — and the value
 /// channel is the f64 build's bits in every pass.
 #[test]
@@ -543,7 +540,7 @@ fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
     for (seed, expect) in [("w", 1.0), ("d", 1.0), ("k", 0.0)] {
         let m = measured(
             &s.doc,
-            &run::<Dual64>(&s.doc, None, &opts(&s.doc, Some(seed), ProfileLift::Guided)),
+            &run::<Dual64>(&s.doc, None, &opts(&s.doc, Some(seed))),
             s.measure,
         );
         assert_eq!(m.value.to_bits(), f.to_bits(), "{seed}: value channel");
@@ -555,11 +552,10 @@ fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
     // NOTED, not gated: the unused parameter's tangent arrives as
     // `-0.0` (a sign factor multiplied into a zero tangent somewhere in
     // the norm), so a consumer comparing `to_bits()` against `0.0`
-    // sees "not exactly zero". The PR's own profile pin records the
-    // same arrival on the pinned lift.
+    // sees "not exactly zero".
     let k = measured(
         &s.doc,
-        &run::<Dual64>(&s.doc, None, &opts(&s.doc, Some("k"), ProfileLift::Guided)),
+        &run::<Dual64>(&s.doc, None, &opts(&s.doc, Some("k"))),
         s.measure,
     );
     println!(
@@ -567,14 +563,6 @@ fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
         k.deriv.to_bits(),
         k.deriv.is_sign_negative()
     );
-    // The pinned lift: the profile dimension's tangent is the silent
-    // zero the lift ends; the magnitude slot's is untouched.
-    let pinned = measured(
-        &s.doc,
-        &run::<Dual64>(&s.doc, None, &opts(&s.doc, Some("w"), ProfileLift::Pinned)),
-        s.measure,
-    );
-    assert_eq!(pinned.deriv, 0.0);
 }
 
 /// **DL2 exercised on the aliasing fixture.** Threading any pass from
@@ -588,11 +576,11 @@ fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
 #[test]
 fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order() {
     let s = slab(None, None);
-    let guided = |seed: Option<&'static str>| opts(&s.doc, seed, ProfileLift::Guided);
-    let base = run::<Dual64>(&s.doc, None, &guided(None));
-    let on_w = run::<Dual64>(&s.doc, None, &guided(Some("w")));
-    let on_d = run::<Dual64>(&s.doc, None, &guided(Some("d")));
-    let on_k = run::<Dual64>(&s.doc, None, &guided(Some("k")));
+    let seeded = |seed: Option<&'static str>| opts(&s.doc, seed);
+    let base = run::<Dual64>(&s.doc, None, &seeded(None));
+    let on_w = run::<Dual64>(&s.doc, None, &seeded(Some("w")));
+    let on_d = run::<Dual64>(&s.doc, None, &seeded(Some("d")));
+    let on_k = run::<Dual64>(&s.doc, None, &seeded(Some("k")));
 
     // (a) keys move exactly with the seed's cone.
     assert_ne!(
@@ -634,7 +622,7 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
             id.0
         );
     }
-    let k_from_base = run::<Dual64>(&s.doc, Some(&base), &guided(Some("k")));
+    let k_from_base = run::<Dual64>(&s.doc, Some(&base), &seeded(Some("k")));
     assert_eq!(k_from_base.reused, s.doc.len());
     assert_eq!(k_from_base.recomputed, 0);
 
@@ -651,7 +639,7 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
         ("d", &on_k),
         ("k", &on_w),
     ] {
-        let threaded = run::<Dual64>(&s.doc, Some(prior), &guided(Some(seed)));
+        let threaded = run::<Dual64>(&s.doc, Some(prior), &seeded(Some(seed)));
         let m = measured(&s.doc, &threaded, s.measure);
         assert_eq!(
             m.deriv.to_bits(),
@@ -668,7 +656,7 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
     // The w pass threaded from the d pass recomputes exactly w's cone
     // (profile, block, and the two measures reading the block) and
     // serves the rest.
-    let w_from_d = run::<Dual64>(&s.doc, Some(&on_d), &guided(Some("w")));
+    let w_from_d = run::<Dual64>(&s.doc, Some(&on_d), &seeded(Some("w")));
     assert_eq!(w_from_d.recomputed, 4);
     assert_eq!(w_from_d.reused, s.doc.len() - 4);
 
@@ -678,7 +666,7 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
         None,
         &EvalOptions {
             parallel: true,
-            ..guided(Some("w"))
+            ..seeded(Some("w"))
         },
     );
     let m = measured(&s.doc, &par, s.measure);
@@ -708,9 +696,8 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
 // ----------------------------------------------- claim 3: the pairing
 
 /// **The pairing hook against handed builds of OTHER shapes.** A handed
-/// evaluation at another ε refuses typed (no sensitivity); one built
-/// with the guided lift at `f64` refuses on its key (over-strict, and
-/// safe); a parallel-schedule build pairs; a document that differs only
+/// evaluation at another ε refuses typed (no sensitivity); a
+/// parallel-schedule build pairs; a document that differs only
 /// by an ANNOTATION (a distribution on `w`, same value) pairs — the
 /// build is bit-identical, so the sensitivity is honestly of it.
 #[test]
@@ -733,20 +720,6 @@ fn the_pairing_hook_pairs_only_the_build_of_record() {
     // (A build at another ε cannot be handed: `Tol` is the process's
     // one witness — D9's "one process, one ε" — so that attack has no
     // spelling here.)
-    let guided_f64 = run::<f64>(&s.doc, None, &opts(&s.doc, None, ProfileLift::Guided));
-    match sensitivities(
-        &s.doc,
-        s.measure,
-        Some(&guided_f64),
-        None,
-        false,
-        None,
-        Tol::witness(),
-    ) {
-        Err(SensitivityRefusal::Pairing(PairingViolation::ContentKey { .. })) => {}
-        other => panic!("a guided f64 build keys differently (tag 41): {other:?}"),
-    }
-
     let parallel = run::<f64>(
         &s.doc,
         None,
@@ -1084,7 +1057,6 @@ fn the_shared_prior_does_not_move_the_hull() {
                     None,
                     &CancelToken::new(),
                     &EvalOptions {
-                        profile_lift: ProfileLift::Guided,
                         param_box: Some(Arc::new(leaf.box_.clone())),
                         ..EvalOptions::default()
                     },
@@ -1271,32 +1243,21 @@ fn the_rss_sigma_of_every_distribution_form_derived_independently() {
 // ----------------------------------------------- claim 8: the profile
 
 /// **An arc-carrying profile: the radius reaches the gap only through
-/// the lifted cylinder carrier.** ∂gap/∂r = −1 under the guided lift,
-/// exactly 0 under the pinned one (the silent zero), and the driver
-/// uses the guided lift.
+/// the lifted cylinder carrier.** ∂gap/∂r = −1, at the seeded
+/// evaluation and at the driver.
 #[test]
 fn a_circle_radius_seed_reaches_the_gap_through_the_lifted_carrier() {
     let (doc, m) = fit(None);
     let f = measured_f64(&doc, &eval(&doc), m);
     assert!((f - 0.2).abs() < 1e-12, "gap {f}");
-    let guided = measured(
-        &doc,
-        &run::<Dual64>(&doc, None, &opts(&doc, Some("r"), ProfileLift::Guided)),
-        m,
-    );
-    assert_eq!(guided.value.to_bits(), f.to_bits());
+    let seeded = measured(&doc, &run::<Dual64>(&doc, None, &opts(&doc, Some("r"))), m);
+    assert_eq!(seeded.value.to_bits(), f.to_bits());
     assert_eq!(
-        guided.deriv.to_bits(),
+        seeded.deriv.to_bits(),
         (-1.0f64).to_bits(),
         "∂gap/∂r = {}",
-        guided.deriv
+        seeded.deriv
     );
-    let pinned = measured(
-        &doc,
-        &run::<Dual64>(&doc, None, &opts(&doc, Some("r"), ProfileLift::Pinned)),
-        m,
-    );
-    assert_eq!(pinned.deriv, 0.0, "the pinned lift's silent zero");
     let lawed = toleranced(&doc, &["r"]);
     let entries = sensitivities(&lawed, m, None, None, false, None, Tol::witness()).expect("ok");
     match entry(&lawed, &entries, "r") {
@@ -1332,10 +1293,10 @@ fn a_loft_section_dimension_seed_is_not_a_silent_zero() {
 
 // ------------------------------------------------------------- e2e
 
-/// **Where deviation 2 would bite.** The passes run the GUIDED lift at
-/// `Dual64` while the anchor runs the build path (`Pinned`, `f64`); the
-/// pairing compares them arm for arm. A document where the guided
-/// dual replay refuses a node the build path built would therefore
+/// **Where deviation 2 would bite.** The passes elaborate profiles at
+/// `Dual64` while the anchor is the `f64` build path, whose lane is the
+/// first pass; the pairing compares them arm for arm. A document where
+/// the dual replay refuses a node the build path built would therefore
 /// refuse the WHOLE entry set as `PairingViolation::ResultArm` — a lift
 /// limitation reported as a pairing violation. Over the corpus the two
 /// agree on every node (EVIDENCE-ONLY unless it goes red).
@@ -1343,7 +1304,7 @@ fn a_loft_section_dimension_seed_is_not_a_silent_zero() {
 fn the_guided_dual_pass_evaluates_the_build_paths_nodes_over_the_corpus() {
     for cd in corpus::documents() {
         let f = eval(&cd.doc);
-        let d = run::<Dual64>(&cd.doc, None, &opts(&cd.doc, None, ProfileLift::Guided));
+        let d = run::<Dual64>(&cd.doc, None, &opts(&cd.doc, None));
         assert_eq!(f.order, d.order, "{}", cd.name);
         for id in &f.order {
             let fa = matches!(f.result(*id), Some(NodeResult::Ok(_)));

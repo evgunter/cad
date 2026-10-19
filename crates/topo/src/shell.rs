@@ -952,7 +952,9 @@ impl<T: Real> Shelled<T> {
     /// ([`ShellNaming::dead`]) into the rims, the rest removed. On a
     /// void, the designated faces are removed, the rim being their
     /// cavity twin's. The cavity twins are new cells and no operand
-    /// record names one.
+    /// record names one. Any other operand cell whose geometry the shell
+    /// changed under its key is read, not kept: the lineage carries the
+    /// operand's geometry ([`crate::Lineage::from_source`]).
     #[must_use]
     pub fn lineage(&self) -> crate::Lineage {
         use crate::boolean::Cell;
@@ -1046,7 +1048,7 @@ impl<T: Real> Shelled<T> {
                 );
             }
         }
-        lineage
+        lineage.from_source(naming.source.clone())
     }
 }
 
@@ -1104,6 +1106,11 @@ pub struct ShellNaming {
     /// but listed here, not there, and its `kept` covers what `gone` did
     /// besides its own ([`crate::join_covers`]).
     pub edge_joins: Vec<crate::EdgeJoin>,
+    /// The operand's geometry before the shell wrote
+    /// ([`crate::SourceGeometry`]): a record lands unread only on images
+    /// that hold it. Empty on a naming no shell made, and every record is
+    /// then read.
+    pub source: crate::SourceGeometry,
 }
 
 impl ShellNaming {
@@ -2179,6 +2186,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             refusal: crate::boolean::JoinRefusal::of(&refusal),
         })?;
     validate_geometric(&out_body, tol).map_err(|errors| ShellError::NotValid { errors })?;
+    naming.source = crate::SourceGeometry::of(body);
     Ok(Shelled {
         body: out_body,
         naming,
@@ -3277,12 +3285,29 @@ fn re_anchored<T: Decide>(
         kept.description = body
             .reask_on(
                 pair,
+                crate::edge_faces(body, edge),
                 &kept.carrier,
                 (kept.param_start, kept.param_end),
                 declared,
                 band,
             )
             .map_err(|refusal| rim_seam_refusal(edge, refusal))?;
+    }
+    // An image is asked the same over the kept stretch, as every door
+    // that keeps one is. Every edge re-anchored here is a seam of the
+    // designated chart, with both faces on its one surface key, which
+    // the rule leaves alone, so no input reaches its demand here.
+    if let geom_brep::EdgeDescriptionSpec::Chart { wrap: false, .. } = kept.description
+        && let Some(description) = body
+            .reask_chart_on(
+                edge,
+                &kept.carrier,
+                (kept.param_start, kept.param_end),
+                band,
+            )
+            .map_err(|refusal| rim_seam_refusal(edge, refusal))?
+    {
+        kept.description = description;
     }
     Ok(kept)
 }
@@ -4788,14 +4813,14 @@ fn moved_walls<T: Decide>(
                             } => conic(center, axis, u_ref, semi_u, semi_v),
                             geom::Curve3::Spiric { .. } => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
-                                geom_brep::carrier_speed::speed_range(curve.carrier()).1,
+                                geom::carrier_speed::speed_range(curve.carrier()).1,
                                 None,
                                 (t0, t1),
                                 edge.he_plus == he,
                             )),
                             geom::Curve3::Nurbs(_) => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
-                                geom_brep::carrier_speed::speed_range(curve.carrier()).1,
+                                geom::carrier_speed::speed_range(curve.carrier()).1,
                                 crate::splitting::containment::carrier_ball(
                                     curve.carrier(),
                                     (t0, t1),
@@ -5318,7 +5343,7 @@ mod tests {
                     end,
                     curve: EdgeArc::Arc(ArcPiece::along(
                         carrier,
-                        geom_brep::carrier_speed::speed_range(carrier).1,
+                        geom::carrier_speed::speed_range(carrier).1,
                         crate::splitting::containment::carrier_ball(carrier, params)
                             .filter(|_| matches!(carrier, geom::Curve3::Nurbs(_))),
                         params,
