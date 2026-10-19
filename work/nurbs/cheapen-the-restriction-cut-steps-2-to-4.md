@@ -34,6 +34,28 @@ statistics:
    `speed_sup` on one window). Bit-identical.
 3. **Batched channels per line**, with no per-line allocation in
    `Grid::restricted_along` and `split_restrict`.
+   **Steps 2 and 3 are closed, measured not worth it** (orchestrator
+   ruling, 2026-10-19). gdb sampling on step 1's build (opt-level 1;
+   r1 34 samples over five runs, shelling 35) puts 12 of r1's and 9 of
+   shelling's samples inside the restriction, by door:
+
+   | door | restriction samples | reads per window |
+   |---|---|---|
+   | `boundary::stretch_within` | 12 | one per piece; every piece's window distinct |
+   | `one_arc::edge_runs` | 3 | one |
+   | `boundary::beyond_reach` | 2 | one |
+   | `boundary::strip_reach` | 1 | `deriv_box` then `speed_sup`, same window and axis |
+   | `four::jacobian_read` | 1 | both axes of one window |
+
+   A shared window reading pays only at `strip_reach` and at
+   `jacobian_read`/`partials` (one `W²` of eight channels), about one
+   sample in 35 on either row: ≲2–3%. `stretch_within` would need a
+   cross-call cache, which the design fork ruled out. Inside the
+   restriction, 14 of 19 samples are `split_restrict`'s own interval
+   arithmetic (each thin step's two products fold four corners) and 1
+   is allocation, so batching buys ≲2%. The corner fold's lever is
+   `Interval::mul_nonneg` (#5163) on the step's `[0, 1]` weights, a
+   bit-identical follow-up once it lands.
 4. **A one-piece cut** (no 2×2 halving), only if 1–3 leave the rows over
    target. It must not move any rung count, worst margin or the
    flat-wall row at 1e-9.
