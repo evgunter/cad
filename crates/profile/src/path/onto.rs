@@ -129,71 +129,31 @@ impl<T: Real> ArcOntoStart<T> {
 }
 
 impl<T: Decide> ArcOnto<T> {
-    /// The kernel behind the table's angle row (recording is the row's,
-    /// not the kernel's).
-    pub(super) fn angle_kernel(
+    /// The kernel behind the table's two director rows: `arrival` is
+    /// the director the row read (the components door's refusal rides
+    /// it, so the step is recorded first either way).
+    pub(super) fn director_kernel(
         mut self,
         step: Step<T>,
-        theta: T,
+        arrival: Result<Dir<T>, PathError<T>>,
         tol: Tol,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         self.core.record(step);
-        land(
-            self.core,
-            &self.tip,
-            self.bound_at,
-            self.p,
-            Dir::from_angle(theta),
-            tol,
-        )
-    }
-
-    /// The kernel behind the table's components row (recording is the
-    /// row's, not the kernel's).
-    pub(super) fn toward_kernel(
-        mut self,
-        step: Step<T>,
-        dx: T,
-        dy: T,
-        tol: Tol,
-    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        self.core.record(step);
-        let arrival = super::unit_from_components(dx, dy, tol)?;
-        land(self.core, &self.tip, self.bound_at, self.p, arrival, tol)
+        land(self.core, &self.tip, self.bound_at, self.p, arrival?, tol)
     }
 }
 
 impl<T: Decide> ArcOntoStart<T> {
-    /// The kernel behind the table's angle row (recording is the row's,
-    /// not the kernel's).
-    pub(super) fn angle_kernel(
+    /// The kernel behind the table's two director rows, as
+    /// [`ArcOnto::director_kernel`]'s.
+    pub(super) fn director_kernel(
         mut self,
         step: Step<T>,
-        theta: T,
+        arrival: Result<Dir<T>, PathError<T>>,
         tol: Tol,
     ) -> Result<ClosedLoop<T>, PathError<T>> {
         self.core.record(step);
-        close(
-            self.core,
-            &self.tip,
-            self.bound_at,
-            Some(Dir::from_angle(theta)),
-            tol,
-        )
-    }
-
-    /// The kernel behind the table's components row (recording is the
-    /// row's, not the kernel's).
-    pub(super) fn toward_kernel(
-        mut self,
-        step: Step<T>,
-        dx: T,
-        dy: T,
-        tol: Tol,
-    ) -> Result<ClosedLoop<T>, PathError<T>> {
-        self.core.record(step);
-        let arrival = super::unit_from_components(dx, dy, tol)?;
-        close(self.core, &self.tip, self.bound_at, Some(arrival), tol)
+        close(self.core, &self.tip, self.bound_at, Some(arrival?), tol)
     }
 }
 
@@ -205,19 +165,17 @@ fn tip_pos<T: Real>(tip: &Tip<T>) -> Result<&PosData<T>, PathError<T>> {
 
 /// The derived departure's junction: checked against a leg end's
 /// incoming tangent, and the entry direction where it is the first leg.
+/// Returns the entry direction, bound by now either way.
 fn depart<T: Decide>(
     core: &mut Core<T>,
     pos: &PosData<T>,
     departure: Dir<T>,
     tol: Tol,
-) -> Result<(), PathError<T>> {
+) -> Result<Dir<T>, PathError<T>> {
     if let Some(inc) = &pos.incoming {
         super::junction_check(inc, departure, false, tol)?;
     }
-    if core.start_ang.is_none() {
-        core.start_ang = Some(departure);
-    }
-    Ok(())
+    Ok(*core.start_ang.get_or_insert(departure))
 }
 
 /// The arc lands as a directed point at `p`, incoming the authored
@@ -265,8 +223,7 @@ fn close<T: Decide>(
         }
     };
     let (g, departure) = onto_arc_geom(pos.at, arrival, start_pos, tol)?;
-    depart(&mut core, pos, departure, tol)?;
-    let start_ang = *core.start_ang.get_or_insert(departure);
+    let start_ang = depart(&mut core, pos, departure, tol)?;
     let arriving = Incoming {
         ang: arrival,
         arm: leg_arm(g.carrier, g.chord),

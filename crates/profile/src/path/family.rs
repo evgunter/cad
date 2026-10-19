@@ -1756,7 +1756,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Start> 
             b: spec.b,
         }));
         let leg = path.arc_bulge(path.start_target()?, spec.b)?;
-        path.arc_to_start(leg, false, tol)
+        path.arc_to_start(leg, SeamArrival::Undeclared, tol)
     }
 }
 
@@ -1771,7 +1771,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, super::
             b: spec.b,
         }));
         let leg = path.arc_bulge(path.start_target()?, spec.b)?;
-        path.arc_to_start(leg, true, tol)
+        path.arc_to_start(leg, SeamArrival::Checked, tol)
     }
 }
 
@@ -1795,7 +1795,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Start> {
             target: Target::Start,
         }));
         let leg = path.arc_via(spec.q, path.start_target()?, tol)?;
-        path.arc_to_start(leg, false, tol)
+        path.arc_to_start(leg, SeamArrival::Undeclared, tol)
     }
 }
 
@@ -1809,7 +1809,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, super::ArrivesTa
             target: Target::StartArriving,
         }));
         let leg = path.arc_via(spec.q, path.start_target()?, tol)?;
-        path.arc_to_start(leg, true, tol)
+        path.arc_to_start(leg, SeamArrival::Checked, tol)
     }
 }
 
@@ -1835,7 +1835,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Start> {
             target: Target::Start,
         }));
         let leg = path.arc_center(spec.c, path.start_target()?, spec.winding, tol)?;
-        path.arc_to_start(leg, false, tol)
+        path.arc_to_start(leg, SeamArrival::Undeclared, tol)
     }
 }
 
@@ -1850,7 +1850,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, super::Arrive
             target: Target::StartArriving,
         }));
         let leg = path.arc_center(spec.c, path.start_target()?, spec.winding, tol)?;
-        path.arc_to_start(leg, true, tol)
+        path.arc_to_start(leg, SeamArrival::Checked, tol)
     }
 }
 

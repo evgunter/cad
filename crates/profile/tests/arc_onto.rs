@@ -546,21 +546,118 @@ fn the_degeneracies_mirror_tangent_arc_to() {
         PathErrorKind::DegenerateArcChord,
         "an arrival along the chord, behind",
     );
-    let lp = closes(
+    // An oblique director: its unit ray is rounded, so the target sits
+    // a sub-band `across` off it, and the line is the DECISION's, not
+    // an exact zero's.
+    on_the_ray_is_a_line(
         &with(
             leg_end(),
             &[
-                onto(2.0, 1.0),
-                toward(0.0, 1.0),
+                onto(3.0, 1.0),
+                toward(1.0, 1.0),
                 to(0.0, 1.0),
                 Step::LineTo(Target::Start),
             ],
         ),
+        1,
         "an arrival along the chord, ahead",
     );
+}
+
+/// A target decided on the departure line is the straight segment at
+/// both scalars: at f64 the leg at `k` closes stored as a line, and at
+/// Interval it closes as a line too or escalates — never as an arc read
+/// off a sub-band `across` (a ~1e16 carrier at f64, an unbounded
+/// enclosure at Interval). Returns the f64 loop.
+fn on_the_ray_is_a_line(steps: &[Step<f64>], k: usize, what: &str) -> ConstructedLoop<f64> {
+    let base = try_replay_at::<f64>(steps).unwrap_or_else(|e| panic!("{what}, f64: {e}"));
+    validates(&base, what);
     assert!(
-        matches!(lp.segments()[1], Segment::Line),
-        "the arc along its own chord is stored as the straight segment"
+        matches!(base.segments()[k], Segment::Line),
+        "{what}, f64: segment {k} is {:?}, not the straight segment",
+        base.segments()[k]
+    );
+    match try_replay_at::<Interval>(steps) {
+        Ok(iv) => {
+            validates(&iv, what);
+            assert!(
+                matches!(iv.segments()[k], Segment::Line),
+                "{what}, Interval: segment {k} is {:?}, not the straight segment",
+                iv.segments()[k]
+            );
+            assert_eq!(
+                base.constructed_joints(),
+                iv.constructed_joints(),
+                "{what}: the lanes' constructed joints"
+            );
+        }
+        Err(ReplayError {
+            kind: ReplayErrorKind::Path(e),
+            ..
+        }) if e.kind() == PathErrorKind::Escalated => {}
+        Err(e) => panic!("{what}, Interval: neither a line nor an escalation: {e}"),
+    }
+    base
+}
+
+/// The silent case: a director decided along the chord to the token's
+/// `Start`. At f64 the closer is the straight segment, its seam joint
+/// constructed; at Interval it was an arc of unbounded radius that no
+/// later junction read, so the loop validated.
+#[test]
+fn the_token_closer_along_its_own_chord_is_a_line_at_both_scalars() {
+    for (dx, dy) in [(1.0, 1.0), (3.0, 1.0)] {
+        let start = pt(1.0, 1.0);
+        let back = pt(start.x - dx, start.y - dy);
+        let lp = on_the_ray_is_a_line(
+            &[
+                Step::At(start),
+                toward(dx, dy),
+                Step::Line(2.0),
+                to(-1.0, 3.0),
+                to(back.x, back.y),
+                Step::ArcOnto(Target::StartArriving),
+            ],
+            3,
+            &format!("arc_onto(Start.arrives_tangent()) along ({dx}, {dy})"),
+        );
+        assert_eq!(
+            lp.constructed_joints(),
+            &[0],
+            "the seam's joint is constructed"
+        );
+    }
+}
+
+/// The same reading through a `.tangent()` follower, which reads no
+/// junction at the landed point: through `tangent_arc_to` and through
+/// `arc_onto`.
+#[test]
+fn a_tangent_follower_after_a_leg_along_its_chord_reads_a_line() {
+    let ahead = [
+        Step::Tangent,
+        Step::Line(1.0),
+        to(0.0, 2.0),
+        Step::LineTo(Target::Start),
+    ];
+    on_the_ray_is_a_line(
+        &with(
+            with(
+                leg_end(),
+                &[
+                    toward(1.0, 1.0),
+                    Step::TangentArcTo(Target::Point(pt(3.0, 1.0))),
+                ],
+            ),
+            &ahead,
+        ),
+        1,
+        "tangent_arc_to along the departure, then .tangent()",
+    );
+    on_the_ray_is_a_line(
+        &with(with(leg_end(), &[onto(3.0, 1.0), toward(1.0, 1.0)]), &ahead),
+        1,
+        "arc_onto along the chord, then .tangent()",
     );
 }
 

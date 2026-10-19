@@ -900,7 +900,7 @@ transition_table! {
             on [T: Decide] super::ArcOnto<T>;
             fn angle [(self, theta: T, tol: Tol)
                 -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
-                self.angle_kernel(Step::Angle(theta), theta, tol)
+                self.director_kernel(Step::Angle(theta), Ok(super::Dir::from_angle(theta)), tol)
             }
             arms {
                 ArcOnto(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.angle(theta, tol)?))),
@@ -911,7 +911,7 @@ transition_table! {
             /// classified.
             on [T: Decide] super::ArcOntoStart<T>;
             fn angle [(self, theta: T, tol: Tol) -> Result<ClosedLoop<T>, PathError<T>>] {
-                self.angle_kernel(Step::Angle(theta), theta, tol)
+                self.director_kernel(Step::Angle(theta), Ok(super::Dir::from_angle(theta)), tol)
             }
             arms {
                 ArcOntoStart(p0) => Ok(Applied::Closed(p0.angle(theta, tol)?)),
@@ -1032,7 +1032,8 @@ transition_table! {
             on [T: Decide] super::ArcOnto<T>;
             fn toward [(self, dx: T, dy: T, tol: Tol)
                 -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
-                self.toward_kernel(Step::Toward { dx, dy }, dx, dy, tol)
+                let arrival = super::unit_from_components(dx, dy, tol);
+                self.director_kernel(Step::Toward { dx, dy }, arrival, tol)
             }
             arms {
                 ArcOnto(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.toward(dx, dy, tol)?))),
@@ -1043,7 +1044,8 @@ transition_table! {
             /// seam is classified.
             on [T: Decide] super::ArcOntoStart<T>;
             fn toward [(self, dx: T, dy: T, tol: Tol) -> Result<ClosedLoop<T>, PathError<T>>] {
-                self.toward_kernel(Step::Toward { dx, dy }, dx, dy, tol)
+                let arrival = super::unit_from_components(dx, dy, tol);
+                self.director_kernel(Step::Toward { dx, dy }, arrival, tol)
             }
             arms {
                 ArcOntoStart(p0) => Ok(Applied::Closed(p0.toward(dx, dy, tol)?)),
