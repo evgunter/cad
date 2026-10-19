@@ -1766,6 +1766,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
     match err {
         NamingError::Duplicate { .. } => "duplicate",
         NamingError::KindMismatch { .. } => "kind_mismatch",
+        NamingError::ShortTie { .. } => "short_tie",
         NamingError::Unnamed { .. } => "unnamed",
         NamingError::MissingUpstream { .. } => "missing_upstream",
         NamingError::Emission { .. } => "emission",

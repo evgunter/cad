@@ -202,6 +202,11 @@ fn seating_refusal_payload(e: &pncad::select::SeatingRefusal) {
             named::<&StableName>(&k.name);
             named::<&pncad::select::EntityKind>(&k.found);
         }
+        pncad::select::SeatingRefusal::ShortTie(t) => {
+            named::<&pncad::select::ShortTie>(t);
+            named::<&StableName>(&t.name);
+            named::<&usize>(&t.candidates);
+        }
     }
 }
 

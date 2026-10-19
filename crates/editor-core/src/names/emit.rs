@@ -27,7 +27,8 @@ use crate::node::RecipeNodeId;
 /// **Four kinds of thing live here, and the reader is told which.**
 ///
 /// 1. An emission BUG — a mint-time fact inconsistent with the result
-///    body. [`Self::Duplicate`], [`Self::KindMismatch`], [`Self::Unnamed`],
+///    body. [`Self::Duplicate`], [`Self::KindMismatch`],
+///    [`Self::ShortTie`], [`Self::Unnamed`],
 ///    [`Self::MissingUpstream`], [`Self::Emission`],
 ///    [`Self::SplitLineage`], [`Self::Settle`].
 /// 2. An honest in-band escalation: [`Self::Escalated`].
@@ -89,6 +90,14 @@ pub enum NamingError {
         name: Box<StableName>,
         /// The offered entity's kind.
         found: EntityKind,
+    },
+    /// A tie seated with fewer than two distinct candidates
+    /// ([`super::table::ShortTie`]).
+    ShortTie {
+        /// The name the tie was to be seated under.
+        name: Box<StableName>,
+        /// How many distinct entities it was offered: 0 or 1.
+        candidates: usize,
     },
     /// A live boundary entity the emission failed to cover — a
     /// kernel-emission gap surfaced (spec D4: never guessed around).
@@ -364,6 +373,7 @@ pub enum NamingError {
 /// Each speaks it followed by what it caught —
 /// [`NamingError::Duplicate`] the name minted twice,
 /// [`NamingError::KindMismatch`] the name seated on another kind,
+/// [`NamingError::ShortTie`] the tie seated short,
 /// [`NamingError::Unnamed`] the entity left uncovered,
 /// [`NamingError::MissingUpstream`] the upstream table that missed,
 /// [`NamingError::Emission`] a fact, [`NamingError::SplitLineage`] the
@@ -445,6 +455,17 @@ impl crate::spoken::Say for NamingError {
                 found.article(),
                 found.noun()
             ),
+            Self::ShortTie { name, candidates } => write!(
+                f,
+                "{EMISSION_FRAMING}: {} was seated as a tie of {} — a tie names two or \
+                 more entities",
+                by.name(name),
+                match candidates {
+                    0 => "no candidates",
+                    1 => "one candidate",
+                    _ => "too few candidates",
+                }
+            ),
             Self::Unnamed { kind, body } => write!(
                 f,
                 "{EMISSION_FRAMING}: a live {} of output body {body} was left unnamed",
@@ -486,9 +507,8 @@ impl crate::spoken::Say for NamingError {
             ),
             Self::SeamVertexPartners { vertex, candidates } => write!(
                 f,
-                "{UNRULED_FRAMING}: seam vertex {vertex:?} coincides, in the boolean's contact \
-                 records, with {} differently named vertices of the other operand ({}), and \
-                 no rule chooses which one names it",
+                "{UNRULED_FRAMING}: seam vertex {vertex:?} meets {} differently named \
+                 vertices of the other operand ({}), and no rule picks one",
                 candidates.len(),
                 candidates
                     .iter()
@@ -520,44 +540,37 @@ impl crate::spoken::Say for NamingError {
                 unread,
             } => write!(
                 f,
-                "{UNRULED_FRAMING}: vertex {vertex:?} is operand {}'s vertex meeting the other \
-                 operand's vertex {partner:?}, which the boolean read nothing of: it lies {}. So \
-                 the boolean classed none of the vertex's edges and the crossing there has no \
-                 senses to name it by; reading them against the partner's neighbourhood is not \
-                 built yet (work/tang/a-lone-unread-partner-has-no-class-rule)",
+                "{UNRULED_FRAMING}: operand {}'s vertex {vertex:?} meets vertex {partner:?} {}, \
+                 which the boolean read nothing of, so it classed none of the vertex's edges \
+                 (work/tang/a-lone-unread-partner-has-no-class-rule)",
                 match unread.operand {
                     topo::Operand::A => "A",
                     topo::Operand::B => "B",
                 },
                 match unread.neighbourhood {
                     topo::UnreadNeighbourhood::OneFace => "inside one smooth face",
-                    topo::UnreadNeighbourhood::NoBisector =>
-                        "on an edge of two faces, neither holding a bisector to read their wedge by",
-                    topo::UnreadNeighbourhood::ConeUnread =>
-                        "at an edge or corner read as a polygon cone, some edge of which no \
-                         reference decides",
+                    topo::UnreadNeighbourhood::NoBisector => "on an edge no bisector reads",
+                    topo::UnreadNeighbourhood::ConeUnread => "at a cone no reference decides",
                 }
             ),
             Self::ConventionalVertex { vertex, body } => write!(
                 f,
                 "{UNRULED_FRAMING}: vertex {vertex:?} of output body {body} is a closed \
-                 edge's conventional vertex, which has no identity of its own, and the name it \
-                 takes from its edge is not built yet \
+                 edge's conventional vertex, and the name it takes from its edge is not built \
+                 yet \
                  (work/emit/a-conventional-vertex-mints-no-edge-derived-name)"
             ),
             Self::MergedChordOffRim { edge, node, rim } => write!(
                 f,
                 "{UNRULED_FRAMING}: seam chord {edge:?} lies between two faces of one \
-                 operand, a merged face among them, and does not lie within the rim {rim:?} of \
-                 operand {}'s body it lies along, or within any other rim between them",
+                 operand, one merged, and within neither the rim {rim:?} of operand {}'s body \
+                 nor any other rim",
                 by.node(*node)
             ),
             Self::MemberEdgeTied { member, edge } => write!(
                 f,
                 "{UNRULED_FRAMING}: member {}'s edge ({}) is read where one edge is needed, \
-                 to rank crossings along it, place a vertex on it or read its faces, and a tie \
-                 stands there (the member ties that name to several edges, or two of its \
-                 crossings were tied)",
+                 and a tie stands there, over several edges or two crossings",
                 by.read(*member),
                 by.name(edge)
             ),
@@ -626,6 +639,7 @@ impl NamingError {
         match self {
             Self::Duplicate { .. }
             | Self::KindMismatch { .. }
+            | Self::ShortTie { .. }
             | Self::Unnamed { .. }
             | Self::MissingUpstream { .. }
             | Self::Emission { .. }
@@ -684,6 +698,10 @@ impl From<SeatingRefusal> for NamingError {
             SeatingRefusal::KindMismatch(k) => Self::KindMismatch {
                 name: k.name,
                 found: k.found,
+            },
+            SeatingRefusal::ShortTie(t) => Self::ShortTie {
+                name: t.name,
+                candidates: t.candidates,
             },
         }
     }
@@ -1897,11 +1915,7 @@ mod display_tests {
                     node: RecipeNodeId::new(0, test_utils::refusal::tagged(29)),
                     rim: two_edges().1,
                 },
-                vec![
-                    "a merged face among them",
-                    "00000000001d",
-                    "does not lie within",
-                ],
+                vec!["one merged", "00000000001d", "within neither the rim"],
             ),
             (
                 NamingError::ClosedCarrierUnread {
@@ -1990,6 +2004,13 @@ mod display_tests {
                 },
                 vec!["the end cap", "names a face", "seated on an edge"],
             ),
+            (
+                NamingError::ShortTie {
+                    name: Box::new(name.clone()),
+                    candidates: 1,
+                },
+                vec!["the end cap", "a tie of one candidate"],
+            ),
         ];
         // The category is `NamingError::category`'s, which also chooses
         // the ending. Which framing each arm's `Display` interpolates is
@@ -2023,6 +2044,7 @@ mod display_tests {
                 NamingError::CarrierUnplaced { .. } => 16,
                 NamingError::PartnerUnread { .. } => 17,
                 NamingError::KindMismatch { .. } => 18,
+                NamingError::ShortTie { .. } => 19,
             }
         };
         let covered: std::collections::BTreeSet<usize> =

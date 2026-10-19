@@ -457,6 +457,7 @@ mod tests {
         let duplicate = |e| match e {
             SeatingRefusal::Duplicate(d) => d.name,
             SeatingRefusal::KindMismatch(k) => panic!("every source row is a face: {k:?}"),
+            SeatingRefusal::ShortTie(t) => panic!("every carried tie has two candidates: {t:?}"),
         };
         let mut rows = CarriedRows::default();
         for (i, (t, ix)) in sources.iter().enumerate() {
