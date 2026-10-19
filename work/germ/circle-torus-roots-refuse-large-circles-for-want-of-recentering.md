@@ -5,6 +5,7 @@ title: The circle x torus root door refuses circles much larger than the torus: 
 status: review
 opened: 2026-09-29
 branch: germ/circle-torus-recentering
+pr: 5394
 priority: P3
 cost: M
 refs: [circle-crosses-a-torus-face-with-no-root-lane, conic-doors-walk-their-taylor-terms-through-the-harmonics-noise]
