@@ -2099,24 +2099,22 @@ struct TangentArcGeom<T: Real> {
     chord: T,
 }
 
-/// A bound direction: the angle in radians **and** the unit vector the
-/// rays are actually built from.
+/// A bound direction: the unit ray, and nothing else.
 ///
-/// The two are carried together because they are not interchangeable at
-/// the bit level (the G1 VQ4 exactness contract). A director spelled as
-/// an ANGLE fixes θ and derives the ray by `sin_cos`, so an axis
-/// direction picks up the quantization of π (`unit(PI).y = 1.22e-16`);
-/// a director spelled as COMPONENTS ([`PartialPath::toward`]) fixes the
-/// ray exactly — `(-1, 0)` normalizes to itself — and derives θ by
-/// `atan2` only for the angle arithmetic (`.turn(δ)`, arc end tangents)
-/// that genuinely needs a number. Every ray construction reads
-/// [`Dir::unit`]; nothing rebuilds a ray from [`Dir::ang`], so
-/// exactness survives every hop it can.
+/// How a director is SPELLED fixes its bits (the G1 VQ4 exactness
+/// contract). One spelled as an ANGLE derives the ray by `sin_cos`, so
+/// an axis direction picks up the quantization of π
+/// (`unit(PI).y = 1.22e-16`); one spelled as COMPONENTS
+/// ([`PartialPath::toward`], a leg's chord) fixes the ray exactly —
+/// `(-1, 0)` normalizes to itself. Every later direction is the ray
+/// itself, its negation ([`Dir::reversed`]), its reflection
+/// ([`reflected_across`]) or its rotation ([`turned`]), never a ray
+/// rebuilt from an angle read back off it, so exactness survives every
+/// hop it can, and no direction's enclosure is ever an angle's read
+/// across `atan2`'s branch cut.
 #[doc(hidden)]
 #[derive(Clone, Copy, Debug)]
 pub struct Dir<T: Real> {
-    /// The direction's angle, radians.
-    ang: T,
     /// The unit ray — exact when the director authored components.
     unit: Vec2<T>,
 }
@@ -2125,24 +2123,23 @@ impl<T: Real> Dir<T> {
     /// A director spelled as an angle: the ray is the `sin_cos`
     /// round-trip (the historic `.angle(θ)` behaviour, bit-for-bit).
     fn from_angle(ang: T) -> Self {
-        Self {
-            ang,
-            unit: unit(ang),
-        }
+        Self { unit: unit(ang) }
     }
 
     /// A director spelled as an already-unit ray: the ray is stored
-    /// verbatim and the angle derived from it.
+    /// verbatim.
     ///
     /// **The ray is DECIDED before it gets here, at the door that
     /// built it, and this constructor deliberately does not decide it
     /// again.** Every caller either normalized against the funnel on
     /// its own band — `unit_from_components` under
     /// `path_director_norm`, [`arc_fillet::carrier_tangent`] under
-    /// `path_arc_center_radius` — or holds a ray that is unit by
-    /// construction: [`Dir::reversed`]'s exact negation, and
-    /// [`reflected_across`]'s reflection of a unit ray, unit over the
-    /// reals and to its rounding in the floats. A
+    /// `path_arc_center_radius` — or normalized a chord whose length
+    /// other gates decide ([`chord_director`]), or holds a ray that is
+    /// unit by construction: [`Dir::reversed`]'s exact negation, and
+    /// [`reflected_across`]'s reflection and [`turned`]'s rotation,
+    /// each of a unit ray, unit over the reals and to its rounding in
+    /// the floats. A
     /// second decision here would either re-ask a question already
     /// answered (a second name in the K census for one length) or,
     /// worse, re-derive the ray and lose the exactness this type
@@ -2159,15 +2156,12 @@ impl<T: Real> Dir<T> {
     /// rather than fixed here
     /// (`work/seat/two-d-director-doors-skip-the-finiteness-question`).
     fn from_unit(u: Vec2<T>) -> Self {
-        Self {
-            ang: u.y.atan2(u.x),
-            unit: u,
-        }
+        Self { unit: u }
     }
 
     /// The exact REVERSE of this director — the cusp door's departure.
     ///
-    /// The ray is NEGATED, never re-derived as `ang + π`: negation is
+    /// The ray is NEGATED, never re-derived as `θ + π`: negation is
     /// exact in every backend, so a reverse-tangent junction authored
     /// through this is exactly reverse-tangent and there is nothing
     /// for verification to contradict. That is the same guarantee
@@ -4061,6 +4055,62 @@ fn unit_from_components<T: Decide>(dx: T, dy: T, tol: Tol) -> Result<Dir<T>, Pat
     Ok(Dir::from_unit(Vec2::new(dx / norm, dy / norm)))
 }
 
+/// **A chord's director**: the chord's components over its length, so
+/// an enclosure of the chord is an enclosure of its ray whichever way
+/// it heads. An angle read off `atan2` is not: on its branch cut — a
+/// chord along −x whose `y` straddles zero — the angle's enclosure is
+/// the whole circle.
+///
+/// The length is not DECIDED here, and nothing is refused. The length
+/// is the lever the junction gates ask about and the length the
+/// segment's shape validation asks about, each under its own name, and
+/// a chord out of the format's range is refused where its vertex is
+/// validated or drawn; a question here would be a second one about the
+/// same length, pre-empting the refusals that name it.
+///
+/// The chord is divided by its largest component before it is
+/// normalized, so its squares are of order one whatever its scale: no
+/// finite chord overflows them or loses them to the subnormal range, at
+/// a point scalar or in an enclosure. Two chords have no length to
+/// divide by. The zero chord (the authored point IS the tip) names no
+/// ray and stands in `+x` for one; a component past the range (a tip
+/// that overflowed) keeps `atan2`'s reading of its heading, the limit
+/// along its infinite axis.
+fn chord_director<T: Real>(d: Vec2<T>) -> Dir<T> {
+    let witness = d.norm_witness();
+    if !is_finite_length(witness) {
+        return Dir::from_angle(d.y.atan2(d.x));
+    }
+    if geom_core::is_exact_zero(witness) {
+        return Dir::from_unit(Vec2::new(T::one(), T::zero()));
+    }
+    let scaled = d / witness;
+    Dir::from_unit(scaled / scaled.norm_squared().sqrt())
+}
+
+/// The vector `v` rotated by `by` radians — the one spelling of a
+/// rotation in the plane.
+fn rotated<T: Real>(v: Vec2<T>, by: T) -> Vec2<T> {
+    let (s, c) = by.sin_cos();
+    Vec2::new(v.x * c - v.y * s, v.x * s + v.y * c)
+}
+
+/// The unit ray `u` turned by `by` radians: unit over the reals wherever
+/// `u` is, and to its rounding in the floats ([`Dir::from_unit`]).
+fn turned<T: Real>(u: Vec2<T>, by: T) -> Dir<T> {
+    Dir::from_unit(rotated(u, by))
+}
+
+/// **An arc leg's tangents from its chord**: the chord's ray
+/// ([`chord_director`]) turned by `∓θ/2` for the sweep `θ` — the start
+/// tangent and the end tangent. A line's `θ` is zero, which leaves the
+/// ray as it is.
+fn chord_tangents<T: Real>(d: Vec2<T>, sweep: T) -> (Dir<T>, Dir<T>) {
+    let c = chord_director(d).unit;
+    let half = sweep / T::from_f64(2.0);
+    (turned(c, -half), turned(c, half))
+}
+
 /// The kernel behind the table's circle row: the lowered loop (the
 /// row supplies the one-step program).
 fn circle_kernel<T: Decide>(
@@ -4260,7 +4310,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                 site: "turn on a tip without incoming data",
             },
         )?;
-        let theta = Dir::from_angle(inc.ang.ang + delta);
+        let theta = turned(inc.ang.unit, delta);
         junction_check(&inc, theta, false, tol)?;
         self.tip.ang = Some(theta);
         self.tip.ang_by_tangent = false;
@@ -4743,7 +4793,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let pos = self.tip_pos()?;
         let at = pos.at;
         let d = p - at;
-        let gamma = Dir::from_angle(d.y.atan2(d.x));
+        let gamma = chord_director(d);
         if self.core.pending.is_some() {
             self.core
                 .resolve_fillet(at, gamma, ArrivalKind::Continues, tol)?;
@@ -4777,7 +4827,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         })?;
         let at = self.tip_pos()?.at;
         let d = start_pos - at;
-        let gamma = Dir::from_angle(d.y.atan2(d.x));
+        let gamma = chord_director(d);
         if self.core.pending.is_some() {
             self.core
                 .resolve_fillet(at, gamma, ArrivalKind::Continues, tol)?;
@@ -4900,22 +4950,16 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         Ok(crate::bulge_leg(self.tip_pos()?.at, end, bulge))
     }
 
-    /// The leg's derived angles: chord direction γ, its stored sweep θ
-    /// (zero for a line), start tangent γ − θ/2, end tangent γ + θ/2.
+    /// The leg's derived tangents ([`chord_tangents`] for its stored
+    /// sweep) and its chord length.
     fn arc_angles(
         at: Point2<T>,
         target: Point2<T>,
         leg: Option<BuiltArc<T>>,
     ) -> (Dir<T>, Dir<T>, T) {
         let d = target - at;
-        let gamma = d.y.atan2(d.x);
-        let theta = sweep_of(leg);
-        let half = theta / T::from_f64(2.0);
-        (
-            Dir::from_angle(gamma - half),
-            Dir::from_angle(gamma + half),
-            d.norm_squared().sqrt(),
-        )
+        let (start, end) = chord_tangents(d, sweep_of(leg));
+        (start, end, d.norm_squared().sqrt())
     }
 
     pub(super) fn arc_to_point(
@@ -5210,10 +5254,10 @@ mod tests {
     /// **The cusp door's exactness guard.**
     ///
     /// [`Dir::reversed`] promises the departure ray is the incoming ray
-    /// NEGATED, never re-derived as `ang + π` — and that promise is the
+    /// NEGATED, never re-derived as `θ + π` — and that promise is the
     /// reason a declared cusp is a structural fact rather than a value
     /// coincidence. Until this row existed the promise was held by
-    /// prose alone: the `ang + π` mutant passed every suite in the
+    /// prose alone: the `θ + π` mutant passed every suite in the
     /// workspace, because every downstream check reads the junction
     /// through a TOLERANCE and the two spellings differ by ulps.
     ///
@@ -5221,11 +5265,11 @@ mod tests {
     /// level, at the door itself, and it asserts both halves:
     ///
     /// 1. the reversed ray is bit-exactly the negation, and
-    /// 2. the `ang + π` spelling would NOT be — on every case here,
+    /// 2. the `θ + π` spelling would NOT be — on every case here,
     ///    axis-aligned and axis-oblique alike. Both parts of (2) matter:
     ///    on an axis the mutant leaks the quantization of π into the
     ///    zero component (`sin π = 1.22e-16`), and off-axis it lands
-    ///    ulps away in BOTH components because the sum `ang + π` rounds
+    ///    ulps away in BOTH components because the sum `θ + π` rounds
     ///    before `sin_cos` ever sees it.
     ///
     /// This is a unit row rather than an authored-path row on purpose:
@@ -5255,34 +5299,35 @@ mod tests {
                 "the reversed ray's y is the negated bits ({u:?})"
             );
             // The mutation this row exists to kill.
-            let via_angle = Dir::from_angle(incoming.ang + core::f64::consts::PI);
+            let via_angle = Dir::from_angle(u.y.atan2(u.x) + core::f64::consts::PI);
             assert!(
                 via_angle.unit.x.to_bits() != reversed.unit.x.to_bits()
                     || via_angle.unit.y.to_bits() != reversed.unit.y.to_bits(),
-                "`ang + π` must NOT reproduce the negation ({u:?}) — if it does, this \
+                "`θ + π` must NOT reproduce the negation ({u:?}) — if it does, this \
                  guard is vacuous and the door's promise is untestable here"
             );
         }
     }
 
-    /// **Each producing door decides its own length and stores a unit
-    /// ray** — the two halves of [`Dir::from_unit`]'s contract that a
-    /// test can reach. It does NOT prove the contract holds for every
-    /// caller: nothing here can see a fifth caller appear, which is
-    /// what the constructor's privacy and its doc are for.
+    /// **Each producing door stores a unit ray** — the half of
+    /// [`Dir::from_unit`]'s contract a test can reach. It does NOT prove
+    /// the contract holds for every caller: nothing here can see a new
+    /// caller appear, which is what the constructor's privacy and its
+    /// doc are for.
     ///
-    /// The two producing doors are walked here, refusal and success:
-    /// each classifies its own length through the funnel under its own
-    /// name and refuses typed, and what it then stores is a ray of
-    /// length one — exactly one on the cases below, which are chosen
-    /// so the arithmetic is exact in binary and a "close enough"
-    /// assertion cannot hide a door that stopped normalizing. The
-    /// third caller, [`Dir::reversed`], is unit by exact negation and
-    /// is pinned by the row above; the fourth, [`reflected_across`],
-    /// is walked last, on an exact reflection and on one whose rounding
-    /// leaves it an ulp off.
+    /// The two deciding doors are walked refusal and success: each
+    /// classifies its own length through the funnel under its own name
+    /// and refuses typed, and what it then stores is a ray of length
+    /// one — exactly one on the cases below, which are chosen so the
+    /// arithmetic is exact in binary and a "close enough" assertion
+    /// cannot hide a door that stopped normalizing. The chord door
+    /// decides nothing, and stores the exact unit ray on the same 3-4-5
+    /// case (its other arms are the next row's). [`Dir::reversed`] is
+    /// unit by exact negation and is pinned by the row above;
+    /// [`reflected_across`] and [`turned`] are walked last, each on an
+    /// exact case and on one whose rounding leaves it an ulp off.
     #[test]
-    fn each_producing_door_decides_its_length_and_stores_a_unit_ray() {
+    fn each_producing_door_stores_a_unit_ray() {
         let tol = Tol::witness();
         let band = linear_band::<f64>(tol).expect("the linear band");
 
@@ -5298,10 +5343,11 @@ mod tests {
         );
         let d = unit_from_components::<f64>(3.0, 4.0, tol).expect("a real direction");
         assert_eq!((d.unit.x, d.unit.y), (0.6, 0.8), "the stored ray is unit");
+        let c = chord_director(Vec2::new(3.0, 4.0));
         assert_eq!(
-            d.ang,
-            0.8_f64.atan2(0.6),
-            "and the angle is derived FROM it"
+            (c.unit.x, c.unit.y),
+            (0.6, 0.8),
+            "the chord door's ray is unit"
         );
 
         // The arc-carrier door refuses an anchor at the centre — no
@@ -5330,6 +5376,86 @@ mod tests {
             "a reflection keeps the length: {:?}",
             r.unit
         );
+
+        // The turned ray: +x turned by zero is +x, exactly; (0.6, 0.8)
+        // turned by one radian is unit to an ulp.
+        let t = turned(Vec2::new(1.0, 0.0), 0.0);
+        assert_eq!((t.unit.x, t.unit.y), (1.0, 0.0), "an exact turn");
+        let t = turned(Vec2::new(0.6, 0.8), 1.0);
+        assert!(
+            (t.unit.norm() - 1.0).abs() <= 2.0 * f64::EPSILON,
+            "a rotation keeps the length: {:?}",
+            t.unit
+        );
+    }
+
+    /// **The chord door divides; it decides and refuses nothing.** Its
+    /// ray is exact where the quotients are (3-4-5, and an axis chord
+    /// along −x, whose angle round-trip lands `1.2e-16` off the axis); a
+    /// chord far below ε still names its ray, because the lever gates
+    /// and the shape validation own that length; a finite chord whose
+    /// length over- or underflows still divides; the zero chord stands
+    /// in `+x`; and a component past the range keeps its heading.
+    #[test]
+    fn the_chord_director_divides_without_deciding_its_length() {
+        let ray = |x: f64, y: f64| {
+            let d = chord_director(Vec2::new(x, y));
+            (d.unit.x, d.unit.y)
+        };
+        assert_eq!(ray(-3.0, 4.0), (-0.6, 0.8), "a 3-4-5 chord");
+        assert_eq!(ray(-1.5, 0.0), (-1.0, 0.0), "an axis chord");
+        assert_eq!(ray(0.0, 1e-13), (0.0, 1.0), "a sub-ε chord");
+        assert_eq!(ray(0.0, 0.0), (1.0, 0.0), "the zero chord");
+        assert_eq!(ray(-3e300, 4e300), (-0.6, 0.8), "an overflowed length");
+        assert_eq!(ray(3e-300, -4e-300), (0.6, -0.8), "an underflowed length");
+        assert_eq!(
+            ray(f64::NEG_INFINITY, 1e307).0,
+            -1.0,
+            "a component past the range"
+        );
+        let (x, y) = ray(f64::NAN, 1.0);
+        assert!(x.is_nan() && y.is_nan(), "a component that is not a number");
+        // The gradual-underflow band: the squares are subnormal and the
+        // length is not zero, so a plain `d / |d|` is not unit there.
+        let (x, y) = ray(1.134e-163, 1.683e-162);
+        let truth = 1.683_f64.atan2(0.1134);
+        assert!(
+            ((x * x + y * y).sqrt() - 1.0).abs() <= 2.0 * f64::EPSILON
+                && (y.atan2(x) - truth).abs() <= 4.0 * f64::EPSILON,
+            "a chord in the subnormal band of its squares: ({x}, {y})"
+        );
+    }
+
+    /// **The chord door at the interval scalar is sound, and narrow at
+    /// both ends of the range.** The prescale by the largest component
+    /// is the same arithmetic in an enclosure, so an overflowed or an
+    /// underflowed chord's ray encloses `(−1, 0)` and is as narrow as
+    /// one along −x of ordinary length; and a chord on `atan2`'s branch
+    /// cut (`x < 0`, `y` straddling zero) reads a narrow ray.
+    #[test]
+    fn the_chord_director_encloses_a_narrow_ray_at_the_interval_scalar() {
+        use geom_core::{Bounds, Interval};
+        let iv = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
+        let cases = [
+            ("an ordinary chord", iv(-1.0, -1.0), iv(-1e-12, 1e-12)),
+            ("an overflowed chord", iv(-1e300, -1e300), iv(-1e288, 1e288)),
+            (
+                "an underflowed chord",
+                iv(-1e-200, -1e-200),
+                iv(-1e-212, 1e-212),
+            ),
+        ];
+        for (what, x, y) in cases {
+            let u = chord_director(Vec2::new(x, y)).unit;
+            assert!(
+                u.x.lo() <= -1.0 && -1.0 <= u.x.hi() && u.y.lo() <= 0.0 && 0.0 <= u.y.hi(),
+                "{what}: the ray encloses (−1, 0): {u:?}"
+            );
+            assert!(
+                u.x.hi() - u.x.lo() < 1e-11 && u.y.hi() - u.y.lo() < 1e-11,
+                "{what}: and is narrow: {u:?}"
+            );
+        }
     }
 
     /// **The overflow end of both 2-D director doors.** Components

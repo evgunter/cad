@@ -237,6 +237,7 @@ pub mod separation;
 #[cfg(test)]
 pub(crate) mod seqgen;
 pub mod shell;
+pub(crate) mod side_reader;
 pub mod split;
 pub mod splitting;
 pub(crate) mod stands;
@@ -354,12 +355,13 @@ pub mod test_support {
     /// ([`crate::test_support_meeting`]).
     pub mod meeting {
         pub use crate::test_support_meeting::{
-            Hole, MEET, PLATE, Point, Pose, along_lying_ray, apex_pyramid, arch, arch_cone, at,
-            bearing, branching_cone, comb, corners, corners_disjoint, crown, cycles_of, ell,
-            ell_and_wedges, fin, four_wedges, inner_rows, leaned, lying, mix, near_flat, nest,
-            nest_polygon, notch, notch_rows, on_the_lying_faces, orders, posed_box, posed_boxes,
-            posed_crown, posed_prism, posed_pyramid, poses, pyramid_volumes, shape, single_arch,
-            three_wedges, two_wedges, wedge, wedges_on_one_side, zigzag,
+            Hole, MEET, PLATE, Point, Pose, along_lying_ray, apex_pyramid, apex_pyramid_kept, arch,
+            arch_cone, at, bearing, branching_cone, comb, corners, corners_disjoint, crown,
+            cycles_of, ell, ell_and_wedges, fin, four_wedges, inner_rows, leaned, lying, mix,
+            near_flat, nest, nest_polygon, notch, notch_rows, on_the_lying_faces, orders,
+            posed_box, posed_boxes, posed_crown, posed_prism, posed_pyramid, poses,
+            pyramid_volumes, shape, single_arch, three_wedges, two_wedges, wedge,
+            wedges_on_one_side, zigzag,
         };
     }
 
@@ -875,17 +877,17 @@ pub(crate) mod vertex_section;
 
 pub use body::Body;
 pub use boolean::{
-    AlongFace, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanError,
-    BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming, BooleanOp,
-    BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarrierDesc, CarrierEqError,
-    CarrierRelation, CarryRefusal, Cell, Coincide, CoincidenceMeasure, CompletedPolygonPair,
-    ConsumedExtent, Contact, ContactKind, ContactPairError, ContactRecords, ContainDecision,
-    ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeJoin, EdgePieceClass, EeContact,
-    EfContact, FaceContainment, FfContact, Fusions, GlueVerdict, GluedPair, JOIN_LEVER,
-    JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, LeverArm, NodeWhy, NullEdgePairRecord,
-    Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite, PairSite, PairUnread,
-    PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
-    PointInSolidError, ReductionContacts, RefusedRow, SectorRead, SectorRung, SelfCheck,
+    AimedPair, AlongFace, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision,
+    BooleanError, BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming,
+    BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarrierDesc,
+    CarrierEqError, CarrierRelation, CarryRefusal, Cell, Coincide, CoincidenceMeasure,
+    CompletedPolygonPair, ConsumedExtent, Contact, ContactKind, ContactPairError, ContactRecords,
+    ContainDecision, ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeJoin,
+    EdgePieceClass, EeContact, EfContact, FaceContainment, FfContact, Fusions, GlueVerdict,
+    GluedPair, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, LeverArm,
+    NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite,
+    PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
+    PlaneRung, PointInSolidError, ReductionContacts, RefusedRow, SectorRead, SectorRung, SelfCheck,
     SettleError, Settler, Settling, ShellOrientation, SideCode, SolidContainment, SolidFaces,
     SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, SweepTrace, TorusConvention,
     UnreadNeighbourhood, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence,
@@ -900,6 +902,7 @@ pub use lineage::{
     ConeCopies, Division, FaceDivisions, Fate, Lineage, LineageError, LineageKey, LineageRows,
     Minted, Remainder, RowDefect, RowRefusal, SourceGeometry, SplitEdgeDivisions, Substitutions,
 };
+pub use side_reader::{FAMILY as SIDE_READER_FAMILY, SetAside, SetAsideWhy};
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
@@ -978,10 +981,10 @@ pub use pcurves::{
     PcurveMintError, SiteRowRefusal, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of,
 };
 pub use props::{
-    AtRestOutcome, AtRestPolicy, CertifiedSliver, MassProperties, MassPropsError, QuadLane,
-    ShellClassification, ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole,
-    SignCertificate, TargetUnreached, VolumeEnclosure, VolumeReading, classify_shells,
-    classify_shells_of, classify_shells_structural, mass_properties, mass_properties_structural,
+    AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,
+    ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate, SignLimit,
+    TargetUnreached, VolumeEnclosure, VolumeReading, classify_shells, classify_shells_of,
+    classify_shells_structural, mass_properties, mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
@@ -1021,8 +1024,8 @@ pub use splitting::{
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
-    CrossingSideVerdict, RingContact, RingPairContact, StaleDeclaration, Unfinished,
-    ValidationError, WedgeCheck, contact_marks, contact_marks_structural, validate,
+    CrossingSideVerdict, OrientationUnread, RingContact, RingPairContact, StaleDeclaration,
+    Unfinished, ValidationError, WedgeCheck, contact_marks, contact_marks_structural, validate,
     validate_closed, validate_geometric, validate_geometric_certificate,
     validate_geometric_certificate_structural, validate_geometric_structural,
     validate_pseudomanifold, validate_pseudomanifold_certificate,

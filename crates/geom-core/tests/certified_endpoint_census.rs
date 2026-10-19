@@ -435,7 +435,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
     ("crates/mesh/src/chords.rs", 2, 2, ""),
-    ("crates/topo/src/props/quad_lane.rs", 7, 7, ""),
+    ("crates/topo/src/props/quad_lane.rs", 10, 10, ""),
 ];
 
 /// The repo root: this crate's directory, two levels up.
