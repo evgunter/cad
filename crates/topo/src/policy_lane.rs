@@ -271,7 +271,7 @@ mod tests {
 /// **What it matches.** A door named by path (`EdgeCurve::certify`,
 /// `geom_brep::EdgeCurve::recertify_via`, an alias `E::certify`, a
 /// function value with no call) whatever its qualifier, unless the
-/// qualifier is one of [`census::NOT_DOORS`], the types and modules
+/// qualifier is one of [`origin_census::NOT_DOORS`], the types and modules
 /// whose own `certify`/`recertify` is not an edge door (a path that
 /// continues, `geom_brep::certify::NOT_A_SAMPLE`, names the module). A method call
 /// `.recertify_via(` or `.recertify_via_stated(`, and `.recertify(` with
@@ -296,7 +296,7 @@ mod tests {
 /// rows' (`crate::tier3_tests`).
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod census {
+mod origin_census {
     use crate::source_walk::{CodeOnly, crate_sources, src_root};
     use test_utils::source::{balanced_end, boundary_after, line, skip_ws};
 
