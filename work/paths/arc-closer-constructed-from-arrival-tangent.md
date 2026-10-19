@@ -7,7 +7,8 @@ opened: 2026-09-02
 github: 1578
 refs: [1573, 433]
 priority: P1
-cost: D
+cost: M
+needs_ev: true
 ---
 
 ## From GitHub issue 1578
@@ -40,3 +41,7 @@ Ev, authoring a `B` in the viewer's path form, hit the same gap away from the se
 
 **Where it lands**: a new `ArcData` mode on the point rows (`ARC_TO_POINT` in `crates/profile/src/path/program.rs`, and probably `FUSED_POINT` and `FUSED_LEG_END`), declared in `arc_modes!`. A mode is a vocabulary change to the ratified `docs/PATHS-DESIGN.md` §2c family, so the spelling is an `[ev]` PR. Once it lands, `arc_specs_at` and the viewer's mode picker offer it with no further edit, and `tests/arc_spec_census.rs` walks its cells.
 
+
+## Question to Ev (PR #PRNUM)
+
+The design is in front of Ev on PR #PRNUM, which edits `docs/PATHS-DESIGN.md` §2 (Legs, Closure), §2a item 6, §2c, §3, §4 and §6 PQ4. This row's half is the mode itself: `Arrive { end }` (§2a item 6), its cells, its admission on the sharp and fused rows, and the shared `Director` value. One ruling closes this row and `via-and-center-arc-closers-declared-arrival` together; neither is dispatched before it. Re-priced `cost: D` → `M` on touching the row (`work/README.md`, "`D` is legacy").
