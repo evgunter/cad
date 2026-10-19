@@ -357,12 +357,17 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
         /// Their minimum — the gate's margin.
         arm: T,
     },
-    /// `fillet_corner_turn` Zero: the legs meet tangentially or double
-    /// back, so there is no corner to cut. The payload is the gate's
-    /// own diagnostic; the surviving door maps the VARIANT (to the
-    /// parallel-carriers refusal) and reads none of it — kept because
-    /// it is the CONSTRUCTION's channel, not one caller's.
-    AlreadyTangent {
+    /// `fillet_corner_turn` Zero: the legs' turn at the corner, levered
+    /// by the shorter leg's arm, does not clear the band, so the side
+    /// both carriers offset toward is undecided and the construction has
+    /// no corner it can cut. This is the construction's statement, not a
+    /// reading of the joint: the turn is taken at the corner's legs
+    /// before any setback, and validation reads the stored joint by its
+    /// own rule, so it does not name the corner tangent. The payload is
+    /// the gate's own diagnostic; the surviving door maps the VARIANT
+    /// (to the parallel-carriers refusal) and reads none of it — kept
+    /// because it is the CONSTRUCTION's channel, not one caller's.
+    TurnInBand {
         /// `dir_in · dir_out` — negative means the legs double back.
         #[allow(dead_code)]
         align: T,
@@ -551,7 +556,7 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
     let turn = Margin::levered(leg_in.dir.perp_dot(leg_out.dir), arm);
     let decided = decide("fillet_corner_turn", turn, band).map_err(ArcTrimRefusal::Escalated)?;
     let Some(sgn) = turn_side::<T>(decided) else {
-        return Err(ArcTrimRefusal::AlreadyTangent {
+        return Err(ArcTrimRefusal::TurnInBand {
             align: leg_in.dir.dot(leg_out.dir),
             margin: turn.value(),
             arm,
