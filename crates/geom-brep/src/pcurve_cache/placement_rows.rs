@@ -1070,3 +1070,135 @@ fn a_lifted_copy_refuses_as_its_channels_term_on_every_lane() {
         "every non-harmonic lane is read"
     );
 }
+
+// ===================== review/5343-delta probes =====================
+
+#[cfg(test)]
+fn probe_verdict<T>(r: &Result<T, super::PcurveCertifyError>) -> String {
+    use super::PcurveCertifyError as E;
+    match r {
+        Ok(_) => "CERTIFIES".into(),
+        Err(E::ResidualExceeded { check, .. }) => format!("Residual({check:?})"),
+        Err(E::Escalated { check, cause, .. }) => {
+            format!("Escalated({check:?}, {:?})", cause.predicate)
+        }
+        Err(e) => format!("{e:?}").chars().take(80).collect(),
+    }
+}
+
+/// Probe b: offsets under half a period on the three placement lanes.
+#[test]
+fn probe_b_sub_half_period_offsets_never_certify() {
+    use geom_core::{Interval, Real};
+    let f = <Interval as Real>::from_f64;
+    let band = band();
+    let mut bad = Vec::new();
+    for (name, surface, carrier, (t0, t1)) in arms().into_iter().take(4) {
+        let base = chart_pcurve_over(&carrier, t0, t1, &surface, band).unwrap();
+        let (ci, si) = (carrier.map_scalar(f), surface.map_scalar(f));
+        let base_i = chart_pcurve_over(&ci, f(t0), f(t1), &si, band).unwrap();
+        let offs = [
+            0.5, 1.0, 2.0, 3.0, PI - 1e-3, PI, PI + 1e-3, 4.0, 5.0, TAU - 0.5, TAU - 1e-3,
+            TAU + 1e-3, -0.5, -3.0, -PI, -4.0,
+        ];
+        for &d in &offs {
+            for (du, dv) in [(d, 0.0), (0.0, d), (d, d), (d, -d)] {
+                let a = PcurveCache::certify(base.translate(du, dv), t0, t1, &carrier, &surface, band);
+                let b = PcurveCache::certify(
+                    base_i.translate(f(du), f(dv)),
+                    f(t0),
+                    f(t1),
+                    &ci,
+                    &si,
+                    band,
+                );
+                let (va, vb) = (probe_verdict(&a), probe_verdict(&b));
+                println!("{name:40} du {du:+.4} dv {dv:+.4}: f64 {va} | Interval {vb}");
+                if va == "CERTIFIES" || vb == "CERTIFIES" {
+                    bad.push(format!("{name} ({du}, {dv}): {va} | {vb}"));
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "mis-placed rows certified: {bad:#?}");
+}
+
+/// Probe c: lifted copies at many k, both scalars.
+#[test]
+fn probe_c_lifted_copies_at_large_k() {
+    use geom_core::{Interval, Real};
+    let f = <Interval as Real>::from_f64;
+    let band = band();
+    let mut bad = Vec::new();
+    for (name, surface, carrier, (t0, t1)) in arms() {
+        let base = chart_pcurve_over(&carrier, t0, t1, &surface, band).unwrap();
+        let (ci, si) = (carrier.map_scalar(f), surface.map_scalar(f));
+        let base_i = chart_pcurve_over(&ci, f(t0), f(t1), &si, band).unwrap();
+        let v_angle = matches!(surface, Surface::Torus { .. } | Surface::Sphere { .. });
+        for k in [1i64, -1, 2, 3, -3, 7, 1000, 1 << 20, 1 << 30, i32::MAX as i64, i32::MIN as i64] {
+            let s = k as f64 * TAU;
+            let mut moves = vec![(s, 0.0, "u")];
+            if v_angle {
+                moves.push((0.0, s, "v"));
+                moves.push((s, -s, "uv"));
+            }
+            for (du, dv, ch) in moves {
+                let a = PcurveCache::certify(base.translate(du, dv), t0, t1, &carrier, &surface, band);
+                let b = PcurveCache::certify(
+                    base_i.translate(f(du), f(dv)),
+                    f(t0),
+                    f(t1),
+                    &ci,
+                    &si,
+                    band,
+                );
+                let (va, vb) = (probe_verdict(&a), probe_verdict(&b));
+                println!("{name:40} k {k:>12} {ch:2}: f64 {va} | Interval {vb}");
+                if va == "CERTIFIES" || vb == "CERTIFIES" {
+                    bad.push(format!("{name} k {k} {ch}: {va} | {vb}"));
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "lifted copies certified: {bad:#?}");
+}
+
+/// Probe e/F6: the sphere twins, on the projected and harmonic lanes.
+#[test]
+fn probe_e_sphere_twins_and_near_twins() {
+    use super::ChartMap;
+    use geom_core::{Interval, Real};
+    let f = <Interval as Real>::from_f64;
+    let band = band();
+    for (name, surface, carrier, (t0, t1)) in arms() {
+        if !matches!(surface, Surface::Sphere { .. }) {
+            continue;
+        }
+        let base = chart_pcurve_over(&carrier, t0, t1, &surface, band).unwrap();
+        let (ci, si) = (carrier.map_scalar(f), surface.map_scalar(f));
+        let base_i = chart_pcurve_over(&ci, f(t0), f(t1), &si, band).unwrap();
+        let twin = base.map_affine(ChartMap::sphere_involution());
+        let twin_i = base_i.map_affine(ChartMap::sphere_involution());
+        let (Ok(twin), Ok(twin_i)) = (twin, twin_i) else {
+            println!("{name}: no twin map");
+            continue;
+        };
+        let cert = |p: &super::Pcurve<f64>, q: &super::Pcurve<Interval>| {
+            (
+                probe_verdict(&PcurveCache::certify(p.clone(), t0, t1, &carrier, &surface, band)),
+                probe_verdict(&PcurveCache::certify(q.clone(), f(t0), f(t1), &ci, &si, band)),
+            )
+        };
+        println!("{name:40} twin: {:?}", cert(&twin, &twin_i));
+        for du in [TAU, -TAU, FRAC_PI_2, PI - 1e-9, PI + 1e-9, PI, 1.0] {
+            println!(
+                "{name:40} twin + u {du:+.10}: {:?}",
+                cert(&twin.translate(du, 0.0), &twin_i.translate(f(du), f(0.0)))
+            );
+            println!(
+                "{name:40} base + u {du:+.10}: {:?}",
+                cert(&base.translate(du, 0.0), &base_i.translate(f(du), f(0.0)))
+            );
+        }
+    }
+}
