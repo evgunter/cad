@@ -17,7 +17,7 @@ use editor_core::ExtrudeSide;
 use editor_core::{CancelToken, EvalOptions, Node, PoseValue, ValuePayload, evaluate};
 use geom_core::Tol;
 use profile::test_support::{decided_facts, stored_scalars};
-use profile::{Profile, SketchPlane, ValidatedProfile};
+use profile::{SketchPlane, ValidatedProfile};
 
 #[test]
 fn the_f64_value_is_the_revalidated_form() {
@@ -57,14 +57,9 @@ fn the_f64_value_is_the_revalidated_form() {
                 .resolve(&env)
                 .expect("the corpus program resolves at f64")
                 .iter()
-                .map(|steps| {
-                    profile::replay(steps, tol)
-                        .expect("replays at f64")
-                        .as_loop()
-                        .clone()
-                })
+                .map(|steps| profile::replay(steps, tol).expect("replays at f64"))
                 .collect();
-            let revalidated = Profile::new(SketchPlane::from_frame(*f), loops)
+            let revalidated = profile::ConstructedProfile::new(SketchPlane::from_frame(*f), loops)
                 .validate(tol)
                 .unwrap_or_else(|e| panic!("{}: {id:?} validates: {e:?}", d.name));
             assert_eq!(
