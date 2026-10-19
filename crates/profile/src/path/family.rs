@@ -1567,7 +1567,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         let incoming_radius = spec.to_wire(tol).carries_radius();
         match spec.incoming(DirectedPoint { at, dir: inc.ang }, tol)? {
             FusedIncoming::Anchored((centre, winding, start, anchor)) => {
-                self.core.pend_junction(&inc, start, tol);
+                self.core.pend_junction(&inc, start, tol)?;
                 open_arc(
                     &mut self.core,
                     PendingArc {

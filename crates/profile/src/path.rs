@@ -2523,17 +2523,6 @@ impl<T: Real> Core<T> {
             })
     }
 
-    /// Binds the junction at the chain's head: the departure `dep` off
-    /// the arriving leg `inc`, read once the departing leg is stored
-    /// ([`PendingJunction`]).
-    fn pend_junction(&mut self, inc: &Incoming<T>, dep: Dir<T>, tol: Tol) {
-        self.junction = Some(PendingJunction {
-            inc: *inc,
-            dep,
-            tol,
-        });
-    }
-
     /// The first leg's arm: the departing leg at the seam junction.
     fn first_leg_arm(&self) -> Result<T, PathError<T>> {
         match self.verts.as_slice() {
@@ -2548,6 +2537,29 @@ impl<T: Real> Core<T> {
 }
 
 impl<T: Decide> Core<T> {
+    /// Reads the junction at the chain's head, the departure `dep` off
+    /// the arriving leg `inc`, at the arriving leg's arm, and binds it
+    /// until the departing leg is stored ([`PendingJunction`]), where it
+    /// is read again at the shorter of the two arms: that second reading
+    /// is the junction's verdict, the one validation reads. The first
+    /// refuses at the verb that authored the direction what the second
+    /// would refuse anyway — a turn Zero or in band at the arriving arm
+    /// is Zero or in band at any shorter one.
+    fn pend_junction(
+        &mut self,
+        inc: &Incoming<T>,
+        dep: Dir<T>,
+        tol: Tol,
+    ) -> Result<(), PathError<T>> {
+        junction_check(inc, dep, inc.arm, false, tol)?;
+        self.junction = Some(PendingJunction {
+            inc: *inc,
+            dep,
+            tol,
+        });
+        Ok(())
+    }
+
     /// Sets the segment leaving the current last vertex for `to` — a
     /// line, or the arc its construction built — plus the structural
     /// first-segment kind pin, the emitting verb's `kind`. `to` is
@@ -4314,7 +4326,7 @@ impl<T: Decide, P: PosMarker> PartialPath<T, P, NoAng> {
     ) -> Result<PartialPath<T, P, HasAng>, PathError<T>> {
         if let Some(pos) = &self.tip.pos {
             if let Some(inc) = &pos.incoming {
-                self.core.pend_junction(inc, dir, tol);
+                self.core.pend_junction(inc, dir, tol)?;
             }
             let at = pos.at;
             if self.core.pending.is_some() {
@@ -4377,7 +4389,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             },
         )?;
         let theta = turned(inc.ang.unit, delta);
-        self.core.pend_junction(&inc, theta, tol);
+        self.core.pend_junction(&inc, theta, tol)?;
         self.tip.ang = Some(theta);
         self.tip.ang_by_tangent = false;
         Ok(in_state(self.core, self.tip))
@@ -4867,7 +4879,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
                 .resolve_fillet(at, gamma, ArrivalKind::Continues, tol)?;
         } else {
             if let Some(inc) = self.tip_pos()?.incoming {
-                self.core.pend_junction(&inc, gamma, tol);
+                self.core.pend_junction(&inc, gamma, tol)?;
             }
             if self.core.start_ang.is_none() {
                 self.core.start_ang = Some(gamma);
@@ -4900,7 +4912,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
             self.core
                 .resolve_fillet(at, gamma, ArrivalKind::Continues, tol)?;
         } else if let Some(inc) = self.tip_pos()?.incoming {
-            self.core.pend_junction(&inc, gamma, tol);
+            self.core.pend_junction(&inc, gamma, tol)?;
         }
         let start_ang = *self.core.start_ang.get_or_insert(gamma);
         let head = self.core.head()?;
@@ -5048,7 +5060,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let at = pos.at;
         let (start_t, end_t, chord) = Self::arc_angles(at, p, leg);
         if let Some(inc) = pos.incoming {
-            self.core.pend_junction(&inc, start_t, tol);
+            self.core.pend_junction(&inc, start_t, tol)?;
         }
         if self.core.start_ang.is_none() {
             self.core.start_ang = Some(start_t);
@@ -5083,7 +5095,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let at = pos.at;
         let (start_t, end_t, chord) = Self::arc_angles(at, start_pos, leg);
         if let Some(inc) = pos.incoming {
-            self.core.pend_junction(&inc, start_t, tol);
+            self.core.pend_junction(&inc, start_t, tol)?;
         }
         let start_ang = *self.core.start_ang.get_or_insert(start_t);
         let carrier = carrier_of(leg);

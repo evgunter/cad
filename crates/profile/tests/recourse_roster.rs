@@ -58,6 +58,10 @@ pub(crate) const CARRIERS: &[NameCarrier] = &[
     // `seg::coincident` answers point-coincidence questions under the
     // name its caller supplies.
     NameCarrier::Call("coincident"),
+    // `seg::junction_turn` reads a junction's turn under the name its
+    // caller supplies: `path_junction_turn`, or the declared seam
+    // arrival's `path_seam_arrival_turn`.
+    NameCarrier::Call("junction_turn"),
 ];
 
 /// The `decide*` calls whose name the reader cannot read at the site,

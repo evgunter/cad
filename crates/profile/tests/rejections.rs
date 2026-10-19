@@ -915,17 +915,16 @@ fn a_tangent_cusp_on_near_concentric_carriers_validates_its_long_stretch() {
     }
 }
 
-/// **A cusp whose ε-stretch is a crossing's escalates on its turn at
-/// 1e-12.** The third review of #5175's witness: two arcs of radius
-/// 2.71 whose centres stand 95ε apart and whose radii differ by about
-/// as much, joined at one of the carriers' crossings, the second arc
-/// running back within ε of the first for 0.13 rad. The joint turns by
-/// about ε at the arm, so its turn reads in band (1.006ε) and the
-/// joint pass escalates at the pair, at `f64` and `Interval`: the
-/// number the extrude's `dihedral_wedge` read of the same join
-/// (1.0065ε) before the joint pass read the turn.
+/// **A cusp on crossing carriers 95ε apart validates at 1e-12** (Ev's
+/// ruling on #5354: the profile is valid). The third review of #5175's
+/// witness: two arcs of radius 2.71 whose centres stand 95ε apart and
+/// whose radii differ by about as much, joined at one of the carriers'
+/// crossings, the second arc running back within ε of the first for
+/// 0.13 rad. The joint's turn levered by the shorter leg's arm reads
+/// about 0.01ε, a tangent cusp, at `f64` and `Interval`; whether it is
+/// a legal edge is the sweep's to say.
 #[test]
-fn a_cusp_on_crossing_carriers_95_eps_apart_escalates_its_turn() {
+fn a_cusp_on_crossing_carriers_95_eps_apart_validates() {
     use geom_core::Arc2;
     use profile::{ProfileLoop, RawLoop, Segment};
     if format!("{:e}", tol().eps()) != "1e-12" {
@@ -958,13 +957,14 @@ fn a_cusp_on_crossing_carriers_95_eps_apart_escalates_its_turn() {
         (joint, arc(c2, r2, sweep2)),
         (rim((c2, r2), from + sweep2), Segment::Line),
     ])]);
-    match validate_both(&p) {
-        Err(ProfileError::Escalated { site, source }) => {
-            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(0, 1)));
-            assert_eq!(source.predicate, Some("path_junction_turn"));
-        }
-        got => panic!("the joint's turn is in band: {got:?}"),
-    }
+    assert_eq!(validate_both(&p), Ok(()), "the 95ε witness validates");
+    let v = p.validate(tol()).expect("validated above");
+    let lp = &v.loops()[0];
+    assert_eq!(
+        (lp.tangent_joints(), lp.cusp_joints()),
+        (&[1][..], &[1][..]),
+        "the joint is a tangent cusp"
+    );
 }
 
 /// One loop: an arc of `one` from `at − 1` into the joint at its polar
