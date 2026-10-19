@@ -9,6 +9,7 @@ opened: 2026-10-19
 priority: P1
 cost: M
 refs: [5384]
+pr: 5403
 ---
 
 
@@ -30,7 +31,7 @@ The reviewer measured "tangential contact" as the Interval refusal for R ≥ 1e4
 
 ## Outcome
 
-Fixed on `paths/tangent-arc-near-full-turn`.
+Fixed in #5403 (`paths/tangent-arc-near-full-turn`).
 
 - **The form.** `path::tangent_arc` chooses its quarter-tangent with
   `Real::select_le_zero` on `along`: `across/(|d| + along)` up to a
@@ -65,6 +66,11 @@ Fixed on `paths/tangent-arc-near-full-turn`.
   `arc_span` with a margin of one ulp of 2R. That is the scene's f64
   resolution, a true reason. At R = 1.36e4, `Interval` escalates
   `arc_span` at the shared vertex: filed below.
+- **Moved.** The stored sweep of every tangent and `Via` arc past a
+  half turn. One corpus field: `shared coverage corpus 8`'s half turn
+  now stores `−π` exactly, where it stored one ulp past it. The plate's
+  walk ledger (the clearance's forms), and the link's past-the-ceiling
+  `frozen`, 556 → 557. No decision moved, and nothing in viewer moved.
 - **Rows.** `tests/tangent_arc_near_a_full_turn.rs`: the three radii
   by both verbs, the `Via` arc near a full turn, and a counterexample
   search (shape 1) over near-behind targets. All are red on the
