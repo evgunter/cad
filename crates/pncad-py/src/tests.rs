@@ -5272,6 +5272,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "partner_unread",
             "seam_vertex_parentage",
             "seam_vertex_partners",
+            "short_tie",
             "split_lineage_cycle",
             "unnamed",
             "unsettled_vertex",

@@ -27,7 +27,8 @@ use crate::node::RecipeNodeId;
 /// **Four kinds of thing live here, and the reader is told which.**
 ///
 /// 1. An emission BUG — a mint-time fact inconsistent with the result
-///    body. [`Self::Duplicate`], [`Self::KindMismatch`], [`Self::Unnamed`],
+///    body. [`Self::Duplicate`], [`Self::KindMismatch`],
+///    [`Self::ShortTie`], [`Self::Unnamed`],
 ///    [`Self::MissingUpstream`], [`Self::Emission`],
 ///    [`Self::SplitLineage`], [`Self::Settle`].
 /// 2. An honest in-band escalation: [`Self::Escalated`].
@@ -89,6 +90,14 @@ pub enum NamingError {
         name: Box<StableName>,
         /// The offered entity's kind.
         found: EntityKind,
+    },
+    /// A tie seated with fewer than two distinct candidates
+    /// ([`super::table::ShortTie`]).
+    ShortTie {
+        /// The name the tie was to be seated under.
+        name: Box<StableName>,
+        /// How many distinct entities it was offered: 0 or 1.
+        candidates: usize,
     },
     /// A live boundary entity the emission failed to cover — a
     /// kernel-emission gap surfaced (spec D4: never guessed around).
@@ -364,6 +373,7 @@ pub enum NamingError {
 /// Each speaks it followed by what it caught —
 /// [`NamingError::Duplicate`] the name minted twice,
 /// [`NamingError::KindMismatch`] the name seated on another kind,
+/// [`NamingError::ShortTie`] the tie offered short,
 /// [`NamingError::Unnamed`] the entity left uncovered,
 /// [`NamingError::MissingUpstream`] the upstream table that missed,
 /// [`NamingError::Emission`] a fact, [`NamingError::SplitLineage`] the
@@ -377,11 +387,8 @@ const EMISSION_FRAMING: &str =
 /// the two say opposite things about whose fault the failure is, and an
 /// author who reads the wrong one goes and files a kernel bug against a
 /// recipe that is fine.
-const UNRULED_FRAMING: &str = concat!(
-    "the emitter has no naming rule for a construction this recipe reached",
-    " — the recipe is well formed and the result body is sound, so what is",
-    " missing is a rule, not a repair"
-);
+const UNRULED_FRAMING: &str =
+    "no naming rule covers this construction; the recipe and its result are sound";
 
 /// What a shared-rim derivation found instead of the one edge it asked
 /// for — the fact a free-text sentence would have hidden.
@@ -444,6 +451,17 @@ impl crate::spoken::Say for NamingError {
                 name.kind.noun(),
                 found.article(),
                 found.noun()
+            ),
+            Self::ShortTie { name, candidates } => write!(
+                f,
+                "{EMISSION_FRAMING}: {} was offered as a tie of {} and refused — a tie names \
+                 two or more entities",
+                by.name(name),
+                match candidates {
+                    0 => "no candidates",
+                    1 => "one candidate",
+                    _ => "too few candidates",
+                }
             ),
             Self::Unnamed { kind, body } => write!(
                 f,
@@ -520,22 +538,22 @@ impl crate::spoken::Say for NamingError {
                 unread,
             } => write!(
                 f,
-                "{UNRULED_FRAMING}: vertex {vertex:?} is operand {}'s vertex meeting the other \
-                 operand's vertex {partner:?}, which the boolean read nothing of: it lies {}. So \
-                 the boolean classed none of the vertex's edges and the crossing there has no \
-                 senses to name it by; reading them against the partner's neighbourhood is not \
-                 built yet (work/tang/a-lone-unread-partner-has-no-class-rule)",
+                "{UNRULED_FRAMING}: operand {}'s vertex {vertex:?} meets the other operand's \
+                 vertex {partner:?}, which lies {} and which the boolean read nothing of, so it \
+                 classed none of the vertex's edges and the crossing has no senses to name it \
+                 by (work/tang/a-lone-unread-partner-has-no-class-rule)",
                 match unread.operand {
                     topo::Operand::A => "A",
                     topo::Operand::B => "B",
                 },
                 match unread.neighbourhood {
                     topo::UnreadNeighbourhood::OneFace => "inside one smooth face",
-                    topo::UnreadNeighbourhood::NoBisector =>
-                        "on an edge of two faces, neither holding a bisector to read their wedge by",
-                    topo::UnreadNeighbourhood::ConeUnread =>
-                        "at an edge or corner read as a polygon cone, some edge of which no \
-                         reference decides",
+                    topo::UnreadNeighbourhood::NoBisector => {
+                        "on an edge whose two faces hold no bisector"
+                    }
+                    topo::UnreadNeighbourhood::ConeUnread => {
+                        "at a polygon cone, some edge of which no reference decides"
+                    }
                 }
             ),
             Self::ConventionalVertex { vertex, body } => write!(
@@ -548,16 +566,15 @@ impl crate::spoken::Say for NamingError {
             Self::MergedChordOffRim { edge, node, rim } => write!(
                 f,
                 "{UNRULED_FRAMING}: seam chord {edge:?} lies between two faces of one \
-                 operand, a merged face among them, and does not lie within the rim {rim:?} of \
-                 operand {}'s body it lies along, or within any other rim between them",
+                 operand, one merged, and within neither the rim {rim:?} of operand {}'s body \
+                 it lies along nor any other rim between them",
                 by.node(*node)
             ),
             Self::MemberEdgeTied { member, edge } => write!(
                 f,
                 "{UNRULED_FRAMING}: member {}'s edge ({}) is read where one edge is needed, \
-                 to rank crossings along it, place a vertex on it or read its faces, and a tie \
-                 stands there (the member ties that name to several edges, or two of its \
-                 crossings were tied)",
+                 to rank crossings along it, place a vertex on it or read its faces, but the \
+                 member ties that name to several edges, or ties two of its crossings",
                 by.read(*member),
                 by.name(edge)
             ),
@@ -626,6 +643,7 @@ impl NamingError {
         match self {
             Self::Duplicate { .. }
             | Self::KindMismatch { .. }
+            | Self::ShortTie { .. }
             | Self::Unnamed { .. }
             | Self::MissingUpstream { .. }
             | Self::Emission { .. }
@@ -684,6 +702,10 @@ impl From<SeatingRefusal> for NamingError {
             SeatingRefusal::KindMismatch(k) => Self::KindMismatch {
                 name: k.name,
                 found: k.found,
+            },
+            SeatingRefusal::ShortTie(t) => Self::ShortTie {
+                name: t.name,
+                candidates: t.candidates,
             },
         }
     }
@@ -1897,11 +1919,7 @@ mod display_tests {
                     node: RecipeNodeId::new(0, test_utils::refusal::tagged(29)),
                     rim: two_edges().1,
                 },
-                vec![
-                    "a merged face among them",
-                    "00000000001d",
-                    "does not lie within",
-                ],
+                vec!["one merged", "00000000001d", "within neither the rim"],
             ),
             (
                 NamingError::ClosedCarrierUnread {
@@ -1969,7 +1987,7 @@ mod display_tests {
                 vec![
                     "member read 000000000025",
                     "of node 000000000025)",
-                    "a tie stands",
+                    "ties that name to several edges",
                 ],
             ),
             (
@@ -1989,6 +2007,13 @@ mod display_tests {
                     found: EntityKind::Edge,
                 },
                 vec!["the end cap", "names a face", "seated on an edge"],
+            ),
+            (
+                NamingError::ShortTie {
+                    name: Box::new(name.clone()),
+                    candidates: 1,
+                },
+                vec!["the end cap", "a tie of one candidate"],
             ),
         ];
         // The category is `NamingError::category`'s, which also chooses
@@ -2023,6 +2048,7 @@ mod display_tests {
                 NamingError::CarrierUnplaced { .. } => 16,
                 NamingError::PartnerUnread { .. } => 17,
                 NamingError::KindMismatch { .. } => 18,
+                NamingError::ShortTie { .. } => 19,
             }
         };
         let covered: std::collections::BTreeSet<usize> =
@@ -2132,9 +2158,7 @@ mod display_tests {
         );
         assert_eq!(
             UNRULED_FRAMING,
-            "the emitter has no naming rule for a construction this recipe reached — the \
-             recipe is well formed and the result body is sound, so what is missing is a \
-             rule, not a repair"
+            "no naming rule covers this construction; the recipe and its result are sound"
         );
     }
 
