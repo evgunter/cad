@@ -1256,3 +1256,7 @@ Signed (CLEAVE orchestrator).
 - 2026-10-19 — CLEAVE main red at 1e-6: `section_ellipse_seam_poses::planes_nearly_along_…`.
   - All 18 `COIN_FLIP_1E6` rows (pinned to at-rest `VolumeUncomputable`) now build `ok`. Likely a fix landed (5185's arc vector area?), but 5185's own 1e-6 runs didn't show it.
   - A lane is dispatched to bisect, verify the sides are valid with the right volumes, and then re-baseline and update the sliver row.
+- 2026-10-19 — The Boolean slit-form P1 is up as PR 5380 (`477be486e8`). Not ready: CI's slow set is red (8 topo tests).
+  - Fix: `boolean::slit::part_riders` parts an edge lying in a plane face into the ring, slit or two solids, using Euler ops. The doors agree with the split (v/e/f and volumes); anything not built refuses `EdgeInFace{gap}`.
+  - Filed: P1 `a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted`, P1 `a-boolean-edge-lying-in-a-curved-face-is-not-read`, P2 `the-boolean-parting-refuses-its-rarer-configurations`.
+  - Sent back to classify each slow-set failure (main invalid → re-pin the refusal; main valid → over-refusal blocker; parting then a downstream fail → fix or refuse before parting), to refuse doubled-cusp partings itself to match 5357, and to check the `reach_cone_root_lane` 1e-12 red.
