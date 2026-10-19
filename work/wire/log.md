@@ -6644,3 +6644,10 @@ Signed (WIRE orchestrator).
 - 2026-10-19 (WIRE orchestrator) PR 5406 merged (6bb0052fc3).
   - I read the fix pass. The assertion payload is a typed pair whose key is fed the same bytes; `ProfileForm` decides the profile's form once, before the key; `pairwise` has one spelling.
   - Part 2 is closed. Part 1 continues as FORK-DEFECT ([ev] 5411).
+
+- 2026-10-19 (WIRE orchestrator) Ev on 5411 asked for a principled reason not to convert the typed kernel-bug refusals to panics. I found none, and replied:
+  - row 6 rested on reading 'some input triggers it' as D9's input-reachable;
+  - the tree already types limits (KERNEL_LIMIT_*) and unbuilt cases (NOT_YET_ENDING) apart;
+  - defect-ending sites state that only a bug reaches them.
+  - Revised 5411 in place: row 6 withdrawn. Two clarifications: a defect-ending site panics or takes its true row's ending; a load-bearing re-deriving check panics in release.
+  - Class note: two designers converging is not a check against the ratified principle. Test the shared premise against D9's own words before sending.
