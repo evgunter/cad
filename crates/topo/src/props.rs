@@ -993,6 +993,21 @@ pub(crate) enum Certified {
 /// **Why a volume's sign is unresolved where the body is not at fault**:
 /// a limit of how the volume was measured, which no change to the part
 /// is known to move.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names this
+/// rung; the disposition table cites this paragraph as its home). A Rust
+/// caller can already name and match it — `pncad` re-exports `topo`
+/// whole — and the Python door says which refusal it rides in
+/// (`sign_unresolved`, `volume_sign_unresolved`) and carries its
+/// sentence, which names the limit. Publishing it owes the CUR3 property
+/// row `carried_refusal_payloads_are_matchable_through_the_prelude` and a
+/// Python word per arm, both the façade crate's to write.
+///
+/// **The falsifier is a Python caller who must tell a lane-free scalar's
+/// limit from a quadrature's** without reading the sentence. When the
+/// façade carries the reading, delete this paragraph and the disposition
+/// row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SignLimit {
     /// A face its lane could not measure about the body kept the width
@@ -1143,14 +1158,15 @@ fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, M
             Surface::Sphere { center, .. } | Surface::Torus { center, .. } => Some(center),
             Surface::Nurbs(_) | Surface::Approx(_) => None,
         };
-        let mut edges = 0usize;
+        // One plus the face's edge count, kept in `T`.
+        let mut terms = T::one();
         let mut reach = anchor.map_or(T::zero(), |a| one_norm(a.x, a.y, a.z));
         let mut spread = T::zero();
         let mut box_lo: Option<Point3<T>> = None;
         let mut box_hi: Option<Point3<T>> = None;
         for lp in face_loops(body, face)? {
             for e in &lp {
-                edges += 1;
+                terms = terms + T::one();
                 for p in [e.carrier.eval(e.t0), e.carrier.eval(e.t1)] {
                     reach = reach.max(one_norm(p.x, p.y, p.z));
                     if let Some(a) = anchor {
@@ -1167,9 +1183,7 @@ fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, M
         }
         if let (Some(lo), Some(hi)) = (box_lo, box_hi) {
             let spread = spread.max(one_norm(hi.x - lo.x, hi.y - lo.y, hi.z - lo.z));
-            #[allow(clippy::cast_precision_loss)]
-            let terms = T::from_f64((edges + 1) as f64);
-            bound = bound + terms * reach * spread * spread;
+            bound = bound + terms * reach * spread.powi(2);
         }
     }
     Ok(bound * T::from_f64(ROUNDING_TERMS * f64::EPSILON * 0.5))
