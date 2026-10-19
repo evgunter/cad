@@ -428,3 +428,76 @@ fn the_value_channel_refuses_an_arc_carrier_at_its_segment() {
         ),
     }
 }
+
+/// **A chord heading along −x from a computed point reads its turn as an
+/// enclosure of the nominal's.** `line(1.5)` along `π/2` from `(1, 1.5)`
+/// lands on a thin enclosure of `(1, 3)`, so every chord from it to an
+/// authored point on `y = 3` runs along −x with a `y` component
+/// straddling zero — `atan2`'s branch cut, where an angle enclosure is
+/// the whole circle. The chord's director is its components, so each
+/// door below classifies the junction it reaches from a narrow ray: the
+/// line and arc legs and the closing chord construct (a quarter turn
+/// left), and the leg arriving along −x refuses as the tangent it is,
+/// with a margin narrow around zero.
+#[test]
+fn a_chord_along_minus_x_from_a_computed_point_reads_a_narrow_turn() {
+    use geom_core::Bounds;
+    use std::f64::consts::{FRAC_PI_2, PI};
+    let t = Tol::witness();
+    let one = |v: f64| Interval::from_f64(v);
+    let up_then_along = |from: Point2<Interval>| {
+        profile::Open
+            .at(from)
+            .angle(one(FRAC_PI_2), t)
+            .expect("the director up")
+            .line(one(2.9), t)
+            .expect("the computed point beside (1, 3)")
+    };
+
+    let mut wrong = Vec::new();
+    if let Err(e) = up_then_along(ip2(1.0, 0.1)).line_to(ip2(0.0, 3.0), t) {
+        wrong.push(format!("the line leg along -x: {e:?}"));
+    }
+    if let Err(e) = up_then_along(ip2(1.0, 0.1)).arc_to(
+        profile::Bulge {
+            p: ip2(0.0, 3.0),
+            b: one(0.2),
+        },
+        t,
+    ) {
+        wrong.push(format!("the arc leg whose chord runs along -x: {e:?}"));
+    }
+    let closing = profile::Open
+        .at(ip2(0.0, 3.0))
+        .line_to(ip2(1.0, 0.0), t)
+        .expect("the first leg")
+        .line_to(ip2(1.0, 0.1), t)
+        .expect("the leg up")
+        .tangent()
+        .line(one(2.9), t)
+        .expect("the computed point beside (1, 3)")
+        .line_to(profile::Start, t);
+    if let Err(e) = closing {
+        wrong.push(format!("the closing chord along -x: {e:?}"));
+    }
+    assert!(
+        wrong.is_empty(),
+        "each chord turns a definite quarter turn (less an arc's half sweep): {wrong:#?}"
+    );
+
+    let err = profile::Open
+        .at(ip2(2.0, 3.0))
+        .angle(one(PI), t)
+        .expect("the director along -x")
+        .line(one(1.0), t)
+        .expect("the computed point beside (1, 3)")
+        .line_to(ip2(0.0, 3.0), t)
+        .expect_err("a chord continuing the incoming direction is a tangent junction");
+    let profile::PathError::JunctionTangent { margin, .. } = err else {
+        panic!("expected the tangent refusal, got {err:?}");
+    };
+    assert!(
+        margin.lo() <= 0.0 && 0.0 <= margin.hi() && margin.hi() - margin.lo() < 1e-12,
+        "the tangent junction's turn margin encloses zero narrowly, got {margin:?}"
+    );
+}
