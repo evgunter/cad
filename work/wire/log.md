@@ -6225,3 +6225,18 @@ Signed (WIRE orchestrator).
   for PR 5316, which adds `KindMismatch` to the same census lists
   (`refusal_concision_chains`). The alternative was dispatching now and
   resolving the list twice. (WIRE orchestrator)
+
+- 2026-10-19 — PR 5316 fix pass adjudicated by the orchestrator's read.
+  - The strengthened guard found the fold-steps defect still live. The
+    prism-crossing union with the plate publishes two fold-minted
+    `Crossing` vertices that its table does not hold: `Crossing { edge:
+    Seam{..}, face: plate Cap(End) }`.
+  - So `a-fold-steps-coincidence-rows-are-named-without-the-end-passes`
+    stays open with the measurement. Its acceptance is adding that
+    fixture to `published_row_cells_denote_entities_of_their_reads`.
+  - `topo::ContactRecords::try_recited` was added (CLEAVE ground,
+    15 lines).
+  - Four source-scanning tests moved to the slow set when `topo` entered
+    the change scope.
+  - Merged main to resolve one slow-set conflict; merge on green.
+  (WIRE orchestrator)
