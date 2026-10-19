@@ -18,3 +18,10 @@ Deviations: none at dispatch.
 - A: direction in the spec as a two-variant end over ONE shared `Director` type (the steps project it); fused rows owed under round 9 (sure); "no concrete need" was use-case gating.
 - B: same design, leaning (b) likely; holds that round 9 reaching a new mode's fused sites is its extension (likely, not sure), and names that reading as Ev's.
 - Converged on the design; residual: how far round 9 binds, stated for Ev. To the [ev] PR.
+
+## Round 4 (Ev's framing on #5374: "make it a way to write a 'fillet', just not necessarily arriving tangent")
+- Both endorse a no-argument verb on a point tip opening the fillet family's arrival builder; arc tip→anchor, tangent at arrival. Reading agreed (tangent at arrival, free at departure).
+- A: arc-arrival landing (`.at(p)`+director → directed point, departure free); sharp seam `.at(Start)`+director; name `arrive()`.
+- B: line side (`.at` continues, `.to(p)` ends); sharp seam `.toward(d).to(Start)` (far-end Start for every fillet verb); name `arc_onto()`.
+## Round 5 (each shown the other's round 4)
+- Crossed again: A took B's round-4 cells and name; B took A's. Round 6 asks the question beneath: is the arc the arrival side itself (arc arrival) or a fillet-position arc onto a line side (line arrival).
