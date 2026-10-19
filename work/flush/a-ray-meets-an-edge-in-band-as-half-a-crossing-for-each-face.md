@@ -10,7 +10,7 @@ cost: H
 
 
 The ray half of Ev's ruling on the needle class (PR 5119, 2026-10-15,
-fork-log row 175). The volume half landed in PR 5119 itself.
+fork-log row 176). The volume half landed in PR 5119 itself.
 
 **Ratified text.** D10 "Booleans" says: "A ray that passes within the
 band of an edge meets it, half a crossing for each face the edge bounds
@@ -46,7 +46,7 @@ forbids it to make.
    - The designers measured an edge-by-edge probe reading all 20
      needle cases (w ∈ {10.5, 12, 15, 21, 30}ε, ε 1e-9 and 1e-6, both
      orientations). It is on branch `flush/needle-design-x` (head `feb5b660e2`) (fork-log
-     row 175).
+     row 176).
 2. **Curved faces.**
    - Two faces on one carrier (a seam split) share one comparison of
      the root against the seam parameter.

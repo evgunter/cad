@@ -404,6 +404,17 @@ pub fn div_up(num: f64, den: f64) -> f64 {
     if q.is_certified() { q.hi() } else { num / den }
 }
 
+/// `a + b` rounded UP — an upper bound on the real sum, which is what a
+/// sum of upper bounds (half-widths, pads) has to stay. A sum rounded to
+/// nearest can land half an ulp below the real one. Refusals fall back to
+/// the bare sum exactly as [`div_down`]'s do; an exact sum (`0 + 0`
+/// among them) is returned exactly.
+#[must_use]
+pub fn add_up(a: f64, b: f64) -> f64 {
+    let s = Interval::from_bounds(a, a) + Interval::from_bounds(b, b);
+    if s.is_certified() { s.hi() } else { a + b }
+}
+
 impl Add for Interval {
     type Output = Self;
 

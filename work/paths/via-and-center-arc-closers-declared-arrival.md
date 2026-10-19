@@ -7,7 +7,7 @@ opened: 2026-09-02
 github: 1579
 refs: [1573, 433]
 priority: P1
-cost: D
+cost: M
 ---
 
 ## From GitHub issue 1579
@@ -29,3 +29,7 @@ Refs issue 433, BOOL-12 (`docs/BOOL-12-SPEC.md`), the target census in `crates/e
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to PATHS (opened at this exit as S-BOOL's successor for the profile lattice) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Question to Ev
+
+Ev ruled on the design in its `[ev]` PR (2026-10-19), alongside `arc-closer-constructed-from-arrival-tangent`'s `arc_onto(target)`. This row's half is the token rule. `Start.arrives_tangent()` is checked where the leg's data fix its end direction and supplied where they leave it free (`arc_onto`, the `Via` arrival). `Via` and `Center` take it on every row they close from: the sharp legs check, the `Center` arrival checks, and the `Via` arrival takes `Start`'s direction and closes at the verb with no director. The edits are in `docs/PATHS-DESIGN.md` §2 Closure, §3, §4 and §6 PQ4. One ruling closes both rows, and neither is dispatched before the PR merges. Re-priced `cost: D` → `M` on touching the row (`work/README.md`, "`D` is legacy").
