@@ -1,0 +1,49 @@
+m=10.5 pose=0 c=0 inv=false rc=true: model=1.102500e-16 poly=1.102500e-16 width/|V|=4.47e-16 poly_off_mid/width=-0.249 sign=+
+m=10.5 pose=0 c=0 inv=true rc=true: model=-1.102500e-16 poly=-1.102500e-16 width/|V|=4.47e-16 poly_off_mid/width=0.249 sign=-
+m=10.5 pose=0 c=1 inv=false rc=true: model=1.102500e-16 poly=1.102500e-16 width/|V|=0.00e+00 poly_off_mid/width=None sign=+
+m=10.5 pose=0 c=1 inv=true rc=true: model=-1.102500e-16 poly=-1.102500e-16 width/|V|=0.00e+00 poly_off_mid/width=None sign=-
+m=10.5 pose=0 c=2 inv=false rc=true: model=1.102501e-16 poly=1.102501e-16 width/|V|=0.00e+00 poly_off_mid/width=None sign=+
+m=10.5 pose=0 c=2 inv=true rc=true: model=-1.102501e-16 poly=-1.102501e-16 width/|V|=0.00e+00 poly_off_mid/width=None sign=-
+m=10.5 pose=1 c=0 inv=false rc=true: model=1.087895e-16 poly=1.102500e-16 width/|V|=4.47e-08 poly_off_mid/width=3e+05 sign=+ POLY-OUTSIDE
+m=10.5 pose=1 c=0 inv=true rc=true: model=-1.117105e-16 poly=-1.102500e-16 width/|V|=4.32e-08 poly_off_mid/width=3.03e+05 sign=- POLY-OUTSIDE
+m=10.5 pose=1 c=1 inv=false rc=true: model=1.101680e-16 poly=1.102500e-16 width/|V|=1.87e-08 poly_off_mid/width=3.97e+04 sign=+ POLY-OUTSIDE
+m=10.5 pose=1 c=1 inv=true rc=true: model=-1.103320e-16 poly=-1.102500e-16 width/|V|=1.87e-08 poly_off_mid/width=3.97e+04 sign=- POLY-OUTSIDE
+m=10.5 pose=1 c=2 inv=false rc=true: model=1.090294e-16 poly=1.102506e-16 width/|V|=1.88e-08 poly_off_mid/width=5.97e+05 sign=+ POLY-OUTSIDE
+m=10.5 pose=1 c=2 inv=true rc=true: model=-1.114718e-16 poly=-1.102506e-16 width/|V|=1.87e-08 poly_off_mid/width=5.86e+05 sign=- POLY-OUTSIDE
+m=10.5 pose=2 c=0 inv=false rc=true: model=1.118223e-16 poly=1.102500e-16 width/|V|=3.91e-08 poly_off_mid/width=-3.6e+05 sign=+ POLY-OUTSIDE
+m=10.5 pose=2 c=0 inv=true rc=true: model=-1.086777e-16 poly=-1.102500e-16 width/|V|=4.04e-08 poly_off_mid/width=-3.58e+05 sign=- POLY-OUTSIDE
+m=10.5 pose=2 c=1 inv=false rc=true: model=1.101596e-16 poly=1.102500e-16 width/|V|=1.80e-08 poly_off_mid/width=4.55e+04 sign=+ POLY-OUTSIDE
+m=10.5 pose=2 c=1 inv=true rc=true: model=-1.103403e-16 poly=-1.102500e-16 width/|V|=1.80e-08 poly_off_mid/width=4.55e+04 sign=- POLY-OUTSIDE
+m=10.5 pose=2 c=2 inv=false rc=true: model=1.100726e-16 poly=1.102494e-16 width/|V|=1.80e-08 poly_off_mid/width=8.92e+04 sign=+ POLY-OUTSIDE
+m=10.5 pose=2 c=2 inv=true rc=true: model=-1.104261e-16 poly=-1.102494e-16 width/|V|=1.80e-08 poly_off_mid/width=8.89e+04 sign=- POLY-OUTSIDE
+m=10.5 pose=3 c=0 inv=false rc=true: model=1.105898e-16 poly=1.102500e-16 width/|V|=4.56e-08 poly_off_mid/width=-6.74e+04 sign=+ POLY-OUTSIDE
+m=10.5 pose=3 c=0 inv=true rc=true: model=-1.099102e-16 poly=-1.102500e-16 width/|V|=4.64e-08 poly_off_mid/width=-6.66e+04 sign=- POLY-OUTSIDE
+m=10.5 pose=3 c=1 inv=false rc=true: model=1.102633e-16 poly=1.102500e-16 width/|V|=1.52e-08 poly_off_mid/width=-7.89e+03 sign=+ POLY-OUTSIDE
+m=10.5 pose=3 c=1 inv=true rc=true: model=-1.102367e-16 poly=-1.102500e-16 width/|V|=1.53e-08 poly_off_mid/width=-7.89e+03 sign=- POLY-OUTSIDE
+m=10.5 pose=3 c=2 inv=false rc=true: model=1.098145e-16 poly=1.102540e-16 width/|V|=1.53e-08 poly_off_mid/width=2.62e+05 sign=+ POLY-OUTSIDE
+m=10.5 pose=3 c=2 inv=true rc=true: model=-1.106935e-16 poly=-1.102540e-16 width/|V|=1.52e-08 poly_off_mid/width=2.61e+05 sign=- POLY-OUTSIDE
+m=30 pose=0 c=0 inv=false rc=true: model=9.000000e-16 poly=9.000000e-16 width/|V|=4.38e-16 poly_off_mid/width=0.0215 sign=+
+m=30 pose=0 c=0 inv=true rc=true: model=-9.000000e-16 poly=-9.000000e-16 width/|V|=4.38e-16 poly_off_mid/width=-0.0215 sign=-
+m=30 pose=0 c=1 inv=false rc=true: model=9.000000e-16 poly=9.000000e-16 width/|V|=0.00e+00 poly_off_mid/width=None sign=+
+m=30 pose=0 c=1 inv=true rc=true: model=-9.000000e-16 poly=-9.000000e-16 width/|V|=0.00e+00 poly_off_mid/width=None sign=-
+m=30 pose=0 c=2 inv=false rc=true: model=8.999878e-16 poly=8.999878e-16 width/|V|=0.00e+00 poly_off_mid/width=None sign=+
+m=30 pose=0 c=2 inv=true rc=true: model=-8.999878e-16 poly=-8.999878e-16 width/|V|=0.00e+00 poly_off_mid/width=None sign=-
+m=30 pose=1 c=0 inv=false rc=true: model=8.968185e-16 poly=9.000000e-16 width/|V|=1.62e-08 poly_off_mid/width=2.18e+05 sign=+ POLY-OUTSIDE
+m=30 pose=1 c=0 inv=true rc=true: model=-9.003801e-16 poly=-9.000000e-16 width/|V|=1.55e-08 poly_off_mid/width=2.73e+04 sign=- POLY-OUTSIDE
+m=30 pose=1 c=1 inv=false rc=true: model=9.026260e-16 poly=9.000002e-16 width/|V|=6.55e-09 poly_off_mid/width=-4.44e+05 sign=+ POLY-OUTSIDE
+m=30 pose=1 c=1 inv=true rc=true: model=-8.973745e-16 poly=-9.000002e-16 width/|V|=6.59e-09 poly_off_mid/width=-4.44e+05 sign=- POLY-OUTSIDE
+m=30 pose=1 c=2 inv=false rc=true: model=9.009968e-16 poly=8.999907e-16 width/|V|=6.55e-09 poly_off_mid/width=-1.7e+05 sign=+ POLY-OUTSIDE
+m=30 pose=1 c=2 inv=true rc=true: model=-8.989846e-16 poly=-8.999907e-16 width/|V|=6.57e-09 poly_off_mid/width=-1.7e+05 sign=- POLY-OUTSIDE
+m=30 pose=2 c=0 inv=false rc=true: model=8.989263e-16 poly=9.000000e-16 width/|V|=1.43e-08 poly_off_mid/width=8.36e+04 sign=+ POLY-OUTSIDE
+m=30 pose=2 c=0 inv=true rc=true: model=-9.028515e-16 poly=-9.000000e-16 width/|V|=1.49e-08 poly_off_mid/width=2.12e+05 sign=- POLY-OUTSIDE
+m=30 pose=2 c=1 inv=false rc=true: model=8.997650e-16 poly=9.000001e-16 width/|V|=6.30e-09 poly_off_mid/width=4.15e+04 sign=+ POLY-OUTSIDE
+m=30 pose=2 c=1 inv=true rc=true: model=-9.002352e-16 poly=-9.000001e-16 width/|V|=6.30e-09 poly_off_mid/width=4.15e+04 sign=- POLY-OUTSIDE
+m=30 pose=2 c=2 inv=false rc=true: model=8.988803e-16 poly=9.000014e-16 width/|V|=6.30e-09 poly_off_mid/width=1.98e+05 sign=+ POLY-OUTSIDE
+m=30 pose=2 c=2 inv=true rc=true: model=-9.042559e-16 poly=-9.000014e-16 width/|V|=6.30e-09 poly_off_mid/width=7.47e+05 sign=- POLY-OUTSIDE
+m=30 pose=3 c=0 inv=false rc=true: model=8.988267e-16 poly=9.000000e-16 width/|V|=1.64e-08 poly_off_mid/width=7.94e+04 sign=+ POLY-OUTSIDE
+m=30 pose=3 c=0 inv=true rc=true: model=-8.996345e-16 poly=-9.000000e-16 width/|V|=1.65e-08 poly_off_mid/width=-2.47e+04 sign=- POLY-OUTSIDE
+m=30 pose=3 c=1 inv=false rc=true: model=8.997510e-16 poly=9.000001e-16 width/|V|=5.34e-09 poly_off_mid/width=5.19e+04 sign=+ POLY-OUTSIDE
+m=30 pose=3 c=1 inv=true rc=true: model=-9.002491e-16 poly=-9.000001e-16 width/|V|=5.34e-09 poly_off_mid/width=5.18e+04 sign=- POLY-OUTSIDE
+m=30 pose=3 c=2 inv=false rc=true: model=9.005949e-16 poly=9.000055e-16 width/|V|=5.34e-09 poly_off_mid/width=-1.23e+05 sign=+ POLY-OUTSIDE
+m=30 pose=3 c=2 inv=true rc=true: model=-8.994161e-16 poly=-9.000055e-16 width/|V|=5.34e-09 poly_off_mid/width=-1.23e+05 sign=- POLY-OUTSIDE
+rows 48 flagged 36
