@@ -95,7 +95,7 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 ///   their schedule.
 /// - `pcurve_envelope` 0/0/2/10 -> 8/0/0/4: incidence plus fidelity in
 ///   place of the image pushed through the chart, and, with the loop
-///   walk's branch a literal `k` (`geom_brep::whole_periods`), the
+///   walk's branch a literal `k` (`geom_brep::Period::decide`), the
 ///   stored azimuth is `α + k·τ`; the envelope is a theorem on eight
 ///   of its twelve rows.
 /// - `pcurve_fidelity_branch` is new, 0/0/0/24: fidelity's branch, two
@@ -146,6 +146,11 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// 4/0/0/10 -> 6/0/0/12, `line_span` 4/0/0/4 -> 6/0/0/4, `arc_span`
 /// 4/0/0/4 -> 4/0/2/4 and `contact_at_shared_vertex` 8/0/0/4 ->
 /// 12/0/0/4.
+///
+/// **The final non-finite check decides nothing**
+/// (`expr-non-finite-asks-value-times-zero`): it asks boundedness, not
+/// `value · 0` against a band, so `expr_non_finite` (37/0/0/0) leaves
+/// the table. Nothing else moves.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
@@ -165,7 +170,6 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("datum_unit_norm", [0, 2]),
     ("dihedral_arm", [0, 128]),
     ("dihedral_wedge", [0, 128]),
-    ("expr_non_finite", [37, 0]),
     ("extrusion_normal_component", [0, 2]),
     ("interval_span_forward", [0, 36]),
     ("interval_span_winding", [0, 12]),
@@ -265,6 +269,10 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
 /// anonymous defined variable, which the environment binds through the
 /// non-finite door like every definition, so `expr_non_finite` gains
 /// those bindings' theorems: 29/0/0/0 -> 33/0/0/0. Nothing else moves.
+///
+/// **The final non-finite check decides nothing**
+/// (`expr-non-finite-asks-value-times-zero`): it asks boundedness, so
+/// `expr_non_finite` (33/0/0/0) leaves the table. Nothing else moves.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -290,7 +298,6 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("datum_unit_norm", [0, 2]),
             ("dihedral_arm", [0, 80]),
             ("dihedral_wedge", [0, 80]),
-            ("expr_non_finite", [33, 0]),
             ("extrusion_normal_component", [0, 2]),
             ("interval_span_forward", [0, 24]),
             ("interval_span_winding", [0, 12]),

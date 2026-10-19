@@ -149,6 +149,11 @@ macro_rules! proximity_lever {
     };
 }
 
+/// [`BooleanDecision::CylinderAxes`]'s subject, the sentence the carrier
+/// ladder's own axis rung (`carrier_cyl_axis_parallel`, a
+/// `Coincide::Carriers` rung) reads in too.
+pub(crate) const CYLINDER_AXES_PARALLEL: &str = "whether two cylinders' axes are parallel";
+
 /// The corner edge-length lever as a literal, for `concat!`
 /// ([`CORNER_EDGES`]).
 macro_rules! corner_edges {
@@ -227,6 +232,11 @@ pub enum BooleanDecision {
     /// Where a straight edge crosses a cylinder wall: a rung of the line
     /// × wall quadratic.
     WallRoots(WallRung),
+    /// Whether the axes of a cylinder face of each solid are parallel,
+    /// so the walls meet in rulings: the sine between the axes levered
+    /// at the walls' span (`cc_axes_parallel`, read where the join takes
+    /// the pair's section).
+    CylinderAxes,
     /// How many times a straight edge crosses a torus: the certified
     /// count of the line × torus quartic's real roots.
     TorusRoots,
@@ -305,10 +315,37 @@ pub enum BooleanDecision {
     /// positive margin, the conventional description on zero). Asked of
     /// the result, after every declaration was spent, so none is read.
     SeamJet,
+    /// Whether two straight edges of the solid ∖ subtracts lie on one
+    /// line along a length (`census::collinear_overlaps`, read of the
+    /// edges whose pieces the result keeps): the turn between them, the
+    /// gap between their lines, and the order and overlap of their ends
+    /// along it. Every definite verdict passes the reading, on sets that
+    /// differ by rung, so the lever alone is named; and it names only the
+    /// move that builds, the edges clearly apart, since two edges clearly
+    /// on one line go on to the result's wedges, which refuse where ∖
+    /// reversed them unjoined ([`crate::RevertError`]).
+    LineEdges,
+    /// Whether the material the result's edges along one line bound
+    /// overlaps there (`census::line_wedges`), asked where ∖ reversed a
+    /// line two edges of the subtracted solid lie on: each edge's face
+    /// sheets and an interior direction, and whether a sheet or interior
+    /// direction of one lies strictly inside another. The faces meeting
+    /// on the line are the operands' faces, which the result carries
+    /// exactly, so the reading is of the input and moving the geometry
+    /// reaches it; its rungs pass on different sets, so the lever alone
+    /// is named. It names only the move that builds, the faces clearly
+    /// parting, since wedges that clearly overlap refuse
+    /// ([`crate::RevertError::WedgesOverlap`]). No fixture is known to
+    /// reach it: every in-band pose tried stops upstream, as it does on
+    /// the code before this reading.
+    LineWedges,
     /// Whether an edge of the result lies on both faces it bounds: its
     /// line chord's residual against one of the two faces' surfaces, at
     /// the attachment gate that certifies its description
-    /// ([`crate::merge_faces::edge_on_faces_reading`]). A residual
+    /// ([`crate::merge_faces::edge_on_faces_reading`]), or a section
+    /// chord's end against its vertex where the join mints it, on a
+    /// carrier that resolves the end ([`crate::SplitJoinError::SectionEndEscalated`]).
+    /// A residual
     /// passes only at zero, so no tolerance is its recourse. Its ends are
     /// vertices an earlier reading placed on the faces they meet, so a
     /// carrier read in band of a face says that an edge or a vertex of
@@ -318,8 +355,8 @@ pub enum BooleanDecision {
     /// carrier, not its vertices, and a chord's carrier reads its start
     /// as its own origin and its end as `carrier(t₁)`, one rounding off
     /// the vertex.
-    /// Asked of the result, after every declaration was spent, so none
-    /// is read.
+    /// Asked after the operands' coincidences were read, so no
+    /// declaration is read.
     EdgeOnFaces,
     /// Whether a shell of the result bounds material or a cavity, at the
     /// finished-body gate (check 10, a shell of a solid of several): its
@@ -640,9 +677,9 @@ impl Coincide {
             Self::Rim => "whether a face of each solid ends on one circle",
             Self::Contact => "whether a declared contact holds along its witness",
             Self::DeclaredReach => {
-                "whether two faces declared on one surface stay within the tolerance of one another at \
-                 every point of both, which neither a bound over the faces nor a point on them \
-                 settles"
+                "whether two faces declared on one surface stay within the tolerance of one \
+                 another at every point of both, which neither a bound over the faces nor a point \
+                 on them settles"
             }
             Self::Carriers => "whether a face of each solid lies on one surface",
             Self::Section => "where the surfaces of a face of each solid meet",
@@ -839,11 +876,19 @@ const TANGENT_SIDE: SizedDecision = SizedDecision {
     no_size: None,
 };
 
+/// [`BooleanDecision::LineEdges`]' lever.
+const LINE_EDGES_LEVER: &str =
+    "move the geometry so the subtracted solid's straight edges clearly stand apart";
+
+/// [`BooleanDecision::LineWedges`]' lever.
+const LINE_WEDGES_LEVER: &str = "move the geometry so the faces meeting along that line clearly \
+                                 part there";
+
 /// Whether the faces at a seam edge cross or touch tangentially
 /// ([`BooleanDecision::SeamWedge`]): the sine of their angle over the
 /// folded lever arm, a crease on a positive margin and a smooth join on
 /// zero. The margin is a norm over a length, so no negative one is read.
-const SEAM_WEDGE: SizedDecision = SizedDecision {
+pub(super) const SEAM_WEDGE: SizedDecision = SizedDecision {
     lever: "move the geometry so the faces at that seam meet either clearly creased or clearly \
             smooth",
     size: "fold across the seam",
@@ -861,6 +906,14 @@ const RESULT_SHELL: SizedDecision = SizedDecision {
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
     no_size: None,
+};
+
+/// [`RESULT_SHELL`] at the split door ([`BooleanDecision::render_at_split`]):
+/// the same decision on the same margin, in the split's lever, since the
+/// split has one operand and a plane.
+const SPLIT_RESULT_SHELL: SizedDecision = SizedDecision {
+    lever: "move the split plane or the geometry so each piece it leaves is clearly thick",
+    ..RESULT_SHELL
 };
 
 /// Whether the faces touching along a seam curve apart or share their
@@ -1410,6 +1463,7 @@ impl BooleanDecision {
             Self::WallRoots(WallRung::Discriminant) => {
                 "whether an edge crosses a cylinder wall, grazes it or misses it"
             }
+            Self::CylinderAxes => CYLINDER_AXES_PARALLEL,
             Self::TorusRoots => "how many times an edge crosses a torus",
             Self::ArcTorusRoots => "how many times an arc crosses a torus",
             Self::SphereRoots => "whether an edge crosses a sphere, grazes it or misses it",
@@ -1440,6 +1494,12 @@ impl BooleanDecision {
             Self::SeamJet => {
                 "whether the two faces touching along a seam edge curve apart there or share \
                  their curvature"
+            }
+            Self::LineEdges => {
+                "whether two straight edges of the subtracted solid lie on one line along a length"
+            }
+            Self::LineWedges => {
+                "whether the material that the result's edges along one line bound overlaps there"
             }
             Self::EdgeOnFaces => {
                 crate::merge_faces::edge_on_faces_subject!("an edge of the result")
@@ -1567,6 +1627,15 @@ impl BooleanDecision {
                 "edge's drift off the cylinder's axis",
                 SizedPass::Positive,
             ),
+            // Only a zero passes, along the rulings: a definite tilt goes
+            // on to other escalations and then to the skew and
+            // meeting-axes frontiers, so the lever names the parallel
+            // side alone and no smaller tolerance decides it passing.
+            // The margin is the axes' drift over the walls' span, which a
+            // turn moves.
+            Self::CylinderAxes => {
+                Ending::Lever("turn one part so the two cylinders' axes are clearly parallel")
+            }
             // Two roots pass at every arm; a miss passes where both ends
             // are off the wall and refuses where one is on it (a miss
             // cannot hold a zero endpoint); a zero is a tangency, refused
@@ -1630,6 +1699,8 @@ impl BooleanDecision {
             Self::PartnerFaces => Ending::Sized(PARTNER_FACES),
             Self::SeamWedge => Ending::Sized(SEAM_WEDGE),
             Self::SeamJet => Ending::Sized(SEAM_JET),
+            Self::LineEdges => Ending::Lever(LINE_EDGES_LEVER),
+            Self::LineWedges => Ending::Lever(LINE_WEDGES_LEVER),
             Self::EdgeOnFaces => Ending::Lever(crate::merge_faces::EDGE_ON_FACES_LEVER),
             Self::ShellRole { .. } => Ending::Sized(RESULT_SHELL),
             Self::Sphere(question) => question.ending(),
@@ -1647,11 +1718,29 @@ impl BooleanDecision {
             .to_string()
     }
 
+    /// [`Self::render`] at the split door ([`crate::SplitFinishError::ResultEscalated`]):
+    /// [`Self::ShellRole`] ends in the split's own lever, every other
+    /// decision as at the Boolean.
+    #[must_use]
+    pub(crate) fn render_at_split(self, diag: &Indeterminate) -> String {
+        let ending = match self {
+            Self::ShellRole { .. } => Ending::Sized(SPLIT_RESULT_SHELL),
+            _ => self.ending(diag),
+        };
+        diag.undecided(self.subject(), self.counted(ending.recourse(diag)))
+            .to_string()
+    }
+
     /// The one ending the verdict gives at `diag`, with no subject: a
     /// result shell's role read in band also counts the shells beside it
     /// the same tolerance decided.
     pub(crate) fn recourse(self, diag: &Indeterminate) -> String {
-        let ending = self.ending(diag).recourse(diag);
+        self.counted(self.ending(diag).recourse(diag))
+    }
+
+    /// `ending`, after the count of the other in-band shells where this
+    /// is [`Self::ShellRole`].
+    fn counted(self, ending: String) -> String {
         match self {
             Self::ShellRole { others: 0, .. } => ending,
             Self::ShellRole { others: 1, .. } => format!(
@@ -1805,8 +1894,8 @@ pub(in crate::boolean) mod tests {
 
     const WALL_LEVER: &str =
         "Recourse: move the parts so the edge clearly crosses the wall or clearly misses it";
-    const PIERCE_LEVER: &str = "Recourse: make the edge leave the face more steeply, or make the face curve less sharply \
-         there";
+    const PIERCE_LEVER: &str = "Recourse: make the edge leave the face more steeply, or make the \
+         face curve less sharply there";
 
     /// The split door's own clause, a stage for a subject, filed with
     /// its owner: `work/hone/reach-refusals-short-of-the-shape-guard.md`.
@@ -1931,6 +2020,7 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::WallRoots => {
                     WallRung::iter().map(BooleanDecision::WallRoots).collect()
                 }
+                BooleanDecisionKind::CylinderAxes => vec![BooleanDecision::CylinderAxes],
                 BooleanDecisionKind::TorusRoots => vec![BooleanDecision::TorusRoots],
                 BooleanDecisionKind::ArcTorusRoots => vec![BooleanDecision::ArcTorusRoots],
                 BooleanDecisionKind::SphereRoots => vec![BooleanDecision::SphereRoots],
@@ -1945,6 +2035,8 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::PartnerFaces => vec![BooleanDecision::PartnerFaces],
                 BooleanDecisionKind::SeamWedge => vec![BooleanDecision::SeamWedge],
                 BooleanDecisionKind::SeamJet => vec![BooleanDecision::SeamJet],
+                BooleanDecisionKind::LineEdges => vec![BooleanDecision::LineEdges],
+                BooleanDecisionKind::LineWedges => vec![BooleanDecision::LineWedges],
                 BooleanDecisionKind::EdgeOnFaces => vec![BooleanDecision::EdgeOnFaces],
                 BooleanDecisionKind::ShellRole => vec![BooleanDecision::ShellRole {
                     solid: crate::entity::SolidKey::default(),
@@ -2042,9 +2134,9 @@ pub(in crate::boolean) mod tests {
             Coincide::Rim => "whether a face of each solid ends on one circle",
             Coincide::Contact => "whether a declared contact holds along its witness",
             Coincide::DeclaredReach => {
-                "whether two faces declared on one surface stay within the tolerance of one another at \
-                 every point of both, which neither a bound over the faces nor a point on them \
-                 settles"
+                "whether two faces declared on one surface stay within the tolerance of one \
+                 another at every point of both, which neither a bound over the faces nor a point \
+                 on them settles"
             }
             Coincide::Section => "where the surfaces of a face of each solid meet",
             Coincide::Join => "how the sections' ends pair up where the two solids meet",
@@ -2209,11 +2301,11 @@ pub(in crate::boolean) mod tests {
                 Ending::Sized(LONGER, SizedPass::Positive),
             ),
             BooleanDecision::LeverArm(LeverArm::Seam) => (
-                "whether a seam edge is long enough, for how its faces curve, to measure their \
-                 angle",
+                "whether a seam edge is between faces wide enough, for how they curve, to measure \
+                 their angle",
                 Ending::Sized(
-                    "Recourse: move the geometry so that edge is clearly longer and no face curves \
-                     tightly there",
+                    "Recourse: move the geometry so that edge's faces clearly run farther and none \
+                     curves tightly there",
                     SizedPass::Positive,
                 ),
             ),
@@ -2236,6 +2328,12 @@ pub(in crate::boolean) mod tests {
                     "Recourse: turn the edge clearly away from the direction of the cylinder's \
                      axis",
                     SizedPass::Positive,
+                ),
+            ),
+            BooleanDecision::CylinderAxes => (
+                "whether two cylinders' axes are parallel",
+                Ending::Lever(
+                    "Recourse: turn one part so the two cylinders' axes are clearly parallel",
                 ),
             ),
             BooleanDecision::WallRoots(WallRung::Discriminant) => (
@@ -2306,6 +2404,20 @@ pub(in crate::boolean) mod tests {
                     "Recourse: move the geometry so the faces touching along that seam either \
                      clearly curve apart there or clearly share their curvature",
                     SizedPass::NonNegative,
+                ),
+            ),
+            BooleanDecision::LineEdges => (
+                "whether two straight edges of the subtracted solid lie on one line along a length",
+                Ending::Lever(
+                    "Recourse: move the geometry so the subtracted solid's straight edges \
+                     clearly stand apart",
+                ),
+            ),
+            BooleanDecision::LineWedges => (
+                "whether the material that the result's edges along one line bound overlaps there",
+                Ending::Lever(
+                    "Recourse: move the geometry so the faces meeting along that line clearly \
+                     part there",
                 ),
             ),
             BooleanDecision::EdgeOnFaces => (

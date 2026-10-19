@@ -149,7 +149,7 @@
 //! row from the same row a whole period over: both certify
 //! identically. Which branch (`α + kτ`) a half-edge takes is the
 //! loop's fact, decided in `topo::pcurves`: at each joint the walk
-//! decides the deck element as an integer ([`whole_periods`]), with
+//! decides the deck element as an integer ([`Period::decide`]), with
 //! half the step to the next orbit point as room (half a period, or a
 //! quarter on a sphere, whose twin sits half a period over), and each
 //! loop winds at most one period per channel. A joint's
@@ -180,6 +180,7 @@ use geom_core::{
 
 use crate::certify::{CERT_SAMPLES, CertCheck, sample_param};
 use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
+use crate::ladder::{IdentityLadder, read_identity};
 use crate::recourse::{Reading, RefusedArm, Unsized};
 use crate::ssi::{SsiDecision, SsiLimb};
 
@@ -1269,7 +1270,8 @@ pub enum PcurveCheck {
     /// `|S(P(tᵢ)) − C(tᵢ)|` at a schedule sample — metres through the
     /// map (module docs).
     MapResidual,
-    /// The closed-form between-samples envelope — metres.
+    /// The between-samples envelope — metres: the closed-form lanes'
+    /// sum of terms, or the fitted lane's hull sup.
     Envelope,
     /// The closed-form envelope on a periodic chart, refused with this
     /// one term over the band on its own ([`EnvelopeTerm`]). A refusal
@@ -1290,40 +1292,46 @@ pub enum PcurveCheck {
     Sector,
 }
 
-/// One term of check 4's envelope — the bound the lemmas on
+/// One term of check 4's envelope — a slot of the bound the lemmas on
 /// [`EnvelopeStatement::MapResidualClosedForm`] and
-/// [`EnvelopeStatement::MapResidualProjected`] state as their sum. The
-/// closed-form envelope reads `Frame`, six **incidence** terms (`Centre`
-/// to `Drift`: the carrier against the chart, read off the carrier's own
+/// [`EnvelopeStatement::MapResidualProjected`] state. The closed-form
+/// envelope reads `Frame`, four **incidence** terms (`Centre` to
+/// `Drift`: the carrier against the chart, read off the carrier's own
 /// coefficients and the chart's data, with no image involved) and two
 /// **fidelity** terms (`FidelityU`, `FidelityV`: the stored image
 /// against the one `certify` re-derives from the carrier). The projected
 /// envelope reads `Frame`, `Incidence`, `Fidelity` and the two channel
-/// fidelities. Both sum one array and name a refusal in one order.
+/// fidelities. Both keep one array and name a refusal in one order; the
+/// certified bound adds every slot except that the closed-form lane on
+/// a cylinder, sphere or torus reads the two channel fidelities as the
+/// legs of one displacement (`EnvelopeTerms::total`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EnvelopeTerm {
     /// The carrier's centre is off the chart's axis — off the sphere's
-    /// centre for a sphere meridian, off the spine for a torus
-    /// meridian.
+    /// centre for a sphere meridian, off the spine for a torus meridian
+    /// (its radial and axial parts as one vector). The torus parallel's
+    /// rides in `Radius`, read with its pair.
     Centre,
-    /// The carrier's radius is not the chart's where it lies: the
-    /// cylinder's radius, the cone's `|h|·tan α` at the carrier's
-    /// height, the sphere's parallel radius or its own, the torus's
-    /// minor radius about the tube's core.
+    /// The carrier is not the class's circle or radius:
+    /// - a turning class's `cos t`/`sin t` pair against the image's —
+    ///   its radius, its winding and its plane read as one pair — on
+    ///   the cylinder, the cone rim, the sphere's parallel and meridian
+    ///   (a pole start's included) and the torus's meridian;
+    /// - the torus parallel's whole residual: its constant `−w_r +
+    ///   e·h·κ` read with its pair (`constant_and_pair`);
+    /// - a meridian's constant radial against the cylinder's radius,
+    ///   and a cone ruling's against `|h|·tan α`;
+    /// - a still class's (winding decided Zero) image constant at its
+    ///   full length: `ρ`, or the torus's `R + r` plus the tube gap.
     Radius,
-    /// The carrier turns against the winding the derivation decided.
-    Orientation,
-    /// The carrier's plane is not the class's: off `⊥ axis` for a
-    /// parallel or a cone rim, off the axis's plane for a torus
-    /// meridian.
-    Tilt,
     /// A linear term the class has no room for: a cylinder line's
     /// radial direction, a cone ruling off its generator, any circle
     /// class's `l`.
     Line,
-    /// The radial motion a class admitted by its own decision: a
-    /// meridian whose radial amplitude decided Zero, a winding decided
-    /// Zero on a moving class, a sphere meridian started at a pole.
+    /// The motion a class admitted by its own decision: a cylinder
+    /// meridian's radial pair `σ(a_r, b_r)` (its radial amplitude
+    /// decided Zero), and a still class's whole pair `σ(a, b)`, axial
+    /// part included (its winding decided Zero).
     Drift,
     /// The stored image's azimuth channel against the re-derived one,
     /// up to a whole period, metered at the chart's azimuth arm.
@@ -1345,14 +1353,12 @@ pub enum EnvelopeTerm {
 }
 
 impl EnvelopeTerm {
-    /// Every term, in the order the envelope sums them and a refusal
-    /// is attributed.
-    const ALL: [EnvelopeTerm; 11] = [
+    /// Every term, in the order a refusal is attributed (and the slots
+    /// are added).
+    const ALL: [EnvelopeTerm; 9] = [
         EnvelopeTerm::Frame,
         EnvelopeTerm::Centre,
         EnvelopeTerm::Radius,
-        EnvelopeTerm::Orientation,
-        EnvelopeTerm::Tilt,
         EnvelopeTerm::Line,
         EnvelopeTerm::Drift,
         EnvelopeTerm::FidelityU,
@@ -1370,14 +1376,12 @@ impl EnvelopeTerm {
             EnvelopeTerm::Frame => 0,
             EnvelopeTerm::Centre => 1,
             EnvelopeTerm::Radius => 2,
-            EnvelopeTerm::Orientation => 3,
-            EnvelopeTerm::Tilt => 4,
-            EnvelopeTerm::Line => 5,
-            EnvelopeTerm::Drift => 6,
-            EnvelopeTerm::FidelityU => 7,
-            EnvelopeTerm::FidelityV => 8,
-            EnvelopeTerm::Incidence => 9,
-            EnvelopeTerm::Fidelity => 10,
+            EnvelopeTerm::Line => 3,
+            EnvelopeTerm::Drift => 4,
+            EnvelopeTerm::FidelityU => 5,
+            EnvelopeTerm::FidelityV => 6,
+            EnvelopeTerm::Incidence => 7,
+            EnvelopeTerm::Fidelity => 8,
         }
     }
 }
@@ -1397,17 +1401,11 @@ const _: () = {
 /// The fitted lane's definite refusals each measured something
 /// different, so each rides its own named arm: flattening them onto one
 /// anonymous number loses the only thing a reader needs, what the
-/// number means. The foot distances are quantities the image producer
-/// projected out of an enclosure when it refused. The limb residual is
-/// the reporting margin the hull limb's verdict was decided on
-/// ([`geom_core::MarginDiag`], for the message only), as `edge_nurbs`'
-/// `Limb` carries it: a point at `f64`, and at `Interval` the
-/// enclosure, rendered `[lo, hi] m`.
+/// number means. Both are quantities the image producer projected out
+/// of an enclosure when it refused. A decided limb's own reading rides
+/// [`PcurveCertifyError::FittedLimb`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FittedMagnitude {
-    /// A certificate limb exceeded ε: what the classifier saw of the
-    /// limb's residual, in metres, for the message only.
-    LimbResidual(geom_core::MarginDiag),
     /// A certified foot point would not converge: the last distance the
     /// projection saw, in metres, at the schedule parameter it gave up
     /// on.
@@ -1650,13 +1648,27 @@ pub enum PcurveCertifyError {
         /// The spline layer's typed refusal.
         source: SplineError,
     },
+    /// A certificate limb of the fitted lane refused definitely: which
+    /// limb, and what the classifier saw of its value
+    /// ([`geom_core::MarginDiag`], for the message only), as
+    /// `edge_nurbs`' `Limb` carries it: a point at `f64`, and at
+    /// `Interval` the enclosure, rendered `[lo, hi] m`. What that value
+    /// measures here is this door's to say
+    /// ([`PcurveCertifyError::ending`]).
+    FittedLimb {
+        /// The limb that refused.
+        limb: SsiLimb,
+        /// What the classifier saw of its value.
+        margin: geom_core::MarginDiag,
+    },
     /// The fitted lane's SSI certificate refused, **flattened to its
     /// three actionable parts** rather than nested whole.
     ///
     /// The triple IS the actionable content — which limb, why, and the
-    /// offending margin — which is what a consumer can act on and what
+    /// number measured — which is what a consumer can act on and what
     /// this module's other refusals carry; nesting `SsiError` whole
-    /// would add nothing a caller can act on.
+    /// would add nothing a caller can act on. A limb's decided refusal
+    /// is [`PcurveCertifyError::FittedLimb`].
     FittedCertificate {
         /// The SSI limb that refused, when the refusal names one.
         limb: Option<SsiLimb>,
@@ -1676,6 +1688,12 @@ pub enum PcurveCertifyError {
     /// carried whole, as the plane × NURBS lane carries it from the same
     /// producer ([`crate::PlaneNurbsRefusal::CarrierDomain`]).
     CarrierDomain(crate::edge_nurbs::CarrierDomainRefusal),
+    /// The fitted lane's limb 2 has no certified net of the carrier
+    /// over a span of the image's domain: the carrier-enclosure door's
+    /// refusal, naming the carrier's kind and the span, carried whole as
+    /// the edge certificate carries it
+    /// ([`crate::PlaneNurbsRefusal::CarrierEnclosure`]).
+    CarrierEnclosure(crate::CarrierEnclosureRefusal),
     /// A fitted-lane classification ESCALATED — D4 ¶3's
     /// escalate-never-guess, at the SSI door rather than at one of this
     /// module's own schedule checks. It ends by the SSI decision it
@@ -1711,12 +1729,6 @@ pub enum PcurveCertifyError {
     /// one period on a torus chart: more than one turn of a Villarceau
     /// circle.
     TubePeriodExceeded,
-    /// A stored image's whole-period branch sits more than
-    /// [`MAX_BRANCH_PERIODS`] periods from the image re-derived from its
-    /// carrier, or a walked joint's from its predecessor's
-    /// ([`BranchMiss::OutOfReach`]): a branch no producer is known to
-    /// reach, refused by type rather than searched for.
-    BranchOutOfReach,
     /// A certified residual definitely exceeded the tolerance band: the
     /// pcurve does not represent the carrier through the map (D4 ¶2).
     ResidualExceeded {
@@ -1815,7 +1827,6 @@ impl core::fmt::Display for PcurveCertifyError {
                     None => String::new(),
                 },
                 match magnitude {
-                    Some(FittedMagnitude::LimbResidual(v)) => format!(" (limb residual {v:e} m)"),
                     Some(FittedMagnitude::LastFootDistance { t, last_distance }) => format!(
                         " (the projection's last distance was {last_distance:e} m at t = {t:e})"
                     ),
@@ -1825,7 +1836,18 @@ impl core::fmt::Display for PcurveCertifyError {
                     None => String::new(),
                 }
             ),
+            Self::FittedLimb { limb, margin } => write!(
+                f,
+                "pcurve certification: the fitted lane's certificate refused at {} — a \
+                 certificate limb exceeded ε (limb residual {margin:e} m)",
+                limb.name()
+            ),
             Self::CarrierDomain(refusal) => write!(f, "pcurve certification: {refusal}"),
+            Self::CarrierEnclosure(refusal) => write!(
+                f,
+                "pcurve certification: the fitted lane's certificate refused at limb 2 — \
+                 {refusal}"
+            ),
             // Each escalation ends in its decision's own labelled
             // ending, read at a build: the door that reads it at rest
             // asks `ending` instead of rendering this.
@@ -1874,18 +1896,19 @@ impl core::fmt::Display for PcurveCertifyError {
                  one full period of the torus — split the edge first (the winding gate, tube \
                  side)"
             ),
-            Self::BranchOutOfReach => write!(
-                f,
-                "pcurve certification: the image's whole-period branch is more than \
-                 {MAX_BRANCH_PERIODS} periods from its carrier's — a winding no producer is \
-                 known to mint, refused rather than searched for"
-            ),
-            Self::ResidualExceeded { check, sample } => write!(
-                f,
-                "pcurve certification: {check:?} at sample {sample} definitely exceeds the \
-                 tolerance band — the pcurve does not represent the carrier through the \
-                 map (D4 ¶2; the residual is a 3-D displacement in metres)"
-            ),
+            Self::ResidualExceeded { check, sample } => {
+                let claim = if check.bounds_a_miss() {
+                    "the certificate cannot show the pcurve represents the carrier through the map"
+                } else {
+                    "the pcurve does not represent the carrier through the map"
+                };
+                write!(
+                    f,
+                    "pcurve certification: {check:?} at sample {sample} definitely exceeds the \
+                     tolerance band — {claim} (D4 ¶2; the residual is a 3-D displacement in \
+                     metres)"
+                )
+            }
             Self::Escalated {
                 check,
                 sample,
@@ -1904,25 +1927,33 @@ impl core::fmt::Display for PcurveCertifyError {
 impl std::error::Error for PcurveCertifyError {}
 
 impl PcurveCertifyError {
-    /// The ending this refusal's decision gives it, read at `reading`
-    /// ([`PcurveCheck::recourse`]), or `None` for a refusal that is no
-    /// decision's refused arm (an unsupported class, a missing operand,
-    /// a band the tolerance cannot form, a fitted certificate's own
-    /// refusal).
+    /// The check this refusal restates, or `None` for a refusal no check
+    /// of this door owns ([`Self::decided`]'s first half).
     #[must_use]
-    pub fn ending(&self, reading: Reading) -> Option<String> {
-        let (check, arm) = match self {
+    pub fn refused_check(&self) -> Option<PcurveCheck> {
+        self.decided().map(|(check, _)| check)
+    }
+
+    /// The check this refusal restates and the arm it refused on, or
+    /// `None` for a refusal no check of this door owns: an unsupported
+    /// class, a missing operand, a band the tolerance cannot form, a
+    /// fitted certificate's structural refusal, or an escalation at the
+    /// SSI door (which ends by that door's decision).
+    fn decided(&self) -> Option<(PcurveCheck, RefusedArm<'_>)> {
+        Some(match self {
             Self::Escalated { check, cause, .. } => (*check, RefusedArm::Undecided(cause)),
             Self::ResidualExceeded { check, .. } => (*check, RefusedArm::SignCertain(None)),
+            Self::FittedLimb { limb, margin } => (
+                PcurveCheck::of_fitted_limb(*limb)?,
+                RefusedArm::SignCertain(Some(*margin)),
+            ),
             Self::IntervalNotForward => (PcurveCheck::ParamSpan, RefusedArm::SignCertain(None)),
             Self::AzimuthPeriodExceeded => {
                 (PcurveCheck::AzimuthPeriod, RefusedArm::SignCertain(None))
             }
             Self::TubePeriodExceeded => (PcurveCheck::TubePeriod, RefusedArm::SignCertain(None)),
-            Self::FittedEscalated { decision, cause } => {
-                return Some(decision.ending(cause, reading));
-            }
-            Self::UnsupportedChart { .. }
+            Self::FittedEscalated { .. }
+            | Self::UnsupportedChart { .. }
             | Self::CarrierOffChart { .. }
             | Self::CarrierGrazesChart { .. }
             | Self::ImageMismatch { .. }
@@ -1932,36 +1963,132 @@ impl PcurveCertifyError {
             | Self::ChartRow { .. }
             | Self::FittedCertificate { .. }
             | Self::CarrierDomain(_)
+            | Self::CarrierEnclosure(_)
             | Self::ChartWindingUnsupported
-            | Self::BranchOutOfReach
             | Self::PlaceholderChart
             | Self::Band(_) => return None,
-        };
-        Some(check.recourse(arm, reading))
+        })
+    }
+
+    /// The ending this refusal's decision gives it, read at `reading`
+    /// ([`PcurveCheck::recourse`], or the SSI decision an escalation
+    /// there names), or `None` for a refusal that is no decision's
+    /// refused arm (an unsupported class, a missing operand, a band the
+    /// tolerance cannot form, a fitted certificate's structural refusal).
+    #[must_use]
+    pub fn ending(&self, reading: Reading) -> Option<String> {
+        if let Self::FittedEscalated { decision, cause } = self {
+            return Some(decision.ending(cause, reading));
+        }
+        self.decided()
+            .map(|(check, arm)| check.recourse(arm, reading))
+    }
+
+    /// Whether this is a definite refusal on a certified upper bound on
+    /// the miss ([`PcurveCheck::bounds_a_miss`]): it says only that the
+    /// certificate cannot show the image represents the carrier.
+    #[must_use]
+    pub fn refuses_on_a_bound(&self) -> bool {
+        self.decided().is_some_and(|(check, arm)| {
+            matches!(arm, RefusedArm::SignCertain(_)) && check.bounds_a_miss()
+        })
     }
 }
 
+/// How a refusal of a [`PcurveCheck`] ends: by the edge certifier's own
+/// decision where the check restates it, otherwise as a decision with
+/// no size.
+#[derive(Clone, Copy)]
+enum Routing {
+    Edge(CertCheck),
+    Unsized(Unsized),
+}
+
 impl PcurveCheck {
-    /// The one ending a refusal of this check carries on `arm`, read at
-    /// `reading` (D4 ¶1 (i)): the edge certifier's own decision where
-    /// this check restates it, otherwise a decision with no size.
-    #[must_use]
-    pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
+    fn routing(self) -> Routing {
         match self {
-            Self::ParamSpan => crate::certify::recourse(CertCheck::ParamSpan, arm, reading),
-            Self::AzimuthPeriod | Self::TubePeriod => {
-                crate::certify::recourse(CertCheck::ParamWinding, arm, reading)
-            }
+            Self::ParamSpan => Routing::Edge(CertCheck::ParamSpan),
+            Self::AzimuthPeriod | Self::TubePeriod => Routing::Edge(CertCheck::ParamWinding),
             // The winding the kernel stores exactly: a form selection.
             Self::ChartWinding | Self::ChartIncidence | Self::Sector => {
-                Unsized::Defect.recourse(arm, reading)
+                Routing::Unsized(Unsized::Defect)
             }
-            // A map residual and its between-samples envelope are
-            // bounds on a fitted image as well as an exact one, and the
-            // routing reads the check alone.
-            Self::MapResidual | Self::Envelope | Self::EnvelopeTerm(_) => {
-                Unsized::Fit.recourse(arm, reading)
+            // A sample's residual is the miss at that sample, on a
+            // fitted image as well as an exact one.
+            Self::MapResidual => Routing::Unsized(Unsized::Fit),
+            // The envelope and each of its terms bound a part of the
+            // miss from above, and the parts share `t`, so they can
+            // partly cancel: a loose bound contradicts nothing stored.
+            Self::Envelope | Self::EnvelopeTerm(_) => {
+                #[cfg(test)]
+                if mutants::envelope_fit() {
+                    return Routing::Unsized(Unsized::Fit);
+                }
+                Routing::Unsized(Unsized::Bound)
             }
+        }
+    }
+
+    /// The one ending a refusal of this check carries on `arm`, read at
+    /// `reading` (D4 ¶1 (i)).
+    #[must_use]
+    pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
+        match self.routing() {
+            Routing::Edge(check) => crate::certify::recourse(check, arm, reading),
+            Routing::Unsized(decision) => decision.recourse(arm, reading),
+        }
+    }
+
+    /// Whether this check refuses on a certified upper bound on a miss
+    /// rather than on the miss: its refusal says only that the
+    /// certificate cannot show the image represents the carrier.
+    #[must_use]
+    pub fn bounds_a_miss(self) -> bool {
+        matches!(self.routing(), Routing::Unsized(Unsized::Bound))
+    }
+
+    /// What a decided SSI limb measures at this door, as the check it
+    /// restates. The door decides it, not the limb: here the image `P`
+    /// is the STORED one, so the hull's value at a break,
+    /// `|S(P(t)) − C(t)|`, is the stored image's own miss there, where
+    /// at the SSI door `P` is a witness and the same value over-reads
+    /// the carrier's distance from the surface ([`SsiLimb::check`]).
+    /// The hull's sup is the envelope over the window. A limb this door
+    /// never decides is `None`: among them [`SsiLimb::ImageMiss`], the
+    /// SSI door's tell, which this door does not run, since its image
+    /// is the one under judgement and a miss at a break is that image's
+    /// whichever side the carrier lies.
+    fn of_fitted_limb(limb: SsiLimb) -> Option<Self> {
+        match limb {
+            SsiLimb::HullSupChart => Some(Self::Envelope),
+            SsiLimb::HullValueChart => Some(Self::MapResidual),
+            SsiLimb::OnLocus
+            | SsiLimb::HullSup
+            | SsiLimb::HullValue
+            | SsiLimb::ImageMiss
+            | SsiLimb::Tube => None,
+        }
+    }
+
+    /// The plane × NURBS incidence limb this check of an exact image's
+    /// certificate restates, where `OnPair`'s lane reads its wall side
+    /// through that image ([`crate::plane_nurbs_incidence`]):
+    /// [`Self::of_fitted_limb`] read back. The map residual is
+    /// `|S(P(t)) − C(t)|` at a point, [`SsiLimb::HullValueChart`]'s
+    /// quantity, and the envelope (or one of its terms) bounds it over
+    /// the span, [`SsiLimb::HullSupChart`]'s. `None` for a check that
+    /// restates no limb.
+    #[must_use]
+    pub fn incidence_limb(self) -> Option<SsiLimb> {
+        match self {
+            Self::MapResidual => Some(SsiLimb::HullValueChart),
+            Self::Envelope | Self::EnvelopeTerm(_) => Some(SsiLimb::HullSupChart),
+            Self::ParamSpan
+            | Self::ChartWinding
+            | Self::AzimuthPeriod
+            | Self::TubePeriod
+            | Self::ChartIncidence
+            | Self::Sector => None,
         }
     }
 }
@@ -2008,12 +2135,16 @@ pub enum EnvelopeStatement {
     /// chart's distance from it — the frame paragraph below).
     ///
     /// **Fidelity** meters the stored image against `P_d` through the
-    /// chart's sup stretch along the chart segment between them:
-    /// `arm_u·sup|Δu| + arm_v·sup|Δv|`, each channel's sup bounded by
-    /// its coefficients as above, an angular channel's constant read up
-    /// to a whole period (and a sphere's image against `P_d`'s
-    /// involution twin `(u + π, π − v)` where its azimuth sits off
-    /// `P_d`'s). It is zero, node for node, on the image the mint
+    /// chart's sup stretch along the chart segment between them, each
+    /// channel's sup bounded by its coefficients as above, an angular
+    /// channel's constant read up to a whole period (and a sphere's
+    /// image against `P_d`'s involution twin `(u + π, π − v)` where its
+    /// azimuth sits off `P_d`'s). On the cylinder, the sphere and the
+    /// torus `S_u ⊥ S_v` everywhere, so the segment's image is no longer
+    /// than `√((arm_u·sup|Δu|)² + (arm_v·sup|Δv|)²)`. The cone's
+    /// azimuth arm is read along a chord at the nearer slant, which is
+    /// not orthogonal to the ruling it is joined to, so there the two
+    /// channels add. It is zero, node for node, on the image the mint
     /// stores.
     ///
     /// **Incidence** bounds `S(P_d(t)) − C(t)` in the carrier's own
@@ -2023,28 +2154,32 @@ pub enum EnvelopeStatement {
     /// `rad(α)` is `q/‖q‖` exactly, and every polar angle's cosine and
     /// sine are the quotients it was the `atan2` or `asin` of. Each
     /// distance from a radius is spelled `|p − ‖q‖| = |p² − q·q|/(p +
-    /// ‖q‖)`, a polynomial numerator. With `e` the axis, `x_r = x −
-    /// e·(x·e)`, `w = c − (the chart's origin, apex or centre)`, `h =
-    /// w·e`, and `T` as above, the lemma per arm — `S(P_d(t)) − C(t)`
-    /// written out, then bounded by one triangle inequality per
-    /// coefficient, a `cos t`/`sin t` pair read together by its `σ`:
+    /// ‖q‖)`, and each radial of length `p` along `q` is `q·(1 + k)`
+    /// with `k = (p² − q·q)/((p + ‖q‖)·‖q‖)`, a polynomial numerator
+    /// both. With `e` the axis, `x_r = x − e·(x·e)`, `w = c − (the
+    /// chart's origin, apex or centre)`, `h = w·e`, and `T` as above,
+    /// the lemma per arm — `S(P_d(t)) − C(t)` written out, then bounded
+    /// by one triangle inequality per coefficient, a `cos t`/`sin t`
+    /// pair read together by its `σ`. A turning class's pair is the
+    /// image's coefficients less the carrier's, read whole, so its
+    /// radius, its winding and its plane are one `σ`:
     ///
-    /// - **Cylinder, moving** (`β = ±1`): `−w_r + g·cos t + β·e×g·sin
-    ///   t + (β·e×a_r − b_r)·sin t − l_r·t` with `g = R·â_r − a_r`;
-    ///   `g ⊥ e×g` and `‖e×g‖ = ‖g‖` make the rotating part's norm
-    ///   `‖g‖`, so the bound is **centre** `‖w_r‖` + **radius** `|R −
-    ///   ‖a_r‖|` + **orientation** `‖b_r − β·e×a_r‖` + **line** `‖l_r‖·T`.
-    ///   The axial channel is the carrier's own and cancels.
+    /// - **Cylinder, moving** (`β = ±1`; the image's radial is
+    ///   `R·(â_r·cos t + β·e×â_r·sin t)` and `R·â_r = a_r·(1 + k)`):
+    ///   `−w_r + k·a_r·cos t + (β·e×a_r·(1 + k) − b_r)·sin t − l_r·t` ⇒
+    ///   **centre** `‖w_r‖` + **radius** `σ(k·a_r, β·e×a_r·(1 + k) −
+    ///   b_r)` + **line** `‖l_r‖·T`. The axial channel is the carrier's
+    ///   own and cancels.
     /// - **Cylinder, meridian** (radial motion decided Zero — or
     ///   undecided, the D9 tie-break): `(R·ŵ_r − w_r) − a_r·cos t −
     ///   b_r·sin t − l_r·t` ⇒ **radius** `|R − ‖w_r‖|` + **drift**
     ///   `σ(a_r, b_r)` + **line** `‖l_r‖·T`.
     /// - **Cone, rim** (slant `ρ = |h|·tan α`; `rad(u)·v` flips with the
-    ///   nappe, so the image's radial is `ρ·â_r` on either): `−w_r +
-    ///   (g − e·(a·e))·cos t + (β·e×g + β·e×a_r − b_r − e·(b·e))·sin t
-    ///   − l·t`, `g = ρ·â_r − a_r` ⇒ **centre** `‖w_r‖` + **radius** `|ρ
-    ///   − ‖a_r‖|` + **orientation** + **tilt** `σ(a·e, b·e)` +
-    ///   **line** `‖l‖·T`.
+    ///   nappe, so the image's radial is `ρ·â_r` on either, at the
+    ///   carrier's height `h`): `−w_r + (a_r·(1 + k) − a)·cos t +
+    ///   (β·e×a_r·(1 + k) − b)·sin t − l·t` ⇒ **centre** `‖w_r‖` +
+    ///   **radius** `σ(a_r·(1 + k) − a, β·e×a_r·(1 + k) − b)` + **line**
+    ///   `‖l‖·T`.
     /// - **Cone, ruling** (a line; `(h_ref, r_ref)` the height and
     ///   radial of whichever datum the nappe was read off — the anchor
     ///   `w` or the direction `l` — and `(h_o, r_o)` the other):
@@ -2057,37 +2192,43 @@ pub enum EnvelopeStatement {
     ///   generator) `‖h_o·r_ref − h_ref·r_o‖/|h_ref|·w_o`, each weight
     ///   `w` the slot's — `1` for the anchor, `T` for the direction.
     /// - **Sphere, parallel** (`ρ = √(r² − h²)` is `r·cos asin(h/r)`):
-    ///   the cone rim's form with `ρ` ⇒ **centre** `‖w_r‖` + **radius**
-    ///   `|r² − h² − a_r·a_r|/(ρ + ‖a_r‖)` + **orientation** + **tilt** +
-    ///   **line**.
-    /// - **Sphere, meridian** (`δ = atan2(a·e, ‖a_r‖)`, so
-    ///   `r·(cos δ·â_r + sin δ·e) = r·â`): `−w + (r − ‖a‖)·(â·cos t +
-    ///   σ·Ĵa·sin t) + (σ·Ja − b)·sin t − l·t`, `Ja = ‖a_r‖·e − (a·e)·â_r` the quarter
-    ///   turn of `a` in its meridian plane ⇒ **centre** `‖w‖` + **radius**
-    ///   `|r − ‖a‖|` + **orientation** `‖σ·Ja − b‖` + **line**. Started
-    ///   at a pole (`a_r` decided Zero, the azimuth read off `b_r`): the
-    ///   same with `a' = ‖a_r‖·b̂_r + (a·e)·e`, `b' = ‖a_r‖·e − (a·e)·b̂_r`,
-    ///   so **drift** `3·‖a_r‖` and **orientation**
-    ///   `|b·e| + |σ·(a·e) + ‖b_r‖|`.
+    ///   the cone rim's form with `ρ`, `k` spelled over `r² − h² −
+    ///   a_r·a_r` ⇒ **centre** + **radius** + **line**.
+    /// - **Sphere, meridian** (`δ = atan2(a·e, ‖a_r‖)` and `d̂` the
+    ///   azimuth direction read, so `r·(cos δ·d̂ + sin δ·e) = a′·(1 + k)`
+    ///   and `r·(cos δ·e − sin δ·d̂) = b′·(1 + k)` with `a′ = ‖a_r‖·d̂ +
+    ///   (a·e)·e`, `b′ = ‖a_r‖·e − (a·e)·d̂`, `‖a′‖ = ‖b′‖ = ‖a‖`; `d̂ =
+    ///   â_r` gives `a′ = a` and `b′ = Ja`, the quarter turn of `a` in its
+    ///   meridian plane, and at a pole start (`a_r` decided Zero) `d̂ =
+    ///   b̂_r`): `−w + (a′·(1 + k) − a)·cos t + (σ·b′·(1 + k) − b)·sin t
+    ///   − l·t` ⇒ **centre** `‖w‖` + **radius** `σ(a′·(1 + k) − a,
+    ///   σ·b′·(1 + k) − b)` + **line** — the whole residual, the pole
+    ///   start's too.
     /// - **Torus, parallel** (`m = √(h² + (‖a_r‖ − R)²)`, the distance to
     ///   the tube's core; the image's radius and height are `R +
-    ///   r·(‖a_r‖ − R)/m` and `r·h/m`): their defects are
-    ///   `(‖a_r‖ − R, h)·(r − m)/m`, orthogonal to each other's motion,
-    ///   so together they cost `|r − m|` ⇒ **centre** `‖w_r‖` +
-    ///   **radius** `|r² − m²|/(r + m)` + **orientation** + **tilt** +
-    ///   **line**.
+    ///   r·(‖a_r‖ − R)/m = ‖a_r‖ + (‖a_r‖ − R)·κ` and `h·(1 + κ)`, `κ =
+    ///   r/m − 1 = (r² − m²)/((r + m)·m)`; `f = 1 + (‖a_r‖ − R)·κ/‖a_r‖`):
+    ///   `C + A·cos t + B·sin t − l·t` with the constant `C = e·h·κ − w_r`
+    ///   and `(A, B) = (a_r·f − a, β·e×a_r·f − b)` ⇒ **radius** `√(‖C‖² +
+    ///   σ(A, B)² + 2·σ(C·A, C·B))` + **line**: `‖C + H(t)‖² = ‖C‖² +
+    ///   ‖H(t)‖² + 2·C·H(t)` and `C·H(t)` is the scalar pair `(C·A, C·B)`,
+    ///   so the bound holds at any tilt of the carrier's plane, and it is
+    ///   `√(‖C‖² + σ²)` where `C ⊥ A, B` (an untilted parallel: `C` axial
+    ///   up to the centre's offset, the pair radial).
     /// - **Torus, meridian** (`α` the azimuth of `w_r`; `x = a·ŵ_r`,
     ///   `n = √(x² + (a·e)²)`, `a* = x·ŵ_r + (a·e)·e`, `b* = σ·(x·e −
-    ///   (a·e)·ŵ_r)`, `a* ⊥ b*`, both of norm `n`): `(R·ŵ_r − w) + (r/n
-    ///   − 1)·(a*·cos t + b*·sin t) + (a* − a)·cos t + (b* − b)·sin t −
-    ///   l·t` ⇒ **centre** `|R − ‖w_r‖| + |h|` + **radius** `|r² −
-    ///   n²|/(r + n)` + **tilt** (off the axis's plane) `‖a_r −
-    ///   x·ŵ_r‖` + **orientation** `‖b* − b‖` + **line**.
+    ///   (a·e)·ŵ_r)`, `a* ⊥ b*`, both of norm `n`, so the image turns
+    ///   `f·a*` and `f·b*` with `f = r/n`): `(R·ŵ_r − w) + (f·a* −
+    ///   a)·cos t + (f·b* − b)·sin t − l·t` ⇒ **centre** `σ(R − ‖w_r‖,
+    ///   h)`, the constant's radial and axial parts, + **radius** `σ(f·a*
+    ///   − a, f·b* − b)` + **line**.
     ///
     /// A winding decided Zero on a moving class (a carrier whose radial
     /// part does not turn — no carrier of the chart) takes the image's
     /// constant radial `ρ·rad(α)` at its full length: **radius** `ρ`
-    /// (the torus's `R + r` plus the tube) and **drift** `σ(a_r, b_r)`,
+    /// (the torus's `R + r` plus the tube) and **drift** `σ(a, b)`, the
+    /// carrier's pair whole (its radial part alone on the cylinder,
+    /// whose axial channel cancels),
     /// so even that class is bounded rather than refused
     /// unmeasured.
     ///
@@ -2107,15 +2248,19 @@ pub enum EnvelopeStatement {
     /// ê₂‖` and the axis by `‖axis − n̂‖`, each levered by what
     /// multiplies it in the map: the radius, the torus's `R + r` and
     /// `r`, and on a cylinder's axis and both of a cone's channels the
-    /// image's own `sup |v|`. Then `|S(P) − C| ≤ |S(P) − Ŝ(P)| + |Ŝ(P) −
+    /// image's own `sup |v|`. On the sphere and the torus's tube the
+    /// radial and axial defects ride `cos v` and `sin v`, a unit pair,
+    /// so they are read at their norm. Then `|S(P) − C| ≤ |S(P) − Ŝ(P)| + |Ŝ(P) −
     /// C|`, the second bounded by the arms above on `Ŝ`. On a literal
     /// unit frame the twin is the frame itself and the term is the zero
     /// form.
     ///
-    /// The terms are summed and decided once as `pcurve_envelope`; a
+    /// The terms combine as `EnvelopeTerms::total` (every slot added,
+    /// the two channel fidelities as legs where the chart is
+    /// orthogonal) and are decided once as `pcurve_envelope`; a
     /// refusal names the first term that is over the band on its own
     /// ([`EnvelopeTerm`]). `envelope_lemma_fuzz` sweeps every arm: the
-    /// sum dominates the sampled residual of carriers and images moved
+    /// total dominates the sampled residual of carriers and images moved
     /// off in one respect at a time, and on an exact carrier the
     /// closed-form tables compose back to the carrier.
     ///
@@ -2291,27 +2436,11 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
     wall: &NurbsSurface<T>,
 ) -> Result<NurbsCurve2<T>, PcurveCertifyError> {
     use crate::edge_nurbs::PlaneNurbsRefusal as P;
-    // A spline's image spans its own knot domain, which the composite
-    // pairs it on; any other carrier's spans `params`' outer ends (its
-    // bracket's, so the image covers the interval at every scalar),
-    // held there.
+    // The image spans the carrier's certificate span, the edge
+    // certificate's rule (`carrier_span`).
     let eval = |t| carrier.eval(t);
-    let schedule = match carrier {
-        Curve3::Nurbs(net) => {
-            crate::edge_nurbs::Schedule::new(&eval, net.domain(), net.knot_values().domain())
-        }
-        _ => {
-            let (lo, hi) = (
-                params.0.lo().min(params.1.lo()),
-                params.0.hi().max(params.1.hi()),
-            );
-            crate::edge_nurbs::Schedule::new(
-                &eval,
-                (lo, hi),
-                (T::from_computed(lo), T::from_computed(hi)),
-            )
-        }
-    };
+    let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
+    let schedule = crate::edge_nurbs::Schedule::new(&eval, domain, ends);
     let (t0, t1) = schedule.domain();
     let certificate = |what| PcurveCertifyError::FittedCertificate {
         limb: None,
@@ -2348,7 +2477,8 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         | P::TubeNotOneArc { .. }
         | P::Escalated { .. }
         | P::ReportedTransversalityPoisoned(_)
-        | P::ChartSpeed(_)) => unreachable!(
+        | P::ChartSpeed(_)
+        | P::CarrierEnclosure(_)) => unreachable!(
             "chart_image returns these only from its per-sample hook or the certificate, and \
              the mint passes a no-op hook and runs no certificate: {other:?}"
         ),
@@ -2458,7 +2588,10 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         }
     };
     let uncertified = |n: &NurbsCurve3<geom_core::Interval>, (a, b): (f64, f64)| {
-        let (knots, p) = (n.knots().knots(), n.knots().degree());
+        let (knots, p) = (
+            n.knots_f64_interim().knots(),
+            n.knots_f64_interim().degree(),
+        );
         n.control().iter().enumerate().any(|(i, c)| {
             knots[i] < b
                 && knots[i + p + 1] > a
@@ -2528,15 +2661,23 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     // ratios are formed in the scalar).
     let twin_net = lift(twin_net);
     let coords = twin_net.certified_coords();
-    let data = CurveCertData::new(twin_net.knots(), twin_net.weight_channel(), &coords)
-        .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
+    let data = CurveCertData::new(
+        twin_net.knots_f64_interim(),
+        twin_net.weights_f64_interim(),
+        &coords,
+    )
+    .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
     let composite_of = |data: &CurveCertData<'_>| {
         canonical_composite(data, &form)
             .map_err(|_| refuse("the canonical composite refused the re-derived net"))
     };
     let whole = composite_of(&data)?;
     let (whole_breaks, whole_sup) = (whole.num.breaks().to_vec(), whole.span_sup_bounds());
-    let runs: Vec<f64> = twin_net.knots().knot_runs().map(|(k, _)| k).collect();
+    let runs: Vec<f64> = twin_net
+        .knots_f64_interim()
+        .knot_runs()
+        .map(|(k, _)| k)
+        .collect();
     let mut all_cuts: Vec<f64> = runs
         .windows(2)
         .flat_map(|w| {
@@ -2640,8 +2781,9 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
 /// # Errors
 ///
 /// [`PcurveCertifyError::FittedCertificate`] when the bound refuses or
-/// the carrier cannot be enclosed, or the image stops short of the
-/// edge.
+/// the image stops short of the edge;
+/// [`PcurveCertifyError::CarrierEnclosure`] when the carrier has no
+/// certified net over a span of the image's domain.
 pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     image: &NurbsCurve2<T>,
@@ -2671,74 +2813,38 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     // bracket whose decoration refuses never reaches here: check 2 of
     // `run_fitted_checks`, this gate's only caller, has already decided
     // `t1 − t0` through `decide`, which refuses an uncertified value.
-    let (d0, d1) = image.knots().domain();
-    if !(d0 <= t0.lo().min(t1.lo()) && t0.hi().max(t1.hi()) <= d1) {
+    let (d0, d1) = image.knots_f64_interim().domain();
+    let (lo, hi) = crate::carrier_net::outer_ends((t0, t1));
+    if !(d0 <= lo && hi <= d1) {
         return Err(PcurveCertifyError::FittedCertificate {
-            limb: Some(SsiLimb::HullSup),
+            limb: Some(SsiLimb::HullSupChart),
             what: "the image's domain stops short of the edge's interval, so its hull \
                    bound says nothing about the edge's ends",
             magnitude: None,
         });
     }
-    use crate::ssi::certify::{
-        CHART_HULL, Hull, Refused, chart_breaks, chart_round, hull_limb, subdivide,
-    };
-    use geom_core::spline::algebra::range_grid_points;
-    // Each round's composite against this chart alone, cut at `cuts`
-    // besides the image's knots and the domain's uniform grid. A spline
-    // carrier enters as its own net; a closed-form one as its enclosing
-    // net over the round's breaks, so a halving shrinks its remainder
-    // too.
+    use crate::ssi::certify::{CHART_HULL, Refused, carrier_chart_round, chart_grid, hull_limb};
+    // Each round's composite against this chart alone, the carrier read
+    // through the carrier-enclosure door over the image's domain, cut at
+    // `cuts` besides the round's grid: a halving shrinks a closed form's
+    // remainder too.
     let (pcoords, scoords) = (image.certified_coords(), chart.certified_coords());
-    let pimage = (image.knots(), image.weight_channel(), &pcoords[..]);
+    let pimage = (
+        image.knots_f64_interim(),
+        image.weights_f64_interim(),
+        &pcoords[..],
+    );
     let schart = (
-        chart.knots_u(),
-        chart.knots_v(),
-        chart.weight_channel(),
+        chart.knots_u_f64_interim(),
+        chart.knots_v_f64_interim(),
+        chart.weights_f64_interim(),
         &scoords[..],
     );
-    let stopped = if let Curve3::Nurbs(net) = carrier {
-        let grid = chart_breaks(net.knots(), image.knots());
-        let coords = net.certified_coords();
-        subdivide(
-            |cuts: &[f64]| -> Result<Hull, crate::ssi::SsiError> {
-                let extra: Vec<f64> = grid.iter().chain(cuts).copied().collect();
-                chart_round(
-                    (net.knots(), net.weight_channel(), &coords),
-                    pimage,
-                    schart,
-                    &extra,
-                )
-            },
-            band,
-        )
-    } else {
-        let (lo, hi) = image.knots().domain();
-        let knots: Vec<f64> = image.knots().interior_knots().map(|(k, _)| k).collect();
-        let grid = range_grid_points(lo, hi, crate::ssi::certify::SSI_CERT_SPANS, &knots);
-        subdivide(
-            |cuts: &[f64]| -> Result<Hull, crate::ssi::SsiError> {
-                let mut breaks: Vec<f64> = knots.iter().chain(&grid).chain(cuts).copied().collect();
-                breaks.extend([lo, hi]);
-                breaks.sort_by(f64::total_cmp);
-                breaks.dedup();
-                let enclosed = crate::carrier_net::enclosing_net(carrier, &breaks).ok_or(
-                    crate::ssi::SsiError::UnsupportedCertificate {
-                        what: "the carrier has no certified enclosure over a span of its \
-                               image's domain",
-                    },
-                )?;
-                let weights = vec![1.0; enclosed.knots.control_count()];
-                chart_round(
-                    (&enclosed.knots, &weights, &enclosed.coords),
-                    pimage,
-                    schart,
-                    &[],
-                )
-            },
-            band,
-        )
-    };
+    let grid = chart_grid(carrier, image.knots_f64_interim());
+    let stopped = crate::ssi::certify::subdivide(
+        |cuts: &[f64]| carrier_chart_round(carrier, pimage, schart, &grid, cuts),
+        band,
+    );
     let stopped = stopped.map_err(ssi_refusal)?;
     hull_limb(&CHART_HULL, stopped, band, &mut Refused::default()).map_err(ssi_refusal)
 }
@@ -2753,7 +2859,7 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
 /// Its one producer is [`fitted_lane`], which runs limb 2's hull
 /// against the row's chart and nothing else: the composite refuses
 /// [`SsiError::UnsupportedCertificate`](crate::ssi::SsiError), and the
-/// limb's verdict a definite [`SsiError::CertificateLimb`] or an
+/// limb's verdict a definite [`SsiError::CertificateLimb`](crate::ssi::SsiError::CertificateLimb) or an
 /// escalated `CertificateEscalated`. Those are the arms written out.
 ///
 /// **Escalations leave by a different door.** They are the only
@@ -2770,12 +2876,11 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
                 cause,
             };
         }
-        E::CertificateLimb { limb, margin } => (
-            Some(limb),
-            "a certificate limb exceeded ε",
-            Some(FittedMagnitude::LimbResidual(margin)),
-        ),
+        E::CertificateLimb { limb, margin } => {
+            return PcurveCertifyError::FittedLimb { limb, margin };
+        }
         E::UnsupportedCertificate { what } => (None, what, None),
+        E::CarrierEnclosure(refusal) => return PcurveCertifyError::CarrierEnclosure(refusal),
         // Exhaustive BY VARIANT rather than by catch-all: a new
         // `SsiError` must be dispositioned here deliberately, and the
         // compiler is what enforces that. The hull limb raises none of
@@ -3280,10 +3385,19 @@ struct Harmonic3<T: Real> {
 
 /// The amplitude of `form`'s motion off the cylinder axis `axis`, in
 /// metres (its harmonic coefficients are displacements): zero for a
-/// ruling, the radial circle's size for a carrier moving around it.
+/// ruling, the radial circle's size for a carrier moving around it —
+/// its `cos t`/`sin t` pair at its exact sup. A carrier this reads
+/// under the escalation band but over the zero band takes the meridian;
+/// one that turns on the chart has `‖a_r‖ ≈ R`, and its winding margin
+/// `‖a_r × b_r‖/R ≤ R` is in the band too, so no carrier the moving
+/// class could certify is read there.
 fn radial_amplitude<T: Real>(form: &Harmonic3<T>, axis: Vec3<T>) -> T {
     let radial = |v: Vec3<T>| v - axis * v.dot(axis);
-    radial(form.a).norm() + radial(form.b).norm() + radial(form.l).norm()
+    let (a_r, b_r, l_r) = (radial(form.a), radial(form.b), radial(form.l));
+    let amplitude = harmonic_sup(a_r, b_r) + l_r.norm();
+    #[cfg(test)]
+    let amplitude = mutants::radial_amplitude(a_r, b_r, l_r).unwrap_or(amplitude);
+    amplitude
 }
 
 /// The carrier in the certified basis. Total for the analytic kinds;
@@ -3310,13 +3424,13 @@ fn carrier_harmonic<T: Real>(carrier: &Curve3<T>) -> Option<Harmonic3<T>> {
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => Some(Harmonic3 {
             c: center,
-            a: u_ref * major,
-            b: axis.cross(u_ref) * minor,
+            a: u_ref * semi_u,
+            b: axis.cross(u_ref) * semi_v,
             l: Vec3::zero(),
         }),
         // A spiric has no `{1, cos, sin, t}` form (its `m` channel is
@@ -3686,7 +3800,9 @@ fn param_rate<T: SpanLocate>(carrier: &Curve3<T>) -> InfSpeed<T> {
         Curve3::Circle { radius, .. } => InfSpeed::new(radius),
         // The smaller semi-axis MAGNITUDE: the semi-axes carry no order
         // and no sign (`Conic`); `minor` for the ordinary order.
-        Curve3::Ellipse { major, minor, .. } => InfSpeed::new(major.abs().min(minor.abs())),
+        Curve3::Ellipse { semi_u, semi_v, .. } => {
+            InfSpeed::new(geom::Curve3::semi_axes_by_size(semi_u, semi_v).1)
+        }
         Curve3::Spiric { minor_radius, .. } => InfSpeed::new(minor_radius),
     }
 }
@@ -3999,14 +4115,46 @@ enum Derivation {
     FocalSection,
 }
 
+/// How [`EnvelopeTerms::total`] reads the two channel fidelities.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FidelityLegs {
+    /// `FidelityU` and `FidelityV` are `arm·sup|Δ|` of one chart
+    /// segment's two channels on a chart whose `S_u ⊥ S_v` everywhere
+    /// (the cylinder, the sphere, the torus): the segment's image is no
+    /// longer than `√(arm_u²·Δu² + arm_v²·Δv²)`, so they are read as the
+    /// two legs of one displacement.
+    Orthogonal,
+    /// They add: the cone's two legs are not orthogonal (`fidelity`),
+    /// and the projected envelope's `FidelityV` carries more than its
+    /// channel.
+    Summed,
+}
+
+impl FidelityLegs {
+    /// The legs of the closed-form lane's fidelity on `surface`, by its
+    /// kind alone.
+    fn of<T: Real>(surface: &Surface<T>) -> Self {
+        let legs = match surface {
+            Surface::Cylinder { .. } | Surface::Sphere { .. } | Surface::Torus { .. } => {
+                Self::Orthogonal
+            }
+            _ => Self::Summed,
+        };
+        #[cfg(test)]
+        let legs = mutants::fidelity_legs(surface, legs);
+        legs
+    }
+}
+
 /// Check 4's envelope on a periodic chart, one running sum per
-/// [`EnvelopeTerm`]; the certified bound is their total.
+/// [`EnvelopeTerm`] and how the two channel fidelities combine; the
+/// certified bound is [`EnvelopeTerms::total`].
 #[derive(Clone, Copy)]
-struct EnvelopeTerms<T: Real>([T; EnvelopeTerm::ALL.len()]);
+struct EnvelopeTerms<T: Real>([T; EnvelopeTerm::ALL.len()], FidelityLegs);
 
 impl<T: Decide> EnvelopeTerms<T> {
     fn new() -> Self {
-        Self([T::zero(); EnvelopeTerm::ALL.len()])
+        Self([T::zero(); EnvelopeTerm::ALL.len()], FidelityLegs::Summed)
     }
 
     fn add(&mut self, term: EnvelopeTerm, value: T) {
@@ -4014,8 +4162,29 @@ impl<T: Decide> EnvelopeTerms<T> {
         *slot = *slot + value;
     }
 
+    /// The certified bound: every slot added, except that
+    /// [`FidelityLegs::Orthogonal`] reads the two channel fidelities as
+    /// the legs of one displacement, `√(FidelityU² + FidelityV²)`.
     fn total(&self) -> T {
-        self.0.iter().fold(T::zero(), |sum, &term| sum + term)
+        let (u, v) = (
+            EnvelopeTerm::FidelityU.slot(),
+            EnvelopeTerm::FidelityV.slot(),
+        );
+        let legs = self.1 == FidelityLegs::Orthogonal;
+        let rest = self
+            .0
+            .iter()
+            .enumerate()
+            .filter(|&(slot, _)| !legs || (slot != u && slot != v))
+            .fold(T::zero(), |sum, (_, &term)| sum + term);
+        let total = if legs {
+            rest + harmonic_sup_scalar(self.0[u], self.0[v])
+        } else {
+            rest
+        };
+        #[cfg(test)]
+        let total = mutants::fidelity(&self.0).unwrap_or(total);
+        total
     }
 
     /// The first term, in [`EnvelopeTerm::ALL`]'s order, that does not
@@ -4071,7 +4240,7 @@ fn periodic_envelope<T: Decide>(
     Ok(terms)
 }
 
-/// The chart with its frame made orthonormal by Gram–Schmidt:
+/// The chart with its frame made orthonormal ([`geom::square_frame`]):
 /// `n̂ = axis/‖axis‖`, and `ê₁` the part of `u_ref` normal to `n̂`,
 /// normalised (the map's `v_ref` is then `n̂ × ê₁`). In exact
 /// arithmetic it is the frame the lemma on
@@ -4079,9 +4248,8 @@ fn periodic_envelope<T: Decide>(
 /// unit frame is its own twin, and its twin's forms reduce to its own.
 fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
     let frame = |axis: Vec3<T>, u_ref: Vec3<T>| {
-        let n = axis / axis.norm();
-        let e1 = u_ref - n * n.dot(u_ref);
-        (n, e1 / e1.norm())
+        let f = geom::square_frame(axis, u_ref);
+        (f.axis, f.u_ref)
     };
     match *surface {
         Surface::Cylinder {
@@ -4212,6 +4380,8 @@ fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
             let (d_axis, d_radial) = defect(axis, u_ref);
             (d_axis * c_a.abs() + d_radial * s_a.abs()) * v_reach
         }
+        // `r·(cos v·Δrad + sin v·Δaxis)`: `(cos v, sin v)` is a unit
+        // pair, so the two defects read at their norm (Cauchy–Schwarz).
         Surface::Sphere {
             radius,
             axis,
@@ -4219,7 +4389,10 @@ fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
             ..
         } => {
             let (d_axis, d_radial) = defect(axis, u_ref);
-            (d_radial + d_axis) * radius
+            let defect = harmonic_sup_scalar(d_radial, d_axis);
+            #[cfg(test)]
+            let defect = mutants::frame(d_radial, d_axis).unwrap_or(defect);
+            defect * radius
         }
         Surface::Torus {
             axis,
@@ -4228,8 +4401,13 @@ fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
             u_ref,
             ..
         } => {
+            // `(R + r·cos v)·Δrad + r·sin v·Δaxis`: the tube's share is
+            // the sphere's, `r` levering the two defects at their norm.
             let (d_axis, d_radial) = defect(axis, u_ref);
-            d_radial * (major_radius + minor_radius) + d_axis * minor_radius
+            let tube = harmonic_sup_scalar(d_radial, d_axis);
+            #[cfg(test)]
+            let tube = mutants::frame(d_radial, d_axis).unwrap_or(tube);
+            d_radial * major_radius + tube * minor_radius
         }
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
             unreachable!("frame_defect: check 4's periodic arm reads an analytic periodic chart")
@@ -4245,6 +4423,72 @@ fn norm_gap<T: Real>(p: T, p_sq: T, q: Vec3<T>) -> T {
     (p_sq - q.dot(q)).abs() / (p + q.norm())
 }
 
+/// `p/‖q‖ − 1`, the factor that stretches `q` to length `p` (`q·(1 + k)`
+/// has norm `p`), its numerator [`norm_gap`]'s polynomial. `p ≥ 0`,
+/// `q ≠ 0`.
+fn stretch<T: Real>(p: T, p_sq: T, q: Vec3<T>) -> T {
+    let n = q.norm();
+    (p_sq - q.dot(q)) / ((p + n) * n)
+}
+
+/// `sup_t ‖c + a·cos t + b·sin t‖`, bounded with no orthogonality
+/// assumed: `‖c + H(t)‖² = ‖c‖² + ‖H(t)‖² + 2·c·H(t)`, and `c·H(t)` is
+/// the scalar pair `(c·a, c·b)`, so the sup is at most `√(‖c‖² + σ(a,
+/// b)² + 2·σ(c·a, c·b))`. That is `√(‖c‖² + σ²)` where `c ⊥ a, b` and
+/// never over `‖c‖ + σ`, its value at the worst alignment.
+fn constant_and_pair<T: Real>(c: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
+    let two = T::one() + T::one();
+    let cross = harmonic_sup_scalar(c.dot(a), c.dot(b));
+    (c.norm_squared() + harmonic_sup(a, b).powi(2) + two * cross).sqrt()
+}
+
+/// A rim's or a parallel's **class circle** against the carrier's
+/// `(a, b)`: the image turns `ρ·â_r` at the decided winding, so its
+/// `cos t` and `sin t` coefficients are `a_r·(1 + k)` and
+/// `β·e×a_r·(1 + k)` with `k` the [`stretch`] to `ρ`, and the pair's
+/// difference from the carrier's is read whole — radius, winding and
+/// the plane's tilt at one exact sup. Each coefficient's difference is
+/// spelled as the radius defect `q·k` plus the unstretched defect `q −
+/// (the carrier's)`, so neither repeats the carrier's coefficient and a
+/// bracketed scalar pays each part's own width. `axial` is false where
+/// the chart's axial channel is the carrier's own and cancels (the
+/// cylinder, whose `(a, b)` arrive radial). A winding decided Zero reads
+/// the image's constant radial at its full length and the carrier's
+/// pair as drift.
+fn class_circle<T: Decide>(
+    terms: &mut EnvelopeTerms<T>,
+    beta: Winding,
+    (rho, rho_sq): (T, T),
+    (a, b): (Vec3<T>, Vec3<T>),
+    axis: Vec3<T>,
+    axial: bool,
+) {
+    let (a_r, b_r, aa, bb) = if axial {
+        let (aa, bb) = (a.dot(axis), b.dot(axis));
+        (a - axis * aa, b - axis * bb, aa, bb)
+    } else {
+        (a, b, T::zero(), T::zero())
+    };
+    match beta {
+        Winding::Pos | Winding::Neg => {
+            let k = stretch(rho, rho_sq, a_r);
+            let turn = axis.cross(a_r) * beta.value();
+            let pair = harmonic_sup(a_r * k - axis * aa, turn * k + (turn - b_r) - axis * bb);
+            #[cfg(test)]
+            let pair =
+                mutants::class_circle((rho, rho_sq), a_r, b_r, turn, (aa, bb)).unwrap_or(pair);
+            terms.add(EnvelopeTerm::Radius, pair);
+        }
+        Winding::Zero => {
+            terms.add(EnvelopeTerm::Radius, rho);
+            let drift = harmonic_sup(a, b);
+            #[cfg(test)]
+            let drift = mutants::zero_winding(a_r, b_r, (aa, bb)).unwrap_or(drift);
+            terms.add(EnvelopeTerm::Drift, drift);
+        }
+    }
+}
+
 /// Check 4's **incidence** terms: a bound on `sup |S(P_d(t)) − C(t)|`
 /// for the image `P_d` that [`derive_harmonic`] builds from `form`
 /// under `derivation`, in the carrier's own coefficients and the
@@ -4257,7 +4501,7 @@ fn incidence<T: Decide>(
     reach: T,
     terms: &mut EnvelopeTerms<T>,
 ) {
-    use EnvelopeTerm::{Centre, Drift, Line, Orientation, Radius, Tilt};
+    use EnvelopeTerm::{Centre, Drift, Line, Radius};
     let Harmonic3 { c, a, b, l } = form;
     match (surface, derivation) {
         (
@@ -4273,19 +4517,16 @@ fn incidence<T: Decide>(
             let (w_r, a_r, b_r) = (radial(c - origin), radial(a), radial(b));
             terms.add(Line, radial(l).norm() * reach);
             match derivation {
-                Derivation::CylinderMoving {
-                    beta: beta @ (Winding::Pos | Winding::Neg),
-                } => {
+                Derivation::CylinderMoving { beta } => {
                     terms.add(Centre, w_r.norm());
-                    terms.add(Radius, norm_gap(radius, radius.powi(2), a_r));
-                    terms.add(Orientation, (b_r - axis.cross(a_r) * beta.value()).norm());
-                }
-                Derivation::CylinderMoving {
-                    beta: Winding::Zero,
-                } => {
-                    terms.add(Centre, w_r.norm());
-                    terms.add(Radius, radius);
-                    terms.add(Drift, harmonic_sup(a_r, b_r));
+                    class_circle(
+                        terms,
+                        beta,
+                        (radius, radius.powi(2)),
+                        (a_r, b_r),
+                        axis,
+                        false,
+                    );
                 }
                 _ => {
                     terms.add(Radius, norm_gap(radius, radius.powi(2), w_r));
@@ -4331,20 +4572,9 @@ fn incidence<T: Decide>(
                 }
                 Derivation::ConeRim { nappe, beta } => {
                     let rho = h * nappe.value() * slope;
-                    let (a_r, b_r) = (radial(a), radial(b));
                     terms.add(Centre, w_r.norm());
-                    terms.add(Tilt, harmonic_sup_scalar(a.dot(axis), b.dot(axis)));
                     terms.add(Line, l.norm() * reach);
-                    match beta {
-                        Winding::Pos | Winding::Neg => {
-                            terms.add(Radius, norm_gap(rho, rho.powi(2), a_r));
-                            terms.add(Orientation, (b_r - axis.cross(a_r) * beta.value()).norm());
-                        }
-                        Winding::Zero => {
-                            terms.add(Radius, rho);
-                            terms.add(Drift, harmonic_sup(a_r, b_r));
-                        }
-                    }
+                    class_circle(terms, beta, (rho, rho.powi(2)), (a, b), axis, true);
                 }
                 _ => unreachable!("incidence: the cone arm matched its own derivations"),
             }
@@ -4362,41 +4592,50 @@ fn incidence<T: Decide>(
             let w = c - center;
             let (h, w_r) = (w.dot(axis), radial(w));
             let (a_r, b_r) = (radial(a), radial(b));
-            let (aa, bb) = (a.dot(axis), b.dot(axis));
+            let aa = a.dot(axis);
             terms.add(Line, l.norm() * reach);
             match derivation {
                 Derivation::SphereParallel { beta } => {
                     let rho_sq = radius.powi(2) - h.powi(2);
                     let rho = rho_sq.sqrt();
                     terms.add(Centre, w_r.norm());
-                    terms.add(Tilt, harmonic_sup_scalar(aa, bb));
-                    match beta {
-                        Winding::Pos | Winding::Neg => {
-                            terms.add(Radius, norm_gap(rho, rho_sq, a_r));
-                            terms.add(Orientation, (b_r - axis.cross(a_r) * beta.value()).norm());
-                        }
-                        Winding::Zero => {
-                            terms.add(Radius, rho);
-                            terms.add(Drift, harmonic_sup(a_r, b_r));
-                        }
-                    }
+                    class_circle(terms, beta, (rho, rho_sq), (a, b), axis, true);
                 }
-                Derivation::SphereMeridian { pole: false, sigma } => {
-                    // `J·a`: `a` turned a quarter in its meridian plane,
-                    // `(‖a_r‖·axis − aa·â_r)·‖a‖/‖a‖`.
-                    let ja = (axis * a_r.dot(a_r) - a_r * aa) / a_r.norm();
+                Derivation::SphereMeridian { pole, sigma } => {
+                    // The image turns `(1 + k)·(a′·cos t + σ·b′·sin t)` with
+                    // `a′ = ‖a_r‖·d̂ + (a·e)·e` and `b′ = ‖a_r‖·e − (a·e)·d̂`
+                    // (`‖a′‖ = ‖b′‖ = ‖a‖`), `d̂` the azimuth direction the
+                    // derivation read: `â_r`, where `a′ = a` and `b′ = J·a`, or
+                    // `b̂_r` at a pole start. A pole start with `b_r` zero too
+                    // is no circle; its `b̂_r` is NaN or an entire enclosure,
+                    // which refuses at the envelope's decision.
+                    let s_r = a_r.norm();
+                    let d = if pole { b_r / b_r.norm() } else { a_r / s_r };
+                    let jb = (axis * s_r - d * aa) * sigma.value();
+                    let k = stretch(radius, radius.powi(2), a);
                     terms.add(Centre, w.norm());
-                    terms.add(Radius, norm_gap(radius, radius.powi(2), a));
-                    terms.add(Orientation, (ja * sigma.value() - b).norm());
-                }
-                Derivation::SphereMeridian { pole: true, sigma } => {
-                    terms.add(Centre, w.norm());
-                    terms.add(Radius, norm_gap(radius, radius.powi(2), a));
-                    terms.add(Drift, a_r.norm() * T::from_f64(3.0));
-                    terms.add(
-                        Orientation,
-                        bb.abs() + (aa * sigma.value() + b_r.norm()).abs(),
-                    );
+                    let cos_part = if pole {
+                        let ja = d * s_r + axis * aa;
+                        let cos_part = ja * k + (ja - a);
+                        #[cfg(test)]
+                        let cos_part = mutants::pole_start_under(a, k).unwrap_or(cos_part);
+                        cos_part
+                    } else {
+                        a * k
+                    };
+                    let pair = harmonic_sup(cos_part, jb * k + (jb - b));
+                    #[cfg(test)]
+                    let pair = mutants::sphere_meridian(
+                        pole,
+                        radius,
+                        (a, b),
+                        (a_r, b_r),
+                        (aa, b.dot(axis)),
+                        sigma,
+                        jb,
+                    )
+                    .unwrap_or(pair);
+                    terms.add(Radius, pair);
                 }
                 _ => unreachable!("incidence: the sphere arm matched its own derivations"),
             }
@@ -4414,25 +4653,51 @@ fn incidence<T: Decide>(
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let w = c - center;
             let (h, w_r) = (w.dot(axis), radial(w));
-            let (a_r, b_r) = (radial(a), radial(b));
+            let a_r = radial(a);
             let aa = a.dot(axis);
             let minor_sq = minor_radius.powi(2);
             terms.add(Line, l.norm() * reach);
             match derivation {
                 Derivation::TorusParallel { beta } => {
-                    let core = a_r.norm() - major_radius;
+                    let rho = a_r.norm();
+                    let core = rho - major_radius;
                     let m_sq = h.powi(2) + core.powi(2);
-                    let tube = (minor_sq - m_sq).abs() / (minor_radius + m_sq.sqrt());
-                    terms.add(Centre, w_r.norm());
-                    terms.add(Tilt, harmonic_sup_scalar(aa, b.dot(axis)));
+                    let m = m_sq.sqrt();
+                    let tube = (minor_sq - m_sq).abs() / (minor_radius + m);
+                    let (b_r, bb) = (radial(b), b.dot(axis));
                     match beta {
                         Winding::Pos | Winding::Neg => {
-                            terms.add(Radius, tube);
-                            terms.add(Orientation, (b_r - axis.cross(a_r) * beta.value()).norm());
+                            // `κ = r/m − 1`: the image's radius is `ρ + core·κ`
+                            // and its height `h·(1 + κ)`, so its constant
+                            // stands `−w_r + e·h·κ` off the carrier's, one
+                            // vector read with the pair (`constant_and_pair`).
+                            // A carrier on the tube's core (`m = 0`) has no
+                            // image; `κ` is then NaN or an entire enclosure,
+                            // which refuses at the envelope's decision.
+                            let kappa = (minor_sq - m_sq) / ((minor_radius + m) * m);
+                            let k = core * kappa / rho;
+                            let turn = axis.cross(a_r) * beta.value();
+                            let (constant, cos_part, sin_part) = (
+                                axis * (h * kappa) - w_r,
+                                a_r * k - axis * aa,
+                                turn * k + (turn - b_r) - axis * bb,
+                            );
+                            let whole = constant_and_pair(constant, cos_part, sin_part);
+                            #[cfg(test)]
+                            let whole = mutants::torus_parallel(w_r, tube, b_r, turn, (aa, bb))
+                                .or_else(|| {
+                                    mutants::torus_parallel_constant(constant, cos_part, sin_part)
+                                })
+                                .unwrap_or(whole);
+                            terms.add(Radius, whole);
                         }
                         Winding::Zero => {
+                            terms.add(Centre, w_r.norm());
                             terms.add(Radius, tube + major_radius + minor_radius);
-                            terms.add(Drift, harmonic_sup(a_r, b_r));
+                            let drift = harmonic_sup(a, b);
+                            #[cfg(test)]
+                            let drift = mutants::zero_winding(a_r, b_r, (aa, bb)).unwrap_or(drift);
+                            terms.add(Drift, drift);
                         }
                     }
                 }
@@ -4440,17 +4705,31 @@ fn incidence<T: Decide>(
                     let wr_sq = w_r.dot(w_r);
                     let aw = a.dot(w_r);
                     let n_sq = aw.powi(2) / wr_sq + aa.powi(2);
-                    let tube = (minor_sq - n_sq).abs() / (minor_radius + n_sq.sqrt());
-                    terms.add(
-                        Centre,
-                        norm_gap(major_radius, major_radius.powi(2), w_r) + h.abs(),
-                    );
-                    terms.add(Radius, tube);
-                    terms.add(Tilt, (a_r - w_r * (aw / wr_sq)).norm());
-                    terms.add(
-                        Orientation,
-                        ((axis * aw - w_r * aa) / wr_sq.sqrt() * sigma.value() - b).norm(),
-                    );
+                    // `R·ŵ_r − w`: its radial and axial parts, one vector.
+                    let spine = norm_gap(major_radius, major_radius.powi(2), w_r);
+                    let centre = harmonic_sup_scalar(spine, h);
+                    #[cfg(test)]
+                    let centre = mutants::torus_meridian_centre(spine, h).unwrap_or(centre);
+                    terms.add(Centre, centre);
+                    // `a*` and `b*`, the image's `cos t` and `sin t`
+                    // coefficients up to the factor `r/n = 1 + k`. An `a`
+                    // with no part in the meridian plane (`n = 0`) has no
+                    // image; `k` is then NaN or an entire enclosure, which
+                    // refuses at the envelope's decision.
+                    let n = n_sq.sqrt();
+                    let k = (minor_sq - n_sq) / ((minor_radius + n) * n);
+                    let a_star = w_r * (aw / wr_sq) + axis * aa;
+                    let b_star = (axis * aw - w_r * aa) / wr_sq.sqrt() * sigma.value();
+                    let pair = harmonic_sup(a_star * k + (a_star - a), b_star * k + (b_star - b));
+                    #[cfg(test)]
+                    let pair = mutants::torus_meridian(
+                        (minor_radius, minor_sq),
+                        (n, n_sq),
+                        a_r - w_r * (aw / wr_sq),
+                        b_star - b,
+                    )
+                    .unwrap_or(pair);
+                    terms.add(Radius, pair);
                 }
                 _ => unreachable!("incidence: the torus arm matched its own derivations"),
             }
@@ -4463,29 +4742,13 @@ fn incidence<T: Decide>(
     }
 }
 
-/// The furthest a branch may sit from the one it is read against, in
-/// whole periods, before [`whole_periods`] refuses it
-/// ([`BranchMiss::OutOfReach`]).
-///
-/// **Why a cap, and why four.** The search steps one period at a time
-/// from `k = 0`, two sign decisions a step, so an uncapped search over
-/// a gap of `n` periods costs `2n` decisions and over an unbounded box
-/// would not terminate. Four is not derived from a bound. It is room
-/// above the branches producers are known to reach: the derivation
-/// answers on the principal branch, a row's azimuth extent is gated to
-/// one period (`AzimuthPeriodExceeded`), and a closed loop's walk
-/// closes through at most one period at its seam. A helical producer,
-/// whose rows legitimately sit further out, would need the cap raised
-/// or its branch read off its winding. The refusal says so by type
-/// rather than as a residual
-/// (`work/pcert/whole-periods-caps-a-branch-at-four-periods.md`).
-pub const MAX_BRANCH_PERIODS: i32 = 4;
-
-/// Why [`whole_periods`] decided no branch.
+/// Why a [`Period`] decided no branch.
 #[derive(Clone, Debug)]
 pub enum BranchMiss {
     /// A half-period mark is undecided: the gap is not resolved to one
-    /// branch at this width (D4 ¶3, escalate-never-guess).
+    /// branch at this width (D4 ¶3, escalate-never-guess). A gap that is
+    /// not a finite number, or whose branch no `i32` names, decides no
+    /// mark either, and reads here with an invalid margin.
     Undecided(Indeterminate),
     /// The gap sits ON a half-period mark (the mark decided Zero): it
     /// is half a period from two branches and is the gap of neither — a
@@ -4493,91 +4756,475 @@ pub enum BranchMiss {
     /// twin as its own orbit point, with half the period, so a twin is
     /// never this).
     OnMark,
-    /// The gap is more than [`MAX_BRANCH_PERIODS`] periods out.
-    OutOfReach,
 }
 
-/// **A branch, decided as structure**: the whole number of periods `k`
-/// with `|gap − k·period| < period/2`, returned as the LITERAL `k`. It
-/// is read off the half period of room a branch has, by sign decisions
-/// against the half-period marks (`name`, metered through `meter`),
-/// never by rounding the gap — so a chart image shifted by it carries
-/// `α + k·τ` with `k` a constant rather than an opaque function of the
-/// parameters (C4: "the branch per face is chosen once by the loop
-/// walk"). The loop walk pins each row's branch with it
-/// (`topo::pcurves`), and check 4's fidelity reads a stored image's
-/// branch, and a sphere image's twin, against its re-derivation with
-/// it.
-///
-/// # Errors
-///
-/// [`BranchMiss`]: a mark undecided, the gap on a mark, or the gap out
-/// of reach.
-pub fn whole_periods<T: Decide>(
-    name: &'static str,
-    gap: T,
-    period: T,
-    meter: impl Fn(T) -> Margin<T>,
-    band: Band,
-) -> Result<T, BranchMiss> {
-    whole_period_count(name, gap, period, meter, band).map(|k| T::from_f64(f64::from(k)))
+/// Where [`Period::decide`] stopped short of a branch: the miss, and the
+/// two branches `[j, j + 1]` either side of the mark it stopped on (none
+/// for a gap that names no mark at all, or where `j + 1` is past
+/// `i32::MAX`).
+#[derive(Clone, Debug)]
+pub struct WalkStop {
+    /// Why no branch was decided.
+    pub miss: BranchMiss,
+    /// The branches either side of the mark the walk stopped on.
+    pub astride: Option<[i32; 2]>,
 }
 
-/// [`whole_periods`]' `k` as the integer it is, for a caller that
-/// stores the branch as structure (`topo`'s joint elements).
+/// **A periodic channel's period**: the length one whole turn of the
+/// channel spans, which every whole-period question of that channel is
+/// asked of. Today that is τ in azimuth, its half on a sphere joint's
+/// orbit (whose twin sits half a period over), and the first-channel
+/// period a loop walk decides its joints in. Two questions go through
+/// it:
+/// - a joint's deck element, and check 4's branch, decided by the
+///   half-period marks ([`Period::decide`]);
+/// - a deck element's shift, `k` periods as a length ([`Period::times`]).
 ///
-/// # Errors
-///
-/// [`whole_periods`]'.
-pub fn whole_period_count<T: Decide>(
-    name: &'static str,
-    gap: T,
-    period: T,
-    meter: impl Fn(T) -> Margin<T>,
-    band: Band,
-) -> Result<i32, BranchMiss> {
-    let half = T::from_f64(0.5);
-    let mark = |k: i32, side: T| {
-        decide(
-            name,
-            meter(gap - (T::from_f64(f64::from(k)) + side) * period),
-            band,
-        )
-    };
-    let mut k = 0;
-    // What is already known about the marks either side of `k`: moving
-    // up one period learns the lower mark, moving down the upper.
-    let (mut below, mut above) = (false, false);
-    loop {
-        if !above {
-            match mark(k, half).map_err(BranchMiss::Undecided)? {
-                Sign::Negative => {}
-                Sign::Zero => return Err(BranchMiss::OnMark),
-                Sign::Positive => {
-                    k += 1;
-                    (below, above) = (true, false);
-                    if k > MAX_BRANCH_PERIODS {
-                        return Err(BranchMiss::OutOfReach);
-                    }
-                    continue;
-                }
+/// No whole-period integer is read off a value: [`Period::decide`]
+/// decides it through the marks, and every other integer is structure.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Period<T> {
+    length: T,
+}
+
+impl<T: Real> Period<T> {
+    /// The channel's period, one whole turn of it.
+    pub fn new(length: T) -> Self {
+        Self { length }
+    }
+
+    /// The period as a length.
+    pub fn length(self) -> T {
+        self.length
+    }
+
+    /// `k` whole periods, as a length: a deck element's shift, or the
+    /// advance of a winding of `k`.
+    pub fn times(self, k: i32) -> T {
+        T::from_f64(f64::from(k)) * self.length
+    }
+}
+
+impl<T: Decide> Period<T> {
+    /// **A branch, decided as structure**: the whole number of periods
+    /// `k` with `|gap − k·length| < length/2`, as the integer it is. It
+    /// is read off the half period of room a branch has, by sign
+    /// decisions against the half-period marks (`name`, metered through
+    /// `meter`), read outward from zero, never by rounding the gap. The
+    /// marks either side of zero first; then, on the side the gap lies,
+    /// the marks 1, 2, 4, 8, ... periods out until one is not cleared
+    /// (decided past, away from zero), and a bisection between it and
+    /// the last cleared. A gap that clears a mark clears every mark
+    /// nearer zero (the meter grows with the gap's distance from the
+    /// mark), so the mark the walk stops on is the first, from zero, that
+    /// the gap does not clear; where that mark decides Zero
+    /// ([`BranchMiss::OnMark`]) the gap is within the band's zero of it
+    /// in the meter's units, and the branches astride it are the gap's
+    /// own nearest. Out to two periods the marks asked are the ones a
+    /// step-by-step walk asks, in its order.
+    ///
+    /// No cap: the walk asks O(log k) marks however far out the gap
+    /// lies, and stops only on a mark it does not clear. Once images are
+    /// placed over their edges' spans (C4's placement, unit B of the
+    /// `[ev]` PR 5142 answer), a joint's gap is within about two periods
+    /// and the walk is a handful of decisions; until then a carrier
+    /// stated far off puts its gap that far out. A gap that is not
+    /// finite, or whose branch is past `i32`, decides nothing and stops
+    /// as undecided.
+    ///
+    /// # Errors
+    ///
+    /// [`WalkStop`]: a mark undecided, or the gap on a mark, each with
+    /// the branches astride it.
+    pub fn decide(
+        self,
+        name: &'static str,
+        gap: T,
+        meter: impl Fn(T) -> Margin<T>,
+        band: Band,
+    ) -> Result<i32, WalkStop> {
+        // A gap that names no branch reads as an unreadable margin, and
+        // the funnel records it as it records any. Two paths reach it: a
+        // gap that is not finite, which decided no mark, and a gap that
+        // clears the mark past `i32::MAX`, whose branch no `i32` names.
+        // A stop ON a mark keeps that mark's own miss (`across` below).
+        let unnamed = || WalkStop {
+            miss: BranchMiss::Undecided(
+                match decide(name, Margin::of(T::from_f64(f64::NAN)), band) {
+                    Err(cause) => cause,
+                    Ok(sign) => unreachable!("an unreadable margin classified {sign:?}"),
+                },
+            ),
+            astride: None,
+        };
+        if !geom_core::is_finite_length(gap) {
+            return Err(unnamed());
+        }
+        let half = T::from_f64(0.5);
+        // The mark `i + ½` periods up (`up`), or `i + ½` down, and
+        // whether the gap clears it: decided past it, away from zero.
+        // Spelled `k + side` with `k` the branch below or above it, as
+        // a step-by-step walk spells it, so the forms a decision builds
+        // are that walk's.
+        let mark = |i: i32, up: bool| {
+            let at = if up {
+                T::from_f64(f64::from(i)) + half
+            } else {
+                T::from_f64(f64::from(-i)) + (T::zero() - half)
+            };
+            let sign = decide(name, meter(gap - at * self.length), band);
+            let cleared = matches!(
+                (&sign, up),
+                (Ok(Sign::Positive), true) | (Ok(Sign::Negative), false)
+            );
+            (sign, cleared)
+        };
+        // The branch across the first mark, from zero, the gap does not
+        // clear: `i` periods out where the gap is decided short of it,
+        // else the stop on it with the branches astride it.
+        let across = |i: i32, up: bool, sign: Result<Sign, Indeterminate>| {
+            // The branch is `±i`, which an `i32` always names; the pair
+            // astride the mark is named only where both of its ends are
+            // (not past `i32::MAX`), and the stop keeps the mark's own
+            // miss either way.
+            let astride = || {
+                let i = i64::from(i);
+                let [lo, hi] = if up { [i, i + 1] } else { [-i - 1, -i] };
+                Some([i32::try_from(lo).ok()?, i32::try_from(hi).ok()?])
+            };
+            match sign {
+                Ok(Sign::Zero) => Err(WalkStop {
+                    miss: BranchMiss::OnMark,
+                    astride: astride(),
+                }),
+                Ok(_) => Ok(if up { i } else { -i }),
+                Err(cause) => Err(WalkStop {
+                    miss: BranchMiss::Undecided(cause),
+                    astride: astride(),
+                }),
+            }
+        };
+        let up = match mark(0, true) {
+            (_, true) => true,
+            (sign @ (Ok(Sign::Zero) | Err(_)), false) => return across(0, true, sign),
+            (_, false) => match mark(0, false) {
+                (_, true) => false,
+                (sign, false) => return across(0, false, sign),
+            },
+        };
+        // Mark 0 is cleared. Gallop out (marks 1, 2, 4, 8, ...) to the
+        // first the gap does not clear, then bisect between it and the
+        // last it clears: the marks it clears are those nearer zero, so
+        // the mark found is the first uncleared from zero, and the walk
+        // asks O(log k) marks however far out the gap lies.
+        let (mut cleared, mut probe) = (0, 1);
+        let mut stop = loop {
+            let (sign, past) = mark(probe, up);
+            if !past {
+                break (probe, sign);
+            }
+            if probe == i32::MAX {
+                return Err(unnamed());
+            }
+            cleared = probe;
+            probe = probe.saturating_mul(2);
+        };
+        while stop.0 - cleared > 1 {
+            let mid = cleared + (stop.0 - cleared) / 2;
+            match mark(mid, up) {
+                (_, true) => cleared = mid,
+                (sign, false) => stop = (mid, sign),
             }
         }
-        if !below {
-            match mark(k, T::zero() - half).map_err(BranchMiss::Undecided)? {
-                Sign::Positive => {}
-                Sign::Zero => return Err(BranchMiss::OnMark),
-                Sign::Negative => {
-                    k -= 1;
-                    (below, above) = (false, true);
-                    if k < -MAX_BRANCH_PERIODS {
-                        return Err(BranchMiss::OutOfReach);
+        across(stop.0, up, stop.1)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod period_rows {
+    use geom_core::{Band, Interval, Margin, Real, SpanLocate};
+
+    use super::{BranchMiss, Period, WalkStop};
+
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).expect("a band")
+    }
+
+    /// **The marks are read from zero, however far out.** A gap 25 and a
+    /// fraction periods out decides `25`; seven half periods decide `7`
+    /// on an orbit whose step is half a period.
+    #[test]
+    fn a_far_gap_decides_its_branch_with_no_cap() {
+        let tau = f64::tau();
+        let period = Period::new(tau);
+        assert!(matches!(
+            period.decide("t", 25.3 * tau, Margin::of, band()),
+            Ok(25)
+        ));
+        assert!(matches!(
+            period.decide("t", -25.3 * tau, Margin::of, band()),
+            Ok(-25)
+        ));
+        let half = Period::new(tau / 2.0);
+        assert!(matches!(
+            half.decide("t", 3.5 * tau, Margin::of, band()),
+            Ok(7)
+        ));
+    }
+
+    /// **A far gap on a mark names the branches astride it.** A bracket
+    /// straddling the mark 40.5 periods out decides neither branch, and
+    /// the walk stops on that mark with `[40, 41]`.
+    #[test]
+    fn a_far_gap_on_a_mark_stops_astride_it() {
+        let mark = Interval::from_f64(40.5 * f64::tau());
+        let gap =
+            (mark - Interval::from_f64(1e-10)).enclosure_hull(mark + Interval::from_f64(1e-10));
+        match Period::new(Interval::tau()).decide("t", gap, Margin::of, band()) {
+            Err(WalkStop {
+                miss: BranchMiss::OnMark | BranchMiss::Undecided(_),
+                astride: Some([40, 41]),
+            }) => {}
+            other => panic!("the walk stops on the mark at 40.5 periods: {other:?}"),
+        }
+    }
+
+    /// The step-by-step walk the gallop stands for: each mark from zero
+    /// in turn, out to the first the gap does not clear.
+    fn step_walk(gap: f64, asked: &core::cell::RefCell<Vec<f64>>) -> Result<i32, String> {
+        let tau = f64::tau();
+        let mark = |at: f64| {
+            let m = gap - at * tau;
+            asked.borrow_mut().push(m);
+            geom_core::k_stats::decide("t", Margin::of(m), band())
+        };
+        let on = |k: i32, side: f64| f64::from(k) + side;
+        let mut k = 0;
+        let (mut below, mut above) = (false, false);
+        loop {
+            if !above {
+                match mark(on(k, 0.5)) {
+                    Ok(geom_core::Sign::Negative) => {}
+                    Ok(geom_core::Sign::Positive) => {
+                        (k, below, above) = (k + 1, true, false);
+                        continue;
                     }
-                    continue;
+                    other => return Err(format!("{other:?} [{k}, {}]", k + 1)),
                 }
             }
+            if !below {
+                match mark(on(k, -0.5)) {
+                    Ok(geom_core::Sign::Positive) => {}
+                    Ok(geom_core::Sign::Negative) => {
+                        (k, below, above) = (k - 1, false, true);
+                        continue;
+                    }
+                    other => return Err(format!("{other:?} [{}, {k}]", k - 1)),
+                }
+            }
+            return Ok(k);
         }
-        return Ok(k);
+    }
+
+    /// **The gallop answers as the step-by-step walk does**, on branches,
+    /// on marks and in band, from 40 periods down to 40 up; out to two
+    /// periods it asks the same marks in the same order.
+    #[test]
+    fn the_gallop_answers_as_the_step_walk_does() {
+        let tau = f64::tau();
+        let band = band();
+        let mut gaps = Vec::new();
+        for k in -40..=40 {
+            for frac in [0.0, 0.2, 0.49, -0.3] {
+                gaps.push((f64::from(k) + frac) * tau);
+            }
+            let mark = (f64::from(k) + 0.5) * tau;
+            gaps.extend([
+                mark,
+                mark + 0.5 * band.zero(),
+                mark + 0.5 * (band.zero() + band.escalate()),
+            ]);
+        }
+        for gap in gaps {
+            let (walked, galloped) = (
+                core::cell::RefCell::new(Vec::new()),
+                core::cell::RefCell::new(Vec::new()),
+            );
+            let want = step_walk(gap, &walked);
+            let got = Period::new(tau)
+                .decide(
+                    "t",
+                    gap,
+                    |m| {
+                        galloped.borrow_mut().push(m);
+                        Margin::of(m)
+                    },
+                    band,
+                )
+                .map_err(|stop| {
+                    let [lo, hi] = stop.astride.expect("a finite gap stops on a mark");
+                    let sign = match stop.miss {
+                        BranchMiss::OnMark => "Ok(Zero)".to_owned(),
+                        BranchMiss::Undecided(cause) => format!("{:?}", Err::<(), _>(cause)),
+                    };
+                    format!("{sign} [{lo}, {hi}]")
+                });
+            assert_eq!(got, want, "gap {:.6} periods", gap / tau);
+            if (gap / tau).abs() <= 2.5 {
+                assert_eq!(
+                    *galloped.borrow(),
+                    *walked.borrow(),
+                    "gap {:.6} periods",
+                    gap / tau
+                );
+            }
+        }
+    }
+
+    /// **A far gap costs O(log k) marks**, and a branch past `i32`
+    /// decides nothing: a billion periods out answers in under a hundred
+    /// marks, and three billion stops undecided with no mark named.
+    #[test]
+    fn a_far_gap_costs_log_k_marks() {
+        let tau = f64::tau();
+        let asked = core::cell::Cell::new(0);
+        let meter = |m| {
+            asked.set(asked.get() + 1);
+            Margin::of(m)
+        };
+        let period = Period::new(tau);
+        assert!(matches!(
+            period.decide("t", (1e9 + 0.25) * tau, meter, band()),
+            Ok(1_000_000_000)
+        ));
+        assert!(asked.get() < 100, "{} marks", asked.get());
+        assert!(matches!(
+            period.decide("t", -3e9 * tau, Margin::of, band()),
+            Err(WalkStop {
+                miss: BranchMiss::Undecided(_),
+                astride: None
+            })
+        ));
+    }
+
+    /// **A branch an `i32` names is answered, to its last value.** A
+    /// gap just past `i32::MAX` periods decides `i32::MAX`, and its
+    /// mirror `−i32::MAX`: the pair astride a mark is formed only where
+    /// the walk stops on one.
+    #[test]
+    fn a_branch_at_i32_max_is_answered() {
+        let tau = f64::tau();
+        let k = f64::from(i32::MAX);
+        let period = Period::new(tau);
+        let up = period.decide("t", (k + 0.1) * tau, Margin::of, band());
+        let down = period.decide("t", -(k + 0.1) * tau, Margin::of, band());
+        assert!(matches!(up, Ok(i32::MAX)), "up: {up:?}");
+        assert!(matches!(down, Ok(-2_147_483_647)), "down: {down:?}");
+    }
+
+    test_utils::gated_to!["crates/geom-brep/src/pcurve_cache.rs"];
+
+    /// **The gallop answers as the step-by-step walk does at `Interval`,
+    /// levered** (a counterexample search: the seed varies). Enclosures
+    /// of every width from a point to two periods, centred out to 300
+    /// periods, half of them within 1e-7 periods of a half-period mark,
+    /// metered at a lever of 0.37: the answer, the miss and the pair
+    /// astride it agree with a walk that asks every mark from zero.
+    #[test]
+    fn the_gallop_answers_as_the_step_walk_does_at_interval() {
+        use geom_core::k_stats::decide;
+        use geom_core::{Real as _, Sign};
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("pcurve_cache::period_rows::gallop_at_interval");
+        let tau = Interval::tau();
+        let arm = Interval::from_f64(0.37);
+        let band = band();
+        let meter = |g| Margin::levered(g, arm);
+        let step_walk = |gap: Interval| -> String {
+            let half = Interval::from_f64(0.5);
+            let mark = |k: i32, side: Interval| {
+                decide(
+                    "t",
+                    meter(gap - (Interval::from_f64(f64::from(k)) + side) * tau),
+                    band,
+                )
+            };
+            let (mut k, mut below, mut above) = (0i32, false, false);
+            loop {
+                if !above {
+                    match mark(k, half) {
+                        Ok(Sign::Negative) => {}
+                        Ok(Sign::Positive) => {
+                            (k, below, above) = (k + 1, true, false);
+                            continue;
+                        }
+                        Ok(Sign::Zero) => return format!("OnMark {:?}", [k, k + 1]),
+                        Err(_) => return format!("Undecided {:?}", [k, k + 1]),
+                    }
+                }
+                if !below {
+                    match mark(k, Interval::zero() - half) {
+                        Ok(Sign::Positive) => {}
+                        Ok(Sign::Negative) => {
+                            (k, below, above) = (k - 1, false, true);
+                            continue;
+                        }
+                        Ok(Sign::Zero) => return format!("OnMark {:?}", [k - 1, k]),
+                        Err(_) => return format!("Undecided {:?}", [k - 1, k]),
+                    }
+                }
+                return format!("Ok({k})");
+            }
+        };
+        let widths = [0.0, 1e-12, 1e-9, 3e-8, 1e-3, 0.4, 2.0];
+        for trial in 0..fuzz::scaled(20_000) {
+            let mut c = rng.range(-300.0, 300.0);
+            if rng.unit() < 0.5 {
+                c = c.round() + 0.5 + rng.range(-5e-8, 5e-8);
+            }
+            let w = widths[rng.below(widths.len())];
+            let gap = (tau * Interval::from_f64(c)).enclosure_hull(tau * Interval::from_f64(c + w));
+            let got = match Period::new(tau).decide("t", gap, meter, band) {
+                Ok(k) => format!("Ok({k})"),
+                Err(WalkStop {
+                    miss: BranchMiss::OnMark,
+                    astride: Some(a),
+                }) => format!("OnMark {a:?}"),
+                Err(WalkStop {
+                    miss: BranchMiss::Undecided(_),
+                    astride: Some(a),
+                }) => format!("Undecided {a:?}"),
+                Err(other) => format!("{other:?}"),
+            };
+            assert_eq!(
+                got,
+                step_walk(gap),
+                "seed {:#x}, trial {trial}: centre {c} periods, width {w}",
+                fuzz::seed()
+            );
+        }
+    }
+
+    /// **A gap that names no number decides nothing.** An infinite or
+    /// NaN gap stops at once as undecided, with no mark: an infinite
+    /// margin would read every mark definite and the walk would never
+    /// end.
+    #[test]
+    fn a_gap_that_is_not_finite_stops_undecided() {
+        let period = Period::new(f64::tau());
+        for gap in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            assert!(
+                matches!(
+                    period.decide("t", gap, Margin::of, band()),
+                    Err(WalkStop {
+                        miss: BranchMiss::Undecided(_),
+                        astride: None
+                    })
+                ),
+                "{gap}"
+            );
+        }
     }
 }
 
@@ -4610,6 +5257,13 @@ fn fidelity<T: Decide>(
     else {
         unreachable!("fidelity: check 4 compares two harmonic images")
     };
+    // The cone's two legs below are not orthogonal, so its channels add
+    // (`FidelityLegs::of`): with `v₁` the nearer slant and `θ` the
+    // azimuth gap, the chord `v₁·(g(u₂) − g(u₁))` and the ruling
+    // `(v₂ − v₁)·g(u₂)` meet with cross term `2·v₁·(v₂ − v₁)·sin²α·(1 −
+    // cos θ)`, which is `≥ 0` when the two slants share a nappe (`v₁`
+    // the nearer, so `v₁·(v₂ − v₁) ≥ 0`).
+    terms.1 = FidelityLegs::of(surface);
     let (arm_u, arm_v) = match chart_stretch_sup(surface) {
         Ok(arms) => arms,
         Err(NoChartSup::ConeAzimuthGrowsWithV) => {
@@ -4629,15 +5283,13 @@ fn fidelity<T: Decide>(
     };
     let tau = T::tau();
     let angular_v = matches!(surface, Surface::Sphere { .. } | Surface::Torus { .. });
-    // A channel's branch, decided as the literal it is (`whole_periods`).
+    // A channel's branch, decided by the channel's own period
+    // ([`Period::decide`]), as the literal it is.
     let branch = |name: &'static str, offset: T, arm: SupSpeed<T>| {
-        whole_periods(
-            name,
-            offset,
-            tau,
-            |gap| Margin::levered(gap, arm.get()),
-            band,
-        )
+        Period::new(tau)
+            .decide(name, offset, |gap| Margin::levered(gap, arm.get()), band)
+            .map(|k| T::from_f64(f64::from(k)))
+            .map_err(|stop| stop.miss)
     };
     // The azimuth's branch, and on a sphere whether the stored image is
     // `P_d` or its involution twin `(u + π, π − v)`: both are branches
@@ -4649,7 +5301,6 @@ fn fidelity<T: Decide>(
     // it.
     let (k_u, (q0, qa, qb, ql)) = match branch("pcurve_fidelity_branch", p0.x - q0.x, arm_u) {
         Ok(k) => (Some(k), (q0, qa, qb, ql)),
-        Err(BranchMiss::OutOfReach) => return Err(PcurveCertifyError::BranchOutOfReach),
         Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) => match surface {
             Surface::Sphere { .. } => {
                 let flip = |v: Vec2<T>| Vec2::new(v.x, T::zero() - v.y);
@@ -4661,9 +5312,6 @@ fn fidelity<T: Decide>(
                 );
                 match branch("pcurve_fidelity_twin", p0.x - twin.0.x, arm_u) {
                     Ok(k) => (Some(k), twin),
-                    Err(BranchMiss::OutOfReach) => {
-                        return Err(PcurveCertifyError::BranchOutOfReach);
-                    }
                     // Neither name's branch decides: `P_d` is kept
                     // (D9), read raw.
                     Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) => (None, (q0, qa, qb, ql)),
@@ -4683,11 +5331,7 @@ fn fidelity<T: Decide>(
         None => offset.abs(),
     };
     let k_v = if angular_v {
-        match branch("pcurve_fidelity_branch", p0.y - q0.y, arm_v) {
-            Ok(k) => Some(k),
-            Err(BranchMiss::OutOfReach) => return Err(PcurveCertifyError::BranchOutOfReach),
-            Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) => None,
-        }
+        branch("pcurve_fidelity_branch", p0.y - q0.y, arm_v).ok()
     } else {
         Some(T::zero())
     };
@@ -4949,6 +5593,11 @@ fn run_focal_section_checks<T: Decide>(
 /// Every term is rounding-scale on a minted image, so the envelope is
 /// the exact image's distance from the carrier plus the drift every
 /// banded check-1 gate admitted.
+///
+/// The coefficient terms are full-period sups by construction: a short
+/// arc pays the far side's coefficient error. That is the contract; on
+/// the suites' certificates it costs at most about 2.2× against the
+/// span's own miss (`focal-section-envelope-bounds-the-whole-ellipse-not-the-span`).
 fn focal_section_envelope<T: Real>(
     image: &FocalImage<T>,
     carrier: Harmonic3<T>,
@@ -5226,48 +5875,46 @@ fn run_spiric_checks<T: Decide>(
                 ("pcurve_spiric_chart_minor", Margin::of(s_minor - r_minor)),
                 ("pcurve_spiric_chart_tilt", Margin::levered(sin_tilt, arm)),
             ];
-            for (i, (name, margin)) in gates.into_iter().enumerate() {
-                match decide(name, margin, band).map_err(winding_escalated)? {
-                    Sign::Zero => {}
-                    Sign::Positive | Sign::Negative => {
-                        // Not the named torus. Only a CENTRE that fails
-                        // can leave the chart the OTHER torus that holds
-                        // the oval, and the gates after it, not yet
-                        // decided, must hold for that.
-                        let mut other = i == 0;
-                        if other {
-                            let d_other = s_center
-                                - torus_center(match torus {
-                                    WallTorus::Own => WallTorus::Mirror,
-                                    WallTorus::Mirror => WallTorus::Own,
-                                });
-                            for (name, margin) in gates
-                                .into_iter()
-                                .skip(1)
-                                .chain([("pcurve_spiric_chart_other", Margin::norm3(d_other))])
-                            {
-                                if decide(name, margin, band).map_err(winding_escalated)?
-                                    != Sign::Zero
-                                {
-                                    other = false;
-                                    break;
-                                }
-                            }
-                        }
-                        if other {
-                            return Err(PcurveCertifyError::ImageMismatch {
-                                image: PcurveKind::Spiric,
-                                why: "the wall image names one of the two tori that hold the \
-                                      oval, and the chart is the other",
-                            });
-                        }
-                        return Err(spiric_off_own_chart(
-                            "the chart torus is neither the carrier's own nor its mirror \
-                             through the cutting plane, and a spiric oval lies on no other \
-                             torus",
-                        )
-                        .refusal(surface, carrier));
+            // Read as an identity ladder (`crate::ladder`): a gate
+            // decided apart answers past an earlier in-band one.
+            let reader = |name, margin| geom_core::k_stats::decide_reported(name, margin, band);
+            match read_identity(gates, reader) {
+                IdentityLadder::Zero(_) => {}
+                IdentityLadder::Undecided(kept) => {
+                    return Err(winding_escalated(kept.refusing_cause()));
+                }
+                IdentityLadder::Apart { at, .. } => {
+                    // Not the named torus. Only a CENTRE apart can leave
+                    // the chart the OTHER torus that holds the oval: a
+                    // radius or tilt apart is apart from both, so the
+                    // other torus's ladder is read only on the centre.
+                    let neither = spiric_off_own_chart(
+                        "the chart torus is neither the carrier's own nor its mirror \
+                         through the cutting plane, and a spiric oval lies on no other \
+                         torus",
+                    )
+                    .refusal(surface, carrier);
+                    if at != 0 {
+                        return Err(neither);
                     }
+                    let d_other = s_center
+                        - torus_center(match torus {
+                            WallTorus::Own => WallTorus::Mirror,
+                            WallTorus::Mirror => WallTorus::Own,
+                        });
+                    let data = gates
+                        .into_iter()
+                        .skip(1)
+                        .chain([("pcurve_spiric_chart_other", Margin::norm3(d_other))]);
+                    return Err(match read_identity(data, reader) {
+                        IdentityLadder::Zero(_) => PcurveCertifyError::ImageMismatch {
+                            image: PcurveKind::Spiric,
+                            why: "the wall image names one of the two tori that hold the \
+                                  oval, and the chart is the other",
+                        },
+                        IdentityLadder::Apart { .. } => neither,
+                        IdentityLadder::Undecided(kept) => winding_escalated(kept.refusing_cause()),
+                    });
                 }
             }
             // Each residue at its own arm, in metres: a moved centre
@@ -6116,7 +6763,7 @@ fn run_iso_arc_checks<T: Decide>(
         .map_err(|source| PcurveCertifyError::ChartRow { source })?;
     // --- The construction's EXACT structure (C6). ---
     let spans = breaks.control_count().saturating_sub(1);
-    if spans == 0 || b.knots().degree() != 2 {
+    if spans == 0 || b.knots_f64_interim().degree() != 2 {
         return Err(bad(
             "an arc rim whose chart column is not a quadratic — the rational-quadratic \
              arc construction is the only one this class certifies",
@@ -6187,7 +6834,7 @@ fn run_iso_arc_checks<T: Decide>(
         }
     }
     let slack_knots = stretch_u.to_meters(knot_dev);
-    let bw = b.weight_channel();
+    let bw = b.weights_f64_interim();
     if bw.len() != 2 * spans + 1 || bw.first() != Some(&1.0) || bw.last() != Some(&1.0) {
         return Err(bad(
             "an arc rim whose chart column weights are not the arc pattern",
@@ -6644,7 +7291,7 @@ fn seam_envelope<T: Decide>(
     if let Curve3::Line { origin, dir } = carrier {
         let u_start = p0.x + pl.x * t0;
         let (b, slack_u) = traversed_column(payload, u_start, stretch_u, du_drift, band, esc)?;
-        if b.weight_channel().iter().any(|w| *w != 1.0) {
+        if b.weights_f64_interim().iter().any(|w| *w != 1.0) {
             return Err(PcurveCertifyError::IsoUnsupported {
                 what: "a LINE seam on a RATIONAL chart column: the Greville hull \
                            is a linear-precision fact and the rational basis has none \
@@ -6653,7 +7300,7 @@ fn seam_envelope<T: Decide>(
                            class's construction",
             });
         }
-        let (p, kn) = (b.knots().degree(), b.knot_values().values());
+        let (p, kn) = (b.knots_f64_interim().degree(), b.knot_values().values());
         let mut hull = T::zero();
         // `pl.y ≠ 0` is this class's own classification: the
         // `(false, true)` arm means the v channel MOVES, so
@@ -6716,7 +7363,7 @@ fn seam_envelope<T: Decide>(
     // this class used to carry was over-broad: what is
     // load-bearing is the shared spline space, not the
     // weights being 1.
-    if c.weight_channel()
+    if c.weights_f64_interim()
         .iter()
         .any(|w| !w.is_finite() || *w <= 0.0)
     {
@@ -6764,16 +7411,18 @@ fn seam_envelope<T: Decide>(
     // constant (a collapsed row wrapped polynomial, whose carrier's
     // constant cancels the same way).
     let row_weights: Vec<f64> = if backward {
-        b.weight_channel().iter().rev().copied().collect()
+        b.weights_f64_interim().iter().rev().copied().collect()
     } else {
-        b.weight_channel().to_vec()
+        b.weights_f64_interim().to_vec()
     };
-    let shared_weights = row_weights == c.weight_channel()
-        || (constant_weights(b.weight_channel()) && constant_weights(c.weight_channel()));
+    let shared_weights = row_weights == c.weights_f64_interim()
+        || (constant_weights(b.weights_f64_interim()) && constant_weights(c.weights_f64_interim()));
     let shared_knots = if backward {
-        b.knots().is_reflection_of(c.knots())
+        b.knots_f64_interim()
+            .is_reflection_of(c.knots_f64_interim())
     } else {
-        b.knots().knots() == c.knots().knots() && b.knots().degree() == c.knots().degree()
+        b.knots_f64_interim().knots() == c.knots_f64_interim().knots()
+            && b.knots_f64_interim().degree() == c.knots_f64_interim().degree()
     };
     if !shared_knots || !shared_weights {
         return Err(PcurveCertifyError::IsoUnsupported {
@@ -7352,9 +8001,9 @@ fn derive_class<T: Decide>(
                 Curve3::Ellipse {
                     center,
                     axis: e_axis,
-                    major,
-                    minor,
-                    u_ref: e_u,
+                    semi_u,
+                    semi_v,
+                    u_ref: seam,
                 } => {
                     // The tilted-section class: the exact
                     // [`Pcurve::FocalSection`] image (variant docs for
@@ -7369,6 +8018,17 @@ fn derive_class<T: Decide>(
                     if let Err(why) = cone_conic_incidence(carrier, surface, band)? {
                         return Err(off_chart(why));
                     }
+                    // The image is read about the major vertex, where
+                    // the focus is on the `t = t0` side: a carrier seamed
+                    // at a minor vertex is read a quarter turn on. The
+                    // major direction is the principal one the cone's
+                    // axis has a component along (a section's minor axis
+                    // is perpendicular to it), which a near-circle's
+                    // semi-axes, rounding past each other, cannot say.
+                    let Some(frame) = carrier.section_frame(axis) else {
+                        unreachable!("an Ellipse carrier has a major frame")
+                    };
+                    let (e_u, major, minor) = (frame.major_dir, frame.major, frame.minor);
                     let e_v = e_axis.cross(e_u);
                     let radial = |v: Vec3<T>| v - axis * v.dot(axis);
                     let w = center - apex;
@@ -7394,7 +8054,15 @@ fn derive_class<T: Decide>(
                     // that is no section of this cone yields a `β`
                     // the schedule and envelope refuse in metres.
                     let ecc = (T::zero() - r0.dot(ra)) / ra.dot(ra);
-                    let beta = ecc / (T::one() + (T::one() - ecc.powi(2)).sqrt());
+                    // On a section `√(1 − ecc²)` is the projection's axis
+                    // ratio `|rb|/|ra|` (`ra ⟂ rb`: the major axis lies in
+                    // the plane of the cone's axis, `e_v` normal to it),
+                    // read so without the root's `1/k` gain on `ecc`'s
+                    // rounding near a parabola. Off the cone the two part
+                    // at first order (a centre `δ` along `e_u` parts them
+                    // by `δ/(A·k)`); either way the envelope measures the
+                    // image against the carrier.
+                    let beta = ecc / (T::one() + rb.norm() / ra.norm());
                     let orient = ra.cross(rb).dot(axis);
                     let sense = match decide(
                         "pcurve_chart_orientation",
@@ -7425,10 +8093,10 @@ fn derive_class<T: Decide>(
                     Ok((
                         Pcurve::FocalSection(FocalImage {
                             u0: stable_azimuth(start.dot(cv), start.dot(u_ref), band),
-                            t0: T::zero(),
+                            t0: frame.phase,
                             v0: h / c_ha,
-                            va: e_u.dot(axis) * major / c_ha,
-                            vb: e_v.dot(axis) * minor / c_ha,
+                            va: seam.dot(axis) * semi_u / c_ha,
+                            vb: e_axis.cross(seam).dot(axis) * semi_v / c_ha,
                             vl: T::zero(),
                             beta,
                             sense,
@@ -7849,10 +8517,13 @@ fn winding_escalated(cause: Indeterminate) -> PcurveCertifyError {
 /// Villarceau circle: the centre lies on the line where the plane meets
 /// the equator. Not shown off the torus but past any gate is a circle
 /// grazing it ([`Grazer::TorusCircle`]) — a circle ⊥ the axis centred `δ`
-/// off it leaves the tube's crest by only `δ²/2r`. A circle that fails
-/// one gate alone by more than the band is, to first order, that far off
-/// the torus, so the incidence test refuses it before the gates read it:
-/// the gates are what tells a grazer from the class.
+/// off it leaves the tube's crest by only `δ²/2r`. How far off the torus
+/// a gate's failure puts a circle depends on the gate and the torus (the
+/// gate site's comment): about the gate's own margin for each gate on a
+/// ring torus, so the incidence test reads such a circle first, but much
+/// less for the plane gate near a horn torus, where a circle past that
+/// gate reaches the gates and refuses as grazing. The gates are what
+/// tells a grazer from the class.
 ///
 /// **The image** (variant docs): the vertex is the point
 /// `centre + R·d̂` farthest from the axis (`d̂` the unit radial of the
@@ -7862,7 +8533,8 @@ fn winding_escalated(cause: Indeterminate) -> PcurveCertifyError {
 /// `R·(n × d̂)`, along the axis (`pcurve_torus_villarceau_tube_rate`,
 /// `±r`) and along the azimuth (`pcurve_chart_orientation`,
 /// `±√(R² − r²)`), each levered at `R`; each magnitude is first decided
-/// positive, which only a tube or an `R − r` at the band's scale fails.
+/// positive, which fails only where the tube `r`, or `√(R² − r²)`, is at
+/// the band's scale (the comment at `unit_sign`).
 ///
 /// # Errors
 ///
@@ -7914,20 +8586,60 @@ fn torus_oblique_circle<T: Decide>(
         ),
         ("pcurve_torus_villarceau_radius", Margin::of(radius - big)),
     ];
-    for (name, margin) in gates {
-        match decide(name, margin, band).map_err(incidence_escalated)? {
-            Sign::Zero => {}
-            Sign::Positive | Sign::Negative => {
-                return Err(grazes(surface, carrier, Grazer::TorusCircle));
-            }
+    // Read as an identity ladder (`crate::ladder`), the spiric chart's
+    // rule: a gate decided apart answers past an earlier in-band one.
+    // What reaches these gates through `chart_pcurve`, as measured:
+    // - On `R = 2`, `r = 0.7`, a circle's first-order departure from the
+    //   torus at the 64 incidence samples has a one-dimensional null space
+    //   (a turn about the axis, which moves no gate), and the least
+    //   departure that puts any one gate at `m` is `0.995·m` to `1.04·m`
+    //   at its farthest sample: a gate in band or past it is read about as
+    //   far off the torus by the incidence test, which decides first.
+    // - Near a horn torus the plane gate is cheaper. On `R = 2`,
+    //   `R − r = 1e-6`, band `(1e-9, 1e-8)`, the Villarceau circle moved
+    //   along its own normal by `3e-9` to `1e-8` escalates here on
+    //   `_plane` (`pcurve_villarceau::a_plane_gate_in_band_near_the_horn_…`),
+    //   and by `3e-8` is read on the torus and refused as grazing it.
+    // - The masking order needs a gate read before `_plane` (`_offset`,
+    //   `_equator`) in band with `_plane` past it. On that near-horn pose,
+    //   with `_plane` at `3e-8` or `5e-8`, `2e-9` or `5e-9` of offset or
+    //   of equator departs about its own margin (`2.6e-9` for `2e-9` of
+    //   offset, `2.03e-9` for `2e-9` of equator),
+    //   and the incidence test escalates on it before the gates read
+    //   anything.
+    // `ladder`'s rows hold the rule itself.
+    match read_identity(gates, |name, margin| {
+        geom_core::k_stats::decide_reported(name, margin, band)
+    }) {
+        IdentityLadder::Zero(_) => {}
+        IdentityLadder::Apart { .. } => {
+            return Err(grazes(surface, carrier, Grazer::TorusCircle));
         }
+        IdentityLadder::Undecided(kept) => return Err(incidence_escalated(kept.refusing_cause())),
     }
     let d = w_r / w_r.norm();
     let tangent = n.cross(d);
-    // The tangent's two parts are `±r` and `±√(R² − r²)` on a Villarceau
-    // circle, so neither is in the band unless the tube, or `R − r`, is
-    // at the band's own scale: there the class is undecided at this
-    // tolerance, and the magnitude's gate escalates.
+    // The tangent's two parts, levered at `R`, are `R·sin θ` (`r` on a
+    // Villarceau circle) and `R·cos θ` (`√(R² − r²)`), `θ` the plane's
+    // tilt. The router reaches here by two routes:
+    // - Both class gates apart. `pcurve_torus_chart_axial` read the
+    //   tube-rate part's own number, `R·sin θ`, apart.
+    //   `pcurve_torus_chart_meridian` read `(a × b)·e / r = (R/r)·R·cos θ`
+    //   apart. `R·cos θ` at the band's scale forces `R − r ≤ (K·ε)²/2R`,
+    //   where `R/r` is one to below rounding, so the readings agree.
+    // - The parallel arm: `_axial` Zero (`R·sin θ ≤ ε`) and
+    //   `pcurve_torus_chart_centered` apart (`‖w_r‖ ≥ K·ε`). Passing the
+    //   gates above then needs `‖w_r‖ ≤ r + ε` (`_offset`) and
+    //   `r ≤ R·sin θ + ε` (`_tilt`), so `‖w_r‖ ≤ 3·ε`: this route reaches
+    //   here only at `K ≤ 3`, up to rounding, and there the tube-rate part
+    //   decides Zero (measured at `R = 2`, `r = 1.8e-9`, band
+    //   `(1e-9, 2e-9)`).
+    // At the run's `K` above 3, a Zero or in-band reading here is two
+    // readings of one number disagreeing, a kernel defect, which is the
+    // ending `ChartIncidence` gives it. The `K ≤ 3` route's defect ending
+    // is the class
+    // `work/pcert/band-scale-torus-geometry-ends-as-a-kernel-defect.md`
+    // covers.
     let unit_sign = |name, along: Vec3<T>| {
         let part = tangent.dot(along);
         geom_core::k_stats::decide_positive(name, Margin::levered(part.abs(), big), band)
@@ -8301,6 +9013,11 @@ mod envelope_lemma_fuzz;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod harmonic_sup_rows;
+#[cfg(test)]
+mod mutants;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod radial_pair_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -8499,8 +9216,8 @@ mod tests {
             center: Point3::new(0.0, 0.0, h),
             // The ellipse's own axis is the section plane's normal.
             axis: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
-            major: r / tilt.cos(),
-            minor: r,
+            semi_u: r / tilt.cos(),
+            semi_v: r,
             u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
         }
     }
@@ -8645,8 +9362,8 @@ mod tests {
         let carrier = Curve3::Ellipse {
             center: Point3::new(0.1, -0.2, 0.5),
             axis: Vec3::unit_z(),
-            major: 0.7,
-            minor: 0.3,
+            semi_u: 0.7,
+            semi_v: 0.3,
             u_ref: Vec3::unit_x(),
         };
         let p = chart_pcurve(&carrier, &plane, band()).unwrap();
@@ -8888,6 +9605,90 @@ mod tests {
             .unwrap_or_else(|| panic!("no term over the band alone: {:?}", terms.0))
     }
 
+    /// **A refused envelope is a bound, read at rest as one.** A rim
+    /// whose stored image drifts axially by `l·(t − t_mid)` over a short
+    /// window far from `t = 0` misses by at most `|l|·w/2`, under the
+    /// band, yet its fidelity term levers the drift by the window's
+    /// reach from the origin, and refuses definitely. At rest that
+    /// refusal ends in the kernel-limit recourse and claims only that
+    /// the certificate cannot show the image; a rim off the axis by
+    /// `100·ε`, whose sample residual is the miss itself, ends in the
+    /// defect ending.
+    #[test]
+    fn a_refused_envelope_reads_as_a_bound_at_rest() {
+        use crate::recourse::{Reading, defect_ending};
+        let r = 0.5;
+        let cyl = cylinder(r);
+        let rim = |center: Point3<f64>| Curve3::Circle {
+            center,
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        };
+        let carrier = rim(Point3::origin());
+        let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap()
+        else {
+            panic!("the closed-form lane stores harmonic images")
+        };
+        // The drift's true miss is half the zero band; the term levers
+        // it by about `2·t0/w` past that.
+        let (t0, w) = (100.0, 0.1);
+        let l = band().zero() / w;
+        let mid = t0 + w / 2.0;
+        let drifting = Pcurve::Harmonic {
+            p0: Point2::new(p0.x, p0.y - l * mid),
+            pa,
+            pb,
+            pl: Vec2::new(pl.x, pl.y + l),
+        };
+        assert!(
+            l * w / 2.0 < band().zero(),
+            "the drift's true miss is inside the zero band"
+        );
+        let loose = PcurveCache::certify(drifting, t0, t0 + w, &carrier, &cyl, band())
+            .map(|_| ())
+            .expect_err("the drift's fidelity term refuses");
+        assert!(
+            matches!(
+                loose,
+                PcurveCertifyError::ResidualExceeded {
+                    check: PcurveCheck::EnvelopeTerm(EnvelopeTerm::FidelityV),
+                    ..
+                }
+            ),
+            "a definite refusal on the axial fidelity: {loose:?}"
+        );
+        assert_eq!(
+            loose.ending(Reading::AtRest).as_deref(),
+            Some(geom_core::KERNEL_LIMIT_RECOURSE),
+            "a loose envelope contradicts nothing stored"
+        );
+        assert!(
+            loose.to_string().contains("the certificate cannot show"),
+            "{loose}"
+        );
+        let off = rim(Point3::new(100.0 * Tol::witness().eps(), 0.0, 0.0));
+        let image = chart_pcurve(&off, &cyl, band()).unwrap();
+        let miss = PcurveCache::certify(image, 0.0, PI, &off, &cyl, band())
+            .map(|_| ())
+            .expect_err("a rim off the axis by 100·ε refuses");
+        assert!(
+            matches!(
+                miss,
+                PcurveCertifyError::ResidualExceeded {
+                    check: PcurveCheck::MapResidual,
+                    ..
+                }
+            ),
+            "its samples read the miss: {miss:?}"
+        );
+        assert_eq!(
+            miss.ending(Reading::AtRest).as_deref(),
+            Some(defect_ending(Reading::AtRest)),
+            "a sample's residual is the miss"
+        );
+    }
+
     /// **A refused envelope names the incidence that failed.** Each row
     /// moves the carrier off the cylinder, or the stored image off the
     /// one derived from it, in exactly one respect, and the term the
@@ -8904,12 +9705,13 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let own = |carrier: &Curve3<f64>| chart_pcurve(carrier, &cyl, band()).unwrap();
-        // `b` short of `a`'s quarter turn by `d`, `a` on the chart.
+        // `b` short of `a`'s quarter turn by `d`, `a` on the chart: the
+        // turning pair off the class circle, the radius's own term.
         let squashed = Curve3::Ellipse {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
-            major: r,
-            minor: r - d,
+            semi_u: r,
+            semi_v: r - d,
             u_ref: Vec3::unit_x(),
         };
         let rows = [
@@ -8921,7 +9723,7 @@ mod tests {
                 rim(Point3::origin(), Vec3::unit_z(), r + d),
                 EnvelopeTerm::Radius,
             ),
-            (squashed, EnvelopeTerm::Orientation),
+            (squashed, EnvelopeTerm::Radius),
             // A radial slope over the band reads as a moving carrier;
             // one inside the escalation band takes the meridian (the
             // D9 tie-break) and lands in the line's own term.
@@ -9153,8 +9955,8 @@ mod tests {
         let ellipse = Curve3::Ellipse {
             center: Point3::new(0.2, 0.0, 2.0),
             axis: Vec3::new(0.3_f64.sin(), 0.0, 0.3_f64.cos()),
-            major: 1.2,
-            minor: 1.0,
+            semi_u: 1.2,
+            semi_v: 1.0,
             u_ref: Vec3::new(0.3_f64.cos(), 0.0, -0.3_f64.sin()),
         };
         let err = chart_pcurve(&ellipse, &cone, band()).unwrap_err();
@@ -9265,8 +10067,8 @@ mod tests {
                 Curve3::Ellipse {
                     center: Point3::origin(),
                     axis: Vec3::unit_z(),
-                    major: 2.5,
-                    minor: 2.0,
+                    semi_u: 2.5,
+                    semi_v: 2.0,
                     u_ref: Vec3::unit_x(),
                 },
                 &torus,
@@ -9529,7 +10331,7 @@ mod tests {
         };
         for margin in [cause.margin, geom_core::MarginDiag::INVALID] {
             let ssi = crate::ssi::SsiError::CertificateEscalated {
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSupChart,
                 cause: Indeterminate { margin, ..cause },
             };
             let want = ssi.ending(Reading::AtRest);
@@ -9538,7 +10340,7 @@ mod tests {
                 matches!(
                     pcurve,
                     PcurveCertifyError::FittedEscalated {
-                        decision: SsiDecision::Limb(SsiLimb::HullSup),
+                        decision: SsiDecision::Limb(SsiLimb::HullSupChart),
                         ..
                     }
                 ),
@@ -9784,7 +10586,7 @@ mod tests {
             let frozen = NurbsCurve3::new(
                 arc.knots.clone(),
                 control,
-                held.weight_channel()
+                held.weights_f64_interim()
                     .iter()
                     .map(|w| S::from_f64(*w))
                     .collect(),
@@ -9982,7 +10784,7 @@ mod fitted_lane_tests {
         assert!(
             matches!(
                 fitted_lane(&line(1e-3), &image, &wall, (0.0, 1.0), band),
-                Err(PcurveCertifyError::FittedCertificate { .. })
+                Err(PcurveCertifyError::FittedLimb { .. })
             ),
             "a millimetre off the chart refuses at the hull"
         );

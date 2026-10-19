@@ -169,7 +169,7 @@ pub(crate) fn stopped_falling(
 /// # Errors
 ///
 /// [`fit_minimum`]'s refusals, the sized one bounded by `bounded_by`;
-/// [`SsiError::PolylineNotOneArc`] where a refined midpoint shows its
+/// `SsiError::PolylineNotOneArc` where a refined midpoint shows its
 /// gap does not hold one arc; a refusal the certificate does not locate
 /// (limb 3, a foot point, a limb whose margin is no number, the fit), as
 /// it is; and a located one that refinement cannot answer as
@@ -445,12 +445,12 @@ mod tests {
     fn refusal(lo: f64, hi: f64, value: f64) -> Located {
         Located {
             error: SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSupChart,
                 margin: MarginDiag::value(value),
             },
             at: Some(Box::new(Spans {
                 refusal: LimbRefusal {
-                    limb: SsiLimb::HullSup,
+                    limb: SsiLimb::HullSupChart,
                     margin: MarginDiag::value(value),
                     residual: RefusedResidual::Over(value),
                 },
@@ -580,7 +580,7 @@ mod tests {
                     matches!(
                         *refusal,
                         SsiError::CertificateLimb {
-                            limb: SsiLimb::HullSup,
+                            limb: SsiLimb::HullSupChart,
                             ..
                         }
                     ),
@@ -596,7 +596,7 @@ mod tests {
                         *round,
                         RefusedRound {
                             samples: *n,
-                            limb: SsiLimb::HullSup,
+                            limb: SsiLimb::HullSupChart,
                             margin: RoundMargin::Over(*margin),
                         },
                         "each round as it was refused"

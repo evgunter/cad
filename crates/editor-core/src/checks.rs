@@ -466,22 +466,13 @@ pub enum CheckEvidence {
     /// all — the box builder's typed refusal. The check has no verdict
     /// for ANY pair, which is a finding, never a silent pass (F6).
     SeparationUnavailable {
-        /// Which arm of the kernel's refusal fired — the typed half,
-        /// and the one a consumer branches on.
-        ///
-        /// `topo::BooleanError` itself is neither `Clone` nor
-        /// `PartialEq` and a report is both, so the error cannot ride
-        /// here; its class projection can, and does.
-        kind: topo::BooleanErrorKind,
-        /// The kernel's own refusal, rendered, for a reader — it
-        /// carries the arena keys and margins `kind` drops.
-        ///
-        /// The payload's own `Display` is the vocabulary this module
-        /// forwards (the one-story rule at `crate::finding`), so what
-        /// a caller READS is the kernel's own sentence; `kind` beside
-        /// it is what a caller MATCHES on, so neither half is a
-        /// substring hunt through the other.
-        reason: String,
+        /// The kernel's own refusal, shared whole: its class, which a
+        /// consumer matches on, is `refusal.get().kind()`, and its
+        /// sentence, which a reader reads, is its `Display`. It rides
+        /// in a [`crate::Refusal`] where `Escalated` and `Unsupported`
+        /// hold their shell refusal bare, because `topo::BooleanError`
+        /// is neither `Clone` nor `PartialEq` and a report is both.
+        refusal: crate::Refusal<topo::BooleanError>,
     },
     /// One chart-coherence measurement, carried whole
     /// ([`topo::CoherenceFinding`]: the condition, the gap in chart
@@ -535,21 +526,6 @@ pub enum CheckEvidence {
         /// What would make it structural.
         recourse: crate::coincide::Recourse,
     },
-}
-
-impl CheckEvidence {
-    /// [`CheckEvidence::SeparationUnavailable`] built from ONE refusal:
-    /// `kind` is the class a consumer matches, `reason` the kernel's
-    /// own sentence a reader reads. Both come off the same error, which
-    /// is the invariant the door holds and a hand-built literal does
-    /// not — so the door goes through here rather than writing the two
-    /// fields at the raise site.
-    fn separation_unavailable(source: &topo::BooleanError) -> Self {
-        Self::SeparationUnavailable {
-            kind: source.kind(),
-            reason: source.to_string(),
-        }
-    }
 }
 
 /// One finding of one check on one subject ([`FindingSubject`]).
@@ -673,8 +649,8 @@ impl crate::finding::Finding for SaidFinding<'_> {
                  share is gathered twice",
                 by.node_as(*other_root, "placement")
             ),
-            CheckEvidence::SeparationUnavailable { reason, .. } => {
-                write!(f, "separation could not be checked: {reason}")
+            CheckEvidence::SeparationUnavailable { refusal } => {
+                write!(f, "separation could not be checked: {refusal}")
             }
             CheckEvidence::ChartCoherence { finding } => {
                 let what = match finding.condition {
@@ -723,9 +699,10 @@ impl crate::finding::Finding for SaidFinding<'_> {
             CheckEvidence::UnprovenCoincidence { row, residual, .. } => {
                 let cell = |c: &crate::coincide::NamedCell| match c {
                     crate::coincide::NamedCell::Entity { name, .. } => by.name(name).to_string(),
-                    crate::coincide::NamedCell::Tool { input } => {
-                        format!("the plane of {}", by.read(*input))
-                    }
+                    crate::coincide::NamedCell::Tool { input, role } => match role {
+                        Some(role) => format!("the {role} of {}", by.read(*input)),
+                        None => format!("the plane of {}", by.read(*input)),
+                    },
                     crate::coincide::NamedCell::Piece { profile, piece } => {
                         crate::names::words::piece(piece, *profile, by)
                     }
@@ -1346,6 +1323,7 @@ pub fn run_checks_at_rest_on<
             door = Some(DoorJob {
                 document: doc.id(),
                 rows,
+                resolver: ev.resolver().cloned(),
                 tol,
                 at: report.findings.len(),
             });
@@ -1373,6 +1351,9 @@ pub fn run_checks_at_rest_on<
 pub struct DoorJob {
     document: crate::DocumentId,
     rows: Vec<DoorRows>,
+    /// The resolver the report's evaluation crossed the seam with, so
+    /// the replay builds the same parts.
+    resolver: Option<std::sync::Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
     /// Where its findings go among the report's.
     at: usize,
@@ -1401,7 +1382,7 @@ impl DoorJob {
         Ok(DoorFindings {
             document: self.document,
             at: self.at,
-            findings: door_findings(doc, &self.rows, self.tol, cancel)?,
+            findings: door_findings(doc, &self.rows, self.resolver.as_ref(), self.tol, cancel)?,
         })
     }
 }
@@ -1427,7 +1408,7 @@ type DoorRows = (
 /// **The rows the `unproven-coincidence` resident asks the door
 /// about** (D10): every evaluated node's rows, in evaluation order then
 /// decision order, then the at-rest census's rows on the gathered
-/// product and on each unplaced group's own space, in their order; each
+/// product and on each loose copy's own space, in their order; each
 /// under the subject it is reported against — the node that decided it,
 /// the mate whose pair the census decided, or the two copies it found
 /// in contact.
@@ -1451,9 +1432,10 @@ fn door_rows<P, T: Decide>(
         Subject::EmptyProduct | Subject::Unavailable { .. } => Vec::new(),
     };
     // A row of two copies is proved at the first copy's placement, which
-    // is no decision the replay retakes: the door replays no census row.
+    // is no decision the replay retakes: the door reads a census row off
+    // the replay's copies.
     let at_rest_node = |by: &crate::assembly::AtRestBy| match *by {
-        crate::assembly::AtRestBy::Mate(mate) => mate,
+        crate::assembly::AtRestBy::Mate(mate) => mate.placement,
         crate::assembly::AtRestBy::Copies(a, _) => doc
             .operation_of(a.var)
             .unwrap_or_else(|| unreachable!("a gathered copy is a live placement's output")),
@@ -1468,7 +1450,7 @@ fn door_rows<P, T: Decide>(
         .map(|(node, rows)| (FindingSubject::Node(node), node, rows))
         .chain(at_rest.into_iter().map(|r| {
             let subject = match r.by {
-                crate::assembly::AtRestBy::Mate(mate) => FindingSubject::Node(mate),
+                crate::assembly::AtRestBy::Mate(mate) => FindingSubject::Node(mate.placement),
                 crate::assembly::AtRestBy::Copies(a, b) => FindingSubject::Copies { a, b },
             };
             (subject, at_rest_node(&r.by), vec![r.row.clone()])
@@ -1481,6 +1463,7 @@ fn door_rows<P, T: Decide>(
 fn door_findings<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     rows: &[DoorRows],
+    resolver: Option<&std::sync::Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
     cancel: &crate::CancelToken,
 ) -> Result<Vec<CheckFinding>, crate::coincide::Canceled> {
@@ -1488,7 +1471,7 @@ fn door_findings<P: crate::ProfilePayload>(
         .iter()
         .map(|(_, node, rows)| (*node, &rows[..]))
         .collect();
-    let proofs = crate::coincide::prove(doc, &nodes, tol, cancel)?;
+    let proofs = crate::coincide::prove(doc, &nodes, resolver, tol, cancel)?;
     let rows = rows
         .iter()
         .flat_map(|(subject, _, rows)| rows.iter().map(move |row| (*subject, row)));
@@ -1731,7 +1714,9 @@ fn separation<T: Decide + CertifiedBounds>(
                     root: first.node,
                     output_ix: first.output,
                 },
-                evidence: CheckEvidence::separation_unavailable(&source),
+                evidence: CheckEvidence::SeparationUnavailable {
+                    refusal: source.into(),
+                },
             });
             return;
         }
@@ -2021,6 +2006,7 @@ mod tests {
         for refusal in [
             crate::ProductError::EmptyProduct {
                 unplaced: Vec::new(),
+                loose: Vec::new(),
             },
             crate::ProductError::Root(crate::NodeStanding::Poisoned {
                 node: RecipeNodeId::new(0, 7),
@@ -2055,34 +2041,38 @@ mod tests {
         );
     }
 
-    /// INVARIANT: the separation door's evidence carries the class and
-    /// the prose OF ONE REFUSAL — `kind` is the arm the error actually
-    /// is, not a class written down beside it.
+    /// INVARIANT: the separation door's evidence reads the kernel's
+    /// refusal, which it holds whole, in the kernel's own sentence.
     ///
     /// The refusing branch itself cannot be reached from `run_checks`
     /// over a well-formed document: every refusal
     /// `topo::SolidSeparation::of` can raise needs either a corrupt
     /// body or an ε within a factor K of `f64::MAX`, and `Tol` is a
     /// zero-sized witness for the run's committed tolerance, so a test
-    /// cannot hand it one. This row therefore pins the door's
-    /// CONSTRUCTION, which is the part a caller can get wrong, and says
-    /// so rather than implying the branch was executed.
+    /// cannot hand it one. This row therefore pins the evidence's
+    /// reading, and says so rather than implying the branch was
+    /// executed.
     #[test]
-    fn the_separation_door_carries_the_class_of_the_error_it_saw() {
+    fn the_separation_door_reads_the_kernel_refusal_in_its_own_sentence() {
         let refusal = topo::BooleanError::ClassificationInvariant {
             what: "solid separation: the ambient tolerance band is unusable",
         };
-        let CheckEvidence::SeparationUnavailable { kind, reason } =
-            CheckEvidence::separation_unavailable(&refusal)
-        else {
-            panic!("the arm this row is about");
+        let finding = super::CheckFinding {
+            check: super::CheckId::Separation,
+            subject: super::FindingSubject::Output {
+                root: RecipeNodeId::new(0, 1),
+                output_ix: 0,
+            },
+            evidence: CheckEvidence::SeparationUnavailable {
+                refusal: refusal.into(),
+            },
         };
-        // The reader's half is the kernel's own sentence, whole.
-        assert_eq!(reason, refusal.to_string());
-        // The consumer's half is the arm the error IS — compared
-        // against the variant name `Debug` prints for the error, so a
-        // class hardcoded here would have to be the right one by
-        // accident to pass.
-        assert_eq!(format!("{kind:?}"), variant_of(&format!("{refusal:?}")));
+        assert_eq!(
+            finding.to_string(),
+            "check separation: placement 000000000000 output 0: separation could not be \
+             checked: classification invariant violated: solid separation: the ambient \
+             tolerance band is unusable",
+            "the story ends in the kernel's own sentence, whole"
+        );
     }
 }

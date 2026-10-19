@@ -2,10 +2,13 @@
 id: lane-profile-defaults-a-missing-replay-record-to-empty
 kind: issue
 title: lane_profile covers a missing pass-1 replay record with an empty one, so an internal break reads as a lane structure disagreement
-status: open
+status: closed
 opened: 2026-09-28
 priority: P3
 cost: E
+closed: 2026-10-17
+pr: 5262
+branch: wire/refusal-endings
 ---
 
 Found by the GATHER editorial pass over `eval/wire.rs`
@@ -42,3 +45,9 @@ actually holding the line".
 Refuse the miss where it happens, as the internal break it is (the
 `ProfileAnchor` / `ProfilePieces` precedent a few lines up in
 `prepare_profile`), and drop the comment.
+
+## Closed (2026-10-17)
+
+PR 5262 (merged `90a7974563`, branch `wire/refusal-endings`). See the PR body for the change; style review mergeable, fix pass taken.
+
+Signed (WIRE orchestrator).

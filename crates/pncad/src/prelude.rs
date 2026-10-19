@@ -97,9 +97,9 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // **`Indeterminate` IS here, and the count is the argument.** It is
 // the two-tolerance escalation payload (D4 ¶1 addendum): the thing a
 // refusal carries when the kernel could not certify a sign at the
-// tolerance it was given. TWELVE prelude-curated refusals carry it
+// tolerance it was given. ELEVEN prelude-curated refusals carry it
 // — `BlendError`, `BooleanError`, `ContactRefusal`, `ExtrudeError`,
-// `LoftError`, `MateFault`, `PathError`, `ProfileError`,
+// `LoftError`, `PathError`, `ProfileError`,
 // `RevolveError`, `SelectRefusal`, `TubeError`, `ValidationError` —
 // against one carrier for the payload CUR3 carried and one apiece
 // for CUR4's four. (`geom_core::UnitVec3Error`, the unit-vector
@@ -320,8 +320,8 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // met is that a caller holding a prelude-curated `BlendError` could
 // not branch on what its arms say.
 //
-// What each one decides, which is why matchability is worth the four
-// names:
+// What each one decides, which is why matchability is worth carrying
+// each:
 //
 // - `CornerConfig` is `UnsupportedCorner`'s whole content (the OQ6
 //   vocabulary, decided at #85). A valence-4 vertex says "request the
@@ -335,6 +335,10 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 //   the payload half of the two-tolerance shape (D4 ¶1 addendum).
 // - `BlendDecision` is `Escalated`'s too: the question that could not
 //   be taken, which alone decides the refusal's recourse.
+// - `Breach` is `BodyNotIntact`'s: a key that did not resolve, a walk
+//   that did not close, construction scaffolding, a degenerate stored
+//   carrier, or keys that disagree with the blend's reading — the
+//   cause the refusal states, and the one a bug report needs.
 // - `Convexity` is `ConvexitySignFlip`'s: which way the chain's
 //   material wedge turns. It is NOT one of the three the CUR3 bank
 //   named — the struct-payload sweep found it — and leaving it out
@@ -348,7 +352,7 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // here to split and none to pin. That the blend door is unprojected
 // is #1479's census row, not this list's business.
 pub use sweep::blend::battery::Convexity;
-pub use sweep::blend::{BlendDecision, BlendSite, CornerConfig, RunOutPolicy};
+pub use sweep::blend::{BlendDecision, BlendSite, Breach, CornerConfig, RunOutPolicy};
 // **`RevolvedKind` is `Revolved::kind`**, and it is the same claim one
 // value over: the payloads above are what a carried REFUSAL says, this
 // is what a carried RESULT says, and a curated list owes matchability

@@ -223,7 +223,10 @@ impl Chart<'_> {
             Self::Plane {
                 u_range, v_range, ..
             } => (*u_range, *v_range),
-            Self::Nurbs(n) => (n.knots_u().domain(), n.knots_v().domain()),
+            Self::Nurbs(n) => (
+                n.knots_u_f64_interim().domain(),
+                n.knots_v_f64_interim().domain(),
+            ),
         }
     }
 

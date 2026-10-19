@@ -2,8 +2,9 @@
 id: five-conventions-pick-a-conventional-smooth-edges-chart
 kind: issue
 title: five conventions decide which adjacent chart a conventional smooth edge rests in
-status: open
+status: closed
 opened: 2026-10-12
+closed: 2026-10-13
 priority: P1
 cost: M
 ---
@@ -92,3 +93,22 @@ upstream), so the refusal is a fence, not a regression.
   `nurbs-iso-derive-line-cap-arm-guesses-wrong-channel` if it is still
   open).
 - Tests asserting a door's chart re-baseline to the pair.
+
+## Closed
+
+Built on `tang/onpair-description`: `EdgeDescription::OnPair`, the
+must-carry rule's conventional answer naming no chart
+(`MustCarryDescription::Conventional`), `Body::describe_at_rest`
+reading where an edge rests off its faces, and mixed edges refused
+typed (`MustCarryVerdict::Mixed`, tier 3's `MixedDihedral`, the
+boolean's `MixedSeam`, the offset doors' `MixedEdge`). The wedge
+shoulder's seam stores one description through the chord and through
+`split_edge`
+(`wedge_end_doors::the_shoulder_seam_stores_one_description_through_the_chord_and_split_edge`).
+Every door that changes an `OnPair` edge's extent or pair asks the
+rule again (`geom_brep::reask_pair`). Closed the P0
+`nurbs-iso-derive-line-cap-arm-guesses-wrong-channel`, fixed by
+c6e5e0f89, with an accurate note. Filed the plane × spline exception
+(`onpair-has-no-incidence-lane-on-a-spline-adjacent-pair`), the spline
+carrier gap (`onpair-has-no-rung-3-lane-for-a-spline-carrier`) and, on
+CLEAVE, `a-plane-plane-pair-never-rejoins`.

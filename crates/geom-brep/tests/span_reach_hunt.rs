@@ -90,8 +90,8 @@ fn a_conic_arcs_span_reach_is_never_short_of_its_farthest_point() {
             Curve3::Ellipse {
                 center,
                 axis,
-                major: a,
-                minor: b,
+                semi_u: a,
+                semi_v: b,
                 u_ref,
             }
         };

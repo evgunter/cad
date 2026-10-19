@@ -81,6 +81,9 @@ fn the_dimpled_ring_measures_its_closed_form_at_a_quarter_turn() {
 /// (`θ·r_max ≫ 10·zero`) and coincident at the sphere's
 /// (`R·sin θ ≤ zero`): `revolve` builds the body and the dimple's wall
 /// arrives as a pair of meridians on one half-plane within the band.
+/// Each meridian, levered at its faces' extent, is the sphere wall's
+/// and end wall's `Intersection`; the coincidence is the props door's
+/// reading at the sphere's radius, not the edges'.
 /// `mass_properties` — the public props door — refuses it typed under
 /// `props_sphere_loop_cusp` (the loop turns back at the poles),
 /// where a lune measured at `Δu = π` would have been short by
@@ -102,10 +105,35 @@ fn a_hairline_revolve_of_a_dimpled_ring_refuses_typed_at_the_props_door() {
     );
     assert!(
         theta.sin() * R_SPHERE <= zero,
-        "the sphere lever must call the meridian pair coincident"
+        "the props door's sphere lever must read the meridians' pole junction as a cusp"
     );
     let vp = validated(vec![dimpled_ring(l)]);
     let t = revolve(&vp, axis_y(), Revolution::Partial(theta), Tol::witness()).unwrap();
+    // Each meridian is levered at its faces' extent (`topo::wedge_reach`),
+    // the end wall's `r_max` across, not at the sphere's: the sphere wall
+    // meets each end wall at a definite corner, so both store the faces'
+    // `Intersection`, where a meridian levered at its own length read a
+    // declared `OnPair`. The cusp is the props door's question alone.
+    let meridians: Vec<_> = t
+        .body
+        .edges()
+        .filter_map(|(_, e)| {
+            let c = t.body.get_curve_geom(e.curve)?.certified()?;
+            matches!(c.carrier(), geom::Curve3::Circle { radius, .. } if (radius - R_SPHERE).abs() < 1e-12)
+                .then(|| c.description().clone())
+        })
+        .collect();
+    assert_eq!(
+        meridians.len(),
+        2,
+        "the dimple's wall is bounded by two meridians"
+    );
+    assert!(
+        meridians
+            .iter()
+            .all(|d| matches!(d, geom_brep::EdgeDescription::Intersection { .. })),
+        "each meridian is its faces' corner: {meridians:?}"
+    );
     let tier3 = topo::validate_geometric(&t.body, Tol::witness());
     assert!(
         tier3.is_err(),

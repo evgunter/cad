@@ -21,8 +21,12 @@
 //! Adjacent spans share their joint control as the hull of the two
 //! ends, each of which encloses `C` at the break. Everything is
 //! interval arithmetic (C9); a coefficient that does not certify (a
-//! spiric whose square root's argument reaches zero over a span) makes
-//! the net `None`, and the caller refuses typed.
+//! spiric whose square root's argument reaches zero over a span)
+//! refuses the net, naming the kind and the span
+//! ([`CarrierEnclosureRefusal`]).
+//!
+//! [`carrier_net`] is the door every limb-2 composite reads a carrier
+//! through: a spline as its own net, any other kind as its net here.
 
 use geom::Curve3;
 use geom_core::interval::Interval;
@@ -41,9 +45,9 @@ type Series = [Interval; TERMS];
 
 /// The carrier enclosed: a clamped knot vector over `breaks` and three
 /// coordinate channels of interval controls on it.
-pub(crate) struct EnclosingNet {
-    pub(crate) knots: KnotVector,
-    pub(crate) coords: Vec<Vec<Interval>>,
+struct EnclosingNet {
+    knots: KnotVector,
+    coords: Vec<Vec<Interval>>,
 }
 
 /// The carrier `C(t) = P₀ + U·α(t) + V·β(t)` in the scalar's
@@ -78,7 +82,8 @@ fn lift_p<T: CertifiedBounds>(p: Point3<T>) -> Vec3<Interval> {
     lift_v(p - Point3::origin())
 }
 
-/// `None` for a spline carrier, whose net is its own.
+/// `None` for a line or a spline carrier, neither of which is a
+/// harmonic.
 fn harmonic<T: CertifiedBounds>(carrier: &Curve3<T>) -> Option<Harmonic> {
     let i = Interval::from_certified;
     match carrier {
@@ -99,15 +104,15 @@ fn harmonic<T: CertifiedBounds>(carrier: &Curve3<T>) -> Option<Harmonic> {
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => {
             let (axis, u_ref) = (lift_v(*axis), lift_v(*u_ref));
             Some(Harmonic {
                 p0: lift_p(*center),
-                u: u_ref * i(*major),
-                v: axis.cross(u_ref) * i(*minor),
+                u: u_ref * i(*semi_u),
+                v: axis.cross(u_ref) * i(*semi_v),
                 alpha: Alpha::Cos,
             })
         }
@@ -265,63 +270,205 @@ fn span_bernstein(h: &Harmonic, a: f64, b: f64) -> [Vec<Interval>; 3] {
     ]
 }
 
-/// The net of `carrier` over `breaks` (strictly increasing, both domain
-/// ends included): `None` for a spline carrier, for fewer than two
-/// breaks, or where a coefficient does not certify.
-pub(crate) fn enclosing_net<T: CertifiedBounds>(
+/// Why [`carrier_net`] has no certified net for a carrier: a span of
+/// the break list over which the carrier's coefficients do not certify
+/// (a spiric whose square root's argument reaches zero there, or a
+/// carrier whose data are not finite), named by the carrier's kind and
+/// the span. A break list with fewer than two points names the points
+/// it has.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CarrierEnclosureRefusal {
+    /// The carrier's kind.
+    pub kind: geom::CurveKind,
+    /// The span, `(start, end)` in the carrier's parameter.
+    pub span: (f64, f64),
+}
+
+impl core::fmt::Display for CarrierEnclosureRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "the {:?} carrier has no certified enclosure over [{}, {}]",
+            self.kind, self.span.0, self.span.1
+        )
+    }
+}
+
+/// A carrier as limb 2's composite reads it: knots, weights and
+/// certified controls, with the breaks the composite still inserts.
+pub(crate) struct CarrierNet {
+    knots: KnotVector,
+    weights: Vec<f64>,
+    coords: Vec<Vec<Interval>>,
+    cuts: Vec<f64>,
+}
+
+impl CarrierNet {
+    /// The net as the composite's curve operand.
+    pub(crate) fn operand(&self) -> (&KnotVector, &[f64], &[Vec<Interval>]) {
+        (&self.knots, &self.weights, &self.coords)
+    }
+
+    /// The breaks the composite inserts into the net by exact knot
+    /// insertion: a spline's round breaks; none for a closed form,
+    /// whose knots are its breaks already.
+    pub(crate) fn cuts(&self) -> &[f64] {
+        &self.cuts
+    }
+}
+
+/// **The carrier's certified net over `domain`, cut at `breaks`** —
+/// the one place a carrier's enclosure for limb 2 is produced, for the
+/// fitted row and for the edge certificate alike.
+///
+/// - A spline is its own net, `domain` unread; `breaks` ride along as
+///   [`CarrierNet::cuts`], which the composite inserts exactly, so the
+///   net it reads is the spline refined at them.
+/// - A line is its exact degree-1 net, and a circle, ellipse or spiric
+///   its Taylor-enclosing net (module docs), both over the breaks
+///   inside `domain` with `domain`'s ends added.
+///
+/// # Errors
+///
+/// [`CarrierEnclosureRefusal`] naming the first span over which a
+/// coefficient does not certify.
+pub(crate) fn carrier_net<T: CertifiedBounds>(
+    carrier: &Curve3<T>,
+    (lo, hi): (f64, f64),
+    breaks: &[f64],
+) -> Result<CarrierNet, CarrierEnclosureRefusal> {
+    if let Curve3::Nurbs(net) = carrier {
+        return Ok(CarrierNet {
+            knots: net.knots_f64_interim().clone(),
+            weights: net.weights_f64_interim().to_vec(),
+            coords: net.certified_coords(),
+            cuts: breaks.to_vec(),
+        });
+    }
+    let mut all: Vec<f64> = breaks
+        .iter()
+        .copied()
+        .filter(|&t| lo < t && t < hi)
+        .collect();
+    all.extend([lo, hi]);
+    all.sort_by(f64::total_cmp);
+    all.dedup();
+    let net = enclosing_net(carrier, &all)?;
+    Ok(CarrierNet {
+        weights: vec![1.0; net.knots.control_count()],
+        knots: net.knots,
+        coords: net.coords,
+        cuts: Vec::new(),
+    })
+}
+
+/// **The interval a carrier's certificate spans**: the `f64` domain
+/// the schedules and the composite cut, and its ends as the carrier
+/// holds them. A spline spans its own knot domain, which its pcurves
+/// are fitted on; any other carrier the outer ends of `params` (its
+/// bracket's, so the span covers the edge's interval at every scalar),
+/// held there. The edge certificate and the mint's image read this one
+/// rule, so the image one certifies is the image the other stores.
+pub(crate) fn carrier_span<T: Bounds>(carrier: &Curve3<T>, params: (T, T)) -> ((f64, f64), (T, T)) {
+    if let Curve3::Nurbs(net) = carrier {
+        return (net.domain(), net.knot_values().domain());
+    }
+    let (lo, hi) = outer_ends(params);
+    ((lo, hi), (T::from_computed(lo), T::from_computed(hi)))
+}
+
+/// **An edge interval's outer ends**: the lowest point of either end's
+/// bracket and the highest, so `[lo, hi]` covers the interval at every
+/// scalar, in either order of its ends. The one spelling of that rule:
+/// [`carrier_span`]'s closed-form span, the fitted row's coverage gate
+/// and the analytic rung-3 tube's piece all read it here.
+pub(crate) fn outer_ends<T: Bounds>((t0, t1): (T, T)) -> (f64, f64) {
+    (t0.lo().min(t1.lo()), t0.hi().max(t1.hi()))
+}
+
+/// Whether every control of a span is a certified finite enclosure.
+fn span_certifies(row: &[Interval]) -> bool {
+    row.iter()
+        .all(|c| c.is_certified() && Bounds::lo(*c).is_finite() && Bounds::hi(*c).is_finite())
+}
+
+/// The net of a closed-form `carrier` over `breaks` (strictly
+/// increasing, both domain ends included).
+///
+/// # Errors
+///
+/// The first span whose controls do not certify; `breaks` itself where
+/// it holds fewer than two points or forms no knot vector.
+fn enclosing_net<T: CertifiedBounds>(
     carrier: &Curve3<T>,
     breaks: &[f64],
-) -> Option<EnclosingNet> {
-    let (&first, &last) = (breaks.first()?, breaks.last()?);
+) -> Result<EnclosingNet, CarrierEnclosureRefusal> {
+    let refuse = |span| CarrierEnclosureRefusal {
+        kind: carrier.kind(),
+        span,
+    };
+    let whole = (
+        breaks.first().copied().unwrap_or(f64::NAN),
+        breaks.last().copied().unwrap_or(f64::NAN),
+    );
+    let (first, last) = whole;
     if breaks.len() < 2 {
-        return None;
+        return Err(refuse(whole));
     }
-    let net = if let Curve3::Line { origin, dir } = carrier {
+    if let Curve3::Line { origin, dir } = carrier {
         let (o, d) = (lift_p(*origin), lift_v(*dir));
         let mut knots = vec![first];
         knots.extend_from_slice(breaks);
         knots.push(last);
         let at = |t: f64| o + d * Interval::from_f64(t);
-        EnclosingNet {
-            knots: KnotVector::clamped(knots, 1).ok()?,
-            coords: vec![
-                breaks.iter().map(|&t| at(t).x).collect(),
-                breaks.iter().map(|&t| at(t).y).collect(),
-                breaks.iter().map(|&t| at(t).z).collect(),
-            ],
-        }
-    } else {
-        let h = harmonic(carrier)?;
-        let mut knots = vec![first; ORDER + 1];
-        for &k in &breaks[1..breaks.len() - 1] {
-            knots.extend(core::iter::repeat_n(k, ORDER));
-        }
-        knots.extend(core::iter::repeat_n(last, ORDER + 1));
-        let mut coords: Vec<Vec<Interval>> = vec![Vec::new(), Vec::new(), Vec::new()];
-        for pair in breaks.windows(2) {
-            let span = span_bernstein(&h, pair[0], pair[1]);
-            for (channel, mut row) in coords.iter_mut().zip(span) {
-                if let Some(joint) = channel.pop() {
-                    row[0] = joint.enclosure_hull(row[0]);
-                }
-                channel.extend(row);
+        let points: Vec<Vec3<Interval>> = breaks.iter().map(|&t| at(t)).collect();
+        for (pair, ends) in breaks.windows(2).zip(points.windows(2)) {
+            if !span_certifies(&[
+                ends[0].x, ends[0].y, ends[0].z, ends[1].x, ends[1].y, ends[1].z,
+            ]) {
+                return Err(refuse((pair[0], pair[1])));
             }
         }
-        EnclosingNet {
-            knots: KnotVector::clamped(knots, ORDER).ok()?,
-            coords,
-        }
+        return Ok(EnclosingNet {
+            knots: KnotVector::clamped(knots, 1).map_err(|_| refuse(whole))?,
+            coords: vec![
+                points.iter().map(|p| p.x).collect(),
+                points.iter().map(|p| p.y).collect(),
+                points.iter().map(|p| p.z).collect(),
+            ],
+        });
+    }
+    let Some(h) = harmonic(carrier) else {
+        return Err(refuse(whole));
     };
-    net.coords
-        .iter()
-        .flatten()
-        .all(|c| c.is_certified() && Bounds::lo(*c).is_finite() && Bounds::hi(*c).is_finite())
-        .then_some(net)
+    let mut knots = vec![first; ORDER + 1];
+    for &k in &breaks[1..breaks.len() - 1] {
+        knots.extend(core::iter::repeat_n(k, ORDER));
+    }
+    knots.extend(core::iter::repeat_n(last, ORDER + 1));
+    let mut coords: Vec<Vec<Interval>> = vec![Vec::new(), Vec::new(), Vec::new()];
+    for pair in breaks.windows(2) {
+        let span = span_bernstein(&h, pair[0], pair[1]);
+        if !span.iter().all(|row| span_certifies(row)) {
+            return Err(refuse((pair[0], pair[1])));
+        }
+        for (channel, mut row) in coords.iter_mut().zip(span) {
+            if let Some(joint) = channel.pop() {
+                row[0] = joint.enclosure_hull(row[0]);
+            }
+            channel.extend(row);
+        }
+    }
+    Ok(EnclosingNet {
+        knots: KnotVector::clamped(knots, ORDER).map_err(|_| refuse(whole))?,
+        coords,
+    })
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
-    use super::enclosing_net;
+    use super::{CarrierEnclosureRefusal, carrier_net, enclosing_net};
     use geom::Curve3;
     use geom_core::interval::Interval;
     use geom_core::{Bounds, Point3, Real, Vec3};
@@ -331,7 +478,7 @@ mod tests {
     /// by its interval evaluation, which must contain `C(t)` at `f64`,
     /// and no wider than `width` where one is asked.
     fn encloses(carrier: &Curve3<f64>, breaks: &[f64], width: Option<f64>) -> Result<(), String> {
-        let net = enclosing_net(carrier, breaks).ok_or("no net")?;
+        let net = enclosing_net(carrier, breaks).map_err(|e| e.to_string())?;
         let p = net.knots.degree();
         for (k, pair) in breaks.windows(2).enumerate() {
             for j in 0..=40 {
@@ -408,8 +555,8 @@ mod tests {
                 Curve3::Ellipse {
                     center,
                     axis,
-                    major: 1.2,
-                    minor: 0.4,
+                    semi_u: 1.2,
+                    semi_v: 0.4,
                     u_ref,
                 },
             ),
@@ -471,10 +618,12 @@ mod tests {
     }
 
     /// A spiric whose square root's argument reaches zero (offset equal
-    /// to the inner radius) has no certified net over a span that holds
-    /// the zero: the caller refuses on `None`.
+    /// to the inner radius, so `(R − r)² − d² = 0` at `t = π`) has no
+    /// certified net over the span that holds the zero, and the door
+    /// names that span and the kind; the same carrier certifies over a
+    /// domain clear of it.
     #[test]
-    fn a_square_root_reaching_zero_has_no_net() {
+    fn the_door_names_the_kind_and_span_it_cannot_enclose() {
         let carrier = Curve3::Spiric {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
@@ -483,14 +632,86 @@ mod tests {
             minor_radius: 0.5,
             offset: 1.5,
         };
+        assert_eq!(
+            carrier_net(&carrier, (2.9, 3.3), &[3.0, 3.1, 3.2]).err(),
+            Some(CarrierEnclosureRefusal {
+                kind: geom::CurveKind::Spiric,
+                span: (3.1, 3.2),
+            }),
+            "the span holding t = π is named, not the domain"
+        );
         assert!(
-            enclosing_net(&carrier, &grid(3.0, 3.3, 2)).is_none(),
-            "a span holding t = π has (R − r)² − d² = 0 under its root"
+            carrier_net(&carrier, (2.0, 3.0), &[2.5]).is_ok(),
+            "the spiric certifies clear of its root's zero"
         );
     }
 
+    /// The door's per-kind nets: a spline is its own net, the breaks
+    /// left for the composite to insert; a line its exact degree-1 net
+    /// over the breaks inside the domain and the domain's ends; a circle
+    /// its degree-`ORDER` enclosure on the same breaks.
     #[test]
-    fn a_spline_carrier_takes_no_net() {
-        assert!(enclosing_net(&Curve3::<f64>::nurbs_placeholder(), &[0.0, 1.0]).is_none());
+    fn the_door_reads_each_kind_as_its_own_net() {
+        let spline = geom::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.0, 2.0, 0.0),
+                Point3::new(3.0, 0.0, 1.0),
+            ],
+            vec![1.0, 0.5, 1.0],
+        )
+        .unwrap();
+        let net = carrier_net(
+            &Curve3::Nurbs(std::sync::Arc::new(spline.clone())),
+            (5.0, 6.0),
+            &[0.25, 0.5],
+        )
+        .unwrap();
+        let (knots, weights, coords) = net.operand();
+        assert_eq!(
+            knots,
+            spline.knots_f64_interim(),
+            "a spline's knots are its own"
+        );
+        assert_eq!(weights, spline.weights_f64_interim(), "and its weights");
+        let bits = |c: &[Vec<Interval>]| -> Vec<(f64, f64)> {
+            c.iter().flatten().map(|i| (i.lo(), i.hi())).collect()
+        };
+        assert_eq!(
+            bits(coords),
+            bits(&spline.certified_coords()),
+            "and its controls"
+        );
+        assert_eq!(net.cuts(), &[0.25, 0.5], "its breaks ride as cuts");
+
+        let line = Curve3::Line {
+            origin: Point3::new(0.0, 1.0, 0.0),
+            dir: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let net = carrier_net(&line, (0.0, 2.0), &[1.0, 3.0, 1.0]).unwrap();
+        let (knots, _, coords) = net.operand();
+        assert_eq!(knots.degree(), 1, "a line is degree 1");
+        assert_eq!(
+            knots.knots(),
+            &[0.0, 0.0, 1.0, 2.0, 2.0],
+            "on the breaks inside the domain and its ends, once each"
+        );
+        assert_eq!(
+            bits(&coords[..1]),
+            vec![(0.0, 0.0), (1.0, 1.0), (2.0, 2.0)],
+            "its controls are its points at the breaks"
+        );
+        assert!(net.cuts().is_empty(), "a closed form owes no cuts");
+
+        let circle = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let net = carrier_net(&circle, (0.0, 1.0), &[0.5]).unwrap();
+        assert_eq!(net.operand().0.degree(), super::ORDER, "a circle at ORDER");
+        assert_eq!(net.operand().0.control_count(), 2 * super::ORDER + 1);
     }
 }

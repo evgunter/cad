@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use editor_core::ProfileDoc;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
-use editor_core::{CancelToken, EvalOptions, NodeResult, ProfileLift, evaluate};
+use editor_core::{CancelToken, EvalOptions, NodeResult, evaluate};
 use geom_core::{SymCounts, SymRules, Tol};
 
 use crate::m10_9_pins_interval::measured_studies;
@@ -65,12 +65,42 @@ use crate::m10_9_pins_interval::measured_studies;
 /// 1869]`, pad `[340, 277, 314]` → `[1319, 1159, 2916]`. The
 /// attribution of those values, merge by merge, is in
 /// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
+///
+/// Check 4 reading one vector at its norm where it summed its parts
+/// moves only `frozen` again. On the plate, the annulus and the link,
+/// each site measured by reverting it alone: the turning cylinder's
+/// pair against its class circle +72, +52, +36, and the cylinder class
+/// selector's radial circle at its exact sup (`radial_amplitude`) +16,
+/// +24, +8; together 641 → 729, 828 → 904, 498 → 542. On the bracket
+/// and the pad, which the settlement above carries past validation,
+/// the two together move the bracket's `frozen` 1869 → 1975 and the
+/// pad's 2916 → 2985. The pad's replay past the ceiling refuses at
+/// check 4 with no term over the band alone, so the refusal decides
+/// every term of the envelope, 9 where there were 11, and its
+/// `symbolic` reads 1319 → 1317.
+/// The fidelity channels' norm and the retired `Tilt` and
+/// `Orientation` slots move no column here.
+/// The pcurve envelope's orthonormal chart squaring its frame by cross
+/// products (`geom::square_frame`) moves only the frozen counts: bracket
+/// 1975 → 1969, pad 2985 → 2976.
+/// An edge's wedge levered at its faces' extent (`topo::wedge_reach`)
+/// where it was levered at the edge's own chord moves only `frozen`,
+/// and no decision column: each certified edge's lever reads its two
+/// faces' boundary vertices. The plate, the annulus and the link hold;
+/// bracket 1969 → 2044, pad 2976 → 3522, whose fillets' edges bound
+/// more faces than a planar wall's.
+/// The final non-finite check asking boundedness, where it decided
+/// `value · 0` (`expr-non-finite-asks-value-times-zero`), takes its
+/// theorems out of `symbolic` and moves nothing else: plate 1048 → 1003,
+/// annulus 566 → 539, link 356 → 323, bracket 1453 → 1392, pad
+/// 1317 → 1260. A decision left; none moved, so the dispute column's
+/// zero stands on the same decisions.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [1048, 654, 641]),
-    ("r1_annulus", [566, 399, 828]),
-    ("r2_link", [356, 259, 498]),
-    ("r2_filleted_bracket", [1453, 1008, 1869]),
-    ("r2_rounded_pad", [1319, 1159, 2916]),
+    ("two_hole_plate", [1003, 654, 729]),
+    ("r1_annulus", [539, 399, 904]),
+    ("r2_link", [323, 259, 542]),
+    ("r2_filleted_bracket", [1392, 1008, 2044]),
+    ("r2_rounded_pad", [1260, 1159, 3522]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
@@ -95,7 +125,6 @@ fn replay_on_a_thread(
     test_utils::own_thread::caught(move || {
         let opts = EvalOptions {
             param_box: Some(Arc::new(box_)),
-            profile_lift: ProfileLift::Guided,
             ..EvalOptions::default()
         };
         let budget = geom_core::SymBudget {

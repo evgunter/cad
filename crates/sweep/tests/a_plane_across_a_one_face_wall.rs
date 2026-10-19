@@ -17,19 +17,18 @@
 //! - the tube under a box whose side face cuts its outer wall, so one
 //!   one-site loop lies beside matched segments in the same faces.
 //!
-//! Two classes no row here owns are pinned as known, by row: a box
-//! less a tube, which leaves a rod in the bore, fails tier 3′
-//! (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`),
-//! and a piece of the wall under a tilted plane is no legal operand: a
-//! ray from the far brick that meets nothing finds the wall's volume
-//! unmeasurable, and every ray aimed at a planar face crosses the
-//! one-face wall's carrier, where the wall's period guard cannot read it
-//! (`work/inside/revolved-tube-wall-refuses-bool-wall-trim-period.md`);
-//! a two-arc wall fails both the same way.
+//! One class no row here owns is pinned as known, by row: a box less a
+//! tube, which leaves a rod in the bore, fails tier 3′
+//! (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
+//! A piece of the wall under a tilted plane is a legal operand: a ray
+//! from the far brick that meets nothing reads its side off the sign of
+//! the piece's volume, which the quadrature measures through the
+//! ellipse-trimmed wall.
 //!
-//! The one-site loops the join does not build keep
-//! `Join(SingleSiteSectionLoop)`: a circle edge lying in the partner's
-//! face, and a plane tangent to the wall's cap at the wrap edge's end.
+//! The one-site loop the join does not build keeps
+//! `Join(SingleSiteSectionLoop)`: a plane tangent to the wall's cap at
+//! the wrap edge's end. A circle edge lying in the partner's face beside
+//! a transverse loop builds.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -39,7 +38,7 @@ use geom_core::{Affine3, Arc2, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, Segment, SketchPlane};
 use sweep::test_support::{brick, revolved_about_y};
 use sweep::{ExtrudeSide, Extrusion, Revolution, extrude};
-use topo::{Body, BooleanError, PointInSolidError, SplitJoinError};
+use topo::{Body, BooleanError, SplitJoinError};
 
 use crate::common::differential::{every_op_both_orders, outcome};
 
@@ -112,8 +111,6 @@ fn below(at: Point3<f64>, turn: Affine3<f64>) -> Body<f64> {
 enum Known {
     /// Tier 3′ refuses the result.
     T3,
-    /// The result does not unite with a far brick.
-    Operand,
 }
 
 /// Every op in both orders between `a` and `b` (volumes `va`, `vb`,
@@ -146,47 +143,23 @@ fn every_op(what: &str, a: Body<f64>, b: Body<f64>, v: (f64, f64, f64), known: &
         let k = known.iter().find(|(o, _)| *o == op).map(|&(_, k)| k);
         // `operand=` reads only whether the union builds. A legal
         // operand's union with the far brick also holds the brick's
-        // volume, and a wall piece's refusal is the period guard's.
+        // volume.
         let far = fin(
             "the far brick",
             brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol()),
         );
-        let joined = topo::union(body, &far, tol());
-        if matches!(k, Some(Known::Operand)) {
-            // The volume's refusal: the aimed rays' only reading is the
-            // wall's period guard, a structural invalid margin that no
-            // tolerance moves, so it does not stand in for the volume.
-            let text = joined
-                .as_ref()
-                .err()
-                .map(ToString::to_string)
-                .unwrap_or_default();
-            assert!(
-                matches!(
-                    joined,
-                    Err(BooleanError::Containment(
-                        PointInSolidError::VolumeUncertified
-                    ))
-                ) && text.contains("unmeasurable for a curved face")
-                    && !text.contains("tolerance"),
-                "{row}: ∪ a far brick refuses on the volume: {text}"
-            );
-        } else {
-            let joined = joined.unwrap_or_else(|e| panic!("{row}: ∪ a far brick: {e:?}"));
-            let j = topo::mass_properties(&joined.body().expect("not empty").body, tol()).unwrap();
-            assert!(
-                (j.volume - (m.volume + 1.0)).abs() <= j.volume_pad + m.volume_pad + 1e-9,
-                "{row}: ∪ a far brick: volume {} vs {}",
-                j.volume,
-                m.volume + 1.0
-            );
-        }
+        let joined = topo::union(body, &far, tol())
+            .unwrap_or_else(|e| panic!("{row}: ∪ a far brick: {e:?}"));
+        let j = topo::mass_properties(&joined.body().expect("not empty").body, tol()).unwrap();
+        assert!(
+            (j.volume - (m.volume + 1.0)).abs() <= j.volume_pad + m.volume_pad + 1e-9,
+            "{row}: ∪ a far brick: volume {} vs {}",
+            j.volume,
+            m.volume + 1.0
+        );
         let line = outcome(r, m.volume, tol());
         let flags = ["t2=", "t3p=", "cert=", "operand="].map(|f| {
-            let named = matches!(
-                (f, k),
-                ("t3p=", Some(Known::T3)) | ("operand=", Some(Known::Operand))
-            );
+            let named = matches!((f, k), ("t3p=", Some(Known::T3)));
             format!("{f}{}", !named)
         });
         for f in &flags {
@@ -262,13 +235,52 @@ fn a_tilted_plane_across_a_one_segment_cylinder() {
         seam_cylinder(0.0),
         cutter,
         (TAU, 512.0, PI),
-        &WALL_PIECES.map(|op| (op, Known::Operand)),
+        &[],
     );
 }
 
-/// The runs whose result is a piece of the wall cut by the plane: the
-/// wall below it, in both orders, and the wall above it.
-const WALL_PIECES: [&str; 3] = ["A ∩ B", "B ∩ A", "A ∖ B"];
+/// **A far point's side on the tilted plane's wall piece is certified on
+/// the volume's enclosure**: every ray from `(50, 50, 50)` misses the
+/// piece, the closed form has no value for its ellipse-trimmed wall, and
+/// the rays aimed at its planar faces meet the wall's period guard, so
+/// the side is the sign of the volume measured through the quadrature.
+/// That sign is decided on the interval re-derivation of the walk's
+/// enclosures (`bool_point_in_solid_infinity_enclosure`), never on the
+/// walk's own sums alone, which round about the world origin.
+#[test]
+fn a_far_points_side_on_the_wall_piece_is_certified_on_the_enclosure() {
+    let turn = Affine3::rotation_about_axis(
+        Point3::origin(),
+        Vec3::new(1.0, 0.0, 0.0),
+        20f64.to_radians(),
+    );
+    let (a, b) = (
+        fin("A", seam_cylinder(0.0)),
+        fin("B", below(Point3::new(0.0, 0.0, 1.0), turn)),
+    );
+    let piece = topo::intersect(&a, &b, tol()).expect("A ∩ B builds");
+    let piece = &piece.body().expect("not empty").body;
+    let band = geom_core::Band::linear(tol()).expect("the run's band");
+    let bracket = geom_core::k_stats::Bracket::open();
+    let side = topo::point_in_solid(piece, Point3::new(50.0, 50.0, 50.0), band, tol());
+    let recorded = bracket.finish();
+    assert_eq!(
+        side,
+        Ok(topo::SolidContainment::Out),
+        "the far point's side"
+    );
+    let certified = recorded
+        .verdicts
+        .iter()
+        .filter(|v| v.predicate == "bool_point_in_solid_infinity_enclosure")
+        .map(|v| v.sign)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        certified,
+        [geom_core::Sign::Positive],
+        "the side is decided once, on the certified enclosure: {recorded:?}"
+    );
+}
 
 /// **A plane close by the wrap edge's end**: `z = c + m(1 − x)`, turned
 /// about `y`, meets the seam at `z = c`, just above the bottom cap's
@@ -285,7 +297,7 @@ fn a_plane_close_by_the_wrap_edges_end() {
             seam_cylinder(0.0),
             below(Point3::new(1.0, 0.0, c), turn),
             (TAU, 512.0, PI * (c + m)),
-            &WALL_PIECES.map(|op| (op, Known::Operand)),
+            &[],
         );
     }
 }
@@ -326,15 +338,16 @@ fn every_op_refuses(what: &str, a: Body<f64>, b: Body<f64>, count: usize) {
     }
 }
 
-/// **A circle edge lying in the partner's face keeps the refusal.** A
-/// bored tube whose outer wall turns from the cylinder `ρ = 0.5`
-/// (`y ≤ 0`) to a sphere at the circle `y = 0`, an edge whose one vertex
-/// lies in the box face `y = 0`: a coincidence the arm does not take,
-/// since the circle edge is at its site. The inner wall `ρ = 0.3`
-/// crosses the same face across its seam, which builds, so one loop
-/// refuses. Either side of the face.
+/// **A circle edge lying in the partner's face joins beside a
+/// transverse loop.** A bored tube whose outer wall turns from the
+/// cylinder `ρ = 0.5` (`y ≤ 0`) to a sphere at the circle `y = 0`, an
+/// edge whose one vertex lies in the box face `y = 0`: its section loop
+/// is that closed edge, one site
+/// (`a_closed_conic_in_the_partners_face.rs`). The inner wall `ρ = 0.3`
+/// crosses the same face across its seam. Either side of the face: the
+/// box above holds the dome, the one below the cylinder's piece.
 #[test]
-fn a_circle_edge_in_the_partners_face_refuses() {
+fn a_circle_edge_in_the_partners_face_builds() {
     // The sphere about (0, −0.2) through (0.5, 0) meets the bore ρ = 0.3
     // at y = top.
     let top = (0.29f64 - 0.09).sqrt() - 0.2;
@@ -349,13 +362,17 @@ fn a_circle_edge_in_the_partners_face_refuses() {
         Revolution::Full,
         tol(),
     );
-    for y in [(0.0, 2.0), (-2.0, 0.0)] {
+    // π∫₀^top (0.29 − (y + 0.2)² − 0.09) dy.
+    let dome = PI * (0.2 * top - ((top + 0.2).powi(3) - 0.008) / 3.0);
+    let shank = PI * (0.25 - 0.09) * 0.5;
+    for (y, shared) in [((0.0, 2.0), dome), ((-2.0, 0.0), shank)] {
         let block = brick((-1.5, 1.5), y, (-1.5, 1.5), tol());
-        every_op_refuses(
+        every_op(
             &format!("the in-face circle, box y = {y:?}"),
             tube.clone(),
             block,
-            1,
+            (dome + shank, 18.0, shared),
+            &[],
         );
     }
 }

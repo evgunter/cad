@@ -149,8 +149,13 @@ fn deviation1_and_3_domain_mismatch_refuses_typed_with_the_recourse() {
         Ok(t) => t,
         Err(err) => panic!("trace: {err}"),
     };
-    let knots: Vec<f64> = pb.knots().knots().iter().map(|k| k * 2.0).collect();
-    let stretched = KnotVector::clamped(knots, pb.knots().degree()).unwrap();
+    let knots: Vec<f64> = pb
+        .knots_f64_interim()
+        .knots()
+        .iter()
+        .map(|k| k * 2.0)
+        .collect();
+    let stretched = KnotVector::clamped(knots, pb.knots_f64_interim().degree()).unwrap();
     let bad = geom::NurbsCurve2::new(stretched, pb.control().to_vec(), pb.weights().to_vec())
         .expect("structure fine");
     let err = ssi::certify_rung3(

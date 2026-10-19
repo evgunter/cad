@@ -58,7 +58,7 @@ use std::collections::BTreeMap;
 use pncad::document::{
     Bodies, BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation,
     Formula, FreeValue, FreeVar, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId,
-    RefusingReach, ValuePayload, VarName, apply, evaluate, parse_formula,
+    ValuePayload, VarName, apply, evaluate, parse_formula,
 };
 use pncad::geom_core::Tol;
 use pncad::topo::Body;
@@ -152,9 +152,7 @@ fn blade_polygon() -> LoopProgram<Formula> {
 /// `blades` is the scene's whole edit.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let r = build_doc(tol);
-    apply(&r.doc, &DocEdit::place(r.solid, None), tol, &RefusingReach)
-        .expect("the impeller places")
-        .doc
+    crate::world::place_in_world(&r.doc, r.solid, tol).doc
 }
 
 fn build_doc(tol: Tol) -> Recipe {
@@ -167,7 +165,6 @@ fn build_doc(tol: Tol) -> Recipe {
                 fresh: Vec::new(),
             },
             tol,
-            &RefusingReach,
         )
         .expect("insert node");
         *doc = applied.doc;
@@ -184,7 +181,6 @@ fn build_doc(tol: Tol) -> Recipe {
             def: pncad::document::VarDecl::Free(FreeVar::Count { value: COUNTS[0] }),
         },
         tol,
-        &RefusingReach,
     )
     .expect("the blade count declares");
     doc = applied.doc;
@@ -287,9 +283,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let mut evs: Vec<(i64, Evaluation<f64>, String)> = Vec::new();
     let first = evaluate::<f64>(&doc, None, &cancel, &opts, tol);
     let names_at_first = first
-        .value(r.group)
+        .table_at(r.group)
         .expect("the blade group evaluates")
-        .name_table
         .len();
     evs.push((
         COUNTS[0],
@@ -308,7 +303,6 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 value: FreeValue::Count(n),
             },
             tol,
-            &RefusingReach,
         )
         .expect("the blade count edits");
         doc = applied.doc;
@@ -330,9 +324,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let names: Vec<usize> = evs
         .iter()
         .map(|(_, ev, _)| {
-            ev.value(r.group)
+            ev.table_at(r.group)
                 .expect("the blade group evaluates")
-                .name_table
                 .len()
         })
         .collect();

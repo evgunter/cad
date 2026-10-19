@@ -467,15 +467,12 @@ pub enum MergeCoplanarError {
         /// What was wrong.
         what: &'static str,
     },
-    /// A declared face pair's planes are DEFINITELY distinct — the
+    /// A declared face pair's carriers are DEFINITELY distinct — the
     /// declaration contradicts the geometry; refused loudly, never
-    /// glued (M4 PR 5; `plane_eq` rung 2's verification direction).
+    /// glued.
     DeclarationContradicted {
-        /// The fact that contradicted the declaration: `PlanesNotParallel`
-        /// or `PlanesApart`, the two the declared plane rung raises. The
-        /// field keeps the rung's own type (`PlaneEqError` is
-        /// `CarrierEqError`), which a narrower one would convert from
-        /// fallibly at the one raise site.
+        /// The fact that contradicted the declaration, in the declared
+        /// rung's own type (`PlaneEqError` is `CarrierEqError`).
         fact: crate::boolean::Contradiction,
     },
     /// A declared face pair meets with OPPOSITE orientations at a
@@ -486,6 +483,19 @@ pub enum MergeCoplanarError {
         f1: FaceKey,
         /// The second face.
         f2: FaceKey,
+    },
+    /// A declared face pair meets at an edge, and this door's carrier
+    /// ladder has no reading of two surfaces of its kind (a declared
+    /// pair is one kind: the entry gate refuses two). The declaration
+    /// cannot be checked, so it is refused, never read as "no glue"
+    /// with the declaration silently unhonoured.
+    DeclaredPairUnread {
+        /// The pair's first face (arena order at the meeting edge).
+        f1: FaceKey,
+        /// The second face.
+        f2: FaceKey,
+        /// The pair's surface kind.
+        kind: SurfaceKind,
     },
     /// After absorbing a group, the survivor's loops admit no unique
     /// positively-wound outline, so the outer/ring roles cannot be
@@ -552,6 +562,20 @@ pub enum MergeCoplanarError {
         /// ([`undescribed_ending`]).
         fitted: bool,
     },
+    /// A kept face's boundary edge read smooth at its witness reads its
+    /// two faces meeting at a corner at one station and smoothly at its
+    /// neighbour, so it is certifiable as neither (D2's mixed edge), or
+    /// a corner at every station, refuting the smooth reading. Refused,
+    /// never guessed.
+    KeptBoundaryMixed {
+        /// The kept face.
+        face: FaceKey,
+        /// Its boundary edge.
+        edge: EdgeKey,
+        /// The two stations that disagree; `None` where every station
+        /// reads a corner.
+        stations: Option<geom_brep::MixedStations>,
+    },
     /// Whether a kept face's boundary edge lies on both faces it bounds
     /// could not be decided at this tolerance: its line chord reads
     /// within the band of one of their surfaces and not clearly on it
@@ -601,12 +625,11 @@ pub enum EdgeDescribeFailure {
     Intersection,
     /// Their tangency does not certify on the edge's carrier.
     Tangency,
-    /// The carrier has no conventional description in a chart.
-    NoConventionalLane,
-    /// The arc's image in its face's chart does not certify.
-    Arc,
-    /// The line's image in its face's chart does not certify.
-    Line,
+    /// Its curve's image in its face's chart does not certify.
+    Chart,
+    /// Its curve does not certify as the pair its two faces'
+    /// surfaces under-determine (incidence on both).
+    Pair,
 }
 
 impl EdgeDescribeFailure {
@@ -618,11 +641,8 @@ impl EdgeDescribeFailure {
             }
             Self::Intersection => "its two faces' intersection does not certify on its curve",
             Self::Tangency => "its two faces' tangency does not certify on its curve",
-            Self::NoConventionalLane => {
-                "its curve has no description in a face's chart for its kind"
-            }
-            Self::Arc => "its arc does not certify as an image in its face's chart",
-            Self::Line => "its line does not certify as an image in its face's chart",
+            Self::Chart => "its curve does not certify as an image in its face's chart",
+            Self::Pair => "its curve does not certify as lying on both its faces' surfaces",
         }
     }
 }
@@ -652,6 +672,14 @@ pub(crate) enum DescribeRefusal {
     /// Its line chord reads within the band of one of its two faces'
     /// surfaces, and not clearly on it ([`edge_on_faces_reading`]).
     OffFace { edge: EdgeKey, diag: Indeterminate },
+    /// Read smooth at its witness, its faces meet at a corner at one
+    /// station and smoothly at its neighbour
+    /// ([`geom_brep::MustCarryVerdict::Mixed`]), or at a corner at every
+    /// station (`None`, [`geom_brep::MustCarryVerdict::Transverse`]).
+    Mixed {
+        edge: EdgeKey,
+        stations: Option<geom_brep::MixedStations>,
+    },
 }
 
 /// The question an edge read in band of a face it bounds asks, about
@@ -689,16 +717,31 @@ pub(crate) const EDGE_ON_FACES_LEVER: &str =
 pub(crate) const EDGE_ON_PLANE_LEVER: &str =
     edge_on_faces_lever!(geom_core::split_plane_recourse!(), "the plane");
 
+/// An edge along the split's cut read in band of a face it bounds, in
+/// the split's words: its finish's describer and its join's section chord
+/// end.
+pub(crate) fn edge_on_plane_refusal(diag: &Indeterminate) -> String {
+    diag.undecided(
+        edge_on_faces_subject!("an edge along the cut"),
+        diag.lever_ending(EDGE_ON_PLANE_LEVER),
+    )
+    .to_string()
+}
+
 /// **Whether an attachment refusal is an edge's own reading on its
 /// faces**, the input's (D9 row 1), at every door that describes an edge
 /// between vertices an earlier reading placed: its carrier's residual
 /// against a surface it lies on, or its chart image's, read in band, on a
 /// line carrier. A line is the chord between those vertices, so its miss
-/// is their offset plus a rounding, which escalating tells truly. A
-/// circle, ellipse, spiric or spline is a construction from the surfaces,
-/// whose own error can be amplified into the band (an ellipse nearly along
-/// a cylinder's axis carries its semi-major axis's rounding), so it keeps
-/// the gate's refusal, as does every other check and a definite miss.
+/// is their offset plus a few ulp of coordinates, within the share of
+/// the band K's headroom presumes (`crate::validate::resolved`'s
+/// premise). A circle, ellipse, spiric or spline is a construction from
+/// the surfaces, whose own error can be amplified into the band (an
+/// ellipse nearly along a cylinder's axis carries its semi-major axis's
+/// rounding): at these doors it keeps the gate's refusal, as does every
+/// other check and a definite miss. The join reads a section conic's
+/// pins against its carrier's resolution instead
+/// (`chord_join::section_pin_refusal`).
 pub(crate) fn edge_on_faces_reading(
     carrier: geom::CurveKind,
     refusal: &EulerOpError,
@@ -802,10 +845,16 @@ impl DescribeRefusal {
         match *self {
             Self::Failed { edge, .. }
             | Self::Undecided { edge, .. }
-            | Self::OffFace { edge, .. } => edge,
+            | Self::OffFace { edge, .. }
+            | Self::Mixed { edge, .. } => edge,
         }
     }
 }
+
+/// The recourse of the decision whether the faces at a kept face's
+/// boundary edge cross or meet smoothly, shared by its refused arms.
+const CROSS_OR_SMOOTH: &str =
+    "Recourse: move the geometry so the faces at that edge clearly cross or are clearly smooth";
 
 impl MergeCoplanarError {
     /// The door's refusal for `refusal` at one of `boundary`'s edges,
@@ -847,6 +896,11 @@ impl MergeCoplanarError {
             DescribeRefusal::OffFace { edge, diag } => {
                 Self::KeptBoundaryOffFace { face, edge, diag }
             }
+            DescribeRefusal::Mixed { edge, stations } => Self::KeptBoundaryMixed {
+                face,
+                edge,
+                stations,
+            },
         }
     }
 
@@ -875,6 +929,10 @@ impl MergeCoplanarError {
             Self::KeptBoundaryOffFace { edge, diag, .. } => {
                 Some(DescribeRefusal::off_face(*edge, *diag))
             }
+            Self::KeptBoundaryMixed { edge, stations, .. } => Some(DescribeRefusal::Mixed {
+                edge: *edge,
+                stations: *stations,
+            }),
             _ => None,
         }
     }
@@ -1051,7 +1109,9 @@ impl MergeDecision {
             }
             // The displacement is a bound over a ball enclosing the
             // faces, not a reading of them.
-            Self::DeclaredReach | Self::PairReach => Unsized::Fit.recourse(arm, Reading::Build),
+            Self::DeclaredReach => Unsized::Bound.recourse(arm, Reading::Build),
+            // An extent that does not read carries no margin.
+            Self::PairReach => Unsized::Defect.recourse(arm, Reading::Build),
             Self::Neighbours(rung) => {
                 crate::boolean::BooleanDecision::Neighbours(rung).recourse(diag)
             }
@@ -1171,6 +1231,15 @@ impl core::fmt::Display for MergeCoplanarError {
                 "the two declared faces face opposite ways across the edge they share. {}",
                 DECLARED_ORIENTATION.recourse(RefusedArm::SignCertain(None), Reading::Build)
             ),
+            Self::DeclaredPairUnread { f1, f2, kind } => write!(
+                f,
+                "merge_coplanar_faces: faces {f1:?} and {f2:?} are declared one surface, and \
+                 this door's carrier ladder has no reading that compares two {} surfaces, so \
+                 the declaration cannot be checked. Recourse: if they are one surface, put both \
+                 faces on one surface key, which glues on identity; otherwise leave the pair \
+                 undeclared",
+                kind.name()
+            ),
             Self::MergedFaceRoleAmbiguous { face, verdict } => match verdict {
                 OutlineVerdict::SeveralPositive { loops } => write!(
                     f,
@@ -1243,8 +1312,6 @@ impl core::fmt::Display for MergeCoplanarError {
                 reading,
                 diag,
             } => {
-                const CROSS_OR_SMOOTH: &str = "Recourse: move the geometry so the faces at that \
-                                               edge clearly cross or are clearly smooth";
                 let (question, ending) = match reading {
                     DihedralReading::Lever(geom_brep::LeverRung::Arm) => (
                         concat!("whether the edge is ", geom_brep::dihedral_arm_clause!()),
@@ -1267,6 +1334,25 @@ impl core::fmt::Display for MergeCoplanarError {
                     diag.undecided(question, ending)
                 )
             }
+            Self::KeptBoundaryMixed {
+                face,
+                edge,
+                stations: Some(stations),
+            } => write!(
+                f,
+                "merge_coplanar_faces: along kept face {face:?}'s boundary edge {edge:?}, \
+                 {stations}. {CROSS_OR_SMOOTH}"
+            ),
+            Self::KeptBoundaryMixed {
+                face,
+                edge,
+                stations: None,
+            } => write!(
+                f,
+                "merge_coplanar_faces: kept face {face:?}'s boundary edge {edge:?} reads \
+                 smooth at its witness but a corner at every station along it. \
+                 {CROSS_OR_SMOOTH}"
+            ),
         }
     }
 }
@@ -1634,9 +1720,11 @@ impl OpPlacement {
             | E::NullScaffoldCurve { .. }
             | E::SplitParamNotInterior { .. }
             | E::SplitParamEscalated { .. }
-            | E::SplitTangentEscalated { .. }
-            | E::SplitTangentBendEscalated { .. }
-            | E::SplitTangentRefuted { .. }
+            | E::SplitSmoothEscalated { .. }
+            | E::SplitSmoothBendEscalated { .. }
+            | E::SplitSmoothRefuted { .. }
+            | E::RestJoinUndecided { .. }
+            | E::RestJoinMixed { .. }
             | E::KillTurnUndecided { .. }
             | E::SplitJointUndecided { .. }
             | E::PcurveSplit { .. }
@@ -1748,7 +1836,8 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// faces — certified in `Band::linear(tol)`, so no such edge comes
     /// back with tier 3's `DescriptionNotAdjacent`. An edge it cannot
     /// describe refuses ([`MergeCoplanarError::KeptBoundaryUndescribed`],
-    /// [`MergeCoplanarError::KeptBoundaryUndecided`]).
+    /// [`MergeCoplanarError::KeptBoundaryUndecided`],
+    /// [`MergeCoplanarError::KeptBoundaryMixed`]).
     ///
     /// **Atomic and deterministic (D9)**: the op stages on a clone —
     /// on any refusal `self` is untouched; on success the staged body
@@ -2494,7 +2583,9 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     ///
     /// # Errors
     ///
-    /// The declared ladder's refusals ([`declared_pair_verdict`]); an
+    /// The declared ladder's refusals ([`declared_pair_verdict`]); a
+    /// declared pair the ladder cannot read
+    /// ([`MergeCoplanarError::DeclaredPairUnread`]); an
     /// undeclared pair's in-band reading
     /// ([`MergeDecision::Neighbours`], [`MergeDecision::NeighbourCoincidence`]).
     ///
@@ -2541,7 +2632,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             },
         ) = (s1.clone(), s2.clone())
         else {
-            return self.carriers_continue(f1, f2, declared, band);
+            return self.carriers_continue((f1, s1), f2, declared, band);
         };
         let id = if declared {
             PlaneIdentity::DECLARED
@@ -2593,10 +2684,13 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
 
     /// [`Body::faces_continue`] for a pair that is not two planes: the
     /// carrier ladder's reading, declared or not, where both kinds are
-    /// in its inventory; no glue where either is outside it.
+    /// in its inventory. Where either is outside it, an undeclared pair
+    /// does not glue, and a declared one, one kind by the entry gate,
+    /// refuses ([`MergeCoplanarError::DeclaredPairUnread`]) rather than
+    /// drop the declaration unsaid.
     fn carriers_continue(
         &self,
-        f1: FaceKey,
+        (f1, s1): (FaceKey, &Surface<T>),
         f2: FaceKey,
         declared: bool,
         band: Band,
@@ -2604,6 +2698,13 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         let verdict =
             match crate::boolean::carrier_pair_relation(self, f1, self, f2, declared, band) {
                 Ok(verdict) => verdict,
+                Err(crate::boolean::PairUnread::OutsideInventory) if declared => {
+                    return Err(MergeCoplanarError::DeclaredPairUnread {
+                        f1,
+                        f2,
+                        kind: s1.kind(),
+                    });
+                }
                 Err(crate::boolean::PairUnread::OutsideInventory) => return Ok(false),
                 Err(crate::boolean::PairUnread::Extent(_)) => {
                     return Err(MergeCoplanarError::Escalated {
@@ -5194,8 +5295,8 @@ mod winding_arm_tests {
                     carrier: geom::Curve3::Ellipse {
                         center: Point3::new(0.0, 0.0, 0.0),
                         axis: -Vec3::unit_z(),
-                        major: MAJOR,
-                        minor: MINOR,
+                        semi_u: MAJOR,
+                        semi_v: MINOR,
                         u_ref: Vec3::unit_x(),
                     },
                     param_start: -core::f64::consts::FRAC_PI_2,

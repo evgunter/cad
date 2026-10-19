@@ -85,53 +85,34 @@ use geom_core::{Band, Point3, Real, Vec3};
 /// A body assembled from Euler ops and then grafted with planes holds
 /// every chord at the SCAFFOLDING door: `mev_line` and `mef_chord`
 /// mint an edge before any face surface exists, so they have no chart
-/// to name. At rest that breaks two rules at once, and the two are
-/// independent, not one report doubled:
+/// to name. At rest that breaks the transience fence (U2 Q2): an edge
+/// with two faces has a chart, so a scaffold there is a construction
+/// that stopped half-way. The fence fires regardless of dihedral class.
+/// Prefer-intrinsic (D2) does not fire as well: it keys on the
+/// description's form, and a scaffold is not a conventional form.
 ///
-/// - **Prefer-intrinsic** (D2): a definitely-transverse edge whose
-///   locus the modeler DECLARED must instead cite the intersection its
-///   two surfaces determine. It fires on a chart image too — a
-///   declared image is still a declared locus — so it is not about the
-///   scaffolding door.
-/// - **The transience fence** (U2 Q2): an edge with two faces has a
-///   chart, so a scaffold there is a construction that stopped
-///   half-way. It fires regardless of dihedral class — a SMOOTH join,
-///   which prefer-intrinsic exempts, is named by it just the same.
-///
-/// So a conventional chord at rest is named once by each, and the
-/// pairing is what this helper pins: one report per rule per edge,
-/// over exactly the edge arena, in its order, with no third kind and
-/// no cascade. **This is what the pre-P-1b rows' single count meant**;
-/// it is asserted as a bijection rather than re-baselined to twice the
-/// number, so that a rule firing twice on one edge, or missing one,
-/// still fails here.
-pub fn assert_every_chord_named_by_both_rules<T: Real>(
+/// This helper pins one report per edge, over exactly the edge arena,
+/// in its order, with no other kind and no cascade, so a rule firing
+/// twice on one edge, or missing one, fails here.
+pub fn assert_every_chord_named_by_the_fence<T: Real>(
     body: &Body<T>,
     errs: &[crate::ValidationError],
 ) {
     let edges: Vec<crate::EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    let named = |pick: fn(&crate::ValidationError) -> Option<crate::EdgeKey>| {
-        errs.iter().filter_map(pick).collect::<Vec<_>>()
-    };
-    let scaffolds = named(|e| match e {
-        crate::ValidationError::ScaffoldAtRest { edge } => Some(*edge),
-        _ => None,
-    });
-    let transverse = named(|e| match e {
-        crate::ValidationError::TransverseNotIntrinsic { edge } => Some(*edge),
-        _ => None,
-    });
+    let scaffolds: Vec<_> = errs
+        .iter()
+        .filter_map(|e| match e {
+            crate::ValidationError::ScaffoldAtRest { edge } => Some(*edge),
+            _ => None,
+        })
+        .collect();
     assert_eq!(
         scaffolds, edges,
         "the fence names every chord still at the scaffolding door, once: {errs:?}"
     );
     assert_eq!(
-        transverse, edges,
-        "prefer-intrinsic names every declared transverse chord, once: {errs:?}"
-    );
-    assert_eq!(
         errs.len(),
-        2 * edges.len(),
+        edges.len(),
         "and nothing else is reported: {errs:?}"
     );
 }
@@ -297,7 +278,7 @@ pub fn identity_map<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
 ///   trades its conventional chord for the `Intersection` its two faces
 ///   determine; skip it and all `3n` stay
 ///   `Scaffold(ExtrudedPoint …)`/`Declared`, which is the state
-///   [`assert_every_chord_named_by_both_rules`] is about. So the choice
+///   [`assert_every_chord_named_by_the_fence`] is about. So the choice
 ///   belongs where a reader can see it, not inside a shared body — and
 ///   it is a line at each call site rather than a `bool` argument,
 ///   because the risk here is a reader not noticing that step.
@@ -714,6 +695,39 @@ pub fn describe_as_intersections<T: geom_core::Decide + crate::props::AtRestPoli
         };
         body.set_edge_curve(edge_key, spec, tol).unwrap();
     }
+}
+
+/// **Every chord stated as its pair.** A copy of `body` with each edge
+/// restated as the pair its two faces' surfaces under-determine (a
+/// straight `OnPair`, derived), and the report tier 3 owes it when
+/// every chord reads a corner: `TransverseNotIntrinsic` once per edge,
+/// in arena order, and nothing else. The classification an
+/// Euler-op-built body's chords hide while they are still scaffolds.
+pub fn every_chord_stated_as_its_pair<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    tol: Tol,
+) -> (Body<T>, Vec<crate::ValidationError>) {
+    let mut body = body.clone();
+    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
+    for (edge_key, edge) in &edges {
+        let (s1, s2) = crate::readback::edge_sides(&body, *edge_key)
+            .unwrap()
+            .surfaces();
+        let start = body.get_half_edge(edge.he_plus).unwrap().start;
+        let end = body.half_edge_end(edge.he_plus).unwrap();
+        let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let mut spec = EdgeCurveSpec::line_between(point(start), point(end));
+        spec.description = EdgeDescriptionSpec::OnPair {
+            pair: SurfacePair::new(s1, s2),
+            declared: None,
+        };
+        body.set_edge_curve(*edge_key, spec, tol).unwrap();
+    }
+    let want = edges
+        .into_iter()
+        .map(|(edge, _)| crate::ValidationError::TransverseNotIntrinsic { edge })
+        .collect();
+    (body, want)
 }
 
 /// A cube built like [`geometric_cube`] but through an arbitrary point
@@ -1649,8 +1663,8 @@ pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKe
     let carrier = Curve3::Ellipse {
         center: Point3::origin(),
         axis: Vec3::new(-s, 0.0, c),
-        major: 1.0 / c,
-        minor: 1.0,
+        semi_u: 1.0 / c,
+        semi_v: 1.0,
         u_ref: Vec3::new(c, 0.0, s),
     };
     let mut body = Body::<f64>::new();

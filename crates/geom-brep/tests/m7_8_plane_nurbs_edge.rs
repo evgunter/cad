@@ -48,8 +48,15 @@ fn the_stated_carrier_certifies_against_both_surfaces() {
     let wall = quarter_cylinder_wall();
     let plane = transverse_plane();
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
-    let limbs = plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band())
-        .expect("the true locus certifies");
+    let limbs = plane_nurbs_limbs::<f64>(
+        &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        carrier.knot_values().domain(),
+        &plane,
+        &wall,
+        1.0,
+        band(),
+    )
+    .expect("the true locus certifies");
     println!(
         "M7-8 quarter-cylinder ruling: on_locus_max = {:e} m, hull_sup = {:e} m, \
          tube = {:?}, tube_transversality = {:e} m over {} boxes, \
@@ -87,7 +94,14 @@ fn a_displaced_carrier_refuses_with_the_measured_residual() {
     // budget and the honest verdict is acceptance.
     let off = 1e3 * Tol::witness().get().eps;
     let carrier = segment(Point3::new(1.0, off, 0.0), Point3::new(1.0, off, 1.0));
-    match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
+    match plane_nurbs_limbs::<f64>(
+        &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        carrier.knot_values().domain(),
+        &plane,
+        &wall,
+        1.0,
+        band(),
+    ) {
         Err(PlaneNurbsRefusal::Limb { limb, margin }) => {
             let value = upper(margin);
             println!(
@@ -131,7 +145,14 @@ fn an_on_plane_off_wall_carrier_is_refused_by_the_nurbs_side() {
         let p = carrier.eval(f64::from(i) / 8.0);
         assert_eq!(p.y, 0.0, "the carrier stays exactly on the y = 0 plane");
     }
-    match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
+    match plane_nurbs_limbs::<f64>(
+        &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        carrier.knot_values().domain(),
+        &plane,
+        &wall,
+        1.0,
+        band(),
+    ) {
         Err(PlaneNurbsRefusal::Limb { limb, margin }) => {
             let value = upper(margin);
             println!(
@@ -160,7 +181,14 @@ fn a_tangential_plane_refuses_with_the_transversality_vocabulary() {
         u_ref: Vec3::new(0.0, 1.0, 0.0),
     };
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
-    match plane_nurbs_limbs::<f64>(&carrier, &tangent, &wall, 1.0, band()) {
+    match plane_nurbs_limbs::<f64>(
+        &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        carrier.knot_values().domain(),
+        &tangent,
+        &wall,
+        1.0,
+        band(),
+    ) {
         Err(PlaneNurbsRefusal::NotTransverse { sample, .. }) => {
             println!("M7-8 tangential plane: refused at interior sample {sample}");
         }
@@ -187,8 +215,8 @@ fn a_plane_near_tangent_to_a_tight_wall_refuses_at_its_curvature_radius() {
         .map(|p| Point3::new(rho * p.x, rho * p.y, p.z))
         .collect();
     let wall = NurbsSurface::new(
-        unit.knots_u().clone(),
-        unit.knots_v().clone(),
+        unit.knots_u_f64_interim().clone(),
+        unit.knots_v_f64_interim().clone(),
         control,
         unit.weights().to_vec(),
     )
@@ -201,7 +229,14 @@ fn a_plane_near_tangent_to_a_tight_wall_refuses_at_its_curvature_radius() {
         u_ref: Vec3::new(0.0, 0.0, 1.0),
     };
     let carrier = segment(Point3::new(rho, 0.0, 0.0), Point3::new(rho, 0.0, 1.0));
-    match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
+    match plane_nurbs_limbs::<f64>(
+        &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        carrier.knot_values().domain(),
+        &plane,
+        &wall,
+        1.0,
+        band(),
+    ) {
         Err(PlaneNurbsRefusal::NotTransverse { verdict, lever, .. }) => {
             assert_eq!(
                 lever,
@@ -247,7 +282,14 @@ fn a_plane_near_tangent_to_a_flat_wall_refuses_at_the_edges_extent() {
         u_ref: Vec3::new(0.0, 0.0, 1.0),
     };
     let carrier = segment(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, 1.0));
-    match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
+    match plane_nurbs_limbs::<f64>(
+        &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        carrier.knot_values().domain(),
+        &plane,
+        &wall,
+        1.0,
+        band(),
+    ) {
         Err(PlaneNurbsRefusal::NotTransverse { verdict, lever, .. }) => {
             assert_eq!(lever, PointLever::Extent, "the lever the refusal names");
             let m = verdict.margin().diagnostic_f64_for_error_text().value();
@@ -313,6 +355,7 @@ fn the_door_certifies_the_true_carrier_and_records_the_lane_sup() {
         ends.0,
         ends.1,
         arena,
+        1.0,
         band(),
         Some(geom_brep::NurbsLane::certified()),
     )
@@ -345,6 +388,7 @@ fn the_door_refuses_a_displaced_carrier_with_limb_1s_measured_miss() {
         ends.0,
         ends.1,
         arena,
+        1.0,
         band(),
         Some(geom_brep::NurbsLane::certified()),
     ) {
@@ -394,6 +438,7 @@ fn the_door_refuses_a_tangential_plane_in_the_certify_vocabulary() {
         ends.0,
         ends.1,
         arena,
+        1.0,
         band(),
         Some(geom_brep::NurbsLane::certified()),
     ) {
@@ -420,7 +465,7 @@ fn the_laneless_door_refuses_a_described_nurbs_operand_naming_the_lane() {
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
     let ends = (carrier.eval(0.0), carrier.eval(1.0));
     let (arena, spec) = door_spec(transverse_plane(), quarter_cylinder_wall(), carrier);
-    match EdgeCurve::certify(spec, ends.0, ends.1, arena, band()) {
+    match EdgeCurve::certify(spec, ends.0, ends.1, arena, 1.0, band()) {
         Err(CertifyError::NurbsLaneNotSupplied) => {}
         other => panic!("the laneless door refuses naming the missing lane: {other:?}"),
     }
@@ -443,6 +488,7 @@ fn the_at_rest_re_derivation_of_this_class_needs_the_injected_lane() {
         ends.0,
         ends.1,
         &arena,
+        1.0,
         band(),
         Some(geom_brep::NurbsLane::certified()),
     )
@@ -452,6 +498,7 @@ fn the_at_rest_re_derivation_of_this_class_needs_the_injected_lane() {
         ends.0,
         ends.1,
         &arena,
+        1.0,
         band(),
         Some(geom_brep::NurbsLane::certified()),
     );
@@ -460,7 +507,7 @@ fn the_at_rest_re_derivation_of_this_class_needs_the_injected_lane() {
         "the lane-injected at-rest pass re-derives the certificate: {with_lane:?}"
     );
 
-    match edge.recertify_via(ends.0, ends.1, &arena, band(), None) {
+    match edge.recertify_via(ends.0, ends.1, &arena, 1.0, band(), None) {
         Err(CertifyError::NurbsLaneNotSupplied) => {}
         other => panic!(
             "without the lane this class has no re-derivation at all, and the refusal names \
@@ -491,6 +538,7 @@ fn without_the_lane_a_non_lane_defect_on_this_class_is_not_reported() {
         ends.0,
         ends.1,
         &arena,
+        1.0,
         band(),
         Some(geom_brep::NurbsLane::certified()),
     )
@@ -504,6 +552,7 @@ fn without_the_lane_a_non_lane_defect_on_this_class_is_not_reported() {
         drifted,
         ends.1,
         &arena,
+        1.0,
         band(),
         Some(geom_brep::NurbsLane::certified()),
     );
@@ -517,7 +566,7 @@ fn without_the_lane_a_non_lane_defect_on_this_class_is_not_reported() {
         "and it is NOT the lane's absence: {with_lane:?}"
     );
 
-    let without = edge.recertify_via(drifted, ends.1, &arena, band(), None);
+    let without = edge.recertify_via(drifted, ends.1, &arena, 1.0, band(), None);
     println!("M7-8 lane-free skip: without_lane -> {without:?}");
     assert!(
         matches!(without, Err(CertifyError::NurbsLaneNotSupplied)),
@@ -571,7 +620,14 @@ fn a_carrier_domain_the_door_refuses_refuses_as_the_domain_door() {
             r.lo.to_bits() == lo.to_bits() && r.hi.to_bits() == hi.to_bits() && fault(&r.fault)
         };
 
-        let lane = plane_nurbs_limbs::<f64>(&carrier, &transverse_plane(), &wall, 1.0, band());
+        let lane = plane_nurbs_limbs::<f64>(
+            &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+            carrier.knot_values().domain(),
+            &transverse_plane(),
+            &wall,
+            1.0,
+            band(),
+        );
         let Err(PlaneNurbsRefusal::CarrierDomain(r)) = lane else {
             panic!("[{lo:e}, {hi:e}] the lane must refuse as the domain door: {lane:?}");
         };

@@ -13,6 +13,9 @@
 test_utils::gated_to![
     "crates/topo/src/boolean/circle_torus.rs",
     "crates/topo/src/boolean/circle_roots.rs",
+    "crates/geom-brep/src/half_angle.rs",
+    "crates/geom-brep/src/quartic.rs",
+    "crates/geom-core/src/bisect.rs",
     "crates/topo/src/boolean/conic_oracle.rs",
     "crates/topo/src/boolean/conic_oracle/",
     "crates/topo/src/boolean/solid_contain.rs",
@@ -89,10 +92,11 @@ impl Pose {
             &self.torus(),
             band,
         ) {
-            Ok(CircleRoots::Certified { count, thetas }) => {
-                Ok(thetas[..count].iter().map(|&t| pair(t)).collect())
+            Ok(Ok(CircleRoots::Certified(found))) => {
+                Ok(found.roots().iter().map(|&t| pair(t)).collect())
             }
-            Ok(other) => Err(format!("{other:?}")),
+            Ok(Ok(other)) => Err(format!("{other:?}")),
+            Ok(Err(why)) => Err(format!("unsettled: {why:?}")),
             Err(e) => Err(format!("refused: {e:?}")),
         }
     }
@@ -247,7 +251,9 @@ fn judge(
             Some(format!("Miss on {} true roots", truth.roots.len()))
         }
         Err(what)
-            if what.starts_with("Miss") || what.starts_with("refused") || what == "Uncertain" =>
+            if what.starts_with("Miss")
+                || what.starts_with("refused")
+                || what.starts_with("unsettled") =>
         {
             None
         }

@@ -42,7 +42,16 @@ fn red() -> Attr {
 }
 
 fn set(doc: ProfileDoc, name: StableName, attr: Attr) -> ProfileDoc {
-    step(doc, DocEdit::SetAppearance { name, attr }).0
+    let read = crate::fixture::painted_in(&doc, &name);
+    step(
+        doc,
+        DocEdit::SetAppearance {
+            body: read,
+            name,
+            attr,
+        },
+    )
+    .0
 }
 
 /// A rectangular block: profile on the plane z = `z0`, extruded `dz`.
@@ -86,11 +95,11 @@ fn set_appearance_validates_and_applies_purely() {
     let applied = doc
         .apply(
             &DocEdit::SetAppearance {
+                body: crate::fixture::painted_in(&doc, &cap),
                 name: cap.clone(),
                 attr: red(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     // Non-structural, nothing minted; the input document untouched.
@@ -98,9 +107,7 @@ fn set_appearance_validates_and_applies_purely() {
     assert_eq!(applied.record.minted, None);
     assert!(doc.appearance().is_empty(), "apply must be pure");
     assert_eq!(
-        applied
-            .doc
-            .appearance_of(&cap)
+        crate::fixture::painted(&applied.doc, &cap)
             .unwrap()
             .attrs
             .get(&AttrKind::Color),
@@ -116,11 +123,11 @@ fn set_appearance_validates_and_applies_purely() {
     assert_eq!(
         doc.apply(
             &DocEdit::SetAppearance {
+                body: crate::fixture::painted_in(&doc, &edge),
                 name: edge.clone(),
                 attr: red(),
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::AppearanceWrongKind {
@@ -137,11 +144,11 @@ fn set_appearance_validates_and_applies_purely() {
     assert_eq!(
         doc.apply(
             &DocEdit::SetAppearance {
+                body: crate::fixture::painted_in(&doc, &bogus),
                 name: bogus.clone(),
                 attr: red(),
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::AppearanceNamesMissingNode {
@@ -165,11 +172,11 @@ fn multi_attribute_per_entity_and_clear_semantics() {
     assert_eq!(
         doc.apply(
             &DocEdit::ClearAppearance {
+                body: crate::fixture::painted_in(&doc, &body),
                 name: body.clone(),
                 kind: AttrKind::Color,
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::AppearanceNotSet {
@@ -186,7 +193,7 @@ fn multi_attribute_per_entity_and_clear_semantics() {
         body.clone(),
         Attr::Label(editor_core::Label::new("housing").unwrap()),
     );
-    let attrs = doc.appearance_of(&body).unwrap();
+    let attrs = crate::fixture::painted(&doc, &body).unwrap();
     assert_eq!(attrs.attrs.len(), 3);
     assert_eq!(
         attrs.attrs.get(&AttrKind::Label),
@@ -195,7 +202,7 @@ fn multi_attribute_per_entity_and_clear_semantics() {
 
     // Same-kind set replaces (one slot per kind).
     let doc = set(doc, body.clone(), Attr::Color(Rgba8::opaque(0, 0, 255)));
-    let attrs = doc.appearance_of(&body).unwrap();
+    let attrs = crate::fixture::painted(&doc, &body).unwrap();
     assert_eq!(attrs.attrs.len(), 3);
     assert_eq!(
         attrs.attrs.get(&AttrKind::Color),
@@ -204,35 +211,41 @@ fn multi_attribute_per_entity_and_clear_semantics() {
 
     // Clear kind-by-kind; clearing the last one drops the entry, and
     // a second clear of the same kind is loud.
+    let read = crate::fixture::painted_in(&doc, &body);
     let (doc, _) = step(
         doc,
         DocEdit::ClearAppearance {
+            body: read,
             name: body.clone(),
             kind: AttrKind::Color,
         },
     );
     assert!(
-        !doc.appearance_of(&body)
+        !crate::fixture::painted(&doc, &body)
             .unwrap()
             .attrs
             .contains_key(&AttrKind::Color)
     );
+    let read = crate::fixture::painted_in(&doc, &body);
     let (doc, _) = step(
         doc,
         DocEdit::ClearAppearance {
+            body: read,
             name: body.clone(),
             kind: AttrKind::Visibility,
         },
     );
+    let read = crate::fixture::painted_in(&doc, &body);
     let (doc, _) = step(
         doc,
         DocEdit::ClearAppearance {
+            body: read,
             name: body.clone(),
             kind: AttrKind::Label,
         },
     );
     assert!(
-        doc.appearance_of(&body).is_none(),
+        crate::fixture::painted(&doc, &body).is_none(),
         "empty set drops the entry"
     );
     assert!(doc.appearance().is_empty());
@@ -286,6 +299,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
             fresh: Vec::new(),
         },
         DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc3, &cap),
             name: cap,
             attr: red(),
         },
@@ -303,7 +317,7 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
     // names the FINAL node mints.
     let body = minted(EntityKind::Body, d.final_node, RoleSeg::OutputBody);
     let ev0 = run(&d.doc);
-    let final_table = &ev0.value(d.final_node).unwrap().name_table;
+    let final_table = ev0.table_at(d.final_node).unwrap();
     let face = final_table
         .iter()
         .find_map(|(n, e)| {
@@ -432,16 +446,20 @@ fn deleting_the_minting_node_strands_the_attribute_loudly() {
     assert_eq!(ev.appearance.losses.len(), 1);
     let loss = &ev.appearance.losses[0];
     assert_eq!(loss.name, cap);
-    assert_eq!(loss.cause, AppearanceLossCause::NodeGone);
+    // The extrude took the entry's read with it, and the read answers
+    // first (N5's `ReadGone`, ahead of the name's `NodeGone`).
+    assert_eq!(loss.cause, AppearanceLossCause::ReadGone);
     // Nothing silently dropped: the payload rides the loss and the
     // store still holds the entry.
     assert_eq!(loss.attrs.get(&AttrKind::Color), Some(&red()));
-    assert!(doc.appearance_of(&cap).is_some());
+    let read = crate::fixture::painted_in(&doc, &cap);
+    assert!(doc.appearance_of(read, &cap).is_some());
     // ClearAppearance is the repair path and works on the stranded
     // name (no liveness requirement).
     let (doc, _) = step(
         doc,
         DocEdit::ClearAppearance {
+            body: read,
             name: cap,
             kind: AttrKind::Color,
         },
@@ -509,9 +527,8 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
     // Attribute a UNION-minted face name (node = the boolean).
     let ev = run(&doc);
     let uni_face = ev
-        .value(uni)
+        .table_at(uni)
         .unwrap()
-        .name_table
         .iter()
         .find_map(|(n, e)| {
             (n.kind == EntityKind::Face
@@ -566,9 +583,8 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
     // Attribute a face of instance 2 by its pattern-minted name.
     let ev = run(&doc);
     let inst2_face = ev
-        .value(pat)
+        .table_at(pat)
         .unwrap()
-        .name_table
         .iter()
         .find_map(|(n, _)| {
             (n.kind == EntityKind::Face
@@ -656,9 +672,8 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
 
 /// A tied name (width 2) from the fixture's subtract table.
 fn tied_name(ev: &Evaluation<f64>, sub: RecipeNodeId) -> StableName {
-    ev.value(sub)
+    ev.table_at(sub)
         .unwrap()
-        .name_table
         .iter()
         .find_map(|(n, e)| {
             matches!(e, editor_core::Entry::Tied(c) if c.len() == 2).then(|| n.clone())

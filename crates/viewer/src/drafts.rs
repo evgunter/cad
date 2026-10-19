@@ -4,7 +4,7 @@
 //! A VOCABULARY module (`crates/viewer/README.md`, Module boundaries).
 //! [`Drafts`] is layer-3 state that never enters the document — an
 //! expression the user is typing is not an edit until they commit it —
-//! and its methods turn typed field values into [`Expr`]s and
+//! and its methods turn typed field values into [`Expr`](editor_core::Expr)s and
 //! [`LoopProgram`]s. Nothing here names `DocSession`, `ViewerApp` or
 //! `egui`; the panels write these fields and read nothing back.
 //!
@@ -74,13 +74,16 @@ pub(crate) struct Drafts {
     /// ([`crate::frame::creation_offer`]); shown over the form while the
     /// name field still says it.
     pub(crate) new_variable_offer: Option<VarName>,
-    /// The mate tool's class/alignment choice, as widget state: an
-    /// index into [`crate::matetool::admitted_classes`], an index into
-    /// [`crate::forms::MATE_PRIMITIVES`], and the sense toggle. Draft chrome state
-    /// only — the typed choice is minted at commit.
+    /// The mate tool's choice, as widget state: an index into
+    /// [`crate::matetool::admitted_classes`], an index into
+    /// [`crate::matetool::MATE_KINDS`], the flip toggle, and for each
+    /// freedom of [`crate::matetool::MateFreedom::ALL`] whether it is set and its number in
+    /// SI units. Draft chrome state only — the typed choice is minted
+    /// at commit.
     pub(crate) mate_class: usize,
-    pub(crate) mate_primitive: usize,
-    pub(crate) mate_opposed: bool,
+    pub(crate) mate_kind: usize,
+    pub(crate) mate_flip: bool,
+    pub(crate) mate_values: [(bool, f64); crate::matetool::MateFreedom::ALL.len()],
     /// The toolbar's New… form: `Some(text)` while the name field is
     /// open, `None` while it is not. The op is not emitted until
     /// Create — a name in flight is a draft, not a document.
@@ -194,11 +197,11 @@ pub(crate) struct Drafts {
     pub(crate) revolve_angle: f64,
     /// The revolve tool's point on its axis, metres, in the profile's
     /// own 2-D coordinates.
-    pub(crate) revolve_axis_origin: Point2<f64>,
-    /// The revolve tool's axis direction in the same coordinates
-    /// (unitless). Opens as the profile's +y, the axis a profile drawn
-    /// beside it turns about.
-    pub(crate) revolve_axis_direction: [f64; 2],
+    pub(crate) revolve_axis_through: Point2<f64>,
+    /// The revolve tool's axis heading from the profile's x axis,
+    /// radians. Opens a quarter turn, along the profile's +y, the axis
+    /// a profile drawn beside it turns about.
+    pub(crate) revolve_axis_heading: f64,
     /// The transform tool's translation, metres.
     pub(crate) transform_translation: [f64; 3],
     /// Its rotation axis (unitless).
@@ -512,12 +515,14 @@ impl ProfileEdit {
         sketch::loop_programs(&self.shapes(), notation)
     }
 
-    /// **Whether applying would write anything**: the held program,
-    /// every step kept where it was loaded, is not the committed one
-    /// (by value, blind to notation — the door's own no-op). A held
-    /// state that does not lower counts as moved: applying it is how
-    /// its refusal is said.
-    pub(crate) fn moved(&self) -> bool {
+    /// **Whether the held state differs from the committed program at
+    /// all**: it edits it, or it cannot be read as it. The first is
+    /// the held program, every step kept where it was loaded, not
+    /// being the committed one (by value, blind to notation — the
+    /// door's own no-op); the second is a held state that does not
+    /// lower, and applying it writes nothing — it is how its refusal
+    /// is said.
+    pub(crate) fn differs_from_base(&self) -> bool {
         let untouched = self
             .programs(Notation::CANONICAL)
             .is_ok_and(|loops| sketch::is_committed(&self.base, &loops, &self.ids()));
@@ -639,8 +644,11 @@ impl Default for Drafts {
             new_variable_value: 0.0,
             new_variable_offer: None,
             mate_class: 0,
-            mate_primitive: 0,
-            mate_opposed: false,
+            mate_kind: 0,
+            // Two picked faces rest against each other: the plain plane
+            // mate equates outward normals, so a rest carries the flip.
+            mate_flip: true,
+            mate_values: [(false, 0.0); crate::matetool::MateFreedom::ALL.len()],
             new_doc_name: None,
             profile_plane: None,
             datum_kind: DatumKindChoice::Plane,
@@ -671,8 +679,8 @@ impl Default for Drafts {
             profile_extent: [0.01, 0.01],
             extrude_distance: 0.01,
             revolve_angle: core::f64::consts::TAU,
-            revolve_axis_origin: Point2::origin(),
-            revolve_axis_direction: [0.0, 1.0],
+            revolve_axis_through: Point2::origin(),
+            revolve_axis_heading: core::f64::consts::FRAC_PI_2,
             transform_translation: [0.0; 3],
             transform_axis: [0.0, 0.0, 1.0],
             transform_angle: 0.0,
@@ -1067,19 +1075,6 @@ pub(crate) fn scalars(v: [f64; 3]) -> Result<[Formula; 3], DimensionError> {
         Formula::literal(v[0], Dimension::Scalar)?,
         Formula::literal(v[1], Dimension::Scalar)?,
         Formula::literal(v[2], Dimension::Scalar)?,
-    ])
-}
-
-/// Two dimensionless literals — a direction in a sketch frame;
-/// [`scalars`]' twin.
-///
-/// # Errors
-///
-/// A non-finite component.
-pub(crate) fn scalars2(v: [f64; 2]) -> Result<[Formula; 2], DimensionError> {
-    Ok([
-        Formula::literal(v[0], Dimension::Scalar)?,
-        Formula::literal(v[1], Dimension::Scalar)?,
     ])
 }
 
@@ -1670,7 +1665,10 @@ mod tests {
         let edit = drafts
             .profile_edit(&doc, profile)
             .expect("the editor holds the form's profile");
-        assert!(!edit.moved(), "a fresh load has nothing to apply");
+        assert!(
+            !edit.differs_from_base(),
+            "a fresh load has nothing to apply"
+        );
         assert!(sketch::authors_same_loops(&edit.shapes(), &authored));
         let Some(Node::Profile(current)) = doc.node(profile) else {
             panic!("a profile")
@@ -1703,26 +1701,32 @@ mod tests {
         };
         let edit = drafts.profile_edit(&before, profile).expect("held");
         edit.steps_mut(0)[1] = moved_to;
-        assert!(edit.moved());
+        assert!(edit.differs_from_base());
         // Held across frames while the document stands still.
         let edit = drafts.profile_edit(&before, profile).expect("held");
-        assert!(edit.moved(), "the typed number survived a second read");
+        assert!(
+            edit.differs_from_base(),
+            "the typed number survived a second read"
+        );
         let after = applied(&before, edit, notation);
         let edit = drafts.profile_edit(&after, profile).expect("held");
-        assert!(!edit.moved(), "the applied program is the new base");
+        assert!(
+            !edit.differs_from_base(),
+            "the applied program is the new base"
+        );
         assert!(same_step(edit.loops()[0][1], moved_to));
         // Undo: the document the history steps back to.
         let edit = drafts.profile_edit(&before, profile).expect("held");
-        assert!(!edit.moved());
+        assert!(!edit.differs_from_base());
         assert!(
             !same_step(edit.loops()[0][1], moved_to),
             "the undone number is gone from the draft"
         );
         // Revert puts typed numbers back.
         edit.steps_mut(0)[2] = Step::LineTo(Target::Point(Point2::new(0.03, 0.03)));
-        assert!(edit.moved());
+        assert!(edit.differs_from_base());
         edit.revert(&before).expect("revertible");
-        assert!(!edit.moved());
+        assert!(!edit.differs_from_base());
         drafts.abandon_profile_edit_off(Some(profile));
         assert!(drafts.profile_edit.is_some(), "still selected, still held");
         drafts.abandon_profile_edit_off(None);
@@ -1821,7 +1825,7 @@ mod tests {
             vec![vec![Some(a), Some(b), Some(c), Some(d), Some(e)]],
             "a revert loads every step as itself again"
         );
-        assert!(!edit.moved());
+        assert!(!edit.differs_from_base());
         let same = edit.loops()[0][1];
         edit.edit_row(
             0,
@@ -1831,7 +1835,7 @@ mod tests {
             },
         );
         assert!(
-            edit.moved(),
+            edit.differs_from_base(),
             "a step re-made with the numbers it had is still a new step, which Apply writes"
         );
     }

@@ -24,10 +24,10 @@
 //!   measuring half — a `Chart`-described wall-wall seam on the widened
 //!   chart derives the EXACT class on its measured interior column, and
 //!   the certifier's de Boor collapse certifies it.
-//! - `r1_dual_scalar_wall_seam_arm_answers_no_boundary`: at a scalar
-//!   with no certified foot (`Dual64`) the same arm answers what it
-//!   answered before the measurement existed — no lane fabricates a
-//!   foot.
+//! - `r1_dual_scalar_wall_seam_arm_names_the_missing_lane`: at a
+//!   scalar with no certified foot (`Dual64`) the same arm has no foot
+//!   to offer, and the refusal names the missing lane — no lane
+//!   fabricates a foot.
 //! - `r1_general_image_is_operand_order_blind`: the deriver must not
 //!   see the description's operand order.
 //! - `r1_dual_scalar_still_reaches_the_mint`: the fitted door's
@@ -212,7 +212,11 @@ const SCALE: f64 = 1.0 / 1024.0;
 /// answers, one correct one.
 fn widened_u_chart_by(n: &NurbsSurface<f64>, k: usize) -> Surface<f64> {
     let (nu, nv) = n.control_counts();
-    assert_eq!((nu, n.knots_u().degree()), (2, 1), "the loft wall's u span");
+    assert_eq!(
+        (nu, n.knots_u_f64_interim().degree()),
+        (2, 1),
+        "the loft wall's u span"
+    );
     let cols = 2 * k + 2;
     let knots: Vec<f64> = std::iter::once(0.0)
         .chain((0..=(cols - 1)).map(|i| i as f64))
@@ -231,7 +235,7 @@ fn widened_u_chart_by(n: &NurbsSurface<f64>, k: usize) -> Surface<f64> {
         }
     }
     Surface::Nurbs(Arc::new(
-        NurbsSurface::new(ku, n.knots_v().clone(), control, weights).unwrap(),
+        NurbsSurface::new(ku, n.knots_v_f64_interim().clone(), control, weights).unwrap(),
     ))
 }
 
@@ -272,7 +276,7 @@ fn carrier_of(body: &Body<f64>, he: topo::HalfEdgeKey) -> (Curve3<f64>, f64, f64
 fn r1_general_image_is_the_measured_column_among_many() {
     let (body, he, key) = widened_fixture(false, 2);
     let chart = chart_of(&body, key);
-    assert_eq!(chart.knots_u().domain(), (0.0, 5.0), "2k+1 = 5");
+    assert_eq!(chart.knots_u_f64_interim().domain(), (0.0, 5.0), "2k+1 = 5");
     let out = topo::pcurve_of(&body, he, band());
     let Ok(Pcurve::General(ref image)) = out else {
         panic!("an interior column's home is the General arm: {out:?}")
@@ -325,7 +329,7 @@ fn r1_certify_general_refuses_a_plausible_wrong_column() {
         panic!("the deriver speaks first: {out:?}")
     };
     let shifted = geom::NurbsCurve2::new(
-        image.knots().clone(),
+        image.knots_f64_interim().clone(),
         image
             .control()
             .iter()
@@ -403,7 +407,7 @@ fn r1_cap_rim_widening_measures_the_face_not_the_chart() {
         body.detach_pcurve(he);
     }
     let chart = chart_of(&body, key);
-    let (dv0, dv1) = chart.knots_v().domain();
+    let (dv0, dv1) = chart.knots_v_f64_interim().domain();
     let mut rims = 0;
     for (_, edge) in body.edges() {
         for he in [edge.he_plus, edge.he_minus] {
@@ -463,7 +467,7 @@ fn r1_wall_seam_arm_mints_and_certifies_the_interior_column() {
     let eps = Tol::witness().get().eps;
     let (mut body, seam_he, key) = widened_fixture(false, 1);
     let chart = chart_of(&body, key);
-    let (du0, du1) = chart.knots_u().domain();
+    let (du0, du1) = chart.knots_u_f64_interim().domain();
     // Same stored-cache trap as the rim row: detach, then derive.
     let hes: Vec<_> = body
         .edges()
@@ -524,12 +528,13 @@ fn r1_wall_seam_arm_mints_and_certifies_the_interior_column() {
 /// **No lane fabricates a foot.** At `Dual64` — a scalar with no
 /// certified projection (its policy holds no fitted door,
 /// `topo::AtRestPolicy::fitted_lane`) — the wall–seam arm on the same
-/// widened chart refuses typed, naming the missing lane rather than a
-/// boundary it never measured. The dual body is the same loft at the
+/// widened chart has no foot to offer, so the carrier falls to its
+/// `General` image, which refuses typed, naming the missing lane rather
+/// than a column it never measured. The dual body is the same loft at the
 /// same scale, its bowed wall re-charted with the same widened net
 /// lifted constant.
 #[test]
-fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
+fn r1_dual_scalar_wall_seam_arm_names_the_missing_lane() {
     use geom_core::{Bounds, Dual, Dual64};
     let widened = {
         let body = prism(SCALE);
@@ -612,16 +617,15 @@ fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
         }
         seams += 1;
         let out = topo::pcurve_of(&body, he, band());
-        let Err(PcurveMintError::Certify {
-            error: geom_brep::PcurveCertifyError::IsoUnsupported { what },
-            ..
-        }) = out
-        else {
-            panic!("a dual body has no foot to measure, so the arm refuses typed: {out:?}")
-        };
         assert!(
-            what.contains("no lane measures a chart foot at this scalar"),
-            "naming the missing lane, not a fabricated column: {what}"
+            matches!(
+                out,
+                Err(PcurveMintError::Certify {
+                    error: geom_brep::PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
+                    ..
+                })
+            ),
+            "naming the missing lane, not a fabricated column: {out:?}"
         );
     }
     assert!(seams >= 1, "the wall face has its seams: found {seams}");
@@ -677,7 +681,7 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
         n.weights().iter().all(|w| *w == 1.0),
         "the polynomial extension needs the integral wall"
     );
-    assert_eq!(n.knots_v().degree(), 2, "the loft's v degree");
+    assert_eq!(n.knots_v_f64_interim().degree(), 2, "the loft's v degree");
     let (nu, nv) = n.control_counts();
     assert_eq!((nu, nv), (2, 3), "the loft wall's net");
     // The same quadratic on [0, 2]: Q0 = P0, Q1 = 2 P1 - P0,
@@ -692,11 +696,11 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
         control.push(p2 + (p2 - p1) * 3.0 + (p0 - p1));
     }
     let extended = Surface::Nurbs(Arc::new(
-        NurbsSurface::new(n.knots_u().clone(), kv, control, vec![1.0; 6]).unwrap(),
+        NurbsSurface::new(n.knots_u_f64_interim().clone(), kv, control, vec![1.0; 6]).unwrap(),
     ));
     let key = rechart(&mut body, bowed, extended);
     let chart = chart_of(&body, key);
-    assert_eq!(chart.knots_v().domain(), (0.0, 2.0));
+    assert_eq!(chart.knots_v_f64_interim().domain(), (0.0, 2.0));
     let out = topo::pcurve_of(&body, he, band());
     let Ok(Pcurve::General(ref image)) = out else {
         panic!(
@@ -706,7 +710,7 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
     };
     let (carrier, t0, t1) = carrier_of(&body, he);
     // It is still a column: u constant, on a genuine u boundary.
-    let (du0, du1) = chart.knots_u().domain();
+    let (du0, du1) = chart.knots_u_f64_interim().domain();
     let us: Vec<f64> = image.control().iter().map(|p| p.x).collect();
     for u in &us {
         assert!(

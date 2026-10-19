@@ -1,14 +1,15 @@
-//! **The assembly gate pays tier 3's local battery once per aggregate.**
+//! **The at-rest gates pay tier 3′ once per aggregate, all of it at the
+//! gather.**
 //!
-//! The gather gates its aggregate with tier 3 and keeps the verdict on
-//! the product's body; the assembly gate over that product then runs
-//! tier 3′'s census alone. The witness is the `probe` sample log, which
-//! records every predicate decision the at-rest passes make: over the
-//! assembled body, the assembly gate's samples plus a standalone tier-3
-//! pass's samples must be, as a multiset, exactly a standalone tier-3′
-//! pass's. A gate that re-ran the battery records the battery's samples
-//! a second time and breaks the equality; one that skipped the census
-//! loses the census's.
+//! The gather gates its aggregate with tier 3, runs tier 3′'s census
+//! over it and keeps both verdicts on the product; the assembly gate
+//! reads the kept census and runs no predicate. The witness is the
+//! `probe` sample log, which records every predicate decision the
+//! at-rest passes make: the gather's samples must be, as a multiset,
+//! exactly a standalone tier-3′ pass's over the assembled body, and the
+//! assembly gate's must be none. A gate that re-ran the battery or the
+//! census records its samples a second time; a gather that skipped the
+//! census loses the census's.
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -42,7 +43,7 @@ fn recorded<R>(f: impl FnOnce() -> R) -> (R, Vec<Bits>) {
 }
 
 #[test]
-fn the_assembly_gate_runs_the_census_over_the_gathers_verdict() {
+fn the_gather_pays_tier_3_prime_once_and_the_assembly_gate_nothing() {
     let tol = Tol::witness();
     let (doc, union) = two_blocks_and_their_union("assemble-one-local-battery");
     let (doc, _) = place(doc, union);
@@ -53,31 +54,31 @@ fn the_assembly_gate_runs_the_census_over_the_gathers_verdict() {
         &EvalOptions::default(),
         tol,
     );
-    let product = product_recorded(&doc, &ev, tol).expect("the union gathers");
+    let (product, gather) = recorded(|| product_recorded(&doc, &ev, tol));
+    let product = product.expect("the union gathers");
     let (assembly, gate) = recorded(|| assemble_gathered(product, tol));
     let assembly = assembly.expect("an unmated product assembles");
-    let (local, battery) = recorded(|| topo::validate_geometric(&assembly.body, tol));
-    local.expect("the assembled body passes tier 3");
     let (whole, pass) =
         recorded(|| topo::validate_pseudomanifold(&assembly.body, &assembly.contacts, tol));
     whole.expect("the assembled body passes tier 3′");
     assert!(
-        !battery.is_empty(),
-        "tier 3 recorded no sample: the equality below would not see a second battery"
+        !pass.is_empty(),
+        "tier 3′ recorded no sample: the equality below would see nothing"
     );
-    let mut paid: Vec<_> = gate.iter().chain(&battery).cloned().collect();
-    paid.sort();
+    assert!(
+        gate.is_empty(),
+        "the assembly gate recorded {} samples: it reads the gather's census and runs none",
+        gate.len()
+    );
     assert_eq!(
-        paid.len(),
+        gather.len(),
         pass.len(),
-        "the assembly gate recorded {} samples, tier 3 {} and tier 3′ {}: the gate must be \
-         tier 3′ less one battery",
-        gate.len(),
-        battery.len(),
+        "the gather recorded {} samples and tier 3′ {}: the gather must pay tier 3′ once",
+        gather.len(),
         pass.len()
     );
     assert!(
-        paid == pass,
-        "the assembly gate's samples plus one battery are not tier 3′'s, sample for sample"
+        gather == pass,
+        "the gather's samples are not tier 3′'s, sample for sample"
     );
 }

@@ -103,10 +103,10 @@ use geom_core::running::{self, Rounded};
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use super::sign;
-use crate::boolean::circle_roots::{
-    CircleRoots, RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
-    rounding_charge,
+use geom_brep::half_angle::{
+    DegreeTwo, RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
 };
+use geom_brep::rounding_charge;
 
 /// A vector `x₀ + x₁ cos θ + x₂ sin θ`; `turning` false, a constant
 /// `x₀` (`x₁ = x₂ = 0`).
@@ -172,7 +172,7 @@ impl<T: Real> Wave<T> {
     }
 
     fn poly(self) -> TrigPoly<T> {
-        TrigPoly::second(self.k, self.c1, self.s1, self.c2, self.s2)
+        DegreeTwo::new(self.k, self.c1, self.s1, self.c2, self.s2).poly()
     }
 }
 
@@ -350,13 +350,13 @@ impl<T: Real> Quadric<T> {
                     value: reach.value.abs(),
                     ..reach
                 };
-                Rounded::exact(r) - quotient(reach, running::dot(m, m).sqrt())
+                Rounded::exact(r) - reach.quotient(running::dot(m, m).sqrt())
             }
             Self::Cone { .. } => {
                 let along = running::dot(u, w);
                 let perp = [0, 1, 2].map(|i| u[i] - w[i] * along);
                 let apart = running::dot(perp, perp).sqrt();
-                quotient(e, apart * Rounded::exact(T::from_f64(16.0)))
+                e.quotient(apart * Rounded::exact(T::from_f64(16.0)))
             }
         }
     }
@@ -398,17 +398,6 @@ impl<T: Real> Quadric<T> {
             Self::Cone { .. } => T::from_f64(16.0) * big_u,
         };
         d * T::from_f64(CEILING_PAD)
-    }
-}
-
-/// `n / d` with its running bound, `d`'s magnitude past its own bound.
-fn quotient<T: Real>(n: Rounded<T>, d: Rounded<T>) -> Rounded<T> {
-    let value = n.value / d.value;
-    let room = d.value.abs() - d.error;
-    Rounded {
-        value,
-        error: (n.error + value.abs() * d.error) / room
-            + T::from_f64(geom_core::UNIT_ROUNDOFF) * value.abs(),
     }
 }
 
@@ -546,9 +535,9 @@ fn roots<T: Decide>(
         charged.then_some(&slack),
         band,
     ) {
-        Ok(CircleRoots::Miss) => Vec::new(),
-        Ok(CircleRoots::Certified { count, thetas }) => thetas[..count].to_vec(),
-        _ => return Err(walk.row),
+        Ok(geom_brep::roots::Roots::Miss) => Vec::new(),
+        Ok(geom_brep::roots::Roots::Certified(found)) => found.roots().to_vec(),
+        Err(_) => return Err(walk.row),
     };
     let slacks = slacks(charged, band);
     let mut out: Vec<T> = Vec::with_capacity(found.len());

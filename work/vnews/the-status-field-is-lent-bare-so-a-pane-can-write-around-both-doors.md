@@ -53,3 +53,27 @@ field, `ViewerBehavior`, the toolbar read, the startup initializer
 startup exception therefore has to be answered first or alongside, and
 the weighing is whether a sealed line is worth turning that exception
 from a comment into a compile error.
+
+## Evidence 2026-09-28 (`vnews/progress-names-its-own-states`)
+
+Two more members of the same class: a `pub` enum whose docs name one
+door that mints it, while its variants are public constructors any
+call site can use.
+
+- `pickcache::IndexSeam { Idle, Building }` has one door,
+  `PickCache::index_seam`, which reads the cache's record and the fit.
+  The type stops a bare `bool` in its place: handing
+  `ViewerBehavior::indexing` `PickCache::indexing()` does not compile.
+  It does not stop `indexing: IndexSeam::Idle` at `app.rs`'s
+  `ViewerBehavior` literal. That half is held by a row
+  (`app.rs`'s `index_seam_tests`), not by the type.
+- `session::Outstanding` is described in `crates/viewer/README.md`
+  (The session's vocabularies) as the fact read once by
+  `DocSession::outstanding`. Its variants are public too, so
+  `frame::progress` accepts a hand-built one. `tests/eval_seam.rs`
+  holds the fold, not the call site.
+
+Both now say this in their docs and in the README. Sealing either one
+means the same weighing as this row's `StatusLine`: the rows plant
+the variants (`tests/frame_policy.rs`'s progress table), so a private
+constructor needs a test door.

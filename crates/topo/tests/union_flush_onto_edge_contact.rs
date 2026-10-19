@@ -369,13 +369,17 @@ fn assert_pinch_records(records: &topo::ContactRecords) {
     );
 }
 
-/// **A pinch owes its edge-edge row.** Two bricks touching along an
-/// edge pass 3′ with their own records, and without the edge-edge row
-/// the overlap along the touch refuses unrecorded though both its ends
-/// keep their v-v rows: the bounds confirm the row, never stand in for
-/// it (D1). Red if the census backs the overlap on its bounds alone.
+/// **A pinch's edge-edge row is read off its shared ends.** Two bricks
+/// touching along an edge pass 3′ with their own records. The union
+/// put each end's two vertices on one point key (the v-v rows it
+/// decided), so the overlap between the two shared keys is structure,
+/// and the census passes it without the edge-edge row; the row stays,
+/// citing both ends' decisions, for the `unproven-coincidence` lint.
+/// Red if an end's two vertices sit on two keys. The shared ends
+/// are ratified on PR 4793: the records are the lint's evidence, not
+/// the census's.
 #[test]
-fn a_pinch_without_its_edge_edge_row_refuses_the_overlap() {
+fn a_pinch_without_its_edge_edge_row_reads_its_shared_ends() {
     let tol = Tol::witness();
     let (pinch, _) = pinch(tol);
     let verdict = validate_pseudomanifold(&pinch.body, &pinch.contacts, tol);
@@ -387,17 +391,15 @@ fn a_pinch_without_its_edge_edge_row_refuses_the_overlap() {
         .filter(|c| !matches!(c.record.kind(), topo::ContactKind::EdgeEdge(..)))
         .cloned()
         .collect();
-    let errors =
-        validate_pseudomanifold(&pinch.body, &bounds, tol).expect_err("the overlap refuses");
-    assert!(
-        matches!(
-            errors[..],
-            [topo::ValidationError::UnrecordedContact {
-                contact: topo::CensusContact::EdgeEdgeOverlap { .. },
-                ..
-            }]
-        ),
-        "the overlap alone refuses: {errors:?}"
+    for (x, y) in pinch.contacts.vertex_vertex() {
+        let key = |v| pinch.body.get_vertex(v).unwrap().point;
+        assert_eq!(key(x), key(y), "an end's two vertices share one key");
+    }
+    assert_eq!(
+        validate_pseudomanifold(&pinch.body, &bounds, tol),
+        Ok(()),
+        "the overlap between two shared keys reads as structure (the shared ends \
+         ratified on PR 4793: the records are the lint's evidence, not the census's)"
     );
 }
 
@@ -449,12 +451,16 @@ fn keys_at(body: &Body<f64>, p: (f64, f64, f64)) -> Vec<topo::VertexKey> {
 /// Each op of `pinch` and `cutter`, in both operand orders and with
 /// `carried` as the pinch's own records, builds at its volume and
 /// passes 3′: `pinch ∪ cutter`, `pinch ∖ cutter`, `pinch ∩ cutter` and
-/// `cutter ∖ pinch`.
+/// `cutter ∖ pinch`. A `cutter ∖ pinch` given no volume refuses
+/// `BooleanError::Revert` instead: the result would carry the pinch's
+/// coincident edges with overlapping wedges, where the complement pairs
+/// the two bricks' faces across them.
 fn every_op_builds(
     pinch: &AtRestBody<f64>,
     carried: &topo::OperandRecords,
     cutter: &AtRestBody<f64>,
-    [union, pinch_less, common, cutter_less]: [f64; 4],
+    [union, pinch_less, common]: [f64; 3],
+    cutter_less: Option<f64>,
     tol: Tol,
 ) {
     let ab = BooleanInputs {
@@ -467,18 +473,26 @@ fn every_op_builds(
     };
     for (op, got, want) in topo::test_support::ops_under_test(|| {
         [
-            ("pinch ∪ cutter", union_in(pinch, cutter, &ab, tol), union),
+            (
+                "pinch ∪ cutter",
+                union_in(pinch, cutter, &ab, tol),
+                Some(union),
+            ),
             (
                 "pinch ∖ cutter",
                 subtract_in(pinch, cutter, &ab, tol),
-                pinch_less,
+                Some(pinch_less),
             ),
             (
                 "pinch ∩ cutter",
                 intersect_in(pinch, cutter, &ab, tol),
-                common,
+                Some(common),
             ),
-            ("cutter ∪ pinch", union_in(cutter, pinch, &ba, tol), union),
+            (
+                "cutter ∪ pinch",
+                union_in(cutter, pinch, &ba, tol),
+                Some(union),
+            ),
             (
                 "cutter ∖ pinch",
                 subtract_in(cutter, pinch, &ba, tol),
@@ -487,10 +501,23 @@ fn every_op_builds(
             (
                 "cutter ∩ pinch",
                 intersect_in(cutter, pinch, &ba, tol),
-                common,
+                Some(common),
             ),
         ]
     }) {
+        let Some(want) = want else {
+            assert!(
+                matches!(
+                    got,
+                    Err(BooleanError::Revert {
+                        operand: topo::Operand::B,
+                        ..
+                    })
+                ),
+                "{op}: {got:?}, not the revert's refusal"
+            );
+            continue;
+        };
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
@@ -546,7 +573,8 @@ fn a_vertex_crossing_both_sides_of_a_pinch_builds_in_every_op() {
         &pinch.body,
         &carried,
         &wedge(80.0, 190.0, (0.5, 1.0), tol),
-        [2.0 + outside, 2.0 - inside, inside, outside],
+        [2.0 + outside, 2.0 - inside, inside],
+        Some(outside),
         tol,
     );
 }
@@ -651,8 +679,8 @@ fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64
             pinch_volume + cutter_volume - common,
             pinch_volume - common,
             common,
-            cutter_volume - common,
         ],
+        None,
         tol,
     );
 }
@@ -910,12 +938,8 @@ fn a_pinch_line_flat_in_the_shared_corners_face_builds_in_every_op() {
         &pinch.body,
         &carried,
         &sheared_wedge(shear, tol),
-        [
-            2.0 + cutter_volume - common,
-            2.0 - common,
-            common,
-            cutter_volume - common,
-        ],
+        [2.0 + cutter_volume - common, 2.0 - common, common],
+        None,
         tol,
     );
 }
@@ -944,12 +968,18 @@ fn three_pieces_two_of_whose_cuts_tie_build_in_every_op() {
 /// at the new pinch end.** The 80°–190° wedge sheared off the axis, so
 /// the pinch line runs inside its corner and leaves through its top
 /// face, and a brick holding the axis, which its top face crosses. Each
-/// op builds, the sheared one's volumes agreeing with each other, and
-/// passes 3′: where a result keeps the pinch's two pieces at the top
-/// face's crossing, the carried edge-edge row's split lineage records
-/// the two split vertices there. Red if the pinch records no edge-edge
-/// row, or the row is not carried: 3′ refuses `VertexVertex` at
-/// (0,0,1) in `pinch ∖ cutter`, both intersections and `block ∩ pinch`.
+/// op but `cutter ∖ pinch` builds, the sheared one's volumes agreeing
+/// with each other, and passes 3′: where a result keeps the pinch's two
+/// pieces at the top face's crossing, the carried edge-edge row's split
+/// lineage records the two split vertices there. Red if the pinch
+/// records no edge-edge row, or the row is not carried: 3′ refuses
+/// `VertexVertex` at (0,0,1) in `pinch ∖ cutter`, both intersections and
+/// `block ∩ pinch`.
+///
+/// `cutter ∖ pinch` keeps the pinch line inside the cutter, where the
+/// complement of the pinch's two quadrants is the other two: the
+/// pinch's two edges re-pair across the bricks, which ∖ does not build,
+/// so it refuses `BooleanError::Revert`.
 #[test]
 fn a_pinch_line_through_a_face_keeps_its_records_at_the_new_end() {
     let tol = Tol::witness();
@@ -1003,9 +1033,16 @@ fn a_pinch_line_through_a_face_keeps_its_records_at_the_new_end() {
         intersect_in(&pinch.body, &cutter, &ab, tol),
     );
     let swapped = volume_of("cutter ∪ pinch", union_in(&cutter, &pinch.body, &ba, tol));
-    let cutter_less = volume_of(
-        "cutter ∖ pinch",
-        subtract_in(&cutter, &pinch.body, &ba, tol),
+    let refusal = subtract_in(&cutter, &pinch.body, &ba, tol);
+    assert!(
+        matches!(
+            refusal,
+            Err(BooleanError::Revert {
+                operand: topo::Operand::B,
+                ..
+            })
+        ),
+        "cutter ∖ pinch: {refusal:?}, not the revert's refusal"
     );
     let common_swapped = volume_of(
         "cutter ∩ pinch",
@@ -1015,7 +1052,6 @@ fn a_pinch_line_through_a_face_keeps_its_records_at_the_new_end() {
     let cutter_volume = area(&triangle(80.0, 190.0)) * 0.5;
     for (what, got, want) in [
         ("pinch ∖ cutter + ∩", pinch_less + common, 2.0),
-        ("cutter ∖ pinch + ∩", cutter_less + common, cutter_volume),
         ("∪", union, 2.0 + cutter_volume - common),
         ("∪ swapped", swapped, union),
         ("∩ swapped", common_swapped, common),
@@ -1330,6 +1366,19 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
         ]
     }) {
         let op = format!("{op} (notch {notch:?})");
+        if op.starts_with("prism ∖ pinch") {
+            assert!(
+                matches!(
+                    got,
+                    Err(BooleanError::Revert {
+                        operand: topo::Operand::B,
+                        ..
+                    })
+                ),
+                "{op}: {got:?}, not the revert's refusal"
+            );
+            continue;
+        }
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
@@ -1782,7 +1831,9 @@ fn lens_volumes(
 
 /// A lens `y`, built in the `order` named, against the cube's corner:
 /// each op builds at its share of `[common, y]` ([`lens_volumes`]) and
-/// passes 3′ with `y`'s records carried.
+/// passes 3′ with `y`'s records carried, but `cube ∖ y`, which refuses
+/// `BooleanError::Revert`: `y`'s coincident struts lie inside the cube,
+/// and the result would carry them with overlapping wedges.
 fn lens_against_the_cube(
     y: &BooleanBody<f64>,
     [common, y_volume]: [f64; 2],
@@ -1795,10 +1846,22 @@ fn lens_against_the_cube(
         "y = {order}: volume {got}, want {y_volume}"
     );
     for (op, got) in against_the_cube(&y.body, &carried_rows(&y.contacts), tol) {
+        if op == "cube ∖ y" {
+            assert!(
+                matches!(
+                    got,
+                    Err(BooleanError::Revert {
+                        operand: topo::Operand::B,
+                        ..
+                    })
+                ),
+                "cube ∖ y (y = {order}): {got:?}, not the revert's refusal"
+            );
+            continue;
+        }
         let volume = match op {
             "y ∪ cube" | "cube ∪ y" => y_volume + 1.0 - common,
             "y ∖ cube" => y_volume - common,
-            "cube ∖ y" => 1.0 - common,
             _ => common,
         };
         let op = format!("{op} (y = {order})");
@@ -2095,7 +2158,7 @@ fn a_corner_crossing_the_cubes_four_times_builds_every_op() {
 /// pair, which crosses the cube's corner four times, has no run in the
 /// cube's corner clear of the other pieces' cuts, both ways round, and
 /// refuses `SharedVertexCrossings`
-/// (`work/fuse/shared-vertex-crossings-that-tie-or-interleave-are-unprobed.md`):
+/// (`work/gauge/shared-vertex-crossings-that-tie-or-interleave-are-unprobed.md`):
 /// pinned as they stand.
 #[test]
 fn three_corners_alternating_round_the_cube_refuse_three_ops() {
@@ -2252,4 +2315,52 @@ fn a_face_holding_the_pinch_line_ties_the_pierces_germs() {
             }
         }
     }
+}
+
+/// **A pinch line's end joins where the next union straightens it, its
+/// records carried.** `p` and `q` touch along the z-axis over
+/// `z ∈ (0, 1)`; `r` stacks on `p`, so `p`'s vertex at `(0, 0, 1)`
+/// lies inside the stacked block's vertical edge. Carrying `p ∪ q`'s
+/// records, the union with `r` joins that vertex away (its key shared
+/// only with `q`'s corner, another lump's: `edge_join::free_vertices`),
+/// leaves no joinable vertex, passes 3′ on its records, and builds the
+/// body `r` first builds. Red where the join keeps every vertex on a
+/// shared key (a vertex more than the other order, joinable at rest).
+#[test]
+fn a_pinch_lines_end_joins_where_the_next_union_straightens_it() {
+    let tol = Tol::witness();
+    let p = finished("p", brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), tol);
+    let q = finished("q", brick((-1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), tol), tol);
+    let r = finished("r", brick((0.0, 1.0), (0.0, 1.0), (1.0, 2.0), tol), tol);
+    let step = |a: &AtRestBody<f64>, b: &AtRestBody<f64>, prev: Option<&BooleanBody<f64>>| {
+        let mut decls = BooleanInputs::default();
+        if let Some(prev) = prev {
+            decls.records_a = carried_rows(&prev.contacts);
+        }
+        match union_in(a, b, &decls, tol) {
+            Ok(BooleanResult::Body(out)) => out,
+            other => panic!("{other:?}"),
+        }
+    };
+    let pq = step(&p, &q, None);
+    let fold = step(&pq.body, &r, Some(&pq));
+    let pr = step(&p, &r, None);
+    let other = step(&pr.body, &q, Some(&pr));
+    let counts = |b: &Body<f64>| (b.vertices().count(), b.edges().count(), b.faces().count());
+    let band = geom_core::Band::linear(tol).unwrap();
+    assert_eq!(
+        topo::joinable_vertices(&fold.body, band).unwrap(),
+        vec![],
+        "no joinable vertex is left"
+    );
+    assert_eq!(
+        validate_pseudomanifold(&fold.body, &fold.contacts, tol),
+        Ok(()),
+        "3′ on its records"
+    );
+    assert_eq!(
+        counts(&fold.body),
+        counts(&other.body),
+        "the two orders' bodies"
+    );
 }

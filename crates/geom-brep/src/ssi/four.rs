@@ -22,6 +22,8 @@
 //! 3's one-arc proof over the two-chart tube ([`one_arc_pair`]), the
 //! analogue of [`super::one_arc::one_arc_r3`] one dimension up.
 
+use std::rc::Rc;
+
 use geom::NurbsSurface;
 use geom_core::interval::certification::Certification;
 use geom_core::{Bounds, CertifiedBounds, Interval};
@@ -40,10 +42,10 @@ impl Box4 {
     /// space of their section.
     pub(crate) fn of_charts<T: CertifiedBounds>(a: &NurbsSurface<T>, b: &NurbsSurface<T>) -> Self {
         Self([
-            a.knots_u().domain(),
-            a.knots_v().domain(),
-            b.knots_u().domain(),
-            b.knots_v().domain(),
+            a.knots_u_f64_interim().domain(),
+            a.knots_v_f64_interim().domain(),
+            b.knots_u_f64_interim().domain(),
+            b.knots_v_f64_interim().domain(),
         ])
     }
 
@@ -110,18 +112,23 @@ impl Box4 {
 /// certified chart speed in metres per parameter unit: what a width in
 /// state units is read in metres by.
 pub(crate) struct PairBoxes<'a, T: CertifiedBounds> {
-    a: NurbsBoxes<'a, T>,
-    b: NurbsBoxes<'a, T>,
+    a: Rc<NurbsBoxes<'a, T>>,
+    b: Rc<NurbsBoxes<'a, T>>,
     /// The chart speeds `(u₁, v₁, u₂, v₂)`.
     pub(crate) speeds: [f64; 4],
 }
 
 impl<'a, T: CertifiedBounds> PairBoxes<'a, T> {
-    /// The pair, with its four chart speeds.
-    pub(crate) fn new(a: &'a NurbsSurface<T>, b: &'a NurbsSurface<T>, speeds: [f64; 4]) -> Self {
+    /// The pair over the two operands' own cells (the enclosures they
+    /// hold, shared), with its four chart speeds.
+    pub(crate) fn new(
+        a: &super::ChartedNurbs<'a, T>,
+        b: &super::ChartedNurbs<'a, T>,
+        speeds: [f64; 4],
+    ) -> Self {
         Self {
-            a: NurbsBoxes::new(a),
-            b: NurbsBoxes::new(b),
+            a: Rc::clone(a.own_boxes()),
+            b: Rc::clone(b.own_boxes()),
             speeds,
         }
     }
@@ -273,6 +280,31 @@ fn krawczyk_with<T: CertifiedBounds>(
     free: [usize; 3],
     jac: [[Interval; 4]; 3],
 ) -> Option<Krawczyk> {
+    let k_box = image(pair, x, free, jac)?;
+    let inside = free
+        .iter()
+        .all(|&k| k_box.0[k].0 > x.0[k].0 && k_box.0[k].1 < x.0[k].1);
+    let misses = free
+        .iter()
+        .any(|&k| k_box.0[k].1 < x.0[k].0 || k_box.0[k].0 > x.0[k].1);
+    if inside {
+        Some(Krawczyk::One(k_box))
+    } else if misses {
+        Some(Krawczyk::None)
+    } else {
+        None
+    }
+}
+
+/// The Krawczyk operator's image of the face piece `x` ([`krawczyk`]):
+/// every solution in `x` lies in it. `None` where `J`'s midpoint is
+/// singular or the image is not certified.
+fn image<T: CertifiedBounds>(
+    pair: &PairBoxes<'_, T>,
+    x: Box4,
+    free: [usize; 3],
+    jac: [[Interval; 4]; 3],
+) -> Option<Box4> {
     let mid = |s: (f64, f64)| 0.5 * (s.0 + s.1);
     let mut m = x;
     for &k in &free {
@@ -285,8 +317,6 @@ fn krawczyk_with<T: CertifiedBounds>(
     let d: [Interval; 3] =
         free.map(|k| Interval::from_bounds(x.0[k].0, x.0[k].1) - Interval::point(mid(x.0[k])));
     let mut k_box = x;
-    let mut inside = true;
-    let mut misses = false;
     for r in 0..3 {
         let mut v = Interval::point(mid(x.0[free[r]]));
         for c in 0..3 {
@@ -302,18 +332,30 @@ fn krawczyk_with<T: CertifiedBounds>(
         if !v.is_certified() {
             return None;
         }
-        let s = x.0[free[r]];
-        inside &= v.lo() > s.0 && v.hi() < s.1;
-        misses |= v.hi() < s.0 || v.lo() > s.1;
         k_box.0[free[r]] = (v.lo(), v.hi());
     }
-    if inside {
-        Some(Krawczyk::One(k_box))
-    } else if misses {
-        Some(Krawczyk::None)
-    } else {
-        None
+    Some(k_box)
+}
+
+/// The most times [`narrow`] applies the operator.
+const NARROWINGS: u32 = 64;
+
+/// The root box `q` on the face held at `k`, narrowed: met with its
+/// Krawczyk image ([`image`]) until the meet stops shrinking. The image
+/// holds every solution in `q`, so each meet holds the one `q` does.
+fn narrow<T: CertifiedBounds>(pair: &PairBoxes<'_, T>, (q, k): (Box4, usize)) -> Box4 {
+    let free = free_of(k);
+    let mut q = q;
+    for _ in 0..NARROWINGS {
+        let Some(next) = image(pair, q, free, pair.jacobian(q)).and_then(|i| i.meet(q)) else {
+            return q;
+        };
+        if next == q {
+            return q;
+        }
+        q = next;
     }
+    q
 }
 
 /// The inverse of a 3×3 matrix, `None` where it is singular or not
@@ -334,6 +376,16 @@ fn inverse3(m: [[f64; 3]; 3]) -> Option<[[f64; 3]; 3]> {
     out.iter().flatten().all(|v| v.is_finite()).then_some(out)
 }
 
+/// The three coordinates a face held at `k` leaves free.
+fn free_of(k: usize) -> [usize; 3] {
+    match k {
+        0 => [1, 2, 3],
+        1 => [0, 2, 3],
+        2 => [0, 1, 3],
+        _ => [0, 1, 2],
+    }
+}
+
 /// The solutions on the face `x` held at coordinate `k`, pushed onto
 /// `roots` (module docs). `None` when a piece resolves no way within
 /// [`EXIT_DEPTH`] cuts, or `pieces` passes `budget`.
@@ -343,12 +395,7 @@ fn face_walk<T: CertifiedBounds>(
     roots: &mut Vec<Box4>,
     (pieces, budget): (&mut u32, u32),
 ) -> Option<()> {
-    let free: [usize; 3] = match k {
-        0 => [1, 2, 3],
-        1 => [0, 2, 3],
-        2 => [0, 1, 3],
-        _ => [0, 1, 2],
-    };
+    let free = free_of(k);
     if !x.is_box() {
         return None;
     }
@@ -428,9 +475,14 @@ enum Near {
 
 /// **The box `r`'s piece reaches the carrier's end `at`**, `k` the
 /// coordinate the carrier's state runs most along there, in metres.
-/// - The slice of `r` through the end across `k` holds a solution.
-/// - Or a box about the end, its half-width `eps/8` metres at each
-///   axis's chart speed, cut to `r`, holds one on its boundary.
+/// - One of `r`'s own boundary solutions, `roots`, each narrowed
+///   ([`narrow`]), lies in a box about the end, its half-width `eps/8`
+///   metres at each axis's chart speed.
+///   This is the reading of an end on a side of the domain: the slice's
+///   solution there lies on the slice's own boundary, where no Krawczyk
+///   test isolates it.
+/// - Or the slice of `r` through the end across `k` holds a solution.
+/// - Or the box about the end, cut to `r`, holds one on its boundary.
 ///
 /// The box is r3's ball of diameter `eps` (`one_arc::r3_reaches_end`,
 /// half-width `eps/(2√3)` less the end's width) read in chart units: a
@@ -439,30 +491,38 @@ enum Near {
 /// the end's image on either chart, inside that ball with room. The end
 /// is a point, so no width of its own is taken off.
 ///
-/// [`Shortfall::Short`] only where both are certified not so; an end
+/// [`Shortfall::Short`] only where the slice and the box about the end
+/// are both certified to hold none (a root of `r` in the box lies on
+/// the box's boundary too, so that covers the first reading); an end
 /// whose slice lies outside `r` along `k` is [`Shortfall::Undecided`].
 fn reaches_end<T: CertifiedBounds>(
     pair: &PairBoxes<'_, T>,
-    r: Box4,
+    (r, roots): (Box4, &[(Box4, usize, bool)]),
     (at, k): ([f64; 4], usize),
     eps: f64,
 ) -> Result<(), Shortfall> {
+    let h: [f64; 4] = core::array::from_fn(|i| eps / 8.0 / pair.speeds[i]);
+    let ball = Box4::at(at).pad(h);
+    if roots
+        .iter()
+        .any(|&(q, face, _)| narrow(pair, (q, face)).contained_in(ball))
+    {
+        return Ok(());
+    }
     let c = at[k];
     if !(r.0[k].0 <= c && c <= r.0[k].1) {
         return Err(Shortfall::Undecided);
     }
-    let mut roots = Vec::new();
+    let mut on_slice = Vec::new();
     let sliced = face_walk(
         pair,
         (r.holding(k, c), k),
-        &mut roots,
+        &mut on_slice,
         (&mut 0, PAIR_EXIT_PIECES),
     );
-    if !roots.is_empty() {
+    if !on_slice.is_empty() {
         return Ok(());
     }
-    let h: [f64; 4] = core::array::from_fn(|i| eps / 8.0 / pair.speeds[i]);
-    let ball = Box4::at(at).pad(h);
     let near = match ball.meet(r) {
         None => Near::Far,
         Some(b) => match face_roots(pair, b, PAIR_EXIT_PIECES) {
@@ -542,11 +602,13 @@ pub(crate) fn one_arc_pair<T: CertifiedBounds>(
             Err(Shortfall::Unlinked)
         }
     })?;
-    let (Some(&first), Some(&last)) = (cut.first(), cut.last()) else {
+    let (Some(&first), Some(&last), Some(r0), Some(r1)) =
+        (cut.first(), cut.last(), roots.first(), roots.last())
+    else {
         return Err(Shortfall::Undecided);
     };
-    reaches_end(pair, first, ends[0], eps)?;
-    reaches_end(pair, last, ends[1], eps)
+    reaches_end(pair, (first, r0), ends[0], eps)?;
+    reaches_end(pair, (last, r1), ends[1], eps)
 }
 
 /// The graph margin over a box: the determinant of `F`'s Jacobian, each
@@ -577,4 +639,151 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
         let sgn = if c % 2 == 0 { -1.0 } else { 1.0 };
         acc + Interval::point(sgn * e[c]) * det3(minor(&j, c))
     })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use geom::NurbsSurface;
+    use geom_core::spline::KnotVector;
+    use geom_core::{CertifiedBounds, Interval, Point3, Real};
+
+    use super::super::ChartedNurbs;
+    use super::super::one_arc::Shortfall;
+    use super::{Box4, PAIR_EXIT_PIECES, PairBoxes, face_roots, narrow, one_arc_pair};
+
+    /// The bilinear patch through `corner(i, j)` at `(u, v) = (i, j)`.
+    fn bilinear(corner: impl Fn(f64, f64) -> [f64; 3]) -> NurbsSurface<f64> {
+        let k = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+            .map(|(i, j)| {
+                let [x, y, z] = corner(i, j);
+                Point3::new(x, y, z)
+            })
+            .to_vec();
+        NurbsSurface::new(k(), k(), control, vec![1.0; 4]).unwrap()
+    }
+
+    /// The pair over two charts, at their own speeds.
+    fn boxed<'a, T: CertifiedBounds>(
+        a: &'a NurbsSurface<T>,
+        b: &'a NurbsSurface<T>,
+    ) -> PairBoxes<'a, T> {
+        let (na, nb) = (
+            ChartedNurbs::mint(a).unwrap(),
+            ChartedNurbs::mint(b).unwrap(),
+        );
+        let (sa, sb) = (na.speeds(), nb.speeds());
+        PairBoxes::new(&na, &nb, [sa.u.get(), sa.v.get(), sb.u.get(), sb.v.get()])
+    }
+
+    /// [`one_arc_pair`] over the one box that is the two charts' whole
+    /// domain.
+    fn spans<T: CertifiedBounds>(
+        (a, b): (&NurbsSurface<T>, &NurbsSurface<T>),
+        ends: [([f64; 4], usize); 2],
+        eps: f64,
+    ) -> Result<(), Shortfall> {
+        let domain = Box4::of_charts(a, b);
+        one_arc_pair(&boxed(a, b), (&[domain], domain), ends, eps)
+    }
+
+    /// The walls `x = 0`, `(u, v) ↦ (0, u, v)`, and `y = ½`,
+    /// `(u, v) ↦ (u − ½, ½, 2v − ½)`, crossing on `x = 0, y = ½` from the
+    /// first's `v = 0` side to its `v = 1` side: the state
+    /// `(½, z, ½, (z + ½)/2)`. In metres the locus runs along `v₁` and
+    /// `v₂` alike, so either is its axis at an end.
+    fn walls() -> (NurbsSurface<f64>, NurbsSurface<f64>) {
+        (
+            bilinear(|i, j| [0.0, i, j]),
+            bilinear(|i, j| [i - 0.5, 0.5, 2.0 * j - 0.5]),
+        )
+    }
+
+    /// **An end on a side of the domain is reached by the box's own root
+    /// there.** Read across `v₂`, the slice through either end meets the
+    /// locus on its own edge `v₁ = 0` or `v₁ = 1`, where no Krawczyk test
+    /// isolates it; the box's boundary root on that side, inside the box
+    /// about the end, is what reaches it, at every ε, on the `f64` lane
+    /// and on the `Interval` lane, whose chart midpoint is an enclosure.
+    #[test]
+    fn an_end_on_a_domain_side_is_reached_by_the_root_there() {
+        let (a, b) = walls();
+        let (ia, ib) = (
+            a.map_scalar(<Interval as Real>::from_f64),
+            b.map_scalar(<Interval as Real>::from_f64),
+        );
+        let ends = [([0.5, 0.0, 0.5, 0.25], 3), ([0.5, 1.0, 0.5, 0.75], 3)];
+        for eps in [1e-6, 1e-9, 1e-12] {
+            assert_eq!(
+                spans((&a, &b), ends, eps),
+                Ok(()),
+                "the arc spans both sides at ε = {eps:e}, f64"
+            );
+            assert_eq!(
+                spans((&ia, &ib), ends, eps),
+                Ok(()),
+                "the arc spans both sides at ε = {eps:e}, Interval"
+            );
+        }
+        // A start a tenth past the first's `v = 0` side: no root of the
+        // box lies near it, and the box about it misses the domain.
+        let past = [([0.5, -0.1, 0.5, 0.2], 3), ends[1]];
+        assert_eq!(
+            spans((&a, &b), past, 1e-9),
+            Err(Shortfall::Short),
+            "a carrier overrunning the arc refuses as short"
+        );
+    }
+
+    /// **A boundary root is narrowed to the arithmetic's width.** The
+    /// trough `z = (x − ½)²` cut by the plane `z = 0.04 + 0.05·y`, the
+    /// plane's chart sheared so that no root coordinate is a round
+    /// number: the face walk accepts a root's piece wherever the
+    /// Krawczyk image falls inside it, and over a curved pair that image
+    /// is wide; narrowing meets it with its own image until it holds
+    /// still, every root kept.
+    #[test]
+    fn a_boundary_root_is_narrowed_to_the_arithmetics_width() {
+        let k = |(a, b): (f64, f64)| KnotVector::clamped(vec![a, a, a, b, b, b], 2).unwrap();
+        let net = |(t0, t1): (f64, f64), at: &dyn Fn(f64, f64) -> [f64; 3]| {
+            let t = |n: usize| t0 + 0.5 * (t1 - t0) * f64::from(u8::try_from(n).unwrap());
+            let control = (0..9)
+                .map(|n| {
+                    let [x, y, z] = at(t(n / 3), t(n % 3));
+                    Point3::new(x, y, z)
+                })
+                .collect();
+            NurbsSurface::new(k((t0, t1)), k((t0, t1)), control, vec![1.0; 9]).unwrap()
+        };
+        // The trough's net: `z` at its three columns is `(x − ½)²`'s
+        // Bernstein form.
+        let trough = net((0.0, 1.0), &|x, y| {
+            [x, y, [0.25, -0.25, 0.25][(2.0 * x).round() as usize]]
+        });
+        let plane = net((-0.2, 1.2), &|u, v| {
+            let (x, y) = (u + 0.1 * v, v + 0.1 * u);
+            [x, y, 0.04 + 0.05 * y]
+        });
+        let pair = boxed(&trough, &plane);
+        let roots = face_roots(&pair, Box4::of_charts(&trough, &plane), PAIR_EXIT_PIECES)
+            .expect("the domain's boundary resolves");
+        assert_eq!(roots.len(), 4, "two branches, each crossing two sides");
+        let metres = |q: Box4| {
+            (0..4)
+                .map(|i| (q.0[i].1 - q.0[i].0) * pair.speeds[i])
+                .fold(0.0, f64::max)
+        };
+        let mut widest = 0.0f64;
+        for &(q, face, _) in &roots {
+            let n = narrow(&pair, (q, face));
+            assert!(
+                n.contained_in(q),
+                "the narrowed root {n:?} lies in its box {q:?}"
+            );
+            assert!(metres(n) <= 1e-13, "{q:?} narrows only to {n:?}");
+            widest = widest.max(metres(q));
+        }
+        assert!(widest > 1e-9, "a root the walk left wide: {widest:e} m");
+    }
 }

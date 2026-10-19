@@ -40,6 +40,7 @@ const T_VAR: u8 = 0x04;
 const T_RATIO: u8 = 0x05;
 const T_INTEGER: u8 = 0x06;
 const T_TURN: u8 = 0x07;
+const T_ZERO: u8 = 0x08;
 const T_ADD: u8 = 0x10;
 const T_SUB: u8 = 0x11;
 const T_NEG: u8 = 0x12;
@@ -82,6 +83,17 @@ fn encode(expr: &Expr, defs: Definitions<'_, '_>, out: &mut Vec<u8>) {
             out.extend_from_slice(&n.to_be_bytes());
         }
         ExprKind::Turn => out.push(T_TURN),
+        // Zero takes any dimension, so its dimension rides with it:
+        // two zeros a tree reads at two dimensions encode apart.
+        ExprKind::Zero => {
+            out.push(T_ZERO);
+            out.push(match expr.dim() {
+                crate::expr::Dimension::Length => 0,
+                crate::expr::Dimension::Angle => 1,
+                crate::expr::Dimension::Scalar => 2,
+                crate::expr::Dimension::Count => 3,
+            });
+        }
         // A defined variable is its definition, expanded (VR8): a
         // reader of `h := 2·w` and a slot spelling `2·w` lower equal.
         // The doors bound each VARIABLE's expansion
@@ -124,12 +136,28 @@ fn unary(tag: u8, a: &Expr, defs: Definitions<'_, '_>, out: &mut Vec<u8>) {
     encode(a, defs, out);
 }
 
-/// The bytes [`feed_content_key`] writes for a slot reading `var`.
-#[cfg(any(test, feature = "test-support"))]
+/// The bytes [`feed_content_key`] writes for a slot reading `var`: its
+/// lowering (VR8), so two variables lower alike exactly where these
+/// agree.
 pub(crate) fn var_spelling(defs: Definitions<'_, '_>, var: VarId) -> Vec<u8> {
     let mut bytes = Vec::new();
     encode(&slot_reader(var), defs, &mut bytes);
     bytes
+}
+
+/// **Whether `var` lowers to a constant** (VR8): expanded through
+/// definitions, it reads no variable that is not itself defined.
+pub(crate) fn lowers_to_constant(defs: Definitions<'_, '_>, var: VarId) -> bool {
+    let mut stack = vec![var];
+    while let Some(at) = stack.pop() {
+        let Some(definition) = defs(at) else {
+            return false;
+        };
+        let mut reads = Vec::new();
+        definition.var_reads(&mut reads);
+        stack.extend(reads.into_iter().map(|(read, _)| read));
+    }
+    true
 }
 
 /// [`feed_content_key`] of a slot reading `var`.
@@ -236,6 +264,7 @@ mod tests {
         ("T_RATIO", T_RATIO, Shape::Leaf(16)),
         ("T_INTEGER", T_INTEGER, Shape::Leaf(8)),
         ("T_TURN", T_TURN, Shape::Leaf(0)),
+        ("T_ZERO", T_ZERO, Shape::Leaf(1)),
         ("T_ADD", T_ADD, Shape::Binary),
         ("T_SUB", T_SUB, Shape::Binary),
         ("T_NEG", T_NEG, Shape::Unary),
@@ -293,6 +322,7 @@ mod tests {
             ExprKind::Ratio(_)
             | ExprKind::Integer(_)
             | ExprKind::Turn
+            | ExprKind::Zero
             | ExprKind::Var(_)
             | ExprKind::Add(..)
             | ExprKind::Sub(..)
@@ -305,7 +335,7 @@ mod tests {
             | ExprKind::Sin(_)
             | ExprKind::Cos(_)
             | ExprKind::Tan(_)
-            | ExprKind::CountToScalar(_) => 16,
+            | ExprKind::CountToScalar(_) => 17,
             // The stored form adds no leaf of its own.
             ExprKind::Leaf(own) => match own {},
         };

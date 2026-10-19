@@ -18,7 +18,7 @@ use geom_core::{BandError, Indeterminate};
 use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, SettleError, SplitLineageCycle, VertexKey};
 
 use super::role::{EntityKind, StableName};
-use super::table::{DuplicateName, EntityKey, EntityRef, NameTable};
+use super::table::{EntityKey, EntityRef, NameTable, SeatingRefusal};
 use crate::node::RecipeNodeId;
 
 /// Typed failure of name emission (spec D4's loud assertions, as
@@ -27,7 +27,7 @@ use crate::node::RecipeNodeId;
 /// **Four kinds of thing live here, and the reader is told which.**
 ///
 /// 1. An emission BUG — a mint-time fact inconsistent with the result
-///    body. [`Self::Duplicate`], [`Self::Unnamed`],
+///    body. [`Self::Duplicate`], [`Self::KindMismatch`], [`Self::Unnamed`],
 ///    [`Self::MissingUpstream`], [`Self::Emission`],
 ///    [`Self::SplitLineage`], [`Self::Settle`].
 /// 2. An honest in-band escalation: [`Self::Escalated`].
@@ -37,8 +37,9 @@ use crate::node::RecipeNodeId;
 /// 4. A MISSING RULE: [`Self::SeamVertexParentage`],
 ///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
 ///    [`Self::MergedChord`], [`Self::MergedChordOffRim`],
-///    [`Self::MergedChordConstituents`], [`Self::MemberEdgeTied`],
-///    [`Self::ConventionalVertex`] and [`Self::ClosedCarrierUnread`],
+///    [`Self::MemberEdgeTied`],
+///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`],
+///    [`Self::CarrierUnplaced`] and [`Self::PartnerUnread`],
 ///    reached from recipes nothing is wrong with,
 ///    where the emitter has no rule for a construction the recipe
 ///    produced. They read as a missing rule and not as a bug report,
@@ -75,11 +76,19 @@ use crate::node::RecipeNodeId;
 #[derive(Debug)]
 pub enum NamingError {
     /// A would-be duplicate name outside the tie path (the
-    /// no-silent-aliasing guarantee N1 rests on), or a kind/entity
+    /// no-silent-aliasing guarantee N1 rests on), or an entity
     /// collision at insertion.
     Duplicate {
         /// The colliding name.
         name: Box<StableName>,
+    },
+    /// A row seated on an entity of another kind than its name's
+    /// ([`super::table::KindMismatch`]).
+    KindMismatch {
+        /// The name the row was to be seated under.
+        name: Box<StableName>,
+        /// The offered entity's kind.
+        found: EntityKind,
     },
     /// A live boundary entity the emission failed to cover — a
     /// kernel-emission gap surfaced (spec D4: never guessed around).
@@ -218,12 +227,12 @@ pub enum NamingError {
     },
     /// A boolean's chord between two MERGED faces that no rule names.
     ///
-    /// Each merged face has a constituent on both sides, so the faces
-    /// do not say which side the chord belongs to. The rule that exists
-    /// reads the chord through to the side its own key descends to and
-    /// names it as the rim that side's two constituents share — when
-    /// the chord lies within that rim, which is checked geometrically
-    /// (`emit_topo`'s `chord_within`). This is the refusal for a chord
+    /// Each merged face holds faces of both sides, so the faces do not
+    /// say which side the chord belongs to. The rule that exists reads
+    /// the chord on the side its own key descends to and names it as
+    /// the rim a face of that side in one merged face shares with one in
+    /// the other — when the chord lies within that rim, which is checked
+    /// geometrically (`emit_topo`'s `chord_within`). This is the refusal for a chord
     /// with no key side to read through to: a zip-listed edge, which
     /// the join minted. It does not say the body is wrong; what is
     /// missing is a rule for the chord.
@@ -231,10 +240,14 @@ pub enum NamingError {
         /// The result-body edge.
         edge: EdgeKey,
     },
-    /// A boolean's chord between two MERGED faces that does not lie
-    /// within the rim its key's side reads it through to — the other
-    /// case [`Self::MergedChord`]'s rule does not cover, a sibling word
-    /// because its subject carries the offered rim as well.
+    /// A boolean's chord between two faces of one operand, one of them
+    /// at least MERGED, that lies within no rim of that operand between
+    /// a face on one side of it and a face on the other — the other case
+    /// [`Self::MergedChord`]'s rule does not cover, a sibling word
+    /// because its subject carries a rim it lies off as well (the least
+    /// by name). A union names such a chord beside one merged face as
+    /// the seam of the two faces' parents; between two merged faces, and
+    /// at a subtract or an intersect, no rule does.
     MergedChordOffRim {
         /// The result-body edge.
         edge: EdgeKey,
@@ -243,32 +256,12 @@ pub enum NamingError {
         /// The rim the read-through offered, in that operand's body.
         rim: EdgeKey,
     },
-    /// A boolean's chord from a MERGED face that holds SEVERAL
-    /// constituents on the side the chord reads through to — the third
-    /// case the merged-chord rules do not cover, a sibling word because
-    /// its subject is the merged face's constituents, not a rim.
-    ///
-    /// A chord between a merged face and an unmerged one is read
-    /// through to the merged face's one constituent on the other side.
-    /// A declared union can merge several faces of ONE operand into one
-    /// face — two members of an assembly glued across a declared wall,
-    /// say — and then nothing says which of them the chord lies on. The
-    /// body is sound; what is missing is a rule that picks the
-    /// constituent (a geometric one, as `chord_on_rim` is for a rim).
-    MergedChordConstituents {
-        /// The result-body edge.
-        edge: EdgeKey,
-        /// The merged face, a result-body key.
-        face: FaceKey,
-        /// How many distinct constituents it holds on that side.
-        several: usize,
-    },
     /// A **conventional vertex** (`topo::is_conventional_vertex`: its
     /// only edge is one closed edge, at both its ends) that a table
     /// would name. It has no identity of its own (`docs/DESIGN.md`,
     /// maximal edges), so no member- or position-citing name may stand
     /// for it, and the edge-derived name it takes instead is unbuilt
-    /// (`work/fuse/a-conventional-vertex-mints-no-edge-derived-name`).
+    /// (`work/emit/a-conventional-vertex-mints-no-edge-derived-name`).
     /// A construction's own rim self-loop vertex
     /// (`RoleSeg::MeridianVertex` at the seam) keeps its name and is
     /// not refused.
@@ -290,16 +283,49 @@ pub enum NamingError {
         /// Its carrier's kind.
         carrier: geom::CurveKind,
     },
-    /// A union's member edge whose crossings cannot be ranked along it,
-    /// because a tie stands where one edge is needed: the member's own
-    /// table ties the edge's name to several edges, or the fold tied
-    /// two of the crossings under one name.
+    /// A **point the flush reading cannot place along a curved edge**:
+    /// whether edge `edge` holds a point is read at the point's
+    /// parameter on the edge's certified carrier (`names/README.md`,
+    /// "Flush edges"), and a carrier of this kind (a spline) gives no
+    /// parameter for a point. Answering "not on it" would drop the edge
+    /// from the reading, so it refuses.
+    CarrierUnplaced {
+        /// The edge, in the body the reading placed the point against.
+        edge: EdgeKey,
+        /// Its carrier's kind.
+        carrier: geom::CurveKind,
+    },
+    /// A **crossing at a vertex whose partner the boolean read nothing
+    /// of** ([`topo::UnreadPartner`]): the vertex sits in one pair with
+    /// a vertex of the other operand whose neighbourhood no wedge or
+    /// corner reading classes its edges against, so the boolean holds no
+    /// class for them, and the crossing's senses cannot be read. The
+    /// boolean builds such a result soundly; what is missing is a rule
+    /// that reads the edges against the partner's neighbourhood
+    /// (`work/tang/a-lone-unread-partner-has-no-class-rule`).
+    PartnerUnread {
+        /// The result-body vertex.
+        vertex: VertexKey,
+        /// The partner, `unread.partner`: the other operand's vertex, in
+        /// that operand's clone keys. A field of its own so the sentence
+        /// renders it as one (`pncad-py`'s prose census decides a
+        /// rendered binding only at a variant's own field).
+        partner: VertexKey,
+        /// The boolean's record: the operand vertex whose edges went
+        /// unclassed, the partner it met and why that read nothing.
+        unread: topo::UnreadPartner,
+    },
+    /// A union's member edge read where ONE edge is needed, where a tie
+    /// stands: the member's own table ties the edge's name (or the
+    /// least row on its line) to several edges, or the fold tied two of
+    /// its crossings under one name.
     ///
-    /// The union ranks the vertices where one face crosses a member
-    /// edge several times along that ONE edge's carrier (`emit_union`'s
-    /// `cite_member_edges`); a tie offers several edges or several
-    /// vertices and no rule picks one. Nothing about the result body is
-    /// wrong, so this is a missing rule and not an [`Self::Emission`].
+    /// The union needs one edge to rank the crossings of one face
+    /// along it (`emit_union`'s `cite_member_edges`), to place a
+    /// finished vertex or edge on it, and to read its two faces
+    /// (`Flush`); a tie offers several edges or several vertices and no
+    /// rule picks one. Nothing about the result body is wrong, so this
+    /// is a missing rule and not an [`Self::Emission`].
     MemberEdgeTied {
         /// The member whose edge it is.
         member: crate::VarId,
@@ -337,6 +363,7 @@ pub enum NamingError {
 /// fact's consistency with the body, an acyclic lineage — found broken.
 /// Each speaks it followed by what it caught —
 /// [`NamingError::Duplicate`] the name minted twice,
+/// [`NamingError::KindMismatch`] the name seated on another kind,
 /// [`NamingError::Unnamed`] the entity left uncovered,
 /// [`NamingError::MissingUpstream`] the upstream table that missed,
 /// [`NamingError::Emission`] a fact, [`NamingError::SplitLineage`] the
@@ -408,6 +435,16 @@ impl crate::spoken::Say for NamingError {
                 by.name(name),
                 name.path
             ),
+            Self::KindMismatch { name, found } => write!(
+                f,
+                "{EMISSION_FRAMING}: {} names {} {} and was seated on {} {} — a \
+                 name denotes only entities of its own kind",
+                by.name(name),
+                name.kind.article(),
+                name.kind.noun(),
+                found.article(),
+                found.noun()
+            ),
             Self::Unnamed { kind, body } => write!(
                 f,
                 "{EMISSION_FRAMING}: a live {} of output body {body} was left unnamed",
@@ -470,35 +507,57 @@ impl crate::spoken::Say for NamingError {
                  no period to read the operand edges it lies along over",
                 carrier.name()
             ),
+            Self::CarrierUnplaced { edge, carrier } => write!(
+                f,
+                "{UNRULED_FRAMING}: edge {edge:?} runs on a {} carrier, which gives no \
+                 parameter for a point, so whether the edge holds a point it is read against \
+                 cannot be said",
+                carrier.name()
+            ),
+            Self::PartnerUnread {
+                vertex,
+                partner,
+                unread,
+            } => write!(
+                f,
+                "{UNRULED_FRAMING}: vertex {vertex:?} is operand {}'s vertex meeting the other \
+                 operand's vertex {partner:?}, which the boolean read nothing of: it lies {}. So \
+                 the boolean classed none of the vertex's edges and the crossing there has no \
+                 senses to name it by; reading them against the partner's neighbourhood is not \
+                 built yet (work/tang/a-lone-unread-partner-has-no-class-rule)",
+                match unread.operand {
+                    topo::Operand::A => "A",
+                    topo::Operand::B => "B",
+                },
+                match unread.neighbourhood {
+                    topo::UnreadNeighbourhood::OneFace => "inside one smooth face",
+                    topo::UnreadNeighbourhood::NoBisector =>
+                        "on an edge of two faces, neither holding a bisector to read their wedge by",
+                    topo::UnreadNeighbourhood::ConeUnread =>
+                        "at an edge or corner read as a polygon cone, some edge of which no \
+                         reference decides",
+                }
+            ),
             Self::ConventionalVertex { vertex, body } => write!(
                 f,
                 "{UNRULED_FRAMING}: vertex {vertex:?} of output body {body} is a closed \
                  edge's conventional vertex, which has no identity of its own, and the name it \
                  takes from its edge is not built yet \
-                 (work/fuse/a-conventional-vertex-mints-no-edge-derived-name)"
-            ),
-            Self::MergedChordConstituents {
-                edge,
-                face,
-                several,
-            } => write!(
-                f,
-                "{UNRULED_FRAMING}: seam chord {edge:?} borders merged face {face:?}, which \
-                 holds {several} faces of the operand the chord reads through to, and no rule \
-                 picks the one it lies on"
+                 (work/emit/a-conventional-vertex-mints-no-edge-derived-name)"
             ),
             Self::MergedChordOffRim { edge, node, rim } => write!(
                 f,
-                "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces, and \
-                 does not lie within the rim {rim:?} of operand {}'s body its key reads \
-                 through to",
+                "{UNRULED_FRAMING}: seam chord {edge:?} lies between two faces of one \
+                 operand, a merged face among them, and does not lie within the rim {rim:?} of \
+                 operand {}'s body it lies along, or within any other rim between them",
                 by.node(*node)
             ),
             Self::MemberEdgeTied { member, edge } => write!(
                 f,
-                "{UNRULED_FRAMING}: the crossings of member {}'s edge ({}) cannot \
-                 be ranked along it, because a tie stands where one edge is needed (the member \
-                 ties that name to several edges, or two of its crossings were tied)",
+                "{UNRULED_FRAMING}: member {}'s edge ({}) is read where one edge is needed, \
+                 to rank crossings along it, place a vertex on it or read its faces, and a tie \
+                 stands there (the member ties that name to several edges, or two of its \
+                 crossings were tied)",
                 by.read(*member),
                 by.name(edge)
             ),
@@ -518,6 +577,71 @@ impl crate::spoken::Say for NamingError {
                     )
                 )
             }
+        }?;
+        match self.category() {
+            Some(category) => write!(f, ". {}", category.ending()),
+            None => Ok(()),
+        }
+    }
+}
+
+/// **Whose a naming refusal's failure is**: the kernel's, or a missing
+/// rule's. Each category opens with its own framing and ends with its
+/// own ending.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Category {
+    /// An invariant the emitter relies on was found broken.
+    Emission,
+    /// A well-formed recipe reached a construction no rule names.
+    Unruled,
+}
+
+impl Category {
+    /// The sentence a refusal of this category opens with: each arm's
+    /// `Display` writes it by hand, and the framing test holds the two
+    /// equal.
+    #[cfg(test)]
+    pub(crate) fn framing(self) -> &'static str {
+        match self {
+            Self::Emission => EMISSION_FRAMING,
+            Self::Unruled => UNRULED_FRAMING,
+        }
+    }
+
+    /// The sentence a refusal of this category ends with.
+    pub(crate) fn ending(self) -> &'static str {
+        match self {
+            Self::Emission => geom_core::KERNEL_DEFECT_ENDING,
+            Self::Unruled => geom_core::NOT_YET_ENDING,
+        }
+    }
+}
+
+impl NamingError {
+    /// **The one place a variant's category is written down**, and it is
+    /// a match, so a variant added without choosing one does not
+    /// compile. `None` is a variant that speaks its own sentence and
+    /// states its own recourse (the band, an escalation).
+    pub(crate) fn category(&self) -> Option<Category> {
+        match self {
+            Self::Duplicate { .. }
+            | Self::KindMismatch { .. }
+            | Self::Unnamed { .. }
+            | Self::MissingUpstream { .. }
+            | Self::Emission { .. }
+            | Self::SplitLineage(_)
+            | Self::Settle(_) => Some(Category::Emission),
+            Self::SeamVertexParentage { .. }
+            | Self::SeamVertexPartners { .. }
+            | Self::SharedRim { .. }
+            | Self::MergedChord { .. }
+            | Self::MergedChordOffRim { .. }
+            | Self::ConventionalVertex { .. }
+            | Self::ClosedCarrierUnread { .. }
+            | Self::CarrierUnplaced { .. }
+            | Self::PartnerUnread { .. }
+            | Self::MemberEdgeTied { .. } => Some(Category::Unruled),
+            Self::Band(_) | Self::Escalated { .. } => None,
         }
     }
 }
@@ -553,9 +677,15 @@ impl From<SettleError> for NamingError {
     }
 }
 
-impl From<DuplicateName> for NamingError {
-    fn from(e: DuplicateName) -> Self {
-        Self::Duplicate { name: e.name }
+impl From<SeatingRefusal> for NamingError {
+    fn from(e: SeatingRefusal) -> Self {
+        match e {
+            SeatingRefusal::Duplicate(d) => Self::Duplicate { name: d.name },
+            SeatingRefusal::KindMismatch(k) => Self::KindMismatch {
+                name: k.name,
+                found: k.found,
+            },
+        }
     }
 }
 
@@ -836,7 +966,7 @@ pub(crate) fn name_in_part<T: geom_core::Real>(
     Ok(Arc::new(t))
 }
 
-/// **A world placement's copy, named** (D10, A10): every row of the
+/// **A placement's copy, named** (D10, A10): every row of the
 /// body placed (`body`'s table, already projected to that one body) is
 /// re-minted as `Placed(name)` at the PLACEMENT node, so two placements
 /// of one body name their copies apart, as an instance names its
@@ -872,6 +1002,67 @@ pub(crate) fn name_placed<T: geom_core::Real>(
         }
     }
     check_total(&t, placed, 0)?;
+    Ok(Arc::new(t))
+}
+
+/// **One copy of an instantiated part, named** ([`name_in_part`]'s
+/// rows for one of the part's copies): every name of the copy's part
+/// table, qualified by the instance, each kept on the body it answers,
+/// and the table total over every body of the copy.
+pub(crate) fn name_in_part_copy<T: geom_core::Real>(
+    node: RecipeNodeId,
+    part: &NameTable,
+    placed: &[Arc<Body<T>>],
+) -> Result<Arc<NameTable>, NamingError> {
+    part.seal_order();
+    let mut t = NameTable::new();
+    for (name, entry) in part.iter_refs() {
+        let wrapped = StableName {
+            kind: name.kind,
+            node,
+            path: vec![super::role::RoleSeg::InPart { of: name.clone() }],
+        };
+        match entry {
+            super::table::Entry::Unique(e) => t.insert(wrapped, *e)?,
+            super::table::Entry::Tied(es) => t.insert_tied(wrapped, es.clone())?,
+        }
+    }
+    for (ix, body) in placed.iter().enumerate() {
+        check_total(&t, body, output_body(ix)?)?;
+    }
+    Ok(Arc::new(t))
+}
+
+/// **A placement's copies of several shapes, named** (D10): copy `k`
+/// is body `k`, and every name of shape `k` is that copy's, qualified
+/// by the placement ([`super::role::RoleSeg::Placed`]) — its body name
+/// too, so each copy's body is named by the body it copies. A
+/// placement of one shape is [`name_placed`]'s.
+pub(crate) fn name_placed_copies<T: geom_core::Real>(
+    node: RecipeNodeId,
+    shapes: &[(&NameTable, &Body<T>)],
+) -> Result<Arc<NameTable>, NamingError> {
+    let mut t = NameTable::new();
+    for (k, (table, _)) in shapes.iter().enumerate() {
+        let k = output_body(k)?;
+        table.seal_order();
+        for (name, entry) in table.iter_refs() {
+            let wrapped = StableName {
+                kind: name.kind,
+                node,
+                path: vec![super::role::RoleSeg::Placed { of: name.clone() }],
+            };
+            match entry {
+                super::table::Entry::Unique(e) => t.insert(wrapped, ent(k, e.key))?,
+                super::table::Entry::Tied(es) => {
+                    t.insert_tied(wrapped, es.iter().map(|e| ent(k, e.key)).collect())?;
+                }
+            }
+        }
+    }
+    for (k, (_, body)) in shapes.iter().enumerate() {
+        check_total(&t, body, output_body(k)?)?;
+    }
     Ok(Arc::new(t))
 }
 
@@ -1622,7 +1813,7 @@ mod display_tests {
         let rows: Vec<(NamingError, Vec<&str>)> = vec![
             (
                 NamingError::Duplicate {
-                    name: Box::new(name),
+                    name: Box::new(name.clone()),
                 },
                 vec!["the end cap", "7", "Cap"],
             ),
@@ -1706,15 +1897,11 @@ mod display_tests {
                     node: RecipeNodeId::new(0, test_utils::refusal::tagged(29)),
                     rim: two_edges().1,
                 },
-                vec!["merged faces", "00000000001d", "does not lie within"],
-            ),
-            (
-                NamingError::MergedChordConstituents {
-                    edge: two_edges().0,
-                    face: FaceKey::default(),
-                    several: 2,
-                },
-                vec!["merged face", "holds 2 faces", "no rule picks"],
+                vec![
+                    "a merged face among them",
+                    "00000000001d",
+                    "does not lie within",
+                ],
             ),
             (
                 NamingError::ClosedCarrierUnread {
@@ -1722,6 +1909,30 @@ mod display_tests {
                     carrier: geom::CurveKind::Nurbs,
                 },
                 vec!["closed on its", "no period"],
+            ),
+            (
+                NamingError::CarrierUnplaced {
+                    edge: EdgeKey::default(),
+                    carrier: geom::CurveKind::Nurbs,
+                },
+                vec!["gives no parameter for a point", "holds a point"],
+            ),
+            (
+                NamingError::PartnerUnread {
+                    vertex: two_vertices().0,
+                    partner: two_vertices().1,
+                    unread: topo::UnreadPartner {
+                        operand: topo::Operand::B,
+                        vertex: two_vertices().0,
+                        partner: two_vertices().1,
+                        neighbourhood: topo::UnreadNeighbourhood::OneFace,
+                    },
+                },
+                vec![
+                    "inside one smooth face",
+                    "classed none of the vertex's edges",
+                    "work/tang/a-lone-unread-partner-has-no-class-rule",
+                ],
             ),
             (
                 NamingError::Settle(topo::SettleError::Dead {
@@ -1772,40 +1983,25 @@ mod display_tests {
                 }),
                 vec!["5e-324"],
             ),
+            (
+                NamingError::KindMismatch {
+                    name: Box::new(name.clone()),
+                    found: EntityKind::Edge,
+                },
+                vec!["the end cap", "names a face", "seated on an edge"],
+            ),
         ];
-        // **The one place a variant's CATEGORY is written down**, and
-        // it is a match, so a variant added without choosing one does
-        // not compile. Category membership is otherwise held by hand at
-        // three places — which variant a site constructs, which framing
-        // its `Display` interpolates, which word `naming_error_tag`
-        // returns — with nothing tying them; this ties the second to
-        // the first, and leaves the third — which is across a crate
-        // boundary — still hand-held.
+        // The category is `NamingError::category`'s, which also chooses
+        // the ending. Which framing each arm's `Display` interpolates is
+        // written by hand per arm, so this ties the second to the first;
+        // which word `naming_error_tag` returns is across a crate
+        // boundary and still hand-held.
         //
         // `None` is a variant that speaks its OWN sentence, and it is
         // not a free pass: the loop below asserts such a variant
-        // contains NEITHER framing, so a bespoke sentence that drifted
-        // into one of them reds.
-        let expected_framing = |err: &NamingError| -> Option<&'static str> {
-            match err {
-                NamingError::Duplicate { .. }
-                | NamingError::Unnamed { .. }
-                | NamingError::MissingUpstream { .. }
-                | NamingError::Emission { .. }
-                | NamingError::SplitLineage(_)
-                | NamingError::Settle(_) => Some(EMISSION_FRAMING),
-                NamingError::SeamVertexParentage { .. }
-                | NamingError::SeamVertexPartners { .. }
-                | NamingError::SharedRim { .. }
-                | NamingError::MergedChord { .. }
-                | NamingError::MergedChordOffRim { .. }
-                | NamingError::MergedChordConstituents { .. }
-                | NamingError::MemberEdgeTied { .. }
-                | NamingError::ConventionalVertex { .. }
-                | NamingError::ClosedCarrierUnread { .. } => Some(UNRULED_FRAMING),
-                NamingError::Band(_) | NamingError::Escalated { .. } => None,
-            }
-        };
+        // contains NEITHER framing nor either ending, so a bespoke
+        // sentence that drifted into one of them reds.
+        let expected_framing = |err: &NamingError| err.category().map(Category::framing);
         let sampled = |err: &NamingError| -> usize {
             match err {
                 NamingError::Duplicate { .. } => 0,
@@ -1821,10 +2017,12 @@ mod display_tests {
                 NamingError::MergedChordOffRim { .. } => 10,
                 NamingError::Band(_) => 11,
                 NamingError::MemberEdgeTied { .. } => 12,
-                NamingError::MergedChordConstituents { .. } => 13,
-                NamingError::ConventionalVertex { .. } => 14,
-                NamingError::ClosedCarrierUnread { .. } => 15,
-                NamingError::Settle(_) => 16,
+                NamingError::ConventionalVertex { .. } => 13,
+                NamingError::ClosedCarrierUnread { .. } => 14,
+                NamingError::Settle(_) => 15,
+                NamingError::CarrierUnplaced { .. } => 16,
+                NamingError::PartnerUnread { .. } => 17,
+                NamingError::KindMismatch { .. } => 18,
             }
         };
         let covered: std::collections::BTreeSet<usize> =
@@ -1872,6 +2070,30 @@ mod display_tests {
                     );
                 }
             }
+            // A missing rule is not a kernel bug, so its sentence ends
+            // in "not yet" and never in the defect report; an emission
+            // bug ends in the report.
+            let (ends, never) = match err.category() {
+                Some(Category::Emission) => (
+                    Some(geom_core::KERNEL_DEFECT_ENDING),
+                    geom_core::NOT_YET_ENDING,
+                ),
+                Some(Category::Unruled) => (
+                    Some(geom_core::NOT_YET_ENDING),
+                    geom_core::KERNEL_DEFECT_ENDING,
+                ),
+                None => (None, geom_core::KERNEL_DEFECT_ENDING),
+            };
+            if let Some(ending) = ends {
+                assert!(
+                    shown.ends_with(ending),
+                    "{err:?} does not end in its category's ending: {shown}"
+                );
+            }
+            assert!(
+                !shown.contains(never),
+                "{err:?} ends in the other category's ending: {shown}"
+            );
             // `crate::py::typed_err` (pncad-py) asserts `reads_as_prose`
             // on every raise, live under release, and its fingerprint is
             // the field brace. A payload rendered through a derived
@@ -2203,7 +2425,7 @@ mod walk_tests {
 /// only edge is one closed edge, at both ends, has no identity of its
 /// own, so a table naming it refuses typed — unless the name is a
 /// construction's own rim self-loop vertex. Hand-assembled: no document
-/// reaches a closed join yet (`work/fuse/a-conventional-vertex-mints-no-edge-derived-name`).
+/// reaches a closed join yet (`work/emit/a-conventional-vertex-mints-no-edge-derived-name`).
 #[cfg(test)]
 mod conventional_vertex_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

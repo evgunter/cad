@@ -99,22 +99,21 @@ fn shape(frame: &Frame) -> String {
     match frame {
         Ok(Some((c, a))) => format!("frame {c:?} {a:?}"),
         Ok(None) => "straight".into(),
-        Err(FrameError::Escalated(d)) => format!("escalated {:?}", d.predicate),
+        Err(FrameError::Escalated { diag: d, .. }) => format!("escalated {:?}", d.predicate),
         Err(FrameError::Desync(what)) => format!("desync {what}"),
         Err(FrameError::OutsideInventory { conic, section }) => {
             format!("outside {conic:?} {section}")
         }
         Err(FrameError::NoArm) => "no arm".into(),
-        Err(FrameError::RadiusEscalated { .. }) => "radius escalated".into(),
-        Err(FrameError::IntersectingCylinderAxes { .. }) => "pinch".into(),
         Err(FrameError::Spiric { loops, .. }) => format!("spiric {loops:?}"),
     }
 }
 
 /// The Dandelin construction for a plane `(q, n)` cutting the cone
 /// `(A, â, α)` off its apex, as `PlaneConeSection::TiltedEllipse`'s docs
-/// state it: centre `A − (δ/K)·(c·â − sin²α·n)`, with `c = â·n`,
-/// `δ = (A − q)·n` and `K = c² − sin²α`.
+/// state it: centre `A − δ·n + (c·δ·s/K)·û`, with `c = â·n`,
+/// `s = ‖â × n‖`, `δ = (A − q)·n`, `û = (â × n)/s × n` and
+/// `K = (cos α·|c| − sin α·s)·(cos α·|c| + sin α·s)`.
 fn dandelin_centre(cone: &geom::Surface<f64>, q: Point3<f64>, n: Vec3<f64>) -> Point3<f64> {
     let &geom::Surface::Cone {
         apex,
@@ -125,11 +124,14 @@ fn dandelin_centre(cone: &geom::Surface<f64>, q: Point3<f64>, n: Vec3<f64>) -> P
     else {
         panic!("a cone")
     };
-    let n = n.normalize();
-    let (c, s2) = (axis.dot(n), half_angle.sin().powi(2));
+    let (axis, n) = (axis.normalize(), n.normalize());
+    let (sin_a, cos_a) = half_angle.sin_cos();
+    let (c, s_vec) = (axis.dot(n), axis.cross(n));
+    let s = s_vec.norm();
+    let k = (cos_a * c.abs() - sin_a * s) * (cos_a * c.abs() + sin_a * s);
     let delta = (apex - q).dot(n);
-    let k = c * c - s2;
-    apex - (axis * c - n * s2) * (delta / k)
+    let u_major = (s_vec / s).cross(n);
+    apex - n * delta + u_major * (c * delta * s / k)
 }
 
 fn assert_conic_frame(got: &Frame, centre: Point3<f64>, normal: Vec3<f64>, what: &str) {
@@ -327,7 +329,7 @@ fn a_near_parabola_escalates_and_is_never_snapped_to_an_ellipse() {
     let sliver = (b.zero() * b.escalate()).sqrt();
     let got = read(&turned(sliver));
     assert!(
-        matches!(&got, Err(FrameError::Escalated(d)) if d.predicate == Some("pn_conic_type")),
+        matches!(&got, Err(FrameError::Escalated { diag: d, .. }) if d.predicate == Some("pn_conic_type")),
         "in band, the conic type escalates, got {}",
         shape(&got)
     );
@@ -427,7 +429,7 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
             let got = one_loop(pair_section_frame_at(a, c, at, extent, b));
             let verdict = match &got {
                 Ok(Some(_)) => "served",
-                Err(FrameError::Escalated(d)) => d.predicate.unwrap_or("unnamed"),
+                Err(FrameError::Escalated { diag: d, .. }) => d.predicate.unwrap_or("unnamed"),
                 _ => "another outcome",
             };
             assert_eq!(
@@ -457,7 +459,7 @@ fn a_near_circular_tilt_escalates_the_circle_question_not_a_desync() {
         Vec3::new(theta.sin(), theta.cos(), 0.0)
     };
     let verdict = |got: &Frame| match got {
-        Err(FrameError::Escalated(d)) => d.predicate.unwrap_or("unnamed"),
+        Err(FrameError::Escalated { diag: d, .. }) => d.predicate.unwrap_or("unnamed"),
         _ => "another outcome",
     };
     let cone = widening();
@@ -572,7 +574,7 @@ fn declared_equal_walls_meeting_at_a_sliver_escalate_the_circle_question() {
     for (label, x, y) in [("a, b", &a, &c), ("b, a", &c, &a)] {
         let got = pair_section_frame(x, y, Point3::new(0.0, 0.0, 0.0), None, b);
         assert!(
-            matches!(&got, Err(FrameError::Escalated(d)) if d.predicate == Some("ellipse_axes_distinct")),
+            matches!(&got, Err(FrameError::Escalated { diag: d, .. }) if d.predicate == Some("ellipse_axes_distinct")),
             "{label}: got {}",
             shape(&got)
         );

@@ -2,8 +2,13 @@
 id: a-new-test-file-outside-the-eps-crates-never-runs-at-the-extra-eps-rows-before-merge
 kind: issue
 title: A test file a PR adds or changes outside the four eps-sensitive crates never runs at 1e-6 or 1e-12 before merge, so a non-portable new test reaches main and reds the nightly
-status: open
+status: closed
 opened: 2026-10-01
+priority: P2
+cost: E
+branch: ciw/eps-rows-changed-tests
+closed: 2026-10-15
+pr: 5211
 ---
 
 
@@ -64,3 +69,36 @@ PR 4925 (the ε floor) is the case:
 - It changed four editor-core tests.
 
 The gate ran none of these at either extra row. They were exercised only by the lane's local `CAD_TOLERANCE_EPS=1e-12` and `1e-6` runs. A fix keyed to the seeded crates, instead of a fixed list, would cover both cases.
+
+## Closed
+
+`scripts/ci-filter.py` now computes the extra rows as `EPS_EXTRA`
+(`eps_rows_filter`), and `ci.yml`'s `change filter` prints it as
+`eps_extra=`. Beside the whole-crate terms it names, in any crate, the
+rows of each test file the diff adds or modifies:
+
+- a `tests/` suite is its `#[path]` module of the crate's `all` binary,
+  read from `tests/all.rs` (`_all_rs_modules`), e.g.
+  `(binary_id(sweep::all) & test(/^reach_volume_backstop::/))`;
+- a changed `src/` file that defines a test (`#[test]`, `proptest!`) is
+  its module of the lib-test binary, less every child module it mounts
+  from another file, e.g.
+  `(binary_id(topo) & test(/^chord_join::/) & not test(/^chord_join::(chart_ring_rows|…)::/))`;
+- a changed `tests/all.rs` with tests of its own is the `all` binary
+  less every module it mounts.
+
+PR 3611's and PR 4074's sweep files, and PR 4925's
+`geom-core/tests/k_stats_doors.rs`, `tolerance.rs`, `predicate.rs` and
+editor-core tests, each now run at 1e-6 and 1e-12 before merge.
+
+A notice in the filter log names what the file half cannot map: a
+`tests/` helper no `#[path]` line includes, a `#[path]`-mounted `src/`
+file (any visibility), a crate root, and a `src/bin/` file. Their rows
+run at the extra ε nightly. A notice also names a changed file whose
+rows are in ci's slow set, since this step filters those out.
+
+One part of the 2026-10-13 note is not fixed here: a `src/` edit
+outside the four crates that reds a test the diff leaves untouched.
+That residue is carried by
+`a-sweep-diff-gates-no-eps-row-of-sweep`.
+

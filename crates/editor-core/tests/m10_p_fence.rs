@@ -142,6 +142,33 @@
 //! moved too; `lib_g16_corpus_name_digests` moved that row and no
 //! other, and every point of the bodies that remain is where it was.
 //!
+//! **ALL FOUR NUMBERS MOVED WHEN A PLACEMENT BECAME THE BUNDLE OF
+//! MATES** (INTENT stage 3 B), through every document: a placement is a
+//! `Place` holding a world pin where it was a `PlaceInWorld`, so its
+//! stored node, and with it its mint preimage, moved, and every id the
+//! mint chain draws after it. The id-masked geometry fence below did
+//! not move.
+//!
+//! **ALL FOUR NUMBERS MOVED WHEN A BOOLEAN'S RECORDED VERTEX PAIRS CAME
+//! TO SHARE ONE POINT KEY**, through `kiss_carry` alone: its union's
+//! two kissing corners now sit on one key (`ops::record_classes`), so
+//! its body carries one point fewer and the stream is shorter. No
+//! outcome changed and no coordinate moved;
+//! `intent_s2_c_world::PRE_C` and `seat4_verb_lowering`'s document
+//! digests moved that row and no other.
+//!
+//! **THREE NUMBERS MOVED WHEN A NAME BECAME SCOPED BY ITS VARIABLE**
+//! (FORK-DM4 unit 2), through `part_select` alone: its union declares
+//! the rest between the split's halves by the section face name, which
+//! no longer spells the half, so the union's id moved, and every id
+//! minted after it in the document. The id-masked fence below did not
+//! move, and an id-masked digest per document, taken on this tree and on
+//! its base (`1c4f9960d9`), is equal for every document: no outcome
+//! flipped and no point moved.
+//! Re-taken merged over INTENT stage 3 PR A, which moved the same
+//! three numbers by `kitchen_sink`'s ids: the merged values are
+//! neither tree's, and the id-masked fence held across the merge.
+//!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
 //! read beside it: `lib_g16_corpus_name_digests` pins a digest PER
@@ -581,6 +608,24 @@
 //! which drops two `Part` outcomes of its own: the id-free digest with
 //! pointless `datum` outcomes dropped is `(0x77f4_6374_c6b8_bb0d,
 //! 0xf303_efdf_51fc_fb09)` on that main and on this tree alike.
+//!
+//! **EVERY NUMBER MOVED, THE ID-FREE ONE TOO, FOR INTENT STAGE 3 PR A′
+//! (a revolve's axis is a point and a heading).** A revolve holds one
+//! angle where it held two direction components, and a lone `0` is the
+//! constant zero, so ids re-mint; and the heading's `turn/4` has a
+//! cosine that rounds to 6e-17, not 0. Measured by a scratch dump of
+//! every node's outcome and every point's bits at `f64`, ids masked,
+//! the base tree against this one: every outcome identical; 8 points
+//! moved, all in `kitchen_sink`, by at most 2.2e-16 — the same 8 the
+//! turned-vertex change above moved.
+//!
+//! **THE `f64` AND `Interval` NUMBERS MOVED FOR INTENT STAGE 3 C (a
+//! mate relates two poses).** Every document places its
+//! copy by the "place part" gesture — a loose `Place`, then a mate and
+//! its values — where one edit minted the placement holding its world
+//! pin, so the placement's id and every id drawn after it moved. The
+//! id-free row held without a re-bless: no outcome and no point moved
+//! at `f64`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -876,7 +921,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x4350_f267_f58a_3457, 0x789b_1192_e944_30b3),
+        (0x2e03_527c_cebb_fff7, 0x6672_c1c3_d4af_bf7b),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -902,7 +947,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xbaa1_65e6_5edf_10c3, 0xacce_6e0c_f962_8a97),
+        (0xbf0f_56b7_f284_574a, 0xec82_7d10_2242_66be),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -926,7 +971,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x4350_f267_f58a_3457, 0x789b_1192_e944_30b3),
+        (0x2e03_527c_cebb_fff7, 0x6672_c1c3_d4af_bf7b),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -1004,7 +1049,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0xf613_9d62_68dd_3931, 0xe6b3_fef9_f9f8_90fd),
+        (0x11fd_f174_84df_1e57, 0x5313_d5ea_f44e_df93),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

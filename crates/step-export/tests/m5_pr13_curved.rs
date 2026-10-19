@@ -578,12 +578,12 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                     );
                     assert_eq!(
                         real(&a[1]),
-                        ns.knots_u().degree() as f64,
+                        ns.knots_u_f64_interim().degree() as f64,
                         "FRAME: {name} u-degree"
                     );
                     assert_eq!(
                         real(&a[2]),
-                        ns.knots_v().degree() as f64,
+                        ns.knots_v_f64_interim().degree() as f64,
                         "FRAME: {name} v-degree"
                     );
                     let control_refs = refs(&a[3]);
@@ -780,8 +780,8 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                 Curve3::Ellipse {
                     center,
                     axis,
-                    major,
-                    minor,
+                    semi_u,
+                    semi_v,
                     u_ref,
                 } => {
                     saw_ellipse = true;
@@ -790,14 +790,12 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                     assert_eq!(l, center.to_array(), "{name} ellipse centre");
                     assert_eq!(z, axis.to_array(), "{name} ellipse axis");
                     assert_eq!(x, u_ref.to_array(), "{name} ellipse u_ref");
-                    // semi_axis_1 along ref_direction is the MAJOR: the
-                    // kernel's `u_ref` is the semi-major direction, and
-                    // AP214's first semi-axis is measured along
-                    // ref_direction. Swapping them would export a
-                    // rotated ellipse that still imports.
-                    assert_eq!(real(&a[2]), major, "{name} ellipse semi_axis_1");
-                    assert_eq!(real(&a[3]), minor, "{name} ellipse semi_axis_2");
-                    assert!(major > minor, "the kernel's strict ordering survives");
+                    // semi_axis_1 is the one along ref_direction, the
+                    // kernel's seam `u_ref`, in either order with
+                    // semi_axis_2. Swapping them would export a rotated
+                    // ellipse that still imports.
+                    assert_eq!(real(&a[2]), semi_u, "{name} ellipse semi_axis_1");
+                    assert_eq!(real(&a[3]), semi_v, "{name} ellipse semi_axis_2");
                 }
                 Curve3::Nurbs(_) => panic!("{name}: no body at rest carries a NURBS carrier"),
                 Curve3::Spiric { .. } => {
@@ -836,7 +834,7 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
 #[test]
 fn reverting_a_sphere_moves_the_flag_and_nothing_about_the_surface() {
     let ball = common::ball();
-    let reverted = ball.revert();
+    let reverted = ball.revert().unwrap();
     let a = export(&ball, "ball");
     let b = export(&reverted, "ball");
     assert_ne!(a, b, "revert is visible in the text");

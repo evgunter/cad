@@ -141,6 +141,9 @@
 //! overflows its radius, which is a sub-tolerance arc that validation
 //! classifies a line before any carrier is checked.
 
+// Double-double residuals for the test oracles.
+#[cfg(test)]
+mod dd;
 mod fillet_select;
 pub mod lift;
 pub mod path;
@@ -203,7 +206,8 @@ pub use validate::{
 pub use validate::{
     ArcCheck, BlendArc, ConstructedProfile, ContactKind, DecidedJoint, EscalationSite, FilletLeg,
     FilletLegCarrier, JointCarriers, LoopRole, NoCornerReason, ProfileError, SegmentKind,
-    SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment, decision_subject, is_full_turn,
+    SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment, ValueNotAPoint,
+    decision_subject, is_full_turn,
 };
 
 /// One segment of a loop in its canonical form: a carrier plus a signed
@@ -902,7 +906,7 @@ impl PartialEq for SketchPlane<f64> {
 #[derive(Clone, Debug)]
 pub struct Profile<T: Real> {
     /// The plane the profile lives on (passed through validation
-    /// untouched — validation is 2-D).
+    /// untouched once it is finite — validation is 2-D).
     pub plane: SketchPlane<T>,
     /// The loops, in any order and either winding (winding is
     /// invisible; nesting is derived by validation).

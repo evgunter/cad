@@ -49,7 +49,7 @@ fn law_def() -> VarDecl {
 }
 
 fn step(doc: &ProfileDoc, edit: DocEdit<ProfileProgram>) -> Result<ProfileDoc, EditError> {
-    apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach).map(|a| a.doc)
+    apply(doc, &edit, Tol::witness()).map(|a| a.doc)
 }
 
 fn declare(doc: &ProfileDoc, name: &'static str, def: VarDecl) -> ProfileDoc {
@@ -82,7 +82,6 @@ fn measured_twins() -> (ProfileDoc, editor_core::VarId) {
             def: editor_core::VarDecl::Defined(sum),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the definition declares");
     let measure = applied.doc.var_named("m").expect("declared");

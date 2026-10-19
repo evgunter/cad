@@ -85,6 +85,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::entity::{ShellKey, SolidKey};
 use crate::geometry::SurfaceKey;
+use crate::revert::RevertError;
 
 /// One cavity shell's strict-containment certificate, supplied by the
 /// caller (module docs: the door never derives containment).
@@ -141,7 +142,7 @@ pub struct VoidEvidence {
 
 /// Typed refusal of [`insert_void`] (closed enum, D4 ¶3). Every
 /// refusal fires before any mutation.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum VoidInsertError {
     /// A cavity shell arrived with no containment certificate — the
     /// door never derives containment (module docs), so absence
@@ -193,6 +194,10 @@ pub enum VoidInsertError {
         /// How many solids the cavity holds.
         cavity_solids: usize,
     },
+    /// The cavity does not revert ([`crate::Body::revert`]): two of its
+    /// line edges end on the same two point keys, and its complement
+    /// pairs the faces meeting on that line differently.
+    Revert(RevertError),
 }
 
 impl core::fmt::Display for VoidInsertError {
@@ -237,6 +242,7 @@ impl core::fmt::Display for VoidInsertError {
                 "the void door takes one destination solid per cavity solid, and a cavity of \
                  at least one: the call names {destinations} for a cavity of {cavity_solids}"
             ),
+            Self::Revert(e) => write!(f, "the cavity does not revert: {e}"),
         }
     }
 }
@@ -324,8 +330,13 @@ pub fn insert_void<T: Decide>(
 /// cavity's solid count, or a cavity of no solid, as
 /// [`VoidInsertError::SolidCount`]; a destination solid that does not
 /// resolve in `dst` as [`VoidInsertError::StaleSolid`]; the evidence
-/// refusals. Every refusal leaves `dst`
-/// unchanged.
+/// refusals; a cavity whose revert refuses as
+/// [`VoidInsertError::Revert`]: two of its line edges whose ends lie on
+/// the same two point keys ([`crate::Body::revert`], read by structure).
+/// Two edges overlapping on one line any other way (one's end on the
+/// other's interior, ends on distinct keys at one point) are not read,
+/// so the door grafts them as reversed, their wedges complemented. Every
+/// refusal leaves `dst` unchanged.
 ///
 /// # Panics
 ///
@@ -417,7 +428,7 @@ pub(crate) fn insert_hollow_voids<T: Decide>(
         };
         (dst.arena_counts(), transplant)
     };
-    let reversed = cavity.revert();
+    let reversed = cavity.revert().map_err(VoidInsertError::Revert)?;
     let graft = graft_solids_disjoint(dst, dst_solids, &reversed).unwrap_or_else(|e| {
         unreachable!(
             "the void graft refused ({e:?}): its every argument refusal was checked above \
