@@ -3655,14 +3655,15 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     };
     let unproven = E::UnprovenCoincidence {
         row: Box::new(pncad::document::NamedCoincidence {
-            cells: [tool.clone(), tool],
+            cells: vec![tool.clone(), tool],
             relation: pncad::document::coincidence::Relation::OnCarrier,
             site: pncad::document::coincidence::DecisionSite::SplitOn,
             margin: pncad::geom_core::MarginDiag::value(0.0),
             discharge: pncad::document::coincidence::Discharge::Numeric,
+            origin: pncad::document::RowOrigin::Node,
         }),
         residual: Box::new(pncad::document::Residual {
-            constructions: [
+            constructions: vec![
                 Err(pncad::document::coincide::Unwalked::Absent(
                     RecipeNodeId::new(0, 3),
                 )),
@@ -3673,6 +3674,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
             replay: pncad::document::coincide::Unreplayed::NotReplayed,
         }),
         recourse: pncad::document::coincide::Recourse::OneConstruction,
+        restated: Vec::new(),
     };
     carries(&unproven, &["reason", "relation", "site"]);
     let words = check_payload(&unproven);
@@ -4768,6 +4770,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "coaxial",
             "common_foot",
             "cusp",
+            "meet",
             "on_carrier",
             "same_opposite",
             "same_oriented",

@@ -1770,11 +1770,12 @@ impl AtRestRows {
                 self.coincidences.push(AtRestRow {
                     by: AtRestBy::Mate(mate),
                     row: crate::coincide::NamedCoincidence {
-                        cells: [cell_of(face_a), cell_of(face_b)],
+                        cells: vec![cell_of(face_a), cell_of(face_b)],
                         relation: row.relation,
                         site: row.site,
                         margin: row.margin,
                         discharge: row.discharge,
+                        origin: crate::coincide::RowOrigin::Node,
                     },
                 });
                 let Ok(contact) = Contact::new(body, Cell::Face(face_a), Cell::Face(face_b)) else {

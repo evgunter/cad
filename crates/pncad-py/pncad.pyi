@@ -6935,14 +6935,15 @@ class Coincidence:
     """One coincidence a node decided from values (D10), with what the
     coincidence door decided about it.
 
-    `cells` are pairs: an entity is `(read, name)`, the `Var` the
+    `cells` are two, or for a `meet` the two or more that share one
+    point, sorted, each a pair: an entity is `(read, name)`, the `Var` the
     deciding node took it in through, whose table names it, and the
     name there (the opaque text the materializers answer with); the
     plane a split cuts with is `(read, None)`; and a profile's own piece
     is `(profile, piece)`, the profile's `NodeId`. `relation` is
     `same_oriented`, `same_opposite`, `on_carrier`, `common_foot`,
     `tangent`, `cusp`, `surface_tangent`, `coaxial`, `same_radius`,
-    `axes_meet` or `co_ruled`; `site` is `plane_ladder`, `carrier_ladder`,
+    `axes_meet`, `co_ruled` or `meet`; `site` is `plane_ladder`, `carrier_ladder`,
     `tangent_witness`, `coaxial_sphere`, `crossing_cylinders`, `split_on`,
     `battery_turn`, `battery_joint`, `battery_support_axis`,
     `profile_junction`, `vertex_fusion` or
@@ -6953,10 +6954,17 @@ class Coincidence:
     proved it structural (`same_construction`, `carrier_verdict` or
     `margin_identity`), or `None`, and then `residual` says what separates
     the two constructions and what the replay with every variable a
-    symbol made of the row."""
+    symbol made of the row. `origin` is `None` for the node's own
+    operation, `("judged", p, q)` for a union's or an intersect's
+    judgement of its members at places `p < q` (its order-free rows),
+    and `("fold", k)` for the fold step folding in the member at `k`."""
 
     @property
     def cells(self) -> list[tuple[Var | NodeId, Optional[str]]]: ...
+    @property
+    def origin(
+        self,
+    ) -> tuple[Literal["judged"], int, int] | tuple[Literal["fold"], int] | None: ...
     @property
     def relation(self) -> str: ...
     @property

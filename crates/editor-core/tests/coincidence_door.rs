@@ -161,7 +161,7 @@ fn a_glued_rest_and_its_corners_are_unproven_rows_named_by_their_operands() {
         panic!("the same-construction rung proves a glue of two extrudes")
     };
     assert!(
-        matches!(&residual.constructions, [Ok(a), Ok(b)] if a.origin != b.origin),
+        matches!(residual.constructions.as_slice(), [Ok(a), Ok(b)] if a.origin != b.origin),
         "two constructions: {residual:?}"
     );
     let findings = unproven(&doc, &ev);
@@ -294,8 +294,9 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
     );
     let ev = run(&doc);
     let wall = |half, z| half_face_on(&ev, split, half, [3.0, 0.5, z], [-1.0, 0.0, 0.0]);
-    let row = |cells| NamedCoincidence {
-        cells,
+    let row = |cells: [NamedCell; 2]| NamedCoincidence {
+        cells: cells.to_vec(),
+        origin: editor_core::RowOrigin::Node,
         relation: Relation::SameOriented,
         site: DecisionSite::PlaneLadder,
         margin: MarginDiag::value(0.0),
@@ -362,7 +363,7 @@ fn a_unions_rows_follow_its_member_order() {
                 other => panic!("{members:?}: a cell is a member's own face: {other:?}"),
             };
             assert_eq!(
-                row.cells.each_ref().map(input),
+                row.cells.iter().map(input).collect::<Vec<_>>(),
                 members.map(|m| out(&doc, m)),
                 "{members:?}: the listed-first member's cell first"
             );
@@ -370,10 +371,10 @@ fn a_unions_rows_follow_its_member_order() {
         seen.push(got);
     }
     let unordered = |got: &[NamedCoincidence]| {
-        let mut pairs: Vec<[String; 2]> = got
+        let mut pairs: Vec<Vec<String>> = got
             .iter()
             .map(|r| {
-                let mut pair = r.cells.each_ref().map(|c| format!("{c:?}"));
+                let mut pair: Vec<String> = r.cells.iter().map(|c| format!("{c:?}")).collect();
                 pair.sort();
                 pair
             })
@@ -422,8 +423,9 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
     let (doc, second) = part(doc, 2);
     let ev = run(&doc);
     let top_at = |node, x: f64| face_on(&ev, node, [x, 0.5, 1.0], [0.0, 0.0, 1.0]);
-    let row = |cells| NamedCoincidence {
-        cells,
+    let row = |cells: [NamedCell; 2]| NamedCoincidence {
+        cells: cells.to_vec(),
+        origin: editor_core::RowOrigin::Node,
         relation: Relation::SameOriented,
         site: DecisionSite::PlaneLadder,
         margin: MarginDiag::value(0.0),
@@ -445,7 +447,7 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
     let Proof::Unproven { residual, .. } = proof(&doc, second, &two) else {
         panic!("two instances are two placements")
     };
-    let [Ok(a), Ok(b)] = &residual.constructions else {
+    let [Ok(a), Ok(b)] = residual.constructions.as_slice() else {
         panic!("both cells walk to the box: {residual:?}")
     };
     assert_eq!(a.origin, b.origin, "one extrude minted both tops");
@@ -944,7 +946,7 @@ fn a_profile_junction_decided_tangent_is_one_unproven_row_on_its_profile() {
             DecisionSite::ProfileJunction
         )
     );
-    match &got[0].cells {
+    match got[0].cells.as_slice() {
         [
             NamedCell::Piece {
                 profile: a,
@@ -1100,10 +1102,16 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
             (row.relation, row.site),
             (Relation::Coaxial, DecisionSite::BatterySupportAxis)
         );
-        let kinds = row.cells.each_ref().map(|cell| match cell {
-            NamedCell::Entity { input, name } if Some(*input) == doc.output(disc, 0) => name.kind,
-            cell => panic!("a support is a face of the disc: {cell:?}"),
-        });
+        let kinds: Vec<EntityKind> = row
+            .cells
+            .iter()
+            .map(|cell| match cell {
+                NamedCell::Entity { input, name } if Some(*input) == doc.output(disc, 0) => {
+                    name.kind
+                }
+                cell => panic!("a support is a face of the disc: {cell:?}"),
+            })
+            .collect();
         assert_eq!(kinds, [EntityKind::Face; 2], "{row:?}");
     }
     for row in joints {
@@ -1114,10 +1122,14 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
                 DecisionSite::BatteryJoint
             )
         );
-        let names = row.cells.each_ref().map(|cell| match cell {
-            NamedCell::Entity { input, name } if Some(*input) == doc.output(disc, 0) => name,
-            cell => panic!("a joint's cells are edges of the disc: {cell:?}"),
-        });
+        let names: Vec<&StableName> = row
+            .cells
+            .iter()
+            .map(|cell| match cell {
+                NamedCell::Entity { input, name } if Some(*input) == doc.output(disc, 0) => name,
+                cell => panic!("a joint's cells are edges of the disc: {cell:?}"),
+            })
+            .collect();
         assert!(
             names[0] != names[1] && names.iter().all(|n| rim.contains(n)),
             "a joint names the disc's two rim edges: {row:?}"

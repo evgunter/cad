@@ -3002,6 +3002,7 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::SameRadius => "same_radius",
         R::AxesMeet => "axes_meet",
         R::CoRuled => "co_ruled",
+        R::Meet => "meet",
     }
 }
 

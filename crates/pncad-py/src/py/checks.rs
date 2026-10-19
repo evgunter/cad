@@ -463,11 +463,11 @@ impl CheckEvidence {
         self.payload().eps
     }
 
-    /// What an unproven coincidence decided between its two cells, on
+    /// What an unproven coincidence decided between its cells, on
     /// `unproven_coincidence` alone: `same_oriented`, `same_opposite`,
     /// `on_carrier`, `common_foot`, `tangent`, `cusp`,
-    /// `surface_tangent`, `coaxial`, `same_radius`, `axes_meet` or
-    /// `co_ruled`. A
+    /// `surface_tangent`, `coaxial`, `same_radius`, `axes_meet`,
+    /// `co_ruled`, or `meet`, two cells or more sharing one point. A
     /// `profile_junction` row is `tangent` or `cusp` between two carriers
     /// and `same_oriented` where its pieces continue one; a
     /// `tangent_witness` row is `surface_tangent`, claiming nothing of
@@ -487,7 +487,7 @@ impl CheckEvidence {
         self.payload().site
     }
 
-    /// The row itself, its two cells named, on `unproven_coincidence`
+    /// The row itself, its cells named, on `unproven_coincidence`
     /// alone.
     #[getter]
     fn coincidence(&self, py: Python<'_>) -> PyResult<Option<super::value::Coincidence>> {
@@ -496,6 +496,7 @@ impl CheckEvidence {
                 row,
                 residual,
                 recourse,
+                ..
             } => super::value::Coincidence::new(
                 py,
                 row,
