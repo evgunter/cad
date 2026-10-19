@@ -508,3 +508,88 @@ fn a_carried_curve_touch_row_with_a_bad_key_refuses_at_the_door() {
         );
     }
 }
+
+/// Review 4982 R2 probe (M2 risk, the census's one-point overlap read):
+/// a half-disc slab (chord on y = 0 from x = −1 to 1, arc through
+/// +y, z 0..1) and a rod lying on its top cap along x = 0 over
+/// y ∈ (`y0`, `y1`), grafted into one body, with a hand-built face–face
+/// record of the cap and each rod wall half. The line x = 0, z = 1 runs
+/// through the cap's interior over y ∈ (0, 1) and the bottom wall half
+/// over the rod's span, so that pair's record is a real touch; but both
+/// cap vertices project to y = 0 (`witness_span`), so where the rod's
+/// own span starts at y = 0 the overlap is one point. Oracle: the
+/// bottom half's record confirms (Ok); the top half's is stale.
+/// Measured: on 9314545e7f every row reads both records stale
+/// (`RestTangent::Apart`, before any placement); on the base 967e857d2f
+/// the y0 = 0 and y0 = −0.5 rows (overlap one point) refuse
+/// `CensusUnsupported { NotCertifiable }`, and the y0 = 0.2 row
+/// (overlap negative) is stale there too.
+#[test]
+fn review_4982_r2_probe_half_disc_record_at_rest() {
+    let at = |x: f64, y: f64| Point2::new(x, y);
+    let q = (core::f64::consts::PI / 8.0).tan();
+    for (ctl, y0, y1) in [(false, 0.2, 0.8), (false, 0.0, 0.8), (false, -0.5, 0.8)] {
+        let slab = ext(
+            "half disc",
+            vec![if ctl {
+                bulge_loop(vec![
+                    (at(1.0, 0.0), q),
+                    (at(0.0, 1.0), q),
+                    (at(-1.0, 0.0), 0.0),
+                ])
+            } else {
+                bulge_loop(vec![(at(1.0, 0.0), 1.0), (at(-1.0, 0.0), 0.0)])
+            }],
+            0.0,
+            1.0,
+        );
+        let plane = sweep::test_support::sketch_from_axes(
+            geom_core::Point3::new(0.0, y1, 0.0),
+            geom_core::Vec3::new(1.0, 0.0, 0.0),
+            geom_core::Vec3::new(0.0, 0.0, 1.0),
+            tol(),
+        );
+        let rod =
+            sweep::test_support::extruded(plane, vec![circle(0.0, 1.5, 0.5, 0.0)], y1 - y0, tol());
+        let mut body: Body<f64> = (*slab).clone();
+        topo::graft_disjoint(&mut body, &rod).unwrap();
+        let kind = |f: topo::FaceKey| {
+            let face = body.get_face(f).unwrap();
+            body.get_surface(face.surface).unwrap().clone()
+        };
+        let cap = body
+            .faces()
+            .map(|(k, _)| k)
+            .find(|&f| matches!(kind(f), geom::Surface::Plane { origin, normal, .. } if normal.z.abs() > 0.5 && origin.z > 0.5))
+            .unwrap();
+        eprintln!("PROBE cap {cap:?} {:?}", kind(cap));
+        let walls: Vec<_> = body
+            .faces()
+            .map(|(k, _)| k)
+            .filter(
+                |&f| matches!(kind(f), geom::Surface::Cylinder { axis, .. } if axis.y.abs() > 0.5),
+            )
+            .collect();
+        for w in walls {
+            let rec =
+                topo::test_support::records(&body, [(topo::Cell::Face(cap), topo::Cell::Face(w))]);
+            let wpts: Vec<[f64; 3]> = body
+                .half_edges()
+                .filter(|(_, h)| body.get_loop(h.parent_loop).map(|l| l.face) == Some(w))
+                .map(|(_, h)| point(&body, h.start))
+                .collect();
+            eprintln!(
+                "PROBE halfdisc ctl={ctl} rod y {y0}..{y1} wall {w:?} {:?} verts {wpts:?}: census {:?}",
+                kind(w),
+                topo::validate_pseudomanifold(&body, &rec, tol()).map_err(|es| es
+                    .into_iter()
+                    .filter(|e| !matches!(
+                        e,
+                        topo::ValidationError::CensusUndecidable { .. }
+                            | topo::ValidationError::UnrecordedContact { .. }
+                    ))
+                    .collect::<Vec<_>>())
+            );
+        }
+    }
+}

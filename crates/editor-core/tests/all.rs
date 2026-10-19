@@ -633,6 +633,10 @@ mod u8a_parse;
 mod union_flush_onto_edge_contact;
 #[path = "union_fold_face_face_touch.rs"]
 mod union_fold_face_face_touch;
+#[path = "review_4982_probes.rs"]
+mod review_4982_probes;
+#[path = "review_4982_r2_probes.rs"]
+mod review_4982_r2_probes;
 #[path = "union_pinch_member_order.rs"]
 mod union_pinch_member_order;
 #[path = "unreadable_by_this_build.rs"]
