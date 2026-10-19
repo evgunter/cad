@@ -2052,3 +2052,83 @@ fn a_corrupt_net_escalates_the_azimuth_sector_on_a_cylinder() {
         "{got:?}"
     );
 }
+
+// ===================== review/5343-delta2 probe h =====================
+
+/// Probe h (G7): which rows the exactness fuzz certifies (net or circle,
+/// per chart), and their lifts at many k, at f64 and at Interval.
+#[test]
+fn probe_h_projected_lifts_at_large_k_both_scalars() {
+    let mut s = fuzz::start("projected_exactness");
+    let b = band();
+    let lane64 = crate::FittedLane::<f64>::certified();
+    let lane_iv = crate::FittedLane::<Interval>::certified();
+    let mut reached: std::collections::BTreeMap<String, usize> = Default::default();
+    let mut bad = Vec::new();
+    for _ in 0..fuzz::scaled(12) {
+        for chart in CHARTS {
+            let surf = surface(chart, &mut s);
+            let (carrier, t0, t1, kind) = if matches!(chart, Chart::Sphere) && s.below(2) == 0 {
+                let (c, t0, t1) = general_circle(&surf, &mut s);
+                (c, t0, t1, "circle")
+            } else {
+                let c = on_chart(&surf, &mut s);
+                let (t0, t1) = domain(&c);
+                (c, t0, t1, "net")
+            };
+            let Ok(image) = super::super::chart_pcurve_over(&carrier, t0, t1, &surf, b) else {
+                continue;
+            };
+            let us: Vec<f64> = (0..=256)
+                .map(|i| image.eval(t0 + (t1 - t0) * f64::from(i) / 256.0).x)
+                .collect();
+            let sweep = us.iter().copied().fold(f64::NEG_INFINITY, f64::max)
+                - us.iter().copied().fold(f64::INFINITY, f64::min);
+            if sweep > 1.5 * PI {
+                continue;
+            }
+            let Pcurve::Projected(p) = image.clone() else { continue };
+            if PcurveCache::certify_projected(*p, t0, t1, &carrier, &surf, b, Some(lane64)).is_err()
+                && PcurveCache::certify(image.clone(), t0, t1, &carrier, &surf, b).is_err()
+            {
+                continue;
+            }
+            *reached.entry(format!("{chart:?} {kind}")).or_default() += 1;
+            let (ci, si) = (lift(&carrier), surf.map_scalar(Interval::from_f64));
+            let (i0, i1) = (Interval::from_f64(t0), Interval::from_f64(t1));
+            let image_i = super::super::chart_pcurve_over(&ci, i0, i1, &si, b).ok();
+            for k in [1i64, -1, 3, 1000, 1 << 20, 1 << 30, i32::MAX as i64] {
+                let st = k as f64 * TAU;
+                let mut lifts = Vec::new();
+                if !matches!(chart, Chart::Plane) {
+                    lifts.push((st, 0.0));
+                }
+                if matches!(chart, Chart::Sphere | Chart::Torus) {
+                    lifts.push((0.0, st));
+                    lifts.push((st, st));
+                }
+                for (du, dv) in lifts {
+                    let lifted = image.translate(du, dv);
+                    let a = match lifted.clone() {
+                        Pcurve::Projected(p) => {
+                            PcurveCache::certify_projected(*p, t0, t1, &carrier, &surf, b, Some(lane64))
+                                .is_ok()
+                        }
+                        _ => unreachable!(),
+                    } || PcurveCache::certify(lifted, t0, t1, &carrier, &surf, b).is_ok();
+                    let iv = image_i.as_ref().is_some_and(|im| {
+                        let l = im.translate(Interval::from_f64(du), Interval::from_f64(dv));
+                        let Pcurve::Projected(p) = l.clone() else { unreachable!() };
+                        PcurveCache::certify_projected(*p, i0, i1, &ci, &si, b, Some(lane_iv)).is_ok()
+                            || PcurveCache::certify(l, i0, i1, &ci, &si, b).is_ok()
+                    });
+                    if a || iv {
+                        bad.push(format!("{chart:?} {kind} k {k} ({du}, {dv}): f64 {a} Interval {iv}"));
+                    }
+                }
+            }
+        }
+    }
+    println!("reached: {reached:#?}");
+    assert!(bad.is_empty(), "lifted projected rows certified: {bad:#?}");
+}
