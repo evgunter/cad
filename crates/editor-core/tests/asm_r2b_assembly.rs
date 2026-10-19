@@ -827,7 +827,6 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
             new_pin,
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the pin moves")
     .doc;
@@ -973,7 +972,6 @@ fn row5_e_a_pin_move_that_moves_the_contact_face_carries_the_seat_with_it() {
             new_pin,
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the pin moves")
     .doc;
@@ -984,7 +982,6 @@ fn row5_e_a_pin_move_that_moves_the_contact_face_carries_the_seat_with_it() {
             new_pin,
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the pin moves")
     .doc;

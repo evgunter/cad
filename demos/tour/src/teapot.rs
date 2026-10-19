@@ -283,7 +283,7 @@ use pncad::prelude::AuthoredNode;
 use pncad::document::{
     Bodies, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
     LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, RefusingReach, TubeWindow, ValuePayload, apply, evaluate,
+    RecipeNodeId, TubeWindow, ValuePayload, apply, evaluate,
 };
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_core::{Point3, Tol, Vec3};
@@ -795,7 +795,6 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
             fresh: Vec::new(),
         },
         tol,
-        &RefusingReach,
     )
     .expect("the edit applies");
     *doc = applied.doc;
@@ -1073,7 +1072,7 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let tidied = [r.handle_union, r.spout_union, r.pot]
         .into_iter()
         .fold(r.doc, |doc, id| {
-            apply(&doc, &DocEdit::DeleteNode { id }, tol, &RefusingReach)
+            apply(&doc, &DocEdit::DeleteNode { id }, tol)
                 .expect("nothing reads it, so it deletes")
                 .doc
         });

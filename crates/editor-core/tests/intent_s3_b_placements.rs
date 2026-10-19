@@ -407,7 +407,6 @@ fn the_world_is_undeletable_and_defines_nothing() {
             id: RecipeNodeId::WORLD,
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     assert!(
         matches!(refused, Err(EditError::WorldIsUndeletable { .. })),
@@ -446,7 +445,7 @@ fn an_instance_reads_its_own_copy_on_the_copy_side_alone() {
     let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
     let (doc, b) = insert(doc, mated_instance(doc_ref));
     // `b`'s own start cap on `on`, `a`'s top on the target.
-    let admitted = at_the_door_of(&doc, &editor_core::RefusingReach, b, rest_on(body, a, b));
+    let admitted = at_the_door_of(&doc, b, rest_on(body, a, b));
     assert!(admitted.is_ok(), "{admitted:?}");
     // `b`'s own top as the target.
     let own = fixture::rest(
@@ -462,7 +461,6 @@ fn an_instance_reads_its_own_copy_on_the_copy_side_alone() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::WouldCycle { at }) => assert_eq!(at.id(), b),
         other => panic!("a mate of the copy to itself, not {other:?}"),
@@ -647,7 +645,6 @@ fn a_slide_beside_a_ball_refuses_as_having_no_chart() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     match refused {
         Err(EditError::MateRefused { fault, .. }) => match *fault {
@@ -702,7 +699,7 @@ fn a_constraint_off_its_copy_refuses() {
     let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), &o);
     let (doc, b) = insert(doc, mated_instance(doc_ref));
     let (doc, c) = insert(doc, mated_instance(doc_ref));
-    match at_the_door_of(&doc, &editor_core::RefusingReach, c, rest_on(body, a, b)) {
+    match at_the_door_of(&doc, c, rest_on(body, a, b)) {
         Err((at, MateFault::NotOnTheCopy { mate })) => {
             assert_eq!((at, mate.placement), (c, c));
         }

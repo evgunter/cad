@@ -100,7 +100,6 @@ fn set_appearance_validates_and_applies_purely() {
                 attr: red(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     // Non-structural, nothing minted; the input document untouched.
@@ -128,8 +127,7 @@ fn set_appearance_validates_and_applies_purely() {
                 name: edge.clone(),
                 attr: red(),
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::AppearanceWrongKind {
@@ -150,8 +148,7 @@ fn set_appearance_validates_and_applies_purely() {
                 name: bogus.clone(),
                 attr: red(),
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::AppearanceNamesMissingNode {
@@ -179,8 +176,7 @@ fn multi_attribute_per_entity_and_clear_semantics() {
                 name: body.clone(),
                 kind: AttrKind::Color,
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::AppearanceNotSet {

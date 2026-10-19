@@ -61,7 +61,7 @@ pub use anchor::Anchor;
 pub use coset::{Coset, PoseSymmetry, Subgroup, SubgroupFamily};
 pub use member::{Member, Placing, head_face, head_of, member_of, member_reading};
 pub use pin::{PinRefusal, Placed, PlacedBy, pin_at, pinned_at, place_at};
-pub use reach::{MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach};
+pub use reach::{ReachRefusal, SurfaceKind, body_reach, part_reach};
 pub use solve::{
     PoseRefusal, SolveScalar, SolvedPoses, Space, mate_coset, relative_freedom_components,
     solve_document, solve_document_at,
@@ -1024,7 +1024,7 @@ pub fn class_admission(class: ContactClass) -> ClassAdmission {
 }
 
 /// Why a lever could not be formed for a mate: one of its parts' reach
-/// ([`MateReach::reach`]) is not in hand, the member stands on no
+/// is not in hand, the member stands on no
 /// instance, or the lever the two parts form is out of the format's
 /// range.
 #[derive(Debug, Clone, PartialEq)]

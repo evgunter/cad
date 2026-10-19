@@ -5609,6 +5609,7 @@ mod split_carries_candidates {
     //! any fresh numbering.
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+    use crate::ProfileDoc;
     use crate::edit::DocEdit;
     use crate::eval::{CancelToken, EvalOptions, Evaluation, evaluate};
     use crate::ident::DocumentId;
@@ -5616,7 +5617,6 @@ mod split_carries_candidates {
     use crate::node::{Datum, Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram};
     use crate::test_support::{frame, len, scl};
-    use crate::{ProfileDoc, RefusingReach};
     use geom_core::Tol;
 
     fn ins(doc: ProfileDoc, node: crate::AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
@@ -5627,7 +5627,6 @@ mod split_carries_candidates {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &RefusingReach,
         )
         .expect("inserts");
         (a.doc, a.record.minted.expect("a node"))
@@ -5904,6 +5903,7 @@ mod crossings_rank_along_the_line {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{CrossedEdge, param_span, rank_crossings};
+    use crate::ProfileDoc;
     use crate::edit::DocEdit;
     use crate::eval::{BooleanValue, CancelToken, EvalOptions, ValuePayload, evaluate};
     use crate::ident::DocumentId;
@@ -5913,7 +5913,6 @@ mod crossings_rank_along_the_line {
     use crate::node::{Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget};
     use crate::test_support::{frame, len, scl};
-    use crate::{ProfileDoc, RefusingReach};
     use geom_core::{Point3, Tol};
 
     fn ins(doc: ProfileDoc, node: crate::AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
@@ -5924,7 +5923,6 @@ mod crossings_rank_along_the_line {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &RefusingReach,
         )
         .expect("inserts");
         (a.doc, a.record.minted.expect("a node"))
@@ -6118,7 +6116,7 @@ mod nurbs_crossings_rank_by_parameter {
     use crate::node::{Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram};
     use crate::test_support::frame;
-    use crate::{Formula, ProfileDoc, RefusingReach};
+    use crate::{Formula, ProfileDoc};
     use geom_core::{Point3, Tol};
     use topo::{Body, EdgeKey};
 
@@ -6130,7 +6128,6 @@ mod nurbs_crossings_rank_by_parameter {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &RefusingReach,
         )
         .expect("inserts");
         (a.doc, a.record.minted.expect("a node"))
@@ -6476,6 +6473,7 @@ mod edge_pieces_of_one_line_tie {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{EdgePieces, Lone, name_edge_pieces};
+    use crate::ProfileDoc;
     use crate::edit::DocEdit;
     use crate::eval::{BooleanValue, CancelToken, EvalOptions, ValuePayload, evaluate};
     use crate::ident::DocumentId;
@@ -6485,7 +6483,6 @@ mod edge_pieces_of_one_line_tie {
     use crate::node::{Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram};
     use crate::test_support::{frame, len};
-    use crate::{ProfileDoc, RefusingReach};
     use geom_core::Tol;
 
     fn ins(doc: ProfileDoc, node: crate::AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
@@ -6496,7 +6493,6 @@ mod edge_pieces_of_one_line_tie {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &RefusingReach,
         )
         .expect("inserts");
         (a.doc, a.record.minted.expect("a node"))

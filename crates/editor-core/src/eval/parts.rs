@@ -517,8 +517,7 @@ type Rows<T> = BTreeMap<(DocRef, u64), Result<PartValue<T>, PartFault>>;
 
 /// **The serial part store**: rows filled one at a time, by `&mut`,
 /// outside any node map — the top evaluation's census pass
-/// ([`Self::enter_census`]) and the edit door's lazy reach
-/// ([`super::PartReach`]). A running evaluation reads the [`Reached`]
+/// ([`Self::enter_census`]). A running evaluation reads the [`Reached`]
 /// table the pass hands over, never this.
 pub(crate) struct PartStore<'a, T: Decide> {
     resolver: Option<&'a Arc<dyn PartResolver>>,

@@ -23,9 +23,8 @@ use editor_core::mate::SurfaceKind;
 use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate,
-    MateFault, MateReach, MateRef, Node, NodeErrorKind, NodeResult, PartFault, PartReach,
-    ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFault, SlideAxis, Target, Value, WorldRead,
-    content_pin, mate_reach, product,
+    MateFault, MateRef, Node, NodeErrorKind, NodeResult, PartFault, ProfileDoc, ReachRefusal,
+    RecipeNodeId, ResolveFault, SlideAxis, Target, Value, WorldRead, content_pin, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, insert, len, on_frame, revolve_about, run, solve};
@@ -121,21 +120,10 @@ fn body_node(part: &ProfileDoc) -> RecipeNodeId {
     body
 }
 
-/// The reach of every instance in `ids`, through the public door:
-/// each instance's part, read off the document the way the solve
-/// reads it.
-fn reaches(doc: &editor_core::ProfileDoc, opts: &EvalOptions, ids: &[RecipeNodeId]) -> Vec<f64> {
-    let reach = mate_reach::<f64>(opts, Tol::witness());
-    ids.iter()
-        .map(|&id| {
-            let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(id) else {
-                panic!("node {} is not an instance", id.0);
-            };
-            reach
-                .reach(doc_ref)
-                .expect("the part resolves and its body is bounded")
-        })
-        .collect()
+/// A part's reach, read off its own body the way the fold reads a
+/// copy's.
+fn reach(part: &ProfileDoc) -> f64 {
+    editor_core::mate::part_reach(&body_of(part)).expect("the part's body is bounded")
 }
 
 /// `n` instances of `part` — the first pinned to the world at the
@@ -182,7 +170,6 @@ fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Prof
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
     .doc
@@ -314,14 +301,9 @@ fn a4_an_unresolvable_part_fails_its_instance_in_the_resolvers_voice() {
 /// is that distance to the bit.
 #[test]
 fn a2_a_box_parts_reach_is_its_far_corner() {
-    let (half, height) = (0.5, 1.0);
-    let (doc, ids, opts, _) = instances(
-        "msolve6-a2-box",
-        box_part("msolve6-a2-box-part", half, height),
-        1,
-    );
+    let (half, height) = (0.5_f64, 1.0);
     let far = (2.0 * half * half + height * height).sqrt();
-    let r = reaches(&doc, &opts, &ids)[0];
+    let r = reach(&box_part("msolve6-a2-box-part", half, height));
     assert!(r >= far, "the reach {r} must bound the far corner {far}");
     // Every edge is a line, so the bound is the maximum over the
     // vertices — the corner itself, to the bit.
@@ -333,14 +315,9 @@ fn a2_a_box_parts_reach_is_its_far_corner() {
 /// which is `h + r ≥ sqrt(r² + h²)` — an upper bound, never under.
 #[test]
 fn a2_a_cylinder_parts_reach_is_at_least_its_far_rim() {
-    let (radius, height) = (0.3, 0.7);
-    let (doc, ids, opts, _) = instances(
-        "msolve6-a2-cyl",
-        cylinder_part("msolve6-a2-cyl-part", radius, height),
-        1,
-    );
+    let (radius, height) = (0.3_f64, 0.7);
     let far = (radius * radius + height * height).sqrt();
-    let r = reaches(&doc, &opts, &ids)[0];
+    let r = reach(&cylinder_part("msolve6-a2-cyl-part", radius, height));
     assert!(r >= far, "the reach {r} must bound the far rim {far}");
     assert!(
         r <= height + radius + 1e-12,
@@ -411,20 +388,8 @@ fn a5_a_mated_part_is_evaluated_exactly_once() {
 
 // ---- The edit door: no edit asks the store, and replay ----
 
-/// A reach that counts its asks and answers through the store's — the
-/// witness that an edit which adds no rider never consults the
-/// store.
-struct Counting<'a>(core::cell::Cell<usize>, PartReach<'a, f64>);
-
-impl MateReach for Counting<'_> {
-    fn reach(&self, part: &editor_core::DocRef) -> Result<f64, ReachRefusal> {
-        self.0.set(self.0.get() + 1);
-        self.1.reach(part)
-    }
-}
-
 /// Two instances of a box, the first pinned to the world and the
-/// second seated flush on it, through the counting door: the mated
+/// second seated flush on it, through the door: the mated
 /// document the edit rows work on, with its log as the file carries
 /// it, and the seat's constraints.
 #[allow(clippy::type_complexity)]
@@ -440,13 +405,10 @@ fn seated(
 ) {
     let (doc, ids, opts, body) = instances(label, box_part(&format!("{label}-part"), 0.5, 1.0), 0);
     debug_assert!(ids.is_empty());
-    let reach = mate_reach::<f64>(&opts, Tol::witness());
     let mut log = Vec::new();
     let mut doc = doc;
     let mut push = |doc: &mut ProfileDoc, edit: DocEdit<editor_core::ProfileProgram>| {
-        let applied = doc
-            .apply(&edit, Tol::witness(), &reach)
-            .expect("the edit applies");
+        let applied = doc.apply(&edit, Tol::witness()).expect("the edit applies");
         log.push(edit);
         *doc = applied.doc;
         (applied.record.minted, applied.record.minted_constraints)
@@ -528,18 +490,17 @@ fn seated(
 
 /// **A constraint edit is never refused for the placement it removes,
 /// and asks no store** (A11 (2)): no edit records a pose, so removing
-/// a mate from a placement whose part does not resolve applies through
-/// the store's reach and through no resolver alike, and leaves the
-/// copy it pinned loose — no row, no solve.
+/// a mate from a placement whose part does not resolve applies, and
+/// leaves the copy it pinned loose — no row, no solve.
 ///
-/// *Breaks if* a removal asks the store, or invents a constraint.
+/// *Breaks if* a removal is refused, or invents a constraint.
 #[test]
 fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
     let mut elsewhere = PartStore::new();
     let lost_part = box_part("msolve6-a6-elsewhere", 0.5, 1.0);
     let lost_body = body_node(&lost_part);
     let lost_ref = elsewhere.insert(lost_part, Tol::witness());
-    let (doc, ids, opts, body) = instances(
+    let (doc, ids, _, body) = instances(
         "msolve6-a6-unresolved",
         box_part("msolve6-a6-part", 0.5, 1.0),
         1,
@@ -554,16 +515,14 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
             ContactClass::Rest,
         ),
     );
-    let reach = mate_reach::<f64>(&opts, Tol::witness());
     let remove = DocEdit::RemoveConstraint {
         placement: mate.placement,
         constraint: mate.id,
     };
-    for applied in [
-        doc.apply(&remove, Tol::witness(), &reach),
-        doc.apply(&remove, Tol::witness(), &editor_core::RefusingReach),
-    ] {
-        let applied = applied.expect("removing a placing mate is never refused");
+    {
+        let applied = doc
+            .apply(&remove, Tol::witness())
+            .expect("removing a placing mate is never refused");
         assert!(
             crate::fixture::without_anonymous(&applied.maintenance).is_empty(),
             "{:?}",
@@ -581,20 +540,16 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
     }
 }
 
-/// **No edit asks the store**: the constraint door decides only what
-/// the recipe says, so on a mated document a seat added to a third
-/// instance, a world pin removed and re-added at another pose, an
+/// **No edit asks the store**: the edit door takes none and decides
+/// only what the recipe says, so on a mated document a seat added to a
+/// third instance, a world pin removed and re-added at another pose, an
 /// appearance, a union, a fourth instance and every removal — the
-/// seat's, the first instance's — consult the store's reach not once.
+/// seat's, the first instance's — each applies.
 ///
-/// *Breaks if* any edit door evaluates a part to admit an edit.
+/// *Breaks if* any of these edits is refused for a fact of the parts.
 #[test]
 fn a6_no_edit_asks_the_store() {
     let (doc, [a, b], seat_refs, opts, _log, body) = seated("msolve6-a6-preserving");
-    let counting = Counting(
-        core::cell::Cell::new(0),
-        mate_reach::<f64>(&opts, Tol::witness()),
-    );
     let tol = Tol::witness();
     let part_ref = match doc.node(a) {
         Some(Node::InstantiatePart { doc_ref, .. }) => *doc_ref,
@@ -613,7 +568,6 @@ fn a6_no_edit_asks_the_store() {
                 fresh: Vec::new(),
             },
             tol,
-            &counting,
         )
         .expect("a mate is added");
     assert!(
@@ -632,7 +586,6 @@ fn a6_no_edit_asks_the_store() {
                 constraint: pin.id,
             },
             tol,
-            &counting,
         )
         .expect("removing a world pin asks nothing")
         .doc;
@@ -652,7 +605,6 @@ fn a6_no_edit_asks_the_store() {
                 fresh: Vec::new(),
             },
             tol,
-            &counting,
         )
         .expect("a world pin asks nothing")
         .doc;
@@ -664,7 +616,6 @@ fn a6_no_edit_asks_the_store() {
                 attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(200, 30, 30)),
             },
             tol,
-            &counting,
         )
         .expect("an appearance asks nothing")
         .doc;
@@ -680,7 +631,6 @@ fn a6_no_edit_asks_the_store() {
                 fresh: Vec::new(),
             },
             tol,
-            &counting,
         )
         .expect("a union asks nothing")
         .doc;
@@ -691,7 +641,6 @@ fn a6_no_edit_asks_the_store() {
                 fresh: Vec::new(),
             },
             tol,
-            &counting,
         )
         .expect("a fourth instance asks nothing")
         .doc;
@@ -720,17 +669,15 @@ fn a6_no_edit_asks_the_store() {
                     constraint: m.id,
                 },
                 tol,
-                &counting,
             )
             .expect("a removal is never refused for the placement it removes");
         stranding(&applied);
         unseated = applied.doc;
     }
     stranding(
-        &doc.apply(&DocEdit::DeleteNode { id: a }, tol, &counting)
+        &doc.apply(&DocEdit::DeleteNode { id: a }, tol)
             .expect("a removal is never refused for the placement it removes"),
     );
-    assert_eq!(counting.0.get(), 0, "no edit asked the store");
 }
 
 /// **A saved document whose seat is taken apart replays
@@ -741,8 +688,7 @@ fn a6_no_edit_asks_the_store() {
 /// *Breaks if* replay consults a part, or re-pins what the log loosed.
 #[test]
 fn a6_a_saved_unseating_replays_bit_identically_with_no_store() {
-    let (doc, [a, b], seat_refs, opts, mut log, _) = seated("msolve6-a6-replay");
-    let reach = mate_reach::<f64>(&opts, Tol::witness());
+    let (doc, [a, b], seat_refs, _, mut log, _) = seated("msolve6-a6-replay");
     // The values first, then the mate they set the freedoms of.
     let mut live = doc;
     for m in seat_refs.iter().rev() {
@@ -751,7 +697,7 @@ fn a6_a_saved_unseating_replays_bit_identically_with_no_store() {
             constraint: m.id,
         };
         live = live
-            .apply(&remove, Tol::witness(), &reach)
+            .apply(&remove, Tol::witness())
             .expect("the removal applies")
             .doc;
         log.push(remove);
@@ -845,34 +791,23 @@ fn c5_every_checked_in_document_loads_with_no_store_and_re_saves_identically() {
     }
 }
 
-/// **At `Interval`, the door's reach is the bracket's `hi`, bit for
-/// bit**: the one `f64` read of a certified body's reach is the upper
-/// end of its bracket (an upper bound by definition), it bounds the
-/// `f64` lane's reach, and an assembly over the part — two instances,
-/// each pinned to the world over its own geometry — evaluates `Ok` at
-/// `Interval` with the part evaluated once.
+/// **At `Interval`, a certified body's reach is a bracket whose `hi`
+/// bounds the `f64` lane's**, and an assembly over the part — two
+/// instances, each pinned to the world over its own geometry —
+/// evaluates `Ok` at `Interval` with the part evaluated once.
 ///
-/// *Breaks if* the interval reach is read anywhere but the bracket's
-/// `hi`, or a placement's fold at `Interval` resolves the part again.
+/// *Breaks if* the interval bracket's `hi` falls below the `f64`
+/// reach, or a placement's fold at `Interval` resolves the part again.
 #[test]
-fn a5_at_interval_the_doors_reach_is_the_brackets_hi_bit_for_bit() {
+fn a5_at_interval_the_reach_brackets_the_f64_lanes() {
     use geom_core::{Bounds, Interval};
     let (doc, ids, opts, _) = instances(
         "msolve6-a5-interval",
         cylinder_part("msolve6-a5-interval-part", 0.3, 0.7),
         2,
     );
-    let doc_ref = match doc.node(ids[0]) {
-        Some(Node::InstantiatePart { doc_ref, .. }) => *doc_ref,
-        other => panic!("an instance, not {other:?}"),
-    };
     let doc = fixture::pin(doc, ids[1], &Frame::translation([2.0, 0.0, 0.0]), &opts);
-    let r64 = mate_reach::<f64>(&opts, Tol::witness())
-        .reach(&doc_ref)
-        .expect("bounded at f64");
-    let ri = mate_reach::<Interval>(&opts, Tol::witness())
-        .reach(&doc_ref)
-        .expect("bounded at Interval");
+    let r64 = reach(&cylinder_part("msolve6-a5-interval-part", 0.3, 0.7));
     // The bracket, read off the certified body directly.
     let part = cylinder_part("msolve6-a5-interval-part", 0.3, 0.7);
     let evi = editor_core::evaluate::<Interval>(
@@ -884,11 +819,7 @@ fn a5_at_interval_the_doors_reach_is_the_brackets_hi_bit_for_bit() {
     );
     let body = editor_core::product(&part, &evi, Tol::witness()).expect("the interval product");
     let bracket = editor_core::mate::part_reach(&body).expect("bounded");
-    assert_eq!(
-        ri.to_bits(),
-        bracket.hi().to_bits(),
-        "the door reads the bracket's hi"
-    );
+    let ri = bracket.hi();
     assert!(
         ri >= r64 && ri.is_finite(),
         "hi {ri} bounds the f64 reach {r64}"
@@ -1011,17 +942,10 @@ fn a2_the_reach_bounds_the_true_maximum_over_every_fixture_part() {
         let body = body_of(&part);
         let (truth, circles) = true_reach(&body);
         let bound = editor_core::mate::part_reach(&body).expect("bounded");
-        let (doc, ids, opts, _) = instances(&format!("msolve6-p1-asm-{name}"), part.clone(), 1);
-        let via_door = reaches(&doc, &opts, &ids)[0];
         assert!(bound >= truth, "{name}: bound {bound} < true reach {truth}");
         assert!(
             bound >= analytic - 1e-15,
             "{name}: bound {bound} < analytic {analytic}"
-        );
-        assert_eq!(
-            via_door.to_bits(),
-            bound.to_bits(),
-            "{name}: the door is the bound"
         );
         if circles == 0 {
             assert_eq!(bound, truth, "{name}: all-line rims are exact");
@@ -1098,16 +1022,14 @@ fn a6_a_mate_chained_to_a_refused_one_removes_like_any_other() {
         "the copy seated on the undecided one is poisoned through it: {:?}",
         ev.result(c)
     );
-    let reach = mate_reach::<f64>(&opts, Tol::witness());
     let remove = DocEdit::RemoveConstraint {
         placement: m2.placement,
         constraint: m2.id,
     };
-    for applied in [
-        doc.apply(&remove, Tol::witness(), &reach),
-        doc.apply(&remove, Tol::witness(), &editor_core::RefusingReach),
-    ] {
-        let applied = applied.expect("removing a mate is never refused");
+    {
+        let applied = doc
+            .apply(&remove, Tol::witness())
+            .expect("removing a mate is never refused");
         assert!(crate::fixture::without_anonymous(&applied.maintenance).is_empty());
     }
 }

@@ -138,8 +138,8 @@ pub use eval::{
     Arity, At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
     ContentBits, ContentKey, Copies, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
     Evaluation, FramePlacement, KeyedCopy, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
-    NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault, PoseValue,
-    ProfileLift, ProfilePieces, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate, mate_reach,
+    NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PiecesFault, PoseValue,
+    ProfileLift, ProfilePieces, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
@@ -158,13 +158,12 @@ pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
     Anchor, CLASS_DEFERRAL, ClassAdmission, Constraint, ConstraintKind, Coord, Coset,
-    FreedomRefusal, LeverRefusal, MAX_WORLD_READ_DEPTH, Mate, MateFault, MateReach, MateRef,
-    MateSide, Member, NO_AT_REST_RECORD_RECOURSE, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal,
-    Placed, PlacedBy, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, RefusingReach, SlideAxis,
-    SolvedPoses, Space, Subgroup, SubgroupFamily, Target, Unobservable, Value, WorldPin, WorldRead,
-    WorldReadFault, class_admission, head_face, head_of, member_of, member_reading, pin_at,
-    pinned_at, place_at, reference_about, relative_freedom_components, solve_document,
-    unobservable,
+    FreedomRefusal, LeverRefusal, MAX_WORLD_READ_DEPTH, Mate, MateFault, MateRef, MateSide, Member,
+    NO_AT_REST_RECORD_RECOURSE, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, PlacedBy,
+    Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SlideAxis, SolvedPoses, Space, Subgroup,
+    SubgroupFamily, Target, Unobservable, Value, WorldPin, WorldRead, WorldReadFault,
+    class_admission, head_face, head_of, member_of, member_reading, pin_at, pinned_at, place_at,
+    reference_about, relative_freedom_components, solve_document, unobservable,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,

@@ -64,8 +64,8 @@ use std::collections::BTreeMap;
 
 use pncad::document::{
     Bodies, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
-    LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, RefusingReach, SlotId,
-    ValuePayload, apply, evaluate, parse_formula,
+    LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId, ValuePayload, apply,
+    evaluate, parse_formula,
 };
 // `probe_solids` is the only scene door pinned to the recording scalar
 // (see its note), and it rides the `probe` feature with it.
@@ -133,7 +133,6 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
             fresh: Vec::new(),
         },
         tol,
-        &RefusingReach,
     )
     .expect("insert node");
     *doc = applied.doc;
@@ -166,7 +165,6 @@ fn set_count(
             fresh: Vec::new(),
         },
         tol,
-        &RefusingReach,
     )
     .expect("count edit")
     .doc

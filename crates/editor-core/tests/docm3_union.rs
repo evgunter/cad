@@ -271,7 +271,6 @@ fn set_members_accepts_a_repeated_member_and_glues_it() {
                 ]),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("a repeated member glues")
         .doc;
@@ -342,7 +341,6 @@ fn a_snapshot_carrying_a_repeated_or_single_member_loads() {
                 members: editor_core::Bodies::Spelled(vec![boxes[0].into()]),
             },
             tol,
-            &editor_core::RefusingReach,
         )
         .expect("a one-member union is accepted")
         .doc;
@@ -373,7 +371,6 @@ fn set_members_refuses_a_node_with_no_list_input() {
                 members: editor_core::Bodies::Spelled(vec![boxes[0].into(), boxes[2].into()]),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect_err("a subtract carries no list");
     assert!(
@@ -394,7 +391,6 @@ fn set_members_refuses_a_member_that_is_not_live() {
                 members: editor_core::Bodies::Spelled(vec![boxes[0].into(), ghost.into()]),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect_err("a dangling member must refuse");
     assert!(
@@ -421,7 +417,6 @@ fn set_members_refuses_a_cycle() {
                 members: editor_core::Bodies::Spelled(vec![boxes[1].into(), downstream.into()]),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect_err("a member below the node closes a loop");
     assert!(matches!(err, EditError::WouldCycle { .. }), "{err:?}");
@@ -442,7 +437,6 @@ fn set_members_accepts_one_member_and_none() {
                 ),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("a short list is a legal edit")
         .doc
@@ -490,10 +484,7 @@ fn a_union_and_a_set_members_replay_bit_identically() {
     edits.push(DocEdit::DeleteNode { id: boxes[1] });
     let mut replayed = empty.clone();
     for edit in &edits {
-        replayed = replayed
-            .apply(edit, tol, &editor_core::RefusingReach)
-            .expect("the log replays")
-            .doc;
+        replayed = replayed.apply(edit, tol).expect("the log replays").doc;
     }
     let text =
         editor_core::persist::save(&empty, &edits.to_vec(), tol).expect("the document saves");
@@ -537,16 +528,11 @@ fn dropping_a_member_leaves_the_others_names_alone() {
                 members: editor_core::Bodies::Spelled(vec![boxes[1].into(), boxes[2].into()]),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the drop applies")
         .doc;
     let doc = doc
-        .apply(
-            &DocEdit::DeleteNode { id: boxes[0] },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
+        .apply(&DocEdit::DeleteNode { id: boxes[0] }, Tol::witness())
         .expect("the orphan deletes")
         .doc;
     let after = run(&doc);
@@ -730,16 +716,11 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
                     ),
                 },
                 tol,
-                &editor_core::RefusingReach,
             )
             .unwrap_or_else(|e| panic!("dropping the {label} pip: {e}"))
             .doc;
         let edited = edited
-            .apply(
-                &DocEdit::DeleteNode { id: members[k] },
-                tol,
-                &editor_core::RefusingReach,
-            )
+            .apply(&DocEdit::DeleteNode { id: members[k] }, tol)
             .unwrap_or_else(|e| panic!("deleting the orphaned {label} transform: {e}"))
             .doc;
         let after = evaluate::<f64>(
@@ -776,11 +757,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
             .collect();
         assert_eq!(kept_rims.len(), rims.len() - 2);
         let edited = edited
-            .apply(
-                &DocEdit::DeleteNode { id: blends[1] },
-                tol,
-                &editor_core::RefusingReach,
-            )
+            .apply(&DocEdit::DeleteNode { id: blends[1] }, tol)
             .expect("the rim blend is a sink")
             .doc;
         let (edited, rim) = insert(
@@ -1152,7 +1129,6 @@ fn set_members_refuses_an_unknown_node() {
                 members: editor_core::Bodies::Spelled(vec![boxes[0].into(), boxes[1].into()]),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect_err("a node the document does not hold cannot be re-membered");
     assert!(
@@ -1197,7 +1173,6 @@ fn list_input_and_set_list_input_agree_on_every_node_kind() {
                     }),
                 },
                 tol,
-                &editor_core::RefusingReach,
             );
             let non_list = matches!(outcome, Err(EditError::SetMembersOnNonList { .. }));
             assert_eq!(

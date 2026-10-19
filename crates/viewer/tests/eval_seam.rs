@@ -367,7 +367,6 @@ fn the_memo_makes_an_edited_documents_re_evaluation_incremental() {
             fresh: Vec::new(),
         },
         tol,
-        &pncad::document::RefusingReach,
     )
     .expect("the edit applies")
     .doc;

@@ -579,7 +579,6 @@ fn an_explicit_pattern_rule_never_reaches_a_mate() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect_err("a pattern spells its count once");
     assert!(

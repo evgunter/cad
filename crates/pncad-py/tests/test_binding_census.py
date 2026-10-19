@@ -1390,16 +1390,6 @@ BOUND_AS = {
     "all_faces": "Evaluation.all_faces",
     "all_vertices": "Evaluation.all_vertices",
     "apply": "Doc.apply",
-    # The mate solve's reach — the mated parts' own extent, what a
-    # solve and a mate-graph edit lever through — is spelled in Python
-    # as the `resolver=` keyword `evaluate` already has, on
-    # `solve_document`, `Doc.apply`, `Doc.insert` and `split`: a
-    # `Workspace` IS the reach's seam, and absent it every door refuses
-    # typed the way the kernel's refusing reach does.
-    "MateReach": "Doc.apply",
-    "PartReach": "Doc.apply",
-    "RefusingReach": "Doc.apply",
-    "mate_reach": "Doc.apply",
     # A part whose reach is not in hand faults the mate; Python reads
     # it as `MateFault`'s `mate_unleverable` variant, with the lever
     # refusal's own word as `inner_variant` (its row is in NOT_BOUND's

@@ -686,7 +686,6 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::ConstraintOnNonPlacement { node }) => assert_eq!(node.id(), target),
         other => panic!("a non-instance target must refuse, got {other:?}"),
