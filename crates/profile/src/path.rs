@@ -4948,7 +4948,6 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         at: Point2<T>,
         target: Point2<T>,
         leg: Option<BuiltArc<T>>,
-        tol: Tol,
     ) -> Result<(Dir<T>, Dir<T>, T), PathError<T>> {
         let d = target - at;
         let c = chord_director(d)?.unit;
@@ -4971,7 +4970,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         }
         let pos = self.tip_pos()?;
         let at = pos.at;
-        let (start_t, end_t, chord) = Self::arc_angles(at, p, leg, tol)?;
+        let (start_t, end_t, chord) = Self::arc_angles(at, p, leg)?;
         if let Some(inc) = &pos.incoming {
             junction_check(inc, start_t, false, tol)?;
         }
@@ -5006,7 +5005,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         })?;
         let pos = self.tip_pos()?;
         let at = pos.at;
-        let (start_t, end_t, chord) = Self::arc_angles(at, start_pos, leg, tol)?;
+        let (start_t, end_t, chord) = Self::arc_angles(at, start_pos, leg)?;
         if let Some(inc) = &pos.incoming {
             junction_check(inc, start_t, false, tol)?;
         }
