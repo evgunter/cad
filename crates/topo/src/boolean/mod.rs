@@ -6665,7 +6665,7 @@ pub(crate) enum RestTangent<T: Real> {
     Apart,
     /// The faces' extents along the line meet over `overlap`; whether
     /// the line lies in the two faces there is the caller's to read
-    /// ([`line_through_both_faces`]), and only then whether the table
+    /// ([`rest_line_in_both_faces`]), and only then whether the table
     /// holds along it ([`tangent_table_at_rest`]).
     Line {
         /// The tangent line.
@@ -6678,9 +6678,9 @@ pub(crate) enum RestTangent<T: Real> {
 /// **A face–face record on two carriers, read at rest** (C3): the
 /// closed-form line their carriers derive ([`tangent_line`]) and the two
 /// faces' extents along it. The `Tangent` table along it, material
-/// sides included, is [`tangent_table_at_rest`], read once the line is
-/// known to run through both faces: a pair the line misses does not
-/// meet, whatever its sides.
+/// sides included, is [`tangent_table_at_rest`], which reads only a
+/// line known to run through both faces ([`RestLineInBothFaces`]): a
+/// pair the line misses does not meet, whatever its sides.
 ///
 /// # Errors
 ///
@@ -6695,15 +6695,7 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
     band: Band,
 ) -> Result<RestTangent<T>, crate::contact::ContactRefusal> {
     use crate::contact::ContactRefusal;
-    let surface = |f| {
-        let face = body.get_face(f)?;
-        body.get_surface(face.surface)
-    };
-    let (sa, sb) = surface(fa)
-        .zip(surface(fb))
-        .ok_or(ContactRefusal::NotCertifiable {
-            what: "a face of the face-face record has no surface",
-        })?;
+    let ((sa, _), (sb, _)) = (record_face(body, fa)?, record_face(body, fb)?);
     let line = tangent_line((body, fa, sa), (body, fb, sb), band).map_err(|e| {
         ContactRefusal::NotCertifiable {
             what: match e {
@@ -6747,37 +6739,85 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
     })
 }
 
+/// A face of a face–face record on two carriers: its surface and sense.
+fn record_face<T: Real>(
+    body: &Body<T>,
+    f: FaceKey,
+) -> Result<(&geom::Surface<T>, bool), crate::contact::ContactRefusal> {
+    body.get_face(f)
+        .and_then(|face| Some((body.get_surface(face.surface)?, face.sense)))
+        .ok_or(crate::contact::ContactRefusal::NotCertifiable {
+            what: "a face of the face-face record has no surface",
+        })
+}
+
+/// A record's tangent line known to run through both faces' interiors
+/// ([`rest_line_in_both_faces`], the only constructor): what
+/// [`tangent_table_at_rest`] reads, so the sides are never read for a
+/// pair the line misses.
+pub(crate) struct RestLineInBothFaces<'b, T: Real> {
+    body: &'b Body<T>,
+    faces: [FaceKey; 2],
+    carrier: geom::Curve3<T>,
+    overlap: (T, T),
+}
+
+/// [`line_through_both_faces`] for a face–face record's line at rest
+/// ([`RestTangent::Line`]): `Some` where the line runs through both
+/// faces' interiors, `None` where it does not.
+///
+/// # Errors
+///
+/// What [`line_through_both_faces`] leaves unread.
+pub(crate) fn rest_line_in_both_faces<'b, T: Decide, E>(
+    body: &'b Body<T>,
+    faces: [FaceKey; 2],
+    carrier: geom::Curve3<T>,
+    overlap: (T, T),
+    band: Band,
+    unread: impl Fn(usize, FaceUnread, &mut Vec<E>),
+) -> Result<Option<RestLineInBothFaces<'b, T>>, Vec<E>> {
+    let through =
+        line_through_both_faces(faces.map(|f| (body, f)), &carrier, overlap, band, unread)?;
+    Ok(through.then_some(RestLineInBothFaces {
+        body,
+        faces,
+        carrier,
+        overlap,
+    }))
+}
+
 /// The C4 `Tangent` table of a face–face record on two carriers along
-/// their tangent line over `overlap` ([`tangent_pair_at_rest`]), the
-/// declared posture, the record standing as the declaration
-/// ([`contact_verify::tangent_locus_relation`]): the touch and the
-/// material sides.
+/// their tangent line, where it runs through both faces
+/// ([`RestLineInBothFaces`]), the declared posture, the record standing
+/// as the declaration ([`contact_verify::tangent_locus_relation`]): the
+/// touch and the material sides.
 ///
 /// # Errors
 ///
 /// [`crate::contact::ContactRefusal::Contradicted`] where the table
 /// contradicts the touch or the sides (`contact_tangent_opposed`,
-/// `contact_tangent_overlap`); `Escalated` where a margin is in band.
+/// `contact_tangent_overlap`); `Escalated` where a margin is in band;
+/// `NotCertifiable` where a face has no surface.
 pub(crate) fn tangent_table_at_rest<T: Decide>(
-    body: &Body<T>,
-    fa: FaceKey,
-    fb: FaceKey,
-    carrier: &geom::Curve3<T>,
-    (t0, t1): (T, T),
+    line: &RestLineInBothFaces<'_, T>,
     band: Band,
 ) -> Result<(), crate::contact::ContactRefusal> {
-    let surface = |f| {
-        let face = body.get_face(f)?;
-        Some((body.get_surface(face.surface)?, face.sense))
-    };
-    let ((sa, sense_a), (sb, sense_b)) =
-        surface(fa)
-            .zip(surface(fb))
-            .ok_or(crate::contact::ContactRefusal::NotCertifiable {
-                what: "a face of the face-face record has no surface",
-            })?;
-    contact_verify::tangent_locus_relation(sa, sense_a, sb, sense_b, carrier, t0, t1, true, band)
-        .map(|_| ())
+    let [fa, fb] = line.faces;
+    let ((sa, sense_a), (sb, sense_b)) = (record_face(line.body, fa)?, record_face(line.body, fb)?);
+    let (t0, t1) = line.overlap;
+    contact_verify::tangent_locus_relation(
+        sa,
+        sense_a,
+        sb,
+        sense_b,
+        &line.carrier,
+        t0,
+        t1,
+        true,
+        band,
+    )
+    .map(|_| ())
 }
 
 /// **The glue door's tangency**: the check ([`verify_tangency`]), and

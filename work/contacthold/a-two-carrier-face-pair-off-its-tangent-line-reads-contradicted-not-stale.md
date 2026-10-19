@@ -56,10 +56,13 @@ the four ops above.
 
 PRs 4996, 5006 and 4982 left all four ops refusing as above. The
 confirm read the sides first. `census::confirm_face_pair` now places
-the line in both faces (`boolean::line_through_both_faces`, the one
-shared reading) before the `Tangent` table reads the sides
-(`boolean::tangent_table_at_rest`, split out of
-`boolean::tangent_pair_at_rest`). A pair the line misses is stale,
+the line in both faces (`boolean::rest_line_in_both_faces`, over
+`boolean::line_through_both_faces`, the one shared reading) before the
+`Tangent` table reads the sides (`boolean::tangent_table_at_rest`, split
+out of `boolean::tangent_pair_at_rest`). The table takes only the value
+the placement returns where the line runs through both faces
+(`boolean::RestLineInBothFaces`), so the order holds by type. A pair
+the line misses is stale,
 whatever its sides. A pair the line runs through still contradicts on
 wrong sides. Three of the four ops now answer right:
 

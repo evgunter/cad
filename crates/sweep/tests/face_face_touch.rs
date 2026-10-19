@@ -643,13 +643,20 @@ fn a_given_tangency_whose_faces_part_along_its_line_records_nothing() {
     }
 }
 
-/// The x-range of `f`'s vertices.
-fn face_x_range(body: &Body<f64>, f: topo::FaceKey) -> (f64, f64) {
+/// The points of `f`'s vertices.
+fn face_points(body: &Body<f64>, f: topo::FaceKey) -> Vec<[f64; 3]> {
     body.half_edges()
         .filter(|(_, h)| body.get_loop(h.parent_loop).is_some_and(|l| l.face == f))
-        .map(|(_, h)| point(body, h.start)[0])
-        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), x| {
-            (lo.min(x), hi.max(x))
+        .map(|(_, h)| point(body, h.start))
+        .collect()
+}
+
+/// The x-range of `f`'s vertices.
+fn face_x_range(body: &Body<f64>, f: topo::FaceKey) -> (f64, f64) {
+    face_points(body, f)
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| {
+            (lo.min(v[0]), hi.max(v[0]))
         })
 }
 
@@ -769,7 +776,34 @@ fn a_record_whose_faces_the_op_divides_lands_on_the_pair_holding_its_line() {
                     .unwrap()
                     .kind()
             };
-            let plane = if kind(p) == SurfaceKind::Plane { p } else { q };
+            let (plane, wall) = if kind(p) == SurfaceKind::Plane {
+                (p, q)
+            } else {
+                (q, p)
+            };
+            let walls: Vec<topo::FaceKey> = r
+                .body
+                .faces()
+                .filter(|(_, f)| {
+                    r.body.get_surface(f.surface).unwrap().kind() == SurfaceKind::Cylinder
+                })
+                .map(|(k, _)| k)
+                .collect();
+            let on_rod = face_points(&r.body, wall)
+                .iter()
+                .all(|v| ((v[0]).hypot(v[1] - 2.5) - 0.5).abs() < 1e-9);
+            let beside = topo::point_in_solid(
+                &r.body,
+                geom_core::Point3::new(0.0, 2.01, 0.5),
+                geom_core::Band::linear(tol()).unwrap(),
+                tol(),
+            );
+            assert!(
+                walls == [wall] && on_rod && beside == Ok(topo::SolidContainment::In),
+                "{label}: the record's cylinder face is the rod's one wall piece, which bounds \
+                 the rod's material beside the line: walls {walls:?}, record's {wall:?}, \
+                 on the rod {on_rod}, (0, 2.01, 0.5) {beside:?}"
+            );
             let (lo, hi) = face_x_range(&r.body, plane);
             assert!(
                 lo < 0.0 && hi < 1.0 + 1e-9,
