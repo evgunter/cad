@@ -1339,6 +1339,10 @@ impl<T: Real> CellFirstQuotients<T> {
     }
 }
 
+/// One axis's quotient pieces at [`Interval`](crate::interval::Interval),
+/// as [`CellFirstQuotients::cut_pieces`] hands them back.
+pub type IntervalPieces = Vec<QuotientPiece<crate::interval::Interval, 3>>;
+
 impl CellFirstQuotients<crate::interval::Interval> {
     /// The quotients on the part of the block over `[a, b]` along each
     /// axis given a cut, the block spanning `[s0, s1]` along it: every
@@ -1373,10 +1377,7 @@ impl CellFirstQuotients<crate::interval::Interval> {
         cuts: (Option<AxisCut>, Option<AxisCut>),
         axes: (bool, bool),
         splits: (usize, usize),
-    ) -> (
-        Option<Vec<QuotientPiece<crate::interval::Interval, 3>>>,
-        Option<Vec<QuotientPiece<crate::interval::Interval, 3>>>,
-    ) {
+    ) -> (Option<IntervalPieces>, Option<IntervalPieces>) {
         let counts = (halving_count(splits.0), halving_count(splits.1));
         let (u, v) = self.restrict_axes(cuts, axes);
         (
@@ -1617,6 +1618,7 @@ mod tests {
     use crate::dual::Dual;
     use crate::interval::Interval;
     use crate::real::Real;
+    use interval_transcendentals::Decoration;
 
     /// Knot values at every edge the quotient has: equal (a zero
     /// difference), reversed, signed zeros, subnormal and huge
@@ -1904,6 +1906,95 @@ mod tests {
             .pieces((2, 2))
             .expect("the cut's pieces");
         assert!(zero_width(&cut), "the cut widened a constant quotient");
+    }
+
+    /// **A one-axis cut reads the two-axis cut's pieces to the bit.**
+    /// [`super::CellFirstQuotients::cut_pieces`] restricts only the axes
+    /// its reader asks for (a reader of `S_u` restricts `N_u` and `W²`
+    /// alone); each asked axis's pieces equal, bit for bit and decoration
+    /// for decoration, the pieces [`super::CellFirstQuotients::restrict`]
+    /// then [`super::CellFirstQuotients::pieces`] read, and an unasked
+    /// axis is `None`. Drawn rational blocks of degree 1–3 per axis with
+    /// widened coefficients, on non-dyadic Bézier spans, cut along `u`,
+    /// `v` or both at drawn ends, at 1×1 and 2×2 pieces, for every
+    /// choice of axes. Red if a one-axis cut restricts `W²` differently
+    /// from the two-axis cut, or hands back the other axis's pieces.
+    #[test]
+    fn a_one_axis_cut_reads_the_two_axis_cuts_pieces_to_the_bit() {
+        type Pieces = Vec<super::QuotientPiece<Interval, 3>>;
+        let piece_bits = |pieces: &Pieces| -> Vec<(u64, u64, Decoration)> {
+            pieces
+                .iter()
+                .flat_map(|q| q.numer().iter().flatten().chain(q.denom()).copied())
+                .map(|x| (x.lo().to_bits(), x.hi().to_bits(), x.decoration()))
+                .collect()
+        };
+        let mut rng = test_utils::fuzz::start("one-axis-cut");
+        for _ in 0..test_utils::fuzz::scaled(60) {
+            let (p, q) = (1 + rng.below(3), 1 + rng.below(3));
+            let n = (p + 1) * (q + 1);
+            let a: Vec<[Interval; 3]> = (0..n)
+                .map(|_| core::array::from_fn(|_| coefficient(&mut rng)))
+                .collect();
+            let w: Vec<Interval> = (0..n)
+                .map(|_| {
+                    let lo = rng.range(0.5, 3.0);
+                    Interval::from_bounds(lo, lo + rng.range(0.0, 1e-9))
+                })
+                .collect();
+            let span = |rng: &mut test_utils::fuzz::Rng| {
+                let s0 = rng.range(-1.0, 1.0);
+                (s0, s0 + rng.range(0.3, 2.0))
+            };
+            let (du, dv) = (span(&mut rng), span(&mut rng));
+            let vector = |d: usize, (s0, s1): (f64, f64)| {
+                let k: Vec<f64> = core::iter::repeat_n(s0, d + 1)
+                    .chain(core::iter::repeat_n(s1, d + 1))
+                    .collect();
+                super::super::KnotVector::clamped(k, d).expect("a Bézier vector")
+            };
+            let (ku, kv) = (vector(p, du), vector(q, dv));
+            let held_u: Vec<Interval> = ku.knots().iter().map(|&k| Interval::from_f64(k)).collect();
+            let held_v: Vec<Interval> = kv.knots().iter().map(|&k| Interval::from_f64(k)).collect();
+            let axes = (
+                super::CellAxis::Span(ku.span(p).expect("the span"), &held_u),
+                super::CellAxis::Span(kv.span(q).expect("the span"), &held_v),
+            );
+            let whole =
+                super::cell_first_quotients(axes, super::CellBlock::Homogeneous { a: &a, w: &w })
+                    .expect("a block under the ceiling");
+            let cut = |rng: &mut test_utils::fuzz::Rng, (s0, s1): (f64, f64)| {
+                let (x, y) = (rng.range(s0, s1), rng.range(s0, s1));
+                ((s0, s1), (x.min(y), x.max(y)))
+            };
+            let which = rng.below(3);
+            let cuts = (
+                (which != 1).then(|| cut(&mut rng, du)),
+                (which != 0).then(|| cut(&mut rng, dv)),
+            );
+            for splits in [(1, 1), (2, 2)] {
+                let both = whole
+                    .restrict(cuts)
+                    .pieces(splits)
+                    .expect("the two-axis cut's pieces");
+                let (ref_u, ref_v): (Pieces, Pieces) = both.into_iter().map(|c| (c.u, c.v)).unzip();
+                for asked in [(true, true), (true, false), (false, true), (false, false)] {
+                    let (u, v) = whole.cut_pieces(cuts, asked, splits);
+                    for (got, want, on, axis) in
+                        [(u, &ref_u, asked.0, "S_u"), (v, &ref_v, asked.1, "S_v")]
+                    {
+                        match got {
+                            Some(got) => assert!(
+                                on && piece_bits(&got) == piece_bits(want),
+                                "{axis} asked {asked:?} at {splits:?} on cuts {cuts:?}: \
+                                 not the two-axis cut's pieces"
+                            ),
+                            None => assert!(!on, "{axis} asked {asked:?} came back refused"),
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// An interval's two ends and its certification, as bits.
