@@ -1009,7 +1009,7 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
 /// **The carrier-datum read over the datums no mint lets through**:
 /// certification refuses a carrier whose datum is not a number, or
 /// whose radius or semi-minor axis is not positive, before it reaches
-/// an arena (the carried row's measurement: `IntervalNotForward` or an
+/// an arena (the carried row's measurement: `StatedInterval` or an
 /// escalated endpoint or span predicate), so no body can carry one to
 /// check 1. The read is asked of the carrier directly, so that it names
 /// each such datum the day a door stops refusing it — and so that the

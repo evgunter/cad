@@ -230,15 +230,17 @@ fn certify_poison_meter_escalates_invalid_at_the_meter() {
     }
 }
 
-/// CLAIM 2, certify gate: a backwards span on a HEALTHY carrier stays
-/// `IntervalNotForward` — the two failure modes remain distinct.
+/// CLAIM 2, certify gate: a backwards span on a HEALTHY carrier stays a
+/// span that does not run forward (at this minting door, the caller's:
+/// `StatedInterval`) — the two failure modes remain distinct.
 #[test]
 fn certify_backwards_span_stays_interval_not_forward() {
     match certify_axis(axis_segment_f64(1.0), 1.0, 0.0) {
-        Err(CertifyError::IntervalNotForward {
-            verdict: geom_brep::recourse::Refused::Negative { .. },
+        Err(CertifyError::StatedInterval {
+            refused: geom_brep::StatedSpan::NotForward,
+            ..
         }) => {}
-        other => panic!("a backwards span must stay IntervalNotForward: {other:?}"),
+        other => panic!("a backwards span must stay one that does not run forward: {other:?}"),
     }
 }
 

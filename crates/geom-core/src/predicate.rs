@@ -1863,6 +1863,18 @@ impl MarginDiag {
         self.shows(band, words.passes).ending(words)
     }
 
+    /// **Whether this reading is certainly on the refused side** of a
+    /// decision passing `passes`: it shows no size — an exact or proved
+    /// zero, or a reading in band or past it wholly on a side the
+    /// decision refuses — so [`MarginDiag::sized_recourse`] ends it as
+    /// [`SizedWords::refused`] says. A class, never the number; like the
+    /// sentence it reads the margin's side, so its production callers are
+    /// counted by `scripts/gates/reporting-margin-door.sh`.
+    #[must_use]
+    pub fn shows_no_size(self, band: Band, passes: SizedPass) -> bool {
+        matches!(self.shows(band, passes), Shows::NoSize | Shows::Refused)
+    }
+
     /// **The sized recourse read at the import door** (D4 ¶1, D7): a size
     /// within ε_in is not one the file can tell from zero, so no refusal
     /// offers to keep it by tightening alone. One sentence for every

@@ -2858,6 +2858,14 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::IntervalNotForward {
             verdict: Refused::Zero(_),
         } => "its length is within the tolerance of zero",
+        CertifyError::StatedInterval {
+            refused: geom_brep::StatedSpan::NotForward,
+            ..
+        } => "its parameter interval does not run forward",
+        CertifyError::StatedInterval {
+            refused: geom_brep::StatedSpan::PastFullTurn,
+            ..
+        } => "its arc spans more than one full turn",
         CertifyError::NotTransverse { .. } | CertifyError::PlaneNurbs(P::NotTransverse { .. }) => {
             "its faces are tangent where its description says they cross"
         }
@@ -2937,6 +2945,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::ResidualExceeded { .. }
             | CertifyError::IntervalNotForward { .. }
             | CertifyError::WindingExceeded
+            | CertifyError::StatedInterval { .. }
             | CertifyError::NotTransverse { .. }
             | CertifyError::ArmCollapsed { .. }
             | CertifyError::SpanMeterCollapsed { .. }

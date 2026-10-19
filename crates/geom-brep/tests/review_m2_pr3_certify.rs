@@ -15,7 +15,8 @@ use crate::shared::surf::table;
 use crate::shared::tol::{band, eps};
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::recourse::{Classified, Refused};
+use geom_brep::StatedSpan;
+use geom_brep::recourse::Refused;
 use geom_brep::{
     CertCheck, CertifyError, DihedralClass, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
     MappedCurve, MappedSource, NewellError, SketchSegment, SurfacePair, classify_dihedral,
@@ -42,8 +43,8 @@ use geom_core::{Affine3, Arc2, Point2, Point3, Vec3};
 /// winds EIGHT extra full turns — every schedule sample lands on the
 /// true point (the extra 8·tau contributes i whole turns at sample i),
 /// so the 9-sample schedule alone was aliased. The fix (S1): circle
-/// carriers enforce the winding bound |t1 − t0| ≤ tau
-/// (`CertifyError::WindingExceeded`), and since the only exact aliases
+/// carriers enforce the winding bound |t1 − t0| ≤ tau (refused at the
+/// minting door as `CertifyError::StatedInterval`), and since the only exact aliases
 /// of the uniform schedule are the 8k·tau family, the length bound
 /// kills every k ≠ 0 — the pointwise sample matches then pin the
 /// winding within the period.
@@ -80,7 +81,10 @@ fn fixed_winding_aliased_arc_interval_refused() {
     let aliased = mk(FRAC_PI_2 + 8.0 * TAU);
     assert_eq!(
         EdgeCurve::certify(aliased, p0, p1, |_| None, 1.0, band()).unwrap_err(),
-        CertifyError::WindingExceeded
+        CertifyError::StatedInterval {
+            refused: StatedSpan::PastFullTurn,
+            margin: None,
+        }
     );
     // The correct interval still certifies.
     EdgeCurve::certify(mk(FRAC_PI_2), p0, p1, |_| None, 1.0, band()).unwrap();
@@ -115,7 +119,10 @@ fn fixed_winding_aliased_full_period_refused() {
     };
     assert_eq!(
         EdgeCurve::certify(spec, p, p, |_| None, 1.0, band()).unwrap_err(),
-        CertifyError::WindingExceeded
+        CertifyError::StatedInterval {
+            refused: StatedSpan::PastFullTurn,
+            margin: None,
+        }
     );
 }
 
@@ -309,15 +316,19 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
     // interval, refused by the forward gate (N1).
     assert!(matches!(
         EdgeCurve::certify(mk(-PI), p0, p1, &lookup, 1.0, band()).unwrap_err(),
-        CertifyError::IntervalNotForward {
-            verdict: Refused::Negative { .. },
+        CertifyError::StatedInterval {
+            refused: StatedSpan::NotForward,
+            margin: Some(_),
         }
     ));
     // An extra 1.5 windings: t runs 0 -> 3·pi — over one period,
     // refused by the winding bound (S1).
     assert_eq!(
         EdgeCurve::certify(mk(3.0 * PI), p0, p1, &lookup, 1.0, band()).unwrap_err(),
-        CertifyError::WindingExceeded
+        CertifyError::StatedInterval {
+            refused: StatedSpan::PastFullTurn,
+            margin: None,
+        }
     );
     // The honest upper arc (witness at its mid-parameter point (0,1,0))
     // still certifies.
@@ -673,8 +684,9 @@ fn survives_curvature_arm_caps_huge_chord() {
 /// parameter interval certified when description and carrier were
 /// arranged consistently, violating the ratified he_plus-forward
 /// increasing-parameter convention. The fix (N1): the forward span
-/// gate — `CertifyError::IntervalNotForward`, a typed error, since the
-/// convention is ratified.
+/// gate, refused at this minting door as its caller's
+/// (`CertifyError::StatedInterval`), a typed error, since the convention
+/// is ratified.
 #[test]
 fn fixed_reversed_interval_refused() {
     let p0 = Point3::origin();
@@ -698,8 +710,9 @@ fn fixed_reversed_interval_refused() {
     };
     assert!(matches!(
         EdgeCurve::certify(spec, p1, p0, |_| None, 1.0, band()).unwrap_err(),
-        CertifyError::IntervalNotForward {
-            verdict: Refused::Negative { .. },
+        CertifyError::StatedInterval {
+            refused: StatedSpan::NotForward,
+            margin: Some(_),
         }
     ));
 }
@@ -733,11 +746,9 @@ fn fixed_zero_length_edge_refused() {
     };
     assert_eq!(
         EdgeCurve::certify(spec, p, p, |_| None, 1.0, band()).unwrap_err(),
-        CertifyError::IntervalNotForward {
-            verdict: Refused::Zero(Classified {
-                margin: geom_core::MarginDiag::value(0.0),
-                band: band(),
-            }),
+        CertifyError::StatedInterval {
+            refused: StatedSpan::NotForward,
+            margin: Some(geom_core::MarginDiag::value(0.0)),
         }
     );
 }
@@ -918,7 +929,7 @@ mod interval_lane {
     /// be refused — and now it is, by DETECTION: the circle winding
     /// bound classifies `(tau − 9·tau)·r` definitely negative through
     /// a clean (Com-decorated) enclosure and returns the typed
-    /// `WindingExceeded`, not an escalation.
+    /// `StatedInterval` past a full turn, not an escalation.
     #[test]
     fn fixed_interval_winding_alias_refused_by_detection() {
         let center = p3(1.0, 2.0, 3.0);
@@ -946,7 +957,10 @@ mod interval_lane {
             .unwrap_err();
         assert_eq!(
             err,
-            CertifyError::WindingExceeded,
+            CertifyError::StatedInterval {
+                refused: StatedSpan::PastFullTurn,
+                margin: None,
+            },
             "the fixed lane must refuse the alias by detection, not by a blanket Trv refusal"
         );
     }

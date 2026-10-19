@@ -99,8 +99,8 @@ pub mod torus_convention;
 pub use carrier_net::CarrierEnclosureRefusal;
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec,
-    IntersectionDraft, NurbsLane, StatedImage, edge_extent, folded_parallelism, sample_param,
-    schedule_param,
+    IntersectionDraft, NurbsLane, StatedImage, StatedSpan, edge_extent, folded_parallelism,
+    sample_param, schedule_param,
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{

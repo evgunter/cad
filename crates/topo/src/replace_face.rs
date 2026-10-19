@@ -515,11 +515,13 @@ pub enum ReplaceFaceError<T: Real> {
     /// reaches or passes the edge's other end — an inward move as deep
     /// as the wall beside it is tall, say. The attach door's span check
     /// decides it on a line or a spline
-    /// ([`geom_brep::CertifyError::IntervalNotForward`]), and a spline
-    /// carrier's clamp at its far end decides a move past it; either
-    /// way it is the move's length, not a span the kernel minted wrong.
-    /// A periodic carrier's non-forward span may be a turn chosen
-    /// wrongly, so it stays the attach door's [`ReplaceFaceError::Op`].
+    /// ([`geom_brep::CertifyError::StatedInterval`], or
+    /// [`geom_brep::CertifyError::IntervalNotForward`] on a span in band),
+    /// and a spline carrier's clamp at its far end decides a move past it;
+    /// either way it is the move's length, not a span the kernel minted
+    /// wrong. A periodic carrier's non-forward span may be a turn chosen
+    /// wrongly, so it stays the attach door's [`ReplaceFaceError::Op`],
+    /// which that door refuses typed.
     ReanchorCollapse {
         /// The edge the move collapses or reverses.
         edge: EdgeKey,
@@ -2060,7 +2062,12 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
                 // forward is the move's length.
                 (
                     EulerOpError::Certification {
-                        error: geom_brep::CertifyError::IntervalNotForward { .. },
+                        error:
+                            geom_brep::CertifyError::IntervalNotForward { .. }
+                            | geom_brep::CertifyError::StatedInterval {
+                                refused: geom_brep::StatedSpan::NotForward,
+                                ..
+                            },
                     },
                     Some(offset),
                 ) => ReplaceFaceError::ReanchorCollapse { edge, offset },

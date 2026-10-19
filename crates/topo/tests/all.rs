@@ -63,6 +63,8 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "a_callers_interval_is_refused_at_its_door.rs"]
+mod a_callers_interval_is_refused_at_its_door;
 #[path = "a_doubled_line_does_not_revert.rs"]
 mod a_doubled_line_does_not_revert;
 #[path = "a_given_pair_is_made_from_a_kernel_verdict.rs"]

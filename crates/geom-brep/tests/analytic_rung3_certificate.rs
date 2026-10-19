@@ -278,7 +278,13 @@ fn a_lane_free_door_refuses_for_the_lane_before_any_schedule_defect() {
         )
         .map(|_| ());
         let on_the_defect = match defect {
-            "backward" => matches!(with_lane, Err(CertifyError::IntervalNotForward { .. })),
+            "backward" => matches!(
+                with_lane,
+                Err(CertifyError::StatedInterval {
+                    refused: geom_brep::StatedSpan::NotForward,
+                    ..
+                })
+            ),
             _ => matches!(with_lane, Err(CertifyError::ResidualExceeded { .. })),
         };
         assert!(on_the_defect, "{defect}: with the lane: {with_lane:?}");

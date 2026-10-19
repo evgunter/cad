@@ -236,21 +236,24 @@ unresolved enclosure, a straddle) ends in the lever whatever the side.
 |---|---|---|---|
 | `Lever` | the lever and the note | the lever and the note | the lever and the note |
 | `StoredContradiction` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
-| `Unminted` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
+| `Unminted` | a panic | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
 
 Within ε_in the import door ends every band-decided reading in its one
-sentence and the lever, whatever the side. The table departs from
-clause (iv) in two cells, each typed until the door that would keep
-input from it exists, and each scheduled by its row:
-
-- an unminted side at a build, which `topo::Body::mev` reaches from a
-  caller's own interval until the public Euler doors refuse a
-  non-forward or degenerate span typed
-  (`work/encl/param-span-unminted-side-is-reached-at-a-build-by-public-euler-doors.md`);
-- the at-rest column, which the validator also reads at the import gate
-  (`[import]` step 4) and so a damaged file reaches until adoption
-  checks everything the validator does
-  (`work/encl/at-rest-stored-contradictions-and-unminted-sides-panic-once-import-validates-everything.md`).
+sentence and the lever, whatever the side. An unminted side panics at a
+build because every public door that hands its decision the caller's
+input refuses that input typed first: the edge certifier's minting door
+(`geom_brep::EdgeCurve::certify` and its `_via` forms, which every
+operation that mints an edge goes through) refuses a span check's reading
+certainly on its refused side as the caller's interval
+(`geom_brep::CertifyError::StatedInterval`, in the check's own lever), so
+only re-certification of a stored edge reaches `CertCheck::ParamSpan`'s
+and `CertCheck::ParamWinding`'s refused sides. The table departs from
+clause (iv) in one cell, typed until the door that would keep input
+from it exists, and scheduled by its row: the at-rest column, which the
+validator also reads at the import gate (`[import]` step 4) and so a
+damaged file reaches until adoption checks everything the validator
+does
+(`work/encl/at-rest-stored-contradictions-and-unminted-sides-panic-once-import-validates-everything.md`).
 
 Review checklist form: for every arm added to a decision, name which
 ε_input story it belongs to, or say why it belongs to none.

@@ -2363,7 +2363,9 @@ impl<T: Decide> Body<T> {
     /// equal start vertices ([`EulerOpError::FanStartMismatch`]).
     /// `Lone`: the loop resolves ([`BadArgument::Stale`]); it is empty
     /// ([`EulerOpError::LoopNotEmpty`]). Then, for both sites, the
-    /// geometry gate: `curve` certifies ([`EulerOpError::Certification`]);
+    /// geometry gate: `curve` certifies ([`EulerOpError::Certification`];
+    /// an interval that runs no clear length forward or past a full turn
+    /// is the caller's, [`geom_brep::CertifyError::StatedInterval`]);
     /// and at a `Fan` site, per edge of the moved run in run order: the
     /// edge is not a null edge the run moves one end of
     /// ([`EulerOpError::RebasedNullEdge`]), and its carrier re-certifies
@@ -2428,7 +2430,8 @@ impl<T: Decide> Body<T> {
     /// vertex's point to `point`
     /// ([`EdgeCurveSpec::line_between`] — the caller asserts the locus
     /// *is* that chord; module docs, geometry policy). Coincident
-    /// endpoints fail certification loudly.
+    /// endpoints give a chord of no length, refused typed
+    /// ([`geom_brep::CertifyError::StatedInterval`]).
     ///
     /// # Errors
     ///
@@ -2643,7 +2646,8 @@ impl<T: Decide> Body<T> {
     ///
     /// The dispatch is **structural** (key equality, never a scalar
     /// comparison); two *distinct* vertices at coincident coordinates
-    /// still take the chord path and fail certification loudly.
+    /// still take the chord path, and their chord of no length is
+    /// refused typed ([`geom_brep::CertifyError::StatedInterval`]).
     ///
     /// # Errors
     ///

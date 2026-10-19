@@ -49,10 +49,12 @@
 # file's (`RefusedReading::DamagedFile`), which turns that reading's
 # ending into the kernel-or-file defect ending or the damaged-file one;
 # and the sign-certain arm asks the refused class's ending without a
-# reading (`SizedWords::sign_certain_recourse`). All belong to the one
-# table that picks how a definite reading ends from its class and the
-# decision's refused side, so the routes there cannot drift: a spelling
-# of any anywhere else is a second table. The list counts the variant's
+# reading (`SizedWords::sign_certain_recourse`); and whether a reading is
+# certainly on the refused side at all (`MarginDiag::shows_no_size`) is
+# the class those choices end, read without a sentence. All belong to
+# the one table that picks how a definite reading ends from its class
+# and the decision's refused side, so the routes there cannot drift: a
+# spelling of any anywhere else is a second table. The list counts the variant's
 # spellings and the method's calls, not what the site does with them.
 #
 # WHAT A LISTED SITE OWES, and the gate checks none of it — it checks
@@ -139,9 +141,9 @@ SIZED_RE='(sized_recourse|sized_recourse_in_file|miss_recourse_in_file)([^A-Za-z
 # `path count why` — production files outside the definition home that
 # spell the stored-contradiction choice or ask the sign-certain ending.
 DEFINITE_ALLOWLIST=(
-  'crates/geom-brep/src/recourse.rs 3 the sized-decision table: SizedDecision::words picks the stored-contradiction and damaged-file choices once for every route, and the sign-certain arm asks the refused class ending through those words'
+  'crates/geom-brep/src/recourse.rs 4 the sized-decision table: SizedDecision::words picks the stored-contradiction and damaged-file choices once for every route, the sign-certain arm asks the refused class ending through those words, and SizedDecision::certainly_refused reads the class once for the unminted side and the minting door'
 )
-DEFINITE_RE='(RefusedReading::(ContradictsStoredData|DamagedFile)|sign_certain_recourse)([^A-Za-z0-9_]|$)'
+DEFINITE_RE='(RefusedReading::(ContradictsStoredData|DamagedFile)|sign_certain_recourse|shows_no_size)([^A-Za-z0-9_]|$)'
 
 # `path count why` — production files that may write the classifier's
 # verdict `terminal_sliver: true` on an escalation of their own. None:
