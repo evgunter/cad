@@ -394,13 +394,19 @@ fn both_sweeps_evaluate_in_one_document() {
 /// moved with what is stored from those reads. No point moved
 /// (`m10_p_fence` held). Re-taken merged over INTENT stage 3 C's
 /// re-bless above, so `boss_union`'s value is neither tree's.
+///
+/// RE-BLESSED, `cut_cylinder` and `boss_union` only, when a harmonic
+/// row's windings became stored structure (PCERT B2a, PR 5244): the
+/// stored pcurve is two channels (`Channel::Angle { phase, winding }` /
+/// `Channel::Free`) where it was one flat tuple, and the digest hashes
+/// it. Re-taken merged over PCERT B1's re-bless above.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0xb0ac_b6ff_5b86_687f),
         ("corner_table", 0x4d24_cb55_a481_538d),
-        ("cut_cylinder", 0x3e5f_559f_058c_1664),
-        ("boss_union", 0xbce2_0e31_253a_3c04),
+        ("cut_cylinder", 0x3c37_782c_be93_f19a),
+        ("boss_union", 0xc33a_d792_0586_087c),
         ("kitchen_sink", 0x1032_8a96_fb12_9d02),
     ];
     let mut moved: Vec<String> = Vec::new();

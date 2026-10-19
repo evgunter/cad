@@ -2,8 +2,9 @@
 id: chart-v-du-drops-a-decided-zero-azimuth-harmonic-unbounded
 kind: issue
 title: chart_v_du drops a decided-zero azimuth harmonic from ∫ (v − anchor) du and nothing bounds what it drops
-status: open
+status: closed
 opened: 2026-10-13
+closed: 2026-10-17
 priority: P3
 cost: E
 ---
@@ -38,3 +39,12 @@ exactly (`v·du` is a product of two harmonics plus linear terms, so its
 integral is closed-form). A row: an image with `pa.x = pb.x` just under
 the gate and `v − anchor` large, whose decided winding the dropped
 term would flip.
+
+## Closed
+
+By PCERT B2a's fix pass (PR 5244): a cylinder chart image's azimuth is a
+`geom_brep::Channel::Angle`, whose `cos`/`sin` coefficients are zero by
+type, so `chart_v_du` takes the angle channel by type (a free azimuth
+refuses as `SectionInvariant`) and integrates `du = w·dt` with nothing
+dropped. The `split_chart_azimuth_linear` decision, and the harmonic
+part it admitted, are gone.

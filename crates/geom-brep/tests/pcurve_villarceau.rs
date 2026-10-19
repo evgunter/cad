@@ -13,7 +13,7 @@ use core::f64::consts::TAU;
 use geom::{Curve3, Surface};
 use geom_brep::{
     CERT_SAMPLES, EnvelopeStatement, FocalImage, Grazer, Pcurve, PcurveCache, PcurveCertifyError,
-    chart_pcurve,
+    PcurveCheck, chart_pcurve,
 };
 use geom_core::{Bounds, Interval, Point3, Real, Tol, Vec3};
 
@@ -614,13 +614,17 @@ fn each_villarceau_gate_alone_refuses_typed() {
     }
 }
 
-/// **The certificate's two tube gates refuse typed.** A stored image
-/// whose tube rate is off `±1` by `3·K·ε/r` refuses at check 1
-/// (`pcurve_focal_section_tube_rate`), and one whose tube angle sweeps
-/// more than a period over a span its azimuth does not refuses at
-/// check 2 (`pcurve_tube_period`).
+/// **The tube rate gate refuses typed, and a tube angle swept past a
+/// period is no image.** A stored image whose tube rate is off `±1` by
+/// `3·K·ε/r` refuses at check 1 (`pcurve_focal_section_tube_rate`). One
+/// whose tube angle carries a harmonic part that sweeps it more than a
+/// period over a span its azimuth does not needs no period gate: the
+/// carrier's interval is held to one period by the edge certificate, and
+/// the swept image is that far from the derivation's, so it refuses as
+/// its residual (check 3's cross-check at `f64`, before check 4's
+/// fidelity term would).
 #[test]
-fn the_tube_rate_and_tube_period_gates_refuse_typed() {
+fn the_tube_rate_gate_refuses_typed_and_a_swept_tube_is_no_image() {
     let surface = torus();
     let carrier = villarceau(0.4, 1.0, 1.0, 0.0);
     let Ok(Pcurve::FocalSection(image)) = chart_pcurve(&carrier, &surface, band()) else {
@@ -653,7 +657,13 @@ fn the_tube_rate_and_tube_period_gates_refuse_typed() {
         band(),
     );
     assert!(
-        matches!(got, Err(PcurveCertifyError::TubePeriodExceeded)),
+        matches!(
+            got,
+            Err(PcurveCertifyError::ResidualExceeded {
+                check: PcurveCheck::MapResidual,
+                ..
+            })
+        ),
         "a tube angle over a period: {:?}",
         got.err()
     );
