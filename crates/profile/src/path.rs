@@ -39,7 +39,7 @@
 //! [`Start`] is a first-class directed-point value — the bound entry.
 //! Using it is closing, structurally: `line_to(Start)`,
 //! `arc_to(Bulge { p: Start, b })`, `.tangent().tangent_arc_to(Start)`,
-//! and the seam fillet `.angle(θ).fillet(r).to(Start)`. There is
+//! `arc_onto(Start).toward(dx, dy)`, and the seam fillet `.angle(θ).fillet(r).to(Start)`. There is
 //! deliberately no `close()` alias. The entry authors the first side;
 //! the seam is authored once, at the back, by the verb that targets
 //! `Start` — a leading `.fillet`/`.tangent()` is ill-typed (they need
@@ -47,9 +47,12 @@
 //!
 //! The seam's own junction is the one declaration that cannot ride a
 //! departing leg, because the arriving leg is authored LAST. It rides
-//! the TARGET, it is CHECKED, and it classifies the JOINT rather than
-//! the leg: [`Start::arrives_tangent`] declares that the seam's joint
-//! is a TANGENT joint, and EVERY closing verb takes it. The check reads
+//! the TARGET, and it classifies the JOINT rather than the leg:
+//! [`Start::arrives_tangent`] declares that the seam's joint is a
+//! TANGENT joint, and EVERY closing verb takes it. It is CHECKED where
+//! the arriving leg's data fix its end direction, and SUPPLIES that
+//! direction where they leave it free (`arc_onto`, the `Via` arrival).
+//! The check reads
 //! the arriving direction and `Start`'s own direction and nothing else
 //! — never whether the two carriers are the same, which is the ruling
 //! of 2026-09-02: every zero-turn joint is a tangent joint (D1).
@@ -512,18 +515,21 @@ impl Start {
     /// **Every zero-turn joint is a tangent joint** (Ev, in-chat,
     /// 2026-09-02; D1), so there is nothing else to construct and no
     /// sibling token. Every closing verb takes it — `line_to`,
-    /// `continue_to`, `tangent_arc_to`, `arc_to(Bulge { … })` —
+    /// `continue_to`, `tangent_arc_to`, `arc_onto`, `arc_to` in every
+    /// endpoint-full mode, and the closing `Center` and `Via` arrivals —
     /// because what it classifies is the JOINT, not the shape of the
     /// leg reaching it. The lowered loop constructs joint 0, which
     /// validation verifies.
     ///
-    /// The kernel CHECKS the arriving direction against `Start`'s own
-    /// direction, banded through the funnel and levered by the arriving
-    /// leg's arm, and asks NOTHING about the carriers: whether the two
-    /// sides ride one carrier or two, a declared zero-turn joint is a
-    /// tangent joint. A seam past the band refuses
-    /// [`PathError::SeamArrivalOffDirection`]; undeclared, it keeps
-    /// refusing [`PathError::SeamTangent`].
+    /// Where the leg's data fix its end direction, the kernel CHECKS
+    /// the arriving direction against `Start`'s own direction, banded
+    /// through the funnel and levered by the arriving leg's arm, and
+    /// asks NOTHING about the carriers: whether the two sides ride one
+    /// carrier or two, a declared zero-turn joint is a tangent joint. A
+    /// seam past the band refuses [`PathError::SeamArrivalOffDirection`];
+    /// undeclared, it keeps refusing [`PathError::SeamTangent`]. Where
+    /// they leave it free (`arc_onto`, the `Via` arrival), the token
+    /// SUPPLIES `Start`'s direction and the close completes at the verb.
     #[must_use]
     pub fn arrives_tangent(self) -> ArrivesTangent {
         ArrivesTangent

@@ -387,16 +387,16 @@ fn the_undecided_endings_follow_the_decisions_kind() {
             "a junction's turn, value",
             path("path_junction_turn", value),
             "whether the path turns at this junction is undecided: margin 5e-9 lies inside the \
-             ambiguity band (1e-9, 1e-8). Recourse: for tangency onto a new carrier use .tangent() (an arc leaving tangentially is \
-             .tangent().tangent_arc_to(p); at the seam, the tangent-arc or seam-fillet close); for a straight continuation spell it line(len) off the directed point; \
+             ambiguity band (1e-9, 1e-8). Recourse: for tangency onto a new carrier use .tangent() (.tangent().tangent_arc_to(p) for an \
+             arc; the tangent-arc or seam-fillet close at the seam); for a straight continuation spell it line(len) off the directed point; \
              otherwise move the geometry",
         ),
         (
             "a junction's turn, straddle",
             path("path_junction_turn", straddle),
             "whether the path turns at this junction is undecided: enclosure [-2e-9, 5e-9] \
-             cannot be classified against the ambiguity band (1e-9, 1e-8). Recourse: for tangency onto a new carrier use .tangent() (an arc leaving tangentially is \
-             .tangent().tangent_arc_to(p); at the seam, the tangent-arc or seam-fillet close); for a straight continuation spell it line(len) off the directed point; \
+             cannot be classified against the ambiguity band (1e-9, 1e-8). Recourse: for tangency onto a new carrier use .tangent() (.tangent().tangent_arc_to(p) for an \
+             arc; the tangent-arc or seam-fillet close at the seam); for a straight continuation spell it line(len) off the directed point; \
              otherwise move the geometry",
         ),
         (
@@ -404,8 +404,8 @@ fn the_undecided_endings_follow_the_decisions_kind() {
             path("path_junction_turn", poison),
             "whether the path turns at this junction is undecided: margin is invalid (NaN or a \
              refused enclosure) against the ambiguity band (1e-9, 1e-8). Recourse: for tangency \
-             onto a new carrier use .tangent() (an arc leaving tangentially is \
-             .tangent().tangent_arc_to(p); at the seam, the tangent-arc or seam-fillet close); for a straight continuation spell it line(len) off the directed point; \
+             onto a new carrier use .tangent() (.tangent().tangent_arc_to(p) for an \
+             arc; the tangent-arc or seam-fillet close at the seam); for a straight continuation spell it line(len) off the directed point; \
              otherwise move the geometry; an unreadable margin may indicate a kernel bug worth \
              reporting",
         ),
